@@ -1,0 +1,155 @@
+{
+  "name": "vision-studio",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "main": "dist-electron/main.mjs",
+  "description": "Professional AI Image & Video Generation",
+  "author": {
+    "name": "Vision Studio Team",
+    "email": "hello@visionstudio.app"
+  },
+  "homepage": "https://github.com/yourusername/vision-studio",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "electron .",
+    "package": "electron-builder",
+    "package:win": "electron-builder --win",
+    "package:mac": "electron-builder --mac",
+    "package:linux": "electron-builder --linux",
+    "postinstall": "electron-builder install-app-deps",
+    "clean": "npx rimraf dist dist-electron release resources",
+    "clean:all": "npx rimraf dist dist-electron release resources node_modules backend/venv backend/build backend/dist",
+    "build:backend": "node build-backend.cjs",
+    "build:windows": "node scripts/build-windows.cjs",
+    "build:windows:full": "npm run build:backend && npm run build:windows",
+    "build:all": "npm run build:backend && npm run package",
+    "create:icon": "powershell -ExecutionPolicy Bypass -File scripts/create-icon.ps1",
+    "test:build": "npm run build:windows && echo 'Build complete! Check release/ folder'"
+  },
+  "dependencies": {
+    "axios": "^1.7.9",
+    "electron-store": "^10.0.0",
+    "electron-updater": "^6.3.9",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "react-router-dom": "^7.2.0",
+    "lucide-react": "^0.475.0",
+    "clsx": "^2.1.1",
+    "tailwind-merge": "^3.0.2",
+    "zustand": "^5.0.3",
+    "framer-motion": "^12.4.7",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.8",
+    "@types/react-dom": "^19.0.3",
+    "@types/ws": "^8.5.14",
+    "@vitejs/plugin-react": "^4.3.4",
+    "@tailwindcss/vite": "^4.0.8",
+    "autoprefixer": "^10.4.20",
+    "electron": "^33.0.0",
+    "electron-builder": "^25.0.0",
+    "postcss": "^8.5.3",
+    "rimraf": "^5.0.0",
+    "tailwindcss": "^4.0.8",
+    "typescript": "~5.7.2",
+    "vite": "^6.1.0",
+    "vite-plugin-electron": "^0.29.0",
+    "vite-plugin-electron-renderer": "^0.14.6"
+  },
+  "build": {
+    "appId": "com.visionstudio.app",
+    "productName": "Vision Studio",
+    "copyright": "Copyright © 2024 Vision Studio Team",
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*",
+      "resources/**/*",
+      "!backend/venv/**/*",
+      "!backend/build/**/*",
+      "!backend/dist/**/*",
+      "!backend/__pycache__/**/*",
+      "!**/*.pyc",
+      "!**/*.pyo",
+      "!**/*.pyd"
+    ],
+    "extraResources": [
+      {
+        "from": "resources/",
+        "to": ".",
+        "filter": ["**/*"]
+      },
+      {
+        "from": "backend/",
+        "to": "backend-source/",
+        "filter": ["**/*", "!venv/**/*", "!build/**/*", "!dist/**/*", "!__pycache__/**/*", "!*.pyc"]
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        },
+        {
+          "target": "portable",
+          "arch": ["x64"]
+        },
+        {
+          "target": "zip",
+          "arch": ["x64"]
+        }
+      ],
+      "icon": "build/icon.ico",
+      "publisherName": "Vision Studio Team",
+      "verifyUpdateCodeSignature": false,
+      "requestedExecutionLevel": "asInvoker"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Vision Studio",
+      "uninstallDisplayName": "Vision Studio",
+      "license": "LICENSE.txt",
+      "artifactName": "Vision-Studio-Setup-${version}.exe",
+      "deleteAppDataOnUninstall": false,
+      "runAfterFinish": true,
+      "menuCategory": "Vision Studio"
+    },
+    "portable": {
+      "artifactName": "Vision-Studio-Portable-${version}.exe"
+    },
+    "mac": {
+      "category": "public.app-category.video",
+      "target": [
+        { "target": "dmg", "arch": ["x64", "arm64"] }
+      ],
+      "icon": "build/icon.icns",
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false
+    },
+    "linux": {
+      "target": ["AppImage", "deb", "rpm"],
+      "category": "AudioVideo",
+      "icon": "build/icons",
+      "maintainer": "Vision Studio Team",
+      "vendor": "Vision Studio Team",
+      "synopsis": "AI Image & Video Generation",
+      "description": "Professional AI-powered image and video generation desktop application"
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "yourusername",
+      "repo": "vision-studio",
+      "releaseType": "release"
+    }
+  }
+}

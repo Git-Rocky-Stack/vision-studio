@@ -1,0 +1,75 @@
+{
+  "$schema": "https://raw.githubusercontent.com/electron-userland/electron-builder/master/packages/app-builder-lib/scheme.json",
+  "appId": "com.visionstudio.app",
+  "productName": "Vision Studio",
+  "directories": {
+    "output": "release",
+    "buildResources": "build"
+  },
+  "files": [
+    "dist/**/*",
+    "dist-electron/**/*",
+    "resources/**/*",
+    "!backend/venv/**/*",
+    "!backend/build/**/*",
+    "!backend/dist/**/*",
+    "!backend/__pycache__/**/*",
+    "!**/*.pyc",
+    "!**/*.pyo",
+    "!**/*.pyd"
+  ],
+  "extraResources": [
+    {
+      "from": "resources/",
+      "to": ".",
+      "filter": ["**/*"]
+    },
+    {
+      "from": "backend/",
+      "to": "backend-source/",
+      "filter": ["**/*", "!venv/**/*", "!build/**/*", "!dist/**/*", "!__pycache__/**/*", "!*.pyc"]
+    }
+  ],
+  "win": {
+    "target": [
+      {
+        "target": "nsis",
+        "arch": ["x64"]
+      },
+      {
+        "target": "portable",
+        "arch": ["x64"]
+      },
+      {
+        "target": "zip",
+        "arch": ["x64"]
+      }
+    ],
+    "icon": "build/icon.ico",
+    "publisherName": "Vision Studio Team",
+    "verifyUpdateCodeSignature": false,
+    "requestedExecutionLevel": "asInvoker"
+  },
+  "nsis": {
+    "oneClick": false,
+    "allowToChangeInstallationDirectory": true,
+    "createDesktopShortcut": true,
+    "createStartMenuShortcut": true,
+    "shortcutName": "Vision Studio",
+    "uninstallDisplayName": "Vision Studio",
+    "license": "LICENSE.txt",
+    "artifactName": "Vision-Studio-Setup-${version}.exe",
+    "deleteAppDataOnUninstall": false,
+    "runAfterFinish": true,
+    "menuCategory": "Vision Studio"
+  },
+  "portable": {
+    "artifactName": "Vision-Studio-Portable-${version}.exe"
+  },
+  "publish": {
+    "provider": "github",
+    "owner": "yourusername",
+    "repo": "vision-studio",
+    "releaseType": "release"
+  }
+}

@@ -1,0 +1,220 @@
+import { cn } from '@/utils/cn';
+import { useAppStore } from '@/store/appStore';
+import { 
+  ZoomIn, 
+  ZoomOut, 
+  Maximize, 
+  Grid3X3,
+  Move,
+  Hand
+} from 'lucide-react';
+import { useState, useRef, useEffect } from 'react';
+import { motion } from 'framer-motion';
+
+export function Canvas() {
+  const { activePanel } = useAppStore();
+  const [zoom, setZoom] = useState(100);
+  const [showGrid, setShowGrid] = useState(true);
+  const [isDragging, setIsDragging] = useState(false);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const canvasRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const handleZoomIn = () => setZoom(Math.min(zoom + 10, 200));
+  const handleZoomOut = () => setZoom(Math.max(zoom - 10, 25));
+  const handleResetZoom = () => {
+    setZoom(100);
+    setPan({ x: 0, y: 0 });
+  };
+
+  // Handle pan
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    let startX = 0;
+    let startY = 0;
+    let initialPanX = 0;
+    let initialPanY = 0;
+
+    const handleMouseDown = (e: MouseEvent) => {
+      if (e.button === 1 || (e.button === 0 && e.shiftKey)) {
+        setIsDragging(true);
+        startX = e.clientX;
+        startY = e.clientY;
+        initialPanX = pan.x;
+        initialPanY = pan.y;
+        e.preventDefault();
+      }
+    };
+
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isDragging) return;
+      const dx = e.clientX - startX;
+      const dy = e.clientY - startY;
+      setPan({
+        x: initialPanX + dx,
+        y: initialPanY + dy,
+      });
+    };
+
+    const handleMouseUp = () => {
+      setIsDragging(false);
+    };
+
+    container.addEventListener('mousedown', handleMouseDown);
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+
+    return () => {
+      container.removeEventListener('mousedown', handleMouseDown);
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isDragging, pan]);
+
+  return (
+    <div className="flex-1 flex flex-col bg-black relative overflow-hidden">
+      {/* Canvas Toolbar */}
+      <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10">
+        <div className="flex items-center gap-1 px-2 py-1.5 bg-charcoal/90 backdrop-blur-sm rounded-lg border border-border shadow-xl">
+          <button
+            onClick={handleZoomOut}
+            className="p-1.5 rounded text-silver hover:text-white hover:bg-charcoal-lighter transition-all"
+            title="Zoom Out"
+          >
+            <ZoomOut className="w-4 h-4" />
+          </button>
+          <span className="text-xs font-mono text-light-grey w-14 text-center">
+            {zoom}%
+          </span>
+          <button
+            onClick={handleZoomIn}
+            className="p-1.5 rounded text-silver hover:text-white hover:bg-charcoal-lighter transition-all"
+            title="Zoom In"
+          >
+            <ZoomIn className="w-4 h-4" />
+          </button>
+          <div className="w-px h-4 bg-border mx-1" />
+          <button
+            onClick={handleResetZoom}
+            className="p-1.5 rounded text-silver hover:text-white hover:bg-charcoal-lighter transition-all"
+            title="Reset View"
+          >
+            <Maximize className="w-4 h-4" />
+          </button>
+          <div className="w-px h-4 bg-border mx-1" />
+          <button
+            onClick={() => setShowGrid(!showGrid)}
+            className={cn(
+              'p-1.5 rounded transition-all',
+              showGrid 
+                ? 'text-red bg-red/10' 
+                : 'text-silver hover:text-white hover:bg-charcoal-lighter'
+            )}
+            title="Toggle Grid"
+          >
+            <Grid3X3 className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+
+      {/* Canvas Container */}
+      <div 
+        ref={containerRef}
+        className={cn(
+          'flex-1 relative overflow-hidden',
+          isDragging && 'cursor-grabbing',
+          !isDragging && 'cursor-grab'
+        )}
+      >
+        {/* Grid Background */}
+        {showGrid && (
+          <div 
+            className="absolute inset-0 pointer-events-none opacity-20"
+            style={{
+              backgroundImage: `
+                linear-gradient(to right, #27272a 1px, transparent 1px),
+                linear-gradient(to bottom, #27272a 1px, transparent 1px)
+              `,
+              backgroundSize: '20px 20px',
+            }}
+          />
+        )}
+
+        {/* Canvas Content */}
+        <motion.div
+          ref={canvasRef}
+          className="absolute inset-0 flex items-center justify-center"
+          style={{
+            transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom / 100})`,
+          }}
+          transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+        >
+          {/* Artboard */}
+          <div 
+            className="relative bg-charcoal shadow-2xl border border-border"
+            style={{
+              width: 1024,
+              height: 1024,
+            }}
+          >
+            {/* Placeholder Content */}
+            <div className="absolute inset-0 flex flex-col items-center justify-center text-silver">
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="text-center space-y-4"
+              >
+                <div className="w-24 h-24 mx-auto rounded-2xl bg-charcoal-lighter border border-border flex items-center justify-center">
+                  <Move className="w-10 h-10 text-silver/50" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-medium text-white">Your Canvas</h3>
+                  <p className="text-sm text-silver mt-1">
+                    Generate images and videos to see them here
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 justify-center text-xs text-silver/60">
+                  <Hand className="w-3.5 h-3.5" />
+                  <span>Shift + Drag to pan</span>
+                  <span>•</span>
+                  <span>Scroll to zoom</span>
+                </div>
+              </motion.div>
+            </div>
+
+            {/* Canvas Border Overlay */}
+            <div className="absolute inset-0 pointer-events-none border-2 border-dashed border-border rounded-sm" />
+          </div>
+        </motion.div>
+
+        {/* Empty State - No Content */}
+        {false && (
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="text-center space-y-4">
+              <div className="w-20 h-20 mx-auto rounded-2xl bg-charcoal-lighter border border-border flex items-center justify-center">
+                <span className="text-3xl">🎨</span>
+              </div>
+              <div>
+                <h3 className="text-lg font-medium text-white">Start Creating</h3>
+                <p className="text-sm text-silver mt-1">
+                  Use the Generate panel to create your first image or video
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Canvas Info */}
+      <div className="absolute bottom-4 left-4 z-10">
+        <div className="px-3 py-1.5 bg-charcoal/90 backdrop-blur-sm rounded-lg border border-border">
+          <span className="text-xs text-silver">
+            1024 × 1024px • Artboard 1
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
