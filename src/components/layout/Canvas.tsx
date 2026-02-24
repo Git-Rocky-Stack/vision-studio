@@ -1,20 +1,19 @@
 import { cn } from '@/utils/cn';
-import { useAppStore } from '@/store/appStore';
-import { 
-  ZoomIn, 
-  ZoomOut, 
-  Maximize, 
+import {
+  ZoomIn,
+  ZoomOut,
+  Maximize,
   Grid3X3,
   Move,
-  Hand
+  Hand,
 } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
+import { AmbientParticles } from '@/components/effects/AmbientParticles';
 
 export function Canvas() {
-  const { activePanel } = useAppStore();
   const [zoom, setZoom] = useState(100);
-  const [showGrid, setShowGrid] = useState(true);
+  const [showGrid, setShowGrid] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const canvasRef = useRef<HTMLDivElement>(null);
@@ -74,23 +73,26 @@ export function Canvas() {
   }, [isDragging, pan]);
 
   return (
-    <div className="flex-1 flex flex-col bg-black relative overflow-hidden">
+    <div className="flex-1 flex flex-col bg-void relative overflow-hidden">
+      {/* Ambient particles */}
+      <AmbientParticles color="rgba(255, 200, 150, 0.25)" count={30} />
+
       {/* Canvas Toolbar */}
       <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10">
-        <div className="flex items-center gap-1 px-2 py-1.5 bg-charcoal/90 backdrop-blur-sm rounded-lg border border-border shadow-xl">
+        <div className="flex items-center gap-1 px-2 py-1.5 glass glass-border rounded-lg shadow-cinematic">
           <button
             onClick={handleZoomOut}
-            className="p-1.5 rounded text-silver hover:text-white hover:bg-charcoal-lighter transition-all"
+            className="p-1.5 rounded text-text-body hover:text-text-primary hover:bg-elevated transition-all"
             title="Zoom Out"
           >
             <ZoomOut className="w-4 h-4" />
           </button>
-          <span className="text-xs font-mono text-light-grey w-14 text-center">
+          <span className="font-mono text-xs text-text-primary w-14 text-center">
             {zoom}%
           </span>
           <button
             onClick={handleZoomIn}
-            className="p-1.5 rounded text-silver hover:text-white hover:bg-charcoal-lighter transition-all"
+            className="p-1.5 rounded text-text-body hover:text-text-primary hover:bg-elevated transition-all"
             title="Zoom In"
           >
             <ZoomIn className="w-4 h-4" />
@@ -98,7 +100,7 @@ export function Canvas() {
           <div className="w-px h-4 bg-border mx-1" />
           <button
             onClick={handleResetZoom}
-            className="p-1.5 rounded text-silver hover:text-white hover:bg-charcoal-lighter transition-all"
+            className="p-1.5 rounded text-text-body hover:text-text-primary hover:bg-elevated transition-all"
             title="Reset View"
           >
             <Maximize className="w-4 h-4" />
@@ -108,9 +110,9 @@ export function Canvas() {
             onClick={() => setShowGrid(!showGrid)}
             className={cn(
               'p-1.5 rounded transition-all',
-              showGrid 
-                ? 'text-red bg-red/10' 
-                : 'text-silver hover:text-white hover:bg-charcoal-lighter'
+              showGrid
+                ? 'text-red-primary bg-red-aura'
+                : 'text-text-body hover:text-text-primary hover:bg-elevated'
             )}
             title="Toggle Grid"
           >
@@ -120,22 +122,21 @@ export function Canvas() {
       </div>
 
       {/* Canvas Container */}
-      <div 
+      <div
         ref={containerRef}
         className={cn(
           'flex-1 relative overflow-hidden',
-          isDragging && 'cursor-grabbing',
-          !isDragging && 'cursor-grab'
+          isDragging ? 'cursor-grabbing' : 'cursor-grab'
         )}
       >
         {/* Grid Background */}
         {showGrid && (
-          <div 
-            className="absolute inset-0 pointer-events-none opacity-20"
+          <div
+            className="absolute inset-0 pointer-events-none opacity-10"
             style={{
               backgroundImage: `
-                linear-gradient(to right, #27272a 1px, transparent 1px),
-                linear-gradient(to bottom, #27272a 1px, transparent 1px)
+                linear-gradient(to right, rgba(255,255,255,0.06) 1px, transparent 1px),
+                linear-gradient(to bottom, rgba(255,255,255,0.06) 1px, transparent 1px)
               `,
               backgroundSize: '20px 20px',
             }}
@@ -152,66 +153,48 @@ export function Canvas() {
           transition={{ type: 'spring', stiffness: 300, damping: 30 }}
         >
           {/* Artboard */}
-          <div 
-            className="relative bg-charcoal shadow-2xl border border-border"
-            style={{
-              width: 1024,
-              height: 1024,
-            }}
+          <div
+            className="relative bg-canvas shadow-cinematic border border-border"
+            style={{ width: 1024, height: 1024 }}
           >
             {/* Placeholder Content */}
-            <div className="absolute inset-0 flex flex-col items-center justify-center text-silver">
+            <div className="absolute inset-0 flex flex-col items-center justify-center text-text-body">
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 className="text-center space-y-4"
               >
-                <div className="w-24 h-24 mx-auto rounded-2xl bg-charcoal-lighter border border-border flex items-center justify-center">
-                  <Move className="w-10 h-10 text-silver/50" />
+                <div className="w-24 h-24 mx-auto rounded-2xl bg-elevated border border-border flex items-center justify-center">
+                  <Move className="w-10 h-10 text-text-muted" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-medium text-white">Your Canvas</h3>
-                  <p className="text-sm text-silver mt-1">
+                  <h3 className="font-display text-lg font-semibold text-text-primary">
+                    Create something extraordinary
+                  </h3>
+                  <p className="text-sm text-text-body mt-1">
                     Generate images and videos to see them here
                   </p>
                 </div>
-                <div className="flex items-center gap-2 justify-center text-xs text-silver/60">
+                <div className="flex items-center gap-2 justify-center text-xs text-text-muted">
                   <Hand className="w-3.5 h-3.5" />
                   <span>Shift + Drag to pan</span>
-                  <span>•</span>
+                  <span>&middot;</span>
                   <span>Scroll to zoom</span>
                 </div>
               </motion.div>
             </div>
 
             {/* Canvas Border Overlay */}
-            <div className="absolute inset-0 pointer-events-none border-2 border-dashed border-border rounded-sm" />
+            <div className="absolute inset-0 pointer-events-none border border-dashed border-border rounded-sm" />
           </div>
         </motion.div>
-
-        {/* Empty State - No Content */}
-        {false && (
-          <div className="absolute inset-0 flex items-center justify-center">
-            <div className="text-center space-y-4">
-              <div className="w-20 h-20 mx-auto rounded-2xl bg-charcoal-lighter border border-border flex items-center justify-center">
-                <span className="text-3xl">🎨</span>
-              </div>
-              <div>
-                <h3 className="text-lg font-medium text-white">Start Creating</h3>
-                <p className="text-sm text-silver mt-1">
-                  Use the Generate panel to create your first image or video
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
 
       {/* Canvas Info */}
       <div className="absolute bottom-4 left-4 z-10">
-        <div className="px-3 py-1.5 bg-charcoal/90 backdrop-blur-sm rounded-lg border border-border">
-          <span className="text-xs text-silver">
-            1024 × 1024px • Artboard 1
+        <div className="px-3 py-1.5 glass glass-border rounded-lg">
+          <span className="font-mono text-xs text-text-body">
+            1024 × 1024px &middot; Artboard 1
           </span>
         </div>
       </div>
