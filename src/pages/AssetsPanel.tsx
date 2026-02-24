@@ -2,12 +2,12 @@ import { useState, useEffect } from 'react';
 import { cn } from '@/utils/cn';
 import { Button } from '@/components/ui/Button';
 import { useAppStore } from '@/store/appStore';
-import { 
-  Search, 
-  Filter, 
-  Grid, 
-  List, 
-  Image as ImageIcon, 
+import {
+  Search,
+  Filter,
+  Grid,
+  List,
+  Image as ImageIcon,
   Film,
   MoreVertical,
   FolderPlus,
@@ -22,7 +22,7 @@ import {
   Copy,
   FileVideo,
   RefreshCw,
-  Play
+  Play,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 
@@ -53,8 +53,8 @@ export function AssetsPanel() {
   // Convert jobs to assets
   useEffect(() => {
     const jobAssets: Asset[] = [];
-    
-    [...completedJobs, ...activeJobs].forEach(job => {
+
+    [...completedJobs, ...activeJobs].forEach((job) => {
       if (job.result) {
         const isVideo = job.type === 'video';
         const asset: Asset = {
@@ -67,18 +67,19 @@ export function AssetsPanel() {
           duration: isVideo ? `${job.result.duration}s` : undefined,
           favorite: false,
           path: job.result.images?.[0] || job.result.video,
-          jobId: job.id
+          jobId: job.id,
         };
         jobAssets.push(asset);
       }
     });
-    
+
     setAssets(jobAssets);
   }, [activeJobs, completedJobs]);
 
-  const filteredAssets = assets.filter(asset => {
+  const filteredAssets = assets.filter((asset) => {
     if (filter !== 'all' && asset.type !== filter) return false;
-    if (searchQuery && !asset.name.toLowerCase().includes(searchQuery.toLowerCase())) return false;
+    if (searchQuery && !asset.name.toLowerCase().includes(searchQuery.toLowerCase()))
+      return false;
     return true;
   });
 
@@ -96,26 +97,27 @@ export function AssetsPanel() {
     if (selectedAssets.size === filteredAssets.length) {
       setSelectedAssets(new Set());
     } else {
-      setSelectedAssets(new Set(filteredAssets.map(a => a.id)));
+      setSelectedAssets(new Set(filteredAssets.map((a) => a.id)));
     }
   };
 
   const handleExport = async (asset: Asset, format?: string) => {
     if (!asset.path) return;
-    
+
     const result = await window.electron.dialog.saveFile({
       defaultPath: `${asset.name}.${asset.type === 'image' ? 'png' : 'mp4'}`,
-      filters: asset.type === 'image' 
-        ? [
-            { name: 'PNG', extensions: ['png'] },
-            { name: 'JPEG', extensions: ['jpg', 'jpeg'] },
-            { name: 'WebP', extensions: ['webp'] }
-          ]
-        : [
-            { name: 'MP4', extensions: ['mp4'] },
-            { name: 'WebM', extensions: ['webm'] },
-            { name: 'GIF', extensions: ['gif'] }
-          ]
+      filters:
+        asset.type === 'image'
+          ? [
+              { name: 'PNG', extensions: ['png'] },
+              { name: 'JPEG', extensions: ['jpg', 'jpeg'] },
+              { name: 'WebP', extensions: ['webp'] },
+            ]
+          : [
+              { name: 'MP4', extensions: ['mp4'] },
+              { name: 'WebM', extensions: ['webm'] },
+              { name: 'GIF', extensions: ['gif'] },
+            ],
     });
 
     if (result) {
@@ -125,9 +127,9 @@ export function AssetsPanel() {
   };
 
   const handleExportMultiple = async () => {
-    const selected = assets.filter(a => selectedAssets.has(a.id));
+    const selected = assets.filter((a) => selectedAssets.has(a.id));
     const folder = await window.electron.dialog.selectFolder();
-    
+
     if (folder) {
       // TODO: Export all selected assets to folder
       console.log('Export to folder:', folder, selected);
@@ -144,36 +146,38 @@ export function AssetsPanel() {
     console.log('Preview:', asset);
   };
 
-  const completedCount = assets.filter(a => a.type === 'image' ? a.path?.endsWith('.png') : a.path?.endsWith('.mp4')).length;
+  const completedCount = assets.filter((a) =>
+    a.type === 'image' ? a.path?.endsWith('.png') : a.path?.endsWith('.mp4')
+  ).length;
 
   return (
-    <div className="h-full flex flex-col">
+    <div className="h-full flex flex-col bg-surface">
       {/* Header */}
       <div className="p-4 border-b border-border space-y-4">
         {/* Search */}
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-silver" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search assets..."
-            className="w-full bg-charcoal border border-border rounded-lg pl-10 pr-4 py-2 text-sm text-white placeholder:text-silver/50 focus:border-red focus:ring-1 focus:ring-red"
+            className="w-full bg-elevated border border-border rounded-lg pl-10 pr-4 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-red-primary focus:ring-1 focus:ring-red-primary/40 transition-all"
           />
         </div>
 
         {/* Filters & View Toggle */}
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-1 bg-charcoal-lighter rounded-lg p-1">
+          <div className="flex items-center gap-1 bg-elevated rounded-lg p-1">
             {(['all', 'image', 'video'] as AssetType[]).map((type) => (
               <button
                 key={type}
                 onClick={() => setFilter(type)}
                 className={cn(
-                  'px-3 py-1 rounded text-sm font-medium transition-all capitalize',
+                  'px-3 py-1 rounded text-sm font-display font-medium transition-all capitalize',
                   filter === type
-                    ? 'bg-charcoal text-white'
-                    : 'text-silver hover:text-white'
+                    ? 'bg-surface text-text-primary'
+                    : 'text-text-body hover:text-text-primary'
                 )}
               >
                 {type}
@@ -187,8 +191,8 @@ export function AssetsPanel() {
               className={cn(
                 'p-2 rounded-lg transition-all',
                 viewMode === 'grid'
-                  ? 'bg-charcoal-lighter text-white'
-                  : 'text-silver hover:text-white'
+                  ? 'bg-elevated text-text-primary'
+                  : 'text-text-body hover:text-text-primary'
               )}
             >
               <Grid className="w-4 h-4" />
@@ -198,8 +202,8 @@ export function AssetsPanel() {
               className={cn(
                 'p-2 rounded-lg transition-all',
                 viewMode === 'list'
-                  ? 'bg-charcoal-lighter text-white'
-                  : 'text-silver hover:text-white'
+                  ? 'bg-elevated text-text-primary'
+                  : 'text-text-body hover:text-text-primary'
               )}
             >
               <List className="w-4 h-4" />
@@ -212,18 +216,18 @@ export function AssetsPanel() {
           <motion.div
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
-            className="flex items-center gap-2 p-2 bg-red/10 border border-red/30 rounded-lg"
+            className="flex items-center gap-2 p-2 bg-red-aura border border-red-primary/30 rounded-lg"
           >
-            <span className="text-sm text-red font-medium">
+            <span className="text-sm text-red-primary font-display font-medium">
               {selectedAssets.size} selected
             </span>
             <div className="flex-1" />
             <Button variant="ghost" size="sm" icon={Download} onClick={handleExportMultiple}>
               Export
             </Button>
-            <button 
+            <button
               onClick={() => setSelectedAssets(new Set())}
-              className="p-1.5 rounded text-red hover:bg-red/20"
+              className="p-1.5 rounded text-red-primary hover:bg-red-primary/20"
             >
               <X className="w-4 h-4" />
             </button>
@@ -234,21 +238,21 @@ export function AssetsPanel() {
       {/* Assets Grid/List */}
       <div className="flex-1 overflow-y-auto p-4">
         {filteredAssets.length === 0 ? (
-          <div className="h-full flex flex-col items-center justify-center text-silver">
-            <div className="w-16 h-16 rounded-2xl bg-charcoal-lighter border border-border flex items-center justify-center mb-4">
+          <div className="h-full flex flex-col items-center justify-center text-text-muted">
+            <div className="w-16 h-16 rounded-2xl bg-elevated border border-border flex items-center justify-center mb-4">
               <FolderPlus className="w-8 h-8" />
             </div>
-            <p className="text-sm">No assets yet</p>
-            <p className="text-xs text-silver/60 mt-1">
+            <p className="text-sm font-display">No assets yet</p>
+            <p className="text-xs text-text-muted mt-1">
               Generate some content to see it here
             </p>
           </div>
         ) : (
-          <div className={cn(
-            viewMode === 'grid' 
-              ? 'grid grid-cols-2 gap-3' 
-              : 'space-y-2'
-          )}>
+          <div
+            className={cn(
+              viewMode === 'grid' ? 'grid grid-cols-2 gap-3' : 'space-y-2'
+            )}
+          >
             {filteredAssets.map((asset, index) => (
               <motion.div
                 key={asset.id}
@@ -260,101 +264,123 @@ export function AssetsPanel() {
                   'group relative rounded-lg border cursor-pointer transition-all overflow-hidden',
                   viewMode === 'grid' ? 'aspect-square' : 'flex items-center gap-3 p-2',
                   selectedAssets.has(asset.id)
-                    ? 'border-red bg-red/5'
-                    : 'border-border hover:border-border-hover bg-charcoal-lighter'
+                    ? 'border-red-primary bg-red-aura'
+                    : 'border-border hover:border-border-hover bg-elevated'
                 )}
               >
                 {/* Thumbnail */}
-                <div className={cn(
-                  'bg-charcoal flex items-center justify-center relative',
-                  viewMode === 'grid' ? 'absolute inset-0' : 'w-12 h-12 rounded'
-                )}>
+                <div
+                  className={cn(
+                    'bg-surface flex items-center justify-center relative',
+                    viewMode === 'grid' ? 'absolute inset-0' : 'w-12 h-12 rounded'
+                  )}
+                >
                   {asset.type === 'image' ? (
                     asset.thumbnail ? (
-                      <img 
-                        src={asset.thumbnail} 
+                      <img
+                        src={asset.thumbnail}
                         alt={asset.name}
                         className="w-full h-full object-cover"
                       />
                     ) : (
-                      <ImageIcon className={cn(
-                        'text-silver',
-                        viewMode === 'grid' ? 'w-12 h-12' : 'w-6 h-6'
-                      )} />
+                      <ImageIcon
+                        className={cn(
+                          'text-text-muted',
+                          viewMode === 'grid' ? 'w-12 h-12' : 'w-6 h-6'
+                        )}
+                      />
                     )
                   ) : (
                     <div className="relative">
-                      <Film className={cn(
-                        'text-silver',
-                        viewMode === 'grid' ? 'w-12 h-12' : 'w-6 h-6'
-                      )} />
+                      <Film
+                        className={cn(
+                          'text-text-muted',
+                          viewMode === 'grid' ? 'w-12 h-12' : 'w-6 h-6'
+                        )}
+                      />
                       {viewMode === 'grid' && (
                         <div className="absolute inset-0 flex items-center justify-center">
-                          <Play className="w-6 h-6 text-white fill-white" />
+                          <Play className="w-6 h-6 text-text-primary fill-text-primary" />
                         </div>
                       )}
                     </div>
                   )}
-                  
+
                   {/* Duration Badge */}
                   {asset.duration && viewMode === 'grid' && (
-                    <div className="absolute bottom-2 right-2 px-1.5 py-0.5 bg-black/70 rounded text-[10px] text-white">
+                    <div className="absolute bottom-2 right-2 px-1.5 py-0.5 bg-void/70 rounded font-mono text-[10px] text-text-primary">
                       {asset.duration}
                     </div>
                   )}
                 </div>
 
                 {/* Info */}
-                <div className={cn(
-                  'flex-1 min-w-0',
-                  viewMode === 'grid' && 'absolute bottom-0 left-0 right-0 p-3 bg-gradient-to-t from-black/80 to-transparent'
-                )}>
+                <div
+                  className={cn(
+                    'flex-1 min-w-0',
+                    viewMode === 'grid' &&
+                      'absolute bottom-0 left-0 right-0 p-3 bg-gradient-to-t from-void/80 to-transparent'
+                  )}
+                >
                   <div className="flex items-center gap-2">
-                    <span className="font-medium text-white truncate">
+                    <span className="font-display font-medium text-text-primary truncate">
                       {asset.name}
                     </span>
                     {asset.favorite && (
                       <Star className="w-3.5 h-3.5 text-yellow-500 fill-yellow-500" />
                     )}
                   </div>
-                  <div className={cn(
-                    'flex items-center gap-2 text-xs',
-                    viewMode === 'grid' ? 'text-silver' : 'text-silver/60'
-                  )}>
+                  <div
+                    className={cn(
+                      'flex items-center gap-2 font-mono text-xs',
+                      viewMode === 'grid' ? 'text-text-body' : 'text-text-muted'
+                    )}
+                  >
                     <span>{asset.size}</span>
                     {asset.duration && viewMode === 'list' && (
                       <>
-                        <span>•</span>
+                        <span>&middot;</span>
                         <span>{asset.duration}</span>
                       </>
                     )}
-                    <span>•</span>
+                    <span>&middot;</span>
                     <span>{new Date(asset.createdAt).toLocaleDateString()}</span>
                   </div>
                 </div>
 
                 {/* Actions */}
-                <div className={cn(
-                  'flex items-center gap-1',
-                  viewMode === 'grid' 
-                    ? 'absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity' 
-                    : ''
-                )}>
-                  <button 
-                    onClick={(e) => { e.stopPropagation(); handlePreview(asset); }}
-                    className="p-1.5 rounded bg-charcoal/80 text-silver hover:text-white hover:bg-charcoal transition-all"
+                <div
+                  className={cn(
+                    'flex items-center gap-1',
+                    viewMode === 'grid'
+                      ? 'absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity'
+                      : ''
+                  )}
+                >
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handlePreview(asset);
+                    }}
+                    className="p-1.5 rounded bg-surface/80 text-text-body hover:text-text-primary hover:bg-surface transition-all"
                   >
                     <ExternalLink className="w-3.5 h-3.5" />
                   </button>
-                  <button 
-                    onClick={(e) => { e.stopPropagation(); handleExport(asset); }}
-                    className="p-1.5 rounded bg-charcoal/80 text-silver hover:text-white hover:bg-charcoal transition-all"
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleExport(asset);
+                    }}
+                    className="p-1.5 rounded bg-surface/80 text-text-body hover:text-text-primary hover:bg-surface transition-all"
                   >
                     <Download className="w-3.5 h-3.5" />
                   </button>
-                  <button 
-                    onClick={(e) => { e.stopPropagation(); handleDelete(asset); }}
-                    className="p-1.5 rounded bg-charcoal/80 text-silver hover:text-red hover:bg-charcoal transition-all"
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDelete(asset);
+                    }}
+                    className="p-1.5 rounded bg-surface/80 text-text-body hover:text-red-primary hover:bg-surface transition-all"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                   </button>
@@ -362,8 +388,8 @@ export function AssetsPanel() {
 
                 {/* Selection Indicator */}
                 {selectedAssets.has(asset.id) && (
-                  <div className="absolute top-2 left-2 w-5 h-5 rounded-full bg-red flex items-center justify-center">
-                    <Check className="w-3 h-3 text-white" />
+                  <div className="absolute top-2 left-2 w-5 h-5 rounded-full bg-red-primary flex items-center justify-center">
+                    <Check className="w-3 h-3 text-text-primary" />
                   </div>
                 )}
               </motion.div>
@@ -373,22 +399,24 @@ export function AssetsPanel() {
       </div>
 
       {/* Footer Stats */}
-      <div className="px-4 py-3 border-t border-border bg-charcoal-light">
-        <div className="flex items-center justify-between text-xs text-silver">
+      <div className="px-4 py-3 border-t border-border bg-elevated">
+        <div className="flex items-center justify-between text-xs text-text-muted">
           <div className="flex items-center gap-3">
-            <span>{filteredAssets.length} items</span>
+            <span className="font-mono">{filteredAssets.length} items</span>
             {selectedAssets.size > 0 && (
-              <button 
+              <button
                 onClick={selectAll}
-                className="text-red hover:underline"
+                className="text-red-primary hover:underline font-display"
               >
-                {selectedAssets.size === filteredAssets.length ? 'Deselect all' : 'Select all'}
+                {selectedAssets.size === filteredAssets.length
+                  ? 'Deselect all'
+                  : 'Select all'}
               </button>
             )}
           </div>
           <div className="flex items-center gap-2">
             <RefreshCw className="w-3 h-3" />
-            <span>Auto-refresh</span>
+            <span className="font-display">Auto-refresh</span>
           </div>
         </div>
       </div>
