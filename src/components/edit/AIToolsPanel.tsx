@@ -1,0 +1,433 @@
+import { useState } from 'react';
+import { cn } from '@/utils/cn';
+import { Button } from '@/components/ui/Button';
+import { Slider } from '@/components/ui/Slider';
+import {
+  Scissors,
+  Maximize2,
+  Palette,
+  Paintbrush,
+  User,
+  Eraser,
+  Expand,
+  ChevronDown,
+  Loader2,
+  Wand2,
+  ArrowUp,
+  ArrowDown,
+  ArrowLeft,
+  ArrowRight,
+  Layers,
+} from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+
+interface AITool {
+  id: string;
+  name: string;
+  description: string;
+  icon: React.ElementType;
+}
+
+const AI_TOOLS: AITool[] = [
+  { id: 'bg-removal', name: 'Background Removal', description: 'Remove or replace the background', icon: Scissors },
+  { id: 'upscale', name: 'AI Upscale', description: 'Enhance resolution with AI', icon: Maximize2 },
+  { id: 'style-transfer', name: 'Style Transfer', description: 'Apply artistic styles to your image', icon: Palette },
+  { id: 'gen-fill', name: 'Generative Fill', description: 'Fill masked areas with AI content', icon: Paintbrush },
+  { id: 'face-enhance', name: 'Face Enhancement', description: 'Improve facial details and clarity', icon: User },
+  { id: 'object-removal', name: 'Object Removal', description: 'Remove unwanted objects seamlessly', icon: Eraser },
+  { id: 'outpaint', name: 'AI Expand', description: 'Extend image boundaries with AI', icon: Expand },
+];
+
+const STYLE_PRESETS = [
+  { id: 'van-gogh', name: 'Van Gogh', color: '#f4a261' },
+  { id: 'monet', name: 'Monet', color: '#a8dadc' },
+  { id: 'ukiyo-e', name: 'Ukiyo-e', color: '#e63946' },
+  { id: 'comic', name: 'Comic', color: '#fdcb6e' },
+  { id: 'watercolor', name: 'Watercolor', color: '#6c5ce7' },
+  { id: 'pencil', name: 'Pencil Sketch', color: '#636e72' },
+];
+
+export function AIToolsPanel() {
+  const [expandedTool, setExpandedTool] = useState<string | null>(null);
+  const [processingTool, setProcessingTool] = useState<string | null>(null);
+
+  // Tool-specific state
+  const [edgeRefinement, setEdgeRefinement] = useState(50);
+  const [bgReplacePrompt, setBgReplacePrompt] = useState('');
+  const [upscaleFactor, setUpscaleFactor] = useState<2 | 4>(2);
+  const [upscaleModel, setUpscaleModel] = useState('general');
+  const [stylePreset, setStylePreset] = useState('van-gogh');
+  const [styleStrength, setStyleStrength] = useState(75);
+  const [genFillPrompt, setGenFillPrompt] = useState('');
+  const [faceStrength, setFaceStrength] = useState(50);
+  const [eyeEnhance, setEyeEnhance] = useState(true);
+  const [skinSmoothing, setSkinSmoothing] = useState(30);
+  const [expandDirection, setExpandDirection] = useState<string[]>(['right']);
+  const [expandPixels, setExpandPixels] = useState(256);
+  const [expandPrompt, setExpandPrompt] = useState('');
+
+  const handleApply = (toolId: string) => {
+    setProcessingTool(toolId);
+    // Simulate processing
+    setTimeout(() => {
+      setProcessingTool(null);
+    }, 2000);
+  };
+
+  const toggleTool = (toolId: string) => {
+    setExpandedTool(expandedTool === toolId ? null : toolId);
+  };
+
+  const toggleDirection = (dir: string) => {
+    setExpandDirection((prev) =>
+      prev.includes(dir) ? prev.filter((d) => d !== dir) : [...prev, dir]
+    );
+  };
+
+  return (
+    <div className="space-y-3">
+      {/* Header */}
+      <div className="flex items-center gap-2">
+        <Wand2 className="w-3.5 h-3.5 text-red-primary" />
+        <span className="text-label text-text-primary">AI Tools</span>
+      </div>
+
+      {/* Tool Cards */}
+      {AI_TOOLS.map((tool) => {
+        const Icon = tool.icon;
+        const isExpanded = expandedTool === tool.id;
+        const isProcessing = processingTool === tool.id;
+
+        return (
+          <div
+            key={tool.id}
+            className={cn(
+              'rounded-lg border transition-all overflow-hidden',
+              isExpanded
+                ? 'border-border-hover bg-elevated'
+                : 'border-border bg-elevated/50 hover:border-border-hover'
+            )}
+          >
+            {/* Card Header */}
+            <button
+              onClick={() => toggleTool(tool.id)}
+              className="w-full flex items-center gap-3 px-3 py-2.5 text-left"
+            >
+              <div className="w-8 h-8 rounded-lg bg-red-aura flex items-center justify-center flex-shrink-0">
+                <Icon className="w-4 h-4 text-red-primary" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h4 className="font-display text-sm font-medium text-text-primary">
+                  {tool.name}
+                </h4>
+                <p className="text-[10px] text-text-muted">{tool.description}</p>
+              </div>
+              <ChevronDown
+                className={cn(
+                  'w-3.5 h-3.5 text-text-muted transition-transform flex-shrink-0',
+                  isExpanded && 'rotate-180'
+                )}
+              />
+            </button>
+
+            {/* Expanded Controls */}
+            <AnimatePresence>
+              {isExpanded && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: 'auto', opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  className="overflow-hidden"
+                >
+                  <div className="px-3 pb-3 space-y-3">
+                    {/* Background Removal */}
+                    {tool.id === 'bg-removal' && (
+                      <>
+                        <Slider
+                          label="Edge Refinement"
+                          value={edgeRefinement}
+                          min={0}
+                          max={100}
+                          onChange={setEdgeRefinement}
+                        />
+                        <Button
+                          variant="primary"
+                          size="sm"
+                          fullWidth
+                          icon={isProcessing ? Loader2 : Scissors}
+                          isLoading={isProcessing}
+                          onClick={() => handleApply(tool.id)}
+                        >
+                          Remove Background
+                        </Button>
+                        <div className="pt-2 border-t border-border">
+                          <label className="text-label text-text-body mb-1.5 block">
+                            Replace Background
+                          </label>
+                          <input
+                            value={bgReplacePrompt}
+                            onChange={(e) => setBgReplacePrompt(e.target.value)}
+                            placeholder="Describe new background..."
+                            className="w-full bg-surface border border-border rounded-lg px-3 py-2 text-xs text-text-primary placeholder:text-text-muted focus:border-red-primary transition-all"
+                          />
+                        </div>
+                      </>
+                    )}
+
+                    {/* AI Upscale */}
+                    {tool.id === 'upscale' && (
+                      <>
+                        <div className="space-y-1.5">
+                          <label className="text-label text-text-body">Scale</label>
+                          <div className="flex gap-2">
+                            {([2, 4] as const).map((factor) => (
+                              <button
+                                key={factor}
+                                onClick={() => setUpscaleFactor(factor)}
+                                className={cn(
+                                  'flex-1 py-2 rounded-lg text-sm font-mono font-medium transition-all',
+                                  upscaleFactor === factor
+                                    ? 'bg-red-primary text-text-primary'
+                                    : 'bg-surface text-text-body border border-border'
+                                )}
+                              >
+                                {factor}x
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                        <div className="space-y-1.5">
+                          <label className="text-label text-text-body">Model</label>
+                          <select
+                            value={upscaleModel}
+                            onChange={(e) => setUpscaleModel(e.target.value)}
+                            className="w-full bg-surface border border-border rounded-lg px-3 py-2 text-xs font-display text-text-primary focus:border-red-primary transition-all"
+                          >
+                            <option value="general">General</option>
+                            <option value="face">Face</option>
+                            <option value="anime">Anime</option>
+                          </select>
+                        </div>
+                        <Button
+                          variant="primary"
+                          size="sm"
+                          fullWidth
+                          icon={isProcessing ? Loader2 : Maximize2}
+                          isLoading={isProcessing}
+                          onClick={() => handleApply(tool.id)}
+                        >
+                          Upscale
+                        </Button>
+                      </>
+                    )}
+
+                    {/* Style Transfer */}
+                    {tool.id === 'style-transfer' && (
+                      <>
+                        <div className="grid grid-cols-3 gap-1.5">
+                          {STYLE_PRESETS.map((style) => (
+                            <button
+                              key={style.id}
+                              onClick={() => setStylePreset(style.id)}
+                              className={cn(
+                                'py-2 rounded-lg text-xs font-display font-medium transition-all text-center',
+                                stylePreset === style.id
+                                  ? 'text-text-primary'
+                                  : 'bg-surface text-text-body border border-border'
+                              )}
+                              style={
+                                stylePreset === style.id
+                                  ? {
+                                      backgroundColor: `${style.color}20`,
+                                      color: style.color,
+                                      border: `1px solid ${style.color}40`,
+                                    }
+                                  : undefined
+                              }
+                            >
+                              {style.name}
+                            </button>
+                          ))}
+                        </div>
+                        <Slider
+                          label="Strength"
+                          value={styleStrength}
+                          min={0}
+                          max={100}
+                          onChange={setStyleStrength}
+                          valueFormatter={(v) => `${v}%`}
+                        />
+                        <Button
+                          variant="primary"
+                          size="sm"
+                          fullWidth
+                          icon={isProcessing ? Loader2 : Palette}
+                          isLoading={isProcessing}
+                          onClick={() => handleApply(tool.id)}
+                        >
+                          Apply Style
+                        </Button>
+                      </>
+                    )}
+
+                    {/* Generative Fill */}
+                    {tool.id === 'gen-fill' && (
+                      <>
+                        <p className="text-xs text-text-muted font-display">
+                          Paint over the area you want to fill, then describe the content.
+                        </p>
+                        <input
+                          value={genFillPrompt}
+                          onChange={(e) => setGenFillPrompt(e.target.value)}
+                          placeholder="Describe fill content..."
+                          className="w-full bg-surface border border-border rounded-lg px-3 py-2 text-xs text-text-primary placeholder:text-text-muted focus:border-red-primary transition-all"
+                        />
+                        <Button
+                          variant="primary"
+                          size="sm"
+                          fullWidth
+                          icon={isProcessing ? Loader2 : Paintbrush}
+                          isLoading={isProcessing}
+                          onClick={() => handleApply(tool.id)}
+                          disabled={!genFillPrompt.trim()}
+                        >
+                          Generate Fill
+                        </Button>
+                      </>
+                    )}
+
+                    {/* Face Enhancement */}
+                    {tool.id === 'face-enhance' && (
+                      <>
+                        <Slider
+                          label="Enhancement"
+                          value={faceStrength}
+                          min={0}
+                          max={100}
+                          onChange={setFaceStrength}
+                        />
+                        <div className="flex items-center justify-between">
+                          <span className="font-display text-xs text-text-body">
+                            Eye Enhancement
+                          </span>
+                          <button
+                            onClick={() => setEyeEnhance(!eyeEnhance)}
+                            className={cn(
+                              'w-9 h-5 rounded-full transition-all relative',
+                              eyeEnhance
+                                ? 'bg-red-primary'
+                                : 'bg-surface border border-border'
+                            )}
+                          >
+                            <span
+                              className={cn(
+                                'absolute top-0.5 w-4 h-4 rounded-full bg-text-primary transition-all',
+                                eyeEnhance ? 'left-[18px]' : 'left-0.5'
+                              )}
+                            />
+                          </button>
+                        </div>
+                        <Slider
+                          label="Skin Smoothing"
+                          value={skinSmoothing}
+                          min={0}
+                          max={100}
+                          onChange={setSkinSmoothing}
+                        />
+                        <Button
+                          variant="primary"
+                          size="sm"
+                          fullWidth
+                          icon={isProcessing ? Loader2 : User}
+                          isLoading={isProcessing}
+                          onClick={() => handleApply(tool.id)}
+                        >
+                          Enhance Face
+                        </Button>
+                      </>
+                    )}
+
+                    {/* Object Removal */}
+                    {tool.id === 'object-removal' && (
+                      <>
+                        <p className="text-xs text-text-muted font-display">
+                          Brush over the object you want to remove, then click Remove.
+                        </p>
+                        <Button
+                          variant="primary"
+                          size="sm"
+                          fullWidth
+                          icon={isProcessing ? Loader2 : Eraser}
+                          isLoading={isProcessing}
+                          onClick={() => handleApply(tool.id)}
+                        >
+                          Remove Object
+                        </Button>
+                      </>
+                    )}
+
+                    {/* AI Expand */}
+                    {tool.id === 'outpaint' && (
+                      <>
+                        <div className="space-y-1.5">
+                          <label className="text-label text-text-body">Direction</label>
+                          <div className="grid grid-cols-4 gap-1.5">
+                            {[
+                              { id: 'up', icon: ArrowUp, label: 'Up' },
+                              { id: 'down', icon: ArrowDown, label: 'Down' },
+                              { id: 'left', icon: ArrowLeft, label: 'Left' },
+                              { id: 'right', icon: ArrowRight, label: 'Right' },
+                            ].map(({ id, icon: DirIcon, label }) => (
+                              <button
+                                key={id}
+                                onClick={() => toggleDirection(id)}
+                                className={cn(
+                                  'flex flex-col items-center gap-0.5 py-2 rounded-lg text-[10px] font-display transition-all',
+                                  expandDirection.includes(id)
+                                    ? 'bg-red-primary text-text-primary'
+                                    : 'bg-surface text-text-body border border-border'
+                                )}
+                              >
+                                <DirIcon className="w-3.5 h-3.5" />
+                                {label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                        <div className="space-y-1.5">
+                          <label className="text-label text-text-body">Pixels</label>
+                          <input
+                            type="number"
+                            value={expandPixels}
+                            onChange={(e) => setExpandPixels(Number(e.target.value))}
+                            className="w-full bg-surface border border-border rounded-lg px-3 py-2 text-xs font-mono text-text-primary focus:border-red-primary transition-all"
+                          />
+                        </div>
+                        <input
+                          value={expandPrompt}
+                          onChange={(e) => setExpandPrompt(e.target.value)}
+                          placeholder="Describe expanded area..."
+                          className="w-full bg-surface border border-border rounded-lg px-3 py-2 text-xs text-text-primary placeholder:text-text-muted focus:border-red-primary transition-all"
+                        />
+                        <Button
+                          variant="primary"
+                          size="sm"
+                          fullWidth
+                          icon={isProcessing ? Loader2 : Expand}
+                          isLoading={isProcessing}
+                          onClick={() => handleApply(tool.id)}
+                        >
+                          Expand Image
+                        </Button>
+                      </>
+                    )}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
