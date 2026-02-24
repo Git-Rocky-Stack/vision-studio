@@ -12,6 +12,8 @@ import { AssetsPanel } from '@/pages/AssetsPanel';
 import { SettingsPanel } from '@/pages/SettingsPanel';
 import { TemplatesPanel } from '@/pages/TemplatesPanel';
 import { BatchPanel } from '@/pages/BatchPanel';
+import { ToolStrip } from '@/components/edit/ToolStrip';
+import { EditPropertiesPanel } from '@/components/edit/EditPropertiesPanel';
 
 function App() {
   const {
@@ -87,6 +89,8 @@ function App() {
           templates: <TemplatesPanel />,
           batch: <BatchPanel />,
         }}
+        toolStrip={<ToolStrip />}
+        editProperties={<EditPropertiesPanel />}
       />
       <FilmGrainOverlay opacity={0.025} />
     </>
