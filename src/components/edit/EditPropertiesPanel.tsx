@@ -2,42 +2,28 @@ import { useState } from 'react';
 import { cn } from '@/utils/cn';
 import { useAppStore } from '@/store/appStore';
 import { Slider } from '@/components/ui/Slider';
+import { FilterGrid } from './FilterGrid';
+import { CropControls } from './CropControls';
+import { TextControls } from './TextControls';
+import { AIToolsPanel } from './AIToolsPanel';
+import { LayerPanel } from './LayerPanel';
 import type { ImageAdjustments } from '@/types/editor';
 import {
   Sun,
-  Contrast,
-  Droplets,
-  Thermometer,
   Sparkles,
-  Eye,
-  EyeOff,
-  Lock,
-  Unlock,
-  Layers,
-  Palette,
+  Crop,
+  Type,
   Wand2,
+  Palette,
   RotateCcw,
+  Undo2,
+  Redo2,
+  SplitSquareHorizontal,
+  History,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-type PropertiesTab = 'adjustments' | 'filters' | 'layers';
-
-interface FilterDef {
-  name: string;
-  desc: string;
-  color: string;
-}
-
-const AI_FILTERS: FilterDef[] = [
-  { name: 'Cinematic', desc: 'Movie-like color grading', color: '#e63946' },
-  { name: 'Vintage', desc: 'Retro film look', color: '#f4a261' },
-  { name: 'Cyberpunk', desc: 'Neon futuristic style', color: '#6c5ce7' },
-  { name: 'Noir', desc: 'Black and white dramatic', color: '#636e72' },
-  { name: 'Dreamy', desc: 'Soft ethereal glow', color: '#a8dadc' },
-  { name: 'Vibrant', desc: 'Enhanced saturation', color: '#ff6b6b' },
-  { name: 'Moody', desc: 'Dark atmospheric tones', color: '#2d3436' },
-  { name: 'Film Grain', desc: 'Classic analog texture', color: '#d4a574' },
-];
+type PropertiesTab = 'adjustments' | 'filters' | 'crop' | 'text' | 'ai';
 
 const ADJUSTMENT_GROUPS: {
   title: string;
@@ -90,11 +76,24 @@ export function EditPropertiesPanel() {
     imageAdjustments,
     setImageAdjustments,
     resetImageAdjustments,
-    editLayers,
-    updateEditLayer,
+    editHistory,
   } = useAppStore();
+
   const [activeTab, setActiveTab] = useState<PropertiesTab>('adjustments');
   const [expandedGroups, setExpandedGroups] = useState<string[]>(['Light', 'Color']);
+
+  // Filter state
+  const [selectedFilters, setSelectedFilters] = useState<string[]>([]);
+  const [filterIntensity, setFilterIntensity] = useState(100);
+  const [stackMode, setStackMode] = useState(false);
+
+  // Crop state
+  const [cropAspect, setCropAspect] = useState('free');
+  const [rotation, setRotation] = useState(0);
+  const [flipH, setFlipH] = useState(false);
+  const [flipV, setFlipV] = useState(false);
+  const [customWidth, setCustomWidth] = useState(1024);
+  const [customHeight, setCustomHeight] = useState(1024);
 
   const toggleGroup = (title: string) => {
     setExpandedGroups((prev) =>
@@ -102,31 +101,95 @@ export function EditPropertiesPanel() {
     );
   };
 
+  const handleToggleFilter = (filterId: string) => {
+    if (stackMode) {
+      setSelectedFilters((prev) =>
+        prev.includes(filterId)
+          ? prev.filter((id) => id !== filterId)
+          : [...prev, filterId]
+      );
+    } else {
+      setSelectedFilters((prev) =>
+        prev.includes(filterId) ? [] : [filterId]
+      );
+    }
+  };
+
   const tabs: { id: PropertiesTab; label: string; icon: React.ElementType }[] = [
     { id: 'adjustments', label: 'Adjust', icon: Sun },
     { id: 'filters', label: 'Filters', icon: Sparkles },
-    { id: 'layers', label: 'Layers', icon: Layers },
+    { id: 'crop', label: 'Crop', icon: Crop },
+    { id: 'text', label: 'Text', icon: Type },
+    { id: 'ai', label: 'AI Tools', icon: Wand2 },
   ];
+
+  const undoCount = editHistory.length;
 
   return (
     <div className="h-full flex flex-col bg-surface">
-      {/* Tabs */}
-      <div className="p-2 border-b border-border">
-        <div className="grid grid-cols-3 gap-1">
+      {/* Edit Toolbar */}
+      <div className="flex items-center justify-between px-3 py-2 border-b border-border bg-elevated">
+        <div className="flex items-center gap-1">
+          <button
+            disabled={undoCount === 0}
+            className={cn(
+              'relative p-1.5 rounded-lg transition-all',
+              undoCount > 0
+                ? 'text-text-body hover:text-text-primary hover:bg-surface'
+                : 'text-text-muted/40 cursor-not-allowed'
+            )}
+            title="Undo"
+          >
+            <Undo2 className="w-4 h-4" />
+            {undoCount > 0 && (
+              <span className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-red-primary text-text-primary text-[8px] font-mono flex items-center justify-center">
+                {Math.min(undoCount, 99)}
+              </span>
+            )}
+          </button>
+          <button
+            disabled
+            className="p-1.5 rounded-lg text-text-muted/40 cursor-not-allowed"
+            title="Redo"
+          >
+            <Redo2 className="w-4 h-4" />
+          </button>
+        </div>
+
+        <div className="flex items-center gap-1">
+          <button
+            className="p-1.5 rounded-lg text-text-body hover:text-text-primary hover:bg-surface transition-all"
+            title="Before/After"
+          >
+            <SplitSquareHorizontal className="w-4 h-4" />
+          </button>
+          <button
+            className="p-1.5 rounded-lg text-text-body hover:text-text-primary hover:bg-surface transition-all"
+            title="History"
+          >
+            <History className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+
+      {/* Tab Bar */}
+      <div className="px-2 py-1.5 border-b border-border">
+        <div className="flex gap-0.5">
           {tabs.map((tab) => {
             const Icon = tab.icon;
+            const isActive = activeTab === tab.id;
             return (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
                 className={cn(
-                  'flex flex-col items-center gap-1 p-2 rounded-lg transition-all font-display text-xs',
-                  activeTab === tab.id
+                  'flex-1 flex flex-col items-center gap-0.5 py-1.5 rounded-lg transition-all font-display text-[10px]',
+                  isActive
                     ? 'bg-red-aura text-red-primary'
                     : 'text-text-body hover:text-text-primary hover:bg-elevated'
                 )}
               >
-                <Icon className="w-4 h-4" />
+                <Icon className="w-3.5 h-3.5" />
                 {tab.label}
               </button>
             );
@@ -134,16 +197,17 @@ export function EditPropertiesPanel() {
         </div>
       </div>
 
-      {/* Content */}
-      <div className="flex-1 overflow-y-auto p-4">
+      {/* Tab Content */}
+      <div className="flex-1 overflow-y-auto scrollbar-hide">
         <AnimatePresence mode="wait">
+          {/* Adjustments Tab */}
           {activeTab === 'adjustments' && (
             <motion.div
               key="adjustments"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="space-y-4"
+              className="p-4 space-y-4"
             >
               {ADJUSTMENT_GROUPS.map((group) => {
                 const Icon = group.icon;
@@ -194,117 +258,85 @@ export function EditPropertiesPanel() {
             </motion.div>
           )}
 
+          {/* Filters Tab */}
           {activeTab === 'filters' && (
             <motion.div
               key="filters"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="space-y-3"
+              className="p-4"
             >
-              <div className="flex items-center gap-2 mb-4">
-                <Sparkles className="w-3.5 h-3.5 text-red-primary" />
-                <span className="text-label text-text-primary">AI Filters</span>
-              </div>
-
-              {AI_FILTERS.map((filter) => (
-                <button
-                  key={filter.name}
-                  className="w-full p-3 rounded-lg bg-elevated border border-border hover:border-border-hover transition-all text-left group"
-                >
-                  <div className="flex items-center gap-3">
-                    <div
-                      className="w-8 h-8 rounded-lg flex-shrink-0"
-                      style={{
-                        background: `linear-gradient(135deg, ${filter.color}, ${filter.color}80)`,
-                      }}
-                    />
-                    <div className="flex-1 min-w-0">
-                      <h4 className="text-sm font-display font-medium text-text-primary group-hover:text-red-primary transition-colors">
-                        {filter.name}
-                      </h4>
-                      <p className="text-xs text-text-muted">{filter.desc}</p>
-                    </div>
-                  </div>
-                </button>
-              ))}
+              <FilterGrid
+                selectedFilters={selectedFilters}
+                onToggleFilter={handleToggleFilter}
+                intensity={filterIntensity}
+                onIntensityChange={setFilterIntensity}
+                stackMode={stackMode}
+                onStackModeChange={setStackMode}
+              />
             </motion.div>
           )}
 
-          {activeTab === 'layers' && (
+          {/* Crop Tab */}
+          {activeTab === 'crop' && (
             <motion.div
-              key="layers"
+              key="crop"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="space-y-2"
+              className="p-4"
             >
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-2">
-                  <Layers className="w-3.5 h-3.5 text-red-primary" />
-                  <span className="text-label text-text-primary">Layers</span>
-                </div>
-                <span className="font-mono text-xs text-text-muted">
-                  {editLayers.length}
-                </span>
-              </div>
+              <CropControls
+                cropAspect={cropAspect}
+                onCropAspectChange={setCropAspect}
+                rotation={rotation}
+                onRotationChange={setRotation}
+                flipH={flipH}
+                onFlipHChange={setFlipH}
+                flipV={flipV}
+                onFlipVChange={setFlipV}
+                cropDimensions={null}
+                customWidth={customWidth}
+                onCustomWidthChange={setCustomWidth}
+                customHeight={customHeight}
+                onCustomHeightChange={setCustomHeight}
+                onApply={() => {}}
+                onCancel={() => setActiveTab('adjustments')}
+              />
+            </motion.div>
+          )}
 
-              {editLayers.length === 0 ? (
-                <div className="py-12 text-center">
-                  <Layers className="w-10 h-10 text-text-muted mx-auto mb-3 opacity-30" />
-                  <p className="text-sm text-text-muted font-display">No layers yet</p>
-                  <p className="text-xs text-text-muted mt-1">
-                    Load an image to start editing
-                  </p>
-                </div>
-              ) : (
-                editLayers.map((layer) => (
-                  <div
-                    key={layer.id}
-                    className="flex items-center gap-3 p-2.5 rounded-lg bg-elevated border border-border group"
-                  >
-                    <div className="w-8 h-8 rounded bg-surface border border-border flex-shrink-0" />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm text-text-primary font-display truncate">
-                        {layer.name}
-                      </p>
-                      <p className="font-mono text-[10px] text-text-muted">
-                        {layer.type} &middot; {Math.round(layer.opacity * 100)}%
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <button
-                        onClick={() =>
-                          updateEditLayer(layer.id, { visible: !layer.visible })
-                        }
-                        className="p-1 rounded text-text-muted hover:text-text-primary transition-all"
-                      >
-                        {layer.visible ? (
-                          <Eye className="w-3.5 h-3.5" />
-                        ) : (
-                          <EyeOff className="w-3.5 h-3.5" />
-                        )}
-                      </button>
-                      <button
-                        onClick={() =>
-                          updateEditLayer(layer.id, { locked: !layer.locked })
-                        }
-                        className="p-1 rounded text-text-muted hover:text-text-primary transition-all"
-                      >
-                        {layer.locked ? (
-                          <Lock className="w-3.5 h-3.5" />
-                        ) : (
-                          <Unlock className="w-3.5 h-3.5" />
-                        )}
-                      </button>
-                    </div>
-                  </div>
-                ))
-              )}
+          {/* Text Tab */}
+          {activeTab === 'text' && (
+            <motion.div
+              key="text"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="p-4"
+            >
+              <TextControls />
+            </motion.div>
+          )}
+
+          {/* AI Tools Tab */}
+          {activeTab === 'ai' && (
+            <motion.div
+              key="ai"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="p-4"
+            >
+              <AIToolsPanel />
             </motion.div>
           )}
         </AnimatePresence>
       </div>
+
+      {/* Layer Panel — Always visible at bottom */}
+      <LayerPanel />
     </div>
   );
 }
