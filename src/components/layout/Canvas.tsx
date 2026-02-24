@@ -8,11 +8,12 @@ import {
   Move,
   Hand,
 } from 'lucide-react';
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AmbientParticles } from '@/components/effects/AmbientParticles';
 import { GenerationProgress } from '@/components/canvas/GenerationProgress';
 import { GenerationQueue } from '@/components/canvas/GenerationQueue';
+import { CanvasContextMenu } from '@/components/canvas/CanvasContextMenu';
 
 export function Canvas() {
   const { activeJobs, currentImage } = useAppStore();
@@ -23,6 +24,12 @@ export function Canvas() {
   const [imageSize, setImageSize] = useState({ width: 1024, height: 1024 });
   const canvasRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
+
+  const handleContextMenu = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    setContextMenu({ x: e.clientX, y: e.clientY });
+  }, []);
 
   const isGenerating = activeJobs.some(
     (j) => j.status === 'pending' || j.status === 'processing'
@@ -166,6 +173,7 @@ export function Canvas() {
       {/* Canvas Container */}
       <div
         ref={containerRef}
+        onContextMenu={handleContextMenu}
         className={cn(
           'flex-1 relative overflow-hidden',
           isDragging ? 'cursor-grabbing' : 'cursor-grab'
@@ -258,6 +266,15 @@ export function Canvas() {
           </span>
         </div>
       </div>
+
+      {/* Context Menu */}
+      {contextMenu && (
+        <CanvasContextMenu
+          x={contextMenu.x}
+          y={contextMenu.y}
+          onClose={() => setContextMenu(null)}
+        />
+      )}
     </div>
   );
 }

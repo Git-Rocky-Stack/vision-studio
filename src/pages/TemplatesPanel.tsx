@@ -1,7 +1,10 @@
 import { useState } from 'react';
 import { useAppStore, PROJECT_TEMPLATES } from '@/store/appStore';
+import type { ProjectTemplate } from '@/store/appStore';
 import { cn } from '@/utils/cn';
 import { Button } from '@/components/ui/Button';
+import { TemplatePreviewModal } from '@/components/templates/TemplatePreviewModal';
+import { TemplateCreator } from '@/components/templates/TemplateCreator';
 import {
   Sparkles,
   Youtube,
@@ -10,20 +13,26 @@ import {
   Palette,
   Check,
   ArrowRight,
-  Wand2,
   Plus,
   Search,
+  Download,
+  Upload,
+  Grid3X3,
+  List,
+  ArrowUpDown,
+  User,
+  Trash2,
 } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 
-const categoryIcons = {
+const categoryIcons: Record<string, React.ElementType> = {
   youtube: Youtube,
   social: Instagram,
   marketing: ShoppingBag,
   art: Palette,
 };
 
-const categoryLabels = {
+const categoryLabels: Record<string, string> = {
   youtube: 'YouTube',
   social: 'Social Media',
   marketing: 'Marketing',
@@ -37,18 +46,36 @@ const categoryColors: Record<string, string> = {
   art: '#6c5ce7',
 };
 
+type SortBy = 'popular' | 'newest' | 'alpha';
+type ViewMode = 'cards' | 'compact';
+
 export function TemplatesPanel() {
-  const { setActivePanel, setCurrentProject, userTemplates } = useAppStore();
-  const [selectedCategory, setSelectedCategory] = useState<string | 'all'>('all');
+  const {
+    setActivePanel,
+    setCurrentProject,
+    userTemplates,
+    deleteUserTemplate,
+  } = useAppStore();
+
+  const [selectedCategory, setSelectedCategory] = useState<string | 'all' | 'mine'>('all');
   const [hoveredTemplate, setHoveredTemplate] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [sortBy, setSortBy] = useState<SortBy>('popular');
+  const [viewMode, setViewMode] = useState<ViewMode>('cards');
+  const [previewTemplate, setPreviewTemplate] = useState<ProjectTemplate | null>(null);
+  const [showCreator, setShowCreator] = useState(false);
+  const [editingTemplate, setEditingTemplate] = useState<ProjectTemplate | null>(null);
 
-  const allTemplates = [...PROJECT_TEMPLATES, ...userTemplates];
+  const allTemplates =
+    selectedCategory === 'mine'
+      ? userTemplates
+      : [...PROJECT_TEMPLATES, ...userTemplates];
 
   const filteredTemplates = allTemplates
-    .filter((t) =>
-      selectedCategory === 'all' ? true : t.category === selectedCategory
-    )
+    .filter((t) => {
+      if (selectedCategory === 'all' || selectedCategory === 'mine') return true;
+      return t.category === selectedCategory;
+    })
     .filter(
       (t) =>
         !searchQuery ||
@@ -56,7 +83,14 @@ export function TemplatesPanel() {
         t.description.toLowerCase().includes(searchQuery.toLowerCase())
     );
 
-  const handleUseTemplate = (template: (typeof PROJECT_TEMPLATES)[0]) => {
+  // Sort
+  const sortedTemplates = [...filteredTemplates].sort((a, b) => {
+    if (sortBy === 'alpha') return a.name.localeCompare(b.name);
+    if (sortBy === 'newest') return (b.isCustom ? 1 : 0) - (a.isCustom ? 1 : 0);
+    return 0; // popular — default order
+  });
+
+  const handleUseTemplate = (template: ProjectTemplate) => {
     const newProject = {
       id: crypto.randomUUID(),
       name: `${template.name} Project`,
@@ -65,15 +99,54 @@ export function TemplatesPanel() {
       updatedAt: new Date(),
       template: template,
     };
-
     setCurrentProject(newProject as any);
     setActivePanel('generate');
   };
 
+  const handleExportTemplate = (template: ProjectTemplate) => {
+    const data = JSON.stringify(template, null, 2);
+    const blob = new Blob([data], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${template.name.toLowerCase().replace(/\s+/g, '-')}.vst`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleImportTemplate = () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.vst,.json';
+    input.onchange = async (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (!file) return;
+      try {
+        const text = await file.text();
+        const template = JSON.parse(text) as ProjectTemplate;
+        template.id = crypto.randomUUID();
+        template.isCustom = true;
+        useAppStore.getState().addUserTemplate(template);
+      } catch (err) {
+        console.error('Failed to import template:', err);
+      }
+    };
+    input.click();
+  };
+
+  const CATEGORY_TABS: { id: string; label: string; icon?: React.ElementType }[] = [
+    { id: 'all', label: 'All Templates' },
+    { id: 'youtube', label: 'YouTube', icon: Youtube },
+    { id: 'social', label: 'Social Media', icon: Instagram },
+    { id: 'marketing', label: 'Marketing', icon: ShoppingBag },
+    { id: 'art', label: 'Art & Creative', icon: Palette },
+    { id: 'mine', label: 'My Templates', icon: User },
+  ];
+
   return (
-    <div className="h-full flex flex-col bg-surface">
-      {/* Header */}
-      <div className="p-6 border-b border-border">
+    <div className="h-full flex flex-col bg-void">
+      {/* Top Bar */}
+      <div className="px-6 pt-6 pb-4 border-b border-border bg-surface/50">
         <div className="flex items-center justify-between mb-4">
           <div>
             <div className="flex items-center gap-2 mb-1">
@@ -86,52 +159,93 @@ export function TemplatesPanel() {
               Jumpstart your creation with optimized presets
             </p>
           </div>
-          <Button variant="secondary" size="sm" icon={Plus}>
+          <Button
+            variant="cinema"
+            size="sm"
+            icon={Plus}
+            onClick={() => {
+              setEditingTemplate(null);
+              setShowCreator(true);
+            }}
+          >
             Create Template
           </Button>
         </div>
 
-        {/* Search */}
-        <div className="relative mb-4">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
-          <input
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search templates..."
-            className="w-full bg-elevated border border-border rounded-lg pl-10 pr-4 py-2.5 text-sm text-text-primary placeholder:text-text-muted focus:border-red-primary focus:ring-1 focus:ring-red-primary/40 transition-all"
-          />
+        {/* Search + Sort + View */}
+        <div className="flex items-center gap-3 mb-4">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
+            <input
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search templates..."
+              className="w-full bg-elevated border border-border rounded-lg pl-10 pr-4 py-2.5 text-sm text-text-primary placeholder:text-text-muted focus:border-red-primary focus:ring-1 focus:ring-red-primary/40 transition-all"
+            />
+          </div>
+
+          <div className="relative">
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as SortBy)}
+              className="appearance-none bg-elevated border border-border rounded-lg pl-3 pr-8 py-2.5 text-xs font-display text-text-primary focus:border-red-primary transition-all cursor-pointer"
+            >
+              <option value="popular">Popular</option>
+              <option value="newest">Newest</option>
+              <option value="alpha">A-Z</option>
+            </select>
+            <ArrowUpDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-text-muted pointer-events-none" />
+          </div>
+
+          <div className="flex items-center bg-elevated rounded-lg p-0.5 border border-border">
+            <button
+              onClick={() => setViewMode('cards')}
+              className={cn(
+                'p-1.5 rounded-md transition-all',
+                viewMode === 'cards'
+                  ? 'bg-red-primary text-text-primary'
+                  : 'text-text-muted hover:text-text-primary'
+              )}
+            >
+              <Grid3X3 className="w-3.5 h-3.5" />
+            </button>
+            <button
+              onClick={() => setViewMode('compact')}
+              className={cn(
+                'p-1.5 rounded-md transition-all',
+                viewMode === 'compact'
+                  ? 'bg-red-primary text-text-primary'
+                  : 'text-text-muted hover:text-text-primary'
+              )}
+            >
+              <List className="w-3.5 h-3.5" />
+            </button>
+          </div>
         </div>
 
-        {/* Category Filter */}
+        {/* Category Tabs */}
         <div className="flex flex-wrap gap-2">
-          <button
-            onClick={() => setSelectedCategory('all')}
-            className={cn(
-              'px-3 py-1.5 rounded-full text-sm font-display font-medium transition-all',
-              selectedCategory === 'all'
-                ? 'bg-red-primary text-text-primary glow-red-subtle'
-                : 'bg-elevated text-text-body hover:text-text-primary hover:bg-surface'
-            )}
-          >
-            All Templates
-          </button>
+          {CATEGORY_TABS.map((tab) => {
+            const Icon = tab.icon;
+            const color = categoryColors[tab.id];
+            const isActive = selectedCategory === tab.id;
+            const count =
+              tab.id === 'mine'
+                ? userTemplates.length
+                : undefined;
 
-          {Object.entries(categoryLabels).map(([key, label]) => {
-            const Icon = categoryIcons[key as keyof typeof categoryIcons];
-            const color = categoryColors[key];
-            const isActive = selectedCategory === key;
             return (
               <button
-                key={key}
-                onClick={() => setSelectedCategory(key)}
+                key={tab.id}
+                onClick={() => setSelectedCategory(tab.id)}
                 className={cn(
                   'flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-display font-medium transition-all',
-                  isActive
-                    ? 'text-text-primary'
-                    : 'bg-elevated text-text-body hover:text-text-primary hover:bg-surface'
+                  isActive && !color && 'bg-red-primary text-text-primary glow-red-subtle',
+                  isActive && color && 'text-text-primary',
+                  !isActive && 'bg-elevated text-text-body hover:text-text-primary hover:bg-surface'
                 )}
                 style={
-                  isActive
+                  isActive && color
                     ? {
                         backgroundColor: `${color}18`,
                         color: color,
@@ -140,55 +254,78 @@ export function TemplatesPanel() {
                     : undefined
                 }
               >
-                <Icon className="w-3.5 h-3.5" />
-                {label}
+                {Icon && <Icon className="w-3.5 h-3.5" />}
+                {tab.label}
+                {count !== undefined && count > 0 && (
+                  <span className="ml-1 px-1.5 py-0.5 rounded-full bg-void/30 text-[10px] font-mono">
+                    {count}
+                  </span>
+                )}
               </button>
             );
           })}
         </div>
+
+        {/* Import button for My Templates */}
+        {selectedCategory === 'mine' && (
+          <div className="mt-3">
+            <button
+              onClick={handleImportTemplate}
+              className="flex items-center gap-1.5 text-xs font-display text-text-body hover:text-red-primary transition-all"
+            >
+              <Upload className="w-3.5 h-3.5" />
+              Import Template (.vst)
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Templates Grid */}
-      <div className="flex-1 overflow-y-auto p-6">
-        <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
-          {filteredTemplates.map((template, index) => {
-            const color = categoryColors[template.category] || '#e63946';
-            const isHovered = hoveredTemplate === template.id;
-            return (
-              <motion.div
-                key={template.id}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.03 }}
-                className={cn(
-                  'group relative p-5 rounded-xl border transition-all cursor-pointer',
-                  isHovered
-                    ? 'border-border-hover bg-elevated'
-                    : 'border-border bg-elevated/50 hover:border-border-hover'
-                )}
-                style={
-                  isHovered
-                    ? { boxShadow: `0 0 20px ${color}10, 0 4px 12px rgba(0,0,0,0.3)` }
-                    : undefined
-                }
-                onMouseEnter={() => setHoveredTemplate(template.id)}
-                onMouseLeave={() => setHoveredTemplate(null)}
-                onClick={() => handleUseTemplate(template)}
+      <div className="flex-1 overflow-y-auto p-6 scrollbar-hide">
+        {sortedTemplates.length === 0 ? (
+          /* Empty State */
+          <div className="flex flex-col items-center justify-center py-16 text-text-muted">
+            <Sparkles className="w-12 h-12 mb-4 opacity-20" />
+            <p className="font-display text-sm text-text-primary">
+              {selectedCategory === 'mine'
+                ? 'No custom templates yet'
+                : 'No templates found'}
+            </p>
+            <p className="text-xs text-text-muted mt-1 mb-4">
+              {selectedCategory === 'mine'
+                ? 'Create your first custom template to get started'
+                : 'Try a different search or category'}
+            </p>
+            {selectedCategory === 'mine' && (
+              <Button
+                variant="primary"
+                size="sm"
+                icon={Plus}
+                onClick={() => {
+                  setEditingTemplate(null);
+                  setShowCreator(true);
+                }}
               >
-                {/* Category color accent */}
-                <div
-                  className="absolute top-0 left-5 right-5 h-px"
-                  style={{
-                    background: isHovered
-                      ? `linear-gradient(90deg, transparent, ${color}60, transparent)`
-                      : 'transparent',
-                  }}
-                />
-
-                <div className="flex items-start gap-4">
-                  {/* Thumbnail */}
+                Create Template
+              </Button>
+            )}
+          </div>
+        ) : viewMode === 'compact' ? (
+          /* Compact List View */
+          <div className="space-y-2">
+            {sortedTemplates.map((template, index) => {
+              const color = categoryColors[template.category] || '#e63946';
+              return (
+                <motion.div
+                  key={template.id}
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: index * 0.03 }}
+                  className="flex items-center gap-4 p-3 rounded-lg border border-border bg-elevated/50 hover:border-border-hover hover:bg-elevated transition-all cursor-pointer group"
+                  onClick={() => setPreviewTemplate(template)}
+                >
                   <div
-                    className="w-14 h-14 rounded-xl flex items-center justify-center flex-shrink-0 text-2xl"
+                    className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 text-lg"
                     style={{
                       background: `linear-gradient(135deg, ${color}15, ${color}05)`,
                       border: `1px solid ${color}20`,
@@ -196,93 +333,244 @@ export function TemplatesPanel() {
                   >
                     {template.thumbnail}
                   </div>
-
-                  {/* Content */}
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <h3 className="font-display font-semibold text-text-primary">
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-display font-medium text-sm text-text-primary">
                         {template.name}
                       </h3>
                       <span
-                        className="px-2 py-0.5 rounded-full text-[10px] font-display font-medium uppercase tracking-wide"
+                        className="px-1.5 py-0.5 rounded-full text-[9px] font-display font-medium uppercase tracking-wide"
                         style={{
                           backgroundColor: `${color}15`,
                           color: color,
                         }}
                       >
-                        {categoryLabels[template.category as keyof typeof categoryLabels]}
+                        {categoryLabels[template.category] || template.category}
                       </span>
+                      {template.isCustom && (
+                        <span className="px-1.5 py-0.5 rounded-full text-[9px] font-display font-medium uppercase tracking-wide bg-elevated text-text-muted">
+                          Custom
+                        </span>
+                      )}
                     </div>
-
-                    <p className="text-sm text-text-body mb-3 line-clamp-2">
-                      {template.description}
-                    </p>
-
-                    {/* Settings Preview */}
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      <span className="font-mono text-[10px] px-2 py-0.5 bg-surface rounded text-text-muted">
-                        {template.settings.width}&times;{template.settings.height}
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <span className="font-mono text-[10px] text-text-muted">
+                        {template.settings.width}x{template.settings.height}
                       </span>
-                      <span className="font-mono text-[10px] px-2 py-0.5 bg-surface rounded text-text-muted">
+                      <span className="font-mono text-[10px] text-text-muted">
                         {template.settings.model}
                       </span>
-                      <span className="font-mono text-[10px] px-2 py-0.5 bg-surface rounded text-text-muted">
+                      <span className="font-mono text-[10px] text-text-muted">
                         {template.settings.steps} steps
                       </span>
                     </div>
                   </div>
-                </div>
-
-                {/* Use button (visible on hover) */}
-                <div
+                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                    {template.isCustom && (
+                      <>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleExportTemplate(template); }}
+                          className="p-1.5 rounded-lg text-text-muted hover:text-text-primary hover:bg-surface transition-all"
+                        >
+                          <Download className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); deleteUserTemplate(template.id); }}
+                          className="p-1.5 rounded-lg text-text-muted hover:text-red-primary hover:bg-red-aura transition-all"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </>
+                    )}
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      icon={ArrowRight}
+                      iconPosition="right"
+                      onClick={(e) => { e.stopPropagation(); handleUseTemplate(template); }}
+                    >
+                      Use
+                    </Button>
+                  </div>
+                </motion.div>
+              );
+            })}
+          </div>
+        ) : (
+          /* Card Grid View */
+          <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
+            {sortedTemplates.map((template, index) => {
+              const color = categoryColors[template.category] || '#e63946';
+              const isHovered = hoveredTemplate === template.id;
+              return (
+                <motion.div
+                  key={template.id}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: index * 0.05 }}
                   className={cn(
-                    'mt-4 transition-all',
-                    isHovered ? 'opacity-100' : 'opacity-0'
+                    'group relative p-5 rounded-xl border transition-all cursor-pointer',
+                    isHovered
+                      ? 'border-border-hover bg-elevated'
+                      : 'border-border bg-elevated/50 hover:border-border-hover'
                   )}
+                  style={
+                    isHovered
+                      ? { boxShadow: `0 0 20px ${color}10, 0 4px 12px rgba(0,0,0,0.3)` }
+                      : undefined
+                  }
+                  onMouseEnter={() => setHoveredTemplate(template.id)}
+                  onMouseLeave={() => setHoveredTemplate(null)}
+                  onClick={() => setPreviewTemplate(template)}
                 >
-                  <Button
-                    variant="primary"
-                    size="sm"
-                    icon={ArrowRight}
-                    iconPosition="right"
-                    fullWidth
-                  >
-                    Use Template
-                  </Button>
-                </div>
-
-                {/* Aspect ratio ghost */}
-                <div className="absolute top-5 right-5 opacity-5 pointer-events-none">
+                  {/* Category color accent */}
                   <div
-                    className="border-2 border-text-primary rounded"
+                    className="absolute top-0 left-5 right-5 h-px"
                     style={{
-                      width:
-                        template.settings.width > template.settings.height
-                          ? '60px'
-                          : '36px',
-                      height:
-                        template.settings.width > template.settings.height
-                          ? '36px'
-                          : '60px',
+                      background: isHovered
+                        ? `linear-gradient(90deg, transparent, ${color}60, transparent)`
+                        : 'transparent',
                     }}
                   />
-                </div>
-              </motion.div>
-            );
-          })}
-        </div>
 
-        {/* Empty State */}
-        {filteredTemplates.length === 0 && (
-          <div className="flex flex-col items-center justify-center py-16 text-text-muted">
-            <Sparkles className="w-12 h-12 mb-4 opacity-20" />
-            <p className="font-display text-sm">No templates found</p>
-            <p className="text-xs text-text-muted mt-1">
-              Try a different search or category
-            </p>
+                  <div className="flex items-start gap-4">
+                    {/* Thumbnail */}
+                    <div
+                      className="w-14 h-14 rounded-xl flex items-center justify-center flex-shrink-0 text-2xl"
+                      style={{
+                        background: `linear-gradient(135deg, ${color}15, ${color}05)`,
+                        border: `1px solid ${color}20`,
+                      }}
+                    >
+                      {template.thumbnail}
+                    </div>
+
+                    {/* Content */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <h3 className="font-display font-semibold text-text-primary">
+                          {template.name}
+                        </h3>
+                        <span
+                          className="px-2 py-0.5 rounded-full text-[10px] font-display font-medium uppercase tracking-wide"
+                          style={{
+                            backgroundColor: `${color}15`,
+                            color: color,
+                          }}
+                        >
+                          {categoryLabels[template.category] || template.category}
+                        </span>
+                      </div>
+
+                      <p className="text-sm text-text-body mb-3 line-clamp-2">
+                        {template.description}
+                      </p>
+
+                      {/* Settings Preview */}
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <span className="font-mono text-[10px] px-2 py-0.5 bg-surface rounded text-text-muted">
+                          {template.settings.width}&times;{template.settings.height}
+                        </span>
+                        <span className="font-mono text-[10px] px-2 py-0.5 bg-surface rounded text-text-muted">
+                          {template.settings.model}
+                        </span>
+                        <span className="font-mono text-[10px] px-2 py-0.5 bg-surface rounded text-text-muted">
+                          {template.settings.steps} steps
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Actions (visible on hover) */}
+                  <div
+                    className={cn(
+                      'mt-4 flex gap-2 transition-all',
+                      isHovered ? 'opacity-100' : 'opacity-0'
+                    )}
+                  >
+                    {template.isCustom && (
+                      <div className="flex gap-1">
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleExportTemplate(template); }}
+                          className="p-2 rounded-lg text-text-muted hover:text-text-primary hover:bg-surface transition-all"
+                          title="Export"
+                        >
+                          <Download className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); deleteUserTemplate(template.id); }}
+                          className="p-2 rounded-lg text-text-muted hover:text-red-primary hover:bg-red-aura transition-all"
+                          title="Delete"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    )}
+                    <div className="flex-1" />
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      icon={ArrowRight}
+                      iconPosition="right"
+                      onClick={(e) => { e.stopPropagation(); handleUseTemplate(template); }}
+                    >
+                      Use Template
+                    </Button>
+                  </div>
+
+                  {/* Aspect ratio ghost */}
+                  <div className="absolute top-5 right-5 opacity-5 pointer-events-none">
+                    <div
+                      className="border-2 border-text-primary rounded"
+                      style={{
+                        width:
+                          template.settings.width > template.settings.height
+                            ? '60px'
+                            : '36px',
+                        height:
+                          template.settings.width > template.settings.height
+                            ? '36px'
+                            : '60px',
+                      }}
+                    />
+                  </div>
+                </motion.div>
+              );
+            })}
           </div>
         )}
       </div>
+
+      {/* Modals */}
+      <AnimatePresence>
+        {previewTemplate && (
+          <TemplatePreviewModal
+            template={previewTemplate}
+            onClose={() => setPreviewTemplate(null)}
+            onUseTemplate={(t) => {
+              setPreviewTemplate(null);
+              handleUseTemplate(t);
+            }}
+            onEditTemplate={(t) => {
+              setPreviewTemplate(null);
+              setEditingTemplate(t);
+              setShowCreator(true);
+            }}
+          />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showCreator && (
+          <TemplateCreator
+            onClose={() => {
+              setShowCreator(false);
+              setEditingTemplate(null);
+            }}
+            editingTemplate={editingTemplate}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }

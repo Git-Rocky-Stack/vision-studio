@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { cn } from '@/utils/cn';
+import { useAppStore } from '@/store/appStore';
 import {
   Play,
   Pause,
@@ -9,31 +10,99 @@ import {
   Trash2,
   Copy,
   Layers,
+  ChevronUp,
+  ChevronDown,
+  ImageIcon,
+  Film,
 } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 
 interface TimelineTrack {
   id: string;
-  type: 'video' | 'image' | 'audio' | 'text';
+  type: 'video' | 'image';
   name: string;
   duration: number;
   startTime: number;
   color: string;
+  thumbnail?: string;
 }
 
 export function Timeline() {
+  const { completedJobs } = useAppStore();
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
+  const [isCollapsed, setIsCollapsed] = useState(false);
+  const [selectedTrackId, setSelectedTrackId] = useState<string | null>(null);
 
-  // Sample tracks
-  const tracks: TimelineTrack[] = [
-    { id: '1', type: 'video', name: 'Generated Video 1', duration: 5, startTime: 0, color: '#e63946' },
-    { id: '2', type: 'image', name: 'Background', duration: 10, startTime: 0, color: '#6c5ce7' },
-    { id: '3', type: 'audio', name: 'Music Track', duration: 15, startTime: 0, color: '#00b894' },
-  ];
+  // Build tracks from completed jobs
+  const tracks: TimelineTrack[] = useMemo(() => {
+    let offset = 0;
+    return completedJobs
+      .filter((job) => job.status === 'completed')
+      .map((job, index) => {
+        const isVideo = job.type === 'video';
+        const duration = isVideo ? (job.params?.duration || 5) : 1;
+        const track: TimelineTrack = {
+          id: job.id,
+          type: isVideo ? 'video' : 'image',
+          name: isVideo
+            ? `Video ${index + 1}`
+            : `Image ${index + 1}`,
+          duration,
+          startTime: offset,
+          color: isVideo ? '#e63946' : '#6c5ce7',
+          thumbnail: job.result?.images?.[0] || job.result?.video,
+        };
+        offset += duration;
+        return track;
+      });
+  }, [completedJobs]);
 
-  const totalDuration = 20;
+  const totalDuration = Math.max(
+    tracks.reduce((sum, t) => Math.max(sum, t.startTime + t.duration), 0),
+    10
+  );
   const progress = (currentTime / totalDuration) * 100;
+
+  // Collapsed view — just play controls in a thin bar
+  if (isCollapsed) {
+    return (
+      <div className="h-8 bg-elevated border-t border-border flex items-center px-4 gap-3">
+        <button
+          onClick={() => setIsCollapsed(false)}
+          className="p-1 rounded text-text-muted hover:text-text-primary transition-all"
+          title="Expand Timeline"
+        >
+          <ChevronUp className="w-3.5 h-3.5" />
+        </button>
+        <div className="w-px h-4 bg-border" />
+        <button
+          onClick={() => setIsPlaying(!isPlaying)}
+          className="p-1 rounded-lg bg-red-primary text-text-primary hover:bg-red-highlight transition-all"
+        >
+          {isPlaying ? <Pause className="w-3 h-3" /> : <Play className="w-3 h-3" />}
+        </button>
+        <span className="font-mono text-[10px] text-text-body">
+          {formatTime(currentTime)} / {formatTime(totalDuration)}
+        </span>
+        <div className="flex-1 h-1 bg-void rounded-full overflow-hidden mx-2">
+          <div
+            className="h-full rounded-full"
+            style={{
+              width: `${progress}%`,
+              background: 'linear-gradient(90deg, #c1121f, #e63946)',
+            }}
+          />
+        </div>
+        <div className="flex items-center gap-1">
+          <Layers className="w-3 h-3 text-text-muted" />
+          <span className="font-mono text-[10px] text-text-muted">
+            {tracks.length}
+          </span>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="h-64 bg-surface border-t border-border flex flex-col">
@@ -61,13 +130,37 @@ export function Timeline() {
         </div>
 
         <div className="flex items-center gap-2">
-          <button className="p-1.5 rounded-lg text-text-body hover:text-text-primary hover:bg-surface transition-all">
+          <button
+            className={cn(
+              'p-1.5 rounded-lg transition-all',
+              selectedTrackId
+                ? 'text-text-body hover:text-text-primary hover:bg-surface'
+                : 'text-text-muted cursor-not-allowed opacity-40'
+            )}
+            disabled={!selectedTrackId}
+          >
             <Scissors className="w-4 h-4" />
           </button>
-          <button className="p-1.5 rounded-lg text-text-body hover:text-text-primary hover:bg-surface transition-all">
+          <button
+            className={cn(
+              'p-1.5 rounded-lg transition-all',
+              selectedTrackId
+                ? 'text-text-body hover:text-text-primary hover:bg-surface'
+                : 'text-text-muted cursor-not-allowed opacity-40'
+            )}
+            disabled={!selectedTrackId}
+          >
             <Copy className="w-4 h-4" />
           </button>
-          <button className="p-1.5 rounded-lg text-text-body hover:text-text-primary hover:bg-surface transition-all">
+          <button
+            className={cn(
+              'p-1.5 rounded-lg transition-all',
+              selectedTrackId
+                ? 'text-text-body hover:text-red-primary hover:bg-red-aura'
+                : 'text-text-muted cursor-not-allowed opacity-40'
+            )}
+            disabled={!selectedTrackId}
+          >
             <Trash2 className="w-4 h-4" />
           </button>
 
@@ -75,22 +168,37 @@ export function Timeline() {
 
           <div className="flex items-center gap-2">
             <Layers className="w-4 h-4 text-text-muted" />
-            <span className="font-mono text-xs text-text-muted">{tracks.length} tracks</span>
+            <span className="font-mono text-xs text-text-muted">
+              {tracks.length} {tracks.length === 1 ? 'track' : 'tracks'}
+            </span>
           </div>
+
+          <div className="w-px h-6 bg-border mx-2" />
+
+          <button
+            onClick={() => setIsCollapsed(true)}
+            className="p-1.5 rounded-lg text-text-body hover:text-text-primary hover:bg-surface transition-all"
+            title="Collapse Timeline"
+          >
+            <ChevronDown className="w-4 h-4" />
+          </button>
         </div>
       </div>
 
       {/* Timeline Tracks */}
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-y-auto scrollbar-hide">
         {/* Time Ruler */}
         <div className="h-6 border-b border-border bg-surface relative">
           {Array.from({ length: Math.ceil(totalDuration) + 1 }).map((_, i) => (
             <div
               key={i}
               className="absolute top-0 h-full flex items-end pb-1"
-              style={{ left: `${(i / totalDuration) * 100}%` }}
+              style={{ left: `calc(192px + ${((i / totalDuration) * (100 - 20))}%)` }}
             >
-              <span className="font-mono text-[10px] text-text-muted">{i}s</span>
+              <div className="flex flex-col items-center">
+                <div className="w-px h-2 bg-border" />
+                <span className="font-mono text-[10px] text-text-muted">{i}s</span>
+              </div>
             </div>
           ))}
         </div>
@@ -100,56 +208,98 @@ export function Timeline() {
           {/* Playhead */}
           <motion.div
             className="absolute top-0 bottom-0 w-px bg-red-primary z-20 pointer-events-none"
-            style={{ left: `${progress}%` }}
+            style={{ left: `calc(192px + ${progress * 0.8}%)` }}
           >
             <div className="absolute -top-1 -left-1.5 w-3 h-3 bg-red-primary rounded-full shadow-[0_0_6px_rgba(230,57,70,0.5)]" />
           </motion.div>
 
-          {tracks.map((track, index) => (
-            <div
-              key={track.id}
-              className="h-12 border-b border-border flex items-center px-4 hover:bg-elevated/50 transition-all group"
-            >
-              {/* Track Label */}
-              <div className="w-48 flex items-center gap-2 flex-shrink-0">
-                <div
-                  className="w-2.5 h-2.5 rounded"
-                  style={{ backgroundColor: track.color }}
-                />
-                <span className="font-display text-sm text-text-primary truncate">
-                  {track.name}
-                </span>
-              </div>
-
-              {/* Track Clip */}
-              <div className="flex-1 relative h-8">
-                <motion.div
-                  initial={{ scaleX: 0 }}
-                  animate={{ scaleX: 1 }}
-                  transition={{ duration: 0.3, delay: index * 0.1 }}
-                  className="absolute h-full rounded-lg flex items-center px-2 cursor-pointer"
-                  style={{
-                    left: `${(track.startTime / totalDuration) * 100}%`,
-                    width: `${(track.duration / totalDuration) * 100}%`,
-                    backgroundColor: `${track.color}15`,
-                    border: `1px solid ${track.color}40`,
-                  }}
-                >
-                  <span className="font-display text-xs text-text-primary font-medium truncate">
-                    {track.name}
-                  </span>
-                </motion.div>
-              </div>
-            </div>
-          ))}
-
-          {/* Empty State */}
-          {tracks.length === 0 && (
+          {tracks.length === 0 ? (
+            /* Empty State */
             <div className="h-32 flex items-center justify-center">
-              <span className="font-display text-sm text-text-muted">
-                No tracks yet. Generate some content!
-              </span>
+              <div className="text-center">
+                <Layers className="w-8 h-8 text-text-muted mx-auto mb-2 opacity-30" />
+                <p className="font-display text-sm text-text-muted">
+                  No content yet
+                </p>
+                <p className="font-display text-xs text-text-muted mt-0.5">
+                  Generate images or videos to populate the timeline
+                </p>
+              </div>
             </div>
+          ) : (
+            tracks.map((track, index) => {
+              const isSelected = selectedTrackId === track.id;
+              const TypeIcon = track.type === 'video' ? Film : ImageIcon;
+
+              return (
+                <div
+                  key={track.id}
+                  onClick={() => setSelectedTrackId(isSelected ? null : track.id)}
+                  className={cn(
+                    'h-12 border-b border-border flex items-center px-4 transition-all cursor-pointer group',
+                    isSelected
+                      ? 'bg-red-aura'
+                      : 'hover:bg-elevated/50'
+                  )}
+                >
+                  {/* Track Label */}
+                  <div className="w-48 flex items-center gap-2 flex-shrink-0">
+                    <TypeIcon
+                      className={cn(
+                        'w-3.5 h-3.5',
+                        isSelected ? 'text-red-primary' : 'text-text-muted'
+                      )}
+                    />
+                    <span className={cn(
+                      'font-display text-sm truncate',
+                      isSelected ? 'text-red-primary font-medium' : 'text-text-primary'
+                    )}>
+                      {track.name}
+                    </span>
+                    <span className="font-mono text-[10px] text-text-muted ml-auto">
+                      {track.duration.toFixed(1)}s
+                    </span>
+                  </div>
+
+                  {/* Track Clip */}
+                  <div className="flex-1 relative h-8">
+                    <motion.div
+                      initial={{ scaleX: 0 }}
+                      animate={{ scaleX: 1 }}
+                      transition={{ duration: 0.3, delay: index * 0.1 }}
+                      className={cn(
+                        'absolute h-full rounded-lg flex items-center px-2 cursor-pointer overflow-hidden',
+                        isSelected && 'ring-1 ring-red-primary shadow-[0_0_8px_rgba(230,57,70,0.3)]'
+                      )}
+                      style={{
+                        left: `${(track.startTime / totalDuration) * 100}%`,
+                        width: `${(track.duration / totalDuration) * 100}%`,
+                        background: isSelected
+                          ? `linear-gradient(90deg, ${track.color}30, ${track.color}15)`
+                          : `${track.color}12`,
+                        border: `1px solid ${isSelected ? track.color : `${track.color}30`}`,
+                      }}
+                    >
+                      {/* Gradient fill for selected */}
+                      {isSelected && (
+                        <div
+                          className="absolute inset-0 opacity-20"
+                          style={{
+                            background: `linear-gradient(90deg, ${track.color}, transparent)`,
+                          }}
+                        />
+                      )}
+                      <span className={cn(
+                        'font-display text-xs font-medium truncate relative z-10',
+                        isSelected ? 'text-text-primary' : 'text-text-primary'
+                      )}>
+                        {track.name}
+                      </span>
+                    </motion.div>
+                  </div>
+                </div>
+              );
+            })
           )}
         </div>
       </div>
