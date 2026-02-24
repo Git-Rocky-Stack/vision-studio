@@ -2,17 +2,17 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/utils/cn';
 import { Button } from './ui/Button';
-import { 
-  Download, 
-  Cpu, 
-  Check, 
-  AlertCircle, 
+import {
+  Download,
+  Cpu,
+  Check,
+  AlertCircle,
   Loader2,
   Sparkles,
   ArrowRight,
   Monitor,
   HardDrive,
-  Zap
+  Zap,
 } from 'lucide-react';
 
 interface SetupStep {
@@ -25,23 +25,23 @@ const steps: SetupStep[] = [
   {
     id: 'welcome',
     title: 'Welcome to Vision Studio',
-    description: 'Let\'s get you set up for AI image and video generation'
+    description: "Let's get you set up for AI image and video generation",
   },
   {
     id: 'gpu',
     title: 'GPU Detection',
-    description: 'Checking your system capabilities'
+    description: 'Checking your system capabilities',
   },
   {
     id: 'download',
     title: 'Download AI Backend',
-    description: 'Downloading PyTorch and dependencies'
+    description: 'Downloading PyTorch and dependencies',
   },
   {
     id: 'complete',
     title: 'Setup Complete',
-    description: 'You\'re ready to create!'
-  }
+    description: "You're ready to create!",
+  },
 ];
 
 export function SetupWizard() {
@@ -53,15 +53,14 @@ export function SetupWizard() {
     vram?: string;
   } | null>(null);
   const [downloadProgress, setDownloadProgress] = useState(0);
-  const [downloadStatus, setDownloadStatus] = useState<'idle' | 'downloading' | 'complete' | 'error'>('idle');
-  const [error, setError] = useState('');
+  const [downloadStatus, setDownloadStatus] = useState<
+    'idle' | 'downloading' | 'complete' | 'error'
+  >('idle');
 
   useEffect(() => {
     if (currentStep === 1) {
-      // Check GPU
       checkGPU();
     } else if (currentStep === 2) {
-      // Start download
       startDownload();
     }
   }, [currentStep]);
@@ -72,22 +71,20 @@ export function SetupWizard() {
       setGpuInfo({
         available: info.gpu_available,
         name: info.gpu_name,
-        vram: info.gpu_vram
+        vram: info.gpu_vram,
       });
     } catch (e) {
       setGpuInfo({ available: false });
     }
-    
-    // Auto-advance after showing info
+
     setTimeout(() => setCurrentStep(2), 2000);
   };
 
   const startDownload = async () => {
     setDownloadStatus('downloading');
-    
-    // Simulate download progress (in real app, this would track actual download)
+
     const interval = setInterval(() => {
-      setDownloadProgress(prev => {
+      setDownloadProgress((prev) => {
         if (prev >= 100) {
           clearInterval(interval);
           setDownloadStatus('complete');
@@ -111,36 +108,63 @@ export function SetupWizard() {
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm"
+        className="fixed inset-0 z-50 flex items-center justify-center bg-void/90 backdrop-blur-md"
       >
         <motion.div
           initial={{ scale: 0.9, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
           exit={{ scale: 0.9, opacity: 0 }}
-          className="w-full max-w-lg bg-charcoal border border-border rounded-2xl shadow-2xl overflow-hidden"
+          className="w-full max-w-lg bg-surface border border-border rounded-2xl shadow-cinematic overflow-hidden"
         >
           {/* Header */}
-          <div className="p-6 border-b border-border">
+          <div className="p-6 border-b border-border relative overflow-hidden">
+            {/* Subtle red accent line at top */}
+            <div
+              className="absolute top-0 left-0 right-0 h-0.5"
+              style={{
+                background:
+                  'linear-gradient(90deg, transparent, #e63946, transparent)',
+              }}
+            />
+
             <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-red to-red-hover flex items-center justify-center">
-                <Sparkles className="w-5 h-5 text-white" />
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-red-primary to-red-highlight flex items-center justify-center glow-red-subtle">
+                <Sparkles className="w-5 h-5 text-text-primary" />
               </div>
               <div>
-                <h2 className="text-xl font-bold text-white">Vision Studio</h2>
-                <p className="text-sm text-silver">Setup Wizard</p>
+                <h2 className="font-display text-xl font-bold text-text-primary">
+                  Vision Studio
+                </h2>
+                <p className="text-sm text-text-body font-display">
+                  Setup Wizard
+                </p>
               </div>
             </div>
-            
+
             {/* Progress Bar */}
             <div className="flex gap-1">
               {steps.map((_, index) => (
                 <div
                   key={index}
-                  className={cn(
-                    'h-1 flex-1 rounded-full transition-all duration-500',
-                    index <= currentStep ? 'bg-red' : 'bg-charcoal-lighter'
-                  )}
-                />
+                  className="h-1 flex-1 rounded-full transition-all duration-500 overflow-hidden"
+                >
+                  <div
+                    className={cn(
+                      'h-full rounded-full transition-all duration-500',
+                      index <= currentStep
+                        ? 'w-full'
+                        : 'w-0'
+                    )}
+                    style={
+                      index <= currentStep
+                        ? {
+                            background:
+                              'linear-gradient(90deg, #c1121f, #e63946)',
+                          }
+                        : { backgroundColor: 'var(--color-elevated)' }
+                    }
+                  />
+                </div>
               ))}
             </div>
           </div>
@@ -156,36 +180,52 @@ export function SetupWizard() {
                   exit={{ opacity: 0, x: -20 }}
                   className="space-y-4"
                 >
-                  <h3 className="text-lg font-semibold text-white">{steps[0].title}</h3>
-                  <p className="text-silver">{steps[0].description}</p>
-                  
-                  <div className="p-4 bg-charcoal-lighter rounded-lg border border-border space-y-3">
-                    <div className="flex items-center gap-3">
-                      <Monitor className="w-5 h-5 text-red" />
-                      <div>
-                        <p className="text-sm font-medium text-white">AI-Powered Generation</p>
-                        <p className="text-xs text-silver">Create stunning images and videos</p>
+                  <h3 className="font-display text-lg font-semibold text-text-primary">
+                    {steps[0].title}
+                  </h3>
+                  <p className="text-text-body font-display">
+                    {steps[0].description}
+                  </p>
+
+                  <div className="p-4 bg-elevated rounded-lg border border-border space-y-3">
+                    {[
+                      {
+                        icon: Monitor,
+                        title: 'AI-Powered Generation',
+                        desc: 'Create stunning images and videos',
+                      },
+                      {
+                        icon: HardDrive,
+                        title: 'Local Processing',
+                        desc: 'Your data stays on your machine',
+                      },
+                      {
+                        icon: Zap,
+                        title: 'GPU Accelerated',
+                        desc: 'Faster generation with NVIDIA GPU',
+                      },
+                    ].map(({ icon: Icon, title, desc }) => (
+                      <div key={title} className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-lg bg-red-aura flex items-center justify-center flex-shrink-0">
+                          <Icon className="w-4 h-4 text-red-primary" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-display font-medium text-text-primary">
+                            {title}
+                          </p>
+                          <p className="text-xs text-text-muted font-display">
+                            {desc}
+                          </p>
+                        </div>
                       </div>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <HardDrive className="w-5 h-5 text-red" />
-                      <div>
-                        <p className="text-sm font-medium text-white">Local Processing</p>
-                        <p className="text-xs text-silver">Your data stays on your machine</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <Zap className="w-5 h-5 text-red" />
-                      <div>
-                        <p className="text-sm font-medium text-white">GPU Accelerated</p>
-                        <p className="text-xs text-silver">Faster generation with NVIDIA GPU</p>
-                      </div>
-                    </div>
+                    ))}
                   </div>
 
-                  <Button 
-                    fullWidth 
+                  <Button
+                    variant="cinema"
+                    fullWidth
                     icon={ArrowRight}
+                    iconPosition="right"
                     onClick={() => setCurrentStep(1)}
                   >
                     Get Started
@@ -201,29 +241,48 @@ export function SetupWizard() {
                   exit={{ opacity: 0, x: -20 }}
                   className="space-y-4"
                 >
-                  <h3 className="text-lg font-semibold text-white">{steps[1].title}</h3>
-                  <p className="text-silver">{steps[1].description}</p>
-                  
+                  <h3 className="font-display text-lg font-semibold text-text-primary">
+                    {steps[1].title}
+                  </h3>
+                  <p className="text-text-body font-display">
+                    {steps[1].description}
+                  </p>
+
                   <div className="flex items-center justify-center py-8">
                     {gpuInfo === null ? (
-                      <Loader2 className="w-8 h-8 text-red animate-spin" />
+                      <div className="text-center">
+                        <Loader2 className="w-10 h-10 text-red-primary animate-spin mx-auto mb-3" />
+                        <p className="font-display text-sm text-text-muted">
+                          Scanning hardware...
+                        </p>
+                      </div>
                     ) : gpuInfo.available ? (
                       <div className="text-center">
-                        <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-green-500/10 flex items-center justify-center">
+                        <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-green-500/10 border border-green-500/20 flex items-center justify-center">
                           <Check className="w-8 h-8 text-green-500" />
                         </div>
-                        <p className="text-white font-medium">GPU Detected</p>
-                        <p className="text-sm text-silver">{gpuInfo.name}</p>
-                        <p className="text-xs text-silver/60">{gpuInfo.vram} VRAM</p>
+                        <p className="font-display font-medium text-text-primary">
+                          GPU Detected
+                        </p>
+                        <p className="text-sm text-text-body font-display mt-1">
+                          {gpuInfo.name}
+                        </p>
+                        <p className="font-mono text-xs text-text-muted mt-0.5">
+                          {gpuInfo.vram} VRAM
+                        </p>
                       </div>
                     ) : (
                       <div className="text-center">
-                        <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-yellow-500/10 flex items-center justify-center">
+                        <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-yellow-500/10 border border-yellow-500/20 flex items-center justify-center">
                           <Cpu className="w-8 h-8 text-yellow-500" />
                         </div>
-                        <p className="text-white font-medium">CPU Mode</p>
-                        <p className="text-sm text-silver">No GPU detected</p>
-                        <p className="text-xs text-silver/60 mt-2">
+                        <p className="font-display font-medium text-text-primary">
+                          CPU Mode
+                        </p>
+                        <p className="text-sm text-text-body font-display mt-1">
+                          No GPU detected
+                        </p>
+                        <p className="text-xs text-text-muted font-display mt-2">
                           Generation will work but be slower
                         </p>
                       </div>
@@ -240,37 +299,47 @@ export function SetupWizard() {
                   exit={{ opacity: 0, x: -20 }}
                   className="space-y-4"
                 >
-                  <h3 className="text-lg font-semibold text-white">{steps[2].title}</h3>
-                  <p className="text-silver">{steps[2].description}</p>
-                  
+                  <h3 className="font-display text-lg font-semibold text-text-primary">
+                    {steps[2].title}
+                  </h3>
+                  <p className="text-text-body font-display">
+                    {steps[2].description}
+                  </p>
+
                   <div className="py-4">
                     <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm text-silver">
-                        {downloadStatus === 'complete' ? 'Download Complete' : 'Downloading...'}
+                      <span className="text-sm text-text-body font-display">
+                        {downloadStatus === 'complete'
+                          ? 'Download Complete'
+                          : 'Downloading...'}
                       </span>
-                      <span className="text-sm font-mono text-red">
+                      <span className="font-mono text-sm text-red-primary">
                         {Math.round(downloadProgress)}%
                       </span>
                     </div>
-                    
-                    <div className="h-3 bg-charcoal-lighter rounded-full overflow-hidden">
+
+                    <div className="h-2.5 bg-void rounded-full overflow-hidden border border-border">
                       <motion.div
-                        className="h-full bg-red"
+                        className="h-full rounded-full"
                         initial={{ width: 0 }}
                         animate={{ width: `${downloadProgress}%` }}
                         transition={{ duration: 0.3 }}
+                        style={{
+                          background:
+                            'linear-gradient(90deg, #c1121f, #e63946)',
+                          boxShadow: '0 0 8px rgba(230, 57, 70, 0.4)',
+                        }}
                       />
                     </div>
-                    
-                    <div className="mt-4 flex items-center gap-2 text-xs text-silver">
+
+                    <div className="mt-4 flex items-center gap-2 text-xs text-text-muted font-display">
                       <Download className="w-4 h-4" />
                       <span>
-                        {downloadStatus === 'downloading' 
+                        {downloadStatus === 'downloading'
                           ? 'Downloading PyTorch + CUDA (~2.5 GB)...'
                           : downloadStatus === 'complete'
-                          ? 'All components installed'
-                          : 'Ready to download'
-                        }
+                            ? 'All components installed'
+                            : 'Ready to download'}
                       </span>
                     </div>
                   </div>
@@ -285,31 +354,38 @@ export function SetupWizard() {
                   exit={{ opacity: 0, x: -20 }}
                   className="space-y-4"
                 >
-                  <h3 className="text-lg font-semibold text-white">{steps[3].title}</h3>
-                  <p className="text-silver">{steps[3].description}</p>
-                  
+                  <h3 className="font-display text-lg font-semibold text-text-primary">
+                    {steps[3].title}
+                  </h3>
+                  <p className="text-text-body font-display">
+                    {steps[3].description}
+                  </p>
+
                   <div className="text-center py-6">
-                    <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-green-500/10 flex items-center justify-center">
+                    <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-green-500/10 border border-green-500/20 flex items-center justify-center">
                       <Sparkles className="w-10 h-10 text-green-500" />
                     </div>
-                    <p className="text-white font-medium mb-2">All Set!</p>
-                    <p className="text-sm text-silver">
+                    <p className="font-display font-medium text-text-primary mb-2">
+                      All Set!
+                    </p>
+                    <p className="text-sm text-text-body font-display">
                       You can now generate images and videos
                     </p>
                   </div>
 
-                  <div className="p-3 bg-charcoal-lighter rounded-lg border border-border">
+                  <div className="p-3 bg-elevated rounded-lg border border-border">
                     <div className="flex items-start gap-2">
                       <AlertCircle className="w-4 h-4 text-yellow-500 flex-shrink-0 mt-0.5" />
-                      <p className="text-xs text-silver">
-                        AI models will be downloaded automatically when you first generate an image. 
-                        Each model is 2-6 GB.
+                      <p className="text-xs text-text-body font-display">
+                        AI models will be downloaded automatically when you
+                        first generate an image. Each model is 2-6 GB.
                       </p>
                     </div>
                   </div>
 
-                  <Button 
-                    fullWidth 
+                  <Button
+                    variant="cinema"
+                    fullWidth
                     icon={Sparkles}
                     onClick={handleFinish}
                   >
