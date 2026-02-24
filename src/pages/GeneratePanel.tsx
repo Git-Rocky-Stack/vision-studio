@@ -5,6 +5,11 @@ import { Button } from '@/components/ui/Button';
 import { Slider } from '@/components/ui/Slider';
 import { PromptArea } from '@/components/generate/PromptArea';
 import { StylePresetsBar } from '@/components/generate/StylePresetsBar';
+import { ModelSelector } from '@/components/generate/ModelSelector';
+import { ImageDropZone } from '@/components/generate/ImageDropZone';
+import { ControlNetPanel } from '@/components/generate/ControlNetPanel';
+import { LoRAMixer } from '@/components/generate/LoRAMixer';
+import type { ControlNetConfig, LoRAConfig } from '@/types/generation';
 import {
   Wand2,
   Image as ImageIcon,
@@ -18,12 +23,11 @@ import {
   Loader2,
   AlertCircle,
   Check,
+  X,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 type GenerationType = 'image' | 'video';
-type ImageModel = 'flux-dev' | 'flux-schnell' | 'sdxl' | 'sd-15';
-type VideoModel = 'svd' | 'animate-diff' | 'ltx-video';
 
 interface AspectRatio {
   name: string;
@@ -40,6 +44,17 @@ const aspectRatios: AspectRatio[] = [
   { name: 'Mobile', width: 720, height: 1280, icon: '9:16' },
 ];
 
+const SCHEDULERS = [
+  'Euler',
+  'Euler a',
+  'DPM++ 2M',
+  'DPM++ 2M Karras',
+  'DPM++ SDE',
+  'DPM++ SDE Karras',
+  'DDIM',
+  'UniPC',
+];
+
 const RANDOM_PROMPTS = [
   'A mystical forest at twilight with bioluminescent mushrooms and fireflies',
   'Cyberpunk cityscape with neon-lit skyscrapers and flying cars in the rain',
@@ -51,9 +66,18 @@ const RANDOM_PROMPTS = [
   'Dragon perched atop a mountain at sunrise, scales reflecting light',
 ];
 
+const DEFAULT_CONTROLNET: ControlNetConfig = {
+  enabled: false,
+  preprocessor: 'canny',
+  strength: 1.0,
+  startStep: 0,
+  endStep: 1,
+};
+
 export function GeneratePanel() {
   const {
     addJob,
+    updateJob,
     systemInfo,
     currentProject,
     addToPromptHistory,
@@ -66,6 +90,8 @@ export function GeneratePanel() {
   const [negativePrompt, setNegativePrompt] = useState('');
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [generationProgress, setGenerationProgress] = useState(0);
+  const [generationStep, setGenerationStep] = useState(0);
   const [generationStatus, setGenerationStatus] = useState<
     'idle' | 'generating' | 'success' | 'error'
   >('idle');
@@ -74,15 +100,31 @@ export function GeneratePanel() {
 
   // Image settings
   const [selectedRatio, setSelectedRatio] = useState(aspectRatios[0]);
-  const [imageModel, setImageModel] = useState<ImageModel>('flux-dev');
+  const [imageModel, setImageModel] = useState('flux-dev');
   const [steps, setSteps] = useState(25);
   const [cfgScale, setCfgScale] = useState(7.5);
   const [seed, setSeed] = useState(-1);
+  const [scheduler, setScheduler] = useState('Euler a');
+  const [clipSkip, setClipSkip] = useState(1);
 
   // Video settings
-  const [videoModel, setVideoModel] = useState<VideoModel>('ltx-video');
+  const [videoModel, setVideoModel] = useState('ltx-video');
   const [duration, setDuration] = useState(5);
   const [fps, setFps] = useState(24);
+
+  // Reference image (img2img)
+  const [referenceImage, setReferenceImage] = useState<string | null>(null);
+  const [denoisingStrength, setDenoisingStrength] = useState(0.75);
+  const [referenceMode, setReferenceMode] = useState<'img2img' | 'inpaint' | 'controlnet'>('img2img');
+
+  // ControlNet
+  const [controlNetConfig, setControlNetConfig] = useState<ControlNetConfig>(DEFAULT_CONTROLNET);
+
+  // LoRA
+  const [loraConfigs, setLoraConfigs] = useState<LoRAConfig[]>([]);
+
+  // Active job ID for progress tracking
+  const [activeJobId, setActiveJobId] = useState<string | null>(null);
 
   // Load template settings if project has one
   useEffect(() => {
@@ -93,7 +135,7 @@ export function GeneratePanel() {
           (r) => r.width === settings.width && r.height === settings.height
         ) || aspectRatios[0]
       );
-      setImageModel(settings.model as ImageModel);
+      setImageModel(settings.model);
       setSteps(settings.steps);
       setCfgScale(settings.cfgScale);
       setPrompt(settings.prompt);
@@ -106,6 +148,8 @@ export function GeneratePanel() {
 
     setIsGenerating(true);
     setGenerationStatus('generating');
+    setGenerationProgress(0);
+    setGenerationStep(0);
     setErrorMessage('');
 
     // Save to history
@@ -131,6 +175,7 @@ export function GeneratePanel() {
         });
 
         if (result.success && result.jobId) {
+          setActiveJobId(result.jobId);
           addJob({
             id: result.jobId,
             type: 'image',
@@ -160,6 +205,7 @@ export function GeneratePanel() {
         });
 
         if (result.success && result.jobId) {
+          setActiveJobId(result.jobId);
           addJob({
             id: result.jobId,
             type: 'video',
@@ -178,6 +224,7 @@ export function GeneratePanel() {
       setGenerationStatus('error');
       setErrorMessage(error.message || 'Generation failed');
       setIsGenerating(false);
+      setActiveJobId(null);
     }
   };
 
@@ -187,12 +234,21 @@ export function GeneratePanel() {
         const status = await window.electron.generation.getStatus(jobId);
         if (status.status === 'completed') {
           setGenerationStatus('success');
+          setGenerationProgress(100);
           setIsGenerating(false);
+          setActiveJobId(null);
         } else if (status.status === 'failed') {
           setGenerationStatus('error');
           setErrorMessage(status.error || 'Generation failed');
           setIsGenerating(false);
+          setActiveJobId(null);
         } else {
+          if (status.progress !== undefined) {
+            setGenerationProgress(status.progress);
+          }
+          if (status.step !== undefined) {
+            setGenerationStep(status.step);
+          }
           setTimeout(checkStatus, 1000);
         }
       } catch (e) {
@@ -201,6 +257,15 @@ export function GeneratePanel() {
       }
     };
     checkStatus();
+  };
+
+  const handleCancel = () => {
+    if (activeJobId) {
+      window.electron.generation.cancel(activeJobId);
+    }
+    setIsGenerating(false);
+    setGenerationStatus('idle');
+    setActiveJobId(null);
   };
 
   const randomizeSeed = () => setSeed(Math.floor(Math.random() * 2147483647));
@@ -212,11 +277,9 @@ export function GeneratePanel() {
 
   const handleToggleStylePreset = (presetId: string, modifier: string) => {
     if (activeStylePresets.includes(presetId)) {
-      // Remove
       setActiveStylePresets(activeStylePresets.filter((id) => id !== presetId));
       setPrompt(prompt.replace(`, ${modifier}`, '').replace(modifier, '').trim());
     } else {
-      // Add
       setActiveStylePresets([...activeStylePresets, presetId]);
       setPrompt(prompt ? `${prompt}, ${modifier}` : modifier);
     }
@@ -224,13 +287,13 @@ export function GeneratePanel() {
 
   const isGpuAvailable = systemInfo.gpuAvailable;
   const isFavorited = favoritePrompts.includes(prompt.trim());
+  const currentModel = generationType === 'image' ? imageModel : videoModel;
 
   return (
     <div className="h-full flex flex-col bg-surface">
       {/* Mode Toggle */}
       <div className="p-4 border-b border-border">
         <div className="relative flex bg-elevated rounded-lg p-1">
-          {/* Glow indicator */}
           <motion.div
             layoutId="modeGlow"
             className="absolute top-1 bottom-1 rounded-md bg-surface glow-red-subtle"
@@ -272,7 +335,9 @@ export function GeneratePanel() {
         <div className="mx-4 mt-4 p-3 rounded-lg bg-yellow-500/8 border border-yellow-500/20 flex items-start gap-2">
           <AlertCircle className="w-4 h-4 text-yellow-400 flex-shrink-0 mt-0.5" />
           <div>
-            <p className="text-xs text-yellow-400 font-display font-medium">GPU Not Detected</p>
+            <p className="text-xs text-yellow-400 font-display font-medium">
+              GPU Not Detected
+            </p>
             <p className="text-[10px] text-yellow-400/60">
               Generation will be very slow on CPU. Consider using a CUDA-capable GPU.
             </p>
@@ -281,7 +346,7 @@ export function GeneratePanel() {
       )}
 
       {/* Scrollable Content */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-6">
+      <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {/* Prompt Area */}
         <PromptArea
           prompt={prompt}
@@ -301,6 +366,31 @@ export function GeneratePanel() {
           activePresets={activeStylePresets}
           onTogglePreset={handleToggleStylePreset}
         />
+
+        {/* Reference Image (img2img) */}
+        {generationType === 'image' && (
+          <ImageDropZone
+            referenceImage={referenceImage}
+            onImageChange={setReferenceImage}
+            denoisingStrength={denoisingStrength}
+            onDenoisingStrengthChange={setDenoisingStrength}
+            mode={referenceMode}
+            onModeChange={setReferenceMode}
+          />
+        )}
+
+        {/* ControlNet */}
+        {generationType === 'image' && (
+          <ControlNetPanel
+            config={controlNetConfig}
+            onChange={setControlNetConfig}
+          />
+        )}
+
+        {/* LoRA Mixer */}
+        {generationType === 'image' && (
+          <LoRAMixer configs={loraConfigs} onChange={setLoraConfigs} />
+        )}
 
         {/* Aspect Ratio */}
         {generationType === 'image' && (
@@ -354,28 +444,14 @@ export function GeneratePanel() {
         {/* Model Selection */}
         <div className="space-y-3">
           <label className="text-label text-text-body">Model</label>
-          {generationType === 'image' ? (
-            <select
-              value={imageModel}
-              onChange={(e) => setImageModel(e.target.value as ImageModel)}
-              className="w-full bg-elevated border border-border rounded-lg px-3 py-2 text-text-primary text-sm font-display focus:border-red-primary focus:ring-1 focus:ring-red-primary/40 transition-all"
-            >
-              <option value="flux-dev">FLUX.1 [dev] &mdash; Best Quality</option>
-              <option value="flux-schnell">FLUX.1 [schnell] &mdash; Fast</option>
-              <option value="sdxl">Stable Diffusion XL</option>
-              <option value="sd-15">Stable Diffusion 1.5</option>
-            </select>
-          ) : (
-            <select
-              value={videoModel}
-              onChange={(e) => setVideoModel(e.target.value as VideoModel)}
-              className="w-full bg-elevated border border-border rounded-lg px-3 py-2 text-text-primary text-sm font-display focus:border-red-primary focus:ring-1 focus:ring-red-primary/40 transition-all"
-            >
-              <option value="ltx-video">LTX Video &mdash; High Quality</option>
-              <option value="svd">Stable Video Diffusion</option>
-              <option value="animate-diff">AnimateDiff</option>
-            </select>
-          )}
+          <ModelSelector
+            value={currentModel}
+            onChange={(id) => {
+              if (generationType === 'image') setImageModel(id);
+              else setVideoModel(id);
+            }}
+            generationType={generationType}
+          />
         </div>
 
         {/* Advanced Settings */}
@@ -402,7 +478,7 @@ export function GeneratePanel() {
                 transition={{ duration: 0.2 }}
                 className="overflow-hidden"
               >
-                <div className="pt-4 space-y-6">
+                <div className="pt-4 space-y-4">
                   {generationType === 'image' ? (
                     <>
                       <Slider
@@ -420,7 +496,46 @@ export function GeneratePanel() {
                         step={0.5}
                         onChange={setCfgScale}
                       />
-                      <div className="space-y-2">
+
+                      {/* Scheduler */}
+                      <div className="space-y-1.5">
+                        <label className="text-label text-text-body">Scheduler</label>
+                        <select
+                          value={scheduler}
+                          onChange={(e) => setScheduler(e.target.value)}
+                          className="w-full bg-elevated border border-border rounded-lg px-3 py-2 text-sm font-display text-text-primary focus:border-red-primary focus:ring-1 focus:ring-red-primary/40 transition-all"
+                        >
+                          {SCHEDULERS.map((s) => (
+                            <option key={s} value={s}>
+                              {s}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {/* Clip Skip */}
+                      <div className="space-y-1.5">
+                        <label className="text-label text-text-body">CLIP Skip</label>
+                        <div className="flex gap-2">
+                          {[1, 2].map((v) => (
+                            <button
+                              key={v}
+                              onClick={() => setClipSkip(v)}
+                              className={cn(
+                                'flex-1 py-2 rounded-lg text-sm font-mono font-medium transition-all',
+                                clipSkip === v
+                                  ? 'bg-red-primary text-text-primary glow-red-subtle'
+                                  : 'bg-elevated text-text-body border border-border hover:border-border-hover'
+                              )}
+                            >
+                              {v}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Seed */}
+                      <div className="space-y-1.5">
                         <div className="flex items-center justify-between">
                           <label className="text-label text-text-body">Seed</label>
                           <button
@@ -437,7 +552,7 @@ export function GeneratePanel() {
                           onChange={(e) => setSeed(Number(e.target.value))}
                           className="w-full bg-elevated border border-border rounded-lg px-3 py-2 text-text-primary font-mono text-sm focus:border-red-primary focus:ring-1 focus:ring-red-primary/40 transition-all"
                         />
-                        <p className="text-xs text-text-muted">
+                        <p className="text-xs text-text-muted font-mono">
                           Use -1 for random seed
                         </p>
                       </div>
@@ -509,21 +624,72 @@ export function GeneratePanel() {
         )}
       </div>
 
-      {/* Generate Button - Sticky bottom */}
+      {/* Generate Button / Progress Bar - Sticky bottom */}
       <div className="p-4 border-t border-border bg-surface">
-        <Button
-          onClick={handleGenerate}
-          isLoading={isGenerating}
-          disabled={!prompt.trim() || isGenerating}
-          icon={isGenerating ? Loader2 : Wand2}
-          variant={isGenerating ? 'primary' : 'cinema'}
-          fullWidth
-          size="lg"
-        >
-          {isGenerating
-            ? 'Generating...'
-            : `Generate ${generationType === 'image' ? 'Image' : 'Video'}`}
-        </Button>
+        <AnimatePresence mode="wait">
+          {isGenerating ? (
+            <motion.div
+              key="progress"
+              initial={{ opacity: 0, scale: 0.98 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.98 }}
+              className="relative overflow-hidden rounded-xl bg-elevated border border-border"
+            >
+              {/* Progress fill */}
+              <motion.div
+                className="absolute inset-y-0 left-0 rounded-xl"
+                initial={{ width: 0 }}
+                animate={{ width: `${generationProgress}%` }}
+                transition={{ duration: 0.3, ease: 'easeOut' }}
+                style={{
+                  background: 'linear-gradient(90deg, #c1121f, #e63946)',
+                  boxShadow:
+                    '0 0 12px rgba(230, 57, 70, 0.3), inset 0 1px 0 rgba(255,255,255,0.1)',
+                }}
+              />
+
+              {/* Content overlay */}
+              <div className="relative flex items-center justify-between px-4 py-3.5">
+                <div className="flex items-center gap-2">
+                  <Loader2 className="w-4 h-4 text-text-primary animate-spin" />
+                  <span className="font-display text-sm text-text-primary font-medium">
+                    Step {generationStep}/{steps}
+                  </span>
+                </div>
+
+                <button
+                  onClick={handleCancel}
+                  className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-void/40 text-text-body hover:text-text-primary hover:bg-void/60 transition-all font-display text-xs"
+                >
+                  <X className="w-3 h-3" />
+                  Cancel
+                </button>
+
+                <span className="font-mono text-sm text-text-primary font-medium">
+                  {Math.round(generationProgress)}%
+                </span>
+              </div>
+            </motion.div>
+          ) : (
+            <motion.button
+              key="generate"
+              initial={{ opacity: 0, scale: 0.98 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.98 }}
+              onClick={handleGenerate}
+              disabled={!prompt.trim()}
+              className={cn(
+                'w-full flex items-center justify-center gap-2.5 py-3.5 rounded-xl font-display text-sm font-semibold transition-all',
+                prompt.trim()
+                  ? 'bg-red-primary text-text-primary glow-red hover:bg-red-highlight active:bg-red-pressed hover:scale-[1.01] active:scale-[0.99]'
+                  : 'bg-elevated text-text-muted opacity-40 cursor-not-allowed'
+              )}
+            >
+              <Wand2 className="w-4.5 h-4.5" />
+              Generate {generationType === 'image' ? 'Image' : 'Video'}
+            </motion.button>
+          )}
+        </AnimatePresence>
       </div>
     </div>
   );
