@@ -1,4 +1,5 @@
 import { cn } from '@/utils/cn';
+import { useAppStore } from '@/store/appStore';
 import {
   ZoomIn,
   ZoomOut,
@@ -8,16 +9,24 @@ import {
   Hand,
 } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { AmbientParticles } from '@/components/effects/AmbientParticles';
+import { GenerationProgress } from '@/components/canvas/GenerationProgress';
+import { GenerationQueue } from '@/components/canvas/GenerationQueue';
 
 export function Canvas() {
+  const { activeJobs, currentImage } = useAppStore();
   const [zoom, setZoom] = useState(100);
   const [showGrid, setShowGrid] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [imageSize, setImageSize] = useState({ width: 1024, height: 1024 });
   const canvasRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  const isGenerating = activeJobs.some(
+    (j) => j.status === 'pending' || j.status === 'processing'
+  );
 
   const handleZoomIn = () => setZoom(Math.min(zoom + 10, 200));
   const handleZoomOut = () => setZoom(Math.max(zoom - 10, 25));
@@ -25,6 +34,34 @@ export function Canvas() {
     setZoom(100);
     setPan({ x: 0, y: 0 });
   };
+
+  // Detect image dimensions when currentImage changes
+  useEffect(() => {
+    if (!currentImage) {
+      setImageSize({ width: 1024, height: 1024 });
+      return;
+    }
+    const img = new Image();
+    img.onload = () => {
+      setImageSize({ width: img.naturalWidth, height: img.naturalHeight });
+    };
+    img.src = currentImage;
+  }, [currentImage]);
+
+  // Handle scroll wheel zoom
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const handleWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      const delta = e.deltaY > 0 ? -5 : 5;
+      setZoom((z) => Math.min(200, Math.max(25, z + delta)));
+    };
+
+    container.addEventListener('wheel', handleWheel, { passive: false });
+    return () => container.removeEventListener('wheel', handleWheel);
+  }, []);
 
   // Handle pan
   useEffect(() => {
@@ -73,7 +110,12 @@ export function Canvas() {
   }, [isDragging, pan]);
 
   return (
-    <div className="flex-1 flex flex-col bg-void relative overflow-hidden">
+    <div
+      className={cn(
+        'flex-1 flex flex-col bg-void relative overflow-hidden',
+        isGenerating && 'ring-1 ring-red-primary/20 animate-glow-pulse'
+      )}
+    >
       {/* Ambient particles */}
       <AmbientParticles color="rgba(255, 200, 150, 0.25)" count={30} />
 
@@ -155,46 +197,64 @@ export function Canvas() {
           {/* Artboard */}
           <div
             className="relative bg-canvas shadow-cinematic border border-border"
-            style={{ width: 1024, height: 1024 }}
+            style={{ width: imageSize.width, height: imageSize.height }}
           >
-            {/* Placeholder Content */}
-            <div className="absolute inset-0 flex flex-col items-center justify-center text-text-body">
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="text-center space-y-4"
-              >
-                <div className="w-24 h-24 mx-auto rounded-2xl bg-elevated border border-border flex items-center justify-center">
-                  <Move className="w-10 h-10 text-text-muted" />
-                </div>
-                <div>
-                  <h3 className="font-display text-lg font-semibold text-text-primary">
-                    Create something extraordinary
-                  </h3>
-                  <p className="text-sm text-text-body mt-1">
-                    Generate images and videos to see them here
-                  </p>
-                </div>
-                <div className="flex items-center gap-2 justify-center text-xs text-text-muted">
-                  <Hand className="w-3.5 h-3.5" />
-                  <span>Shift + Drag to pan</span>
-                  <span>&middot;</span>
-                  <span>Scroll to zoom</span>
-                </div>
-              </motion.div>
-            </div>
+            {/* Current Image or Placeholder */}
+            {currentImage ? (
+              <img
+                src={currentImage}
+                alt="Canvas"
+                className="absolute inset-0 w-full h-full object-contain"
+              />
+            ) : (
+              <div className="absolute inset-0 flex flex-col items-center justify-center text-text-body">
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="text-center space-y-4"
+                >
+                  <div className="w-24 h-24 mx-auto rounded-2xl bg-elevated border border-border flex items-center justify-center">
+                    <Move className="w-10 h-10 text-text-muted" />
+                  </div>
+                  <div>
+                    <h3 className="font-display text-lg font-semibold text-text-primary">
+                      Create something extraordinary
+                    </h3>
+                    <p className="text-sm text-text-body mt-1">
+                      Generate images and videos to see them here
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2 justify-center text-xs text-text-muted">
+                    <Hand className="w-3.5 h-3.5" />
+                    <span>Shift + Drag to pan</span>
+                    <span>&middot;</span>
+                    <span>Scroll to zoom</span>
+                  </div>
+                </motion.div>
+              </div>
+            )}
 
             {/* Canvas Border Overlay */}
             <div className="absolute inset-0 pointer-events-none border border-dashed border-border rounded-sm" />
           </div>
         </motion.div>
+
+        {/* Generation Progress Overlay */}
+        <AnimatePresence>
+          {isGenerating && <GenerationProgress />}
+        </AnimatePresence>
       </div>
+
+      {/* Generation Queue Strip */}
+      <AnimatePresence>
+        <GenerationQueue />
+      </AnimatePresence>
 
       {/* Canvas Info */}
       <div className="absolute bottom-4 left-4 z-10">
         <div className="px-3 py-1.5 glass glass-border rounded-lg">
           <span className="font-mono text-xs text-text-body">
-            1024 × 1024px &middot; Artboard 1
+            {imageSize.width} &times; {imageSize.height}px &middot; Artboard 1
           </span>
         </div>
       </div>
