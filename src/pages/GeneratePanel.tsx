@@ -9,6 +9,7 @@ import { ModelSelector } from '@/components/generate/ModelSelector';
 import { ImageDropZone } from '@/components/generate/ImageDropZone';
 import { ControlNetPanel } from '@/components/generate/ControlNetPanel';
 import { LoRAMixer } from '@/components/generate/LoRAMixer';
+import { PromptHistory } from '@/components/generate/PromptHistory';
 import type { ControlNetConfig, LoRAConfig } from '@/types/generation';
 import {
   Wand2,
@@ -88,6 +89,7 @@ export function GeneratePanel() {
   const [generationType, setGenerationType] = useState<GenerationType>('image');
   const [prompt, setPrompt] = useState('');
   const [negativePrompt, setNegativePrompt] = useState('');
+  const [showHistory, setShowHistory] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [generationProgress, setGenerationProgress] = useState(0);
@@ -348,18 +350,29 @@ export function GeneratePanel() {
       {/* Scrollable Content */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {/* Prompt Area */}
-        <PromptArea
-          prompt={prompt}
-          onPromptChange={setPrompt}
-          negativePrompt={negativePrompt}
-          onNegativePromptChange={setNegativePrompt}
-          generationType={generationType}
-          isFavorited={isFavorited}
-          onRandomize={handleRandomPrompt}
-          onEnhance={() => {}}
-          onShowHistory={() => {}}
-          onToggleFavorite={() => toggleFavoritePrompt(prompt.trim())}
-        />
+        <div className="relative">
+          <PromptArea
+            prompt={prompt}
+            onPromptChange={setPrompt}
+            negativePrompt={negativePrompt}
+            onNegativePromptChange={setNegativePrompt}
+            generationType={generationType}
+            isFavorited={isFavorited}
+            onRandomize={handleRandomPrompt}
+            onEnhance={() => {}}
+            onShowHistory={() => setShowHistory(!showHistory)}
+            onToggleFavorite={() => toggleFavoritePrompt(prompt.trim())}
+          />
+          <PromptHistory
+            isOpen={showHistory}
+            onClose={() => setShowHistory(false)}
+            onSelectPrompt={(p, np) => {
+              setPrompt(p);
+              setNegativePrompt(np);
+              setShowHistory(false);
+            }}
+          />
+        </div>
 
         {/* Style Presets */}
         <StylePresetsBar
