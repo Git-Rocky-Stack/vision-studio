@@ -10,7 +10,17 @@ lerna-debug.log*
 node_modules
 dist
 dist-ssr
+dist-electron
 *.local
+
+# Build artifacts and release binaries
+release/
+backend/build/
+backend/utils/__pycache__/
+*.pkg
+*.asar
+*.blockmap
+resources/VisionStudio-Backend.exe
 
 # Editor directories and files
 .vscode/*
