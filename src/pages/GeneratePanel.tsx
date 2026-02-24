@@ -2,15 +2,14 @@ import { useState, useEffect } from 'react';
 import { cn } from '@/utils/cn';
 import { useAppStore } from '@/store/appStore';
 import { Button } from '@/components/ui/Button';
-import { Textarea } from '@/components/ui/Textarea';
 import { Slider } from '@/components/ui/Slider';
-import { 
-  Wand2, 
-  Image as ImageIcon, 
-  Film, 
-  Sparkles,
+import { PromptArea } from '@/components/generate/PromptArea';
+import { StylePresetsBar } from '@/components/generate/StylePresetsBar';
+import {
+  Wand2,
+  Image as ImageIcon,
+  Film,
   Dice5,
-  RefreshCw,
   Settings2,
   ChevronDown,
   ChevronUp,
@@ -18,7 +17,7 @@ import {
   Clock,
   Loader2,
   AlertCircle,
-  Check
+  Check,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -41,23 +40,45 @@ const aspectRatios: AspectRatio[] = [
   { name: 'Mobile', width: 720, height: 1280, icon: '9:16' },
 ];
 
+const RANDOM_PROMPTS = [
+  'A mystical forest at twilight with bioluminescent mushrooms and fireflies',
+  'Cyberpunk cityscape with neon-lit skyscrapers and flying cars in the rain',
+  'An astronaut sitting on the edge of a cliff overlooking a nebula',
+  'A cozy cabin in the snowy mountains with warm light spilling from windows',
+  'Ancient temple ruins reclaimed by jungle with shafts of golden light',
+  'Underwater palace with coral architecture and schools of glowing fish',
+  'A grand library with floating books and magical glowing orbs',
+  'Dragon perched atop a mountain at sunrise, scales reflecting light',
+];
+
 export function GeneratePanel() {
-  const { addJob, systemInfo, availableModels, currentProject } = useAppStore();
+  const {
+    addJob,
+    systemInfo,
+    currentProject,
+    addToPromptHistory,
+    favoritePrompts,
+    toggleFavoritePrompt,
+  } = useAppStore();
+
   const [generationType, setGenerationType] = useState<GenerationType>('image');
   const [prompt, setPrompt] = useState('');
   const [negativePrompt, setNegativePrompt] = useState('');
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
-  const [generationStatus, setGenerationStatus] = useState<'idle' | 'generating' | 'success' | 'error'>('idle');
+  const [generationStatus, setGenerationStatus] = useState<
+    'idle' | 'generating' | 'success' | 'error'
+  >('idle');
   const [errorMessage, setErrorMessage] = useState('');
-  
+  const [activeStylePresets, setActiveStylePresets] = useState<string[]>([]);
+
   // Image settings
   const [selectedRatio, setSelectedRatio] = useState(aspectRatios[0]);
   const [imageModel, setImageModel] = useState<ImageModel>('flux-dev');
   const [steps, setSteps] = useState(25);
   const [cfgScale, setCfgScale] = useState(7.5);
   const [seed, setSeed] = useState(-1);
-  
+
   // Video settings
   const [videoModel, setVideoModel] = useState<VideoModel>('ltx-video');
   const [duration, setDuration] = useState(5);
@@ -66,10 +87,12 @@ export function GeneratePanel() {
   // Load template settings if project has one
   useEffect(() => {
     if (currentProject?.template) {
-      const settings = currentProject.template.settings;
-      setSelectedRatio(aspectRatios.find(r => 
-        r.width === settings.width && r.height === settings.height
-      ) || aspectRatios[0]);
+      const settings = (currentProject as any).template.settings;
+      setSelectedRatio(
+        aspectRatios.find(
+          (r) => r.width === settings.width && r.height === settings.height
+        ) || aspectRatios[0]
+      );
       setImageModel(settings.model as ImageModel);
       setSteps(settings.steps);
       setCfgScale(settings.cfgScale);
@@ -80,11 +103,20 @@ export function GeneratePanel() {
 
   const handleGenerate = async () => {
     if (!prompt.trim()) return;
-    
+
     setIsGenerating(true);
     setGenerationStatus('generating');
     setErrorMessage('');
-    
+
+    // Save to history
+    addToPromptHistory({
+      id: crypto.randomUUID(),
+      prompt: prompt.trim(),
+      negativePrompt: negativePrompt.trim(),
+      timestamp: new Date(),
+      model: generationType === 'image' ? imageModel : videoModel,
+    });
+
     try {
       if (generationType === 'image') {
         const result = await window.electron.generation.generateImage({
@@ -95,11 +127,10 @@ export function GeneratePanel() {
           steps,
           cfg_scale: cfgScale,
           seed: seed === -1 ? undefined : seed,
-          model: imageModel
+          model: imageModel,
         });
 
         if (result.success && result.jobId) {
-          // Add to jobs
           addJob({
             id: result.jobId,
             type: 'image',
@@ -108,12 +139,10 @@ export function GeneratePanel() {
             params: {
               prompt,
               width: selectedRatio.width,
-              height: selectedRatio.height
+              height: selectedRatio.height,
             },
-            createdAt: new Date()
+            createdAt: new Date(),
           });
-
-          // Poll for completion
           pollJobStatus(result.jobId);
         } else {
           throw new Error(result.error || 'Generation failed');
@@ -127,7 +156,7 @@ export function GeneratePanel() {
           fps,
           steps,
           model: videoModel,
-          seed: seed === -1 ? undefined : seed
+          seed: seed === -1 ? undefined : seed,
         });
 
         if (result.success && result.jobId) {
@@ -137,7 +166,7 @@ export function GeneratePanel() {
             status: 'pending',
             progress: 0,
             params: { prompt, duration, fps },
-            createdAt: new Date()
+            createdAt: new Date(),
           });
           pollJobStatus(result.jobId);
         } else {
@@ -156,7 +185,6 @@ export function GeneratePanel() {
     const checkStatus = async () => {
       try {
         const status = await window.electron.generation.getStatus(jobId);
-        
         if (status.status === 'completed') {
           setGenerationStatus('success');
           setIsGenerating(false);
@@ -165,7 +193,6 @@ export function GeneratePanel() {
           setErrorMessage(status.error || 'Generation failed');
           setIsGenerating(false);
         } else {
-          // Still processing, poll again
           setTimeout(checkStatus, 1000);
         }
       } catch (e) {
@@ -173,53 +200,80 @@ export function GeneratePanel() {
         setTimeout(checkStatus, 2000);
       }
     };
-    
     checkStatus();
   };
 
   const randomizeSeed = () => setSeed(Math.floor(Math.random() * 2147483647));
 
+  const handleRandomPrompt = () => {
+    const idx = Math.floor(Math.random() * RANDOM_PROMPTS.length);
+    setPrompt(RANDOM_PROMPTS[idx]);
+  };
+
+  const handleToggleStylePreset = (presetId: string, modifier: string) => {
+    if (activeStylePresets.includes(presetId)) {
+      // Remove
+      setActiveStylePresets(activeStylePresets.filter((id) => id !== presetId));
+      setPrompt(prompt.replace(`, ${modifier}`, '').replace(modifier, '').trim());
+    } else {
+      // Add
+      setActiveStylePresets([...activeStylePresets, presetId]);
+      setPrompt(prompt ? `${prompt}, ${modifier}` : modifier);
+    }
+  };
+
   const isGpuAvailable = systemInfo.gpuAvailable;
+  const isFavorited = favoritePrompts.includes(prompt.trim());
 
   return (
-    <div className="h-full flex flex-col">
-      {/* Type Selector */}
+    <div className="h-full flex flex-col bg-surface">
+      {/* Mode Toggle */}
       <div className="p-4 border-b border-border">
-        <div className="flex bg-charcoal-lighter rounded-lg p-1">
+        <div className="relative flex bg-elevated rounded-lg p-1">
+          {/* Glow indicator */}
+          <motion.div
+            layoutId="modeGlow"
+            className="absolute top-1 bottom-1 rounded-md bg-surface glow-red-subtle"
+            style={{ width: 'calc(50% - 4px)' }}
+            animate={{
+              x: generationType === 'image' ? 0 : 'calc(100% + 4px)',
+            }}
+            transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+          />
           <button
             onClick={() => setGenerationType('image')}
             className={cn(
-              'flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-md transition-all',
+              'relative z-10 flex-1 flex items-center justify-center gap-2 py-2 rounded-md transition-colors',
               generationType === 'image'
-                ? 'bg-charcoal text-white shadow-sm'
-                : 'text-silver hover:text-white'
+                ? 'text-red-primary'
+                : 'text-text-muted hover:text-text-body'
             )}
           >
             <ImageIcon className="w-4 h-4" />
-            <span className="text-sm font-medium">Image</span>
+            <span className="font-display text-sm font-medium">Image</span>
           </button>
           <button
             onClick={() => setGenerationType('video')}
             className={cn(
-              'flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-md transition-all',
+              'relative z-10 flex-1 flex items-center justify-center gap-2 py-2 rounded-md transition-colors',
               generationType === 'video'
-                ? 'bg-charcoal text-white shadow-sm'
-                : 'text-silver hover:text-white'
+                ? 'text-red-primary'
+                : 'text-text-muted hover:text-text-body'
             )}
           >
             <Film className="w-4 h-4" />
-            <span className="text-sm font-medium">Video</span>
+            <span className="font-display text-sm font-medium">Video</span>
           </button>
         </div>
       </div>
 
       {/* GPU Warning */}
       {!isGpuAvailable && (
-        <div className="mx-4 mt-4 p-3 rounded-lg bg-yellow-500/10 border border-yellow-500/30 flex items-start gap-2">
-          <AlertCircle className="w-4 h-4 text-yellow-500 flex-shrink-0 mt-0.5" />
+        <div className="mx-4 mt-4 p-3 rounded-lg bg-yellow-500/8 border border-yellow-500/20 flex items-start gap-2">
+          <AlertCircle className="w-4 h-4 text-yellow-400 flex-shrink-0 mt-0.5" />
           <div>
-            <p className="text-xs text-yellow-500 font-medium">GPU Not Detected</p>
-            <p className="text-[10px] text-yellow-500/70">
+            <p className="text-xs text-yellow-400 font-display font-medium">GPU Not Detected</p>
+            <p className="text-[10px] text-yellow-400/60">
               Generation will be very slow on CPU. Consider using a CUDA-capable GPU.
             </p>
           </div>
@@ -228,92 +282,86 @@ export function GeneratePanel() {
 
       {/* Scrollable Content */}
       <div className="flex-1 overflow-y-auto p-4 space-y-6">
-        {/* Prompt */}
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <label className="text-sm font-medium text-light-grey flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-red" />
-              Prompt
-            </label>
-            <span className="text-xs text-silver">{prompt.length} chars</span>
-          </div>
-          <Textarea
-            value={prompt}
-            onChange={(e) => setPrompt(e.target.value)}
-            placeholder={generationType === 'image' 
-              ? "Describe the image you want to generate..." 
-              : "Describe the video you want to generate..."}
-            rows={4}
-            className="resize-none"
-          />
-        </div>
+        {/* Prompt Area */}
+        <PromptArea
+          prompt={prompt}
+          onPromptChange={setPrompt}
+          negativePrompt={negativePrompt}
+          onNegativePromptChange={setNegativePrompt}
+          generationType={generationType}
+          isFavorited={isFavorited}
+          onRandomize={handleRandomPrompt}
+          onEnhance={() => {}}
+          onShowHistory={() => {}}
+          onToggleFavorite={() => toggleFavoritePrompt(prompt.trim())}
+        />
 
-        {/* Negative Prompt */}
-        <div className="space-y-3">
-          <label className="text-sm font-medium text-light-grey">
-            Negative Prompt (optional)
-          </label>
-          <Textarea
-            value={negativePrompt}
-            onChange={(e) => setNegativePrompt(e.target.value)}
-            placeholder="Things to avoid in the generation..."
-            rows={2}
-            className="resize-none"
-          />
-        </div>
+        {/* Style Presets */}
+        <StylePresetsBar
+          activePresets={activeStylePresets}
+          onTogglePreset={handleToggleStylePreset}
+        />
 
-        {/* Aspect Ratio - Image Only */}
+        {/* Aspect Ratio */}
         {generationType === 'image' && (
           <div className="space-y-3">
-            <label className="text-sm font-medium text-light-grey">Aspect Ratio</label>
+            <label className="text-label text-text-body">Aspect Ratio</label>
             <div className="grid grid-cols-5 gap-2">
-              {aspectRatios.map((ratio) => (
-                <button
-                  key={ratio.name}
-                  onClick={() => setSelectedRatio(ratio)}
-                  className={cn(
-                    'p-3 rounded-lg border transition-all text-center',
-                    selectedRatio.name === ratio.name
-                      ? 'border-red bg-red/10'
-                      : 'border-border hover:border-border-hover bg-charcoal-lighter'
-                  )}
-                >
-                  <div className={cn(
-                    'mx-auto mb-2 border-2 rounded',
-                    selectedRatio.name === ratio.name ? 'border-red' : 'border-silver'
-                  )}
-                  style={{ 
-                    width: ratio.width > ratio.height ? '24px' : '16px',
-                    height: ratio.width > ratio.height ? '16px' : '24px'
-                  }}
-                  />
-                  <span className={cn(
-                    'text-xs block',
-                    selectedRatio.name === ratio.name ? 'text-red' : 'text-silver'
-                  )}>
-                    {ratio.name}
-                  </span>
-                  <span className="text-[10px] text-silver/60">{ratio.icon}</span>
-                </button>
-              ))}
+              {aspectRatios.map((ratio) => {
+                const isSelected = selectedRatio.name === ratio.name;
+                return (
+                  <button
+                    key={ratio.name}
+                    onClick={() => setSelectedRatio(ratio)}
+                    className={cn(
+                      'p-2.5 rounded-lg border transition-all text-center',
+                      isSelected
+                        ? 'border-red-primary bg-red-aura glow-red-subtle'
+                        : 'border-border hover:border-border-hover bg-elevated'
+                    )}
+                  >
+                    <div
+                      className={cn(
+                        'mx-auto mb-1.5 rounded-sm',
+                        isSelected ? 'bg-red-primary' : 'bg-text-muted'
+                      )}
+                      style={{
+                        width: ratio.width > ratio.height ? '22px' : '14px',
+                        height: ratio.width > ratio.height ? '14px' : '22px',
+                      }}
+                    />
+                    <span
+                      className={cn(
+                        'font-display text-[10px] block',
+                        isSelected ? 'text-red-primary' : 'text-text-body'
+                      )}
+                    >
+                      {ratio.name}
+                    </span>
+                    <span className="font-mono text-[9px] text-text-muted block">
+                      {ratio.icon}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
-            <p className="text-xs text-silver">
-              {selectedRatio.width} × {selectedRatio.height}px
+            <p className="font-mono text-xs text-text-muted">
+              {selectedRatio.width} &times; {selectedRatio.height}px
             </p>
           </div>
         )}
 
         {/* Model Selection */}
         <div className="space-y-3">
-          <label className="text-sm font-medium text-light-grey">Model</label>
+          <label className="text-label text-text-body">Model</label>
           {generationType === 'image' ? (
             <select
               value={imageModel}
               onChange={(e) => setImageModel(e.target.value as ImageModel)}
-              className="w-full bg-charcoal border border-border rounded-lg px-3 py-2 text-white text-sm focus:border-red focus:ring-1 focus:ring-red"
+              className="w-full bg-elevated border border-border rounded-lg px-3 py-2 text-text-primary text-sm font-display focus:border-red-primary focus:ring-1 focus:ring-red-primary/40 transition-all"
             >
-              <option value="flux-dev">FLUX.1 [dev] - Best Quality</option>
-              <option value="flux-schnell">FLUX.1 [schnell] - Fast</option>
+              <option value="flux-dev">FLUX.1 [dev] &mdash; Best Quality</option>
+              <option value="flux-schnell">FLUX.1 [schnell] &mdash; Fast</option>
               <option value="sdxl">Stable Diffusion XL</option>
               <option value="sd-15">Stable Diffusion 1.5</option>
             </select>
@@ -321,9 +369,9 @@ export function GeneratePanel() {
             <select
               value={videoModel}
               onChange={(e) => setVideoModel(e.target.value as VideoModel)}
-              className="w-full bg-charcoal border border-border rounded-lg px-3 py-2 text-white text-sm focus:border-red focus:ring-1 focus:ring-red"
+              className="w-full bg-elevated border border-border rounded-lg px-3 py-2 text-text-primary text-sm font-display focus:border-red-primary focus:ring-1 focus:ring-red-primary/40 transition-all"
             >
-              <option value="ltx-video">LTX Video - High Quality</option>
+              <option value="ltx-video">LTX Video &mdash; High Quality</option>
               <option value="svd">Stable Video Diffusion</option>
               <option value="animate-diff">AnimateDiff</option>
             </select>
@@ -334,11 +382,15 @@ export function GeneratePanel() {
         <div>
           <button
             onClick={() => setShowAdvanced(!showAdvanced)}
-            className="flex items-center gap-2 text-sm text-silver hover:text-white transition-all"
+            className="flex items-center gap-2 text-sm text-text-body hover:text-text-primary transition-all font-display"
           >
             <Settings2 className="w-4 h-4" />
             Advanced Settings
-            {showAdvanced ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+            {showAdvanced ? (
+              <ChevronUp className="w-4 h-4" />
+            ) : (
+              <ChevronDown className="w-4 h-4" />
+            )}
           </button>
 
           <AnimatePresence>
@@ -370,10 +422,10 @@ export function GeneratePanel() {
                       />
                       <div className="space-y-2">
                         <div className="flex items-center justify-between">
-                          <label className="text-sm font-medium text-light-grey">Seed</label>
+                          <label className="text-label text-text-body">Seed</label>
                           <button
                             onClick={randomizeSeed}
-                            className="p-1 rounded text-silver hover:text-red transition-all"
+                            className="p-1 rounded text-text-muted hover:text-red-primary transition-all"
                             title="Randomize"
                           >
                             <Dice5 className="w-4 h-4" />
@@ -383,9 +435,9 @@ export function GeneratePanel() {
                           type="number"
                           value={seed}
                           onChange={(e) => setSeed(Number(e.target.value))}
-                          className="w-full bg-charcoal border border-border rounded-lg px-3 py-2 text-white text-sm focus:border-red focus:ring-1 focus:ring-red"
+                          className="w-full bg-elevated border border-border rounded-lg px-3 py-2 text-text-primary font-mono text-sm focus:border-red-primary focus:ring-1 focus:ring-red-primary/40 transition-all"
                         />
-                        <p className="text-xs text-silver">
+                        <p className="text-xs text-text-muted">
                           Use -1 for random seed
                         </p>
                       </div>
@@ -393,7 +445,7 @@ export function GeneratePanel() {
                   ) : (
                     <>
                       <Slider
-                        label="Duration (seconds)"
+                        label="Duration"
                         value={duration}
                         min={1}
                         max={10}
@@ -417,8 +469,8 @@ export function GeneratePanel() {
         </div>
 
         {/* Estimated Info */}
-        <div className="p-3 rounded-lg bg-charcoal-lighter border border-border">
-          <div className="flex items-center gap-4 text-xs text-silver">
+        <div className="p-3 rounded-lg bg-elevated border border-border">
+          <div className="flex items-center gap-4 text-xs text-text-body font-display">
             <div className="flex items-center gap-1.5">
               <Clock className="w-3.5 h-3.5" />
               <span>~{generationType === 'image' ? '15-30s' : '2-5min'}</span>
@@ -435,10 +487,10 @@ export function GeneratePanel() {
           <motion.div
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
-            className="p-3 rounded-lg bg-red/10 border border-red/30 flex items-start gap-2"
+            className="p-3 rounded-lg bg-red-primary/10 border border-red-primary/30 flex items-start gap-2"
           >
-            <AlertCircle className="w-4 h-4 text-red flex-shrink-0 mt-0.5" />
-            <p className="text-xs text-red">{errorMessage}</p>
+            <AlertCircle className="w-4 h-4 text-red-primary flex-shrink-0 mt-0.5" />
+            <p className="text-xs text-red-primary">{errorMessage}</p>
           </motion.div>
         )}
 
@@ -449,26 +501,28 @@ export function GeneratePanel() {
             animate={{ opacity: 1, y: 0 }}
             className="p-3 rounded-lg bg-green-500/10 border border-green-500/30 flex items-start gap-2"
           >
-            <Check className="w-4 h-4 text-green-500 flex-shrink-0 mt-0.5" />
-            <p className="text-xs text-green-500">Generation completed! Check the Assets panel.</p>
+            <Check className="w-4 h-4 text-green-400 flex-shrink-0 mt-0.5" />
+            <p className="text-xs text-green-400">
+              Generation completed! Check the Assets panel.
+            </p>
           </motion.div>
         )}
       </div>
 
-      {/* Generate Button */}
-      <div className="p-4 border-t border-border">
+      {/* Generate Button - Sticky bottom */}
+      <div className="p-4 border-t border-border bg-surface">
         <Button
           onClick={handleGenerate}
           isLoading={isGenerating}
           disabled={!prompt.trim() || isGenerating}
           icon={isGenerating ? Loader2 : Wand2}
+          variant={isGenerating ? 'primary' : 'cinema'}
           fullWidth
           size="lg"
         >
-          {isGenerating 
-            ? 'Generating...' 
-            : `Generate ${generationType === 'image' ? 'Image' : 'Video'}`
-          }
+          {isGenerating
+            ? 'Generating...'
+            : `Generate ${generationType === 'image' ? 'Image' : 'Video'}`}
         </Button>
       </div>
     </div>
