@@ -11,7 +11,7 @@ import { EditPanel } from '@/pages/EditPanel';
 import { AssetsPanel } from '@/pages/AssetsPanel';
 import { SettingsPanel } from '@/pages/SettingsPanel';
 import { TemplatesPanel } from '@/pages/TemplatesPanel';
-import { BatchPanel } from '@/pages/BatchPanel';
+import { BatchPromptQueue, BatchResultsPanel } from '@/pages/BatchPanel';
 import { ToolStrip } from '@/components/edit/ToolStrip';
 import { EditPropertiesPanel } from '@/components/edit/EditPropertiesPanel';
 
@@ -87,10 +87,11 @@ function App() {
           assets: <AssetsPanel />,
           settings: <SettingsPanel />,
           templates: <TemplatesPanel />,
-          batch: <BatchPanel />,
         }}
         toolStrip={<ToolStrip />}
         editProperties={<EditPropertiesPanel />}
+        batchQueue={<BatchPromptQueue />}
+        batchResults={<BatchResultsPanel />}
       />
       <FilmGrainOverlay opacity={0.025} />
     </>

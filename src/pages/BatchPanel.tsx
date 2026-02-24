@@ -3,6 +3,8 @@ import { useAppStore } from '@/store/appStore';
 import { cn } from '@/utils/cn';
 import { Button } from '@/components/ui/Button';
 import { Slider } from '@/components/ui/Slider';
+import { ResultsGrid } from '@/components/batch/ResultsGrid';
+import { ImagePreviewModal } from '@/components/shared/ImagePreviewModal';
 import {
   Layers,
   Plus,
@@ -13,12 +15,9 @@ import {
   CheckCircle2,
   XCircle,
   Loader2,
-  Download,
   Wand2,
   FileJson,
   GripVertical,
-  Heart,
-  ImageIcon,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -30,8 +29,12 @@ interface BatchPrompt {
   seed?: number;
 }
 
-export function BatchPanel() {
-  const { addBatchJob, batchResults, toggleBatchResultFavorite } = useAppStore();
+/* ───────────────────────────────────────────────────────────
+   BatchPromptQueue — The left panel (420px) in batch mode
+   ─────────────────────────────────────────────────────────── */
+
+export function BatchPromptQueue() {
+  const { addBatchJob } = useAppStore();
   const [prompts, setPrompts] = useState<BatchPrompt[]>([
     { id: '1', prompt: '', status: 'pending' },
   ]);
@@ -237,7 +240,7 @@ export function BatchPanel() {
       )}
 
       {/* Prompts List */}
-      <div className="flex-1 overflow-y-auto p-4">
+      <div className="flex-1 overflow-y-auto p-4 scrollbar-hide">
         <div className="space-y-3">
           <AnimatePresence>
             {prompts.map((prompt, index) => (
@@ -320,7 +323,7 @@ export function BatchPanel() {
                 if (lastPrompt) generateVariations(lastPrompt);
               }}
             >
-              Generate Variations
+              Variations
             </Button>
           </div>
         )}
@@ -448,4 +451,39 @@ export function BatchPanel() {
       </div>
     </div>
   );
+}
+
+/* ───────────────────────────────────────────────────────────
+   BatchResultsPanel — The right panel in batch mode
+   Wraps ResultsGrid and ImagePreviewModal together
+   ─────────────────────────────────────────────────────────── */
+
+export function BatchResultsPanel() {
+  const { batchResults } = useAppStore();
+  const [previewResultId, setPreviewResultId] = useState<string | null>(null);
+
+  const previewResult = previewResultId
+    ? batchResults.find((r) => r.id === previewResultId) ?? null
+    : null;
+
+  return (
+    <>
+      <ResultsGrid onPreviewImage={(id) => setPreviewResultId(id)} />
+      <ImagePreviewModal
+        result={previewResult}
+        results={batchResults}
+        onClose={() => setPreviewResultId(null)}
+        onNavigate={(id) => setPreviewResultId(id)}
+      />
+    </>
+  );
+}
+
+/* ───────────────────────────────────────────────────────────
+   BatchPanel — Legacy export for backward compatibility.
+   App.tsx now uses BatchPromptQueue + BatchResultsPanel directly.
+   ─────────────────────────────────────────────────────────── */
+
+export function BatchPanel() {
+  return <BatchPromptQueue />;
 }
