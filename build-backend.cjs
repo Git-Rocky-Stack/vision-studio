@@ -13,6 +13,35 @@ const BACKEND_DIR = path.join(__dirname, 'backend');
 const DIST_DIR = path.join(__dirname, 'dist-backend');
 const RESOURCES_DIR = path.join(__dirname, 'resources');
 
+/**
+ * Find a compatible Python (3.8–3.12) by checking uv first, then system.
+ * Returns the absolute path to the python executable.
+ */
+function findCompatiblePython() {
+  const versions = ['3.12', '3.11', '3.10'];
+
+  // Try uv-managed Python
+  for (const ver of versions) {
+    try {
+      const uvPython = execSync(`uv python find ${ver}`, { encoding: 'utf8' }).trim();
+      if (uvPython && fs.existsSync(uvPython)) {
+        return uvPython;
+      }
+    } catch {}
+  }
+
+  // Try py launcher (Windows)
+  for (const ver of versions) {
+    try {
+      const pyPath = execSync(`py -${ver} -c "import sys; print(sys.executable)"`, { encoding: 'utf8' }).trim();
+      if (pyPath && fs.existsSync(pyPath)) return pyPath;
+    } catch {}
+  }
+
+  // Fallback to system python
+  return 'python';
+}
+
 // Colors for console output
 const colors = {
   reset: '\x1b[0m',
@@ -52,49 +81,53 @@ function getVenvPython(venvPath) {
 
 async function checkPython() {
   log('\n🔍 Checking Python installation...', 'blue');
+
+  const pythonPath = findCompatiblePython();
+  log(`  Using: ${pythonPath}`, 'cyan');
+
   try {
-    const version = execSync('python --version', { encoding: 'utf8' }).trim();
+    const version = execSync(`"${pythonPath}" --version`, { encoding: 'utf8' }).trim();
     log(`✅ Found ${version}`, 'green');
-    
+
     // Check Python version (PyTorch supports 3.8-3.12 typically)
     const versionMatch = version.match(/Python (\d+)\.(\d+)/);
     if (versionMatch) {
       const major = parseInt(versionMatch[1]);
       const minor = parseInt(versionMatch[2]);
-      
+
       if (major > 3 || (major === 3 && minor > 12)) {
         log(`\n⚠️  Warning: Python ${major}.${minor} may not be supported by PyTorch yet.`, 'yellow');
         log('   PyTorch typically supports Python 3.8 - 3.12', 'yellow');
         log('   The build may fail. Consider using Python 3.11 for best compatibility.\n', 'yellow');
-        
+
         // Continue anyway but warn
-        return 'unsupported';
+        return { status: 'unsupported', pythonPath };
       }
     }
-    
-    return true;
+
+    return { status: 'ok', pythonPath };
   } catch {
     log('❌ Python not found. Please install Python 3.10+', 'red');
-    return false;
+    return { status: 'missing', pythonPath: null };
   }
 }
 
-async function setupVirtualEnv() {
+async function setupVirtualEnv(pythonPath) {
   log('\n📦 Setting up Python virtual environment...', 'blue');
-  
+
   const venvPath = path.join(BACKEND_DIR, 'venv');
   const venvPython = process.platform === 'win32'
     ? path.join(venvPath, 'Scripts', 'python.exe')
     : path.join(venvPath, 'bin', 'python');
-  
+
   if (!fs.existsSync(venvPath) || !fs.existsSync(venvPython)) {
     if (fs.existsSync(venvPath)) {
       log('  Existing virtual environment is incomplete, recreating...', 'yellow');
       fs.rmSync(venvPath, { recursive: true, force: true });
     }
-    exec('python -m venv venv', { cwd: BACKEND_DIR });
+    exec(`"${pythonPath}" -m venv venv`, { cwd: BACKEND_DIR });
   }
-  
+
   log('✅ Virtual environment ready', 'green');
   return venvPath;
 }
@@ -308,21 +341,21 @@ async function main() {
   try {
     // Check Python
     const pythonCheck = await checkPython();
-    if (pythonCheck === false) {
+    if (pythonCheck.status === 'missing') {
       process.exit(1);
     }
-    
-    const pythonUnsupported = pythonCheck === 'unsupported';
-    
+
+    const pythonUnsupported = pythonCheck.status === 'unsupported';
+
     // Setup environment
-    const venvPath = await setupVirtualEnv();
-    
+    const venvPath = await setupVirtualEnv(pythonCheck.pythonPath);
+
     // Install dependencies
     if (pythonUnsupported) {
       log('\n⚠️  Attempting PyTorch install with unsupported Python...', 'yellow');
       log('   This may fail. Consider installing Python 3.10-3.11 for best results.\n', 'yellow');
     }
-    
+
     await installPyTorch(venvPath, pythonUnsupported);
     await installPythonDependencies(venvPath);
     await installPyInstaller(venvPath);

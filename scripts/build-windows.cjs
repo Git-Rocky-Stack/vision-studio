@@ -46,6 +46,26 @@ const BUILD_DIR = path.join(ROOT_DIR, 'build');
 const RELEASE_DIR = path.join(ROOT_DIR, 'release');
 const RESOURCES_DIR = path.join(ROOT_DIR, 'resources');
 
+// Find a compatible Python (3.8-3.12) for PyTorch.
+// Checks uv-managed installs first, then py launcher, then system python.
+// All inputs to execSync here are hardcoded version strings, not user input.
+function findCompatiblePython() {
+  const versions = ['3.12', '3.11', '3.10'];
+  for (const ver of versions) {
+    try {
+      const p = execSync(`uv python find ${ver}`, { encoding: 'utf8' }).trim();
+      if (p && fs.existsSync(p)) return p;
+    } catch {}
+  }
+  for (const ver of versions) {
+    try {
+      const p = execSync(`py -${ver} -c "import sys; print(sys.executable)"`, { encoding: 'utf8' }).trim();
+      if (p && fs.existsSync(p)) return p;
+    } catch {}
+  }
+  return 'python';
+}
+
 // Build steps
 const steps = {
   async checkPrerequisites() {
@@ -75,10 +95,11 @@ const steps = {
     
     // Check Python (optional, for full bundle)
     try {
-      const pythonVersion = execSync('python --version', { encoding: 'utf8' }).trim();
-      log(`  ✅ Python: ${pythonVersion}`, 'green');
+      const compatPython = findCompatiblePython();
+      const pythonVersion = execSync(`"${compatPython}" --version`, { encoding: 'utf8' }).trim();
+      log(`  ✅ Python: ${pythonVersion} (${compatPython})`, 'green');
     } catch {
-      log('  ⚠️  Python not found (needed for full bundle)', 'yellow');
+      log('  ⚠️  Compatible Python (3.8-3.12) not found (needed for full bundle)', 'yellow');
     }
     
     // Check Git
@@ -145,12 +166,16 @@ const steps = {
     }
     
     try {
+      // Find compatible Python (3.8-3.12) for PyTorch
+      const compatPython = findCompatiblePython();
+      log(`  Using Python: ${compatPython}`, 'cyan');
+
       // Create virtual environment if needed
       if (!fs.existsSync(venvPath)) {
         log('  Creating Python virtual environment...', 'cyan');
-        exec('python -m venv venv', { cwd: backendPath });
+        exec(`"${compatPython}" -m venv venv`, { cwd: backendPath });
       }
-      
+
       // Get paths
       const python = `"${path.join(venvPath, 'Scripts', 'python.exe')}"`;
       const pip = `${python} -m pip`;
