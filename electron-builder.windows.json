@@ -9,11 +9,8 @@
   "files": [
     "dist/**/*",
     "dist-electron/**/*",
-    "resources/**/*",
-    "!backend/venv/**/*",
-    "!backend/build/**/*",
-    "!backend/dist/**/*",
-    "!backend/__pycache__/**/*",
+    "!backend/**/*",
+    "!resources/**/*",
     "!**/*.pyc",
     "!**/*.pyo",
     "!**/*.pyd"
@@ -33,10 +30,6 @@
   "win": {
     "target": [
       {
-        "target": "nsis",
-        "arch": ["x64"]
-      },
-      {
         "target": "portable",
         "arch": ["x64"]
       },
@@ -50,19 +43,7 @@
     "verifyUpdateCodeSignature": false,
     "requestedExecutionLevel": "asInvoker"
   },
-  "nsis": {
-    "oneClick": false,
-    "allowToChangeInstallationDirectory": true,
-    "createDesktopShortcut": true,
-    "createStartMenuShortcut": true,
-    "shortcutName": "Vision Studio",
-    "uninstallDisplayName": "Vision Studio",
-    "license": "LICENSE.txt",
-    "artifactName": "Vision-Studio-Setup-${version}.exe",
-    "deleteAppDataOnUninstall": false,
-    "runAfterFinish": true,
-    "menuCategory": "Vision Studio"
-  },
+  "compression": "store",
   "portable": {
     "artifactName": "Vision-Studio-Portable-${version}.exe"
   },
