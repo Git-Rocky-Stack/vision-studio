@@ -10,6 +10,10 @@ import { ImageDropZone } from '@/components/generate/ImageDropZone';
 import { ControlNetPanel } from '@/components/generate/ControlNetPanel';
 import { LoRAMixer } from '@/components/generate/LoRAMixer';
 import { PromptHistory } from '@/components/generate/PromptHistory';
+import {
+  clearResolvedGenerationError,
+  SVD_REFERENCE_ERROR,
+} from '@/features/generate/validation';
 import type { ControlNetConfig, LoRAConfig } from '@/types/generation';
 import {
   Wand2,
@@ -75,118 +79,191 @@ const DEFAULT_CONTROLNET: ControlNetConfig = {
   endStep: 1,
 };
 
+function resolveOutputRoot(defaultOutputPath: string, userDataPath: string) {
+  return (defaultOutputPath || `${userDataPath.replace(/\\/g, '/')}/outputs`).replace(/\\/g, '/');
+}
+
 export function GeneratePanel() {
   const {
     addJob,
     updateJob,
+    syncAssetsFromJobStatus,
     systemInfo,
     currentProject,
     addToPromptHistory,
     favoritePrompts,
     toggleFavoritePrompt,
+    generationDraft,
+    setGenerationDraft,
   } = useAppStore();
 
-  const [generationType, setGenerationType] = useState<GenerationType>('image');
-  const [prompt, setPrompt] = useState('');
-  const [negativePrompt, setNegativePrompt] = useState('');
+  // UI toggles (kept as individual useState — these are simple UI-only booleans)
   const [showHistory, setShowHistory] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [generationProgress, setGenerationProgress] = useState(0);
-  const [generationStep, setGenerationStep] = useState(0);
-  const [generationStatus, setGenerationStatus] = useState<
-    'idle' | 'generating' | 'success' | 'error'
-  >('idle');
-  const [errorMessage, setErrorMessage] = useState('');
-  const [activeStylePresets, setActiveStylePresets] = useState<string[]>([]);
 
-  // Image settings
-  const [selectedRatio, setSelectedRatio] = useState(aspectRatios[0]);
-  const [imageModel, setImageModel] = useState('flux-dev');
-  const [steps, setSteps] = useState(25);
-  const [cfgScale, setCfgScale] = useState(7.5);
-  const [seed, setSeed] = useState(-1);
-  const [scheduler, setScheduler] = useState('Euler a');
-  const [clipSkip, setClipSkip] = useState(1);
+  // Generation status state (consolidated)
+  const [genStatus, setGenStatus] = useState({
+    isGenerating: false,
+    progress: 0,
+    step: 0,
+    status: 'idle' as 'idle' | 'generating' | 'success' | 'error',
+    errorMessage: '',
+    activeJobId: null as string | null,
+  });
+  const updateGenStatus = (patch: Partial<typeof genStatus>) =>
+    setGenStatus((prev) => ({ ...prev, ...patch }));
 
-  // Video settings
-  const [videoModel, setVideoModel] = useState('ltx-video');
-  const [duration, setDuration] = useState(5);
-  const [fps, setFps] = useState(24);
+  // Image generation config (consolidated)
+  const [imageConfig, setImageConfig] = useState({
+    generationType: 'image' as GenerationType,
+    prompt: '',
+    negativePrompt: '',
+    selectedRatio: aspectRatios[0] as AspectRatio,
+    model: 'flux-dev',
+    steps: 25,
+    cfgScale: 7.5,
+    seed: -1,
+    scheduler: 'Euler a',
+    clipSkip: 1,
+    activeStylePresets: [] as string[],
+    // Video settings (kept here to avoid a separate state for only 3 fields)
+    videoModel: 'ltx-video',
+    duration: 5,
+    fps: 24,
+  });
+  const updateImageConfig = (patch: Partial<typeof imageConfig>) =>
+    setImageConfig((prev) => ({ ...prev, ...patch }));
 
-  // Reference image (img2img)
-  const [referenceImage, setReferenceImage] = useState<string | null>(null);
-  const [denoisingStrength, setDenoisingStrength] = useState(0.75);
-  const [referenceMode, setReferenceMode] = useState<'img2img' | 'inpaint' | 'controlnet'>('img2img');
-
-  // ControlNet
-  const [controlNetConfig, setControlNetConfig] = useState<ControlNetConfig>(DEFAULT_CONTROLNET);
-
-  // LoRA
-  const [loraConfigs, setLoraConfigs] = useState<LoRAConfig[]>([]);
-
-  // Active job ID for progress tracking
-  const [activeJobId, setActiveJobId] = useState<string | null>(null);
+  // Reference image / ControlNet / LoRA config (consolidated)
+  const [refConfig, setRefConfig] = useState({
+    referenceImage: null as string | null,
+    denoisingStrength: 0.75,
+    referenceMode: 'img2img' as 'img2img' | 'inpaint' | 'controlnet',
+    controlNetConfig: DEFAULT_CONTROLNET as ControlNetConfig,
+    loraConfigs: [] as LoRAConfig[],
+  });
+  const updateRefConfig = (patch: Partial<typeof refConfig>) =>
+    setRefConfig((prev) => ({ ...prev, ...patch }));
 
   // Load template settings if project has one
   useEffect(() => {
     if (currentProject?.template) {
       const settings = (currentProject as any).template.settings;
-      setSelectedRatio(
-        aspectRatios.find(
-          (r) => r.width === settings.width && r.height === settings.height
-        ) || aspectRatios[0]
-      );
-      setImageModel(settings.model);
-      setSteps(settings.steps);
-      setCfgScale(settings.cfgScale);
-      setPrompt(settings.prompt);
-      setNegativePrompt(settings.negativePrompt);
+      updateImageConfig({
+        selectedRatio:
+          aspectRatios.find(
+            (r) => r.width === settings.width && r.height === settings.height
+          ) || aspectRatios[0],
+        model: settings.model,
+        steps: settings.steps,
+        cfgScale: settings.cfgScale,
+        prompt: settings.prompt,
+        negativePrompt: settings.negativePrompt,
+      });
     }
   }, [currentProject]);
 
-  const handleGenerate = async () => {
-    if (!prompt.trim()) return;
+  useEffect(() => {
+    if (!generationDraft) {
+      return;
+    }
 
-    setIsGenerating(true);
-    setGenerationStatus('generating');
-    setGenerationProgress(0);
-    setGenerationStep(0);
-    setErrorMessage('');
+    updateImageConfig({
+      generationType: generationDraft.generationType,
+      prompt: generationDraft.prompt,
+      negativePrompt: generationDraft.negativePrompt,
+      selectedRatio:
+        aspectRatios.find(
+          (ratio) => ratio.width === generationDraft.width && ratio.height === generationDraft.height
+        ) ?? {
+          name: 'Custom',
+          width: generationDraft.width,
+          height: generationDraft.height,
+          icon: `${generationDraft.width}:${generationDraft.height}`,
+        },
+      steps: generationDraft.steps,
+      cfgScale: generationDraft.cfgScale,
+      scheduler: generationDraft.scheduler,
+      seed: generationDraft.seed,
+      ...(generationDraft.generationType === 'image'
+        ? { model: generationDraft.model }
+        : { videoModel: generationDraft.model }),
+    });
+
+    setGenerationDraft(null);
+  }, [generationDraft, setGenerationDraft]);
+
+  useEffect(() => {
+    if (genStatus.status !== 'error' || !genStatus.errorMessage) {
+      return;
+    }
+
+    const nextErrorMessage = clearResolvedGenerationError(genStatus.errorMessage, {
+      generationType: imageConfig.generationType,
+      videoModel: imageConfig.videoModel,
+      referenceImage: refConfig.referenceImage,
+    });
+    if (nextErrorMessage !== genStatus.errorMessage) {
+      updateGenStatus({ errorMessage: nextErrorMessage, status: 'idle' });
+    }
+  }, [genStatus.errorMessage, genStatus.status, imageConfig.generationType, refConfig.referenceImage, imageConfig.videoModel]);
+
+  const handleGenerate = async () => {
+    if (!imageConfig.prompt.trim()) return;
+
+    updateGenStatus({
+      isGenerating: true,
+      status: 'generating',
+      progress: 0,
+      step: 0,
+      errorMessage: '',
+    });
 
     // Save to history
     addToPromptHistory({
       id: crypto.randomUUID(),
-      prompt: prompt.trim(),
-      negativePrompt: negativePrompt.trim(),
+      prompt: imageConfig.prompt.trim(),
+      negativePrompt: imageConfig.negativePrompt.trim(),
       timestamp: new Date(),
-      model: generationType === 'image' ? imageModel : videoModel,
+      model: imageConfig.generationType === 'image' ? imageConfig.model : imageConfig.videoModel,
     });
 
     try {
-      if (generationType === 'image') {
+      const appSettings = await window.electron.settings.get();
+      const userDataPath = await window.electron.app.getPath('userData');
+      const outputRoot = resolveOutputRoot(appSettings.defaultOutputPath, userDataPath);
+
+      if (imageConfig.generationType === 'image') {
         const result = await window.electron.generation.generateImage({
-          prompt: prompt.trim(),
-          negative_prompt: negativePrompt.trim(),
-          width: selectedRatio.width,
-          height: selectedRatio.height,
-          steps,
-          cfg_scale: cfgScale,
-          seed: seed === -1 ? undefined : seed,
-          model: imageModel,
+          prompt: imageConfig.prompt.trim(),
+          negative_prompt: imageConfig.negativePrompt.trim(),
+          width: imageConfig.selectedRatio.width,
+          height: imageConfig.selectedRatio.height,
+          steps: imageConfig.steps,
+          cfg_scale: imageConfig.cfgScale,
+          seed: imageConfig.seed === -1 ? undefined : imageConfig.seed,
+          model: imageConfig.model,
+          scheduler: imageConfig.scheduler,
         });
 
         if (result.success && result.jobId) {
-          setActiveJobId(result.jobId);
+          updateGenStatus({ activeJobId: result.jobId });
           addJob({
             id: result.jobId,
             type: 'image',
             status: 'pending',
             progress: 0,
             params: {
-              prompt,
-              width: selectedRatio.width,
-              height: selectedRatio.height,
+              prompt: imageConfig.prompt.trim(),
+              negative_prompt: imageConfig.negativePrompt.trim(),
+              width: imageConfig.selectedRatio.width,
+              height: imageConfig.selectedRatio.height,
+              steps: imageConfig.steps,
+              cfg_scale: imageConfig.cfgScale,
+              seed: imageConfig.seed,
+              model: imageConfig.model,
+              scheduler: imageConfig.scheduler,
+              output_root: outputRoot,
             },
             createdAt: new Date(),
           });
@@ -195,25 +272,40 @@ export function GeneratePanel() {
           throw new Error(result.error || 'Generation failed');
         }
       } else {
+        if (imageConfig.videoModel === 'svd' && !refConfig.referenceImage) {
+          throw new Error(SVD_REFERENCE_ERROR);
+        }
+
         const result = await window.electron.generation.generateVideo({
-          prompt: prompt.trim(),
-          width: selectedRatio.width,
-          height: selectedRatio.height,
-          duration,
-          fps,
-          steps,
-          model: videoModel,
-          seed: seed === -1 ? undefined : seed,
+          prompt: imageConfig.prompt.trim(),
+          image_path: refConfig.referenceImage ?? undefined,
+          width: imageConfig.selectedRatio.width,
+          height: imageConfig.selectedRatio.height,
+          duration: imageConfig.duration,
+          fps: imageConfig.fps,
+          steps: imageConfig.steps,
+          model: imageConfig.videoModel,
+          seed: imageConfig.seed === -1 ? undefined : imageConfig.seed,
         });
 
         if (result.success && result.jobId) {
-          setActiveJobId(result.jobId);
+          updateGenStatus({ activeJobId: result.jobId });
           addJob({
             id: result.jobId,
             type: 'video',
             status: 'pending',
             progress: 0,
-            params: { prompt, duration, fps },
+            params: {
+              prompt: imageConfig.prompt.trim(),
+              width: imageConfig.selectedRatio.width,
+              height: imageConfig.selectedRatio.height,
+              duration: imageConfig.duration,
+              fps: imageConfig.fps,
+              steps: imageConfig.steps,
+              model: imageConfig.videoModel,
+              seed: imageConfig.seed,
+              output_root: outputRoot,
+            },
             createdAt: new Date(),
           });
           pollJobStatus(result.jobId);
@@ -223,10 +315,12 @@ export function GeneratePanel() {
       }
     } catch (error: any) {
       console.error('Generation error:', error);
-      setGenerationStatus('error');
-      setErrorMessage(error.message || 'Generation failed');
-      setIsGenerating(false);
-      setActiveJobId(null);
+      updateGenStatus({
+        status: 'error',
+        errorMessage: error.message || 'Generation failed',
+        isGenerating: false,
+        activeJobId: null,
+      });
     }
   };
 
@@ -235,21 +329,73 @@ export function GeneratePanel() {
       try {
         const status = await window.electron.generation.getStatus(jobId);
         if (status.status === 'completed') {
-          setGenerationStatus('success');
-          setGenerationProgress(100);
-          setIsGenerating(false);
-          setActiveJobId(null);
+          const existingJob = useAppStore.getState().activeJobs.find((job) => job.id === jobId);
+          const completedAt = status.completed_at
+            ? new Date(status.completed_at)
+            : new Date();
+
+          updateJob(jobId, {
+            status: 'completed',
+            progress: status.progress ?? 100,
+            result: status.result,
+            error: status.error,
+            completedAt,
+          });
+
+          syncAssetsFromJobStatus({
+            ...status,
+            params: {
+              ...(existingJob?.params ?? {}),
+              output_root:
+                typeof existingJob?.params?.output_root === 'string'
+                  ? existingJob.params.output_root
+                  : resolveOutputRoot(
+                      (await window.electron.settings.get()).defaultOutputPath,
+                      await window.electron.app.getPath('userData')
+                    ),
+            },
+          });
+          await window.electron.notifications.notify('generation_complete', {
+            title: `${imageConfig.generationType === 'image' ? 'Image' : 'Video'} Ready`,
+            body: imageConfig.prompt.trim().slice(0, 120) || 'Generation completed successfully.',
+          });
+          updateGenStatus({
+            status: 'success',
+            progress: 100,
+            isGenerating: false,
+            activeJobId: null,
+          });
         } else if (status.status === 'failed') {
-          setGenerationStatus('error');
-          setErrorMessage(status.error || 'Generation failed');
-          setIsGenerating(false);
-          setActiveJobId(null);
+          updateJob(jobId, {
+            status: 'failed',
+            progress: status.progress ?? 0,
+            error: status.error,
+            completedAt: status.completed_at ? new Date(status.completed_at) : new Date(),
+          });
+          await window.electron.notifications.notify('generation_failed', {
+            title: `${imageConfig.generationType === 'image' ? 'Image' : 'Video'} Failed`,
+            body: status.error || 'Generation failed.',
+          });
+          updateGenStatus({
+            status: 'error',
+            errorMessage: status.error || 'Generation failed',
+            isGenerating: false,
+            activeJobId: null,
+          });
         } else {
+          updateJob(jobId, {
+            status: status.status,
+            progress: status.progress ?? 0,
+          });
+          const progressPatch: Partial<typeof genStatus> = {};
           if (status.progress !== undefined) {
-            setGenerationProgress(status.progress);
+            progressPatch.progress = status.progress;
           }
           if (status.step !== undefined) {
-            setGenerationStep(status.step);
+            progressPatch.step = status.step;
+          }
+          if (Object.keys(progressPatch).length > 0) {
+            updateGenStatus(progressPatch);
           }
           setTimeout(checkStatus, 1000);
         }
@@ -262,34 +408,58 @@ export function GeneratePanel() {
   };
 
   const handleCancel = () => {
-    if (activeJobId) {
-      window.electron.generation.cancel(activeJobId);
+    if (genStatus.activeJobId) {
+      window.electron.generation.cancel(genStatus.activeJobId);
     }
-    setIsGenerating(false);
-    setGenerationStatus('idle');
-    setActiveJobId(null);
+    updateGenStatus({
+      isGenerating: false,
+      status: 'idle',
+      activeJobId: null,
+    });
   };
 
-  const randomizeSeed = () => setSeed(Math.floor(Math.random() * 2147483647));
+  const randomizeSeed = () => updateImageConfig({ seed: Math.floor(Math.random() * 2147483647) });
 
   const handleRandomPrompt = () => {
     const idx = Math.floor(Math.random() * RANDOM_PROMPTS.length);
-    setPrompt(RANDOM_PROMPTS[idx]);
+    updateImageConfig({ prompt: RANDOM_PROMPTS[idx] });
+  };
+
+  const handleEnhancePrompt = async () => {
+    if (!imageConfig.prompt.trim()) {
+      return;
+    }
+
+    const result = await window.electron.generation.enhancePrompt({
+      prompt: imageConfig.prompt.trim(),
+      mode: 'clarify',
+    });
+
+    if (result.prompt) {
+      updateImageConfig({ prompt: result.prompt });
+    } else if (result.variations?.length) {
+      updateImageConfig({ prompt: result.variations[0] });
+    }
   };
 
   const handleToggleStylePreset = (presetId: string, modifier: string) => {
-    if (activeStylePresets.includes(presetId)) {
-      setActiveStylePresets(activeStylePresets.filter((id) => id !== presetId));
-      setPrompt(prompt.replace(`, ${modifier}`, '').replace(modifier, '').trim());
+    if (imageConfig.activeStylePresets.includes(presetId)) {
+      updateImageConfig({
+        activeStylePresets: imageConfig.activeStylePresets.filter((id) => id !== presetId),
+        prompt: imageConfig.prompt.replace(`, ${modifier}`, '').replace(modifier, '').trim(),
+      });
     } else {
-      setActiveStylePresets([...activeStylePresets, presetId]);
-      setPrompt(prompt ? `${prompt}, ${modifier}` : modifier);
+      updateImageConfig({
+        activeStylePresets: [...imageConfig.activeStylePresets, presetId],
+        prompt: imageConfig.prompt ? `${imageConfig.prompt}, ${modifier}` : modifier,
+      });
     }
   };
 
   const isGpuAvailable = systemInfo.gpuAvailable;
-  const isFavorited = favoritePrompts.includes(prompt.trim());
-  const currentModel = generationType === 'image' ? imageModel : videoModel;
+  const isFavorited = favoritePrompts.includes(imageConfig.prompt.trim());
+  const currentModel = imageConfig.generationType === 'image' ? imageConfig.model : imageConfig.videoModel;
+  const videoModelRequiresReference = imageConfig.generationType === 'video' && imageConfig.videoModel === 'svd';
 
   return (
     <div className="h-full flex flex-col bg-surface">
@@ -301,15 +471,15 @@ export function GeneratePanel() {
             className="absolute top-1 bottom-1 rounded-md bg-surface glow-red-subtle"
             style={{ width: 'calc(50% - 4px)' }}
             animate={{
-              x: generationType === 'image' ? 0 : 'calc(100% + 4px)',
+              x: imageConfig.generationType === 'image' ? 0 : 'calc(100% + 4px)',
             }}
             transition={{ type: 'spring', stiffness: 400, damping: 30 }}
           />
           <button
-            onClick={() => setGenerationType('image')}
+            onClick={() => updateImageConfig({ generationType: 'image' })}
             className={cn(
               'relative z-10 flex-1 flex items-center justify-center gap-2 py-2 rounded-md transition-colors',
-              generationType === 'image'
+              imageConfig.generationType === 'image'
                 ? 'text-red-primary'
                 : 'text-text-muted hover:text-text-body'
             )}
@@ -318,10 +488,10 @@ export function GeneratePanel() {
             <span className="font-display text-sm font-medium">Image</span>
           </button>
           <button
-            onClick={() => setGenerationType('video')}
+            onClick={() => updateImageConfig({ generationType: 'video' })}
             className={cn(
               'relative z-10 flex-1 flex items-center justify-center gap-2 py-2 rounded-md transition-colors',
-              generationType === 'video'
+              imageConfig.generationType === 'video'
                 ? 'text-red-primary'
                 : 'text-text-muted hover:text-text-body'
             )}
@@ -334,13 +504,13 @@ export function GeneratePanel() {
 
       {/* GPU Warning */}
       {!isGpuAvailable && (
-        <div className="mx-4 mt-4 p-3 rounded-lg bg-yellow-500/8 border border-yellow-500/20 flex items-start gap-2">
-          <AlertCircle className="w-4 h-4 text-yellow-400 flex-shrink-0 mt-0.5" />
+        <div className="mx-4 mt-4 p-3 rounded-lg bg-[var(--color-status-warning-muted)] border border-[var(--color-status-warning-border)] flex items-start gap-2">
+          <AlertCircle className="w-4 h-4 text-[var(--color-status-warning)] flex-shrink-0 mt-0.5" />
           <div>
-            <p className="text-xs text-yellow-400 font-display font-medium">
+            <p className="text-xs text-[var(--color-status-warning)] font-display font-medium">
               GPU Not Detected
             </p>
-            <p className="text-[10px] text-yellow-400/60">
+            <p className="text-micro text-[var(--color-status-warning)] opacity-60">
               Generation will be very slow on CPU. Consider using a CUDA-capable GPU.
             </p>
           </div>
@@ -352,23 +522,22 @@ export function GeneratePanel() {
         {/* Prompt Area */}
         <div className="relative">
           <PromptArea
-            prompt={prompt}
-            onPromptChange={setPrompt}
-            negativePrompt={negativePrompt}
-            onNegativePromptChange={setNegativePrompt}
-            generationType={generationType}
+            prompt={imageConfig.prompt}
+            onPromptChange={(v) => updateImageConfig({ prompt: v })}
+            negativePrompt={imageConfig.negativePrompt}
+            onNegativePromptChange={(v) => updateImageConfig({ negativePrompt: v })}
+            generationType={imageConfig.generationType}
             isFavorited={isFavorited}
             onRandomize={handleRandomPrompt}
-            onEnhance={() => {}}
+            onEnhance={handleEnhancePrompt}
             onShowHistory={() => setShowHistory(!showHistory)}
-            onToggleFavorite={() => toggleFavoritePrompt(prompt.trim())}
+            onToggleFavorite={() => toggleFavoritePrompt(imageConfig.prompt.trim())}
           />
           <PromptHistory
             isOpen={showHistory}
             onClose={() => setShowHistory(false)}
             onSelectPrompt={(p, np) => {
-              setPrompt(p);
-              setNegativePrompt(np);
+              updateImageConfig({ prompt: p, negativePrompt: np });
               setShowHistory(false);
             }}
           />
@@ -376,48 +545,55 @@ export function GeneratePanel() {
 
         {/* Style Presets */}
         <StylePresetsBar
-          activePresets={activeStylePresets}
+          activePresets={imageConfig.activeStylePresets}
           onTogglePreset={handleToggleStylePreset}
         />
 
-        {/* Reference Image (img2img) */}
-        {generationType === 'image' && (
-          <ImageDropZone
-            referenceImage={referenceImage}
-            onImageChange={setReferenceImage}
-            denoisingStrength={denoisingStrength}
-            onDenoisingStrengthChange={setDenoisingStrength}
-            mode={referenceMode}
-            onModeChange={setReferenceMode}
-          />
+        {/* Reference Image (img2img / image-to-video) */}
+        {(imageConfig.generationType === 'image' || videoModelRequiresReference) && (
+          <>
+            <ImageDropZone
+              referenceImage={refConfig.referenceImage}
+              onImageChange={(v) => updateRefConfig({ referenceImage: v })}
+              denoisingStrength={refConfig.denoisingStrength}
+              onDenoisingStrengthChange={(v) => updateRefConfig({ denoisingStrength: v })}
+              mode={refConfig.referenceMode}
+              onModeChange={(v) => updateRefConfig({ referenceMode: v })}
+            />
+            {videoModelRequiresReference && !refConfig.referenceImage && (
+              <div className="px-3 py-2 rounded-lg border border-amber-500/30 bg-amber-500/10 text-xs text-amber-200">
+                Stable Video Diffusion requires a reference image.
+              </div>
+            )}
+          </>
         )}
 
         {/* ControlNet */}
-        {generationType === 'image' && (
+        {imageConfig.generationType === 'image' && (
           <ControlNetPanel
-            config={controlNetConfig}
-            onChange={setControlNetConfig}
+            config={refConfig.controlNetConfig}
+            onChange={(v) => updateRefConfig({ controlNetConfig: v })}
           />
         )}
 
         {/* LoRA Mixer */}
-        {generationType === 'image' && (
-          <LoRAMixer configs={loraConfigs} onChange={setLoraConfigs} />
+        {imageConfig.generationType === 'image' && (
+          <LoRAMixer configs={refConfig.loraConfigs} onChange={(v) => updateRefConfig({ loraConfigs: v })} />
         )}
 
         {/* Aspect Ratio */}
-        {generationType === 'image' && (
+        {imageConfig.generationType === 'image' && (
           <div className="space-y-3">
             <label className="text-label text-text-body">Aspect Ratio</label>
-            <div className="grid grid-cols-5 gap-2">
+            <div className="grid grid-cols-3 gap-1.5">
               {aspectRatios.map((ratio) => {
-                const isSelected = selectedRatio.name === ratio.name;
+                const isSelected = imageConfig.selectedRatio.name === ratio.name;
                 return (
                   <button
                     key={ratio.name}
-                    onClick={() => setSelectedRatio(ratio)}
+                    onClick={() => updateImageConfig({ selectedRatio: ratio })}
                     className={cn(
-                      'p-2.5 rounded-lg border transition-all text-center',
+                      'px-2 py-2 rounded-lg border transition-all flex items-center gap-2',
                       isSelected
                         ? 'border-red-primary bg-red-aura glow-red-subtle'
                         : 'border-border hover:border-border-hover bg-elevated'
@@ -425,31 +601,33 @@ export function GeneratePanel() {
                   >
                     <div
                       className={cn(
-                        'mx-auto mb-1.5 rounded-sm',
+                        'flex-shrink-0 rounded-sm',
                         isSelected ? 'bg-red-primary' : 'bg-text-muted'
                       )}
                       style={{
-                        width: ratio.width > ratio.height ? '22px' : '14px',
-                        height: ratio.width > ratio.height ? '14px' : '22px',
+                        width: ratio.width > ratio.height ? '18px' : '11px',
+                        height: ratio.width > ratio.height ? '11px' : '18px',
                       }}
                     />
-                    <span
-                      className={cn(
-                        'font-display text-[10px] block',
-                        isSelected ? 'text-red-primary' : 'text-text-body'
-                      )}
-                    >
-                      {ratio.name}
-                    </span>
-                    <span className="font-mono text-[9px] text-text-muted block">
-                      {ratio.icon}
-                    </span>
+                    <div className="min-w-0 text-left">
+                      <span
+                        className={cn(
+                          'font-display text-xs leading-tight block truncate',
+                          isSelected ? 'text-red-primary' : 'text-text-body'
+                        )}
+                      >
+                        {ratio.name}
+                      </span>
+                      <span className="font-mono text-micro text-text-muted block leading-tight">
+                        {ratio.icon}
+                      </span>
+                    </div>
                   </button>
                 );
               })}
             </div>
             <p className="font-mono text-xs text-text-muted">
-              {selectedRatio.width} &times; {selectedRatio.height}px
+              {imageConfig.selectedRatio.width} &times; {imageConfig.selectedRatio.height}px
             </p>
           </div>
         )}
@@ -460,10 +638,10 @@ export function GeneratePanel() {
           <ModelSelector
             value={currentModel}
             onChange={(id) => {
-              if (generationType === 'image') setImageModel(id);
-              else setVideoModel(id);
+              if (imageConfig.generationType === 'image') updateImageConfig({ model: id });
+              else updateImageConfig({ videoModel: id });
             }}
-            generationType={generationType}
+            generationType={imageConfig.generationType}
           />
         </div>
 
@@ -471,6 +649,7 @@ export function GeneratePanel() {
         <div>
           <button
             onClick={() => setShowAdvanced(!showAdvanced)}
+            aria-expanded={showAdvanced}
             className="flex items-center gap-2 text-sm text-text-body hover:text-text-primary transition-all font-display"
           >
             <Settings2 className="w-4 h-4" />
@@ -492,30 +671,30 @@ export function GeneratePanel() {
                 className="overflow-hidden"
               >
                 <div className="pt-4 space-y-4">
-                  {generationType === 'image' ? (
+                  {imageConfig.generationType === 'image' ? (
                     <>
                       <Slider
                         label="Sampling Steps"
-                        value={steps}
+                        value={imageConfig.steps}
                         min={1}
                         max={50}
-                        onChange={setSteps}
+                        onChange={(v) => updateImageConfig({ steps: v })}
                       />
                       <Slider
                         label="CFG Scale"
-                        value={cfgScale}
+                        value={imageConfig.cfgScale}
                         min={1}
                         max={20}
                         step={0.5}
-                        onChange={setCfgScale}
+                        onChange={(v) => updateImageConfig({ cfgScale: v })}
                       />
 
                       {/* Scheduler */}
                       <div className="space-y-1.5">
                         <label className="text-label text-text-body">Scheduler</label>
                         <select
-                          value={scheduler}
-                          onChange={(e) => setScheduler(e.target.value)}
+                          value={imageConfig.scheduler}
+                          onChange={(e) => updateImageConfig({ scheduler: e.target.value })}
                           className="w-full bg-elevated border border-border rounded-lg px-3 py-2 text-sm font-display text-text-primary focus:border-red-primary focus:ring-1 focus:ring-red-primary/40 transition-all"
                         >
                           {SCHEDULERS.map((s) => (
@@ -533,10 +712,10 @@ export function GeneratePanel() {
                           {[1, 2].map((v) => (
                             <button
                               key={v}
-                              onClick={() => setClipSkip(v)}
+                              onClick={() => updateImageConfig({ clipSkip: v })}
                               className={cn(
                                 'flex-1 py-2 rounded-lg text-sm font-mono font-medium transition-all',
-                                clipSkip === v
+                                imageConfig.clipSkip === v
                                   ? 'bg-red-primary text-text-primary glow-red-subtle'
                                   : 'bg-elevated text-text-body border border-border hover:border-border-hover'
                               )}
@@ -561,8 +740,8 @@ export function GeneratePanel() {
                         </div>
                         <input
                           type="number"
-                          value={seed}
-                          onChange={(e) => setSeed(Number(e.target.value))}
+                          value={imageConfig.seed}
+                          onChange={(e) => updateImageConfig({ seed: Number(e.target.value) })}
                           className="w-full bg-elevated border border-border rounded-lg px-3 py-2 text-text-primary font-mono text-sm focus:border-red-primary focus:ring-1 focus:ring-red-primary/40 transition-all"
                         />
                         <p className="text-xs text-text-muted font-mono">
@@ -574,18 +753,18 @@ export function GeneratePanel() {
                     <>
                       <Slider
                         label="Duration"
-                        value={duration}
+                        value={imageConfig.duration}
                         min={1}
                         max={10}
-                        onChange={setDuration}
+                        onChange={(v) => updateImageConfig({ duration: v })}
                         valueFormatter={(v) => `${v}s`}
                       />
                       <Slider
                         label="Frame Rate"
-                        value={fps}
+                        value={imageConfig.fps}
                         min={12}
                         max={60}
-                        onChange={setFps}
+                        onChange={(v) => updateImageConfig({ fps: v })}
                         valueFormatter={(v) => `${v}fps`}
                       />
                     </>
@@ -601,7 +780,7 @@ export function GeneratePanel() {
           <div className="flex items-center gap-4 text-xs text-text-body font-display">
             <div className="flex items-center gap-1.5">
               <Clock className="w-3.5 h-3.5" />
-              <span>~{generationType === 'image' ? '15-30s' : '2-5min'}</span>
+              <span>~{imageConfig.generationType === 'image' ? '15-30s' : '2-5min'}</span>
             </div>
             <div className="flex items-center gap-1.5">
               <Zap className="w-3.5 h-3.5" />
@@ -611,26 +790,26 @@ export function GeneratePanel() {
         </div>
 
         {/* Error Message */}
-        {generationStatus === 'error' && (
+        {genStatus.status === 'error' && (
           <motion.div
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
             className="p-3 rounded-lg bg-red-primary/10 border border-red-primary/30 flex items-start gap-2"
           >
             <AlertCircle className="w-4 h-4 text-red-primary flex-shrink-0 mt-0.5" />
-            <p className="text-xs text-red-primary">{errorMessage}</p>
+            <p className="text-xs text-red-primary">{genStatus.errorMessage}</p>
           </motion.div>
         )}
 
         {/* Success Message */}
-        {generationStatus === 'success' && (
+        {genStatus.status === 'success' && (
           <motion.div
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
-            className="p-3 rounded-lg bg-green-500/10 border border-green-500/30 flex items-start gap-2"
+            className="p-3 rounded-lg bg-[var(--color-status-success-muted)] border border-[var(--color-status-success-border)] flex items-start gap-2"
           >
-            <Check className="w-4 h-4 text-green-400 flex-shrink-0 mt-0.5" />
-            <p className="text-xs text-green-400">
+            <Check className="w-4 h-4 text-[var(--color-status-success)] flex-shrink-0 mt-0.5" />
+            <p className="text-xs text-[var(--color-status-success)]">
               Generation completed! Check the Assets panel.
             </p>
           </motion.div>
@@ -640,7 +819,7 @@ export function GeneratePanel() {
       {/* Generate Button / Progress Bar - Sticky bottom */}
       <div className="p-4 border-t border-border bg-surface">
         <AnimatePresence mode="wait">
-          {isGenerating ? (
+          {genStatus.isGenerating ? (
             <motion.div
               key="progress"
               initial={{ opacity: 0, scale: 0.98 }}
@@ -651,13 +830,18 @@ export function GeneratePanel() {
               {/* Progress fill */}
               <motion.div
                 className="absolute inset-y-0 left-0 rounded-xl"
+                role="progressbar"
+                aria-valuenow={Math.round(genStatus.progress)}
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-label="Generation progress"
                 initial={{ width: 0 }}
-                animate={{ width: `${generationProgress}%` }}
+                animate={{ width: `${genStatus.progress}%` }}
                 transition={{ duration: 0.3, ease: 'easeOut' }}
                 style={{
-                  background: 'linear-gradient(90deg, #c1121f, #e63946)',
+                  background: 'linear-gradient(90deg, var(--color-gradient-progress-start), var(--color-gradient-progress-end))',
                   boxShadow:
-                    '0 0 12px rgba(230, 57, 70, 0.3), inset 0 1px 0 rgba(255,255,255,0.1)',
+                    '0 0 12px var(--color-red-glow), inset 0 1px 0 var(--color-border-hover)',
                 }}
               />
 
@@ -666,7 +850,7 @@ export function GeneratePanel() {
                 <div className="flex items-center gap-2">
                   <Loader2 className="w-4 h-4 text-text-primary animate-spin" />
                   <span className="font-display text-sm text-text-primary font-medium">
-                    Step {generationStep}/{steps}
+                    Step {genStatus.step}/{imageConfig.steps}
                   </span>
                 </div>
 
@@ -679,7 +863,7 @@ export function GeneratePanel() {
                 </button>
 
                 <span className="font-mono text-sm text-text-primary font-medium">
-                  {Math.round(generationProgress)}%
+                  {Math.round(genStatus.progress)}%
                 </span>
               </div>
             </motion.div>
@@ -690,16 +874,16 @@ export function GeneratePanel() {
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.98 }}
               onClick={handleGenerate}
-              disabled={!prompt.trim()}
+              disabled={!imageConfig.prompt.trim()}
               className={cn(
                 'w-full flex items-center justify-center gap-2.5 py-3.5 rounded-xl font-display text-sm font-semibold transition-all',
-                prompt.trim()
+                imageConfig.prompt.trim()
                   ? 'bg-red-primary text-text-primary glow-red hover:bg-red-highlight active:bg-red-pressed hover:scale-[1.01] active:scale-[0.99]'
                   : 'bg-elevated text-text-muted opacity-40 cursor-not-allowed'
               )}
             >
               <Wand2 className="w-4.5 h-4.5" />
-              Generate {generationType === 'image' ? 'Image' : 'Video'}
+              Generate {imageConfig.generationType === 'image' ? 'Image' : 'Video'}
             </motion.button>
           )}
         </AnimatePresence>

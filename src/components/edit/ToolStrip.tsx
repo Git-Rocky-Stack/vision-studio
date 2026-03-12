@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { cn } from '@/utils/cn';
 import { useAppStore } from '@/store/appStore';
 import type { EditTool } from '@/types/editor';
@@ -54,7 +55,7 @@ const toolGroups: ToolDef[][] = [
   ],
 ];
 
-export function ToolStrip() {
+export const ToolStrip = memo(function ToolStrip() {
   const { activeEditTool, setActiveEditTool } = useAppStore();
 
   return (
@@ -72,22 +73,24 @@ export function ToolStrip() {
                 <button
                   key={tool.id}
                   onClick={() => setActiveEditTool(tool.id)}
+                  aria-label={`${tool.label}${tool.shortcut ? ` (${tool.shortcut})` : ''}`}
+                  aria-pressed={isActive}
+                  aria-describedby={`tooltip-${tool.id}`}
                   className={cn(
                     'w-10 h-10 flex items-center justify-center rounded-lg transition-all group relative',
                     isActive
                       ? 'bg-red-aura text-red-primary'
                       : 'text-text-body hover:text-text-primary hover:bg-elevated'
                   )}
-                  title={`${tool.label}${tool.shortcut ? ` (${tool.shortcut})` : ''}`}
                 >
                   <Icon
                     className={cn(
                       'w-4 h-4',
-                      isActive && 'drop-shadow-[0_0_3px_rgba(230,57,70,0.6)]'
+                      isActive && 'drop-shadow-red-icon'
                     )}
                   />
                   {/* Tooltip */}
-                  <div className="absolute left-full ml-2 px-2.5 py-1.5 bg-elevated border border-border rounded-lg text-xs text-text-primary opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-50 shadow-cinematic font-display">
+                  <div id={`tooltip-${tool.id}`} role="tooltip" className="absolute left-full ml-2 px-2.5 py-1.5 bg-elevated border border-border rounded-lg text-xs text-text-primary opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 pointer-events-none whitespace-nowrap z-50 shadow-cinematic font-display">
                     {tool.label}
                     {tool.shortcut && (
                       <span className="ml-2 text-text-muted font-mono">{tool.shortcut}</span>
@@ -101,4 +104,4 @@ export function ToolStrip() {
       ))}
     </div>
   );
-}
+});

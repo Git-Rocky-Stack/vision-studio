@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { cn } from '@/utils/cn';
+import { hexToRgba } from '@/utils/colorUtils';
 import { Button } from '@/components/ui/Button';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -16,10 +17,10 @@ import {
 import type { ProjectTemplate } from '@/store/appStore';
 
 const categoryColors: Record<string, string> = {
-  youtube: '#e63946',
-  social: '#ff6b9d',
-  marketing: '#4ecdc4',
-  art: '#6c5ce7',
+  youtube: 'var(--color-category-youtube)',
+  social: 'var(--color-category-social)',
+  marketing: 'var(--color-category-marketing)',
+  art: 'var(--color-category-art)',
 };
 
 const categoryLabels: Record<string, string> = {
@@ -72,11 +73,15 @@ export function TemplatePreviewModal({
             exit={{ opacity: 0, scale: 0.95, y: 20 }}
             transition={{ type: 'spring', damping: 25, stiffness: 300 }}
             onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Template preview"
             className="relative w-full max-w-[720px] max-h-[80vh] bg-surface rounded-2xl border border-border shadow-cinematic overflow-hidden flex flex-col"
           >
             {/* Close Button */}
             <button
               onClick={onClose}
+              aria-label="Close template preview"
               className="absolute top-4 right-4 z-10 p-2 rounded-lg bg-elevated/80 backdrop-blur-sm text-text-muted hover:text-text-primary hover:bg-elevated transition-all"
             >
               <X className="w-4 h-4" />
@@ -100,8 +105,8 @@ export function TemplatePreviewModal({
                     <div
                       className="w-16 h-16 rounded-xl flex items-center justify-center flex-shrink-0 text-3xl"
                       style={{
-                        background: `linear-gradient(135deg, ${color}15, ${color}05)`,
-                        border: `1px solid ${color}20`,
+                        background: `linear-gradient(135deg, ${hexToRgba(color, 0.08)}, ${hexToRgba(color, 0.02)})`,
+                        border: `1px solid ${hexToRgba(color, 0.13)}`,
                       }}
                     >
                       {template.thumbnail}
@@ -113,16 +118,16 @@ export function TemplatePreviewModal({
                           {template.name}
                         </h2>
                         <span
-                          className="px-2 py-0.5 rounded-full text-[10px] font-display font-medium uppercase tracking-wide"
+                          className="px-2 py-0.5 rounded-full text-micro font-display font-medium uppercase tracking-wide"
                           style={{
-                            backgroundColor: `${color}15`,
+                            backgroundColor: hexToRgba(color, 0.08),
                             color: color,
                           }}
                         >
                           {categoryLabels[template.category] || template.category}
                         </span>
                         {template.isCustom && (
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-display font-medium uppercase tracking-wide bg-elevated text-text-muted">
+                          <span className="px-2 py-0.5 rounded-full text-micro font-display font-medium uppercase tracking-wide bg-elevated text-text-muted">
                             Custom
                           </span>
                         )}
@@ -155,7 +160,7 @@ export function TemplatePreviewModal({
                           : `${(template.settings.height / template.settings.width) * 80}px`,
                     }}
                   >
-                    <span className="font-mono text-[10px] text-text-muted">
+                    <span className="font-mono text-micro text-text-muted">
                       {template.settings.width}&times;{template.settings.height}
                     </span>
                   </div>
@@ -175,7 +180,7 @@ export function TemplatePreviewModal({
                     >
                       <Icon className="w-4 h-4 text-text-muted flex-shrink-0" />
                       <div>
-                        <span className="text-[10px] text-text-muted font-display uppercase tracking-wider block">
+                        <span className="text-micro text-text-muted font-display uppercase tracking-wider block">
                           {label}
                         </span>
                         <span className="text-sm text-text-primary font-mono">

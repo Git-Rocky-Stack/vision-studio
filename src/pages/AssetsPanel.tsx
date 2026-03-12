@@ -1,26 +1,24 @@
-import { useState, useEffect } from 'react';
+import { useMemo, useRef, useState } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { cn } from '@/utils/cn';
 import { Button } from '@/components/ui/Button';
 import { useAppStore } from '@/store/appStore';
+import type { AssetRecord } from '@/types/assets';
+import { ImageWithFallback } from '@/components/ui/ImageWithFallback';
 import {
   Search,
-  Filter,
   Grid,
   List,
   Image as ImageIcon,
   Film,
-  MoreVertical,
   FolderPlus,
   Trash2,
   Download,
-  Clock,
   Star,
   Check,
   X,
   ExternalLink,
-  Share2,
-  Copy,
-  FileVideo,
   RefreshCw,
   Play,
 } from 'lucide-react';
@@ -29,132 +27,148 @@ import { motion } from 'framer-motion';
 type ViewMode = 'grid' | 'list';
 type AssetType = 'all' | 'image' | 'video';
 
-interface Asset {
-  id: string;
-  name: string;
-  type: 'image' | 'video';
-  thumbnail: string;
-  createdAt: Date;
-  size: string;
-  duration?: string;
-  favorite: boolean;
-  path?: string;
-  jobId?: string;
+function formatAssetMeta(asset: AssetRecord) {
+  if (asset.width && asset.height) {
+    return `${asset.width}x${asset.height}`;
+  }
+
+  return asset.type === 'image' ? 'Image' : 'Video';
 }
 
 export function AssetsPanel() {
-  const { activeJobs, completedJobs } = useAppStore();
+  const {
+    assetLibrary,
+    deleteAssetRecord,
+    toggleAssetFavorite,
+  } = useAppStore();
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
   const [filter, setFilter] = useState<AssetType>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedAssets, setSelectedAssets] = useState<Set<string>>(new Set());
-  const [assets, setAssets] = useState<Asset[]>([]);
+  const [deleteTarget, setDeleteTarget] = useState<AssetRecord | null>(null);
 
-  // Convert jobs to assets
-  useEffect(() => {
-    const jobAssets: Asset[] = [];
-
-    [...completedJobs, ...activeJobs].forEach((job) => {
-      if (job.result) {
-        const isVideo = job.type === 'video';
-        const asset: Asset = {
-          id: job.id,
-          name: `${job.type === 'image' ? 'Image' : 'Video'} ${job.id.slice(0, 8)}`,
-          type: job.type,
-          thumbnail: job.result.images?.[0] || '',
-          createdAt: job.createdAt,
-          size: 'Unknown',
-          duration: isVideo ? `${job.result.duration}s` : undefined,
-          favorite: false,
-          path: job.result.images?.[0] || job.result.video,
-          jobId: job.id,
-        };
-        jobAssets.push(asset);
+  const filteredAssets = useMemo(() => {
+    return assetLibrary.filter((asset) => {
+      if (filter !== 'all' && asset.type !== filter) {
+        return false;
       }
+
+      if (!searchQuery) {
+        return true;
+      }
+
+      const query = searchQuery.toLowerCase();
+      return (
+        asset.name.toLowerCase().includes(query) ||
+        asset.prompt.toLowerCase().includes(query) ||
+        asset.model?.toLowerCase().includes(query)
+      );
     });
+  }, [assetLibrary, filter, searchQuery]);
 
-    setAssets(jobAssets);
-  }, [activeJobs, completedJobs]);
-
-  const filteredAssets = assets.filter((asset) => {
-    if (filter !== 'all' && asset.type !== filter) return false;
-    if (searchQuery && !asset.name.toLowerCase().includes(searchQuery.toLowerCase()))
-      return false;
-    return true;
-  });
+  const selectedAssetRecords = filteredAssets.filter((asset) => selectedAssets.has(asset.id));
 
   const toggleSelection = (id: string) => {
-    const newSelection = new Set(selectedAssets);
-    if (newSelection.has(id)) {
-      newSelection.delete(id);
-    } else {
-      newSelection.add(id);
-    }
-    setSelectedAssets(newSelection);
+    setSelectedAssets((current) => {
+      const next = new Set(current);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
   };
 
   const selectAll = () => {
     if (selectedAssets.size === filteredAssets.length) {
       setSelectedAssets(new Set());
-    } else {
-      setSelectedAssets(new Set(filteredAssets.map((a) => a.id)));
+      return;
     }
+
+    setSelectedAssets(new Set(filteredAssets.map((asset) => asset.id)));
   };
 
-  const handleExport = async (asset: Asset, format?: string) => {
-    if (!asset.path) return;
+  const handlePreview = async (asset: AssetRecord) => {
+    await window.electron.app.openPath(asset.path);
+  };
 
-    const result = await window.electron.dialog.saveFile({
-      defaultPath: `${asset.name}.${asset.type === 'image' ? 'png' : 'mp4'}`,
+  const handleExport = async (asset: AssetRecord) => {
+    const destinationPath = await window.electron.dialog.saveFile({
+      defaultPath: asset.path.split('/').pop() || asset.name,
       filters:
         asset.type === 'image'
           ? [
-              { name: 'PNG', extensions: ['png'] },
-              { name: 'JPEG', extensions: ['jpg', 'jpeg'] },
-              { name: 'WebP', extensions: ['webp'] },
+              { name: 'Image Files', extensions: ['png', 'jpg', 'jpeg', 'webp'] },
             ]
           : [
-              { name: 'MP4', extensions: ['mp4'] },
-              { name: 'WebM', extensions: ['webm'] },
-              { name: 'GIF', extensions: ['gif'] },
+              { name: 'Video Files', extensions: ['mp4', 'webm', 'gif'] },
             ],
     });
 
-    if (result) {
-      // TODO: Copy file to destination
-      console.log('Export to:', result);
+    if (!destinationPath) {
+      return;
     }
+
+    await window.electron.assets.export(asset.path, destinationPath);
   };
 
   const handleExportMultiple = async () => {
-    const selected = assets.filter((a) => selectedAssets.has(a.id));
-    const folder = await window.electron.dialog.selectFolder();
-
-    if (folder) {
-      // TODO: Export all selected assets to folder
-      console.log('Export to folder:', folder, selected);
+    if (selectedAssetRecords.length === 0) {
+      return;
     }
+
+    const destinationDir = await window.electron.dialog.selectFolder();
+    if (!destinationDir) {
+      return;
+    }
+
+    await window.electron.assets.exportMany(
+      selectedAssetRecords.map((asset) => asset.path),
+      destinationDir
+    );
   };
 
-  const handleDelete = async (asset: Asset) => {
-    // TODO: Delete asset
-    console.log('Delete:', asset);
+  const handleDelete = (asset: AssetRecord) => {
+    setDeleteTarget(asset);
   };
 
-  const handlePreview = (asset: Asset) => {
-    // TODO: Open preview modal
-    console.log('Preview:', asset);
+  const confirmDelete = async () => {
+    if (!deleteTarget) {
+      return;
+    }
+
+    const result = await window.electron.assets.delete(deleteTarget.path);
+    if (!result.success) {
+      setDeleteTarget(null);
+      return;
+    }
+
+    deleteAssetRecord(deleteTarget.id);
+    setSelectedAssets((current) => {
+      const next = new Set(current);
+      next.delete(deleteTarget.id);
+      return next;
+    });
+    setDeleteTarget(null);
   };
 
-  const completedCount = assets.filter((a) =>
-    a.type === 'image' ? a.path?.endsWith('.png') : a.path?.endsWith('.mp4')
-  ).length;
+  const completedCount = assetLibrary.length;
+
+  const parentRef = useRef<HTMLDivElement>(null);
+  const COLS = viewMode === 'grid' ? 2 : 1;
+  const rowCount = Math.ceil(filteredAssets.length / COLS);
+
+  const rowVirtualizer = useVirtualizer({
+    count: rowCount,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => (viewMode === 'grid' ? 180 : 64),
+    overscan: 5,
+  });
 
   return (
     <div className="h-full flex flex-col bg-surface">
-      {/* Header */}
       <div className="p-4 border-b border-border space-y-4">
-        {/* Search */}
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
           <input
@@ -166,7 +180,6 @@ export function AssetsPanel() {
           />
         </div>
 
-        {/* Filters & View Toggle */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-1 bg-elevated rounded-lg p-1">
             {(['all', 'image', 'video'] as AssetType[]).map((type) => (
@@ -211,14 +224,13 @@ export function AssetsPanel() {
           </div>
         </div>
 
-        {/* Selection Actions */}
         {selectedAssets.size > 0 && (
           <motion.div
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
             className="flex items-center gap-2 p-2 bg-red-aura border border-red-primary/30 rounded-lg"
           >
-            <span className="text-sm text-red-primary font-display font-medium">
+            <span className="text-sm text-red-primary font-display font-medium" aria-live="polite">
               {selectedAssets.size} selected
             </span>
             <div className="flex-1" />
@@ -235,8 +247,7 @@ export function AssetsPanel() {
         )}
       </div>
 
-      {/* Assets Grid/List */}
-      <div className="flex-1 overflow-y-auto p-4">
+      <div ref={parentRef} className="flex-1 overflow-y-auto p-4">
         {filteredAssets.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center text-text-muted">
             <div className="w-16 h-16 rounded-2xl bg-elevated border border-border flex items-center justify-center mb-4">
@@ -248,178 +259,187 @@ export function AssetsPanel() {
             </p>
           </div>
         ) : (
-          <div
-            className={cn(
-              viewMode === 'grid' ? 'grid grid-cols-2 gap-3' : 'space-y-2'
-            )}
-          >
-            {filteredAssets.map((asset, index) => (
-              <motion.div
-                key={asset.id}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.05 }}
-                onClick={() => toggleSelection(asset.id)}
-                className={cn(
-                  'group relative rounded-lg border cursor-pointer transition-all overflow-hidden',
-                  viewMode === 'grid' ? 'aspect-square' : 'flex items-center gap-3 p-2',
-                  selectedAssets.has(asset.id)
-                    ? 'border-red-primary bg-red-aura'
-                    : 'border-border hover:border-border-hover bg-elevated'
-                )}
-              >
-                {/* Thumbnail */}
+          <div style={{ height: `${rowVirtualizer.getTotalSize()}px`, position: 'relative' }}>
+            {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+              const startIdx = virtualRow.index * COLS;
+              const rowAssets = filteredAssets.slice(startIdx, startIdx + COLS);
+              return (
                 <div
-                  className={cn(
-                    'bg-surface flex items-center justify-center relative',
-                    viewMode === 'grid' ? 'absolute inset-0' : 'w-12 h-12 rounded'
-                  )}
+                  key={virtualRow.key}
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    width: '100%',
+                    transform: `translateY(${virtualRow.start}px)`,
+                  }}
+                  className={cn(viewMode === 'grid' ? 'grid grid-cols-2 gap-3' : 'space-y-2')}
                 >
-                  {asset.type === 'image' ? (
-                    asset.thumbnail ? (
-                      <img
-                        src={asset.thumbnail}
-                        alt={asset.name}
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <ImageIcon
+                  {rowAssets.map((asset, colIdx) => (
+                    <motion.div
+                      key={asset.id}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: (startIdx + colIdx) * 0.03 }}
+                      onClick={() => toggleSelection(asset.id)}
+                      className={cn(
+                        'group relative rounded-lg border cursor-pointer transition-all overflow-hidden',
+                        viewMode === 'grid' ? 'aspect-square' : 'flex items-center gap-3 p-2',
+                        selectedAssets.has(asset.id)
+                          ? 'border-red-primary bg-red-aura'
+                          : 'border-border hover:border-border-hover bg-elevated'
+                      )}
+                    >
+                      <div
                         className={cn(
-                          'text-text-muted',
-                          viewMode === 'grid' ? 'w-12 h-12' : 'w-6 h-6'
+                          'bg-surface flex items-center justify-center relative',
+                          viewMode === 'grid' ? 'absolute inset-0' : 'w-12 h-12 rounded overflow-hidden'
                         )}
-                      />
-                    )
-                  ) : (
-                    <div className="relative">
-                      <Film
+                      >
+                        {asset.type === 'image' ? (
+                          <ImageWithFallback
+                            src={asset.thumbnail || asset.previewUrl}
+                            alt={asset.name}
+                            className="w-full h-full object-cover"
+                            fallbackClassName="w-full h-full"
+                            loading="lazy"
+                          />
+                        ) : (
+                          <div className="relative">
+                            <Film
+                              className={cn(
+                                'text-text-muted',
+                                viewMode === 'grid' ? 'w-12 h-12' : 'w-6 h-6'
+                              )}
+                            />
+                            {viewMode === 'grid' && (
+                              <div className="absolute inset-0 flex items-center justify-center">
+                                <Play className="w-6 h-6 text-text-primary fill-text-primary" />
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+
+                      <div
                         className={cn(
-                          'text-text-muted',
-                          viewMode === 'grid' ? 'w-12 h-12' : 'w-6 h-6'
+                          'flex-1 min-w-0',
+                          viewMode === 'grid' &&
+                            'absolute bottom-0 left-0 right-0 p-3 bg-gradient-to-t from-void/80 to-transparent'
                         )}
-                      />
-                      {viewMode === 'grid' && (
-                        <div className="absolute inset-0 flex items-center justify-center">
-                          <Play className="w-6 h-6 text-text-primary fill-text-primary" />
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className="font-display font-medium text-text-primary truncate">
+                            {asset.name}
+                          </span>
+                          {asset.favorite && (
+                            <Star className="w-3.5 h-3.5 text-[var(--color-status-warning)] fill-[var(--color-status-warning)]" />
+                          )}
+                        </div>
+                        <div
+                          className={cn(
+                            'flex items-center gap-2 font-mono text-xs',
+                            viewMode === 'grid' ? 'text-text-body' : 'text-text-muted'
+                          )}
+                        >
+                          <span>{formatAssetMeta(asset)}</span>
+                          <span>&middot;</span>
+                          <span>{new Date(asset.createdAt).toLocaleDateString()}</span>
+                        </div>
+                      </div>
+
+                      <div
+                        className={cn(
+                          'flex items-center gap-1',
+                          viewMode === 'grid'
+                            ? 'absolute top-2 right-2 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity'
+                            : ''
+                        )}
+                      >
+                        <button
+                          aria-label="Toggle favorite"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleAssetFavorite(asset.id);
+                          }}
+                          className="p-1.5 rounded bg-surface/80 text-text-body hover:text-[var(--color-status-warning)] hover:bg-surface transition-all focus-visible:opacity-100"
+                        >
+                          <Star className={cn('w-3.5 h-3.5', asset.favorite && 'fill-[var(--color-status-warning)] text-[var(--color-status-warning)]')} />
+                        </button>
+                        <button
+                          aria-label="Open in viewer"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handlePreview(asset);
+                          }}
+                          className="p-1.5 rounded bg-surface/80 text-text-body hover:text-text-primary hover:bg-surface transition-all focus-visible:opacity-100"
+                        >
+                          <ExternalLink className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          aria-label="Export asset"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleExport(asset);
+                          }}
+                          className="p-1.5 rounded bg-surface/80 text-text-body hover:text-text-primary hover:bg-surface transition-all focus-visible:opacity-100"
+                        >
+                          <Download className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          aria-label="Delete asset"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDelete(asset);
+                          }}
+                          className="p-1.5 rounded bg-surface/80 text-text-body hover:text-red-primary hover:bg-surface transition-all focus-visible:opacity-100"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+
+                      {selectedAssets.has(asset.id) && (
+                        <div className="absolute top-2 left-2 w-5 h-5 rounded-full bg-red-primary flex items-center justify-center">
+                          <Check className="w-3 h-3 text-text-primary" />
                         </div>
                       )}
-                    </div>
-                  )}
-
-                  {/* Duration Badge */}
-                  {asset.duration && viewMode === 'grid' && (
-                    <div className="absolute bottom-2 right-2 px-1.5 py-0.5 bg-void/70 rounded font-mono text-[10px] text-text-primary">
-                      {asset.duration}
-                    </div>
-                  )}
+                    </motion.div>
+                  ))}
                 </div>
-
-                {/* Info */}
-                <div
-                  className={cn(
-                    'flex-1 min-w-0',
-                    viewMode === 'grid' &&
-                      'absolute bottom-0 left-0 right-0 p-3 bg-gradient-to-t from-void/80 to-transparent'
-                  )}
-                >
-                  <div className="flex items-center gap-2">
-                    <span className="font-display font-medium text-text-primary truncate">
-                      {asset.name}
-                    </span>
-                    {asset.favorite && (
-                      <Star className="w-3.5 h-3.5 text-yellow-500 fill-yellow-500" />
-                    )}
-                  </div>
-                  <div
-                    className={cn(
-                      'flex items-center gap-2 font-mono text-xs',
-                      viewMode === 'grid' ? 'text-text-body' : 'text-text-muted'
-                    )}
-                  >
-                    <span>{asset.size}</span>
-                    {asset.duration && viewMode === 'list' && (
-                      <>
-                        <span>&middot;</span>
-                        <span>{asset.duration}</span>
-                      </>
-                    )}
-                    <span>&middot;</span>
-                    <span>{new Date(asset.createdAt).toLocaleDateString()}</span>
-                  </div>
-                </div>
-
-                {/* Actions */}
-                <div
-                  className={cn(
-                    'flex items-center gap-1',
-                    viewMode === 'grid'
-                      ? 'absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity'
-                      : ''
-                  )}
-                >
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handlePreview(asset);
-                    }}
-                    className="p-1.5 rounded bg-surface/80 text-text-body hover:text-text-primary hover:bg-surface transition-all"
-                  >
-                    <ExternalLink className="w-3.5 h-3.5" />
-                  </button>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleExport(asset);
-                    }}
-                    className="p-1.5 rounded bg-surface/80 text-text-body hover:text-text-primary hover:bg-surface transition-all"
-                  >
-                    <Download className="w-3.5 h-3.5" />
-                  </button>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleDelete(asset);
-                    }}
-                    className="p-1.5 rounded bg-surface/80 text-text-body hover:text-red-primary hover:bg-surface transition-all"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-
-                {/* Selection Indicator */}
-                {selectedAssets.has(asset.id) && (
-                  <div className="absolute top-2 left-2 w-5 h-5 rounded-full bg-red-primary flex items-center justify-center">
-                    <Check className="w-3 h-3 text-text-primary" />
-                  </div>
-                )}
-              </motion.div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
 
-      {/* Footer Stats */}
       <div className="px-4 py-3 border-t border-border bg-elevated">
         <div className="flex items-center justify-between text-xs text-text-muted">
           <div className="flex items-center gap-3">
-            <span className="font-mono">{filteredAssets.length} items</span>
-            {selectedAssets.size > 0 && (
+            <span className="font-mono" aria-live="polite">{completedCount} items</span>
+            {filteredAssets.length > 0 && (
               <button
                 onClick={selectAll}
                 className="text-red-primary hover:underline font-display"
               >
-                {selectedAssets.size === filteredAssets.length
-                  ? 'Deselect all'
-                  : 'Select all'}
+                {selectedAssets.size === filteredAssets.length ? 'Deselect all' : 'Select all'}
               </button>
             )}
           </div>
           <div className="flex items-center gap-2">
             <RefreshCw className="w-3 h-3" />
-            <span className="font-display">Auto-refresh</span>
+            <span className="font-display">Persisted Library</span>
           </div>
         </div>
       </div>
+      <ConfirmDialog
+        open={deleteTarget !== null}
+        title="Delete Asset"
+        message={`Are you sure you want to delete "${deleteTarget?.name}"? This cannot be undone.`}
+        confirmLabel="Delete"
+        variant="danger"
+        onConfirm={confirmDelete}
+        onCancel={() => setDeleteTarget(null)}
+      />
     </div>
   );
 }

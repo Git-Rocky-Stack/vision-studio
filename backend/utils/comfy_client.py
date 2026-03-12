@@ -2,12 +2,14 @@
 ComfyUI Client - Interface with ComfyUI server
 """
 
+import asyncio
 import json
 import uuid
-import asyncio
+from typing import Any, Callable, Dict, List, Optional
+
 import aiohttp
-import websocket
-from typing import Dict, Optional, Callable, Any, List
+
+from .comfy_workflows import extract_history_image_outputs
 
 
 class ComfyUIClient:
@@ -148,6 +150,32 @@ class ComfyUIClient:
             if resp.status == 200:
                 return await resp.json()
             raise RuntimeError(f"Failed to get history: {resp.status}")
+
+    async def wait_for_prompt_completion(
+        self,
+        prompt_id: str,
+        timeout_seconds: int = 600,
+        poll_interval: float = 1.0,
+        progress_callback: Optional[Callable[[float], None]] = None,
+    ) -> List[Dict[str, str]]:
+        start = asyncio.get_running_loop().time()
+
+        while True:
+            history = await self.get_history(prompt_id)
+            outputs = extract_history_image_outputs(history, prompt_id)
+            if outputs:
+                if progress_callback:
+                    progress_callback(95.0)
+                return outputs
+
+            if asyncio.get_running_loop().time() - start > timeout_seconds:
+                raise TimeoutError(f"Timed out waiting for ComfyUI prompt {prompt_id}")
+
+            if progress_callback:
+                elapsed = asyncio.get_running_loop().time() - start
+                progress_callback(min(90.0, 15.0 + elapsed * 2))
+
+            await asyncio.sleep(poll_interval)
     
     async def get_image(self, filename: str, subfolder: str = "", folder_type: str = "output") -> bytes:
         """Get generated image"""

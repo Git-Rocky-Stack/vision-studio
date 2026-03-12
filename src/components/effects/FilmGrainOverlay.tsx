@@ -1,11 +1,11 @@
-import { useEffect, useRef, useCallback } from 'react';
+import { memo, useEffect, useRef, useCallback } from 'react';
 
 interface FilmGrainOverlayProps {
   opacity?: number;
   animated?: boolean;
 }
 
-export function FilmGrainOverlay({ opacity = 0.025, animated = true }: FilmGrainOverlayProps) {
+export const FilmGrainOverlay = memo(function FilmGrainOverlay({ opacity = 0.025, animated = true }: FilmGrainOverlayProps) {
   const turbulenceRef = useRef<SVGFETurbulenceElement>(null);
   const rafRef = useRef<number>(0);
   const lastUpdateRef = useRef<number>(0);
@@ -36,8 +36,8 @@ export function FilmGrainOverlay({ opacity = 0.025, animated = true }: FilmGrain
 
   return (
     <div
-      className="fixed inset-0 pointer-events-none"
-      style={{ zIndex: 9999, opacity }}
+      className="fixed inset-0 pointer-events-none z-[9999]"
+      style={{ opacity }}
     >
       <svg width="100%" height="100%">
         <filter id="film-grain">
@@ -55,4 +55,4 @@ export function FilmGrainOverlay({ opacity = 0.025, animated = true }: FilmGrain
       </svg>
     </div>
   );
-}
+});

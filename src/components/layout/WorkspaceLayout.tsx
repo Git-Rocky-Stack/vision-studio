@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import { CinematicTransition } from '@/components/effects/CinematicTransition';
 
 interface WorkspaceLayoutProps {
@@ -32,6 +33,31 @@ export function WorkspaceLayout({
   batchResults,
   templatesBrowser,
 }: WorkspaceLayoutProps) {
+  const workspaceRef = useRef<HTMLDivElement>(null);
+  const previousPanelRef = useRef(activePanel);
+
+  useEffect(() => {
+    if (previousPanelRef.current === activePanel) return;
+    previousPanelRef.current = activePanel;
+
+    // Wait for the cinematic transition to complete (200ms based on cinema-fade animation)
+    const timer = setTimeout(() => {
+      const workspace = workspaceRef.current;
+      if (!workspace) return;
+
+      // Find the first focusable element in the new panel content
+      const focusable = workspace.querySelector<HTMLElement>(
+        'input:not([disabled]):not([type="hidden"]), textarea:not([disabled]), button:not([disabled]), [tabindex]:not([tabindex="-1"]), select:not([disabled])'
+      );
+
+      if (focusable) {
+        focusable.focus({ preventScroll: true });
+      }
+    }, 250);
+
+    return () => clearTimeout(timer);
+  }, [activePanel]);
+
   const renderWorkspace = () => {
     switch (activePanel) {
       case 'edit':
@@ -61,7 +87,7 @@ export function WorkspaceLayout({
           <div className="flex-1 flex min-h-0">
             {/* Prompt queue */}
             {batchQueue && (
-              <div className="w-[420px] flex-shrink-0 border-r border-border bg-surface overflow-hidden">
+              <div className="w-[416px] flex-shrink-0 border-r border-border bg-surface overflow-hidden">
                 {batchQueue}
               </div>
             )}
@@ -120,7 +146,7 @@ export function WorkspaceLayout({
       {sidebar}
 
       {/* Main content */}
-      <div className="flex-1 flex flex-col min-w-0">
+      <div ref={workspaceRef} className="flex-1 flex flex-col min-w-0">
         {/* Header */}
         {header}
 

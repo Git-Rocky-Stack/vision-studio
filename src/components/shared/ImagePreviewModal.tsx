@@ -22,6 +22,7 @@ import {
   Scale,
 } from 'lucide-react';
 import type { BatchResult } from '@/types/generation';
+import { toGenerationDraftFromResult } from '@/features/batch/resultActions';
 
 interface ImagePreviewModalProps {
   result: BatchResult | null;
@@ -36,7 +37,14 @@ export function ImagePreviewModal({
   onClose,
   onNavigate,
 }: ImagePreviewModalProps) {
-  const { setCurrentImage, setActivePanel } = useAppStore();
+  const {
+    setCurrentImage,
+    setActivePanel,
+    setGenerationDraft,
+    removeBatchResults,
+    removeAssetRecordsByPaths,
+    upsertDerivedAsset,
+  } = useAppStore();
 
   const currentIndex = result ? results.findIndex((r) => r.id === result.id) : -1;
   const hasPrev = currentIndex > 0;
@@ -68,9 +76,16 @@ export function ImagePreviewModal({
     return () => window.removeEventListener('keydown', handleKey);
   }, [result, onClose, goToPrev, goToNext]);
 
+  // Focus trap
+  useEffect(() => {
+    if (!result) return;
+    const previousFocus = document.activeElement as HTMLElement;
+    return () => { previousFocus?.focus(); };
+  }, [result]);
+
   const handleSendToEdit = () => {
     if (result?.imagePath) {
-      setCurrentImage(result.imagePath);
+      setCurrentImage(result.imagePath, result.assetPath);
       setActivePanel('edit');
       onClose();
     }
@@ -83,19 +98,76 @@ export function ImagePreviewModal({
   };
 
   const handleRegenerate = () => {
-    // Placeholder — would populate generate panel with these settings
     if (result) {
+      setGenerationDraft(toGenerationDraftFromResult(result));
       setActivePanel('generate');
       onClose();
     }
   };
 
-  const handleExport = () => {
-    // Placeholder — would trigger Electron save dialog
+  const handleExport = async () => {
+    if (!result?.assetPath) {
+      return;
+    }
+
+    const destinationPath = await window.electron.dialog.saveFile({
+      defaultPath: result.assetPath.split('/').pop(),
+      filters: [{ name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'webp'] }],
+    });
+
+    if (!destinationPath) {
+      return;
+    }
+
+    await window.electron.assets.export(result.assetPath, destinationPath);
   };
 
-  const handleDelete = () => {
-    // Placeholder — would show confirmation then remove
+  const handleDelete = async () => {
+    if (!result?.assetPath) {
+      onClose();
+      return;
+    }
+
+    const deleteResult = await window.electron.assets.delete(result.assetPath);
+    if (!deleteResult.success) {
+      return;
+    }
+
+    removeBatchResults([result.id]);
+    removeAssetRecordsByPaths([result.assetPath]);
+    onClose();
+  };
+
+  const handleUpscale = async () => {
+    if (!result?.assetPath) {
+      return;
+    }
+
+    const upscaleResult = await window.electron.generation.upscaleImage({
+      source_path: result.assetPath,
+      scale_factor: 2,
+    });
+
+    if (!upscaleResult?.image || !upscaleResult?.output_path) {
+      return;
+    }
+
+    upsertDerivedAsset(upscaleResult, {
+      prompt: result.prompt,
+      negativePrompt:
+        typeof result.params?.negativePrompt === 'string' ? result.params.negativePrompt : '',
+      model: typeof result.params?.model === 'string' ? result.params.model : undefined,
+      seed: result.seed,
+      params: result.params,
+    });
+
+    setCurrentImage(
+      upscaleResult.image.startsWith('http')
+        ? upscaleResult.image
+        : `http://localhost:8000${upscaleResult.image}`,
+      upscaleResult.output_path
+    );
+    setActivePanel('edit');
     onClose();
   };
 
@@ -120,6 +192,9 @@ export function ImagePreviewModal({
           exit={{ opacity: 0 }}
           className="fixed inset-0 z-50 flex"
           onClick={onClose}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Image preview"
         >
           {/* Backdrop */}
           <div className="absolute inset-0 bg-void/90 backdrop-blur-sm" />
@@ -132,6 +207,7 @@ export function ImagePreviewModal({
             {/* Close Button */}
             <button
               onClick={onClose}
+              aria-label="Close preview"
               className="absolute top-4 right-4 z-10 p-2 rounded-lg bg-surface/80 backdrop-blur-sm text-text-muted hover:text-text-primary hover:bg-elevated transition-all"
             >
               <X className="w-5 h-5" />
@@ -143,6 +219,7 @@ export function ImagePreviewModal({
               {hasPrev && (
                 <button
                   onClick={goToPrev}
+                  aria-label="Previous image"
                   className="absolute left-4 top-1/2 -translate-y-1/2 p-3 rounded-xl bg-surface/80 backdrop-blur-sm text-text-muted hover:text-text-primary hover:bg-elevated transition-all"
                 >
                   <ChevronLeft className="w-6 h-6" />
@@ -164,6 +241,7 @@ export function ImagePreviewModal({
               {hasNext && (
                 <button
                   onClick={goToNext}
+                  aria-label="Next image"
                   className="absolute right-[340px] top-1/2 -translate-y-1/2 p-3 rounded-xl bg-surface/80 backdrop-blur-sm text-text-muted hover:text-text-primary hover:bg-elevated transition-all"
                 >
                   <ChevronRight className="w-6 h-6" />
@@ -188,7 +266,7 @@ export function ImagePreviewModal({
             >
               {/* Prompt */}
               <div className="p-4 border-b border-border">
-                <h3 className="font-display text-xs font-medium text-text-muted uppercase tracking-wider mb-2">
+                <h3 className="text-label text-text-muted mb-2">
                   Prompt
                 </h3>
                 <p className="text-sm text-text-primary font-display leading-relaxed max-h-32 overflow-y-auto scrollbar-hide">
@@ -199,7 +277,7 @@ export function ImagePreviewModal({
               {/* Negative Prompt */}
               {result.params?.negativePrompt && (
                 <div className="px-4 py-3 border-b border-border">
-                  <h3 className="font-display text-xs font-medium text-text-muted uppercase tracking-wider mb-2">
+                  <h3 className="text-label text-text-muted mb-2">
                     Negative Prompt
                   </h3>
                   <p className="text-xs text-text-body font-display leading-relaxed max-h-20 overflow-y-auto scrollbar-hide">
@@ -210,7 +288,7 @@ export function ImagePreviewModal({
 
               {/* Settings Grid */}
               <div className="px-4 py-3 border-b border-border flex-1 overflow-y-auto scrollbar-hide">
-                <h3 className="font-display text-xs font-medium text-text-muted uppercase tracking-wider mb-3">
+                <h3 className="text-label text-text-muted mb-3">
                   Settings
                 </h3>
                 <div className="space-y-2.5">
@@ -258,7 +336,7 @@ export function ImagePreviewModal({
                     variant="ghost"
                     size="sm"
                     icon={Maximize2}
-                    onClick={() => {/* placeholder for upscale */}}
+                    onClick={handleUpscale}
                   >
                     Upscale
                   </Button>

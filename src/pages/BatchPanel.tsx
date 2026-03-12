@@ -20,6 +20,7 @@ import {
   GripVertical,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { resolveStoredAssetPath } from '@/features/assets/assetRecords';
 
 interface BatchPrompt {
   id: string;
@@ -29,12 +30,32 @@ interface BatchPrompt {
   seed?: number;
 }
 
+const BACKEND_ASSET_BASE_URL = 'http://localhost:8000';
+
+function resolveOutputRoot(defaultOutputPath: string, userDataPath: string) {
+  return (defaultOutputPath || `${userDataPath.replace(/\\/g, '/')}/outputs`).replace(/\\/g, '/');
+}
+
+function toPreviewUrl(assetPath: string) {
+  if (!assetPath) {
+    return '';
+  }
+
+  if (/^https?:\/\//.test(assetPath)) {
+    return assetPath;
+  }
+
+  return assetPath.startsWith('/')
+    ? `${BACKEND_ASSET_BASE_URL}${assetPath}`
+    : `${BACKEND_ASSET_BASE_URL}/${assetPath}`;
+}
+
 /* ───────────────────────────────────────────────────────────
    BatchPromptQueue — The left panel (420px) in batch mode
    ─────────────────────────────────────────────────────────── */
 
 export function BatchPromptQueue() {
-  const { addBatchJob } = useAppStore();
+  const { addBatchJob, addBatchResult, syncAssetsFromJobStatus } = useAppStore();
   const [prompts, setPrompts] = useState<BatchPrompt[]>([
     { id: '1', prompt: '', status: 'pending' },
   ]);
@@ -106,6 +127,10 @@ export function BatchPromptQueue() {
     });
 
     try {
+      const appSettings = await window.electron.settings.get();
+      const userDataPath = await window.electron.app.getPath('userData');
+      const outputRoot = resolveOutputRoot(appSettings.defaultOutputPath, userDataPath);
+
       const result = await window.electron.generation.batch({
         prompts: validPrompts.map((p) => p.prompt),
         width,
@@ -117,15 +142,14 @@ export function BatchPromptQueue() {
 
       if (result.success && result.jobIds) {
         let jobIndex = 0;
-        setPrompts(
-          prompts.map((p) => {
-            if (p.prompt.trim() && jobIndex < result.jobIds!.length) {
-              return { ...p, status: 'generating', id: result.jobIds![jobIndex++] };
-            }
-            return p;
-          })
-        );
-        pollBatchProgress(result.jobIds);
+        const promptsWithJobIds = prompts.map((p) => {
+          if (p.prompt.trim() && jobIndex < result.jobIds!.length) {
+            return { ...p, status: 'generating' as const, id: result.jobIds![jobIndex++] };
+          }
+          return p;
+        });
+        setPrompts(promptsWithJobIds);
+        pollBatchProgress(batchId, result.jobIds, promptsWithJobIds, outputRoot);
       }
     } catch (error) {
       console.error('Batch generation failed:', error);
@@ -133,10 +157,15 @@ export function BatchPromptQueue() {
     }
   };
 
-  const pollBatchProgress = async (jobIds: string[]) => {
+  const pollBatchProgress = async (
+    batchId: string,
+    jobIds: string[],
+    startingPrompts: BatchPrompt[],
+    outputRoot: string
+  ) => {
     const checkInterval = setInterval(async () => {
       let allCompleted = true;
-      const updatedPrompts = [...prompts];
+      const updatedPrompts = [...startingPrompts];
 
       for (let i = 0; i < jobIds.length; i++) {
         try {
@@ -147,6 +176,44 @@ export function BatchPromptQueue() {
             if (status.status === 'completed') {
               updatedPrompts[promptIndex].status = 'completed';
               updatedPrompts[promptIndex].result = status.result?.images?.[0];
+              syncAssetsFromJobStatus({
+                ...status,
+                params: {
+                  prompt: updatedPrompts[promptIndex].prompt,
+                  width,
+                  height,
+                  steps,
+                  cfg_scale: cfgScale,
+                  model,
+                  output_root: outputRoot,
+                },
+              });
+              addBatchResult({
+                id: jobIds[i],
+                batchId,
+                promptIndex: promptIndex,
+                prompt: updatedPrompts[promptIndex].prompt,
+                imagePath: toPreviewUrl(status.result?.images?.[0] || ''),
+                assetPath: resolveStoredAssetPath(
+                  status.result?.images?.[0] || '',
+                  {
+                    output_root: outputRoot,
+                  }
+                ),
+                seed: status.result?.seed || 0,
+                generationTime: 0,
+                params: {
+                  width,
+                  height,
+                  steps,
+                  cfgScale,
+                  model,
+                  negativePrompt: '',
+                  resolution: `${width} x ${height}`,
+                },
+                createdAt: status.created_at ? new Date(status.created_at) : new Date(),
+                isFavorite: false,
+              });
             } else if (status.status === 'failed') {
               updatedPrompts[promptIndex].status = 'failed';
             } else {
@@ -164,7 +231,7 @@ export function BatchPromptQueue() {
         clearInterval(checkInterval);
         setIsGenerating(false);
       }
-    }, 1000);
+    }, 2000);
   };
 
   const handleCancel = () => {
@@ -217,22 +284,27 @@ export function BatchPromptQueue() {
       {isGenerating && (
         <div className="px-4 py-3 border-b border-border bg-elevated">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-sm text-text-body font-display">
+            <span className="text-sm text-text-body font-display" aria-live="polite">
               Progress: {completedCount} / {prompts.length}
             </span>
-            <span className="font-mono text-sm text-red-primary">
+            <span className="font-mono text-sm text-red-primary" aria-live="polite">
               {Math.round(progress)}%
             </span>
           </div>
           <div className="h-1.5 bg-void rounded-full overflow-hidden border border-border">
             <motion.div
               className="h-full rounded-full"
+              role="progressbar"
+              aria-valuenow={Math.round(progress)}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-label="Batch progress"
               initial={{ width: 0 }}
               animate={{ width: `${progress}%` }}
               transition={{ duration: 0.3 }}
               style={{
-                background: 'linear-gradient(90deg, #c1121f, #e63946)',
-                boxShadow: '0 0 8px rgba(230, 57, 70, 0.4)',
+                background: 'linear-gradient(90deg, var(--color-gradient-progress-start), var(--color-gradient-progress-end))',
+                boxShadow: '0 0 8px var(--color-red-glow)',
               }}
             />
           </div>
@@ -252,9 +324,9 @@ export function BatchPromptQueue() {
                 className={cn(
                   'relative p-3 rounded-lg border transition-all',
                   prompt.status === 'generating' &&
-                    'border-yellow-500/30 bg-yellow-500/5',
+                    'border-[var(--color-status-warning-border)] bg-[var(--color-status-warning-muted)]',
                   prompt.status === 'completed' &&
-                    'border-green-500/30 bg-green-500/5',
+                    'border-[var(--color-status-success-border)] bg-[var(--color-status-success-muted)]',
                   prompt.status === 'failed' &&
                     'border-red-primary/30 bg-red-primary/5',
                   prompt.status === 'pending' && 'border-border bg-elevated'
@@ -264,7 +336,7 @@ export function BatchPromptQueue() {
                   {/* Drag handle */}
                   <div className="flex flex-col items-center gap-1 pt-2">
                     <GripVertical className="w-3.5 h-3.5 text-text-muted cursor-grab" />
-                    <span className="font-mono text-[10px] text-text-muted">
+                    <span className="font-mono text-micro text-text-muted">
                       {index + 1}
                     </span>
                   </div>
@@ -284,10 +356,10 @@ export function BatchPromptQueue() {
                   {/* Status/Actions */}
                   <div className="flex flex-col gap-1 pt-1">
                     {prompt.status === 'generating' && (
-                      <Loader2 className="w-4 h-4 text-yellow-400 animate-spin" />
+                      <Loader2 className="w-4 h-4 text-[var(--color-status-warning)] animate-spin" />
                     )}
                     {prompt.status === 'completed' && (
-                      <CheckCircle2 className="w-4 h-4 text-green-400" />
+                      <CheckCircle2 className="w-4 h-4 text-[var(--color-status-success)]" />
                     )}
                     {prompt.status === 'failed' && (
                       <XCircle className="w-4 h-4 text-red-primary" />

@@ -1,5 +1,6 @@
-import { useState, useMemo } from 'react';
+import { memo, useState, useMemo } from 'react';
 import { cn } from '@/utils/cn';
+import { hexToRgba } from '@/utils/colorUtils';
 import { useAppStore } from '@/store/appStore';
 import {
   Play,
@@ -27,7 +28,7 @@ interface TimelineTrack {
   thumbnail?: string;
 }
 
-export function Timeline() {
+export const Timeline = memo(function Timeline() {
   const { completedJobs } = useAppStore();
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -72,6 +73,7 @@ export function Timeline() {
           onClick={() => setIsCollapsed(false)}
           className="p-1 rounded text-text-muted hover:text-text-primary transition-all"
           title="Expand Timeline"
+          aria-label="Expand timeline"
         >
           <ChevronUp className="w-3.5 h-3.5" />
         </button>
@@ -79,24 +81,33 @@ export function Timeline() {
         <button
           onClick={() => setIsPlaying(!isPlaying)}
           className="p-1 rounded-lg bg-red-primary text-text-primary hover:bg-red-highlight transition-all"
+          aria-label={isPlaying ? 'Pause' : 'Play'}
+          aria-pressed={isPlaying}
         >
           {isPlaying ? <Pause className="w-3 h-3" /> : <Play className="w-3 h-3" />}
         </button>
-        <span className="font-mono text-[10px] text-text-body">
+        <span className="font-mono text-micro text-text-body">
           {formatTime(currentTime)} / {formatTime(totalDuration)}
         </span>
-        <div className="flex-1 h-1 bg-void rounded-full overflow-hidden mx-2">
+        <div
+          className="flex-1 h-1 bg-void rounded-full overflow-hidden mx-2"
+          role="progressbar"
+          aria-valuenow={Math.round(progress)}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-label="Timeline progress"
+        >
           <div
             className="h-full rounded-full"
             style={{
               width: `${progress}%`,
-              background: 'linear-gradient(90deg, #c1121f, #e63946)',
+              background: 'linear-gradient(90deg, var(--color-gradient-progress-start), var(--color-gradient-progress-end))',
             }}
           />
         </div>
         <div className="flex items-center gap-1">
           <Layers className="w-3 h-3 text-text-muted" />
-          <span className="font-mono text-[10px] text-text-muted">
+          <span className="font-mono text-micro text-text-muted">
             {tracks.length}
           </span>
         </div>
@@ -112,13 +123,21 @@ export function Timeline() {
           <button
             onClick={() => setIsPlaying(!isPlaying)}
             className="p-1.5 rounded-lg bg-red-primary text-text-primary hover:bg-red-highlight transition-all glow-red-subtle"
+            aria-label={isPlaying ? 'Pause' : 'Play'}
+            aria-pressed={isPlaying}
           >
             {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
           </button>
-          <button className="p-1.5 rounded-lg text-text-body hover:text-text-primary hover:bg-surface transition-all">
+          <button
+            className="p-1.5 rounded-lg text-text-body hover:text-text-primary hover:bg-surface transition-all"
+            aria-label="Skip to beginning"
+          >
             <SkipBack className="w-4 h-4" />
           </button>
-          <button className="p-1.5 rounded-lg text-text-body hover:text-text-primary hover:bg-surface transition-all">
+          <button
+            className="p-1.5 rounded-lg text-text-body hover:text-text-primary hover:bg-surface transition-all"
+            aria-label="Skip to end"
+          >
             <SkipForward className="w-4 h-4" />
           </button>
 
@@ -138,6 +157,7 @@ export function Timeline() {
                 : 'text-text-muted cursor-not-allowed opacity-40'
             )}
             disabled={!selectedTrackId}
+            aria-label="Split track"
           >
             <Scissors className="w-4 h-4" />
           </button>
@@ -149,6 +169,7 @@ export function Timeline() {
                 : 'text-text-muted cursor-not-allowed opacity-40'
             )}
             disabled={!selectedTrackId}
+            aria-label="Duplicate track"
           >
             <Copy className="w-4 h-4" />
           </button>
@@ -160,6 +181,7 @@ export function Timeline() {
                 : 'text-text-muted cursor-not-allowed opacity-40'
             )}
             disabled={!selectedTrackId}
+            aria-label="Delete track"
           >
             <Trash2 className="w-4 h-4" />
           </button>
@@ -179,6 +201,7 @@ export function Timeline() {
             onClick={() => setIsCollapsed(true)}
             className="p-1.5 rounded-lg text-text-body hover:text-text-primary hover:bg-surface transition-all"
             title="Collapse Timeline"
+            aria-label="Collapse timeline"
           >
             <ChevronDown className="w-4 h-4" />
           </button>
@@ -197,20 +220,20 @@ export function Timeline() {
             >
               <div className="flex flex-col items-center">
                 <div className="w-px h-2 bg-border" />
-                <span className="font-mono text-[10px] text-text-muted">{i}s</span>
+                <span className="font-mono text-micro text-text-muted">{i}s</span>
               </div>
             </div>
           ))}
         </div>
 
         {/* Tracks */}
-        <div className="relative">
+        <div className="relative" role="listbox" aria-label="Timeline tracks">
           {/* Playhead */}
           <motion.div
             className="absolute top-0 bottom-0 w-px bg-red-primary z-20 pointer-events-none"
             style={{ left: `calc(192px + ${progress * 0.8}%)` }}
           >
-            <div className="absolute -top-1 -left-1.5 w-3 h-3 bg-red-primary rounded-full shadow-[0_0_6px_rgba(230,57,70,0.5)]" />
+            <div className="absolute -top-1 -left-1.5 w-3 h-3 bg-red-primary rounded-full shadow-red-dot" />
           </motion.div>
 
           {tracks.length === 0 ? (
@@ -235,6 +258,15 @@ export function Timeline() {
                 <div
                   key={track.id}
                   onClick={() => setSelectedTrackId(isSelected ? null : track.id)}
+                  role="option"
+                  aria-selected={isSelected}
+                  tabIndex={0}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      setSelectedTrackId(isSelected ? null : track.id);
+                    }
+                  }}
                   className={cn(
                     'h-12 border-b border-border flex items-center px-4 transition-all cursor-pointer group',
                     isSelected
@@ -256,7 +288,7 @@ export function Timeline() {
                     )}>
                       {track.name}
                     </span>
-                    <span className="font-mono text-[10px] text-text-muted ml-auto">
+                    <span className="font-mono text-micro text-text-muted ml-auto">
                       {track.duration.toFixed(1)}s
                     </span>
                   </div>
@@ -269,15 +301,15 @@ export function Timeline() {
                       transition={{ duration: 0.3, delay: index * 0.1 }}
                       className={cn(
                         'absolute h-full rounded-lg flex items-center px-2 cursor-pointer overflow-hidden',
-                        isSelected && 'ring-1 ring-red-primary shadow-[0_0_8px_rgba(230,57,70,0.3)]'
+                        isSelected && 'ring-1 ring-red-primary shadow-red-ring'
                       )}
                       style={{
                         left: `${(track.startTime / totalDuration) * 100}%`,
                         width: `${(track.duration / totalDuration) * 100}%`,
                         background: isSelected
-                          ? `linear-gradient(90deg, ${track.color}30, ${track.color}15)`
-                          : `${track.color}12`,
-                        border: `1px solid ${isSelected ? track.color : `${track.color}30`}`,
+                          ? `linear-gradient(90deg, ${hexToRgba(track.color, 0.19)}, ${hexToRgba(track.color, 0.08)})`
+                          : hexToRgba(track.color, 0.07),
+                        border: `1px solid ${isSelected ? track.color : hexToRgba(track.color, 0.19)}`,
                       }}
                     >
                       {/* Gradient fill for selected */}
@@ -305,7 +337,7 @@ export function Timeline() {
       </div>
     </div>
   );
-}
+});
 
 function formatTime(seconds: number): string {
   const mins = Math.floor(seconds / 60);

@@ -3,6 +3,7 @@ import { cn } from '@/utils/cn';
 import { Heart, Download, Pencil, AlertTriangle, Clock, Hash } from 'lucide-react';
 import { motion } from 'framer-motion';
 import type { BatchResult } from '@/types/generation';
+import { ImageWithFallback } from '@/components/ui/ImageWithFallback';
 
 interface ResultCardProps {
   result: BatchResult;
@@ -52,10 +53,12 @@ export function ResultCard({
               <AlertTriangle className="w-5 h-5 text-red-primary" />
             </div>
           ) : (
-            <img
+            <ImageWithFallback
               src={result.imagePath}
               alt={result.prompt}
               className="w-full h-full object-cover"
+              fallbackClassName="w-16 h-16"
+              loading="lazy"
             />
           )}
         </div>
@@ -66,11 +69,11 @@ export function ResultCard({
             {result.prompt}
           </p>
           <div className="flex items-center gap-3 mt-1">
-            <span className="flex items-center gap-1 text-[10px] text-text-muted font-mono">
+            <span className="flex items-center gap-1 text-micro text-text-muted font-mono">
               <Hash className="w-3 h-3" />
               {result.seed}
             </span>
-            <span className="flex items-center gap-1 text-[10px] text-text-muted font-mono">
+            <span className="flex items-center gap-1 text-micro text-text-muted font-mono">
               <Clock className="w-3 h-3" />
               {result.generationTime.toFixed(1)}s
             </span>
@@ -81,6 +84,7 @@ export function ResultCard({
         <div className="flex items-center gap-1 flex-shrink-0">
           <button
             onClick={(e) => { e.stopPropagation(); onToggleFavorite(result.id); }}
+            aria-label={result.isFavorite ? 'Remove from favorites' : 'Add to favorites'}
             className={cn(
               'p-1.5 rounded-lg transition-all',
               result.isFavorite
@@ -92,12 +96,14 @@ export function ResultCard({
           </button>
           <button
             onClick={(e) => { e.stopPropagation(); onDownload(result.id); }}
+            aria-label="Download image"
             className="p-1.5 rounded-lg text-text-muted hover:text-text-primary hover:bg-surface transition-all"
           >
             <Download className="w-3.5 h-3.5" />
           </button>
           <button
             onClick={(e) => { e.stopPropagation(); onSendToEdit(result.id); }}
+            aria-label="Send to edit"
             className="p-1.5 rounded-lg text-text-muted hover:text-text-primary hover:bg-surface transition-all"
           >
             <Pencil className="w-3.5 h-3.5" />
@@ -136,10 +142,12 @@ export function ResultCard({
             <span className="text-xs text-red-primary font-display">Failed</span>
           </div>
         ) : (
-          <img
+          <ImageWithFallback
             src={result.imagePath}
             alt={result.prompt}
             className="w-full h-full object-cover"
+            fallbackClassName="w-full h-full"
+            loading="lazy"
           />
         )}
 
@@ -172,11 +180,12 @@ export function ResultCard({
         )}
 
         {/* Hover overlay */}
-        {isHovered && !isFailed && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="absolute inset-0 bg-gradient-to-t from-void/80 via-void/20 to-transparent flex flex-col justify-end p-3"
+        {!isFailed && (
+          <div
+            className={cn(
+              'absolute inset-0 bg-gradient-to-t from-void/80 via-void/20 to-transparent flex flex-col justify-end p-3 transition-opacity duration-150',
+              isHovered ? 'opacity-100' : 'opacity-0 focus-within:opacity-100'
+            )}
           >
             <p className="text-xs text-text-primary font-display line-clamp-3 mb-2">
               {result.prompt}
@@ -184,8 +193,9 @@ export function ResultCard({
             <div className="flex items-center gap-1">
               <button
                 onClick={(e) => { e.stopPropagation(); onToggleFavorite(result.id); }}
+                aria-label={result.isFavorite ? 'Remove from favorites' : 'Add to favorites'}
                 className={cn(
-                  'p-1.5 rounded-lg backdrop-blur-sm transition-all',
+                  'p-1.5 rounded-lg backdrop-blur-sm transition-all focus-visible:opacity-100',
                   result.isFavorite
                     ? 'bg-red-primary/30 text-red-primary'
                     : 'bg-void/40 text-text-primary hover:bg-void/60'
@@ -195,18 +205,20 @@ export function ResultCard({
               </button>
               <button
                 onClick={(e) => { e.stopPropagation(); onDownload(result.id); }}
-                className="p-1.5 rounded-lg bg-void/40 text-text-primary hover:bg-void/60 backdrop-blur-sm transition-all"
+                aria-label="Download image"
+                className="p-1.5 rounded-lg bg-void/40 text-text-primary hover:bg-void/60 backdrop-blur-sm transition-all focus-visible:opacity-100"
               >
                 <Download className="w-3.5 h-3.5" />
               </button>
               <button
                 onClick={(e) => { e.stopPropagation(); onSendToEdit(result.id); }}
-                className="p-1.5 rounded-lg bg-void/40 text-text-primary hover:bg-void/60 backdrop-blur-sm transition-all"
+                aria-label="Send to edit"
+                className="p-1.5 rounded-lg bg-void/40 text-text-primary hover:bg-void/60 backdrop-blur-sm transition-all focus-visible:opacity-100"
               >
                 <Pencil className="w-3.5 h-3.5" />
               </button>
             </div>
-          </motion.div>
+          </div>
         )}
       </div>
 
@@ -216,10 +228,10 @@ export function ResultCard({
           {result.prompt}
         </p>
         <div className="flex items-center gap-3 mt-1.5">
-          <span className="text-[10px] text-text-muted font-mono">
+          <span className="text-micro text-text-muted font-mono">
             seed:{result.seed}
           </span>
-          <span className="text-[10px] text-text-muted font-mono">
+          <span className="text-micro text-text-muted font-mono">
             {result.generationTime.toFixed(1)}s
           </span>
         </div>

@@ -1,4 +1,5 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import { cn } from '@/utils/cn';
 import { Button } from '@/components/ui/Button';
 import { ResultCard } from './ResultCard';
@@ -32,6 +33,8 @@ export function ResultsGrid({ onPreviewImage }: ResultsGridProps) {
     toggleBatchResultFavorite,
     setCurrentImage,
     setActivePanel,
+    removeBatchResults,
+    removeAssetRecordsByPaths,
   } = useAppStore();
 
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
@@ -117,23 +120,82 @@ export function ResultsGrid({ onPreviewImage }: ResultsGridProps) {
   const handleSendToEdit = (id: string) => {
     const result = batchResults.find((r) => r.id === id);
     if (result?.imagePath) {
-      setCurrentImage(result.imagePath);
+      setCurrentImage(result.imagePath, result.assetPath);
       setActivePanel('edit');
     }
   };
 
-  const handleDownload = (_id: string) => {
-    // Placeholder — would trigger Electron save dialog
+  const handleDownload = async (id: string) => {
+    const result = batchResults.find((entry) => entry.id === id);
+    if (!result?.assetPath) {
+      return;
+    }
+
+    const destinationPath = await window.electron.dialog.saveFile({
+      defaultPath: result.assetPath.split('/').pop(),
+      filters: [{ name: 'Media', extensions: ['png', 'jpg', 'jpeg', 'webp', 'mp4'] }],
+    });
+
+    if (!destinationPath) {
+      return;
+    }
+
+    await window.electron.assets.export(result.assetPath, destinationPath);
   };
 
-  const handleBulkDelete = () => {
-    // Placeholder — would remove selected from store
+  const handleBulkDelete = async () => {
+    const selectedResults = batchResults.filter((result) => selectedIds.has(result.id));
+    const assetPaths = selectedResults
+      .map((result) => result.assetPath)
+      .filter((assetPath): assetPath is string => Boolean(assetPath));
+
+    const deleteResults = await Promise.all(
+      assetPaths.map((assetPath) => window.electron.assets.delete(assetPath))
+    );
+    const deletedPaths = assetPaths.filter((_, index) => deleteResults[index]?.success);
+    const deletedIds = selectedResults
+      .filter((result) => result.assetPath && deletedPaths.includes(result.assetPath))
+      .map((result) => result.id);
+
+    removeBatchResults(deletedIds);
+    removeAssetRecordsByPaths(deletedPaths);
     deselectAll();
   };
 
-  const handleExportAll = () => {
-    // Placeholder — would trigger ZIP export
+  const handleExportAll = async () => {
+    const selectedResults = batchResults.filter((result) =>
+      selectedIds.size > 0 ? selectedIds.has(result.id) : Boolean(result.assetPath)
+    );
+    const assetPaths = selectedResults
+      .map((result) => result.assetPath)
+      .filter((assetPath): assetPath is string => Boolean(assetPath));
+
+    if (assetPaths.length === 0) {
+      return;
+    }
+
+    const destinationDir = await window.electron.dialog.selectFolder();
+    if (!destinationDir) {
+      return;
+    }
+
+    await window.electron.assets.exportMany(assetPaths, destinationDir);
   };
+
+  const parentRef = useRef<HTMLDivElement>(null);
+  const COLS = viewMode === 'grid' ? 3 : viewMode === 'large' ? 2 : 1;
+  const rowCount = Math.ceil(sortedResults.length / COLS);
+
+  const rowVirtualizer = useVirtualizer({
+    count: rowCount,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => {
+      if (viewMode === 'list') return 72;
+      if (viewMode === 'large') return 320;
+      return 220;
+    },
+    overscan: 5,
+  });
 
   const VIEW_MODES: { id: ViewMode; icon: React.ElementType; label: string }[] = [
     { id: 'grid', icon: Grid3X3, label: 'Grid' },
@@ -159,6 +221,7 @@ export function ResultsGrid({ onPreviewImage }: ResultsGridProps) {
               key={id}
               onClick={() => setViewMode(id)}
               title={label}
+              aria-label={`${label} view`}
               className={cn(
                 'p-1.5 rounded-md transition-all',
                 viewMode === id
@@ -176,7 +239,7 @@ export function ResultsGrid({ onPreviewImage }: ResultsGridProps) {
           <select
             value={sortBy}
             onChange={(e) => setSortBy(e.target.value as SortBy)}
-            className="appearance-none bg-surface border border-border rounded-lg pl-3 pr-8 py-1.5 text-xs font-display text-text-primary focus:border-red-primary transition-all cursor-pointer"
+            className="appearance-none bg-elevated border border-border rounded-lg pl-3 pr-8 py-1.5 text-xs font-display text-text-primary focus:border-red-primary focus:ring-1 focus:ring-red-primary/40 transition-all cursor-pointer"
           >
             <option value="created">Creation Time</option>
             <option value="prompt">Prompt Order</option>
@@ -192,7 +255,7 @@ export function ResultsGrid({ onPreviewImage }: ResultsGridProps) {
               key={id}
               onClick={() => setFilterBy(id)}
               className={cn(
-                'px-2.5 py-1 rounded-full text-[10px] font-display font-medium transition-all',
+                'px-2.5 py-1 rounded-full text-micro font-display font-medium transition-all',
                 filterBy === id
                   ? 'bg-red-primary text-text-primary'
                   : 'bg-surface text-text-body hover:text-text-primary'
@@ -230,11 +293,19 @@ export function ResultsGrid({ onPreviewImage }: ResultsGridProps) {
           >
             Export All
           </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            icon={Trash2}
+            onClick={handleBulkDelete}
+          >
+            Delete
+          </Button>
         </div>
       </div>
 
       {/* Grid Area */}
-      <div className="flex-1 overflow-y-auto p-4 scrollbar-hide">
+      <div ref={parentRef} className="flex-1 overflow-y-auto p-4 scrollbar-hide">
         {sortedResults.length === 0 ? (
           /* Empty State */
           <div className="flex flex-col items-center justify-center h-full text-center">
@@ -249,28 +320,44 @@ export function ResultsGrid({ onPreviewImage }: ResultsGridProps) {
             </p>
           </div>
         ) : (
-          <div
-            className={cn(
-              viewMode === 'grid' && 'grid grid-cols-3 gap-3',
-              viewMode === 'large' && 'grid grid-cols-2 gap-4',
-              viewMode === 'list' && 'flex flex-col gap-2'
-            )}
-          >
-            <AnimatePresence mode="popLayout">
-              {sortedResults.map((result) => (
-                <ResultCard
-                  key={result.id}
-                  result={result}
-                  isSelected={selectedIds.has(result.id)}
-                  onSelect={handleSelect}
-                  onPreview={onPreviewImage}
-                  onToggleFavorite={toggleBatchResultFavorite}
-                  onDownload={handleDownload}
-                  onSendToEdit={handleSendToEdit}
-                  viewMode={viewMode}
-                />
-              ))}
-            </AnimatePresence>
+          <div style={{ height: `${rowVirtualizer.getTotalSize()}px`, position: 'relative' }}>
+            {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+              const startIdx = virtualRow.index * COLS;
+              const rowResults = sortedResults.slice(startIdx, startIdx + COLS);
+              return (
+                <div
+                  key={virtualRow.key}
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    width: '100%',
+                    transform: `translateY(${virtualRow.start}px)`,
+                  }}
+                  className={cn(
+                    viewMode === 'grid' && 'grid grid-cols-2 xl:grid-cols-3 gap-3',
+                    viewMode === 'large' && 'grid grid-cols-1 xl:grid-cols-2 gap-4',
+                    viewMode === 'list' && 'flex flex-col gap-2'
+                  )}
+                >
+                  <AnimatePresence mode="popLayout">
+                    {rowResults.map((result) => (
+                      <ResultCard
+                        key={result.id}
+                        result={result}
+                        isSelected={selectedIds.has(result.id)}
+                        onSelect={handleSelect}
+                        onPreview={onPreviewImage}
+                        onToggleFavorite={toggleBatchResultFavorite}
+                        onDownload={handleDownload}
+                        onSendToEdit={handleSendToEdit}
+                        viewMode={viewMode}
+                      />
+                    ))}
+                  </AnimatePresence>
+                </div>
+              );
+            })}
           </div>
         )}
       </div>
@@ -278,7 +365,7 @@ export function ResultsGrid({ onPreviewImage }: ResultsGridProps) {
       {/* Bulk Actions Bar */}
       <AnimatePresence>
         {selectedIds.size > 0 && (
-          <div className="px-4 py-3 border-t border-border bg-elevated flex items-center gap-3">
+          <div aria-live="polite" className="px-4 py-3 border-t border-border bg-elevated flex items-center gap-3">
             <span className="text-xs font-display text-text-primary font-medium">
               {selectedIds.size} selected
             </span>

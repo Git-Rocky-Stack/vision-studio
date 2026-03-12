@@ -8,22 +8,28 @@ import {
   Move,
   Hand,
 } from 'lucide-react';
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { memo, useState, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AmbientParticles } from '@/components/effects/AmbientParticles';
+
+// Warm-amber particle color for the canvas viewport (slightly more transparent than the component default)
+const CANVAS_PARTICLE_COLOR = 'rgba(255, 200, 150, 0.25)';
 import { GenerationProgress } from '@/components/canvas/GenerationProgress';
 import { GenerationQueue } from '@/components/canvas/GenerationQueue';
 import { CanvasContextMenu } from '@/components/canvas/CanvasContextMenu';
 
-export function Canvas() {
+export const Canvas = memo(function Canvas() {
   const { activeJobs, currentImage } = useAppStore();
   const [zoom, setZoom] = useState(100);
   const [showGrid, setShowGrid] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [imageSize, setImageSize] = useState({ width: 1024, height: 1024 });
+  const [imageError, setImageError] = useState(false);
   const canvasRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const isDraggingRef = useRef(false);
+  const panRef = useRef({ x: 0, y: 0 });
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
 
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
@@ -46,13 +52,22 @@ export function Canvas() {
   useEffect(() => {
     if (!currentImage) {
       setImageSize({ width: 1024, height: 1024 });
+      setImageError(false);
       return;
     }
+    let cancelled = false;
     const img = new Image();
     img.onload = () => {
-      setImageSize({ width: img.naturalWidth, height: img.naturalHeight });
+      if (!cancelled) {
+        setImageSize({ width: img.naturalWidth, height: img.naturalHeight });
+        setImageError(false);
+      }
+    };
+    img.onerror = () => {
+      if (!cancelled) setImageError(true);
     };
     img.src = currentImage;
+    return () => { cancelled = true; };
   }, [currentImage]);
 
   // Handle scroll wheel zoom
@@ -70,7 +85,11 @@ export function Canvas() {
     return () => container.removeEventListener('wheel', handleWheel);
   }, []);
 
-  // Handle pan
+  // Keep refs in sync with state
+  useEffect(() => { isDraggingRef.current = isDragging; }, [isDragging]);
+  useEffect(() => { panRef.current = pan; }, [pan]);
+
+  // Handle pan - listeners registered once
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
@@ -85,14 +104,14 @@ export function Canvas() {
         setIsDragging(true);
         startX = e.clientX;
         startY = e.clientY;
-        initialPanX = pan.x;
-        initialPanY = pan.y;
+        initialPanX = panRef.current.x;
+        initialPanY = panRef.current.y;
         e.preventDefault();
       }
     };
 
     const handleMouseMove = (e: MouseEvent) => {
-      if (!isDragging) return;
+      if (!isDraggingRef.current) return;
       const dx = e.clientX - startX;
       const dy = e.clientY - startY;
       setPan({
@@ -114,7 +133,28 @@ export function Canvas() {
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [isDragging, pan]);
+  }, []); // Empty dependency array - register once
+
+  // Keyboard shortcuts for canvas
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      switch (e.key) {
+        case '+':
+        case '=':
+          handleZoomIn();
+          break;
+        case '-':
+          handleZoomOut();
+          break;
+        case '0':
+          handleResetZoom();
+          break;
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [zoom]);
 
   return (
     <div
@@ -124,15 +164,16 @@ export function Canvas() {
       )}
     >
       {/* Ambient particles */}
-      <AmbientParticles color="rgba(255, 200, 150, 0.25)" count={30} />
+      <AmbientParticles color={CANVAS_PARTICLE_COLOR} count={30} />
 
       {/* Canvas Toolbar */}
       <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10">
-        <div className="flex items-center gap-1 px-2 py-1.5 glass glass-border rounded-lg shadow-cinematic">
+        <div className="flex items-center gap-2 px-2 py-2 glass glass-border rounded-lg shadow-cinematic">
           <button
             onClick={handleZoomOut}
-            className="p-1.5 rounded text-text-body hover:text-text-primary hover:bg-elevated transition-all"
-            title="Zoom Out"
+            className="p-1.5 rounded text-text-body hover:text-text-primary hover:bg-elevated transition-all disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:text-text-body disabled:hover:bg-transparent"
+            aria-label="Zoom out"
+            disabled={zoom <= 25}
           >
             <ZoomOut className="w-4 h-4" />
           </button>
@@ -141,8 +182,9 @@ export function Canvas() {
           </span>
           <button
             onClick={handleZoomIn}
-            className="p-1.5 rounded text-text-body hover:text-text-primary hover:bg-elevated transition-all"
-            title="Zoom In"
+            className="p-1.5 rounded text-text-body hover:text-text-primary hover:bg-elevated transition-all disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:text-text-body disabled:hover:bg-transparent"
+            aria-label="Zoom in"
+            disabled={zoom >= 200}
           >
             <ZoomIn className="w-4 h-4" />
           </button>
@@ -150,7 +192,7 @@ export function Canvas() {
           <button
             onClick={handleResetZoom}
             className="p-1.5 rounded text-text-body hover:text-text-primary hover:bg-elevated transition-all"
-            title="Reset View"
+            aria-label="Reset view"
           >
             <Maximize className="w-4 h-4" />
           </button>
@@ -163,7 +205,8 @@ export function Canvas() {
                 ? 'text-red-primary bg-red-aura'
                 : 'text-text-body hover:text-text-primary hover:bg-elevated'
             )}
-            title="Toggle Grid"
+            aria-label="Toggle grid"
+            aria-pressed={showGrid}
           >
             <Grid3X3 className="w-4 h-4" />
           </button>
@@ -185,10 +228,10 @@ export function Canvas() {
             className="absolute inset-0 pointer-events-none opacity-10"
             style={{
               backgroundImage: `
-                linear-gradient(to right, rgba(255,255,255,0.06) 1px, transparent 1px),
-                linear-gradient(to bottom, rgba(255,255,255,0.06) 1px, transparent 1px)
+                linear-gradient(to right, var(--color-border) 1px, transparent 1px),
+                linear-gradient(to bottom, var(--color-border) 1px, transparent 1px)
               `,
-              backgroundSize: '20px 20px',
+              backgroundSize: '16px 16px',
             }}
           />
         )}
@@ -208,12 +251,19 @@ export function Canvas() {
             style={{ width: imageSize.width, height: imageSize.height }}
           >
             {/* Current Image or Placeholder */}
-            {currentImage ? (
+            {currentImage && !imageError ? (
               <img
                 src={currentImage}
                 alt="Canvas"
                 className="absolute inset-0 w-full h-full object-contain"
               />
+            ) : imageError ? (
+              <div className="absolute inset-0 flex flex-col items-center justify-center text-text-body">
+                <div className="text-center space-y-2">
+                  <p className="font-display text-sm text-red-primary">Failed to load image</p>
+                  <p className="font-mono text-xs text-text-muted">The file may be corrupted or missing</p>
+                </div>
+              </div>
             ) : (
               <div className="absolute inset-0 flex flex-col items-center justify-center text-text-body">
                 <motion.div
@@ -277,4 +327,4 @@ export function Canvas() {
       )}
     </div>
   );
-}
+});

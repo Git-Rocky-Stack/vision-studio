@@ -1,7 +1,8 @@
+import { memo } from 'react';
 import { cn } from '@/utils/cn';
 import { useAppStore } from '@/store/appStore';
+import { Tooltip } from '@/components/ui/Tooltip';
 import {
-  Sparkles,
   FolderOpen,
   Settings,
   ChevronLeft,
@@ -10,9 +11,13 @@ import {
   Palette,
   LayoutTemplate,
   Layers,
-  Zap,
+  CheckCircle2,
+  AlertCircle,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
+
+const SIDEBAR_WIDTH_COLLAPSED = 72;
+const SIDEBAR_WIDTH_EXPANDED = 220;
 
 interface NavItem {
   id: 'generate' | 'edit' | 'assets' | 'settings' | 'templates' | 'batch';
@@ -29,57 +34,55 @@ const navItems: NavItem[] = [
   { id: 'settings', label: 'Settings', icon: Settings },
 ];
 
-export function Sidebar() {
+export const Sidebar = memo(function Sidebar() {
   const { sidebarCollapsed, toggleSidebar, activePanel, setActivePanel, systemInfo } = useAppStore();
 
   return (
     <motion.aside
       initial={false}
-      animate={{ width: sidebarCollapsed ? 72 : 220 }}
+      animate={{ width: sidebarCollapsed ? SIDEBAR_WIDTH_COLLAPSED : SIDEBAR_WIDTH_EXPANDED }}
       transition={{ duration: 0.3, ease: 'easeInOut' }}
       className="h-full bg-surface border-r border-border flex flex-col"
     >
       {/* Logo */}
       <div className="h-16 flex items-center px-4 border-b border-border">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-red-primary to-red-pressed flex items-center justify-center flex-shrink-0 glow-red-subtle">
-            <Sparkles className="w-5 h-5 text-text-primary" />
-          </div>
+        <div className="flex items-center">
           {!sidebarCollapsed && (
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="font-display font-bold text-lg text-text-primary whitespace-nowrap"
+              className="font-display font-bold text-xs text-text-primary whitespace-nowrap tracking-[0.3em]"
             >
-              Vision<span className="text-red-primary">Studio</span>
+              VISION<span className="text-red-primary">STUDIO</span>
             </motion.div>
           )}
         </div>
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 py-4 px-2 space-y-1">
+      <nav aria-label="Main navigation" className="flex-1 py-4 px-2 space-y-1">
         {navItems.map((item) => {
           const Icon = item.icon;
           const isActive = activePanel === item.id;
 
-          return (
+          const buttonElement = (
             <button
               key={item.id}
               onClick={() => setActivePanel(item.id)}
+              aria-label={item.label}
+              aria-current={isActive ? 'page' : undefined}
               className={cn(
-                'w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 group relative',
+                'w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-200 relative',
                 isActive
                   ? 'bg-red-aura text-red-primary glow-red-subtle'
                   : 'text-text-body hover:text-text-primary hover:bg-elevated'
               )}
-              title={sidebarCollapsed ? item.label : undefined}
             >
               <Icon
                 className={cn(
                   'w-5 h-5 flex-shrink-0 transition-all',
-                  isActive && 'drop-shadow-[0_0_4px_rgba(230,57,70,0.6)]'
+                  isActive && 'drop-shadow-red-icon-strong'
                 )}
               />
               {!sidebarCollapsed && (
@@ -90,17 +93,18 @@ export function Sidebar() {
               {isActive && !sidebarCollapsed && (
                 <motion.div
                   layoutId="activeIndicator"
-                  className="ml-auto w-1.5 h-1.5 rounded-full bg-red-primary shadow-[0_0_6px_rgba(230,57,70,0.6)]"
+                  className="ml-auto w-1.5 h-1.5 rounded-full bg-red-primary shadow-red-dot"
                 />
               )}
-
-              {/* Tooltip for collapsed state */}
-              {sidebarCollapsed && (
-                <div className="absolute left-full ml-2 px-2.5 py-1.5 bg-elevated border border-border rounded-lg text-xs text-text-primary opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-50 shadow-cinematic font-display">
-                  {item.label}
-                </div>
-              )}
             </button>
+          );
+
+          return sidebarCollapsed ? (
+            <Tooltip key={item.id} content={item.label} placement="right">
+              {buttonElement}
+            </Tooltip>
+          ) : (
+            buttonElement
           );
         })}
       </nav>
@@ -112,11 +116,15 @@ export function Sidebar() {
             className={cn(
               'flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-display',
               systemInfo.gpuAvailable
-                ? 'bg-green-500/8 text-green-400 border border-green-500/20'
-                : 'bg-yellow-500/8 text-yellow-400 border border-yellow-500/20'
+                ? 'bg-[var(--color-status-success-muted)] text-[var(--color-status-success)] border border-[var(--color-status-success-border)]'
+                : 'bg-[var(--color-status-warning-muted)] text-[var(--color-status-warning)] border border-[var(--color-status-warning-border)]'
             )}
           >
-            <Zap className="w-3.5 h-3.5" />
+            {systemInfo.gpuAvailable ? (
+              <CheckCircle2 className="w-3.5 h-3.5" aria-hidden="true" />
+            ) : (
+              <AlertCircle className="w-3.5 h-3.5" aria-hidden="true" />
+            )}
             <span className="font-medium">
               {systemInfo.gpuAvailable
                 ? (systemInfo.gpuName?.split(' ').pop() || 'GPU Ready')
@@ -130,6 +138,7 @@ export function Sidebar() {
       <div className="p-2 border-t border-border">
         <button
           onClick={toggleSidebar}
+          aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
           className="w-full flex items-center justify-center p-2 rounded-lg text-text-muted hover:text-text-primary hover:bg-elevated transition-all"
         >
           {sidebarCollapsed ? (
@@ -141,4 +150,4 @@ export function Sidebar() {
       </div>
     </motion.aside>
   );
-}
+});

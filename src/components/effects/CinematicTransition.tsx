@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 
 interface CinematicTransitionProps {
@@ -5,7 +6,7 @@ interface CinematicTransitionProps {
   children: React.ReactNode;
 }
 
-export function CinematicTransition({ transitionKey, children }: CinematicTransitionProps) {
+export const CinematicTransition = memo(function CinematicTransition({ transitionKey, children }: CinematicTransitionProps) {
   return (
     <AnimatePresence mode="wait">
       <motion.div
@@ -23,4 +24,4 @@ export function CinematicTransition({ transitionKey, children }: CinematicTransi
       </motion.div>
     </AnimatePresence>
   );
-}
+});

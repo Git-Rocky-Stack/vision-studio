@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { cn } from '@/utils/cn';
 import { useAppStore } from '@/store/appStore';
 import { Slider } from '@/components/ui/Slider';
@@ -7,6 +7,7 @@ import { CropControls } from './CropControls';
 import { TextControls } from './TextControls';
 import { AIToolsPanel } from './AIToolsPanel';
 import { LayerPanel } from './LayerPanel';
+import { buildCropBox, getCropDimensions } from '@/features/edit/crop';
 import type { ImageAdjustments } from '@/types/editor';
 import {
   Sun,
@@ -77,6 +78,11 @@ export function EditPropertiesPanel() {
     setImageAdjustments,
     resetImageAdjustments,
     editHistory,
+    currentImage,
+    currentImageAssetPath,
+    setCurrentImage,
+    upsertDerivedAsset,
+    activePanel,
   } = useAppStore();
 
   const [activeTab, setActiveTab] = useState<PropertiesTab>('adjustments');
@@ -94,6 +100,24 @@ export function EditPropertiesPanel() {
   const [flipV, setFlipV] = useState(false);
   const [customWidth, setCustomWidth] = useState(1024);
   const [customHeight, setCustomHeight] = useState(1024);
+  const [imageSize, setImageSize] = useState<{ width: number; height: number } | null>(null);
+
+  useEffect(() => {
+    if (!currentImage) {
+      setImageSize(null);
+      return;
+    }
+
+    const image = new window.Image();
+    image.onload = () => {
+      const width = image.naturalWidth || image.width;
+      const height = image.naturalHeight || image.height;
+      setImageSize({ width, height });
+      setCustomWidth(width);
+      setCustomHeight(height);
+    };
+    image.src = currentImage;
+  }, [currentImage]);
 
   const toggleGroup = (title: string) => {
     setExpandedGroups((prev) =>
@@ -124,6 +148,45 @@ export function EditPropertiesPanel() {
   ];
 
   const undoCount = editHistory.length;
+  const computedCropBox = imageSize
+    ? buildCropBox(cropAspect, imageSize.width, imageSize.height, customWidth, customHeight)
+    : null;
+  const cropDimensions = imageSize
+    ? getCropDimensions(cropAspect, imageSize.width, imageSize.height, customWidth, customHeight)
+    : null;
+
+  const handleApplyCrop = async () => {
+    if (!currentImageAssetPath) {
+      return;
+    }
+
+    const result = await window.electron.generation.cropImage({
+      source_path: currentImageAssetPath,
+      crop_box: computedCropBox ?? undefined,
+      rotation,
+      flip_horizontal: flipH,
+      flip_vertical: flipV,
+    });
+
+    if (!result?.image || !result?.output_path) {
+      return;
+    }
+
+    upsertDerivedAsset(result, {
+      prompt: '',
+      params: {
+        sourcePanel: activePanel,
+        rotation,
+        flipH,
+        flipV,
+      },
+    });
+    setCurrentImage(
+      result.image.startsWith('http') ? result.image : `http://localhost:8000${result.image}`,
+      result.output_path
+    );
+    setActiveTab('adjustments');
+  };
 
   return (
     <div className="h-full flex flex-col bg-surface">
@@ -139,6 +202,7 @@ export function EditPropertiesPanel() {
                 : 'text-text-muted/40 cursor-not-allowed'
             )}
             title="Undo"
+            aria-label={undoCount > 0 ? `Undo (${undoCount} actions)` : 'Undo'}
           >
             <Undo2 className="w-4 h-4" />
             {undoCount > 0 && (
@@ -151,6 +215,7 @@ export function EditPropertiesPanel() {
             disabled
             className="p-1.5 rounded-lg text-text-muted/40 cursor-not-allowed"
             title="Redo"
+            aria-label="Redo"
           >
             <Redo2 className="w-4 h-4" />
           </button>
@@ -174,16 +239,20 @@ export function EditPropertiesPanel() {
 
       {/* Tab Bar */}
       <div className="px-2 py-1.5 border-b border-border">
-        <div className="flex gap-0.5">
+        <div className="flex gap-1" role="tablist" aria-label="Edit properties">
           {tabs.map((tab) => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
             return (
               <button
                 key={tab.id}
+                role="tab"
+                id={`tab-${tab.id}`}
+                aria-selected={isActive}
+                aria-controls={`tabpanel-${tab.id}`}
                 onClick={() => setActiveTab(tab.id)}
                 className={cn(
-                  'flex-1 flex flex-col items-center gap-0.5 py-1.5 rounded-lg transition-all font-display text-[10px]',
+                  'flex-1 flex flex-col items-center gap-0.5 py-1.5 rounded-lg transition-all font-display text-micro',
                   isActive
                     ? 'bg-red-aura text-red-primary'
                     : 'text-text-body hover:text-text-primary hover:bg-elevated'
@@ -198,7 +267,7 @@ export function EditPropertiesPanel() {
       </div>
 
       {/* Tab Content */}
-      <div className="flex-1 overflow-y-auto scrollbar-hide">
+      <div className="flex-1 overflow-y-auto scrollbar-hide" role="tabpanel" id={`tabpanel-${activeTab}`} aria-labelledby={`tab-${activeTab}`}>
         <AnimatePresence mode="wait">
           {/* Adjustments Tab */}
           {activeTab === 'adjustments' && (
@@ -217,6 +286,7 @@ export function EditPropertiesPanel() {
                     <button
                       onClick={() => toggleGroup(group.title)}
                       className="flex items-center gap-2 w-full text-left mb-3"
+                      aria-expanded={isExpanded}
                     >
                       <Icon className="w-3.5 h-3.5 text-red-primary" />
                       <span className="text-label text-text-primary">{group.title}</span>
@@ -296,12 +366,12 @@ export function EditPropertiesPanel() {
                 onFlipHChange={setFlipH}
                 flipV={flipV}
                 onFlipVChange={setFlipV}
-                cropDimensions={null}
+                cropDimensions={cropDimensions}
                 customWidth={customWidth}
                 onCustomWidthChange={setCustomWidth}
                 customHeight={customHeight}
                 onCustomHeightChange={setCustomHeight}
-                onApply={() => {}}
+                onApply={handleApplyCrop}
                 onCancel={() => setActiveTab('adjustments')}
               />
             </motion.div>

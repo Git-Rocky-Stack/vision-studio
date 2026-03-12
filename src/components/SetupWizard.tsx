@@ -91,7 +91,8 @@ export function SetupWizard() {
           setTimeout(() => setCurrentStep(3), 1000);
           return 100;
         }
-        return prev + Math.random() * 3;
+        const remaining = 100 - prev;
+        return Math.min(99, prev + remaining * 0.05);
       });
     }, 200);
   };
@@ -123,7 +124,7 @@ export function SetupWizard() {
               className="absolute top-0 left-0 right-0 h-0.5"
               style={{
                 background:
-                  'linear-gradient(90deg, transparent, #e63946, transparent)',
+                  'linear-gradient(90deg, transparent, var(--color-red-primary), transparent)',
               }}
             />
 
@@ -142,7 +143,14 @@ export function SetupWizard() {
             </div>
 
             {/* Progress Bar */}
-            <div className="flex gap-1">
+            <div
+              className="flex gap-1"
+              role="progressbar"
+              aria-valuenow={currentStep + 1}
+              aria-valuemin={1}
+              aria-valuemax={steps.length}
+              aria-label={`Setup progress: step ${currentStep + 1} of ${steps.length}`}
+            >
               {steps.map((_, index) => (
                 <div
                   key={index}
@@ -159,7 +167,7 @@ export function SetupWizard() {
                       index <= currentStep
                         ? {
                             background:
-                              'linear-gradient(90deg, #c1121f, #e63946)',
+                              'linear-gradient(90deg, var(--color-red-deep), var(--color-red-primary))',
                           }
                         : { backgroundColor: 'var(--color-elevated)' }
                     }
@@ -258,8 +266,8 @@ export function SetupWizard() {
                       </div>
                     ) : gpuInfo.available ? (
                       <div className="text-center">
-                        <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-green-500/10 border border-green-500/20 flex items-center justify-center">
-                          <Check className="w-8 h-8 text-green-500" />
+                        <div className="w-16 h-16 mx-auto mb-4 rounded-full flex items-center justify-center" style={{ backgroundColor: 'color-mix(in srgb, var(--color-status-success) 10%, transparent)', borderWidth: '1px', borderStyle: 'solid', borderColor: 'color-mix(in srgb, var(--color-status-success) 20%, transparent)' }}>
+                          <Check className="w-8 h-8" style={{ color: 'var(--color-status-success)' }} />
                         </div>
                         <p className="font-display font-medium text-text-primary">
                           GPU Detected
@@ -273,8 +281,8 @@ export function SetupWizard() {
                       </div>
                     ) : (
                       <div className="text-center">
-                        <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-yellow-500/10 border border-yellow-500/20 flex items-center justify-center">
-                          <Cpu className="w-8 h-8 text-yellow-500" />
+                        <div className="w-16 h-16 mx-auto mb-4 rounded-full flex items-center justify-center" style={{ backgroundColor: 'color-mix(in srgb, var(--color-status-warning) 10%, transparent)', borderWidth: '1px', borderStyle: 'solid', borderColor: 'color-mix(in srgb, var(--color-status-warning) 20%, transparent)' }}>
+                          <Cpu className="w-8 h-8" style={{ color: 'var(--color-status-warning)' }} />
                         </div>
                         <p className="font-display font-medium text-text-primary">
                           CPU Mode
@@ -326,8 +334,8 @@ export function SetupWizard() {
                         transition={{ duration: 0.3 }}
                         style={{
                           background:
-                            'linear-gradient(90deg, #c1121f, #e63946)',
-                          boxShadow: '0 0 8px rgba(230, 57, 70, 0.4)',
+                            'linear-gradient(90deg, var(--color-red-deep), var(--color-red-primary))',
+                          boxShadow: '0 0 8px color-mix(in srgb, var(--color-red-primary) 40%, transparent)',
                         }}
                       />
                     </div>
@@ -362,8 +370,8 @@ export function SetupWizard() {
                   </p>
 
                   <div className="text-center py-6">
-                    <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-green-500/10 border border-green-500/20 flex items-center justify-center">
-                      <Sparkles className="w-10 h-10 text-green-500" />
+                    <div className="w-20 h-20 mx-auto mb-4 rounded-full flex items-center justify-center" style={{ backgroundColor: 'color-mix(in srgb, var(--color-status-success) 10%, transparent)', borderWidth: '1px', borderStyle: 'solid', borderColor: 'color-mix(in srgb, var(--color-status-success) 20%, transparent)' }}>
+                      <Sparkles className="w-10 h-10" style={{ color: 'var(--color-status-success)' }} />
                     </div>
                     <p className="font-display font-medium text-text-primary mb-2">
                       All Set!
@@ -375,7 +383,7 @@ export function SetupWizard() {
 
                   <div className="p-3 bg-elevated rounded-lg border border-border">
                     <div className="flex items-start gap-2">
-                      <AlertCircle className="w-4 h-4 text-yellow-500 flex-shrink-0 mt-0.5" />
+                      <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: 'var(--color-status-warning)' }} />
                       <p className="text-xs text-text-body font-display">
                         AI models will be downloaded automatically when you
                         first generate an image. Each model is 2-6 GB.

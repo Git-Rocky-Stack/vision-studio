@@ -3,6 +3,7 @@ import { cn } from '@/utils/cn';
 import { useAppStore } from '@/store/appStore';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ImageIcon } from 'lucide-react';
+import { ImageWithFallback } from '@/components/ui/ImageWithFallback';
 
 export function GenerationQueue() {
   const { generationQueue, setCurrentImage } = useAppStore();
@@ -33,6 +34,7 @@ export function GenerationQueue() {
               }}
               onMouseEnter={() => setHoveredItem(item.id)}
               onMouseLeave={() => setHoveredItem(null)}
+              aria-label={`View generation ${index + 1}`}
               className={cn(
                 'w-12 h-12 rounded-lg border overflow-hidden transition-all',
                 hoveredItem === item.id
@@ -41,10 +43,12 @@ export function GenerationQueue() {
               )}
             >
               {item.thumbnail ? (
-                <img
+                <ImageWithFallback
                   src={item.thumbnail}
                   alt={`Generation ${index + 1}`}
                   className="w-full h-full object-cover"
+                  fallbackClassName="w-12 h-12"
+                  loading="lazy"
                 />
               ) : (
                 <div className="w-full h-full bg-elevated flex items-center justify-center">
@@ -65,7 +69,7 @@ export function GenerationQueue() {
                   <p className="font-display text-xs text-text-primary line-clamp-2">
                     {item.prompt}
                   </p>
-                  <p className="font-mono text-[10px] text-text-muted mt-1">
+                  <p className="font-mono text-micro text-text-muted mt-1">
                     Click to load on canvas
                   </p>
                 </motion.div>

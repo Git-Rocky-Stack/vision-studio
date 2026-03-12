@@ -100,6 +100,7 @@ function SortableLoRACard({
         <button
           {...attributes}
           {...listeners}
+          aria-label="Drag to reorder"
           className="p-0.5 rounded text-text-muted hover:text-text-primary cursor-grab active:cursor-grabbing"
         >
           <GripVertical className="w-3.5 h-3.5" />
@@ -114,12 +115,13 @@ function SortableLoRACard({
           </span>
           <button
             onClick={onRemove}
+            aria-label={`Remove ${config.name}`}
             className="p-0.5 rounded text-text-muted hover:text-red-primary hover:bg-red-aura transition-all"
           >
             <X className="w-3 h-3" />
           </button>
         </div>
-        <p className="font-mono text-[10px] text-text-muted mb-2">
+        <p className="font-mono text-micro text-text-muted mb-2">
           {config.triggerWord}
         </p>
         <Slider
@@ -282,7 +284,7 @@ export function LoRAMixer({ configs, onChange }: LoRAMixerProps) {
                         <p className="font-display text-xs font-medium text-text-primary">
                           {lora.name}
                         </p>
-                        <p className="font-mono text-[10px] text-text-muted">
+                        <p className="font-mono text-micro text-text-muted">
                           {lora.size}
                         </p>
                       </div>

@@ -36,7 +36,8 @@ function ToolbarButton({ icon: Icon, title, onClick, active, activeColor }: Tool
           : 'text-text-muted hover:text-text-primary hover:bg-elevated'
       )}
       style={active && activeColor ? { color: activeColor } : undefined}
-      title={title}
+      aria-label={title}
+      aria-pressed={active}
     >
       <Icon className="w-3.5 h-3.5" />
     </button>

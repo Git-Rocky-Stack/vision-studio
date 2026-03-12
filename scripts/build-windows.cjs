@@ -282,50 +282,105 @@ FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.`);
   },
 
   async packageApp() {
-    log('[7/10] Packaging with Electron Builder...', 'blue');
-    
-    // Use Windows-specific config
+    log('[7/10] Packaging with Electron Builder (unpacked)...', 'blue');
+
+    // Use Windows-specific config — produces win-unpacked directory
     const configPath = path.join(ROOT_DIR, 'electron-builder.windows.json');
     exec(`npx electron-builder --config "${configPath}" --win`, { cwd: ROOT_DIR });
-    
-    log('  ✅ App packaged\n', 'green');
+
+    log('  ✅ App packaged (unpacked)\n', 'green');
+
+    // Build Inno Setup installer from the unpacked directory
+    log('[7b/10] Building Inno Setup installer...', 'blue');
+    log('  This may take several minutes for large payloads...', 'yellow');
+
+    const issPath = path.join(ROOT_DIR, 'scripts', 'installer.iss');
+
+    // All candidate paths are hardcoded — no user input involved
+    const isccCandidates = [
+      path.join('C:', 'Program Files (x86)', 'Inno Setup 6', 'ISCC.exe'),
+      path.join('C:', 'Program Files', 'Inno Setup 6', 'ISCC.exe'),
+    ];
+
+    let isccPath = null;
+    for (const candidate of isccCandidates) {
+      if (fs.existsSync(candidate)) { isccPath = candidate; break; }
+    }
+
+    if (!isccPath) {
+      try {
+        execSync('where iscc', { encoding: 'utf8' });
+        isccPath = 'iscc';
+      } catch {
+        log('  Inno Setup 6 not found. Install from https://jrsoftware.org/isinfo.php', 'red');
+        throw new Error('Inno Setup 6 required for installer build');
+      }
+    }
+
+    log(`  Using: ${isccPath}`, 'cyan');
+    // Both isccPath and issPath are derived from hardcoded constants, not user input
+    exec(`"${isccPath}" "${issPath}"`, { cwd: ROOT_DIR });
+
+    // Move ALL Inno Setup output files (.exe + .bin disk slices) to release/
+    const innoOutputDir = path.join(ROOT_DIR, 'scripts', 'Output');
+    if (fs.existsSync(innoOutputDir)) {
+      const outputFiles = fs.readdirSync(innoOutputDir);
+      for (const file of outputFiles) {
+        const src = path.join(innoOutputDir, file);
+        const dest = path.join(RELEASE_DIR, file);
+        const stats = fs.statSync(src);
+        if (stats.isFile()) {
+          fs.copyFileSync(src, dest);
+          const sizeMB = (stats.size / 1024 / 1024).toFixed(2);
+          const sizeGB = (stats.size / 1024 / 1024 / 1024).toFixed(2);
+          const displaySize = stats.size > 1024 * 1024 * 1024 ? `${sizeGB} GB` : `${sizeMB} MB`;
+          log(`  Moved: ${file} (${displaySize})`, 'cyan');
+        }
+      }
+    }
+
+    log('  ✅ Inno Setup installer built\n', 'green');
   },
 
   async verifyBuild() {
     log('[8/10] Verifying build...', 'blue');
-    
-    const installerPath = path.join(RELEASE_DIR, 'Vision-Studio-Setup-0.1.0.exe');
-    const portablePath = path.join(RELEASE_DIR, 'Vision-Studio-Portable-0.1.0.exe');
-    const unpackedPath = path.join(RELEASE_DIR, 'win-unpacked');
-    
+
     const results = [];
-    
-    if (fs.existsSync(installerPath)) {
-      const stats = fs.statSync(installerPath);
-      const sizeMB = (stats.size / 1024 / 1024).toFixed(2);
-      results.push({ name: 'Installer', path: installerPath, size: `${sizeMB} MB` });
+    let installerTotalBytes = 0;
+
+    // Check for installer artifacts (.exe, .bin disk slices, .zip, .msi)
+    const releaseFiles = fs.existsSync(RELEASE_DIR) ? fs.readdirSync(RELEASE_DIR) : [];
+    for (const file of releaseFiles) {
+      const filePath = path.join(RELEASE_DIR, file);
+      const stats = fs.statSync(filePath);
+      if (stats.isFile() && (file.endsWith('.exe') || file.endsWith('.zip') || file.endsWith('.msi') || file.endsWith('.bin'))) {
+        const sizeMB = (stats.size / 1024 / 1024).toFixed(2);
+        const sizeGB = (stats.size / 1024 / 1024 / 1024).toFixed(2);
+        const displaySize = stats.size > 1024 * 1024 * 1024 ? `${sizeGB} GB` : `${sizeMB} MB`;
+        const isSetup = file.includes('Setup');
+        if (isSetup) installerTotalBytes += stats.size;
+        const label = file.endsWith('.bin') ? 'Installer data' : file.endsWith('.exe') ? 'Installer' : 'Archive';
+        results.push({ name: label, path: filePath, size: displaySize });
+      } else if (stats.isDirectory() && file === 'win-unpacked') {
+        results.push({ name: 'Unpacked', path: filePath, size: 'directory' });
+      }
     }
-    
-    if (fs.existsSync(portablePath)) {
-      const stats = fs.statSync(portablePath);
-      const sizeMB = (stats.size / 1024 / 1024).toFixed(2);
-      results.push({ name: 'Portable', path: portablePath, size: `${sizeMB} MB` });
-    }
-    
-    if (fs.existsSync(unpackedPath)) {
-      results.push({ name: 'Unpacked', path: unpackedPath, size: 'N/A' });
-    }
-    
+
     if (results.length === 0) {
       log('  ❌ No build artifacts found!', 'red');
       throw new Error('Build verification failed');
     }
-    
+
     log('  ✅ Build artifacts:', 'green');
     for (const result of results) {
       log(`     ${result.name}: ${path.basename(result.path)} (${result.size})`, 'cyan');
     }
-    
+
+    if (installerTotalBytes > 0) {
+      const totalGB = (installerTotalBytes / 1024 / 1024 / 1024).toFixed(2);
+      log(`     Total installer package: ${totalGB} GB`, 'green');
+    }
+
     log('');
   },
 
@@ -334,41 +389,43 @@ FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.`);
     
     const readme = `# Vision Studio - Windows Installation
 
-## Installation Options
+## Installation
 
-### Option 1: Installer (Recommended)
-File: \`Vision-Studio-Setup-0.1.0.exe\`
+### Installer (Recommended)
+File: \`Vision-Studio-0.1.0-Setup.exe\`
 
-1. Run the installer
-2. Follow the setup wizard
-3. Launch from Start Menu or Desktop
+1. Run \`Vision-Studio-0.1.0-Setup.exe\`
+2. Follow the installation wizard
+3. Launch Vision Studio from the desktop or Start Menu shortcut
 
-### Option 2: Portable
-File: \`Vision-Studio-Portable-0.1.0.exe\`
+**Important:** If the installer came with \`.bin\` data files (e.g. \`Vision-Studio-0.1.0-Setup-1.bin\`),
+keep them in the same folder as the Setup .exe — the installer needs them.
 
-1. Copy to any folder (e.g., USB drive)
-2. Double-click to run
-3. No installation required
+### Portable (Unpacked)
+Folder: \`win-unpacked\`
+
+1. Copy the folder anywhere with at least 6 GB free space
+2. Run \`Vision Studio.exe\`
 
 ## System Requirements
 
 - Windows 10/11 64-bit
 - 8 GB RAM minimum (16 GB recommended)
-- 10 GB free disk space (50 GB recommended for models)
+- ~4 GB free disk space for installation
 - NVIDIA GPU with 8GB+ VRAM (optional, for faster generation)
 - Internet connection (for downloading AI models)
 
 ## First Launch
 
 On first run, the app will:
-1. Check for GPU
+1. Check for GPU availability
 2. Download AI models as needed (2-24 GB per model)
 3. Ready to use!
 
 ## Troubleshooting
 
 **"Windows protected your PC" warning:**
-Click "More info" then "Run anyway"
+Click "More info" then "Run anyway" (app is unsigned)
 
 **App won't start:**
 - Install Visual C++ Redistributables:
@@ -378,6 +435,11 @@ Click "More info" then "Run anyway"
 - Check GPU is detected in Settings
 - Lower image resolution
 - Use fewer sampling steps
+
+## Uninstallation
+
+Use "Add or Remove Programs" in Windows Settings, or run the uninstaller
+from the Start Menu group.
 
 ## Support
 
@@ -398,25 +460,43 @@ Visit: https://github.com/yourusername/vision-studio
     const files = fs.readdirSync(RELEASE_DIR);
     
     log('Files in release/ folder:', 'blue');
+    let installerBytes = 0;
     for (const file of files) {
       const filePath = path.join(RELEASE_DIR, file);
       const stats = fs.statSync(filePath);
       if (stats.isFile()) {
         const sizeMB = (stats.size / 1024 / 1024).toFixed(2);
-        log(`  ✓ ${file} (${sizeMB} MB)`, 'cyan');
+        const sizeGB = (stats.size / 1024 / 1024 / 1024).toFixed(2);
+        const displaySize = stats.size > 1024 * 1024 * 1024 ? `${sizeGB} GB` : `${sizeMB} MB`;
+        log(`  ✓ ${file} (${displaySize})`, 'cyan');
+        if (file.includes('Setup')) installerBytes += stats.size;
       } else {
         log(`  📁 ${file}/`, 'cyan');
       }
     }
-    
+
+    if (installerBytes > 0) {
+      const totalGB = (installerBytes / 1024 / 1024 / 1024).toFixed(2);
+      log(`\n  Total installer package: ${totalGB} GB`, 'green');
+    }
+
     log('\nNext Steps:', 'blue');
     log('  1. Test the installer on a clean Windows machine', 'white');
     log('  2. Sign the installer with code signing certificate (optional)', 'white');
-    log('  3. Upload to GitHub Releases or your website', 'white');
+    log('  3. Upload all Setup files to GitHub Releases or your website', 'white');
     log('  4. Share with users!', 'white');
-    
+
     log('\nDistribution:', 'blue');
-    log(`  Installer: ${path.join(RELEASE_DIR, 'Vision-Studio-Setup-0.1.0.exe')}`, 'cyan');
+    log('  Distribute ALL files matching Vision-Studio-*-Setup* together:', 'yellow');
+    const releaseFiles = fs.readdirSync(RELEASE_DIR);
+    for (const file of releaseFiles) {
+      const filePath = path.join(RELEASE_DIR, file);
+      const stats = fs.statSync(filePath);
+      if (stats.isFile() && file.includes('Setup')) {
+        log(`  ${filePath}`, 'cyan');
+      }
+    }
+    log(`  Unpacked App: ${path.join(RELEASE_DIR, 'win-unpacked')}`, 'cyan');
     
     log('');
   }

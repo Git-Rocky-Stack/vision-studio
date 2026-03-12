@@ -1,4 +1,7 @@
-import { useEffect, useRef } from 'react';
+import { memo, useEffect, useRef } from 'react';
+
+// Default warm-amber particle color — matches --z-overlay token family in index.css
+const PARTICLE_COLOR_DEFAULT = 'rgba(255, 200, 150, 0.3)';
 
 interface Particle {
   x: number;
@@ -16,8 +19,8 @@ interface AmbientParticlesProps {
   count?: number;
 }
 
-export function AmbientParticles({
-  color = 'rgba(255, 200, 150, 0.3)',
+export const AmbientParticles = memo(function AmbientParticles({
+  color = PARTICLE_COLOR_DEFAULT,
   count = 35,
 }: AmbientParticlesProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -97,4 +100,4 @@ export function AmbientParticles({
       style={{ zIndex: 1 }}
     />
   );
-}
+});

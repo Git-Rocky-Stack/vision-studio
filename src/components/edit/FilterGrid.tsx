@@ -74,6 +74,7 @@ export function FilterGrid({
           <button
             key={cat.id}
             onClick={() => setActiveCategory(cat.id)}
+            aria-pressed={activeCategory === cat.id}
             className={cn(
               'px-2.5 py-1 rounded-full text-xs font-display font-medium transition-all',
               activeCategory === cat.id
@@ -94,6 +95,8 @@ export function FilterGrid({
             <button
               key={filter.id}
               onClick={() => onToggleFilter(filter.id)}
+              aria-pressed={isSelected}
+              aria-label={`Filter: ${filter.name}`}
               className={cn(
                 'rounded-lg border overflow-hidden transition-all text-left',
                 isSelected
@@ -171,6 +174,9 @@ export function FilterGrid({
           <span className="font-display text-xs text-text-body">Stack Filters</span>
         </div>
         <button
+          role="switch"
+          aria-checked={stackMode}
+          aria-label="Toggle stack filters"
           onClick={() => onStackModeChange(!stackMode)}
           className={cn(
             'w-9 h-5 rounded-full transition-all relative',

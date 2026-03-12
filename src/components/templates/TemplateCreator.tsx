@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { cn } from '@/utils/cn';
+import { hexToRgba } from '@/utils/colorUtils';
 import { Button } from '@/components/ui/Button';
 import { Slider } from '@/components/ui/Slider';
 import { useAppStore } from '@/store/appStore';
@@ -27,10 +28,10 @@ const CATEGORIES: {
   icon: React.ElementType;
   color: string;
 }[] = [
-  { id: 'social', label: 'Social Media', icon: Instagram, color: '#ff6b9d' },
-  { id: 'youtube', label: 'YouTube', icon: Youtube, color: '#e63946' },
-  { id: 'marketing', label: 'Marketing', icon: ShoppingBag, color: '#4ecdc4' },
-  { id: 'art', label: 'Art & Creative', icon: Palette, color: '#6c5ce7' },
+  { id: 'social', label: 'Social Media', icon: Instagram, color: 'var(--color-category-social)' },
+  { id: 'youtube', label: 'YouTube', icon: Youtube, color: 'var(--color-category-youtube)' },
+  { id: 'marketing', label: 'Marketing', icon: ShoppingBag, color: 'var(--color-category-marketing)' },
+  { id: 'art', label: 'Art & Creative', icon: Palette, color: 'var(--color-category-art)' },
 ];
 
 const DIMENSION_PRESETS = [
@@ -42,20 +43,24 @@ const DIMENSION_PRESETS = [
   { label: 'YouTube', width: 1280, height: 720 },
 ];
 
-const MODELS = [
+interface TemplateCreatorProps {
+  onClose: () => void;
+  editingTemplate?: ProjectTemplate | null;
+}
+
+const FALLBACK_MODELS = [
   { id: 'flux-dev', name: 'FLUX.1 [dev]' },
   { id: 'flux-schnell', name: 'FLUX.1 [schnell]' },
   { id: 'sdxl', name: 'Stable Diffusion XL' },
   { id: 'sd-1-5', name: 'Stable Diffusion 1.5' },
 ];
 
-interface TemplateCreatorProps {
-  onClose: () => void;
-  editingTemplate?: ProjectTemplate | null;
-}
-
 export function TemplateCreator({ onClose, editingTemplate }: TemplateCreatorProps) {
-  const { addUserTemplate, updateUserTemplate } = useAppStore();
+  const { addUserTemplate, updateUserTemplate, availableModels } = useAppStore();
+
+  const models = availableModels.length > 0
+    ? availableModels.map((m: any) => ({ id: m.id ?? m.name, name: m.name ?? m.id }))
+    : FALLBACK_MODELS;
   const [step, setStep] = useState(0);
 
   // Form state
@@ -176,7 +181,7 @@ export function TemplateCreator({ onClose, editingTemplate }: TemplateCreatorPro
                   )}
                 >
                   {isComplete ? (
-                    <Check className="w-3 h-3 text-green-400" />
+                    <Check className="w-3 h-3 text-[var(--color-status-success)]" />
                   ) : (
                     <Icon className="w-3 h-3" />
                   )}
@@ -254,8 +259,8 @@ export function TemplateCreator({ onClose, editingTemplate }: TemplateCreatorPro
                           style={
                             isSelected
                               ? {
-                                  backgroundColor: `${cat.color}10`,
-                                  borderColor: `${cat.color}40`,
+                                  backgroundColor: hexToRgba(cat.color, 0.06),
+                                  borderColor: hexToRgba(cat.color, 0.25),
                                   color: cat.color,
                                 }
                               : undefined
@@ -310,7 +315,7 @@ export function TemplateCreator({ onClose, editingTemplate }: TemplateCreatorPro
                           <span className="text-xs font-display font-medium block">
                             {preset.label}
                           </span>
-                          <span className="font-mono text-[10px] text-text-muted mt-0.5 block">
+                          <span className="font-mono text-micro text-text-muted mt-0.5 block">
                             {preset.width}x{preset.height}
                           </span>
                         </button>
@@ -392,7 +397,7 @@ export function TemplateCreator({ onClose, editingTemplate }: TemplateCreatorPro
                     Model
                   </label>
                   <div className="grid grid-cols-2 gap-2">
-                    {MODELS.map((m) => (
+                    {models.map((m) => (
                       <button
                         key={m.id}
                         onClick={() => setModel(m.id)}
@@ -460,7 +465,7 @@ export function TemplateCreator({ onClose, editingTemplate }: TemplateCreatorPro
                     className="w-full bg-elevated border border-border rounded-lg px-4 py-3 text-sm text-text-primary placeholder:text-text-muted focus:border-red-primary focus:ring-1 focus:ring-red-primary/40 resize-none transition-all font-display"
                     autoFocus
                   />
-                  <p className="text-[10px] text-text-muted mt-1 font-display">
+                  <p className="text-micro text-text-muted mt-1 font-display">
                     This prompt will be pre-filled when using the template
                   </p>
                 </div>

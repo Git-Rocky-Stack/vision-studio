@@ -2,15 +2,21 @@
 Model Manager - Download and manage AI models
 """
 
-import os
-import json
 import asyncio
-import aiohttp
-from typing import Dict, List, Optional, Any
+import os
+import shutil
+import tempfile
+import urllib.request
 from dataclasses import dataclass, asdict
 from pathlib import Path
-from huggingface_hub import hf_hub_download, list_repo_files, HfApi
-from tqdm.asyncio import tqdm
+from typing import Any, Dict, List, Optional
+
+try:
+    from huggingface_hub import hf_hub_download
+    from huggingface_hub import snapshot_download
+except ImportError:
+    hf_hub_download = None
+    snapshot_download = None
 
 
 @dataclass
@@ -20,6 +26,7 @@ class ModelInfo:
     type: str  # 'checkpoint', 'lora', 'vae', 'controlnet', etc.
     source: str  # 'huggingface', 'civitai', 'local'
     repo_id: Optional[str] = None
+    aux_repo_id: Optional[str] = None
     filename: Optional[str] = None
     local_path: Optional[str] = None
     size: str = "Unknown"
@@ -94,30 +101,28 @@ PREDEFINED_MODELS = {
     "svd": ModelInfo(
         id="svd",
         name="Stable Video Diffusion",
-        type="checkpoint",
+        type="diffusers",
         source="huggingface",
         repo_id="stabilityai/stable-video-diffusion-img2vid-xt",
-        filename="svd_xt_1_1.safetensors",
         size="9.6 GB",
         description="Image-to-video generation by Stability AI"
     ),
     "ltx-video": ModelInfo(
         id="ltx-video",
         name="LTX Video",
-        type="checkpoint",
+        type="diffusers",
         source="huggingface",
         repo_id="Lightricks/LTX-Video",
-        filename="ltx-video-2b-v0.9.safetensors",
         size="9.4 GB",
         description="High-quality text-to-video model by Lightricks"
     ),
     "animatediff": ModelInfo(
         id="animatediff",
         name="AnimateDiff",
-        type="checkpoint",
+        type="diffusers",
         source="huggingface",
-        repo_id="guoyww/animatediff",
-        filename="mm_sd_v15_v2.ckpt",
+        repo_id="runwayml/stable-diffusion-v1-5",
+        aux_repo_id="guoyww/animatediff-motion-adapter-v1-5-2",
         size="1.6 GB",
         description="Animation motion module for Stable Diffusion"
     ),
@@ -214,6 +219,9 @@ class ModelManager:
     
     def _get_local_path(self, model_info: ModelInfo) -> Optional[str]:
         """Get expected local path for a model"""
+        if model_info.type == "diffusers":
+            return os.path.join(self.subdirs["diffusers"], model_info.id)
+
         if not model_info.filename:
             return None
         
@@ -273,18 +281,31 @@ class ModelManager:
     
     async def _download_from_huggingface(self, model_info: ModelInfo, token: Optional[str] = None):
         """Download model from HuggingFace"""
+        if model_info.type == "diffusers":
+            if snapshot_download is None:
+                raise RuntimeError("huggingface_hub is not installed")
+        elif hf_hub_download is None:
+            raise RuntimeError("huggingface_hub is not installed")
+
         try:
             model_info.status = "downloading"
             model_info.progress = 0.0
-            
-            local_path = hf_hub_download(
-                repo_id=model_info.repo_id,
-                filename=model_info.filename,
-                local_dir=self.subdirs.get(model_info.type, self.models_dir),
-                local_dir_use_symlinks=False,
-                token=token,
-                resume_download=True
-            )
+
+            if model_info.type == "diffusers":
+                local_path = await asyncio.to_thread(
+                    self._download_diffusers_bundle,
+                    model_info,
+                    token,
+                )
+            else:
+                local_path = hf_hub_download(
+                    repo_id=model_info.repo_id,
+                    filename=model_info.filename,
+                    local_dir=self.subdirs.get(model_info.type, self.models_dir),
+                    local_dir_use_symlinks=False,
+                    token=token,
+                    resume_download=True
+                )
             
             model_info.local_path = local_path
             model_info.status = "ready"
@@ -296,11 +317,108 @@ class ModelManager:
             model_info.status = "error"
             print(f"❌ Failed to download {model_info.name}: {e}")
             raise
+
+    def _download_diffusers_bundle(self, model_info: ModelInfo, token: Optional[str] = None) -> str:
+        target_path = self._get_local_path(model_info)
+        if not target_path:
+            raise ValueError(f"Could not resolve target path for model {model_info.id}")
+
+        if os.path.exists(target_path):
+            shutil.rmtree(target_path)
+        os.makedirs(target_path, exist_ok=True)
+
+        if model_info.id == "animatediff":
+            base_path = os.path.join(target_path, "base")
+            adapter_path = os.path.join(target_path, "adapter")
+            snapshot_download(
+                repo_id=model_info.repo_id,
+                local_dir=base_path,
+                token=token,
+                resume_download=True,
+            )
+            snapshot_download(
+                repo_id=model_info.aux_repo_id,
+                local_dir=adapter_path,
+                token=token,
+                resume_download=True,
+            )
+        else:
+            snapshot_download(
+                repo_id=model_info.repo_id,
+                local_dir=target_path,
+                token=token,
+                resume_download=True,
+            )
+
+        return target_path
     
     async def _download_from_civitai(self, model_info: ModelInfo):
         """Download model from CivitAI"""
-        # TODO: Implement CivitAI download
-        raise NotImplementedError("CivitAI download not yet implemented")
+        if not model_info.download_url:
+            raise ValueError("CivitAI models require a download URL")
+
+        model_info.status = "downloading"
+        model_info.progress = 0.0
+
+        target_path = self._get_local_path(model_info)
+        if not target_path:
+            raise ValueError(f"Could not resolve target path for model {model_info.id}")
+
+        os.makedirs(os.path.dirname(target_path), exist_ok=True)
+
+        temp_fd, temp_path = tempfile.mkstemp(
+            suffix=Path(model_info.filename or "model.safetensors").suffix,
+            dir=os.path.dirname(target_path),
+        )
+        os.close(temp_fd)
+
+        try:
+            await asyncio.to_thread(
+                self._download_file,
+                model_info.download_url,
+                temp_path,
+                self._build_civitai_headers(),
+                lambda progress: setattr(model_info, "progress", progress),
+            )
+            shutil.move(temp_path, target_path)
+            model_info.local_path = target_path
+            model_info.status = "ready"
+            model_info.progress = 100.0
+        except Exception:
+            model_info.status = "error"
+            model_info.progress = 0.0
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
+            raise
+
+    def _build_civitai_headers(self) -> Dict[str, str]:
+        headers = {"User-Agent": "VisionStudio/0.1.0"}
+        token = os.getenv("CIVITAI_API_TOKEN")
+        if token:
+            headers["Authorization"] = f"Bearer {token}"
+        return headers
+
+    def _download_file(
+        self,
+        url: str,
+        destination_path: str,
+        headers: Dict[str, str],
+        on_progress,
+    ) -> None:
+        request = urllib.request.Request(url, headers=headers)
+        with urllib.request.urlopen(request) as response, open(destination_path, "wb") as output_file:
+            total_bytes = int(response.headers.get("Content-Length", "0"))
+            downloaded = 0
+            chunk_size = 1024 * 1024
+
+            while True:
+                chunk = response.read(chunk_size)
+                if not chunk:
+                    break
+                output_file.write(chunk)
+                downloaded += len(chunk)
+                if total_bytes > 0:
+                    on_progress(round(downloaded / total_bytes * 100, 2))
     
     async def delete_model(self, model_id: str) -> bool:
         """Delete a local model"""
@@ -310,7 +428,10 @@ class ModelManager:
         
         try:
             if os.path.exists(model_info.local_path):
-                os.remove(model_info.local_path)
+                if os.path.isdir(model_info.local_path):
+                    shutil.rmtree(model_info.local_path)
+                else:
+                    os.remove(model_info.local_path)
             
             model_info.local_path = None
             model_info.status = "not_downloaded"

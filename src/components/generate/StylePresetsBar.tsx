@@ -1,4 +1,5 @@
 import { cn } from '@/utils/cn';
+import { hexToRgba } from '@/utils/colorUtils';
 import { useAppStore } from '@/store/appStore';
 import { Plus } from 'lucide-react';
 
@@ -22,6 +23,8 @@ export function StylePresetsBar({ activePresets, onTogglePreset }: StylePresetsB
             <button
               key={preset.id}
               onClick={() => onTogglePreset(preset.id, preset.modifier)}
+              aria-label={`Style: ${preset.name}`}
+              aria-pressed={isActive}
               className={cn(
                 'flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full border transition-all font-display text-xs',
                 isActive
@@ -32,9 +35,9 @@ export function StylePresetsBar({ activePresets, onTogglePreset }: StylePresetsB
                 isActive
                   ? {
                       borderColor: preset.color,
-                      backgroundColor: `${preset.color}18`,
+                      backgroundColor: hexToRgba(preset.color, 0.09),
                       color: preset.color,
-                      boxShadow: `0 0 8px ${preset.color}30`,
+                      boxShadow: `0 0 8px ${hexToRgba(preset.color, 0.19)}`,
                     }
                   : undefined
               }
@@ -51,7 +54,7 @@ export function StylePresetsBar({ activePresets, onTogglePreset }: StylePresetsB
         {/* Add custom preset */}
         <button
           className="flex-shrink-0 flex items-center gap-1 px-3 py-1.5 rounded-full border border-dashed border-border text-text-muted hover:text-text-body hover:border-border-hover transition-all text-xs"
-          title="Add custom style"
+          aria-label="Add style preset"
         >
           <Plus className="w-3 h-3" />
         </button>

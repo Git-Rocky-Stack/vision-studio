@@ -7,8 +7,11 @@ import type {
   StylePreset,
   GenerationQueueItem,
   BatchResult,
+  GenerationDraft,
 } from '@/types/generation';
 import { BUILT_IN_STYLE_PRESETS } from '@/types/generation';
+import type { AssetJobStatus, AssetRecord, DerivedAssetResult } from '@/types/assets';
+import { createDerivedAssetRecord, upsertAssetsFromJobStatus } from '@/features/assets/assetRecords';
 
 export interface Project {
   id: string;
@@ -214,12 +217,18 @@ interface AppState {
   comparisonMode: 'off' | 'side-by-side' | 'slider' | 'onion' | 'grid';
   comparisonImages: string[];
 
+  // Assets
+  assetLibrary: AssetRecord[];
+
   // Edit mode
   activeEditTool: EditTool;
   editLayers: Layer[];
   editHistory: EditHistoryEntry[];
+  editHistoryIndex: number; // Current position in history (-1 = no history)
   currentImage: string | null;
+  currentImageAssetPath: string | null;
   imageAdjustments: ImageAdjustments;
+  generationDraft: GenerationDraft | null;
 
   // ---- Actions ----
 
@@ -258,6 +267,27 @@ interface AppState {
   setComparisonMode: (mode: AppState['comparisonMode']) => void;
   setComparisonImages: (images: string[]) => void;
 
+  // Asset actions
+  syncAssetsFromJobStatus: (status: AssetJobStatus) => void;
+  deleteAssetRecord: (assetId: string) => void;
+  toggleAssetFavorite: (assetId: string) => void;
+  clearAssetLibrary: () => void;
+  clearBatchResults: () => void;
+  removeAssetsByRoot: (rootPath: string) => void;
+  removeAssetRecordsByPaths: (paths: string[]) => void;
+  upsertDerivedAsset: (
+    result: DerivedAssetResult,
+    context: {
+      prompt: string;
+      negativePrompt?: string;
+      model?: string;
+      seed?: number;
+      params?: Record<string, unknown>;
+    }
+  ) => void;
+  removeBatchResults: (ids: string[]) => void;
+  setGenerationDraft: (draft: GenerationDraft | null) => void;
+
   // Edit mode actions
   setActiveEditTool: (tool: EditTool) => void;
   addEditLayer: (layer: Layer) => void;
@@ -265,9 +295,30 @@ interface AppState {
   removeEditLayer: (id: string) => void;
   reorderEditLayers: (layerIds: string[]) => void;
   pushEditHistory: (entry: EditHistoryEntry) => void;
-  setCurrentImage: (imagePath: string | null) => void;
+  undo: () => void;
+  redo: () => void;
+  canUndo: () => boolean;
+  canRedo: () => boolean;
+  setCurrentImage: (imagePath: string | null, assetPath?: string | null) => void;
   setImageAdjustments: (adjustments: Partial<ImageAdjustments>) => void;
   resetImageAdjustments: () => void;
+}
+
+function createBaseImageLayer(imagePath: string, assetPath?: string | null): Layer {
+  return {
+    id: 'base-image-layer',
+    name: 'Base Image',
+    type: 'image',
+    visible: true,
+    opacity: 1,
+    blendMode: 'Normal',
+    locked: false,
+    data: {
+      previewUrl: imagePath,
+      assetPath: assetPath ?? null,
+      thumbnail: imagePath,
+    },
+  };
 }
 
 export const useAppStore = create<AppState>()(
@@ -299,11 +350,15 @@ export const useAppStore = create<AppState>()(
       batchResults: [],
       comparisonMode: 'off',
       comparisonImages: [],
+      assetLibrary: [],
       activeEditTool: 'move',
       editLayers: [],
       editHistory: [],
+      editHistoryIndex: -1,
       currentImage: null,
+      currentImageAssetPath: null,
       imageAdjustments: { ...DEFAULT_ADJUSTMENTS },
+      generationDraft: null,
 
       // --- Existing actions ---
 
@@ -312,14 +367,39 @@ export const useAppStore = create<AppState>()(
       setCurrentProject: (project) => set({ currentProject: project }),
 
       addJob: (job) => set((state) => ({
-        activeJobs: [...state.activeJobs, job]
+        activeJobs: [...state.activeJobs.filter((existing) => existing.id !== job.id), job],
       })),
 
-      updateJob: (jobId, updates) => set((state) => ({
-        activeJobs: state.activeJobs.map((job) =>
-          job.id === jobId ? { ...job, ...updates } : job
-        ),
-      })),
+      updateJob: (jobId, updates) => set((state) => {
+        const existingJob = state.activeJobs.find((job) => job.id === jobId);
+        if (!existingJob) {
+          return {
+            activeJobs: state.activeJobs,
+          };
+        }
+
+        const updatedJob = { ...existingJob, ...updates };
+        const isTerminal =
+          updatedJob.status === 'completed' ||
+          updatedJob.status === 'failed' ||
+          updatedJob.status === 'cancelled';
+
+        if (!isTerminal) {
+          return {
+            activeJobs: state.activeJobs.map((job) =>
+              job.id === jobId ? updatedJob : job
+            ),
+          };
+        }
+
+        return {
+          activeJobs: state.activeJobs.filter((job) => job.id !== jobId),
+          completedJobs: [
+            updatedJob,
+            ...state.completedJobs.filter((job) => job.id !== jobId),
+          ].slice(0, 100),
+        };
+      }),
 
       removeJob: (jobId) => set((state) => {
         const job = state.activeJobs.find((j) => j.id === jobId);
@@ -393,7 +473,10 @@ export const useAppStore = create<AppState>()(
       // --- Batch results ---
 
       addBatchResult: (result) => set((state) => ({
-        batchResults: [...state.batchResults, result].slice(-200),
+        batchResults: [
+          result,
+          ...state.batchResults.filter((entry) => entry.id !== result.id),
+        ].slice(0, 200),
       })),
 
       toggleBatchResultFavorite: (id) => set((state) => ({
@@ -406,6 +489,52 @@ export const useAppStore = create<AppState>()(
 
       setComparisonMode: (mode) => set({ comparisonMode: mode }),
       setComparisonImages: (images) => set({ comparisonImages: images }),
+
+      // --- Assets ---
+
+      syncAssetsFromJobStatus: (status) => set((state) => ({
+        assetLibrary: upsertAssetsFromJobStatus(state.assetLibrary, status),
+      })),
+
+      deleteAssetRecord: (assetId) => set((state) => ({
+        assetLibrary: state.assetLibrary.filter((asset) => asset.id !== assetId),
+      })),
+
+      toggleAssetFavorite: (assetId) => set((state) => ({
+        assetLibrary: state.assetLibrary.map((asset) =>
+          asset.id === assetId ? { ...asset, favorite: !asset.favorite } : asset
+        ),
+      })),
+
+      clearAssetLibrary: () => set({ assetLibrary: [] }),
+      clearBatchResults: () => set({ batchResults: [] }),
+      removeBatchResults: (ids) => set((state) => ({
+        batchResults: state.batchResults.filter((result) => !ids.includes(result.id)),
+      })),
+      removeAssetsByRoot: (rootPath) => set((state) => {
+        const normalizedRoot = rootPath.replace(/\\/g, '/').replace(/\/$/, '');
+        return {
+          assetLibrary: state.assetLibrary.filter((asset) => {
+            const normalizedPath = asset.path.replace(/\\/g, '/');
+            return !(
+              normalizedPath.startsWith(`${normalizedRoot}/`) ||
+              normalizedPath.startsWith('/outputs/')
+            );
+          }),
+        };
+      }),
+      removeAssetRecordsByPaths: (paths) => set((state) => {
+        const normalizedPaths = paths.map((value) => value.replace(/\\/g, '/'));
+        return {
+          assetLibrary: state.assetLibrary.filter(
+            (asset) => !normalizedPaths.includes(asset.path.replace(/\\/g, '/'))
+          ),
+        };
+      }),
+      upsertDerivedAsset: (result, context) => set((state) => ({
+        assetLibrary: createDerivedAssetRecord(state.assetLibrary, result, context),
+      })),
+      setGenerationDraft: (draft) => set({ generationDraft: draft }),
 
       // --- Edit mode ---
 
@@ -434,11 +563,40 @@ export const useAppStore = create<AppState>()(
         };
       }),
 
-      pushEditHistory: (entry) => set((state) => ({
-        editHistory: [...state.editHistory, entry].slice(-100),
-      })),
+      pushEditHistory: (entry) => set((state) => {
+        // Truncate any "future" history beyond current index
+        const truncated = state.editHistory.slice(0, state.editHistoryIndex + 1);
+        const newHistory = [...truncated, entry].slice(-100);
+        return {
+          editHistory: newHistory,
+          editHistoryIndex: newHistory.length - 1,
+        };
+      }),
 
-      setCurrentImage: (imagePath) => set({ currentImage: imagePath }),
+      undo: () => set((state) => {
+        if (state.editHistoryIndex <= 0) return state;
+        const newIndex = state.editHistoryIndex - 1;
+        return { editHistoryIndex: newIndex };
+      }),
+
+      redo: () => set((state) => {
+        if (state.editHistoryIndex >= state.editHistory.length - 1) return state;
+        const newIndex = state.editHistoryIndex + 1;
+        return { editHistoryIndex: newIndex };
+      }),
+
+      canUndo: () => useAppStore.getState().editHistoryIndex > 0,
+      canRedo: () => useAppStore.getState().editHistoryIndex < useAppStore.getState().editHistory.length - 1,
+
+      setCurrentImage: (imagePath, assetPath) =>
+        set({
+          currentImage: imagePath,
+          currentImageAssetPath: assetPath ?? null,
+          editLayers: imagePath ? [createBaseImageLayer(imagePath, assetPath)] : [],
+          editHistory: [],
+          editHistoryIndex: -1,
+          imageAdjustments: { ...DEFAULT_ADJUSTMENTS },
+        }),
 
       setImageAdjustments: (adjustments) => set((state) => ({
         imageAdjustments: { ...state.imageAdjustments, ...adjustments },
@@ -457,6 +615,7 @@ export const useAppStore = create<AppState>()(
         customStylePresets: state.customStylePresets,
         userTemplates: state.userTemplates,
         batchResults: state.batchResults.slice(0, 200),
+        assetLibrary: state.assetLibrary.slice(0, 500),
       }),
     }
   )

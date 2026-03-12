@@ -30,7 +30,14 @@ export function GenerationProgress() {
 
       {/* Progress ring */}
       <div className="relative flex flex-col items-center gap-3">
-        <div className="relative w-[120px] h-[120px]">
+        <div
+          className="relative w-[120px] h-[120px]"
+          role="progressbar"
+          aria-valuenow={Math.round(progress)}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-label="Generation progress"
+        >
           <svg
             viewBox="0 0 120 120"
             className="w-full h-full -rotate-90"
@@ -41,7 +48,7 @@ export function GenerationProgress() {
               cy="60"
               r={radius}
               fill="none"
-              stroke="rgba(255,255,255,0.06)"
+              stroke="var(--color-border)"
               strokeWidth="6"
             />
             {/* Progress */}
@@ -59,8 +66,8 @@ export function GenerationProgress() {
             />
             <defs>
               <linearGradient id="progressGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                <stop offset="0%" stopColor="#c1121f" />
-                <stop offset="100%" stopColor="#e63946" />
+                <stop offset="0%" stopColor="var(--color-gradient-progress-start)" />
+                <stop offset="100%" stopColor="var(--color-gradient-progress-end)" />
               </linearGradient>
             </defs>
           </svg>
@@ -82,7 +89,7 @@ export function GenerationProgress() {
           >
             Generating...
           </motion.p>
-          <p className="font-mono text-xs text-text-muted mt-1">
+          <p className="font-mono text-xs text-text-muted mt-1" aria-live="polite">
             {Math.round(progress)}% complete
           </p>
         </div>

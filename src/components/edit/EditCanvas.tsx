@@ -25,6 +25,7 @@ export function EditCanvas() {
   const [stagePos, setStagePos] = useState({ x: 0, y: 0 });
   const [isDrawing, setIsDrawing] = useState(false);
   const [lines, setLines] = useState<{ points: number[]; tool: string }[]>([]);
+  const currentLineRef = useRef<{ points: number[]; tool: string } | null>(null);
 
   // Resize observer
   useEffect(() => {
@@ -45,15 +46,22 @@ export function EditCanvas() {
     return () => observer.disconnect();
   }, []);
 
-  // Load image
+  // Load image with cleanup and error handling
   useEffect(() => {
     if (!currentImage) {
       setLoadedImage(null);
       return;
     }
+    let cancelled = false;
     const img = new window.Image();
-    img.onload = () => setLoadedImage(img);
+    img.onload = () => {
+      if (!cancelled) setLoadedImage(img);
+    };
+    img.onerror = () => {
+      if (!cancelled) setLoadedImage(null);
+    };
     img.src = currentImage;
+    return () => { cancelled = true; };
   }, [currentImage]);
 
   // Fit image to container
@@ -113,37 +121,45 @@ export function EditCanvas() {
     [activeEditTool]
   );
 
-  // Drawing handlers
+  // Drawing handlers - use ref for in-progress line to avoid array copy on every mouse move
   const handleMouseDown = useCallback(
     (e: Konva.KonvaEventObject<MouseEvent>) => {
       if (activeEditTool !== 'brush' && activeEditTool !== 'eraser') return;
       setIsDrawing(true);
       const pos = stageRef.current?.getPointerPosition();
       if (pos) {
-        setLines([
-          ...lines,
-          { points: [pos.x, pos.y], tool: activeEditTool },
-        ]);
+        const newLine = { points: [pos.x, pos.y], tool: activeEditTool };
+        currentLineRef.current = newLine;
+        setLines((prev) => [...prev, newLine]);
       }
     },
-    [activeEditTool, lines]
+    [activeEditTool]
   );
 
   const handleMouseMove = useCallback(
     (e: Konva.KonvaEventObject<MouseEvent>) => {
-      if (!isDrawing) return;
+      if (!isDrawing || !currentLineRef.current) return;
       const pos = stageRef.current?.getPointerPosition();
       if (!pos) return;
-      const lastLine = lines[lines.length - 1];
-      if (lastLine) {
-        lastLine.points = lastLine.points.concat([pos.x, pos.y]);
-        setLines([...lines.slice(0, -1), lastLine]);
-      }
+      // Mutate the current line ref directly for performance
+      currentLineRef.current.points = currentLineRef.current.points.concat([pos.x, pos.y]);
+      // Force a re-render of the Konva layer without full state copy
+      const layer = stageRef.current?.findOne('.drawing-layer');
+      if (layer) layer.batchDraw();
     },
-    [isDrawing, lines]
+    [isDrawing]
   );
 
   const handleMouseUp = useCallback(() => {
+    if (currentLineRef.current) {
+      // Commit final line state
+      setLines((prev) => {
+        const updated = [...prev];
+        updated[updated.length - 1] = { ...currentLineRef.current! };
+        return updated;
+      });
+      currentLineRef.current = null;
+    }
     setIsDrawing(false);
   }, []);
 
@@ -255,7 +271,7 @@ export function EditCanvas() {
           </Layer>
 
           {/* Drawing layer */}
-          <Layer>
+          <Layer name="drawing-layer">
             {lines.map((line, i) => (
               <Line
                 key={i}

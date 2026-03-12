@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback } from 'react';
+import { readFileAsDataUrl } from '@/utils/readFileAsDataUrl';
 import { cn } from '@/utils/cn';
 import { Slider } from '@/components/ui/Slider';
 import {
@@ -46,12 +47,10 @@ export function ImageDropZone({
   const handleFile = useCallback(
     (file: File) => {
       if (!ACCEPTED_TYPES.includes(file.type)) return;
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        onImageChange(e.target?.result as string);
+      readFileAsDataUrl(file).then((dataUrl) => {
+        onImageChange(dataUrl);
         setIsExpanded(true);
-      };
-      reader.readAsDataURL(file);
+      }).catch(() => {/* ignore read errors */});
     },
     [onImageChange]
   );
@@ -141,6 +140,7 @@ export function ImageDropZone({
                   />
                   <button
                     onClick={handleRemove}
+                    aria-label="Remove reference image"
                     className="absolute top-1 right-1 p-0.5 rounded bg-void/70 text-text-primary hover:bg-red-primary transition-all"
                   >
                     <X className="w-3 h-3" />
@@ -187,6 +187,9 @@ export function ImageDropZone({
                 onDragLeave={handleDragLeave}
                 onDrop={handleDrop}
                 onClick={() => fileInputRef.current?.click()}
+                role="button"
+                tabIndex={0}
+                aria-label="Upload reference image"
                 className={cn(
                   'flex flex-col items-center justify-center py-6 rounded-lg border-2 border-dashed cursor-pointer transition-all',
                   isDragOver

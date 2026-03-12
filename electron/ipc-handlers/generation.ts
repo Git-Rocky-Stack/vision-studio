@@ -2,11 +2,34 @@ import { ipcMain, BrowserWindow } from 'electron';
 import axios from 'axios';
 import WebSocket from 'ws';
 
-const BACKEND_URL = 'http://localhost:8000';
-const WS_URL = 'ws://localhost:8000/ws';
+const BACKEND_URL = 'http://127.0.0.1:8000';
+const WS_URL = 'ws://127.0.0.1:8000/ws';
 
 let ws: WebSocket | null = null;
 let mainWindow: BrowserWindow | null = null;
+
+function isConnectionRefused(error: any) {
+  return typeof error?.message === 'string' && error.message.includes('ECONNREFUSED');
+}
+
+async function requestBackend<T>(request: () => Promise<T>, attempts: number = 10, delayMs: number = 500): Promise<T> {
+  let lastError: any;
+
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      return await request();
+    } catch (error: any) {
+      lastError = error;
+      if (!isConnectionRefused(error) || attempt === attempts) {
+        throw error;
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
+  }
+
+  throw lastError;
+}
 
 export function setupGenerationHandlers(window: BrowserWindow) {
   mainWindow = window;
@@ -46,8 +69,11 @@ function connectWebSocket() {
 // Image generation
 ipcMain.handle('generation:generate-image', async (_event, params) => {
   try {
-    const response = await axios.post(`${BACKEND_URL}/api/generate/image`, params);
-    return response.data;
+    const response = await requestBackend(() => axios.post(`${BACKEND_URL}/api/generate/image`, params));
+    return {
+      success: true,
+      jobId: response.data.job_id,
+    };
   } catch (error: any) {
     console.error('Image generation error:', error);
     return {
@@ -60,13 +86,54 @@ ipcMain.handle('generation:generate-image', async (_event, params) => {
 // Video generation
 ipcMain.handle('generation:generate-video', async (_event, params) => {
   try {
-    const response = await axios.post(`${BACKEND_URL}/api/generate/video`, params);
-    return response.data;
+    const response = await requestBackend(() => axios.post(`${BACKEND_URL}/api/generate/video`, params));
+    return {
+      success: true,
+      jobId: response.data.job_id,
+    };
   } catch (error: any) {
     console.error('Video generation error:', error);
     return {
       success: false,
       error: error.response?.data?.detail || error.message
+    };
+  }
+});
+
+ipcMain.handle('generation:enhance-prompt', async (_event, params) => {
+  try {
+    const response = await requestBackend(() => axios.post(`${BACKEND_URL}/api/prompts/enhance`, params));
+    return response.data;
+  } catch (error: any) {
+    return {
+      success: false,
+      error: error.response?.data?.detail || error.message,
+    };
+  }
+});
+
+ipcMain.handle('generation:crop-image', async (_event, params) => {
+  try {
+    const response = await requestBackend(() => axios.post(`${BACKEND_URL}/api/images/crop`, params));
+    return response.data;
+  } catch (error: any) {
+    const detail = error.response?.data?.detail ?? error.response?.data ?? error.message ?? String(error);
+    return {
+      success: false,
+      error: typeof detail === 'string' ? detail : JSON.stringify(detail),
+    };
+  }
+});
+
+ipcMain.handle('generation:upscale-image', async (_event, params) => {
+  try {
+    const response = await requestBackend(() => axios.post(`${BACKEND_URL}/api/images/upscale`, params));
+    return response.data;
+  } catch (error: any) {
+    const detail = error.response?.data?.detail ?? error.response?.data ?? error.message ?? String(error);
+    return {
+      success: false,
+      error: typeof detail === 'string' ? detail : JSON.stringify(detail),
     };
   }
 });
@@ -79,10 +146,10 @@ ipcMain.handle('generation:batch', async (_event, params) => {
     
     // Queue all prompts
     for (const prompt of prompts) {
-      const response = await axios.post(`${BACKEND_URL}/api/generate/image`, {
+      const response = await requestBackend(() => axios.post(`${BACKEND_URL}/api/generate/image`, {
         ...baseParams,
         prompt
-      });
+      }));
       jobIds.push(response.data.job_id);
     }
     
@@ -102,7 +169,7 @@ ipcMain.handle('generation:batch', async (_event, params) => {
 // Get job status
 ipcMain.handle('generation:get-status', async (_event, jobId: string) => {
   try {
-    const response = await axios.get(`${BACKEND_URL}/api/jobs/${jobId}`);
+    const response = await requestBackend(() => axios.get(`${BACKEND_URL}/api/jobs/${jobId}`));
     return response.data;
   } catch (error: any) {
     console.error('Get status error:', error);
@@ -116,7 +183,7 @@ ipcMain.handle('generation:get-status', async (_event, jobId: string) => {
 // Cancel job
 ipcMain.handle('generation:cancel', async (_event, jobId: string) => {
   try {
-    const response = await axios.post(`${BACKEND_URL}/api/jobs/${jobId}/cancel`);
+    const response = await requestBackend(() => axios.post(`${BACKEND_URL}/api/jobs/${jobId}/cancel`));
     return response.data;
   } catch (error: any) {
     console.error('Cancel job error:', error);
@@ -134,7 +201,7 @@ ipcMain.handle('generation:list-jobs', async (_event, options = {}) => {
     let url = `${BACKEND_URL}/api/jobs?limit=${limit}`;
     if (status) url += `&status=${status}`;
     
-    const response = await axios.get(url);
+    const response = await requestBackend(() => axios.get(url));
     return response.data;
   } catch (error: any) {
     console.error('List jobs error:', error);
@@ -148,7 +215,7 @@ ipcMain.handle('generation:list-jobs', async (_event, options = {}) => {
 // Get system info
 ipcMain.handle('system:get-info', async () => {
   try {
-    const response = await axios.get(`${BACKEND_URL}/api/system/info`);
+    const response = await requestBackend(() => axios.get(`${BACKEND_URL}/api/system/info`));
     return response.data;
   } catch (error: any) {
     console.error('Get system info error:', error);
@@ -163,7 +230,7 @@ ipcMain.handle('system:get-info', async () => {
 // List models
 ipcMain.handle('models:list', async () => {
   try {
-    const response = await axios.get(`${BACKEND_URL}/api/models`);
+    const response = await requestBackend(() => axios.get(`${BACKEND_URL}/api/models`));
     return response.data;
   } catch (error: any) {
     console.error('List models error:', error);
@@ -174,7 +241,7 @@ ipcMain.handle('models:list', async () => {
 // Download model
 ipcMain.handle('models:download', async (_event, modelId: string) => {
   try {
-    const response = await axios.post(`${BACKEND_URL}/api/models/${modelId}/download`);
+    const response = await requestBackend(() => axios.post(`${BACKEND_URL}/api/models/${modelId}/download`));
     return response.data;
   } catch (error: any) {
     console.error('Download model error:', error);
@@ -188,10 +255,22 @@ ipcMain.handle('models:download', async (_event, modelId: string) => {
 // Get model status
 ipcMain.handle('models:get-status', async (_event, modelId: string) => {
   try {
-    const response = await axios.get(`${BACKEND_URL}/api/models/${modelId}/status`);
+    const response = await requestBackend(() => axios.get(`${BACKEND_URL}/api/models/${modelId}/status`));
     return response.data;
   } catch (error: any) {
     console.error('Get model status error:', error);
     return null;
+  }
+});
+
+ipcMain.handle('models:delete', async (_event, modelId: string) => {
+  try {
+    const response = await requestBackend(() => axios.delete(`${BACKEND_URL}/api/models/${modelId}`));
+    return response.data;
+  } catch (error: any) {
+    return {
+      success: false,
+      error: error.response?.data?.detail || error.message,
+    };
   }
 });

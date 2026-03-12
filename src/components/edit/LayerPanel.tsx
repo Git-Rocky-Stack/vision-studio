@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { cn } from '@/utils/cn';
 import { useAppStore } from '@/store/appStore';
+import { ImageWithFallback } from '@/components/ui/ImageWithFallback';
 import {
   DndContext,
   closestCenter,
@@ -30,6 +31,7 @@ import {
   Layers,
 } from 'lucide-react';
 import type { Layer } from '@/types/editor';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 
 const BLEND_MODES = [
   'Normal',
@@ -116,6 +118,7 @@ function SortableLayerRow({
       {/* Visibility */}
       <button
         onClick={(e) => { e.stopPropagation(); onToggleVisibility(); }}
+        aria-label={layer.visible ? 'Hide layer' : 'Show layer'}
         className="p-0.5 text-text-muted hover:text-text-primary transition-all"
       >
         {layer.visible ? (
@@ -127,8 +130,16 @@ function SortableLayerRow({
 
       {/* Thumbnail */}
       <div className="w-7 h-7 rounded bg-surface border border-border flex-shrink-0 overflow-hidden">
-        {/* Placeholder - would show layer preview */}
-        <div className="w-full h-full bg-gradient-to-br from-elevated to-surface" />
+        {typeof layer.data?.thumbnail === 'string' && layer.data.thumbnail ? (
+          <ImageWithFallback
+            src={layer.data.thumbnail}
+            alt={layer.name}
+            className="w-full h-full object-cover"
+            fallbackClassName="w-full h-full"
+          />
+        ) : (
+          <div className="w-full h-full bg-gradient-to-br from-elevated to-surface" />
+        )}
       </div>
 
       {/* Name + details */}
@@ -152,14 +163,14 @@ function SortableLayerRow({
           </p>
         )}
         <div className="flex items-center gap-2 mt-0.5">
-          <span className="font-mono text-[9px] text-text-muted">
+          <span className="font-mono text-micro text-text-muted">
             {Math.round(layer.opacity * 100)}%
           </span>
           <select
             value={layer.blendMode || 'Normal'}
             onChange={(e) => { e.stopPropagation(); onBlendModeChange(e.target.value); }}
             onClick={(e) => e.stopPropagation()}
-            className="bg-transparent text-[9px] text-text-muted font-display cursor-pointer border-none p-0 focus:outline-none"
+            className="appearance-none bg-elevated/50 border border-border rounded px-1.5 py-0.5 text-micro text-text-body font-display cursor-pointer focus:outline-none focus:border-red-primary transition-all"
           >
             {BLEND_MODES.map((mode) => (
               <option key={mode} value={mode}>
@@ -173,10 +184,11 @@ function SortableLayerRow({
       {/* Lock */}
       <button
         onClick={(e) => { e.stopPropagation(); onToggleLock(); }}
+        aria-label={layer.locked ? 'Unlock layer' : 'Lock layer'}
         className="p-0.5 text-text-muted hover:text-text-primary transition-all"
       >
         {layer.locked ? (
-          <Lock className="w-3 h-3 text-yellow-500" />
+          <Lock className="w-3 h-3 text-[var(--color-status-warning)]" />
         ) : (
           <Unlock className="w-3 h-3" />
         )}
@@ -197,6 +209,7 @@ export function LayerPanel() {
   } = useAppStore();
 
   const [selectedLayerId, setSelectedLayerId] = useState<string | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -242,9 +255,17 @@ export function LayerPanel() {
 
   const handleDeleteLayer = () => {
     if (!selectedLayerId) return;
+    setShowDeleteConfirm(true);
+  };
+
+  const confirmDeleteLayer = () => {
+    if (!selectedLayerId) return;
     removeEditLayer(selectedLayerId);
     setSelectedLayerId(null);
+    setShowDeleteConfirm(false);
   };
+
+  const selectedLayer = editLayers.find((l) => l.id === selectedLayerId);
 
   return (
     <div className="border-t border-border">
@@ -253,7 +274,7 @@ export function LayerPanel() {
         <div className="flex items-center gap-2">
           <Layers className="w-3.5 h-3.5 text-red-primary" />
           <span className="text-label text-text-primary">Layers</span>
-          <span className="font-mono text-[10px] text-text-muted">
+          <span className="font-mono text-micro text-text-muted">
             {editLayers.length}
           </span>
         </div>
@@ -287,6 +308,7 @@ export function LayerPanel() {
                 ? 'text-text-muted hover:text-red-primary hover:bg-red-aura'
                 : 'text-text-muted/30 cursor-not-allowed'
             )}
+            aria-label={`Remove layer ${editLayers.find((l) => l.id === selectedLayerId)?.name ?? ''}`}
             title="Delete Layer"
           >
             <Trash2 className="w-3.5 h-3.5" />
@@ -300,7 +322,7 @@ export function LayerPanel() {
           <div className="py-8 text-center">
             <Layers className="w-8 h-8 text-text-muted mx-auto mb-2 opacity-20" />
             <p className="text-xs text-text-muted font-display">No layers</p>
-            <p className="text-[10px] text-text-muted mt-0.5">
+            <p className="text-micro text-text-muted mt-0.5">
               Load an image to start
             </p>
           </div>
@@ -341,6 +363,16 @@ export function LayerPanel() {
           </DndContext>
         )}
       </div>
+
+      <ConfirmDialog
+        open={showDeleteConfirm}
+        title="Delete Layer"
+        message={`Are you sure you want to delete "${selectedLayer?.name ?? 'this layer'}"?`}
+        confirmLabel="Delete"
+        variant="danger"
+        onConfirm={confirmDeleteLayer}
+        onCancel={() => setShowDeleteConfirm(false)}
+      />
     </div>
   );
 }

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useAppStore, PROJECT_TEMPLATES } from '@/store/appStore';
 import type { ProjectTemplate } from '@/store/appStore';
 import { cn } from '@/utils/cn';
+import { hexToRgba } from '@/utils/colorUtils';
 import { Button } from '@/components/ui/Button';
 import { TemplatePreviewModal } from '@/components/templates/TemplatePreviewModal';
 import { TemplateCreator } from '@/components/templates/TemplateCreator';
@@ -40,10 +41,10 @@ const categoryLabels: Record<string, string> = {
 };
 
 const categoryColors: Record<string, string> = {
-  youtube: '#e63946',
-  social: '#ff6b9d',
-  marketing: '#4ecdc4',
-  art: '#6c5ce7',
+  youtube: 'var(--color-category-youtube)',
+  social: 'var(--color-category-social)',
+  marketing: 'var(--color-category-marketing)',
+  art: 'var(--color-category-art)',
 };
 
 type SortBy = 'popular' | 'newest' | 'alpha';
@@ -238,6 +239,7 @@ export function TemplatesPanel() {
               <button
                 key={tab.id}
                 onClick={() => setSelectedCategory(tab.id)}
+                aria-selected={isActive}
                 className={cn(
                   'flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-display font-medium transition-all',
                   isActive && !color && 'bg-red-primary text-text-primary glow-red-subtle',
@@ -247,9 +249,9 @@ export function TemplatesPanel() {
                 style={
                   isActive && color
                     ? {
-                        backgroundColor: `${color}18`,
+                        backgroundColor: hexToRgba(color, 0.09),
                         color: color,
-                        boxShadow: `0 0 8px ${color}25`,
+                        boxShadow: `0 0 8px ${hexToRgba(color, 0.15)}`,
                       }
                     : undefined
                 }
@@ -257,7 +259,7 @@ export function TemplatesPanel() {
                 {Icon && <Icon className="w-3.5 h-3.5" />}
                 {tab.label}
                 {count !== undefined && count > 0 && (
-                  <span className="ml-1 px-1.5 py-0.5 rounded-full bg-void/30 text-[10px] font-mono">
+                  <span className="ml-1 px-1.5 py-0.5 rounded-full bg-void/30 text-micro font-mono">
                     {count}
                   </span>
                 )}
@@ -314,7 +316,7 @@ export function TemplatesPanel() {
           /* Compact List View */
           <div className="space-y-2">
             {sortedTemplates.map((template, index) => {
-              const color = categoryColors[template.category] || '#e63946';
+              const color = categoryColors[template.category] || 'var(--color-category-youtube)';
               return (
                 <motion.div
                   key={template.id}
@@ -327,8 +329,8 @@ export function TemplatesPanel() {
                   <div
                     className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 text-lg"
                     style={{
-                      background: `linear-gradient(135deg, ${color}15, ${color}05)`,
-                      border: `1px solid ${color}20`,
+                      background: `linear-gradient(135deg, ${hexToRgba(color, 0.08)}, ${hexToRgba(color, 0.02)})`,
+                      border: `1px solid ${hexToRgba(color, 0.13)}`,
                     }}
                   >
                     {template.thumbnail}
@@ -339,28 +341,28 @@ export function TemplatesPanel() {
                         {template.name}
                       </h3>
                       <span
-                        className="px-1.5 py-0.5 rounded-full text-[9px] font-display font-medium uppercase tracking-wide"
+                        className="px-1.5 py-0.5 rounded-full text-micro font-display font-medium uppercase tracking-wide"
                         style={{
-                          backgroundColor: `${color}15`,
+                          backgroundColor: hexToRgba(color, 0.08),
                           color: color,
                         }}
                       >
                         {categoryLabels[template.category] || template.category}
                       </span>
                       {template.isCustom && (
-                        <span className="px-1.5 py-0.5 rounded-full text-[9px] font-display font-medium uppercase tracking-wide bg-elevated text-text-muted">
+                        <span className="px-1.5 py-0.5 rounded-full text-micro font-display font-medium uppercase tracking-wide bg-elevated text-text-muted">
                           Custom
                         </span>
                       )}
                     </div>
                     <div className="flex items-center gap-2 mt-0.5">
-                      <span className="font-mono text-[10px] text-text-muted">
+                      <span className="font-mono text-micro text-text-muted">
                         {template.settings.width}x{template.settings.height}
                       </span>
-                      <span className="font-mono text-[10px] text-text-muted">
+                      <span className="font-mono text-micro text-text-muted">
                         {template.settings.model}
                       </span>
-                      <span className="font-mono text-[10px] text-text-muted">
+                      <span className="font-mono text-micro text-text-muted">
                         {template.settings.steps} steps
                       </span>
                     </div>
@@ -400,7 +402,7 @@ export function TemplatesPanel() {
           /* Card Grid View */
           <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
             {sortedTemplates.map((template, index) => {
-              const color = categoryColors[template.category] || '#e63946';
+              const color = categoryColors[template.category] || 'var(--color-category-youtube)';
               const isHovered = hoveredTemplate === template.id;
               return (
                 <motion.div
@@ -438,8 +440,8 @@ export function TemplatesPanel() {
                     <div
                       className="w-14 h-14 rounded-xl flex items-center justify-center flex-shrink-0 text-2xl"
                       style={{
-                        background: `linear-gradient(135deg, ${color}15, ${color}05)`,
-                        border: `1px solid ${color}20`,
+                        background: `linear-gradient(135deg, ${hexToRgba(color, 0.08)}, ${hexToRgba(color, 0.02)})`,
+                        border: `1px solid ${hexToRgba(color, 0.13)}`,
                       }}
                     >
                       {template.thumbnail}
@@ -452,9 +454,9 @@ export function TemplatesPanel() {
                           {template.name}
                         </h3>
                         <span
-                          className="px-2 py-0.5 rounded-full text-[10px] font-display font-medium uppercase tracking-wide"
+                          className="px-2 py-0.5 rounded-full text-micro font-display font-medium uppercase tracking-wide"
                           style={{
-                            backgroundColor: `${color}15`,
+                            backgroundColor: hexToRgba(color, 0.08),
                             color: color,
                           }}
                         >
@@ -468,13 +470,13 @@ export function TemplatesPanel() {
 
                       {/* Settings Preview */}
                       <div className="flex flex-wrap items-center gap-1.5">
-                        <span className="font-mono text-[10px] px-2 py-0.5 bg-surface rounded text-text-muted">
+                        <span className="font-mono text-micro px-2 py-0.5 bg-surface rounded text-text-muted">
                           {template.settings.width}&times;{template.settings.height}
                         </span>
-                        <span className="font-mono text-[10px] px-2 py-0.5 bg-surface rounded text-text-muted">
+                        <span className="font-mono text-micro px-2 py-0.5 bg-surface rounded text-text-muted">
                           {template.settings.model}
                         </span>
-                        <span className="font-mono text-[10px] px-2 py-0.5 bg-surface rounded text-text-muted">
+                        <span className="font-mono text-micro px-2 py-0.5 bg-surface rounded text-text-muted">
                           {template.settings.steps} steps
                         </span>
                       </div>

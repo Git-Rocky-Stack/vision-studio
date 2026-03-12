@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { cn } from '@/utils/cn';
+import { hexToRgba } from '@/utils/colorUtils';
 import { Button } from '@/components/ui/Button';
 import { Slider } from '@/components/ui/Slider';
 import {
@@ -111,6 +112,7 @@ export function AIToolsPanel() {
             {/* Card Header */}
             <button
               onClick={() => toggleTool(tool.id)}
+              aria-expanded={isExpanded}
               className="w-full flex items-center gap-3 px-3 py-2.5 text-left"
             >
               <div className="w-8 h-8 rounded-lg bg-red-aura flex items-center justify-center flex-shrink-0">
@@ -120,7 +122,7 @@ export function AIToolsPanel() {
                 <h4 className="font-display text-sm font-medium text-text-primary">
                   {tool.name}
                 </h4>
-                <p className="text-[10px] text-text-muted">{tool.description}</p>
+                <p className="text-micro text-text-muted">{tool.description}</p>
               </div>
               <ChevronDown
                 className={cn(
@@ -157,6 +159,7 @@ export function AIToolsPanel() {
                           icon={isProcessing ? Loader2 : Scissors}
                           isLoading={isProcessing}
                           onClick={() => handleApply(tool.id)}
+                          aria-label="Process with Background Removal"
                         >
                           Remove Background
                         </Button>
@@ -201,7 +204,7 @@ export function AIToolsPanel() {
                           <select
                             value={upscaleModel}
                             onChange={(e) => setUpscaleModel(e.target.value)}
-                            className="w-full bg-surface border border-border rounded-lg px-3 py-2 text-xs font-display text-text-primary focus:border-red-primary transition-all"
+                            className="w-full appearance-none bg-elevated border border-border rounded-lg px-3 py-2 text-xs font-display text-text-primary focus:border-red-primary focus:ring-1 focus:ring-red-primary/40 transition-all"
                           >
                             <option value="general">General</option>
                             <option value="face">Face</option>
@@ -215,6 +218,7 @@ export function AIToolsPanel() {
                           icon={isProcessing ? Loader2 : Maximize2}
                           isLoading={isProcessing}
                           onClick={() => handleApply(tool.id)}
+                          aria-label="Process with AI Upscale"
                         >
                           Upscale
                         </Button>
@@ -224,7 +228,7 @@ export function AIToolsPanel() {
                     {/* Style Transfer */}
                     {tool.id === 'style-transfer' && (
                       <>
-                        <div className="grid grid-cols-3 gap-1.5">
+                        <div className="grid grid-cols-[repeat(auto-fill,minmax(80px,1fr))] gap-1.5">
                           {STYLE_PRESETS.map((style) => (
                             <button
                               key={style.id}
@@ -238,9 +242,9 @@ export function AIToolsPanel() {
                               style={
                                 stylePreset === style.id
                                   ? {
-                                      backgroundColor: `${style.color}20`,
+                                      backgroundColor: hexToRgba(style.color, 0.13),
                                       color: style.color,
-                                      border: `1px solid ${style.color}40`,
+                                      border: `1px solid ${hexToRgba(style.color, 0.25)}`,
                                     }
                                   : undefined
                               }
@@ -264,6 +268,7 @@ export function AIToolsPanel() {
                           icon={isProcessing ? Loader2 : Palette}
                           isLoading={isProcessing}
                           onClick={() => handleApply(tool.id)}
+                          aria-label="Process with Style Transfer"
                         >
                           Apply Style
                         </Button>
@@ -290,6 +295,7 @@ export function AIToolsPanel() {
                           isLoading={isProcessing}
                           onClick={() => handleApply(tool.id)}
                           disabled={!genFillPrompt.trim()}
+                          aria-label="Process with Generative Fill"
                         >
                           Generate Fill
                         </Button>
@@ -311,6 +317,9 @@ export function AIToolsPanel() {
                             Eye Enhancement
                           </span>
                           <button
+                            role="switch"
+                            aria-checked={eyeEnhance}
+                            aria-label="Toggle eye enhancement"
                             onClick={() => setEyeEnhance(!eyeEnhance)}
                             className={cn(
                               'w-9 h-5 rounded-full transition-all relative',
@@ -341,6 +350,7 @@ export function AIToolsPanel() {
                           icon={isProcessing ? Loader2 : User}
                           isLoading={isProcessing}
                           onClick={() => handleApply(tool.id)}
+                          aria-label="Process with Face Enhancement"
                         >
                           Enhance Face
                         </Button>
@@ -360,6 +370,7 @@ export function AIToolsPanel() {
                           icon={isProcessing ? Loader2 : Eraser}
                           isLoading={isProcessing}
                           onClick={() => handleApply(tool.id)}
+                          aria-label="Process with Object Removal"
                         >
                           Remove Object
                         </Button>
@@ -382,7 +393,7 @@ export function AIToolsPanel() {
                                 key={id}
                                 onClick={() => toggleDirection(id)}
                                 className={cn(
-                                  'flex flex-col items-center gap-0.5 py-2 rounded-lg text-[10px] font-display transition-all',
+                                  'flex flex-col items-center gap-0.5 py-2 rounded-lg text-micro font-display transition-all',
                                   expandDirection.includes(id)
                                     ? 'bg-red-primary text-text-primary'
                                     : 'bg-surface text-text-body border border-border'
@@ -416,6 +427,7 @@ export function AIToolsPanel() {
                           icon={isProcessing ? Loader2 : Expand}
                           isLoading={isProcessing}
                           onClick={() => handleApply(tool.id)}
+                          aria-label="Process with AI Expand"
                         >
                           Expand Image
                         </Button>

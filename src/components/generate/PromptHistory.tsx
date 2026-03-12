@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { cn } from '@/utils/cn';
 import { useAppStore } from '@/store/appStore';
+import { ImageWithFallback } from '@/components/ui/ImageWithFallback';
 import {
   Clock,
   Search,
@@ -49,6 +50,13 @@ export function PromptHistory({
     };
   }, [isOpen, onClose]);
 
+  // Focus restoration when modal closes
+  useEffect(() => {
+    if (!isOpen) return;
+    const prev = document.activeElement as HTMLElement;
+    return () => { prev?.focus(); };
+  }, [isOpen]);
+
   const filtered = promptHistory.filter((entry) => {
     const matchesSearch =
       !search ||
@@ -83,6 +91,9 @@ export function PromptHistory({
           animate={{ opacity: 1, y: 0, scale: 1 }}
           exit={{ opacity: 0, y: -8, scale: 0.98 }}
           transition={{ duration: 0.15 }}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Prompt history"
           className="absolute left-0 right-0 top-full mt-2 z-40 bg-elevated border border-border rounded-xl shadow-cinematic overflow-hidden"
         >
           {/* Header */}
@@ -92,7 +103,7 @@ export function PromptHistory({
               <span className="text-label text-text-primary">
                 Prompt History
               </span>
-              <span className="font-mono text-[10px] text-text-muted">
+              <span className="font-mono text-micro text-text-muted">
                 {promptHistory.length}
               </span>
             </div>
@@ -119,8 +130,9 @@ export function PromptHistory({
             <div className="flex gap-0.5">
               <button
                 onClick={() => setFilter('all')}
+                aria-pressed={filter === 'all'}
                 className={cn(
-                  'px-2.5 py-1.5 rounded-lg text-[10px] font-display transition-all',
+                  'px-2.5 py-1.5 rounded-lg text-micro font-display transition-all',
                   filter === 'all'
                     ? 'bg-red-aura text-red-primary'
                     : 'text-text-muted hover:text-text-primary hover:bg-surface'
@@ -130,8 +142,9 @@ export function PromptHistory({
               </button>
               <button
                 onClick={() => setFilter('favorites')}
+                aria-pressed={filter === 'favorites'}
                 className={cn(
-                  'px-2.5 py-1.5 rounded-lg text-[10px] font-display flex items-center gap-1 transition-all',
+                  'px-2.5 py-1.5 rounded-lg text-micro font-display flex items-center gap-1 transition-all',
                   filter === 'favorites'
                     ? 'bg-red-aura text-red-primary'
                     : 'text-text-muted hover:text-text-primary hover:bg-surface'
@@ -153,7 +166,7 @@ export function PromptHistory({
                     ? 'No history yet'
                     : 'No matching prompts'}
                 </p>
-                <p className="text-[10px] text-text-muted mt-0.5">
+                <p className="text-micro text-text-muted mt-0.5">
                   {promptHistory.length === 0
                     ? 'Generate an image to build your history'
                     : 'Try a different search term'}
@@ -203,10 +216,12 @@ function PromptHistoryRow({
       {/* Thumbnail */}
       {entry.result ? (
         <div className="w-10 h-10 rounded-lg bg-surface border border-border flex-shrink-0 overflow-hidden">
-          <img
+          <ImageWithFallback
             src={entry.result}
             alt=""
             className="w-full h-full object-cover"
+            fallbackClassName="w-10 h-10"
+            loading="lazy"
           />
         </div>
       ) : (
@@ -221,13 +236,13 @@ function PromptHistoryRow({
           {entry.prompt}
         </p>
         <div className="flex items-center gap-2 mt-1">
-          <span className="font-mono text-[9px] text-text-muted">
+          <span className="font-mono text-micro text-text-muted">
             {formatTimestamp(entry.timestamp)}
           </span>
           {entry.model && (
             <>
               <span className="text-text-muted/30">&middot;</span>
-              <span className="font-mono text-[9px] text-text-muted">
+              <span className="font-mono text-micro text-text-muted">
                 {entry.model}
               </span>
             </>
@@ -236,14 +251,14 @@ function PromptHistoryRow({
       </div>
 
       {/* Actions */}
-      <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+      <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity flex-shrink-0">
         <button
           onClick={(e) => {
             e.stopPropagation();
             onToggleFavorite();
           }}
           className={cn(
-            'p-1 rounded-md transition-all',
+            'p-1 rounded-md transition-all focus-visible:opacity-100',
             isFavorite
               ? 'text-red-primary'
               : 'text-text-muted hover:text-red-primary'
@@ -260,7 +275,7 @@ function PromptHistoryRow({
             e.stopPropagation();
             onSelect();
           }}
-          className="p-1 rounded-md text-text-muted hover:text-text-primary transition-all"
+          className="p-1 rounded-md text-text-muted hover:text-text-primary transition-all focus-visible:opacity-100"
           title="Use this prompt"
         >
           <ArrowUpRight className="w-3 h-3" />

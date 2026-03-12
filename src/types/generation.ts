@@ -31,11 +31,25 @@ export interface BatchResult {
   promptIndex: number;
   prompt: string;
   imagePath: string;
+  assetPath?: string;
   seed: number;
   generationTime: number;
   params: Record<string, any>;
   createdAt: Date;
   isFavorite: boolean;
+}
+
+export interface GenerationDraft {
+  generationType: 'image' | 'video';
+  prompt: string;
+  negativePrompt: string;
+  width: number;
+  height: number;
+  steps: number;
+  cfgScale: number;
+  model: string;
+  scheduler: string;
+  seed: number;
 }
 
 export interface LoRAConfig {

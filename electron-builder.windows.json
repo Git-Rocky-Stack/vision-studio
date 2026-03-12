@@ -30,11 +30,7 @@
   "win": {
     "target": [
       {
-        "target": "portable",
-        "arch": ["x64"]
-      },
-      {
-        "target": "zip",
+        "target": "dir",
         "arch": ["x64"]
       }
     ],
@@ -44,9 +40,6 @@
     "requestedExecutionLevel": "asInvoker"
   },
   "compression": "store",
-  "portable": {
-    "artifactName": "Vision-Studio-Portable-${version}.exe"
-  },
   "publish": {
     "provider": "github",
     "owner": "yourusername",

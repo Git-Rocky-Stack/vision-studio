@@ -37,11 +37,11 @@ export function PromptArea({
     <div className="space-y-3">
       {/* Label */}
       <div className="flex items-center justify-between">
-        <label className="text-label text-text-body flex items-center gap-2">
+        <label htmlFor="prompt-input" className="text-label text-text-body flex items-center gap-2">
           <Sparkles className="w-3.5 h-3.5 text-red-primary" />
           Prompt
         </label>
-        <span className="font-mono text-xs text-text-muted">{prompt.length}</span>
+        <span className="font-mono text-xs text-text-muted" aria-live="polite">{prompt.length}</span>
       </div>
 
       {/* Prompt textarea with focus glow wrapper */}
@@ -52,6 +52,7 @@ export function PromptArea({
         )}
       >
         <Textarea
+          id="prompt-input"
           value={prompt}
           onChange={(e) => onPromptChange(e.target.value)}
           onFocus={() => setIsFocused(true)}
@@ -79,6 +80,7 @@ export function PromptArea({
       {/* Negative prompt toggle */}
       <button
         onClick={() => setShowNegative(!showNegative)}
+        aria-expanded={showNegative}
         className="flex items-center gap-1.5 text-xs text-text-muted hover:text-text-body transition-colors"
       >
         <ChevronDown
@@ -100,6 +102,7 @@ export function PromptArea({
             className="overflow-hidden"
           >
             <Textarea
+              id="negative-prompt-input"
               value={negativePrompt}
               onChange={(e) => onNegativePromptChange(e.target.value)}
               placeholder="Things to avoid in the generation..."

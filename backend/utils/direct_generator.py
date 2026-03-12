@@ -19,7 +19,10 @@ try:
         StableDiffusionXLPipeline,
         FluxPipeline,
         DPMSolverMultistepScheduler,
-        EulerDiscreteScheduler
+        EulerDiscreteScheduler,
+        EulerAncestralDiscreteScheduler,
+        DDIMScheduler,
+        UniPCMultistepScheduler,
     )
     DIFFUSERS_AVAILABLE = True
 except ImportError:
@@ -30,8 +33,9 @@ except ImportError:
 class DirectGenerator:
     """Direct image generation using diffusers"""
     
-    def __init__(self, models_dir: str):
+    def __init__(self, models_dir: str, output_dir: str):
         self.models_dir = models_dir
+        self.output_dir = output_dir
         self.pipelines: Dict[str, Any] = {}
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self.executor = ThreadPoolExecutor(max_workers=1)
@@ -100,6 +104,31 @@ class DirectGenerator:
         print(f"   ✅ Model loaded")
         
         return pipeline
+
+    def _configure_scheduler(self, pipeline, scheduler_name: str):
+        normalized = scheduler_name.strip().lower()
+        scheduler_cls = EulerAncestralDiscreteScheduler
+
+        if normalized == "euler":
+            scheduler_cls = EulerDiscreteScheduler
+        elif normalized in {"euler a", "euler_a", "euler ancestral"}:
+            scheduler_cls = EulerAncestralDiscreteScheduler
+        elif normalized in {
+            "dpm++ 2m",
+            "dpm++ 2m karras",
+            "dpm++ sde",
+            "dpm++ sde karras",
+        }:
+            scheduler_cls = DPMSolverMultistepScheduler
+        elif normalized == "ddim":
+            scheduler_cls = DDIMScheduler
+        elif normalized == "unipc":
+            scheduler_cls = UniPCMultistepScheduler
+
+        pipeline.scheduler = scheduler_cls.from_config(pipeline.scheduler.config)
+        if "karras" in normalized and hasattr(pipeline.scheduler.config, "use_karras_sigmas"):
+            pipeline.scheduler.config.use_karras_sigmas = True
+        return pipeline
     
     async def generate_image(
         self,
@@ -112,11 +141,12 @@ class DirectGenerator:
         cfg_scale: float = 7.5,
         seed: Optional[int] = None,
         model_name: str = "sdxl",
+        scheduler: str = "Euler a",
         progress_callback: Optional[Callable[[float], None]] = None
     ) -> Dict[str, Any]:
         """Generate an image"""
         
-        output_dir = os.path.join(os.path.dirname(__file__), "..", "outputs", job_id)
+        output_dir = os.path.join(self.output_dir, job_id)
         os.makedirs(output_dir, exist_ok=True)
         
         # Set seed
@@ -148,6 +178,7 @@ class DirectGenerator:
                 cfg_scale,
                 seed,
                 model_name,
+                scheduler,
                 progress_callback_fn,
                 output_dir
             )
@@ -168,6 +199,7 @@ class DirectGenerator:
         cfg_scale: float,
         seed: int,
         model_name: str,
+        scheduler: str,
         progress_callback_fn: Callable,
         output_dir: str
     ) -> Dict[str, Any]:
@@ -175,6 +207,7 @@ class DirectGenerator:
         
         # Load pipeline
         pipeline = self._load_pipeline(model_name)
+        pipeline = self._configure_scheduler(pipeline, scheduler)
         
         # Set generator for reproducibility
         generator = torch.Generator(device=self.device).manual_seed(seed)

@@ -32,6 +32,8 @@ export function ComparisonToolbar() {
             <button
               key={mode.id}
               onClick={() => setComparisonMode(mode.id)}
+              aria-label={mode.label}
+              aria-pressed={isActive}
               className={cn(
                 'flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-display transition-all',
                 isActive
@@ -51,6 +53,7 @@ export function ComparisonToolbar() {
         <button
           onClick={() => setComparisonMode('off')}
           className="p-1.5 rounded-md text-text-muted hover:text-red-primary hover:bg-red-aura transition-all"
+          aria-label="Close comparison view"
           title="Close comparison"
         >
           <X className="w-3.5 h-3.5" />

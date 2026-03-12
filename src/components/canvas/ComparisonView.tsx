@@ -42,12 +42,13 @@ export function ComparisonView() {
   // Slider drag handler
   const handleSliderDrag = useCallback(
     (e: MouseEvent) => {
-      if (!isDragging || !containerRef.current) return;
-      const rect = containerRef.current.getBoundingClientRect();
+      const container = containerRef.current;
+      if (!container) return;
+      const rect = container.getBoundingClientRect();
       const x = ((e.clientX - rect.left) / rect.width) * 100;
       setSliderPosition(Math.max(0, Math.min(100, x)));
     },
-    [isDragging]
+    [] // No dependencies needed - containerRef is stable
   );
 
   useEffect(() => {
@@ -146,7 +147,22 @@ export function ComparisonView() {
             {/* Handle */}
             <button
               onMouseDown={() => setIsDragging(true)}
-              className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-8 h-8 rounded-full bg-red-primary border-2 border-text-primary flex items-center justify-center cursor-ew-resize shadow-[0_0_12px_rgba(230,57,70,0.5)]"
+              onKeyDown={(e) => {
+                if (e.key === 'ArrowLeft') {
+                  e.preventDefault();
+                  setSliderPosition(Math.max(0, sliderPosition - 1));
+                } else if (e.key === 'ArrowRight') {
+                  e.preventDefault();
+                  setSliderPosition(Math.min(100, sliderPosition + 1));
+                }
+              }}
+              role="slider"
+              aria-label="Comparison slider"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={Math.round(sliderPosition)}
+              tabIndex={0}
+              className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-8 h-8 rounded-full bg-red-primary border-2 border-text-primary flex items-center justify-center cursor-ew-resize shadow-[0_0_12px_var(--color-red-glow)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-primary focus-visible:ring-offset-2"
             >
               <div className="flex gap-0.5">
                 <div className="w-0.5 h-3 bg-text-primary rounded-full" />
@@ -225,7 +241,7 @@ export function ComparisonView() {
                   </div>
                 )}
                 <div className="absolute bottom-1 left-1 right-1">
-                  <p className="text-[10px] font-display text-text-primary bg-void/60 backdrop-blur-sm rounded px-1.5 py-0.5 truncate">
+                  <p className="text-micro font-display text-text-primary bg-void/60 backdrop-blur-sm rounded px-1.5 py-0.5 truncate">
                     {item.prompt}
                   </p>
                 </div>

@@ -1,16 +1,17 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import packageJson from '../../package.json';
 import { cn } from '@/utils/cn';
 import { Button } from '@/components/ui/Button';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
+import { useAppStore } from '@/store/appStore';
 import {
   Settings,
   Folder,
   Cpu,
   Palette,
   Bell,
-  Shield,
   ChevronRight,
   Check,
-  AlertCircle,
   RefreshCw,
   HardDrive,
   Monitor,
@@ -25,6 +26,17 @@ interface SettingsSection {
   icon: React.ElementType;
 }
 
+interface SettingsState {
+  theme: 'dark' | 'light' | 'system';
+  autoSave: boolean;
+  defaultOutputPath: string;
+  backendAutostart: boolean;
+  notifyOnGenerationComplete: boolean;
+  notifyOnGenerationFailed: boolean;
+  notifyOnModelDownloads: boolean;
+  pythonPath?: string;
+}
+
 const sections: SettingsSection[] = [
   { id: 'general', label: 'General', icon: Settings },
   { id: 'ai', label: 'AI & Models', icon: Cpu },
@@ -32,16 +44,160 @@ const sections: SettingsSection[] = [
   { id: 'notifications', label: 'Notifications', icon: Bell },
 ];
 
+const defaultSettingsState: SettingsState = {
+  theme: 'dark',
+  autoSave: true,
+  defaultOutputPath: '',
+  backendAutostart: true,
+  notifyOnGenerationComplete: true,
+  notifyOnGenerationFailed: true,
+  notifyOnModelDownloads: true,
+};
+
 export function SettingsPanel() {
+  const {
+    assetLibrary,
+    systemInfo,
+    availableModels,
+    removeAssetsByRoot,
+    clearBatchResults,
+    setAvailableModels,
+  } = useAppStore();
   const [activeTab, setActiveTab] = useState<SettingsTab>('general');
-  const [outputPath, setOutputPath] = useState('C:/Users/VisionStudio/Outputs');
-  const [autoSave, setAutoSave] = useState(true);
-  const [gpuAcceleration, setGpuAcceleration] = useState(true);
-  const [theme, setTheme] = useState<'dark' | 'light' | 'system'>('dark');
+  const [settings, setSettings] = useState<SettingsState>(defaultSettingsState);
+  const [activeModelId, setActiveModelId] = useState<string | null>(null);
+  const [showClearCacheConfirm, setShowClearCacheConfirm] = useState(false);
+  const [deleteModelTarget, setDeleteModelTarget] = useState<string | null>(null);
+  const modelStatusIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    const loadSettings = async () => {
+      const loadedSettings = await window.electron.settings.get();
+      setSettings({
+        theme: loadedSettings.theme,
+        autoSave: loadedSettings.autoSave,
+        defaultOutputPath: loadedSettings.defaultOutputPath,
+        backendAutostart: loadedSettings.backendAutostart,
+        notifyOnGenerationComplete: loadedSettings.notifyOnGenerationComplete,
+        notifyOnGenerationFailed: loadedSettings.notifyOnGenerationFailed,
+        notifyOnModelDownloads: loadedSettings.notifyOnModelDownloads,
+        pythonPath: loadedSettings.pythonPath,
+      });
+    };
+
+    loadSettings();
+
+    return () => {
+      if (modelStatusIntervalRef.current) {
+        clearInterval(modelStatusIntervalRef.current);
+      }
+    };
+  }, []);
+
+  const assetSummary = useMemo(() => {
+    return `${assetLibrary.length} tracked asset${assetLibrary.length === 1 ? '' : 's'}`;
+  }, [assetLibrary.length]);
+
+  const persistSettings = async (patch: Partial<SettingsState>) => {
+    const next = await window.electron.settings.update(patch);
+    setSettings({
+      theme: next.theme,
+      autoSave: next.autoSave,
+      defaultOutputPath: next.defaultOutputPath,
+      backendAutostart: next.backendAutostart,
+      notifyOnGenerationComplete: next.notifyOnGenerationComplete,
+      notifyOnGenerationFailed: next.notifyOnGenerationFailed,
+      notifyOnModelDownloads: next.notifyOnModelDownloads,
+      pythonPath: next.pythonPath,
+    });
+    window.dispatchEvent(
+      new CustomEvent('vision-studio:theme-changed', {
+        detail: { theme: next.theme },
+      })
+    );
+  };
+
+  const handleBrowseOutputPath = async () => {
+    const selectedFolder = await window.electron.dialog.selectFolder();
+    if (!selectedFolder) {
+      return;
+    }
+
+    await persistSettings({ defaultOutputPath: selectedFolder });
+  };
+
+  const handleClearCache = () => {
+    setShowClearCacheConfirm(true);
+  };
+
+  const confirmClearCache = async () => {
+    const result = await window.electron.assets.clearCache();
+    if (result.success) {
+      const userDataPath = await window.electron.app.getPath('userData');
+      removeAssetsByRoot(`${userDataPath.replace(/\\/g, '/')}/outputs`);
+      clearBatchResults();
+    }
+    setShowClearCacheConfirm(false);
+  };
+
+  const refreshModels = async () => {
+    const models = await window.electron.models.list();
+    setAvailableModels(models);
+  };
+
+  const waitForModelStatus = async (modelId: string) => {
+    if (modelStatusIntervalRef.current) {
+      clearInterval(modelStatusIntervalRef.current);
+    }
+
+    modelStatusIntervalRef.current = setInterval(async () => {
+      const status = await window.electron.models.getStatus(modelId);
+      const models = await window.electron.models.list();
+      setAvailableModels(models);
+
+      if (!status || status.status === 'ready' || status.status === 'error') {
+        if (modelStatusIntervalRef.current) {
+          clearInterval(modelStatusIntervalRef.current);
+          modelStatusIntervalRef.current = null;
+        }
+        setActiveModelId(null);
+
+        if (status?.status === 'ready') {
+          await window.electron.notifications.notify('model_download', {
+            title: 'Model Ready',
+            body: `${status.name} is installed and ready to use.`,
+          });
+        }
+      }
+    }, 2500);
+  };
+
+  const handleDownloadModel = async (modelId: string) => {
+    setActiveModelId(modelId);
+    const result = await window.electron.models.download(modelId);
+    if (!result.success) {
+      setActiveModelId(null);
+      return;
+    }
+
+    await refreshModels();
+    await waitForModelStatus(modelId);
+  };
+
+  const handleDeleteModel = (modelId: string) => {
+    setDeleteModelTarget(modelId);
+  };
+
+  const confirmDeleteModel = async (modelId: string) => {
+    setActiveModelId(modelId);
+    await window.electron.models.delete(modelId);
+    await refreshModels();
+    setActiveModelId(null);
+    setDeleteModelTarget(null);
+  };
 
   return (
     <div className="h-full flex bg-surface">
-      {/* Sidebar */}
       <div className="w-56 border-r border-border bg-elevated p-3">
         <nav className="space-y-1">
           {sections.map((section) => {
@@ -50,8 +206,9 @@ export function SettingsPanel() {
               <button
                 key={section.id}
                 onClick={() => setActiveTab(section.id)}
+                aria-current={activeTab === section.id ? 'page' : undefined}
                 className={cn(
-                  'w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all text-left',
+                  'w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-all text-left',
                   activeTab === section.id
                     ? 'bg-red-aura text-red-primary border border-red-primary/30'
                     : 'text-text-body hover:text-text-primary hover:bg-surface'
@@ -67,14 +224,12 @@ export function SettingsPanel() {
           })}
         </nav>
 
-        {/* Version Info */}
         <div className="absolute bottom-4 left-4">
-          <p className="text-xs font-mono text-text-muted">Vision Studio v0.1.0</p>
+          <p className="text-xs font-mono text-text-muted">{`Vision Studio v${packageJson.version}`}</p>
           <p className="text-xs font-mono text-text-muted/60">Beta Release</p>
         </div>
       </div>
 
-      {/* Content */}
       <div className="flex-1 overflow-y-auto p-6">
         <AnimatePresence mode="wait">
           <motion.div
@@ -96,54 +251,82 @@ export function SettingsPanel() {
                   </p>
                 </div>
 
-                {/* Output Path */}
                 <div className="space-y-3">
-                  <label className="text-label text-text-body flex items-center gap-2">
+                  <label htmlFor="output-path-input" className="text-label text-text-body flex items-center gap-2">
                     <Folder className="w-4 h-4" />
                     Default Output Location
                   </label>
                   <div className="flex gap-2">
                     <input
+                      id="output-path-input"
                       type="text"
-                      value={outputPath}
+                      value={settings.defaultOutputPath || 'Using app data /outputs'}
                       readOnly
                       className="flex-1 bg-elevated border border-border rounded-lg px-3 py-2 text-sm font-mono text-text-primary"
                     />
-                    <Button variant="secondary" size="sm">
+                    <Button variant="secondary" size="sm" onClick={handleBrowseOutputPath}>
                       Browse
                     </Button>
                   </div>
+                  <p className="text-xs text-text-muted">
+                    Changing the output folder automatically restarts the backend so new generations write to the new location.
+                  </p>
                 </div>
 
-                {/* Auto Save */}
                 <div className="flex items-center justify-between py-3 border-b border-border">
                   <div>
                     <h3 className="text-sm font-display font-medium text-text-primary">
                       Auto Save
                     </h3>
                     <p className="text-xs text-text-body mt-0.5">
-                      Automatically save projects every 5 minutes
+                      Automatically save local project state as you work
                     </p>
                   </div>
                   <button
-                    onClick={() => setAutoSave(!autoSave)}
+                    role="switch"
+                    aria-checked={settings.autoSave}
+                    aria-label="Toggle auto save"
+                    onClick={() => persistSettings({ autoSave: !settings.autoSave })}
                     className={cn(
-                      'w-11 h-6 rounded-full transition-all relative',
-                      autoSave
-                        ? 'bg-red-primary'
-                        : 'bg-elevated border border-border'
+                      'w-9 h-5 rounded-full transition-colors relative flex-shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-primary focus-visible:ring-offset-2 focus-visible:ring-offset-void',
+                      settings.autoSave ? 'bg-red-primary' : 'bg-surface border border-border'
                     )}
                   >
-                    <span
-                      className={cn(
-                        'absolute top-1 w-4 h-4 rounded-full bg-text-primary transition-all',
-                        autoSave ? 'left-6' : 'left-1'
-                      )}
-                    />
+                    <span className={cn(
+                      'absolute top-0.5 w-4 h-4 rounded-full bg-text-primary transition-transform',
+                      settings.autoSave ? 'translate-x-4' : 'translate-x-0.5'
+                    )} />
                   </button>
                 </div>
 
-                {/* Storage */}
+                <div className="flex items-center justify-between py-3 border-b border-border">
+                  <div>
+                    <h3 className="text-sm font-display font-medium text-text-primary">
+                      Backend Autostart
+                    </h3>
+                    <p className="text-xs text-text-body mt-0.5">
+                      Start the local AI backend automatically when the app opens
+                    </p>
+                  </div>
+                  <button
+                    role="switch"
+                    aria-checked={settings.backendAutostart}
+                    aria-label="Toggle backend autostart"
+                    onClick={() =>
+                      persistSettings({ backendAutostart: !settings.backendAutostart })
+                    }
+                    className={cn(
+                      'w-9 h-5 rounded-full transition-colors relative flex-shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-primary focus-visible:ring-offset-2 focus-visible:ring-offset-void',
+                      settings.backendAutostart ? 'bg-red-primary' : 'bg-surface border border-border'
+                    )}
+                  >
+                    <span className={cn(
+                      'absolute top-0.5 w-4 h-4 rounded-full bg-text-primary transition-transform',
+                      settings.backendAutostart ? 'translate-x-4' : 'translate-x-0.5'
+                    )} />
+                  </button>
+                </div>
+
                 <div className="space-y-3">
                   <h3 className="text-label text-text-body flex items-center gap-2">
                     <HardDrive className="w-4 h-4" />
@@ -154,15 +337,26 @@ export function SettingsPanel() {
                       <span className="text-sm font-display text-text-primary">
                         Generated Assets
                       </span>
-                      <span className="text-sm font-mono text-text-body">4.2 GB used</span>
+                      <span className="text-sm font-mono text-text-body">{assetSummary}</span>
                     </div>
                     <div className="h-2 bg-void rounded-full overflow-hidden border border-border">
-                      <div className="h-full w-[35%] bg-gradient-to-r from-red-primary to-red-highlight rounded-full" />
+                      <div
+                        className="h-full bg-gradient-to-r from-red-primary to-red-highlight rounded-full"
+                        style={{
+                          width: `${Math.min(100, Math.max(8, assetLibrary.length * 8))}%`,
+                        }}
+                      />
                     </div>
                     <p className="text-xs font-mono text-text-muted mt-2">
-                      35% of 12 GB cache limit used
+                      App cache folder: internal `/outputs`. Custom output folders are preserved.
                     </p>
-                    <Button variant="ghost" size="sm" className="mt-3" icon={RefreshCw}>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="mt-3"
+                      icon={RefreshCw}
+                      onClick={handleClearCache}
+                    >
                       Clear Cache
                     </Button>
                   </div>
@@ -181,81 +375,89 @@ export function SettingsPanel() {
                   </p>
                 </div>
 
-                {/* GPU Acceleration */}
-                <div className="flex items-center justify-between py-3 border-b border-border">
-                  <div>
-                    <h3 className="text-sm font-display font-medium text-text-primary flex items-center gap-2">
-                      <Monitor className="w-4 h-4" />
-                      GPU Acceleration
-                    </h3>
-                    <p className="text-xs text-text-body mt-0.5">
-                      Use GPU for faster generation (recommended)
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => setGpuAcceleration(!gpuAcceleration)}
-                    className={cn(
-                      'w-11 h-6 rounded-full transition-all relative',
-                      gpuAcceleration
-                        ? 'bg-red-primary'
-                        : 'bg-elevated border border-border'
-                    )}
-                  >
-                    <span
-                      className={cn(
-                        'absolute top-1 w-4 h-4 rounded-full bg-text-primary transition-all',
-                        gpuAcceleration ? 'left-6' : 'left-1'
-                      )}
-                    />
-                  </button>
-                </div>
-
-                {/* GPU Info */}
                 <div className="bg-elevated rounded-lg p-4 border border-border">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-lg bg-green-500/10 flex items-center justify-center">
-                      <Check className="w-5 h-5 text-green-500" />
+                    <div
+                      className={cn(
+                        'w-10 h-10 rounded-lg flex items-center justify-center',
+                        systemInfo.gpuAvailable ? 'bg-[var(--color-status-success-muted)]' : 'bg-[var(--color-status-warning-muted)]'
+                      )}
+                    >
+                      <Check
+                        className={cn(
+                          'w-5 h-5',
+                          systemInfo.gpuAvailable ? 'text-[var(--color-status-success)]' : 'text-[var(--color-status-warning)]'
+                        )}
+                      />
                     </div>
                     <div>
                       <h4 className="text-sm font-display font-medium text-text-primary">
-                        NVIDIA RTX 4090 Detected
+                        {systemInfo.gpuName || 'GPU not detected'}
                       </h4>
                       <p className="text-xs font-mono text-text-body">
-                        24GB VRAM &middot; CUDA 12.1
+                        {systemInfo.gpuVram || 'CPU mode'} &middot;{' '}
+                        {systemInfo.cudaVersion || 'No CUDA'}
                       </p>
                     </div>
                   </div>
                 </div>
 
-                {/* Models */}
                 <div className="space-y-4">
                   <h3 className="text-label text-text-body">Installed Models</h3>
 
-                  {[
-                    { name: 'FLUX.1 [dev]', size: '23.8 GB', status: 'ready' },
-                    { name: 'FLUX.1 [schnell]', size: '23.8 GB', status: 'ready' },
-                    { name: 'Stable Diffusion XL', size: '6.9 GB', status: 'ready' },
-                    { name: 'LTX Video', size: '9.4 GB', status: 'ready' },
-                  ].map((model) => (
-                    <div
-                      key={model.name}
-                      className="flex items-center justify-between py-3 border-b border-border/50"
-                    >
-                      <div>
-                        <h4 className="text-sm font-display text-text-primary">{model.name}</h4>
-                        <p className="text-xs font-mono text-text-body">{model.size}</p>
-                      </div>
-                      <span className="text-xs font-display text-green-500 flex items-center gap-1">
-                        <Check className="w-3 h-3" />
-                        Ready
-                      </span>
+                  {availableModels.length === 0 ? (
+                    <div className="rounded-lg border border-border bg-elevated p-4 text-sm text-text-body">
+                      No models reported by the backend yet.
                     </div>
-                  ))}
+                  ) : (
+                    availableModels.map((model: any) => (
+                      <div
+                        key={model.id}
+                        className="flex items-center justify-between py-3 border-b border-border/50"
+                      >
+                        <div>
+                          <h4 className="text-sm font-display text-text-primary">{model.name}</h4>
+                          <p className="text-xs font-mono text-text-body">
+                            {model.size}
+                            {typeof model.progress === 'number' && model.status === 'downloading'
+                              ? ` · ${Math.round(model.progress)}%`
+                              : ''}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span
+                            className={cn(
+                              'text-xs font-display flex items-center gap-1',
+                              model.status === 'ready' ? 'text-[var(--color-status-success)]' : 'text-text-body'
+                            )}
+                          >
+                            <Check className="w-3 h-3" />
+                            {model.status}
+                          </span>
+                          {model.status !== 'ready' ? (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleDownloadModel(model.id)}
+                              disabled={activeModelId === model.id}
+                            >
+                              Download
+                            </Button>
+                          ) : (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleDeleteModel(model.id)}
+                              disabled={activeModelId === model.id}
+                            >
+                              Remove
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    ))
+                  )}
                 </div>
-
-                <Button variant="secondary" fullWidth>
-                  Download More Models
-                </Button>
               </div>
             )}
 
@@ -270,17 +472,16 @@ export function SettingsPanel() {
                   </p>
                 </div>
 
-                {/* Theme */}
                 <div className="space-y-3">
                   <label className="text-label text-text-body">Theme</label>
                   <div className="grid grid-cols-3 gap-3">
-                    {(['dark', 'light', 'system'] as const).map((t) => (
+                    {(['dark', 'light', 'system'] as const).map((themeOption) => (
                       <button
-                        key={t}
-                        onClick={() => setTheme(t)}
+                        key={themeOption}
+                        onClick={() => persistSettings({ theme: themeOption })}
                         className={cn(
                           'p-4 rounded-lg border transition-all text-center capitalize',
-                          theme === t
+                          settings.theme === themeOption
                             ? 'border-red-primary bg-red-aura'
                             : 'border-border bg-elevated hover:border-border-hover'
                         )}
@@ -288,42 +489,24 @@ export function SettingsPanel() {
                         <div
                           className={cn(
                             'w-8 h-8 mx-auto rounded-full mb-2',
-                            t === 'dark' && 'bg-void border border-border',
-                            t === 'light' && 'bg-white border border-gray-200',
-                            t === 'system' &&
+                            themeOption === 'dark' && 'bg-void border border-border',
+                            themeOption === 'light' && 'bg-white border border-gray-200',
+                            themeOption === 'system' &&
                               'bg-gradient-to-br from-void to-white border border-gray-300'
                           )}
                         />
                         <span
                           className={cn(
                             'text-sm font-display',
-                            theme === t ? 'text-red-primary' : 'text-text-body'
+                            settings.theme === themeOption
+                              ? 'text-red-primary'
+                              : 'text-text-body'
                           )}
                         >
-                          {t}
+                          {themeOption}
                         </span>
                       </button>
                     ))}
-                  </div>
-                </div>
-
-                {/* Accent Color */}
-                <div className="space-y-3">
-                  <label className="text-label text-text-body">Accent Color</label>
-                  <div className="flex gap-3">
-                    {['#dc2626', '#7c3aed', '#2563eb', '#059669', '#ea580c'].map(
-                      (color) => (
-                        <button
-                          key={color}
-                          className={cn(
-                            'w-10 h-10 rounded-lg transition-all',
-                            color === '#dc2626' &&
-                              'ring-2 ring-text-primary ring-offset-2 ring-offset-void'
-                          )}
-                          style={{ backgroundColor: color }}
-                        />
-                      )
-                    )}
                   </div>
                 </div>
               </div>
@@ -336,64 +519,125 @@ export function SettingsPanel() {
                     Notifications
                   </h2>
                   <p className="text-sm text-text-body">
-                    Manage notification preferences
+                    Control desktop alerts for generation and model events.
                   </p>
                 </div>
 
-                {[
-                  {
-                    label: 'Generation Complete',
-                    description: 'Get notified when generation finishes',
-                    default: true,
-                  },
-                  {
-                    label: 'Generation Failed',
-                    description: 'Get notified when generation fails',
-                    default: true,
-                  },
-                  {
-                    label: 'Project Updates',
-                    description: 'Updates about your projects',
-                    default: false,
-                  },
-                  {
-                    label: 'New Features',
-                    description: 'Learn about new features and updates',
-                    default: true,
-                  },
-                ].map((item) => (
-                  <div
-                    key={item.label}
-                    className="flex items-center justify-between py-3 border-b border-border"
-                  >
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between py-3 border-b border-border">
                     <div>
                       <h3 className="text-sm font-display font-medium text-text-primary">
-                        {item.label}
+                        Generation Complete
                       </h3>
-                      <p className="text-xs text-text-body mt-0.5">{item.description}</p>
+                      <p className="text-xs text-text-body mt-0.5">
+                        Show a desktop notification when a render finishes.
+                      </p>
                     </div>
                     <button
+                      role="switch"
+                      aria-checked={settings.notifyOnGenerationComplete}
+                      aria-label="Toggle generation complete notifications"
+                      onClick={() =>
+                        persistSettings({
+                          notifyOnGenerationComplete: !settings.notifyOnGenerationComplete,
+                        })
+                      }
                       className={cn(
-                        'w-11 h-6 rounded-full transition-all relative',
-                        item.default
-                          ? 'bg-red-primary'
-                          : 'bg-elevated border border-border'
+                        'w-9 h-5 rounded-full transition-colors relative flex-shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-primary focus-visible:ring-offset-2 focus-visible:ring-offset-void',
+                        settings.notifyOnGenerationComplete ? 'bg-red-primary' : 'bg-surface border border-border'
                       )}
                     >
-                      <span
-                        className={cn(
-                          'absolute top-1 w-4 h-4 rounded-full bg-text-primary transition-all',
-                          item.default ? 'left-6' : 'left-1'
-                        )}
-                      />
+                      <span className={cn(
+                        'absolute top-0.5 w-4 h-4 rounded-full bg-text-primary transition-transform',
+                        settings.notifyOnGenerationComplete ? 'translate-x-4' : 'translate-x-0.5'
+                      )} />
                     </button>
                   </div>
-                ))}
+
+                  <div className="flex items-center justify-between py-3 border-b border-border">
+                    <div>
+                      <h3 className="text-sm font-display font-medium text-text-primary">
+                        Generation Failed
+                      </h3>
+                      <p className="text-xs text-text-body mt-0.5">
+                        Show a desktop notification when a render fails.
+                      </p>
+                    </div>
+                    <button
+                      role="switch"
+                      aria-checked={settings.notifyOnGenerationFailed}
+                      aria-label="Toggle generation failed notifications"
+                      onClick={() =>
+                        persistSettings({
+                          notifyOnGenerationFailed: !settings.notifyOnGenerationFailed,
+                        })
+                      }
+                      className={cn(
+                        'w-9 h-5 rounded-full transition-colors relative flex-shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-primary focus-visible:ring-offset-2 focus-visible:ring-offset-void',
+                        settings.notifyOnGenerationFailed ? 'bg-red-primary' : 'bg-surface border border-border'
+                      )}
+                    >
+                      <span className={cn(
+                        'absolute top-0.5 w-4 h-4 rounded-full bg-text-primary transition-transform',
+                        settings.notifyOnGenerationFailed ? 'translate-x-4' : 'translate-x-0.5'
+                      )} />
+                    </button>
+                  </div>
+
+                  <div className="flex items-center justify-between py-3 border-b border-border">
+                    <div>
+                      <h3 className="text-sm font-display font-medium text-text-primary">
+                        Model Downloads
+                      </h3>
+                      <p className="text-xs text-text-body mt-0.5">
+                        Show a desktop notification when model downloads complete.
+                      </p>
+                    </div>
+                    <button
+                      role="switch"
+                      aria-checked={settings.notifyOnModelDownloads}
+                      aria-label="Toggle model download notifications"
+                      onClick={() =>
+                        persistSettings({
+                          notifyOnModelDownloads: !settings.notifyOnModelDownloads,
+                        })
+                      }
+                      className={cn(
+                        'w-9 h-5 rounded-full transition-colors relative flex-shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-primary focus-visible:ring-offset-2 focus-visible:ring-offset-void',
+                        settings.notifyOnModelDownloads ? 'bg-red-primary' : 'bg-surface border border-border'
+                      )}
+                    >
+                      <span className={cn(
+                        'absolute top-0.5 w-4 h-4 rounded-full bg-text-primary transition-transform',
+                        settings.notifyOnModelDownloads ? 'translate-x-4' : 'translate-x-0.5'
+                      )} />
+                    </button>
+                  </div>
+                </div>
               </div>
             )}
           </motion.div>
         </AnimatePresence>
       </div>
+
+      <ConfirmDialog
+        open={showClearCacheConfirm}
+        title="Clear Cache"
+        message="This will delete all cached generated assets and clear batch results. Custom output folders are preserved. Continue?"
+        confirmLabel="Clear Cache"
+        variant="danger"
+        onConfirm={confirmClearCache}
+        onCancel={() => setShowClearCacheConfirm(false)}
+      />
+      <ConfirmDialog
+        open={deleteModelTarget !== null}
+        title="Remove Model"
+        message={`Are you sure you want to remove this model? You can re-download it later.`}
+        confirmLabel="Remove"
+        variant="danger"
+        onConfirm={() => { if (deleteModelTarget) confirmDeleteModel(deleteModelTarget); }}
+        onCancel={() => setDeleteModelTarget(null)}
+      />
     </div>
   );
 }
