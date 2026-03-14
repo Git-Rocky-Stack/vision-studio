@@ -85,16 +85,16 @@ export function WorkspaceLayout({
       case 'batch':
         return (
           <div className="flex-1 flex min-h-0">
-            {/* Prompt queue */}
-            {batchQueue && (
-              <div className="w-[416px] flex-shrink-0 border-r border-border bg-surface overflow-hidden">
-                {batchQueue}
-              </div>
-            )}
-            {/* Results grid */}
+            {/* Results grid (main area) */}
             <div className="flex-1 min-w-0 bg-void">
               {batchResults || <div className="flex-1" />}
             </div>
+            {/* Batch panel (right) — same width as Generate */}
+            {batchQueue && (
+              <div className="w-[400px] flex-shrink-0 border-l border-border bg-surface overflow-hidden">
+                {batchQueue}
+              </div>
+            )}
           </div>
         );
 

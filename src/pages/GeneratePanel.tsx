@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { cn } from '@/utils/cn';
 import { useAppStore } from '@/store/appStore';
 import { Button } from '@/components/ui/Button';
-import { Slider } from '@/components/ui/Slider';
 import { PromptArea } from '@/components/generate/PromptArea';
 import { StylePresetsBar } from '@/components/generate/StylePresetsBar';
 import { ModelSelector } from '@/components/generate/ModelSelector';
@@ -19,10 +18,6 @@ import {
   Wand2,
   Image as ImageIcon,
   Film,
-  Dice5,
-  Settings2,
-  ChevronDown,
-  ChevronUp,
   Zap,
   Clock,
   Loader2,
@@ -47,17 +42,6 @@ const aspectRatios: AspectRatio[] = [
   { name: 'Landscape', width: 1344, height: 768, icon: '16:9' },
   { name: 'Widescreen', width: 1920, height: 1080, icon: '16:9' },
   { name: 'Mobile', width: 720, height: 1280, icon: '9:16' },
-];
-
-const SCHEDULERS = [
-  'Euler',
-  'Euler a',
-  'DPM++ 2M',
-  'DPM++ 2M Karras',
-  'DPM++ SDE',
-  'DPM++ SDE Karras',
-  'DDIM',
-  'UniPC',
 ];
 
 const RANDOM_PROMPTS = [
@@ -95,11 +79,12 @@ export function GeneratePanel() {
     toggleFavoritePrompt,
     generationDraft,
     setGenerationDraft,
+    advancedGeneration,
+    updateAdvancedGeneration,
   } = useAppStore();
 
-  // UI toggles (kept as individual useState — these are simple UI-only booleans)
+  // UI toggles
   const [showHistory, setShowHistory] = useState(false);
-  const [showAdvanced, setShowAdvanced] = useState(false);
 
   // Generation status state (consolidated)
   const [genStatus, setGenStatus] = useState({
@@ -113,26 +98,23 @@ export function GeneratePanel() {
   const updateGenStatus = (patch: Partial<typeof genStatus>) =>
     setGenStatus((prev) => ({ ...prev, ...patch }));
 
-  // Image generation config (consolidated)
+  // Image generation config (basic settings — advanced settings are in store)
   const [imageConfig, setImageConfig] = useState({
     generationType: 'image' as GenerationType,
     prompt: '',
     negativePrompt: '',
     selectedRatio: aspectRatios[0] as AspectRatio,
     model: 'flux-dev',
-    steps: 25,
-    cfgScale: 7.5,
-    seed: -1,
-    scheduler: 'Euler a',
-    clipSkip: 1,
     activeStylePresets: [] as string[],
-    // Video settings (kept here to avoid a separate state for only 3 fields)
     videoModel: 'ltx-video',
-    duration: 5,
-    fps: 24,
   });
-  const updateImageConfig = (patch: Partial<typeof imageConfig>) =>
+  const updateImageConfig = (patch: Partial<typeof imageConfig>) => {
     setImageConfig((prev) => ({ ...prev, ...patch }));
+    // Sync generationType to the store so the sidebar Advanced Settings knows
+    if (patch.generationType) {
+      updateAdvancedGeneration({ generationType: patch.generationType });
+    }
+  };
 
   // Reference image / ControlNet / LoRA config (consolidated)
   const [refConfig, setRefConfig] = useState({
@@ -155,10 +137,12 @@ export function GeneratePanel() {
             (r) => r.width === settings.width && r.height === settings.height
           ) || aspectRatios[0],
         model: settings.model,
-        steps: settings.steps,
-        cfgScale: settings.cfgScale,
         prompt: settings.prompt,
         negativePrompt: settings.negativePrompt,
+      });
+      updateAdvancedGeneration({
+        steps: settings.steps,
+        cfgScale: settings.cfgScale,
       });
     }
   }, [currentProject]);
@@ -181,13 +165,16 @@ export function GeneratePanel() {
           height: generationDraft.height,
           icon: `${generationDraft.width}:${generationDraft.height}`,
         },
+      ...(generationDraft.generationType === 'image'
+        ? { model: generationDraft.model }
+        : { videoModel: generationDraft.model }),
+    });
+    updateAdvancedGeneration({
+      generationType: generationDraft.generationType,
       steps: generationDraft.steps,
       cfgScale: generationDraft.cfgScale,
       scheduler: generationDraft.scheduler,
       seed: generationDraft.seed,
-      ...(generationDraft.generationType === 'image'
-        ? { model: generationDraft.model }
-        : { videoModel: generationDraft.model }),
     });
 
     setGenerationDraft(null);
@@ -239,11 +226,11 @@ export function GeneratePanel() {
           negative_prompt: imageConfig.negativePrompt.trim(),
           width: imageConfig.selectedRatio.width,
           height: imageConfig.selectedRatio.height,
-          steps: imageConfig.steps,
-          cfg_scale: imageConfig.cfgScale,
-          seed: imageConfig.seed === -1 ? undefined : imageConfig.seed,
+          steps: advancedGeneration.steps,
+          cfg_scale: advancedGeneration.cfgScale,
+          seed: advancedGeneration.seed === -1 ? undefined : advancedGeneration.seed,
           model: imageConfig.model,
-          scheduler: imageConfig.scheduler,
+          scheduler: advancedGeneration.scheduler,
         });
 
         if (result.success && result.jobId) {
@@ -258,11 +245,11 @@ export function GeneratePanel() {
               negative_prompt: imageConfig.negativePrompt.trim(),
               width: imageConfig.selectedRatio.width,
               height: imageConfig.selectedRatio.height,
-              steps: imageConfig.steps,
-              cfg_scale: imageConfig.cfgScale,
-              seed: imageConfig.seed,
+              steps: advancedGeneration.steps,
+              cfg_scale: advancedGeneration.cfgScale,
+              seed: advancedGeneration.seed,
               model: imageConfig.model,
-              scheduler: imageConfig.scheduler,
+              scheduler: advancedGeneration.scheduler,
               output_root: outputRoot,
             },
             createdAt: new Date(),
@@ -281,11 +268,11 @@ export function GeneratePanel() {
           image_path: refConfig.referenceImage ?? undefined,
           width: imageConfig.selectedRatio.width,
           height: imageConfig.selectedRatio.height,
-          duration: imageConfig.duration,
-          fps: imageConfig.fps,
-          steps: imageConfig.steps,
+          duration: advancedGeneration.duration,
+          fps: advancedGeneration.fps,
+          steps: advancedGeneration.steps,
           model: imageConfig.videoModel,
-          seed: imageConfig.seed === -1 ? undefined : imageConfig.seed,
+          seed: advancedGeneration.seed === -1 ? undefined : advancedGeneration.seed,
         });
 
         if (result.success && result.jobId) {
@@ -299,11 +286,11 @@ export function GeneratePanel() {
               prompt: imageConfig.prompt.trim(),
               width: imageConfig.selectedRatio.width,
               height: imageConfig.selectedRatio.height,
-              duration: imageConfig.duration,
-              fps: imageConfig.fps,
-              steps: imageConfig.steps,
+              duration: advancedGeneration.duration,
+              fps: advancedGeneration.fps,
+              steps: advancedGeneration.steps,
               model: imageConfig.videoModel,
-              seed: imageConfig.seed,
+              seed: advancedGeneration.seed,
               output_root: outputRoot,
             },
             createdAt: new Date(),
@@ -417,8 +404,6 @@ export function GeneratePanel() {
       activeJobId: null,
     });
   };
-
-  const randomizeSeed = () => updateImageConfig({ seed: Math.floor(Math.random() * 2147483647) });
 
   const handleRandomPrompt = () => {
     const idx = Math.floor(Math.random() * RANDOM_PROMPTS.length);
@@ -645,136 +630,6 @@ export function GeneratePanel() {
           />
         </div>
 
-        {/* Advanced Settings */}
-        <div>
-          <button
-            onClick={() => setShowAdvanced(!showAdvanced)}
-            aria-expanded={showAdvanced}
-            className="flex items-center gap-2 text-sm text-text-body hover:text-text-primary transition-all font-display"
-          >
-            <Settings2 className="w-4 h-4" />
-            Advanced Settings
-            {showAdvanced ? (
-              <ChevronUp className="w-4 h-4" />
-            ) : (
-              <ChevronDown className="w-4 h-4" />
-            )}
-          </button>
-
-          <AnimatePresence>
-            {showAdvanced && (
-              <motion.div
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ height: 'auto', opacity: 1 }}
-                exit={{ height: 0, opacity: 0 }}
-                transition={{ duration: 0.2 }}
-                className="overflow-hidden"
-              >
-                <div className="pt-4 space-y-4">
-                  {imageConfig.generationType === 'image' ? (
-                    <>
-                      <Slider
-                        label="Sampling Steps"
-                        value={imageConfig.steps}
-                        min={1}
-                        max={50}
-                        onChange={(v) => updateImageConfig({ steps: v })}
-                      />
-                      <Slider
-                        label="CFG Scale"
-                        value={imageConfig.cfgScale}
-                        min={1}
-                        max={20}
-                        step={0.5}
-                        onChange={(v) => updateImageConfig({ cfgScale: v })}
-                      />
-
-                      {/* Scheduler */}
-                      <div className="space-y-1.5">
-                        <label className="text-label text-text-body">Scheduler</label>
-                        <select
-                          value={imageConfig.scheduler}
-                          onChange={(e) => updateImageConfig({ scheduler: e.target.value })}
-                          className="w-full bg-elevated border border-border rounded-lg px-3 py-2 text-sm font-display text-text-primary focus:border-red-primary focus:ring-1 focus:ring-red-primary/40 transition-all"
-                        >
-                          {SCHEDULERS.map((s) => (
-                            <option key={s} value={s}>
-                              {s}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-
-                      {/* Clip Skip */}
-                      <div className="space-y-1.5">
-                        <label className="text-label text-text-body">CLIP Skip</label>
-                        <div className="flex gap-2">
-                          {[1, 2].map((v) => (
-                            <button
-                              key={v}
-                              onClick={() => updateImageConfig({ clipSkip: v })}
-                              className={cn(
-                                'flex-1 py-2 rounded-lg text-sm font-mono font-medium transition-all',
-                                imageConfig.clipSkip === v
-                                  ? 'bg-red-primary text-text-primary glow-red-subtle'
-                                  : 'bg-elevated text-text-body border border-border hover:border-border-hover'
-                              )}
-                            >
-                              {v}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-
-                      {/* Seed */}
-                      <div className="space-y-1.5">
-                        <div className="flex items-center justify-between">
-                          <label className="text-label text-text-body">Seed</label>
-                          <button
-                            onClick={randomizeSeed}
-                            className="p-1 rounded text-text-muted hover:text-red-primary transition-all"
-                            title="Randomize"
-                          >
-                            <Dice5 className="w-4 h-4" />
-                          </button>
-                        </div>
-                        <input
-                          type="number"
-                          value={imageConfig.seed}
-                          onChange={(e) => updateImageConfig({ seed: Number(e.target.value) })}
-                          className="w-full bg-elevated border border-border rounded-lg px-3 py-2 text-text-primary font-mono text-sm focus:border-red-primary focus:ring-1 focus:ring-red-primary/40 transition-all"
-                        />
-                        <p className="text-xs text-text-muted font-mono">
-                          Use -1 for random seed
-                        </p>
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                      <Slider
-                        label="Duration"
-                        value={imageConfig.duration}
-                        min={1}
-                        max={10}
-                        onChange={(v) => updateImageConfig({ duration: v })}
-                        valueFormatter={(v) => `${v}s`}
-                      />
-                      <Slider
-                        label="Frame Rate"
-                        value={imageConfig.fps}
-                        min={12}
-                        max={60}
-                        onChange={(v) => updateImageConfig({ fps: v })}
-                        valueFormatter={(v) => `${v}fps`}
-                      />
-                    </>
-                  )}
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-
         {/* Estimated Info */}
         <div className="p-3 rounded-lg bg-elevated border border-border">
           <div className="flex items-center gap-4 text-xs text-text-body font-display">
@@ -822,6 +677,7 @@ export function GeneratePanel() {
           {genStatus.isGenerating ? (
             <motion.div
               key="progress"
+              data-testid="generation-progress"
               initial={{ opacity: 0, scale: 0.98 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.98 }}
@@ -850,7 +706,7 @@ export function GeneratePanel() {
                 <div className="flex items-center gap-2">
                   <Loader2 className="w-4 h-4 text-text-primary animate-spin" />
                   <span className="font-display text-sm text-text-primary font-medium">
-                    Step {genStatus.step}/{imageConfig.steps}
+                    Step {genStatus.step}/{advancedGeneration.steps}
                   </span>
                 </div>
 
@@ -870,6 +726,7 @@ export function GeneratePanel() {
           ) : (
             <motion.button
               key="generate"
+              data-testid="generate-button"
               initial={{ opacity: 0, scale: 0.98 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.98 }}

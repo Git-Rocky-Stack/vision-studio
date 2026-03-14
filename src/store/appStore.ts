@@ -230,6 +230,24 @@ interface AppState {
   imageAdjustments: ImageAdjustments;
   generationDraft: GenerationDraft | null;
 
+  // Batch view state (shared between BatchPromptQueue & ResultsGrid)
+  batchViewMode: 'grid' | 'list' | 'large';
+  batchSortBy: 'created' | 'prompt' | 'status';
+  batchFilterBy: 'all' | 'completed' | 'failed' | 'favorites';
+
+  // Advanced generation settings (shared between Sidebar & GeneratePanel)
+  advancedGeneration: {
+    generationType: 'image' | 'video';
+    steps: number;
+    cfgScale: number;
+    scheduler: string;
+    clipSkip: number;
+    seed: number;
+    duration: number;
+    fps: number;
+  };
+  showAdvancedGeneration: boolean;
+
   // ---- Actions ----
 
   // Existing actions
@@ -287,6 +305,11 @@ interface AppState {
   ) => void;
   removeBatchResults: (ids: string[]) => void;
   setGenerationDraft: (draft: GenerationDraft | null) => void;
+  updateAdvancedGeneration: (patch: Partial<AppState['advancedGeneration']>) => void;
+  setShowAdvancedGeneration: (show: boolean) => void;
+  setBatchViewMode: (mode: AppState['batchViewMode']) => void;
+  setBatchSortBy: (sort: AppState['batchSortBy']) => void;
+  setBatchFilterBy: (filter: AppState['batchFilterBy']) => void;
 
   // Edit mode actions
   setActiveEditTool: (tool: EditTool) => void;
@@ -359,6 +382,20 @@ export const useAppStore = create<AppState>()(
       currentImageAssetPath: null,
       imageAdjustments: { ...DEFAULT_ADJUSTMENTS },
       generationDraft: null,
+      batchViewMode: 'grid',
+      batchSortBy: 'created',
+      batchFilterBy: 'all',
+      advancedGeneration: {
+        generationType: 'image',
+        steps: 25,
+        cfgScale: 7.5,
+        scheduler: 'Euler a',
+        clipSkip: 1,
+        seed: -1,
+        duration: 5,
+        fps: 24,
+      },
+      showAdvancedGeneration: false,
 
       // --- Existing actions ---
 
@@ -535,6 +572,13 @@ export const useAppStore = create<AppState>()(
         assetLibrary: createDerivedAssetRecord(state.assetLibrary, result, context),
       })),
       setGenerationDraft: (draft) => set({ generationDraft: draft }),
+      updateAdvancedGeneration: (patch) => set((state) => ({
+        advancedGeneration: { ...state.advancedGeneration, ...patch },
+      })),
+      setShowAdvancedGeneration: (show) => set({ showAdvancedGeneration: show }),
+      setBatchViewMode: (mode) => set({ batchViewMode: mode }),
+      setBatchSortBy: (sort) => set({ batchSortBy: sort }),
+      setBatchFilterBy: (filter) => set({ batchFilterBy: filter }),
 
       // --- Edit mode ---
 

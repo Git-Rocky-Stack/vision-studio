@@ -7,6 +7,7 @@ Includes: FastAPI, PyTorch, CUDA, diffusers, transformers
 import sys
 import os
 from pathlib import Path
+from PyInstaller.utils.hooks import copy_metadata
 
 # Add the backend directory to path.
 # PyInstaller executes spec files without defining __file__ in some versions.
@@ -14,6 +15,20 @@ backend_dir = os.path.abspath(os.getcwd())
 sys.path.insert(0, backend_dir)
 
 block_cipher = None
+
+# Collect package metadata needed at runtime by importlib.metadata.version()
+metadata_packages = [
+    'imageio', 'imageio-ffmpeg', 'torch', 'torchvision', 'torchaudio',
+    'transformers', 'diffusers', 'huggingface-hub', 'accelerate',
+    'safetensors', 'pydantic', 'fastapi', 'uvicorn', 'numpy',
+    'pillow', 'opencv-python', 'httpx', 'tqdm',
+]
+extra_datas = []
+for pkg in metadata_packages:
+    try:
+        extra_datas += copy_metadata(pkg)
+    except Exception:
+        pass  # Package not installed, skip
 
 # Main script
 a = Analysis(
@@ -23,7 +38,7 @@ a = Analysis(
     datas=[
         # Include any data files
         ('.env.example', '.'),
-    ],
+    ] + extra_datas,
     hiddenimports=[
         # FastAPI & Uvicorn
         'fastapi',
@@ -129,10 +144,6 @@ a = Analysis(
         'tensorflow',
         'tensorboard',
         'pytest',
-        'unittest',
-        'pdb',
-        'pydoc',
-        'test',
         '_testcapi',
     ],
     win_no_prefer_redirects=False,

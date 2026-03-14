@@ -37,99 +37,45 @@ const FONT_WEIGHTS = [
   { value: 700, label: 'Bold' },
 ];
 
-interface TextControlsProps {
-  fontFamily: string;
-  onFontFamilyChange: (font: string) => void;
-  fontSize: number;
-  onFontSizeChange: (size: number) => void;
-  fontWeight: number;
-  onFontWeightChange: (weight: number) => void;
-  isItalic: boolean;
-  onItalicChange: (italic: boolean) => void;
-  isUnderline: boolean;
-  onUnderlineChange: (underline: boolean) => void;
-  textAlign: 'left' | 'center' | 'right';
-  onTextAlignChange: (align: 'left' | 'center' | 'right') => void;
-  textColor: string;
-  onTextColorChange: (color: string) => void;
-  shadowEnabled: boolean;
-  onShadowEnabledChange: (enabled: boolean) => void;
-  shadowOffsetX: number;
-  onShadowOffsetXChange: (x: number) => void;
-  shadowOffsetY: number;
-  onShadowOffsetYChange: (y: number) => void;
-  shadowBlur: number;
-  onShadowBlurChange: (blur: number) => void;
-  shadowColor: string;
-  onShadowColorChange: (color: string) => void;
-  strokeEnabled: boolean;
-  onStrokeEnabledChange: (enabled: boolean) => void;
-  strokeWidth: number;
-  onStrokeWidthChange: (width: number) => void;
-  strokeColor: string;
-  onStrokeColorChange: (color: string) => void;
-  letterSpacing: number;
-  onLetterSpacingChange: (spacing: number) => void;
-  lineHeight: number;
-  onLineHeightChange: (height: number) => void;
-  opacity: number;
-  onOpacityChange: (opacity: number) => void;
-  onAddText: () => void;
-  onDeleteSelected: () => void;
-  hasSelection: boolean;
-}
+export function TextControls() {
+  const [fontFamily, setFontFamily] = useState('DM Sans');
+  const [fontSize, setFontSize] = useState(48);
+  const [fontWeight, setFontWeight] = useState(400);
+  const [isItalic, setIsItalic] = useState(false);
+  const [isUnderline, setIsUnderline] = useState(false);
+  const [textAlign, setTextAlign] = useState<'left' | 'center' | 'right'>('center');
+  const [textColor, setTextColor] = useState('#FFFFFF');
+  const [shadowEnabled, setShadowEnabled] = useState(false);
+  const [shadowOffsetX, setShadowOffsetX] = useState(2);
+  const [shadowOffsetY, setShadowOffsetY] = useState(2);
+  const [shadowBlur, setShadowBlur] = useState(4);
+  const [shadowColor, setShadowColor] = useState('#000000');
+  const [strokeEnabled, setStrokeEnabled] = useState(false);
+  const [strokeWidth, setStrokeWidth] = useState(1);
+  const [strokeColor, setStrokeColor] = useState('#000000');
+  const [letterSpacing, setLetterSpacing] = useState(0);
+  const [lineHeight, setLineHeight] = useState(1.4);
+  const [opacity, setOpacity] = useState(100);
+  const [hasSelection] = useState(false);
 
-export function TextControls({
-  fontFamily,
-  onFontFamilyChange,
-  fontSize,
-  onFontSizeChange,
-  fontWeight,
-  onFontWeightChange,
-  isItalic,
-  onItalicChange,
-  isUnderline,
-  onUnderlineChange,
-  textAlign,
-  onTextAlignChange,
-  textColor,
-  onTextColorChange,
-  shadowEnabled,
-  onShadowEnabledChange,
-  shadowOffsetX,
-  onShadowOffsetXChange,
-  shadowOffsetY,
-  onShadowOffsetYChange,
-  shadowBlur,
-  onShadowBlurChange,
-  shadowColor,
-  onShadowColorChange,
-  strokeEnabled,
-  onStrokeEnabledChange,
-  strokeWidth,
-  onStrokeWidthChange,
-  strokeColor,
-  onStrokeColorChange,
-  letterSpacing,
-  onLetterSpacingChange,
-  lineHeight,
-  onLineHeightChange,
-  opacity,
-  onOpacityChange,
-  onAddText,
-  onDeleteSelected,
-  hasSelection,
-}: TextControlsProps) {
   const [recentColors, setRecentColors] = useState<string[]>([]);
   const [showFontDropdown, setShowFontDropdown] = useState(false);
   const fontDropdownRef = useRef<HTMLDivElement>(null);
 
   const handleColorChange = (color: string) => {
-    onTextColorChange(color);
+    setTextColor(color);
     setRecentColors((prev) => {
       const filtered = prev.filter((c) => c !== color);
       return [color, ...filtered].slice(0, 8);
     });
+  };
+
+  const handleAddText = () => {
+    // TODO: integrate with canvas to add text layer
+  };
+
+  const handleDeleteSelected = () => {
+    // TODO: integrate with canvas to delete selected text
   };
 
   useEffect(() => {
@@ -176,7 +122,7 @@ export function TextControls({
                 <button
                   key={font}
                   onClick={() => {
-                    onFontFamilyChange(font);
+                    setFontFamily(font);
                     setShowFontDropdown(false);
                   }}
                   className={cn(
@@ -201,7 +147,7 @@ export function TextControls({
           <label className="text-label text-text-body mb-1 block">Size</label>
           <div className="flex items-center gap-1">
             <button
-              onClick={() => onFontSizeChange(Math.max(12, fontSize - 2))}
+              onClick={() => setFontSize(Math.max(12, fontSize - 2))}
               aria-label="Decrease font size"
               className="p-1.5 rounded bg-elevated border border-border text-text-body hover:text-text-primary transition-all text-xs font-mono"
             >
@@ -210,11 +156,11 @@ export function TextControls({
             <input
               type="number"
               value={fontSize}
-              onChange={(e) => onFontSizeChange(Math.max(12, Math.min(200, Number(e.target.value))))}
+              onChange={(e) => setFontSize(Math.max(12, Math.min(200, Number(e.target.value))))}
               className="w-full bg-elevated border border-border rounded-lg px-2 py-1.5 text-sm font-mono text-text-primary text-center focus:border-red-primary transition-all"
             />
             <button
-              onClick={() => onFontSizeChange(Math.min(200, fontSize + 2))}
+              onClick={() => setFontSize(Math.min(200, fontSize + 2))}
               aria-label="Increase font size"
               className="p-1.5 rounded bg-elevated border border-border text-text-body hover:text-text-primary transition-all text-xs font-mono"
             >
@@ -226,7 +172,7 @@ export function TextControls({
           <label className="text-label text-text-body mb-1 block">Weight</label>
           <select
             value={fontWeight}
-            onChange={(e) => onFontWeightChange(Number(e.target.value))}
+            onChange={(e) => setFontWeight(Number(e.target.value))}
             className="w-full bg-elevated border border-border rounded-lg px-2 py-1.5 text-sm font-display text-text-primary focus:border-red-primary transition-all"
           >
             {FONT_WEIGHTS.map((w) => (
@@ -241,7 +187,7 @@ export function TextControls({
       {/* Style Toggles */}
       <div className="flex gap-1.5">
         <button
-          onClick={() => onItalicChange(!isItalic)}
+          onClick={() => setIsItalic(!isItalic)}
           className={cn(
             'flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-display transition-all',
             isItalic
@@ -253,7 +199,7 @@ export function TextControls({
           Italic
         </button>
         <button
-          onClick={() => onUnderlineChange(!isUnderline)}
+          onClick={() => setIsUnderline(!isUnderline)}
           className={cn(
             'flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-display transition-all',
             isUnderline
@@ -277,7 +223,7 @@ export function TextControls({
           ] as const).map(({ id, icon: Icon }) => (
             <button
               key={id}
-              onClick={() => onTextAlignChange(id)}
+              onClick={() => setTextAlign(id)}
               className={cn(
                 'flex-1 flex items-center justify-center py-2 rounded-lg transition-all',
                 textAlign === id
@@ -309,7 +255,7 @@ export function TextControls({
             role="switch"
             aria-checked={shadowEnabled}
             aria-label="Toggle text shadow"
-            onClick={() => onShadowEnabledChange(!shadowEnabled)}
+            onClick={() => setShadowEnabled(!shadowEnabled)}
             className={cn(
               'w-9 h-5 rounded-full transition-all relative',
               shadowEnabled ? 'bg-red-primary' : 'bg-elevated border border-border'
@@ -325,12 +271,12 @@ export function TextControls({
         </div>
         {shadowEnabled && (
           <div className="space-y-3 pl-1">
-            <Slider label="X Offset" value={shadowOffsetX} min={-20} max={20} onChange={onShadowOffsetXChange} />
-            <Slider label="Y Offset" value={shadowOffsetY} min={-20} max={20} onChange={onShadowOffsetYChange} />
-            <Slider label="Blur" value={shadowBlur} min={0} max={30} onChange={onShadowBlurChange} />
+            <Slider label="X Offset" value={shadowOffsetX} min={-20} max={20} onChange={setShadowOffsetX} />
+            <Slider label="Y Offset" value={shadowOffsetY} min={-20} max={20} onChange={setShadowOffsetY} />
+            <Slider label="Blur" value={shadowBlur} min={0} max={30} onChange={setShadowBlur} />
             <div className="space-y-1">
               <label className="text-label text-text-body">Shadow Color</label>
-              <ColorPicker value={shadowColor} onChange={onShadowColorChange} recentColors={recentColors} />
+              <ColorPicker value={shadowColor} onChange={setShadowColor} recentColors={recentColors} />
             </div>
           </div>
         )}
@@ -344,7 +290,7 @@ export function TextControls({
             role="switch"
             aria-checked={strokeEnabled}
             aria-label="Toggle text stroke"
-            onClick={() => onStrokeEnabledChange(!strokeEnabled)}
+            onClick={() => setStrokeEnabled(!strokeEnabled)}
             className={cn(
               'w-9 h-5 rounded-full transition-all relative',
               strokeEnabled ? 'bg-red-primary' : 'bg-elevated border border-border'
@@ -360,10 +306,10 @@ export function TextControls({
         </div>
         {strokeEnabled && (
           <div className="space-y-3 pl-1">
-            <Slider label="Width" value={strokeWidth} min={0} max={10} step={0.5} onChange={onStrokeWidthChange} />
+            <Slider label="Width" value={strokeWidth} min={0} max={10} step={0.5} onChange={setStrokeWidth} />
             <div className="space-y-1">
               <label className="text-label text-text-body">Stroke Color</label>
-              <ColorPicker value={strokeColor} onChange={onStrokeColorChange} recentColors={recentColors} />
+              <ColorPicker value={strokeColor} onChange={setStrokeColor} recentColors={recentColors} />
             </div>
           </div>
         )}
@@ -371,18 +317,18 @@ export function TextControls({
 
       {/* Spacing */}
       <div className="space-y-3 border-t border-border pt-3">
-        <Slider label="Letter Spacing" value={letterSpacing} min={-5} max={20} onChange={onLetterSpacingChange} />
-        <Slider label="Line Height" value={lineHeight} min={0.8} max={3} step={0.1} onChange={onLineHeightChange} />
-        <Slider label="Opacity" value={opacity} min={0} max={100} onChange={onOpacityChange} valueFormatter={(v) => `${v}%`} />
+        <Slider label="Letter Spacing" value={letterSpacing} min={-5} max={20} onChange={setLetterSpacing} />
+        <Slider label="Line Height" value={lineHeight} min={0.8} max={3} step={0.1} onChange={setLineHeight} />
+        <Slider label="Opacity" value={opacity} min={0} max={100} onChange={setOpacity} valueFormatter={(v) => `${v}%`} />
       </div>
 
       {/* Action Buttons */}
       <div className="flex gap-2 pt-2 border-t border-border">
-        <Button variant="primary" size="sm" icon={Plus} fullWidth onClick={onAddText}>
+        <Button variant="primary" size="sm" icon={Plus} fullWidth onClick={handleAddText}>
           Add Text
         </Button>
         {hasSelection && (
-          <Button variant="danger" size="sm" icon={Trash2} onClick={onDeleteSelected}>
+          <Button variant="danger" size="sm" icon={Trash2} onClick={handleDeleteSelected}>
             Delete
           </Button>
         )}

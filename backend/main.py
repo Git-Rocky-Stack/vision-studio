@@ -3,16 +3,41 @@ Vision Studio - Python Backend
 FastAPI server for AI image and video generation
 """
 
-import asyncio
 import builtins
+import sys
+from typing import Any, Optional
+
+# --- Safe print must be installed BEFORE any other imports, because some
+# modules (e.g. direct_generator) print Unicode at import time and Windows
+# PyInstaller bundles use cp1252 stdout which cannot encode emoji. -----------
+ORIGINAL_PRINT = builtins.print
+
+
+def make_console_safe(message: Any, encoding: Optional[str] = None) -> str:
+    text = str(message)
+    target_encoding = encoding or getattr(sys.stdout, "encoding", None) or "utf-8"
+    return text.encode(target_encoding, errors="replace").decode(target_encoding, errors="replace")
+
+
+def safe_print(*args: Any, **kwargs: Any) -> None:
+    sep = kwargs.pop("sep", " ")
+    file = kwargs.get("file")
+    encoding = getattr(file, "encoding", None) if file is not None else None
+    safe_args = [make_console_safe(arg, encoding=encoding) for arg in args]
+    ORIGINAL_PRINT(*safe_args, sep=sep, **kwargs)
+
+
+builtins.print = safe_print
+# ---------------------------------------------------------------------------
+
+import asyncio
 import json
 import os
 import shutil
-import sys
 import uuid
 from datetime import datetime
 from pathlib import Path
-from typing import Optional, Dict, List, Any
+from typing import Dict, List
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, BackgroundTasks
@@ -50,24 +75,6 @@ model_manager = ModelManager(MODELS_DIR)
 comfy_client: Optional[ComfyUIClient] = None
 direct_generator: Optional[DirectGenerator] = None
 direct_video_generator: Optional[DirectVideoGenerator] = None
-ORIGINAL_PRINT = builtins.print
-
-
-def make_console_safe(message: Any, encoding: Optional[str] = None) -> str:
-    text = str(message)
-    target_encoding = encoding or getattr(sys.stdout, "encoding", None) or "utf-8"
-    return text.encode(target_encoding, errors="replace").decode(target_encoding, errors="replace")
-
-
-def safe_print(*args: Any, **kwargs: Any) -> None:
-    sep = kwargs.pop("sep", " ")
-    file = kwargs.get("file")
-    encoding = getattr(file, "encoding", None) if file is not None else None
-    safe_args = [make_console_safe(arg, encoding=encoding) for arg in args]
-    ORIGINAL_PRINT(*safe_args, sep=sep, **kwargs)
-
-
-builtins.print = safe_print
 
 
 def get_uvicorn_config(reload_enabled: Optional[bool] = None) -> Dict[str, Any]:
@@ -691,4 +698,14 @@ async def send_job_updates(websocket: WebSocket):
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run("main:app", **get_uvicorn_config())
+    config = get_uvicorn_config()
+    # When running as a PyInstaller bundle, uvicorn cannot import "main:app" by
+    # string because the module doesn't exist in the frozen namespace.  Passing
+    # the app object directly works in both dev and bundled contexts.  Note:
+    # reload must be disabled when passing the app object (reload requires the
+    # string form), which is fine for production bundles.
+    if getattr(sys, "frozen", False):
+        config["reload"] = False
+        uvicorn.run(app, **config)
+    else:
+        uvicorn.run("main:app", **config)

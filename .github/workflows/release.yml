@@ -1,0 +1,149 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      skip_e2e:
+        description: "Skip E2E tests"
+        type: boolean
+        default: false
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  test-full:
+    name: Full Test Suite
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - run: npm ci
+
+      - name: TypeScript type-check
+        run: npx tsc --noEmit
+
+      - name: Frontend tests (unit + component + integration)
+        run: npx vitest run --reporter=default --reporter=junit --outputFile=test-results/junit.xml
+
+      - name: Backend tests
+        working-directory: backend
+        run: python -m unittest discover -s tests -v
+
+      - name: Build app
+        run: npm run build
+
+      - name: Install Playwright browsers
+        if: ${{ !inputs.skip_e2e }}
+        run: npx playwright install chromium
+
+      - name: E2E tests
+        if: ${{ !inputs.skip_e2e }}
+        run: npx playwright test --reporter=list,junit --output=test-results/e2e
+        env:
+          VISION_STUDIO_SKIP_BACKEND: "1"
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: |
+            test-results/
+            playwright-report/
+          retention-days: 30
+
+  build-windows:
+    name: Build Windows
+    needs: test-full
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - name: Build frontend
+        run: npm run build
+
+      - name: Package for Windows
+        run: npm run package:win
+
+      - name: Upload release artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: vision-studio-windows-x64
+          path: release/*.zip
+          retention-days: 90
+
+  build-linux:
+    name: Build Linux
+    needs: test-full
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - name: Build frontend
+        run: npm run build
+
+      - name: Package for Linux
+        run: npm run package:linux
+
+      - name: Upload release artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: vision-studio-linux
+          path: |
+            release/*.AppImage
+            release/*.deb
+          retention-days: 90
+
+  publish-release:
+    name: Publish GitHub Release
+    needs: [build-windows, build-linux]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: |
+            artifacts/vision-studio-windows-x64/*
+            artifacts/vision-studio-linux/*

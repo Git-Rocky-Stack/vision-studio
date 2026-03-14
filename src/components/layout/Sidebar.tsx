@@ -13,8 +13,14 @@ import {
   Layers,
   CheckCircle2,
   AlertCircle,
+  Undo,
+  Redo,
+  Save,
+  Play,
+  Download,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { AdvancedGenerationSettings } from '@/components/generate/AdvancedGenerationSettings';
 
 const SIDEBAR_WIDTH_COLLAPSED = 72;
 const SIDEBAR_WIDTH_EXPANDED = 220;
@@ -34,8 +40,39 @@ const navItems: NavItem[] = [
   { id: 'settings', label: 'Settings', icon: Settings },
 ];
 
+interface ActionItem {
+  id: string;
+  label: string;
+  icon: React.ElementType;
+  variant?: 'default' | 'primary';
+  getDisabled?: () => boolean;
+  onClick?: () => void;
+}
+
 export const Sidebar = memo(function Sidebar() {
-  const { sidebarCollapsed, toggleSidebar, activePanel, setActivePanel, systemInfo } = useAppStore();
+  const {
+    sidebarCollapsed,
+    toggleSidebar,
+    activePanel,
+    setActivePanel,
+    systemInfo,
+    editHistory,
+    editHistoryIndex,
+    undo,
+    redo,
+  } = useAppStore();
+
+  const canUndo = editHistoryIndex > 0;
+  const canRedo = editHistoryIndex < editHistory.length - 1;
+
+  const actionItems: ActionItem[] = [
+    { id: 'undo', label: 'Undo', icon: Undo, getDisabled: () => !canUndo, onClick: undo },
+    { id: 'redo', label: 'Redo', icon: Redo, getDisabled: () => !canRedo, onClick: redo },
+    { id: 'open', label: 'Open', icon: FolderOpen },
+    { id: 'save', label: 'Save', icon: Save },
+    { id: 'preview', label: 'Preview', icon: Play, variant: 'primary' },
+    { id: 'export', label: 'Export', icon: Download },
+  ];
 
   return (
     <motion.aside
@@ -69,6 +106,7 @@ export const Sidebar = memo(function Sidebar() {
           const buttonElement = (
             <button
               key={item.id}
+              data-testid={`nav-${item.id}`}
               onClick={() => setActivePanel(item.id)}
               aria-label={item.label}
               aria-current={isActive ? 'page' : undefined}
@@ -108,6 +146,83 @@ export const Sidebar = memo(function Sidebar() {
           );
         })}
       </nav>
+
+      {/* Actions — Undo/Redo, Open, Save, Preview, Export */}
+      <div className="px-2 py-3 border-t border-border space-y-1">
+        {/* Undo / Redo row — always side-by-side */}
+        <div className={cn('flex gap-1', sidebarCollapsed ? 'flex-col' : 'flex-row')}>
+          {actionItems.slice(0, 2).map((action) => {
+            const Icon = action.icon;
+            const isDisabled = action.getDisabled?.() ?? false;
+
+            const btn = (
+              <button
+                key={action.id}
+                onClick={action.onClick}
+                disabled={isDisabled}
+                aria-label={action.label}
+                className={cn(
+                  'flex items-center justify-center rounded-lg transition-all duration-200',
+                  'text-text-body hover:text-text-primary hover:bg-elevated',
+                  'disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:text-text-body disabled:hover:bg-transparent',
+                  sidebarCollapsed ? 'w-full p-2' : 'flex-1 p-2'
+                )}
+              >
+                <Icon className="w-4 h-4 flex-shrink-0" />
+                {!sidebarCollapsed && (
+                  <span className="font-display text-xs ml-2 whitespace-nowrap">{action.label}</span>
+                )}
+              </button>
+            );
+
+            return sidebarCollapsed ? (
+              <Tooltip key={action.id} content={action.label} placement="right">
+                {btn}
+              </Tooltip>
+            ) : btn;
+          })}
+        </div>
+
+        {/* Remaining actions */}
+        {actionItems.slice(2).map((action) => {
+          const Icon = action.icon;
+          const isPrimary = action.variant === 'primary';
+
+          const btn = (
+            <button
+              key={action.id}
+              onClick={action.onClick}
+              aria-label={action.label}
+              className={cn(
+                'w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-200',
+                isPrimary
+                  ? 'bg-red-primary text-text-primary glow-red-subtle hover:bg-red-highlight'
+                  : 'text-text-body hover:text-text-primary hover:bg-elevated'
+              )}
+            >
+              <Icon className="w-4.5 h-4.5 flex-shrink-0" />
+              {!sidebarCollapsed && (
+                <span className="font-display font-medium text-sm whitespace-nowrap">
+                  {action.label}
+                </span>
+              )}
+            </button>
+          );
+
+          return sidebarCollapsed ? (
+            <Tooltip key={action.id} content={action.label} placement="right">
+              {btn}
+            </Tooltip>
+          ) : btn;
+        })}
+      </div>
+
+      {/* Advanced Generation Settings — visible only on Generate panel */}
+      {activePanel === 'generate' && (
+        <div className="px-2 py-3 border-t border-border overflow-y-auto max-h-[40vh]">
+          <AdvancedGenerationSettings collapsed={sidebarCollapsed} />
+        </div>
+      )}
 
       {/* GPU Status */}
       {!sidebarCollapsed && (

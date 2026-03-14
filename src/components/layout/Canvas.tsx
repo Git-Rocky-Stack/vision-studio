@@ -255,6 +255,7 @@ export const Canvas = memo(function Canvas() {
               <img
                 src={currentImage}
                 alt="Canvas"
+                data-testid="generation-result"
                 className="absolute inset-0 w-full h-full object-contain"
               />
             ) : imageError ? (

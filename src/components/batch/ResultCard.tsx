@@ -33,6 +33,7 @@ export function ResultCard({
     return (
       <motion.div
         layout
+        data-testid={`result-card-${result.id}`}
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
         onClick={(e) => onSelect(result.id, e)}
@@ -117,6 +118,7 @@ export function ResultCard({
   return (
     <motion.div
       layout
+      data-testid={`result-card-${result.id}`}
       initial={{ opacity: 0, scale: 0.95 }}
       animate={{ opacity: 1, scale: 1 }}
       onClick={(e) => onSelect(result.id, e)}

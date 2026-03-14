@@ -53,6 +53,7 @@ export function PromptArea({
       >
         <Textarea
           id="prompt-input"
+          data-testid="prompt-input"
           value={prompt}
           onChange={(e) => onPromptChange(e.target.value)}
           onFocus={() => setIsFocused(true)}
@@ -103,6 +104,7 @@ export function PromptArea({
           >
             <Textarea
               id="negative-prompt-input"
+              data-testid="negative-prompt-input"
               value={negativePrompt}
               onChange={(e) => onNegativePromptChange(e.target.value)}
               placeholder="Things to avoid in the generation..."

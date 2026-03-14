@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/Button';
 import { Slider } from '@/components/ui/Slider';
 import { ResultsGrid } from '@/components/batch/ResultsGrid';
 import { ImagePreviewModal } from '@/components/shared/ImagePreviewModal';
+import type { ViewMode, SortBy, FilterBy } from '@/components/batch/ResultsGrid';
 import {
   Layers,
   Plus,
@@ -18,6 +19,11 @@ import {
   Wand2,
   FileJson,
   GripVertical,
+  Grid3X3,
+  List,
+  Maximize2,
+  ArrowUpDown,
+  Download,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { resolveStoredAssetPath } from '@/features/assets/assetRecords';
@@ -51,11 +57,44 @@ function toPreviewUrl(assetPath: string) {
 }
 
 /* ───────────────────────────────────────────────────────────
-   BatchPromptQueue — The left panel (420px) in batch mode
+   BatchPromptQueue — The right panel (400px) in batch mode
+   Contains results toolbar + batch generation controls
    ─────────────────────────────────────────────────────────── */
 
+const VIEW_MODE_OPTIONS: { value: ViewMode; icon: React.ElementType; label: string }[] = [
+  { value: 'grid', icon: Grid3X3, label: 'Grid view' },
+  { value: 'list', icon: List, label: 'List view' },
+  { value: 'large', icon: Maximize2, label: 'Large view' },
+];
+
+const SORT_OPTIONS: { value: SortBy; label: string }[] = [
+  { value: 'created', label: 'Creation Time' },
+  { value: 'prompt', label: 'Prompt Order' },
+  { value: 'status', label: 'Status' },
+];
+
+const FILTER_OPTIONS: { value: FilterBy; label: string }[] = [
+  { value: 'all', label: 'All' },
+  { value: 'completed', label: 'Completed' },
+  { value: 'failed', label: 'Failed' },
+  { value: 'favorites', label: 'Favorites' },
+];
+
 export function BatchPromptQueue() {
-  const { addBatchJob, addBatchResult, syncAssetsFromJobStatus } = useAppStore();
+  const {
+    addBatchJob,
+    addBatchResult,
+    syncAssetsFromJobStatus,
+    batchResults,
+    batchViewMode,
+    batchSortBy,
+    batchFilterBy,
+    setBatchViewMode,
+    setBatchSortBy,
+    setBatchFilterBy,
+    removeBatchResults,
+    removeAssetRecordsByPaths,
+  } = useAppStore();
   const [prompts, setPrompts] = useState<BatchPrompt[]>([
     { id: '1', prompt: '', status: 'pending' },
   ]);
@@ -261,13 +300,129 @@ export function BatchPromptQueue() {
     URL.revokeObjectURL(url);
   };
 
+  const handleBulkExportAll = async () => {
+    const assetPaths = batchResults
+      .map((result) => result.assetPath)
+      .filter((assetPath): assetPath is string => Boolean(assetPath));
+
+    if (assetPaths.length === 0) return;
+
+    const destinationDir = await window.electron.dialog.selectFolder();
+    if (!destinationDir) return;
+
+    await window.electron.assets.exportMany(assetPaths, destinationDir);
+  };
+
+  const handleBulkDeleteAll = async () => {
+    const assetPaths = batchResults
+      .map((result) => result.assetPath)
+      .filter((assetPath): assetPath is string => Boolean(assetPath));
+
+    const deleteResults = await Promise.all(
+      assetPaths.map((assetPath) => window.electron.assets.delete(assetPath))
+    );
+    const deletedPaths = assetPaths.filter((_, index) => deleteResults[index]?.success);
+    const deletedIds = batchResults
+      .filter((result) => result.assetPath && deletedPaths.includes(result.assetPath))
+      .map((result) => result.id);
+
+    removeBatchResults(deletedIds);
+    removeAssetRecordsByPaths(deletedPaths);
+  };
+
   const completedCount = prompts.filter((p) => p.status === 'completed').length;
   const progress =
     prompts.length > 0 ? (completedCount / prompts.length) * 100 : 0;
 
   return (
     <div className="h-full flex flex-col bg-surface">
-      {/* Header */}
+      {/* Results Toolbar */}
+      <div className="p-3 border-b border-border space-y-3">
+        {/* View / Sort row */}
+        <div className="flex items-center gap-2">
+          {/* View mode toggle */}
+          <div className="flex items-center bg-elevated rounded-lg border border-border p-0.5">
+            {VIEW_MODE_OPTIONS.map((opt) => {
+              const Icon = opt.icon;
+              return (
+                <button
+                  key={opt.value}
+                  onClick={() => setBatchViewMode(opt.value)}
+                  aria-label={opt.label}
+                  className={cn(
+                    'p-1.5 rounded-md transition-all',
+                    batchViewMode === opt.value
+                      ? 'bg-red-aura text-red-primary'
+                      : 'text-text-muted hover:text-text-primary'
+                  )}
+                >
+                  <Icon className="w-3.5 h-3.5" />
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Sort dropdown */}
+          <div className="flex items-center gap-1.5 ml-auto">
+            <ArrowUpDown className="w-3.5 h-3.5 text-text-muted" />
+            <select
+              value={batchSortBy}
+              onChange={(e) => setBatchSortBy(e.target.value as SortBy)}
+              className="bg-elevated border border-border rounded-lg px-2 py-1 text-xs font-display text-text-primary focus:border-red-primary focus:ring-1 focus:ring-red-primary/40 transition-all"
+            >
+              {SORT_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {/* Filter pills */}
+        <div className="flex flex-wrap gap-1.5">
+          {FILTER_OPTIONS.map((opt) => (
+            <button
+              key={opt.value}
+              onClick={() => setBatchFilterBy(opt.value)}
+              className={cn(
+                'px-2.5 py-1 rounded-lg text-xs font-display transition-all',
+                batchFilterBy === opt.value
+                  ? 'bg-red-aura text-red-primary border border-red-primary/30'
+                  : 'bg-elevated text-text-body border border-border hover:border-border-hover hover:text-text-primary'
+              )}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Bulk actions */}
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-text-muted font-display">
+            {batchResults.length} result{batchResults.length !== 1 ? 's' : ''}
+          </span>
+          <div className="flex-1" />
+          <button
+            onClick={handleBulkExportAll}
+            disabled={batchResults.length === 0}
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-display text-text-body hover:text-text-primary hover:bg-elevated transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+          >
+            <Download className="w-3.5 h-3.5" />
+            Export All
+          </button>
+          <button
+            onClick={handleBulkDeleteAll}
+            disabled={batchResults.length === 0}
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-display text-red-primary hover:bg-red-aura transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            Delete All
+          </button>
+        </div>
+      </div>
+
+      {/* Batch Generation Header */}
       <div className="p-4 border-b border-border">
         <div className="flex items-center gap-2 mb-1">
           <Layers className="w-5 h-5 text-red-primary" />
@@ -526,12 +681,12 @@ export function BatchPromptQueue() {
 }
 
 /* ───────────────────────────────────────────────────────────
-   BatchResultsPanel — The right panel in batch mode
+   BatchResultsPanel — The left main area in batch mode
    Wraps ResultsGrid and ImagePreviewModal together
    ─────────────────────────────────────────────────────────── */
 
 export function BatchResultsPanel() {
-  const { batchResults } = useAppStore();
+  const { batchResults, batchViewMode, batchSortBy, batchFilterBy } = useAppStore();
   const [previewResultId, setPreviewResultId] = useState<string | null>(null);
 
   const previewResult = previewResultId
@@ -540,7 +695,12 @@ export function BatchResultsPanel() {
 
   return (
     <>
-      <ResultsGrid onPreviewImage={(id) => setPreviewResultId(id)} />
+      <ResultsGrid
+        onPreviewImage={(id) => setPreviewResultId(id)}
+        viewMode={batchViewMode}
+        sortBy={batchSortBy}
+        filterBy={batchFilterBy}
+      />
       <ImagePreviewModal
         result={previewResult}
         results={batchResults}

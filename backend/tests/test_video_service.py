@@ -5,21 +5,25 @@ import sys
 import tempfile
 import unittest
 
-from PIL import Image
-
 
 BACKEND_ROOT = pathlib.Path(__file__).resolve().parents[1]
 if str(BACKEND_ROOT) not in sys.path:
     sys.path.insert(0, str(BACKEND_ROOT))
 
-from utils.direct_video_generator import (  # type: ignore[import-not-found]
-    build_video_result,
-    decode_data_url_to_image,
-    resolve_video_model_source,
-    resolve_video_model_strategy,
-)
+try:
+    from PIL import Image
+    from utils.direct_video_generator import (  # type: ignore[import-not-found]
+        build_video_result,
+        decode_data_url_to_image,
+        resolve_video_model_source,
+        resolve_video_model_strategy,
+    )
+    HAS_DEPS = True
+except ImportError:
+    HAS_DEPS = False
 
 
+@unittest.skipUnless(HAS_DEPS, "Requires Pillow, imageio and backend dependencies (run inside venv)")
 class VideoServiceTests(unittest.TestCase):
     def test_resolve_video_model_strategy(self):
         self.assertEqual(resolve_video_model_strategy("ltx-video", has_input_image=False), "text-to-video")

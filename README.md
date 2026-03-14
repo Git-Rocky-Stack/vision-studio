@@ -1,5 +1,8 @@
 # Vision Studio 🎨
 
+[![PR Gate](https://github.com/Git-Rocky-Stack/vision-studio/actions/workflows/pr-gate.yml/badge.svg)](https://github.com/Git-Rocky-Stack/vision-studio/actions/workflows/pr-gate.yml)
+[![Release](https://github.com/Git-Rocky-Stack/vision-studio/actions/workflows/release.yml/badge.svg)](https://github.com/Git-Rocky-Stack/vision-studio/actions/workflows/release.yml)
+
 A professional AI-powered desktop application for image and video generation. No cloud required - everything runs locally on your machine.
 
 ![Vision Studio](screenshot.png)
@@ -232,6 +235,38 @@ ws://localhost:8000/ws
 - Check internet connection
 - Verify HuggingFace token in `.env` (for FLUX)
 - Try manual download
+
+## 🧪 Testing
+
+```bash
+# Unit + component + integration tests (Vitest)
+npm test
+
+# Watch mode
+npm run test:watch
+
+# Specific test layers
+npm run test:unit          # Pure logic + store + Electron services
+npm run test:component     # React component tests (jsdom)
+npm run test:integration   # API contracts, store persistence, workflows
+
+# TypeScript type-check
+npm run typecheck
+
+# E2E tests (requires `npm run build` first)
+npm run test:e2e           # Playwright + Electron
+npm run test:e2e:headed    # With visible browser window
+npm run test:a11y          # Accessibility smoke tests only
+
+# Backend tests
+cd backend && python -m unittest discover -s tests -v
+```
+
+| Layer | Framework | Files | Tests |
+|-------|-----------|-------|-------|
+| Unit + Integration | Vitest 3.2 | 16 | 119 |
+| E2E | Playwright | 3 | 13 |
+| Backend | unittest | 7 | 35 (28 + 7 skipped) |
 
 ## 🤝 Contributing
 

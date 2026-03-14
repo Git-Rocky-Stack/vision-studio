@@ -119,6 +119,7 @@ export function ModelSelector({ value, onChange, generationType }: ModelSelector
     <div ref={containerRef} className="relative">
       {/* Trigger */}
       <button
+        data-testid="model-selector-trigger"
         onClick={() => setIsOpen(!isOpen)}
         aria-haspopup="listbox"
         aria-expanded={isOpen}

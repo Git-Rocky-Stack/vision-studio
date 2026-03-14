@@ -415,8 +415,8 @@ app.whenReady().then(async () => {
   rememberOutputRoot(getResolvedOutputDirectory());
   createWindow();
   
-  // Start Python backend if autostart is enabled
-  if (store.get('settings').backendAutostart) {
+  // Start Python backend if autostart is enabled (skip in E2E test mode)
+  if (store.get('settings').backendAutostart && !process.env.VISION_STUDIO_SKIP_BACKEND) {
     const started = await startPythonBackend();
     
     if (!started) {

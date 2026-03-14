@@ -1,33 +1,34 @@
 import { useState, useCallback, useRef } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { cn } from '@/utils/cn';
-import { Button } from '@/components/ui/Button';
 import { ResultCard } from './ResultCard';
 import { useAppStore } from '@/store/appStore';
 import {
-  Grid3X3,
-  List,
-  Maximize2,
-  ArrowUpDown,
   Download,
   Trash2,
   Pencil,
   Heart,
   Layers,
-  CheckSquare,
-  XSquare,
 } from 'lucide-react';
 import { AnimatePresence } from 'framer-motion';
 
-type ViewMode = 'grid' | 'list' | 'large';
-type SortBy = 'created' | 'prompt' | 'status';
-type FilterBy = 'all' | 'completed' | 'failed' | 'favorites';
+export type ViewMode = 'grid' | 'list' | 'large';
+export type SortBy = 'created' | 'prompt' | 'status';
+export type FilterBy = 'all' | 'completed' | 'failed' | 'favorites';
 
 interface ResultsGridProps {
   onPreviewImage: (resultId: string) => void;
+  viewMode?: ViewMode;
+  sortBy?: SortBy;
+  filterBy?: FilterBy;
 }
 
-export function ResultsGrid({ onPreviewImage }: ResultsGridProps) {
+export function ResultsGrid({
+  onPreviewImage,
+  viewMode: viewModeProp,
+  sortBy: sortByProp,
+  filterBy: filterByProp,
+}: ResultsGridProps) {
   const {
     batchResults,
     toggleBatchResultFavorite,
@@ -37,9 +38,14 @@ export function ResultsGrid({ onPreviewImage }: ResultsGridProps) {
     removeAssetRecordsByPaths,
   } = useAppStore();
 
-  const [viewMode, setViewMode] = useState<ViewMode>('grid');
-  const [sortBy, setSortBy] = useState<SortBy>('created');
-  const [filterBy, setFilterBy] = useState<FilterBy>('all');
+  const [viewModeLocal, setViewModeLocal] = useState<ViewMode>('grid');
+  const [sortByLocal, setSortByLocal] = useState<SortBy>('created');
+  const [filterByLocal, setFilterByLocal] = useState<FilterBy>('all');
+
+  const viewMode = viewModeProp ?? viewModeLocal;
+  const sortBy = sortByProp ?? sortByLocal;
+  const filterBy = filterByProp ?? filterByLocal;
+
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [lastSelectedId, setLastSelectedId] = useState<string | null>(null);
 
@@ -197,113 +203,8 @@ export function ResultsGrid({ onPreviewImage }: ResultsGridProps) {
     overscan: 5,
   });
 
-  const VIEW_MODES: { id: ViewMode; icon: React.ElementType; label: string }[] = [
-    { id: 'grid', icon: Grid3X3, label: 'Grid' },
-    { id: 'list', icon: List, label: 'List' },
-    { id: 'large', icon: Maximize2, label: 'Large' },
-  ];
-
-  const FILTERS: { id: FilterBy; label: string; count: number }[] = [
-    { id: 'all', label: 'All', count: batchResults.length },
-    { id: 'completed', label: 'Completed', count: batchResults.filter((r) => r.imagePath).length },
-    { id: 'failed', label: 'Failed', count: batchResults.filter((r) => !r.imagePath).length },
-    { id: 'favorites', label: 'Favorites', count: batchResults.filter((r) => r.isFavorite).length },
-  ];
-
   return (
     <div className="flex flex-col h-full">
-      {/* Controls Bar */}
-      <div className="flex items-center gap-3 px-4 py-3 border-b border-border bg-elevated/50">
-        {/* View Toggle */}
-        <div className="flex items-center bg-surface rounded-lg p-0.5">
-          {VIEW_MODES.map(({ id, icon: Icon, label }) => (
-            <button
-              key={id}
-              onClick={() => setViewMode(id)}
-              title={label}
-              aria-label={`${label} view`}
-              className={cn(
-                'p-1.5 rounded-md transition-all',
-                viewMode === id
-                  ? 'bg-red-primary text-text-primary'
-                  : 'text-text-muted hover:text-text-primary'
-              )}
-            >
-              <Icon className="w-3.5 h-3.5" />
-            </button>
-          ))}
-        </div>
-
-        {/* Sort Dropdown */}
-        <div className="relative">
-          <select
-            value={sortBy}
-            onChange={(e) => setSortBy(e.target.value as SortBy)}
-            className="appearance-none bg-elevated border border-border rounded-lg pl-3 pr-8 py-1.5 text-xs font-display text-text-primary focus:border-red-primary focus:ring-1 focus:ring-red-primary/40 transition-all cursor-pointer"
-          >
-            <option value="created">Creation Time</option>
-            <option value="prompt">Prompt Order</option>
-            <option value="status">Status</option>
-          </select>
-          <ArrowUpDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-text-muted pointer-events-none" />
-        </div>
-
-        {/* Filter Pills */}
-        <div className="flex items-center gap-1.5 flex-1">
-          {FILTERS.map(({ id, label, count }) => (
-            <button
-              key={id}
-              onClick={() => setFilterBy(id)}
-              className={cn(
-                'px-2.5 py-1 rounded-full text-micro font-display font-medium transition-all',
-                filterBy === id
-                  ? 'bg-red-primary text-text-primary'
-                  : 'bg-surface text-text-body hover:text-text-primary'
-              )}
-            >
-              {label}
-              {count > 0 && (
-                <span className="ml-1 opacity-60">{count}</span>
-              )}
-            </button>
-          ))}
-        </div>
-
-        {/* Bulk Actions */}
-        <div className="flex items-center gap-1.5">
-          <button
-            onClick={selectAll}
-            title="Select All"
-            className="p-1.5 rounded-lg text-text-muted hover:text-text-primary hover:bg-surface transition-all"
-          >
-            <CheckSquare className="w-3.5 h-3.5" />
-          </button>
-          <button
-            onClick={deselectAll}
-            title="Deselect All"
-            className="p-1.5 rounded-lg text-text-muted hover:text-text-primary hover:bg-surface transition-all"
-          >
-            <XSquare className="w-3.5 h-3.5" />
-          </button>
-          <Button
-            variant="ghost"
-            size="sm"
-            icon={Download}
-            onClick={handleExportAll}
-          >
-            Export All
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            icon={Trash2}
-            onClick={handleBulkDelete}
-          >
-            Delete
-          </Button>
-        </div>
-      </div>
-
       {/* Grid Area */}
       <div ref={parentRef} className="flex-1 overflow-y-auto p-4 scrollbar-hide">
         {sortedResults.length === 0 ? (

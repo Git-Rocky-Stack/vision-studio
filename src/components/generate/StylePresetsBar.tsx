@@ -16,7 +16,7 @@ export function StylePresetsBar({ activePresets, onTogglePreset }: StylePresetsB
     <div className="space-y-2">
       <label className="text-label text-text-body">Style</label>
 
-      <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-1">
+      <div className="flex flex-wrap gap-2">
         {allPresets.map((preset) => {
           const isActive = activePresets.includes(preset.id);
           return (
