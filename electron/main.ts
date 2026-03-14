@@ -1,10 +1,20 @@
-import { app, BrowserWindow, ipcMain, dialog, shell } from 'electron';
+import { app, BrowserWindow, ipcMain, dialog, shell, Notification } from 'electron';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import Store from 'electron-store';
 import { spawn, ChildProcess } from 'child_process';
 import fs from 'fs';
 import path from 'path';
+import {
+  resolveOutputPath,
+  shouldRestartBackend,
+  type AppSettings,
+} from './services/settings';
+import { isPathInsideRoots, resolveAssetPathFromRoots } from './services/assets';
+import {
+  getBackendStatusSnapshot,
+  waitForBackendReady,
+} from './services/backend';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -12,33 +22,101 @@ const __dirname = dirname(__filename);
 // Store for app data
 interface StoreSchema {
   recentProjects: string[];
-  settings: {
-    theme: 'dark' | 'light';
-    autoSave: boolean;
-    defaultOutputPath: string;
-    backendAutostart: boolean;
-    pythonPath?: string;
-  };
+  settings: AppSettings;
   firstRun: boolean;
   modelsDownloaded: string[];
+  managedOutputRoots: string[];
 }
+
+const DEFAULT_SETTINGS: Required<Omit<AppSettings, 'pythonPath'>> = {
+  theme: 'dark',
+  autoSave: true,
+  defaultOutputPath: '',
+  backendAutostart: true,
+  notifyOnGenerationComplete: true,
+  notifyOnGenerationFailed: true,
+  notifyOnModelDownloads: true,
+};
 
 const store = new Store<StoreSchema>({
   defaults: {
     recentProjects: [],
-    settings: {
-      theme: 'dark',
-      autoSave: true,
-      defaultOutputPath: '',
-      backendAutostart: true,
-    },
+    settings: DEFAULT_SETTINGS,
     firstRun: true,
     modelsDownloaded: [],
+    managedOutputRoots: [],
   },
 });
 
 let mainWindow: BrowserWindow | null = null;
 let pythonBackend: ChildProcess | null = null;
+let backendReady = false;
+
+function getAppSettings() {
+  return {
+    ...DEFAULT_SETTINGS,
+    ...store.get('settings'),
+  };
+}
+
+function getResolvedOutputDirectory() {
+  return resolveOutputPath(getAppSettings(), app.getPath('userData'));
+}
+
+function getInternalOutputDirectory() {
+  return resolveOutputPath({ defaultOutputPath: '' }, app.getPath('userData'));
+}
+
+function getManagedOutputRoots() {
+  return Array.from(
+    new Set([
+      getInternalOutputDirectory(),
+      getResolvedOutputDirectory(),
+      ...store.get('managedOutputRoots'),
+    ])
+  );
+}
+
+function rememberOutputRoot(outputRoot: string) {
+  const normalizedRoot = outputRoot.replace(/\\/g, '/').replace(/\/$/, '');
+  const nextRoots = Array.from(
+    new Set([...store.get('managedOutputRoots'), normalizedRoot])
+  );
+  store.set('managedOutputRoots', nextRoots);
+}
+
+async function restartPythonBackend() {
+  if (!pythonBackend) {
+    return startPythonBackend();
+  }
+
+  const backendProcess = pythonBackend;
+  const exitPromise = new Promise<void>((resolve) => {
+    const timeout = setTimeout(resolve, 5000);
+    backendProcess.once('close', () => {
+      clearTimeout(timeout);
+      resolve();
+    });
+  });
+
+  stopPythonBackend();
+  await exitPromise;
+  return startPythonBackend();
+}
+
+function resolveManagedAssetPath(assetPath: string) {
+  const resolvedPath = resolveAssetPathFromRoots(
+    assetPath,
+    getResolvedOutputDirectory(),
+    getManagedOutputRoots(),
+    (candidatePath) => fs.existsSync(candidatePath)
+  );
+  if (!isPathInsideRoots(resolvedPath, getManagedOutputRoots())) {
+    throw new Error('Asset path is outside managed output directories');
+  }
+
+  return resolvedPath;
+}
 
 /**
  * Get the path to the bundled Python backend executable
@@ -47,17 +125,19 @@ function getBundledBackendPath(): string | null {
   const isDev = !!process.env.VITE_DEV_SERVER_URL;
   const isWindows = process.platform === 'win32';
   const exeName = isWindows ? 'VisionStudio-Backend.exe' : 'VisionStudio-Backend';
-  
+
   if (isDev) {
     // Development: Look in backend/dist
-    const devPath = join(__dirname, '../../backend/dist', exeName);
+    // __dirname = dist-electron/, so ../ = project root
+    const devPath = join(__dirname, '../backend/dist', exeName);
     if (fs.existsSync(devPath)) {
       return devPath;
     }
     return null;
   } else {
-    // Production: Look in resources
+    // Production: Look in resources (extraResources copies here)
     const prodPath = join(process.resourcesPath, exeName);
+    console.log(`🔍 Looking for backend at: ${prodPath} (exists: ${fs.existsSync(prodPath)})`);
     if (fs.existsSync(prodPath)) {
       return prodPath;
     }
@@ -81,10 +161,21 @@ function getBackendCommand(): { command: string; args: string[]; cwd: string } |
   }
   
   // Fallback: Try to use system Python with backend source
-  const backendPath = join(__dirname, '../../backend');
+  const isDev = !!process.env.VITE_DEV_SERVER_URL;
+  // __dirname = dist-electron/, so ../ = project root
+  const backendPath = isDev
+    ? join(__dirname, '../backend')
+    : join(process.resourcesPath, 'backend-source');
   const pythonPath = store.get('settings').pythonPath || 'python';
-  
-  console.log('🐍 Using system Python:', pythonPath);
+
+  const mainPy = join(backendPath, 'main.py');
+  console.log(`🐍 Fallback to system Python: ${pythonPath}, main.py at: ${mainPy} (exists: ${fs.existsSync(mainPy)})`);
+
+  if (!fs.existsSync(mainPy)) {
+    console.error('❌ Neither bundled backend nor backend source found');
+    return null;
+  }
+
   return {
     command: pythonPath,
     args: ['main.py'],
@@ -113,6 +204,10 @@ function startPythonBackend(): Promise<boolean> {
     console.log(`   Command: ${backendConfig.command}`);
     console.log(`   Args: ${backendConfig.args.join(' ')}`);
     console.log(`   CWD: ${backendConfig.cwd}`);
+
+    const outputDirectory = getResolvedOutputDirectory();
+    fs.mkdirSync(outputDirectory, { recursive: true });
+    rememberOutputRoot(outputDirectory);
     
     pythonBackend = spawn(backendConfig.command, backendConfig.args, {
       cwd: backendConfig.cwd,
@@ -121,66 +216,74 @@ function startPythonBackend(): Promise<boolean> {
         PYTHONUNBUFFERED: '1',
         // Set models directory to app data
         MODELS_DIR: join(app.getPath('userData'), 'models'),
-        OUTPUT_DIR: join(app.getPath('userData'), 'outputs'),
+        OUTPUT_DIR: outputDirectory,
       },
       detached: false,
     });
     
     let hasStarted = false;
+    backendReady = false;
+
+    const finishStartup = (started: boolean) => {
+      if (hasStarted) {
+        return;
+      }
+
+      hasStarted = true;
+      backendReady = started;
+      mainWindow?.webContents.send('backend:status', getBackendStatusSnapshot(pythonBackend, backendReady));
+      resolve(started);
+    };
+
+    // PyInstaller first-run extracts ~2.4GB to temp — allow up to 5 minutes
+    void waitForBackendReady({
+      timeoutMs: 300000,
+      intervalMs: 1000,
+    }).then((status) => {
+      if (status.ready) {
+        console.log(`✅ Backend health check passed via ${status.origin}`);
+        finishStartup(true);
+      }
+    }).catch((error) => {
+      console.error('❌ Backend health check failed:', error);
+      finishStartup(false);
+    });
     
     pythonBackend.stdout?.on('data', (data) => {
       const output = data.toString().trim();
       console.log(`[Python] ${output}`);
       
-      // Check for successful startup
-      if (output.includes('Uvicorn running') || output.includes('Application startup complete')) {
-        if (!hasStarted) {
-          hasStarted = true;
-          console.log('✅ Backend started successfully');
-          resolve(true);
-        }
-      }
     });
     
     pythonBackend.stderr?.on('data', (data) => {
       const output = data.toString().trim();
       console.error(`[Python Error] ${output}`);
-      
-      // Show error to user on first failure
-      if (!hasStarted && output.includes('Error')) {
-        // Don't fail immediately, wait to see if it recovers
-      }
     });
     
     pythonBackend.on('error', (err) => {
       console.error('❌ Failed to start Python backend:', err);
+      backendReady = false;
       
       dialog.showErrorBox(
         'Backend Error',
         `Failed to start Python backend:\n${err.message}\n\nPlease ensure you have the required dependencies installed.`
       );
       
-      if (!hasStarted) {
-        hasStarted = true;
-        resolve(false);
-      }
+      finishStartup(false);
     });
     
     pythonBackend.on('close', (code) => {
       console.log(`Python backend exited with code ${code}`);
       pythonBackend = null;
+      backendReady = false;
       
       // Notify renderer
-      mainWindow?.webContents.send('backend:status', { running: false });
+      mainWindow?.webContents.send('backend:status', getBackendStatusSnapshot(null, false));
+      if (!hasStarted) {
+        finishStartup(false);
+      }
     });
     
-    // Timeout after 30 seconds
-    setTimeout(() => {
-      if (!hasStarted) {
-        console.error('❌ Backend startup timeout');
-        resolve(false);
-      }
-    }, 30000);
   });
 }
 
@@ -203,6 +306,7 @@ function stopPythonBackend() {
     }
     
     pythonBackend = null;
+    backendReady = false;
   }
 }
 
@@ -307,18 +411,25 @@ function createWindow() {
 
 // App lifecycle
 app.whenReady().then(async () => {
+  rememberOutputRoot(getInternalOutputDirectory());
+  rememberOutputRoot(getResolvedOutputDirectory());
   createWindow();
   
-  // Start Python backend if autostart is enabled
-  if (store.get('settings').backendAutostart) {
+  // Start Python backend if autostart is enabled (skip in E2E test mode)
+  if (store.get('settings').backendAutostart && !process.env.VISION_STUDIO_SKIP_BACKEND) {
     const started = await startPythonBackend();
     
     if (!started) {
+      const bundledPath = getBundledBackendPath();
+      const detail = bundledPath
+        ? `The backend was found at:\n${bundledPath}\n\nbut failed to start within the timeout. On first launch, the backend may need several minutes to extract. Try restarting the app.\n\nYou can also try starting it manually from Settings.`
+        : 'No backend executable was found. Please reinstall the application or configure a Python path in Settings.';
+
       dialog.showMessageBox(mainWindow!, {
         type: 'warning',
         title: 'Backend Not Started',
         message: 'Could not start the AI backend',
-        detail: 'Some features may not work. You can try starting it manually from Settings.',
+        detail,
         buttons: ['OK'],
       });
     }
@@ -349,6 +460,11 @@ ipcMain.handle('app:open-external', (_event, url: string) => {
   shell.openExternal(url);
 });
 
+ipcMain.handle('app:open-path', async (_event, filePath: string) => {
+  const error = await shell.openPath(resolveManagedAssetPath(filePath));
+  return error ? { success: false, error } : { success: true };
+});
+
 ipcMain.handle('dialog:select-folder', async () => {
   const result = await dialog.showOpenDialog(mainWindow!, {
     properties: ['openDirectory'],
@@ -377,27 +493,203 @@ ipcMain.handle('store:reset', () => {
   store.clear();
 });
 
+ipcMain.handle('settings:get', () => {
+  return getAppSettings();
+});
+
+ipcMain.handle('settings:update', async (_event, patch: Partial<AppSettings>) => {
+  const currentSettings = getAppSettings();
+  const nextSettings = {
+    ...currentSettings,
+    ...patch,
+  };
+
+  store.set('settings', nextSettings);
+  rememberOutputRoot(resolveOutputPath(nextSettings, app.getPath('userData')));
+
+  if (
+    pythonBackend &&
+    shouldRestartBackend(currentSettings, nextSettings)
+  ) {
+    const restarted = await restartPythonBackend();
+    if (!restarted && !(pythonBackend && pythonBackend.exitCode === null)) {
+      throw new Error('Backend restart failed after settings update');
+    }
+  }
+
+  return nextSettings;
+});
+
+ipcMain.handle('settings:reset', async () => {
+  const currentSettings = getAppSettings();
+  store.set('settings', DEFAULT_SETTINGS);
+  rememberOutputRoot(getInternalOutputDirectory());
+
+  if (pythonBackend && shouldRestartBackend(currentSettings, DEFAULT_SETTINGS)) {
+    const restarted = await restartPythonBackend();
+    if (!restarted && !(pythonBackend && pythonBackend.exitCode === null)) {
+      throw new Error('Backend restart failed after settings reset');
+    }
+  }
+
+  return getAppSettings();
+});
+
+ipcMain.handle('assets:export', async (_event, sourcePath: string, destinationPath: string) => {
+  try {
+    const resolvedSource = resolveManagedAssetPath(sourcePath);
+    await fs.promises.mkdir(path.dirname(destinationPath), { recursive: true });
+    await fs.promises.copyFile(resolvedSource, destinationPath);
+    return { success: true, destinationPath };
+  } catch (error: any) {
+    return {
+      success: false,
+      error: error.message,
+    };
+  }
+});
+
+ipcMain.handle('assets:export-many', async (_event, sourcePaths: string[], destinationDir: string) => {
+  try {
+    await fs.promises.mkdir(destinationDir, { recursive: true });
+    const usedNames = new Set<string>();
+
+    for (const sourcePath of sourcePaths) {
+      const resolvedSource = resolveManagedAssetPath(sourcePath);
+      const parsed = path.parse(resolvedSource);
+      let candidateName = `${parsed.name}${parsed.ext}`;
+      let counter = 1;
+
+      while (usedNames.has(candidateName) || fs.existsSync(path.join(destinationDir, candidateName))) {
+        candidateName = `${parsed.name}-${counter}${parsed.ext}`;
+        counter += 1;
+      }
+
+      usedNames.add(candidateName);
+      await fs.promises.copyFile(resolvedSource, path.join(destinationDir, candidateName));
+    }
+
+    return { success: true, exportedCount: sourcePaths.length };
+  } catch (error: any) {
+    return {
+      success: false,
+      error: error.message,
+    };
+  }
+});
+
+ipcMain.handle('assets:delete', async (_event, sourcePath: string) => {
+  try {
+    const resolvedSource = resolveManagedAssetPath(sourcePath);
+    await fs.promises.rm(resolvedSource, { force: true });
+    return { success: true };
+  } catch (error: any) {
+    return {
+      success: false,
+      error: error.message,
+    };
+  }
+});
+
+ipcMain.handle('assets:reveal', async (_event, sourcePath: string) => {
+  try {
+    shell.showItemInFolder(resolveManagedAssetPath(sourcePath));
+    return { success: true };
+  } catch (error: any) {
+    return {
+      success: false,
+      error: error.message,
+    };
+  }
+});
+
+ipcMain.handle('assets:clear-cache', async () => {
+  try {
+    const outputDirectory = getInternalOutputDirectory();
+    await fs.promises.rm(outputDirectory, { recursive: true, force: true });
+    await fs.promises.mkdir(outputDirectory, { recursive: true });
+    return { success: true };
+  } catch (error: any) {
+    return {
+      success: false,
+      error: error.message,
+    };
+  }
+});
+
+ipcMain.handle(
+  'notifications:notify',
+  async (
+    _event,
+    type: 'generation_complete' | 'generation_failed' | 'model_download',
+    payload: { title: string; body: string }
+  ) => {
+    const settings = getAppSettings();
+    const enabled =
+      (type === 'generation_complete' && settings.notifyOnGenerationComplete) ||
+      (type === 'generation_failed' && settings.notifyOnGenerationFailed) ||
+      (type === 'model_download' && settings.notifyOnModelDownloads);
+
+    if (!enabled) {
+      return { success: true, skipped: true };
+    }
+
+    if (Notification.isSupported()) {
+      new Notification({
+        title: payload.title,
+        body: payload.body,
+      }).show();
+    }
+
+    return { success: true };
+  }
+);
+
 // Backend control
 ipcMain.handle('backend:start', async () => {
-  if (!pythonBackend) {
-    const started = await startPythonBackend();
-    return { success: started };
-  }
-  return { success: false, error: 'Backend already running' };
-});
+    if (!pythonBackend || pythonBackend.exitCode !== null) {
+      pythonBackend = null;
+      const started = await startPythonBackend();
+      return { success: started };
+    }
+
+    const status = await waitForBackendReady({
+      timeoutMs: 0,
+      intervalMs: 0,
+      requestTimeoutMs: 1000,
+    });
+    backendReady = status.ready;
+
+    if (!status.ready) {
+      const restarted = await restartPythonBackend();
+      return { success: restarted, restarted: true };
+    }
+
+    return { success: false, error: 'Backend already running' };
+  });
 
 ipcMain.handle('backend:stop', () => {
   stopPythonBackend();
   return { success: true };
 });
 
-ipcMain.handle('backend:status', () => {
-  return {
-    running: pythonBackend !== null && pythonBackend.exitCode === null,
-    pid: pythonBackend?.pid,
-    bundled: getBundledBackendPath() !== null
-  };
-});
+  ipcMain.handle('backend:status', async () => {
+    if (pythonBackend && pythonBackend.exitCode === null) {
+      const status = await waitForBackendReady({
+        timeoutMs: 0,
+        intervalMs: 0,
+        requestTimeoutMs: 1000,
+      });
+      backendReady = status.ready;
+    } else {
+      backendReady = false;
+    }
+
+    return {
+      ...getBackendStatusSnapshot(pythonBackend, backendReady),
+      bundled: getBundledBackendPath() !== null
+    };
+  });
 
 // Check if bundled backend exists
 ipcMain.handle('backend:check-bundled', () => {

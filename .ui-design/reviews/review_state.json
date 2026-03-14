@@ -1,0 +1,17 @@
+{
+  "review_id": "full-ui_20260311_120000",
+  "target": "src/ (entire UI directory)",
+  "focus_areas": ["visual", "usability", "code", "performance"],
+  "context": "Windows desktop Electron app (dark cinema theme)",
+  "platform": "desktop",
+  "status": "complete",
+  "started_at": "2026-03-11T12:00:00Z",
+  "completed_at": "2026-03-11T12:30:00Z",
+  "issues_found": 87,
+  "severity_counts": {
+    "critical": 12,
+    "major": 28,
+    "minor": 31,
+    "suggestion": 16
+  }
+}

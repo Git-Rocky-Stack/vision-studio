@@ -1,5 +1,17 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import type { EditTool, Layer, EditHistoryEntry, ImageAdjustments } from '@/types/editor';
+import { DEFAULT_ADJUSTMENTS } from '@/types/editor';
+import type {
+  PromptHistoryEntry,
+  StylePreset,
+  GenerationQueueItem,
+  BatchResult,
+  GenerationDraft,
+} from '@/types/generation';
+import { BUILT_IN_STYLE_PRESETS } from '@/types/generation';
+import type { AssetJobStatus, AssetRecord, DerivedAssetResult } from '@/types/assets';
+import { createDerivedAssetRecord, upsertAssetsFromJobStatus } from '@/features/assets/assetRecords';
 
 export interface Project {
   id: string;
@@ -42,6 +54,7 @@ export interface ProjectTemplate {
     prompt: string;
     negativePrompt: string;
   };
+  isCustom?: boolean;
 }
 
 export interface BatchJob {
@@ -64,11 +77,7 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
     category: 'youtube',
     thumbnail: '🎬',
     settings: {
-      width: 1280,
-      height: 720,
-      model: 'flux-dev',
-      steps: 25,
-      cfgScale: 7.5,
+      width: 1280, height: 720, model: 'flux-dev', steps: 25, cfgScale: 7.5,
       prompt: 'cinematic YouTube thumbnail, dramatic lighting, bold text overlay area, professional, high contrast, vibrant colors',
       negativePrompt: 'blurry, low quality, distorted, ugly'
     }
@@ -80,11 +89,7 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
     category: 'social',
     thumbnail: '📱',
     settings: {
-      width: 720,
-      height: 1280,
-      model: 'flux-dev',
-      steps: 25,
-      cfgScale: 7.5,
+      width: 720, height: 1280, model: 'flux-dev', steps: 25, cfgScale: 7.5,
       prompt: 'vertical mobile content, vibrant colors, eye-catching, social media style, modern aesthetic',
       negativePrompt: 'horizontal, landscape, blurry'
     }
@@ -96,11 +101,7 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
     category: 'social',
     thumbnail: '📸',
     settings: {
-      width: 1080,
-      height: 1080,
-      model: 'flux-dev',
-      steps: 25,
-      cfgScale: 7.5,
+      width: 1080, height: 1080, model: 'flux-dev', steps: 25, cfgScale: 7.5,
       prompt: 'Instagram aesthetic, cohesive color palette, lifestyle photography style, polished, engaging',
       negativePrompt: 'low resolution, blurry, distorted'
     }
@@ -112,11 +113,7 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
     category: 'social',
     thumbnail: '✨',
     settings: {
-      width: 1080,
-      height: 1920,
-      model: 'flux-dev',
-      steps: 20,
-      cfgScale: 7.0,
+      width: 1080, height: 1920, model: 'flux-dev', steps: 20, cfgScale: 7.0,
       prompt: 'story format, immersive, full screen, engaging, social media story aesthetic',
       negativePrompt: 'text, watermark, logo'
     }
@@ -128,11 +125,7 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
     category: 'art',
     thumbnail: '🎞️',
     settings: {
-      width: 1920,
-      height: 1080,
-      model: 'flux-dev',
-      steps: 30,
-      cfgScale: 7.5,
+      width: 1920, height: 1080, model: 'flux-dev', steps: 30, cfgScale: 7.5,
       prompt: 'cinematic composition, film grain, anamorphic lens, dramatic lighting, movie still, high production value',
       negativePrompt: 'amateur, low quality, distorted, fisheye'
     }
@@ -144,11 +137,7 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
     category: 'marketing',
     thumbnail: '🛍️',
     settings: {
-      width: 1024,
-      height: 1024,
-      model: 'flux-dev',
-      steps: 30,
-      cfgScale: 8.0,
+      width: 1024, height: 1024, model: 'flux-dev', steps: 30, cfgScale: 8.0,
       prompt: 'professional product photography, clean background, studio lighting, commercial quality, sharp focus',
       negativePrompt: 'cluttered background, harsh shadows, blurry, amateur'
     }
@@ -160,11 +149,7 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
     category: 'art',
     thumbnail: '👤',
     settings: {
-      width: 896,
-      height: 1152,
-      model: 'flux-dev',
-      steps: 25,
-      cfgScale: 7.5,
+      width: 896, height: 1152, model: 'flux-dev', steps: 25, cfgScale: 7.5,
       prompt: 'portrait, professional headshot, studio lighting, sharp focus, detailed skin texture, flattering angle',
       negativePrompt: 'deformed, ugly, duplicate, blurry, bad anatomy, disfigured, poorly drawn face'
     }
@@ -176,11 +161,7 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
     category: 'art',
     thumbnail: '🖥️',
     settings: {
-      width: 1920,
-      height: 1080,
-      model: 'flux-dev',
-      steps: 35,
-      cfgScale: 7.5,
+      width: 1920, height: 1080, model: 'flux-dev', steps: 35, cfgScale: 7.5,
       prompt: 'desktop wallpaper, detailed, high resolution, crisp, clean composition, visually stunning',
       negativePrompt: 'busy, cluttered, low resolution, blurry'
     }
@@ -192,18 +173,18 @@ interface AppState {
   sidebarCollapsed: boolean;
   activePanel: 'generate' | 'edit' | 'assets' | 'settings' | 'templates' | 'batch';
   darkMode: boolean;
-  
+
   // Projects
   currentProject: Project | null;
   recentProjects: Project[];
-  
+
   // Generation
   activeJobs: GenerationJob[];
   completedJobs: GenerationJob[];
-  
+
   // Batch
   batchJobs: BatchJob[];
-  
+
   // System
   systemInfo: {
     gpuAvailable: boolean;
@@ -213,11 +194,63 @@ interface AppState {
     comfyuiConnected: boolean;
     modelsCount: number;
   };
-  
+
   // Models
   availableModels: any[];
-  
-  // Actions
+
+  // -- New state from redesign --
+
+  // Prompt intelligence
+  promptHistory: PromptHistoryEntry[];
+  favoritePrompts: string[];
+  stylePresets: StylePreset[];
+  customStylePresets: StylePreset[];
+
+  // Templates
+  userTemplates: ProjectTemplate[];
+
+  // Generation queue & batch results
+  generationQueue: GenerationQueueItem[];
+  batchResults: BatchResult[];
+
+  // Comparison
+  comparisonMode: 'off' | 'side-by-side' | 'slider' | 'onion' | 'grid';
+  comparisonImages: string[];
+
+  // Assets
+  assetLibrary: AssetRecord[];
+
+  // Edit mode
+  activeEditTool: EditTool;
+  editLayers: Layer[];
+  editHistory: EditHistoryEntry[];
+  editHistoryIndex: number; // Current position in history (-1 = no history)
+  currentImage: string | null;
+  currentImageAssetPath: string | null;
+  imageAdjustments: ImageAdjustments;
+  generationDraft: GenerationDraft | null;
+
+  // Batch view state (shared between BatchPromptQueue & ResultsGrid)
+  batchViewMode: 'grid' | 'list' | 'large';
+  batchSortBy: 'created' | 'prompt' | 'status';
+  batchFilterBy: 'all' | 'completed' | 'failed' | 'favorites';
+
+  // Advanced generation settings (shared between Sidebar & GeneratePanel)
+  advancedGeneration: {
+    generationType: 'image' | 'video';
+    steps: number;
+    cfgScale: number;
+    scheduler: string;
+    clipSkip: number;
+    seed: number;
+    duration: number;
+    fps: number;
+  };
+  showAdvancedGeneration: boolean;
+
+  // ---- Actions ----
+
+  // Existing actions
   toggleSidebar: () => void;
   setActivePanel: (panel: AppState['activePanel']) => void;
   setCurrentProject: (project: Project | null) => void;
@@ -228,11 +261,93 @@ interface AppState {
   setAvailableModels: (models: any[]) => void;
   addBatchJob: (batchJob: BatchJob) => void;
   updateBatchJob: (batchId: string, updates: Partial<BatchJob>) => void;
+
+  // Prompt intelligence actions
+  addToPromptHistory: (entry: PromptHistoryEntry) => void;
+  toggleFavoritePrompt: (prompt: string) => void;
+  addCustomStylePreset: (preset: StylePreset) => void;
+  removeCustomStylePreset: (id: string) => void;
+
+  // Template actions
+  addUserTemplate: (template: ProjectTemplate) => void;
+  updateUserTemplate: (id: string, updates: Partial<ProjectTemplate>) => void;
+  deleteUserTemplate: (id: string) => void;
+
+  // Generation queue actions
+  addToGenerationQueue: (item: GenerationQueueItem) => void;
+  removeFromGenerationQueue: (id: string) => void;
+
+  // Batch results actions
+  addBatchResult: (result: BatchResult) => void;
+  toggleBatchResultFavorite: (id: string) => void;
+
+  // Comparison actions
+  setComparisonMode: (mode: AppState['comparisonMode']) => void;
+  setComparisonImages: (images: string[]) => void;
+
+  // Asset actions
+  syncAssetsFromJobStatus: (status: AssetJobStatus) => void;
+  deleteAssetRecord: (assetId: string) => void;
+  toggleAssetFavorite: (assetId: string) => void;
+  clearAssetLibrary: () => void;
+  clearBatchResults: () => void;
+  removeAssetsByRoot: (rootPath: string) => void;
+  removeAssetRecordsByPaths: (paths: string[]) => void;
+  upsertDerivedAsset: (
+    result: DerivedAssetResult,
+    context: {
+      prompt: string;
+      negativePrompt?: string;
+      model?: string;
+      seed?: number;
+      params?: Record<string, unknown>;
+    }
+  ) => void;
+  removeBatchResults: (ids: string[]) => void;
+  setGenerationDraft: (draft: GenerationDraft | null) => void;
+  updateAdvancedGeneration: (patch: Partial<AppState['advancedGeneration']>) => void;
+  setShowAdvancedGeneration: (show: boolean) => void;
+  setBatchViewMode: (mode: AppState['batchViewMode']) => void;
+  setBatchSortBy: (sort: AppState['batchSortBy']) => void;
+  setBatchFilterBy: (filter: AppState['batchFilterBy']) => void;
+
+  // Edit mode actions
+  setActiveEditTool: (tool: EditTool) => void;
+  addEditLayer: (layer: Layer) => void;
+  updateEditLayer: (id: string, updates: Partial<Layer>) => void;
+  removeEditLayer: (id: string) => void;
+  reorderEditLayers: (layerIds: string[]) => void;
+  pushEditHistory: (entry: EditHistoryEntry) => void;
+  undo: () => void;
+  redo: () => void;
+  canUndo: () => boolean;
+  canRedo: () => boolean;
+  setCurrentImage: (imagePath: string | null, assetPath?: string | null) => void;
+  setImageAdjustments: (adjustments: Partial<ImageAdjustments>) => void;
+  resetImageAdjustments: () => void;
+}
+
+function createBaseImageLayer(imagePath: string, assetPath?: string | null): Layer {
+  return {
+    id: 'base-image-layer',
+    name: 'Base Image',
+    type: 'image',
+    visible: true,
+    opacity: 1,
+    blendMode: 'Normal',
+    locked: false,
+    data: {
+      previewUrl: imagePath,
+      assetPath: assetPath ?? null,
+      thumbnail: imagePath,
+    },
+  };
 }
 
 export const useAppStore = create<AppState>()(
   persist(
-    (set, get) => ({
+    (set) => ({
+      // UI State
       sidebarCollapsed: false,
       activePanel: 'generate',
       darkMode: true,
@@ -248,45 +363,290 @@ export const useAppStore = create<AppState>()(
       },
       availableModels: [],
 
+      // New state defaults
+      promptHistory: [],
+      favoritePrompts: [],
+      stylePresets: BUILT_IN_STYLE_PRESETS,
+      customStylePresets: [],
+      userTemplates: [],
+      generationQueue: [],
+      batchResults: [],
+      comparisonMode: 'off',
+      comparisonImages: [],
+      assetLibrary: [],
+      activeEditTool: 'move',
+      editLayers: [],
+      editHistory: [],
+      editHistoryIndex: -1,
+      currentImage: null,
+      currentImageAssetPath: null,
+      imageAdjustments: { ...DEFAULT_ADJUSTMENTS },
+      generationDraft: null,
+      batchViewMode: 'grid',
+      batchSortBy: 'created',
+      batchFilterBy: 'all',
+      advancedGeneration: {
+        generationType: 'image',
+        steps: 25,
+        cfgScale: 7.5,
+        scheduler: 'Euler a',
+        clipSkip: 1,
+        seed: -1,
+        duration: 5,
+        fps: 24,
+      },
+      showAdvancedGeneration: false,
+
+      // --- Existing actions ---
+
       toggleSidebar: () => set((state) => ({ sidebarCollapsed: !state.sidebarCollapsed })),
-      
       setActivePanel: (panel) => set({ activePanel: panel }),
-      
       setCurrentProject: (project) => set({ currentProject: project }),
-      
-      addJob: (job) => set((state) => ({ 
-        activeJobs: [...state.activeJobs, job] 
+
+      addJob: (job) => set((state) => ({
+        activeJobs: [...state.activeJobs.filter((existing) => existing.id !== job.id), job],
       })),
-      
-      updateJob: (jobId, updates) => set((state) => ({
-        activeJobs: state.activeJobs.map((job) =>
-          job.id === jobId ? { ...job, ...updates } : job
-        ),
-      })),
-      
+
+      updateJob: (jobId, updates) => set((state) => {
+        const existingJob = state.activeJobs.find((job) => job.id === jobId);
+        if (!existingJob) {
+          return {
+            activeJobs: state.activeJobs,
+          };
+        }
+
+        const updatedJob = { ...existingJob, ...updates };
+        const isTerminal =
+          updatedJob.status === 'completed' ||
+          updatedJob.status === 'failed' ||
+          updatedJob.status === 'cancelled';
+
+        if (!isTerminal) {
+          return {
+            activeJobs: state.activeJobs.map((job) =>
+              job.id === jobId ? updatedJob : job
+            ),
+          };
+        }
+
+        return {
+          activeJobs: state.activeJobs.filter((job) => job.id !== jobId),
+          completedJobs: [
+            updatedJob,
+            ...state.completedJobs.filter((job) => job.id !== jobId),
+          ].slice(0, 100),
+        };
+      }),
+
       removeJob: (jobId) => set((state) => {
         const job = state.activeJobs.find((j) => j.id === jobId);
         return {
           activeJobs: state.activeJobs.filter((j) => j.id !== jobId),
-          completedJobs: job 
+          completedJobs: job
             ? [...state.completedJobs, job].slice(-50)
             : state.completedJobs,
         };
       }),
-      
+
       setSystemInfo: (info) => set({ systemInfo: info }),
-      
       setAvailableModels: (models) => set({ availableModels: models }),
-      
+
       addBatchJob: (batchJob) => set((state) => ({
         batchJobs: [...state.batchJobs, batchJob]
       })),
-      
+
       updateBatchJob: (batchId, updates) => set((state) => ({
         batchJobs: state.batchJobs.map((batch) =>
           batch.id === batchId ? { ...batch, ...updates } : batch
         ),
       })),
+
+      // --- Prompt intelligence ---
+
+      addToPromptHistory: (entry) => set((state) => ({
+        promptHistory: [entry, ...state.promptHistory].slice(0, 50),
+      })),
+
+      toggleFavoritePrompt: (prompt) => set((state) => ({
+        favoritePrompts: state.favoritePrompts.includes(prompt)
+          ? state.favoritePrompts.filter((p) => p !== prompt)
+          : [...state.favoritePrompts, prompt],
+      })),
+
+      addCustomStylePreset: (preset) => set((state) => ({
+        customStylePresets: [...state.customStylePresets, preset],
+      })),
+
+      removeCustomStylePreset: (id) => set((state) => ({
+        customStylePresets: state.customStylePresets.filter((p) => p.id !== id),
+      })),
+
+      // --- Template actions ---
+
+      addUserTemplate: (template) => set((state) => ({
+        userTemplates: [...state.userTemplates, template],
+      })),
+
+      updateUserTemplate: (id, updates) => set((state) => ({
+        userTemplates: state.userTemplates.map((t) =>
+          t.id === id ? { ...t, ...updates } : t
+        ),
+      })),
+
+      deleteUserTemplate: (id) => set((state) => ({
+        userTemplates: state.userTemplates.filter((t) => t.id !== id),
+      })),
+
+      // --- Generation queue ---
+
+      addToGenerationQueue: (item) => set((state) => ({
+        generationQueue: [...state.generationQueue, item],
+      })),
+
+      removeFromGenerationQueue: (id) => set((state) => ({
+        generationQueue: state.generationQueue.filter((i) => i.id !== id),
+      })),
+
+      // --- Batch results ---
+
+      addBatchResult: (result) => set((state) => ({
+        batchResults: [
+          result,
+          ...state.batchResults.filter((entry) => entry.id !== result.id),
+        ].slice(0, 200),
+      })),
+
+      toggleBatchResultFavorite: (id) => set((state) => ({
+        batchResults: state.batchResults.map((r) =>
+          r.id === id ? { ...r, isFavorite: !r.isFavorite } : r
+        ),
+      })),
+
+      // --- Comparison ---
+
+      setComparisonMode: (mode) => set({ comparisonMode: mode }),
+      setComparisonImages: (images) => set({ comparisonImages: images }),
+
+      // --- Assets ---
+
+      syncAssetsFromJobStatus: (status) => set((state) => ({
+        assetLibrary: upsertAssetsFromJobStatus(state.assetLibrary, status),
+      })),
+
+      deleteAssetRecord: (assetId) => set((state) => ({
+        assetLibrary: state.assetLibrary.filter((asset) => asset.id !== assetId),
+      })),
+
+      toggleAssetFavorite: (assetId) => set((state) => ({
+        assetLibrary: state.assetLibrary.map((asset) =>
+          asset.id === assetId ? { ...asset, favorite: !asset.favorite } : asset
+        ),
+      })),
+
+      clearAssetLibrary: () => set({ assetLibrary: [] }),
+      clearBatchResults: () => set({ batchResults: [] }),
+      removeBatchResults: (ids) => set((state) => ({
+        batchResults: state.batchResults.filter((result) => !ids.includes(result.id)),
+      })),
+      removeAssetsByRoot: (rootPath) => set((state) => {
+        const normalizedRoot = rootPath.replace(/\\/g, '/').replace(/\/$/, '');
+        return {
+          assetLibrary: state.assetLibrary.filter((asset) => {
+            const normalizedPath = asset.path.replace(/\\/g, '/');
+            return !(
+              normalizedPath.startsWith(`${normalizedRoot}/`) ||
+              normalizedPath.startsWith('/outputs/')
+            );
+          }),
+        };
+      }),
+      removeAssetRecordsByPaths: (paths) => set((state) => {
+        const normalizedPaths = paths.map((value) => value.replace(/\\/g, '/'));
+        return {
+          assetLibrary: state.assetLibrary.filter(
+            (asset) => !normalizedPaths.includes(asset.path.replace(/\\/g, '/'))
+          ),
+        };
+      }),
+      upsertDerivedAsset: (result, context) => set((state) => ({
+        assetLibrary: createDerivedAssetRecord(state.assetLibrary, result, context),
+      })),
+      setGenerationDraft: (draft) => set({ generationDraft: draft }),
+      updateAdvancedGeneration: (patch) => set((state) => ({
+        advancedGeneration: { ...state.advancedGeneration, ...patch },
+      })),
+      setShowAdvancedGeneration: (show) => set({ showAdvancedGeneration: show }),
+      setBatchViewMode: (mode) => set({ batchViewMode: mode }),
+      setBatchSortBy: (sort) => set({ batchSortBy: sort }),
+      setBatchFilterBy: (filter) => set({ batchFilterBy: filter }),
+
+      // --- Edit mode ---
+
+      setActiveEditTool: (tool) => set({ activeEditTool: tool }),
+
+      addEditLayer: (layer) => set((state) => ({
+        editLayers: [...state.editLayers, layer],
+      })),
+
+      updateEditLayer: (id, updates) => set((state) => ({
+        editLayers: state.editLayers.map((l) =>
+          l.id === id ? { ...l, ...updates } : l
+        ),
+      })),
+
+      removeEditLayer: (id) => set((state) => ({
+        editLayers: state.editLayers.filter((l) => l.id !== id),
+      })),
+
+      reorderEditLayers: (layerIds) => set((state) => {
+        const layerMap = new Map(state.editLayers.map((l) => [l.id, l]));
+        return {
+          editLayers: layerIds
+            .map((id) => layerMap.get(id))
+            .filter((l): l is Layer => l !== undefined),
+        };
+      }),
+
+      pushEditHistory: (entry) => set((state) => {
+        // Truncate any "future" history beyond current index
+        const truncated = state.editHistory.slice(0, state.editHistoryIndex + 1);
+        const newHistory = [...truncated, entry].slice(-100);
+        return {
+          editHistory: newHistory,
+          editHistoryIndex: newHistory.length - 1,
+        };
+      }),
+
+      undo: () => set((state) => {
+        if (state.editHistoryIndex <= 0) return state;
+        const newIndex = state.editHistoryIndex - 1;
+        return { editHistoryIndex: newIndex };
+      }),
+
+      redo: () => set((state) => {
+        if (state.editHistoryIndex >= state.editHistory.length - 1) return state;
+        const newIndex = state.editHistoryIndex + 1;
+        return { editHistoryIndex: newIndex };
+      }),
+
+      canUndo: () => useAppStore.getState().editHistoryIndex > 0,
+      canRedo: () => useAppStore.getState().editHistoryIndex < useAppStore.getState().editHistory.length - 1,
+
+      setCurrentImage: (imagePath, assetPath) =>
+        set({
+          currentImage: imagePath,
+          currentImageAssetPath: assetPath ?? null,
+          editLayers: imagePath ? [createBaseImageLayer(imagePath, assetPath)] : [],
+          editHistory: [],
+          editHistoryIndex: -1,
+          imageAdjustments: { ...DEFAULT_ADJUSTMENTS },
+        }),
+
+      setImageAdjustments: (adjustments) => set((state) => ({
+        imageAdjustments: { ...state.imageAdjustments, ...adjustments },
+      })),
+
+      resetImageAdjustments: () => set({ imageAdjustments: { ...DEFAULT_ADJUSTMENTS } }),
     }),
     {
       name: 'vision-studio-storage',
@@ -294,6 +654,12 @@ export const useAppStore = create<AppState>()(
         sidebarCollapsed: state.sidebarCollapsed,
         darkMode: state.darkMode,
         recentProjects: state.recentProjects,
+        promptHistory: state.promptHistory.slice(0, 50),
+        favoritePrompts: state.favoritePrompts,
+        customStylePresets: state.customStylePresets,
+        userTemplates: state.userTemplates,
+        batchResults: state.batchResults.slice(0, 200),
+        assetLibrary: state.assetLibrary.slice(0, 500),
       }),
     }
   )

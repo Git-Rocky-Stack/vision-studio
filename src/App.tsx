@@ -1,26 +1,52 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useAppStore } from '@/store/appStore';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { Header } from '@/components/layout/Header';
 import { Canvas } from '@/components/layout/Canvas';
 import { Timeline } from '@/components/layout/Timeline';
+import { WorkspaceLayout } from '@/components/layout/WorkspaceLayout';
+import { FilmGrainOverlay } from '@/components/effects/FilmGrainOverlay';
 import { GeneratePanel } from '@/pages/GeneratePanel';
 import { EditPanel } from '@/pages/EditPanel';
 import { AssetsPanel } from '@/pages/AssetsPanel';
 import { SettingsPanel } from '@/pages/SettingsPanel';
 import { TemplatesPanel } from '@/pages/TemplatesPanel';
-import { BatchPanel } from '@/pages/BatchPanel';
-import { cn } from '@/utils/cn';
-import { motion, AnimatePresence } from 'framer-motion';
+import { BatchPromptQueue, BatchResultsPanel } from '@/pages/BatchPanel';
+import { ToolStrip } from '@/components/edit/ToolStrip';
+import { EditPropertiesPanel } from '@/components/edit/EditPropertiesPanel';
+import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
+import { KeyboardShortcuts } from '@/components/ui/KeyboardShortcuts';
+import { applyThemeToDocument, type ThemePreference } from '@/features/theme/theme';
 
 function App() {
-  const { 
-    activePanel, 
-    setSystemInfo, 
+  const {
+    activePanel,
+    setSystemInfo,
     setAvailableModels,
     addJob,
-    updateJob 
+    updateJob
   } = useAppStore();
+
+  const [showShortcuts, setShowShortcuts] = useState(false);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      if (e.key === '?') {
+        setShowShortcuts(prev => !prev);
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+        e.preventDefault();
+        useAppStore.getState().undo();
+      }
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) {
+        e.preventDefault();
+        useAppStore.getState().redo();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   // Fetch system info on mount
   useEffect(() => {
@@ -57,6 +83,35 @@ function App() {
     return () => clearInterval(interval);
   }, [setSystemInfo, setAvailableModels]);
 
+  useEffect(() => {
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+
+    const syncTheme = async (themePreference?: ThemePreference) => {
+      const settings = themePreference
+        ? { theme: themePreference }
+        : await window.electron.settings.get();
+      applyThemeToDocument(settings.theme, mediaQuery.matches);
+    };
+
+    const handleThemeChanged = (event: Event) => {
+      const customEvent = event as CustomEvent<{ theme: ThemePreference }>;
+      syncTheme(customEvent.detail?.theme);
+    };
+
+    const handleSystemThemeChanged = () => {
+      syncTheme();
+    };
+
+    syncTheme();
+    window.addEventListener('vision-studio:theme-changed', handleThemeChanged as EventListener);
+    mediaQuery.addEventListener('change', handleSystemThemeChanged);
+
+    return () => {
+      window.removeEventListener('vision-studio:theme-changed', handleThemeChanged as EventListener);
+      mediaQuery.removeEventListener('change', handleSystemThemeChanged);
+    };
+  }, []);
+
   // Subscribe to generation progress
   useEffect(() => {
     const unsubscribe = window.electron.generation.onProgress((data) => {
@@ -71,62 +126,75 @@ function App() {
     return unsubscribe;
   }, [updateJob]);
 
-  const renderPanel = () => {
-    switch (activePanel) {
-      case 'generate':
-        return <GeneratePanel />;
-      case 'batch':
-        return <BatchPanel />;
-      case 'templates':
-        return <TemplatesPanel />;
-      case 'edit':
-        return <EditPanel />;
-      case 'assets':
-        return <AssetsPanel />;
-      case 'settings':
-        return <SettingsPanel />;
-      default:
-        return <GeneratePanel />;
-    }
-  };
-
   return (
-    <div className="h-screen w-screen bg-black flex overflow-hidden">
-      {/* Sidebar */}
-      <Sidebar />
-
-      {/* Main Content */}
-      <div className="flex-1 flex flex-col min-w-0">
-        {/* Header */}
-        <Header />
-
-        {/* Workspace */}
-        <div className="flex-1 flex min-h-0">
-          {/* Canvas Area */}
-          <Canvas />
-
-          {/* Right Panel */}
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={activePanel}
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -20 }}
-              transition={{ duration: 0.2 }}
-              className={cn(
-                'border-l border-border bg-charcoal flex-shrink-0 overflow-hidden',
-                activePanel === 'settings' ? 'w-[600px]' : 'w-80'
-              )}
-            >
-              {renderPanel()}
-            </motion.div>
-          </AnimatePresence>
-        </div>
-
-        {/* Timeline */}
-        <Timeline />
-      </div>
-    </div>
+    <>
+      <ErrorBoundary fallbackLabel="Workspace error">
+        <WorkspaceLayout
+          activePanel={activePanel}
+          sidebar={<Sidebar />}
+          header={<Header />}
+          timeline={
+            <ErrorBoundary fallbackLabel="Timeline error">
+              <Timeline />
+            </ErrorBoundary>
+          }
+          canvas={
+            <ErrorBoundary fallbackLabel="Canvas error">
+              <Canvas />
+            </ErrorBoundary>
+          }
+          panels={{
+            generate: (
+              <ErrorBoundary fallbackLabel="Generate panel error">
+                <GeneratePanel />
+              </ErrorBoundary>
+            ),
+            edit: (
+              <ErrorBoundary fallbackLabel="Edit panel error">
+                <EditPanel />
+              </ErrorBoundary>
+            ),
+            assets: (
+              <ErrorBoundary fallbackLabel="Assets panel error">
+                <AssetsPanel />
+              </ErrorBoundary>
+            ),
+            settings: (
+              <ErrorBoundary fallbackLabel="Settings panel error">
+                <SettingsPanel />
+              </ErrorBoundary>
+            ),
+            templates: (
+              <ErrorBoundary fallbackLabel="Templates panel error">
+                <TemplatesPanel />
+              </ErrorBoundary>
+            ),
+          }}
+          toolStrip={
+            <ErrorBoundary fallbackLabel="Tool strip error">
+              <ToolStrip />
+            </ErrorBoundary>
+          }
+          editProperties={
+            <ErrorBoundary fallbackLabel="Properties panel error">
+              <EditPropertiesPanel />
+            </ErrorBoundary>
+          }
+          batchQueue={
+            <ErrorBoundary fallbackLabel="Batch queue error">
+              <BatchPromptQueue />
+            </ErrorBoundary>
+          }
+          batchResults={
+            <ErrorBoundary fallbackLabel="Batch results error">
+              <BatchResultsPanel />
+            </ErrorBoundary>
+          }
+        />
+      </ErrorBoundary>
+      <FilmGrainOverlay opacity={0.025} />
+      <KeyboardShortcuts open={showShortcuts} onClose={() => setShowShortcuts(false)} />
+    </>
   );
 }
 

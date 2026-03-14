@@ -13,6 +13,13 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:unit": "vitest run src/features src/utils src/store electron/services",
+    "test:component": "vitest run src/components",
+    "test:integration": "vitest run tests/integration",
+    "test:all": "vitest run",
+    "typecheck": "tsc --noEmit",
     "preview": "electron .",
     "package": "electron-builder",
     "package:win": "electron-builder --win",
@@ -26,38 +33,64 @@
     "build:windows:full": "npm run build:backend && npm run build:windows",
     "build:all": "npm run build:backend && npm run package",
     "create:icon": "powershell -ExecutionPolicy Bypass -File scripts/create-icon.ps1",
-    "test:build": "npm run build:windows && echo 'Build complete! Check release/ folder'"
+    "test:build": "npm run build:windows && echo 'Build complete! Check release/ folder'",
+    "test:e2e": "npx playwright test",
+    "test:e2e:headed": "npx playwright test --headed",
+    "test:a11y": "npx playwright test accessibility",
+    "prepare": "husky"
+  },
+  "lint-staged": {
+    "*.{ts,tsx}": [
+      "vitest related --run"
+    ]
   },
   "dependencies": {
+    "@dnd-kit/core": "^6.3.1",
+    "@dnd-kit/sortable": "^10.0.0",
+    "@dnd-kit/utilities": "^3.2.2",
+    "@floating-ui/react": "^0.27.19",
+    "@tanstack/react-virtual": "^3.13.21",
     "axios": "^1.7.9",
+    "clsx": "^2.1.1",
     "electron-store": "^10.0.0",
     "electron-updater": "^6.3.9",
+    "framer-motion": "^12.4.7",
+    "konva": "^10.2.0",
+    "lucide-react": "^0.475.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "react-konva": "^19.2.2",
     "react-router-dom": "^7.2.0",
-    "lucide-react": "^0.475.0",
-    "clsx": "^2.1.1",
     "tailwind-merge": "^3.0.2",
-    "zustand": "^5.0.3",
-    "framer-motion": "^12.4.7",
-    "ws": "^8.18.0"
+    "ws": "^8.18.0",
+    "zustand": "^5.0.3"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.11.1",
+    "@playwright/test": "^1.58.2",
+    "@tailwindcss/vite": "^4.0.8",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.1",
     "@types/react": "^19.0.8",
     "@types/react-dom": "^19.0.3",
     "@types/ws": "^8.5.14",
     "@vitejs/plugin-react": "^4.3.4",
-    "@tailwindcss/vite": "^4.0.8",
     "autoprefixer": "^10.4.20",
     "electron": "^33.0.0",
     "electron-builder": "^25.0.0",
+    "husky": "^9.1.7",
+    "jsdom": "^28.1.0",
+    "lint-staged": "^16.3.3",
+    "msw": "^2.12.10",
     "postcss": "^8.5.3",
     "rimraf": "^5.0.0",
     "tailwindcss": "^4.0.8",
     "typescript": "~5.7.2",
     "vite": "^6.1.0",
     "vite-plugin-electron": "^0.29.0",
-    "vite-plugin-electron-renderer": "^0.14.6"
+    "vite-plugin-electron-renderer": "^0.14.6",
+    "vitest": "^3.2.4"
   },
   "build": {
     "appId": "com.visionstudio.app",
@@ -70,11 +103,8 @@
     "files": [
       "dist/**/*",
       "dist-electron/**/*",
-      "resources/**/*",
-      "!backend/venv/**/*",
-      "!backend/build/**/*",
-      "!backend/dist/**/*",
-      "!backend/__pycache__/**/*",
+      "!backend/**/*",
+      "!resources/**/*",
       "!**/*.pyc",
       "!**/*.pyo",
       "!**/*.pyd"
@@ -83,27 +113,30 @@
       {
         "from": "resources/",
         "to": ".",
-        "filter": ["**/*"]
+        "filter": [
+          "**/*"
+        ]
       },
       {
         "from": "backend/",
         "to": "backend-source/",
-        "filter": ["**/*", "!venv/**/*", "!build/**/*", "!dist/**/*", "!__pycache__/**/*", "!*.pyc"]
+        "filter": [
+          "**/*",
+          "!venv/**/*",
+          "!build/**/*",
+          "!dist/**/*",
+          "!__pycache__/**/*",
+          "!*.pyc"
+        ]
       }
     ],
     "win": {
       "target": [
         {
-          "target": "nsis",
-          "arch": ["x64"]
-        },
-        {
-          "target": "portable",
-          "arch": ["x64"]
-        },
-        {
           "target": "zip",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
       ],
       "icon": "build/icon.ico",
@@ -111,33 +144,27 @@
       "verifyUpdateCodeSignature": false,
       "requestedExecutionLevel": "asInvoker"
     },
-    "nsis": {
-      "oneClick": false,
-      "allowToChangeInstallationDirectory": true,
-      "createDesktopShortcut": true,
-      "createStartMenuShortcut": true,
-      "shortcutName": "Vision Studio",
-      "uninstallDisplayName": "Vision Studio",
-      "license": "LICENSE.txt",
-      "artifactName": "Vision-Studio-Setup-${version}.exe",
-      "deleteAppDataOnUninstall": false,
-      "runAfterFinish": true,
-      "menuCategory": "Vision Studio"
-    },
-    "portable": {
-      "artifactName": "Vision-Studio-Portable-${version}.exe"
-    },
     "mac": {
       "category": "public.app-category.video",
       "target": [
-        { "target": "dmg", "arch": ["x64", "arm64"] }
+        {
+          "target": "dmg",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
       ],
       "icon": "build/icon.icns",
       "hardenedRuntime": true,
       "gatekeeperAssess": false
     },
     "linux": {
-      "target": ["AppImage", "deb", "rpm"],
+      "target": [
+        "AppImage",
+        "deb",
+        "rpm"
+      ],
       "category": "AudioVideo",
       "icon": "build/icons",
       "maintainer": "Vision Studio Team",

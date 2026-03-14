@@ -2,7 +2,7 @@ import { cn } from '@/utils/cn';
 import { motion } from 'framer-motion';
 
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: 'primary' | 'secondary' | 'ghost' | 'danger';
+  variant?: 'primary' | 'secondary' | 'ghost' | 'danger' | 'cinema';
   size?: 'sm' | 'md' | 'lg';
   icon?: React.ComponentType<{ className?: string }>;
   iconPosition?: 'left' | 'right';
@@ -22,15 +22,16 @@ export function Button({
   disabled,
   ...props
 }: ButtonProps) {
-  const baseStyles = 'inline-flex items-center justify-center font-medium transition-all duration-200 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red focus-visible:ring-offset-2 focus-visible:ring-offset-black disabled:opacity-50 disabled:cursor-not-allowed';
-  
+  const baseStyles = 'inline-flex items-center justify-center font-display font-medium transition-all duration-200 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-primary focus-visible:ring-offset-2 focus-visible:ring-offset-void disabled:opacity-40 disabled:cursor-not-allowed';
+
   const variants = {
-    primary: 'bg-red text-white hover:bg-red-hover shadow-lg shadow-red-glow hover:shadow-xl hover:shadow-red-glow',
-    secondary: 'bg-charcoal-lighter text-light-grey border border-border hover:border-border-hover hover:bg-charcoal-light',
-    ghost: 'text-silver hover:text-white hover:bg-charcoal-light',
-    danger: 'bg-red/10 text-red border border-red/30 hover:bg-red/20',
+    primary: 'bg-red-primary text-text-primary glow-red hover:bg-red-highlight hover:shadow-xl',
+    secondary: 'bg-elevated text-text-body border border-border hover:border-border-hover hover:bg-surface hover:text-text-primary',
+    ghost: 'text-text-body hover:text-text-primary hover:bg-elevated',
+    danger: 'bg-red-primary/10 text-red-primary border border-red-primary/30 hover:bg-red-primary/20',
+    cinema: 'bg-red-primary text-text-primary glow-red animate-glow-pulse hover:bg-red-highlight',
   };
-  
+
   const sizes = {
     sm: 'px-3 py-1.5 text-sm gap-1.5',
     md: 'px-4 py-2 text-sm gap-2',

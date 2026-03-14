@@ -10,22 +10,27 @@
     <!-- Preconnect to Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    
-    <!-- Prevent FOUC -->
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700&family=Instrument+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+    <!-- Prevent FOUC — colors match @theme --color-void tokens -->
     <style>
-      html {
-        background-color: #0a0a0a;
-      }
-      body {
+      :root { --fouc-bg: #050507; }
+      :root[data-theme='light'] { --fouc-bg: #f2efe8; }
+      html, body, #root {
         margin: 0;
         padding: 0;
-        background-color: #0a0a0a;
-      }
-      #root {
-        background-color: #0a0a0a;
+        background-color: var(--fouc-bg);
       }
     </style>
+    <script>
+      // Apply persisted theme before first paint to avoid flash
+      try {
+        var s = JSON.parse(localStorage.getItem('vision-studio-storage') || '{}');
+        var t = (s.state && s.state.theme) || 'dark';
+        if (t === 'system') t = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        document.documentElement.dataset.theme = t;
+      } catch(e) {}
+    </script>
   </head>
   <body>
     <div id="root"></div>

@@ -12,7 +12,7 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
     return (
       <div className="space-y-1.5">
         {label && (
-          <label className="block text-sm font-medium text-light-grey">
+          <label className="text-label text-text-body">
             {label}
           </label>
         )}
@@ -20,19 +20,19 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
           ref={ref}
           rows={rows}
           className={cn(
-            'w-full bg-charcoal border border-border rounded-lg text-white placeholder:text-silver/50',
-            'focus:border-red focus:ring-1 focus:ring-red transition-all duration-200 resize-none',
-            'disabled:opacity-50 disabled:cursor-not-allowed p-3',
-            error && 'border-red focus:border-red focus:ring-red',
+            'w-full bg-elevated border border-border rounded-lg text-text-primary placeholder:text-text-muted',
+            'focus:border-red-primary focus:ring-1 focus:ring-red-primary/40 transition-all duration-200 resize-none',
+            'disabled:opacity-50 disabled:cursor-not-allowed p-3 text-sm',
+            error && 'border-red-primary focus:border-red-primary focus:ring-red-primary',
             className
           )}
           {...props}
         />
         {helper && !error && (
-          <p className="text-xs text-silver">{helper}</p>
+          <p className="text-xs text-text-muted">{helper}</p>
         )}
         {error && (
-          <p className="text-xs text-red">{error}</p>
+          <p className="text-xs text-red-primary">{error}</p>
         )}
       </div>
     );

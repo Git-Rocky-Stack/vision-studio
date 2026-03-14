@@ -2,24 +2,31 @@ import { useState } from 'react';
 import { useAppStore } from '@/store/appStore';
 import { cn } from '@/utils/cn';
 import { Button } from '@/components/ui/Button';
-import { Textarea } from '@/components/ui/Textarea';
 import { Slider } from '@/components/ui/Slider';
-import { 
-  Layers, 
-  Plus, 
-  Trash2, 
-  Play, 
+import { ResultsGrid } from '@/components/batch/ResultsGrid';
+import { ImagePreviewModal } from '@/components/shared/ImagePreviewModal';
+import type { ViewMode, SortBy, FilterBy } from '@/components/batch/ResultsGrid';
+import {
+  Layers,
+  Plus,
+  Trash2,
+  Play,
   Pause,
   Sparkles,
-  Image,
   CheckCircle2,
   XCircle,
   Loader2,
-  Download,
   Wand2,
-  FileJson
+  FileJson,
+  GripVertical,
+  Grid3X3,
+  List,
+  Maximize2,
+  ArrowUpDown,
+  Download,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { resolveStoredAssetPath } from '@/features/assets/assetRecords';
 
 interface BatchPrompt {
   id: string;
@@ -29,15 +36,71 @@ interface BatchPrompt {
   seed?: number;
 }
 
-export function BatchPanel() {
-  const { addBatchJob } = useAppStore();
+const BACKEND_ASSET_BASE_URL = 'http://localhost:8000';
+
+function resolveOutputRoot(defaultOutputPath: string, userDataPath: string) {
+  return (defaultOutputPath || `${userDataPath.replace(/\\/g, '/')}/outputs`).replace(/\\/g, '/');
+}
+
+function toPreviewUrl(assetPath: string) {
+  if (!assetPath) {
+    return '';
+  }
+
+  if (/^https?:\/\//.test(assetPath)) {
+    return assetPath;
+  }
+
+  return assetPath.startsWith('/')
+    ? `${BACKEND_ASSET_BASE_URL}${assetPath}`
+    : `${BACKEND_ASSET_BASE_URL}/${assetPath}`;
+}
+
+/* ───────────────────────────────────────────────────────────
+   BatchPromptQueue — The right panel (400px) in batch mode
+   Contains results toolbar + batch generation controls
+   ─────────────────────────────────────────────────────────── */
+
+const VIEW_MODE_OPTIONS: { value: ViewMode; icon: React.ElementType; label: string }[] = [
+  { value: 'grid', icon: Grid3X3, label: 'Grid view' },
+  { value: 'list', icon: List, label: 'List view' },
+  { value: 'large', icon: Maximize2, label: 'Large view' },
+];
+
+const SORT_OPTIONS: { value: SortBy; label: string }[] = [
+  { value: 'created', label: 'Creation Time' },
+  { value: 'prompt', label: 'Prompt Order' },
+  { value: 'status', label: 'Status' },
+];
+
+const FILTER_OPTIONS: { value: FilterBy; label: string }[] = [
+  { value: 'all', label: 'All' },
+  { value: 'completed', label: 'Completed' },
+  { value: 'failed', label: 'Failed' },
+  { value: 'favorites', label: 'Favorites' },
+];
+
+export function BatchPromptQueue() {
+  const {
+    addBatchJob,
+    addBatchResult,
+    syncAssetsFromJobStatus,
+    batchResults,
+    batchViewMode,
+    batchSortBy,
+    batchFilterBy,
+    setBatchViewMode,
+    setBatchSortBy,
+    setBatchFilterBy,
+    removeBatchResults,
+    removeAssetRecordsByPaths,
+  } = useAppStore();
   const [prompts, setPrompts] = useState<BatchPrompt[]>([
-    { id: '1', prompt: '', status: 'pending' }
+    { id: '1', prompt: '', status: 'pending' },
   ]);
   const [isGenerating, setIsGenerating] = useState(false);
-  const [currentIndex, setCurrentIndex] = useState(0);
   const [showSettings, setShowSettings] = useState(false);
-  
+
   // Generation settings
   const [width, setWidth] = useState(1024);
   const [height, setHeight] = useState(1024);
@@ -46,24 +109,23 @@ export function BatchPanel() {
   const [model, setModel] = useState('flux-dev');
 
   const addPrompt = () => {
-    setPrompts([...prompts, { id: crypto.randomUUID(), prompt: '', status: 'pending' }]);
+    setPrompts([
+      ...prompts,
+      { id: crypto.randomUUID(), prompt: '', status: 'pending' },
+    ]);
   };
 
   const removePrompt = (id: string) => {
     if (prompts.length > 1) {
-      setPrompts(prompts.filter(p => p.id !== id));
+      setPrompts(prompts.filter((p) => p.id !== id));
     }
   };
 
   const updatePrompt = (id: string, value: string) => {
-    setPrompts(prompts.map(p => 
-      p.id === id ? { ...p, prompt: value } : p
-    ));
+    setPrompts(prompts.map((p) => (p.id === id ? { ...p, prompt: value } : p)));
   };
 
   const generateVariations = (basePrompt: string, count: number = 4) => {
-    // Generate prompt variations using common modifiers
-    const variations: string[] = [];
     const modifiers = [
       'highly detailed, 8k resolution',
       'cinematic lighting, dramatic atmosphere',
@@ -72,71 +134,61 @@ export function BatchPanel() {
       'vintage style, film grain, nostalgic',
       'futuristic, neon lights, cyberpunk aesthetic',
       'natural lighting, soft shadows, realistic',
-      'abstract, artistic interpretation, painterly'
+      'abstract, artistic interpretation, painterly',
     ];
-    
-    for (let i = 0; i < count; i++) {
-      const modifier = modifiers[i % modifiers.length];
-      variations.push(`${basePrompt}, ${modifier}`);
-    }
-    
-    // Add new prompts
-    const newPrompts = variations.map(v => ({
+
+    const newPrompts = Array.from({ length: count }, (_, i) => ({
       id: crypto.randomUUID(),
-      prompt: v,
-      status: 'pending' as const
+      prompt: `${basePrompt}, ${modifiers[i % modifiers.length]}`,
+      status: 'pending' as const,
     }));
-    
+
     setPrompts([...prompts, ...newPrompts]);
   };
 
   const handleStartBatch = async () => {
-    const validPrompts = prompts.filter(p => p.prompt.trim());
+    const validPrompts = prompts.filter((p) => p.prompt.trim());
     if (validPrompts.length === 0) return;
 
     setIsGenerating(true);
-    
-    // Update statuses
-    setPrompts(prompts.map(p => 
-      p.prompt.trim() ? { ...p, status: 'pending' } : p
-    ));
+    setPrompts(prompts.map((p) => (p.prompt.trim() ? { ...p, status: 'pending' } : p)));
 
-    // Create batch job
     const batchId = crypto.randomUUID();
     addBatchJob({
       id: batchId,
       name: `Batch ${new Date().toLocaleTimeString()}`,
-      prompts: validPrompts.map(p => p.prompt),
+      prompts: validPrompts.map((p) => p.prompt),
       currentIndex: 0,
       completedJobs: [],
       failedJobs: [],
       status: 'running',
-      createdAt: new Date()
+      createdAt: new Date(),
     });
 
-    // Start batch generation via IPC
     try {
+      const appSettings = await window.electron.settings.get();
+      const userDataPath = await window.electron.app.getPath('userData');
+      const outputRoot = resolveOutputRoot(appSettings.defaultOutputPath, userDataPath);
+
       const result = await window.electron.generation.batch({
-        prompts: validPrompts.map(p => p.prompt),
+        prompts: validPrompts.map((p) => p.prompt),
         width,
         height,
         steps,
         cfg_scale: cfgScale,
-        model
+        model,
       });
 
       if (result.success && result.jobIds) {
-        // Update prompts with job IDs
         let jobIndex = 0;
-        setPrompts(prompts.map(p => {
+        const promptsWithJobIds = prompts.map((p) => {
           if (p.prompt.trim() && jobIndex < result.jobIds!.length) {
-            return { ...p, status: 'generating', id: result.jobIds![jobIndex++] };
+            return { ...p, status: 'generating' as const, id: result.jobIds![jobIndex++] };
           }
           return p;
-        }));
-
-        // Poll for progress
-        pollBatchProgress(result.jobIds);
+        });
+        setPrompts(promptsWithJobIds);
+        pollBatchProgress(batchId, result.jobIds, promptsWithJobIds, outputRoot);
       }
     } catch (error) {
       console.error('Batch generation failed:', error);
@@ -144,20 +196,63 @@ export function BatchPanel() {
     }
   };
 
-  const pollBatchProgress = async (jobIds: string[]) => {
+  const pollBatchProgress = async (
+    batchId: string,
+    jobIds: string[],
+    startingPrompts: BatchPrompt[],
+    outputRoot: string
+  ) => {
     const checkInterval = setInterval(async () => {
       let allCompleted = true;
-      const updatedPrompts = [...prompts];
+      const updatedPrompts = [...startingPrompts];
 
       for (let i = 0; i < jobIds.length; i++) {
         try {
           const status = await window.electron.generation.getStatus(jobIds[i]);
-          const promptIndex = updatedPrompts.findIndex(p => p.id === jobIds[i]);
-          
+          const promptIndex = updatedPrompts.findIndex((p) => p.id === jobIds[i]);
+
           if (promptIndex !== -1) {
             if (status.status === 'completed') {
               updatedPrompts[promptIndex].status = 'completed';
               updatedPrompts[promptIndex].result = status.result?.images?.[0];
+              syncAssetsFromJobStatus({
+                ...status,
+                params: {
+                  prompt: updatedPrompts[promptIndex].prompt,
+                  width,
+                  height,
+                  steps,
+                  cfg_scale: cfgScale,
+                  model,
+                  output_root: outputRoot,
+                },
+              });
+              addBatchResult({
+                id: jobIds[i],
+                batchId,
+                promptIndex: promptIndex,
+                prompt: updatedPrompts[promptIndex].prompt,
+                imagePath: toPreviewUrl(status.result?.images?.[0] || ''),
+                assetPath: resolveStoredAssetPath(
+                  status.result?.images?.[0] || '',
+                  {
+                    output_root: outputRoot,
+                  }
+                ),
+                seed: status.result?.seed || 0,
+                generationTime: 0,
+                params: {
+                  width,
+                  height,
+                  steps,
+                  cfgScale,
+                  model,
+                  negativePrompt: '',
+                  resolution: `${width} x ${height}`,
+                },
+                createdAt: status.created_at ? new Date(status.created_at) : new Date(),
+                isFavorite: false,
+              });
             } else if (status.status === 'failed') {
               updatedPrompts[promptIndex].status = 'failed';
             } else {
@@ -175,13 +270,12 @@ export function BatchPanel() {
         clearInterval(checkInterval);
         setIsGenerating(false);
       }
-    }, 1000);
+    }, 2000);
   };
 
   const handleCancel = () => {
     setIsGenerating(false);
-    // Cancel all running jobs
-    prompts.forEach(p => {
+    prompts.forEach((p) => {
       if (p.status === 'generating') {
         window.electron.generation.cancel(p.id);
       }
@@ -190,12 +284,14 @@ export function BatchPanel() {
 
   const handleExport = () => {
     const data = {
-      prompts: prompts.map(p => p.prompt).filter(Boolean),
+      prompts: prompts.map((p) => p.prompt).filter(Boolean),
       settings: { width, height, steps, cfgScale, model },
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
     };
-    
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+
+    const blob = new Blob([JSON.stringify(data, null, 2)], {
+      type: 'application/json',
+    });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -204,44 +300,174 @@ export function BatchPanel() {
     URL.revokeObjectURL(url);
   };
 
-  const completedCount = prompts.filter(p => p.status === 'completed').length;
-  const progress = prompts.length > 0 ? (completedCount / prompts.length) * 100 : 0;
+  const handleBulkExportAll = async () => {
+    const assetPaths = batchResults
+      .map((result) => result.assetPath)
+      .filter((assetPath): assetPath is string => Boolean(assetPath));
+
+    if (assetPaths.length === 0) return;
+
+    const destinationDir = await window.electron.dialog.selectFolder();
+    if (!destinationDir) return;
+
+    await window.electron.assets.exportMany(assetPaths, destinationDir);
+  };
+
+  const handleBulkDeleteAll = async () => {
+    const assetPaths = batchResults
+      .map((result) => result.assetPath)
+      .filter((assetPath): assetPath is string => Boolean(assetPath));
+
+    const deleteResults = await Promise.all(
+      assetPaths.map((assetPath) => window.electron.assets.delete(assetPath))
+    );
+    const deletedPaths = assetPaths.filter((_, index) => deleteResults[index]?.success);
+    const deletedIds = batchResults
+      .filter((result) => result.assetPath && deletedPaths.includes(result.assetPath))
+      .map((result) => result.id);
+
+    removeBatchResults(deletedIds);
+    removeAssetRecordsByPaths(deletedPaths);
+  };
+
+  const completedCount = prompts.filter((p) => p.status === 'completed').length;
+  const progress =
+    prompts.length > 0 ? (completedCount / prompts.length) * 100 : 0;
 
   return (
-    <div className="h-full flex flex-col">
-      {/* Header */}
+    <div className="h-full flex flex-col bg-surface">
+      {/* Results Toolbar */}
+      <div className="p-3 border-b border-border space-y-3">
+        {/* View / Sort row */}
+        <div className="flex items-center gap-2">
+          {/* View mode toggle */}
+          <div className="flex items-center bg-elevated rounded-lg border border-border p-0.5">
+            {VIEW_MODE_OPTIONS.map((opt) => {
+              const Icon = opt.icon;
+              return (
+                <button
+                  key={opt.value}
+                  onClick={() => setBatchViewMode(opt.value)}
+                  aria-label={opt.label}
+                  className={cn(
+                    'p-1.5 rounded-md transition-all',
+                    batchViewMode === opt.value
+                      ? 'bg-red-aura text-red-primary'
+                      : 'text-text-muted hover:text-text-primary'
+                  )}
+                >
+                  <Icon className="w-3.5 h-3.5" />
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Sort dropdown */}
+          <div className="flex items-center gap-1.5 ml-auto">
+            <ArrowUpDown className="w-3.5 h-3.5 text-text-muted" />
+            <select
+              value={batchSortBy}
+              onChange={(e) => setBatchSortBy(e.target.value as SortBy)}
+              className="bg-elevated border border-border rounded-lg px-2 py-1 text-xs font-display text-text-primary focus:border-red-primary focus:ring-1 focus:ring-red-primary/40 transition-all"
+            >
+              {SORT_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {/* Filter pills */}
+        <div className="flex flex-wrap gap-1.5">
+          {FILTER_OPTIONS.map((opt) => (
+            <button
+              key={opt.value}
+              onClick={() => setBatchFilterBy(opt.value)}
+              className={cn(
+                'px-2.5 py-1 rounded-lg text-xs font-display transition-all',
+                batchFilterBy === opt.value
+                  ? 'bg-red-aura text-red-primary border border-red-primary/30'
+                  : 'bg-elevated text-text-body border border-border hover:border-border-hover hover:text-text-primary'
+              )}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Bulk actions */}
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-text-muted font-display">
+            {batchResults.length} result{batchResults.length !== 1 ? 's' : ''}
+          </span>
+          <div className="flex-1" />
+          <button
+            onClick={handleBulkExportAll}
+            disabled={batchResults.length === 0}
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-display text-text-body hover:text-text-primary hover:bg-elevated transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+          >
+            <Download className="w-3.5 h-3.5" />
+            Export All
+          </button>
+          <button
+            onClick={handleBulkDeleteAll}
+            disabled={batchResults.length === 0}
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-display text-red-primary hover:bg-red-aura transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            Delete All
+          </button>
+        </div>
+      </div>
+
+      {/* Batch Generation Header */}
       <div className="p-4 border-b border-border">
         <div className="flex items-center gap-2 mb-1">
-          <Layers className="w-5 h-5 text-red" />
-          <h2 className="text-lg font-semibold text-white">Batch Generation</h2>
+          <Layers className="w-5 h-5 text-red-primary" />
+          <h2 className="font-display text-lg font-semibold text-text-primary">
+            Batch Generation
+          </h2>
         </div>
-        <p className="text-sm text-silver">
+        <p className="text-sm text-text-body">
           Generate multiple images at once with different prompts
         </p>
       </div>
 
       {/* Progress Bar */}
       {isGenerating && (
-        <div className="px-4 py-3 border-b border-border bg-charcoal-light">
+        <div className="px-4 py-3 border-b border-border bg-elevated">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-sm text-light-grey">
+            <span className="text-sm text-text-body font-display" aria-live="polite">
               Progress: {completedCount} / {prompts.length}
             </span>
-            <span className="text-sm font-mono text-red">{Math.round(progress)}%</span>
+            <span className="font-mono text-sm text-red-primary" aria-live="polite">
+              {Math.round(progress)}%
+            </span>
           </div>
-          <div className="h-2 bg-charcoal-lighter rounded-full overflow-hidden">
-            <motion.div 
-              className="h-full bg-red"
+          <div className="h-1.5 bg-void rounded-full overflow-hidden border border-border">
+            <motion.div
+              className="h-full rounded-full"
+              role="progressbar"
+              aria-valuenow={Math.round(progress)}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-label="Batch progress"
               initial={{ width: 0 }}
               animate={{ width: `${progress}%` }}
               transition={{ duration: 0.3 }}
+              style={{
+                background: 'linear-gradient(90deg, var(--color-gradient-progress-start), var(--color-gradient-progress-end))',
+                boxShadow: '0 0 8px var(--color-red-glow)',
+              }}
             />
           </div>
         </div>
       )}
 
       {/* Prompts List */}
-      <div className="flex-1 overflow-y-auto p-4">
+      <div className="flex-1 overflow-y-auto p-4 scrollbar-hide">
         <div className="space-y-3">
           <AnimatePresence>
             {prompts.map((prompt, index) => (
@@ -252,16 +478,22 @@ export function BatchPanel() {
                 exit={{ opacity: 0, height: 0 }}
                 className={cn(
                   'relative p-3 rounded-lg border transition-all',
-                  prompt.status === 'generating' && 'border-yellow-500/50 bg-yellow-500/5',
-                  prompt.status === 'completed' && 'border-green-500/50 bg-green-500/5',
-                  prompt.status === 'failed' && 'border-red/50 bg-red/5',
-                  prompt.status === 'pending' && 'border-border bg-charcoal-lighter'
+                  prompt.status === 'generating' &&
+                    'border-[var(--color-status-warning-border)] bg-[var(--color-status-warning-muted)]',
+                  prompt.status === 'completed' &&
+                    'border-[var(--color-status-success-border)] bg-[var(--color-status-success-muted)]',
+                  prompt.status === 'failed' &&
+                    'border-red-primary/30 bg-red-primary/5',
+                  prompt.status === 'pending' && 'border-border bg-elevated'
                 )}
               >
                 <div className="flex items-start gap-3">
-                  {/* Index */}
-                  <div className="w-7 h-7 rounded-full bg-charcoal border border-border flex items-center justify-center flex-shrink-0">
-                    <span className="text-xs text-silver">{index + 1}</span>
+                  {/* Drag handle */}
+                  <div className="flex flex-col items-center gap-1 pt-2">
+                    <GripVertical className="w-3.5 h-3.5 text-text-muted cursor-grab" />
+                    <span className="font-mono text-micro text-text-muted">
+                      {index + 1}
+                    </span>
                   </div>
 
                   {/* Input */}
@@ -272,28 +504,28 @@ export function BatchPanel() {
                       placeholder="Enter prompt..."
                       disabled={isGenerating}
                       rows={2}
-                      className="w-full bg-charcoal border border-border rounded-lg px-3 py-2 text-sm text-white placeholder:text-silver/50 focus:border-red focus:ring-1 focus:ring-red resize-none disabled:opacity-50"
+                      className="w-full bg-surface border border-border rounded-lg px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-red-primary focus:ring-1 focus:ring-red-primary/40 resize-none disabled:opacity-50"
                     />
                   </div>
 
                   {/* Status/Actions */}
-                  <div className="flex flex-col gap-1">
+                  <div className="flex flex-col gap-1 pt-1">
                     {prompt.status === 'generating' && (
-                      <Loader2 className="w-5 h-5 text-yellow-500 animate-spin" />
+                      <Loader2 className="w-4 h-4 text-[var(--color-status-warning)] animate-spin" />
                     )}
                     {prompt.status === 'completed' && (
-                      <CheckCircle2 className="w-5 h-5 text-green-500" />
+                      <CheckCircle2 className="w-4 h-4 text-[var(--color-status-success)]" />
                     )}
                     {prompt.status === 'failed' && (
-                      <XCircle className="w-5 h-5 text-red" />
+                      <XCircle className="w-4 h-4 text-red-primary" />
                     )}
-                    
+
                     {!isGenerating && (
                       <button
                         onClick={() => removePrompt(prompt.id)}
-                        className="p-1.5 rounded text-silver hover:text-red hover:bg-red/10 transition-all"
+                        className="p-1 rounded text-text-muted hover:text-red-primary hover:bg-red-aura transition-all"
                       >
-                        <Trash2 className="w-4 h-4" />
+                        <Trash2 className="w-3.5 h-3.5" />
                       </button>
                     )}
                   </div>
@@ -309,16 +541,16 @@ export function BatchPanel() {
             <Button variant="secondary" size="sm" icon={Plus} onClick={addPrompt}>
               Add Prompt
             </Button>
-            <Button 
-              variant="ghost" 
-              size="sm" 
+            <Button
+              variant="ghost"
+              size="sm"
               icon={Wand2}
               onClick={() => {
                 const lastPrompt = prompts[prompts.length - 1]?.prompt || '';
                 if (lastPrompt) generateVariations(lastPrompt);
               }}
             >
-              Generate Variations
+              Variations
             </Button>
           </div>
         )}
@@ -328,14 +560,14 @@ export function BatchPanel() {
       <div className="border-t border-border">
         <button
           onClick={() => setShowSettings(!showSettings)}
-          className="w-full flex items-center justify-between p-4 text-sm text-silver hover:text-white transition-all"
+          className="w-full flex items-center justify-between p-4 text-sm text-text-body hover:text-text-primary transition-all font-display"
         >
           <span className="flex items-center gap-2">
             <Sparkles className="w-4 h-4" />
             Generation Settings
           </span>
-          <span className="text-xs">
-            {width}×{height} • {steps} steps • {model}
+          <span className="font-mono text-xs text-text-muted">
+            {width}&times;{height} &middot; {steps} steps
           </span>
         </button>
 
@@ -350,11 +582,13 @@ export function BatchPanel() {
               <div className="px-4 pb-4 space-y-4">
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="text-xs text-silver mb-1 block">Width</label>
+                    <label className="text-label text-text-body mb-1 block">
+                      Width
+                    </label>
                     <select
                       value={width}
                       onChange={(e) => setWidth(Number(e.target.value))}
-                      className="w-full bg-charcoal border border-border rounded-lg px-3 py-2 text-sm text-white"
+                      className="w-full bg-elevated border border-border rounded-lg px-3 py-2 text-sm text-text-primary font-mono"
                     >
                       <option value={512}>512px</option>
                       <option value={768}>768px</option>
@@ -364,11 +598,13 @@ export function BatchPanel() {
                     </select>
                   </div>
                   <div>
-                    <label className="text-xs text-silver mb-1 block">Height</label>
+                    <label className="text-label text-text-body mb-1 block">
+                      Height
+                    </label>
                     <select
                       value={height}
                       onChange={(e) => setHeight(Number(e.target.value))}
-                      className="w-full bg-charcoal border border-border rounded-lg px-3 py-2 text-sm text-white"
+                      className="w-full bg-elevated border border-border rounded-lg px-3 py-2 text-sm text-text-primary font-mono"
                     >
                       <option value={512}>512px</option>
                       <option value={768}>768px</option>
@@ -397,11 +633,13 @@ export function BatchPanel() {
                 />
 
                 <div>
-                  <label className="text-xs text-silver mb-1 block">Model</label>
+                  <label className="text-label text-text-body mb-1 block">
+                    Model
+                  </label>
                   <select
                     value={model}
                     onChange={(e) => setModel(e.target.value)}
-                    className="w-full bg-charcoal border border-border rounded-lg px-3 py-2 text-sm text-white"
+                    className="w-full bg-elevated border border-border rounded-lg px-3 py-2 text-sm text-text-primary font-display"
                   >
                     <option value="flux-dev">FLUX.1 [dev]</option>
                     <option value="flux-schnell">FLUX.1 [schnell]</option>
@@ -426,18 +664,58 @@ export function BatchPanel() {
             <Button variant="secondary" icon={FileJson} onClick={handleExport}>
               Export
             </Button>
-            <Button 
-              variant="primary" 
-              icon={Play} 
-              fullWidth 
+            <Button
+              variant="cinema"
+              icon={Play}
+              fullWidth
               onClick={handleStartBatch}
-              disabled={!prompts.some(p => p.prompt.trim())}
+              disabled={!prompts.some((p) => p.prompt.trim())}
             >
-              Start Batch ({prompts.filter(p => p.prompt.trim()).length})
+              Start Batch ({prompts.filter((p) => p.prompt.trim()).length})
             </Button>
           </>
         )}
       </div>
     </div>
   );
+}
+
+/* ───────────────────────────────────────────────────────────
+   BatchResultsPanel — The left main area in batch mode
+   Wraps ResultsGrid and ImagePreviewModal together
+   ─────────────────────────────────────────────────────────── */
+
+export function BatchResultsPanel() {
+  const { batchResults, batchViewMode, batchSortBy, batchFilterBy } = useAppStore();
+  const [previewResultId, setPreviewResultId] = useState<string | null>(null);
+
+  const previewResult = previewResultId
+    ? batchResults.find((r) => r.id === previewResultId) ?? null
+    : null;
+
+  return (
+    <>
+      <ResultsGrid
+        onPreviewImage={(id) => setPreviewResultId(id)}
+        viewMode={batchViewMode}
+        sortBy={batchSortBy}
+        filterBy={batchFilterBy}
+      />
+      <ImagePreviewModal
+        result={previewResult}
+        results={batchResults}
+        onClose={() => setPreviewResultId(null)}
+        onNavigate={(id) => setPreviewResultId(id)}
+      />
+    </>
+  );
+}
+
+/* ───────────────────────────────────────────────────────────
+   BatchPanel — Legacy export for backward compatibility.
+   App.tsx now uses BatchPromptQueue + BatchResultsPanel directly.
+   ─────────────────────────────────────────────────────────── */
+
+export function BatchPanel() {
+  return <BatchPromptQueue />;
 }
