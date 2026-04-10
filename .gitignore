@@ -17,10 +17,18 @@ dist-electron
 release/
 backend/build/
 backend/utils/__pycache__/
+backend/outputs/
+backend/venv/
+backend/__pycache__/
+backend/tests/__pycache__/
 *.pkg
 *.asar
 *.blockmap
 resources/VisionStudio-Backend.exe
+
+# Development artifacts
+output/
+scripts/Output/
 
 # Editor directories and files
 .vscode/*
@@ -36,3 +44,4 @@ resources/VisionStudio-Backend.exe
 # Playwright
 playwright-report/
 test-results/
+.gstack/
