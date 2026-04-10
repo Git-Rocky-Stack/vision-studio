@@ -4,6 +4,8 @@ import { ImageIcon, AlertCircle } from 'lucide-react';
 
 interface ImageWithFallbackProps extends React.ImgHTMLAttributes<HTMLImageElement> {
   fallbackClassName?: string;
+  srcSet?: string;
+  sizes?: string;
 }
 
 export function ImageWithFallback({
@@ -31,10 +33,13 @@ export function ImageWithFallback({
       {src && (
         <img
           src={src}
+          srcSet={props.srcSet}
+          sizes={props.sizes}
           alt={alt}
           className={cn(className, state !== 'loaded' && 'invisible')}
           onLoad={() => setState('loaded')}
           onError={() => setState('error')}
+          loading={props.loading ?? 'lazy'}
           {...props}
         />
       )}

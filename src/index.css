@@ -119,9 +119,38 @@
   --color-white: #fafafa;
 }
 
+/* Font loading with swap for performance */
+@font-face {
+  font-family: 'DM Sans';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: local('DM Sans');
+}
+
+@font-face {
+  font-family: 'Instrument Sans';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: local('Instrument Sans');
+}
+
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: local('JetBrains Mono');
+}
+
 /* Global Styles */
 * {
   box-sizing: border-box;
+}
+
+html {
+  color-scheme: dark;
 }
 
 html, body, #root {
@@ -201,6 +230,7 @@ body[data-theme='light'] {
 h1, h2, h3, h4, h5, h6,
 .text-xl, .text-2xl, .text-3xl {
   line-height: var(--line-height-heading);
+  text-wrap: balance;
 }
 
 /* Body text line-height normalization */

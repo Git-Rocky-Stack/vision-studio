@@ -111,7 +111,7 @@ export const Sidebar = memo(function Sidebar() {
               aria-label={item.label}
               aria-current={isActive ? 'page' : undefined}
               className={cn(
-                'w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-200 relative',
+                'w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 relative min-h-[44px]',
                 isActive
                   ? 'bg-red-aura text-red-primary glow-red-subtle'
                   : 'text-text-body hover:text-text-primary hover:bg-elevated'
@@ -165,7 +165,7 @@ export const Sidebar = memo(function Sidebar() {
                   'flex items-center justify-center rounded-lg transition-all duration-200',
                   'text-text-body hover:text-text-primary hover:bg-elevated',
                   'disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:text-text-body disabled:hover:bg-transparent',
-                  sidebarCollapsed ? 'w-full p-2' : 'flex-1 p-2'
+                  sidebarCollapsed ? 'w-full p-3 min-h-[44px]' : 'flex-1 p-2'
                 )}
               >
                 <Icon className="w-4 h-4 flex-shrink-0" />
@@ -194,7 +194,7 @@ export const Sidebar = memo(function Sidebar() {
               onClick={action.onClick}
               aria-label={action.label}
               className={cn(
-                'w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-200',
+                'w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 min-h-[44px]',
                 isPrimary
                   ? 'bg-red-primary text-text-primary glow-red-subtle hover:bg-red-highlight'
                   : 'text-text-body hover:text-text-primary hover:bg-elevated'
@@ -254,7 +254,7 @@ export const Sidebar = memo(function Sidebar() {
         <button
           onClick={toggleSidebar}
           aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-          className="w-full flex items-center justify-center p-2 rounded-lg text-text-muted hover:text-text-primary hover:bg-elevated transition-all"
+          className="w-full flex items-center justify-center p-3 rounded-lg text-text-muted hover:text-text-primary hover:bg-elevated transition-all min-h-[44px]"
         >
           {sidebarCollapsed ? (
             <ChevronRight className="w-5 h-5" />
