@@ -37,6 +37,8 @@
     "test:e2e": "npx playwright test",
     "test:e2e:headed": "npx playwright test --headed",
     "test:a11y": "npx playwright test accessibility",
+    "test:visual": "npx playwright test tests/e2e/visual",
+    "test:visual:update": "npx playwright test tests/e2e/visual --update-snapshots",
     "prepare": "husky"
   },
   "lint-staged": {

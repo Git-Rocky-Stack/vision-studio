@@ -16,4 +16,11 @@ export default defineConfig({
     video: 'on-first-retry',
   },
   outputDir: 'test-results',
+  // Visual regression testing configuration
+  snapshotPathTemplate: '{testDir}/visual/snapshots/{testFilePath}/{arg}-{projectName}-{platform}{ext}',
+  visualRegression: {
+    threshold: 0.01, // 1% pixel difference allowed
+    updateSnapshots: process.env.CI ? 'never' : 'missing',
+    snapshotsDir: 'tests/e2e/visual/snapshots',
+  },
 });
