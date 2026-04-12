@@ -7,8 +7,11 @@ Provides endpoints for ControlNet image generation and model management.
 from __future__ import annotations
 
 import asyncio
+import logging
 import time
 from typing import Any, Dict, List, Optional, Union
+
+logger = logging.getLogger(__name__)
 
 from fastapi import APIRouter, HTTPException, status
 
@@ -151,9 +154,7 @@ async def generate_controlnet(request: ControlNetRequest) -> Union[ControlNetRes
             detail={"error": str(e), "error_code": "SERVICE_ERROR"},
         )
     except Exception as e:
-        # Log the full exception for debugging
-        import traceback
-        traceback.print_exc()
+        logger.exception(f"ControlNet generation failed: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail={"error": f"Generation failed: {str(e)}", "error_code": "INTERNAL_ERROR"},
@@ -194,10 +195,11 @@ async def unload_controlnet() -> Dict[str, Any]:
         }
 
     except Exception as e:
-        return {
-            "success": False,
-            "error": str(e),
-        }
+        logger.exception(f"Failed to unload ControlNet model: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={"error": f"Failed to unload model: {str(e)}", "error_code": "UNLOAD_ERROR"},
+        )
 
 
 @router.get(

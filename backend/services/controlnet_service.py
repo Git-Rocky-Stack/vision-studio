@@ -8,14 +8,21 @@ Currently uses stub implementations - actual diffusers integration comes later.
 from __future__ import annotations
 
 import asyncio
+import base64
+import logging
 import os
 import time
 from dataclasses import dataclass
 from io import BytesIO
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 from PIL import Image
+
+logger = logging.getLogger(__name__)
+
+# Configurable base model via environment variable
+DEFAULT_BASE_MODEL = os.getenv("SD_BASE_MODEL", "runwayml/stable-diffusion-v1-5")
 
 try:
     import torch
@@ -55,8 +62,6 @@ def decode_base64_image(base64_string: str) -> Image.Image:
     Raises:
         ValueError: If base64 string is invalid
     """
-    import base64
-
     # Handle data URL format
     if base64_string.startswith("data:image/"):
         parts = base64_string.split(",", 1)
@@ -65,7 +70,7 @@ def decode_base64_image(base64_string: str) -> Image.Image:
         base64_string = parts[1]
 
     try:
-        image_bytes = base64.b64decode(base64_string)
+        image_bytes = base64.b64decode(base64_string, validate=True)
         return Image.open(BytesIO(image_bytes)).convert("RGB")
     except Exception as e:
         raise ValueError(f"Failed to decode base64 image: {e}")
@@ -84,7 +89,6 @@ def encode_image_base64(image: Image.Image, format: str = "PNG") -> str:
     """
     buffer = BytesIO()
     image.save(buffer, format=format)
-    import base64
     return base64.b64encode(buffer.getvalue()).decode("ascii")
 
 
@@ -156,6 +160,8 @@ class ControlNetService:
             ValueError: If model type is not supported
             RuntimeError: If diffusers is not available
         """
+        logger.info(f"Loading ControlNet model: {model_type}")
+
         if model_type not in self.MODEL_MAPPING:
             raise ValueError(f"Unsupported ControlNet model type: {model_type}")
 
@@ -163,11 +169,13 @@ class ControlNetService:
             # Stub implementation - return True for testing
             self._current_model_type = model_type
             self._model_loaded = True
+            logger.info(f"Model {model_type} loaded successfully (stub mode)")
             return True
 
         try:
             # Check if model is already loaded
             if self._model_loaded and self._current_model_type == model_type:
+                logger.info(f"Model {model_type} already loaded")
                 return True
 
             # Unload existing model if different
@@ -184,7 +192,7 @@ class ControlNetService:
 
             # Load base Stable Diffusion pipeline
             self._pipeline = StableDiffusionControlNetPipeline.from_pretrained(
-                "runwayml/stable-diffusion-v1-5",
+                DEFAULT_BASE_MODEL,
                 controlnet=controlnet,
                 torch_dtype=torch.float16 if self.device == "cuda" else torch.float32,
             )
@@ -194,9 +202,11 @@ class ControlNetService:
             self._current_model_type = model_type
             self._model_loaded = True
 
+            logger.info(f"Model {model_type} loaded successfully")
             return True
 
         except Exception as e:
+            logger.error(f"Failed to load model {model_type}: {e}")
             # Stub fallback for testing without diffusers
             self._current_model_type = model_type
             self._model_loaded = True
@@ -218,7 +228,7 @@ class ControlNetService:
         negative_prompt: str = "",
         seed: int = -1,
         num_images: int = 1,
-        progress_callback: Optional[callable] = None,
+        progress_callback: Optional[Callable[[float], None]] = None,
     ) -> List[GeneratedImage]:
         """
         Generate images using ControlNet.
@@ -247,6 +257,9 @@ class ControlNetService:
             RuntimeError: If model is not loaded
             ValueError: If images cannot be decoded
         """
+        logger.info(f"Starting ControlNet generation: {prompt[:50]}...")
+        start_time = time.time()
+
         if not self._model_loaded:
             raise RuntimeError("Model must be loaded before generation. Call load_model() first.")
 
@@ -283,7 +296,7 @@ class ControlNetService:
                 output = self._pipeline(
                     prompt=prompt,
                     negative_prompt=negative_prompt,
-                    image=control_image,
+                    image=control_img,
                     num_inference_steps=steps,
                     guidance_scale=guidance_scale,
                     controlnet_conditioning_scale=conditioning_scale,
@@ -314,6 +327,8 @@ class ControlNetService:
                     height=height,
                 ))
 
+        processing_time = (time.time() - start_time) * 1000
+        logger.info(f"Generation complete in {processing_time:.2f}ms")
         return generated_images
 
     async def unload_model(self) -> None:

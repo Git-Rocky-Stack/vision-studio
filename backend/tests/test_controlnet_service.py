@@ -162,7 +162,8 @@ class ControlNetServiceTests(unittest.TestCase):
             # Generate image
             results = await self.service.generate(
                 prompt="a beautiful landscape",
-                images=[self.test_image],
+                init_image=self.test_image,
+                control_image=self.test_image,
                 model_type="canny",
                 width=64,
                 height=64,
@@ -187,7 +188,8 @@ class ControlNetServiceTests(unittest.TestCase):
 
             results = await self.service.generate(
                 prompt="a landscape",
-                images=[self.test_image],
+                init_image=self.test_image,
+                control_image=self.test_image,
                 model_type="canny",
                 width=64,
                 height=64,
@@ -212,7 +214,8 @@ class ControlNetServiceTests(unittest.TestCase):
             try:
                 await fresh_service.generate(
                     prompt="test",
-                    images=[self.test_image],
+                    init_image=self.test_image,
+                    control_image=self.test_image,
                     model_type="canny",
                     width=64,
                     height=64,
@@ -236,7 +239,8 @@ class ControlNetServiceTests(unittest.TestCase):
 
             results = await self.service.generate(
                 prompt="test",
-                images=[self.test_image],
+                init_image=self.test_image,
+                control_image=self.test_image,
                 model_type="canny",
                 width=64,
                 height=64,
@@ -261,7 +265,8 @@ class ControlNetServiceTests(unittest.TestCase):
 
             results = await self.service.generate(
                 prompt="test",
-                images=[large_image],
+                init_image=large_image,
+                control_image=large_image,
                 model_type="canny",
                 width=64,
                 height=64,

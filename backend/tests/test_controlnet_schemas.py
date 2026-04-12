@@ -57,6 +57,7 @@ class ControlNetRequestSchemaTests(unittest.TestCase):
 
         self.assertEqual(request.prompt, "a beautiful landscape")
         self.assertEqual(request.model, ControlNetModel.CANNY)
+        self.assertEqual(request.negative_prompt, "")
         self.assertEqual(request.conditioning_scale, 1.0)
         self.assertEqual(request.steps, 25)
         self.assertEqual(request.guidance_scale, 7.5)
