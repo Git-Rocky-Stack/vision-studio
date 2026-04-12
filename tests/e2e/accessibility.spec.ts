@@ -35,7 +35,6 @@ interface AxeViolation {
  */
 const KNOWN_VIOLATIONS = new Set([
   'color-contrast',        // Dark cinema theme has several low-contrast elements
-  'aria-required-children', // Timeline component ARIA role structure
   'nested-interactive',    // Nested button in PromptToolbar
 ]);
 

@@ -169,7 +169,7 @@ export function ModelSelector({ value, onChange, generationType }: ModelSelector
           >
             <div className="p-2 max-h-80 overflow-y-auto" role="listbox" aria-label="Select model">
               {/* Section label */}
-              <p className="px-2.5 py-1.5 text-label text-text-muted">
+              <p className="px-2.5 py-1.5 text-label text-text-muted" role="presentation">
                 {generationType === 'image' ? 'Image Models' : 'Video Models'}
               </p>
 

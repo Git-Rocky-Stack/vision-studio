@@ -293,10 +293,11 @@ export const Timeline = memo(function Timeline() {
 
         {/* Tracks */}
         <div className="relative" role="listbox" aria-label="Timeline tracks">
-          {/* Playhead */}
+          {/* Playhead - decorative, not an option */}
           <motion.div
             className="absolute top-0 bottom-0 w-px bg-red-primary z-20 pointer-events-none"
             style={{ left: `calc(192px + ${progress * 0.8}%)` }}
+            role="presentation"
           >
             <div className="absolute -top-1 -left-1.5 w-3 h-3 bg-red-primary rounded-full shadow-red-dot" />
           </motion.div>

@@ -172,9 +172,9 @@ export function CanvasContextMenu({ x, y, onClose }: CanvasContextMenuProps) {
       style={{ left: x, top: y }}
     >
       {sections.map((section, sectionIdx) => (
-        <div key={sectionIdx}>
+        <div key={sectionIdx} role="presentation">
           {sectionIdx > 0 && (
-            <div className="my-2 mx-2 h-px bg-border" />
+            <div className="my-2 mx-2 h-px bg-border" role="separator" />
           )}
           {section.map((item) => {
             if (item === 'divider') return null;
