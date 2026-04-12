@@ -45,3 +45,7 @@ scripts/Output/
 playwright-report/
 test-results/
 .gstack/
+
+# Git worktrees
+.worktrees/
+worktrees/
