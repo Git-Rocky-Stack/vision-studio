@@ -6,6 +6,7 @@ import { hexToRgba } from '@/utils/colorUtils';
 import { Button } from '@/components/ui/Button';
 import { TemplatePreviewModal } from '@/components/templates/TemplatePreviewModal';
 import { TemplateCreator } from '@/components/templates/TemplateCreator';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import {
   Sparkles,
   Youtube,
@@ -66,6 +67,7 @@ export function TemplatesPanel() {
   const [previewTemplate, setPreviewTemplate] = useState<ProjectTemplate | null>(null);
   const [showCreator, setShowCreator] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState<ProjectTemplate | null>(null);
+  const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
 
   const allTemplates =
     selectedCategory === 'mine'
@@ -102,6 +104,11 @@ export function TemplatesPanel() {
     };
     setCurrentProject(newProject as any);
     setActivePanel('generate');
+  };
+
+  const handleDeleteTemplate = (templateId: string) => {
+    deleteUserTemplate(templateId);
+    setDeleteTargetId(null);
   };
 
   const handleExportTemplate = (template: ProjectTemplate) => {
@@ -181,7 +188,7 @@ export function TemplatesPanel() {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search templates..."
-              className="w-full bg-elevated border border-border rounded-lg pl-10 pr-4 py-2.5 text-sm text-text-primary placeholder:text-text-muted focus:border-red-primary focus:ring-1 focus:ring-red-primary/40 transition-all"
+              className="w-full bg-elevated border border-border rounded-lg pl-10 pr-4 py-3 text-sm text-text-primary placeholder:text-text-muted focus:border-red-primary focus:ring-1 focus:ring-red-primary/40 transition-all"
             />
           </div>
 
@@ -189,7 +196,7 @@ export function TemplatesPanel() {
             <select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value as SortBy)}
-              className="appearance-none bg-elevated border border-border rounded-lg pl-3 pr-8 py-2.5 text-xs font-display text-text-primary focus:border-red-primary transition-all cursor-pointer"
+              className="appearance-none bg-elevated border border-border rounded-lg pl-3 pr-8 py-3 text-xs font-display text-text-primary focus:border-red-primary transition-all cursor-pointer"
             >
               <option value="popular">Popular</option>
               <option value="newest">Newest</option>
@@ -202,7 +209,7 @@ export function TemplatesPanel() {
             <button
               onClick={() => setViewMode('cards')}
               className={cn(
-                'p-1.5 rounded-md transition-all',
+                'p-2 rounded-md transition-all',
                 viewMode === 'cards'
                   ? 'bg-red-primary text-text-primary'
                   : 'text-text-muted hover:text-text-primary'
@@ -213,7 +220,7 @@ export function TemplatesPanel() {
             <button
               onClick={() => setViewMode('compact')}
               className={cn(
-                'p-1.5 rounded-md transition-all',
+                'p-2 rounded-md transition-all',
                 viewMode === 'compact'
                   ? 'bg-red-primary text-text-primary'
                   : 'text-text-muted hover:text-text-primary'
@@ -241,7 +248,7 @@ export function TemplatesPanel() {
                 onClick={() => setSelectedCategory(tab.id)}
                 aria-selected={isActive}
                 className={cn(
-                  'flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-display font-medium transition-all',
+                  'flex items-center gap-2 px-3 py-2 rounded-full text-sm font-display font-medium transition-all',
                   isActive && !color && 'bg-red-primary text-text-primary glow-red-subtle',
                   isActive && color && 'text-text-primary',
                   !isActive && 'bg-elevated text-text-body hover:text-text-primary hover:bg-surface'
@@ -273,7 +280,7 @@ export function TemplatesPanel() {
           <div className="mt-3">
             <button
               onClick={handleImportTemplate}
-              className="flex items-center gap-1.5 text-xs font-display text-text-body hover:text-red-primary transition-all"
+              className="flex items-center gap-2 text-xs font-display text-text-body hover:text-red-primary transition-all"
             >
               <Upload className="w-3.5 h-3.5" />
               Import Template (.vst)
@@ -372,13 +379,13 @@ export function TemplatesPanel() {
                       <>
                         <button
                           onClick={(e) => { e.stopPropagation(); handleExportTemplate(template); }}
-                          className="p-1.5 rounded-lg text-text-muted hover:text-text-primary hover:bg-surface transition-all"
+                          className="p-2 rounded-lg text-text-muted hover:text-text-primary hover:bg-surface transition-all"
                         >
                           <Download className="w-3.5 h-3.5" />
                         </button>
                         <button
-                          onClick={(e) => { e.stopPropagation(); deleteUserTemplate(template.id); }}
-                          className="p-1.5 rounded-lg text-text-muted hover:text-red-primary hover:bg-red-aura transition-all"
+                          onClick={(e) => { e.stopPropagation(); setDeleteTargetId(template.id); }}
+                          className="p-2 rounded-lg text-text-muted hover:text-red-primary hover:bg-red-aura transition-all"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
@@ -469,7 +476,7 @@ export function TemplatesPanel() {
                       </p>
 
                       {/* Settings Preview */}
-                      <div className="flex flex-wrap items-center gap-1.5">
+                      <div className="flex flex-wrap items-center gap-2">
                         <span className="font-mono text-micro px-2 py-0.5 bg-surface rounded text-text-muted">
                           {template.settings.width}&times;{template.settings.height}
                         </span>
@@ -500,7 +507,7 @@ export function TemplatesPanel() {
                           <Download className="w-3.5 h-3.5" />
                         </button>
                         <button
-                          onClick={(e) => { e.stopPropagation(); deleteUserTemplate(template.id); }}
+                          onClick={(e) => { e.stopPropagation(); setDeleteTargetId(template.id); }}
                           className="p-2 rounded-lg text-text-muted hover:text-red-primary hover:bg-red-aura transition-all"
                           title="Delete"
                         >
@@ -573,6 +580,16 @@ export function TemplatesPanel() {
           />
         )}
       </AnimatePresence>
+
+      <ConfirmDialog
+        open={deleteTargetId !== null}
+        title="Delete Template"
+        message="Are you sure you want to delete this custom template? This cannot be undone."
+        confirmLabel="Delete"
+        variant="danger"
+        onConfirm={() => deleteTargetId && handleDeleteTemplate(deleteTargetId)}
+        onCancel={() => setDeleteTargetId(null)}
+      />
     </div>
   );
 }

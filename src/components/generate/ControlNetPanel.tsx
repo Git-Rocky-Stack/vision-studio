@@ -46,7 +46,7 @@ export function ControlNetPanel({ config, onChange }: ControlNetPanelProps) {
       <button
         onClick={() => setIsExpanded(!isExpanded)}
         aria-expanded={isExpanded}
-        className="flex items-center gap-2 w-full px-3 py-2.5 text-left group"
+        className="flex items-center gap-2 w-full px-3 py-3 text-left group"
       >
         <Network className="w-3.5 h-3.5 text-red-primary" />
         <span className="text-label text-text-primary">ControlNet</span>

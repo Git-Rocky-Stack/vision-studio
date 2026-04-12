@@ -111,7 +111,7 @@ export const Sidebar = memo(function Sidebar() {
               aria-label={item.label}
               aria-current={isActive ? 'page' : undefined}
               className={cn(
-                'w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 relative min-h-[44px]',
+                'w-full flex items-center gap-3 px-3 py-3 rounded-lg transition-all duration-200 relative min-h-[44px]',
                 isActive
                   ? 'bg-red-aura text-red-primary glow-red-subtle'
                   : 'text-text-body hover:text-text-primary hover:bg-elevated'
@@ -194,7 +194,7 @@ export const Sidebar = memo(function Sidebar() {
               onClick={action.onClick}
               aria-label={action.label}
               className={cn(
-                'w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 min-h-[44px]',
+                'w-full flex items-center gap-3 px-3 py-3 rounded-lg transition-all duration-200 min-h-[44px]',
                 isPrimary
                   ? 'bg-red-primary text-text-primary glow-red-subtle hover:bg-red-highlight'
                   : 'text-text-body hover:text-text-primary hover:bg-elevated'

@@ -196,7 +196,7 @@ export function EditPropertiesPanel() {
           <button
             disabled={undoCount === 0}
             className={cn(
-              'relative p-1.5 rounded-lg transition-all',
+              'relative p-2 rounded-lg transition-all',
               undoCount > 0
                 ? 'text-text-body hover:text-text-primary hover:bg-surface'
                 : 'text-text-muted/40 cursor-not-allowed'
@@ -213,7 +213,7 @@ export function EditPropertiesPanel() {
           </button>
           <button
             disabled
-            className="p-1.5 rounded-lg text-text-muted/40 cursor-not-allowed"
+            className="p-2 rounded-lg text-text-muted/40 cursor-not-allowed"
             title="Redo"
             aria-label="Redo"
           >
@@ -223,13 +223,13 @@ export function EditPropertiesPanel() {
 
         <div className="flex items-center gap-1">
           <button
-            className="p-1.5 rounded-lg text-text-body hover:text-text-primary hover:bg-surface transition-all"
+            className="p-2 rounded-lg text-text-body hover:text-text-primary hover:bg-surface transition-all"
             title="Before/After"
           >
             <SplitSquareHorizontal className="w-4 h-4" />
           </button>
           <button
-            className="p-1.5 rounded-lg text-text-body hover:text-text-primary hover:bg-surface transition-all"
+            className="p-2 rounded-lg text-text-body hover:text-text-primary hover:bg-surface transition-all"
             title="History"
           >
             <History className="w-4 h-4" />
@@ -238,7 +238,7 @@ export function EditPropertiesPanel() {
       </div>
 
       {/* Tab Bar */}
-      <div className="px-2 py-1.5 border-b border-border">
+      <div className="px-2 py-2 border-b border-border">
         <div className="flex gap-1" role="tablist" aria-label="Edit properties">
           {tabs.map((tab) => {
             const Icon = tab.icon;
@@ -252,7 +252,7 @@ export function EditPropertiesPanel() {
                 aria-controls={`tabpanel-${tab.id}`}
                 onClick={() => setActiveTab(tab.id)}
                 className={cn(
-                  'flex-1 flex flex-col items-center gap-0.5 py-1.5 rounded-lg transition-all font-display text-micro',
+                  'flex-1 flex flex-col items-center gap-1 py-2 rounded-lg transition-all font-display text-micro',
                   isActive
                     ? 'bg-red-aura text-red-primary'
                     : 'text-text-body hover:text-text-primary hover:bg-elevated'

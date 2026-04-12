@@ -123,16 +123,16 @@ export function PromptHistory({
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search prompts..."
-                className="w-full bg-surface border border-border rounded-lg pl-8 pr-3 py-1.5 text-xs text-text-primary placeholder:text-text-muted focus:border-red-primary focus:ring-1 focus:ring-red-primary/40 focus:outline-none"
+                className="w-full bg-surface border border-border rounded-lg pl-8 pr-3 py-2 text-xs text-text-primary placeholder:text-text-muted focus:border-red-primary focus:ring-1 focus:ring-red-primary/40 focus:outline-none"
                 autoFocus
               />
             </div>
-            <div className="flex gap-0.5">
+            <div className="flex gap-1">
               <button
                 onClick={() => setFilter('all')}
                 aria-pressed={filter === 'all'}
                 className={cn(
-                  'px-2.5 py-1.5 rounded-lg text-micro font-display transition-all',
+                  'px-2.5 py-2 rounded-lg text-micro font-display transition-all',
                   filter === 'all'
                     ? 'bg-red-aura text-red-primary'
                     : 'text-text-muted hover:text-text-primary hover:bg-surface'
@@ -144,7 +144,7 @@ export function PromptHistory({
                 onClick={() => setFilter('favorites')}
                 aria-pressed={filter === 'favorites'}
                 className={cn(
-                  'px-2.5 py-1.5 rounded-lg text-micro font-display flex items-center gap-1 transition-all',
+                  'px-2.5 py-2 rounded-lg text-micro font-display flex items-center gap-1 transition-all',
                   filter === 'favorites'
                     ? 'bg-red-aura text-red-primary'
                     : 'text-text-muted hover:text-text-primary hover:bg-surface'
@@ -251,7 +251,7 @@ function PromptHistoryRow({
       </div>
 
       {/* Actions */}
-      <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity flex-shrink-0">
+      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity flex-shrink-0">
         <button
           onClick={(e) => {
             e.stopPropagation();

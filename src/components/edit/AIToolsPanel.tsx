@@ -3,6 +3,7 @@ import { cn } from '@/utils/cn';
 import { hexToRgba } from '@/utils/colorUtils';
 import { Button } from '@/components/ui/Button';
 import { Slider } from '@/components/ui/Slider';
+import { Switch } from '@/components/ui/Switch';
 import {
   Scissors,
   Maximize2,
@@ -40,11 +41,11 @@ const AI_TOOLS: AITool[] = [
 ];
 
 const STYLE_PRESETS = [
-  { id: 'van-gogh', name: 'Van Gogh', color: '#f4a261' },
-  { id: 'monet', name: 'Monet', color: '#a8dadc' },
-  { id: 'ukiyo-e', name: 'Ukiyo-e', color: '#e63946' },
-  { id: 'comic', name: 'Comic', color: '#fdcb6e' },
-  { id: 'watercolor', name: 'Watercolor', color: '#6c5ce7' },
+  { id: 'van-gogh', name: 'Van Gogh', color: 'var(--color-feature-04)' },
+  { id: 'monet', name: 'Monet', color: 'var(--color-feature-08)' },
+  { id: 'ukiyo-e', name: 'Ukiyo-e', color: 'var(--color-feature-01)' },
+  { id: 'comic', name: 'Comic', color: 'var(--color-feature-07)' },
+  { id: 'watercolor', name: 'Watercolor', color: 'var(--color-feature-02)' },
   { id: 'pencil', name: 'Pencil Sketch', color: '#636e72' },
 ];
 
@@ -113,7 +114,7 @@ export function AIToolsPanel() {
             <button
               onClick={() => toggleTool(tool.id)}
               aria-expanded={isExpanded}
-              className="w-full flex items-center gap-3 px-3 py-2.5 text-left"
+              className="w-full flex items-center gap-3 px-3 py-3 text-left"
             >
               <div className="w-8 h-8 rounded-lg bg-red-aura flex items-center justify-center flex-shrink-0">
                 <Icon className="w-4 h-4 text-red-primary" />
@@ -228,7 +229,7 @@ export function AIToolsPanel() {
                     {/* Style Transfer */}
                     {tool.id === 'style-transfer' && (
                       <>
-                        <div className="grid grid-cols-[repeat(auto-fill,minmax(80px,1fr))] gap-1.5">
+                        <div className="grid grid-cols-[repeat(auto-fill,minmax(80px,1fr))] gap-2">
                           {STYLE_PRESETS.map((style) => (
                             <button
                               key={style.id}
@@ -316,25 +317,11 @@ export function AIToolsPanel() {
                           <span className="font-display text-xs text-text-body">
                             Eye Enhancement
                           </span>
-                          <button
-                            role="switch"
-                            aria-checked={eyeEnhance}
-                            aria-label="Toggle eye enhancement"
-                            onClick={() => setEyeEnhance(!eyeEnhance)}
-                            className={cn(
-                              'w-9 h-5 rounded-full transition-all relative',
-                              eyeEnhance
-                                ? 'bg-red-primary'
-                                : 'bg-surface border border-border'
-                            )}
-                          >
-                            <span
-                              className={cn(
-                                'absolute top-0.5 w-4 h-4 rounded-full bg-text-primary transition-all',
-                                eyeEnhance ? 'left-[18px]' : 'left-0.5'
-                              )}
-                            />
-                          </button>
+                          <Switch
+                            label="Eye enhancement"
+                            checked={eyeEnhance}
+                            onChange={setEyeEnhance}
+                          />
                         </div>
                         <Slider
                           label="Skin Smoothing"
@@ -382,7 +369,7 @@ export function AIToolsPanel() {
                       <>
                         <div className="space-y-1.5">
                           <label className="text-label text-text-body">Direction</label>
-                          <div className="grid grid-cols-4 gap-1.5">
+                          <div className="grid grid-cols-4 gap-2">
                             {[
                               { id: 'up', icon: ArrowUp, label: 'Up' },
                               { id: 'down', icon: ArrowDown, label: 'Down' },
@@ -393,7 +380,7 @@ export function AIToolsPanel() {
                                 key={id}
                                 onClick={() => toggleDirection(id)}
                                 className={cn(
-                                  'flex flex-col items-center gap-0.5 py-2 rounded-lg text-micro font-display transition-all',
+                                  'flex flex-col items-center gap-1 py-2 rounded-lg text-micro font-display transition-all',
                                   expandDirection.includes(id)
                                     ? 'bg-red-primary text-text-primary'
                                     : 'bg-surface text-text-body border border-border'

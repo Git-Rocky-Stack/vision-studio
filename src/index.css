@@ -43,12 +43,22 @@
   --color-category-marketing: #4ecdc4;
   --color-category-art: #6c5ce7;
 
+  /* Extended palette for LoRA mixer, style presets, and feature colors */
+  --color-feature-01: #e63946;  /* Red - primary accent */
+  --color-feature-02: #6c5ce7;  /* Purple - creative */
+  --color-feature-03: #00b894;  /* Green - success/balance */
+  --color-feature-04: #f4a261;  /* Orange - warm */
+  --color-feature-05: #ff6b9d;  /* Pink - social */
+  --color-feature-06: #4ecdc4;  /* Teal - marketing */
+  --color-feature-07: #fdcb6e;  /* Yellow - highlight */
+  --color-feature-08: #a8dadc;  /* Blue-grey - neutral */
+
   /* Progress gradient */
   --color-gradient-progress-start: #c1121f;
   --color-gradient-progress-end: #e63946;
 
   /* Type scale with paired line-heights */
-  --font-size-micro: 0.625rem;   /* 10px */
+  --font-size-micro: 0.625rem;   /* 10px — use sparingly */
   --font-size-xs: 0.75rem;       /* 12px */
   --font-size-sm: 0.875rem;      /* 14px */
   --font-size-base: 1rem;        /* 16px */
@@ -56,6 +66,10 @@
   --font-size-xl: 1.25rem;       /* 20px */
   --font-size-2xl: 1.5rem;       /* 24px */
   --font-size-3xl: 1.875rem;     /* 30px */
+  --font-size-4xl: 2.25rem;      /* 36px — hero text */
+  --font-size-5xl: 3rem;         /* 48px — display text */
+  --font-size-6xl: 3.75rem;      /* 60px — feature headlines */
+  --font-size-7xl: 4.5rem;       /* 72px — marketing headlines */
 
   --line-height-micro: 1.4;
   --line-height-xs: 1.33;        /* ~16px */
@@ -65,11 +79,32 @@
   --line-height-heading: 1.2;
   --line-height-ui: 1.25;
 
-  /* Semantic spacing */
-  --space-panel-padding: 1rem;     /* 16px — panel internal padding */
-  --space-section-gap: 1.5rem;     /* 24px — between sections in panels */
-  --space-element-gap: 0.5rem;     /* 8px  — between sibling elements */
-  --space-field-gap: 0.375rem;     /* 6px  — between label and input */
+  /* Font weights */
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+
+  /* Complete 8-point grid spacing scale */
+  --space-0: 0rem;       /* 0px */
+  --space-1: 0.25rem;    /* 4px — micro spacing (icon gaps only) */
+  --space-2: 0.5rem;     /* 8px — compact spacing */
+  --space-3: 0.75rem;    /* 12px — standard gap */
+  --space-4: 1rem;       /* 16px — section spacing */
+  --space-5: 1.25rem;    /* 20px — comfortable gap */
+  --space-6: 1.5rem;     /* 24px — large spacing */
+  --space-8: 2rem;       /* 32px — section breaks */
+  --space-10: 2.5rem;    /* 40px — major sections */
+  --space-12: 3rem;      /* 48px — hero spacing */
+  --space-16: 4rem;      /* 64px — page sections */
+  --space-20: 5rem;      /* 80px — feature sections */
+  --space-24: 6rem;      /* 96px — page breaks */
+
+  /* Semantic spacing (aliases to grid scale) */
+  --space-panel-padding: var(--space-4);     /* 16px — panel internal padding */
+  --space-section-gap: var(--space-6);       /* 24px — between sections in panels */
+  --space-element-gap: var(--space-2);       /* 8px  — between sibling elements */
+  --space-field-gap: var(--space-1);         /* 4px  — between label and input */
 
   /* Icon sizes */
   --icon-xs: 0.75rem;   /* 12px */
@@ -94,12 +129,44 @@
   --radius-lg: 0.75rem;
   --radius-xl: 1rem;
   --radius-2xl: 1.5rem;
+  --radius-3xl: 2rem;
+  --radius-4xl: 2.5rem;
   --radius-full: 9999px;
 
-  /* Elevation shadows */
+  /* Container max-widths */
+  --container-xs: 20rem;       /* 320px */
+  --container-sm: 24rem;       /* 384px */
+  --container-md: 28rem;       /* 448px */
+  --container-lg: 32rem;       /* 512px */
+  --container-xl: 36rem;       /* 576px */
+  --container-2xl: 42rem;      /* 672px — optimal reading width */
+  --container-3xl: 48rem;      /* 768px */
+  --container-4xl: 56rem;      /* 896px */
+  --container-5xl: 64rem;      /* 1024px */
+  --container-6xl: 72rem;      /* 1152px */
+  --container-7xl: 80rem;      /* 1280px */
+  --container-full: 100%;
+
+  /* Elevation shadows — comprehensive scale */
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.2);
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.25), 0 1px 2px rgba(0, 0, 0, 0.15);
+  --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.3), 0 2px 4px rgba(0, 0, 0, 0.2);
+  --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.35), 0 4px 6px rgba(0, 0, 0, 0.25);
+  --shadow-xl: 0 20px 25px rgba(0, 0, 0, 0.4), 0 10px 10px rgba(0, 0, 0, 0.3);
+  --shadow-2xl: 0 25px 50px rgba(0, 0, 0, 0.5);
+  --shadow-inner: inset 0 2px 4px rgba(0, 0, 0, 0.3);
+
+  /* Cinematic and brand shadows */
   --shadow-cinematic: 0 4px 6px rgba(0, 0, 0, 0.3), 0 10px 20px rgba(0, 0, 0, 0.25), 0 2px 4px rgba(230, 57, 70, 0.03);
   --shadow-glow-red: 0 0 8px rgba(230, 57, 70, 0.25), 0 0 20px rgba(230, 57, 70, 0.15), 0 0 40px rgba(230, 57, 70, 0.08), 0 2px 8px rgba(0, 0, 0, 0.4);
   --shadow-glow-red-subtle: 0 0 6px rgba(230, 57, 70, 0.15), 0 0 12px rgba(230, 57, 70, 0.08);
+  --shadow-glow-red-strong: 0 0 12px rgba(230, 57, 70, 0.4), 0 0 30px rgba(230, 57, 70, 0.25), 0 0 60px rgba(230, 57, 70, 0.15);
+
+  /* Status shadows */
+  --shadow-success: 0 0 8px rgba(34, 197, 94, 0.3);
+  --shadow-warning: 0 0 8px rgba(234, 179, 8, 0.3);
+  --shadow-error: 0 0 8px rgba(239, 68, 68, 0.3);
+  --shadow-info: 0 0 8px rgba(56, 189, 248, 0.3);
 
   /* Transition durations */
   --duration-fast: 150ms;
@@ -440,14 +507,14 @@ p, li, dd, blockquote {
 
 /* ---- Gradient Text ---- */
 .gradient-text {
-  background: linear-gradient(135deg, #fafafa 0%, #94949c 100%);
+  background: linear-gradient(135deg, var(--color-text-primary) 0%, var(--color-text-body) 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
 }
 
 .gradient-text-red {
-  background: linear-gradient(135deg, #ff6b6b 0%, #e63946 100%);
+  background: linear-gradient(135deg, var(--color-red-highlight) 0%, var(--color-red-primary) 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -461,6 +528,20 @@ select:focus-visible {
   outline: 2px solid var(--color-red-primary);
   outline-offset: 2px;
 }
+
+/* ---- Status Color Utility Classes ---- */
+.bg-status-success-muted { background-color: var(--color-status-success-muted); }
+.text-status-success { color: var(--color-status-success); }
+.border-status-success-border { border-color: var(--color-status-success-border); }
+.bg-status-warning-muted { background-color: var(--color-status-warning-muted); }
+.text-status-warning { color: var(--color-status-warning); }
+.border-status-warning-border { border-color: var(--color-status-warning-border); }
+.bg-status-error-muted { background-color: var(--color-status-error-muted); }
+.text-status-error { color: var(--color-status-error); }
+.border-status-error-border { border-color: var(--color-status-error-border); }
+.bg-status-info-muted { background-color: var(--color-status-info-muted); }
+.text-status-info { color: var(--color-status-info); }
+.border-status-info-border { border-color: var(--color-status-info-border); }
 
 /* ---- Range Slider ---- */
 input[type="range"] {

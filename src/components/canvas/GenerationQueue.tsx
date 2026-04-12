@@ -1,11 +1,11 @@
-import { useState } from 'react';
+import { memo, useState } from 'react';
 import { cn } from '@/utils/cn';
 import { useAppStore } from '@/store/appStore';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ImageIcon } from 'lucide-react';
 import { ImageWithFallback } from '@/components/ui/ImageWithFallback';
 
-export function GenerationQueue() {
+export const GenerationQueue = memo(function GenerationQueue() {
   const { generationQueue, setCurrentImage } = useAppStore();
   const [hoveredItem, setHoveredItem] = useState<string | null>(null);
 
@@ -80,4 +80,4 @@ export function GenerationQueue() {
       </div>
     </motion.div>
   );
-}
+});

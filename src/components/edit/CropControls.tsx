@@ -74,7 +74,7 @@ export function CropControls({
       {/* Aspect Ratio Presets */}
       <div className="space-y-2">
         <label className="text-label text-text-body">Aspect Ratio</label>
-        <div className="grid grid-cols-2 gap-1.5">
+        <div className="grid grid-cols-2 gap-2">
           {CROP_ASPECTS.map((aspect) => (
             <button
               key={aspect.id}
@@ -140,7 +140,7 @@ export function CropControls({
           <button
             onClick={() => onFlipHChange(!flipH)}
             className={cn(
-              'flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-xs font-display font-medium transition-all',
+              'flex-1 flex items-center justify-center gap-2 py-3 rounded-lg text-xs font-display font-medium transition-all',
               flipH
                 ? 'bg-red-primary text-text-primary'
                 : 'bg-elevated text-text-body border border-border hover:border-border-hover'
@@ -152,7 +152,7 @@ export function CropControls({
           <button
             onClick={() => onFlipVChange(!flipV)}
             className={cn(
-              'flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-xs font-display font-medium transition-all',
+              'flex-1 flex items-center justify-center gap-2 py-3 rounded-lg text-xs font-display font-medium transition-all',
               flipV
                 ? 'bg-red-primary text-text-primary'
                 : 'bg-elevated text-text-body border border-border hover:border-border-hover'

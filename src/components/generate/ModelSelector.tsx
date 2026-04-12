@@ -79,9 +79,9 @@ const qualityBadge: Record<
   ModelOption['quality'],
   { label: string; color: string; icon: React.ElementType }
 > = {
-  best: { label: 'Best Quality', color: '#00b894', icon: Cpu },
-  fast: { label: 'Fast', color: '#f4a261', icon: Zap },
-  balanced: { label: 'Balanced', color: '#4ecdc4', icon: Scale },
+  best: { label: 'Best Quality', color: 'var(--color-feature-03)', icon: Cpu },
+  fast: { label: 'Fast', color: 'var(--color-feature-04)', icon: Zap },
+  balanced: { label: 'Balanced', color: 'var(--color-feature-06)', icon: Scale },
 };
 
 interface ModelSelectorProps {
@@ -124,7 +124,7 @@ export function ModelSelector({ value, onChange, generationType }: ModelSelector
         aria-haspopup="listbox"
         aria-expanded={isOpen}
         className={cn(
-          'w-full flex items-center gap-3 px-3 py-2.5 rounded-lg border transition-all text-left',
+          'w-full flex items-center gap-3 px-3 py-3 rounded-lg border transition-all text-left',
           isOpen
             ? 'border-red-primary bg-elevated shadow-cinematic'
             : 'border-border bg-elevated hover:border-border-hover'
@@ -167,7 +167,7 @@ export function ModelSelector({ value, onChange, generationType }: ModelSelector
             transition={{ duration: 0.15 }}
             className="absolute z-50 left-0 right-0 mt-1.5 bg-elevated border border-border rounded-xl shadow-cinematic overflow-hidden"
           >
-            <div className="p-1.5 max-h-80 overflow-y-auto" role="listbox" aria-label="Select model">
+            <div className="p-2 max-h-80 overflow-y-auto" role="listbox" aria-label="Select model">
               {/* Section label */}
               <p className="px-2.5 py-1.5 text-label text-text-muted">
                 {generationType === 'image' ? 'Image Models' : 'Video Models'}
@@ -185,7 +185,7 @@ export function ModelSelector({ value, onChange, generationType }: ModelSelector
                     role="option"
                     aria-selected={isSelected}
                     className={cn(
-                      'w-full flex items-start gap-3 px-2.5 py-2.5 rounded-lg transition-all text-left',
+                      'w-full flex items-start gap-3 px-2.5 py-3 rounded-lg transition-all text-left',
                       isSelected
                         ? 'bg-red-aura border border-red-primary/30'
                         : 'hover:bg-surface border border-transparent'

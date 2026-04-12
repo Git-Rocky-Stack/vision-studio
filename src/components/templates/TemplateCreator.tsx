@@ -174,7 +174,7 @@ export function TemplateCreator({ onClose, editingTemplate }: TemplateCreatorPro
                 <button
                   onClick={() => i < step && setStep(i)}
                   className={cn(
-                    'flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs font-display font-medium transition-all',
+                    'flex items-center gap-2 px-2 py-1 rounded-lg text-xs font-display font-medium transition-all',
                     isActive && 'bg-red-aura text-red-primary',
                     isComplete && 'text-text-primary cursor-pointer hover:bg-elevated',
                     !isActive && !isComplete && 'text-text-muted'

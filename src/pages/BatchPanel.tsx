@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/Button';
 import { Slider } from '@/components/ui/Slider';
 import { ResultsGrid } from '@/components/batch/ResultsGrid';
 import { ImagePreviewModal } from '@/components/shared/ImagePreviewModal';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import type { ViewMode, SortBy, FilterBy } from '@/components/batch/ResultsGrid';
 import {
   Layers,
@@ -100,6 +101,7 @@ export function BatchPromptQueue() {
   ]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   // Generation settings
   const [width, setWidth] = useState(1024);
@@ -328,6 +330,7 @@ export function BatchPromptQueue() {
 
     removeBatchResults(deletedIds);
     removeAssetRecordsByPaths(deletedPaths);
+    setShowDeleteConfirm(false);
   };
 
   const completedCount = prompts.filter((p) => p.status === 'completed').length;
@@ -350,7 +353,7 @@ export function BatchPromptQueue() {
                   onClick={() => setBatchViewMode(opt.value)}
                   aria-label={opt.label}
                   className={cn(
-                    'p-1.5 rounded-md transition-all',
+                    'p-2 rounded-md transition-all',
                     batchViewMode === opt.value
                       ? 'bg-red-aura text-red-primary'
                       : 'text-text-muted hover:text-text-primary'
@@ -363,7 +366,7 @@ export function BatchPromptQueue() {
           </div>
 
           {/* Sort dropdown */}
-          <div className="flex items-center gap-1.5 ml-auto">
+          <div className="flex items-center gap-2 ml-auto">
             <ArrowUpDown className="w-3.5 h-3.5 text-text-muted" />
             <select
               value={batchSortBy}
@@ -380,7 +383,7 @@ export function BatchPromptQueue() {
         </div>
 
         {/* Filter pills */}
-        <div className="flex flex-wrap gap-1.5">
+        <div className="flex flex-wrap gap-2">
           {FILTER_OPTIONS.map((opt) => (
             <button
               key={opt.value}
@@ -406,15 +409,15 @@ export function BatchPromptQueue() {
           <button
             onClick={handleBulkExportAll}
             disabled={batchResults.length === 0}
-            className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-display text-text-body hover:text-text-primary hover:bg-elevated transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+            className="flex items-center gap-2 px-2.5 py-1 rounded-lg text-xs font-display text-text-body hover:text-text-primary hover:bg-elevated transition-all disabled:opacity-30 disabled:cursor-not-allowed"
           >
             <Download className="w-3.5 h-3.5" />
             Export All
           </button>
           <button
-            onClick={handleBulkDeleteAll}
+            onClick={() => setShowDeleteConfirm(true)}
             disabled={batchResults.length === 0}
-            className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-display text-red-primary hover:bg-red-aura transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+            className="flex items-center gap-2 px-2.5 py-1 rounded-lg text-xs font-display text-red-primary hover:bg-red-aura transition-all disabled:opacity-30 disabled:cursor-not-allowed"
           >
             <Trash2 className="w-3.5 h-3.5" />
             Delete All
@@ -676,6 +679,16 @@ export function BatchPromptQueue() {
           </>
         )}
       </div>
+
+      <ConfirmDialog
+        open={showDeleteConfirm}
+        title="Delete All Results"
+        message={`Are you sure you want to delete all ${batchResults.length} batch results? This cannot be undone.`}
+        confirmLabel="Delete All"
+        variant="danger"
+        onConfirm={handleBulkDeleteAll}
+        onCancel={() => setShowDeleteConfirm(false)}
+      />
     </div>
   );
 }

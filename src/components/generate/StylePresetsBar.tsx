@@ -26,7 +26,7 @@ export function StylePresetsBar({ activePresets, onTogglePreset }: StylePresetsB
               aria-label={`Style: ${preset.name}`}
               aria-pressed={isActive}
               className={cn(
-                'flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full border transition-all font-display text-xs',
+                'flex-shrink-0 flex items-center gap-2 px-3 py-2 rounded-full border transition-all font-display text-xs',
                 isActive
                   ? 'text-text-primary'
                   : 'bg-elevated border-border text-text-body hover:text-text-primary'
@@ -53,7 +53,7 @@ export function StylePresetsBar({ activePresets, onTogglePreset }: StylePresetsB
 
         {/* Add custom preset */}
         <button
-          className="flex-shrink-0 flex items-center gap-1 px-3 py-1.5 rounded-full border border-dashed border-border text-text-muted hover:text-text-body hover:border-border-hover transition-all text-xs"
+          className="flex-shrink-0 flex items-center gap-1 px-3 py-2 rounded-full border border-dashed border-border text-text-muted hover:text-text-body hover:border-border-hover transition-all text-xs"
           aria-label="Add style preset"
         >
           <Plus className="w-3 h-3" />

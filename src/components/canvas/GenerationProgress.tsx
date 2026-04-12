@@ -1,7 +1,8 @@
+import { memo } from 'react';
 import { useAppStore } from '@/store/appStore';
 import { motion } from 'framer-motion';
 
-export function GenerationProgress() {
+export const GenerationProgress = memo(function GenerationProgress() {
   const { activeJobs } = useAppStore();
   const activeJob = activeJobs.find(
     (j) => j.status === 'pending' || j.status === 'processing'
@@ -96,4 +97,4 @@ export function GenerationProgress() {
       </div>
     </motion.div>
   );
-}
+});

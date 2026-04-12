@@ -2,6 +2,7 @@ import { memo, useState, useMemo } from 'react';
 import { cn } from '@/utils/cn';
 import { hexToRgba } from '@/utils/colorUtils';
 import { useAppStore } from '@/store/appStore';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import {
   Play,
   Pause,
@@ -34,6 +35,60 @@ export const Timeline = memo(function Timeline() {
   const [currentTime, setCurrentTime] = useState(0);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [selectedTrackId, setSelectedTrackId] = useState<string | null>(null);
+  const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
+
+  // Global keyboard shortcuts for timeline playback
+  useMemo(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ignore if typing in an input
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+
+      switch (e.key) {
+        case ' ':
+          // Space bar toggles playback (prevent default to avoid scrolling)
+          if (!e.ctrlKey && !e.metaKey) {
+            e.preventDefault();
+            setIsPlaying((p) => !p);
+          }
+          break;
+        case 'Home':
+          // Home key jumps to beginning
+          if (!e.ctrlKey && !e.metaKey) {
+            e.preventDefault();
+            setCurrentTime(0);
+          }
+          break;
+        case 'End':
+          // End key jumps to end
+          if (!e.ctrlKey && !e.metaKey) {
+            e.preventDefault();
+            setCurrentTime(totalDuration);
+          }
+          break;
+        case 'ArrowLeft':
+          // Left arrow seeks backward 5 seconds (or 1s with Shift)
+          if (!e.ctrlKey && !e.metaKey) {
+            e.preventDefault();
+            const step = e.shiftKey ? 1 : 5;
+            setCurrentTime((t) => Math.max(0, t - step));
+          }
+          break;
+        case 'ArrowRight':
+          // Right arrow seeks forward 5 seconds (or 1s with Shift)
+          if (!e.ctrlKey && !e.metaKey) {
+            e.preventDefault();
+            const step = e.shiftKey ? 1 : 5;
+            setCurrentTime((t) => Math.min(totalDuration, t + step));
+          }
+          break;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [totalDuration]);
+
+  const { deleteCompletedJob } = useAppStore();
 
   // Build tracks from completed jobs
   const tracks: TimelineTrack[] = useMemo(() => {
@@ -51,13 +106,22 @@ export const Timeline = memo(function Timeline() {
             : `Image ${index + 1}`,
           duration,
           startTime: offset,
-          color: isVideo ? '#e63946' : '#6c5ce7',
+          color: isVideo ? 'var(--color-category-youtube)' : 'var(--color-category-art)',
           thumbnail: job.result?.images?.[0] || job.result?.video,
         };
         offset += duration;
         return track;
       });
   }, [completedJobs]);
+
+  const handleDeleteTrack = () => {
+    if (!deleteTargetId) return;
+    deleteCompletedJob(deleteTargetId);
+    if (selectedTrackId === deleteTargetId) {
+      setSelectedTrackId(null);
+    }
+    setDeleteTargetId(null);
+  };
 
   const totalDuration = Math.max(
     tracks.reduce((sum, t) => Math.max(sum, t.startTime + t.duration), 0),
@@ -122,20 +186,20 @@ export const Timeline = memo(function Timeline() {
         <div className="flex items-center gap-2">
           <button
             onClick={() => setIsPlaying(!isPlaying)}
-            className="p-1.5 rounded-lg bg-red-primary text-text-primary hover:bg-red-highlight transition-all glow-red-subtle"
+            className="p-2 rounded-lg bg-red-primary text-text-primary hover:bg-red-highlight transition-all glow-red-subtle"
             aria-label={isPlaying ? 'Pause' : 'Play'}
             aria-pressed={isPlaying}
           >
             {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
           </button>
           <button
-            className="p-1.5 rounded-lg text-text-body hover:text-text-primary hover:bg-surface transition-all"
+            className="p-2 rounded-lg text-text-body hover:text-text-primary hover:bg-surface transition-all"
             aria-label="Skip to beginning"
           >
             <SkipBack className="w-4 h-4" />
           </button>
           <button
-            className="p-1.5 rounded-lg text-text-body hover:text-text-primary hover:bg-surface transition-all"
+            className="p-2 rounded-lg text-text-body hover:text-text-primary hover:bg-surface transition-all"
             aria-label="Skip to end"
           >
             <SkipForward className="w-4 h-4" />
@@ -151,7 +215,7 @@ export const Timeline = memo(function Timeline() {
         <div className="flex items-center gap-2">
           <button
             className={cn(
-              'p-1.5 rounded-lg transition-all',
+              'p-2 rounded-lg transition-all',
               selectedTrackId
                 ? 'text-text-body hover:text-text-primary hover:bg-surface'
                 : 'text-text-muted cursor-not-allowed opacity-40'
@@ -163,7 +227,7 @@ export const Timeline = memo(function Timeline() {
           </button>
           <button
             className={cn(
-              'p-1.5 rounded-lg transition-all',
+              'p-2 rounded-lg transition-all',
               selectedTrackId
                 ? 'text-text-body hover:text-text-primary hover:bg-surface'
                 : 'text-text-muted cursor-not-allowed opacity-40'
@@ -174,8 +238,9 @@ export const Timeline = memo(function Timeline() {
             <Copy className="w-4 h-4" />
           </button>
           <button
+            onClick={() => setDeleteTargetId(selectedTrackId)}
             className={cn(
-              'p-1.5 rounded-lg transition-all',
+              'p-2 rounded-lg transition-all',
               selectedTrackId
                 ? 'text-text-body hover:text-red-primary hover:bg-red-aura'
                 : 'text-text-muted cursor-not-allowed opacity-40'
@@ -199,7 +264,7 @@ export const Timeline = memo(function Timeline() {
 
           <button
             onClick={() => setIsCollapsed(true)}
-            className="p-1.5 rounded-lg text-text-body hover:text-text-primary hover:bg-surface transition-all"
+            className="p-2 rounded-lg text-text-body hover:text-text-primary hover:bg-surface transition-all"
             title="Collapse Timeline"
             aria-label="Collapse timeline"
           >
@@ -335,6 +400,16 @@ export const Timeline = memo(function Timeline() {
           )}
         </div>
       </div>
+
+      <ConfirmDialog
+        open={deleteTargetId !== null}
+        title="Delete Track"
+        message="Are you sure you want to delete this track? This cannot be undone."
+        confirmLabel="Delete"
+        variant="danger"
+        onConfirm={handleDeleteTrack}
+        onCancel={() => setDeleteTargetId(null)}
+      />
     </div>
   );
 });

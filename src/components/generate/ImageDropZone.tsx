@@ -96,7 +96,7 @@ export function ImageDropZone({
     return (
       <button
         onClick={() => setIsExpanded(true)}
-        className="flex items-center gap-2 w-full py-2.5 px-3 rounded-lg border border-dashed border-border text-text-body hover:text-text-primary hover:border-border-hover transition-all font-display text-sm"
+        className="flex items-center gap-2 w-full py-3 px-3 rounded-lg border border-dashed border-border text-text-body hover:text-text-primary hover:border-border-hover transition-all font-display text-sm"
       >
         <Upload className="w-4 h-4" />
         Add Reference Image

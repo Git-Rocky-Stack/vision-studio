@@ -7,6 +7,7 @@ import {
   Grid3X3,
   Move,
   Hand,
+  Loader2,
 } from 'lucide-react';
 import { memo, useState, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -26,6 +27,7 @@ export const Canvas = memo(function Canvas() {
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [imageSize, setImageSize] = useState({ width: 1024, height: 1024 });
   const [imageError, setImageError] = useState(false);
+  const [isImageLoading, setIsImageLoading] = useState(false);
   const canvasRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const isDraggingRef = useRef(false);
@@ -53,18 +55,24 @@ export const Canvas = memo(function Canvas() {
     if (!currentImage) {
       setImageSize({ width: 1024, height: 1024 });
       setImageError(false);
+      setIsImageLoading(false);
       return;
     }
     let cancelled = false;
+    setIsImageLoading(true);
     const img = new Image();
     img.onload = () => {
       if (!cancelled) {
         setImageSize({ width: img.naturalWidth, height: img.naturalHeight });
         setImageError(false);
+        setIsImageLoading(false);
       }
     };
     img.onerror = () => {
-      if (!cancelled) setImageError(true);
+      if (!cancelled) {
+        setImageError(true);
+        setIsImageLoading(false);
+      }
     };
     img.src = currentImage;
     return () => { cancelled = true; };
@@ -171,7 +179,7 @@ export const Canvas = memo(function Canvas() {
         <div className="flex items-center gap-2 px-2 py-2 glass glass-border rounded-lg shadow-cinematic">
           <button
             onClick={handleZoomOut}
-            className="p-1.5 rounded text-text-body hover:text-text-primary hover:bg-elevated transition-all disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:text-text-body disabled:hover:bg-transparent"
+            className="p-2 rounded text-text-body hover:text-text-primary hover:bg-elevated transition-all disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:text-text-body disabled:hover:bg-transparent"
             aria-label="Zoom out"
             disabled={zoom <= 25}
           >
@@ -182,7 +190,7 @@ export const Canvas = memo(function Canvas() {
           </span>
           <button
             onClick={handleZoomIn}
-            className="p-1.5 rounded text-text-body hover:text-text-primary hover:bg-elevated transition-all disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:text-text-body disabled:hover:bg-transparent"
+            className="p-2 rounded text-text-body hover:text-text-primary hover:bg-elevated transition-all disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:text-text-body disabled:hover:bg-transparent"
             aria-label="Zoom in"
             disabled={zoom >= 200}
           >
@@ -191,7 +199,7 @@ export const Canvas = memo(function Canvas() {
           <div className="w-px h-4 bg-border mx-1" />
           <button
             onClick={handleResetZoom}
-            className="p-1.5 rounded text-text-body hover:text-text-primary hover:bg-elevated transition-all"
+            className="p-2 rounded text-text-body hover:text-text-primary hover:bg-elevated transition-all"
             aria-label="Reset view"
           >
             <Maximize className="w-4 h-4" />
@@ -200,7 +208,7 @@ export const Canvas = memo(function Canvas() {
           <button
             onClick={() => setShowGrid(!showGrid)}
             className={cn(
-              'p-1.5 rounded transition-all',
+              'p-2 rounded transition-all',
               showGrid
                 ? 'text-red-primary bg-red-aura'
                 : 'text-text-body hover:text-text-primary hover:bg-elevated'
@@ -252,12 +260,20 @@ export const Canvas = memo(function Canvas() {
           >
             {/* Current Image or Placeholder */}
             {currentImage && !imageError ? (
-              <img
-                src={currentImage}
-                alt="Canvas"
-                data-testid="generation-result"
-                className="absolute inset-0 w-full h-full object-contain"
-              />
+              <>
+                {isImageLoading && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-surface/50">
+                    <Loader2 className="w-8 h-8 text-red-primary animate-spin" />
+                  </div>
+                )}
+                <img
+                  src={currentImage}
+                  alt="Canvas"
+                  data-testid="generation-result"
+                  className="absolute inset-0 w-full h-full object-contain"
+                  onLoad={() => setIsImageLoading(false)}
+                />
+              </>
             ) : imageError ? (
               <div className="absolute inset-0 flex flex-col items-center justify-center text-text-body">
                 <div className="text-center space-y-2">

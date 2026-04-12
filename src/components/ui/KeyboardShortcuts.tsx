@@ -97,7 +97,7 @@ export function KeyboardShortcuts({ open, onClose }: KeyboardShortcutsProps) {
               <button
                 onClick={onClose}
                 aria-label="Close shortcuts"
-                className="p-1.5 rounded-lg text-text-muted hover:text-text-primary hover:bg-surface transition-all"
+                className="p-2 rounded-lg text-text-muted hover:text-text-primary hover:bg-surface transition-all"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -112,7 +112,7 @@ export function KeyboardShortcuts({ open, onClose }: KeyboardShortcutsProps) {
                     {group.shortcuts.map((shortcut, i) => (
                       <div
                         key={i}
-                        className="flex items-center justify-between py-1.5"
+                        className="flex items-center justify-between py-2"
                       >
                         <span className="text-sm font-display text-text-body">
                           {shortcut.description}

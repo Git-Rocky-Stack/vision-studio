@@ -29,17 +29,23 @@ function ImageLabel({ label, className }: { label: string; className?: string })
   );
 }
 
-export function ComparisonView() {
+export const ComparisonView = memo(function ComparisonView() {
   const { comparisonMode, comparisonImages, generationQueue } = useAppStore();
   const [sliderPosition, setSliderPosition] = useState(50);
   const [onionOpacity, setOnionOpacity] = useState(50);
   const [isDragging, setIsDragging] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const isDraggingRef = useRef(false);
+
+  // Keep ref in sync with state
+  useEffect(() => {
+    isDraggingRef.current = isDragging;
+  }, [isDragging]);
 
   const imageA = comparisonImages[0] || null;
   const imageB = comparisonImages[1] || null;
 
-  // Slider drag handler
+  // Slider drag handler - stable callback with no dependencies
   const handleSliderDrag = useCallback(
     (e: MouseEvent) => {
       const container = containerRef.current;
@@ -48,19 +54,28 @@ export function ComparisonView() {
       const x = ((e.clientX - rect.left) / rect.width) * 100;
       setSliderPosition(Math.max(0, Math.min(100, x)));
     },
-    [] // No dependencies needed - containerRef is stable
+    []
   );
 
+  // Mouse up handler - stable callback
+  const handleMouseUp = useCallback(() => {
+    setIsDragging(false);
+  }, []);
+
+  // Event listeners registered once, use ref for dragging check
   useEffect(() => {
-    if (!isDragging) return;
-    const handleUp = () => setIsDragging(false);
-    window.addEventListener('mousemove', handleSliderDrag);
-    window.addEventListener('mouseup', handleUp);
-    return () => {
-      window.removeEventListener('mousemove', handleSliderDrag);
-      window.removeEventListener('mouseup', handleUp);
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isDraggingRef.current) return;
+      handleSliderDrag(e);
     };
-  }, [isDragging, handleSliderDrag]);
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [handleSliderDrag, handleMouseUp]);
 
   if (!comparisonMode || comparisonMode === 'off') return null;
 
@@ -164,7 +179,7 @@ export function ComparisonView() {
               tabIndex={0}
               className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-8 h-8 rounded-full bg-red-primary border-2 border-text-primary flex items-center justify-center cursor-ew-resize shadow-[0_0_12px_var(--color-red-glow)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-primary focus-visible:ring-offset-2"
             >
-              <div className="flex gap-0.5">
+              <div className="flex gap-1">
                 <div className="w-0.5 h-3 bg-text-primary rounded-full" />
                 <div className="w-0.5 h-3 bg-text-primary rounded-full" />
               </div>
@@ -260,4 +275,4 @@ export function ComparisonView() {
       )}
     </motion.div>
   );
-}
+});

@@ -273,14 +273,14 @@ export function ResultsGrid({
             <div className="flex-1" />
             <button
               onClick={handleBulkFavorite}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-display text-text-body hover:text-red-primary hover:bg-red-aura transition-all"
+              className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-display text-text-body hover:text-red-primary hover:bg-red-aura transition-all"
             >
               <Heart className="w-3.5 h-3.5" />
               Favorite
             </button>
             <button
               onClick={handleExportAll}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-display text-text-body hover:text-text-primary hover:bg-surface transition-all"
+              className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-display text-text-body hover:text-text-primary hover:bg-surface transition-all"
             >
               <Download className="w-3.5 h-3.5" />
               Export
@@ -289,14 +289,14 @@ export function ResultsGrid({
               onClick={() => {
                 selectedIds.forEach((id) => handleSendToEdit(id));
               }}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-display text-text-body hover:text-text-primary hover:bg-surface transition-all"
+              className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-display text-text-body hover:text-text-primary hover:bg-surface transition-all"
             >
               <Pencil className="w-3.5 h-3.5" />
               Edit
             </button>
             <button
               onClick={handleBulkDelete}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-display text-red-primary hover:bg-red-aura transition-all"
+              className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-display text-red-primary hover:bg-red-aura transition-all"
             >
               <Trash2 className="w-3.5 h-3.5" />
               Delete

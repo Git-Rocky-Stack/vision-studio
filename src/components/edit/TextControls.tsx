@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { cn } from '@/utils/cn';
 import { Button } from '@/components/ui/Button';
 import { Slider } from '@/components/ui/Slider';
+import { Switch } from '@/components/ui/Switch';
 import { ColorPicker } from '@/components/edit/ColorPicker';
 import {
   Type,
@@ -149,7 +150,7 @@ export function TextControls() {
             <button
               onClick={() => setFontSize(Math.max(12, fontSize - 2))}
               aria-label="Decrease font size"
-              className="p-1.5 rounded bg-elevated border border-border text-text-body hover:text-text-primary transition-all text-xs font-mono"
+              className="p-2 rounded bg-elevated border border-border text-text-body hover:text-text-primary transition-all text-xs font-mono"
             >
               −
             </button>
@@ -157,12 +158,12 @@ export function TextControls() {
               type="number"
               value={fontSize}
               onChange={(e) => setFontSize(Math.max(12, Math.min(200, Number(e.target.value))))}
-              className="w-full bg-elevated border border-border rounded-lg px-2 py-1.5 text-sm font-mono text-text-primary text-center focus:border-red-primary transition-all"
+              className="w-full bg-elevated border border-border rounded-lg px-2 py-2 text-sm font-mono text-text-primary text-center focus:border-red-primary transition-all"
             />
             <button
               onClick={() => setFontSize(Math.min(200, fontSize + 2))}
               aria-label="Increase font size"
-              className="p-1.5 rounded bg-elevated border border-border text-text-body hover:text-text-primary transition-all text-xs font-mono"
+              className="p-2 rounded bg-elevated border border-border text-text-body hover:text-text-primary transition-all text-xs font-mono"
             >
               +
             </button>
@@ -173,7 +174,7 @@ export function TextControls() {
           <select
             value={fontWeight}
             onChange={(e) => setFontWeight(Number(e.target.value))}
-            className="w-full bg-elevated border border-border rounded-lg px-2 py-1.5 text-sm font-display text-text-primary focus:border-red-primary transition-all"
+            className="w-full bg-elevated border border-border rounded-lg px-2 py-2 text-sm font-display text-text-primary focus:border-red-primary transition-all"
           >
             {FONT_WEIGHTS.map((w) => (
               <option key={w.value} value={w.value}>
@@ -185,11 +186,11 @@ export function TextControls() {
       </div>
 
       {/* Style Toggles */}
-      <div className="flex gap-1.5">
+      <div className="flex gap-2">
         <button
           onClick={() => setIsItalic(!isItalic)}
           className={cn(
-            'flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-display transition-all',
+            'flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-display transition-all',
             isItalic
               ? 'bg-red-primary text-text-primary'
               : 'bg-elevated text-text-body border border-border hover:border-border-hover'
@@ -201,7 +202,7 @@ export function TextControls() {
         <button
           onClick={() => setIsUnderline(!isUnderline)}
           className={cn(
-            'flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-display transition-all',
+            'flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-display transition-all',
             isUnderline
               ? 'bg-red-primary text-text-primary'
               : 'bg-elevated text-text-body border border-border hover:border-border-hover'
@@ -215,7 +216,7 @@ export function TextControls() {
       {/* Text Alignment */}
       <div className="space-y-1.5">
         <label className="text-label text-text-body">Alignment</label>
-        <div className="flex gap-1.5">
+        <div className="flex gap-2">
           {([
             { id: 'left', icon: AlignLeft },
             { id: 'center', icon: AlignCenter },
@@ -251,23 +252,11 @@ export function TextControls() {
       <div className="space-y-2 border-t border-border pt-3">
         <div className="flex items-center justify-between">
           <span className="text-label text-text-body">Text Shadow</span>
-          <button
-            role="switch"
-            aria-checked={shadowEnabled}
-            aria-label="Toggle text shadow"
-            onClick={() => setShadowEnabled(!shadowEnabled)}
-            className={cn(
-              'w-9 h-5 rounded-full transition-all relative',
-              shadowEnabled ? 'bg-red-primary' : 'bg-elevated border border-border'
-            )}
-          >
-            <span
-              className={cn(
-                'absolute top-0.5 w-4 h-4 rounded-full bg-text-primary transition-all',
-                shadowEnabled ? 'left-[18px]' : 'left-0.5'
-              )}
-            />
-          </button>
+          <Switch
+            label="Text shadow"
+            checked={shadowEnabled}
+            onChange={setShadowEnabled}
+          />
         </div>
         {shadowEnabled && (
           <div className="space-y-3 pl-1">
@@ -286,23 +275,11 @@ export function TextControls() {
       <div className="space-y-2 border-t border-border pt-3">
         <div className="flex items-center justify-between">
           <span className="text-label text-text-body">Text Stroke</span>
-          <button
-            role="switch"
-            aria-checked={strokeEnabled}
-            aria-label="Toggle text stroke"
-            onClick={() => setStrokeEnabled(!strokeEnabled)}
-            className={cn(
-              'w-9 h-5 rounded-full transition-all relative',
-              strokeEnabled ? 'bg-red-primary' : 'bg-elevated border border-border'
-            )}
-          >
-            <span
-              className={cn(
-                'absolute top-0.5 w-4 h-4 rounded-full bg-text-primary transition-all',
-                strokeEnabled ? 'left-[18px]' : 'left-0.5'
-              )}
-            />
-          </button>
+          <Switch
+            label="Text stroke"
+            checked={strokeEnabled}
+            onChange={setStrokeEnabled}
+          />
         </div>
         {strokeEnabled && (
           <div className="space-y-3 pl-1">

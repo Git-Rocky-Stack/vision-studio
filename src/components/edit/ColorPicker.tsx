@@ -93,10 +93,10 @@ export function ColorPicker({ value, onChange, recentColors }: ColorPickerProps)
 
             {/* Preset colors */}
             <div>
-              <p className="text-micro font-display text-text-muted mb-1.5 uppercase tracking-wider">
+              <p className="text-micro font-display text-text-muted mb-2 uppercase tracking-wider">
                 Presets
               </p>
-              <div className="grid grid-cols-6 gap-1.5">
+              <div className="grid grid-cols-6 gap-2">
                 {PRESET_COLORS.map((color) => (
                   <button
                     key={color}
@@ -119,10 +119,10 @@ export function ColorPicker({ value, onChange, recentColors }: ColorPickerProps)
             {/* Recent colors */}
             {recentColors.length > 0 && (
               <div>
-                <p className="text-micro font-display text-text-muted mb-1.5 uppercase tracking-wider">
+                <p className="text-micro font-display text-text-muted mb-2 uppercase tracking-wider">
                   Recent
                 </p>
-                <div className="flex gap-1.5">
+                <div className="flex gap-2">
                   {recentColors.slice(0, 8).map((color, i) => (
                     <button
                       key={`${color}-${i}`}

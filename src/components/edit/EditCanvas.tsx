@@ -300,9 +300,9 @@ export function EditCanvas() {
                 if (newBox.width < 5 || newBox.height < 5) return oldBox;
                 return newBox;
               }}
-              borderStroke="#e63946"
+              borderStroke="var(--color-feature-01)"
               borderStrokeWidth={1}
-              anchorFill="#e63946"
+              anchorFill="var(--color-feature-01)"
               anchorStroke="#ffffff"
               anchorSize={8}
               anchorCornerRadius={2}

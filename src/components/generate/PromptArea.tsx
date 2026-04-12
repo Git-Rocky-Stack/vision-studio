@@ -82,7 +82,7 @@ export function PromptArea({
       <button
         onClick={() => setShowNegative(!showNegative)}
         aria-expanded={showNegative}
-        className="flex items-center gap-1.5 text-xs text-text-muted hover:text-text-body transition-colors"
+        className="flex items-center gap-2 text-xs text-text-muted hover:text-text-body transition-colors"
       >
         <ChevronDown
           className={cn(

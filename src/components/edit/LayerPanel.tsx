@@ -278,7 +278,7 @@ export function LayerPanel() {
             {editLayers.length}
           </span>
         </div>
-        <div className="flex items-center gap-0.5">
+        <div className="flex items-center gap-1">
           <button
             onClick={handleAddLayer}
             className="p-1 rounded text-text-muted hover:text-text-primary hover:bg-elevated transition-all"

@@ -65,7 +65,7 @@ export const ToolStrip = memo(function ToolStrip() {
           {groupIdx > 0 && (
             <div className="w-6 h-px bg-border mx-auto my-2" />
           )}
-          <div className="flex flex-col items-center gap-0.5">
+          <div className="flex flex-col items-center gap-1">
             {group.map((tool) => {
               const Icon = tool.icon;
               const isActive = activeEditTool === tool.id;

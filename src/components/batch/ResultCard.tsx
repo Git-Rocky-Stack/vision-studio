@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { memo, useState } from 'react';
 import { cn } from '@/utils/cn';
 import { Heart, Download, Pencil, AlertTriangle, Clock, Hash } from 'lucide-react';
 import { motion } from 'framer-motion';
@@ -16,7 +16,7 @@ interface ResultCardProps {
   viewMode: 'grid' | 'list' | 'large';
 }
 
-export function ResultCard({
+export const ResultCard = memo(function ResultCard({
   result,
   isSelected,
   onSelect,
@@ -87,7 +87,7 @@ export function ResultCard({
             onClick={(e) => { e.stopPropagation(); onToggleFavorite(result.id); }}
             aria-label={result.isFavorite ? 'Remove from favorites' : 'Add to favorites'}
             className={cn(
-              'p-1.5 rounded-lg transition-all',
+              'p-2 rounded-lg transition-all',
               result.isFavorite
                 ? 'text-red-primary bg-red-aura'
                 : 'text-text-muted hover:text-text-primary hover:bg-surface'
@@ -98,14 +98,14 @@ export function ResultCard({
           <button
             onClick={(e) => { e.stopPropagation(); onDownload(result.id); }}
             aria-label="Download image"
-            className="p-1.5 rounded-lg text-text-muted hover:text-text-primary hover:bg-surface transition-all"
+            className="p-2 rounded-lg text-text-muted hover:text-text-primary hover:bg-surface transition-all"
           >
             <Download className="w-3.5 h-3.5" />
           </button>
           <button
             onClick={(e) => { e.stopPropagation(); onSendToEdit(result.id); }}
             aria-label="Send to edit"
-            className="p-1.5 rounded-lg text-text-muted hover:text-text-primary hover:bg-surface transition-all"
+            className="p-2 rounded-lg text-text-muted hover:text-text-primary hover:bg-surface transition-all"
           >
             <Pencil className="w-3.5 h-3.5" />
           </button>
@@ -197,7 +197,7 @@ export function ResultCard({
                 onClick={(e) => { e.stopPropagation(); onToggleFavorite(result.id); }}
                 aria-label={result.isFavorite ? 'Remove from favorites' : 'Add to favorites'}
                 className={cn(
-                  'p-1.5 rounded-lg backdrop-blur-sm transition-all focus-visible:opacity-100',
+                  'p-2 rounded-lg backdrop-blur-sm transition-all focus-visible:opacity-100',
                   result.isFavorite
                     ? 'bg-red-primary/30 text-red-primary'
                     : 'bg-void/40 text-text-primary hover:bg-void/60'
@@ -208,14 +208,14 @@ export function ResultCard({
               <button
                 onClick={(e) => { e.stopPropagation(); onDownload(result.id); }}
                 aria-label="Download image"
-                className="p-1.5 rounded-lg bg-void/40 text-text-primary hover:bg-void/60 backdrop-blur-sm transition-all focus-visible:opacity-100"
+                className="p-2 rounded-lg bg-void/40 text-text-primary hover:bg-void/60 backdrop-blur-sm transition-all focus-visible:opacity-100"
               >
                 <Download className="w-3.5 h-3.5" />
               </button>
               <button
                 onClick={(e) => { e.stopPropagation(); onSendToEdit(result.id); }}
                 aria-label="Send to edit"
-                className="p-1.5 rounded-lg bg-void/40 text-text-primary hover:bg-void/60 backdrop-blur-sm transition-all focus-visible:opacity-100"
+                className="p-2 rounded-lg bg-void/40 text-text-primary hover:bg-void/60 backdrop-blur-sm transition-all focus-visible:opacity-100"
               >
                 <Pencil className="w-3.5 h-3.5" />
               </button>
@@ -240,4 +240,4 @@ export function ResultCard({
       </div>
     </motion.div>
   );
-}
+});

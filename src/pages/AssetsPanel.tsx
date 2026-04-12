@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/Button';
 import { useAppStore } from '@/store/appStore';
 import type { AssetRecord } from '@/types/assets';
 import { ImageWithFallback } from '@/components/ui/ImageWithFallback';
+import { SkeletonCard } from '@/components/ui/Skeleton';
 import {
   Search,
   Grid,
@@ -239,7 +240,7 @@ export function AssetsPanel() {
             </Button>
             <button
               onClick={() => setSelectedAssets(new Set())}
-              className="p-1.5 rounded text-red-primary hover:bg-red-primary/20"
+              className="p-2 rounded text-red-primary hover:bg-red-primary/20"
             >
               <X className="w-4 h-4" />
             </button>
@@ -362,7 +363,7 @@ export function AssetsPanel() {
                             e.stopPropagation();
                             toggleAssetFavorite(asset.id);
                           }}
-                          className="p-1.5 rounded bg-surface/80 text-text-body hover:text-[var(--color-status-warning)] hover:bg-surface transition-all focus-visible:opacity-100"
+                          className="p-2 rounded bg-surface/80 text-text-body hover:text-[var(--color-status-warning)] hover:bg-surface transition-all focus-visible:opacity-100"
                         >
                           <Star className={cn('w-3.5 h-3.5', asset.favorite && 'fill-[var(--color-status-warning)] text-[var(--color-status-warning)]')} />
                         </button>
@@ -372,7 +373,7 @@ export function AssetsPanel() {
                             e.stopPropagation();
                             handlePreview(asset);
                           }}
-                          className="p-1.5 rounded bg-surface/80 text-text-body hover:text-text-primary hover:bg-surface transition-all focus-visible:opacity-100"
+                          className="p-2 rounded bg-surface/80 text-text-body hover:text-text-primary hover:bg-surface transition-all focus-visible:opacity-100"
                         >
                           <ExternalLink className="w-3.5 h-3.5" />
                         </button>
@@ -382,7 +383,7 @@ export function AssetsPanel() {
                             e.stopPropagation();
                             handleExport(asset);
                           }}
-                          className="p-1.5 rounded bg-surface/80 text-text-body hover:text-text-primary hover:bg-surface transition-all focus-visible:opacity-100"
+                          className="p-2 rounded bg-surface/80 text-text-body hover:text-text-primary hover:bg-surface transition-all focus-visible:opacity-100"
                         >
                           <Download className="w-3.5 h-3.5" />
                         </button>
@@ -392,7 +393,7 @@ export function AssetsPanel() {
                             e.stopPropagation();
                             handleDelete(asset);
                           }}
-                          className="p-1.5 rounded bg-surface/80 text-text-body hover:text-red-primary hover:bg-surface transition-all focus-visible:opacity-100"
+                          className="p-2 rounded bg-surface/80 text-text-body hover:text-red-primary hover:bg-surface transition-all focus-visible:opacity-100"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>

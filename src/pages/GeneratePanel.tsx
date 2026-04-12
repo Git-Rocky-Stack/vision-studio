@@ -570,18 +570,21 @@ export function GeneratePanel() {
         {imageConfig.generationType === 'image' && (
           <div className="space-y-3">
             <label className="text-label text-text-body">Aspect Ratio</label>
-            <div className="grid grid-cols-3 gap-1.5">
+            <div className="grid grid-cols-3 gap-2">
               {aspectRatios.map((ratio) => {
                 const isSelected = imageConfig.selectedRatio.name === ratio.name;
+                const isDisabled = genStatus.isGenerating;
                 return (
                   <button
                     key={ratio.name}
                     onClick={() => updateImageConfig({ selectedRatio: ratio })}
+                    disabled={isDisabled}
                     className={cn(
                       'px-2 py-2 rounded-lg border transition-all flex items-center gap-2',
                       isSelected
                         ? 'border-red-primary bg-red-aura glow-red-subtle'
-                        : 'border-border hover:border-border-hover bg-elevated'
+                        : 'border-border hover:border-border-hover bg-elevated',
+                      isDisabled && 'opacity-40 cursor-not-allowed hover:border-border hover:bg-elevated'
                     )}
                   >
                     <div
@@ -633,11 +636,11 @@ export function GeneratePanel() {
         {/* Estimated Info */}
         <div className="p-3 rounded-lg bg-elevated border border-border">
           <div className="flex items-center gap-4 text-xs text-text-body font-display">
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-2">
               <Clock className="w-3.5 h-3.5" />
               <span>~{imageConfig.generationType === 'image' ? '15-30s' : '2-5min'}</span>
             </div>
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-2">
               <Zap className="w-3.5 h-3.5" />
               <span>{isGpuAvailable ? 'GPU Accelerated' : 'CPU Mode'}</span>
             </div>
@@ -649,10 +652,10 @@ export function GeneratePanel() {
           <motion.div
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
-            className="p-3 rounded-lg bg-red-primary/10 border border-red-primary/30 flex items-start gap-2"
+            className="p-3 rounded-lg bg-status-error-muted border border-status-error-border flex items-start gap-2"
           >
-            <AlertCircle className="w-4 h-4 text-red-primary flex-shrink-0 mt-0.5" />
-            <p className="text-xs text-red-primary">{genStatus.errorMessage}</p>
+            <AlertCircle className="w-4 h-4 text-status-error flex-shrink-0 mt-0.5" />
+            <p className="text-xs text-status-error">{genStatus.errorMessage}</p>
           </motion.div>
         )}
 
@@ -661,10 +664,10 @@ export function GeneratePanel() {
           <motion.div
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
-            className="p-3 rounded-lg bg-[var(--color-status-success-muted)] border border-[var(--color-status-success-border)] flex items-start gap-2"
+            className="p-3 rounded-lg bg-status-success-muted border border-status-success-border flex items-start gap-2"
           >
-            <Check className="w-4 h-4 text-[var(--color-status-success)] flex-shrink-0 mt-0.5" />
-            <p className="text-xs text-[var(--color-status-success)]">
+            <Check className="w-4 h-4 text-status-success flex-shrink-0 mt-0.5" />
+            <p className="text-xs text-status-success">
               Generation completed! Check the Assets panel.
             </p>
           </motion.div>
@@ -712,7 +715,8 @@ export function GeneratePanel() {
 
                 <button
                   onClick={handleCancel}
-                  className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-void/40 text-text-body hover:text-text-primary hover:bg-void/60 transition-all font-display text-xs"
+                  disabled={!genStatus.isGenerating}
+                  className="flex items-center gap-2 px-3 py-1 rounded-lg bg-void/40 text-text-body hover:text-text-primary hover:bg-void/60 transition-all font-display text-xs disabled:opacity-30 disabled:cursor-not-allowed"
                 >
                   <X className="w-3 h-3" />
                   Cancel

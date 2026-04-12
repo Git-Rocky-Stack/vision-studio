@@ -30,14 +30,14 @@ import {
 import { motion, AnimatePresence } from 'framer-motion';
 
 const LORA_COLORS = [
-  '#e63946',
-  '#6c5ce7',
-  '#00b894',
-  '#f4a261',
-  '#ff6b9d',
-  '#4ecdc4',
-  '#fdcb6e',
-  '#a8dadc',
+  'var(--color-feature-01)',
+  'var(--color-feature-02)',
+  'var(--color-feature-03)',
+  'var(--color-feature-04)',
+  'var(--color-feature-05)',
+  'var(--color-feature-06)',
+  'var(--color-feature-07)',
+  'var(--color-feature-08)',
 ];
 
 // Placeholder LoRA library (backend API not built yet)
@@ -204,7 +204,7 @@ export function LoRAMixer({ configs, onChange }: LoRAMixerProps) {
     return (
       <button
         onClick={() => setIsExpanded(true)}
-        className="flex items-center gap-2 w-full py-2.5 px-3 rounded-lg border border-dashed border-border text-text-body hover:text-text-primary hover:border-border-hover transition-all font-display text-sm"
+        className="flex items-center gap-2 w-full py-3 px-3 rounded-lg border border-dashed border-border text-text-body hover:text-text-primary hover:border-border-hover transition-all font-display text-sm"
       >
         <Layers className="w-4 h-4" />
         Add LoRA Models
@@ -312,7 +312,7 @@ export function LoRAMixer({ configs, onChange }: LoRAMixerProps) {
           ) : (
             <button
               onClick={() => setShowBrowser(true)}
-              className="flex items-center gap-1.5 w-full py-2 px-2.5 rounded-lg border border-dashed border-border text-text-body hover:text-text-primary hover:border-border-hover transition-all text-xs font-display"
+              className="flex items-center gap-2 w-full py-2 px-2.5 rounded-lg border border-dashed border-border text-text-body hover:text-text-primary hover:border-border-hover transition-all text-xs font-display"
             >
               <Plus className="w-3 h-3" />
               Add LoRA
