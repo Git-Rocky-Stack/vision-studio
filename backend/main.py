@@ -53,6 +53,7 @@ from utils.direct_generator import DirectGenerator
 from utils.image_ops import apply_crop_and_transform, upscale_image_file
 from utils.prompt_service import enhance_prompt
 from api.controlnet import router as controlnet_router
+from api.lora import router as lora_router
 
 try:
     from utils.comfy_client import ComfyUIClient
@@ -187,6 +188,7 @@ app.mount("/outputs", StaticFiles(directory=OUTPUT_DIR), name="outputs")
 
 # Register API routers
 app.include_router(controlnet_router)
+app.include_router(lora_router)
 
 
 # ============= Pydantic Models =============
