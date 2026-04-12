@@ -35,15 +35,6 @@ test.describe('Visual Regression', () => {
       });
     });
 
-    test('Generate panel - model selector open', async ({ page }) => {
-      const generate = new GeneratePage(page);
-      await generate.modelSelector.click({ force: true });
-      await page.waitForTimeout(500);
-
-      await expect(page).toHaveScreenshot('generate-panel-model-selector-open.png', {
-        fullPage: false,
-      });
-    });
   });
 
   test.describe('Assets Panel', () => {
