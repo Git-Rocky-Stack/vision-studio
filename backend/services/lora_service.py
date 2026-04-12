@@ -25,6 +25,10 @@ logger = logging.getLogger(__name__)
 # Configurable base model via environment variable
 DEFAULT_BASE_MODEL = os.getenv("SD_BASE_MODEL", "runwayml/stable-diffusion-v1-5")
 
+# Constants
+MAX_SEED_VALUE = 2**32 - 1
+PLACEHOLDER_GRAY = (128, 128, 128)
+
 try:
     import torch
     from diffusers import AutoencoderKL, UNet2DConditionModel
@@ -223,7 +227,7 @@ class LoRAService:
 
         # Set up random seed
         if seed is None:
-            seed = random.randint(0, 2**32 - 1)
+            seed = random.randint(0, MAX_SEED_VALUE)
 
         generator = None
         if torch is not None:
@@ -261,7 +265,7 @@ class LoRAService:
                     progress_callback(i / num_images * 100)
 
                 # Create a placeholder image for testing
-                placeholder = Image.new("RGB", (width, height), color=(128, 128, 128))
+                placeholder = Image.new("RGB", (width, height), color=PLACEHOLDER_GRAY)
                 generated_images.append(GeneratedImage(
                     image=placeholder,
                     seed=seed,
