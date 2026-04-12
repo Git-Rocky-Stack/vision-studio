@@ -28,7 +28,8 @@ class ControlNetRequest(BaseModel):
 
     Attributes:
         prompt: Text description of the image to generate (1-2000 chars)
-        images: List of base64-encoded control images (at least 1 required)
+        init_image: Base64-encoded initial/reference image
+        control_image: Base64-encoded control image (canny, depth, etc.)
         model: ControlNet model type to use
         conditioning_scale: Strength of control (0.0-2.0, default 1.0)
         guidance_start: When control begins (0.0-1.0, default 0.0)
@@ -43,14 +44,17 @@ class ControlNetRequest(BaseModel):
     """
     prompt: str = Field(
         ...,
-        min_length=0,
+        min_length=1,
         max_length=2000,
         description="Text description of the image to generate"
     )
-    images: List[str] = Field(
+    init_image: str = Field(
         ...,
-        min_length=1,
-        description="List of base64-encoded control images"
+        description="Base64-encoded initial/reference image"
+    )
+    control_image: str = Field(
+        ...,
+        description="Base64-encoded control image (canny, depth, etc.)"
     )
     model: ControlNetModel = Field(
         ...,
@@ -142,9 +146,7 @@ class ControlNetErrorResponse(BaseModel):
         success: Always false for error responses
         error: Human-readable error message
         error_code: Machine-readable error code
-        details: Optional additional error details
     """
     success: bool = Field(default=False, description="Always false for error responses")
     error: str = Field(..., description="Human-readable error message")
     error_code: str = Field(..., description="Machine-readable error code")
-    details: Optional[Dict[str, str]] = Field(default=None, description="Optional additional error details")

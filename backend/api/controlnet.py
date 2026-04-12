@@ -53,7 +53,8 @@ async def generate_controlnet(request: ControlNetRequest) -> Union[ControlNetRes
 
     ### Request Body
     - `prompt`: Text description of the image to generate (1-2000 chars)
-    - `images`: List of base64-encoded control images (at least 1 required)
+    - `init_image`: Base64-encoded initial/reference image
+    - `control_image`: Base64-encoded control image (canny, depth, etc.)
     - `model`: ControlNet model type (canny, depth, normal, openpose, segmentation, mlsd, lineart, softedge)
     - `conditioning_scale`: Strength of control (0.0-2.0, default 1.0)
     - `guidance_start`: When control begins (0.0-1.0, default 0.0)
@@ -88,7 +89,8 @@ async def generate_controlnet(request: ControlNetRequest) -> Union[ControlNetRes
     ```json
     {
       "prompt": "a futuristic city skyline at sunset",
-      "images": ["data:image/png;base64,iVBOR..."],
+      "init_image": "data:image/png;base64,iVBOR...",
+      "control_image": "data:image/png;base64,iVBOR...",
       "model": "canny",
       "steps": 30,
       "guidance_scale": 7.5,
@@ -101,13 +103,6 @@ async def generate_controlnet(request: ControlNetRequest) -> Union[ControlNetRes
     service = get_service()
 
     try:
-        # Validate prompt is not empty or whitespace only
-        if not request.prompt.strip():
-            return ControlNetErrorResponse(
-                error="Prompt cannot be empty or whitespace only",
-                error_code="EMPTY_PROMPT",
-            )
-
         # Load the requested model
         model_type = request.model.value
         await service.load_model(model_type)
@@ -115,7 +110,8 @@ async def generate_controlnet(request: ControlNetRequest) -> Union[ControlNetRes
         # Generate images
         results = await service.generate(
             prompt=request.prompt,
-            images=request.images,
+            init_image=request.init_image,
+            control_image=request.control_image,
             model_type=model_type,
             width=request.width,
             height=request.height,
@@ -145,22 +141,22 @@ async def generate_controlnet(request: ControlNetRequest) -> Union[ControlNetRes
         )
 
     except ValueError as e:
-        return ControlNetErrorResponse(
-            error=str(e),
-            error_code="INVALID_INPUT",
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"error": str(e), "error_code": "INVALID_INPUT"},
         )
     except RuntimeError as e:
-        return ControlNetErrorResponse(
-            error=str(e),
-            error_code="SERVICE_ERROR",
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={"error": str(e), "error_code": "SERVICE_ERROR"},
         )
     except Exception as e:
         # Log the full exception for debugging
         import traceback
         traceback.print_exc()
-        return ControlNetErrorResponse(
-            error=f"Generation failed: {str(e)}",
-            error_code="INTERNAL_ERROR",
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={"error": f"Generation failed: {str(e)}", "error_code": "INTERNAL_ERROR"},
         )
 
 

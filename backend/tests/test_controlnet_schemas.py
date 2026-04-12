@@ -50,7 +50,8 @@ class ControlNetRequestSchemaTests(unittest.TestCase):
         """Test valid request with minimal required fields."""
         request = ControlNetRequest(
             prompt="a beautiful landscape",
-            images=["iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="],
+            init_image="iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+            control_image="iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
             model=ControlNetModel.CANNY,
         )
 
@@ -68,7 +69,8 @@ class ControlNetRequestSchemaTests(unittest.TestCase):
         """Test valid request with all fields specified."""
         request = ControlNetRequest(
             prompt="a cyberpunk city at night, neon lights, highly detailed",
-            images=["iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="] * 3,
+            init_image="iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+            control_image="iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
             model=ControlNetModel.DEPTH,
             conditioning_scale=1.5,
             guidance_start=0.2,
@@ -83,7 +85,6 @@ class ControlNetRequestSchemaTests(unittest.TestCase):
         )
 
         self.assertEqual(request.prompt, "a cyberpunk city at night, neon lights, highly detailed")
-        self.assertEqual(len(request.images), 3)
         self.assertEqual(request.conditioning_scale, 1.5)
         self.assertEqual(request.guidance_start, 0.2)
         self.assertEqual(request.guidance_end, 0.8)
@@ -94,16 +95,17 @@ class ControlNetRequestSchemaTests(unittest.TestCase):
         self.assertEqual(request.seed, 42)
         self.assertEqual(request.num_images, 4)
 
-    def test_empty_prompt_allowed_by_schema(self):
-        """Test that empty prompt is allowed by schema (validated in API layer)."""
-        # Schema allows empty prompt - API layer validates it
-        request = ControlNetRequest(
-            prompt="",
-            images=["iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="],
-            model=ControlNetModel.CANNY,
-        )
+    def test_empty_prompt_raises_validation_error(self):
+        """Test that empty prompt raises validation error."""
+        with self.assertRaises(ValidationError) as context:
+            ControlNetRequest(
+                prompt="",
+                init_image="iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+                control_image="iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+                model=ControlNetModel.CANNY,
+            )
 
-        self.assertEqual(request.prompt, "")
+        self.assertIn("prompt", str(context.exception))
 
     def test_prompt_too_long_raises_validation_error(self):
         """Test that prompt over 2000 characters raises validation error."""
@@ -112,29 +114,42 @@ class ControlNetRequestSchemaTests(unittest.TestCase):
         with self.assertRaises(ValidationError) as context:
             ControlNetRequest(
                 prompt=long_prompt,
-                images=["iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="],
+                init_image="iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+            control_image="iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
                 model=ControlNetModel.CANNY,
             )
 
         self.assertIn("prompt", str(context.exception))
 
-    def test_empty_images_list_raises_validation_error(self):
-        """Test that empty images list raises validation error."""
+    def test_missing_init_image_raises_validation_error(self):
+        """Test that missing init_image raises validation error."""
         with self.assertRaises(ValidationError) as context:
             ControlNetRequest(
                 prompt="a landscape",
-                images=[],
+                control_image="iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
                 model=ControlNetModel.CANNY,
             )
 
-        self.assertIn("images", str(context.exception))
+        self.assertIn("init_image", str(context.exception))
+
+    def test_missing_control_image_raises_validation_error(self):
+        """Test that missing control_image raises validation error."""
+        with self.assertRaises(ValidationError) as context:
+            ControlNetRequest(
+                prompt="a landscape",
+                init_image="iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+                model=ControlNetModel.CANNY,
+            )
+
+        self.assertIn("control_image", str(context.exception))
 
     def test_conditioning_scale_bounds(self):
         """Test conditioning_scale must be between 0 and 2."""
         # Valid at boundaries
         request = ControlNetRequest(
             prompt="test",
-            images=["iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="],
+            init_image="iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+            control_image="iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
             model=ControlNetModel.CANNY,
             conditioning_scale=0.0,
         )
@@ -142,7 +157,8 @@ class ControlNetRequestSchemaTests(unittest.TestCase):
 
         request = ControlNetRequest(
             prompt="test",
-            images=["iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="],
+            init_image="iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+            control_image="iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
             model=ControlNetModel.CANNY,
             conditioning_scale=2.0,
         )
@@ -152,7 +168,8 @@ class ControlNetRequestSchemaTests(unittest.TestCase):
         with self.assertRaises(ValidationError):
             ControlNetRequest(
                 prompt="test",
-                images=["iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="],
+                init_image="iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+            control_image="iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
                 model=ControlNetModel.CANNY,
                 conditioning_scale=-0.1,
             )
@@ -161,7 +178,8 @@ class ControlNetRequestSchemaTests(unittest.TestCase):
         with self.assertRaises(ValidationError):
             ControlNetRequest(
                 prompt="test",
-                images=["iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="],
+                init_image="iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+            control_image="iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
                 model=ControlNetModel.CANNY,
                 conditioning_scale=2.1,
             )
@@ -171,7 +189,8 @@ class ControlNetRequestSchemaTests(unittest.TestCase):
         # Valid at boundaries
         request = ControlNetRequest(
             prompt="test",
-            images=["iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="],
+            init_image="iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+            control_image="iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
             model=ControlNetModel.CANNY,
             steps=1,
         )
@@ -179,7 +198,8 @@ class ControlNetRequestSchemaTests(unittest.TestCase):
 
         request = ControlNetRequest(
             prompt="test",
-            images=["iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="],
+            init_image="iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+            control_image="iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
             model=ControlNetModel.CANNY,
             steps=150,
         )
@@ -189,7 +209,8 @@ class ControlNetRequestSchemaTests(unittest.TestCase):
         with self.assertRaises(ValidationError):
             ControlNetRequest(
                 prompt="test",
-                images=["iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="],
+                init_image="iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+            control_image="iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
                 model=ControlNetModel.CANNY,
                 steps=0,
             )
@@ -198,7 +219,8 @@ class ControlNetRequestSchemaTests(unittest.TestCase):
         with self.assertRaises(ValidationError):
             ControlNetRequest(
                 prompt="test",
-                images=["iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="],
+                init_image="iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+            control_image="iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
                 model=ControlNetModel.CANNY,
                 steps=151,
             )
@@ -208,7 +230,8 @@ class ControlNetRequestSchemaTests(unittest.TestCase):
         # Valid at boundaries
         request = ControlNetRequest(
             prompt="test",
-            images=["iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="],
+            init_image="iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+            control_image="iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
             model=ControlNetModel.CANNY,
             width=64,
             height=64,
@@ -218,7 +241,8 @@ class ControlNetRequestSchemaTests(unittest.TestCase):
 
         request = ControlNetRequest(
             prompt="test",
-            images=["iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="],
+            init_image="iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+            control_image="iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
             model=ControlNetModel.CANNY,
             width=2048,
             height=2048,
@@ -230,7 +254,8 @@ class ControlNetRequestSchemaTests(unittest.TestCase):
         with self.assertRaises(ValidationError):
             ControlNetRequest(
                 prompt="test",
-                images=["iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="],
+                init_image="iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+            control_image="iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
                 model=ControlNetModel.CANNY,
                 width=63,
             )
@@ -239,7 +264,8 @@ class ControlNetRequestSchemaTests(unittest.TestCase):
         with self.assertRaises(ValidationError):
             ControlNetRequest(
                 prompt="test",
-                images=["iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="],
+                init_image="iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+            control_image="iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
                 model=ControlNetModel.CANNY,
                 width=2049,
             )
@@ -249,7 +275,8 @@ class ControlNetRequestSchemaTests(unittest.TestCase):
         # Valid at boundaries
         request = ControlNetRequest(
             prompt="test",
-            images=["iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="],
+            init_image="iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+            control_image="iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
             model=ControlNetModel.CANNY,
             num_images=1,
         )
@@ -257,7 +284,8 @@ class ControlNetRequestSchemaTests(unittest.TestCase):
 
         request = ControlNetRequest(
             prompt="test",
-            images=["iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="],
+            init_image="iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+            control_image="iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
             model=ControlNetModel.CANNY,
             num_images=8,
         )
@@ -267,7 +295,8 @@ class ControlNetRequestSchemaTests(unittest.TestCase):
         with self.assertRaises(ValidationError):
             ControlNetRequest(
                 prompt="test",
-                images=["iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="],
+                init_image="iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+            control_image="iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
                 model=ControlNetModel.CANNY,
                 num_images=9,
             )
@@ -277,7 +306,8 @@ class ControlNetRequestSchemaTests(unittest.TestCase):
         # Valid at boundaries
         request = ControlNetRequest(
             prompt="test",
-            images=["iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="],
+            init_image="iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+            control_image="iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
             model=ControlNetModel.CANNY,
             guidance_scale=1.0,
         )
@@ -285,7 +315,8 @@ class ControlNetRequestSchemaTests(unittest.TestCase):
 
         request = ControlNetRequest(
             prompt="test",
-            images=["iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="],
+            init_image="iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+            control_image="iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
             model=ControlNetModel.CANNY,
             guidance_scale=30.0,
         )
@@ -295,7 +326,8 @@ class ControlNetRequestSchemaTests(unittest.TestCase):
         with self.assertRaises(ValidationError):
             ControlNetRequest(
                 prompt="test",
-                images=["iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="],
+                init_image="iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+            control_image="iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
                 model=ControlNetModel.CANNY,
                 guidance_scale=0.5,
             )
@@ -304,7 +336,8 @@ class ControlNetRequestSchemaTests(unittest.TestCase):
         with self.assertRaises(ValidationError):
             ControlNetRequest(
                 prompt="test",
-                images=["iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="],
+                init_image="iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+            control_image="iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
                 model=ControlNetModel.CANNY,
                 guidance_scale=31.0,
             )
@@ -356,18 +389,6 @@ class ControlNetErrorResponseSchemaTests(unittest.TestCase):
         self.assertFalse(response.success)
         self.assertEqual(response.error, "Model not found")
         self.assertEqual(response.error_code, "MODEL_NOT_FOUND")
-        self.assertIsNone(response.details)
-
-    def test_error_response_with_details(self):
-        """Test ControlNetErrorResponse with additional details."""
-        response = ControlNetErrorResponse(
-            error="Invalid model type",
-            error_code="INVALID_MODEL",
-            details={"provided": "invalid", "valid_options": "canny, depth, normal"},
-        )
-
-        self.assertFalse(response.success)
-        self.assertEqual(response.details["provided"], "invalid")
 
 
 if __name__ == "__main__":

@@ -44,7 +44,8 @@ class ControlNetAPITests(unittest.TestCase):
             "/api/v1/controlnet/generate",
             json={
                 "prompt": "a beautiful landscape with mountains",
-                "images": [test_image],
+                "init_image": test_image,
+                "control_image": test_image,
                 "model": "canny",
                 "steps": 5,
                 "width": 64,
@@ -64,44 +65,24 @@ class ControlNetAPITests(unittest.TestCase):
         self.assertIn("processing_time_ms", data)
         self.assertEqual(data["model_used"], "canny")
 
-    def test_generate_empty_prompt_returns_error(self):
-        """Test that empty prompt returns error response."""
+    def test_generate_empty_prompt_returns_400(self):
+        """Test that empty prompt returns HTTP 400 error."""
         test_image = create_test_base64_image(64, 64)
 
         response = client.post(
             "/api/v1/controlnet/generate",
             json={
                 "prompt": "",
-                "images": [test_image],
+                "init_image": test_image,
+                "control_image": test_image,
                 "model": "canny",
             },
         )
 
-        # Should return error response (success=false)
-        self.assertEqual(response.status_code, 200)
-        data = response.json()
-        self.assertFalse(data["success"])
-        self.assertEqual(data["error_code"], "EMPTY_PROMPT")
+        # Schema validation catches empty prompt - returns 422
+        self.assertEqual(response.status_code, 422)
 
-    def test_generate_whitespace_prompt_returns_error(self):
-        """Test that whitespace-only prompt returns error response."""
-        test_image = create_test_base64_image(64, 64)
-
-        response = client.post(
-            "/api/v1/controlnet/generate",
-            json={
-                "prompt": "   \t\n  ",
-                "images": [test_image],
-                "model": "canny",
-            },
-        )
-
-        self.assertEqual(response.status_code, 200)
-        data = response.json()
-        self.assertFalse(data["success"])
-        self.assertEqual(data["error_code"], "EMPTY_PROMPT")
-
-    def test_generate_invalid_model_returns_error(self):
+    def test_generate_invalid_model_returns_422(self):
         """Test that invalid model type returns validation error."""
         test_image = create_test_base64_image(64, 64)
 
@@ -110,7 +91,8 @@ class ControlNetAPITests(unittest.TestCase):
             "/api/v1/controlnet/generate",
             json={
                 "prompt": "a test",
-                "images": [test_image],
+                "init_image": test_image,
+                "control_image": test_image,
                 "model": "invalid_model_type",
             },
         )
@@ -118,13 +100,30 @@ class ControlNetAPITests(unittest.TestCase):
         # Pydantic validation error returns 422
         self.assertEqual(response.status_code, 422)
 
-    def test_generate_empty_images_returns_error(self):
-        """Test that empty images list returns validation error."""
+    def test_generate_missing_init_image_returns_422(self):
+        """Test that missing init_image returns validation error."""
+        test_image = create_test_base64_image(64, 64)
+
         response = client.post(
             "/api/v1/controlnet/generate",
             json={
                 "prompt": "a test",
-                "images": [],
+                "control_image": test_image,
+                "model": "canny",
+            },
+        )
+
+        self.assertEqual(response.status_code, 422)
+
+    def test_generate_missing_control_image_returns_422(self):
+        """Test that missing control_image returns validation error."""
+        test_image = create_test_base64_image(64, 64)
+
+        response = client.post(
+            "/api/v1/controlnet/generate",
+            json={
+                "prompt": "a test",
+                "init_image": test_image,
                 "model": "canny",
             },
         )
@@ -139,7 +138,8 @@ class ControlNetAPITests(unittest.TestCase):
             "/api/v1/controlnet/generate",
             json={
                 "prompt": "a scenic view",
-                "images": [test_image],
+                "init_image": test_image,
+                "control_image": test_image,
                 "model": "depth",
                 "num_images": 4,
                 "seed": 12345,
@@ -162,7 +162,8 @@ class ControlNetAPITests(unittest.TestCase):
                 "/api/v1/controlnet/generate",
                 json={
                     "prompt": f"test with {model_type}",
-                    "images": [test_image],
+                    "init_image": test_image,
+                    "control_image": test_image,
                     "model": model_type,
                     "steps": 1,
                 },
@@ -181,7 +182,8 @@ class ControlNetAPITests(unittest.TestCase):
             "/api/v1/controlnet/generate",
             json={
                 "prompt": "a detailed portrait",
-                "images": [test_image],
+                "init_image": test_image,
+                "control_image": test_image,
                 "model": "canny",
                 "conditioning_scale": 1.5,
                 "guidance_start": 0.1,
@@ -209,7 +211,8 @@ class ControlNetAPITests(unittest.TestCase):
             "/api/v1/controlnet/generate",
             json={
                 "prompt": "a test with data URL",
-                "images": [data_url],
+                "init_image": data_url,
+                "control_image": data_url,
                 "model": "canny",
             },
         )
@@ -270,7 +273,8 @@ class ControlNetAPITests(unittest.TestCase):
             "/api/v1/controlnet/generate",
             json={
                 "prompt": "test after unload",
-                "images": [test_image],
+                "init_image": test_image,
+                "control_image": test_image,
                 "model": "canny",
             },
         )

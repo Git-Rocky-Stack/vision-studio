@@ -205,7 +205,8 @@ class ControlNetService:
     async def generate(
         self,
         prompt: str,
-        images: List[str],
+        init_image: str,
+        control_image: str,
         model_type: str,
         width: int,
         height: int,
@@ -224,7 +225,8 @@ class ControlNetService:
 
         Args:
             prompt: Text prompt for generation
-            images: List of base64-encoded control images
+            init_image: Base64-encoded initial/reference image
+            control_image: Base64-encoded control image (canny, depth, etc.)
             model_type: ControlNet model type to use
             width: Output image width
             height: Output image height
@@ -248,19 +250,18 @@ class ControlNetService:
         if not self._model_loaded:
             raise RuntimeError("Model must be loaded before generation. Call load_model() first.")
 
-        # Decode control images
-        control_images = []
-        for base64_img in images:
-            try:
-                img = decode_base64_image(base64_img)
-                # Resize to target dimensions
-                img = resize_control_image(img, width, height)
-                control_images.append(img)
-            except ValueError as e:
-                raise ValueError(f"Failed to decode control image: {e}")
+        # Decode init and control images
+        try:
+            init_img = decode_base64_image(init_image)
+            init_img = resize_control_image(init_img, width, height)
+        except ValueError as e:
+            raise ValueError(f"Failed to decode init image: {e}")
 
-        # Use first control image for generation
-        control_image = control_images[0]
+        try:
+            control_img = decode_base64_image(control_image)
+            control_img = resize_control_image(control_img, width, height)
+        except ValueError as e:
+            raise ValueError(f"Failed to decode control image: {e}")
 
         # Set up random seed
         if seed == -1:
