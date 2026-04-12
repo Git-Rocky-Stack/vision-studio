@@ -11,9 +11,16 @@
 
 import { test, expect } from '@playwright/test';
 
+// Timing constants for performance benchmarks
+const SCROLL_WAIT_MS = 100;
+const INTERACTION_DELAY_MS = 50;
+const GC_WAIT_MS = 500;
+
 test.describe('Performance', () => {
   test.beforeEach(async ({ page }) => {
-    // Clear cache before each test for consistent measurements
+    // Clear cookies before each test for consistent measurements.
+    // Note: Playwright's clearCookies() does not clear cache/storage - only cookies.
+    // For full cache clearing, use page.context().clearCache() if available.
     await page.context().clearCookies();
   });
 
@@ -102,7 +109,7 @@ test.describe('Performance', () => {
     });
 
     // Wait for scroll to complete and virtual DOM to update
-    await page.waitForTimeout(100);
+    await page.waitForTimeout(SCROLL_WAIT_MS);
 
     const scrollTime = Date.now() - startTime;
     console.log(`Scroll performance: ${scrollTime}ms`);
@@ -132,17 +139,19 @@ test.describe('Performance', () => {
         const panel = panels[i];
         await page.click(`[data-testid="${panel.id}-tab"]`);
         await page.waitForSelector(panel.selector, { state: 'visible', timeout: 5000 });
-        await page.waitForTimeout(50); // Small delay to simulate user interaction
+        await page.waitForTimeout(INTERACTION_DELAY_MS); // Small delay to simulate user interaction
       }
     }
 
     // Force garbage collection if available
+    // NOTE: window.gc() requires Node.js --expose-gc flag or Chrome DevTools protocol.
+    // Test may skip GC if unavailable in the test environment.
     await page.evaluate(() => {
       // @ts-ignore - Chrome DevTools protocol
       if (window.gc) window.gc();
     });
 
-    await page.waitForTimeout(500);
+    await page.waitForTimeout(GC_WAIT_MS);
 
     // Get final heap size
     const metrics2 = await page.metrics();
