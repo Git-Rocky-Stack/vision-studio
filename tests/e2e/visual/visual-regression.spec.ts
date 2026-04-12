@@ -17,7 +17,8 @@ test.describe('Visual Regression', () => {
     test('Generate panel - default state', async ({ page }) => {
       const sidebar = new SidebarPage(page);
       await sidebar.navigateTo('generate');
-      await page.waitForTimeout(500); // Allow animations to settle
+      // Wait for generate panel to be fully rendered
+      await expect(page.getByTestId('prompt-input')).toBeVisible();
 
       await expect(page).toHaveScreenshot('generate-panel-default.png', {
         fullPage: false,
@@ -28,7 +29,8 @@ test.describe('Visual Regression', () => {
     test('Generate panel - with prompt entered', async ({ page }) => {
       const generate = new GeneratePage(page);
       await generate.setPrompt('A cinematic portrait in golden hour light, professional photography, 85mm lens');
-      await page.waitForTimeout(300);
+      // Wait for prompt to be fully rendered
+      await expect(page.getByTestId('prompt-input')).toHaveValue(/cinematic/);
 
       await expect(page).toHaveScreenshot('generate-panel-with-prompt.png', {
         fullPage: false,
@@ -41,7 +43,8 @@ test.describe('Visual Regression', () => {
     test('Assets panel - grid view', async ({ page }) => {
       const sidebar = new SidebarPage(page);
       await sidebar.navigateTo('assets');
-      await page.waitForTimeout(500);
+      // Wait for assets panel search input to be fully rendered
+      await expect(page.locator('input[placeholder="Search assets..."]')).toBeVisible();
 
       await expect(page).toHaveScreenshot('assets-panel-grid-view.png', {
         fullPage: false,
@@ -53,7 +56,8 @@ test.describe('Visual Regression', () => {
     test('Settings panel - all sections', async ({ page }) => {
       const sidebar = new SidebarPage(page);
       await sidebar.navigateTo('settings');
-      await page.waitForTimeout(500);
+      // Wait for settings panel to be fully rendered
+      await expect(page.locator('h2', { hasText: 'General Settings' })).toBeVisible();
 
       await expect(page).toHaveScreenshot('settings-panel-all-sections.png', {
         fullPage: false,
@@ -63,9 +67,10 @@ test.describe('Visual Regression', () => {
 
   test.describe('Batch Panel', () => {
     test('Batch panel - default state', async ({ page }) => {
-      const sidebar = new SidebarPage(page);
-      await sidebar.navigateTo('batch');
-      await page.waitForTimeout(500);
+      const batch = new BatchPage(page);
+      await batch.navigateTo();
+      // Wait for batch panel to be fully rendered
+      await expect(page.locator('textarea').first()).toBeVisible();
 
       await expect(page).toHaveScreenshot('batch-panel-default.png', {
         fullPage: false,
@@ -77,7 +82,8 @@ test.describe('Visual Regression', () => {
     test('Templates panel - default state', async ({ page }) => {
       const sidebar = new SidebarPage(page);
       await sidebar.navigateTo('templates');
-      await page.waitForTimeout(500);
+      // Wait for templates panel to be fully rendered
+      await expect(page.locator('input[placeholder="Search templates..."]')).toBeVisible();
 
       await expect(page).toHaveScreenshot('templates-panel-default.png', {
         fullPage: false,
@@ -91,15 +97,15 @@ test.describe('Visual Regression', () => {
 
       // Capture each panel to verify consistent dark theme styling
       await sidebar.navigateTo('generate');
-      await page.waitForTimeout(300);
+      await expect(page.getByTestId('prompt-input')).toBeVisible();
       await expect(page).toHaveScreenshot('theme-generate-panel.png', { fullPage: false });
 
       await sidebar.navigateTo('assets');
-      await page.waitForTimeout(300);
+      await expect(page.locator('input[placeholder="Search assets..."]')).toBeVisible();
       await expect(page).toHaveScreenshot('theme-assets-panel.png', { fullPage: false });
 
       await sidebar.navigateTo('settings');
-      await page.waitForTimeout(300);
+      await expect(page.locator('h2', { hasText: 'General Settings' })).toBeVisible();
       await expect(page).toHaveScreenshot('theme-settings-panel.png', { fullPage: false });
     });
   });
