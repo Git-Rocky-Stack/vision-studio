@@ -52,6 +52,7 @@ from utils.model_manager import ModelManager
 from utils.direct_generator import DirectGenerator
 from utils.image_ops import apply_crop_and_transform, upscale_image_file
 from utils.prompt_service import enhance_prompt
+from api.controlnet import router as controlnet_router
 
 try:
     from utils.comfy_client import ComfyUIClient
@@ -183,6 +184,9 @@ app.add_middleware(
 
 # Mount outputs directory for serving generated files
 app.mount("/outputs", StaticFiles(directory=OUTPUT_DIR), name="outputs")
+
+# Register API routers
+app.include_router(controlnet_router)
 
 
 # ============= Pydantic Models =============
@@ -966,7 +970,7 @@ class ConnectionManager:
 manager = ConnectionManager()
 
 
-@app.websocket("/ws", tags=["WebSocket"])
+@app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     """
     WebSocket endpoint for real-time generation job updates.
