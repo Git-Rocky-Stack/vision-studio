@@ -14,10 +14,10 @@
   --color-red-glow: rgba(230, 57, 70, 0.3);
   --color-red-aura: rgba(230, 57, 70, 0.08);
 
-  /* Text hierarchy */
+  /* Text hierarchy - WCAG AA compliant (4.5:1 minimum) */
   --color-text-primary: #fafafa;
-  --color-text-body: #94949c;
-  --color-text-muted: #5a5a64;
+  --color-text-body: #9e9ea6;  /* 7.66:1 contrast against #050507 */
+  --color-text-muted: #808088;  /* 5.20:1 contrast against #050507 */
 
   /* Borders */
   --color-border: rgba(255, 255, 255, 0.06);
@@ -246,8 +246,8 @@ body[data-theme='light'] {
   --color-red-glow: rgba(197, 58, 45, 0.22);
   --color-red-aura: rgba(197, 58, 45, 0.08);
   --color-text-primary: #1d1916;
-  --color-text-body: #5e554d;
-  --color-text-muted: #92867a;
+  --color-text-body: #5e554d;  /* 6.34:1 contrast against #f2efe8 */
+  --color-text-muted: #756b60;  /* 4.54:1 contrast against #f2efe8 (WCAG AA) */
   --color-border: rgba(29, 25, 22, 0.08);
   --color-border-hover: rgba(29, 25, 22, 0.16);
   --color-status-success: #16a34a;
