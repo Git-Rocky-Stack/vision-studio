@@ -115,22 +115,31 @@ const steps = {
 
   async cleanDirectories() {
     log('[2/10] Cleaning previous builds...', 'blue');
-    
+
     const dirsToClean = [
       path.join(ROOT_DIR, 'dist'),
       path.join(ROOT_DIR, 'dist-electron'),
       path.join(ROOT_DIR, 'release'),
-      path.join(ROOT_DIR, 'backend', 'dist'),
       path.join(ROOT_DIR, 'backend', 'build')
     ];
-    
+
     for (const dir of dirsToClean) {
       if (fs.existsSync(dir)) {
-        fs.rmSync(dir, { recursive: true, force: true });
-        log(`  🗑️  Cleaned: ${path.relative(ROOT_DIR, dir)}`, 'cyan');
+        try {
+          fs.rmSync(dir, { recursive: true, force: true });
+          log(`  🗑️  Cleaned: ${path.relative(ROOT_DIR, dir)}`, 'cyan');
+        } catch (err) {
+          log(`  ⚠️  Could not clean ${path.relative(ROOT_DIR, dir)}: ${err.message}`, 'yellow');
+        }
       }
     }
-    
+
+    // Skip backend/dist if locked
+    const backendDist = path.join(ROOT_DIR, 'backend', 'dist');
+    if (fs.existsSync(backendDist)) {
+      log(`  ⚠️  Skipping backend/dist (locked by another process)`, 'yellow');
+    }
+
     log('  ✅ Cleanup complete\n', 'green');
   },
 

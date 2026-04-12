@@ -1,4 +1,4 @@
-import { ipcMain as V, app as Re, dialog as Me, shell as fa, Notification as Ba, BrowserWindow as _o } from "electron";
+import { ipcMain as V, app as Re, dialog as Me, shell as fa, Notification as Na, BrowserWindow as _o } from "electron";
 import it, { fileURLToPath as wo } from "url";
 import Se, { dirname as Os, join as Ae } from "path";
 import Eo from "electron-store";
@@ -29,7 +29,7 @@ function Ps(t, e) {
 function Ie(t) {
   return t.replace(/\\/g, "/").replace(/\/$/, "");
 }
-function Na(t, e) {
+function Ba(t, e) {
   if (!t)
     return Ie(e);
   if (t.startsWith("/outputs/") || t.startsWith("outputs/")) {
@@ -49,11 +49,11 @@ function Po(t, e) {
   });
 }
 function jo(t, e, a, n) {
-  const i = Na(t, e);
+  const i = Ba(t, e);
   if (n(i) || Se.isAbsolute(t) && !t.startsWith("/outputs/") && !t.startsWith("outputs/"))
     return i;
   for (const o of a) {
-    const s = Na(t, o);
+    const s = Ba(t, o);
     if (n(s))
       return s;
   }
@@ -99,19 +99,19 @@ function js(t, e) {
     return t.apply(e, arguments);
   };
 }
-const { toString: Bo } = Object.prototype, { getPrototypeOf: ba } = Object, { iterator: Tt, toStringTag: Ls } = Symbol, Ct = /* @__PURE__ */ ((t) => (e) => {
-  const a = Bo.call(e);
+const { toString: No } = Object.prototype, { getPrototypeOf: ba } = Object, { iterator: Tt, toStringTag: Ls } = Symbol, Ct = /* @__PURE__ */ ((t) => (e) => {
+  const a = No.call(e);
   return t[a] || (t[a] = a.slice(8, -1).toLowerCase());
 })(/* @__PURE__ */ Object.create(null)), ke = (t) => (t = t.toLowerCase(), (e) => Ct(e) === t), At = (t) => (e) => typeof e === t, { isArray: We } = Array, $e = At("undefined");
 function rt(t) {
   return t !== null && !$e(t) && t.constructor !== null && !$e(t.constructor) && xe(t.constructor.isBuffer) && t.constructor.isBuffer(t);
 }
 const Fs = ke("ArrayBuffer");
-function No(t) {
+function Bo(t) {
   let e;
   return typeof ArrayBuffer < "u" && ArrayBuffer.isView ? e = ArrayBuffer.isView(t) : e = t && t.buffer && Fs(t.buffer), e;
 }
-const qo = At("string"), xe = At("function"), Bs = At("number"), ct = (t) => t !== null && typeof t == "object", Uo = (t) => t === !0 || t === !1, bt = (t) => {
+const qo = At("string"), xe = At("function"), Ns = At("number"), ct = (t) => t !== null && typeof t == "object", Uo = (t) => t === !0 || t === !1, bt = (t) => {
   if (Ct(t) !== "object")
     return !1;
   const e = ba(t);
@@ -150,7 +150,7 @@ function pt(t, e, { allOwnKeys: a = !1 } = {}) {
       r = o[n], e.call(null, t[r], r, t);
   }
 }
-function Ns(t, e) {
+function Bs(t, e) {
   if (rt(t))
     return null;
   e = e.toLowerCase();
@@ -166,7 +166,7 @@ function la() {
   const { caseless: t, skipUndefined: e } = qs(this) && this || {}, a = {}, n = (i, o) => {
     if (o === "__proto__" || o === "constructor" || o === "prototype")
       return;
-    const s = t && Ns(a, o) || o;
+    const s = t && Bs(a, o) || o;
     bt(a[s]) && bt(i) ? a[s] = la(a[s], i) : bt(i) ? a[s] = la({}, i) : We(i) ? a[s] = i.slice() : (!e || !$e(i)) && (a[s] = i);
   };
   for (let i = 0, o = arguments.length; i < o; i++)
@@ -219,7 +219,7 @@ const Zo = (t, e, a, { allOwnKeys: n } = {}) => (pt(
   if (!t) return null;
   if (We(t)) return t;
   let e = t.length;
-  if (!Bs(e)) return null;
+  if (!Ns(e)) return null;
   const a = new Array(e);
   for (; e-- > 0; )
     a[e] = t[e];
@@ -304,9 +304,9 @@ const hr = (t) => {
   isArrayBuffer: Fs,
   isBuffer: rt,
   isFormData: Go,
-  isArrayBufferView: No,
+  isArrayBufferView: Bo,
   isString: qo,
-  isNumber: Bs,
+  isNumber: Ns,
   isBoolean: Uo,
   isObject: ct,
   isPlainObject: bt,
@@ -348,7 +348,7 @@ const hr = (t) => {
   toCamelCase: cr,
   noop: dr,
   toFiniteNumber: mr,
-  findKey: Ns,
+  findKey: Bs,
   global: je,
   isContextDefined: qs,
   isSpecCompliantForm: fr,
@@ -3109,11 +3109,11 @@ function Fr() {
   return si || (si = 1, ln = URIError), ln;
 }
 var un, oi;
-function Br() {
+function Nr() {
   return oi || (oi = 1, un = Math.abs), un;
 }
 var dn, ri;
-function Nr() {
+function Br() {
   return ri || (ri = 1, dn = Math.floor), dn;
 }
 var mn, ci;
@@ -3348,18 +3348,18 @@ function Xr() {
     return a(i);
   } : null, Fn;
 }
-var Bn, Ai;
+var Nn, Ai;
 function wa() {
-  if (Ai) return Bn;
+  if (Ai) return Nn;
   Ai = 1;
   var t = Function.prototype.call, e = Object.prototype.hasOwnProperty, a = Pt();
-  return Bn = a.call(t, e), Bn;
+  return Nn = a.call(t, e), Nn;
 }
-var Nn, Pi;
+var Bn, Pi;
 function Zr() {
-  if (Pi) return Nn;
+  if (Pi) return Bn;
   Pi = 1;
-  var t, e = /* @__PURE__ */ Vs(), a = /* @__PURE__ */ Cr(), n = /* @__PURE__ */ Ar(), i = /* @__PURE__ */ Pr(), o = /* @__PURE__ */ jr(), s = /* @__PURE__ */ Lr(), r = /* @__PURE__ */ ya(), c = /* @__PURE__ */ Fr(), d = /* @__PURE__ */ Br(), p = /* @__PURE__ */ Nr(), u = /* @__PURE__ */ qr(), l = /* @__PURE__ */ Ur(), E = /* @__PURE__ */ Dr(), x = /* @__PURE__ */ Ir(), f = /* @__PURE__ */ Mr(), h = Function, v = function(de) {
+  var t, e = /* @__PURE__ */ Vs(), a = /* @__PURE__ */ Cr(), n = /* @__PURE__ */ Ar(), i = /* @__PURE__ */ Pr(), o = /* @__PURE__ */ jr(), s = /* @__PURE__ */ Lr(), r = /* @__PURE__ */ ya(), c = /* @__PURE__ */ Fr(), d = /* @__PURE__ */ Nr(), p = /* @__PURE__ */ Br(), u = /* @__PURE__ */ qr(), l = /* @__PURE__ */ Ur(), E = /* @__PURE__ */ Dr(), x = /* @__PURE__ */ Ir(), f = /* @__PURE__ */ Mr(), h = Function, v = function(de) {
     try {
       return h('"use strict"; return (' + de + ").constructor;")();
     } catch {
@@ -3536,7 +3536,7 @@ function Zr() {
     "%URIErrorPrototype%": ["URIError", "prototype"],
     "%WeakMapPrototype%": ["WeakMap", "prototype"],
     "%WeakSetPrototype%": ["WeakSet", "prototype"]
-  }, C = Pt(), z = /* @__PURE__ */ wa(), N = C.call(I, Array.prototype.concat), P = C.call(L, Array.prototype.splice), M = C.call(I, String.prototype.replace), Q = C.call(I, String.prototype.slice), J = C.call(I, RegExp.prototype.exec), Y = /[^%.[\]]+|\[(?:(-?\d+(?:\.\d+)?)|(["'])((?:(?!\2)[^\\]|\\.)*?)\2)\]|(?=(?:\.|\[\])(?:\.|\[\]|%$))/g, W = /\\(\\)?/g, ee = function(G) {
+  }, C = Pt(), z = /* @__PURE__ */ wa(), B = C.call(I, Array.prototype.concat), P = C.call(L, Array.prototype.splice), M = C.call(I, String.prototype.replace), Q = C.call(I, String.prototype.slice), J = C.call(I, RegExp.prototype.exec), Y = /[^%.[\]]+|\[(?:(-?\d+(?:\.\d+)?)|(["'])((?:(?!\2)[^\\]|\\.)*?)\2)\]|(?=(?:\.|\[\])(?:\.|\[\]|%$))/g, W = /\\(\\)?/g, ee = function(G) {
     var re = Q(G, 0, 1), ie = Q(G, -1);
     if (re === "%" && ie !== "%")
       throw new s("invalid intrinsic syntax, expected closing `%`");
@@ -3560,7 +3560,7 @@ function Zr() {
     }
     throw new s("intrinsic " + G + " does not exist!");
   };
-  return Nn = function(G, re) {
+  return Bn = function(G, re) {
     if (typeof G != "string" || G.length === 0)
       throw new r("intrinsic name must be a non-empty string");
     if (arguments.length > 1 && typeof re != "boolean")
@@ -3568,29 +3568,29 @@ function Zr() {
     if (J(/^%?[^%]*%?$/, G) === null)
       throw new s("`%` may not be present anywhere but at the beginning and end of the intrinsic name");
     var ie = ee(G), ce = ie.length > 0 ? ie[0] : "", fe = ge("%" + ce + "%", re), Te = fe.name, le = fe.value, R = !1, T = fe.alias;
-    T && (ce = T[0], P(ie, N([0, 1], T)));
+    T && (ce = T[0], P(ie, B([0, 1], T)));
     for (var q = 1, $ = !0; q < ie.length; q += 1) {
-      var B = ie[q], X = Q(B, 0, 1), we = Q(B, -1);
+      var N = ie[q], X = Q(N, 0, 1), we = Q(N, -1);
       if ((X === '"' || X === "'" || X === "`" || we === '"' || we === "'" || we === "`") && X !== we)
         throw new s("property names with quotes must have matching quotes");
-      if ((B === "constructor" || !$) && (R = !0), ce += "." + B, Te = "%" + ce + "%", z(U, Te))
+      if ((N === "constructor" || !$) && (R = !0), ce += "." + N, Te = "%" + ce + "%", z(U, Te))
         le = U[Te];
       else if (le != null) {
-        if (!(B in le)) {
+        if (!(N in le)) {
           if (!re)
             throw new r("base intrinsic for " + G + " exists, but the property is not available.");
           return;
         }
         if (w && q + 1 >= ie.length) {
-          var Ee = w(le, B);
-          $ = !!Ee, $ && "get" in Ee && !("originalValue" in Ee.get) ? le = Ee.get : le = le[B];
+          var Ee = w(le, N);
+          $ = !!Ee, $ && "get" in Ee && !("originalValue" in Ee.get) ? le = Ee.get : le = le[N];
         } else
-          $ = z(le, B), le = le[B];
+          $ = z(le, N), le = le[N];
         $ && !R && (U[Te] = le);
       }
     }
     return le;
-  }, Nn;
+  }, Bn;
 }
 var qn, ji;
 function Qr() {
@@ -3626,10 +3626,10 @@ function tc() {
     }), t;
   }), Dn;
 }
-var In, Bi;
+var In, Ni;
 function nc() {
-  if (Bi) return In;
-  Bi = 1;
+  if (Ni) return In;
+  Ni = 1;
   var t = _r(), e = qe, a = Se, n = st, i = Ot, o = it.parse, s = me, r = oe.Stream, c = ot, d = Sr(), p = Tr(), u = /* @__PURE__ */ ec(), l = /* @__PURE__ */ wa(), E = tc();
   function x(f) {
     if (!(this instanceof x))
@@ -3767,7 +3767,7 @@ function ua(t) {
 function eo(t) {
   return _.endsWith(t, "[]") ? t.slice(0, -2) : t;
 }
-function Ni(t, e, a) {
+function Bi(t, e, a) {
   return t ? t.concat(e).map(function(i, o) {
     return i = eo(i), !a && o ? "[" + i + "]" : i;
   }).join(a ? "." : "") : e;
@@ -3810,12 +3810,12 @@ function jt(t, e, a) {
         return f = eo(f), v.forEach(function(k, A) {
           !(_.isUndefined(k) || k === null) && e.append(
             // eslint-disable-next-line no-nested-ternary
-            s === !0 ? Ni([f], A, o) : s === null ? f : f + "[]",
+            s === !0 ? Bi([f], A, o) : s === null ? f : f + "[]",
             d(k)
           );
         }), !1;
     }
-    return ua(x) ? !0 : (e.append(Ni(h, f, o), d(x)), !1);
+    return ua(x) ? !0 : (e.append(Bi(h, f, o), d(x)), !1);
   }
   const u = [], l = Object.assign(sc, {
     defaultVisitor: p,
@@ -4304,7 +4304,7 @@ function $n(t, e) {
 function so(t) {
   return !!(t && t.__CANCEL__);
 }
-let Be = class extends F {
+let Ne = class extends F {
   /**
    * A `CanceledError` is an object that is thrown when an operation is canceled.
    *
@@ -4899,7 +4899,7 @@ function Fc() {
   return Ki || (Ki = 1, typeof process > "u" || process.type === "renderer" || process.browser === !0 || process.__nwjs ? ft.exports = Ac() : ft.exports = Lc()), ft.exports;
 }
 var Jn, Ji;
-function Bc() {
+function Nc() {
   if (Ji) return Jn;
   Ji = 1;
   var t;
@@ -4916,10 +4916,10 @@ function Bc() {
   }, Jn;
 }
 var Yi;
-function Nc() {
+function Bc() {
   if (Yi) return mt.exports;
   Yi = 1;
-  var t = it, e = t.URL, a = st, n = Ot, i = oe.Writable, o = Ro, s = Bc();
+  var t = it, e = t.URL, a = st, n = Ot, i = oe.Writable, o = Ro, s = Nc();
   (function() {
     var O = typeof process < "u", C = typeof window < "u" && typeof document < "u", z = H(Error.captureStackTrace);
     !O && (C || !z) && console.warn("The follow-redirects package should be excluded from browser builds.");
@@ -4972,8 +4972,8 @@ function Nc() {
     this._onNativeResponse = function(z) {
       try {
         C._processResponse(z);
-      } catch (N) {
-        C.emit("error", N instanceof l ? N : new l({ cause: N }));
+      } catch (B) {
+        C.emit("error", B instanceof l ? B : new l({ cause: B }));
       }
     }, this._performRequest();
   }
@@ -4995,9 +4995,9 @@ function Nc() {
     if (H(b) ? (C = b, b = O = null) : H(O) && (C = O, O = null), !b)
       this._ended = this._ending = !0, this._currentRequest.end(null, null, C);
     else {
-      var z = this, N = this._currentRequest;
+      var z = this, B = this._currentRequest;
       this.write(b, O, function() {
-        z._ended = !0, N.end(null, null, C);
+        z._ended = !0, B.end(null, null, C);
       }), this._ending = !0;
     }
   }, v.prototype.setHeader = function(b, O) {
@@ -5009,15 +5009,15 @@ function Nc() {
     function z(M) {
       M.setTimeout(b), M.removeListener("timeout", M.destroy), M.addListener("timeout", M.destroy);
     }
-    function N(M) {
+    function B(M) {
       C._timeout && clearTimeout(C._timeout), C._timeout = setTimeout(function() {
         C.emit("timeout"), P();
       }, b), z(M);
     }
     function P() {
-      C._timeout && (clearTimeout(C._timeout), C._timeout = null), C.removeListener("abort", P), C.removeListener("error", P), C.removeListener("response", P), C.removeListener("close", P), O && C.removeListener("timeout", O), C.socket || C._currentRequest.removeListener("socket", N);
+      C._timeout && (clearTimeout(C._timeout), C._timeout = null), C.removeListener("abort", P), C.removeListener("error", P), C.removeListener("response", P), C.removeListener("close", P), O && C.removeListener("timeout", O), C.socket || C._currentRequest.removeListener("socket", B);
     }
-    return O && this.on("timeout", O), this.socket ? N(this.socket) : this._currentRequest.once("socket", N), this.on("socket", z), this.on("abort", P), this.on("error", P), this.on("response", P), this.on("close", P), this;
+    return O && this.on("timeout", O), this.socket ? B(this.socket) : this._currentRequest.once("socket", B), this.on("socket", z), this.on("abort", P), this.on("error", P), this.on("response", P), this.on("close", P), this;
   }, [
     "flushHeaders",
     "getHeader",
@@ -5048,8 +5048,8 @@ function Nc() {
     }
     var z = this._currentRequest = O.request(this._options, this._onNativeResponse);
     z._redirectable = this;
-    for (var N of d)
-      z.on(N, p[N]);
+    for (var B of d)
+      z.on(B, p[B]);
     if (this._currentUrl = /^\//.test(this._options.path) ? t.format(this._options) : (
       // When making a request to a proxy, […]
       // a client MUST send the target URI in absolute-form […].
@@ -5080,8 +5080,8 @@ function Nc() {
     }
     if (L(this._currentRequest), b.destroy(), ++this._redirectCount > this._options.maxRedirects)
       throw new E();
-    var z, N = this._options.beforeRedirect;
-    N && (z = Object.assign({
+    var z, B = this._options.beforeRedirect;
+    B && (z = Object.assign({
       // The Host header was set by nativeProtocol.request
       Host: b.req.getHeader("host")
     }, this._options.headers));
@@ -5092,7 +5092,7 @@ function Nc() {
     // (a GET or HEAD request if using HTTP) […]
     O === 303 && !/^(?:GET|HEAD)$/.test(this._options.method)) && (this._options.method = "GET", this._requestBodyBuffers = [], S(/^content-/i, this._options.headers));
     var M = S(/^host$/i, this._options.headers), Q = A(this._currentUrl), J = M || Q.host, Y = /^\w+:/.test(C) ? this._currentUrl : t.format(Object.assign(Q, { host: J })), W = g(C, Y);
-    if (s("redirecting to", W.href), this._isRedirect = !0, y(W, this._options), (W.protocol !== Q.protocol && W.protocol !== "https:" || W.host !== J && !I(W.host, J)) && S(/^(?:(?:proxy-)?authorization|cookie)$/i, this._options.headers), H(N)) {
+    if (s("redirecting to", W.href), this._isRedirect = !0, y(W, this._options), (W.protocol !== Q.protocol && W.protocol !== "https:" || W.host !== J && !I(W.host, J)) && S(/^(?:(?:proxy-)?authorization|cookie)$/i, this._options.headers), H(B)) {
       var ee = {
         headers: b.headers,
         statusCode: O
@@ -5101,7 +5101,7 @@ function Nc() {
         method: P,
         headers: z
       };
-      N(this._options, ee, ge), this._sanitizeOptions(this._options);
+      B(this._options, ee, ge), this._sanitizeOptions(this._options);
     }
     this._performRequest();
   };
@@ -5111,12 +5111,12 @@ function Nc() {
       maxBodyLength: 10485760
     }, C = {};
     return Object.keys(b).forEach(function(z) {
-      var N = z + ":", P = C[N] = b[z], M = O[z] = Object.create(P);
+      var B = z + ":", P = C[B] = b[z], M = O[z] = Object.create(P);
       function Q(Y, W, ee) {
-        return ne(Y) ? Y = y(Y) : D(Y) ? Y = y(A(Y)) : (ee = W, W = m(Y), Y = { protocol: N }), H(W) && (ee = W, W = null), W = Object.assign({
+        return ne(Y) ? Y = y(Y) : D(Y) ? Y = y(A(Y)) : (ee = W, W = m(Y), Y = { protocol: B }), H(W) && (ee = W, W = null), W = Object.assign({
           maxRedirects: O.maxRedirects,
           maxBodyLength: O.maxBodyLength
-        }, Y, W), W.nativeProtocols = C, !D(W.host) && !D(W.hostname) && (W.hostname = "::1"), o.equal(W.protocol, N, "protocol mismatch"), s("options", W), new v(W, ee);
+        }, Y, W), W.nativeProtocols = C, !D(W.host) && !D(W.hostname) && (W.hostname = "::1"), o.equal(W.protocol, B, "protocol mismatch"), s("options", W), new v(W, ee);
       }
       function J(Y, W, ee) {
         var ge = M.request(Y, W, ee);
@@ -5161,8 +5161,8 @@ function Nc() {
     return C === null || typeof C > "u" ? void 0 : String(C).trim();
   }
   function j(b, O, C) {
-    function z(N) {
-      H(Error.captureStackTrace) && Error.captureStackTrace(this, this.constructor), Object.assign(this, N || {}), this.code = b, this.message = this.cause ? O + ": " + this.cause.message : O;
+    function z(B) {
+      H(Error.captureStackTrace) && Error.captureStackTrace(this, this.constructor), Object.assign(this, B || {}), this.code = b, this.message = this.cause ? O + ": " + this.cause.message : O;
     }
     return z.prototype = new (C || Error)(), Object.defineProperties(z.prototype, {
       constructor: {
@@ -5199,7 +5199,7 @@ function Nc() {
   }
   return mt.exports = w({ http: a, https: n }), mt.exports.wrap = w, mt.exports;
 }
-var qc = Nc();
+var qc = Bc();
 const Uc = /* @__PURE__ */ ga(qc), _t = "1.13.5";
 function ro(t) {
   const e = /^([-+\w]{1,25})(:?\/\/|:)/.exec(t);
@@ -5570,9 +5570,9 @@ const ip = typeof process < "u" && _.kindOf(process) === "process", sp = (t) => 
       throw TypeError(`Unsupported protocol version '${d}'`);
     const v = d === 2;
     if (r) {
-      const N = Vc(r, (P) => _.isArray(P) ? P : [P]);
+      const B = Vc(r, (P) => _.isArray(P) ? P : [P]);
       r = (P, M, Q) => {
-        N(P, M, (J, Y, W) => {
+        B(P, M, (J, Y, W) => {
           if (J)
             return Q(J);
           const ee = _.isArray(Y) ? Y.map((ge) => as(ge)) : [as(Y, W)];
@@ -5581,9 +5581,9 @@ const ip = typeof process < "u" && _.kindOf(process) === "process", sp = (t) => 
       };
     }
     const w = new Oo();
-    function k(N) {
+    function k(B) {
       try {
-        w.emit("abort", !N || N.type ? new Be(null, e, h) : N);
+        w.emit("abort", !B || B.type ? new Ne(null, e, h) : B);
       } catch (P) {
         console.warn("emit error", P);
       }
@@ -5592,12 +5592,12 @@ const ip = typeof process < "u" && _.kindOf(process) === "process", sp = (t) => 
     const A = () => {
       e.cancelToken && e.cancelToken.unsubscribe(k), e.signal && e.signal.removeEventListener("abort", k), w.removeAllListeners();
     };
-    (e.cancelToken || e.signal) && (e.cancelToken && e.cancelToken.subscribe(k), e.signal && (e.signal.aborted ? k() : e.signal.addEventListener("abort", k))), o((N, P) => {
+    (e.cancelToken || e.signal) && (e.cancelToken && e.cancelToken.subscribe(k), e.signal && (e.signal.aborted ? k() : e.signal.addEventListener("abort", k))), o((B, P) => {
       if (x = !0, P) {
         f = !0, A();
         return;
       }
-      const { data: M } = N;
+      const { data: M } = B;
       if (M instanceof oe.Readable || M instanceof oe.Duplex) {
         const Q = oe.finished(M, () => {
           Q(), A();
@@ -5616,7 +5616,7 @@ const ip = typeof process < "u" && _.kindOf(process) === "process", sp = (t) => 
             e
           ));
       }
-      let N;
+      let B;
       if (E !== "GET")
         return ze(n, i, {
           status: 405,
@@ -5625,14 +5625,14 @@ const ip = typeof process < "u" && _.kindOf(process) === "process", sp = (t) => 
           config: e
         });
       try {
-        N = Ic(e.url, u === "blob", {
+        B = Ic(e.url, u === "blob", {
           Blob: e.env && e.env.Blob
         });
       } catch (P) {
         throw F.from(P, F.ERR_BAD_REQUEST, e);
       }
-      return u === "text" ? (N = N.toString(l), (!l || l === "utf8") && (N = _.stripBOM(N))) : u === "stream" && (N = oe.Readable.from(N)), ze(n, i, {
-        data: N,
+      return u === "text" ? (B = B.toString(l), (!l || l === "utf8") && (B = _.stripBOM(B))) : u === "stream" && (B = oe.Readable.from(B)), ze(n, i, {
+        data: B,
         status: 200,
         statusText: "OK",
         headers: new ue(),
@@ -5650,18 +5650,18 @@ const ip = typeof process < "u" && _.kindOf(process) === "process", sp = (t) => 
     const { onUploadProgress: j, onDownloadProgress: L } = e, I = e.maxRate;
     let D, H;
     if (_.isSpecCompliantForm(s)) {
-      const N = S.getContentType(/boundary=([-_\w\d]{10,70})/i);
+      const B = S.getContentType(/boundary=([-_\w\d]{10,70})/i);
       s = Gc(s, (P) => {
         S.set(P);
       }, {
         tag: `axios-${_t}-boundary`,
-        boundary: N && N[1] || void 0
+        boundary: B && B[1] || void 0
       });
     } else if (_.isFormData(s) && _.isFunction(s.getHeaders)) {
       if (S.set(s.getHeaders()), !S.hasContentLength())
         try {
-          const N = await qe.promisify(s.getLength).call(s);
-          Number.isFinite(N) && N >= 0 && S.setContentLength(N);
+          const B = await qe.promisify(s.getLength).call(s);
+          Number.isFinite(B) && B >= 0 && S.setContentLength(B);
         } catch {
         }
     } else if (_.isBlob(s) || _.isFile(s))
@@ -5696,12 +5696,12 @@ const ip = typeof process < "u" && _.kindOf(process) === "process", sp = (t) => 
     )));
     let ne;
     if (e.auth) {
-      const N = e.auth.username || "", P = e.auth.password || "";
-      ne = N + ":" + P;
+      const B = e.auth.username || "", P = e.auth.password || "";
+      ne = B + ":" + P;
     }
     if (!ne && m.username) {
-      const N = m.username, P = m.password;
-      ne = N + ":" + P;
+      const B = m.username, P = m.password;
+      ne = B + ":" + P;
     }
     ne && S.delete("authorization");
     let b;
@@ -5711,8 +5711,8 @@ const ip = typeof process < "u" && _.kindOf(process) === "process", sp = (t) => 
         e.params,
         e.paramsSerializer
       ).replace(/^\?/, "");
-    } catch (N) {
-      const P = new Error(N.message);
+    } catch (B) {
+      const P = new Error(B.message);
       return P.config = e, P.url = e.url, P.exists = !0, i(P);
     }
     S.set(
@@ -5812,15 +5812,15 @@ const ip = typeof process < "u" && _.kindOf(process) === "process", sp = (t) => 
       w.once("abort", (ee) => {
         J.destroyed || (J.emit("error", ee), J.destroy());
       });
-    }), w.once("abort", (N) => {
-      h.close ? h.close() : h.destroy(N);
+    }), w.once("abort", (B) => {
+      h.close ? h.close() : h.destroy(B);
     }), h.on("error", function(P) {
       i(F.from(P, null, e, h));
     }), h.on("socket", function(P) {
       P.setKeepAlive(!0, 1e3 * 60);
     }), e.timeout) {
-      const N = parseInt(e.timeout, 10);
-      if (Number.isNaN(N)) {
+      const B = parseInt(e.timeout, 10);
+      if (Number.isNaN(B)) {
         k(new F(
           "error trying to parse `config.timeout` to int",
           F.ERR_BAD_OPTION_VALUE,
@@ -5829,7 +5829,7 @@ const ip = typeof process < "u" && _.kindOf(process) === "process", sp = (t) => 
         ));
         return;
       }
-      h.setTimeout(N, function() {
+      h.setTimeout(B, function() {
         if (x) return;
         let M = e.timeout ? "timeout of " + e.timeout + "ms exceeded" : "timeout exceeded";
         const Q = e.transitional || Lt;
@@ -5843,13 +5843,13 @@ const ip = typeof process < "u" && _.kindOf(process) === "process", sp = (t) => 
     } else
       h.setTimeout(0);
     if (_.isStream(s)) {
-      let N = !1, P = !1;
+      let B = !1, P = !1;
       s.on("end", () => {
-        N = !0;
+        B = !0;
       }), s.once("error", (M) => {
         P = !0, h.destroy(M);
       }), s.on("close", () => {
-        !N && !P && k(new Be("Request stream has been aborted", e, h));
+        !B && !P && k(new Ne("Request stream has been aborted", e, h));
       }), s.pipe(h);
     } else
       s && h.write(s), h.end();
@@ -5886,7 +5886,7 @@ const ip = typeof process < "u" && _.kindOf(process) === "process", sp = (t) => 
     }
   }
 ), is = (t) => t instanceof ue ? { ...t } : t;
-function Ne(t, e) {
+function Be(t, e) {
   e = e || {};
   const a = {};
   function n(d, p, u, l) {
@@ -5956,7 +5956,7 @@ function Ne(t, e) {
   ), a;
 }
 const lo = (t) => {
-  const e = Ne({}, t);
+  const e = Be({}, t);
   let { data: a, withXSRFToken: n, xsrfHeaderName: i, xsrfCookieName: o, headers: s, auth: r } = e;
   if (e.headers = s = ue.from(s), e.url = Ea(Ra(e.baseURL, e.url, e.allowAbsoluteUrls), t.params, t.paramsSerializer), r && s.set(
     "Authorization",
@@ -6025,7 +6025,7 @@ const lo = (t) => {
     }, o === void 0 && s.setContentType(null), "setRequestHeader" in h && _.forEach(s.toJSON(), function(A, g) {
       h.setRequestHeader(g, A);
     }), _.isUndefined(i.withCredentials) || (h.withCredentials = !!i.withCredentials), r && r !== "json" && (h.responseType = i.responseType), d && ([l, x] = He(d, !0), h.addEventListener("progress", l)), c && h.upload && ([u, E] = He(c), h.upload.addEventListener("progress", u), h.upload.addEventListener("loadend", E)), (i.cancelToken || i.signal) && (p = (k) => {
-      h && (n(!k || k.type ? new Be(null, t, h) : k), h.abort(), h = null);
+      h && (n(!k || k.type ? new Ne(null, t, h) : k), h.abort(), h = null);
     }, i.cancelToken && i.cancelToken.subscribe(p), i.signal && (i.signal.aborted ? p() : i.signal.addEventListener("abort", p)));
     const w = ro(i.url);
     if (w && se.protocols.indexOf(w) === -1) {
@@ -6042,7 +6042,7 @@ const lo = (t) => {
       if (!i) {
         i = !0, r();
         const p = d instanceof Error ? d : this.reason;
-        n.abort(p instanceof F ? p : new Be(p instanceof Error ? p.message : p));
+        n.abort(p instanceof F ? p : new Ne(p instanceof Error ? p.message : p));
       }
     };
     let s = e && setTimeout(() => {
@@ -6238,10 +6238,10 @@ const lo = (t) => {
         );
       }
       y = y || "text";
-      let N = await u[_.findKey(u, y) || "text"](C, x);
+      let B = await u[_.findKey(u, y) || "text"](C, x);
       return !z && U && U(), await new Promise((P, M) => {
         ze(P, M, {
-          data: N,
+          data: B,
           headers: ue.from(C.headers),
           status: C.status,
           statusText: C.statusText,
@@ -6330,7 +6330,7 @@ const mo = {
 };
 function Xn(t) {
   if (t.cancelToken && t.cancelToken.throwIfRequested(), t.signal && t.signal.aborted)
-    throw new Be(null, t);
+    throw new Ne(null, t);
 }
 function us(t) {
   return Xn(t), t.headers = ue.from(t.headers), t.data = $n.call(
@@ -6432,7 +6432,7 @@ let Fe = class {
     }
   }
   _request(e, a) {
-    typeof e == "string" ? (a = a || {}, a.url = e) : a = e || {}, a = Ne(this.defaults, a);
+    typeof e == "string" ? (a = a || {}, a.url = e) : a = e || {}, a = Be(this.defaults, a);
     const { transitional: n, paramsSerializer: i, headers: o } = a;
     n !== void 0 && yt.assertOptions(n, {
       silentJSONParsing: _e.transitional(_e.boolean),
@@ -6499,14 +6499,14 @@ let Fe = class {
     return p;
   }
   getUri(e) {
-    e = Ne(this.defaults, e);
+    e = Be(this.defaults, e);
     const a = Ra(e.baseURL, e.url, e.allowAbsoluteUrls);
     return Ea(a, e.params, e.paramsSerializer);
   }
 };
 _.forEach(["delete", "get", "head", "options"], function(e) {
   Fe.prototype[e] = function(a, n) {
-    return this.request(Ne(n || {}, {
+    return this.request(Be(n || {}, {
       method: e,
       url: a,
       data: (n || {}).data
@@ -6516,7 +6516,7 @@ _.forEach(["delete", "get", "head", "options"], function(e) {
 _.forEach(["post", "put", "patch"], function(e) {
   function a(n) {
     return function(o, s, r) {
-      return this.request(Ne(r || {}, {
+      return this.request(Be(r || {}, {
         method: e,
         headers: n ? {
           "Content-Type": "multipart/form-data"
@@ -6552,7 +6552,7 @@ let Ep = class fo {
         n.unsubscribe(o);
       }, s;
     }, e(function(o, s, r) {
-      n.reason || (n.reason = new Be(o, s, r), a(n.reason));
+      n.reason || (n.reason = new Ne(o, s, r), a(n.reason));
     });
   }
   /**
@@ -6686,12 +6686,12 @@ Object.entries(ma).forEach(([t, e]) => {
 function ho(t) {
   const e = new Fe(t), a = js(Fe.prototype.request, e);
   return _.extend(a, Fe.prototype, e, { allOwnKeys: !0 }), _.extend(a, e, null, { allOwnKeys: !0 }), a.create = function(i) {
-    return ho(Ne(t, i));
+    return ho(Be(t, i));
   }, a;
 }
 const K = ho(lt);
 K.Axios = Fe;
-K.CanceledError = Be;
+K.CanceledError = Ne;
 K.CancelToken = Ep;
 K.isCancel = so;
 K.VERSION = _t;
@@ -6703,7 +6703,7 @@ K.all = function(e) {
 };
 K.spread = Sp;
 K.isAxiosError = Rp;
-K.mergeConfig = Ne;
+K.mergeConfig = Be;
 K.AxiosHeaders = ue;
 K.formToJSON = (t) => io(_.isHTMLForm(t) ? new FormData(t) : t);
 K.getAdapter = mo.getAdapter;
@@ -6747,7 +6747,7 @@ function Pe() {
   }, Zn;
 }
 var fs;
-function Bt() {
+function Nt() {
   if (fs) return et.exports;
   fs = 1;
   const { EMPTY_BUFFER: t } = Pe(), e = Buffer[Symbol.species];
@@ -6837,10 +6837,10 @@ function kp() {
   return Qn = a, Qn;
 }
 var ea, xs;
-function Nt() {
+function Bt() {
   if (xs) return ea;
   xs = 1;
-  const t = Ce, e = Bt(), a = kp(), { kStatusCode: n } = Pe(), i = Buffer[Symbol.species], o = Buffer.from([0, 0, 255, 255]), s = Symbol("permessage-deflate"), r = Symbol("total-length"), c = Symbol("callback"), d = Symbol("buffers"), p = Symbol("error");
+  const t = Ce, e = Nt(), a = kp(), { kStatusCode: n } = Pe(), i = Buffer[Symbol.species], o = Buffer.from([0, 0, 255, 255]), s = Symbol("permessage-deflate"), r = Symbol("total-length"), c = Symbol("callback"), d = Symbol("buffers"), p = Symbol("error");
   let u;
   class l {
     /**
@@ -7292,12 +7292,12 @@ var ta, bs;
 function xo() {
   if (bs) return ta;
   bs = 1;
-  const { Writable: t } = oe, e = Nt(), {
+  const { Writable: t } = oe, e = Bt(), {
     BINARY_TYPES: a,
     EMPTY_BUFFER: n,
     kStatusCode: i,
     kWebSocket: o
-  } = Pe(), { concat: s, toArrayBuffer: r, unmask: c } = Bt(), { isValidStatusCode: d, isValidUTF8: p } = ut(), u = Buffer[Symbol.species], l = 0, E = 1, x = 2, f = 3, h = 4, v = 5, w = 6;
+  } = Pe(), { concat: s, toArrayBuffer: r, unmask: c } = Nt(), { isValidStatusCode: d, isValidUTF8: p } = ut(), u = Buffer[Symbol.species], l = 0, E = 1, x = 2, f = 3, h = 4, v = 5, w = 6;
   class k extends t {
     /**
      * Creates a Receiver instance.
@@ -7765,7 +7765,7 @@ var na, gs;
 function vo() {
   if (gs) return na;
   gs = 1;
-  const { Duplex: t } = oe, { randomFillSync: e } = ot, a = Nt(), { EMPTY_BUFFER: n, kWebSocket: i, NOOP: o } = Pe(), { isBlob: s, isValidStatusCode: r } = ut(), { mask: c, toBuffer: d } = Bt(), p = Symbol("kByteLength"), u = Buffer.alloc(4), l = 8 * 1024;
+  const { Duplex: t } = oe, { randomFillSync: e } = ot, a = Bt(), { EMPTY_BUFFER: n, kWebSocket: i, NOOP: o } = Pe(), { isBlob: s, isValidStatusCode: r } = ut(), { mask: c, toBuffer: d } = Nt(), p = Symbol("kByteLength"), u = Buffer.alloc(4), l = 8 * 1024;
   let E, x = l;
   const f = 0, h = 1, v = 2;
   class w {
@@ -8328,7 +8328,7 @@ var sa, ws;
 function Oa() {
   if (ws) return sa;
   ws = 1;
-  const t = As, e = Ot, a = st, n = To, i = Co, { randomBytes: o, createHash: s } = ot, { Duplex: r, Readable: c } = oe, { URL: d } = it, p = Nt(), u = xo(), l = vo(), { isBlob: E } = ut(), {
+  const t = As, e = Ot, a = st, n = To, i = Co, { randomBytes: o, createHash: s } = ot, { Duplex: r, Readable: c } = oe, { URL: d } = it, p = Bt(), u = xo(), l = vo(), { isBlob: E } = ut(), {
     BINARY_TYPES: x,
     CLOSE_TIMEOUT: f,
     EMPTY_BUFFER: h,
@@ -8340,7 +8340,7 @@ function Oa() {
     NOOP: m
   } = Pe(), {
     EventTarget: { addEventListener: y, removeEventListener: S }
-  } = Op(), { format: j, parse: L } = bo(), { toBuffer: I } = Bt(), D = Symbol("kAborted"), H = [8, 13], U = ["CONNECTING", "OPEN", "CLOSING", "CLOSED"], ne = /^[!#$%&'*+\-.0-9A-Z^_`|a-z~]+$/;
+  } = Op(), { format: j, parse: L } = bo(), { toBuffer: I } = Nt(), D = Symbol("kAborted"), H = [8, 13], U = ["CONNECTING", "OPEN", "CLOSING", "CLOSED"], ne = /^[!#$%&'*+\-.0-9A-Z^_`|a-z~]+$/;
   class b extends t {
     /**
      * Create a new `WebSocket`.
@@ -8445,7 +8445,7 @@ function Oa() {
      * @private
      */
     setSocket(T, q, $) {
-      const B = new u({
+      const N = new u({
         allowSynchronousEvents: $.allowSynchronousEvents,
         binaryType: this.binaryType,
         extensions: this._extensions,
@@ -8453,7 +8453,7 @@ function Oa() {
         maxPayload: $.maxPayload,
         skipUTF8Validation: $.skipUTF8Validation
       }), X = new l(T, this._extensions, $.generateMask);
-      this._receiver = B, this._sender = X, this._socket = T, B[g] = this, X[g] = this, T[g] = this, B.on("conclude", Q), B.on("drain", J), B.on("error", Y), B.on("message", ee), B.on("ping", ge), B.on("pong", de), X.onerror = re, T.setTimeout && T.setTimeout(0), T.setNoDelay && T.setNoDelay(), q.length > 0 && T.unshift(q), T.on("close", ce), T.on("data", fe), T.on("end", Te), T.on("error", le), this._readyState = b.OPEN, this.emit("open");
+      this._receiver = N, this._sender = X, this._socket = T, N[g] = this, X[g] = this, T[g] = this, N.on("conclude", Q), N.on("drain", J), N.on("error", Y), N.on("message", ee), N.on("ping", ge), N.on("pong", de), X.onerror = re, T.setTimeout && T.setTimeout(0), T.setNoDelay && T.setNoDelay(), q.length > 0 && T.unshift(q), T.on("close", ce), T.on("data", fe), T.on("end", Te), T.on("error", le), this._readyState = b.OPEN, this.emit("open");
     }
     /**
      * Emit the `'close'` event.
@@ -8574,14 +8574,14 @@ function Oa() {
         M(this, T, $);
         return;
       }
-      const B = {
+      const N = {
         binary: typeof T != "string",
         mask: !this._isServer,
         compress: !0,
         fin: !0,
         ...q
       };
-      this._extensions[p.extensionName] || (B.compress = !1), this._sender.send(T || h, B, $);
+      this._extensions[p.extensionName] || (N.compress = !1), this._sender.send(T || h, N, $);
     }
     /**
      * Forcibly close the connection.
@@ -8653,7 +8653,7 @@ function Oa() {
     });
   }), b.prototype.addEventListener = y, b.prototype.removeEventListener = S, sa = b;
   function O(R, T, q, $) {
-    const B = {
+    const N = {
       allowSynchronousEvents: !0,
       autoPong: !0,
       closeTimeout: f,
@@ -8673,9 +8673,9 @@ function Oa() {
       path: void 0,
       port: void 0
     };
-    if (R._autoPong = B.autoPong, R._closeTimeout = B.closeTimeout, !H.includes(B.protocolVersion))
+    if (R._autoPong = N.autoPong, R._closeTimeout = N.closeTimeout, !H.includes(N.protocolVersion))
       throw new RangeError(
-        `Unsupported protocol version: ${B.protocolVersion} (supported versions: ${H.join(", ")})`
+        `Unsupported protocol version: ${N.protocolVersion} (supported versions: ${H.join(", ")})`
       );
     let X;
     if (T instanceof d)
@@ -8698,17 +8698,17 @@ function Oa() {
     }
     const Ca = we ? 443 : 80, Aa = o(16).toString("base64"), Pa = we ? e.request : a.request, Ke = /* @__PURE__ */ new Set();
     let Je;
-    if (B.createConnection = B.createConnection || (we ? N : z), B.defaultPort = B.defaultPort || Ca, B.port = X.port || Ca, B.host = X.hostname.startsWith("[") ? X.hostname.slice(1, -1) : X.hostname, B.headers = {
-      ...B.headers,
-      "Sec-WebSocket-Version": B.protocolVersion,
+    if (N.createConnection = N.createConnection || (we ? B : z), N.defaultPort = N.defaultPort || Ca, N.port = X.port || Ca, N.host = X.hostname.startsWith("[") ? X.hostname.slice(1, -1) : X.hostname, N.headers = {
+      ...N.headers,
+      "Sec-WebSocket-Version": N.protocolVersion,
       "Sec-WebSocket-Key": Aa,
       Connection: "Upgrade",
       Upgrade: "websocket"
-    }, B.path = X.pathname + X.search, B.timeout = B.handshakeTimeout, B.perMessageDeflate && (Je = new p(
-      B.perMessageDeflate !== !0 ? B.perMessageDeflate : {},
+    }, N.path = X.pathname + X.search, N.timeout = N.handshakeTimeout, N.perMessageDeflate && (Je = new p(
+      N.perMessageDeflate !== !0 ? N.perMessageDeflate : {},
       !1,
-      B.maxPayload
-    ), B.headers["Sec-WebSocket-Extensions"] = j({
+      N.maxPayload
+    ), N.headers["Sec-WebSocket-Extensions"] = j({
       [p.extensionName]: Je.offer()
     })), q.length) {
       for (const Z of q) {
@@ -8718,35 +8718,35 @@ function Oa() {
           );
         Ke.add(Z);
       }
-      B.headers["Sec-WebSocket-Protocol"] = q.join(",");
+      N.headers["Sec-WebSocket-Protocol"] = q.join(",");
     }
-    if (B.origin && (B.protocolVersion < 13 ? B.headers["Sec-WebSocket-Origin"] = B.origin : B.headers.Origin = B.origin), (X.username || X.password) && (B.auth = `${X.username}:${X.password}`), Ee) {
-      const Z = B.path.split(":");
-      B.socketPath = Z[0], B.path = Z[1];
+    if (N.origin && (N.protocolVersion < 13 ? N.headers["Sec-WebSocket-Origin"] = N.origin : N.headers.Origin = N.origin), (X.username || X.password) && (N.auth = `${X.username}:${X.password}`), Ee) {
+      const Z = N.path.split(":");
+      N.socketPath = Z[0], N.path = Z[1];
     }
     let pe;
-    if (B.followRedirects) {
+    if (N.followRedirects) {
       if (R._redirects === 0) {
-        R._originalIpc = Ee, R._originalSecure = we, R._originalHostOrSocketPath = Ee ? B.socketPath : X.host;
+        R._originalIpc = Ee, R._originalSecure = we, R._originalHostOrSocketPath = Ee ? N.socketPath : X.host;
         const Z = $ && $.headers;
         if ($ = { ...$, headers: {} }, Z)
           for (const [he, Ue] of Object.entries(Z))
             $.headers[he.toLowerCase()] = Ue;
       } else if (R.listenerCount("redirect") === 0) {
-        const Z = Ee ? R._originalIpc ? B.socketPath === R._originalHostOrSocketPath : !1 : R._originalIpc ? !1 : X.host === R._originalHostOrSocketPath;
-        (!Z || R._originalSecure && !we) && (delete B.headers.authorization, delete B.headers.cookie, Z || delete B.headers.host, B.auth = void 0);
+        const Z = Ee ? R._originalIpc ? N.socketPath === R._originalHostOrSocketPath : !1 : R._originalIpc ? !1 : X.host === R._originalHostOrSocketPath;
+        (!Z || R._originalSecure && !we) && (delete N.headers.authorization, delete N.headers.cookie, Z || delete N.headers.host, N.auth = void 0);
       }
-      B.auth && !$.headers.authorization && ($.headers.authorization = "Basic " + Buffer.from(B.auth).toString("base64")), pe = R._req = Pa(B), R._redirects && R.emit("redirect", R.url, pe);
+      N.auth && !$.headers.authorization && ($.headers.authorization = "Basic " + Buffer.from(N.auth).toString("base64")), pe = R._req = Pa(N), R._redirects && R.emit("redirect", R.url, pe);
     } else
-      pe = R._req = Pa(B);
-    B.timeout && pe.on("timeout", () => {
+      pe = R._req = Pa(N);
+    N.timeout && pe.on("timeout", () => {
       P(R, pe, "Opening handshake has timed out");
     }), pe.on("error", (Z) => {
       pe === null || pe[D] || (pe = R._req = null, C(R, Z));
     }), pe.on("response", (Z) => {
       const he = Z.headers.location, Ue = Z.statusCode;
-      if (he && B.followRedirects && Ue >= 300 && Ue < 400) {
-        if (++R._redirects > B.maxRedirects) {
+      if (he && N.followRedirects && Ue >= 300 && Ue < 400) {
+        if (++R._redirects > N.maxRedirects) {
           P(R, pe, "Maximum redirects exceeded");
           return;
         }
@@ -8812,12 +8812,12 @@ function Oa() {
         R._extensions[p.extensionName] = Je;
       }
       R.setSocket(he, Ue, {
-        allowSynchronousEvents: B.allowSynchronousEvents,
-        generateMask: B.generateMask,
-        maxPayload: B.maxPayload,
-        skipUTF8Validation: B.skipUTF8Validation
+        allowSynchronousEvents: N.allowSynchronousEvents,
+        generateMask: N.generateMask,
+        maxPayload: N.maxPayload,
+        skipUTF8Validation: N.skipUTF8Validation
       });
-    }), B.finishRequest ? B.finishRequest(pe, R) : pe.end();
+    }), N.finishRequest ? N.finishRequest(pe, R) : pe.end();
   }
   function C(R, T) {
     R._readyState = b.CLOSING, R._errorEmitted = !0, R.emit("error", T), R.emitClose();
@@ -8825,7 +8825,7 @@ function Oa() {
   function z(R) {
     return R.path = R.socketPath, n.connect(R);
   }
-  function N(R) {
+  function B(R) {
     return R.path = void 0, !R.servername && R.servername !== "" && (R.servername = n.isIP(R.host) ? "" : R.host), i.connect(R);
   }
   function P(R, T, q) {
@@ -9011,7 +9011,7 @@ var ca, Rs;
 function Ap() {
   if (Rs) return ca;
   Rs = 1;
-  const t = As, e = st, { Duplex: a } = oe, { createHash: n } = ot, i = bo(), o = Nt(), s = Cp(), r = Oa(), { CLOSE_TIMEOUT: c, GUID: d, kWebSocket: p } = Pe(), u = /^[+/0-9A-Za-z]{22}==$/, l = 0, E = 1, x = 2;
+  const t = As, e = st, { Duplex: a } = oe, { createHash: n } = ot, i = bo(), o = Bt(), s = Cp(), r = Oa(), { CLOSE_TIMEOUT: c, GUID: d, kWebSocket: p } = Pe(), u = /^[+/0-9A-Za-z]{22}==$/, l = 0, E = 1, x = 2;
   class f extends t {
     /**
      * Create a `WebSocketServer` instance.
@@ -9211,9 +9211,9 @@ function Ap() {
           req: m
         };
         if (this.options.verifyClient.length === 2) {
-          this.options.verifyClient(O, (C, z, N, P) => {
+          this.options.verifyClient(O, (C, z, B, P) => {
             if (!C)
-              return k(y, z || 401, N, P);
+              return k(y, z || 401, B, P);
             this.completeUpgrade(
               b,
               L,
@@ -9666,12 +9666,12 @@ async function Fp() {
     message: "Welcome to Vision Studio!",
     detail: `This is your first time running the app. AI models will be downloaded on first use.
 
-GPU detected: ` + (await Bp() ? "Yes" : "No"),
+GPU detected: ` + (await Np() ? "Yes" : "No"),
     buttons: ["Get Started", "Open Settings"],
     defaultId: 0
   })).response === 1 && (ae == null || ae.webContents.send("navigate", "settings")), ye.set("firstRun", !1));
 }
-async function Bp() {
+async function Np() {
   return new Promise((t) => {
     var n;
     const e = ha("nvidia-smi", ["--query-gpu=name", "--format=csv,noheader"]);
@@ -9712,7 +9712,7 @@ function go() {
   });
 }
 Re.whenReady().then(async () => {
-  if (at(Ut()), at(qt()), go(), ye.get("settings").backendAutostart && !await kt()) {
+  if (at(Ut()), at(qt()), go(), ye.get("settings").backendAutostart && !process.env.VISION_STUDIO_SKIP_BACKEND && !await kt()) {
     const e = Dt(), a = e ? `The backend was found at:
 ${e}
 
@@ -9841,7 +9841,7 @@ V.handle(
   "notifications:notify",
   async (t, e, a) => {
     const n = Ge();
-    return e === "generation_complete" && n.notifyOnGenerationComplete || e === "generation_failed" && n.notifyOnGenerationFailed || e === "model_download" && n.notifyOnModelDownloads ? (Ba.isSupported() && new Ba({
+    return e === "generation_complete" && n.notifyOnGenerationComplete || e === "generation_failed" && n.notifyOnGenerationFailed || e === "model_download" && n.notifyOnModelDownloads ? (Na.isSupported() && new Na({
       title: a.title,
       body: a.body
     }).show(), { success: !0 }) : { success: !0, skipped: !0 };

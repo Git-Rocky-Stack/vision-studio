@@ -23,7 +23,7 @@ import { motion } from 'framer-motion';
 import { AdvancedGenerationSettings } from '@/components/generate/AdvancedGenerationSettings';
 
 const SIDEBAR_WIDTH_COLLAPSED = 72;
-const SIDEBAR_WIDTH_EXPANDED = 220;
+const SIDEBAR_WIDTH_EXPANDED = 224;
 
 interface NavItem {
   id: 'generate' | 'edit' | 'assets' | 'settings' | 'templates' | 'batch';
@@ -231,8 +231,8 @@ export const Sidebar = memo(function Sidebar() {
             className={cn(
               'flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-display',
               systemInfo.gpuAvailable
-                ? 'bg-[var(--color-status-success-muted)] text-[var(--color-status-success)] border border-[var(--color-status-success-border)]'
-                : 'bg-[var(--color-status-warning-muted)] text-[var(--color-status-warning)] border border-[var(--color-status-warning-border)]'
+                ? 'bg-status-success-muted text-status-success border border-status-success-border'
+                : 'bg-status-warning-muted text-status-warning border border-status-warning-border'
             )}
           >
             {systemInfo.gpuAvailable ? (

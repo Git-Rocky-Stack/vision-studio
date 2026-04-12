@@ -1,4 +1,4 @@
-import { useState, cloneElement, type ReactElement } from 'react';
+import { useState, cloneElement, type ReactElement, useCallback } from 'react';
 import {
   useFloating,
   autoUpdate,
@@ -51,11 +51,29 @@ export function Tooltip({
     role,
   ]);
 
+  // Keyboard trigger for tooltip (Enter/Space to toggle)
+  const handleReferenceKeyDown = useCallback(
+    (event: React.KeyboardEvent) => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        setIsOpen((prev) => !prev);
+      }
+      if (event.key === 'Escape') {
+        setIsOpen(false);
+      }
+    },
+    []
+  );
+
   return (
     <>
       {cloneElement(children, {
         ref: refs.setReference,
         ...getReferenceProps(),
+        onKeyDown: (event: React.KeyboardEvent) => {
+          getReferenceProps().onKeyDown?.(event);
+          handleReferenceKeyDown(event);
+        },
       })}
       <FloatingPortal>
         <AnimatePresence>
