@@ -136,12 +136,40 @@ async def lifespan(app: FastAPI):
         await comfy_client.disconnect()
 
 
-# Create FastAPI app
+# Create FastAPI app with OpenAPI/Swagger enabled
 app = FastAPI(
     title="Vision Studio API",
-    description="AI Image and Video Generation Backend",
+    description="""
+## AI Image and Video Generation Backend
+
+Professional-grade API for AI-powered creative content generation.
+
+### Features
+- **Image Generation** - FLUX.1, Stable Diffusion XL, SD 1.5
+- **Video Generation** - LTX Video, Stable Video Diffusion, AnimateDiff
+- **Image Editing** - Crop, upscale, transform, filters
+- **Batch Processing** - Queue-based multi-prompt generation
+- **Model Management** - Download, install, and manage AI models
+- **Real-time Updates** - WebSocket-based progress streaming
+
+### Authentication
+Currently no authentication required (local-only deployment).
+
+### Rate Limiting
+⚠️ Not yet implemented - planned for production deployment.
+    """,
     version="0.1.0",
-    lifespan=lifespan
+    docs_url="/api/docs",      # Swagger UI
+    redoc_url="/api/redoc",    # ReDoc
+    openapi_url="/api/openapi.json",
+    lifespan=lifespan,
+    contact={
+        "name": "Vision Studio Team",
+        "email": "hello@visionstudio.app",
+    },
+    license_info={
+        "name": "MIT",
+    },
 )
 
 # CORS middleware for Electron
@@ -245,21 +273,38 @@ class SystemInfo(BaseModel):
 
 # ============= API Endpoints =============
 
-@app.get("/")
+@app.get("/", tags=["Health"])
 async def root():
+    """
+    Root endpoint - API health check.
+
+    Returns a simple message confirming the API is running.
+    """
     return {"message": "Vision Studio API", "version": "0.1.0"}
 
 
-@app.get("/api/system/info", response_model=SystemInfo)
+@app.get("/api/system/info", response_model=SystemInfo, tags=["System"])
 async def get_system_info():
-    """Get system information including GPU status"""
+    """
+    Get system information including GPU status and model availability.
+
+    Returns detailed information about:
+    - **GPU Availability**: Whether CUDA-capable GPU is detected
+    - **GPU Name**: Model name (e.g., "NVIDIA GeForce RTX 4090")
+    - **GPU VRAM**: Total video memory in GB
+    - **CUDA Version**: Installed CUDA toolkit version
+    - **ComfyUI Connection**: Whether ComfyUI client is connected
+    - **Models Count**: Number of installed AI models
+
+    **Use Case:** Check system capabilities before starting generation jobs.
+    """
     import torch
-    
+
     gpu_available = torch.cuda.is_available()
     gpu_name = torch.cuda.get_device_name(0) if gpu_available else None
     gpu_vram = f"{torch.cuda.get_device_properties(0).total_memory / 1e9:.1f} GB" if gpu_available else None
     cuda_version = torch.version.cuda
-    
+
     return SystemInfo(
         gpu_available=gpu_available,
         gpu_name=gpu_name,
@@ -270,8 +315,32 @@ async def get_system_info():
     )
 
 
-@app.post("/api/prompts/enhance")
+@app.post("/api/prompts/enhance", tags=["Prompts"])
 async def enhance_prompt_endpoint(request: PromptEnhancementRequest):
+    """
+    Enhance a prompt using AI-powered prompt engineering.
+
+    ## Enhancement Modes:
+    - **clarify**: Add detail and structure while preserving the original subject
+    - **variations**: Generate multiple alternative phrasings (returns array)
+    - **expand**: Add more descriptive elements and context
+    - **shorten**: Condense to essential elements only
+
+    ### Request Body
+    - `prompt`: The prompt to enhance (required)
+    - `mode`: Enhancement mode (default: "clarify")
+
+    ### Response
+    Enhanced prompt string, or array of variations if mode="variations"
+
+    ### Example
+    ```json
+    {
+      "prompt": "a cat",
+      "mode": "clarify"
+    }
+    ```
+    """
     return enhance_prompt(request.prompt, request.mode)
 
 
@@ -292,8 +361,26 @@ def model_to_dict(model: BaseModel) -> Dict[str, Any]:
     return model.dict()
 
 
-@app.post("/api/images/crop")
+@app.post("/api/images/crop", response_model=Dict[str, Any], tags=["Images"])
 async def crop_image(request: ImageEditRequest):
+    """
+    Crop and transform an image with optional rotation and flip.
+
+    ### Request Body
+    - `source_path`: Absolute path to source image (required)
+    - `crop_box`: Crop region (left, top, width, height) - optional
+    - `rotation`: Rotation in degrees (default: 0)
+    - `flip_horizontal`: Flip horizontally (default: false)
+    - `flip_vertical`: Flip vertically (default: false)
+
+    ### Response
+    - `image`: Relative URL path to cropped image
+    - `width`: Output image width in pixels
+    - `height`: Output image height in pixels
+
+    ### Errors
+    - `404`: Source image not found
+    """
     if not os.path.exists(request.source_path):
         raise HTTPException(status_code=404, detail="Source image not found")
 
@@ -310,8 +397,23 @@ async def crop_image(request: ImageEditRequest):
     return result
 
 
-@app.post("/api/images/upscale")
+@app.post("/api/images/upscale", response_model=Dict[str, Any], tags=["Images"])
 async def upscale_image(request: ImageUpscaleRequest):
+    """
+    Upscale an image using AI super-resolution.
+
+    ### Request Body
+    - `source_path`: Absolute path to source image (required)
+    - `scale_factor`: Upscale multiplier (2-4, default: 2)
+
+    ### Response
+    - `image`: Relative URL path to upscaled image
+    - `width`: Output image width in pixels
+    - `height`: Output image height in pixels
+
+    ### Errors
+    - `404`: Source image not found
+    """
     if not os.path.exists(request.source_path):
         raise HTTPException(status_code=404, detail="Source image not found")
 
@@ -327,12 +429,53 @@ async def upscale_image(request: ImageUpscaleRequest):
 
 # ============= Image Generation =============
 
-@app.post("/api/generate/image", response_model=JobResponse)
+@app.post("/api/generate/image", response_model=JobResponse, tags=["Generation"])
 async def generate_image(
     request: ImageGenerationRequest,
     background_tasks: BackgroundTasks
 ):
-    """Start an image generation job"""
+    """
+    Start an AI image generation job.
+
+    Creates a new generation job and returns immediately. The job runs asynchronously
+    in the background. Use `GET /api/jobs/{job_id}` to poll for progress and results,
+    or connect to `ws://localhost:8000/ws` for real-time updates.
+
+    ### Request Body
+    - `prompt`: Text description of the image to generate (required)
+    - `negative_prompt`: Elements to exclude from the image (default: "")
+    - `width`: Image width in pixels (256-2048, default: 1024)
+    - `height`: Image height in pixels (256-2048, default: 1024)
+    - `steps`: Sampling iterations (1-100, default: 25)
+    - `cfg_scale`: Classifier-free guidance scale (1-30, default: 7.5)
+    - `seed`: Random seed for reproducibility (-1 for random, default: -1)
+    - `model`: Model ID to use (default: "flux-dev")
+    - `scheduler`: Sampling scheduler (default: "euler")
+
+    ### Response
+    - `job_id`: Unique identifier for the generation job
+    - `status`: Initial status ("pending")
+    - `message`: Human-readable status message
+
+    ### Models Available
+    - `flux-dev`: FLUX.1 dev model (highest quality)
+    - `sdxl`: Stable Diffusion XL
+    - `sd-1.5`: Stable Diffusion 1.5 (fastest)
+
+    ### Example
+    ```json
+    {
+      "prompt": "a serene mountain landscape at sunset, golden hour lighting",
+      "negative_prompt": "blurry, low quality",
+      "width": 1024,
+      "height": 1024,
+      "steps": 30,
+      "cfg_scale": 7.5,
+      "seed": -1,
+      "model": "flux-dev"
+    }
+    ```
+    """
     job_id = str(uuid.uuid4())
     
     # Create job
@@ -465,12 +608,52 @@ async def generate_direct(job_id: str, request: ImageGenerationRequest) -> Dict:
 
 # ============= Video Generation =============
 
-@app.post("/api/generate/video", response_model=JobResponse)
+@app.post("/api/generate/video", response_model=JobResponse, tags=["Generation"])
 async def generate_video(
     request: VideoGenerationRequest,
     background_tasks: BackgroundTasks
 ):
-    """Start a video generation job"""
+    """
+    Start an AI video generation job.
+
+    Creates a new video generation job and returns immediately. The job runs asynchronously
+    in the background. Video generation typically takes 2-10 minutes depending on duration,
+    resolution, and GPU capabilities.
+
+    ### Request Body
+    - `prompt`: Text description of the video to generate (required)
+    - `image_path`: Optional input image for image-to-video (default: null)
+    - `width`: Video width in pixels (256-1920, default: 1024)
+    - `height`: Video height in pixels (256-1080, default: 576)
+    - `fps`: Frames per second (12-60, default: 24)
+    - `duration`: Video length in seconds (1-10, default: 5)
+    - `steps`: Sampling iterations (1-100, default: 25)
+    - `model`: Model ID to use (default: "ltx-video")
+    - `seed`: Random seed for reproducibility (default: -1)
+
+    ### Models Available
+    - `ltx-video`: LTX Video model (text-to-video and image-to-video)
+    - `svd`: Stable Video Diffusion (image-to-video only)
+    - `animate-diff`: AnimateDiff (text-to-video with motion modules)
+
+    ### Text-to-Video vs Image-to-Video
+    - **Text-to-Video**: Use when `image_path` is null. Model: ltx-video, animate-diff.
+    - **Image-to-Video**: Provide `image_path`. Model: svd, ltx-video.
+
+    ### Example
+    ```json
+    {
+      "prompt": "a drone flying over a mountain range, cinematic camera movement",
+      "width": 1024,
+      "height": 576,
+      "fps": 24,
+      "duration": 4,
+      "steps": 30,
+      "model": "ltx-video",
+      "seed": -1
+    }
+    ```
+    """
     job_id = str(uuid.uuid4())
     
     job = GenerationJob(
@@ -539,13 +722,38 @@ async def process_video_generation(job_id: str, request: VideoGenerationRequest)
 
 # ============= Job Management =============
 
-@app.get("/api/jobs/{job_id}", response_model=JobStatusResponse)
+@app.get("/api/jobs/{job_id}", response_model=JobStatusResponse, tags=["Jobs"])
 async def get_job_status(job_id: str):
-    """Get job status and progress"""
+    """
+    Get detailed status and progress for a generation job.
+
+    ### Path Parameters
+    - `job_id`: The unique job identifier returned from `/api/generate/image` or `/api/generate/video`
+
+    ### Response Fields
+    - `job_id`: Unique job identifier
+    - `status`: Current status (pending, processing, completed, failed, cancelled)
+    - `progress`: Completion percentage (0.0 - 100.0)
+    - `type`: Job type ("image" or "video")
+    - `created_at`: ISO 8601 timestamp when job was created
+    - `completed_at`: ISO 8601 timestamp when job finished (null if still running)
+    - `result`: Job output (images array or video path, seed, metadata)
+    - `error`: Error message if status is "failed"
+
+    ### Status Values
+    - `pending`: Job queued, waiting to start
+    - `processing`: Actively generating
+    - `completed`: Successfully finished
+    - `failed`: Error occurred (check `error` field)
+    - `cancelled`: User cancelled the job
+
+    ### Errors
+    - `404`: Job not found
+    """
     job = job_manager.get_job(job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
-    
+
     return JobStatusResponse(
         job_id=job.id,
         status=job.status.value,
@@ -558,13 +766,28 @@ async def get_job_status(job_id: str):
     )
 
 
-@app.post("/api/jobs/{job_id}/cancel")
+@app.post("/api/jobs/{job_id}/cancel", tags=["Jobs"])
 async def cancel_job(job_id: str):
-    """Cancel a running job"""
+    """
+    Cancel a running or pending generation job.
+
+    ### Path Parameters
+    - `job_id`: The unique job identifier
+
+    ### Behavior
+    - If job is `processing` or `pending`: Sets status to `cancelled` and stops generation
+    - If job is already `completed`, `failed`, or `cancelled`: Returns message indicating current status
+
+    ### Response
+    - `message`: Human-readable result description
+
+    ### Errors
+    - `404`: Job not found
+    """
     job = job_manager.get_job(job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
-    
+
     if job.status == JobStatus.PROCESSING:
         job_manager.update_job(
             job_id,
@@ -572,13 +795,27 @@ async def cancel_job(job_id: str):
             completed_at=datetime.now()
         )
         return {"message": "Job cancelled"}
-    
+
     return {"message": f"Job is already {job.status.value}"}
 
 
-@app.get("/api/jobs")
+@app.get("/api/jobs", tags=["Jobs"])
 async def list_jobs(status: Optional[str] = None, limit: int = 50):
-    """List recent jobs"""
+    """
+    List recent generation jobs with optional filtering.
+
+    ### Query Parameters
+    - `status`: Filter by status (pending, processing, completed, failed, cancelled)
+    - `limit`: Maximum number of jobs to return (1-100, default: 50)
+
+    ### Response
+    - `jobs`: Array of job summaries, sorted by creation time (newest first)
+
+    ### Example
+    ```
+    GET /api/jobs?status=completed&limit=10
+    ```
+    """
     jobs = job_manager.list_jobs(status=status, limit=limit)
     return {
         "jobs": [
@@ -596,29 +833,109 @@ async def list_jobs(status: Optional[str] = None, limit: int = 50):
 
 # ============= Model Management =============
 
-@app.get("/api/models", response_model=List[ModelInfo])
+@app.get("/api/models", response_model=List[ModelInfo], tags=["Models"])
 async def list_models():
-    """List available models"""
+    """
+    List all available AI models.
+
+    Returns a list of models that are installed or available for download.
+
+    ### Response Fields
+    - `id`: Unique model identifier (used in generation requests)
+    - `name`: Human-readable model name
+    - `type`: Model type (image, video, lora, controlnet)
+    - `size`: Model size in human-readable format (e.g., "5.2 GB")
+    - `status`: Installation status (installed, available, downloading)
+    - `description`: Model description and capabilities
+
+    ### Example Response
+    ```json
+    [
+      {
+        "id": "flux-dev",
+        "name": "FLUX.1 [dev]",
+        "type": "image",
+        "size": "12.0 GB",
+        "status": "installed",
+        "description": "High-quality text-to-image model"
+      }
+    ]
+    ```
+    """
     return model_manager.get_model_list()
 
 
-@app.post("/api/models/{model_id}/download")
+@app.post("/api/models/{model_id}/download", tags=["Models"])
 async def download_model(model_id: str, background_tasks: BackgroundTasks):
-    """Download a model"""
+    """
+    Start downloading a model in the background.
+
+    ### Path Parameters
+    - `model_id`: The unique model identifier (e.g., "flux-dev", "sdxl")
+
+    ### Behavior
+    Model downloads run asynchronously in the background. Use `GET /api/models/{model_id}/status`
+    to check download progress. Large models (10+ GB) may take several minutes depending on
+    internet connection speed.
+
+    ### Response
+    - `success`: Always true if download was queued
+    - `message`: Confirmation message
+
+    ### Errors
+    - `404`: Model ID not found in available models list
+
+    ### Example
+    ```
+    POST /api/models/flux-dev/download
+    ```
+    """
     background_tasks.add_task(model_manager.download_model, model_id)
     return {"success": True, "message": f"Started downloading {model_id}"}
 
 
-@app.get("/api/models/{model_id}/status")
+@app.get("/api/models/{model_id}/status", tags=["Models"])
 async def get_model_status(model_id: str):
-    """Get model download status"""
+    """
+    Get detailed status of a model download.
+
+    ### Path Parameters
+    - `model_id`: The unique model identifier
+
+    ### Response Fields
+    - `id`: Model identifier
+    - `name`: Model name
+    - `status`: Current status (pending, downloading, completed, failed)
+    - `progress`: Download progress (0.0 - 100.0)
+    - `downloaded_bytes`: Bytes downloaded so far
+    - `total_bytes`: Total model size in bytes
+    - `error`: Error message if download failed
+
+    ### Errors
+    - `404`: Model ID not found
+    """
     status = model_manager.get_model_status(model_id)
     return status
 
 
-@app.delete("/api/models/{model_id}")
+@app.delete("/api/models/{model_id}", tags=["Models"])
 async def delete_model(model_id: str):
-    """Delete a local model"""
+    """
+    Delete a locally installed model.
+
+    ### Path Parameters
+    - `model_id`: The unique model identifier
+
+    ### Behavior
+    Frees disk space by removing the model files. The model can be re-downloaded later
+    if needed.
+
+    ### Response
+    - `success`: True if model was deleted
+
+    ### Errors
+    - `404`: Model not found or not installed locally
+    """
     deleted = await model_manager.delete_model(model_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Model not found or not installed")
@@ -649,24 +966,73 @@ class ConnectionManager:
 manager = ConnectionManager()
 
 
-@app.websocket("/ws")
+@app.websocket("/ws", tags=["WebSocket"])
 async def websocket_endpoint(websocket: WebSocket):
-    """WebSocket for real-time job updates"""
+    """
+    WebSocket endpoint for real-time generation job updates.
+
+    Connect to this endpoint to receive live progress updates for all active generation jobs.
+    This eliminates the need for HTTP polling.
+
+    ### Connection
+    ```
+    ws://localhost:8000/ws
+    ```
+
+    ### Client Messages
+    Send JSON objects with the following structure:
+    ```json
+    {
+      "action": "subscribe",
+      "job_id": "job-123"  // Optional: subscribe to specific job only
+    }
+    ```
+
+    ### Server Messages
+    The server pushes periodic updates (every 500ms) for all processing jobs:
+    ```json
+    {
+      "type": "job_update",
+      "job_id": "job-123",
+      "status": "processing",
+      "progress": 45.5
+    }
+    ```
+
+    ### Message Fields
+    - `type`: Always "job_update"
+    - `job_id`: Unique job identifier
+    - `status`: Current job status (pending, processing, completed, failed, cancelled)
+    - `progress`: Completion percentage (0.0 - 100.0)
+
+    ### Example (JavaScript)
+    ```javascript
+    const ws = new WebSocket("ws://localhost:8000/ws");
+    ws.onmessage = (event) => {
+      const update = JSON.parse(event.data);
+      console.log(`Job ${update.job_id}: ${update.progress}%`);
+    };
+    ```
+
+    ### Disconnection
+    The server automatically removes disconnected clients. Reconnect with exponential backoff
+    if the connection is lost.
+    """
     await manager.connect(websocket)
-    
+
     # Start background task to send updates
     update_task = asyncio.create_task(send_job_updates(websocket))
-    
+
     try:
         while True:
             # Receive commands from client
             data = await websocket.receive_json()
-            
+
             if data.get("action") == "subscribe":
                 job_id = data.get("job_id")
                 # Subscribe to specific job updates
                 pass
-            
+
     except WebSocketDisconnect:
         manager.disconnect(websocket)
         update_task.cancel()
