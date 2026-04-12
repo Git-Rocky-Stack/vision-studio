@@ -62,7 +62,7 @@ export function PromptToolbar({
   };
 
   return (
-    <div className="flex items-center gap-1 pt-2">
+    <div className="flex items-center gap-1 pt-2" role="toolbar" aria-label="Prompt actions">
       <ToolbarButton icon={Dice5} title="Randomize prompt" onClick={onRandomize} />
       <ToolbarButton icon={Wand2} title="AI enhance prompt" onClick={onEnhance} />
       <ToolbarButton icon={Clock} title="Prompt history" onClick={onShowHistory} />

@@ -43,10 +43,18 @@ export function ControlNetPanel({ config, onChange }: ControlNetPanelProps) {
   return (
     <div className="rounded-lg border border-border bg-elevated/50 overflow-hidden">
       {/* Toggle Header */}
-      <button
-        onClick={() => setIsExpanded(!isExpanded)}
+      <div
+        onPointerDown={() => setIsExpanded(!isExpanded)}
+        role="button"
+        tabIndex={0}
         aria-expanded={isExpanded}
-        className="flex items-center gap-2 w-full px-3 py-3 text-left group"
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            setIsExpanded(!isExpanded);
+          }
+        }}
+        className="flex items-center gap-2 w-full px-3 py-3 cursor-pointer group"
       >
         <Network className="w-3.5 h-3.5 text-red-primary" />
         <span className="text-label text-text-primary">ControlNet</span>
@@ -81,7 +89,7 @@ export function ControlNetPanel({ config, onChange }: ControlNetPanelProps) {
             isExpanded && 'rotate-180'
           )}
         />
-      </button>
+      </div>
 
       {/* Expanded Content */}
       <AnimatePresence>

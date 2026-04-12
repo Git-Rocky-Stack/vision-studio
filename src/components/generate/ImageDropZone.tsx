@@ -109,6 +109,11 @@ export function ImageDropZone({
     <div className="rounded-lg border border-border bg-elevated/50 overflow-hidden">
       {/* Header */}
       <button
+        onPointerDown={(e) => {
+          e.stopPropagation();
+          if (!referenceImage) setIsExpanded(false);
+        }}
+        aria-expanded={!referenceImage && isExpanded}
         onClick={() => {
           if (!referenceImage) setIsExpanded(false);
         }}
@@ -186,10 +191,16 @@ export function ImageDropZone({
                 onDragOver={handleDragOver}
                 onDragLeave={handleDragLeave}
                 onDrop={handleDrop}
-                onClick={() => fileInputRef.current?.click()}
+                onPointerDown={() => fileInputRef.current?.click()}
                 role="button"
                 tabIndex={0}
                 aria-label="Upload reference image"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    fileInputRef.current?.click();
+                  }
+                }}
                 className={cn(
                   'flex flex-col items-center justify-center py-6 rounded-lg border-2 border-dashed cursor-pointer transition-all',
                   isDragOver

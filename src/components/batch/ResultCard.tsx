@@ -36,10 +36,19 @@ export const ResultCard = memo(function ResultCard({
         data-testid={`result-card-${result.id}`}
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
-        onClick={(e) => onSelect(result.id, e)}
+        onPointerDown={(e) => { onSelect(result.id, e); }}
         onDoubleClick={() => onPreview(result.id)}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
+        role="article"
+        aria-selected={isSelected}
+        tabIndex={0}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            onSelect(result.id, e as any);
+          }
+        }}
         className={cn(
           'flex items-center gap-4 p-3 rounded-lg border transition-all cursor-pointer',
           isSelected
@@ -121,10 +130,19 @@ export const ResultCard = memo(function ResultCard({
       data-testid={`result-card-${result.id}`}
       initial={{ opacity: 0, scale: 0.95 }}
       animate={{ opacity: 1, scale: 1 }}
-      onClick={(e) => onSelect(result.id, e)}
+      onPointerDown={(e) => { onSelect(result.id, e); }}
       onDoubleClick={() => onPreview(result.id)}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
+      role="article"
+      aria-selected={isSelected}
+      tabIndex={0}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onSelect(result.id, e as any);
+        }
+      }}
       className={cn(
         'rounded-lg border overflow-hidden transition-all cursor-pointer group',
         isSelected

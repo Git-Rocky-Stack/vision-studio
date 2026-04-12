@@ -210,8 +210,7 @@ function PromptHistoryRow({
 }) {
   return (
     <div
-      onClick={onSelect}
-      className="group flex items-start gap-3 px-4 py-3 hover:bg-surface/60 transition-all cursor-pointer border-b border-border/50 last:border-b-0"
+      className="group flex items-start gap-3 px-4 py-3 hover:bg-surface/60 transition-all border-b border-border/50 last:border-b-0"
     >
       {/* Thumbnail */}
       {entry.result ? (
@@ -230,8 +229,11 @@ function PromptHistoryRow({
         </div>
       )}
 
-      {/* Content */}
-      <div className="flex-1 min-w-0">
+      {/* Content - clickable area */}
+      <button
+        onClick={onSelect}
+        className="flex-1 min-w-0 text-left bg-transparent border-0 p-0 cursor-pointer hover:text-text-primary transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-red-primary rounded"
+      >
         <p className="text-xs text-text-primary font-display line-clamp-2 leading-relaxed">
           {entry.prompt}
         </p>
@@ -248,10 +250,10 @@ function PromptHistoryRow({
             </>
           )}
         </div>
-      </div>
+      </button>
 
       {/* Actions */}
-      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity flex-shrink-0">
+      <div className="flex items-center gap-1 flex-shrink-0">
         <button
           onClick={(e) => {
             e.stopPropagation();
@@ -264,6 +266,7 @@ function PromptHistoryRow({
               : 'text-text-muted hover:text-red-primary'
           )}
           title={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
+          aria-label={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
         >
           <Heart
             className="w-3 h-3"
@@ -277,6 +280,7 @@ function PromptHistoryRow({
           }}
           className="p-1 rounded-md text-text-muted hover:text-text-primary transition-all focus-visible:opacity-100"
           title="Use this prompt"
+          aria-label="Use this prompt"
         >
           <ArrowUpRight className="w-3 h-3" />
         </button>

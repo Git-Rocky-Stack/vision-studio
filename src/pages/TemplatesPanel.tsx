@@ -331,7 +331,15 @@ export function TemplatesPanel() {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: index * 0.03 }}
                   className="flex items-center gap-4 p-3 rounded-lg border border-border bg-elevated/50 hover:border-border-hover hover:bg-elevated transition-all cursor-pointer group"
-                  onClick={() => setPreviewTemplate(template)}
+                  onPointerDown={() => setPreviewTemplate(template)}
+                  role="article"
+                  tabIndex={0}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      setPreviewTemplate(template);
+                    }
+                  }}
                 >
                   <div
                     className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 text-lg"
@@ -430,7 +438,15 @@ export function TemplatesPanel() {
                   }
                   onMouseEnter={() => setHoveredTemplate(template.id)}
                   onMouseLeave={() => setHoveredTemplate(null)}
-                  onClick={() => setPreviewTemplate(template)}
+                  onPointerDown={() => setPreviewTemplate(template)}
+                  role="article"
+                  tabIndex={0}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      setPreviewTemplate(template);
+                    }
+                  }}
                 >
                   {/* Category color accent */}
                   <div
