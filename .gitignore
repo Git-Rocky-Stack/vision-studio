@@ -16,11 +16,11 @@ dist-electron
 # Build artifacts and release binaries
 release/
 backend/build/
-backend/utils/__pycache__/
+**/__pycache__/
+*.pyc
+*.pyo
 backend/outputs/
 backend/venv/
-backend/__pycache__/
-backend/tests/__pycache__/
 *.pkg
 *.asar
 *.blockmap
@@ -49,3 +49,6 @@ test-results/
 # Git worktrees
 .worktrees/
 worktrees/
+
+# Superpowers
+.superpowers/
