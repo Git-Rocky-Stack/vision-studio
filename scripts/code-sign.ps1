@@ -37,7 +37,10 @@ param(
     [string]$AzureKeyVaultUrl = "",
 
     [Parameter(Mandatory=$false)]
-    [string]$AzureCertificateName = ""
+    [string]$AzureCertificateName = "",
+
+    [Parameter(Mandatory=$false)]
+    [string]$CertificatePin
 )
 
 # =============================================================================
@@ -137,6 +140,32 @@ function Find-EVCertificate {
     }
 }
 
+<#
+.SYNOPSIS
+    Sign executable using Azure Key Vault HSM
+
+.DESCRIPTION
+    Signs files using Azure Key Vault stored certificates for EV code signing
+
+.PARAMETER FileToSign
+    Path to the file to be signed
+
+.PARAMETER KeyVaultUrl
+    Azure Key Vault resource URL
+
+.PARAMETER CertificateName
+    Name of the certificate in Key Vault
+
+.REQUIRED ENVIRONMENT VARIABLES
+    AZURE_TENANT_ID     - Azure AD tenant ID
+    AZURE_CLIENT_ID     - Service principal client ID
+    AZURE_CLIENT_SECRET - Service principal client secret
+    AZURE_KEY_VAULT_URL - Key Vault resource URL
+    AZURE_CERT_NAME     - Certificate name in Key Vault
+
+.NOTES
+    Requires AzureSignTool: dotnet tool install --global AzureSignTool
+#>
 function Sign-WithAzureKeyVault {
     param(
         [string]$FileToSign,
@@ -162,6 +191,10 @@ function Sign-WithAzureKeyVault {
             "`"$FileToSign`""
         )
 
+        if ($CertificatePin) {
+            $cmd += "-pin $CertificatePin"
+        }
+
         & $azureSignTool $cmd
         return $?
     }
@@ -179,43 +212,65 @@ function Sign-File {
 
     Write-Log "Signing file: $FileToSign"
 
+    # RFC 3161 timestamp servers with fallback order
+    $TimestampServers = @(
+        "http://timestamp.digicert.com",
+        "http://timestamp.sectigo.com",
+        "http://timestamp.globalsign.com"
+    )
+
     # Build signtool command
     # /fd SHA256 - File digest algorithm
     # /a - Select best certificate automatically
     # /tr - RFC 3161 timestamp server
     # /td SHA256 - Timestamp digest algorithm
 
-    $arguments = @(
-        "sign",
-        "/fd SHA256",
-        "/a",
-        "/sha1 $Thumbprint",
-        "/tr $TimestampServer",
-        "/td SHA256",
-        "/v",
-        "`"$FileToSign`""
-    )
+    $signed = $false
 
-    Write-Log "Executing: $SignToolPath $($arguments -join ' ')"
+    foreach ($ts in $TimestampServers) {
+        $arguments = @(
+            "sign",
+            "/fd SHA256",
+            "/a",
+            "/sha1 $Thumbprint",
+            "/tr $ts",
+            "/td SHA256",
+            "/v",
+            "`"$FileToSign`""
+        )
 
-    try {
-        $process = Start-Process -FilePath $SignToolPath `
-            -ArgumentList $arguments `
-            -Wait -PassThru -NoNewWindow
-
-        if ($process.ExitCode -eq 0) {
-            Write-Log "Successfully signed: $FileToSign" -Level "SUCCESS"
-            return $true
+        # Add optional PIN for hardware tokens
+        if ($CertificatePin) {
+            $arguments += "/p", $CertificatePin
         }
-        else {
-            Write-Log "ERROR: Signing failed with exit code $($process.ExitCode)" -Level "ERROR"
-            return $false
+
+        Write-Log "Executing: $SignToolPath $($arguments -join ' ') (timestamp: $ts)"
+
+        try {
+            $process = Start-Process -FilePath $SignToolPath `
+                -ArgumentList $arguments `
+                -Wait -PassThru -NoNewWindow
+
+            if ($process.ExitCode -eq 0) {
+                Write-Log "Successfully signed: $FileToSign (timestamp server: $ts)" -Level "SUCCESS"
+                $signed = $true
+                break
+            }
+            else {
+                Write-Log "WARNING: Signing failed with exit code $($process.ExitCode), trying next server..." -Level "WARNING"
+            }
+        }
+        catch {
+            Write-Log "WARNING: Signing process failed: $($_.Exception.Message), trying next server..." -Level "WARNING"
         }
     }
-    catch {
-        Write-Log "ERROR: Signing process failed: $($_.Exception.Message)" -Level "ERROR"
+
+    if (-not $signed) {
+        Write-Log "ERROR: All timestamp servers failed" -Level "ERROR"
         return $false
     }
+
+    return $true
 }
 
 function Verify-Signature {
