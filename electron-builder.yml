@@ -61,21 +61,17 @@ win:
   # Publisher name (must match certificate subject)
   publisherName: Vision Studio Team
 
-  # Verify code signature on updates (security requirement)
-  verifyUpdateCodeSignature: true
+  # Verify code signature on updates (disabled for unsigned builds)
+  verifyUpdateCodeSignature: false
 
-  # Request administrator elevation for installer
-  requestedExecutionLevel: requireAdministrator
+  # Run as current user (admin not needed for normal operation)
+  requestedExecutionLevel: asInvoker
 
-  # Code signing configuration
-  signingHashAlgorithms:
-    - sha256
-
-  # RFC 3161 timestamp server (more reliable than Authenticode)
-  rfc3161TimeStampServer: http://timestamp.digicert.com
-
-  # Custom signing script (called by electron-builder)
-  sign: ./scripts/code-sign.ps1
+  # Code signing configuration (uncomment when EV certificate is available)
+  # signingHashAlgorithms:
+  #   - sha256
+  # rfc3161TimeStampServer: http://timestamp.digicert.com
+  # sign: ./scripts/code-sign.ps1
 
 # NSIS Installer Configuration
 nsis:
@@ -89,8 +85,8 @@ nsis:
   oneClick: false
   # Per-machine installation (requires admin)
   perMachine: true
-  # Include uninstaller in start menu
-  include: installer.iss
+  # Include custom NSIS hooks
+  include: installer.nsh
 
 # =============================================================================
 # macOS Configuration

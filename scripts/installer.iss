@@ -4,7 +4,7 @@
 #define MyAppName "Vision Studio"
 #define MyAppVersion "0.1.0"
 #define MyAppPublisher "Vision Studio Team"
-#define MyAppURL "https://github.com/yourusername/vision-studio"
+#define MyAppURL "https://github.com/Git-Rocky-Stack/vision-studio"
 #define MyAppExeName "Vision Studio.exe"
 #define SourceDir "..\release\win-unpacked"
 #define OutputDir "..\release"
@@ -27,8 +27,7 @@ SetupIconFile=..\build\icon.ico
 UninstallDisplayIcon={app}\{#MyAppExeName}
 Compression=lzma2/fast
 SolidCompression=no
-DiskSpanning=yes
-DiskSliceSize=2100000000
+DiskSpanning=no
 WizardStyle=modern
 PrivilegesRequired=lowest
 PrivilegesRequiredOverridesAllowed=dialog
@@ -37,6 +36,8 @@ ArchitecturesInstallIn64BitMode=x64compatible
 MinVersion=10.0
 SetupLogging=yes
 ShowLanguageDialog=auto
+CloseApplications=force
+CloseApplicationsFilter=*.exe
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
@@ -57,7 +58,7 @@ Name: "{group}\Uninstall {#MyAppName}"; Filename: "{uninstallexe}"
 Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
 
 [Run]
-Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent shellexec
 
 [UninstallDelete]
 Type: dirifempty; Name: "{app}\logs"
