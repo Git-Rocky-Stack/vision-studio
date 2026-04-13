@@ -39,6 +39,7 @@
     "test:a11y": "npx playwright test accessibility",
     "test:visual": "npx playwright test tests/e2e/visual",
     "test:visual:update": "npx playwright test tests/e2e/visual --update-snapshots",
+    "test:perf": "playwright test tests/e2e/performance",
     "prepare": "husky"
   },
   "lint-staged": {
