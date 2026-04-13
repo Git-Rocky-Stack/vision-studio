@@ -18,7 +18,7 @@ export const CinematicTransition = memo(function CinematicTransition({ transitio
           enter: { duration: 0.2, delay: 0.05, ease: 'easeOut' },
           exit: { duration: 0.15, ease: 'easeIn' },
         }}
-        className="w-full h-full"
+        className="w-full flex-1 min-h-0 flex flex-col"
       >
         {children}
       </motion.div>

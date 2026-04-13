@@ -447,7 +447,7 @@ export function GeneratePanel() {
   const videoModelRequiresReference = imageConfig.generationType === 'video' && imageConfig.videoModel === 'svd';
 
   return (
-    <div className="h-full flex flex-col bg-surface">
+    <div className="flex-1 min-h-0 flex flex-col bg-surface">
       {/* Mode Toggle */}
       <div className="p-4 border-b border-border">
         <div className="relative flex bg-elevated rounded-lg p-1">
@@ -503,7 +503,7 @@ export function GeneratePanel() {
       )}
 
       {/* Scrollable Content */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+      <div className="h-0 flex-1 overflow-y-scroll p-4 space-y-4">
         {/* Prompt Area */}
         <div className="relative">
           <PromptArea

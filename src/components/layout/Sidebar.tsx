@@ -98,7 +98,7 @@ export const Sidebar = memo(function Sidebar() {
       </div>
 
       {/* Navigation */}
-      <nav aria-label="Main navigation" className="flex-1 py-4 px-2 space-y-1">
+      <nav aria-label="Main navigation" className="py-4 px-2 space-y-1">
         {navItems.map((item) => {
           const Icon = item.icon;
           const isActive = activePanel === item.id;
@@ -219,7 +219,7 @@ export const Sidebar = memo(function Sidebar() {
 
       {/* Advanced Generation Settings — visible only on Generate panel */}
       {activePanel === 'generate' && (
-        <div className="px-2 py-3 border-t border-border overflow-y-auto max-h-[40vh]">
+        <div className="px-2 py-3 border-t border-border overflow-y-auto flex-1 min-h-0">
           <AdvancedGenerationSettings collapsed={sidebarCollapsed} />
         </div>
       )}

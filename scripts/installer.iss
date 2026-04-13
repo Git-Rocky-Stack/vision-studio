@@ -65,6 +65,23 @@ Type: dirifempty; Name: "{app}\logs"
 Type: dirifempty; Name: "{app}\GPUCache"
 
 [Code]
+function KillProcess(const ProcessName: string): Boolean;
+var
+  ResultCode: Integer;
+begin
+  Exec('taskkill.exe', '/F /IM "' + ProcessName + '"', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  Result := (ResultCode = 0);
+end;
+
+function PrepareToInstall(var NeedsRestart: Boolean): String;
+begin
+  // Kill backend and main app before installing to prevent file locks
+  KillProcess('VisionStudio-Backend.exe');
+  KillProcess('Vision Studio.exe');
+  Sleep(1000);
+  Result := '';
+end;
+
 procedure InitializeWizard;
 begin
   WizardForm.WelcomeLabel2.Caption :=

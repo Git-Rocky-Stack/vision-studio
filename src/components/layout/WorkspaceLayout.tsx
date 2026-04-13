@@ -113,7 +113,7 @@ export function WorkspaceLayout({
               {canvas}
             </div>
             {/* Generate panel (right) */}
-            <div className="w-[400px] flex-shrink-0 border-l border-border bg-surface overflow-hidden">
+            <div className="w-[clamp(320px,30%,420px)] flex-shrink-0 border-l border-border bg-surface flex flex-col min-h-0">
               {panels['generate']}
             </div>
           </div>
@@ -155,8 +155,8 @@ export function WorkspaceLayout({
           {renderWorkspace()}
         </CinematicTransition>
 
-        {/* Timeline - conditional */}
-        {showTimeline && timeline}
+        {/* Timeline - conditional, fixed height so it doesn't squeeze workspace */}
+        {showTimeline && <div className="flex-shrink-0">{timeline}</div>}
       </div>
     </div>
   );

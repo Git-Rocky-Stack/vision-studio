@@ -127,11 +127,15 @@ function getBundledBackendPath(): string | null {
   const exeName = isWindows ? 'VisionStudio-Backend.exe' : 'VisionStudio-Backend';
 
   if (isDev) {
-    // Development: Look in backend/dist
+    // Development: Look in backend/dist first, then resources/
     // __dirname = dist-electron/, so ../ = project root
     const devPath = join(__dirname, '../backend/dist', exeName);
     if (fs.existsSync(devPath)) {
       return devPath;
+    }
+    const resourcesPath = join(__dirname, '../resources', exeName);
+    if (fs.existsSync(resourcesPath)) {
+      return resourcesPath;
     }
     return null;
   } else {
