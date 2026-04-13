@@ -1,0 +1,135 @@
+# =============================================================================
+# Vision Studio - Electron Builder Configuration
+# =============================================================================
+# This configuration file is used by electron-builder to package the app.
+# EV Code Signing is configured under the 'win' section.
+#
+# For more info: https://www.electron.build/configuration/configuration
+# =============================================================================
+
+appId: com.visionstudio.app
+productName: Vision Studio
+copyright: Copyright © 2024 Vision Studio Team
+
+directories:
+  output: release
+  buildResources: build
+
+# Files to include in the build
+files:
+  - dist/**/*
+  - dist-electron/**/*
+  # Exclude Python cache and backend build artifacts
+  - '!backend/**/*'
+  - '!resources/**/*'
+  - '!**/*.pyc'
+  - '!**/*.pyo'
+  - '!**/*.pyd'
+
+# Extra resources to copy into the app
+extraResources:
+  - from: resources/
+    to: .
+    filter:
+      - '**/*'
+  - from: backend/
+    to: backend-source/
+    filter:
+      - '**/*'
+      - '!venv/**/*'
+      - '!build/**/*'
+      - '!dist/**/*'
+      - '!__pycache__/**/*'
+      - '!*.pyc'
+
+# =============================================================================
+# Windows Configuration
+# =============================================================================
+win:
+  # Target formats: NSIS installer + portable ZIP
+  target:
+    - target: nsis
+      arch:
+        - x64
+    - target: zip
+      arch:
+        - x64
+
+  # App icon
+  icon: build/icon.ico
+
+  # Publisher name (must match certificate subject)
+  publisherName: Vision Studio Team
+
+  # Verify code signature on updates (security requirement)
+  verifyUpdateCodeSignature: true
+
+  # Request administrator elevation for installer
+  requestedExecutionLevel: requireAdministrator
+
+  # Code signing configuration
+  signingHashAlgorithms:
+    - sha256
+
+  # RFC 3161 timestamp server (more reliable than Authenticode)
+  rfc3161TimeStampServer: http://timestamp.digicert.com
+
+  # Custom signing script (called by electron-builder)
+  sign: ./scripts/code-sign.ps1
+
+# NSIS Installer Configuration
+nsis:
+  # Create desktop shortcut
+  createDesktopShortcut: always
+  # Create start menu shortcut
+  createStartMenuShortcut: true
+  # Allow users to change installation directory
+  allowToChangeInstallationDirectory: true
+  # One-click installer (set to false for per-machine/per-user choice)
+  oneClick: false
+  # Per-machine installation (requires admin)
+  perMachine: true
+  # Include uninstaller in start menu
+  include: installer.iss
+
+# =============================================================================
+# macOS Configuration
+# =============================================================================
+mac:
+  category: public.app-category.video
+  target:
+    - target: dmg
+      arch:
+        - x64
+        - arm64
+  icon: build/icon.icns
+  hardenedRuntime: true
+  gatekeeperAssess: false
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.plist
+
+# =============================================================================
+# Linux Configuration
+# =============================================================================
+linux:
+  target:
+    - AppImage
+    - deb
+    - rpm
+  category: AudioVideo
+  icon: build/icons
+  maintainer: Vision Studio Team
+  vendor: Vision Studio Team
+  synopsis: AI Image & Video Generation
+  description: Professional AI-powered image and video generation desktop application
+
+# =============================================================================
+# Auto-Update Configuration (GitHub)
+# =============================================================================
+publish:
+  provider: github
+  owner: yourusername
+  repo: vision-studio
+  releaseType: release
+  # Auto-update will only install signed builds
+  vPrefixedTagName: true
