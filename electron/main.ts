@@ -390,7 +390,7 @@ function createWindow() {
       nodeIntegration: false,
       sandbox: false,
     },
-    show: false,
+    show: true,
   });
 
   // Load the app
@@ -402,8 +402,6 @@ function createWindow() {
   }
 
   mainWindow.once('ready-to-show', () => {
-    mainWindow?.show();
-    
     // Check first run after window is shown
     checkFirstRun();
   });
