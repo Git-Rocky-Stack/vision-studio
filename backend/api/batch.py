@@ -22,6 +22,7 @@ from schemas.batch import (  # type: ignore[import-not-found]
 from services.batch_service import (  # type: ignore[import-not-found]
     BatchService,
 )
+from utils.sanitization import sanitize_path
 
 # Create router with prefix
 router = APIRouter(prefix="/api/v1/batch", tags=["Batch"])
@@ -83,9 +84,12 @@ async def export_batch_to_zip(request: BatchExportRequest) -> BatchExportRespons
     service = get_service()
 
     try:
+        # Sanitize image IDs (prevent path traversal)
+        sanitized_image_ids = [sanitize_path(image_id) for image_id in request.image_ids]
+
         # Check which images exist before processing
         missing_images = [
-            image_id for image_id in request.image_ids
+            image_id for image_id in sanitized_image_ids
             if service._get_image(image_id) is None
         ]
 
@@ -104,7 +108,7 @@ async def export_batch_to_zip(request: BatchExportRequest) -> BatchExportRespons
 
         # Export to ZIP
         zip_bytes, file_count = service.export_to_zip(
-            image_ids=request.image_ids,
+            image_ids=sanitized_image_ids,
             format=request.format,
             quality=request.quality,
             resize=request.resize,

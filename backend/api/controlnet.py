@@ -25,6 +25,7 @@ from services.controlnet_service import (  # type: ignore[import-not-found]
     ControlNetService,
     encode_image_base64,
 )
+from utils.sanitization import sanitize_prompt, validate_base64
 
 # Create router with prefix
 router = APIRouter(prefix="/api/v1/controlnet", tags=["ControlNet"])
@@ -106,13 +107,24 @@ async def generate_controlnet(request: ControlNetRequest) -> Union[ControlNetRes
     service = get_service()
 
     try:
+        # Sanitize prompt
+        sanitized_prompt = sanitize_prompt(request.prompt)
+        if not sanitized_prompt:
+            raise ValueError("Prompt is empty after sanitization")
+
+        # Validate base64 images
+        if request.init_image and not validate_base64(request.init_image):
+            raise ValueError("Invalid base64 format for init_image")
+        if request.control_image and not validate_base64(request.control_image):
+            raise ValueError("Invalid base64 format for control_image")
+
         # Load the requested model
         model_type = request.model.value
         await service.load_model(model_type)
 
         # Generate images
         results = await service.generate(
-            prompt=request.prompt,
+            prompt=sanitized_prompt,
             init_image=request.init_image,
             control_image=request.control_image,
             model_type=model_type,

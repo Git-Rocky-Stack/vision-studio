@@ -25,6 +25,7 @@ from services.lora_service import (  # type: ignore[import-not-found]
     LoRAService,
     encode_image_base64,
 )
+from utils.sanitization import sanitize_prompt
 
 # Create router with prefix
 router = APIRouter(prefix="/api/v1/lora", tags=["LoRA"])
@@ -94,6 +95,11 @@ async def generate_lora(request: LoRARequest) -> Union[LoRAResponse, LoRAErrorRe
     service = get_service()
 
     try:
+        # Sanitize prompt
+        sanitized_prompt = sanitize_prompt(request.prompt)
+        if not sanitized_prompt:
+            raise ValueError("Prompt is empty after sanitization")
+
         # Load the LoRA with specified scale
         await service.load_lora(
             base_model=request.base_model,
@@ -103,7 +109,7 @@ async def generate_lora(request: LoRARequest) -> Union[LoRAResponse, LoRAErrorRe
 
         # Generate images
         results = await service.generate(
-            prompt=request.prompt,
+            prompt=sanitized_prompt,
             negative_prompt=request.negative_prompt or "",
             steps=request.num_inference_steps,
             guidance=request.guidance_scale,

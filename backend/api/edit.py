@@ -28,6 +28,7 @@ from services.edit_service import (  # type: ignore[import-not-found]
     EditService,
     encode_image_base64,
 )
+from utils.sanitization import validate_base64
 
 logger = logging.getLogger(__name__)
 
@@ -89,6 +90,10 @@ async def remove_background(request: BackgroundRemoveRequest) -> Union[Backgroun
     service = get_service()
 
     try:
+        # Validate base64 image
+        if not validate_base64(request.image):
+            raise ValueError("Invalid base64 format for image")
+
         # Remove background
         result_image, processing_time_ms = await service.remove_background(
             image=request.image,
@@ -162,6 +167,10 @@ async def upscale_image(request: UpscaleRequest) -> Union[UpscaleResponse, EditE
     service = get_service()
 
     try:
+        # Validate base64 image
+        if not validate_base64(request.image):
+            raise ValueError("Invalid base64 format for image")
+
         # Upscale image
         result_image, original_size, new_size, processing_time_ms = await service.upscale(
             image=request.image,
@@ -236,6 +245,10 @@ async def restore_faces(request: FaceRestoreRequest) -> Union[FaceRestoreRespons
     service = get_service()
 
     try:
+        # Validate base64 image
+        if not validate_base64(request.image):
+            raise ValueError("Invalid base64 format for image")
+
         # Restore faces
         result_image, faces_detected, processing_time_ms = await service.restore_faces(
             image=request.image,

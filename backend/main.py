@@ -46,6 +46,8 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Back
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 
 from utils.job_manager import JobManager, JobStatus, GenerationJob
 from utils.logging_config import setup_logging, get_logger
@@ -57,6 +59,7 @@ from utils.image_ops import apply_crop_and_transform, upscale_image_file
 from utils.prompt_service import enhance_prompt
 from api.controlnet import router as controlnet_router
 from db.migrate import run_migrations
+from middleware.rate_limit import limiter, rate_limit_exceeded_handler
 
 # Initialize logging at module load time
 setup_logging()
@@ -171,7 +174,11 @@ Professional-grade API for AI-powered creative content generation.
 Currently no authentication required (local-only deployment).
 
 ### Rate Limiting
-⚠️ Not yet implemented - planned for production deployment.
+Rate limiting is enabled to prevent abuse:
+- Generation endpoints: 10 requests/minute
+- Edit endpoints: 30 requests/minute
+- Batch endpoints: 5 requests/minute
+- Default: 60 requests/minute
     """,
     version="0.1.0",
     docs_url="/api/docs",      # Swagger UI
@@ -186,6 +193,12 @@ Currently no authentication required (local-only deployment).
         "name": "MIT",
     },
 )
+
+# Add rate limiter to app state
+app.state.limiter = limiter
+
+# Register rate limit exceeded exception handler
+app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
 
 # Request/Response logging middleware with timing
 @app.middleware("http")
@@ -347,7 +360,8 @@ class SystemInfo(BaseModel):
 # ============= API Endpoints =============
 
 @app.get("/", tags=["Health"])
-async def root():
+@limiter.limit("60/minute")
+async def root(request: Request):
     """
     Root endpoint - API health check.
 
@@ -357,7 +371,8 @@ async def root():
 
 
 @app.get("/api/system/info", response_model=SystemInfo, tags=["System"])
-async def get_system_info():
+@limiter.limit("60/minute")
+async def get_system_info(request: Request):
     """
     Get system information including GPU status and model availability.
 
@@ -389,7 +404,8 @@ async def get_system_info():
 
 
 @app.post("/api/prompts/enhance", tags=["Prompts"])
-async def enhance_prompt_endpoint(request: PromptEnhancementRequest):
+@limiter.limit("60/minute")
+async def enhance_prompt_endpoint(request: Request, prompt_request: PromptEnhancementRequest):
     """
     Enhance a prompt using AI-powered prompt engineering.
 
@@ -414,7 +430,7 @@ async def enhance_prompt_endpoint(request: PromptEnhancementRequest):
     }
     ```
     """
-    return enhance_prompt(request.prompt, request.mode)
+    return enhance_prompt(prompt_request.prompt, prompt_request.mode)
 
 
 def create_derived_output_path(source_path: str, prefix: str) -> tuple[str, str]:
@@ -435,7 +451,8 @@ def model_to_dict(model: BaseModel) -> Dict[str, Any]:
 
 
 @app.post("/api/images/crop", response_model=Dict[str, Any], tags=["Images"])
-async def crop_image(request: ImageEditRequest):
+@limiter.limit("30/minute")
+async def crop_image(request: Request, edit_request: ImageEditRequest):
     """
     Crop and transform an image with optional rotation and flip.
 
@@ -454,24 +471,25 @@ async def crop_image(request: ImageEditRequest):
     ### Errors
     - `404`: Source image not found
     """
-    if not os.path.exists(request.source_path):
+    if not os.path.exists(edit_request.source_path):
         raise HTTPException(status_code=404, detail="Source image not found")
 
-    output_path, relative_path = create_derived_output_path(request.source_path, "crop")
+    output_path, relative_path = create_derived_output_path(edit_request.source_path, "crop")
     result = apply_crop_and_transform(
-        request.source_path,
+        edit_request.source_path,
         output_path,
-        crop_box=model_to_dict(request.crop_box) if request.crop_box else None,
-        rotation=request.rotation,
-        flip_horizontal=request.flip_horizontal,
-        flip_vertical=request.flip_vertical,
+        crop_box=model_to_dict(edit_request.crop_box) if edit_request.crop_box else None,
+        rotation=edit_request.rotation,
+        flip_horizontal=edit_request.flip_horizontal,
+        flip_vertical=edit_request.flip_vertical,
     )
     result["image"] = relative_path
     return result
 
 
 @app.post("/api/images/upscale", response_model=Dict[str, Any], tags=["Images"])
-async def upscale_image(request: ImageUpscaleRequest):
+@limiter.limit("30/minute")
+async def upscale_image(request: Request, upscale_request: ImageUpscaleRequest):
     """
     Upscale an image using AI super-resolution.
 
@@ -487,14 +505,14 @@ async def upscale_image(request: ImageUpscaleRequest):
     ### Errors
     - `404`: Source image not found
     """
-    if not os.path.exists(request.source_path):
+    if not os.path.exists(upscale_request.source_path):
         raise HTTPException(status_code=404, detail="Source image not found")
 
-    output_path, relative_path = create_derived_output_path(request.source_path, "upscale")
+    output_path, relative_path = create_derived_output_path(upscale_request.source_path, "upscale")
     result = upscale_image_file(
-        request.source_path,
+        upscale_request.source_path,
         output_path,
-        scale_factor=request.scale_factor,
+        scale_factor=upscale_request.scale_factor,
     )
     result["image"] = relative_path
     return result
@@ -503,8 +521,10 @@ async def upscale_image(request: ImageUpscaleRequest):
 # ============= Image Generation =============
 
 @app.post("/api/generate/image", response_model=JobResponse, tags=["Generation"])
+@limiter.limit("10/minute")
 async def generate_image(
-    request: ImageGenerationRequest,
+    request: Request,
+    gen_request: ImageGenerationRequest,
     background_tasks: BackgroundTasks
 ):
     """
@@ -550,26 +570,26 @@ async def generate_image(
     ```
     """
     job_id = str(uuid.uuid4())
-    
+
     # Create job
     job = GenerationJob(
         id=job_id,
         type="image",
         status=JobStatus.PENDING,
-        params=request.dict(),
+        params=gen_request.dict(),
         output_dir=os.path.join(OUTPUT_DIR, job_id)
     )
-    
+
     os.makedirs(job.output_dir, exist_ok=True)
     job_manager.add_job(job)
-    
+
     # Start generation in background
     background_tasks.add_task(
         process_image_generation,
         job_id,
-        request
+        gen_request
     )
-    
+
     return JobResponse(
         job_id=job_id,
         status="pending",
@@ -682,8 +702,10 @@ async def generate_direct(job_id: str, request: ImageGenerationRequest) -> Dict:
 # ============= Video Generation =============
 
 @app.post("/api/generate/video", response_model=JobResponse, tags=["Generation"])
+@limiter.limit("10/minute")
 async def generate_video(
-    request: VideoGenerationRequest,
+    req: Request,
+    video_request: VideoGenerationRequest,
     background_tasks: BackgroundTasks
 ):
     """
@@ -728,24 +750,24 @@ async def generate_video(
     ```
     """
     job_id = str(uuid.uuid4())
-    
+
     job = GenerationJob(
         id=job_id,
         type="video",
         status=JobStatus.PENDING,
-        params=request.dict(),
+        params=video_request.dict(),
         output_dir=os.path.join(OUTPUT_DIR, job_id)
     )
-    
+
     os.makedirs(job.output_dir, exist_ok=True)
     job_manager.add_job(job)
-    
+
     background_tasks.add_task(
         process_video_generation,
         job_id,
-        request
+        video_request
     )
-    
+
     return JobResponse(
         job_id=job_id,
         status="pending",
@@ -796,7 +818,8 @@ async def process_video_generation(job_id: str, request: VideoGenerationRequest)
 # ============= Job Management =============
 
 @app.get("/api/jobs/{job_id}", response_model=JobStatusResponse, tags=["Jobs"])
-async def get_job_status(job_id: str):
+@limiter.limit("60/minute")
+async def get_job_status(request: Request, job_id: str):
     """
     Get detailed status and progress for a generation job.
 
@@ -840,7 +863,8 @@ async def get_job_status(job_id: str):
 
 
 @app.post("/api/jobs/{job_id}/cancel", tags=["Jobs"])
-async def cancel_job(job_id: str):
+@limiter.limit("30/minute")
+async def cancel_job(request: Request, job_id: str):
     """
     Cancel a running or pending generation job.
 
@@ -873,7 +897,8 @@ async def cancel_job(job_id: str):
 
 
 @app.get("/api/jobs", tags=["Jobs"])
-async def list_jobs(status: Optional[str] = None, limit: int = 50):
+@limiter.limit("60/minute")
+async def list_jobs(request: Request, status: Optional[str] = None, limit: int = 50):
     """
     List recent generation jobs with optional filtering.
 
@@ -907,7 +932,8 @@ async def list_jobs(status: Optional[str] = None, limit: int = 50):
 # ============= Model Management =============
 
 @app.get("/api/models", response_model=List[ModelInfo], tags=["Models"])
-async def list_models():
+@limiter.limit("60/minute")
+async def list_models(request: Request):
     """
     List all available AI models.
 
@@ -939,7 +965,8 @@ async def list_models():
 
 
 @app.post("/api/models/{model_id}/download", tags=["Models"])
-async def download_model(model_id: str, background_tasks: BackgroundTasks):
+@limiter.limit("30/minute")
+async def download_model(request: Request, model_id: str, background_tasks: BackgroundTasks):
     """
     Start downloading a model in the background.
 
@@ -968,7 +995,8 @@ async def download_model(model_id: str, background_tasks: BackgroundTasks):
 
 
 @app.get("/api/models/{model_id}/status", tags=["Models"])
-async def get_model_status(model_id: str):
+@limiter.limit("60/minute")
+async def get_model_status(request: Request, model_id: str):
     """
     Get detailed status of a model download.
 
@@ -992,7 +1020,8 @@ async def get_model_status(model_id: str):
 
 
 @app.delete("/api/models/{model_id}", tags=["Models"])
-async def delete_model(model_id: str):
+@limiter.limit("30/minute")
+async def delete_model(request: Request, model_id: str):
     """
     Delete a locally installed model.
 
