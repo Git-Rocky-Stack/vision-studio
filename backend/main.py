@@ -56,6 +56,7 @@ from utils.direct_generator import DirectGenerator
 from utils.image_ops import apply_crop_and_transform, upscale_image_file
 from utils.prompt_service import enhance_prompt
 from api.controlnet import router as controlnet_router
+from db.migrate import run_migrations
 
 # Initialize logging at module load time
 setup_logging()
@@ -75,10 +76,15 @@ except Exception as import_error:
 OUTPUT_DIR = os.getenv("OUTPUT_DIR", os.path.join(os.path.dirname(__file__), "outputs"))
 MODELS_DIR = os.getenv("MODELS_DIR", os.path.join(os.path.dirname(__file__), "models"))
 COMFYUI_URL = os.getenv("COMFYUI_URL", "http://127.0.0.1:8188")
+DATABASE_PATH = os.getenv("DATABASE_PATH", os.path.join(os.path.dirname(__file__), "data", "vision_studio.db"))
 
 # Ensure directories exist
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 os.makedirs(MODELS_DIR, exist_ok=True)
+os.makedirs(os.path.dirname(DATABASE_PATH), exist_ok=True)
+
+# Run database migrations at startup
+run_migrations(DATABASE_PATH)
 
 # Global instances
 job_manager = JobManager()
