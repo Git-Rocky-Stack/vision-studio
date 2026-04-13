@@ -2,7 +2,7 @@
 ; Handles large payloads (>2GB) that NSIS cannot support
 
 #define MyAppName "Vision Studio"
-#define MyAppVersion "0.1.0"
+#define MyAppVersion "2.0.1"
 #define MyAppPublisher "Vision Studio Team"
 #define MyAppURL "https://github.com/Git-Rocky-Stack/vision-studio"
 #define MyAppExeName "Vision Studio.exe"
