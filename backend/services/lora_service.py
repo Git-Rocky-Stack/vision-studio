@@ -221,7 +221,6 @@ class LoRAService:
         Raises:
             RuntimeError: If LoRA is not loaded
         """
-        logger.info(f"Starting LoRA generation: {prompt[:50]}...")
         start_time = time.time()
 
         if not self._model_loaded:

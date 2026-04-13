@@ -466,4 +466,4 @@ class TestLoggingIntegration:
         assert len(caplog.records) == 1
         record = caplog.records[0]
         assert record.levelname == "ERROR"
-        assert "Operation failed" in record.message
+        assert "Operation failed" in record.getMessage()

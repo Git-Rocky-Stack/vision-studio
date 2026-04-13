@@ -259,7 +259,6 @@ class ControlNetService:
             RuntimeError: If model is not loaded
             ValueError: If images cannot be decoded
         """
-        logger.info(f"Starting ControlNet generation: {prompt[:50]}...")
         start_time = time.time()
 
         if not self._model_loaded:

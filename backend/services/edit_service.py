@@ -336,14 +336,14 @@ class EditService:
 
         In production, this would download/load actual models.
         """
-        logger.info("Loading edit models (stub mode)")
+        logger.info("Loading edit models (stub mode)", extra={"operation": "load_models"})
 
         # Stub: just mark models as loaded
         self._models_loaded["rembg"] = True
         self._models_loaded["realesrgan"] = True
         self._models_loaded["gfpgan"] = True
 
-        logger.info("Edit models loaded successfully (stub mode)")
+        logger.info("Edit models loaded successfully (stub mode)", extra={"operation": "load_models"})
 
     async def unload_models(self) -> None:
         """
@@ -351,7 +351,7 @@ class EditService:
 
         In production, this would clear GPU memory.
         """
-        logger.info("Unloading edit models")
+        logger.info("Unloading edit models", extra={"operation": "unload_models"})
 
         self._models_loaded = {
             "rembg": False,
@@ -359,7 +359,7 @@ class EditService:
             "gfpgan": False,
         }
 
-        logger.info("Edit models unloaded")
+        logger.info("Edit models unloaded", extra={"operation": "unload_models"})
 
     def is_model_loaded(self, model_name: str) -> bool:
         """

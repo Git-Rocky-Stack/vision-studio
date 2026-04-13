@@ -190,7 +190,7 @@ async def log_requests(request: Request, call_next):
 
     # Log request start
     logger.info(
-        f"{request.method} {request.url.path}",
+        "HTTP request started",
         extra={
             "request_id": request_id,
             "method": request.method,
@@ -206,7 +206,7 @@ async def log_requests(request: Request, call_next):
 
         # Log response
         logger.info(
-            f"{request.method} {request.url.path} completed",
+            "HTTP request completed",
             extra={
                 "request_id": request_id,
                 "method": request.method,
@@ -591,7 +591,7 @@ async def process_image_generation(job_id: str, request: ImageGenerationRequest)
         )
         
     except Exception as e:
-        print(f"❌ Image generation failed: {e}")
+        logger.error(f"Image generation failed: {e}", exc_info=True)
         job_manager.update_job(
             job_id,
             status=JobStatus.FAILED,
@@ -778,7 +778,7 @@ async def process_video_generation(job_id: str, request: VideoGenerationRequest)
         )
         
     except Exception as e:
-        print(f"❌ Video generation failed: {e}")
+        logger.error(f"Video generation failed: {e}", exc_info=True)
         job_manager.update_job(
             job_id,
             status=JobStatus.FAILED,
