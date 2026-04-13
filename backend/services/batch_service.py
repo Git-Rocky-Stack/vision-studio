@@ -16,7 +16,9 @@ from typing import Optional
 
 from PIL import Image
 
-logger = logging.getLogger(__name__)
+from utils.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 # WEBP compression method: 6 = best compression (slowest)
 WEBP_BEST_COMPRESSION = 6
@@ -100,7 +102,7 @@ class BatchService:
         Raises:
             ValueError: If no valid images are found
         """
-        logger.info(f"Starting batch export: {len(image_ids)} images, format={format}, quality={quality}")
+        logger.info("Starting batch export", extra={"operation": "export_to_zip", "num_images": len(image_ids), "format": format, "quality": quality})
         start_time = time.time()
 
         # Create ZIP in memory
@@ -167,7 +169,7 @@ class BatchService:
         zip_bytes = zip_buffer.getvalue()
         processing_time = (time.time() - start_time) * 1000
 
-        logger.info(f"Batch export complete: {file_count} files, {len(zip_bytes)} bytes, {processing_time:.2f}ms")
+        logger.info("Batch export complete", extra={"operation": "export_to_zip", "file_count": file_count, "zip_size_bytes": len(zip_bytes), "duration_ms": round(processing_time, 2)})
 
         if file_count == 0:
             raise ValueError("No valid images found to export")

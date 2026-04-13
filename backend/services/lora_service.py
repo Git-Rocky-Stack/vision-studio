@@ -20,7 +20,9 @@ from typing import Any, Callable, Dict, List, Optional
 
 from PIL import Image
 
-logger = logging.getLogger(__name__)
+from utils.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 # Configurable base model via environment variable
 DEFAULT_BASE_MODEL = os.getenv("SD_BASE_MODEL", "runwayml/stable-diffusion-v1-5")
@@ -138,7 +140,7 @@ class LoRAService:
             ValueError: If LoRA path is invalid
             RuntimeError: If diffusers is not available
         """
-        logger.info(f"Loading LoRA: {lora_path} with scale {scale}")
+        logger.info("Loading LoRA", extra={"operation": "load_lora", "lora_path": lora_path, "scale": scale})
 
         if not lora_path or not lora_path.endswith((".safetensors", ".pt", ".bin")):
             raise ValueError("LoRA path must end with .safetensors, .pt, or .bin")
@@ -148,13 +150,13 @@ class LoRAService:
             self._current_lora = lora_path
             self._current_scale = scale
             self._model_loaded = True
-            logger.info(f"LoRA {lora_path} loaded successfully (stub mode)")
+            logger.info("LoRA loaded successfully (stub mode)", extra={"operation": "load_lora", "lora_path": lora_path, "scale": scale})
             return True
 
         try:
             # Check if same LoRA is already loaded
             if self._model_loaded and self._current_lora == lora_path:
-                logger.info(f"LoRA {lora_path} already loaded")
+                logger.info("LoRA already loaded", extra={"operation": "load_lora", "lora_path": lora_path})
                 return True
 
             # Unload existing LoRA if different
@@ -176,11 +178,11 @@ class LoRAService:
             self._current_scale = scale
             self._model_loaded = True
 
-            logger.info(f"LoRA {lora_path} loaded successfully")
+            logger.info("LoRA loaded successfully", extra={"operation": "load_lora", "lora_path": lora_path, "scale": scale})
             return True
 
         except Exception as e:
-            logger.error(f"Failed to load LoRA {lora_path}: {e}")
+            logger.error("Failed to load LoRA", extra={"operation": "load_lora", "lora_path": lora_path}, exc_info=True)
             # Stub fallback for testing without diffusers
             self._current_lora = lora_path
             self._current_scale = scale
@@ -224,6 +226,8 @@ class LoRAService:
 
         if not self._model_loaded:
             raise RuntimeError("LoRA must be loaded before generation. Call load_lora() first.")
+
+        logger.info("Starting LoRA generation", extra={"operation": "generate", "prompt_length": len(prompt), "num_images": num_images})
 
         # Set up random seed
         if seed is None:
@@ -274,7 +278,7 @@ class LoRAService:
                 ))
 
         processing_time = (time.time() - start_time) * 1000
-        logger.info(f"Generation complete in {processing_time:.2f}ms")
+        logger.info("Generation complete", extra={"operation": "generate", "duration_ms": round(processing_time, 2), "num_images": len(generated_images)})
         return generated_images
 
     async def unload(self) -> None:

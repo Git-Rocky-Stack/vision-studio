@@ -32,20 +32,23 @@ builtins.print = safe_print
 
 import asyncio
 import json
+import logging
 import os
 import shutil
+import time
 import uuid
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, BackgroundTasks
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, BackgroundTasks, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from utils.job_manager import JobManager, JobStatus, GenerationJob
+from utils.logging_config import setup_logging, get_logger
 from utils.comfy_workflows import build_image_workflow
 from utils.direct_video_generator import DirectVideoGenerator
 from utils.model_manager import ModelManager
@@ -53,7 +56,13 @@ from utils.direct_generator import DirectGenerator
 from utils.image_ops import apply_crop_and_transform, upscale_image_file
 from utils.prompt_service import enhance_prompt
 from api.controlnet import router as controlnet_router
+
+# Initialize logging at module load time
+setup_logging()
+logger = get_logger(__name__)
 from api.lora import router as lora_router
+from api.edit import router as edit_router
+from api.batch import router as batch_router
 
 try:
     from utils.comfy_client import ComfyUIClient
@@ -95,45 +104,43 @@ def get_uvicorn_config(reload_enabled: Optional[bool] = None) -> Dict[str, Any]:
 async def lifespan(app: FastAPI):
     """Application lifespan handler"""
     global comfy_client, direct_generator, direct_video_generator
-    
+
     # Startup
-    print("🚀 Starting Vision Studio Backend...")
-    
+    logger.info("Starting Vision Studio Backend...")
+
     # Initialize ComfyUI client
     if ComfyUIClient is None:
-        print(f"⚠️ ComfyUI client unavailable: {COMFY_CLIENT_IMPORT_ERROR}")
-        print("   Will use direct generation as fallback")
+        logger.warning(f"ComfyUI client unavailable: {COMFY_CLIENT_IMPORT_ERROR}. Will use direct generation as fallback")
     else:
         try:
             comfy_client = ComfyUIClient(COMFYUI_URL)
             await comfy_client.connect()
-            print(f"✅ Connected to ComfyUI at {COMFYUI_URL}")
+            logger.info(f"Connected to ComfyUI at {COMFYUI_URL}")
         except Exception as e:
-            print(f"⚠️ Could not connect to ComfyUI: {e}")
-            print("   Will use direct generation as fallback")
-    
+            logger.warning(f"Could not connect to ComfyUI: {e}. Will use direct generation as fallback")
+
     # Initialize direct generator
     try:
         direct_generator = DirectGenerator(MODELS_DIR, OUTPUT_DIR)
-        print("✅ Direct generator initialized")
+        logger.info("Direct generator initialized")
     except Exception as e:
-        print(f"⚠️ Could not initialize direct generator: {e}")
+        logger.warning(f"Could not initialize direct generator: {e}")
 
     # Initialize direct video generator
     try:
         direct_video_generator = DirectVideoGenerator(MODELS_DIR, OUTPUT_DIR)
-        print("✅ Direct video generator initialized")
+        logger.info("Direct video generator initialized")
     except Exception as e:
-        print(f"⚠️ Could not initialize direct video generator: {e}")
-    
+        logger.warning(f"Could not initialize direct video generator: {e}")
+
     # Load available models
     await model_manager.scan_models()
-    print(f"✅ Found {len(model_manager.available_models)} models")
-    
+    logger.info(f"Found {len(model_manager.available_models)} models")
+
     yield
-    
+
     # Shutdown
-    print("🛑 Shutting down...")
+    logger.info("Shutting down...")
     if comfy_client:
         await comfy_client.disconnect()
 
@@ -174,6 +181,58 @@ Currently no authentication required (local-only deployment).
     },
 )
 
+# Request/Response logging middleware with timing
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    """Log all HTTP requests with timing and response status."""
+    start_time = time.time()
+    request_id = str(uuid.uuid4())
+
+    # Log request start
+    logger.info(
+        f"{request.method} {request.url.path}",
+        extra={
+            "request_id": request_id,
+            "method": request.method,
+            "path": request.url.path,
+        },
+    )
+
+    try:
+        response = await call_next(request)
+
+        # Calculate duration
+        duration_ms = (time.time() - start_time) * 1000
+
+        # Log response
+        logger.info(
+            f"{request.method} {request.url.path} completed",
+            extra={
+                "request_id": request_id,
+                "method": request.method,
+                "path": request.url.path,
+                "status_code": response.status_code,
+                "duration_ms": round(duration_ms, 2),
+            },
+        )
+
+        return response
+
+    except Exception as e:
+        duration_ms = (time.time() - start_time) * 1000
+        logger.error(
+            f"{request.method} {request.url.path} failed: {e}",
+            extra={
+                "request_id": request_id,
+                "method": request.method,
+                "path": request.url.path,
+                "duration_ms": round(duration_ms, 2),
+            },
+            exc_info=True,
+        )
+        raise
+
+
 # CORS middleware for Electron
 app.add_middleware(
     CORSMiddleware,
@@ -189,6 +248,8 @@ app.mount("/outputs", StaticFiles(directory=OUTPUT_DIR), name="outputs")
 # Register API routers
 app.include_router(controlnet_router)
 app.include_router(lora_router)
+app.include_router(edit_router)
+app.include_router(batch_router)
 
 
 # ============= Pydantic Models =============

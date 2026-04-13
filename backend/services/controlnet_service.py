@@ -19,7 +19,9 @@ from typing import Any, Callable, Dict, List, Optional
 
 from PIL import Image
 
-logger = logging.getLogger(__name__)
+from utils.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 # Configurable base model via environment variable
 DEFAULT_BASE_MODEL = os.getenv("SD_BASE_MODEL", "runwayml/stable-diffusion-v1-5")
@@ -160,7 +162,7 @@ class ControlNetService:
             ValueError: If model type is not supported
             RuntimeError: If diffusers is not available
         """
-        logger.info(f"Loading ControlNet model: {model_type}")
+        logger.info("Loading ControlNet model", extra={"operation": "load_model", "model_type": model_type})
 
         if model_type not in self.MODEL_MAPPING:
             raise ValueError(f"Unsupported ControlNet model type: {model_type}")
@@ -169,13 +171,13 @@ class ControlNetService:
             # Stub implementation - return True for testing
             self._current_model_type = model_type
             self._model_loaded = True
-            logger.info(f"Model {model_type} loaded successfully (stub mode)")
+            logger.info("Model loaded successfully (stub mode)", extra={"operation": "load_model", "model_type": model_type})
             return True
 
         try:
             # Check if model is already loaded
             if self._model_loaded and self._current_model_type == model_type:
-                logger.info(f"Model {model_type} already loaded")
+                logger.info("Model already loaded", extra={"operation": "load_model", "model_type": model_type})
                 return True
 
             # Unload existing model if different
@@ -202,11 +204,11 @@ class ControlNetService:
             self._current_model_type = model_type
             self._model_loaded = True
 
-            logger.info(f"Model {model_type} loaded successfully")
+            logger.info("Model loaded successfully", extra={"operation": "load_model", "model_type": model_type})
             return True
 
         except Exception as e:
-            logger.error(f"Failed to load model {model_type}: {e}")
+            logger.error("Failed to load model", extra={"operation": "load_model", "model_type": model_type}, exc_info=True)
             # Stub fallback for testing without diffusers
             self._current_model_type = model_type
             self._model_loaded = True
@@ -263,17 +265,21 @@ class ControlNetService:
         if not self._model_loaded:
             raise RuntimeError("Model must be loaded before generation. Call load_model() first.")
 
+        logger.info("Decoding and resizing images", extra={"operation": "generate", "width": width, "height": height})
+
         # Decode init and control images
         try:
             init_img = decode_base64_image(init_image)
             init_img = resize_control_image(init_img, width, height)
         except ValueError as e:
+            logger.error("Failed to decode init image", extra={"operation": "generate"}, exc_info=True)
             raise ValueError(f"Failed to decode init image: {e}")
 
         try:
             control_img = decode_base64_image(control_image)
             control_img = resize_control_image(control_img, width, height)
         except ValueError as e:
+            logger.error("Failed to decode control image", extra={"operation": "generate"}, exc_info=True)
             raise ValueError(f"Failed to decode control image: {e}")
 
         # Set up random seed
@@ -328,7 +334,7 @@ class ControlNetService:
                 ))
 
         processing_time = (time.time() - start_time) * 1000
-        logger.info(f"Generation complete in {processing_time:.2f}ms")
+        logger.info("Generation complete", extra={"operation": "generate", "duration_ms": round(processing_time, 2), "num_images": len(generated_images)})
         return generated_images
 
     async def unload_model(self) -> None:
