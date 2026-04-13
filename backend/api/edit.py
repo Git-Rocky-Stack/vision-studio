@@ -13,8 +13,9 @@ import logging
 import time
 from typing import Optional, Union
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, Request, status
 
+from middleware.rate_limit import LIMITS, limiter
 from schemas.edit import (  # type: ignore[import-not-found]
     BackgroundRemoveRequest,
     BackgroundRemoveResponse,
@@ -58,7 +59,8 @@ def get_service() -> EditService:
         500: {"model": EditErrorResponse, "description": "Internal server error"},
     },
 )
-async def remove_background(request: BackgroundRemoveRequest) -> Union[BackgroundRemoveResponse, EditErrorResponse]:
+@limiter.limit(LIMITS["edit"])
+async def remove_background(request: Request, bg_request: BackgroundRemoveRequest) -> Union[BackgroundRemoveResponse, EditErrorResponse]:
     """
     Remove background from an image.
 
@@ -91,15 +93,15 @@ async def remove_background(request: BackgroundRemoveRequest) -> Union[Backgroun
 
     try:
         # Validate base64 image
-        if not validate_base64(request.image):
+        if not validate_base64(bg_request.image):
             raise ValueError("Invalid base64 format for image")
 
         # Remove background
         result_image, processing_time_ms = await service.remove_background(
-            image=request.image,
-            alpha_matting=request.alpha_matting,
-            alpha_matting_foreground_threshold=request.alpha_matting_foreground_threshold,
-            alpha_matting_background_threshold=request.alpha_matting_background_threshold,
+            image=bg_request.image,
+            alpha_matting=bg_request.alpha_matting,
+            alpha_matting_foreground_threshold=bg_request.alpha_matting_foreground_threshold,
+            alpha_matting_background_threshold=bg_request.alpha_matting_background_threshold,
         )
 
         return BackgroundRemoveResponse(
@@ -135,7 +137,8 @@ async def remove_background(request: BackgroundRemoveRequest) -> Union[Backgroun
         500: {"model": EditErrorResponse, "description": "Internal server error"},
     },
 )
-async def upscale_image(request: UpscaleRequest) -> Union[UpscaleResponse, EditErrorResponse]:
+@limiter.limit(LIMITS["edit"])
+async def upscale_image(request: Request, upscale_request: UpscaleRequest) -> Union[UpscaleResponse, EditErrorResponse]:
     """
     Upscale an image using AI super-resolution.
 
@@ -168,14 +171,14 @@ async def upscale_image(request: UpscaleRequest) -> Union[UpscaleResponse, EditE
 
     try:
         # Validate base64 image
-        if not validate_base64(request.image):
+        if not validate_base64(upscale_request.image):
             raise ValueError("Invalid base64 format for image")
 
         # Upscale image
         result_image, original_size, new_size, processing_time_ms = await service.upscale(
-            image=request.image,
-            scale=request.scale,
-            face_enhance=request.face_enhance,
+            image=upscale_request.image,
+            scale=upscale_request.scale,
+            face_enhance=upscale_request.face_enhance,
         )
 
         return UpscaleResponse(
@@ -213,7 +216,8 @@ async def upscale_image(request: UpscaleRequest) -> Union[UpscaleResponse, EditE
         500: {"model": EditErrorResponse, "description": "Internal server error"},
     },
 )
-async def restore_faces(request: FaceRestoreRequest) -> Union[FaceRestoreResponse, EditErrorResponse]:
+@limiter.limit(LIMITS["edit"])
+async def restore_faces(request: Request, face_request: FaceRestoreRequest) -> Union[FaceRestoreResponse, EditErrorResponse]:
     """
     Restore and enhance faces in an image.
 
@@ -246,13 +250,13 @@ async def restore_faces(request: FaceRestoreRequest) -> Union[FaceRestoreRespons
 
     try:
         # Validate base64 image
-        if not validate_base64(request.image):
+        if not validate_base64(face_request.image):
             raise ValueError("Invalid base64 format for image")
 
         # Restore faces
         result_image, faces_detected, processing_time_ms = await service.restore_faces(
-            image=request.image,
-            fidelity=request.fidelity,
+            image=face_request.image,
+            fidelity=face_request.fidelity,
         )
 
         return FaceRestoreResponse(
@@ -284,7 +288,8 @@ async def restore_faces(request: FaceRestoreRequest) -> Union[FaceRestoreRespons
     "/models",
     response_model=dict,
 )
-async def list_edit_models() -> dict:
+@limiter.limit(LIMITS["default"])
+async def list_edit_models(request: Request) -> dict:
     """
     List available edit models and their status.
 

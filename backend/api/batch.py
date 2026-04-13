@@ -12,8 +12,9 @@ import time
 
 logger = logging.getLogger(__name__)
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, Request, status
 
+from middleware.rate_limit import LIMITS, limiter
 from schemas.batch import (  # type: ignore[import-not-found]
     BatchErrorResponse,
     BatchExportRequest,
@@ -49,7 +50,8 @@ def get_service() -> BatchService:
         500: {"model": BatchErrorResponse, "description": "Internal server error"},
     },
 )
-async def export_batch_to_zip(request: BatchExportRequest) -> BatchExportResponse | BatchErrorResponse:
+@limiter.limit(LIMITS["batch"])
+async def export_batch_to_zip(request: Request, batch_request: BatchExportRequest) -> BatchExportResponse | BatchErrorResponse:
     """
     Export multiple images to a ZIP archive.
 
@@ -85,7 +87,7 @@ async def export_batch_to_zip(request: BatchExportRequest) -> BatchExportRespons
 
     try:
         # Sanitize image IDs (prevent path traversal)
-        sanitized_image_ids = [sanitize_path(image_id) for image_id in request.image_ids]
+        sanitized_image_ids = [sanitize_path(image_id) for image_id in batch_request.image_ids]
 
         # Check which images exist before processing
         missing_images = [
@@ -96,7 +98,7 @@ async def export_batch_to_zip(request: BatchExportRequest) -> BatchExportRespons
         if missing_images:
             logger.warning(f"Missing images: {missing_images}")
             # If ALL images are missing, return 404
-            if len(missing_images) == len(request.image_ids):
+            if len(missing_images) == len(batch_request.image_ids):
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail={
@@ -109,9 +111,9 @@ async def export_batch_to_zip(request: BatchExportRequest) -> BatchExportRespons
         # Export to ZIP
         zip_bytes, file_count = service.export_to_zip(
             image_ids=sanitized_image_ids,
-            format=request.format,
-            quality=request.quality,
-            resize=request.resize,
+            format=batch_request.format,
+            quality=batch_request.quality,
+            resize=batch_request.resize,
         )
 
         # Encode ZIP to base64

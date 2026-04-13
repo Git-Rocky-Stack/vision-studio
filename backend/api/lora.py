@@ -14,8 +14,9 @@ from typing import Any, Dict, List, Optional, Union
 
 logger = logging.getLogger(__name__)
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, Request, status
 
+from middleware.rate_limit import LIMITS, limiter
 from schemas.lora import (  # type: ignore[import-not-found]
     LoRAErrorResponse,
     LoRARequest,
@@ -47,7 +48,8 @@ def get_service() -> LoRAService:
     "/generate",
     response_model=Union[LoRAResponse, LoRAErrorResponse],
 )
-async def generate_lora(request: LoRARequest) -> Union[LoRAResponse, LoRAErrorResponse]:
+@limiter.limit(LIMITS["generate"])
+async def generate_lora(request: Request, lora_request: LoRARequest) -> Union[LoRAResponse, LoRAErrorResponse]:
     """
     Generate images using LoRA (Low-Rank Adaptation).
 
@@ -96,27 +98,27 @@ async def generate_lora(request: LoRARequest) -> Union[LoRAResponse, LoRAErrorRe
 
     try:
         # Sanitize prompt
-        sanitized_prompt = sanitize_prompt(request.prompt)
+        sanitized_prompt = sanitize_prompt(lora_request.prompt)
         if not sanitized_prompt:
             raise ValueError("Prompt is empty after sanitization")
 
         # Load the LoRA with specified scale
         await service.load_lora(
-            base_model=request.base_model,
-            lora_path=request.lora_path,
-            scale=request.lora_scale,
+            base_model=lora_request.base_model,
+            lora_path=lora_request.lora_path,
+            scale=lora_request.lora_scale,
         )
 
         # Generate images
         results = await service.generate(
             prompt=sanitized_prompt,
-            negative_prompt=request.negative_prompt or "",
-            steps=request.num_inference_steps,
-            guidance=request.guidance_scale,
-            width=request.width,
-            height=request.height,
-            seed=request.seed,
-            num_images=request.num_images,
+            negative_prompt=lora_request.negative_prompt or "",
+            steps=lora_request.num_inference_steps,
+            guidance=lora_request.guidance_scale,
+            width=lora_request.width,
+            height=lora_request.height,
+            seed=lora_request.seed,
+            num_images=lora_request.num_images,
         )
 
         # Encode generated images to base64
@@ -131,8 +133,8 @@ async def generate_lora(request: LoRARequest) -> Union[LoRAResponse, LoRAErrorRe
             images=output_images,
             seed=results[0].seed if results else 0,
             processing_time_ms=processing_time_ms,
-            lora_applied=request.lora_path,
-            lora_scale=request.lora_scale,
+            lora_applied=lora_request.lora_path,
+            lora_scale=lora_request.lora_scale,
         )
 
     except ValueError as e:
@@ -161,7 +163,8 @@ async def generate_lora(request: LoRARequest) -> Union[LoRAResponse, LoRAErrorRe
         500: {"model": LoRAErrorResponse, "description": "Internal server error"},
     },
 )
-async def unload_lora() -> Dict[str, Any]:
+@limiter.limit(LIMITS["default"])
+async def unload_lora(request: Request) -> Dict[str, Any]:
     """
     Unload the LoRA model from memory.
 

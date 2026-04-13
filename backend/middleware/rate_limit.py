@@ -18,6 +18,14 @@ RATE_LIMIT_EDIT = "30/minute"      # Edit tool endpoints
 RATE_LIMIT_BATCH = "5/minute"      # Batch export (resource intensive)
 RATE_LIMIT_DEFAULT = "60/minute"   # All other endpoints
 
+# Convenience dict for decorator usage
+LIMITS = {
+    "generate": RATE_LIMIT_GENERATE,
+    "edit": RATE_LIMIT_EDIT,
+    "batch": RATE_LIMIT_BATCH,
+    "default": RATE_LIMIT_DEFAULT,
+}
+
 
 def get_remote_address(request: Request) -> str:
     """
@@ -40,14 +48,19 @@ def rate_limit_exceeded_handler(request: Request, exc: RateLimitExceeded) -> JSO
     """
     Handle rate limit exceeded exceptions.
 
-    Returns a JSON 429 response with retry information.
+    Returns a JSON 429 response with standard rate limit headers.
     """
     return JSONResponse(
         status_code=429,
         content={
+            "success": False,
             "error": "Rate limit exceeded",
-            "error_code": "RATE_LIMIT_EXCEEDED",
-            "detail": f"Too many requests. Please try again after {exc.detail}",
-            "retry_after": exc.detail,
+            "error_code": "RATE_LIMITED",
+            "retry_after": str(exc.headers.get("Retry-After", "60")),
+        },
+        headers={
+            "Retry-After": exc.headers.get("Retry-After", "60"),
+            "X-RateLimit-Limit": exc.headers.get("X-RateLimit-Limit", "unknown"),
+            "X-RateLimit-Reset": exc.headers.get("X-RateLimit-Reset", "unknown"),
         },
     )

@@ -13,8 +13,9 @@ from typing import Any, Dict, List, Optional, Union
 
 logger = logging.getLogger(__name__)
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, Request, status
 
+from middleware.rate_limit import LIMITS, limiter
 from schemas.controlnet import (  # type: ignore[import-not-found]
     ControlNetErrorResponse,
     ControlNetModel,
@@ -48,7 +49,8 @@ def get_service() -> ControlNetService:
     "/generate",
     response_model=Union[ControlNetResponse, ControlNetErrorResponse],
 )
-async def generate_controlnet(request: ControlNetRequest) -> Union[ControlNetResponse, ControlNetErrorResponse]:
+@limiter.limit(LIMITS["generate"])
+async def generate_controlnet(request: Request, control_request: ControlNetRequest) -> Union[ControlNetResponse, ControlNetErrorResponse]:
     """
     Generate images using ControlNet.
 
@@ -108,36 +110,36 @@ async def generate_controlnet(request: ControlNetRequest) -> Union[ControlNetRes
 
     try:
         # Sanitize prompt
-        sanitized_prompt = sanitize_prompt(request.prompt)
+        sanitized_prompt = sanitize_prompt(control_request.prompt)
         if not sanitized_prompt:
             raise ValueError("Prompt is empty after sanitization")
 
         # Validate base64 images
-        if request.init_image and not validate_base64(request.init_image):
+        if control_request.init_image and not validate_base64(control_request.init_image):
             raise ValueError("Invalid base64 format for init_image")
-        if request.control_image and not validate_base64(request.control_image):
+        if control_request.control_image and not validate_base64(control_request.control_image):
             raise ValueError("Invalid base64 format for control_image")
 
         # Load the requested model
-        model_type = request.model.value
+        model_type = control_request.model.value
         await service.load_model(model_type)
 
         # Generate images
         results = await service.generate(
             prompt=sanitized_prompt,
-            init_image=request.init_image,
-            control_image=request.control_image,
+            init_image=control_request.init_image,
+            control_image=control_request.control_image,
             model_type=model_type,
-            width=request.width,
-            height=request.height,
-            steps=request.steps,
-            guidance_scale=request.guidance_scale,
-            conditioning_scale=request.conditioning_scale,
-            guidance_start=request.guidance_start,
-            guidance_end=request.guidance_end,
-            negative_prompt=request.negative_prompt,
-            seed=request.seed,
-            num_images=request.num_images,
+            width=control_request.width,
+            height=control_request.height,
+            steps=control_request.steps,
+            guidance_scale=control_request.guidance_scale,
+            conditioning_scale=control_request.conditioning_scale,
+            guidance_start=control_request.guidance_start,
+            guidance_end=control_request.guidance_end,
+            negative_prompt=control_request.negative_prompt,
+            seed=control_request.seed,
+            num_images=control_request.num_images,
         )
 
         # Encode generated images to base64
@@ -150,7 +152,7 @@ async def generate_controlnet(request: ControlNetRequest) -> Union[ControlNetRes
 
         return ControlNetResponse(
             images=output_images,
-            seed=results[0].seed if results else request.seed,
+            seed=results[0].seed if results else control_request.seed,
             processing_time_ms=processing_time_ms,
             model_used=model_type,
         )
@@ -181,7 +183,8 @@ async def generate_controlnet(request: ControlNetRequest) -> Union[ControlNetRes
         500: {"model": ControlNetErrorResponse, "description": "Internal server error"},
     },
 )
-async def unload_controlnet() -> Dict[str, Any]:
+@limiter.limit(LIMITS["default"])
+async def unload_controlnet(request: Request) -> Dict[str, Any]:
     """
     Unload the ControlNet model from memory.
 
