@@ -223,6 +223,10 @@ function startPythonBackend(): Promise<boolean> {
         // Set models directory to app data
         MODELS_DIR: join(app.getPath('userData'), 'models'),
         OUTPUT_DIR: outputDirectory,
+        // Persist database in app data (not PyInstaller temp dir)
+        DATABASE_PATH: join(app.getPath('userData'), 'data', 'vision_studio.db'),
+        // Write backend logs to app data for diagnostics
+        LOG_FILE: join(app.getPath('userData'), 'logs', 'backend.log'),
       },
       detached: false,
     });

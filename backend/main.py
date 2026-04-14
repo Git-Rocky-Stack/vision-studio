@@ -62,7 +62,7 @@ from db.migrate import run_migrations
 from middleware.rate_limit import limiter, rate_limit_exceeded_handler
 
 # Initialize logging at module load time
-setup_logging()
+setup_logging(log_file=os.getenv("LOG_FILE"))
 logger = get_logger(__name__)
 from api.lora import router as lora_router
 from api.edit import router as edit_router
