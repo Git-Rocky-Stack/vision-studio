@@ -18,6 +18,8 @@ import {
   Save,
   Play,
   Download,
+  Clapperboard,
+  Zap,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { AdvancedGenerationSettings } from '@/components/generate/AdvancedGenerationSettings';
@@ -26,7 +28,7 @@ const SIDEBAR_WIDTH_COLLAPSED = 72;
 const SIDEBAR_WIDTH_EXPANDED = 224;
 
 interface NavItem {
-  id: 'generate' | 'edit' | 'assets' | 'settings' | 'templates' | 'batch';
+  id: 'generate' | 'edit' | 'assets' | 'settings' | 'templates' | 'batch' | 'storyboard' | 'quick';
   label: string;
   icon: React.ElementType;
 }
@@ -35,6 +37,8 @@ const navItems: NavItem[] = [
   { id: 'generate', label: 'Generate', icon: Wand2 },
   { id: 'batch', label: 'Batch', icon: Layers },
   { id: 'templates', label: 'Templates', icon: LayoutTemplate },
+  { id: 'storyboard', label: 'Storyboard', icon: Clapperboard },
+  { id: 'quick', label: 'Quick', icon: Zap },
   { id: 'edit', label: 'Edit', icon: Palette },
   { id: 'assets', label: 'Assets', icon: FolderOpen },
   { id: 'settings', label: 'Settings', icon: Settings },
