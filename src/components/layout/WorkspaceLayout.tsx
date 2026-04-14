@@ -106,15 +106,16 @@ export function WorkspaceLayout({
         );
 
       case 'generate':
+      case 'quick':
         return (
           <div className="flex-1 flex min-h-0">
             {/* Canvas */}
             <div className="flex-1 min-w-0">
               {canvas}
             </div>
-            {/* Generate panel (right) */}
+            {/* Generate/Quick panel (right) */}
             <div className="w-[clamp(320px,30%,420px)] flex-shrink-0 border-l border-border bg-surface flex flex-col min-h-0">
-              {panels['generate']}
+              {panels[activePanel]}
             </div>
           </div>
         );
