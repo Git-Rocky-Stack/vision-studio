@@ -281,6 +281,7 @@ export function LayerPanel() {
         <div className="flex items-center gap-1">
           <button
             onClick={handleAddLayer}
+            aria-label="New layer"
             className="p-1 rounded text-text-muted hover:text-text-primary hover:bg-elevated transition-all"
             title="New Layer"
           >
@@ -295,6 +296,7 @@ export function LayerPanel() {
                 ? 'text-text-muted hover:text-text-primary hover:bg-elevated'
                 : 'text-text-muted/30 cursor-not-allowed'
             )}
+            aria-label="Duplicate layer"
             title="Duplicate Layer"
           >
             <Copy className="w-3.5 h-3.5" />
