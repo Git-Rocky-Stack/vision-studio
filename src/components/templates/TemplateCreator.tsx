@@ -50,8 +50,10 @@ interface TemplateCreatorProps {
 
 const FALLBACK_MODELS = [
   { id: 'flux-dev', name: 'FLUX.1 [dev]' },
+  { id: 'sd3.5-large', name: 'Stable Diffusion 3.5 Large' },
+  { id: 'flux-fill', name: 'FLUX.1 Fill [dev]' },
+  { id: 'sd3.5-medium', name: 'Stable Diffusion 3.5 Medium' },
   { id: 'flux-schnell', name: 'FLUX.1 [schnell]' },
-  { id: 'sdxl', name: 'Stable Diffusion XL' },
   { id: 'sd-1-5', name: 'Stable Diffusion 1.5' },
 ];
 

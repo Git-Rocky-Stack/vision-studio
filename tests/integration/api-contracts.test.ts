@@ -37,14 +37,14 @@ describe('ImageGenerationRequest schema', () => {
       steps: 50,
       cfg_scale: 12,
       seed: 42,
-      model: 'sdxl',
+      model: 'sd3.5-medium',
       scheduler: 'dpm++',
     });
 
     expect(custom.width).toBe(1344);
     expect(custom.height).toBe(768);
     expect(custom.seed).toBe(42);
-    expect(custom.model).toBe('sdxl');
+    expect(custom.model).toBe('sd3.5-medium');
   });
 
   it('rejects dimensions outside allowed range', () => {

@@ -1,13 +1,13 @@
 import { useState, useRef, useEffect } from 'react';
 import { cn } from '@/utils/cn';
 import { hexToRgba } from '@/utils/colorUtils';
-import { ChevronDown, Check, Cpu, Zap, Scale } from 'lucide-react';
+import { ChevronDown, Check, Cpu, Zap, Scale, Sparkles, Paintbrush } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface ModelOption {
   id: string;
   name: string;
-  quality: 'best' | 'fast' | 'balanced';
+  quality: 'best' | 'high' | 'fast' | 'balanced' | 'inpainting';
   vram: string;
   description: string;
   type: 'image' | 'video';
@@ -23,19 +23,35 @@ const IMAGE_MODELS: ModelOption[] = [
     type: 'image',
   },
   {
+    id: 'sd3.5-large',
+    name: 'Stable Diffusion 3.5 Large',
+    quality: 'high',
+    vram: '~12 GB',
+    description: 'Modern MM-DiT architecture with superior composition and typography',
+    type: 'image',
+  },
+  {
+    id: 'flux-fill',
+    name: 'FLUX.1 Fill [dev]',
+    quality: 'inpainting',
+    vram: '23.8 GB',
+    description: 'Inpainting and outpainting with seamless region blending',
+    type: 'image',
+  },
+  {
+    id: 'sd3.5-medium',
+    name: 'Stable Diffusion 3.5 Medium',
+    quality: 'balanced',
+    vram: '~6 GB',
+    description: 'Strong prompt understanding and versatile output with low VRAM',
+    type: 'image',
+  },
+  {
     id: 'flux-schnell',
     name: 'FLUX.1 [schnell]',
     quality: 'fast',
     vram: '23.8 GB',
     description: 'Fast generation with good quality, 4-step inference',
-    type: 'image',
-  },
-  {
-    id: 'sdxl',
-    name: 'Stable Diffusion XL',
-    quality: 'balanced',
-    vram: '6.9 GB',
-    description: 'Versatile model with broad style range and lower VRAM',
     type: 'image',
   },
   {
@@ -80,8 +96,10 @@ const qualityBadge: Record<
   { label: string; color: string; icon: React.ElementType }
 > = {
   best: { label: 'Best Quality', color: 'var(--color-feature-03)', icon: Cpu },
-  fast: { label: 'Fast', color: 'var(--color-feature-04)', icon: Zap },
+  high: { label: 'High Quality', color: 'var(--color-feature-02)', icon: Sparkles },
+  inpainting: { label: 'Inpainting', color: 'var(--color-feature-05)', icon: Paintbrush },
   balanced: { label: 'Balanced', color: 'var(--color-feature-06)', icon: Scale },
+  fast: { label: 'Fast', color: 'var(--color-feature-04)', icon: Zap },
 };
 
 interface ModelSelectorProps {

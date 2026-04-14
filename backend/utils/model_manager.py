@@ -62,8 +62,38 @@ PREDEFINED_MODELS = {
         size="23.8 GB",
         description="Fast 4-step image generation model"
     ),
-    
-    # SDXL Models
+    "flux-fill": ModelInfo(
+        id="flux-fill",
+        name="FLUX.1 Fill [dev]",
+        type="checkpoint",
+        source="huggingface",
+        repo_id="black-forest-labs/FLUX.1-Fill-dev",
+        filename="flux1-fill-dev.safetensors",
+        size="23.8 GB",
+        description="Inpainting and outpainting model by Black Forest Labs"
+    ),
+
+    # SD3.5 Models
+    "sd3.5-large": ModelInfo(
+        id="sd3.5-large",
+        name="Stable Diffusion 3.5 Large",
+        type="diffusers",
+        source="huggingface",
+        repo_id="stabilityai/stable-diffusion-3.5-large",
+        size="~16 GB",
+        description="Modern MM-DiT architecture with superior composition and typography"
+    ),
+    "sd3.5-medium": ModelInfo(
+        id="sd3.5-medium",
+        name="Stable Diffusion 3.5 Medium",
+        type="diffusers",
+        source="huggingface",
+        repo_id="stabilityai/stable-diffusion-3.5-medium",
+        size="~5.5 GB",
+        description="Strong prompt understanding and versatile output with low VRAM"
+    ),
+
+    # Legacy SDXL Models (kept for backwards compatibility)
     "sdxl-base": ModelInfo(
         id="sdxl-base",
         name="Stable Diffusion XL Base",

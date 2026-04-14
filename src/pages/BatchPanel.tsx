@@ -654,8 +654,10 @@ export function BatchPromptQueue() {
                     className="w-full bg-elevated border border-border rounded-lg px-3 py-2 text-sm text-text-primary font-display"
                   >
                     <option value="flux-dev">FLUX.1 [dev]</option>
+                    <option value="sd3.5-large">Stable Diffusion 3.5 Large</option>
+                    <option value="flux-fill">FLUX.1 Fill [dev]</option>
+                    <option value="sd3.5-medium">Stable Diffusion 3.5 Medium</option>
                     <option value="flux-schnell">FLUX.1 [schnell]</option>
-                    <option value="sdxl">Stable Diffusion XL</option>
                     <option value="sd-1-5">Stable Diffusion 1.5</option>
                   </select>
                 </div>

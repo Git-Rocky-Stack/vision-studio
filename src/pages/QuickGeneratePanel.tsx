@@ -14,10 +14,12 @@ const ASPECT_RATIOS = [
 ] as const;
 
 const MODELS = [
-  { id: 'flux-dev', name: 'Flux Dev' },
-  { id: 'flux-schnell', name: 'Flux Schnell' },
-  { id: 'stable-diffusion-xl', name: 'SDXL' },
-  { id: 'kolors', name: 'Kolors' },
+  { id: 'flux-dev', name: 'FLUX.1 [dev]' },
+  { id: 'sd3.5-large', name: 'SD 3.5 Large' },
+  { id: 'flux-fill', name: 'FLUX.1 Fill' },
+  { id: 'sd3.5-medium', name: 'SD 3.5 Medium' },
+  { id: 'flux-schnell', name: 'FLUX.1 [schnell]' },
+  { id: 'sd-1-5', name: 'SD 1.5' },
 ];
 
 interface GenStatus {

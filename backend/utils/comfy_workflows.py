@@ -42,8 +42,14 @@ def build_image_workflow(
     normalized_model = model.lower()
 
     checkpoint_name = "flux1-dev.safetensors"
-    if "schnell" in normalized_model:
+    if "fill" in normalized_model and "flux" in normalized_model:
+        checkpoint_name = "flux1-fill-dev.safetensors"
+    elif "schnell" in normalized_model:
         checkpoint_name = "flux1-schnell.safetensors"
+    elif "sd3.5" in normalized_model and "large" in normalized_model:
+        checkpoint_name = "sd3.5_large.safetensors"
+    elif "sd3.5" in normalized_model and "medium" in normalized_model:
+        checkpoint_name = "sd3.5_medium.safetensors"
     elif "sdxl" in normalized_model:
         checkpoint_name = "sdxl_base.safetensors"
     elif "sd-1-5" in normalized_model or "stable-diffusion-v1-5" in normalized_model:

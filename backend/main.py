@@ -567,8 +567,11 @@ async def generate_image(
 
     ### Models Available
     - `flux-dev`: FLUX.1 dev model (highest quality)
-    - `sdxl`: Stable Diffusion XL
-    - `sd-1.5`: Stable Diffusion 1.5 (fastest)
+    - `sd3.5-large`: Stable Diffusion 3.5 Large (high quality, lower VRAM)
+    - `flux-fill`: FLUX.1 Fill dev (inpainting/outpainting)
+    - `sd3.5-medium`: Stable Diffusion 3.5 Medium (balanced quality and VRAM)
+    - `flux-schnell`: FLUX.1 schnell (fast generation)
+    - `sd-1.5`: Stable Diffusion 1.5 (lightweight)
 
     ### Example
     ```json
@@ -999,7 +1002,7 @@ async def download_model(request: Request, model_id: str, background_tasks: Back
     Start downloading a model in the background.
 
     ### Path Parameters
-    - `model_id`: The unique model identifier (e.g., "flux-dev", "sdxl")
+    - `model_id`: The unique model identifier (e.g., "flux-dev", "sd3.5-large", "flux-fill", "sd3.5-medium")
 
     ### Behavior
     Model downloads run asynchronously in the background. Use `GET /api/models/{model_id}/status`

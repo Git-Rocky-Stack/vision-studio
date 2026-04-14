@@ -254,10 +254,112 @@ class ComfyUIClient:
         
         return workflow
     
-    def create_sdxl_workflow(self, prompt: str, negative_prompt: str = "", 
+    def create_sd35_workflow(self, prompt: str, negative_prompt: str = "",
+                            width: int = 1024, height: int = 1024,
+                            steps: int = 28, cfg: float = 4.5, seed: int = None,
+                            model_variant: str = "large") -> Dict:
+        """Create an SD3.5 workflow (large or medium)"""
+        if seed is None:
+            import random
+            seed = random.randint(0, 2**32 - 1)
+
+        checkpoint_name = "sd3.5_large.safetensors" if model_variant == "large" else "sd3.5_medium.safetensors"
+
+        workflow = {
+            "1": {
+                "inputs": {"ckpt_name": checkpoint_name},
+                "class_type": "CheckpointLoaderSimple"
+            },
+            "2": {
+                "inputs": {"text": prompt, "clip": ["1", 1]},
+                "class_type": "CLIPTextEncode"
+            },
+            "3": {
+                "inputs": {"text": negative_prompt, "clip": ["1", 1]},
+                "class_type": "CLIPTextEncode"
+            },
+            "4": {
+                "inputs": {"width": width, "height": height, "batch_size": 1},
+                "class_type": "EmptyLatentImage"
+            },
+            "5": {
+                "inputs": {
+                    "seed": seed,
+                    "steps": steps,
+                    "cfg": cfg,
+                    "sampler_name": "dpmpp_2m",
+                    "scheduler": "karras",
+                    "model": ["1", 0],
+                    "positive": ["2", 0],
+                    "negative": ["3", 0],
+                    "latent_image": ["4", 0]
+                },
+                "class_type": "KSampler"
+            },
+            "6": {
+                "inputs": {"samples": ["5", 0], "vae": ["1", 2]},
+                "class_type": "VAEDecode"
+            },
+            "7": {
+                "inputs": {"filename_prefix": "sd35_output", "images": ["6", 0]},
+                "class_type": "SaveImage"
+            }
+        }
+
+        return workflow
+
+    def create_flux_fill_workflow(self, prompt: str, negative_prompt: str = "",
+                                  image_path: str = "", mask_path: str = "",
+                                  width: int = 1024, height: int = 1024,
+                                  steps: int = 28, cfg: float = 1.0, seed: int = None) -> Dict:
+        """Create a FLUX.1 Fill (inpainting) workflow"""
+        if seed is None:
+            import random
+            seed = random.randint(0, 2**32 - 1)
+
+        workflow = {
+            "1": {
+                "inputs": {"ckpt_name": "flux1-fill-dev.safetensors"},
+                "class_type": "CheckpointLoaderSimple"
+            },
+            "2": {
+                "inputs": {"text": prompt, "clip": ["1", 1]},
+                "class_type": "CLIPTextEncode"
+            },
+            "3": {
+                "inputs": {"width": width, "height": height, "batch_size": 1},
+                "class_type": "EmptyLatentImage"
+            },
+            "4": {
+                "inputs": {
+                    "seed": seed,
+                    "steps": steps,
+                    "cfg": cfg,
+                    "sampler_name": "euler",
+                    "scheduler": "simple",
+                    "model": ["1", 0],
+                    "positive": ["2", 0],
+                    "negative": ["2", 0],
+                    "latent_image": ["3", 0]
+                },
+                "class_type": "KSampler"
+            },
+            "5": {
+                "inputs": {"samples": ["4", 0], "vae": ["1", 2]},
+                "class_type": "VAEDecode"
+            },
+            "6": {
+                "inputs": {"filename_prefix": "flux_fill_output", "images": ["5", 0]},
+                "class_type": "SaveImage"
+            }
+        }
+
+        return workflow
+
+    def create_sdxl_workflow(self, prompt: str, negative_prompt: str = "",
                             width: int = 1024, height: int = 1024,
                             steps: int = 30, cfg: float = 7.5, seed: int = None) -> Dict:
-        """Create an SDXL workflow"""
+        """Create an SDXL workflow (legacy, kept for backwards compatibility)"""
         if seed is None:
             import random
             seed = random.randint(0, 2**32 - 1)
