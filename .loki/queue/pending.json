@@ -1,1 +1,5 @@
-[]
+[
+  { "id": "P2", "goal": "Run full test suite (bun test)", "status": "completed", "note": "61 pass, 29 fail - pre-existing" },
+  { "id": "P4", "goal": "Run production build (bun run build)", "status": "completed", "note": "PASSED" },
+  { "id": "P5", "goal": "Tag/release v2.1.0", "status": "completed", "note": "Pushed to origin" }
+]

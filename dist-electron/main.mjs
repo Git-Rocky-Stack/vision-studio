@@ -3536,7 +3536,7 @@ function Zr() {
     "%URIErrorPrototype%": ["URIError", "prototype"],
     "%WeakMapPrototype%": ["WeakMap", "prototype"],
     "%WeakSetPrototype%": ["WeakSet", "prototype"]
-  }, C = Pt(), z = /* @__PURE__ */ wa(), B = C.call(I, Array.prototype.concat), P = C.call(L, Array.prototype.splice), M = C.call(I, String.prototype.replace), Q = C.call(I, String.prototype.slice), J = C.call(I, RegExp.prototype.exec), Y = /[^%.[\]]+|\[(?:(-?\d+(?:\.\d+)?)|(["'])((?:(?!\2)[^\\]|\\.)*?)\2)\]|(?=(?:\.|\[\])(?:\.|\[\]|%$))/g, W = /\\(\\)?/g, ee = function(G) {
+  }, C = Pt(), z = /* @__PURE__ */ wa(), B = C.call(I, Array.prototype.concat), P = C.call(L, Array.prototype.splice), M = C.call(I, String.prototype.replace), Q = C.call(I, String.prototype.slice), J = C.call(I, RegExp.prototype.exec), Y = /[^%.[\]]+|\[(?:(-?\d+(?:\.\d+)?)|(["'])((?:(?!\2)[^\\]|\\.)*?)\2)\]|(?=(?:\.|\[\])(?:\.|\[\]|%$))/g, W = /\\(\\)?/g, te = function(G) {
     var re = Q(G, 0, 1), ae = Q(G, -1);
     if (re === "%" && ae !== "%")
       throw new s("invalid intrinsic syntax, expected closing `%`");
@@ -3567,7 +3567,7 @@ function Zr() {
       throw new r('"allowMissing" argument must be a boolean');
     if (J(/^%?[^%]*%?$/, G) === null)
       throw new s("`%` may not be present anywhere but at the beginning and end of the intrinsic name");
-    var ae = ee(G), ce = ae.length > 0 ? ae[0] : "", fe = ge("%" + ce + "%", re), Te = fe.name, le = fe.value, R = !1, T = fe.alias;
+    var ae = te(G), ce = ae.length > 0 ? ae[0] : "", fe = ge("%" + ce + "%", re), Te = fe.name, le = fe.value, R = !1, T = fe.alias;
     T && (ce = T[0], P(ae, B([0, 1], T)));
     for (var q = 1, $ = !0; q < ae.length; q += 1) {
       var N = ae[q], X = Q(N, 0, 1), we = Q(N, -1);
@@ -5093,7 +5093,7 @@ function Bc() {
     O === 303 && !/^(?:GET|HEAD)$/.test(this._options.method)) && (this._options.method = "GET", this._requestBodyBuffers = [], S(/^content-/i, this._options.headers));
     var M = S(/^host$/i, this._options.headers), Q = A(this._currentUrl), J = M || Q.host, Y = /^\w+:/.test(C) ? this._currentUrl : t.format(Object.assign(Q, { host: J })), W = g(C, Y);
     if (s("redirecting to", W.href), this._isRedirect = !0, y(W, this._options), (W.protocol !== Q.protocol && W.protocol !== "https:" || W.host !== J && !I(W.host, J)) && S(/^(?:(?:proxy-)?authorization|cookie)$/i, this._options.headers), H(B)) {
-      var ee = {
+      var te = {
         headers: b.headers,
         statusCode: O
       }, ge = {
@@ -5101,7 +5101,7 @@ function Bc() {
         method: P,
         headers: z
       };
-      B(this._options, ee, ge), this._sanitizeOptions(this._options);
+      B(this._options, te, ge), this._sanitizeOptions(this._options);
     }
     this._performRequest();
   };
@@ -5112,14 +5112,14 @@ function Bc() {
     }, C = {};
     return Object.keys(b).forEach(function(z) {
       var B = z + ":", P = C[B] = b[z], M = O[z] = Object.create(P);
-      function Q(Y, W, ee) {
-        return ne(Y) ? Y = y(Y) : D(Y) ? Y = y(A(Y)) : (ee = W, W = m(Y), Y = { protocol: B }), H(W) && (ee = W, W = null), W = Object.assign({
+      function Q(Y, W, te) {
+        return ne(Y) ? Y = y(Y) : D(Y) ? Y = y(A(Y)) : (te = W, W = m(Y), Y = { protocol: B }), H(W) && (te = W, W = null), W = Object.assign({
           maxRedirects: O.maxRedirects,
           maxBodyLength: O.maxBodyLength
-        }, Y, W), W.nativeProtocols = C, !D(W.host) && !D(W.hostname) && (W.hostname = "::1"), o.equal(W.protocol, B, "protocol mismatch"), s("options", W), new v(W, ee);
+        }, Y, W), W.nativeProtocols = C, !D(W.host) && !D(W.hostname) && (W.hostname = "::1"), o.equal(W.protocol, B, "protocol mismatch"), s("options", W), new v(W, te);
       }
-      function J(Y, W, ee) {
-        var ge = M.request(Y, W, ee);
+      function J(Y, W, te) {
+        var ge = M.request(Y, W, te);
         return ge.end(), ge;
       }
       Object.defineProperties(M, {
@@ -5575,8 +5575,8 @@ const ip = typeof process < "u" && _.kindOf(process) === "process", sp = (t) => 
         B(P, M, (J, Y, W) => {
           if (J)
             return Q(J);
-          const ee = _.isArray(Y) ? Y.map((ge) => as(ge)) : [as(Y, W)];
-          M.all ? Q(J, ee) : Q(J, ee[0].address, ee[0].family);
+          const te = _.isArray(Y) ? Y.map((ge) => as(ge)) : [as(Y, W)];
+          M.all ? Q(J, te) : Q(J, te[0].address, te[0].family);
         });
       };
     }
@@ -5739,16 +5739,16 @@ const ip = typeof process < "u" && _.kindOf(process) === "process", sp = (t) => 
       if (h.destroyed) return;
       const M = [P], Q = _.toFiniteNumber(P.headers["content-length"]);
       if (L || H) {
-        const ee = new Xi({
+        const te = new Xi({
           maxRate: _.toFiniteNumber(H)
         });
-        L && ee.on("progress", ns(
-          ee,
+        L && te.on("progress", ns(
+          te,
           Et(
             Q,
             He(St(L), !0, 3)
           )
-        )), M.push(ee);
+        )), M.push(te);
       }
       let J = P;
       const Y = P.req || h;
@@ -5778,10 +5778,10 @@ const ip = typeof process < "u" && _.kindOf(process) === "process", sp = (t) => 
       if (u === "stream")
         W.data = J, ze(n, i, W);
       else {
-        const ee = [];
+        const te = [];
         let ge = 0;
         J.on("data", function(G) {
-          ee.push(G), ge += G.length, e.maxContentLength > -1 && ge > e.maxContentLength && (f = !0, J.destroy(), k(new F(
+          te.push(G), ge += G.length, e.maxContentLength > -1 && ge > e.maxContentLength && (f = !0, J.destroy(), k(new F(
             "maxContentLength size of " + e.maxContentLength + " exceeded",
             F.ERR_BAD_RESPONSE,
             e,
@@ -5801,7 +5801,7 @@ const ip = typeof process < "u" && _.kindOf(process) === "process", sp = (t) => 
           h.destroyed || i(F.from(G, null, e, Y));
         }), J.on("end", function() {
           try {
-            let G = ee.length === 1 ? ee[0] : Buffer.concat(ee);
+            let G = te.length === 1 ? te[0] : Buffer.concat(te);
             u !== "arraybuffer" && (G = G.toString(l), (!l || l === "utf8") && (G = _.stripBOM(G))), W.data = G;
           } catch (G) {
             return i(F.from(G, null, e, W.request, W));
@@ -5809,8 +5809,8 @@ const ip = typeof process < "u" && _.kindOf(process) === "process", sp = (t) => 
           ze(n, i, W);
         });
       }
-      w.once("abort", (ee) => {
-        J.destroyed || (J.emit("error", ee), J.destroy());
+      w.once("abort", (te) => {
+        J.destroyed || (J.emit("error", te), J.destroy());
       });
     }), w.once("abort", (B) => {
       h.close ? h.close() : h.destroy(B);
@@ -8453,7 +8453,7 @@ function Oa() {
         maxPayload: $.maxPayload,
         skipUTF8Validation: $.skipUTF8Validation
       }), X = new l(T, this._extensions, $.generateMask);
-      this._receiver = N, this._sender = X, this._socket = T, N[g] = this, X[g] = this, T[g] = this, N.on("conclude", Q), N.on("drain", J), N.on("error", Y), N.on("message", ee), N.on("ping", ge), N.on("pong", me), X.onerror = re, T.setTimeout && T.setTimeout(0), T.setNoDelay && T.setNoDelay(), q.length > 0 && T.unshift(q), T.on("close", ce), T.on("data", fe), T.on("end", Te), T.on("error", le), this._readyState = b.OPEN, this.emit("open");
+      this._receiver = N, this._sender = X, this._socket = T, N[g] = this, X[g] = this, T[g] = this, N.on("conclude", Q), N.on("drain", J), N.on("error", Y), N.on("message", te), N.on("ping", ge), N.on("pong", me), X.onerror = re, T.setTimeout && T.setTimeout(0), T.setNoDelay && T.setNoDelay(), q.length > 0 && T.unshift(q), T.on("close", ce), T.on("data", fe), T.on("end", Te), T.on("error", le), this._readyState = b.OPEN, this.emit("open");
     }
     /**
      * Emit the `'close'` event.
@@ -8860,7 +8860,7 @@ function Oa() {
   function W() {
     this[g].emitClose();
   }
-  function ee(R, T) {
+  function te(R, T) {
     this[g].emit("message", R, T);
   }
   function ge(R) {
@@ -9515,7 +9515,7 @@ const jp = wo(import.meta.url), at = Os(jp), Rt = {
     managedOutputRoots: []
   }
 });
-let se = null, te = null, Oe = !1;
+let se = null, ee = null, Oe = !1;
 function Ge() {
   return {
     ...Rt,
@@ -9544,9 +9544,9 @@ function it(t) {
   ye.set("managedOutputRoots", a);
 }
 async function Ta() {
-  if (!te)
+  if (!ee)
     return kt();
-  const t = te, e = new Promise((a) => {
+  const t = ee, e = new Promise((a) => {
     const n = setTimeout(a, 5e3);
     t.once("close", () => {
       clearTimeout(n), a();
@@ -9606,7 +9606,7 @@ function kt() {
     }
     console.log("🚀 Starting Python backend..."), console.log(`   Command: ${e.command}`), console.log(`   Args: ${e.args.join(" ")}`), console.log(`   CWD: ${e.cwd}`);
     const a = qt();
-    ue.mkdirSync(a, { recursive: !0 }), it(a), te = ha(e.command, e.args, {
+    ue.mkdirSync(a, { recursive: !0 }), it(a), ee = ha(e.command, e.args, {
       cwd: e.cwd,
       env: {
         ...process.env,
@@ -9620,7 +9620,7 @@ function kt() {
     let n = !1;
     Oe = !1;
     const i = (r) => {
-      n || (n = !0, Oe = r, se == null || se.webContents.send("backend:status", pa(te, Oe)), t(r));
+      n || (n = !0, Oe = r, se == null || se.webContents.send("backend:status", pa(ee, Oe)), t(r));
     };
     va({
       timeoutMs: 3e5,
@@ -9629,13 +9629,13 @@ function kt() {
       r.ready && (console.log(`✅ Backend health check passed via ${r.origin}`), i(!0));
     }).catch((r) => {
       console.error("❌ Backend health check failed:", r), i(!1);
-    }), (o = te.stdout) == null || o.on("data", (r) => {
+    }), (o = ee.stdout) == null || o.on("data", (r) => {
       const c = r.toString().trim();
       console.log(`[Python] ${c}`);
-    }), (s = te.stderr) == null || s.on("data", (r) => {
+    }), (s = ee.stderr) == null || s.on("data", (r) => {
       const c = r.toString().trim();
       console.error(`[Python Error] ${c}`);
-    }), te.on("error", (r) => {
+    }), ee.on("error", (r) => {
       console.error("❌ Failed to start Python backend:", r), Oe = !1, Me.showErrorBox(
         "Backend Error",
         `Failed to start Python backend:
@@ -9643,23 +9643,23 @@ ${r.message}
 
 Please ensure you have the required dependencies installed.`
       ), i(!1);
-    }), te.on("close", (r) => {
-      console.log(`Python backend exited with code ${r}`), te = null, Oe = !1, se == null || se.webContents.send("backend:status", pa(null, !1)), n || i(!1);
+    }), ee.on("close", (r) => {
+      console.log(`Python backend exited with code ${r}`), ee = null, Oe = !1, se == null || se.webContents.send("backend:status", pa(null, !1)), n || i(!1);
     });
   });
 }
 function It() {
   var t;
-  if (te) {
+  if (ee) {
     if (console.log("🛑 Stopping Python backend..."), process.platform === "win32")
       try {
-        ha("taskkill", ["/pid", ((t = te.pid) == null ? void 0 : t.toString()) || "", "/f", "/t"]);
+        ha("taskkill", ["/pid", ((t = ee.pid) == null ? void 0 : t.toString()) || "", "/f", "/t"]);
       } catch {
-        te.kill("SIGTERM");
+        ee.kill("SIGTERM");
       }
     else
-      te.kill("SIGTERM");
-    te = null, Oe = !1;
+      ee.kill("SIGTERM");
+    ee = null, Oe = !1;
   }
 }
 async function Fp() {
@@ -9768,13 +9768,13 @@ V.handle("settings:update", async (t, e) => {
     ...a,
     ...e
   };
-  if (ye.set("settings", n), it(xa(n, Re.getPath("userData"))), te && Ps(a, n) && !await Ta() && !(te && te.exitCode === null))
+  if (ye.set("settings", n), it(xa(n, Re.getPath("userData"))), ee && Ps(a, n) && !await Ta() && !(ee && ee.exitCode === null))
     throw new Error("Backend restart failed after settings update");
   return n;
 });
 V.handle("settings:reset", async () => {
   const t = Ge();
-  if (ye.set("settings", Rt), it(Ut()), te && Ps(t, Rt) && !await Ta() && !(te && te.exitCode === null))
+  if (ye.set("settings", Rt), it(Ut()), ee && Ps(t, Rt) && !await Ta() && !(ee && ee.exitCode === null))
     throw new Error("Backend restart failed after settings reset");
   return Ge();
 });
@@ -9850,9 +9850,29 @@ V.handle(
     }).show(), { success: !0 }) : { success: !0, skipped: !0 };
   }
 );
+V.handle("system:get-info", async () => {
+  if (ee && ee.exitCode === null)
+    try {
+      const t = await fetch("http://127.0.0.1:8000/api/system/info", {
+        signal: AbortSignal.timeout(3e3)
+      });
+      if (t.ok)
+        return { ...await t.json(), backendConnected: !0 };
+    } catch {
+    }
+  return {
+    backendConnected: !1,
+    gpu_available: !1,
+    gpu_name: void 0,
+    gpu_vram: void 0,
+    cuda_version: void 0,
+    comfyui_connected: !1,
+    models_count: 0
+  };
+});
 V.handle("backend:start", async () => {
-  if (!te || te.exitCode !== null)
-    return te = null, { success: await kt() };
+  if (!ee || ee.exitCode !== null)
+    return ee = null, { success: await kt() };
   const t = await va({
     timeoutMs: 0,
     intervalMs: 0,
@@ -9861,12 +9881,12 @@ V.handle("backend:start", async () => {
   return Oe = t.ready, t.ready ? { success: !1, error: "Backend already running" } : { success: await Ta(), restarted: !0 };
 });
 V.handle("backend:stop", () => (It(), { success: !0 }));
-V.handle("backend:status", async () => (te && te.exitCode === null ? Oe = (await va({
+V.handle("backend:status", async () => (ee && ee.exitCode === null ? Oe = (await va({
   timeoutMs: 0,
   intervalMs: 0,
   requestTimeoutMs: 1e3
 })).ready : Oe = !1, {
-  ...pa(te, Oe),
+  ...pa(ee, Oe),
   bundled: Dt() !== null
 }));
 V.handle("backend:check-bundled", () => {

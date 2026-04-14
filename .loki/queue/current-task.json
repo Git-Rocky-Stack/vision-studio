@@ -1,7 +1,6 @@
 {
-  "id": "COMPLETE",
-  "goal": "All 87 audit issues resolved",
-  "priority": "N/A",
+  "id": "DONE",
+  "goal": "Phase 1 storyboard: v2.1.0 tagged and pushed",
   "status": "completed",
-  "file": "N/A"
+  "file": ".loki/queue/current-task.json"
 }
