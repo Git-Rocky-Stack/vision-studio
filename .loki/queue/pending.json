@@ -1,1 +1,11 @@
-[]
+[
+  {
+    "id": "task-e2e-region-03",
+    "title": "E2E test region lock workflow",
+    "goal": "Playwright: enter region mode, create lock, draw mask, set prompt, verify properties panel + overlay render.",
+    "priority": 1,
+    "phase": "QA",
+    "estimatedComplexity": "standard",
+    "dependsOn": []
+  }
+]

@@ -67,9 +67,14 @@
 - ScenePlaybackStrip: 14 tests
 
 ## Next Action
-Phase 1 integration complete. All region lock and storyboard components are wired into the app.
-Next steps could include:
-- E2E testing of the region lock workflow end-to-end
-- Region mask drawing implementation (Canvas interaction for brush/rectangle/lasso)
+Phase 1 integration + mask drawing complete.
+- ✅ RegionMaskDrawer component implemented — rectangle, brush, polygon drawing
+- ✅ Wired into Canvas.tsx artboard; commits to store via updateRegionLock
+- ✅ Create-region-lock flow: "Create Region Lock" button in EditPropertiesPanel empty state
+- ✅ 11 new tests for RegionMaskDrawer (all 367 tests green)
+
+Remaining:
+- E2E testing of the region lock workflow end-to-end (pending task-e2e-region-03)
 - Scene playback actual generation pipeline integration
 - Region lock generation pipeline integration
+- Share brushSize state across EditCanvas + RegionMaskDrawer via store (currently hardcoded 20 in Canvas)

@@ -92,6 +92,9 @@ export function EditPropertiesPanel() {
     activeSceneId,
     updateRegionLock,
     deleteRegionLock,
+    createRegionLock,
+    setActiveRegionId,
+    setActiveMaskTool,
   } = useAppStore();
 
   // Find the active region lock
@@ -454,9 +457,34 @@ export function EditPropertiesPanel() {
                   <p className="font-display text-sm text-text-muted">
                     No region selected
                   </p>
-                  <p className="font-display text-xs text-text-muted mt-1">
-                    Use the region tools to create a region lock, then select it
+                  <p className="font-display text-xs text-text-muted mt-1 mb-4">
+                    Create a region lock, then draw its mask on the canvas
                   </p>
+                  <button
+                    type="button"
+                    data-testid="create-region-lock"
+                    disabled={!activeSceneId}
+                    onClick={() => {
+                      if (!activeSceneId) return;
+                      const project = projects.find((p) => p.id === activeProjectId);
+                      const scene = project?.scenes.find((s) => s.id === activeSceneId);
+                      const frameId = scene?.frames[0]?.id ?? `${activeSceneId}-frame-default`;
+                      const index = (scene?.regionLocks.length ?? 0) + 1;
+                      const lock = createRegionLock(activeSceneId, frameId, {
+                        name: `Region ${index}`,
+                      });
+                      setActiveRegionId(lock.id);
+                      setActiveMaskTool('rectangle');
+                    }}
+                    className="px-4 py-2 rounded-lg bg-red-primary text-white text-sm font-display font-medium hover:bg-red-highlight active:bg-red-pressed transition-colors disabled:opacity-40 disabled:cursor-not-allowed focus:outline-none focus-visible:ring-2 focus-visible:ring-red-primary"
+                  >
+                    Create Region Lock
+                  </button>
+                  {!activeSceneId && (
+                    <p className="font-display text-xs text-text-muted mt-3">
+                      Select a scene first
+                    </p>
+                  )}
                 </div>
               )}
             </motion.div>

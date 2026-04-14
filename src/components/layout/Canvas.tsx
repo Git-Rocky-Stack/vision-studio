@@ -13,6 +13,7 @@ import { memo, useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AmbientParticles } from '@/components/effects/AmbientParticles';
 import { RegionLockOverlay } from '@/components/edit/RegionLockOverlay';
+import { RegionMaskDrawer } from '@/components/edit/RegionMaskDrawer';
 
 // Warm-amber particle color for the canvas viewport (slightly more transparent than the component default)
 const CANVAS_PARTICLE_COLOR = 'rgba(255, 200, 150, 0.25)';
@@ -21,7 +22,18 @@ import { GenerationQueue } from '@/components/canvas/GenerationQueue';
 import { CanvasContextMenu } from '@/components/canvas/CanvasContextMenu';
 
 export const Canvas = memo(function Canvas() {
-  const { activeJobs, currentImage, regionMode, activeRegionId, setActiveRegionId, projects, activeProjectId, activeSceneId } = useAppStore();
+  const {
+    activeJobs,
+    currentImage,
+    regionMode,
+    activeRegionId,
+    activeMaskTool,
+    setActiveRegionId,
+    updateRegionLock,
+    projects,
+    activeProjectId,
+    activeSceneId,
+  } = useAppStore();
 
   // Derive region locks from the active scene
   const regionLocks = useMemo(() => {
@@ -31,9 +43,29 @@ export const Canvas = memo(function Canvas() {
     return scene?.regionLocks ?? [];
   }, [projects, activeProjectId, activeSceneId]);
 
+  const activeRegion = useMemo(
+    () => regionLocks.find((r) => r.id === activeRegionId) ?? null,
+    [regionLocks, activeRegionId]
+  );
+
   const handleRegionClick = useCallback((regionId: string) => {
     setActiveRegionId(regionId);
   }, [setActiveRegionId]);
+
+  const handleMaskCommit = useCallback(
+    (update: Parameters<Parameters<typeof RegionMaskDrawer>[0]['onMaskCommit']>[0]) => {
+      if (!activeSceneId || !activeRegion) return;
+      updateRegionLock(activeSceneId, activeRegion.id, {
+        mask: {
+          ...activeRegion.mask,
+          type: update.type,
+          points: update.points,
+          bounds: update.bounds,
+        },
+      });
+    },
+    [activeSceneId, activeRegion, updateRegionLock]
+  );
   const [zoom, setZoom] = useState(100);
   const [showGrid, setShowGrid] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
@@ -333,6 +365,18 @@ export const Canvas = memo(function Canvas() {
                 canvasHeight={imageSize.height}
                 activeRegionId={activeRegionId}
                 onRegionClick={handleRegionClick}
+              />
+            )}
+
+            {/* Region Mask Drawer — active when region mode is on, a region is selected, and a drawing tool is chosen */}
+            {regionMode && activeRegion && activeMaskTool !== 'select' && (
+              <RegionMaskDrawer
+                activeRegion={activeRegion}
+                canvasWidth={imageSize.width}
+                canvasHeight={imageSize.height}
+                tool={activeMaskTool}
+                brushSize={20}
+                onMaskCommit={handleMaskCommit}
               />
             )}
           </div>
