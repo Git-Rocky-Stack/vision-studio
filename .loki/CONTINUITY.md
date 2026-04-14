@@ -67,22 +67,30 @@
 - ScenePlaybackStrip: 14 tests
 
 ## Next Action
-Phase 1 integration + mask drawing + E2E complete.
-- ✅ RegionMaskDrawer component (rectangle/brush/polygon) + 11 tests
-- ✅ Wired into Canvas.tsx; commits to store via updateRegionLock
-- ✅ Create-region-lock flow: EditPropertiesPanel empty state
-- ✅ Region tab ↔ regionMode bidirectional sync (tab click enables region mode)
+Phase 1 integration + mask drawing + E2E + brushSize share COMPLETE.
+
+Session commits (2026-04-13):
+1. `9e0e94e4` — Phase 1 integration (region + storyboard wired into main app)
+2. `b58362b5` — RegionMaskDrawer component + 11 unit tests + create-region flow
+3. `a6b595e7` — Region tab↔regionMode sync + E2E spec + window store exposure
+4. `d72df33c` — maskBrushSize shared via appStore (previously hardcoded 20)
+
+What ships in this session:
+- ✅ RegionMaskDrawer — rectangle/brush/polygon drawing on artboard
+- ✅ Create Region Lock button in EditPropertiesPanel empty state
+- ✅ Region tab auto-enables regionMode (single discoverable entry)
+- ✅ Shared maskBrushSize across toolbar slider + drawer
 - ✅ Store exposed on `window.__VISION_STUDIO_STORE__` for E2E seeding
-- ✅ E2E spec `tests/e2e/region-lock-flow.spec.ts` with 4 tests (store exposure, tab enables regionMode, create button flow, mask drawing updates bounds)
+- ✅ `tests/e2e/region-lock-flow.spec.ts` — 4 E2E tests covering the full flow
+- ✅ 367/367 unit tests (11 new), typecheck clean, build clean
 
-Known environment issue:
-- Local Playwright Electron fixture fails with "timeout while setting up 'app'" —
-  reproducible across BOTH new region-lock-flow.spec.ts AND existing
-  generate-happy-path.spec.ts. Pre-existing issue independent of these changes.
-  CI (.github/workflows/release.yml) is the authoritative E2E environment.
+Known pre-existing issue:
+- Local Playwright Electron fixture fails with "timeout while setting up 'app'"
+  across BOTH new AND existing specs (generate-happy-path). Not caused by these
+  changes. CI (.github/workflows/release.yml) is the authoritative E2E runner.
 
-Remaining (post-phase):
-- Scene playback actual generation pipeline integration
-- Region lock generation pipeline integration
-- Share brushSize state across EditCanvas + RegionMaskDrawer via store (currently hardcoded 20 in Canvas)
-- Debug local Electron E2E fixture
+Remaining for future sessions:
+- Scene playback → generation pipeline integration (needs backend context)
+- Region lock → generation pipeline integration (needs backend context)
+- Debug local Electron E2E fixture (likely env/driver issue, not code)
+- Eraser tool: `'erase'` entry in RegionLockToolbar TOOLS is dead UI (not in MaskType); either expand MaskType or prune the entry
