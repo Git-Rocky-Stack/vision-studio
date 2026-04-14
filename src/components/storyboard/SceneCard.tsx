@@ -1,7 +1,9 @@
 import { memo, useState } from 'react';
 import { cn } from '@/utils/cn';
-import { ImageOff, Trash2, CheckCircle2, Clock, AlertCircle, Loader2 } from 'lucide-react';
+import { ImageOff, Trash2, CheckCircle2, Clock, AlertCircle, Loader2, GripVertical } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { useSortable } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import type { Scene, SceneStatus } from '@/types/project';
 
 interface SceneCardProps {
@@ -61,6 +63,21 @@ export const SceneCard = memo(function SceneCard({
 }: SceneCardProps) {
   const [isHovered, setIsHovered] = useState(false);
 
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: scene.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
   const sceneNumber = String(scene.orderIndex + 1).padStart(2, '0');
   const status = STATUS_CONFIG[scene.status];
   const StatusIcon = status.icon;
@@ -73,7 +90,24 @@ export const SceneCard = memo(function SceneCard({
   };
 
   return (
-    <div className="relative">
+    <div ref={setNodeRef} style={style} className="relative">
+      {/* Drag handle */}
+      <button
+        {...attributes}
+        {...listeners}
+        aria-label="Drag to reorder scene"
+        className={cn(
+          'absolute left-1 top-1/2 -translate-y-1/2 z-20 p-1 rounded-lg',
+          'text-text-muted hover:text-text-primary hover:bg-elevated',
+          'opacity-0 group-hover:opacity-100 focus:opacity-100',
+          isDragging && 'opacity-100',
+          'cursor-grab active:cursor-grabbing'
+        )}
+        tabIndex={-1}
+      >
+        <GripVertical className="w-3.5 h-3.5" aria-hidden="true" />
+      </button>
+
       <motion.article
         data-testid="scene-card"
         aria-label={`Scene ${sceneNumber}: ${scene.name}, ${scene.status}`}

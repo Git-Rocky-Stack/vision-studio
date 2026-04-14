@@ -120,6 +120,20 @@ export function WorkspaceLayout({
           </div>
         );
 
+      case 'storyboard':
+        return (
+          <div className="flex-1 flex min-h-0">
+            {/* Canvas */}
+            <div className="flex-1 min-w-0">
+              {canvas}
+            </div>
+            {/* Storyboard panel (right) */}
+            <div className="w-[380px] flex-shrink-0 border-l border-border bg-surface flex flex-col min-h-0 overflow-hidden">
+              {panels['storyboard']}
+            </div>
+          </div>
+        );
+
       default:
         // assets, settings - standard canvas + right panel layout
         return (

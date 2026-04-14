@@ -13,6 +13,7 @@ import { SettingsPanel } from '@/pages/SettingsPanel';
 import { TemplatesPanel } from '@/pages/TemplatesPanel';
 import { BatchPromptQueue, BatchResultsPanel } from '@/pages/BatchPanel';
 import { QuickGeneratePanel } from '@/pages/QuickGeneratePanel';
+import { StoryboardPanel } from '@/pages/StoryboardPanel';
 import { ToolStrip } from '@/components/edit/ToolStrip';
 import { EditPropertiesPanel } from '@/components/edit/EditPropertiesPanel';
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
@@ -154,6 +155,11 @@ function App() {
             quick: (
               <ErrorBoundary fallbackLabel="Quick generate panel error">
                 <QuickGeneratePanel />
+              </ErrorBoundary>
+            ),
+            storyboard: (
+              <ErrorBoundary fallbackLabel="Storyboard panel error">
+                <StoryboardPanel />
               </ErrorBoundary>
             ),
             edit: (
