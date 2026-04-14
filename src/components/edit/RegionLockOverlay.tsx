@@ -83,6 +83,7 @@ const RegionMask = memo(function RegionMask({
 
   const toolColor = AI_TOOL_COLORS[aiTool];
   const toolLabel = AI_TOOL_LABELS[aiTool];
+  const isEraseMask = mask.type === 'erase';
 
   return (
     <div
@@ -105,22 +106,34 @@ const RegionMask = memo(function RegionMask({
       <div
         className={cn(
           'absolute inset-0 rounded-sm',
-          invertMask ? 'bg-red-primary/10' : 'bg-green-500/10',
-          isActive && invertMask ? 'bg-red-primary/20' : '',
-          isActive && !invertMask ? 'bg-green-500/20' : ''
+          isEraseMask
+            ? 'bg-sky-400/10'
+            : invertMask
+              ? 'bg-red-primary/10'
+              : 'bg-green-500/10',
+          isActive && isEraseMask
+            ? 'bg-sky-400/20'
+            : isActive && invertMask
+              ? 'bg-red-primary/20'
+              : isActive && !invertMask
+                ? 'bg-green-500/20' : ''
         )}
       />
 
-      {/* Border - dashed for inactive, solid for active */}
+      {/* Border - dashed for inactive or erase masks, solid for active additive masks */}
       <div
         className={cn(
           'absolute inset-0 rounded-sm',
-          isActive
+          isActive && !isEraseMask
             ? 'border-2'
             : 'border border-dashed'
         )}
         style={{
-          borderColor: invertMask ? 'rgba(239, 68, 68, 0.6)' : toolColor,
+          borderColor: isEraseMask
+            ? 'rgba(56, 189, 248, 0.6)'
+            : invertMask
+              ? 'rgba(239, 68, 68, 0.6)'
+              : toolColor,
         }}
       />
 
@@ -129,7 +142,7 @@ const RegionMask = memo(function RegionMask({
         <div
           className="absolute inset-0 rounded-sm pointer-events-none"
           style={{
-            boxShadow: `inset 0 0 ${featherRadius}px ${invertMask ? 'rgba(239, 68, 68, 0.15)' : 'rgba(34, 197, 94, 0.15)'}`,
+            boxShadow: `inset 0 0 ${featherRadius}px ${isEraseMask ? 'rgba(56, 189, 248, 0.15)' : invertMask ? 'rgba(239, 68, 68, 0.15)' : 'rgba(34, 197, 94, 0.15)'}`,
           }}
         />
       )}
@@ -142,7 +155,7 @@ const RegionMask = memo(function RegionMask({
           'pointer-events-none'
         )}
         style={{
-          backgroundColor: invertMask ? 'rgba(239, 68, 68, 0.9)' : toolColor,
+          backgroundColor: isEraseMask ? 'rgba(56, 189, 248, 0.9)' : invertMask ? 'rgba(239, 68, 68, 0.9)' : toolColor,
           color: '#fff',
         }}
       >
@@ -151,6 +164,13 @@ const RegionMask = memo(function RegionMask({
         <span>{toolLabel}</span>
         <span className="opacity-70">{Math.round(strength * 100)}%</span>
       </div>
+
+      {/* Erase indicator */}
+      {isEraseMask && (
+        <div className="absolute -top-5 -right-1 px-1 py-0.5 rounded-sm bg-sky-400 text-micro text-white font-display font-bold pointer-events-none">
+          ERASE
+        </div>
+      )}
 
       {/* Invert indicator */}
       {invertMask && (
@@ -164,19 +184,19 @@ const RegionMask = memo(function RegionMask({
         <>
           <div
             className="absolute w-2 h-2 -top-1 -left-1 rounded-full border-2 border-white"
-            style={{ backgroundColor: toolColor }}
+            style={{ backgroundColor: isEraseMask ? '#38bdf8' : toolColor }}
           />
           <div
             className="absolute w-2 h-2 -top-1 -right-1 rounded-full border-2 border-white"
-            style={{ backgroundColor: toolColor }}
+            style={{ backgroundColor: isEraseMask ? '#38bdf8' : toolColor }}
           />
           <div
             className="absolute w-2 h-2 -bottom-1 -left-1 rounded-full border-2 border-white"
-            style={{ backgroundColor: toolColor }}
+            style={{ backgroundColor: isEraseMask ? '#38bdf8' : toolColor }}
           />
           <div
             className="absolute w-2 h-2 -bottom-1 -right-1 rounded-full border-2 border-white"
-            style={{ backgroundColor: toolColor }}
+            style={{ backgroundColor: isEraseMask ? '#38bdf8' : toolColor }}
           />
         </>
       )}

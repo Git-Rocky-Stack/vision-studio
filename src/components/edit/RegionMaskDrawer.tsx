@@ -55,7 +55,7 @@ function clamp(value: number, min: number, max: number): number {
  *
  * - rectangle: drag to define bounding box
  * - brush / polygon: freehand path of points; bounds derived from extents
- * - erase: clears the mask on commit
+ * - erase: freehand subtraction stroke (dashed preview, cyan color)
  * - select: component renders nothing interactive (parent hides it)
  */
 export const RegionMaskDrawer = memo(function RegionMaskDrawer({
@@ -159,7 +159,7 @@ export const RegionMaskDrawer = memo(function RegionMaskDrawer({
           bounds: { x: x1, y: y1, width, height },
         });
       }
-    } else if (current.tool === 'brush' || current.tool === 'polygon') {
+    } else if (current.tool === 'brush' || current.tool === 'polygon' || current.tool === 'erase') {
       if (current.points.length >= 2) {
         onMaskCommit({
           type: current.tool,
@@ -210,19 +210,21 @@ export const RegionMaskDrawer = memo(function RegionMaskDrawer({
       );
     }
 
-    if (draft.tool === 'brush' || draft.tool === 'polygon') {
+    if (draft.tool === 'brush' || draft.tool === 'polygon' || draft.tool === 'erase') {
       const d = draft.points
         .map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x.toFixed(1)} ${p.y.toFixed(1)}`)
         .join(' ');
+      const isErase = draft.tool === 'erase';
       return (
         <path
           d={d}
           fill={draft.tool === 'polygon' ? 'rgba(239, 68, 68, 0.15)' : 'none'}
-          stroke="#ef4444"
-          strokeWidth={draft.tool === 'brush' ? brushSize : 2}
+          stroke={isErase ? '#38bdf8' : '#ef4444'}
+          strokeWidth={draft.tool !== 'polygon' ? brushSize : 2}
           strokeLinecap="round"
           strokeLinejoin="round"
-          data-testid="mask-draft-path"
+          strokeDasharray={isErase ? '8 6' : undefined}
+          data-testid={isErase ? 'mask-draft-erase-path' : 'mask-draft-path'}
         />
       );
     }
@@ -233,7 +235,7 @@ export const RegionMaskDrawer = memo(function RegionMaskDrawer({
   // 'select' tool: render nothing — parent uses pointer-events on overlay to select regions.
   if (tool === 'select') return null;
 
-  const cursor = 'crosshair';
+  const cursor = tool === 'erase' ? 'cell' : 'crosshair';
 
   return (
     <div

@@ -3,12 +3,11 @@
 ## Session Context
 - **Project**: Vision Studio (Electron desktop app for AI image/video generation)
 - **Phase**: DEVELOPMENT — Phase 1 Storyboard & Surgical AI features
-- **Session Start**: 2026-04-13
-- **Last Integration**: 2026-04-13 — All 5 wiring tasks completed
+- **Session Start**: 2026-04-14
+- **Last Integration**: 2026-04-14 — Eraser tool fully implemented
 - **Last Commits**:
-  - `8ff5f6ef` — feat(ui): add storyboard character library, transitions, project dropdown, and scene actions
-  - (region lock commit) — feat(ui): add RegionLockOverlay, RegionLockToolbar, and RegionLockProperties components
-  - `91bed2e9` — feat(ui): add ScenePlaybackStrip component for storyboard timeline playback
+  - `d72df33c` — refactor(edit): share maskBrushSize via appStore
+  - (pending) — feat(edit): implement eraser tool for region masks
 
 ## Current State
 
@@ -51,7 +50,7 @@
 
 ### Build Status: PASSED
 - TypeScript: PASS
-- Tests: 356 passing (32 test files) — all green
+- Tests: 374 passing (33 test files) — all green
 - Frontend build: PASS
 
 ## Test Counts
@@ -61,36 +60,24 @@
 - CharacterIntegrationChip: tests in StoryboardPanel
 - TransitionIndicator: 17 tests
 - ProjectDropdown: 12 tests
-- RegionLockOverlay: 8 tests
+- RegionLockOverlay: 11 tests
 - RegionLockToolbar: 12 tests
 - RegionLockProperties: 18 tests
+- RegionMaskDrawer: 16 tests
 - ScenePlaybackStrip: 14 tests
 
 ## Next Action
-Phase 1 integration + mask drawing + E2E + brushSize share COMPLETE.
+Eraser tool implementation COMPLETE.
 
-Session commits (2026-04-13):
-1. `9e0e94e4` — Phase 1 integration (region + storyboard wired into main app)
-2. `b58362b5` — RegionMaskDrawer component + 11 unit tests + create-region flow
-3. `a6b595e7` — Region tab↔regionMode sync + E2E spec + window store exposure
-4. `d72df33c` — maskBrushSize shared via appStore (previously hardcoded 20)
-
-What ships in this session:
-- ✅ RegionMaskDrawer — rectangle/brush/polygon drawing on artboard
-- ✅ Create Region Lock button in EditPropertiesPanel empty state
-- ✅ Region tab auto-enables regionMode (single discoverable entry)
-- ✅ Shared maskBrushSize across toolbar slider + drawer
-- ✅ Store exposed on `window.__VISION_STUDIO_STORE__` for E2E seeding
-- ✅ `tests/e2e/region-lock-flow.spec.ts` — 4 E2E tests covering the full flow
-- ✅ 367/367 unit tests (11 new), typecheck clean, build clean
-
-Known pre-existing issue:
-- Local Playwright Electron fixture fails with "timeout while setting up 'app'"
-  across BOTH new AND existing specs (generate-happy-path). Not caused by these
-  changes. CI (.github/workflows/release.yml) is the authoritative E2E runner.
+What ships in this session (2026-04-14):
+- ✅ MaskType extended with 'erase' (was dead UI — now fully functional)
+- ✅ RegionMaskDrawer handles erase tool: freehand drawing, dashed cyan preview
+- ✅ RegionLockOverlay renders erase masks: sky-blue tint, dashed border, ERASE badge
+- ✅ RegionLockToolbar TOOLS array now type-safe (no more type hole)
+- ✅ Cell cursor for erase tool (vs crosshair for brush/polygon/rectangle)
+- ✅ 7 new tests (4 drawer + 3 overlay), 374/374 total, typecheck clean, build clean
 
 Remaining for future sessions:
 - Scene playback → generation pipeline integration (needs backend context)
 - Region lock → generation pipeline integration (needs backend context)
 - Debug local Electron E2E fixture (likely env/driver issue, not code)
-- Eraser tool: `'erase'` entry in RegionLockToolbar TOOLS is dead UI (not in MaskType); either expand MaskType or prune the entry

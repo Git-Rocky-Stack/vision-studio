@@ -105,7 +105,7 @@ export interface CharacterRef {
 
 // ─── Region Lock ────────────────────────────────────────────────────────────
 
-export type MaskType = 'rectangle' | 'polygon' | 'brush';
+export type MaskType = 'rectangle' | 'polygon' | 'brush' | 'erase';
 export type AITool = 'generative-fill' | 'style-transfer' | 'upscale' | 'remove';
 
 export interface Point {

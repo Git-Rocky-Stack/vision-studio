@@ -1,6 +1,6 @@
 {
   "id": "DONE",
-  "goal": "Phase 1 storyboard: v2.1.0 tagged and pushed",
+  "goal": "Eraser tool fully implemented — MaskType extended, drawer/overlay updated, 7 tests added",
   "status": "completed",
   "file": ".loki/queue/current-task.json"
 }

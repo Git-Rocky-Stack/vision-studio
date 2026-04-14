@@ -313,4 +313,85 @@ describe('RegionMaskDrawer', () => {
     expect(surface.getAttribute('data-active-region')).toBe('region-1');
     expect(surface.getAttribute('data-active-tool')).toBe('brush');
   });
+
+  it('renders interactive surface for erase tool', () => {
+    const { getByTestId } = render(
+      <RegionMaskDrawer
+        activeRegion={mockRegion}
+        canvasWidth={CANVAS_W}
+        canvasHeight={CANVAS_H}
+        tool="erase"
+        brushSize={30}
+        onMaskCommit={vi.fn()}
+      />
+    );
+    expect(getByTestId('region-mask-drawer')).toBeTruthy();
+    expect(getByTestId('region-mask-drawer').getAttribute('data-active-tool')).toBe('erase');
+  });
+
+  it('uses cell cursor for erase tool', () => {
+    const { getByTestId } = render(
+      <RegionMaskDrawer
+        activeRegion={mockRegion}
+        canvasWidth={CANVAS_W}
+        canvasHeight={CANVAS_H}
+        tool="erase"
+        brushSize={20}
+        onMaskCommit={vi.fn()}
+      />
+    );
+    const surface = getByTestId('region-mask-drawer');
+    expect(surface.style.cursor).toBe('cell');
+  });
+
+  it('commits erase mask with correct type and bounding box', () => {
+    const onCommit = vi.fn();
+    const { getByTestId } = render(
+      <RegionMaskDrawer
+        activeRegion={mockRegion}
+        canvasWidth={CANVAS_W}
+        canvasHeight={CANVAS_H}
+        tool="erase"
+        brushSize={25}
+        onMaskCommit={onCommit}
+      />
+    );
+    const surface = getByTestId('region-mask-drawer');
+    stubBoundingRect(surface);
+
+    fireEvent.pointerDown(surface, { clientX: 80, clientY: 60, button: 0, pointerId: 1 });
+    fireEvent.pointerMove(surface, { clientX: 250, clientY: 120, pointerId: 1 });
+    fireEvent.pointerMove(surface, { clientX: 350, clientY: 300, pointerId: 1 });
+    fireEvent.pointerUp(surface, { clientX: 350, clientY: 300, pointerId: 1 });
+
+    expect(onCommit).toHaveBeenCalledTimes(1);
+    const call = onCommit.mock.calls[0][0];
+    expect(call.type).toBe('erase');
+    expect(call.points.length).toBeGreaterThanOrEqual(3);
+    expect(call.bounds).toEqual({ x: 80, y: 60, width: 270, height: 240 });
+  });
+
+  it('renders dashed erase preview path with distinct testid', () => {
+    const { getByTestId, queryByTestId } = render(
+      <RegionMaskDrawer
+        activeRegion={mockRegion}
+        canvasWidth={CANVAS_W}
+        canvasHeight={CANVAS_H}
+        tool="erase"
+        brushSize={30}
+        onMaskCommit={vi.fn()}
+      />
+    );
+    const surface = getByTestId('region-mask-drawer');
+    stubBoundingRect(surface);
+
+    // No preview before drawing
+    expect(queryByTestId('mask-draft-erase-path')).toBeNull();
+
+    fireEvent.pointerDown(surface, { clientX: 100, clientY: 100, button: 0, pointerId: 1 });
+    fireEvent.pointerMove(surface, { clientX: 200, clientY: 200, pointerId: 1 });
+
+    // Dashed erase preview should appear
+    expect(queryByTestId('mask-draft-erase-path')).toBeTruthy();
+  });
 });

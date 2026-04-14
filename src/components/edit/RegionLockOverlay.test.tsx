@@ -145,4 +145,72 @@ describe('RegionLockOverlay', () => {
     // Region should render without errors even with overflow bounds
     expect(screen.getByTestId('region-lock-overlay')).toBeInTheDocument();
   });
+
+  it('renders erase badge when mask type is erase', () => {
+    const eraseRegion: RegionLock = {
+      ...mockRegion,
+      id: 'region-erase',
+      mask: {
+        ...mockRegion.mask,
+        type: 'erase',
+        bounds: { x: 50, y: 50, width: 200, height: 150 },
+      },
+    };
+    render(
+      <RegionLockOverlay
+        regionLocks={[eraseRegion]}
+        canvasWidth={1024}
+        canvasHeight={1024}
+        activeRegionId={null}
+      />
+    );
+    expect(screen.getByText('ERASE')).toBeInTheDocument();
+  });
+
+  it('renders sky-blue label background for erase masks', () => {
+    const eraseRegion: RegionLock = {
+      ...mockRegion,
+      id: 'region-erase',
+      mask: {
+        ...mockRegion.mask,
+        type: 'erase',
+        bounds: { x: 50, y: 50, width: 200, height: 150 },
+      },
+    };
+    render(
+      <RegionLockOverlay
+        regionLocks={[eraseRegion]}
+        canvasWidth={1024}
+        canvasHeight={1024}
+        activeRegionId={null}
+      />
+    );
+    const label = screen.getByText('Shirt Region').parentElement;
+    expect(label?.style.backgroundColor).toBe('rgba(56, 189, 248, 0.9)');
+  });
+
+  it('renders dashed border for erase masks even when active', () => {
+    const eraseRegion: RegionLock = {
+      ...mockRegion,
+      id: 'region-erase',
+      mask: {
+        ...mockRegion.mask,
+        type: 'erase',
+        bounds: { x: 50, y: 50, width: 200, height: 150 },
+      },
+    };
+    render(
+      <RegionLockOverlay
+        regionLocks={[eraseRegion]}
+        canvasWidth={1024}
+        canvasHeight={1024}
+        activeRegionId="region-erase"
+      />
+    );
+    // Erase masks always use dashed border, even when active
+    const region = screen.getByLabelText('Region: Shirt Region, tool: Fill');
+    // Find the border div (second child with border classes)
+    const borderEl = region.querySelector('.border-dashed');
+    expect(borderEl).toBeTruthy();
+  });
 });
