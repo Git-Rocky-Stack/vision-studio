@@ -1,8 +1,8 @@
 [Setup]
 AppId={{D6A91C5B-8797-5707-93BB-1C19079A50DF}
 AppName=Vision Studio
-AppVersion=0.1.0
-AppVerName=Vision Studio 0.1.0
+AppVersion=2.2.0
+AppVerName=Vision Studio 2.2.0
 AppPublisher=Vision Studio Team
 AppPublisherURL=https://github.com/yourusername/vision-studio
 AppSupportURL=https://github.com/yourusername/vision-studio/issues
@@ -11,7 +11,7 @@ DefaultGroupName=Vision Studio
 AllowNoIcons=yes
 LicenseFile=LICENSE.txt
 OutputDir=release
-OutputBaseFilename=Vision-Studio-Setup-0.1.0
+OutputBaseFilename=Vision-Studio-Setup-2.2.0
 SetupIconFile=build\icon.ico
 Compression=lzma2/fast
 SolidCompression=no
