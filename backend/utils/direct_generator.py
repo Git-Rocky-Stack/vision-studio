@@ -17,7 +17,9 @@ try:
     from diffusers import (
         StableDiffusionPipeline,
         StableDiffusionXLPipeline,
+        StableDiffusion3Pipeline,
         FluxPipeline,
+        FluxFillPipeline,
         DPMSolverMultistepScheduler,
         EulerDiscreteScheduler,
         EulerAncestralDiscreteScheduler,
@@ -25,9 +27,9 @@ try:
         UniPCMultistepScheduler,
     )
     DIFFUSERS_AVAILABLE = True
-except ImportError:
+except ImportError as e:
     DIFFUSERS_AVAILABLE = False
-    print("⚠️ diffusers not installed. Direct generation disabled.")
+    print(f"⚠️ diffusers import failed: {e}. Direct image generation disabled.")
 
 
 class DirectGenerator:
@@ -61,18 +63,32 @@ class DirectGenerator:
             "sd-1-5": "runwayml/stable-diffusion-v1-5",
             "sdxl": "stabilityai/stable-diffusion-xl-base-1.0",
             "sdxl-base": "stabilityai/stable-diffusion-xl-base-1.0",
+            "sd3.5-large": "stabilityai/stable-diffusion-3.5-large",
+            "sd3.5-medium": "stabilityai/stable-diffusion-3.5-medium",
             "flux-dev": "black-forest-labs/FLUX.1-dev",
             "flux-schnell": "black-forest-labs/FLUX.1-schnell",
+            "flux-fill": "black-forest-labs/FLUX.1-Fill-dev",
         }
         
         repo_id = model_map.get(model_name, model_name)
         
         # Load appropriate pipeline
-        if "flux" in model_name.lower():
+        if "flux-fill" in model_name.lower():
+            pipeline = FluxFillPipeline.from_pretrained(
+                repo_id,
+                torch_dtype=torch.bfloat16 if self.device == "cuda" else torch.float32,
+                use_safetensors=True
+            )
+        elif "flux" in model_name.lower():
             pipeline = FluxPipeline.from_pretrained(
                 repo_id,
                 torch_dtype=torch.bfloat16 if self.device == "cuda" else torch.float32,
                 use_safetensors=True
+            )
+        elif "sd3.5" in model_name.lower() or "stable-diffusion-3" in model_name.lower():
+            pipeline = StableDiffusion3Pipeline.from_pretrained(
+                repo_id,
+                torch_dtype=torch.float16 if self.device == "cuda" else torch.float32,
             )
         elif "xl" in model_name.lower():
             pipeline = StableDiffusionXLPipeline.from_pretrained(

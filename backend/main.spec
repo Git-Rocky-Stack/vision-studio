@@ -7,7 +7,7 @@ Includes: FastAPI, PyTorch, CUDA, diffusers, transformers
 import sys
 import os
 from pathlib import Path
-from PyInstaller.utils.hooks import copy_metadata, collect_data_files
+from PyInstaller.utils.hooks import copy_metadata, collect_data_files, collect_submodules, collect_all
 
 # Add the backend directory to path.
 # PyInstaller executes spec files without defining __file__ in some versions.
@@ -30,6 +30,21 @@ for pkg in metadata_packages:
     except Exception:
         pass  # Package not installed, skip
 
+# Collect ALL submodules for packages that use lazy/dynamic imports.
+# diffusers, transformers, and accelerate all use __getattr__-based lazy loading
+# that PyInstaller cannot detect through static analysis.
+diffusers_hidden = collect_submodules('diffusers')
+transformers_hidden = collect_submodules('transformers')
+accelerate_hidden = collect_submodules('accelerate')
+
+# Collect data files (model configs, tokenizers, etc.) that these packages need at runtime
+diffusers_datas = collect_data_files('diffusers')
+transformers_datas = collect_data_files('transformers')
+
+all_hidden = list(set(
+    diffusers_hidden + transformers_hidden + accelerate_hidden
+))
+
 # Main script
 a = Analysis(
     ['main.py'],
@@ -40,7 +55,7 @@ a = Analysis(
         ('.env.example', '.'),
         # Include db/migrations directory
         ('db/migrations', 'db/migrations'),
-    ] + extra_datas,
+    ] + extra_datas + diffusers_datas + transformers_datas,
     hiddenimports=[
         # FastAPI & Uvicorn
         'fastapi',
@@ -58,7 +73,7 @@ a = Analysis(
         'starlette',
         'pydantic',
         'pydantic.deprecated.decorator',
-        
+
         # PyTorch
         'torch',
         'torchvision',
@@ -67,29 +82,10 @@ a = Analysis(
         'torch.backends',
         'torch.backends.cuda',
         'torch.backends.cudnn',
-        
-        # Diffusers
-        'diffusers',
-        'diffusers.pipelines',
-        'diffusers.pipelines.stable_diffusion',
-        'diffusers.pipelines.stable_diffusion_xl',
-        'diffusers.pipelines.flux',
-        'diffusers.schedulers',
-        'diffusers.models',
-        'diffusers.loaders',
-        
-        # Transformers
-        'transformers',
-        'transformers.models',
-        'transformers.models.clip',
-        'transformers.models.t5',
-        'transformers.models.llama',
-        
-        # Accelerate
-        'accelerate',
-        'accelerate.hooks',
-        'accelerate.utils',
-        
+
+        # Diffusers (lazy-loaded — collected via collect_submodules above)
+        *all_hidden,
+
         # Other ML libraries
         'numpy',
         'PIL',
@@ -97,12 +93,12 @@ a = Analysis(
         'cv2',
         'safetensors',
         'huggingface_hub',
-        
+
         # WebSocket
         'websockets',
         'websockets.legacy',
         'websockets.legacy.server',
-        
+
         # Utils
         'python-dotenv',
         'aiofiles',
@@ -110,7 +106,7 @@ a = Analysis(
         'tqdm',
         'imageio',
         'imageio_ffmpeg',
-        
+
         # Python standard library modules that might be missed
         'email.mime.multipart',
         'email.mime.text',
