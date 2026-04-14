@@ -9,9 +9,10 @@ import {
   Hand,
   Loader2,
 } from 'lucide-react';
-import { memo, useState, useRef, useEffect, useCallback } from 'react';
+import { memo, useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AmbientParticles } from '@/components/effects/AmbientParticles';
+import { RegionLockOverlay } from '@/components/edit/RegionLockOverlay';
 
 // Warm-amber particle color for the canvas viewport (slightly more transparent than the component default)
 const CANVAS_PARTICLE_COLOR = 'rgba(255, 200, 150, 0.25)';
@@ -20,7 +21,19 @@ import { GenerationQueue } from '@/components/canvas/GenerationQueue';
 import { CanvasContextMenu } from '@/components/canvas/CanvasContextMenu';
 
 export const Canvas = memo(function Canvas() {
-  const { activeJobs, currentImage } = useAppStore();
+  const { activeJobs, currentImage, regionMode, activeRegionId, setActiveRegionId, projects, activeProjectId, activeSceneId } = useAppStore();
+
+  // Derive region locks from the active scene
+  const regionLocks = useMemo(() => {
+    if (!activeProjectId || !activeSceneId) return [];
+    const project = projects.find((p) => p.id === activeProjectId);
+    const scene = project?.scenes.find((s) => s.id === activeSceneId);
+    return scene?.regionLocks ?? [];
+  }, [projects, activeProjectId, activeSceneId]);
+
+  const handleRegionClick = useCallback((regionId: string) => {
+    setActiveRegionId(regionId);
+  }, [setActiveRegionId]);
   const [zoom, setZoom] = useState(100);
   const [showGrid, setShowGrid] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
@@ -311,6 +324,17 @@ export const Canvas = memo(function Canvas() {
 
             {/* Canvas Border Overlay */}
             <div className="absolute inset-0 pointer-events-none border border-dashed border-border rounded-sm" />
+
+            {/* Region Lock Overlay — visible when region mode is active */}
+            {regionMode && (
+              <RegionLockOverlay
+                regionLocks={regionLocks}
+                canvasWidth={imageSize.width}
+                canvasHeight={imageSize.height}
+                activeRegionId={activeRegionId}
+                onRegionClick={handleRegionClick}
+              />
+            )}
           </div>
         </motion.div>
 

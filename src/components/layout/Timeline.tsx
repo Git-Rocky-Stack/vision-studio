@@ -3,6 +3,7 @@ import { cn } from '@/utils/cn';
 import { hexToRgba } from '@/utils/colorUtils';
 import { useAppStore } from '@/store/appStore';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
+import { ScenePlaybackStrip } from '@/components/storyboard/ScenePlaybackStrip';
 import {
   Play,
   Pause,
@@ -30,7 +31,7 @@ interface TimelineTrack {
 }
 
 export const Timeline = memo(function Timeline() {
-  const { completedJobs } = useAppStore();
+  const { completedJobs, projects, activeProjectId, activeSceneId, setActiveScene } = useAppStore();
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -89,6 +90,10 @@ export const Timeline = memo(function Timeline() {
   }, [totalDuration]);
 
   const { deleteCompletedJob } = useAppStore();
+
+  // Derive storyboard scenes from active project
+  const activeProject = projects.find((p) => p.id === activeProjectId);
+  const storyboardScenes = activeProject?.scenes ?? [];
 
   // Build tracks from completed jobs
   const tracks: TimelineTrack[] = useMemo(() => {
@@ -275,6 +280,14 @@ export const Timeline = memo(function Timeline() {
 
       {/* Timeline Tracks */}
       <div className="flex-1 overflow-y-auto scrollbar-hide">
+        {/* Storyboard Scene Playback Strip */}
+        {storyboardScenes.length > 0 && (
+          <ScenePlaybackStrip
+            scenes={storyboardScenes}
+            activeSceneId={activeSceneId}
+            onSceneSelect={setActiveScene}
+          />
+        )}
         {/* Time Ruler */}
         <div className="h-6 border-b border-border bg-surface relative">
           {Array.from({ length: Math.ceil(totalDuration) + 1 }).map((_, i) => (

@@ -6,6 +6,7 @@ import { FilterGrid } from './FilterGrid';
 import { CropControls } from './CropControls';
 import { TextControls } from './TextControls';
 import { AIToolsPanel } from './AIToolsPanel';
+import { RegionLockProperties } from './RegionLockProperties';
 import { LayerPanel } from './LayerPanel';
 import { buildCropBox, getCropDimensions } from '@/features/edit/crop';
 import type { ImageAdjustments } from '@/types/editor';
@@ -21,10 +22,11 @@ import {
   Redo2,
   SplitSquareHorizontal,
   History,
+  Lock,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-type PropertiesTab = 'adjustments' | 'filters' | 'crop' | 'text' | 'ai';
+type PropertiesTab = 'adjustments' | 'filters' | 'crop' | 'text' | 'ai' | 'region';
 
 const ADJUSTMENT_GROUPS: {
   title: string;
@@ -83,7 +85,29 @@ export function EditPropertiesPanel() {
     setCurrentImage,
     upsertDerivedAsset,
     activePanel,
+    regionMode,
+    activeRegionId,
+    projects,
+    activeProjectId,
+    activeSceneId,
+    updateRegionLock,
+    deleteRegionLock,
   } = useAppStore();
+
+  // Find the active region lock
+  const activeRegionLock = (() => {
+    if (!activeProjectId || !activeSceneId || !activeRegionId) return null;
+    const project = projects.find((p) => p.id === activeProjectId);
+    const scene = project?.scenes.find((s) => s.id === activeSceneId);
+    return scene?.regionLocks.find((l) => l.id === activeRegionId) ?? null;
+  })();
+
+  // Auto-switch to region tab when region mode is active and a region is selected
+  useEffect(() => {
+    if (regionMode && activeRegionId && activeTab !== 'region') {
+      setActiveTab('region');
+    }
+  }, [regionMode, activeRegionId]);
 
   const [activeTab, setActiveTab] = useState<PropertiesTab>('adjustments');
   const [expandedGroups, setExpandedGroups] = useState<string[]>(['Light', 'Color']);
@@ -145,6 +169,7 @@ export function EditPropertiesPanel() {
     { id: 'crop', label: 'Crop', icon: Crop },
     { id: 'text', label: 'Text', icon: Type },
     { id: 'ai', label: 'AI Tools', icon: Wand2 },
+    { id: 'region', label: 'Region', icon: Lock },
   ];
 
   const undoCount = editHistory.length;
@@ -400,6 +425,40 @@ export function EditPropertiesPanel() {
               className="p-4"
             >
               <AIToolsPanel />
+            </motion.div>
+          )}
+
+          {/* Region Lock Tab */}
+          {activeTab === 'region' && (
+            <motion.div
+              key="region"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="p-4"
+            >
+              {activeRegionLock ? (
+                <RegionLockProperties
+                  region={activeRegionLock}
+                  onUpdate={(updates) => updateRegionLock(activeRegionLock.sceneId, activeRegionLock.id, updates)}
+                  onDelete={() => {
+                    deleteRegionLock(activeRegionLock.sceneId, activeRegionLock.id);
+                  }}
+                  onGenerate={() => {
+                    // TODO: Wire to generation pipeline
+                  }}
+                />
+              ) : (
+                <div className="flex flex-col items-center justify-center py-12 text-center">
+                  <Lock className="w-8 h-8 text-text-muted mb-3 opacity-40" />
+                  <p className="font-display text-sm text-text-muted">
+                    No region selected
+                  </p>
+                  <p className="font-display text-xs text-text-muted mt-1">
+                    Use the region tools to create a region lock, then select it
+                  </p>
+                </div>
+              )}
             </motion.div>
           )}
         </AnimatePresence>

@@ -1,6 +1,8 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { Stage, Layer, Rect, Image as KonvaImage, Line, Text, Transformer } from 'react-konva';
 import { useAppStore } from '@/store/appStore';
+import { RegionLockToolbar } from '@/components/edit/RegionLockToolbar';
+import type { RegionTool } from '@/components/edit/RegionLockToolbar';
 import type Konva from 'konva';
 
 const CHECKERBOARD_SIZE = 16;
@@ -11,7 +13,15 @@ export function EditCanvas() {
     activeEditTool,
     imageAdjustments,
     editLayers,
+    regionMode,
+    activeMaskTool,
+    activeRegionId,
+    setActiveMaskTool,
+    setActiveRegionId,
   } = useAppStore();
+
+  const [maskBrushSize, setMaskBrushSize] = useState(20);
+  const [maskInverted, setMaskInverted] = useState(false);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<Konva.Stage>(null);
@@ -204,6 +214,18 @@ export function EditCanvas() {
       className="w-full h-full relative overflow-hidden bg-void"
       style={{ cursor: getCursor() }}
     >
+      {/* Region Lock Toolbar — visible when region mode is active */}
+      {regionMode && (
+        <RegionLockToolbar
+          activeTool={activeMaskTool as RegionTool}
+          brushSize={maskBrushSize}
+          isInverted={maskInverted}
+          onToolChange={(tool) => setActiveMaskTool(tool)}
+          onBrushSizeChange={setMaskBrushSize}
+          onInvertToggle={() => setMaskInverted((prev) => !prev)}
+        />
+      )}
+
       <div style={{ filter: cssFilter || undefined }}>
         <Stage
           ref={stageRef}

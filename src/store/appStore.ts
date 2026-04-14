@@ -19,6 +19,7 @@ import type {
   RegionLock,
   SceneStatus,
   GenerationConfig,
+  MaskType,
 } from '@/types/project';
 import {
   DEFAULT_GENERATION_CONFIG,
@@ -196,6 +197,11 @@ interface AppState {
   projects: Project[];
   activeProjectId: string | null;
   activeSceneId: string | null;
+
+  // Region lock mode
+  regionMode: boolean;
+  activeRegionId: string | null;
+  activeMaskTool: MaskType | 'select';
 
   // Migration
   migrationStatus: 'idle' | 'running' | 'complete' | 'error';
@@ -379,6 +385,11 @@ interface AppState {
   updateRegionLock: (sceneId: string, lockId: string, updates: Partial<RegionLock>) => void;
   deleteRegionLock: (sceneId: string, lockId: string) => void;
 
+  // Region mode state
+  setRegionMode: (mode: boolean) => void;
+  setActiveRegionId: (id: string | null) => void;
+  setActiveMaskTool: (tool: MaskType | 'select') => void;
+
   // Quick Generate
   quickGenerate: (config: GenerationConfig) => void;
   promoteToProject: (sceneId: string, projectId: string) => void;
@@ -418,6 +429,9 @@ export const useAppStore = create<AppState>()(
       projects: [],
       activeProjectId: null,
       activeSceneId: null,
+      regionMode: false,
+      activeRegionId: null,
+      activeMaskTool: 'select',
       migrationStatus: 'idle',
       migrationProgress: 0,
 
@@ -991,6 +1005,14 @@ export const useAppStore = create<AppState>()(
           }),
         })),
       })),
+
+      // Region mode state
+      setRegionMode: (mode) => set((state) => ({
+        regionMode: mode,
+        activeRegionId: mode ? state.activeRegionId : null,
+      })),
+      setActiveRegionId: (id) => set({ activeRegionId: id }),
+      setActiveMaskTool: (tool) => set({ activeMaskTool: tool }),
 
       quickGenerate: (config) => {
         // Behind the scenes, creates a Scene in the "Quick Captures" project
