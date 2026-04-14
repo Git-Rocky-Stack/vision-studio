@@ -271,6 +271,21 @@ app.include_router(edit_router)
 app.include_router(batch_router)
 
 
+@app.get("/api/health", tags=["System"])
+async def health_check():
+    """Return backend health including generator availability."""
+    return {
+        "status": "ok",
+        "comfyui_connected": comfy_client is not None and getattr(comfy_client, "connected", False),
+        "direct_generator_available": direct_generator is not None,
+        "direct_video_generator_available": direct_video_generator is not None,
+        "generation_available": (
+            (comfy_client is not None and getattr(comfy_client, "connected", False))
+            or direct_generator is not None
+        ),
+    }
+
+
 # ============= Pydantic Models =============
 
 class ImageGenerationRequest(BaseModel):
@@ -687,7 +702,10 @@ async def generate_with_comfyui(job_id: str, request: ImageGenerationRequest) ->
 async def generate_direct(job_id: str, request: ImageGenerationRequest) -> Dict:
     """Generate image using direct diffusers pipeline"""
     if not direct_generator:
-        raise RuntimeError("Direct generator not available")
+        raise RuntimeError(
+            "No image generation backend available. Either connect ComfyUI or install "
+            "the diffusers library (pip install diffusers torch) for direct generation."
+        )
     logger.info(f"[Job {job_id}] Starting direct generation with model={request.model}")
     result = await direct_generator.generate_image(
         job_id=job_id,
@@ -788,7 +806,10 @@ async def process_video_generation(job_id: str, request: VideoGenerationRequest)
         job_manager.update_job(job_id, status=JobStatus.PROCESSING, progress=0.0)
 
         if not direct_video_generator:
-            raise RuntimeError("Direct video generator not available")
+            raise RuntimeError(
+                "No video generation backend available. Install the required libraries "
+                "(pip install diffusers torch) for direct video generation."
+            )
 
         result = await direct_video_generator.generate_video(
             job_id=job_id,

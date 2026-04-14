@@ -1,4 +1,4 @@
-import { memo, useState, useMemo } from 'react';
+import { memo, useState, useMemo, useEffect } from 'react';
 import { cn } from '@/utils/cn';
 import { hexToRgba } from '@/utils/colorUtils';
 import { useAppStore } from '@/store/appStore';
@@ -38,8 +38,44 @@ export const Timeline = memo(function Timeline() {
   const [selectedTrackId, setSelectedTrackId] = useState<string | null>(null);
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
 
+  const { deleteCompletedJob } = useAppStore();
+
+  // Derive storyboard scenes from active project
+  const activeProject = projects.find((p) => p.id === activeProjectId);
+  const storyboardScenes = activeProject?.scenes ?? [];
+
+  // Build tracks from completed jobs
+  const tracks: TimelineTrack[] = useMemo(() => {
+    let offset = 0;
+    return completedJobs
+      .filter((job) => job.status === 'completed')
+      .map((job, index) => {
+        const isVideo = job.type === 'video';
+        const duration = isVideo ? (job.params?.duration || 5) : 1;
+        const track: TimelineTrack = {
+          id: job.id,
+          type: isVideo ? 'video' : 'image',
+          name: isVideo
+            ? `Video ${index + 1}`
+            : `Image ${index + 1}`,
+          duration,
+          startTime: offset,
+          color: isVideo ? 'var(--color-category-youtube)' : 'var(--color-category-art)',
+          thumbnail: job.result?.images?.[0] || job.result?.video,
+        };
+        offset += duration;
+        return track;
+      });
+  }, [completedJobs]);
+
+  const totalDuration = Math.max(
+    tracks.reduce((sum, t) => Math.max(sum, t.startTime + t.duration), 0),
+    10
+  );
+  const progress = (currentTime / totalDuration) * 100;
+
   // Global keyboard shortcuts for timeline playback
-  useMemo(() => {
+  useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       // Ignore if typing in an input
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
@@ -89,36 +125,6 @@ export const Timeline = memo(function Timeline() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [totalDuration]);
 
-  const { deleteCompletedJob } = useAppStore();
-
-  // Derive storyboard scenes from active project
-  const activeProject = projects.find((p) => p.id === activeProjectId);
-  const storyboardScenes = activeProject?.scenes ?? [];
-
-  // Build tracks from completed jobs
-  const tracks: TimelineTrack[] = useMemo(() => {
-    let offset = 0;
-    return completedJobs
-      .filter((job) => job.status === 'completed')
-      .map((job, index) => {
-        const isVideo = job.type === 'video';
-        const duration = isVideo ? (job.params?.duration || 5) : 1;
-        const track: TimelineTrack = {
-          id: job.id,
-          type: isVideo ? 'video' : 'image',
-          name: isVideo
-            ? `Video ${index + 1}`
-            : `Image ${index + 1}`,
-          duration,
-          startTime: offset,
-          color: isVideo ? 'var(--color-category-youtube)' : 'var(--color-category-art)',
-          thumbnail: job.result?.images?.[0] || job.result?.video,
-        };
-        offset += duration;
-        return track;
-      });
-  }, [completedJobs]);
-
   const handleDeleteTrack = () => {
     if (!deleteTargetId) return;
     deleteCompletedJob(deleteTargetId);
@@ -127,12 +133,6 @@ export const Timeline = memo(function Timeline() {
     }
     setDeleteTargetId(null);
   };
-
-  const totalDuration = Math.max(
-    tracks.reduce((sum, t) => Math.max(sum, t.startTime + t.duration), 0),
-    10
-  );
-  const progress = (currentTime / totalDuration) * 100;
 
   // Collapsed view — just play controls in a thin bar
   if (isCollapsed) {
