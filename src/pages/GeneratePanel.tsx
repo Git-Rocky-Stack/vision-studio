@@ -300,11 +300,12 @@ export function GeneratePanel() {
           throw new Error(result.error || 'Generation failed');
         }
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Generation error:', error);
+      const message = error instanceof Error ? error.message : 'Generation failed';
       updateGenStatus({
         status: 'error',
-        errorMessage: error.message || 'Generation failed',
+        errorMessage: message,
         isGenerating: false,
         activeJobId: null,
       });
