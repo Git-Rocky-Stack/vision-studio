@@ -1,3 +1,5 @@
+// Must load before any module registers ipcMain handlers.
+import './ipc-guard';
 import { app, BrowserWindow, ipcMain, dialog, shell, Notification } from 'electron';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';

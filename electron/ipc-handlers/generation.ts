@@ -212,20 +212,7 @@ ipcMain.handle('generation:list-jobs', async (_event, options = {}) => {
   }
 });
 
-// Get system info
-ipcMain.handle('system:get-info', async () => {
-  try {
-    const response = await requestBackend(() => axios.get(`${BACKEND_URL}/api/system/info`));
-    return response.data;
-  } catch (error: any) {
-    console.error('Get system info error:', error);
-    return {
-      gpu_available: false,
-      comfyui_connected: false,
-      models_count: 0
-    };
-  }
-});
+// Note: 'system:get-info' is registered in electron/main.ts with richer backend-liveness handling.
 
 // List models
 ipcMain.handle('models:list', async () => {
