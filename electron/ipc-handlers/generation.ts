@@ -12,7 +12,15 @@ function isConnectionRefused(error: any) {
   return typeof error?.message === 'string' && error.message.includes('ECONNREFUSED');
 }
 
-async function requestBackend<T>(request: () => Promise<T>, attempts: number = 10, delayMs: number = 500): Promise<T> {
+function isBackendDownError(error: any) {
+  const msg = typeof error?.message === 'string' ? error.message : '';
+  return msg.includes('ECONNREFUSED') || error?.code === 'ECONNREFUSED';
+}
+
+const BACKEND_DOWN_MESSAGE =
+  'The AI backend is not running. Please restart the app or start the backend manually from Settings.';
+
+async function requestBackend<T>(request: () => Promise<T>, attempts: number = 3, delayMs: number = 1000): Promise<T> {
   let lastError: any;
 
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
@@ -20,7 +28,13 @@ async function requestBackend<T>(request: () => Promise<T>, attempts: number = 1
       return await request();
     } catch (error: any) {
       lastError = error;
-      if (!isConnectionRefused(error) || attempt === attempts) {
+      // If the backend is clearly down, don't waste time retrying
+      if (isBackendDownError(error)) {
+        const friendly = new Error(BACKEND_DOWN_MESSAGE);
+        (friendly as any).code = 'BACKEND_DOWN';
+        throw friendly;
+      }
+      if (attempt === attempts) {
         throw error;
       }
 

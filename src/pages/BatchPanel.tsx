@@ -86,6 +86,7 @@ export function BatchPromptQueue() {
     addBatchJob,
     addBatchResult,
     syncAssetsFromJobStatus,
+    systemInfo,
     batchResults,
     batchViewMode,
     batchSortBy,
@@ -151,6 +152,14 @@ export function BatchPromptQueue() {
   const handleStartBatch = async () => {
     const validPrompts = prompts.filter((p) => p.prompt.trim());
     if (validPrompts.length === 0) return;
+
+    // Guard: backend must be connected to generate
+    if (!systemInfo.backendConnected) {
+      setPrompts(prompts.map((p) =>
+        p.prompt.trim() ? { ...p, status: 'failed' } : p
+      ));
+      return;
+    }
 
     setIsGenerating(true);
     setPrompts(prompts.map((p) => (p.prompt.trim() ? { ...p, status: 'pending' } : p)));

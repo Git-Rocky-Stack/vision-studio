@@ -32,7 +32,7 @@ function resolveOutputRoot(defaultOutputPath: string, userDataPath: string) {
 }
 
 export function QuickGeneratePanel() {
-  const { addJob, updateJob, syncAssetsFromJobStatus, advancedGeneration } = useAppStore();
+  const { addJob, updateJob, syncAssetsFromJobStatus, advancedGeneration, systemInfo } = useAppStore();
 
   const [prompt, setPrompt] = useState('');
   const [negativePrompt, setNegativePrompt] = useState('');
@@ -135,6 +135,17 @@ export function QuickGeneratePanel() {
 
   const handleGenerate = async () => {
     if (!prompt.trim()) return;
+
+    // Guard: backend must be connected to generate
+    if (!systemInfo.backendConnected) {
+      setGenStatus({
+        isGenerating: false,
+        progress: 0,
+        status: 'error',
+        errorMessage: 'The AI backend is not running. Please restart the app or start the backend from Settings.',
+      });
+      return;
+    }
 
     setGenStatus({ isGenerating: true, progress: 0, status: 'generating', errorMessage: '' });
 

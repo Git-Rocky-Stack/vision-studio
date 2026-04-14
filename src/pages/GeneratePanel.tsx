@@ -198,6 +198,16 @@ export function GeneratePanel() {
   const handleGenerate = async () => {
     if (!imageConfig.prompt.trim()) return;
 
+    // Guard: backend must be connected to generate
+    if (!systemInfo.backendConnected) {
+      updateGenStatus({
+        status: 'error',
+        errorMessage: 'The AI backend is not running. Please restart the app or start the backend from Settings.',
+        isGenerating: false,
+      });
+      return;
+    }
+
     updateGenStatus({
       isGenerating: true,
       status: 'generating',
