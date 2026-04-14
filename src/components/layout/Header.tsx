@@ -1,15 +1,16 @@
 import { memo } from 'react';
 import { useAppStore } from '@/store/appStore';
+import { ProjectDropdown } from './ProjectDropdown';
 
 export const Header = memo(function Header() {
   const { currentProject } = useAppStore();
 
   return (
-    <header className="h-14 bg-surface border-b border-border flex items-center px-4">
+    <header className="h-14 bg-surface border-b border-border flex items-center px-4 gap-4">
+      <ProjectDropdown />
       <div className="flex items-center gap-2">
         {currentProject ? (
           <>
-            <span className="font-display font-medium text-sm text-text-primary">{currentProject.name}</span>
             <span className="text-xs text-text-muted">&middot;</span>
             <span className="text-xs text-text-muted">
               {currentProject.updatedAt
@@ -17,9 +18,7 @@ export const Header = memo(function Header() {
                 : 'Unsaved changes'}
             </span>
           </>
-        ) : (
-          <span className="font-display text-sm text-text-body">Untitled Project</span>
-        )}
+        ) : null}
       </div>
     </header>
   );

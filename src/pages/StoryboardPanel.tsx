@@ -1,6 +1,9 @@
 import { useState } from 'react';
 import { useAppStore } from '@/store/appStore';
 import { SceneCard } from '@/components/storyboard/SceneCard';
+import { CharacterLibrary } from '@/components/storyboard/CharacterLibrary';
+import { CharacterAssignmentChip } from '@/components/storyboard/CharacterAssignmentChip';
+import { TransitionIndicator } from '@/components/storyboard/TransitionIndicator';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { Button } from '@/components/ui/Button';
 import { cn } from '@/utils/cn';
@@ -18,7 +21,7 @@ import {
   sortableKeyboardCoordinates,
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
-import { Film, Plus, Trash2 } from 'lucide-react';
+import { Film, Plus, Copy, Trash2 } from 'lucide-react';
 import type { Scene } from '@/types/project';
 
 export function StoryboardPanel() {
@@ -29,12 +32,15 @@ export function StoryboardPanel() {
     setActiveScene,
     addScene,
     deleteScene,
+    duplicateScene,
     reorderScenes,
     createProject,
     setActiveProject,
+    removeCharacterFromScene,
   } = useAppStore();
 
   const [deleteTarget, setDeleteTarget] = useState<Scene | null>(null);
+  const [contextMenuScene, setContextMenuScene] = useState<Scene | null>(null);
 
   const activeProject = projects.find((p) => p.id === activeProjectId) ?? null;
 
@@ -45,7 +51,7 @@ export function StoryboardPanel() {
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
-    if (!over || !activeProject || active.id === over.id) return;
+    if (!activeProject || !over || active.id === over.id) return;
 
     const sceneIds = activeProject.scenes.map((s) => s.id);
     const oldIndex = sceneIds.indexOf(String(active.id));
@@ -64,15 +70,39 @@ export function StoryboardPanel() {
     setActiveScene(scene.id);
   };
 
+  const handleDuplicateScene = (scene: Scene) => {
+    if (!activeProject) return;
+    const duplicated = duplicateScene(activeProject.id, scene.id);
+    setActiveScene(duplicated.id);
+    setContextMenuScene(null);
+  };
+
   const handleDeleteScene = () => {
     if (!deleteTarget || !activeProject) return;
     deleteScene(activeProject.id, deleteTarget.id);
+    if (activeSceneId === deleteTarget.id) {
+      setActiveScene(null);
+    }
     setDeleteTarget(null);
   };
 
   const handleNewProject = () => {
     const project = createProject('Untitled Project');
     setActiveProject(project.id);
+  };
+
+  const handleTransitionClick = (fromSceneId: string) => {
+    // Future: open transition editor modal
+    // For now, cycles through transition types as a quick edit
+    if (!activeProject) return;
+    const transitionTypes = ['cut', 'fade', 'dissolve', 'wipe-left', 'wipe-right', 'zoom'] as const;
+    const scene = activeProject.scenes.find((s) => s.id === fromSceneId);
+    if (!scene) return;
+    const currentIndex = transitionTypes.indexOf(scene.transitions.type);
+    const nextType = transitionTypes[(currentIndex + 1) % transitionTypes.length];
+    useAppStore.getState().updateScene(activeProject.id, fromSceneId, {
+      transitions: { ...scene.transitions, type: nextType },
+    });
   };
 
   if (!activeProject) {
@@ -141,21 +171,58 @@ export function StoryboardPanel() {
               items={sortedScenes.map((s) => s.id)}
               strategy={verticalListSortingStrategy}
             >
-              <div className="p-3 space-y-2">
-                {sortedScenes.map((scene) => (
-                  <SceneCard
-                    key={scene.id}
-                    scene={scene}
-                    isSelected={scene.id === activeSceneId}
-                    onClick={() => setActiveScene(scene.id === activeSceneId ? null : scene.id)}
-                    onDelete={() => setDeleteTarget(scene)}
-                  />
-                ))}
+              <div className="p-3 space-y-1">
+                {sortedScenes.map((scene, index) => {
+                  const sceneCharacters = activeProject.characters.filter((c) =>
+                    scene.characterRefs.includes(c.id)
+                  );
+
+                  return (
+                    <div key={scene.id}>
+                      <SceneCard
+                        scene={scene}
+                        isSelected={scene.id === activeSceneId}
+                        onClick={() => setActiveScene(scene.id === activeSceneId ? null : scene.id)}
+                        onDelete={() => setDeleteTarget(scene)}
+                        onDuplicate={() => handleDuplicateScene(scene)}
+                      />
+
+                      {/* Character assignment chips */}
+                      {sceneCharacters.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5 mt-1.5 pl-9">
+                          {sceneCharacters.map((char) => (
+                            <CharacterAssignmentChip
+                              key={char.id}
+                              name={char.name}
+                              color={char.color}
+                              lockedFeatures={char.lockedFeatures}
+                              onRemove={() =>
+                                removeCharacterFromScene(activeProject.id, scene.id, char.id)
+                              }
+                            />
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Transition indicator between scenes */}
+                      {index < sortedScenes.length - 1 && (
+                        <TransitionIndicator
+                          type={scene.transitions.type}
+                          duration={scene.transitions.duration}
+                          onClick={() => handleTransitionClick(scene.id)}
+                        />
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             </SortableContext>
           </DndContext>
         </div>
       )}
+
+      {/* Character Library */}
+      <CharacterLibrary projectId={activeProject.id} />
 
       {/* Delete confirmation */}
       <ConfirmDialog

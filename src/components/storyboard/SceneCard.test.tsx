@@ -192,16 +192,44 @@ describe('SceneCard', () => {
       expect(screen.queryByRole('button', { name: /delete scene/i })).toBeInTheDocument();
     });
 
-    it('delete button is in DOM and pointer-events-enabled when hovered', async () => {
+    it('action buttons container becomes visible when hovered', async () => {
       const user = userEvent.setup();
       render(
         <SceneCard scene={mockScene} isSelected={false} onClick={vi.fn()} onDelete={vi.fn()} />
       );
       await user.hover(screen.getByTestId('scene-card'));
-      const btn = screen.getByRole('button', { name: /delete scene/i });
-      // When visible, opacity-100 and pointer-events-auto class are applied
-      expect(btn).toHaveClass('opacity-100');
-      expect(btn).toHaveClass('pointer-events-auto');
+      // The action buttons container gains opacity-100 and pointer-events-auto on hover
+      const container = screen.getByRole('button', { name: /delete scene/i }).parentElement;
+      expect(container).toHaveClass('opacity-100');
+      expect(container).toHaveClass('pointer-events-auto');
+    });
+  });
+
+  describe('duplicate button', () => {
+    it('renders duplicate button when onDuplicate is provided', () => {
+      render(
+        <SceneCard scene={mockScene} isSelected={false} onClick={vi.fn()} onDuplicate={vi.fn()} />
+      );
+      expect(screen.getByRole('button', { name: /duplicate scene/i })).toBeInTheDocument();
+    });
+
+    it('does not render duplicate button when onDuplicate is not provided', () => {
+      render(<SceneCard scene={mockScene} isSelected={false} onClick={vi.fn()} />);
+      expect(screen.queryByRole('button', { name: /duplicate scene/i })).not.toBeInTheDocument();
+    });
+
+    it('calls onDuplicate when duplicate button is clicked', async () => {
+      const onDuplicate = vi.fn();
+      const onClick = vi.fn();
+      const user = userEvent.setup();
+      render(
+        <SceneCard scene={mockScene} isSelected={false} onClick={onClick} onDuplicate={onDuplicate} />
+      );
+      await user.hover(screen.getByTestId('scene-card'));
+      const duplicateBtn = screen.getByRole('button', { name: /duplicate scene/i });
+      await user.click(duplicateBtn);
+      expect(onDuplicate).toHaveBeenCalledTimes(1);
+      expect(onClick).not.toHaveBeenCalled();
     });
   });
 

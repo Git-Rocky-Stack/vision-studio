@@ -1,6 +1,6 @@
 import { memo, useState } from 'react';
 import { cn } from '@/utils/cn';
-import { ImageOff, Trash2, CheckCircle2, Clock, AlertCircle, Loader2, GripVertical } from 'lucide-react';
+import { ImageOff, Trash2, Copy, CheckCircle2, Clock, AlertCircle, Loader2, GripVertical } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
@@ -11,6 +11,7 @@ interface SceneCardProps {
   isSelected: boolean;
   onClick: () => void;
   onDelete?: () => void;
+  onDuplicate?: () => void;
 }
 
 const STATUS_CONFIG: Record<
@@ -60,6 +61,7 @@ export const SceneCard = memo(function SceneCard({
   isSelected,
   onClick,
   onDelete,
+  onDuplicate,
 }: SceneCardProps) {
   const [isHovered, setIsHovered] = useState(false);
 
@@ -192,26 +194,48 @@ export const SceneCard = memo(function SceneCard({
         </div>
       </motion.article>
 
-      {/* Delete button — always rendered, visibility toggled via CSS to avoid DOM timing issues */}
-      {onDelete && (
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onDelete();
-          }}
-          aria-label="Delete scene"
-          className={cn(
-            'absolute top-2 right-2 z-10 p-1.5 rounded-lg transition-all duration-150',
-            'bg-elevated/90 backdrop-blur-sm text-text-muted hover:text-red-primary hover:bg-red-aura',
-            'focus:outline-none focus-visible:ring-2 focus-visible:ring-red-primary',
-            'border border-border',
-            'opacity-0 pointer-events-none',
-            (isHovered || isSelected) && 'opacity-100 pointer-events-auto'
-          )}
-        >
-          <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
-        </button>
-      )}
+      {/* Action buttons — duplicate + delete */}
+      <div className={cn(
+        'absolute top-2 right-2 z-10 flex items-center gap-1',
+        'transition-opacity duration-150',
+        'opacity-0 pointer-events-none',
+        (isHovered || isSelected) && 'opacity-100 pointer-events-auto'
+      )}>
+        {onDuplicate && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onDuplicate();
+            }}
+            aria-label="Duplicate scene"
+            className={cn(
+              'p-1.5 rounded-lg transition-all duration-150',
+              'bg-elevated/90 backdrop-blur-sm text-text-muted hover:text-text-primary hover:bg-surface',
+              'focus:outline-none focus-visible:ring-2 focus-visible:ring-red-primary',
+              'border border-border'
+            )}
+          >
+            <Copy className="w-3.5 h-3.5" aria-hidden="true" />
+          </button>
+        )}
+        {onDelete && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onDelete();
+            }}
+            aria-label="Delete scene"
+            className={cn(
+              'p-1.5 rounded-lg transition-all duration-150',
+              'bg-elevated/90 backdrop-blur-sm text-text-muted hover:text-red-primary hover:bg-red-aura',
+              'focus:outline-none focus-visible:ring-2 focus-visible:ring-red-primary',
+              'border border-border'
+            )}
+          >
+            <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
+          </button>
+        )}
+      </div>
     </div>
   );
 });
