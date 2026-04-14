@@ -29,7 +29,10 @@ export const Canvas = memo(function Canvas() {
     activeRegionId,
     activeMaskTool,
     maskBrushSize,
+    maskInverted,
     setActiveRegionId,
+    setActiveMaskTool,
+    toggleMaskInverted,
     updateRegionLock,
     projects,
     activeProjectId,
@@ -193,6 +196,30 @@ export const Canvas = memo(function Canvas() {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      // Region mask tool shortcuts (only active in region mode)
+      if (regionMode) {
+        switch (e.key.toLowerCase()) {
+          case 'v':
+            setActiveMaskTool('select');
+            return;
+          case 'r':
+            setActiveMaskTool('rectangle');
+            return;
+          case 'l':
+            setActiveMaskTool('polygon');
+            return;
+          case 'b':
+            setActiveMaskTool('brush');
+            return;
+          case 'e':
+            setActiveMaskTool('erase');
+            return;
+          case 'i':
+            toggleMaskInverted();
+            return;
+        }
+      }
+      // Canvas zoom shortcuts
       switch (e.key) {
         case '+':
         case '=':
@@ -208,7 +235,7 @@ export const Canvas = memo(function Canvas() {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [zoom]);
+  }, [zoom, regionMode]);
 
   return (
     <div

@@ -17,12 +17,12 @@ export function EditCanvas() {
     activeMaskTool,
     activeRegionId,
     maskBrushSize,
+    maskInverted,
     setActiveMaskTool,
     setActiveRegionId,
     setMaskBrushSize,
+    toggleMaskInverted,
   } = useAppStore();
-
-  const [maskInverted, setMaskInverted] = useState(false);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<Konva.Stage>(null);
@@ -223,7 +223,7 @@ export function EditCanvas() {
           isInverted={maskInverted}
           onToolChange={(tool) => setActiveMaskTool(tool)}
           onBrushSizeChange={setMaskBrushSize}
-          onInvertToggle={() => setMaskInverted((prev) => !prev)}
+          onInvertToggle={toggleMaskInverted}
         />
       )}
 

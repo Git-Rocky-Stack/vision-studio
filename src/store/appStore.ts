@@ -203,6 +203,7 @@ interface AppState {
   activeRegionId: string | null;
   activeMaskTool: MaskType | 'select';
   maskBrushSize: number;
+  maskInverted: boolean;
 
   // Migration
   migrationStatus: 'idle' | 'running' | 'complete' | 'error';
@@ -391,6 +392,7 @@ interface AppState {
   setActiveRegionId: (id: string | null) => void;
   setActiveMaskTool: (tool: MaskType | 'select') => void;
   setMaskBrushSize: (size: number) => void;
+  toggleMaskInverted: () => void;
 
   // Quick Generate
   quickGenerate: (config: GenerationConfig) => void;
@@ -435,6 +437,7 @@ export const useAppStore = create<AppState>()(
       activeRegionId: null,
       activeMaskTool: 'select',
       maskBrushSize: 20,
+      maskInverted: false,
       migrationStatus: 'idle',
       migrationProgress: 0,
 
@@ -1017,6 +1020,7 @@ export const useAppStore = create<AppState>()(
       setActiveRegionId: (id) => set({ activeRegionId: id }),
       setActiveMaskTool: (tool) => set({ activeMaskTool: tool }),
       setMaskBrushSize: (size) => set({ maskBrushSize: Math.max(1, Math.min(100, Math.round(size))) }),
+      toggleMaskInverted: () => set((s) => ({ maskInverted: !s.maskInverted })),
 
       quickGenerate: (config) => {
         // Behind the scenes, creates a Scene in the "Quick Captures" project
