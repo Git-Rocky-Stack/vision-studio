@@ -33,6 +33,7 @@ export const Canvas = memo(function Canvas() {
     setActiveRegionId,
     setActiveMaskTool,
     toggleMaskInverted,
+    setActiveEditTool,
     updateRegionLock,
     projects,
     activeProjectId,
@@ -216,6 +217,52 @@ export const Canvas = memo(function Canvas() {
             return;
           case 'i':
             toggleMaskInverted();
+            return;
+        }
+      } else {
+        // Edit tool shortcuts (only active outside region mode)
+        switch (e.key.toLowerCase()) {
+          case 'v':
+            setActiveEditTool('move');
+            return;
+          case 't':
+            setActiveEditTool('scale');
+            return;
+          case 'c':
+            setActiveEditTool('crop');
+            return;
+          case 'r':
+            setActiveEditTool('rotate');
+            return;
+          case 'b':
+            setActiveEditTool('brush');
+            return;
+          case 'e':
+            setActiveEditTool('eraser');
+            return;
+          case 's':
+            setActiveEditTool('clone');
+            return;
+          case 'j':
+            setActiveEditTool('heal');
+            return;
+          case 'x':
+            setActiveEditTool('text');
+            return;
+          case 'u':
+            setActiveEditTool('shape');
+            return;
+          case 'p':
+            setActiveEditTool('pen');
+            return;
+          case 'h':
+            setActiveEditTool('hand');
+            return;
+          case 'z':
+            setActiveEditTool('zoom');
+            return;
+          case 'i':
+            setActiveEditTool('eyedropper');
             return;
         }
       }
