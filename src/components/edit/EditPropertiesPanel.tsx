@@ -95,6 +95,7 @@ export function EditPropertiesPanel() {
     createRegionLock,
     setActiveRegionId,
     setActiveMaskTool,
+    setRegionMode,
   } = useAppStore();
 
   // Find the active region lock
@@ -111,6 +112,17 @@ export function EditPropertiesPanel() {
       setActiveTab('region');
     }
   }, [regionMode, activeRegionId]);
+
+  // Sync regionMode with the region tab: entering the tab enables region mode,
+  // leaving it disables region mode. This gives users a single, discoverable
+  // entry point to region-lock features.
+  useEffect(() => {
+    if (activeTab === 'region' && !regionMode) {
+      setRegionMode(true);
+    } else if (activeTab !== 'region' && regionMode) {
+      setRegionMode(false);
+    }
+  }, [activeTab]);
 
   const [activeTab, setActiveTab] = useState<PropertiesTab>('adjustments');
   const [expandedGroups, setExpandedGroups] = useState<string[]>(['Light', 'Color']);

@@ -1113,3 +1113,9 @@ export const useAppStore = create<AppState>()(
     }
   )
 );
+
+// Expose the store on window for E2E test seeding and debugging.
+// Safe in an Electron renderer context — no external web exposure.
+if (typeof window !== 'undefined') {
+  (window as unknown as { __VISION_STUDIO_STORE__: typeof useAppStore }).__VISION_STUDIO_STORE__ = useAppStore;
+}

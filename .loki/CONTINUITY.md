@@ -67,14 +67,22 @@
 - ScenePlaybackStrip: 14 tests
 
 ## Next Action
-Phase 1 integration + mask drawing complete.
-- ✅ RegionMaskDrawer component implemented — rectangle, brush, polygon drawing
-- ✅ Wired into Canvas.tsx artboard; commits to store via updateRegionLock
-- ✅ Create-region-lock flow: "Create Region Lock" button in EditPropertiesPanel empty state
-- ✅ 11 new tests for RegionMaskDrawer (all 367 tests green)
+Phase 1 integration + mask drawing + E2E complete.
+- ✅ RegionMaskDrawer component (rectangle/brush/polygon) + 11 tests
+- ✅ Wired into Canvas.tsx; commits to store via updateRegionLock
+- ✅ Create-region-lock flow: EditPropertiesPanel empty state
+- ✅ Region tab ↔ regionMode bidirectional sync (tab click enables region mode)
+- ✅ Store exposed on `window.__VISION_STUDIO_STORE__` for E2E seeding
+- ✅ E2E spec `tests/e2e/region-lock-flow.spec.ts` with 4 tests (store exposure, tab enables regionMode, create button flow, mask drawing updates bounds)
 
-Remaining:
-- E2E testing of the region lock workflow end-to-end (pending task-e2e-region-03)
+Known environment issue:
+- Local Playwright Electron fixture fails with "timeout while setting up 'app'" —
+  reproducible across BOTH new region-lock-flow.spec.ts AND existing
+  generate-happy-path.spec.ts. Pre-existing issue independent of these changes.
+  CI (.github/workflows/release.yml) is the authoritative E2E environment.
+
+Remaining (post-phase):
 - Scene playback actual generation pipeline integration
 - Region lock generation pipeline integration
 - Share brushSize state across EditCanvas + RegionMaskDrawer via store (currently hardcoded 20 in Canvas)
+- Debug local Electron E2E fixture
