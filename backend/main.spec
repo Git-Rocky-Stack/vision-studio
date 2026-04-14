@@ -7,7 +7,7 @@ Includes: FastAPI, PyTorch, CUDA, diffusers, transformers
 import sys
 import os
 from pathlib import Path
-from PyInstaller.utils.hooks import copy_metadata
+from PyInstaller.utils.hooks import copy_metadata, collect_data_files
 
 # Add the backend directory to path.
 # PyInstaller executes spec files without defining __file__ in some versions.
@@ -38,6 +38,8 @@ a = Analysis(
     datas=[
         # Include any data files
         ('.env.example', '.'),
+        # Include db/migrations directory
+        ('db/migrations', 'db/migrations'),
     ] + extra_datas,
     hiddenimports=[
         # FastAPI & Uvicorn

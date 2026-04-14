@@ -59,7 +59,8 @@ function App() {
           gpuVram: info.gpu_vram,
           cudaVersion: info.cuda_version,
           comfyuiConnected: info.comfyui_connected,
-          modelsCount: info.models_count
+          modelsCount: info.models_count,
+          backendConnected: info.backend_connected,
         });
       } catch (e) {
         console.error('Failed to fetch system info:', e);

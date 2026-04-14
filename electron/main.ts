@@ -647,6 +647,31 @@ ipcMain.handle(
   }
 );
 
+// System info
+ipcMain.handle('system:get-info', async () => {
+  if (pythonBackend && pythonBackend.exitCode === null) {
+    try {
+      const response = await fetch('http://127.0.0.1:8000/api/system/info', {
+        signal: AbortSignal.timeout(3000),
+      });
+      if (response.ok) {
+        return { ...await response.json(), backendConnected: true };
+      }
+    } catch {
+      // Backend process is running but not responding
+    }
+  }
+  return {
+    backendConnected: false,
+    gpu_available: false,
+    gpu_name: undefined,
+    gpu_vram: undefined,
+    cuda_version: undefined,
+    comfyui_connected: false,
+    models_count: 0,
+  };
+});
+
 // Backend control
 ipcMain.handle('backend:start', async () => {
     if (!pythonBackend || pythonBackend.exitCode !== null) {

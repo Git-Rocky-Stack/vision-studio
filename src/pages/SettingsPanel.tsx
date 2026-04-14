@@ -15,6 +15,8 @@ import {
   RefreshCw,
   HardDrive,
   Monitor,
+  AlertTriangle,
+  Play,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -62,6 +64,7 @@ export function SettingsPanel() {
     removeAssetsByRoot,
     clearBatchResults,
     setAvailableModels,
+    setSystemInfo,
   } = useAppStore();
   const [activeTab, setActiveTab] = useState<SettingsTab>('general');
   const [settings, setSettings] = useState<SettingsState>(defaultSettingsState);
@@ -401,6 +404,50 @@ export function SettingsPanel() {
                     </div>
                   </div>
                 </div>
+
+                {!systemInfo.backendConnected && (
+                  <div className="bg-red-primary/10 border border-red-primary/30 rounded-lg p-4">
+                    <div className="flex items-start gap-3">
+                      <AlertTriangle className="w-5 h-5 text-red-primary mt-0.5 flex-shrink-0" />
+                      <div>
+                        <h4 className="text-sm font-display font-medium text-red-primary">
+                          AI Backend Offline
+                        </h4>
+                        <p className="text-xs text-text-body mt-1">
+                          The Python backend is not running. Image generation and AI features are disabled.
+                        </p>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="mt-3 text-red-primary hover:bg-red-primary/20"
+                          icon={Play}
+                          onClick={async () => {
+                            const result = await window.electron.backend.start();
+                            if (result.success) {
+                              // Re-fetch system info after a short delay for backend to initialize
+                              setTimeout(async () => {
+                                const info = await window.electron.system.getInfo();
+                                setSystemInfo({
+                                  gpuAvailable: info.gpu_available,
+                                  gpuName: info.gpu_name,
+                                  gpuVram: info.gpu_vram,
+                                  cudaVersion: info.cuda_version,
+                                  comfyuiConnected: info.comfyui_connected,
+                                  modelsCount: info.models_count,
+                                  backendConnected: info.backend_connected,
+                                });
+                                const models = await window.electron.models.list();
+                                setAvailableModels(models);
+                              }, 3000);
+                            }
+                          }}
+                        >
+                          Start Backend
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 <div className="space-y-4">
                   <h3 className="text-label text-text-body">Installed Models</h3>

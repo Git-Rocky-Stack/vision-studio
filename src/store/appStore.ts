@@ -12,8 +12,22 @@ import type {
 import { BUILT_IN_STYLE_PRESETS } from '@/types/generation';
 import type { AssetJobStatus, AssetRecord, DerivedAssetResult } from '@/types/assets';
 import { createDerivedAssetRecord, upsertAssetsFromJobStatus } from '@/features/assets/assetRecords';
+import type {
+  Project,
+  Scene,
+  CharacterRef,
+  RegionLock,
+  SceneStatus,
+  GenerationConfig,
+} from '@/types/project';
+import {
+  DEFAULT_GENERATION_CONFIG,
+  DEFAULT_SCENE_TRANSITION,
+  DEFAULT_SCENE_METADATA,
+} from '@/types/project';
 
-export interface Project {
+/** Lightweight recent-project entry (file-system project, not the storyboard Project). */
+export interface RecentProject {
   id: string;
   name: string;
   path: string;
@@ -171,12 +185,21 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
 interface AppState {
   // UI State
   sidebarCollapsed: boolean;
-  activePanel: 'generate' | 'edit' | 'assets' | 'settings' | 'templates' | 'batch';
+  activePanel: 'generate' | 'quick' | 'storyboard' | 'edit' | 'assets' | 'settings' | 'templates' | 'batch';
   darkMode: boolean;
 
-  // Projects
-  currentProject: Project | null;
-  recentProjects: Project[];
+  // Recent Projects (file-system level, not storyboard)
+  currentProject: RecentProject | null;
+  recentProjects: RecentProject[];
+
+  // ─── Phase 1: Storyboard & Surgical AI ──────────────────────────────────
+  projects: Project[];
+  activeProjectId: string | null;
+  activeSceneId: string | null;
+
+  // Migration
+  migrationStatus: 'idle' | 'running' | 'complete' | 'error';
+  migrationProgress: number; // 0–100
 
   // Generation
   activeJobs: GenerationJob[];
@@ -193,6 +216,7 @@ interface AppState {
     cudaVersion?: string;
     comfyuiConnected: boolean;
     modelsCount: number;
+    backendConnected: boolean;
   };
 
   // Models
@@ -325,6 +349,42 @@ interface AppState {
   setCurrentImage: (imagePath: string | null, assetPath?: string | null) => void;
   setImageAdjustments: (adjustments: Partial<ImageAdjustments>) => void;
   resetImageAdjustments: () => void;
+
+  // ─── Phase 1: Project / Scene / Character actions ────────────────────────
+
+  // Project CRUD
+  createProject: (name: string, dimensions?: { width: number; height: number }) => Project;
+  deleteProject: (id: string) => void;
+  setActiveProject: (id: string | null) => void;
+  updateProject: (id: string, updates: Partial<Pick<Project, 'name' | 'dimensions' | 'fps' | 'metadata'>>) => void;
+
+  // Scene CRUD
+  addScene: (projectId: string, config?: Partial<Scene>) => Scene;
+  deleteScene: (projectId: string, sceneId: string) => void;
+  reorderScenes: (projectId: string, sceneIds: string[]) => void;
+  duplicateScene: (projectId: string, sceneId: string) => Scene;
+  setActiveScene: (id: string | null) => void;
+  updateScene: (projectId: string, sceneId: string, updates: Partial<Scene>) => void;
+  setSceneStatus: (projectId: string, sceneId: string, status: SceneStatus) => void;
+
+  // Character CRUD
+  addCharacter: (projectId: string, char: Omit<CharacterRef, 'id' | 'projectId'>) => CharacterRef;
+  updateCharacter: (projectId: string, charId: string, updates: Partial<CharacterRef>) => void;
+  deleteCharacter: (projectId: string, charId: string) => void;
+  assignCharacterToScene: (projectId: string, sceneId: string, charId: string) => void;
+  removeCharacterFromScene: (projectId: string, sceneId: string, charId: string) => void;
+
+  // Region lock CRUD
+  createRegionLock: (sceneId: string, frameId: string, config: Partial<RegionLock>) => RegionLock;
+  updateRegionLock: (sceneId: string, lockId: string, updates: Partial<RegionLock>) => void;
+  deleteRegionLock: (sceneId: string, lockId: string) => void;
+
+  // Quick Generate
+  quickGenerate: (config: GenerationConfig) => void;
+  promoteToProject: (sceneId: string, projectId: string) => void;
+
+  // Migration
+  runMigration: () => Promise<void>;
 }
 
 function createBaseImageLayer(imagePath: string, assetPath?: string | null): Layer {
@@ -353,6 +413,14 @@ export const useAppStore = create<AppState>()(
       darkMode: true,
       currentProject: null,
       recentProjects: [],
+
+      // Phase 1: Storyboard
+      projects: [],
+      activeProjectId: null,
+      activeSceneId: null,
+      migrationStatus: 'idle',
+      migrationProgress: 0,
+
       activeJobs: [],
       completedJobs: [],
       batchJobs: [],
@@ -360,6 +428,7 @@ export const useAppStore = create<AppState>()(
         gpuAvailable: false,
         comfyuiConnected: false,
         modelsCount: 0,
+        backendConnected: false,
       },
       availableModels: [],
 
@@ -647,6 +716,360 @@ export const useAppStore = create<AppState>()(
       })),
 
       resetImageAdjustments: () => set({ imageAdjustments: { ...DEFAULT_ADJUSTMENTS } }),
+
+      // ─── Phase 1: Project / Scene / Character actions ────────────────────
+
+      createProject: (name, dimensions) => {
+        const now = new Date().toISOString();
+        const project: Project = {
+          id: crypto.randomUUID(),
+          name,
+          created: now,
+          modified: now,
+          dimensions: dimensions ?? { width: 1920, height: 1080 },
+          fps: 24,
+          characters: [],
+          scenes: [],
+          metadata: {},
+        };
+        set((state) => ({ projects: [...state.projects, project] }));
+        return project;
+      },
+
+      deleteProject: (id) => set((state) => ({
+        projects: state.projects.filter((p) => p.id !== id),
+        activeProjectId: state.activeProjectId === id ? null : state.activeProjectId,
+        activeSceneId:
+          state.activeProjectId === id ? null : state.activeSceneId,
+      })),
+
+      setActiveProject: (id) => set({ activeProjectId: id, activeSceneId: null }),
+
+      updateProject: (id, updates) => set((state) => ({
+        projects: state.projects.map((p) =>
+          p.id === id ? { ...p, ...updates, modified: new Date().toISOString() } : p
+        ),
+      })),
+
+      addScene: (projectId, config) => {
+        const now = new Date().toISOString();
+        const scene: Scene = {
+          id: crypto.randomUUID(),
+          orderIndex: 0,
+          name: config?.name ?? 'Untitled Scene',
+          prompt: config?.prompt ?? '',
+          negativePrompt: config?.negativePrompt ?? '',
+          generationConfig: config?.generationConfig ?? { ...DEFAULT_GENERATION_CONFIG },
+          referenceImages: config?.referenceImages ?? [],
+          frames: [],
+          regionLocks: [],
+          transitions: config?.transitions ?? { ...DEFAULT_SCENE_TRANSITION },
+          camera: [],
+          metadata: { ...DEFAULT_SCENE_METADATA, created: now, modified: now },
+          status: 'draft',
+          characterRefs: [],
+          thumbnail: config?.thumbnail,
+        };
+        set((state) => ({
+          projects: state.projects.map((p) => {
+            if (p.id !== projectId) return p;
+            const orderIndex = p.scenes.length;
+            return {
+              ...p,
+              scenes: [...p.scenes, { ...scene, orderIndex }],
+              modified: now,
+            };
+          }),
+        }));
+        return scene;
+      },
+
+      deleteScene: (projectId, sceneId) => set((state) => ({
+        projects: state.projects.map((p) => {
+          if (p.id !== projectId) return p;
+          return {
+            ...p,
+            scenes: p.scenes
+              .filter((s) => s.id !== sceneId)
+              .map((s, i) => ({ ...s, orderIndex: i })),
+            modified: new Date().toISOString(),
+          };
+        }),
+        activeSceneId: state.activeSceneId === sceneId ? null : state.activeSceneId,
+      })),
+
+      reorderScenes: (projectId, sceneIds) => set((state) => ({
+        projects: state.projects.map((p) => {
+          if (p.id !== projectId) return p;
+          const map = new Map(p.scenes.map((s) => [s.id, s]));
+          return {
+            ...p,
+            scenes: sceneIds
+              .map((id, i) => {
+                const s = map.get(id);
+                return s ? { ...s, orderIndex: i } : null;
+              })
+              .filter((s): s is Scene => s !== null),
+            modified: new Date().toISOString(),
+          };
+        }),
+      })),
+
+      duplicateScene: (projectId, sceneId) => {
+        const state = useAppStore.getState();
+        const project = state.projects.find((p) => p.id === projectId);
+        const scene = project?.scenes.find((s) => s.id === sceneId);
+        if (!scene) throw new Error(`Scene ${sceneId} not found`);
+
+        const now = new Date().toISOString();
+        const dup: Scene = {
+          ...scene,
+          id: crypto.randomUUID(),
+          name: `${scene.name} (copy)`,
+          orderIndex: project.scenes.length,
+          metadata: { ...scene.metadata, created: now, modified: now },
+          frames: [], // Frames are deep-copied separately if needed
+          regionLocks: [],
+          status: 'draft',
+        };
+
+        set((s) => ({
+          projects: s.projects.map((p) => {
+            if (p.id !== projectId) return p;
+            return { ...p, scenes: [...p.scenes, dup], modified: now };
+          }),
+        }));
+        return dup;
+      },
+
+      setActiveScene: (id) => set({ activeSceneId: id }),
+
+      updateScene: (projectId, sceneId, updates) => set((state) => ({
+        projects: state.projects.map((p) => {
+          if (p.id !== projectId) return p;
+          return {
+            ...p,
+            scenes: p.scenes.map((s) =>
+              s.id === sceneId
+                ? { ...s, ...updates, metadata: { ...s.metadata, modified: new Date().toISOString() } }
+                : s
+            ),
+            modified: new Date().toISOString(),
+          };
+        }),
+      })),
+
+      setSceneStatus: (projectId, sceneId, status) => set((state) => ({
+        projects: state.projects.map((p) => {
+          if (p.id !== projectId) return p;
+          return {
+            ...p,
+            scenes: p.scenes.map((s) =>
+              s.id === sceneId ? { ...s, status } : s
+            ),
+          };
+        }),
+      })),
+
+      addCharacter: (projectId, char) => {
+        const character: CharacterRef = {
+          ...char,
+          id: crypto.randomUUID(),
+          projectId,
+        };
+        set((state) => ({
+          projects: state.projects.map((p) => {
+            if (p.id !== projectId) return p;
+            return { ...p, characters: [...p.characters, character], modified: new Date().toISOString() };
+          }),
+        }));
+        return character;
+      },
+
+      updateCharacter: (projectId, charId, updates) => set((state) => ({
+        projects: state.projects.map((p) => {
+          if (p.id !== projectId) return p;
+          return {
+            ...p,
+            characters: p.characters.map((c) =>
+              c.id === charId ? { ...c, ...updates } : c
+            ),
+          };
+        }),
+      })),
+
+      deleteCharacter: (projectId, charId) => set((state) => ({
+        projects: state.projects.map((p) => {
+          if (p.id !== projectId) return p;
+          return {
+            ...p,
+            characters: p.characters.filter((c) => c.id !== charId),
+            scenes: p.scenes.map((s) => ({
+              ...s,
+              characterRefs: s.characterRefs.filter((id) => id !== charId),
+            })),
+            modified: new Date().toISOString(),
+          };
+        }),
+      })),
+
+      assignCharacterToScene: (projectId, sceneId, charId) => set((state) => ({
+        projects: state.projects.map((p) => {
+          if (p.id !== projectId) return p;
+          return {
+            ...p,
+            scenes: p.scenes.map((s) => {
+              if (s.id !== sceneId) return s;
+              if (s.characterRefs.includes(charId)) return s;
+              return { ...s, characterRefs: [...s.characterRefs, charId] };
+            }),
+          };
+        }),
+      })),
+
+      removeCharacterFromScene: (projectId, sceneId, charId) => set((state) => ({
+        projects: state.projects.map((p) => {
+          if (p.id !== projectId) return p;
+          return {
+            ...p,
+            scenes: p.scenes.map((s) => {
+              if (s.id !== sceneId) return s;
+              return { ...s, characterRefs: s.characterRefs.filter((id) => id !== charId) };
+            }),
+          };
+        }),
+      })),
+
+      createRegionLock: (sceneId, frameId, config) => {
+        const lock: RegionLock = {
+          id: crypto.randomUUID(),
+          sceneId,
+          frameId,
+          name: config.name ?? 'Region',
+          mask: config.mask ?? { type: 'rectangle', points: [], bounds: { x: 0, y: 0, width: 100, height: 100 }, featherRadius: 2, blendEdges: true },
+          targetLayers: config.targetLayers ?? [],
+          protectedLayers: config.protectedLayers ?? [],
+          generationConfig: config.generationConfig ?? {},
+          aiTool: config.aiTool ?? 'generative-fill',
+          prompt: config.prompt ?? '',
+          strength: config.strength ?? 0.85,
+          invertMask: config.invertMask ?? false,
+        };
+        set((state) => ({
+          projects: state.projects.map((p) => ({
+            ...p,
+            scenes: p.scenes.map((s) => {
+              if (s.id !== sceneId) return s;
+              return { ...s, regionLocks: [...s.regionLocks, lock] };
+            }),
+          })),
+        }));
+        return lock;
+      },
+
+      updateRegionLock: (sceneId, lockId, updates) => set((state) => ({
+        projects: state.projects.map((p) => ({
+          ...p,
+          scenes: p.scenes.map((s) => {
+            if (s.id !== sceneId) return s;
+            return {
+              ...s,
+              regionLocks: s.regionLocks.map((l) =>
+                l.id === lockId ? { ...l, ...updates } : l
+              ),
+            };
+          }),
+        })),
+      })),
+
+      deleteRegionLock: (sceneId, lockId) => set((state) => ({
+        projects: state.projects.map((p) => ({
+          ...p,
+          scenes: p.scenes.map((s) => {
+            if (s.id !== sceneId) return s;
+            return { ...s, regionLocks: s.regionLocks.filter((l) => l.id !== lockId) };
+          }),
+        })),
+      })),
+
+      quickGenerate: (config) => {
+        // Behind the scenes, creates a Scene in the "Quick Captures" project
+        const state = useAppStore.getState();
+        let quickProject = state.projects.find((p) => p.name === 'Quick Captures');
+        if (!quickProject) {
+          quickProject = state.createProject('Quick Captures', { width: 1024, height: 1024 });
+        }
+        const scene = state.addScene(quickProject.id, {
+          prompt: '',
+          generationConfig: config,
+        });
+        set({ activeProjectId: quickProject.id, activeSceneId: scene.id });
+      },
+
+      promoteToProject: (sceneId, projectId) => {
+        const state = useAppStore.getState();
+        const sourceProject = state.projects.find((p) =>
+          p.scenes.some((s) => s.id === sceneId)
+        );
+        const scene = sourceProject?.scenes.find((s) => s.id === sceneId);
+        if (!scene || !sourceProject) return;
+
+        // Duplicate the scene into the target project
+        useAppStore.getState().addScene(projectId, {
+          ...scene,
+          name: scene.name,
+          prompt: scene.prompt,
+          negativePrompt: scene.negativePrompt,
+          generationConfig: scene.generationConfig,
+          thumbnail: scene.thumbnail,
+        });
+
+        // Remove from source project
+        useAppStore.getState().deleteScene(sourceProject.id, sceneId);
+      },
+
+      runMigration: async () => {
+        set({ migrationStatus: 'running', migrationProgress: 0 });
+        try {
+          const state = useAppStore.getState();
+
+          // Create "My Library" project from existing assets
+          const libraryProject = state.createProject('My Library', { width: 1024, height: 1024 });
+
+          // Migrate each asset to a scene
+          const totalAssets = state.assetLibrary.length;
+          for (let i = 0; i < totalAssets; i++) {
+            const asset = state.assetLibrary[i];
+            useAppStore.getState().addScene(libraryProject.id, {
+              name: asset.name,
+              prompt: asset.prompt,
+              negativePrompt: asset.negativePrompt,
+              generationConfig: {
+                ...DEFAULT_GENERATION_CONFIG,
+                model: asset.model ?? DEFAULT_GENERATION_CONFIG.model,
+                width: asset.width ?? DEFAULT_GENERATION_CONFIG.width,
+                height: asset.height ?? DEFAULT_GENERATION_CONFIG.height,
+                seed: asset.seed ?? -1,
+              },
+              thumbnail: asset.thumbnail,
+              status: 'complete',
+            });
+
+            // Update progress
+            set({ migrationProgress: Math.round(((i + 1) / totalAssets) * 100) });
+          }
+
+          // Create "Quick Captures" project for future single-image generations
+          const quickProject = state.projects.find((p) => p.name === 'Quick Captures');
+          if (!quickProject) {
+            useAppStore.getState().createProject('Quick Captures', { width: 1024, height: 1024 });
+          }
+
+          set({ migrationStatus: 'complete', migrationProgress: 100 });
+        } catch {
+          set({ migrationStatus: 'error', migrationProgress: 0 });
+        }
+      },
     }),
     {
       name: 'vision-studio-storage',
@@ -654,6 +1077,10 @@ export const useAppStore = create<AppState>()(
         sidebarCollapsed: state.sidebarCollapsed,
         darkMode: state.darkMode,
         recentProjects: state.recentProjects,
+        projects: state.projects,
+        activeProjectId: state.activeProjectId,
+        activeSceneId: state.activeSceneId,
+        migrationStatus: state.migrationStatus,
         promptHistory: state.promptHistory.slice(0, 50),
         favoritePrompts: state.favoritePrompts,
         customStylePresets: state.customStylePresets,

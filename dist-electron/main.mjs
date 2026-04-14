@@ -1,19 +1,19 @@
 import { ipcMain as V, app as Re, dialog as Me, shell as fa, Notification as Na, BrowserWindow as _o } from "electron";
-import it, { fileURLToPath as wo } from "url";
-import Se, { dirname as Os, join as Ae } from "path";
+import st, { fileURLToPath as wo } from "url";
+import Se, { dirname as Os, join as Ce } from "path";
 import Eo from "electron-store";
 import { spawn as ha } from "child_process";
-import me from "fs";
+import ue from "fs";
 import qe from "util";
 import oe, { Readable as So } from "stream";
-import st from "http";
+import ot from "http";
 import Ot from "https";
-import ot from "crypto";
+import rt from "crypto";
 import Ts from "http2";
 import Ro from "assert";
 import Cs from "tty";
 import ko from "os";
-import Ce from "zlib";
+import Ae from "zlib";
 import As, { EventEmitter as Oo } from "events";
 import To from "net";
 import Co from "tls";
@@ -103,7 +103,7 @@ const { toString: No } = Object.prototype, { getPrototypeOf: ba } = Object, { it
   const a = No.call(e);
   return t[a] || (t[a] = a.slice(8, -1).toLowerCase());
 })(/* @__PURE__ */ Object.create(null)), ke = (t) => (t = t.toLowerCase(), (e) => Ct(e) === t), At = (t) => (e) => typeof e === t, { isArray: We } = Array, $e = At("undefined");
-function rt(t) {
+function ct(t) {
   return t !== null && !$e(t) && t.constructor !== null && !$e(t.constructor) && xe(t.constructor.isBuffer) && t.constructor.isBuffer(t);
 }
 const Fs = ke("ArrayBuffer");
@@ -111,20 +111,20 @@ function Bo(t) {
   let e;
   return typeof ArrayBuffer < "u" && ArrayBuffer.isView ? e = ArrayBuffer.isView(t) : e = t && t.buffer && Fs(t.buffer), e;
 }
-const qo = At("string"), xe = At("function"), Ns = At("number"), ct = (t) => t !== null && typeof t == "object", Uo = (t) => t === !0 || t === !1, bt = (t) => {
+const qo = At("string"), xe = At("function"), Ns = At("number"), pt = (t) => t !== null && typeof t == "object", Uo = (t) => t === !0 || t === !1, gt = (t) => {
   if (Ct(t) !== "object")
     return !1;
   const e = ba(t);
   return (e === null || e === Object.prototype || Object.getPrototypeOf(e) === null) && !(Ls in t) && !(Tt in t);
 }, Do = (t) => {
-  if (!ct(t) || rt(t))
+  if (!pt(t) || ct(t))
     return !1;
   try {
     return Object.keys(t).length === 0 && Object.getPrototypeOf(t) === Object.prototype;
   } catch {
     return !1;
   }
-}, Io = ke("Date"), zo = ke("File"), Mo = ke("Blob"), $o = ke("FileList"), Ho = (t) => ct(t) && xe(t.pipe), Go = (t) => {
+}, Io = ke("Date"), zo = ke("File"), Mo = ke("Blob"), $o = ke("FileList"), Ho = (t) => pt(t) && xe(t.pipe), Go = (t) => {
   let e;
   return t && (typeof FormData == "function" && t instanceof FormData || xe(t.append) && ((e = Ct(t)) === "formdata" || // detect form-data instance
   e === "object" && xe(t.toString) && t.toString() === "[object FormData]"));
@@ -134,7 +134,7 @@ const qo = At("string"), xe = At("function"), Ns = At("number"), ct = (t) => t !
   "Response",
   "Headers"
 ].map(ke), Xo = (t) => t.trim ? t.trim() : t.replace(/^[\s\uFEFF\xA0]+|[\s\uFEFF\xA0]+$/g, "");
-function pt(t, e, { allOwnKeys: a = !1 } = {}) {
+function lt(t, e, { allOwnKeys: a = !1 } = {}) {
   if (t === null || typeof t > "u")
     return;
   let n, i;
@@ -142,7 +142,7 @@ function pt(t, e, { allOwnKeys: a = !1 } = {}) {
     for (n = 0, i = t.length; n < i; n++)
       e.call(null, t[n], n, t);
   else {
-    if (rt(t))
+    if (ct(t))
       return;
     const o = a ? Object.getOwnPropertyNames(t) : Object.keys(t), s = o.length;
     let r;
@@ -151,7 +151,7 @@ function pt(t, e, { allOwnKeys: a = !1 } = {}) {
   }
 }
 function Bs(t, e) {
-  if (rt(t))
+  if (ct(t))
     return null;
   e = e.toLowerCase();
   const a = Object.keys(t);
@@ -167,13 +167,13 @@ function la() {
     if (o === "__proto__" || o === "constructor" || o === "prototype")
       return;
     const s = t && Bs(a, o) || o;
-    bt(a[s]) && bt(i) ? a[s] = la(a[s], i) : bt(i) ? a[s] = la({}, i) : We(i) ? a[s] = i.slice() : (!e || !$e(i)) && (a[s] = i);
+    gt(a[s]) && gt(i) ? a[s] = la(a[s], i) : gt(i) ? a[s] = la({}, i) : We(i) ? a[s] = i.slice() : (!e || !$e(i)) && (a[s] = i);
   };
   for (let i = 0, o = arguments.length; i < o; i++)
-    arguments[i] && pt(arguments[i], n);
+    arguments[i] && lt(arguments[i], n);
   return a;
 }
-const Zo = (t, e, a, { allOwnKeys: n } = {}) => (pt(
+const Zo = (t, e, a, { allOwnKeys: n } = {}) => (lt(
   e,
   (i, o) => {
     a && xe(i) ? Object.defineProperty(t, o, {
@@ -241,7 +241,7 @@ const Zo = (t, e, a, { allOwnKeys: n } = {}) => (pt(
   return n.toUpperCase() + i;
 }), qa = (({ hasOwnProperty: t }) => (e, a) => t.call(e, a))(Object.prototype), pr = ke("RegExp"), Us = (t, e) => {
   const a = Object.getOwnPropertyDescriptors(t), n = {};
-  pt(a, (i, o) => {
+  lt(a, (i, o) => {
     let s;
     (s = e(i, o, t)) !== !1 && (n[o] = s || i);
   }), Object.defineProperties(t, n);
@@ -274,15 +274,15 @@ function fr(t) {
 }
 const hr = (t) => {
   const e = new Array(10), a = (n, i) => {
-    if (ct(n)) {
+    if (pt(n)) {
       if (e.indexOf(n) >= 0)
         return;
-      if (rt(n))
+      if (ct(n))
         return n;
       if (!("toJSON" in n)) {
         e[i] = n;
         const o = We(n) ? [] : {};
-        return pt(n, (s, r) => {
+        return lt(n, (s, r) => {
           const c = a(s, i + 1);
           !$e(c) && (o[r] = c);
         }), e[i] = void 0, o;
@@ -291,7 +291,7 @@ const hr = (t) => {
     return n;
   };
   return a(t, 0);
-}, xr = ke("AsyncFunction"), vr = (t) => t && (ct(t) || xe(t)) && xe(t.then) && xe(t.catch), Ds = ((t, e) => t ? setImmediate : e ? ((a, n) => (je.addEventListener(
+}, xr = ke("AsyncFunction"), vr = (t) => t && (pt(t) || xe(t)) && xe(t.then) && xe(t.catch), Ds = ((t, e) => t ? setImmediate : e ? ((a, n) => (je.addEventListener(
   "message",
   ({ source: i, data: o }) => {
     i === je && o === a && n.length && n.shift()();
@@ -302,14 +302,14 @@ const hr = (t) => {
 }))(`axios@${Math.random()}`, []) : (a) => setTimeout(a))(typeof setImmediate == "function", xe(je.postMessage)), br = typeof queueMicrotask < "u" ? queueMicrotask.bind(je) : typeof process < "u" && process.nextTick || Ds, gr = (t) => t != null && xe(t[Tt]), _ = {
   isArray: We,
   isArrayBuffer: Fs,
-  isBuffer: rt,
+  isBuffer: ct,
   isFormData: Go,
   isArrayBufferView: Bo,
   isString: qo,
   isNumber: Ns,
   isBoolean: Uo,
-  isObject: ct,
-  isPlainObject: bt,
+  isObject: pt,
+  isPlainObject: gt,
   isEmptyObject: Do,
   isReadableStream: Vo,
   isRequest: Ko,
@@ -325,7 +325,7 @@ const hr = (t) => {
   isURLSearchParams: Wo,
   isTypedArray: ir,
   isFileList: $o,
-  forEach: pt,
+  forEach: lt,
   merge: la,
   extend: Zo,
   trim: Xo,
@@ -3359,9 +3359,9 @@ var Bn, Pi;
 function Zr() {
   if (Pi) return Bn;
   Pi = 1;
-  var t, e = /* @__PURE__ */ Vs(), a = /* @__PURE__ */ Cr(), n = /* @__PURE__ */ Ar(), i = /* @__PURE__ */ Pr(), o = /* @__PURE__ */ jr(), s = /* @__PURE__ */ Lr(), r = /* @__PURE__ */ ya(), c = /* @__PURE__ */ Fr(), d = /* @__PURE__ */ Nr(), p = /* @__PURE__ */ Br(), u = /* @__PURE__ */ qr(), l = /* @__PURE__ */ Ur(), E = /* @__PURE__ */ Dr(), x = /* @__PURE__ */ Ir(), f = /* @__PURE__ */ Mr(), h = Function, v = function(de) {
+  var t, e = /* @__PURE__ */ Vs(), a = /* @__PURE__ */ Cr(), n = /* @__PURE__ */ Ar(), i = /* @__PURE__ */ Pr(), o = /* @__PURE__ */ jr(), s = /* @__PURE__ */ Lr(), r = /* @__PURE__ */ ya(), c = /* @__PURE__ */ Fr(), d = /* @__PURE__ */ Nr(), p = /* @__PURE__ */ Br(), u = /* @__PURE__ */ qr(), l = /* @__PURE__ */ Ur(), E = /* @__PURE__ */ Dr(), x = /* @__PURE__ */ Ir(), f = /* @__PURE__ */ Mr(), h = Function, v = function(me) {
     try {
-      return h('"use strict"; return (' + de + ").constructor;")();
+      return h('"use strict"; return (' + me + ").constructor;")();
     } catch {
     }
   }, w = /* @__PURE__ */ Ks(), k = /* @__PURE__ */ Hr(), A = function() {
@@ -3463,11 +3463,11 @@ function Zr() {
   if (y)
     try {
       null.error;
-    } catch (de) {
-      var ne = y(y(de));
+    } catch (me) {
+      var ne = y(y(me));
       U["%Error.prototype%"] = ne;
     }
-  var b = function de(G) {
+  var b = function me(G) {
     var re;
     if (G === "%AsyncFunction%")
       re = v("async function () {}");
@@ -3476,10 +3476,10 @@ function Zr() {
     else if (G === "%AsyncGeneratorFunction%")
       re = v("async function* () {}");
     else if (G === "%AsyncGenerator%") {
-      var ie = de("%AsyncGeneratorFunction%");
-      ie && (re = ie.prototype);
+      var ae = me("%AsyncGeneratorFunction%");
+      ae && (re = ae.prototype);
     } else if (G === "%AsyncIteratorPrototype%") {
-      var ce = de("%AsyncGenerator%");
+      var ce = me("%AsyncGenerator%");
       ce && y && (re = y(ce.prototype));
     }
     return U[G] = re, re;
@@ -3537,24 +3537,24 @@ function Zr() {
     "%WeakMapPrototype%": ["WeakMap", "prototype"],
     "%WeakSetPrototype%": ["WeakSet", "prototype"]
   }, C = Pt(), z = /* @__PURE__ */ wa(), B = C.call(I, Array.prototype.concat), P = C.call(L, Array.prototype.splice), M = C.call(I, String.prototype.replace), Q = C.call(I, String.prototype.slice), J = C.call(I, RegExp.prototype.exec), Y = /[^%.[\]]+|\[(?:(-?\d+(?:\.\d+)?)|(["'])((?:(?!\2)[^\\]|\\.)*?)\2)\]|(?=(?:\.|\[\])(?:\.|\[\]|%$))/g, W = /\\(\\)?/g, ee = function(G) {
-    var re = Q(G, 0, 1), ie = Q(G, -1);
-    if (re === "%" && ie !== "%")
+    var re = Q(G, 0, 1), ae = Q(G, -1);
+    if (re === "%" && ae !== "%")
       throw new s("invalid intrinsic syntax, expected closing `%`");
-    if (ie === "%" && re !== "%")
+    if (ae === "%" && re !== "%")
       throw new s("invalid intrinsic syntax, expected opening `%`");
     var ce = [];
     return M(G, Y, function(fe, Te, le, R) {
       ce[ce.length] = le ? M(R, W, "$1") : Te || fe;
     }), ce;
   }, ge = function(G, re) {
-    var ie = G, ce;
-    if (z(O, ie) && (ce = O[ie], ie = "%" + ce[0] + "%"), z(U, ie)) {
-      var fe = U[ie];
-      if (fe === D && (fe = b(ie)), typeof fe > "u" && !re)
+    var ae = G, ce;
+    if (z(O, ae) && (ce = O[ae], ae = "%" + ce[0] + "%"), z(U, ae)) {
+      var fe = U[ae];
+      if (fe === D && (fe = b(ae)), typeof fe > "u" && !re)
         throw new r("intrinsic " + G + " exists, but is not available. Please file an issue!");
       return {
         alias: ce,
-        name: ie,
+        name: ae,
         value: fe
       };
     }
@@ -3567,10 +3567,10 @@ function Zr() {
       throw new r('"allowMissing" argument must be a boolean');
     if (J(/^%?[^%]*%?$/, G) === null)
       throw new s("`%` may not be present anywhere but at the beginning and end of the intrinsic name");
-    var ie = ee(G), ce = ie.length > 0 ? ie[0] : "", fe = ge("%" + ce + "%", re), Te = fe.name, le = fe.value, R = !1, T = fe.alias;
-    T && (ce = T[0], P(ie, B([0, 1], T)));
-    for (var q = 1, $ = !0; q < ie.length; q += 1) {
-      var N = ie[q], X = Q(N, 0, 1), we = Q(N, -1);
+    var ae = ee(G), ce = ae.length > 0 ? ae[0] : "", fe = ge("%" + ce + "%", re), Te = fe.name, le = fe.value, R = !1, T = fe.alias;
+    T && (ce = T[0], P(ae, B([0, 1], T)));
+    for (var q = 1, $ = !0; q < ae.length; q += 1) {
+      var N = ae[q], X = Q(N, 0, 1), we = Q(N, -1);
       if ((X === '"' || X === "'" || X === "`" || we === '"' || we === "'" || we === "`") && X !== we)
         throw new s("property names with quotes must have matching quotes");
       if ((N === "constructor" || !$) && (R = !0), ce += "." + N, Te = "%" + ce + "%", z(U, Te))
@@ -3581,7 +3581,7 @@ function Zr() {
             throw new r("base intrinsic for " + G + " exists, but the property is not available.");
           return;
         }
-        if (w && q + 1 >= ie.length) {
+        if (w && q + 1 >= ae.length) {
           var Ee = w(le, N);
           $ = !!Ee, $ && "get" in Ee && !("originalValue" in Ee.get) ? le = Ee.get : le = le[N];
         } else
@@ -3630,7 +3630,7 @@ var In, Ni;
 function nc() {
   if (Ni) return In;
   Ni = 1;
-  var t = _r(), e = qe, a = Se, n = st, i = Ot, o = it.parse, s = me, r = oe.Stream, c = ot, d = Sr(), p = Tr(), u = /* @__PURE__ */ ec(), l = /* @__PURE__ */ wa(), E = tc();
+  var t = _r(), e = qe, a = Se, n = ot, i = Ot, o = st.parse, s = ue, r = oe.Stream, c = rt, d = Sr(), p = Tr(), u = /* @__PURE__ */ ec(), l = /* @__PURE__ */ wa(), E = tc();
   function x(f) {
     if (!(this instanceof x))
       return new x(f);
@@ -3946,14 +3946,14 @@ const Lt = {
   forcedJSONParsing: !0,
   clarifyTimeoutError: !1,
   legacyInterceptorReqResOrdering: !0
-}, rc = it.URLSearchParams, zn = "abcdefghijklmnopqrstuvwxyz", Di = "0123456789", ao = {
+}, rc = st.URLSearchParams, zn = "abcdefghijklmnopqrstuvwxyz", Di = "0123456789", ao = {
   DIGIT: Di,
   ALPHA: zn,
   ALPHA_DIGIT: zn + zn.toUpperCase() + Di
 }, cc = (t = 16, e = ao.ALPHA_DIGIT) => {
   let a = "";
   const { length: n } = e, i = new Uint32Array(t);
-  ot.randomFillSync(i);
+  rt.randomFillSync(i);
   for (let o = 0; o < t; o++)
     a += e[i[o] % n];
   return a;
@@ -3975,14 +3975,14 @@ self instanceof WorkerGlobalScope && typeof self.importScripts == "function", dc
   hasStandardBrowserWebWorkerEnv: uc,
   navigator: da,
   origin: dc
-}, Symbol.toStringTag, { value: "Module" })), se = {
+}, Symbol.toStringTag, { value: "Module" })), ie = {
   ...mc,
   ...pc
 };
 function fc(t, e) {
-  return jt(t, new se.classes.URLSearchParams(), {
+  return jt(t, new ie.classes.URLSearchParams(), {
     visitor: function(a, n, i, o) {
-      return se.isNode && _.isBuffer(a) ? (this.append(n, a.toString("base64")), !1) : o.defaultVisitor.apply(this, arguments);
+      return ie.isNode && _.isBuffer(a) ? (this.append(n, a.toString("base64")), !1) : o.defaultVisitor.apply(this, arguments);
     },
     ...e
   });
@@ -4024,7 +4024,7 @@ function vc(t, e, a) {
     }
   return (a || JSON.stringify)(t);
 }
-const lt = {
+const ut = {
   transitional: Lt,
   adapter: ["xhr", "http", "fetch"],
   transformRequest: [function(e, a) {
@@ -4053,7 +4053,7 @@ const lt = {
     return o || i ? (a.setContentType("application/json", !1), vc(e)) : e;
   }],
   transformResponse: [function(e) {
-    const a = this.transitional || lt.transitional, n = a && a.forcedJSONParsing, i = this.responseType === "json";
+    const a = this.transitional || ut.transitional, n = a && a.forcedJSONParsing, i = this.responseType === "json";
     if (_.isResponse(e) || _.isReadableStream(e))
       return e;
     if (e && _.isString(e) && (n && !this.responseType || i)) {
@@ -4077,8 +4077,8 @@ const lt = {
   maxContentLength: -1,
   maxBodyLength: -1,
   env: {
-    FormData: se.classes.FormData,
-    Blob: se.classes.Blob
+    FormData: ie.classes.FormData,
+    Blob: ie.classes.Blob
   },
   validateStatus: function(e) {
     return e >= 200 && e < 300;
@@ -4091,7 +4091,7 @@ const lt = {
   }
 };
 _.forEach(["delete", "get", "head", "post", "put", "patch"], (t) => {
-  lt.headers[t] = {};
+  ut.headers[t] = {};
 });
 const bc = _.toObjectSet([
   "age",
@@ -4122,8 +4122,8 @@ const bc = _.toObjectSet([
 function Qe(t) {
   return t && String(t).trim().toLowerCase();
 }
-function gt(t) {
-  return t === !1 || t == null ? t : _.isArray(t) ? t.map(gt) : String(t);
+function yt(t) {
+  return t === !1 || t == null ? t : _.isArray(t) ? t.map(yt) : String(t);
 }
 function yc(t) {
   const e = /* @__PURE__ */ Object.create(null), a = /([^\s,;=]+)\s*(?:=\s*([^,;]+))?/g;
@@ -4157,7 +4157,7 @@ function Ec(t, e) {
     });
   });
 }
-let ue = class {
+let de = class {
   constructor(e) {
     e && this.set(e);
   }
@@ -4168,7 +4168,7 @@ let ue = class {
       if (!p)
         throw new Error("header name must be a non-empty string");
       const u = _.findKey(i, p);
-      (!u || i[u] === void 0 || d === !0 || d === void 0 && i[u] !== !1) && (i[u || c] = gt(r));
+      (!u || i[u] === void 0 || d === !0 || d === void 0 && i[u] !== !1) && (i[u || c] = yt(r));
     }
     const s = (r, c) => _.forEach(r, (d, p) => o(d, p, c));
     if (_.isPlainObject(e) || e instanceof this.constructor)
@@ -4236,11 +4236,11 @@ let ue = class {
     return _.forEach(this, (i, o) => {
       const s = _.findKey(n, o);
       if (s) {
-        a[s] = gt(i), delete a[o];
+        a[s] = yt(i), delete a[o];
         return;
       }
       const r = e ? wc(o) : String(o).trim();
-      r !== o && delete a[o], a[r] = gt(i), n[r] = !0;
+      r !== o && delete a[o], a[r] = yt(i), n[r] = !0;
     }), this;
   }
   concat(...e) {
@@ -4283,8 +4283,8 @@ let ue = class {
     return _.isArray(e) ? e.forEach(o) : o(e), this;
   }
 };
-ue.accessor(["Content-Type", "Content-Length", "Accept", "Accept-Encoding", "User-Agent", "Authorization"]);
-_.reduceDescriptors(ue.prototype, ({ value: t }, e) => {
+de.accessor(["Content-Type", "Content-Length", "Accept", "Accept-Encoding", "User-Agent", "Authorization"]);
+_.reduceDescriptors(de.prototype, ({ value: t }, e) => {
   let a = e[0].toUpperCase() + e.slice(1);
   return {
     get: () => t,
@@ -4293,9 +4293,9 @@ _.reduceDescriptors(ue.prototype, ({ value: t }, e) => {
     }
   };
 });
-_.freezeMethods(ue);
+_.freezeMethods(de);
 function $n(t, e) {
-  const a = this || lt, n = e || a, i = ue.from(n.headers);
+  const a = this || ut, n = e || a, i = de.from(n.headers);
   let o = n.data;
   return _.forEach(t, function(r) {
     o = r.call(a, o, i.normalize(), e ? e.status : void 0);
@@ -4342,7 +4342,7 @@ var Hn = {}, zi;
 function kc() {
   if (zi) return Hn;
   zi = 1;
-  var t = it.parse, e = {
+  var t = st.parse, e = {
     ftp: 21,
     gopher: 70,
     http: 80,
@@ -4375,7 +4375,7 @@ function kc() {
 }
 var Oc = kc();
 const Tc = /* @__PURE__ */ ga(Oc);
-var mt = { exports: {} }, ft = { exports: {} }, ht = { exports: {} }, Gn, Mi;
+var ft = { exports: {} }, ht = { exports: {} }, xt = { exports: {} }, Gn, Mi;
 function Cc() {
   if (Mi) return Gn;
   Mi = 1;
@@ -4689,9 +4689,9 @@ function Ac() {
         return "[UnexpectedJSONParseError]: " + d.message;
       }
     };
-  })(ht, ht.exports)), ht.exports;
+  })(xt, xt.exports)), xt.exports;
 }
-var xt = { exports: {} }, Vn, Gi;
+var vt = { exports: {} }, Vn, Gi;
 function Pc() {
   return Gi || (Gi = 1, Vn = (t, e = process.argv) => {
     const a = t.startsWith("-") ? "" : t.length === 1 ? "-" : "--", n = e.indexOf(a + t), i = e.indexOf("--");
@@ -4892,11 +4892,11 @@ function Lc() {
     }, u.O = function(l) {
       return this.inspectOpts.colors = this.useColors, n.inspect(l, this.inspectOpts);
     };
-  })(xt, xt.exports)), xt.exports;
+  })(vt, vt.exports)), vt.exports;
 }
 var Ki;
 function Fc() {
-  return Ki || (Ki = 1, typeof process > "u" || process.type === "renderer" || process.browser === !0 || process.__nwjs ? ft.exports = Ac() : ft.exports = Lc()), ft.exports;
+  return Ki || (Ki = 1, typeof process > "u" || process.type === "renderer" || process.browser === !0 || process.__nwjs ? ht.exports = Ac() : ht.exports = Lc()), ht.exports;
 }
 var Jn, Ji;
 function Nc() {
@@ -4917,9 +4917,9 @@ function Nc() {
 }
 var Yi;
 function Bc() {
-  if (Yi) return mt.exports;
+  if (Yi) return ft.exports;
   Yi = 1;
-  var t = it, e = t.URL, a = st, n = Ot, i = oe.Writable, o = Ro, s = Nc();
+  var t = st, e = t.URL, a = ot, n = Ot, i = oe.Writable, o = Ro, s = Nc();
   (function() {
     var O = typeof process < "u", C = typeof window < "u" && typeof document < "u", z = H(Error.captureStackTrace);
     !O && (C || !z) && console.warn("The follow-redirects package should be excluded from browser builds.");
@@ -5197,17 +5197,17 @@ function Bc() {
   function ne(b) {
     return e && b instanceof e;
   }
-  return mt.exports = w({ http: a, https: n }), mt.exports.wrap = w, mt.exports;
+  return ft.exports = w({ http: a, https: n }), ft.exports.wrap = w, ft.exports;
 }
 var qc = Bc();
-const Uc = /* @__PURE__ */ ga(qc), _t = "1.13.5";
+const Uc = /* @__PURE__ */ ga(qc), wt = "1.13.5";
 function ro(t) {
   const e = /^([-+\w]{1,25})(:?\/\/|:)/.exec(t);
   return e && e[1] || "";
 }
 const Dc = /^(?:([^;]+);)?(?:[^;]+;)?(base64|),([\s\S]*)$/;
 function Ic(t, e, a) {
-  const n = a && a.Blob || se.classes.Blob, i = ro(t);
+  const n = a && a.Blob || ie.classes.Blob, i = ro(t);
   if (e === void 0 && n && (e = !0), i === "data") {
     t = i.length ? t.slice(i.length + 1) : t;
     const o = Dc.exec(t);
@@ -5289,7 +5289,7 @@ class Xi extends oe.Transform {
 }
 const { asyncIterator: Zi } = Symbol, co = async function* (t) {
   t.stream ? yield* t.stream() : t.arrayBuffer ? yield await t.arrayBuffer() : t[Zi] ? yield* t[Zi]() : yield t;
-}, zc = se.ALPHABET.ALPHA_DIGIT + "-_", nt = typeof TextEncoder == "function" ? new TextEncoder() : new qe.TextEncoder(), Le = `\r
+}, zc = ie.ALPHABET.ALPHA_DIGIT + "-_", nt = typeof TextEncoder == "function" ? new TextEncoder() : new qe.TextEncoder(), Le = `\r
 `, Mc = nt.encode(Le), $c = 2;
 class Hc {
   constructor(e, a) {
@@ -5314,7 +5314,7 @@ const Gc = (t, e, a) => {
   const {
     tag: n = "form-data-boundary",
     size: i = 25,
-    boundary: o = n + "-" + se.generateString(i, zc)
+    boundary: o = n + "-" + ie.generateString(i, zc)
   } = a || {};
   if (!_.isFormData(t))
     throw TypeError("FormData instance required");
@@ -5405,14 +5405,14 @@ const He = (t, e, a = 3) => {
     };
     t(u);
   }, a);
-}, wt = (t, e) => {
+}, Et = (t, e) => {
   const a = t != null;
   return [(n) => e[0]({
     lengthComputable: a,
     total: t,
     loaded: n
   }), e[1]];
-}, Et = (t) => (...e) => _.asap(() => t(...e));
+}, St = (t) => (...e) => _.asap(() => t(...e));
 function Yc(t) {
   if (!t || typeof t != "string" || !t.startsWith("data:")) return 0;
   const e = t.indexOf(",");
@@ -5437,12 +5437,12 @@ function Yc(t) {
   return Buffer.byteLength(n, "utf8");
 }
 const Qi = {
-  flush: Ce.constants.Z_SYNC_FLUSH,
-  finishFlush: Ce.constants.Z_SYNC_FLUSH
+  flush: Ae.constants.Z_SYNC_FLUSH,
+  finishFlush: Ae.constants.Z_SYNC_FLUSH
 }, Xc = {
-  flush: Ce.constants.BROTLI_OPERATION_FLUSH,
-  finishFlush: Ce.constants.BROTLI_OPERATION_FLUSH
-}, es = _.isFunction(Ce.createBrotliDecompress), { http: Zc, https: Qc } = Uc, ep = /https:?/, ts = se.protocols.map((t) => t + ":"), ns = (t, [e, a]) => (t.on("end", a).on("error", a), e);
+  flush: Ae.constants.BROTLI_OPERATION_FLUSH,
+  finishFlush: Ae.constants.BROTLI_OPERATION_FLUSH
+}, es = _.isFunction(Ae.createBrotliDecompress), { http: Zc, https: Qc } = Uc, ep = /https:?/, ts = ie.protocols.map((t) => t + ":"), ns = (t, [e, a]) => (t.on("end", a).on("error", a), e);
 class tp {
   constructor() {
     this.sessions = /* @__PURE__ */ Object.create(null);
@@ -5605,7 +5605,7 @@ const ip = typeof process < "u" && _.kindOf(process) === "process", sp = (t) => 
       } else
         A();
     });
-    const g = Ra(e.baseURL, e.url, e.allowAbsoluteUrls), m = new URL(g, se.hasBrowserEnv ? se.origin : void 0), y = m.protocol || ts[0];
+    const g = Ra(e.baseURL, e.url, e.allowAbsoluteUrls), m = new URL(g, ie.hasBrowserEnv ? ie.origin : void 0), y = m.protocol || ts[0];
     if (y === "data:") {
       if (e.maxContentLength > -1) {
         const P = String(e.url || g || "");
@@ -5635,7 +5635,7 @@ const ip = typeof process < "u" && _.kindOf(process) === "process", sp = (t) => 
         data: B,
         status: 200,
         statusText: "OK",
-        headers: new ue(),
+        headers: new de(),
         config: e
       });
     }
@@ -5645,8 +5645,8 @@ const ip = typeof process < "u" && _.kindOf(process) === "process", sp = (t) => 
         F.ERR_BAD_REQUEST,
         e
       ));
-    const S = ue.from(e.headers).normalize();
-    S.set("User-Agent", "axios/" + _t, !1);
+    const S = de.from(e.headers).normalize();
+    S.set("User-Agent", "axios/" + wt, !1);
     const { onUploadProgress: j, onDownloadProgress: L } = e, I = e.maxRate;
     let D, H;
     if (_.isSpecCompliantForm(s)) {
@@ -5654,7 +5654,7 @@ const ip = typeof process < "u" && _.kindOf(process) === "process", sp = (t) => 
       s = Gc(s, (P) => {
         S.set(P);
       }, {
-        tag: `axios-${_t}-boundary`,
+        tag: `axios-${wt}-boundary`,
         boundary: B && B[1] || void 0
       });
     } else if (_.isFormData(s) && _.isFunction(s.getHeaders)) {
@@ -5689,9 +5689,9 @@ const ip = typeof process < "u" && _.kindOf(process) === "process", sp = (t) => 
       maxRate: _.toFiniteNumber(D)
     })], _.noop), j && s.on("progress", ns(
       s,
-      wt(
+      Et(
         U,
-        He(Et(j), !1, 3)
+        He(St(j), !1, 3)
       )
     )));
     let ne;
@@ -5735,7 +5735,7 @@ const ip = typeof process < "u" && _.kindOf(process) === "process", sp = (t) => 
     !_.isUndefined(r) && (O.lookup = r), e.socketPath ? O.socketPath = e.socketPath : (O.hostname = m.hostname.startsWith("[") ? m.hostname.slice(1, -1) : m.hostname, O.port = m.port, po(O, e.proxy, y + "//" + m.hostname + (m.port ? ":" + m.port : "") + O.path));
     let C;
     const z = ep.test(O.protocol);
-    if (O.agent = z ? e.httpsAgent : e.httpAgent, v ? C = rp : e.transport ? C = e.transport : e.maxRedirects === 0 ? C = z ? Ot : st : (e.maxRedirects && (O.maxRedirects = e.maxRedirects), e.beforeRedirect && (O.beforeRedirects.config = e.beforeRedirect), C = z ? Qc : Zc), e.maxBodyLength > -1 ? O.maxBodyLength = e.maxBodyLength : O.maxBodyLength = 1 / 0, e.insecureHTTPParser && (O.insecureHTTPParser = e.insecureHTTPParser), h = C.request(O, function(P) {
+    if (O.agent = z ? e.httpsAgent : e.httpAgent, v ? C = rp : e.transport ? C = e.transport : e.maxRedirects === 0 ? C = z ? Ot : ot : (e.maxRedirects && (O.maxRedirects = e.maxRedirects), e.beforeRedirect && (O.beforeRedirects.config = e.beforeRedirect), C = z ? Qc : Zc), e.maxBodyLength > -1 ? O.maxBodyLength = e.maxBodyLength : O.maxBodyLength = 1 / 0, e.insecureHTTPParser && (O.insecureHTTPParser = e.insecureHTTPParser), h = C.request(O, function(P) {
       if (h.destroyed) return;
       const M = [P], Q = _.toFiniteNumber(P.headers["content-length"]);
       if (L || H) {
@@ -5744,9 +5744,9 @@ const ip = typeof process < "u" && _.kindOf(process) === "process", sp = (t) => 
         });
         L && ee.on("progress", ns(
           ee,
-          wt(
+          Et(
             Q,
-            He(Et(L), !0, 3)
+            He(St(L), !0, 3)
           )
         )), M.push(ee);
       }
@@ -5759,19 +5759,19 @@ const ip = typeof process < "u" && _.kindOf(process) === "process", sp = (t) => 
           case "x-gzip":
           case "compress":
           case "x-compress":
-            M.push(Ce.createUnzip(Qi)), delete P.headers["content-encoding"];
+            M.push(Ae.createUnzip(Qi)), delete P.headers["content-encoding"];
             break;
           case "deflate":
-            M.push(new Wc()), M.push(Ce.createUnzip(Qi)), delete P.headers["content-encoding"];
+            M.push(new Wc()), M.push(Ae.createUnzip(Qi)), delete P.headers["content-encoding"];
             break;
           case "br":
-            es && (M.push(Ce.createBrotliDecompress(Xc)), delete P.headers["content-encoding"]);
+            es && (M.push(Ae.createBrotliDecompress(Xc)), delete P.headers["content-encoding"]);
         }
       J = M.length > 1 ? oe.pipeline(M, _.noop) : M[0];
       const W = {
         status: P.statusCode,
         statusText: P.statusMessage,
-        headers: new ue(P.headers),
+        headers: new de(P.headers),
         config: e,
         request: Y
       };
@@ -5854,10 +5854,10 @@ const ip = typeof process < "u" && _.kindOf(process) === "process", sp = (t) => 
     } else
       s && h.write(s), h.end();
   });
-}, pp = se.hasStandardBrowserEnv ? /* @__PURE__ */ ((t, e) => (a) => (a = new URL(a, se.origin), t.protocol === a.protocol && t.host === a.host && (e || t.port === a.port)))(
-  new URL(se.origin),
-  se.navigator && /(msie|trident)/i.test(se.navigator.userAgent)
-) : () => !0, lp = se.hasStandardBrowserEnv ? (
+}, pp = ie.hasStandardBrowserEnv ? /* @__PURE__ */ ((t, e) => (a) => (a = new URL(a, ie.origin), t.protocol === a.protocol && t.host === a.host && (e || t.port === a.port)))(
+  new URL(ie.origin),
+  ie.navigator && /(msie|trident)/i.test(ie.navigator.userAgent)
+) : () => !0, lp = ie.hasStandardBrowserEnv ? (
   // Standard browser envs support document.cookie
   {
     write(t, e, a, n, i, o, s) {
@@ -5885,7 +5885,7 @@ const ip = typeof process < "u" && _.kindOf(process) === "process", sp = (t) => 
     remove() {
     }
   }
-), is = (t) => t instanceof ue ? { ...t } : t;
+), is = (t) => t instanceof de ? { ...t } : t;
 function Be(t, e) {
   e = e || {};
   const a = {};
@@ -5958,11 +5958,11 @@ function Be(t, e) {
 const lo = (t) => {
   const e = Be({}, t);
   let { data: a, withXSRFToken: n, xsrfHeaderName: i, xsrfCookieName: o, headers: s, auth: r } = e;
-  if (e.headers = s = ue.from(s), e.url = Ea(Ra(e.baseURL, e.url, e.allowAbsoluteUrls), t.params, t.paramsSerializer), r && s.set(
+  if (e.headers = s = de.from(s), e.url = Ea(Ra(e.baseURL, e.url, e.allowAbsoluteUrls), t.params, t.paramsSerializer), r && s.set(
     "Authorization",
     "Basic " + btoa((r.username || "") + ":" + (r.password ? unescape(encodeURIComponent(r.password)) : ""))
   ), _.isFormData(a)) {
-    if (se.hasStandardBrowserEnv || se.hasStandardBrowserWebWorkerEnv)
+    if (ie.hasStandardBrowserEnv || ie.hasStandardBrowserWebWorkerEnv)
       s.setContentType(void 0);
     else if (_.isFunction(a.getHeaders)) {
       const c = a.getHeaders(), d = ["content-type", "content-length"];
@@ -5971,7 +5971,7 @@ const lo = (t) => {
       });
     }
   }
-  if (se.hasStandardBrowserEnv && (n && _.isFunction(n) && (n = n(e)), n || n !== !1 && pp(e.url))) {
+  if (ie.hasStandardBrowserEnv && (n && _.isFunction(n) && (n = n(e)), n || n !== !1 && pp(e.url))) {
     const c = i && o && lp.read(o);
     c && s.set(i, c);
   }
@@ -5980,7 +5980,7 @@ const lo = (t) => {
   return new Promise(function(a, n) {
     const i = lo(t);
     let o = i.data;
-    const s = ue.from(i.headers).normalize();
+    const s = de.from(i.headers).normalize();
     let { responseType: r, onUploadProgress: c, onDownloadProgress: d } = i, p, u, l, E, x;
     function f() {
       E && E(), x && x(), i.cancelToken && i.cancelToken.unsubscribe(p), i.signal && i.signal.removeEventListener("abort", p);
@@ -5990,7 +5990,7 @@ const lo = (t) => {
     function v() {
       if (!h)
         return;
-      const k = ue.from(
+      const k = de.from(
         "getAllResponseHeaders" in h && h.getAllResponseHeaders()
       ), g = {
         data: !r || r === "text" || r === "json" ? h.responseText : h.response,
@@ -6028,7 +6028,7 @@ const lo = (t) => {
       h && (n(!k || k.type ? new Ne(null, t, h) : k), h.abort(), h = null);
     }, i.cancelToken && i.cancelToken.subscribe(p), i.signal && (i.signal.aborted ? p() : i.signal.addEventListener("abort", p)));
     const w = ro(i.url);
-    if (w && se.protocols.indexOf(w) === -1) {
+    if (w && ie.protocols.indexOf(w) === -1) {
       n(new F("Unsupported protocol " + w + ":", F.ERR_BAD_REQUEST, t));
       return;
     }
@@ -6114,7 +6114,7 @@ const lo = (t) => {
   }, {
     highWaterMark: 2
   });
-}, os = 64 * 1024, { isFunction: vt } = _, vp = (({ Request: t, Response: e }) => ({
+}, os = 64 * 1024, { isFunction: bt } = _, vp = (({ Request: t, Response: e }) => ({
   Request: t,
   Response: e
 }))(_.global), {
@@ -6130,12 +6130,12 @@ const lo = (t) => {
   t = _.merge.call({
     skipUndefined: !0
   }, vp, t);
-  const { fetch: e, Request: a, Response: n } = t, i = e ? vt(e) : typeof fetch == "function", o = vt(a), s = vt(n);
+  const { fetch: e, Request: a, Response: n } = t, i = e ? bt(e) : typeof fetch == "function", o = bt(a), s = bt(n);
   if (!i)
     return !1;
-  const r = i && vt(rs), c = i && (typeof cs == "function" ? /* @__PURE__ */ ((x) => (f) => x.encode(f))(new cs()) : async (x) => new Uint8Array(await new a(x).arrayBuffer())), d = o && r && ps(() => {
+  const r = i && bt(rs), c = i && (typeof cs == "function" ? /* @__PURE__ */ ((x) => (f) => x.encode(f))(new cs()) : async (x) => new Uint8Array(await new a(x).arrayBuffer())), d = o && r && ps(() => {
     let x = !1;
-    const f = new a(se.origin, {
+    const f = new a(ie.origin, {
       body: new rs(),
       method: "POST",
       get duplex() {
@@ -6160,7 +6160,7 @@ const lo = (t) => {
     if (_.isBlob(x))
       return x.size;
     if (_.isSpecCompliantForm(x))
-      return (await new a(se.origin, {
+      return (await new a(ie.origin, {
         method: "POST",
         body: x
       }).arrayBuffer()).byteLength;
@@ -6201,9 +6201,9 @@ const lo = (t) => {
           duplex: "half"
         }), M;
         if (_.isFormData(v) && (M = P.headers.get("content-type")) && S.setContentType(M), P.body) {
-          const [Q, J] = wt(
+          const [Q, J] = Et(
             ne,
-            He(Et(m))
+            He(St(m))
           );
           v = ss(P.body, os, Q, J);
         }
@@ -6226,9 +6226,9 @@ const lo = (t) => {
         ["status", "statusText", "headers"].forEach((Y) => {
           P[Y] = C[Y];
         });
-        const M = _.toFiniteNumber(C.headers.get("content-length")), [Q, J] = g && wt(
+        const M = _.toFiniteNumber(C.headers.get("content-length")), [Q, J] = g && Et(
           M,
-          He(Et(g), !0)
+          He(St(g), !0)
         ) || [];
         C = new n(
           ss(C.body, os, Q, () => {
@@ -6242,7 +6242,7 @@ const lo = (t) => {
       return !z && U && U(), await new Promise((P, M) => {
         ze(P, M, {
           data: B,
-          headers: ue.from(C.headers),
+          headers: de.from(C.headers),
           status: C.status,
           statusText: C.statusText,
           config: x,
@@ -6333,21 +6333,21 @@ function Xn(t) {
     throw new Ne(null, t);
 }
 function us(t) {
-  return Xn(t), t.headers = ue.from(t.headers), t.data = $n.call(
+  return Xn(t), t.headers = de.from(t.headers), t.data = $n.call(
     t,
     t.transformRequest
-  ), ["post", "put", "patch"].indexOf(t.method) !== -1 && t.headers.setContentType("application/x-www-form-urlencoded", !1), mo.getAdapter(t.adapter || lt.adapter, t)(t).then(function(n) {
+  ), ["post", "put", "patch"].indexOf(t.method) !== -1 && t.headers.setContentType("application/x-www-form-urlencoded", !1), mo.getAdapter(t.adapter || ut.adapter, t)(t).then(function(n) {
     return Xn(t), n.data = $n.call(
       t,
       t.transformResponse,
       n
-    ), n.headers = ue.from(n.headers), n;
+    ), n.headers = de.from(n.headers), n;
   }, function(n) {
     return so(n) || (Xn(t), n && n.response && (n.response.data = $n.call(
       t,
       t.transformResponse,
       n.response
-    ), n.response.headers = ue.from(n.response.headers))), Promise.reject(n);
+    ), n.response.headers = de.from(n.response.headers))), Promise.reject(n);
   });
 }
 const Ft = {};
@@ -6359,7 +6359,7 @@ const Ft = {};
 const ds = {};
 Ft.transitional = function(e, a, n) {
   function i(o, s) {
-    return "[Axios v" + _t + "] Transitional option '" + o + "'" + s + (n ? ". " + n : "");
+    return "[Axios v" + wt + "] Transitional option '" + o + "'" + s + (n ? ". " + n : "");
   }
   return (o, s, r) => {
     if (e === !1)
@@ -6395,10 +6395,10 @@ function wp(t, e, a) {
       throw new F("Unknown option " + o, F.ERR_BAD_OPTION);
   }
 }
-const yt = {
+const _t = {
   assertOptions: wp,
   validators: Ft
-}, _e = yt.validators;
+}, _e = _t.validators;
 let Fe = class {
   constructor(e) {
     this.defaults = e || {}, this.interceptors = {
@@ -6434,17 +6434,17 @@ let Fe = class {
   _request(e, a) {
     typeof e == "string" ? (a = a || {}, a.url = e) : a = e || {}, a = Be(this.defaults, a);
     const { transitional: n, paramsSerializer: i, headers: o } = a;
-    n !== void 0 && yt.assertOptions(n, {
+    n !== void 0 && _t.assertOptions(n, {
       silentJSONParsing: _e.transitional(_e.boolean),
       forcedJSONParsing: _e.transitional(_e.boolean),
       clarifyTimeoutError: _e.transitional(_e.boolean),
       legacyInterceptorReqResOrdering: _e.transitional(_e.boolean)
     }, !1), i != null && (_.isFunction(i) ? a.paramsSerializer = {
       serialize: i
-    } : yt.assertOptions(i, {
+    } : _t.assertOptions(i, {
       encode: _e.function,
       serialize: _e.function
-    }, !0)), a.allowAbsoluteUrls !== void 0 || (this.defaults.allowAbsoluteUrls !== void 0 ? a.allowAbsoluteUrls = this.defaults.allowAbsoluteUrls : a.allowAbsoluteUrls = !0), yt.assertOptions(a, {
+    }, !0)), a.allowAbsoluteUrls !== void 0 || (this.defaults.allowAbsoluteUrls !== void 0 ? a.allowAbsoluteUrls = this.defaults.allowAbsoluteUrls : a.allowAbsoluteUrls = !0), _t.assertOptions(a, {
       baseUrl: _e.spelling("baseURL"),
       withXsrfToken: _e.spelling("withXSRFToken")
     }, !0), a.method = (a.method || this.defaults.method || "get").toLowerCase();
@@ -6457,7 +6457,7 @@ let Fe = class {
       (x) => {
         delete o[x];
       }
-    ), a.headers = ue.concat(s, o);
+    ), a.headers = de.concat(s, o);
     const r = [];
     let c = !0;
     this.interceptors.request.forEach(function(f) {
@@ -6689,12 +6689,12 @@ function ho(t) {
     return ho(Be(t, i));
   }, a;
 }
-const K = ho(lt);
+const K = ho(ut);
 K.Axios = Fe;
 K.CanceledError = Ne;
 K.CancelToken = Ep;
 K.isCancel = so;
-K.VERSION = _t;
+K.VERSION = wt;
 K.toFormData = jt;
 K.AxiosError = F;
 K.Cancel = K.CanceledError;
@@ -6704,7 +6704,7 @@ K.all = function(e) {
 K.spread = Sp;
 K.isAxiosError = Rp;
 K.mergeConfig = Be;
-K.AxiosHeaders = ue;
+K.AxiosHeaders = de;
 K.formToJSON = (t) => io(_.isHTMLForm(t) ? new FormData(t) : t);
 K.getAdapter = mo.getAdapter;
 K.HttpStatusCode = ma;
@@ -6840,7 +6840,7 @@ var ea, xs;
 function Bt() {
   if (xs) return ea;
   xs = 1;
-  const t = Ce, e = Nt(), a = kp(), { kStatusCode: n } = Pe(), i = Buffer[Symbol.species], o = Buffer.from([0, 0, 255, 255]), s = Symbol("permessage-deflate"), r = Symbol("total-length"), c = Symbol("callback"), d = Symbol("buffers"), p = Symbol("error");
+  const t = Ae, e = Nt(), a = kp(), { kStatusCode: n } = Pe(), i = Buffer[Symbol.species], o = Buffer.from([0, 0, 255, 255]), s = Symbol("permessage-deflate"), r = Symbol("total-length"), c = Symbol("callback"), d = Symbol("buffers"), p = Symbol("error");
   let u;
   class l {
     /**
@@ -7098,7 +7098,7 @@ function Bt() {
   return ea;
 }
 var tt = { exports: {} }, vs;
-function ut() {
+function dt() {
   if (vs) return tt.exports;
   vs = 1;
   const { isUtf8: t } = Ao, { hasBlob: e } = Pe(), a = [
@@ -7297,7 +7297,7 @@ function xo() {
     EMPTY_BUFFER: n,
     kStatusCode: i,
     kWebSocket: o
-  } = Pe(), { concat: s, toArrayBuffer: r, unmask: c } = Nt(), { isValidStatusCode: d, isValidUTF8: p } = ut(), u = Buffer[Symbol.species], l = 0, E = 1, x = 2, f = 3, h = 4, v = 5, w = 6;
+  } = Pe(), { concat: s, toArrayBuffer: r, unmask: c } = Nt(), { isValidStatusCode: d, isValidUTF8: p } = dt(), u = Buffer[Symbol.species], l = 0, E = 1, x = 2, f = 3, h = 4, v = 5, w = 6;
   class k extends t {
     /**
      * Creates a Receiver instance.
@@ -7765,7 +7765,7 @@ var na, gs;
 function vo() {
   if (gs) return na;
   gs = 1;
-  const { Duplex: t } = oe, { randomFillSync: e } = ot, a = Bt(), { EMPTY_BUFFER: n, kWebSocket: i, NOOP: o } = Pe(), { isBlob: s, isValidStatusCode: r } = ut(), { mask: c, toBuffer: d } = Nt(), p = Symbol("kByteLength"), u = Buffer.alloc(4), l = 8 * 1024;
+  const { Duplex: t } = oe, { randomFillSync: e } = rt, a = Bt(), { EMPTY_BUFFER: n, kWebSocket: i, NOOP: o } = Pe(), { isBlob: s, isValidStatusCode: r } = dt(), { mask: c, toBuffer: d } = Nt(), p = Symbol("kByteLength"), u = Buffer.alloc(4), l = 8 * 1024;
   let E, x = l;
   const f = 0, h = 1, v = 2;
   class w {
@@ -8244,7 +8244,7 @@ var ia, _s;
 function bo() {
   if (_s) return ia;
   _s = 1;
-  const { tokenChars: t } = ut();
+  const { tokenChars: t } = dt();
   function e(i, o, s) {
     i[o] === void 0 ? i[o] = [s] : i[o].push(s);
   }
@@ -8328,7 +8328,7 @@ var sa, ws;
 function Oa() {
   if (ws) return sa;
   ws = 1;
-  const t = As, e = Ot, a = st, n = To, i = Co, { randomBytes: o, createHash: s } = ot, { Duplex: r, Readable: c } = oe, { URL: d } = it, p = Bt(), u = xo(), l = vo(), { isBlob: E } = ut(), {
+  const t = As, e = Ot, a = ot, n = To, i = Co, { randomBytes: o, createHash: s } = rt, { Duplex: r, Readable: c } = oe, { URL: d } = st, p = Bt(), u = xo(), l = vo(), { isBlob: E } = dt(), {
     BINARY_TYPES: x,
     CLOSE_TIMEOUT: f,
     EMPTY_BUFFER: h,
@@ -8453,7 +8453,7 @@ function Oa() {
         maxPayload: $.maxPayload,
         skipUTF8Validation: $.skipUTF8Validation
       }), X = new l(T, this._extensions, $.generateMask);
-      this._receiver = N, this._sender = X, this._socket = T, N[g] = this, X[g] = this, T[g] = this, N.on("conclude", Q), N.on("drain", J), N.on("error", Y), N.on("message", ee), N.on("ping", ge), N.on("pong", de), X.onerror = re, T.setTimeout && T.setTimeout(0), T.setNoDelay && T.setNoDelay(), q.length > 0 && T.unshift(q), T.on("close", ce), T.on("data", fe), T.on("end", Te), T.on("error", le), this._readyState = b.OPEN, this.emit("open");
+      this._receiver = N, this._sender = X, this._socket = T, N[g] = this, X[g] = this, T[g] = this, N.on("conclude", Q), N.on("drain", J), N.on("error", Y), N.on("message", ee), N.on("ping", ge), N.on("pong", me), X.onerror = re, T.setTimeout && T.setTimeout(0), T.setNoDelay && T.setNoDelay(), q.length > 0 && T.unshift(q), T.on("close", ce), T.on("data", fe), T.on("end", Te), T.on("error", le), this._readyState = b.OPEN, this.emit("open");
     }
     /**
      * Emit the `'close'` event.
@@ -8499,7 +8499,7 @@ function Oa() {
         }
         this._readyState = b.CLOSING, this._sender.close(T, q, !this._isServer, ($) => {
           $ || (this._closeFrameSent = !0, (this._closeFrameReceived || this._receiver._writableState.errorEmitted) && this._socket.end());
-        }), ie(this);
+        }), ae(this);
       }
     }
     /**
@@ -8867,7 +8867,7 @@ function Oa() {
     const T = this[g];
     T._autoPong && T.pong(R, !this._isServer, m), T.emit("ping", R);
   }
-  function de(R) {
+  function me(R) {
     this[g].emit("pong", R);
   }
   function G(R) {
@@ -8875,9 +8875,9 @@ function Oa() {
   }
   function re(R) {
     const T = this[g];
-    T.readyState !== b.CLOSED && (T.readyState === b.OPEN && (T._readyState = b.CLOSING, ie(T)), this._socket.end(), T._errorEmitted || (T._errorEmitted = !0, T.emit("error", R)));
+    T.readyState !== b.CLOSED && (T.readyState === b.OPEN && (T._readyState = b.CLOSING, ae(T)), this._socket.end(), T._errorEmitted || (T._errorEmitted = !0, T.emit("error", R)));
   }
-  function ie(R) {
+  function ae(R) {
     R._closeTimer = setTimeout(
       R._socket.destroy.bind(R._socket),
       R._closeTimeout
@@ -8977,7 +8977,7 @@ var ra, Ss;
 function Cp() {
   if (Ss) return ra;
   Ss = 1;
-  const { tokenChars: t } = ut();
+  const { tokenChars: t } = dt();
   function e(a) {
     const n = /* @__PURE__ */ new Set();
     let i = -1, o = -1, s = 0;
@@ -9011,7 +9011,7 @@ var ca, Rs;
 function Ap() {
   if (Rs) return ca;
   Rs = 1;
-  const t = As, e = st, { Duplex: a } = oe, { createHash: n } = ot, i = bo(), o = Bt(), s = Cp(), r = Oa(), { CLOSE_TIMEOUT: c, GUID: d, kWebSocket: p } = Pe(), u = /^[+/0-9A-Za-z]{22}==$/, l = 0, E = 1, x = 2;
+  const t = As, e = ot, { Duplex: a } = oe, { createHash: n } = rt, i = bo(), o = Bt(), s = Cp(), r = Oa(), { CLOSE_TIMEOUT: c, GUID: d, kWebSocket: p } = Pe(), u = /^[+/0-9A-Za-z]{22}==$/, l = 0, E = 1, x = 2;
   class f extends t {
     /**
      * Create a `WebSocketServer` instance.
@@ -9498,7 +9498,7 @@ V.handle("models:delete", async (t, e) => {
     };
   }
 });
-const jp = wo(import.meta.url), St = Os(jp), Rt = {
+const jp = wo(import.meta.url), at = Os(jp), Rt = {
   theme: "dark",
   autoSave: !0,
   defaultOutputPath: "",
@@ -9515,7 +9515,7 @@ const jp = wo(import.meta.url), St = Os(jp), Rt = {
     managedOutputRoots: []
   }
 });
-let ae = null, te = null, Oe = !1;
+let se = null, te = null, Oe = !1;
 function Ge() {
   return {
     ...Rt,
@@ -9537,7 +9537,7 @@ function ks() {
     ])
   );
 }
-function at(t) {
+function it(t) {
   const e = t.replace(/\\/g, "/").replace(/\/$/, ""), a = Array.from(
     /* @__PURE__ */ new Set([...ye.get("managedOutputRoots"), e])
   );
@@ -9554,12 +9554,12 @@ async function Ta() {
   });
   return It(), await e, kt();
 }
-function dt(t) {
+function mt(t) {
   const e = jo(
     t,
     qt(),
     ks(),
-    (a) => me.existsSync(a)
+    (a) => ue.existsSync(a)
   );
   if (!Po(e, ks()))
     throw new Error("Asset path is outside managed output directories");
@@ -9568,11 +9568,14 @@ function dt(t) {
 function Dt() {
   const t = !!process.env.VITE_DEV_SERVER_URL, a = process.platform === "win32" ? "VisionStudio-Backend.exe" : "VisionStudio-Backend";
   if (t) {
-    const n = Ae(St, "../backend/dist", a);
-    return me.existsSync(n) ? n : null;
+    const n = Ce(at, "../backend/dist", a);
+    if (ue.existsSync(n))
+      return n;
+    const i = Ce(at, "../resources", a);
+    return ue.existsSync(i) ? i : null;
   } else {
-    const n = Ae(process.resourcesPath, a);
-    return console.log(`🔍 Looking for backend at: ${n} (exists: ${me.existsSync(n)})`), me.existsSync(n) ? n : null;
+    const n = Ce(process.resourcesPath, a);
+    return console.log(`🔍 Looking for backend at: ${n} (exists: ${ue.existsSync(n)})`), ue.existsSync(n) ? n : null;
   }
 }
 function Lp() {
@@ -9583,8 +9586,8 @@ function Lp() {
       args: [],
       cwd: Os(t)
     };
-  const a = !!process.env.VITE_DEV_SERVER_URL ? Ae(St, "../backend") : Ae(process.resourcesPath, "backend-source"), n = ye.get("settings").pythonPath || "python", i = Ae(a, "main.py");
-  return console.log(`🐍 Fallback to system Python: ${n}, main.py at: ${i} (exists: ${me.existsSync(i)})`), me.existsSync(i) ? {
+  const a = !!process.env.VITE_DEV_SERVER_URL ? Ce(at, "../backend") : Ce(process.resourcesPath, "backend-source"), n = ye.get("settings").pythonPath || "python", i = Ce(a, "main.py");
+  return console.log(`🐍 Fallback to system Python: ${n}, main.py at: ${i} (exists: ${ue.existsSync(i)})`), ue.existsSync(i) ? {
     command: n,
     args: ["main.py"],
     cwd: a
@@ -9603,13 +9606,13 @@ function kt() {
     }
     console.log("🚀 Starting Python backend..."), console.log(`   Command: ${e.command}`), console.log(`   Args: ${e.args.join(" ")}`), console.log(`   CWD: ${e.cwd}`);
     const a = qt();
-    me.mkdirSync(a, { recursive: !0 }), at(a), te = ha(e.command, e.args, {
+    ue.mkdirSync(a, { recursive: !0 }), it(a), te = ha(e.command, e.args, {
       cwd: e.cwd,
       env: {
         ...process.env,
         PYTHONUNBUFFERED: "1",
         // Set models directory to app data
-        MODELS_DIR: Ae(Re.getPath("userData"), "models"),
+        MODELS_DIR: Ce(Re.getPath("userData"), "models"),
         OUTPUT_DIR: a
       },
       detached: !1
@@ -9617,7 +9620,7 @@ function kt() {
     let n = !1;
     Oe = !1;
     const i = (r) => {
-      n || (n = !0, Oe = r, ae == null || ae.webContents.send("backend:status", pa(te, Oe)), t(r));
+      n || (n = !0, Oe = r, se == null || se.webContents.send("backend:status", pa(te, Oe)), t(r));
     };
     va({
       timeoutMs: 3e5,
@@ -9641,7 +9644,7 @@ ${r.message}
 Please ensure you have the required dependencies installed.`
       ), i(!1);
     }), te.on("close", (r) => {
-      console.log(`Python backend exited with code ${r}`), te = null, Oe = !1, ae == null || ae.webContents.send("backend:status", pa(null, !1)), n || i(!1);
+      console.log(`Python backend exited with code ${r}`), te = null, Oe = !1, se == null || se.webContents.send("backend:status", pa(null, !1)), n || i(!1);
     });
   });
 }
@@ -9660,7 +9663,7 @@ function It() {
   }
 }
 async function Fp() {
-  ye.get("firstRun") && (console.log("🎉 First run detected!"), (await Me.showMessageBox(ae, {
+  ye.get("firstRun") && (console.log("🎉 First run detected!"), (await Me.showMessageBox(se, {
     type: "info",
     title: "Welcome to Vision Studio",
     message: "Welcome to Vision Studio!",
@@ -9669,7 +9672,7 @@ async function Fp() {
 GPU detected: ` + (await Np() ? "Yes" : "No"),
     buttons: ["Get Started", "Open Settings"],
     defaultId: 0
-  })).response === 1 && (ae == null || ae.webContents.send("navigate", "settings")), ye.set("firstRun", !1));
+  })).response === 1 && (se == null || se.webContents.send("navigate", "settings")), ye.set("firstRun", !1));
 }
 async function Np() {
   return new Promise((t) => {
@@ -9686,7 +9689,7 @@ async function Np() {
   });
 }
 function go() {
-  ae = new _o({
+  se = new _o({
     width: 1600,
     height: 1e3,
     minWidth: 1200,
@@ -9699,27 +9702,27 @@ function go() {
     },
     backgroundColor: "#0a0a0a",
     webPreferences: {
-      preload: Ae(St, "preload.cjs"),
+      preload: Ce(at, "preload.cjs"),
       contextIsolation: !0,
       nodeIntegration: !1,
       sandbox: !1
     },
-    show: !1
-  }), process.env.VITE_DEV_SERVER_URL ? (ae.loadURL(process.env.VITE_DEV_SERVER_URL), ae.webContents.openDevTools()) : ae.loadFile(Ae(St, "../dist/index.html")), ae.once("ready-to-show", () => {
-    ae == null || ae.show(), Fp();
-  }), ae.on("closed", () => {
-    ae = null;
+    show: !0
+  }), process.env.VITE_DEV_SERVER_URL ? (se.loadURL(process.env.VITE_DEV_SERVER_URL), se.webContents.openDevTools()) : se.loadFile(Ce(at, "../dist/index.html")), se.once("ready-to-show", () => {
+    Fp();
+  }), se.on("closed", () => {
+    se = null;
   });
 }
 Re.whenReady().then(async () => {
-  if (at(Ut()), at(qt()), go(), ye.get("settings").backendAutostart && !process.env.VISION_STUDIO_SKIP_BACKEND && !await kt()) {
+  if (it(Ut()), it(qt()), go(), ye.get("settings").backendAutostart && !process.env.VISION_STUDIO_SKIP_BACKEND && !await kt()) {
     const e = Dt(), a = e ? `The backend was found at:
 ${e}
 
 but failed to start within the timeout. On first launch, the backend may need several minutes to extract. Try restarting the app.
 
 You can also try starting it manually from Settings.` : "No backend executable was found. Please reinstall the application or configure a Python path in Settings.";
-    Me.showMessageBox(ae, {
+    Me.showMessageBox(se, {
       type: "warning",
       title: "Backend Not Started",
       message: "Could not start the AI backend",
@@ -9732,7 +9735,7 @@ Re.on("window-all-closed", () => {
   It(), process.platform !== "darwin" && Re.quit();
 });
 Re.on("activate", () => {
-  ae === null && go();
+  se === null && go();
 });
 Re.on("before-quit", () => {
   It();
@@ -9742,13 +9745,13 @@ V.handle("app:open-external", (t, e) => {
   fa.openExternal(e);
 });
 V.handle("app:open-path", async (t, e) => {
-  const a = await fa.openPath(dt(e));
+  const a = await fa.openPath(mt(e));
   return a ? { success: !1, error: a } : { success: !0 };
 });
-V.handle("dialog:select-folder", async () => (await Me.showOpenDialog(ae, {
+V.handle("dialog:select-folder", async () => (await Me.showOpenDialog(se, {
   properties: ["openDirectory"]
 })).filePaths[0] || null);
-V.handle("dialog:save-file", async (t, e) => (await Me.showSaveDialog(ae, {
+V.handle("dialog:save-file", async (t, e) => (await Me.showSaveDialog(se, {
   defaultPath: e.defaultPath,
   filters: e.filters
 })).filePath || null);
@@ -9765,20 +9768,20 @@ V.handle("settings:update", async (t, e) => {
     ...a,
     ...e
   };
-  if (ye.set("settings", n), at(xa(n, Re.getPath("userData"))), te && Ps(a, n) && !await Ta() && !(te && te.exitCode === null))
+  if (ye.set("settings", n), it(xa(n, Re.getPath("userData"))), te && Ps(a, n) && !await Ta() && !(te && te.exitCode === null))
     throw new Error("Backend restart failed after settings update");
   return n;
 });
 V.handle("settings:reset", async () => {
   const t = Ge();
-  if (ye.set("settings", Rt), at(Ut()), te && Ps(t, Rt) && !await Ta() && !(te && te.exitCode === null))
+  if (ye.set("settings", Rt), it(Ut()), te && Ps(t, Rt) && !await Ta() && !(te && te.exitCode === null))
     throw new Error("Backend restart failed after settings reset");
   return Ge();
 });
 V.handle("assets:export", async (t, e, a) => {
   try {
-    const n = dt(e);
-    return await me.promises.mkdir(Se.dirname(a), { recursive: !0 }), await me.promises.copyFile(n, a), { success: !0, destinationPath: a };
+    const n = mt(e);
+    return await ue.promises.mkdir(Se.dirname(a), { recursive: !0 }), await ue.promises.copyFile(n, a), { success: !0, destinationPath: a };
   } catch (n) {
     return {
       success: !1,
@@ -9788,14 +9791,14 @@ V.handle("assets:export", async (t, e, a) => {
 });
 V.handle("assets:export-many", async (t, e, a) => {
   try {
-    await me.promises.mkdir(a, { recursive: !0 });
+    await ue.promises.mkdir(a, { recursive: !0 });
     const n = /* @__PURE__ */ new Set();
     for (const i of e) {
-      const o = dt(i), s = Se.parse(o);
+      const o = mt(i), s = Se.parse(o);
       let r = `${s.name}${s.ext}`, c = 1;
-      for (; n.has(r) || me.existsSync(Se.join(a, r)); )
+      for (; n.has(r) || ue.existsSync(Se.join(a, r)); )
         r = `${s.name}-${c}${s.ext}`, c += 1;
-      n.add(r), await me.promises.copyFile(o, Se.join(a, r));
+      n.add(r), await ue.promises.copyFile(o, Se.join(a, r));
     }
     return { success: !0, exportedCount: e.length };
   } catch (n) {
@@ -9807,8 +9810,8 @@ V.handle("assets:export-many", async (t, e, a) => {
 });
 V.handle("assets:delete", async (t, e) => {
   try {
-    const a = dt(e);
-    return await me.promises.rm(a, { force: !0 }), { success: !0 };
+    const a = mt(e);
+    return await ue.promises.rm(a, { force: !0 }), { success: !0 };
   } catch (a) {
     return {
       success: !1,
@@ -9818,7 +9821,7 @@ V.handle("assets:delete", async (t, e) => {
 });
 V.handle("assets:reveal", async (t, e) => {
   try {
-    return fa.showItemInFolder(dt(e)), { success: !0 };
+    return fa.showItemInFolder(mt(e)), { success: !0 };
   } catch (a) {
     return {
       success: !1,
@@ -9829,7 +9832,7 @@ V.handle("assets:reveal", async (t, e) => {
 V.handle("assets:clear-cache", async () => {
   try {
     const t = Ut();
-    return await me.promises.rm(t, { recursive: !0, force: !0 }), await me.promises.mkdir(t, { recursive: !0 }), { success: !0 };
+    return await ue.promises.rm(t, { recursive: !0, force: !0 }), await ue.promises.mkdir(t, { recursive: !0 }), { success: !0 };
   } catch (t) {
     return {
       success: !1,

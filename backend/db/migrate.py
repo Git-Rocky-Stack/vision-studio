@@ -15,6 +15,9 @@ from db.schema_version import get_schema_version, set_schema_version
 
 
 # Path to migrations directory
+# In normal dev: __file__ = backend/db/migrate.py → parent.parent = backend/
+# In PyInstaller frozen: __file__ = extracted temp dir/db/migrate.py → parent = temp dir/db/
+# so parent/migrations = temp dir/db/migrations (same pattern works for both)
 MIGRATIONS_DIR = Path(__file__).parent / "migrations"
 
 

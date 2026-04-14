@@ -599,15 +599,19 @@ async def generate_image(
 
 async def process_image_generation(job_id: str, request: ImageGenerationRequest):
     """Process image generation job"""
+    logger.info(f"[Job {job_id}] Starting image generation with model={request.model}, steps={request.steps}")
     try:
         job_manager.update_job(job_id, status=JobStatus.PROCESSING, progress=0.0)
-        
+
         # Try ComfyUI first, fallback to direct generation
         if comfy_client and comfy_client.connected:
+            logger.info(f"[Job {job_id}] Using ComfyUI generator")
             result = await generate_with_comfyui(job_id, request)
         else:
+            logger.info(f"[Job {job_id}] ComfyUI not connected, using direct generator. comfy_client={comfy_client is not None}")
             result = await generate_direct(job_id, request)
-        
+
+        logger.info(f"[Job {job_id}] Generation completed, result keys={list(result.keys()) if isinstance(result, dict) else result}")
         job_manager.update_job(
             job_id,
             status=JobStatus.COMPLETED,
@@ -615,7 +619,7 @@ async def process_image_generation(job_id: str, request: ImageGenerationRequest)
             result=result,
             completed_at=datetime.now()
         )
-        
+
     except Exception as e:
         logger.error(f"Image generation failed: {e}", exc_info=True)
         job_manager.update_job(
@@ -644,12 +648,15 @@ async def generate_with_comfyui(job_id: str, request: ImageGenerationRequest) ->
         file_prefix=f"vision_studio/{job_id}/image",
     )
 
+    logger.info(f"[Job {job_id}] Queueing prompt to ComfyUI, workflow nodes={list(workflow.keys())}")
     prompt_id = await comfy_client.queue_prompt(workflow)
+    logger.info(f"[Job {job_id}] Prompt queued, prompt_id={prompt_id}")
     job_manager.update_job(job_id, progress=10.0)
     outputs = await comfy_client.wait_for_prompt_completion(
         prompt_id,
         progress_callback=lambda progress: job_manager.update_job(job_id, progress=progress),
     )
+    logger.info(f"[Job {job_id}] ComfyUI returned {len(outputs)} output(s)")
 
     generated_images: List[str] = []
     output_dir = Path(OUTPUT_DIR) / job_id
@@ -681,7 +688,7 @@ async def generate_direct(job_id: str, request: ImageGenerationRequest) -> Dict:
     """Generate image using direct diffusers pipeline"""
     if not direct_generator:
         raise RuntimeError("Direct generator not available")
-    
+    logger.info(f"[Job {job_id}] Starting direct generation with model={request.model}")
     result = await direct_generator.generate_image(
         job_id=job_id,
         prompt=request.prompt,
@@ -695,7 +702,7 @@ async def generate_direct(job_id: str, request: ImageGenerationRequest) -> Dict:
         scheduler=request.scheduler,
         progress_callback=lambda p: job_manager.update_job(job_id, progress=p)
     )
-    
+    logger.info(f"[Job {job_id}] Direct generation completed")
     return result
 
 
@@ -704,7 +711,7 @@ async def generate_direct(job_id: str, request: ImageGenerationRequest) -> Dict:
 @app.post("/api/generate/video", response_model=JobResponse, tags=["Generation"])
 @limiter.limit("10/minute")
 async def generate_video(
-    req: Request,
+    request: Request,
     video_request: VideoGenerationRequest,
     background_tasks: BackgroundTasks
 ):
