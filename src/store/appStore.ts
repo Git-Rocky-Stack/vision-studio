@@ -202,6 +202,7 @@ interface AppState {
   regionMode: boolean;
   activeRegionId: string | null;
   activeMaskTool: MaskType | 'select';
+  maskBrushSize: number;
 
   // Migration
   migrationStatus: 'idle' | 'running' | 'complete' | 'error';
@@ -389,6 +390,7 @@ interface AppState {
   setRegionMode: (mode: boolean) => void;
   setActiveRegionId: (id: string | null) => void;
   setActiveMaskTool: (tool: MaskType | 'select') => void;
+  setMaskBrushSize: (size: number) => void;
 
   // Quick Generate
   quickGenerate: (config: GenerationConfig) => void;
@@ -432,6 +434,7 @@ export const useAppStore = create<AppState>()(
       regionMode: false,
       activeRegionId: null,
       activeMaskTool: 'select',
+      maskBrushSize: 20,
       migrationStatus: 'idle',
       migrationProgress: 0,
 
@@ -1013,6 +1016,7 @@ export const useAppStore = create<AppState>()(
       })),
       setActiveRegionId: (id) => set({ activeRegionId: id }),
       setActiveMaskTool: (tool) => set({ activeMaskTool: tool }),
+      setMaskBrushSize: (size) => set({ maskBrushSize: Math.max(1, Math.min(100, Math.round(size))) }),
 
       quickGenerate: (config) => {
         // Behind the scenes, creates a Scene in the "Quick Captures" project

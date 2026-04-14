@@ -28,6 +28,7 @@ export const Canvas = memo(function Canvas() {
     regionMode,
     activeRegionId,
     activeMaskTool,
+    maskBrushSize,
     setActiveRegionId,
     updateRegionLock,
     projects,
@@ -375,7 +376,7 @@ export const Canvas = memo(function Canvas() {
                 canvasWidth={imageSize.width}
                 canvasHeight={imageSize.height}
                 tool={activeMaskTool}
-                brushSize={20}
+                brushSize={maskBrushSize}
                 onMaskCommit={handleMaskCommit}
               />
             )}

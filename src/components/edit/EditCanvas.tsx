@@ -16,11 +16,12 @@ export function EditCanvas() {
     regionMode,
     activeMaskTool,
     activeRegionId,
+    maskBrushSize,
     setActiveMaskTool,
     setActiveRegionId,
+    setMaskBrushSize,
   } = useAppStore();
 
-  const [maskBrushSize, setMaskBrushSize] = useState(20);
   const [maskInverted, setMaskInverted] = useState(false);
 
   const containerRef = useRef<HTMLDivElement>(null);
