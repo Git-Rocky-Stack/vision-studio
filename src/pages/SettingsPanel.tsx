@@ -434,7 +434,7 @@ export function SettingsPanel() {
                                   cudaVersion: info.cuda_version,
                                   comfyuiConnected: info.comfyui_connected,
                                   modelsCount: info.models_count,
-                                  backendConnected: info.backend_connected,
+                                  backendConnected: info.backendConnected,
                                 });
                                 const models = await window.electron.models.list();
                                 setAvailableModels(models);
