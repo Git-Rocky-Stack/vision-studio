@@ -1,6 +1,7 @@
 import { memo } from 'react';
 import { useAppStore } from '@/store/appStore';
 import { ProjectDropdown } from './ProjectDropdown';
+import logoUrl from '@/../public/s2.png';
 
 export const Header = memo(function Header() {
   const { currentProject, systemInfo } = useAppStore();
@@ -22,15 +23,17 @@ export const Header = memo(function Header() {
         ) : null}
       </div>
 
-      <div className="ml-auto flex items-center gap-2">
-        <span
-          className={`w-2 h-2 rounded-full ${backendConnected ? 'bg-status-success' : 'bg-red-primary'} animate-pulse`}
-          title={backendConnected ? 'AI backend connected' : 'AI backend not connected'}
-          aria-label={backendConnected ? 'Backend connected' : 'Backend disconnected'}
-        />
-        <span className="text-micro text-text-muted">
-          {backendConnected ? 'Backend' : 'Offline'}
-        </span>
+      <div className="ml-auto flex items-center gap-3">
+        <div className="flex items-center gap-1.5" title={backendConnected ? 'AI backend connected' : 'AI backend not connected — generation will fail'}>
+          <span
+            className={`w-2 h-2 rounded-full ${backendConnected ? 'bg-status-success' : 'bg-red-primary'} ${backendConnected ? '' : 'animate-pulse'}`}
+            aria-label={backendConnected ? 'Backend connected' : 'Backend disconnected'}
+          />
+          <span className="text-micro text-text-muted select-none">
+            {backendConnected ? 'Backend' : 'Offline'}
+          </span>
+        </div>
+        <img src={logoUrl} alt="Vision Studio" className="h-8 w-8 rounded object-contain" />
       </div>
     </header>
   );

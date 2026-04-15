@@ -30,32 +30,53 @@ for pkg in metadata_packages:
     except Exception:
         pass  # Package not installed, skip
 
-# Collect ALL submodules for packages that use lazy/dynamic imports.
-# diffusers, transformers, and accelerate all use __getattr__-based lazy loading
-# that PyInstaller cannot detect through static analysis.
-diffusers_hidden = collect_submodules('diffusers')
-transformers_hidden = collect_submodules('transformers')
-accelerate_hidden = collect_submodules('accelerate')
+# Collect ALL submodules, data files, and binaries for packages that use
+# lazy/dynamic imports. collect_all is the most aggressive collection method
+# and is required for diffusers/transformers which use __getattr__-based lazy
+# loading that PyInstaller cannot detect through static analysis.
+diffusers_all = collect_all('diffusers')
+transformers_all = collect_all('transformers')
+accelerate_all = collect_all('accelerate')
+aiohttp_all = collect_all('aiohttp')
 
-# Collect data files (model configs, tokenizers, etc.) that these packages need at runtime
-diffusers_datas = collect_data_files('diffusers')
-transformers_datas = collect_data_files('transformers')
+def categorize(collected, pkg_name):
+    """Split collect_all output into hiddenimports, datas, binaries."""
+    hidden = []
+    datas_list = []
+    bins = []
+    for item in collected:
+        if isinstance(item, tuple) and len(item) == 2:
+            # (source_path, dest_path) = data file
+            datas_list.append(item)
+        elif isinstance(item, str):
+            if item.endswith(('.dll', '.so', '.dylib', '.pyd')):
+                bins.append(item)
+            else:
+                hidden.append(item)
+    return hidden, datas_list, bins
+
+diffusers_hidden, diffusers_datas, diffusers_bins = categorize(diffusers_all, 'diffusers')
+transformers_hidden, transformers_datas, transformers_bins = categorize(transformers_all, 'transformers')
+accelerate_hidden, _, accelerate_bins = categorize(accelerate_all, 'accelerate')
+aiohttp_hidden, aiohttp_datas, aiohttp_bins = categorize(aiohttp_all, 'aiohttp')
 
 all_hidden = list(set(
-    diffusers_hidden + transformers_hidden + accelerate_hidden
+    diffusers_hidden + transformers_hidden + accelerate_hidden + aiohttp_hidden
 ))
+all_datas = extra_datas + diffusers_datas + transformers_datas + aiohttp_datas
+all_bins = list(set(diffusers_bins + transformers_bins + accelerate_bins + aiohttp_bins))
 
 # Main script
 a = Analysis(
     ['main.py'],
     pathex=[backend_dir],
-    binaries=[],
+    binaries=all_bins,
     datas=[
         # Include any data files
         ('.env.example', '.'),
         # Include db/migrations directory
         ('db/migrations', 'db/migrations'),
-    ] + extra_datas + diffusers_datas + transformers_datas,
+    ] + all_datas,
     hiddenimports=[
         # FastAPI & Uvicorn
         'fastapi',
@@ -98,6 +119,11 @@ a = Analysis(
         'websockets',
         'websockets.legacy',
         'websockets.legacy.server',
+
+        # aiohttp (required by ComfyUI client)
+        'aiohttp',
+        'aiohttp.web',
+        'aiohttp.client',
 
         # Utils
         'python-dotenv',
