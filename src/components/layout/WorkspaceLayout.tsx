@@ -1,8 +1,13 @@
 import { useEffect, useRef } from 'react';
 import { CinematicTransition } from '@/components/effects/CinematicTransition';
+import type { WorkbenchView } from '@/store/appStore';
+import { WorkbenchShell } from './WorkbenchShell';
+import { WorkflowPlaceholder } from '@/components/workflow/WorkflowPlaceholder';
 
 interface WorkspaceLayoutProps {
   activePanel: string;
+  activeWorkbenchView: WorkbenchView;
+  onWorkbenchViewChange: (view: WorkbenchView) => void;
   sidebar: React.ReactNode;
   header: React.ReactNode;
   timeline: React.ReactNode;
@@ -21,6 +26,8 @@ interface WorkspaceLayoutProps {
 
 export function WorkspaceLayout({
   activePanel,
+  activeWorkbenchView,
+  onWorkbenchViewChange,
   sidebar,
   header,
   timeline,
@@ -62,24 +69,32 @@ export function WorkspaceLayout({
     switch (activePanel) {
       case 'edit':
         return (
-          <div className="flex-1 flex min-h-0">
-            {/* Tool strip */}
-            {toolStrip && (
-              <div className="w-14 flex-shrink-0 border-r border-border bg-surface">
-                {toolStrip}
-              </div>
-            )}
-            {/* Edit canvas */}
-            <div className="flex-1 min-w-0">
-              {editCanvas || canvas}
-            </div>
-            {/* Properties panel */}
-            {editProperties && (
-              <div className="w-[360px] flex-shrink-0 border-l border-border bg-surface overflow-hidden">
-                {editProperties}
-              </div>
-            )}
-          </div>
+          <WorkbenchShell
+            activeView={activeWorkbenchView}
+            onViewChange={onWorkbenchViewChange}
+            toolRail={toolStrip}
+            canvas={editCanvas || canvas}
+            viewer={canvas}
+            workflow={<WorkflowPlaceholder />}
+            rightDockTabs={[
+              {
+                id: 'inspector',
+                label: 'Inspector',
+                content: editProperties,
+              },
+              {
+                id: 'layers',
+                label: 'Layers',
+                content: (
+                  <div className="p-4 text-sm font-display text-text-body">
+                    Layers remain in the Inspector while the dock is being upgraded.
+                  </div>
+                ),
+              },
+            ]}
+            defaultDockTabId="inspector"
+            bottom={timeline}
+          />
         );
 
       case 'batch':
@@ -108,16 +123,22 @@ export function WorkspaceLayout({
       case 'generate':
       case 'quick':
         return (
-          <div className="flex-1 flex min-h-0">
-            {/* Canvas */}
-            <div className="flex-1 min-w-0">
-              {canvas}
-            </div>
-            {/* Generate/Quick panel (right) */}
-            <div className="w-[clamp(320px,30%,420px)] flex-shrink-0 border-l border-border bg-surface flex flex-col min-h-0">
-              {panels[activePanel]}
-            </div>
-          </div>
+          <WorkbenchShell
+            activeView={activeWorkbenchView}
+            onViewChange={onWorkbenchViewChange}
+            canvas={canvas}
+            viewer={canvas}
+            workflow={<WorkflowPlaceholder />}
+            rightDockTabs={[
+              {
+                id: 'settings',
+                label: 'Settings',
+                content: panels[activePanel],
+              },
+            ]}
+            defaultDockTabId="settings"
+            bottom={timeline}
+          />
         );
 
       case 'storyboard':
@@ -153,7 +174,12 @@ export function WorkspaceLayout({
     }
   };
 
-  const showTimeline = activePanel !== 'batch' && activePanel !== 'templates';
+  const showTimeline =
+    activePanel !== 'batch' &&
+    activePanel !== 'templates' &&
+    activePanel !== 'generate' &&
+    activePanel !== 'quick' &&
+    activePanel !== 'edit';
 
   return (
     <div className="h-screen w-screen bg-void flex overflow-hidden">

@@ -23,6 +23,8 @@ import { applyThemeToDocument, type ThemePreference } from '@/features/theme/the
 function App() {
   const {
     activePanel,
+    activeWorkbenchView,
+    setActiveWorkbenchView,
     setSystemInfo,
     setAvailableModels,
     addJob,
@@ -134,6 +136,8 @@ function App() {
       <ErrorBoundary fallbackLabel="Workspace error">
         <WorkspaceLayout
           activePanel={activePanel}
+          activeWorkbenchView={activeWorkbenchView}
+          onWorkbenchViewChange={setActiveWorkbenchView}
           sidebar={<Sidebar />}
           header={<Header />}
           timeline={
