@@ -1,4 +1,5 @@
 import { memo } from 'react';
+import type { ElementType } from 'react';
 import { cn } from '@/utils/cn';
 import { useAppStore } from '@/store/appStore';
 import { Tooltip } from '@/components/ui/Tooltip';
@@ -13,45 +14,31 @@ import {
   Layers,
   CheckCircle2,
   AlertCircle,
-  Undo,
-  Redo,
-  Save,
-  Play,
-  Download,
   Clapperboard,
   Zap,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { AdvancedGenerationSettings } from '@/components/generate/AdvancedGenerationSettings';
 
-const SIDEBAR_WIDTH_COLLAPSED = 72;
-const SIDEBAR_WIDTH_EXPANDED = 224;
+const SIDEBAR_WIDTH_COLLAPSED = 76;
+const SIDEBAR_WIDTH_EXPANDED = 168;
 
 interface NavItem {
   id: 'generate' | 'edit' | 'assets' | 'settings' | 'templates' | 'batch' | 'storyboard' | 'quick';
   label: string;
-  icon: React.ElementType;
+  icon: ElementType;
+  group: 'Create' | 'Sequence' | 'Refine' | 'System';
 }
 
 const navItems: NavItem[] = [
-  { id: 'generate', label: 'Generate', icon: Wand2 },
-  { id: 'batch', label: 'Batch', icon: Layers },
-  { id: 'templates', label: 'Templates', icon: LayoutTemplate },
-  { id: 'storyboard', label: 'Storyboard', icon: Clapperboard },
-  { id: 'quick', label: 'Quick', icon: Zap },
-  { id: 'edit', label: 'Edit', icon: Palette },
-  { id: 'assets', label: 'Assets', icon: FolderOpen },
-  { id: 'settings', label: 'Settings', icon: Settings },
+  { id: 'generate', label: 'Generate', icon: Wand2, group: 'Create' },
+  { id: 'quick', label: 'Quick', icon: Zap, group: 'Create' },
+  { id: 'storyboard', label: 'Storyboard', icon: Clapperboard, group: 'Sequence' },
+  { id: 'batch', label: 'Batch', icon: Layers, group: 'Sequence' },
+  { id: 'templates', label: 'Templates', icon: LayoutTemplate, group: 'Sequence' },
+  { id: 'edit', label: 'Edit', icon: Palette, group: 'Refine' },
+  { id: 'assets', label: 'Assets', icon: FolderOpen, group: 'Refine' },
+  { id: 'settings', label: 'Settings', icon: Settings, group: 'System' },
 ];
-
-interface ActionItem {
-  id: string;
-  label: string;
-  icon: React.ElementType;
-  variant?: 'default' | 'primary';
-  getDisabled?: () => boolean;
-  onClick?: () => void;
-}
 
 export const Sidebar = memo(function Sidebar() {
   const {
@@ -60,183 +47,106 @@ export const Sidebar = memo(function Sidebar() {
     activePanel,
     setActivePanel,
     systemInfo,
-    editHistory,
-    editHistoryIndex,
-    undo,
-    redo,
   } = useAppStore();
 
-  const canUndo = editHistoryIndex > 0;
-  const canRedo = editHistoryIndex < editHistory.length - 1;
+  const groupedItems = navItems.reduce<Record<NavItem['group'], NavItem[]>>(
+    (groups, item) => {
+      groups[item.group].push(item);
+      return groups;
+    },
+    { Create: [], Sequence: [], Refine: [], System: [] }
+  );
 
-  const actionItems: ActionItem[] = [
-    { id: 'undo', label: 'Undo', icon: Undo, getDisabled: () => !canUndo, onClick: undo },
-    { id: 'redo', label: 'Redo', icon: Redo, getDisabled: () => !canRedo, onClick: redo },
-    { id: 'open', label: 'Open', icon: FolderOpen },
-    { id: 'save', label: 'Save', icon: Save },
-    { id: 'preview', label: 'Preview', icon: Play, variant: 'primary' },
-    { id: 'export', label: 'Export', icon: Download },
-  ];
+  const renderNavItem = (item: NavItem) => {
+    const Icon = item.icon;
+    const isActive = activePanel === item.id;
+
+    const buttonElement = (
+      <button
+        key={item.id}
+        data-testid={`nav-${item.id}`}
+        onClick={() => setActivePanel(item.id)}
+        aria-label={item.label}
+        aria-current={isActive ? 'page' : undefined}
+        className={cn(
+          'group/nav w-full flex items-center gap-3 px-3 py-2.5 rounded-md transition-all duration-150 relative min-h-[44px]',
+          isActive
+            ? 'bg-accent-primary-muted text-accent-primary border border-accent-primary-border shadow-accent-subtle'
+            : 'text-text-muted border border-transparent hover:text-text-primary hover:bg-elevated/70 hover:border-border'
+        )}
+      >
+        {isActive && (
+          <motion.div
+            layoutId="activeRailIndicator"
+            className="absolute left-0 top-2 bottom-2 w-0.5 rounded-full bg-accent-primary"
+          />
+        )}
+        <Icon className="w-4.5 h-4.5 flex-shrink-0 transition-all" />
+        {!sidebarCollapsed && (
+          <span className="font-display font-medium text-xs whitespace-nowrap">
+            {item.label}
+          </span>
+        )}
+      </button>
+    );
+
+    return sidebarCollapsed ? (
+      <Tooltip key={item.id} content={item.label} placement="right">
+        {buttonElement}
+      </Tooltip>
+    ) : (
+      buttonElement
+    );
+  };
 
   return (
     <motion.aside
       initial={false}
       animate={{ width: sidebarCollapsed ? SIDEBAR_WIDTH_COLLAPSED : SIDEBAR_WIDTH_EXPANDED }}
-      transition={{ duration: 0.3, ease: 'easeInOut' }}
-      className="h-full bg-surface border-r border-border flex flex-col"
+      transition={{ duration: 0.18, ease: 'easeOut' }}
+      className="h-full bg-[linear-gradient(180deg,var(--color-panel),var(--color-surface))] border-r border-border flex flex-col"
     >
       {/* Logo */}
-      <div className="h-16 flex items-center px-4 border-b border-border">
-        <div className="flex items-center">
+      <div className="h-12 flex items-center px-3 border-b border-border">
+        <div className={cn('flex items-center gap-2 min-w-0', sidebarCollapsed && 'mx-auto')}>
+          <div className="h-6 w-6 rounded-md border border-accent-primary-border bg-accent-primary-muted flex items-center justify-center">
+            <span className="font-mono text-micro font-bold text-accent-primary">VS</span>
+          </div>
           {!sidebarCollapsed && (
-            <motion.div
+            <motion.span
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="font-display font-bold text-xs text-text-primary whitespace-nowrap tracking-[0.3em]"
+              className="font-display font-semibold text-[11px] text-text-primary whitespace-nowrap"
             >
-              VISION<span className="text-red-primary">STUDIO</span>
-            </motion.div>
+              Vision Studio
+            </motion.span>
           )}
         </div>
       </div>
 
       {/* Navigation */}
-      <nav aria-label="Main navigation" className="py-4 px-2 space-y-1">
-        {navItems.map((item) => {
-          const Icon = item.icon;
-          const isActive = activePanel === item.id;
-
-          const buttonElement = (
-            <button
-              key={item.id}
-              data-testid={`nav-${item.id}`}
-              onClick={() => setActivePanel(item.id)}
-              aria-label={item.label}
-              aria-current={isActive ? 'page' : undefined}
-              className={cn(
-                'w-full flex items-center gap-3 px-3 py-3 rounded-lg transition-all duration-200 relative min-h-[44px]',
-                isActive
-                  ? 'bg-red-aura text-red-primary glow-red-subtle'
-                  : 'text-text-body hover:text-text-primary hover:bg-elevated'
-              )}
-            >
-              <Icon
-                className={cn(
-                  'w-5 h-5 flex-shrink-0 transition-all',
-                  isActive && 'drop-shadow-red-icon-strong'
-                )}
-              />
-              {!sidebarCollapsed && (
-                <span className="font-display font-medium text-sm whitespace-nowrap">
-                  {item.label}
-                </span>
-              )}
-              {isActive && !sidebarCollapsed && (
-                <motion.div
-                  layoutId="activeIndicator"
-                  className="ml-auto w-1.5 h-1.5 rounded-full bg-red-primary shadow-red-dot"
-                />
-              )}
-            </button>
-          );
-
-          return sidebarCollapsed ? (
-            <Tooltip key={item.id} content={item.label} placement="right">
-              {buttonElement}
-            </Tooltip>
-          ) : (
-            buttonElement
-          );
-        })}
+      <nav aria-label="Main navigation" className="py-3 px-2 space-y-4 flex-1 overflow-y-auto scrollbar-hide">
+        {(Object.keys(groupedItems) as NavItem['group'][]).map((group) => (
+          <div key={group} className="space-y-1">
+            {!sidebarCollapsed && (
+              <p className="px-3 pb-1 font-mono text-[9px] uppercase text-text-muted/70">
+                {group}
+              </p>
+            )}
+            {groupedItems[group].map(renderNavItem)}
+          </div>
+        ))}
       </nav>
-
-      {/* Actions — Undo/Redo, Open, Save, Preview, Export */}
-      <div className="px-2 py-3 border-t border-border space-y-1">
-        {/* Undo / Redo row — always side-by-side */}
-        <div className={cn('flex gap-1', sidebarCollapsed ? 'flex-col' : 'flex-row')}>
-          {actionItems.slice(0, 2).map((action) => {
-            const Icon = action.icon;
-            const isDisabled = action.getDisabled?.() ?? false;
-
-            const btn = (
-              <button
-                key={action.id}
-                onClick={action.onClick}
-                disabled={isDisabled}
-                aria-label={action.label}
-                className={cn(
-                  'flex items-center justify-center rounded-lg transition-all duration-200',
-                  'text-text-body hover:text-text-primary hover:bg-elevated',
-                  'disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:text-text-body disabled:hover:bg-transparent',
-                  sidebarCollapsed ? 'w-full p-3 min-h-[44px]' : 'flex-1 p-2'
-                )}
-              >
-                <Icon className="w-4 h-4 flex-shrink-0" />
-                {!sidebarCollapsed && (
-                  <span className="font-display text-xs ml-2 whitespace-nowrap">{action.label}</span>
-                )}
-              </button>
-            );
-
-            return sidebarCollapsed ? (
-              <Tooltip key={action.id} content={action.label} placement="right">
-                {btn}
-              </Tooltip>
-            ) : btn;
-          })}
-        </div>
-
-        {/* Remaining actions */}
-        {actionItems.slice(2).map((action) => {
-          const Icon = action.icon;
-          const isPrimary = action.variant === 'primary';
-
-          const btn = (
-            <button
-              key={action.id}
-              onClick={action.onClick}
-              aria-label={action.label}
-              className={cn(
-                'w-full flex items-center gap-3 px-3 py-3 rounded-lg transition-all duration-200 min-h-[44px]',
-                isPrimary
-                  ? 'bg-red-primary text-text-primary glow-red-subtle hover:bg-red-highlight'
-                  : 'text-text-body hover:text-text-primary hover:bg-elevated'
-              )}
-            >
-              <Icon className="w-4.5 h-4.5 flex-shrink-0" />
-              {!sidebarCollapsed && (
-                <span className="font-display font-medium text-sm whitespace-nowrap">
-                  {action.label}
-                </span>
-              )}
-            </button>
-          );
-
-          return sidebarCollapsed ? (
-            <Tooltip key={action.id} content={action.label} placement="right">
-              {btn}
-            </Tooltip>
-          ) : btn;
-        })}
-      </div>
-
-      {/* Advanced Generation Settings — visible only on Generate panel */}
-      {activePanel === 'generate' && (
-        <div className="px-2 py-3 border-t border-border overflow-y-auto flex-1 min-h-0">
-          <AdvancedGenerationSettings collapsed={sidebarCollapsed} />
-        </div>
-      )}
 
       {/* GPU Status */}
       {!sidebarCollapsed && (
         <div className="px-3 py-3 border-t border-border">
           <div
             className={cn(
-              'flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-display',
+              'flex items-center gap-2 px-2.5 py-2 rounded-md text-xs font-display border',
               systemInfo.gpuAvailable
-                ? 'bg-status-success-muted text-status-success border border-status-success-border'
-                : 'bg-status-warning-muted text-status-warning border border-status-warning-border'
+                ? 'bg-status-success-muted text-status-success border-status-success-border'
+                : 'bg-status-warning-muted text-status-warning border-status-warning-border'
             )}
           >
             {systemInfo.gpuAvailable ? (
@@ -258,7 +168,7 @@ export const Sidebar = memo(function Sidebar() {
         <button
           onClick={toggleSidebar}
           aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-          className="w-full flex items-center justify-center p-3 rounded-lg text-text-muted hover:text-text-primary hover:bg-elevated transition-all min-h-[44px]"
+          className="w-full flex items-center justify-center p-3 rounded-md text-text-muted hover:text-text-primary hover:bg-elevated transition-all min-h-[44px]"
         >
           {sidebarCollapsed ? (
             <ChevronRight className="w-5 h-5" />

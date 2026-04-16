@@ -100,11 +100,11 @@ The base palette shifts from red-glow cinema to carbon professional software.
 | Primary text | Studio White | Crisp, not pure white everywhere |
 | Secondary text | Muted Steel | Legible, calm, never washed out |
 | Borders | Hairline | Fine separators over boxy outlines |
-| Focus/primary | Electric Citron | Sparse, memorable signature accent |
+| Focus/primary | Chrome Silver | Sparse, professional signature accent |
 | Danger/error | Red | Reserved for destructive/error/recording states |
 
-Electric Citron should be less neon than Invoke's landing accent. It should feel
-technical and premium, not playful. Red should no longer be the main brand color.
+Chrome Silver should feel precise, technical, and hardware-native rather than
+playful or neon. Red should no longer be the main brand color.
 
 Capability accents are secondary and used sparingly:
 
@@ -433,4 +433,3 @@ The redesign is successful when:
 - Dense controls feel professional rather than cluttered.
 - Invoke remains a benchmark, but Vision Studio reads as broader and more
   workflow-native.
-

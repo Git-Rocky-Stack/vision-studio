@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/Button';
 import { PromptArea } from '@/components/generate/PromptArea';
 import { StylePresetsBar } from '@/components/generate/StylePresetsBar';
 import { ModelSelector } from '@/components/generate/ModelSelector';
+import { AdvancedGenerationSettings } from '@/components/generate/AdvancedGenerationSettings';
 import { ImageDropZone } from '@/components/generate/ImageDropZone';
 import { ControlNetPanel } from '@/components/generate/ControlNetPanel';
 import { LoRAMixer } from '@/components/generate/LoRAMixer';
@@ -458,13 +459,14 @@ export function GeneratePanel() {
   const videoModelRequiresReference = imageConfig.generationType === 'video' && imageConfig.videoModel === 'svd';
 
   return (
-    <div className="flex-1 min-h-0 flex flex-col bg-surface">
+    <div className="flex-1 min-h-0 flex flex-col bg-panel">
       {/* Mode Toggle */}
-      <div className="p-4 border-b border-border">
-        <div className="relative flex bg-elevated rounded-lg p-1">
+      <div className="p-3 border-b border-border bg-panel">
+        <p className="mb-2 font-mono text-micro uppercase text-text-muted">Workflow</p>
+        <div className="relative flex bg-canvas rounded-md p-1 border border-border">
           <motion.div
             layoutId="modeGlow"
-            className="absolute top-1 bottom-1 rounded-md bg-surface glow-red-subtle"
+            className="absolute top-1 bottom-1 rounded-md bg-accent-primary-muted border border-accent-primary-border"
             style={{ width: 'calc(50% - 4px)' }}
             animate={{
               x: imageConfig.generationType === 'image' ? 0 : 'calc(100% + 4px)',
@@ -476,7 +478,7 @@ export function GeneratePanel() {
             className={cn(
               'relative z-10 flex-1 flex items-center justify-center gap-2 py-2 rounded-md transition-colors',
               imageConfig.generationType === 'image'
-                ? 'text-red-primary'
+                ? 'text-accent-primary'
                 : 'text-text-muted hover:text-text-body'
             )}
           >
@@ -488,7 +490,7 @@ export function GeneratePanel() {
             className={cn(
               'relative z-10 flex-1 flex items-center justify-center gap-2 py-2 rounded-md transition-colors',
               imageConfig.generationType === 'video'
-                ? 'text-red-primary'
+                ? 'text-accent-primary'
                 : 'text-text-muted hover:text-text-body'
             )}
           >
@@ -514,7 +516,7 @@ export function GeneratePanel() {
       )}
 
       {/* Scrollable Content */}
-      <div className="h-0 flex-1 overflow-y-scroll p-4 space-y-4">
+      <div className="h-0 flex-1 overflow-y-scroll p-4 space-y-5">
         {/* Prompt Area */}
         <div className="relative">
           <PromptArea
@@ -544,6 +546,24 @@ export function GeneratePanel() {
           activePresets={imageConfig.activeStylePresets}
           onTogglePreset={handleToggleStylePreset}
         />
+
+        {/* Model Routing */}
+        <div className="space-y-3">
+          <div>
+            <label className="text-label text-text-body">Model Router</label>
+            <p className="mt-1 text-xs text-text-muted">
+              Pick the capability, runtime, and hardware profile for this generation.
+            </p>
+          </div>
+          <ModelSelector
+            value={currentModel}
+            onChange={(id) => {
+              if (imageConfig.generationType === 'image') updateImageConfig({ model: id });
+              else updateImageConfig({ videoModel: id });
+            }}
+            generationType={imageConfig.generationType}
+          />
+        </div>
 
         {/* Reference Image (img2img / image-to-video) */}
         {(imageConfig.generationType === 'image' || videoModelRequiresReference) && (
@@ -591,9 +611,9 @@ export function GeneratePanel() {
                     onClick={() => updateImageConfig({ selectedRatio: ratio })}
                     disabled={isDisabled}
                     className={cn(
-                      'px-2 py-2 rounded-lg border transition-all flex items-center gap-2',
+                      'px-2 py-2 rounded-md border transition-all flex items-center gap-2',
                       isSelected
-                        ? 'border-red-primary bg-red-aura glow-red-subtle'
+                        ? 'border-accent-primary-border bg-accent-primary-muted shadow-accent-subtle'
                         : 'border-border hover:border-border-hover bg-elevated',
                       isDisabled && 'opacity-40 cursor-not-allowed hover:border-border hover:bg-elevated'
                     )}
@@ -601,7 +621,7 @@ export function GeneratePanel() {
                     <div
                       className={cn(
                         'flex-shrink-0 rounded-sm',
-                        isSelected ? 'bg-red-primary' : 'bg-text-muted'
+                        isSelected ? 'bg-accent-primary' : 'bg-text-muted'
                       )}
                       style={{
                         width: ratio.width > ratio.height ? '18px' : '11px',
@@ -612,7 +632,7 @@ export function GeneratePanel() {
                       <span
                         className={cn(
                           'font-display text-xs leading-tight block truncate',
-                          isSelected ? 'text-red-primary' : 'text-text-body'
+                          isSelected ? 'text-accent-primary' : 'text-text-body'
                         )}
                       >
                         {ratio.name}
@@ -631,21 +651,13 @@ export function GeneratePanel() {
           </div>
         )}
 
-        {/* Model Selection */}
-        <div className="space-y-3">
-          <label className="text-label text-text-body">Model</label>
-          <ModelSelector
-            value={currentModel}
-            onChange={(id) => {
-              if (imageConfig.generationType === 'image') updateImageConfig({ model: id });
-              else updateImageConfig({ videoModel: id });
-            }}
-            generationType={imageConfig.generationType}
-          />
+        {/* Advanced Controls */}
+        <div className="rounded-md border border-border bg-surface p-3">
+          <AdvancedGenerationSettings />
         </div>
 
         {/* Estimated Info */}
-        <div className="p-3 rounded-lg bg-elevated border border-border">
+        <div className="p-3 rounded-md bg-elevated border border-border">
           <div className="flex items-center gap-4 text-xs text-text-body font-display">
             <div className="flex items-center gap-2">
               <Clock className="w-3.5 h-3.5" />
@@ -686,7 +698,7 @@ export function GeneratePanel() {
       </div>
 
       {/* Generate Button / Progress Bar - Sticky bottom */}
-      <div className="p-4 border-t border-border bg-surface">
+      <div className="p-4 border-t border-border bg-panel">
         <AnimatePresence mode="wait">
           {genStatus.isGenerating ? (
             <motion.div
@@ -695,11 +707,11 @@ export function GeneratePanel() {
               initial={{ opacity: 0, scale: 0.98 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.98 }}
-              className="relative overflow-hidden rounded-xl bg-elevated border border-border"
+              className="relative overflow-hidden rounded-md bg-elevated border border-border"
             >
               {/* Progress fill */}
               <motion.div
-                className="absolute inset-y-0 left-0 rounded-xl"
+                className="absolute inset-y-0 left-0 rounded-md"
                 role="progressbar"
                 aria-valuenow={Math.round(genStatus.progress)}
                 aria-valuemin={0}
@@ -711,7 +723,7 @@ export function GeneratePanel() {
                 style={{
                   background: 'linear-gradient(90deg, var(--color-gradient-progress-start), var(--color-gradient-progress-end))',
                   boxShadow:
-                    '0 0 12px var(--color-red-glow), inset 0 1px 0 var(--color-border-hover)',
+                    '0 0 12px var(--color-accent-primary-glow), inset 0 1px 0 var(--color-border-hover)',
                 }}
               />
 
@@ -727,7 +739,7 @@ export function GeneratePanel() {
                 <button
                   onClick={handleCancel}
                   disabled={!genStatus.isGenerating}
-                  className="flex items-center gap-2 px-3 py-1 rounded-lg bg-void/40 text-text-body hover:text-text-primary hover:bg-void/60 transition-all font-display text-xs disabled:opacity-30 disabled:cursor-not-allowed"
+                  className="flex items-center gap-2 px-3 py-1 rounded-md bg-void/40 text-text-body hover:text-text-primary hover:bg-void/60 transition-all font-display text-xs disabled:opacity-30 disabled:cursor-not-allowed"
                 >
                   <X className="w-3 h-3" />
                   Cancel
@@ -748,9 +760,9 @@ export function GeneratePanel() {
               onClick={handleGenerate}
               disabled={!imageConfig.prompt.trim()}
               className={cn(
-                'w-full flex items-center justify-center gap-2.5 py-3.5 rounded-xl font-display text-sm font-semibold transition-all',
+                'w-full flex items-center justify-center gap-2.5 py-3.5 rounded-md font-display text-sm font-semibold transition-all',
                 imageConfig.prompt.trim()
-                  ? 'bg-red-primary text-text-primary glow-red hover:bg-red-highlight active:bg-red-pressed hover:scale-[1.01] active:scale-[0.99]'
+                  ? 'bg-accent-primary text-void shadow-accent hover:bg-accent-primary-hover active:bg-accent-primary-pressed hover:scale-[1.005] active:scale-[0.995]'
                   : 'bg-elevated text-text-muted opacity-40 cursor-not-allowed'
               )}
             >

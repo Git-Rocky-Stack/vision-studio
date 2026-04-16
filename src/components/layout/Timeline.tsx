@@ -202,11 +202,11 @@ const TimeRuler = memo(function TimeRuler({
           style={{
             borderLeft: '5px solid transparent',
             borderRight: '5px solid transparent',
-            borderTop: `6px solid var(--color-red-primary)`,
+            borderTop: `6px solid var(--color-accent-primary)`,
           }}
         />
         {/* Thin line extending down through ruler */}
-        <div className="absolute top-0 -translate-x-1/2 w-px h-full bg-red-primary" />
+        <div className="absolute top-0 -translate-x-1/2 w-px h-full bg-accent-primary" />
       </div>
     </div>
   );
@@ -242,7 +242,7 @@ const TrackHeader = memo(function TrackHeader({
       className={cn(
         'h-[44px] flex items-center gap-1.5 px-2 border-b border-border cursor-pointer transition-all group',
         isSelected
-          ? 'bg-red-aura/60'
+          ? 'bg-accent-primary-muted'
           : 'bg-surface hover:bg-elevated/50'
       )}
     >
@@ -250,13 +250,13 @@ const TrackHeader = memo(function TrackHeader({
       <div
         className={cn(
           'flex-shrink-0 w-5 h-5 rounded flex items-center justify-center',
-          isSelected ? 'bg-red-primary/20' : 'bg-elevated'
+          isSelected ? 'bg-accent-primary-muted border border-accent-primary-border' : 'bg-elevated'
         )}
       >
         <TypeIcon
           className={cn(
             'w-3 h-3',
-            isSelected ? 'text-red-primary' : 'text-text-muted'
+            isSelected ? 'text-accent-primary' : 'text-text-muted'
           )}
         />
       </div>
@@ -285,7 +285,7 @@ const TrackHeader = memo(function TrackHeader({
           }}
           className={cn(
             'p-0.5 rounded transition-all opacity-0 group-hover:opacity-100 focus:opacity-100',
-            isMuted ? 'text-red-primary opacity-100' : 'text-text-muted hover:text-text-body'
+            isMuted ? 'text-status-error opacity-100' : 'text-text-muted hover:text-text-body'
           )}
           aria-label={isMuted ? 'Unmute track' : 'Mute track'}
           title={isMuted ? 'Unmute' : 'Mute'}
@@ -302,7 +302,7 @@ const TrackHeader = memo(function TrackHeader({
         }}
         className={cn(
           'p-0.5 rounded transition-all opacity-0 group-hover:opacity-100 focus:opacity-100',
-          !isVisible ? 'text-red-primary opacity-100' : 'text-text-muted hover:text-text-body'
+          !isVisible ? 'text-status-error opacity-100' : 'text-text-muted hover:text-text-body'
         )}
         aria-label={isVisible ? 'Hide track' : 'Show track'}
         title={isVisible ? 'Hide' : 'Show'}
@@ -495,8 +495,8 @@ const TransportControls = memo(function TransportControls({
         className={cn(
           'p-2 rounded-lg transition-all active:scale-95',
           isPlaying
-            ? 'bg-red-primary text-text-primary glow-red-subtle'
-            : 'bg-red-primary/15 text-red-primary border border-red-primary/30 hover:bg-red-primary/25'
+            ? 'bg-accent-primary text-void shadow-accent-subtle'
+            : 'bg-accent-primary-muted text-accent-primary border border-accent-primary-border hover:bg-accent-primary-muted'
         )}
         aria-label={isPlaying ? 'Pause' : 'Play'}
         aria-pressed={isPlaying}
@@ -565,7 +565,7 @@ const ZoomControls = memo(function ZoomControls({
           onChange={(e) => onZoomChange(Number(e.target.value))}
           className="w-full h-1 appearance-none rounded-full cursor-pointer"
           style={{
-            background: `linear-gradient(to right, var(--color-red-primary) 0%, var(--color-red-primary) ${((zoom - MIN_ZOOM) / (MAX_ZOOM - MIN_ZOOM)) * 100}%, var(--color-void) ${((zoom - MIN_ZOOM) / (MAX_ZOOM - MIN_ZOOM)) * 100}%, var(--color-void) 100%)`,
+            background: `linear-gradient(to right, var(--color-accent-primary) 0%, var(--color-accent-primary) ${((zoom - MIN_ZOOM) / (MAX_ZOOM - MIN_ZOOM)) * 100}%, var(--color-void) ${((zoom - MIN_ZOOM) / (MAX_ZOOM - MIN_ZOOM)) * 100}%, var(--color-void) 100%)`,
           }}
           aria-label="Timeline zoom level"
           title={`Zoom: ${Math.round(zoom * 100)}%`}
@@ -757,8 +757,8 @@ export const Timeline = memo(function Timeline() {
           className={cn(
             'p-1.5 rounded-lg transition-all',
             isPlaying
-              ? 'bg-red-primary text-text-primary glow-red-subtle'
-              : 'bg-red-primary/15 text-red-primary border border-red-primary/30'
+              ? 'bg-accent-primary text-void shadow-accent-subtle'
+              : 'bg-accent-primary-muted text-accent-primary border border-accent-primary-border'
           )}
           aria-label={isPlaying ? 'Pause' : 'Play'}
           aria-pressed={isPlaying}
@@ -861,7 +861,7 @@ export const Timeline = memo(function Timeline() {
             className={cn(
               'p-1.5 rounded-md transition-all',
               selectedTrackId
-                ? 'text-text-body hover:text-red-primary hover:bg-red-aura active:scale-95'
+                ? 'text-text-body hover:text-status-error hover:bg-status-error-muted active:scale-95'
                 : 'text-text-muted/40 cursor-not-allowed'
             )}
             disabled={!selectedTrackId}
@@ -978,8 +978,8 @@ export const Timeline = memo(function Timeline() {
                             background: isActive
                               ? 'linear-gradient(135deg, rgba(230, 57, 70, 0.2), rgba(230, 57, 70, 0.08))'
                               : 'linear-gradient(135deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.02))',
-                            border: `1px solid ${isActive ? 'var(--color-red-primary)' : 'var(--color-border)'}`,
-                            boxShadow: isActive ? '0 0 6px rgba(230, 57, 70, 0.25)' : 'none',
+                            border: `1px solid ${isActive ? 'var(--color-accent-primary)' : 'var(--color-border)'}`,
+                            boxShadow: isActive ? '0 0 6px var(--color-accent-primary-glow)' : 'none',
                           }}
                           aria-label={`Scene: ${scene.name}`}
                           aria-pressed={isActive}
@@ -994,7 +994,7 @@ export const Timeline = memo(function Timeline() {
                           )}
                           <span className={cn(
                             'font-display text-micro truncate relative z-10',
-                            isActive ? 'text-red-primary font-medium' : 'text-text-muted'
+                            isActive ? 'text-accent-primary font-medium' : 'text-text-muted'
                           )}>
                             {scene.name}
                           </span>
@@ -1009,12 +1009,12 @@ export const Timeline = memo(function Timeline() {
             <div className="relative" role="listbox" aria-label="Timeline tracks">
               {/* Playhead line spanning all tracks */}
               <motion.div
-                className="absolute top-0 bottom-0 w-px bg-red-primary z-30 pointer-events-none"
+                className="absolute top-0 bottom-0 w-px bg-accent-primary z-30 pointer-events-none"
                 style={{ left: `${progress}%` }}
                 role="presentation"
               >
                 {/* Playhead dot at each track intersection */}
-                <div className="absolute -top-0.5 -left-1 w-2 h-2 rounded-full bg-red-primary shadow-red-dot" />
+                <div className="absolute -top-0.5 -left-1 w-2 h-2 rounded-full bg-accent-primary shadow-accent-subtle" />
               </motion.div>
 
               {tracks.length === 0 && !storyboardScenes.length ? (
@@ -1044,7 +1044,7 @@ export const Timeline = memo(function Timeline() {
                       aria-selected={isSelected}
                       className={cn(
                         'border-b border-border flex items-center transition-all cursor-pointer group',
-                        isSelected ? 'bg-red-aura/30' : 'hover:bg-elevated/20'
+                        isSelected ? 'bg-accent-primary-muted' : 'hover:bg-elevated/20'
                       )}
                       style={{ height: TRACK_HEIGHT }}
                     >

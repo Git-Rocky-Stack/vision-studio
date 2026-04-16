@@ -18,6 +18,8 @@ export const GenerationProgress = memo(function GenerationProgress() {
   // Estimate step from progress and params
   const totalSteps = activeJob.params?.steps || 25;
   const currentStep = Math.round((progress / 100) * totalSteps);
+  const model = typeof activeJob.params?.model === 'string' ? activeJob.params.model : 'model pending';
+  const runtime = typeof activeJob.params?.runtime === 'string' ? activeJob.params.runtime : 'local';
 
   return (
     <motion.div
@@ -29,8 +31,8 @@ export const GenerationProgress = memo(function GenerationProgress() {
       {/* Backdrop blur */}
       <div className="absolute inset-0 bg-void/40 backdrop-blur-sm" />
 
-      {/* Progress ring */}
-      <div className="relative flex flex-col items-center gap-3">
+      {/* Progress surface */}
+      <div className="relative flex flex-col items-center gap-3 rounded-md border border-border bg-elevated/95 px-6 py-5 shadow-cinematic">
         <div
           className="relative w-[120px] h-[120px]"
           role="progressbar"
@@ -93,6 +95,14 @@ export const GenerationProgress = memo(function GenerationProgress() {
           <p className="font-mono text-xs text-text-muted mt-1" aria-live="polite">
             {Math.round(progress)}% complete
           </p>
+          <div className="mt-3 flex items-center justify-center gap-1.5">
+            <span className="rounded-md border border-border bg-canvas px-2 py-1 font-mono text-micro text-text-body">
+              {model}
+            </span>
+            <span className="rounded-md border border-accent-primary-border bg-accent-primary-muted px-2 py-1 font-mono text-micro text-accent-primary">
+              {runtime}
+            </span>
+          </div>
         </div>
       </div>
     </motion.div>

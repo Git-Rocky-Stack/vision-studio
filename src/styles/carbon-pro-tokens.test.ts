@@ -6,8 +6,8 @@ const css = readFileSync(resolve(process.cwd(), 'src/index.css'), 'utf8');
 
 describe('Carbon Pro design tokens', () => {
   it('defines the Carbon Pro primary accent and capability palette', () => {
-    expect(css).toContain('--color-accent-primary: #d7ff3f');
-    expect(css).toContain('--color-accent-primary-muted: rgba(215, 255, 63, 0.09)');
+    expect(css).toContain('--color-accent-primary: #d9dee3');
+    expect(css).toContain('--color-accent-primary-muted: rgba(217, 222, 227, 0.1)');
     expect(css).toContain('--color-capability-image:');
     expect(css).toContain('--color-capability-video:');
     expect(css).toContain('--color-capability-edit:');

@@ -1,13 +1,30 @@
-import { useState, useRef, useEffect } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import type { CSSProperties, ElementType, ReactNode } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
+import {
+  Check,
+  ChevronDown,
+  Cloud,
+  Cpu,
+  Gauge,
+  HardDrive,
+  Image as ImageIcon,
+  MonitorCog,
+  Sparkles,
+  Video,
+  Zap,
+} from 'lucide-react';
+
 import { cn } from '@/utils/cn';
-import { hexToRgba } from '@/utils/colorUtils';
-import { ChevronDown, Check, Cpu, Zap, Scale, Sparkles, Paintbrush } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
 
 interface ModelOption {
   id: string;
   name: string;
-  quality: 'best' | 'high' | 'fast' | 'balanced' | 'inpainting';
+  capability: 'image' | 'video' | 'edit' | 'inpaint';
+  runtime: 'local' | 'comfyui' | 'cloud' | 'byom';
+  availability: 'ready' | 'install-required' | 'login-required' | 'import-required';
+  hardware: 'laptop' | 'creator' | 'workstation' | 'unknown';
+  quality: 'draft' | 'balanced' | 'pro' | 'experimental' | 'local';
   vram: string;
   description: string;
   type: 'image' | 'video';
@@ -17,49 +34,73 @@ const IMAGE_MODELS: ModelOption[] = [
   {
     id: 'flux-dev',
     name: 'FLUX.1 [dev]',
-    quality: 'best',
+    capability: 'image',
+    runtime: 'byom',
+    availability: 'import-required',
+    hardware: 'workstation',
+    quality: 'pro',
     vram: '23.8 GB',
-    description: 'Highest quality, detailed outputs with excellent prompt adherence',
+    description: 'High-fidelity image generation with strong prompt adherence.',
     type: 'image',
   },
   {
     id: 'sd3.5-large',
     name: 'Stable Diffusion 3.5 Large',
-    quality: 'high',
+    capability: 'image',
+    runtime: 'local',
+    availability: 'install-required',
+    hardware: 'workstation',
+    quality: 'pro',
     vram: '~12 GB',
-    description: 'Modern MM-DiT architecture with superior composition and typography',
+    description: 'Modern composition and typography when local hardware can support it.',
     type: 'image',
   },
   {
     id: 'flux-fill',
     name: 'FLUX.1 Fill [dev]',
-    quality: 'inpainting',
+    capability: 'inpaint',
+    runtime: 'byom',
+    availability: 'import-required',
+    hardware: 'workstation',
+    quality: 'pro',
     vram: '23.8 GB',
-    description: 'Inpainting and outpainting with seamless region blending',
+    description: 'Inpainting and outpainting for precise region work.',
     type: 'image',
   },
   {
     id: 'sd3.5-medium',
     name: 'Stable Diffusion 3.5 Medium',
+    capability: 'image',
+    runtime: 'local',
+    availability: 'install-required',
+    hardware: 'creator',
     quality: 'balanced',
     vram: '~6 GB',
-    description: 'Strong prompt understanding and versatile output with low VRAM',
+    description: 'Balanced quality and footprint for creator laptops.',
     type: 'image',
   },
   {
     id: 'flux-schnell',
     name: 'FLUX.1 [schnell]',
-    quality: 'fast',
+    capability: 'image',
+    runtime: 'byom',
+    availability: 'import-required',
+    hardware: 'workstation',
+    quality: 'draft',
     vram: '23.8 GB',
-    description: 'Fast generation with good quality, 4-step inference',
+    description: 'Fast iteration model for prompt exploration.',
     type: 'image',
   },
   {
     id: 'sd-1-5',
     name: 'Stable Diffusion 1.5',
-    quality: 'fast',
+    capability: 'image',
+    runtime: 'local',
+    availability: 'install-required',
+    hardware: 'laptop',
+    quality: 'local',
     vram: '4.0 GB',
-    description: 'Lightweight model with extensive LoRA/ControlNet ecosystem',
+    description: 'Lightweight local baseline with broad LoRA and ControlNet support.',
     type: 'image',
   },
 ];
@@ -68,39 +109,96 @@ const VIDEO_MODELS: ModelOption[] = [
   {
     id: 'ltx-video',
     name: 'LTX Video',
-    quality: 'best',
+    capability: 'video',
+    runtime: 'local',
+    availability: 'install-required',
+    hardware: 'creator',
+    quality: 'pro',
     vram: '9.4 GB',
-    description: 'High quality video generation with temporal coherence',
+    description: 'High quality video generation with temporal coherence.',
     type: 'video',
   },
   {
     id: 'animatediff',
     name: 'AnimateDiff',
+    capability: 'video',
+    runtime: 'local',
+    availability: 'install-required',
+    hardware: 'creator',
     quality: 'balanced',
     vram: '8.0 GB',
-    description: 'Animate images into short video clips with motion control',
+    description: 'Animate images into short clips with motion control.',
     type: 'video',
   },
   {
     id: 'svd',
     name: 'Stable Video Diffusion',
+    capability: 'video',
+    runtime: 'local',
+    availability: 'install-required',
+    hardware: 'creator',
     quality: 'balanced',
     vram: '8.0 GB',
-    description: 'Image-to-video with camera motion and scene animation; requires a reference image',
+    description: 'Image-to-video with camera motion. Requires a reference image.',
     type: 'video',
   },
 ];
 
-const qualityBadge: Record<
-  ModelOption['quality'],
-  { label: string; color: string; icon: React.ElementType }
+const capabilityMeta: Record<
+  ModelOption['capability'],
+  { label: string; icon: ElementType; className: string }
 > = {
-  best: { label: 'Best Quality', color: 'var(--color-feature-03)', icon: Cpu },
-  high: { label: 'High Quality', color: 'var(--color-feature-02)', icon: Sparkles },
-  inpainting: { label: 'Inpainting', color: 'var(--color-feature-05)', icon: Paintbrush },
-  balanced: { label: 'Balanced', color: 'var(--color-feature-06)', icon: Scale },
-  fast: { label: 'Fast', color: 'var(--color-feature-04)', icon: Zap },
+  image: { label: 'Image', icon: ImageIcon, className: 'text-[var(--color-capability-image)] bg-[rgba(56,189,248,0.08)] border-[rgba(56,189,248,0.2)]' },
+  video: { label: 'Video', icon: Video, className: 'text-[var(--color-capability-video)] bg-[rgba(245,158,11,0.08)] border-[rgba(245,158,11,0.2)]' },
+  edit: { label: 'Edit', icon: Sparkles, className: 'text-[var(--color-capability-edit)] bg-[rgba(232,121,249,0.08)] border-[rgba(232,121,249,0.2)]' },
+  inpaint: { label: 'Inpaint', icon: Sparkles, className: 'text-[var(--color-capability-edit)] bg-[rgba(232,121,249,0.08)] border-[rgba(232,121,249,0.2)]' },
 };
+
+const runtimeMeta: Record<
+  ModelOption['runtime'],
+  { label: string; icon: ElementType; className: string }
+> = {
+  local: { label: 'Local', icon: HardDrive, className: 'text-[var(--color-capability-local)] bg-[rgba(34,197,94,0.08)] border-[rgba(34,197,94,0.2)]' },
+  comfyui: { label: 'ComfyUI', icon: MonitorCog, className: 'text-[var(--color-capability-cloud)] bg-[rgba(96,165,250,0.08)] border-[rgba(96,165,250,0.2)]' },
+  cloud: { label: 'Cloud', icon: Cloud, className: 'text-[var(--color-capability-cloud)] bg-[rgba(96,165,250,0.08)] border-[rgba(96,165,250,0.2)]' },
+  byom: { label: 'BYOM', icon: Cpu, className: 'text-accent-primary bg-accent-primary-muted border-accent-primary-border' },
+};
+
+const availabilityLabel: Record<ModelOption['availability'], string> = {
+  ready: 'Ready',
+  'install-required': 'Install required',
+  'login-required': 'Login required',
+  'import-required': 'Import required',
+};
+
+const hardwareLabel: Record<ModelOption['hardware'], string> = {
+  laptop: 'Laptop fit',
+  creator: 'Creator laptop',
+  workstation: 'Workstation',
+  unknown: 'Hardware unknown',
+};
+
+const qualityLabel: Record<ModelOption['quality'], string> = {
+  draft: 'Draft',
+  balanced: 'Balanced',
+  pro: 'Pro',
+  experimental: 'Experimental',
+  local: 'Local',
+};
+
+function Badge({
+  children,
+  className,
+}: {
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <span className={cn('inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 font-display text-micro font-medium', className)}>
+      {children}
+    </span>
+  );
+}
 
 interface ModelSelectorProps {
   value: string;
@@ -110,13 +208,37 @@ interface ModelSelectorProps {
 
 export function ModelSelector({ value, onChange, generationType }: ModelSelectorProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const [dropdownStyle, setDropdownStyle] = useState<CSSProperties>({});
   const containerRef = useRef<HTMLDivElement>(null);
 
   const models = generationType === 'image' ? IMAGE_MODELS : VIDEO_MODELS;
   const selected = models.find((m) => m.id === value) || models[0];
-  const badge = qualityBadge[selected.quality];
+  const selectedCapability = capabilityMeta[selected.capability];
+  const selectedRuntime = runtimeMeta[selected.runtime];
+  const SelectedCapabilityIcon = selectedCapability.icon;
+  const SelectedRuntimeIcon = selectedRuntime.icon;
 
-  // Close on click outside
+  const positionDropdown = useCallback(() => {
+    const trigger = containerRef.current;
+    if (!trigger) return;
+
+    const rect = trigger.getBoundingClientRect();
+    const viewportPadding = 16;
+    const gap = 6;
+    const availableBelow = window.innerHeight - rect.bottom - viewportPadding;
+    const availableAbove = rect.top - viewportPadding;
+    const openUp = availableBelow < 280 && availableAbove > availableBelow;
+    const availableSpace = openUp ? availableAbove : availableBelow;
+
+    setDropdownStyle({
+      left: rect.left,
+      top: openUp ? undefined : rect.bottom + gap,
+      bottom: openUp ? window.innerHeight - rect.top + gap : undefined,
+      width: rect.width,
+      maxHeight: Math.max(220, Math.min(384, availableSpace - gap)),
+    });
+  }, []);
+
   useEffect(() => {
     if (!isOpen) return;
     const handleClick = (e: MouseEvent) => {
@@ -124,58 +246,74 @@ export function ModelSelector({ value, onChange, generationType }: ModelSelector
         setIsOpen(false);
       }
     };
+    positionDropdown();
     document.addEventListener('mousedown', handleClick);
-    return () => document.removeEventListener('mousedown', handleClick);
-  }, [isOpen]);
+    window.addEventListener('resize', positionDropdown);
+    window.addEventListener('scroll', positionDropdown, true);
+    return () => {
+      document.removeEventListener('mousedown', handleClick);
+      window.removeEventListener('resize', positionDropdown);
+      window.removeEventListener('scroll', positionDropdown, true);
+    };
+  }, [isOpen, positionDropdown]);
 
   const handleSelect = (modelId: string) => {
     onChange(modelId);
     setIsOpen(false);
   };
 
+  const toggleOpen = () => {
+    if (!isOpen) {
+      positionDropdown();
+    }
+    setIsOpen((open) => !open);
+  };
+
   return (
     <div ref={containerRef} className="relative">
-      {/* Trigger */}
       <button
         data-testid="model-selector-trigger"
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={toggleOpen}
         aria-haspopup="listbox"
         aria-expanded={isOpen}
         className={cn(
-          'w-full flex items-center gap-3 px-3 py-3 rounded-lg border transition-all text-left',
+          'w-full flex items-start gap-3 px-3 py-3 rounded-md border transition-all text-left bg-panel-raised',
           isOpen
-            ? 'border-red-primary bg-elevated shadow-cinematic'
-            : 'border-border bg-elevated hover:border-border-hover'
+            ? 'border-accent-primary-border shadow-accent-subtle'
+            : 'border-border hover:border-border-hover'
         )}
       >
+        <div className="mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-md border border-border bg-canvas">
+          <Gauge className="h-4 w-4 text-accent-primary" />
+        </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            <span className="font-display text-sm font-medium text-text-primary">
+            <span className="font-display text-sm font-semibold text-text-primary truncate">
               {selected.name}
             </span>
-            <span
-              className="px-1.5 py-0.5 rounded-full text-micro font-display font-medium"
-              style={{
-                backgroundColor: hexToRgba(badge.color, 0.08),
-                color: badge.color,
-              }}
-            >
-              {badge.label}
-            </span>
           </div>
-          <p className="font-mono text-micro text-text-muted mt-0.5">
-            {selected.vram} VRAM
+          <div className="mt-1.5 flex flex-wrap gap-1.5">
+            <Badge className={selectedCapability.className}>
+              <SelectedCapabilityIcon className="h-2.5 w-2.5" />
+              {selectedCapability.label}
+            </Badge>
+            <Badge className={selectedRuntime.className}>
+              <SelectedRuntimeIcon className="h-2.5 w-2.5" />
+              {selectedRuntime.label}
+            </Badge>
+          </div>
+          <p className="mt-1.5 font-mono text-micro text-text-muted">
+            {availabilityLabel[selected.availability]} / {hardwareLabel[selected.hardware]} / {selected.vram}
           </p>
         </div>
         <ChevronDown
           className={cn(
-            'w-4 h-4 text-text-muted transition-transform flex-shrink-0',
+            'mt-1 h-4 w-4 flex-shrink-0 text-text-muted transition-transform',
             isOpen && 'rotate-180'
           )}
         />
       </button>
 
-      {/* Dropdown */}
       <AnimatePresence>
         {isOpen && (
           <motion.div
@@ -183,18 +321,25 @@ export function ModelSelector({ value, onChange, generationType }: ModelSelector
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -4, scale: 0.98 }}
             transition={{ duration: 0.15 }}
-            className="absolute z-50 left-0 right-0 mt-1.5 bg-elevated border border-border rounded-xl shadow-cinematic overflow-hidden"
+            className="fixed z-[9999] overflow-hidden rounded-md border border-border bg-elevated shadow-cinematic"
+            style={dropdownStyle}
           >
-            <div className="p-2 max-h-80 overflow-y-auto" role="listbox" aria-label="Select model">
-              {/* Section label */}
-              <p className="px-2.5 py-1.5 text-label text-text-muted" role="presentation">
-                {generationType === 'image' ? 'Image Models' : 'Video Models'}
-              </p>
+            <div className="overflow-y-auto p-2" style={{ maxHeight: dropdownStyle.maxHeight }} role="listbox" aria-label="Select model">
+              <div className="flex items-center justify-between px-2.5 py-1.5" role="presentation">
+                <p className="font-mono text-micro uppercase text-text-muted">
+                  {generationType === 'image' ? 'Image routing' : 'Video routing'}
+                </p>
+                <p className="font-mono text-micro text-text-muted">
+                  {models.length} profiles
+                </p>
+              </div>
 
               {models.map((model) => {
-                const modelBadge = qualityBadge[model.quality];
+                const modelCapability = capabilityMeta[model.capability];
+                const modelRuntime = runtimeMeta[model.runtime];
+                const CapabilityIcon = modelCapability.icon;
+                const RuntimeIcon = modelRuntime.icon;
                 const isSelected = model.id === value;
-                const BadgeIcon = modelBadge.icon;
 
                 return (
                   <button
@@ -203,38 +348,47 @@ export function ModelSelector({ value, onChange, generationType }: ModelSelector
                     role="option"
                     aria-selected={isSelected}
                     className={cn(
-                      'w-full flex items-start gap-3 px-2.5 py-3 rounded-lg transition-all text-left',
+                      'w-full flex items-start gap-3 rounded-md border px-2.5 py-3 text-left transition-all',
                       isSelected
-                        ? 'bg-red-aura border border-red-primary/30'
-                        : 'hover:bg-surface border border-transparent'
+                        ? 'border-accent-primary-border bg-accent-primary-muted'
+                        : 'border-transparent hover:border-border hover:bg-surface'
                     )}
                   >
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-0.5">
+                    <div className="mt-0.5 flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md border border-border bg-canvas">
+                      {model.type === 'video' ? (
+                        <Video className="h-3.5 w-3.5 text-[var(--color-capability-video)]" />
+                      ) : (
+                        <ImageIcon className="h-3.5 w-3.5 text-[var(--color-capability-image)]" />
+                      )}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-start justify-between gap-2">
                         <span className="font-display text-sm font-medium text-text-primary">
                           {model.name}
                         </span>
-                        <span
-                          className="flex items-center gap-1 px-1.5 py-0.5 rounded-full text-micro font-display font-medium"
-                          style={{
-                            backgroundColor: hexToRgba(modelBadge.color, 0.08),
-                            color: modelBadge.color,
-                          }}
-                        >
-                          <BadgeIcon className="w-2.5 h-2.5" />
-                          {modelBadge.label}
-                        </span>
+                        {isSelected && <Check className="mt-0.5 h-4 w-4 flex-shrink-0 text-accent-primary" />}
                       </div>
-                      <p className="text-xs text-text-body line-clamp-1 mb-0.5">
+                      <p className="mt-1 line-clamp-2 text-xs text-text-body">
                         {model.description}
                       </p>
-                      <p className="font-mono text-micro text-text-muted">
-                        {model.vram} VRAM
-                      </p>
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        <Badge className={modelCapability.className}>
+                          <CapabilityIcon className="h-2.5 w-2.5" />
+                          {modelCapability.label}
+                        </Badge>
+                        <Badge className={modelRuntime.className}>
+                          <RuntimeIcon className="h-2.5 w-2.5" />
+                          {modelRuntime.label}
+                        </Badge>
+                        <Badge className="border-border bg-canvas text-text-muted">
+                          <Zap className="h-2.5 w-2.5" />
+                          {qualityLabel[model.quality]}
+                        </Badge>
+                        <Badge className="border-border bg-canvas text-text-muted">
+                          {hardwareLabel[model.hardware]}
+                        </Badge>
+                      </div>
                     </div>
-                    {isSelected && (
-                      <Check className="w-4 h-4 text-red-primary flex-shrink-0 mt-0.5" />
-                    )}
                   </button>
                 );
               })}

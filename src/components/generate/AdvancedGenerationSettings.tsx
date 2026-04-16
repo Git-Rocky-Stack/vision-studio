@@ -93,7 +93,7 @@ export function AdvancedGenerationSettings({
                     <select
                       value={advancedGeneration.scheduler}
                       onChange={(e) => updateAdvancedGeneration({ scheduler: e.target.value })}
-                      className="w-full bg-elevated border border-border rounded-lg px-3 py-2 text-sm font-display text-text-primary focus:border-red-primary focus:ring-1 focus:ring-red-primary/40 transition-all"
+                      className="w-full bg-elevated border border-border rounded-md px-3 py-2 text-sm font-display text-text-primary focus:border-accent-primary focus:ring-1 focus:ring-accent-primary/40 transition-all"
                     >
                       {SCHEDULERS.map((s) => (
                         <option key={s} value={s}>
@@ -114,7 +114,7 @@ export function AdvancedGenerationSettings({
                           className={cn(
                             'flex-1 py-2 rounded-lg text-sm font-mono font-medium transition-all',
                             advancedGeneration.clipSkip === v
-                              ? 'bg-red-primary text-text-primary glow-red-subtle'
+                              ? 'bg-accent-primary text-void shadow-accent-subtle'
                               : 'bg-elevated text-text-body border border-border hover:border-border-hover'
                           )}
                         >
@@ -130,7 +130,7 @@ export function AdvancedGenerationSettings({
                       <label className="text-label text-text-body">Seed</label>
                       <button
                         onClick={randomizeSeed}
-                        className="p-1 rounded text-text-muted hover:text-red-primary transition-all"
+                        className="p-1 rounded text-text-muted hover:text-accent-primary transition-all"
                         title="Randomize"
                       >
                         <Dice5 className="w-4 h-4" />
@@ -140,7 +140,7 @@ export function AdvancedGenerationSettings({
                       type="number"
                       value={advancedGeneration.seed}
                       onChange={(e) => updateAdvancedGeneration({ seed: Number(e.target.value) })}
-                      className="w-full bg-elevated border border-border rounded-lg px-3 py-2 text-text-primary font-mono text-sm focus:border-red-primary focus:ring-1 focus:ring-red-primary/40 transition-all"
+                      className="w-full bg-elevated border border-border rounded-md px-3 py-2 text-text-primary font-mono text-sm focus:border-accent-primary focus:ring-1 focus:ring-accent-primary/40 transition-all"
                     />
                     <p className="text-xs text-text-muted font-mono">
                       Use -1 for random seed

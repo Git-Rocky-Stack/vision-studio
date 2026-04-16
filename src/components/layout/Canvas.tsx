@@ -8,15 +8,12 @@ import {
   Move,
   Hand,
   Loader2,
+  Sparkles,
 } from 'lucide-react';
 import { memo, useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { AmbientParticles } from '@/components/effects/AmbientParticles';
 import { RegionLockOverlay } from '@/components/edit/RegionLockOverlay';
 import { RegionMaskDrawer } from '@/components/edit/RegionMaskDrawer';
-
-// Warm-amber particle color for the canvas viewport (slightly more transparent than the component default)
-const CANVAS_PARTICLE_COLOR = 'rgba(255, 200, 150, 0.25)';
 import { GenerationProgress } from '@/components/canvas/GenerationProgress';
 import { GenerationQueue } from '@/components/canvas/GenerationQueue';
 import { CanvasContextMenu } from '@/components/canvas/CanvasContextMenu';
@@ -92,6 +89,8 @@ export const Canvas = memo(function Canvas() {
   const isGenerating = activeJobs.some(
     (j) => j.status === 'pending' || j.status === 'processing'
   );
+  const hasRenderableImage = Boolean(currentImage && !imageError);
+  const displayedArtboardSize = hasRenderableImage ? imageSize : { width: 760, height: 460 };
 
   const handleZoomIn = () => setZoom(Math.min(zoom + 10, 200));
   const handleZoomOut = () => setZoom(Math.max(zoom - 10, 25));
@@ -287,19 +286,18 @@ export const Canvas = memo(function Canvas() {
   return (
     <div
       className={cn(
-        'flex-1 flex flex-col bg-void relative overflow-hidden',
-        isGenerating && 'ring-1 ring-red-primary/20 animate-glow-pulse'
+        'h-full min-h-0 flex-1 flex flex-col bg-void relative overflow-hidden',
+        isGenerating && 'ring-1 ring-accent-primary/20'
       )}
     >
-      {/* Ambient particles */}
-      <AmbientParticles color={CANVAS_PARTICLE_COLOR} count={30} />
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_42%,rgba(215,255,63,0.045),transparent_34%),linear-gradient(180deg,var(--color-void),var(--color-canvas))]" />
 
       {/* Canvas Toolbar */}
       <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10">
-        <div className="flex items-center gap-2 px-2 py-2 glass glass-border rounded-lg shadow-cinematic">
+        <div className="flex items-center gap-1.5 px-2 py-1.5 glass glass-border rounded-md shadow-cinematic">
           <button
             onClick={handleZoomOut}
-            className="p-2 rounded text-text-body hover:text-text-primary hover:bg-elevated transition-all disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:text-text-body disabled:hover:bg-transparent"
+            className="p-2 rounded-md text-text-body hover:text-text-primary hover:bg-elevated transition-all disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:text-text-body disabled:hover:bg-transparent"
             aria-label="Zoom out"
             disabled={zoom <= 25}
           >
@@ -310,7 +308,7 @@ export const Canvas = memo(function Canvas() {
           </span>
           <button
             onClick={handleZoomIn}
-            className="p-2 rounded text-text-body hover:text-text-primary hover:bg-elevated transition-all disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:text-text-body disabled:hover:bg-transparent"
+            className="p-2 rounded-md text-text-body hover:text-text-primary hover:bg-elevated transition-all disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:text-text-body disabled:hover:bg-transparent"
             aria-label="Zoom in"
             disabled={zoom >= 200}
           >
@@ -319,7 +317,7 @@ export const Canvas = memo(function Canvas() {
           <div className="w-px h-4 bg-border mx-1" />
           <button
             onClick={handleResetZoom}
-            className="p-2 rounded text-text-body hover:text-text-primary hover:bg-elevated transition-all"
+            className="p-2 rounded-md text-text-body hover:text-text-primary hover:bg-elevated transition-all"
             aria-label="Reset view"
           >
             <Maximize className="w-4 h-4" />
@@ -328,9 +326,9 @@ export const Canvas = memo(function Canvas() {
           <button
             onClick={() => setShowGrid(!showGrid)}
             className={cn(
-              'p-2 rounded transition-all',
+              'p-2 rounded-md transition-all',
               showGrid
-                ? 'text-red-primary bg-red-aura'
+                ? 'text-accent-primary bg-accent-primary-muted border border-accent-primary-border'
                 : 'text-text-body hover:text-text-primary hover:bg-elevated'
             )}
             aria-label="Toggle grid"
@@ -375,15 +373,20 @@ export const Canvas = memo(function Canvas() {
         >
           {/* Artboard */}
           <div
-            className="relative bg-canvas shadow-cinematic border border-border"
-            style={{ width: imageSize.width, height: imageSize.height }}
+            className={cn(
+              'relative bg-canvas shadow-cinematic border',
+              hasRenderableImage
+                ? 'border-border'
+                : 'border-border-hover bg-[linear-gradient(135deg,rgba(255,255,255,0.035),rgba(255,255,255,0.01))]'
+            )}
+            style={{ width: displayedArtboardSize.width, height: displayedArtboardSize.height }}
           >
             {/* Current Image or Placeholder */}
             {currentImage && !imageError ? (
               <>
                 {isImageLoading && (
                   <div className="absolute inset-0 flex items-center justify-center bg-surface/50">
-                    <Loader2 className="w-8 h-8 text-red-primary animate-spin" />
+                    <Loader2 className="w-8 h-8 text-accent-primary animate-spin" />
                   </div>
                 )}
                 <img
@@ -406,20 +409,20 @@ export const Canvas = memo(function Canvas() {
                 <motion.div
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className="text-center space-y-4"
+                  className="text-center space-y-5 max-w-sm px-8"
                 >
-                  <div className="w-24 h-24 mx-auto rounded-2xl bg-elevated border border-border flex items-center justify-center">
-                    <Move className="w-10 h-10 text-text-muted" />
+                  <div className="w-16 h-16 mx-auto rounded-md bg-accent-primary-muted border border-accent-primary-border flex items-center justify-center">
+                    <Sparkles className="w-7 h-7 text-accent-primary" />
                   </div>
                   <div>
-                    <h3 className="font-display text-lg font-semibold text-text-primary">
-                      Create something extraordinary
+                    <h3 className="font-display text-xl font-semibold text-text-primary">
+                      Start with an image, scene, or prompt
                     </h3>
                     <p className="text-sm text-text-body mt-1">
-                      Generate images and videos to see them here
+                      Choose a workflow and build from every result.
                     </p>
                   </div>
-                  <div className="flex items-center gap-2 justify-center text-xs text-text-muted">
+                  <div className="flex items-center gap-2 justify-center text-xs text-text-muted font-mono">
                     <Hand className="w-3.5 h-3.5" />
                     <span>Shift + Drag to pan</span>
                     <span>&middot;</span>
@@ -470,7 +473,7 @@ export const Canvas = memo(function Canvas() {
 
       {/* Canvas Info */}
       <div className="absolute bottom-4 left-4 z-10">
-        <div className="px-3 py-1.5 glass glass-border rounded-lg">
+        <div className="px-3 py-1.5 glass glass-border rounded-md">
           <span className="font-mono text-xs text-text-body">
             {imageSize.width} &times; {imageSize.height}px &middot; Artboard 1
           </span>

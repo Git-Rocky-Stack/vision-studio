@@ -22,7 +22,7 @@ export const GenerationQueue = memo(function GenerationQueue() {
       exit={{ opacity: 0, y: 20 }}
       className="absolute bottom-4 left-1/2 -translate-x-1/2 z-10"
     >
-      <div className="flex items-center gap-2 px-3 py-2 glass glass-border rounded-xl shadow-cinematic overflow-x-auto scrollbar-hide max-w-[500px]">
+      <div className="flex items-center gap-2 px-3 py-2 glass glass-border rounded-md shadow-cinematic overflow-x-auto scrollbar-hide max-w-[500px]">
         {completedItems.map((item, index) => (
           <div key={item.id} className="relative flex-shrink-0">
             <motion.button
@@ -36,9 +36,9 @@ export const GenerationQueue = memo(function GenerationQueue() {
               onMouseLeave={() => setHoveredItem(null)}
               aria-label={`View generation ${index + 1}`}
               className={cn(
-                'w-12 h-12 rounded-lg border overflow-hidden transition-all',
+                'w-12 h-12 rounded-md border overflow-hidden transition-all',
                 hoveredItem === item.id
-                  ? 'border-red-primary ring-1 ring-red-primary/40 scale-110'
+                  ? 'border-accent-primary-border ring-1 ring-accent-primary-border scale-110'
                   : 'border-border hover:border-border-hover'
               )}
             >
@@ -64,7 +64,7 @@ export const GenerationQueue = memo(function GenerationQueue() {
                   initial={{ opacity: 0, y: 5 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: 5 }}
-                  className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 p-2 bg-elevated border border-border rounded-lg shadow-cinematic pointer-events-none"
+                  className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 p-2 bg-elevated border border-border rounded-md shadow-cinematic pointer-events-none"
                 >
                   <p className="font-display text-xs text-text-primary line-clamp-2">
                     {item.prompt}

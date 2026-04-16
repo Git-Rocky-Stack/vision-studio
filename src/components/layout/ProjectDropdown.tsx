@@ -64,16 +64,16 @@ export const ProjectDropdown = memo(function ProjectDropdown() {
         aria-haspopup="listbox"
         aria-label="Select project"
         className={cn(
-          'flex items-center gap-2 px-3 py-1.5 rounded-lg',
+          'flex items-center gap-2 px-3 py-1.5 rounded-md',
           'bg-elevated border border-border',
           'text-sm font-display font-medium text-text-primary',
           'transition-all duration-200',
-          'hover:border-red-primary/40 hover:bg-surface',
-          'focus:outline-none focus-visible:ring-2 focus-visible:ring-red-primary',
-          isOpen && 'border-red-primary/60 bg-red-aura/10'
+          'hover:border-accent-primary-border hover:bg-surface',
+          'focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary',
+          isOpen && 'border-accent-primary-border bg-accent-primary-muted'
         )}
       >
-        <FolderOpen className="w-4 h-4 text-red-primary" aria-hidden="true" />
+        <FolderOpen className="w-4 h-4 text-accent-primary" aria-hidden="true" />
         <span className="truncate max-w-[160px]">
           {activeProject ? activeProject.name : 'No Project'}
         </span>
@@ -93,7 +93,7 @@ export const ProjectDropdown = memo(function ProjectDropdown() {
           aria-label="Project list"
           className={cn(
             'absolute top-full left-0 mt-1 w-64 z-dropdown',
-            'bg-elevated border border-border rounded-xl shadow-xl',
+            'bg-elevated border border-border rounded-md shadow-xl',
             'overflow-hidden',
             'animate-in fade-in slide-in-from-top-1 duration-150'
           )}
@@ -120,7 +120,7 @@ export const ProjectDropdown = memo(function ProjectDropdown() {
                     'hover:bg-surface hover:text-text-primary',
                     'focus:outline-none focus-visible:bg-surface',
                     project.id === activeProjectId
-                      ? 'bg-red-aura/10 text-red-primary'
+                      ? 'bg-accent-primary-muted text-accent-primary'
                       : 'text-text-body'
                   )}
                 >
@@ -136,7 +136,7 @@ export const ProjectDropdown = memo(function ProjectDropdown() {
                     </div>
                   </div>
                   {project.id === activeProjectId && (
-                    <div className="w-2 h-2 rounded-full bg-red-primary flex-shrink-0" aria-hidden="true" />
+                    <div className="w-2 h-2 rounded-full bg-accent-primary flex-shrink-0" aria-hidden="true" />
                   )}
                 </button>
               ))
@@ -148,14 +148,14 @@ export const ProjectDropdown = memo(function ProjectDropdown() {
             <button
               onClick={handleNewProject}
               className={cn(
-                'w-full flex items-center gap-2 px-3 py-2 rounded-lg',
+                'w-full flex items-center gap-2 px-3 py-2 rounded-md',
                 'text-sm font-display font-medium text-text-body',
                 'transition-colors duration-150',
                 'hover:bg-surface hover:text-text-primary',
-                'focus:outline-none focus-visible:ring-2 focus-visible:ring-red-primary'
+                'focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary'
               )}
             >
-              <Plus className="w-4 h-4 text-red-primary" aria-hidden="true" />
+              <Plus className="w-4 h-4 text-accent-primary" aria-hidden="true" />
               New Project
             </button>
           </div>

@@ -1,10 +1,10 @@
 import { useState, useCallback } from 'react';
 import { useAppStore } from '@/store/appStore';
 import { Button } from '@/components/ui/Button';
+import { ModelSelector } from '@/components/generate/ModelSelector';
 import { cn } from '@/utils/cn';
 import { Wand2, Loader2, CheckCircle2, AlertCircle, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import type { ControlNetConfig } from '@/types/generation';
 
 const ASPECT_RATIOS = [
   { name: 'Square', width: 1024, height: 1024, icon: '1:1' },
@@ -12,15 +12,6 @@ const ASPECT_RATIOS = [
   { name: 'Landscape', width: 1344, height: 768, icon: '16:9' },
   { name: 'Widescreen', width: 1920, height: 1080, icon: '21:9' },
 ] as const;
-
-const MODELS = [
-  { id: 'flux-dev', name: 'FLUX.1 [dev]' },
-  { id: 'sd3.5-large', name: 'SD 3.5 Large' },
-  { id: 'flux-fill', name: 'FLUX.1 Fill' },
-  { id: 'sd3.5-medium', name: 'SD 3.5 Medium' },
-  { id: 'flux-schnell', name: 'FLUX.1 [schnell]' },
-  { id: 'sd-1-5', name: 'SD 1.5' },
-];
 
 interface GenStatus {
   isGenerating: boolean;
@@ -211,11 +202,11 @@ export function QuickGeneratePanel() {
   };
 
   return (
-    <div className="flex flex-col h-full bg-surface">
+    <div className="flex flex-col h-full bg-panel">
       {/* Header */}
       <div className="px-4 py-3 border-b border-border flex items-center justify-between flex-shrink-0">
         <div className="flex items-center gap-2">
-          <Wand2 className="w-4 h-4 text-red-primary" aria-hidden="true" />
+          <Wand2 className="w-4 h-4 text-accent-primary" aria-hidden="true" />
           <h2 className="font-display font-semibold text-sm text-text-primary">Quick Generate</h2>
         </div>
         {genStatus.status === 'success' && (
@@ -245,9 +236,9 @@ export function QuickGeneratePanel() {
               placeholder="Describe what you want to generate..."
               rows={4}
               className={cn(
-                'w-full resize-none rounded-lg bg-elevated border border-border',
+                'w-full resize-none rounded-md bg-elevated border border-border',
                 'px-3 py-2.5 text-sm text-text-primary placeholder:text-text-muted/50',
-                'focus:outline-none focus:ring-2 focus:ring-red-primary/50 focus:border-red-primary',
+                'focus:outline-none focus:ring-2 focus:ring-accent-primary/40 focus:border-accent-primary',
                 'font-display'
               )}
               disabled={genStatus.isGenerating}
@@ -266,9 +257,9 @@ export function QuickGeneratePanel() {
               placeholder="What to avoid..."
               rows={2}
               className={cn(
-                'w-full resize-none rounded-lg bg-elevated border border-border',
+                'w-full resize-none rounded-md bg-elevated border border-border',
                 'px-3 py-2.5 text-sm text-text-primary placeholder:text-text-muted/50',
-                'focus:outline-none focus:ring-2 focus:ring-red-primary/50 focus:border-red-primary',
+                'focus:outline-none focus:ring-2 focus:ring-accent-primary/40 focus:border-accent-primary',
                 'font-display'
               )}
               disabled={genStatus.isGenerating}
@@ -276,27 +267,20 @@ export function QuickGeneratePanel() {
           </div>
 
           {/* Model selector */}
-          <div className="space-y-1.5">
-            <label className="text-micro font-display font-medium text-text-muted uppercase tracking-wider">
-              Model
-            </label>
-            <div className="grid grid-cols-2 gap-1.5">
-              {MODELS.map((model) => (
-                <button
-                  key={model.id}
-                  onClick={() => setSelectedModel(model.id)}
-                  disabled={genStatus.isGenerating}
-                  className={cn(
-                    'px-3 py-2 rounded-lg border text-xs font-display font-medium transition-all duration-150',
-                    selectedModel === model.id
-                      ? 'bg-red-aura text-red-primary border-red-primary/60 shadow-red-glow'
-                      : 'bg-elevated text-text-body border-border hover:border-red-primary/40 hover:text-text-primary'
-                  )}
-                >
-                  {model.name}
-                </button>
-              ))}
+          <div className="space-y-2">
+            <div>
+              <label className="text-micro font-display font-medium text-text-muted uppercase tracking-wider">
+                Model Router
+              </label>
+              <p className="mt-1 text-xs text-text-muted">
+                Route this quick image through a model profile.
+              </p>
             </div>
+            <ModelSelector
+              value={selectedModel}
+              onChange={setSelectedModel}
+              generationType="image"
+            />
           </div>
 
           {/* Aspect ratio */}
@@ -311,10 +295,10 @@ export function QuickGeneratePanel() {
                   onClick={() => setSelectedRatio(ratio)}
                   disabled={genStatus.isGenerating}
                   className={cn(
-                    'flex flex-col items-center justify-center gap-0.5 px-2 py-2 rounded-lg border text-xs transition-all duration-150',
+                    'flex flex-col items-center justify-center gap-0.5 px-2 py-2 rounded-md border text-xs transition-all duration-150',
                     selectedRatio.name === ratio.name
-                      ? 'bg-red-aura text-red-primary border-red-primary/60 shadow-red-glow'
-                      : 'bg-elevated text-text-body border-border hover:border-red-primary/40 hover:text-text-primary'
+                      ? 'bg-accent-primary-muted text-accent-primary border-accent-primary-border shadow-accent-subtle'
+                      : 'bg-elevated text-text-body border-border hover:border-border-hover hover:text-text-primary'
                   )}
                 >
                   <span className="font-display font-bold">{ratio.icon}</span>
@@ -336,7 +320,7 @@ export function QuickGeneratePanel() {
             transition={{ duration: 0.15 }}
             className="px-4 overflow-hidden"
           >
-            <div className="flex items-start gap-2 py-2 px-3 rounded-lg bg-red-aura/20 border border-red-primary/40 text-red-primary">
+            <div className="flex items-start gap-2 py-2 px-3 rounded-md bg-status-error-muted border border-status-error-border text-status-error">
               <AlertCircle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" aria-hidden="true" />
               <p className="text-xs font-display">{genStatus.errorMessage}</p>
             </div>
@@ -360,7 +344,7 @@ export function QuickGeneratePanel() {
               </div>
               <div className="h-1 bg-void rounded-full overflow-hidden">
                 <motion.div
-                  className="h-full bg-gradient-to-r from-red-primary to-red-highlight rounded-full"
+                  className="h-full rounded-full bg-[linear-gradient(90deg,var(--color-gradient-progress-start),var(--color-gradient-progress-end))]"
                   initial={{ width: 0 }}
                   animate={{ width: `${genStatus.progress}%` }}
                   transition={{ duration: 0.3 }}

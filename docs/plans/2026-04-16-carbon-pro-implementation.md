@@ -96,11 +96,11 @@ Suggested Carbon Pro values:
 --color-elevated: #181c1f;
 --color-panel: #15191c;
 --color-panel-raised: #1c2226;
---color-accent-primary: #d7ff3f;
---color-accent-primary-hover: #ecff82;
---color-accent-primary-pressed: #a9d800;
---color-accent-primary-muted: rgba(215, 255, 63, 0.09);
---color-accent-primary-border: rgba(215, 255, 63, 0.28);
+--color-accent-primary: #d9dee3;
+--color-accent-primary-hover: #f4f7fa;
+--color-accent-primary-pressed: #aeb6bf;
+--color-accent-primary-muted: rgba(217, 222, 227, 0.1);
+--color-accent-primary-border: rgba(217, 222, 227, 0.28);
 --color-text-primary: #f4f6f3;
 --color-text-body: #a7aea8;
 --color-text-muted: #788179;
@@ -167,12 +167,12 @@ assertions.
 
 Apply Carbon Pro styling:
 
-- Primary button: carbon/citron accent, no red glow.
+- Primary button: carbon/chrome accent, no red glow.
 - Secondary/ghost buttons: graphite surfaces, hairline borders, precise hover.
 - Danger button: red only for destructive actions.
-- Inputs/textareas: graphite field, citron focus, red error.
-- Switch: citron checked state.
-- Slider: citron active track/thumb, status red only for error contexts.
+- Inputs/textareas: graphite field, chrome focus, red error.
+- Switch: chrome checked state.
+- Slider: chrome active track/thumb, status red only for error contexts.
 - Tooltip/dialog: reduce roundedness and glow, use graphite/elevated surfaces.
 
 **Step 3: Run primitive tests**
@@ -225,7 +225,7 @@ In `Header.tsx`:
 - Add a compact wordmark or glyph only if it does not dominate the header.
 - Use `h-12` or keep `h-14` with tighter visual density.
 - Show runtime status as a small pill:
-  - Ready: citron/green restrained status.
+  - Ready: chrome/green restrained status.
   - Not ready: warning/error status.
 - Keep project dropdown first.
 
@@ -599,4 +599,3 @@ After Phase 1 is merged, write follow-up plans for:
 - Studio Lobby/dashboard.
 - Model Router data model backed by real runtime/provider metadata.
 - Hardware-aware workflow/profile display.
-

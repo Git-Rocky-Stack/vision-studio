@@ -38,7 +38,7 @@ export function PromptArea({
       {/* Label */}
       <div className="flex items-center justify-between">
         <label htmlFor="prompt-input" className="text-label text-text-body flex items-center gap-2">
-          <Sparkles className="w-3.5 h-3.5 text-red-primary" />
+          <Sparkles className="w-3.5 h-3.5 text-accent-primary" />
           Prompt
         </label>
         <span className="font-mono text-xs text-text-muted" aria-live="polite">{prompt.length}</span>
@@ -47,8 +47,8 @@ export function PromptArea({
       {/* Prompt textarea with focus glow wrapper */}
       <div
         className={cn(
-          'rounded-lg transition-shadow duration-200',
-          isFocused && 'glow-red-subtle'
+          'rounded-md transition-shadow duration-200',
+          isFocused && 'shadow-accent-subtle'
         )}
       >
         <Textarea
