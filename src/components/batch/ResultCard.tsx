@@ -52,15 +52,15 @@ export const ResultCard = memo(function ResultCard({
         className={cn(
           'flex items-center gap-4 p-3 rounded-lg border transition-all cursor-pointer',
           isSelected
-            ? 'border-red-primary ring-2 ring-red-glow bg-red-aura'
+            ? 'border-accent-primary-border ring-2 ring-accent-primary-border bg-accent-primary-muted'
             : 'border-border bg-elevated/50 hover:border-border-hover hover:bg-elevated'
         )}
       >
         {/* Thumbnail */}
         <div className="w-16 h-16 rounded-lg overflow-hidden flex-shrink-0 bg-surface">
           {isFailed ? (
-            <div className="w-full h-full flex items-center justify-center bg-red-primary/10">
-              <AlertTriangle className="w-5 h-5 text-red-primary" />
+            <div className="w-full h-full flex items-center justify-center bg-status-error-muted">
+              <AlertTriangle className="w-5 h-5 text-status-error" />
             </div>
           ) : (
             <ImageWithFallback
@@ -98,7 +98,7 @@ export const ResultCard = memo(function ResultCard({
             className={cn(
               'p-2 rounded-lg transition-all',
               result.isFavorite
-                ? 'text-red-primary bg-red-aura'
+                ? 'text-[var(--color-status-warning)] bg-[var(--color-status-warning-muted)]'
                 : 'text-text-muted hover:text-text-primary hover:bg-surface'
             )}
           >
@@ -146,7 +146,7 @@ export const ResultCard = memo(function ResultCard({
       className={cn(
         'rounded-lg border overflow-hidden transition-all cursor-pointer group',
         isSelected
-          ? 'border-red-primary ring-2 ring-red-glow'
+          ? 'border-accent-primary-border ring-2 ring-accent-primary-border'
           : 'border-border hover:border-border-hover',
         isHovered && !isSelected && 'shadow-cinematic scale-[1.02]'
       )}
@@ -157,9 +157,9 @@ export const ResultCard = memo(function ResultCard({
         viewMode === 'large' ? 'aspect-square' : 'aspect-[4/3]'
       )}>
         {isFailed ? (
-          <div className="w-full h-full flex flex-col items-center justify-center bg-red-primary/5">
-            <AlertTriangle className="w-8 h-8 text-red-primary mb-2" />
-            <span className="text-xs text-red-primary font-display">Failed</span>
+          <div className="w-full h-full flex flex-col items-center justify-center bg-status-error-muted">
+            <AlertTriangle className="w-8 h-8 text-status-error mb-2" />
+            <span className="text-xs text-status-error font-display">Failed</span>
           </div>
         ) : (
           <ImageWithFallback
@@ -174,9 +174,9 @@ export const ResultCard = memo(function ResultCard({
         {/* Selected overlay */}
         {isSelected && (
           <div className="absolute top-2 left-2">
-            <div className="w-5 h-5 rounded-full bg-red-primary flex items-center justify-center">
+            <div className="w-5 h-5 rounded-full bg-accent-primary flex items-center justify-center">
               <svg
-                className="w-3 h-3 text-text-primary"
+                className="w-3 h-3 text-void"
                 fill="none"
                 viewBox="0 0 24 24"
                 stroke="currentColor"
@@ -195,7 +195,7 @@ export const ResultCard = memo(function ResultCard({
         {/* Favorite badge */}
         {result.isFavorite && (
           <div className="absolute top-2 right-2">
-            <Heart className="w-4 h-4 text-red-primary fill-current drop-shadow-lg" />
+            <Heart className="w-4 h-4 text-[var(--color-status-warning)] fill-current drop-shadow-lg" />
           </div>
         )}
 
@@ -217,7 +217,7 @@ export const ResultCard = memo(function ResultCard({
                 className={cn(
                   'p-2 rounded-lg backdrop-blur-sm transition-all focus-visible:opacity-100',
                   result.isFavorite
-                    ? 'bg-red-primary/30 text-red-primary'
+                    ? 'bg-[var(--color-status-warning-muted)] text-[var(--color-status-warning)]'
                     : 'bg-void/40 text-text-primary hover:bg-void/60'
                 )}
               >

@@ -213,7 +213,7 @@ export function SettingsPanel() {
                 className={cn(
                   'w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-all text-left',
                   activeTab === section.id
-                    ? 'bg-red-aura text-red-primary border border-red-primary/30'
+                    ? 'bg-accent-primary-muted text-accent-primary border border-accent-primary-border'
                     : 'text-text-body hover:text-text-primary hover:bg-surface'
                 )}
               >
@@ -291,8 +291,8 @@ export function SettingsPanel() {
                     aria-label="Toggle auto save"
                     onClick={() => persistSettings({ autoSave: !settings.autoSave })}
                     className={cn(
-                      'w-9 h-5 rounded-full transition-colors relative flex-shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-primary focus-visible:ring-offset-2 focus-visible:ring-offset-void',
-                      settings.autoSave ? 'bg-red-primary' : 'bg-surface border border-border'
+                      'w-9 h-5 rounded-full transition-colors relative flex-shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary focus-visible:ring-offset-2 focus-visible:ring-offset-void',
+                      settings.autoSave ? 'bg-accent-primary' : 'bg-surface border border-border'
                     )}
                   >
                     <span className={cn(
@@ -319,8 +319,8 @@ export function SettingsPanel() {
                       persistSettings({ backendAutostart: !settings.backendAutostart })
                     }
                     className={cn(
-                      'w-9 h-5 rounded-full transition-colors relative flex-shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-primary focus-visible:ring-offset-2 focus-visible:ring-offset-void',
-                      settings.backendAutostart ? 'bg-red-primary' : 'bg-surface border border-border'
+                      'w-9 h-5 rounded-full transition-colors relative flex-shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary focus-visible:ring-offset-2 focus-visible:ring-offset-void',
+                      settings.backendAutostart ? 'bg-accent-primary' : 'bg-surface border border-border'
                     )}
                   >
                     <span className={cn(
@@ -344,7 +344,7 @@ export function SettingsPanel() {
                     </div>
                     <div className="h-2 bg-void rounded-full overflow-hidden border border-border">
                       <div
-                        className="h-full bg-gradient-to-r from-red-primary to-red-highlight rounded-full"
+                        className="h-full rounded-full bg-[linear-gradient(90deg,var(--color-gradient-progress-start),var(--color-gradient-progress-end))]"
                         style={{
                           width: `${Math.min(100, Math.max(8, assetLibrary.length * 8))}%`,
                         }}
@@ -406,11 +406,11 @@ export function SettingsPanel() {
                 </div>
 
                 {!systemInfo.backendConnected && (
-                  <div className="bg-red-primary/10 border border-red-primary/30 rounded-lg p-4">
+                  <div className="bg-status-error-muted border border-status-error-border rounded-md p-4">
                     <div className="flex items-start gap-3">
-                      <AlertTriangle className="w-5 h-5 text-red-primary mt-0.5 flex-shrink-0" />
+                      <AlertTriangle className="w-5 h-5 text-status-error mt-0.5 flex-shrink-0" />
                       <div>
-                        <h4 className="text-sm font-display font-medium text-red-primary">
+                        <h4 className="text-sm font-display font-medium text-status-error">
                           AI Backend Offline
                         </h4>
                         <p className="text-xs text-text-body mt-1">
@@ -419,7 +419,7 @@ export function SettingsPanel() {
                         <Button
                           variant="ghost"
                           size="sm"
-                          className="mt-3 text-red-primary hover:bg-red-primary/20"
+                          className="mt-3 text-status-error hover:bg-status-error-muted"
                           icon={Play}
                           onClick={async () => {
                             const result = await window.electron.backend.start();
@@ -529,7 +529,7 @@ export function SettingsPanel() {
                         className={cn(
                           'p-4 rounded-lg border transition-all text-center capitalize',
                           settings.theme === themeOption
-                            ? 'border-red-primary bg-red-aura'
+                            ? 'border-accent-primary-border bg-accent-primary-muted'
                             : 'border-border bg-elevated hover:border-border-hover'
                         )}
                       >
@@ -546,7 +546,7 @@ export function SettingsPanel() {
                           className={cn(
                             'text-sm font-display',
                             settings.theme === themeOption
-                              ? 'text-red-primary'
+                              ? 'text-accent-primary'
                               : 'text-text-body'
                           )}
                         >
@@ -590,8 +590,8 @@ export function SettingsPanel() {
                         })
                       }
                       className={cn(
-                        'w-9 h-5 rounded-full transition-colors relative flex-shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-primary focus-visible:ring-offset-2 focus-visible:ring-offset-void',
-                        settings.notifyOnGenerationComplete ? 'bg-red-primary' : 'bg-surface border border-border'
+                        'w-9 h-5 rounded-full transition-colors relative flex-shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary focus-visible:ring-offset-2 focus-visible:ring-offset-void',
+                        settings.notifyOnGenerationComplete ? 'bg-accent-primary' : 'bg-surface border border-border'
                       )}
                     >
                       <span className={cn(
@@ -620,8 +620,8 @@ export function SettingsPanel() {
                         })
                       }
                       className={cn(
-                        'w-9 h-5 rounded-full transition-colors relative flex-shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-primary focus-visible:ring-offset-2 focus-visible:ring-offset-void',
-                        settings.notifyOnGenerationFailed ? 'bg-red-primary' : 'bg-surface border border-border'
+                        'w-9 h-5 rounded-full transition-colors relative flex-shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary focus-visible:ring-offset-2 focus-visible:ring-offset-void',
+                        settings.notifyOnGenerationFailed ? 'bg-accent-primary' : 'bg-surface border border-border'
                       )}
                     >
                       <span className={cn(
@@ -650,8 +650,8 @@ export function SettingsPanel() {
                         })
                       }
                       className={cn(
-                        'w-9 h-5 rounded-full transition-colors relative flex-shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-primary focus-visible:ring-offset-2 focus-visible:ring-offset-void',
-                        settings.notifyOnModelDownloads ? 'bg-red-primary' : 'bg-surface border border-border'
+                        'w-9 h-5 rounded-full transition-colors relative flex-shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary focus-visible:ring-offset-2 focus-visible:ring-offset-void',
+                        settings.notifyOnModelDownloads ? 'bg-accent-primary' : 'bg-surface border border-border'
                       )}
                     >
                       <span className={cn(

@@ -158,7 +158,7 @@ export function TemplatesPanel() {
         <div className="flex items-center justify-between mb-4">
           <div>
             <div className="flex items-center gap-2 mb-1">
-              <Sparkles className="w-5 h-5 text-red-primary" />
+              <Sparkles className="w-5 h-5 text-accent-primary" />
               <h2 className="font-display text-xl font-bold text-text-primary">
                 Project Templates
               </h2>
@@ -188,7 +188,7 @@ export function TemplatesPanel() {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search templates..."
-              className="w-full bg-elevated border border-border rounded-lg pl-10 pr-4 py-3 text-sm text-text-primary placeholder:text-text-muted focus:border-red-primary focus:ring-1 focus:ring-red-primary/40 transition-all"
+              className="w-full bg-elevated border border-border rounded-md pl-10 pr-4 py-3 text-sm text-text-primary placeholder:text-text-muted focus:border-accent-primary focus:ring-1 focus:ring-accent-primary/40 transition-all"
             />
           </div>
 
@@ -196,7 +196,7 @@ export function TemplatesPanel() {
             <select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value as SortBy)}
-              className="appearance-none bg-elevated border border-border rounded-lg pl-3 pr-8 py-3 text-xs font-display text-text-primary focus:border-red-primary transition-all cursor-pointer"
+              className="appearance-none bg-elevated border border-border rounded-md pl-3 pr-8 py-3 text-xs font-display text-text-primary focus:border-accent-primary transition-all cursor-pointer"
             >
               <option value="popular">Popular</option>
               <option value="newest">Newest</option>
@@ -211,7 +211,7 @@ export function TemplatesPanel() {
               className={cn(
                 'p-2 rounded-md transition-all',
                 viewMode === 'cards'
-                  ? 'bg-red-primary text-text-primary'
+                  ? 'bg-accent-primary text-void'
                   : 'text-text-muted hover:text-text-primary'
               )}
             >
@@ -222,7 +222,7 @@ export function TemplatesPanel() {
               className={cn(
                 'p-2 rounded-md transition-all',
                 viewMode === 'compact'
-                  ? 'bg-red-primary text-text-primary'
+                  ? 'bg-accent-primary text-void'
                   : 'text-text-muted hover:text-text-primary'
               )}
             >
@@ -248,8 +248,8 @@ export function TemplatesPanel() {
                 onClick={() => setSelectedCategory(tab.id)}
                 aria-selected={isActive}
                 className={cn(
-                  'flex items-center gap-2 px-3 py-2 rounded-full text-sm font-display font-medium transition-all',
-                  isActive && !color && 'bg-red-primary text-text-primary glow-red-subtle',
+                  'flex items-center gap-2 px-3 py-2 rounded-md text-sm font-display font-medium transition-all',
+                  isActive && !color && 'bg-accent-primary-muted text-accent-primary border border-accent-primary-border shadow-accent-subtle',
                   isActive && color && 'text-text-primary',
                   !isActive && 'bg-elevated text-text-body hover:text-text-primary hover:bg-surface'
                 )}
@@ -280,7 +280,7 @@ export function TemplatesPanel() {
           <div className="mt-3">
             <button
               onClick={handleImportTemplate}
-              className="flex items-center gap-2 text-xs font-display text-text-body hover:text-red-primary transition-all"
+              className="flex items-center gap-2 text-xs font-display text-text-body hover:text-accent-primary transition-all"
             >
               <Upload className="w-3.5 h-3.5" />
               Import Template (.vst)
@@ -393,7 +393,7 @@ export function TemplatesPanel() {
                         </button>
                         <button
                           onClick={(e) => { e.stopPropagation(); setDeleteTargetId(template.id); }}
-                          className="p-2 rounded-lg text-text-muted hover:text-red-primary hover:bg-red-aura transition-all"
+                          className="p-2 rounded-md text-text-muted hover:text-status-error hover:bg-status-error-muted transition-all"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
@@ -426,7 +426,7 @@ export function TemplatesPanel() {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: index * 0.05 }}
                   className={cn(
-                    'group relative p-5 rounded-xl border transition-all cursor-pointer',
+                    'group relative p-5 rounded-md border transition-all cursor-pointer',
                     isHovered
                       ? 'border-border-hover bg-elevated'
                       : 'border-border bg-elevated/50 hover:border-border-hover'
@@ -524,7 +524,7 @@ export function TemplatesPanel() {
                         </button>
                         <button
                           onClick={(e) => { e.stopPropagation(); setDeleteTargetId(template.id); }}
-                          className="p-2 rounded-lg text-text-muted hover:text-red-primary hover:bg-red-aura transition-all"
+                          className="p-2 rounded-md text-text-muted hover:text-status-error hover:bg-status-error-muted transition-all"
                           title="Delete"
                         >
                           <Trash2 className="w-3.5 h-3.5" />

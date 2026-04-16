@@ -177,7 +177,7 @@ export function AssetsPanel() {
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search assets..."
-            className="w-full bg-elevated border border-border rounded-lg pl-10 pr-4 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-red-primary focus:ring-1 focus:ring-red-primary/40 transition-all"
+            className="w-full bg-elevated border border-border rounded-md pl-10 pr-4 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent-primary focus:ring-1 focus:ring-accent-primary/40 transition-all"
           />
         </div>
 
@@ -229,9 +229,9 @@ export function AssetsPanel() {
           <motion.div
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
-            className="flex items-center gap-2 p-2 bg-red-aura border border-red-primary/30 rounded-lg"
+            className="flex items-center gap-2 p-2 bg-accent-primary-muted border border-accent-primary-border rounded-md"
           >
-            <span className="text-sm text-red-primary font-display font-medium" aria-live="polite">
+            <span className="text-sm text-accent-primary font-display font-medium" aria-live="polite">
               {selectedAssets.size} selected
             </span>
             <div className="flex-1" />
@@ -240,7 +240,7 @@ export function AssetsPanel() {
             </Button>
             <button
               onClick={() => setSelectedAssets(new Set())}
-              className="p-2 rounded text-red-primary hover:bg-red-primary/20"
+              className="p-2 rounded-md text-accent-primary hover:bg-accent-primary-muted"
             >
               <X className="w-4 h-4" />
             </button>
@@ -287,7 +287,7 @@ export function AssetsPanel() {
                         'group relative rounded-lg border cursor-pointer transition-all overflow-hidden',
                         viewMode === 'grid' ? 'aspect-square' : 'flex items-center gap-3 p-2',
                         selectedAssets.has(asset.id)
-                          ? 'border-red-primary bg-red-aura'
+                          ? 'border-accent-primary-border bg-accent-primary-muted'
                           : 'border-border hover:border-border-hover bg-elevated'
                       )}
                     >
@@ -393,15 +393,15 @@ export function AssetsPanel() {
                             e.stopPropagation();
                             handleDelete(asset);
                           }}
-                          className="p-2 rounded bg-surface/80 text-text-body hover:text-red-primary hover:bg-surface transition-all focus-visible:opacity-100"
+                          className="p-2 rounded bg-surface/80 text-text-body hover:text-status-error hover:bg-status-error-muted transition-all focus-visible:opacity-100"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
                       </div>
 
                       {selectedAssets.has(asset.id) && (
-                        <div className="absolute top-2 left-2 w-5 h-5 rounded-full bg-red-primary flex items-center justify-center">
-                          <Check className="w-3 h-3 text-text-primary" />
+                        <div className="absolute top-2 left-2 w-5 h-5 rounded-full bg-accent-primary flex items-center justify-center">
+                          <Check className="w-3 h-3 text-void" />
                         </div>
                       )}
                     </motion.div>
@@ -420,7 +420,7 @@ export function AssetsPanel() {
             {filteredAssets.length > 0 && (
               <button
                 onClick={selectAll}
-                className="text-red-primary hover:underline font-display"
+                className="text-accent-primary hover:underline font-display"
               >
                 {selectedAssets.size === filteredAssets.length ? 'Deselect all' : 'Select all'}
               </button>

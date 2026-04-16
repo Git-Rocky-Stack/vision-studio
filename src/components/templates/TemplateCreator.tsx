@@ -145,7 +145,7 @@ export function TemplateCreator({ onClose, editingTemplate }: TemplateCreatorPro
         exit={{ opacity: 0, scale: 0.95, y: 20 }}
         transition={{ type: 'spring', damping: 25, stiffness: 300 }}
         onClick={(e) => e.stopPropagation()}
-        className="relative w-full max-w-[600px] max-h-[80vh] bg-surface rounded-2xl border border-border shadow-cinematic overflow-hidden flex flex-col"
+        className="relative w-full max-w-[600px] max-h-[80vh] bg-surface rounded-md border border-border shadow-cinematic overflow-hidden flex flex-col"
       >
         {/* Close */}
         <button
@@ -177,7 +177,7 @@ export function TemplateCreator({ onClose, editingTemplate }: TemplateCreatorPro
                   onClick={() => i < step && setStep(i)}
                   className={cn(
                     'flex items-center gap-2 px-2 py-1 rounded-lg text-xs font-display font-medium transition-all',
-                    isActive && 'bg-red-aura text-red-primary',
+                    isActive && 'bg-accent-primary-muted text-accent-primary border border-accent-primary-border',
                     isComplete && 'text-text-primary cursor-pointer hover:bg-elevated',
                     !isActive && !isComplete && 'text-text-muted'
                   )}
@@ -193,7 +193,7 @@ export function TemplateCreator({ onClose, editingTemplate }: TemplateCreatorPro
                   <div
                     className={cn(
                       'flex-1 h-px',
-                      isComplete ? 'bg-red-primary/30' : 'bg-border'
+                      isComplete ? 'bg-accent-primary-border' : 'bg-border'
                     )}
                   />
                 )}
@@ -222,7 +222,7 @@ export function TemplateCreator({ onClose, editingTemplate }: TemplateCreatorPro
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     placeholder="e.g., My YouTube Thumbnail"
-                    className="w-full bg-elevated border border-border rounded-lg px-4 py-3 text-sm text-text-primary placeholder:text-text-muted focus:border-red-primary focus:ring-1 focus:ring-red-primary/40 transition-all font-display"
+                    className="w-full bg-elevated border border-border rounded-md px-4 py-3 text-sm text-text-primary placeholder:text-text-muted focus:border-accent-primary focus:ring-1 focus:ring-accent-primary/40 transition-all font-display"
                     autoFocus
                   />
                 </div>
@@ -236,7 +236,7 @@ export function TemplateCreator({ onClose, editingTemplate }: TemplateCreatorPro
                     onChange={(e) => setDescription(e.target.value)}
                     placeholder="What is this template for?"
                     rows={3}
-                    className="w-full bg-elevated border border-border rounded-lg px-4 py-3 text-sm text-text-primary placeholder:text-text-muted focus:border-red-primary focus:ring-1 focus:ring-red-primary/40 resize-none transition-all font-display"
+                    className="w-full bg-elevated border border-border rounded-md px-4 py-3 text-sm text-text-primary placeholder:text-text-muted focus:border-accent-primary focus:ring-1 focus:ring-accent-primary/40 resize-none transition-all font-display"
                   />
                 </div>
 
@@ -310,7 +310,7 @@ export function TemplateCreator({ onClose, editingTemplate }: TemplateCreatorPro
                           className={cn(
                             'p-3 rounded-lg border text-center transition-all',
                             isSelected
-                              ? 'border-red-primary bg-red-aura text-red-primary'
+                              ? 'border-accent-primary-border bg-accent-primary-muted text-accent-primary'
                               : 'border-border bg-elevated text-text-body hover:border-border-hover'
                           )}
                         >
@@ -329,7 +329,7 @@ export function TemplateCreator({ onClose, editingTemplate }: TemplateCreatorPro
                 <div>
                   <button
                     onClick={() => setUseCustomDimensions(!useCustomDimensions)}
-                    className="text-xs font-display text-text-body hover:text-red-primary transition-all"
+                    className="text-xs font-display text-text-body hover:text-accent-primary transition-all"
                   >
                     {useCustomDimensions ? 'Use presets' : 'Custom dimensions'}
                   </button>
@@ -347,7 +347,7 @@ export function TemplateCreator({ onClose, editingTemplate }: TemplateCreatorPro
                           min={256}
                           max={4096}
                           step={64}
-                          className="w-full bg-elevated border border-border rounded-lg px-3 py-2 text-sm font-mono text-text-primary focus:border-red-primary transition-all"
+                          className="w-full bg-elevated border border-border rounded-md px-3 py-2 text-sm font-mono text-text-primary focus:border-accent-primary transition-all"
                         />
                       </div>
                       <div>
@@ -361,7 +361,7 @@ export function TemplateCreator({ onClose, editingTemplate }: TemplateCreatorPro
                           min={256}
                           max={4096}
                           step={64}
-                          className="w-full bg-elevated border border-border rounded-lg px-3 py-2 text-sm font-mono text-text-primary focus:border-red-primary transition-all"
+                          className="w-full bg-elevated border border-border rounded-md px-3 py-2 text-sm font-mono text-text-primary focus:border-accent-primary transition-all"
                         />
                       </div>
                     </div>
@@ -406,18 +406,18 @@ export function TemplateCreator({ onClose, editingTemplate }: TemplateCreatorPro
                         className={cn(
                           'p-3 rounded-lg border text-left transition-all',
                           model === m.id
-                            ? 'border-red-primary bg-red-aura'
+                            ? 'border-accent-primary-border bg-accent-primary-muted'
                             : 'border-border bg-elevated hover:border-border-hover'
                         )}
                       >
                         <div className="flex items-center gap-2">
                           <Cpu className={cn(
                             'w-4 h-4',
-                            model === m.id ? 'text-red-primary' : 'text-text-muted'
+                            model === m.id ? 'text-accent-primary' : 'text-text-muted'
                           )} />
                           <span className={cn(
                             'text-sm font-display font-medium',
-                            model === m.id ? 'text-red-primary' : 'text-text-primary'
+                            model === m.id ? 'text-accent-primary' : 'text-text-primary'
                           )}>
                             {m.name}
                           </span>
@@ -464,7 +464,7 @@ export function TemplateCreator({ onClose, editingTemplate }: TemplateCreatorPro
                     onChange={(e) => setPrompt(e.target.value)}
                     placeholder="Describe the default generation style and content..."
                     rows={4}
-                    className="w-full bg-elevated border border-border rounded-lg px-4 py-3 text-sm text-text-primary placeholder:text-text-muted focus:border-red-primary focus:ring-1 focus:ring-red-primary/40 resize-none transition-all font-display"
+                    className="w-full bg-elevated border border-border rounded-md px-4 py-3 text-sm text-text-primary placeholder:text-text-muted focus:border-accent-primary focus:ring-1 focus:ring-accent-primary/40 resize-none transition-all font-display"
                     autoFocus
                   />
                   <p className="text-micro text-text-muted mt-1 font-display">
@@ -481,7 +481,7 @@ export function TemplateCreator({ onClose, editingTemplate }: TemplateCreatorPro
                     onChange={(e) => setNegativePrompt(e.target.value)}
                     placeholder="What to avoid in generation..."
                     rows={3}
-                    className="w-full bg-elevated border border-border rounded-lg px-4 py-3 text-sm text-text-primary placeholder:text-text-muted focus:border-red-primary focus:ring-1 focus:ring-red-primary/40 resize-none transition-all font-display"
+                    className="w-full bg-elevated border border-border rounded-md px-4 py-3 text-sm text-text-primary placeholder:text-text-muted focus:border-accent-primary focus:ring-1 focus:ring-accent-primary/40 resize-none transition-all font-display"
                   />
                 </div>
               </motion.div>

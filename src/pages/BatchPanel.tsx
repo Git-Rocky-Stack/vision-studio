@@ -364,7 +364,7 @@ export function BatchPromptQueue() {
                   className={cn(
                     'p-2 rounded-md transition-all',
                     batchViewMode === opt.value
-                      ? 'bg-red-aura text-red-primary'
+                      ? 'bg-accent-primary-muted text-accent-primary border border-accent-primary-border'
                       : 'text-text-muted hover:text-text-primary'
                   )}
                 >
@@ -380,7 +380,7 @@ export function BatchPromptQueue() {
             <select
               value={batchSortBy}
               onChange={(e) => setBatchSortBy(e.target.value as SortBy)}
-              className="bg-elevated border border-border rounded-lg px-2 py-1 text-xs font-display text-text-primary focus:border-red-primary focus:ring-1 focus:ring-red-primary/40 transition-all"
+              className="bg-elevated border border-border rounded-md px-2 py-1 text-xs font-display text-text-primary focus:border-accent-primary focus:ring-1 focus:ring-accent-primary/40 transition-all"
             >
               {SORT_OPTIONS.map((opt) => (
                 <option key={opt.value} value={opt.value}>
@@ -400,7 +400,7 @@ export function BatchPromptQueue() {
               className={cn(
                 'px-2.5 py-1 rounded-lg text-xs font-display transition-all',
                 batchFilterBy === opt.value
-                  ? 'bg-red-aura text-red-primary border border-red-primary/30'
+                  ? 'bg-accent-primary-muted text-accent-primary border border-accent-primary-border'
                   : 'bg-elevated text-text-body border border-border hover:border-border-hover hover:text-text-primary'
               )}
             >
@@ -426,7 +426,7 @@ export function BatchPromptQueue() {
           <button
             onClick={() => setShowDeleteConfirm(true)}
             disabled={batchResults.length === 0}
-            className="flex items-center gap-2 px-2.5 py-1 rounded-lg text-xs font-display text-red-primary hover:bg-red-aura transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+            className="flex items-center gap-2 px-2.5 py-1 rounded-md text-xs font-display text-status-error hover:bg-status-error-muted transition-all disabled:opacity-30 disabled:cursor-not-allowed"
           >
             <Trash2 className="w-3.5 h-3.5" />
             Delete All
@@ -437,7 +437,7 @@ export function BatchPromptQueue() {
       {/* Batch Generation Header */}
       <div className="p-4 border-b border-border">
         <div className="flex items-center gap-2 mb-1">
-          <Layers className="w-5 h-5 text-red-primary" />
+          <Layers className="w-5 h-5 text-accent-primary" />
           <h2 className="font-display text-lg font-semibold text-text-primary">
             Batch Generation
           </h2>
@@ -454,7 +454,7 @@ export function BatchPromptQueue() {
             <span className="text-sm text-text-body font-display" aria-live="polite">
               Progress: {completedCount} / {prompts.length}
             </span>
-            <span className="font-mono text-sm text-red-primary" aria-live="polite">
+            <span className="font-mono text-sm text-accent-primary" aria-live="polite">
               {Math.round(progress)}%
             </span>
           </div>
@@ -471,7 +471,7 @@ export function BatchPromptQueue() {
               transition={{ duration: 0.3 }}
               style={{
                 background: 'linear-gradient(90deg, var(--color-gradient-progress-start), var(--color-gradient-progress-end))',
-                boxShadow: '0 0 8px var(--color-red-glow)',
+                boxShadow: '0 0 8px var(--color-accent-primary-glow)',
               }}
             />
           </div>
@@ -495,7 +495,7 @@ export function BatchPromptQueue() {
                   prompt.status === 'completed' &&
                     'border-[var(--color-status-success-border)] bg-[var(--color-status-success-muted)]',
                   prompt.status === 'failed' &&
-                    'border-red-primary/30 bg-red-primary/5',
+                    'border-status-error-border bg-status-error-muted',
                   prompt.status === 'pending' && 'border-border bg-elevated'
                 )}
               >
@@ -516,7 +516,7 @@ export function BatchPromptQueue() {
                       placeholder="Enter prompt..."
                       disabled={isGenerating}
                       rows={2}
-                      className="w-full bg-surface border border-border rounded-lg px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-red-primary focus:ring-1 focus:ring-red-primary/40 resize-none disabled:opacity-50"
+                      className="w-full bg-surface border border-border rounded-md px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent-primary focus:ring-1 focus:ring-accent-primary/40 resize-none disabled:opacity-50"
                     />
                   </div>
 
@@ -529,13 +529,13 @@ export function BatchPromptQueue() {
                       <CheckCircle2 className="w-4 h-4 text-[var(--color-status-success)]" />
                     )}
                     {prompt.status === 'failed' && (
-                      <XCircle className="w-4 h-4 text-red-primary" />
+                      <XCircle className="w-4 h-4 text-status-error" />
                     )}
 
                     {!isGenerating && (
                       <button
                         onClick={() => removePrompt(prompt.id)}
-                        className="p-1 rounded text-text-muted hover:text-red-primary hover:bg-red-aura transition-all"
+                        className="p-1 rounded-md text-text-muted hover:text-status-error hover:bg-status-error-muted transition-all"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>

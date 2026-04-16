@@ -273,7 +273,7 @@ export function ResultsGrid({
             <div className="flex-1" />
             <button
               onClick={handleBulkFavorite}
-              className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-display text-text-body hover:text-red-primary hover:bg-red-aura transition-all"
+              className="flex items-center gap-2 px-3 py-2 rounded-md text-xs font-display text-text-body hover:text-[var(--color-status-warning)] hover:bg-[var(--color-status-warning-muted)] transition-all"
             >
               <Heart className="w-3.5 h-3.5" />
               Favorite
@@ -296,7 +296,7 @@ export function ResultsGrid({
             </button>
             <button
               onClick={handleBulkDelete}
-              className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-display text-red-primary hover:bg-red-aura transition-all"
+              className="flex items-center gap-2 px-3 py-2 rounded-md text-xs font-display text-status-error hover:bg-status-error-muted transition-all"
             >
               <Trash2 className="w-3.5 h-3.5" />
               Delete
