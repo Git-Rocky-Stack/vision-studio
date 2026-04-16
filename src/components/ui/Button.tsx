@@ -22,14 +22,14 @@ export function Button({
   disabled,
   ...props
 }: ButtonProps) {
-  const baseStyles = 'inline-flex items-center justify-center font-display font-medium transition-all duration-200 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-primary focus-visible:ring-offset-2 focus-visible:ring-offset-void disabled:opacity-40 disabled:cursor-not-allowed';
+  const baseStyles = 'inline-flex items-center justify-center font-display font-medium transition-all duration-200 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary focus-visible:ring-offset-2 focus-visible:ring-offset-void disabled:opacity-40 disabled:cursor-not-allowed';
 
   const variants = {
-    primary: 'bg-red-primary text-text-primary glow-red hover:bg-red-highlight hover:shadow-xl',
-    secondary: 'bg-elevated text-text-body border border-border hover:border-border-hover hover:bg-surface hover:text-text-primary',
+    primary: 'bg-accent-primary text-void shadow-accent-subtle hover:bg-accent-primary-hover',
+    secondary: 'bg-elevated text-text-body border border-border hover:border-border-hover hover:bg-panel-raised hover:text-text-primary',
     ghost: 'text-text-body hover:text-text-primary hover:bg-elevated',
     danger: 'bg-red-primary/10 text-red-primary border border-red-primary/30 hover:bg-red-primary/20',
-    cinema: 'bg-red-primary text-text-primary glow-red animate-glow-pulse hover:bg-red-highlight',
+    cinema: 'bg-accent-primary text-void shadow-accent animate-glow-pulse hover:bg-accent-primary-hover',
   };
 
   const sizes = {

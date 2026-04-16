@@ -80,6 +80,13 @@ describe('Textarea', () => {
     expect(screen.getByText('Description')).toHaveClass('text-label');
   });
 
+  it('uses Carbon Pro accent styling for normal focus state', () => {
+    render(<Textarea />);
+    const textarea = screen.getByRole('textbox');
+    expect(textarea).toHaveClass('focus:border-accent-primary');
+    expect(textarea).toHaveClass('focus:ring-accent-primary/35');
+  });
+
   it('displays error message when error prop provided', () => {
     render(<Textarea error="Description is required" />);
     expect(screen.getByText('Description is required')).toBeInTheDocument();

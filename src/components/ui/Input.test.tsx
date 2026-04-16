@@ -85,6 +85,13 @@ describe('Input', () => {
     expect(screen.getByText('Test Label')).toHaveClass('text-label');
   });
 
+  it('uses Carbon Pro accent styling for normal focus state', () => {
+    render(<Input />);
+    const input = screen.getByRole('textbox');
+    expect(input).toHaveClass('focus:border-accent-primary');
+    expect(input).toHaveClass('focus:ring-accent-primary/35');
+  });
+
   it('displays error message when error prop provided', () => {
     render(<Input error="This field is required" />);
     expect(screen.getByText('This field is required')).toBeInTheDocument();

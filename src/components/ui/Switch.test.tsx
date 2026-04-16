@@ -10,7 +10,7 @@ describe('Switch', () => {
     render(<Switch checked={true} onChange={() => {}} label="Toggle" />);
     const switchEl = screen.getByRole('switch');
     expect(switchEl).toHaveAttribute('aria-checked', 'true');
-    expect(switchEl).toHaveClass('bg-red-primary');
+    expect(switchEl).toHaveClass('bg-accent-primary');
   });
 
   it('renders unchecked state correctly', () => {
@@ -103,7 +103,7 @@ describe('Switch', () => {
     const switchEl = screen.getByRole('switch');
     expect(switchEl).toHaveClass('focus-visible:outline-none');
     expect(switchEl).toHaveClass('focus-visible:ring-2');
-    expect(switchEl).toHaveClass('focus-visible:ring-red-primary');
+    expect(switchEl).toHaveClass('focus-visible:ring-accent-primary');
   });
 
   it('label association works - clicking label toggles switch when wrapped', async () => {

@@ -113,7 +113,7 @@ export function Slider({
           {label}
         </label>
         {showValue && (
-          <span className="font-mono text-sm text-red-primary">{valueFormatter(value)}</span>
+          <span className="font-mono text-sm text-accent-primary">{valueFormatter(value)}</span>
         )}
       </div>
 
@@ -127,15 +127,12 @@ export function Slider({
         aria-valuemax={max}
         aria-valuenow={value}
         aria-valuetext={valueFormatter(value)}
-        className="relative h-5 flex items-center cursor-pointer select-none touch-none focus-visible:outline-none"
+        className="relative h-5 flex items-center cursor-pointer select-none touch-none rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary focus-visible:ring-offset-2 focus-visible:ring-offset-void"
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
         onKeyDown={handleKeyDown}
       >
-        {/* Focus ring */}
-        <div className="absolute -inset-1 rounded-lg ring-0 peer-focus-visible:ring-2 ring-red-primary pointer-events-none" />
-
         {/* Background track */}
         <div className="absolute inset-x-0 h-1 rounded-full bg-void border border-border" />
 
@@ -145,17 +142,17 @@ export function Slider({
           style={{
             width: `${percent}%`,
             background: 'linear-gradient(90deg, var(--color-gradient-progress-start), var(--color-gradient-progress-end))',
-            boxShadow: '0 0 6px var(--color-red-glow)',
+            boxShadow: '0 0 6px var(--color-accent-primary-glow)',
           }}
         />
 
         {/* Thumb */}
         <div
           className={cn(
-            'absolute w-4 h-4 rounded-full bg-red-primary border-2 border-surface -translate-x-1/2 transition-shadow',
+            'absolute w-4 h-4 rounded-full bg-accent-primary border-2 border-surface -translate-x-1/2 transition-shadow',
             isDragging
-              ? 'scale-110 shadow-[0_0_10px_var(--color-red-glow)]'
-              : 'hover:scale-110 hover:shadow-[0_0_8px_var(--color-red-glow)]'
+              ? 'scale-110 shadow-[0_0_10px_var(--color-accent-primary-glow)]'
+              : 'hover:scale-110 hover:shadow-[0_0_8px_var(--color-accent-primary-glow)]'
           )}
           style={{ left: `${percent}%` }}
         />

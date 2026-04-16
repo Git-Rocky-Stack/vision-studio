@@ -91,11 +91,17 @@ export function ConfirmDialog({
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.95 }}
             onClick={(e) => e.stopPropagation()}
-            className="relative w-full max-w-sm mx-4 bg-elevated border border-border rounded-xl p-6 shadow-cinematic"
+            className="relative w-full max-w-sm mx-4 bg-elevated border border-border rounded-lg p-6 shadow-cinematic"
           >
             <div className="flex items-start gap-4">
-              <div className="w-10 h-10 rounded-lg bg-red-aura flex items-center justify-center flex-shrink-0">
-                <AlertTriangle className="w-5 h-5 text-red-primary" />
+              <div
+                className={
+                  variant === 'danger'
+                    ? 'w-10 h-10 rounded-md bg-red-aura flex items-center justify-center flex-shrink-0'
+                    : 'w-10 h-10 rounded-md bg-accent-primary-muted border border-accent-primary-border flex items-center justify-center flex-shrink-0'
+                }
+              >
+                <AlertTriangle className={variant === 'danger' ? 'w-5 h-5 text-red-primary' : 'w-5 h-5 text-accent-primary'} />
               </div>
               <div className="flex-1 min-w-0">
                 <h3 className="font-display font-semibold text-text-primary text-base">

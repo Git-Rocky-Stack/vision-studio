@@ -28,8 +28,8 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
             ref={ref}
             type={type}
             className={cn(
-              'w-full bg-elevated border border-border rounded-lg text-text-primary placeholder:text-text-muted',
-              'focus:border-red-primary focus:ring-1 focus:ring-red-primary/40 glow-red-subtle transition-all duration-200',
+              'w-full bg-elevated border border-border rounded-md text-text-primary placeholder:text-text-muted',
+              'focus:border-accent-primary focus:ring-1 focus:ring-accent-primary/35 transition-all duration-200',
               'disabled:opacity-50 disabled:cursor-not-allowed',
               'px-3 py-2 text-sm',
               Icon && 'pl-10',

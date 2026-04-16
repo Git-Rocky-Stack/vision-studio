@@ -17,15 +17,15 @@ export function Switch({ checked, onChange, label, disabled, className }: Switch
       disabled={disabled}
       onClick={() => onChange(!checked)}
       className={cn(
-        'w-9 h-5 rounded-full transition-colors relative flex-shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-primary focus-visible:ring-offset-2 focus-visible:ring-offset-void',
-        checked ? 'bg-red-primary' : 'bg-surface border border-border',
+        'w-9 h-5 rounded-full transition-colors relative flex-shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary focus-visible:ring-offset-2 focus-visible:ring-offset-void',
+        checked ? 'bg-accent-primary' : 'bg-surface border border-border',
         disabled && 'opacity-40 cursor-not-allowed',
         className
       )}
     >
       <span
         className={cn(
-          'absolute top-0.5 w-4 h-4 rounded-full bg-text-primary transition-transform',
+          'absolute top-0.5 w-4 h-4 rounded-full bg-text-primary transition-transform shadow-sm',
           checked ? 'translate-x-4' : 'translate-x-0.5'
         )}
       />

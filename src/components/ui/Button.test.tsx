@@ -67,4 +67,16 @@ describe('Button', () => {
     render(<Button fullWidth>Full Width</Button>);
     expect(screen.getByRole('button')).toHaveClass('w-full');
   });
+
+  it('uses Carbon Pro accent styling for primary actions', () => {
+    render(<Button>Generate</Button>);
+    expect(screen.getByRole('button', { name: 'Generate' })).toHaveClass('bg-accent-primary');
+    expect(screen.getByRole('button', { name: 'Generate' })).toHaveClass('text-void');
+  });
+
+  it('keeps danger actions on the status error color', () => {
+    render(<Button variant="danger">Delete</Button>);
+    expect(screen.getByRole('button', { name: 'Delete' })).toHaveClass('text-red-primary');
+    expect(screen.getByRole('button', { name: 'Delete' })).toHaveClass('border-red-primary/30');
+  });
 });

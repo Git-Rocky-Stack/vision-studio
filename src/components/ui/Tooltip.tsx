@@ -87,8 +87,8 @@ export function Tooltip({
               transition={{ duration: 0.15 }}
               {...getFloatingProps()}
               className={cn(
-                'z-[var(--z-tooltip)] px-2.5 py-1.5 rounded-lg',
-                'bg-elevated border border-border shadow-cinematic',
+                'z-[var(--z-tooltip)] px-2.5 py-1.5 rounded-md',
+                'bg-panel-raised border border-border shadow-cinematic',
                 'font-display text-xs text-text-primary',
                 'pointer-events-none whitespace-nowrap'
               )}

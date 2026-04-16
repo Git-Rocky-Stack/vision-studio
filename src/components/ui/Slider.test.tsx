@@ -10,6 +10,7 @@ describe('Slider', () => {
 
     expect(screen.getByText('Steps')).toBeInTheDocument();
     expect(screen.getByText('25')).toBeInTheDocument();
+    expect(screen.getByText('25')).toHaveClass('text-accent-primary');
   });
 
   it('hides the value display when showValue is false', () => {
