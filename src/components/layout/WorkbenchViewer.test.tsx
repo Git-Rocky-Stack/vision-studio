@@ -1,0 +1,103 @@
+import { cleanup, render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+
+import { useAppStore } from '@/store/appStore';
+import { WorkbenchViewer } from './WorkbenchViewer';
+
+describe('WorkbenchViewer', () => {
+  beforeEach(() => {
+    useAppStore.setState(useAppStore.getInitialState(), true);
+  });
+
+  afterEach(cleanup);
+
+  it('renders an empty review state', () => {
+    render(<WorkbenchViewer />);
+
+    expect(screen.getByText('Outputs will appear here.')).toBeInTheDocument();
+  });
+
+  it('uses the newest asset as the active preview with metadata', () => {
+    seedViewerState();
+
+    render(<WorkbenchViewer />);
+
+    expect(screen.getByText('Neon marketplace')).toBeInTheDocument();
+    expect(screen.getByText('rainy neon marketplace')).toBeInTheDocument();
+    expect(screen.getByText('flux-dev')).toBeInTheDocument();
+    expect(screen.getByText('123')).toBeInTheDocument();
+  });
+
+  it('selects a batch result from the thumbnail rail', async () => {
+    const user = userEvent.setup();
+    seedViewerState();
+
+    render(<WorkbenchViewer />);
+    await user.click(screen.getByRole('button', { name: /review Batch result/i }));
+
+    expect(screen.getByText('misty mountain castle')).toBeInTheDocument();
+    expect(screen.getByText('Batch result')).toBeInTheDocument();
+  });
+
+  it('sends the active output to Edit', async () => {
+    const user = userEvent.setup();
+    seedViewerState();
+
+    render(<WorkbenchViewer />);
+    await user.click(screen.getByRole('button', { name: 'Send to Edit' }));
+
+    const state = useAppStore.getState();
+    expect(state.activePanel).toBe('edit');
+    expect(state.currentImage).toBe('/outputs/neon.png');
+    expect(state.currentImageAssetPath).toBe('/outputs/neon.png');
+  });
+
+  it('pins the active output for comparison', async () => {
+    const user = userEvent.setup();
+    seedViewerState();
+
+    render(<WorkbenchViewer />);
+    await user.click(screen.getByRole('button', { name: 'Pin Compare' }));
+
+    expect(useAppStore.getState().comparisonImages).toEqual(['/outputs/neon.png']);
+  });
+});
+
+function seedViewerState() {
+  useAppStore.setState({
+    assetLibrary: [
+      {
+        id: 'asset-1',
+        jobId: 'job-1',
+        name: 'Neon marketplace',
+        type: 'image',
+        path: '/outputs/neon.png',
+        previewUrl: '/outputs/neon.png',
+        thumbnail: '/outputs/neon-thumb.png',
+        createdAt: '2026-04-16T20:00:00.000Z',
+        prompt: 'rainy neon marketplace',
+        negativePrompt: '',
+        model: 'flux-dev',
+        seed: 123,
+        favorite: false,
+        params: {},
+      },
+    ],
+    batchResults: [
+      {
+        id: 'batch-1',
+        batchId: 'queue-1',
+        promptIndex: 0,
+        prompt: 'misty mountain castle',
+        imagePath: '/outputs/castle.png',
+        assetPath: '/outputs/castle.png',
+        seed: 22,
+        generationTime: 1.2,
+        params: {},
+        createdAt: new Date('2026-04-16T19:00:00.000Z'),
+        isFavorite: true,
+      },
+    ],
+  });
+}

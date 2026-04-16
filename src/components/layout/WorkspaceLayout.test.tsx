@@ -75,6 +75,14 @@ describe('WorkspaceLayout', () => {
     expect(onWorkbenchViewChange).toHaveBeenCalledWith('workflow');
   });
 
+  it('renders the real Viewer surface instead of the Canvas stage', () => {
+    renderWorkspace('generate', { activeWorkbenchView: 'viewer' });
+
+    expect(screen.getByRole('tab', { name: 'Viewer' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByText('Outputs will appear here.')).toBeInTheDocument();
+    expect(screen.queryByText('Canvas stage')).not.toBeInTheDocument();
+  });
+
   it('routes Edit through the workbench shell with tool rail and inspector dock', () => {
     renderWorkspace('edit');
 

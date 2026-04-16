@@ -3,6 +3,7 @@ import { CinematicTransition } from '@/components/effects/CinematicTransition';
 import type { WorkbenchDockPanel, WorkbenchDockTabs, WorkbenchView } from '@/store/appStore';
 import { WorkbenchShell } from './WorkbenchShell';
 import { WorkbenchGalleryDock } from './WorkbenchGalleryDock';
+import { WorkbenchViewer } from './WorkbenchViewer';
 import { WorkflowPlaceholder } from '@/components/workflow/WorkflowPlaceholder';
 import { LayerPanel } from '@/components/edit/LayerPanel';
 
@@ -89,7 +90,7 @@ export function WorkspaceLayout({
             onDockTabChange={handleDockTabChange('edit')}
             toolRail={toolStrip}
             canvas={editCanvas || canvas}
-            viewer={canvas}
+            viewer={<WorkbenchViewer />}
             workflow={<WorkflowPlaceholder />}
             rightDockTabs={[
               {
@@ -145,7 +146,7 @@ export function WorkspaceLayout({
             activeDockTabId={selectedDockTab(activePanel, 'settings')}
             onDockTabChange={handleDockTabChange(activePanel)}
             canvas={canvas}
-            viewer={canvas}
+            viewer={<WorkbenchViewer />}
             workflow={<WorkflowPlaceholder />}
             rightDockTabs={[
               {
