@@ -40,6 +40,22 @@ describe('appStore', () => {
     });
   });
 
+  describe('workbench dock', () => {
+    it('defaults to no stored dock tab selections', () => {
+      expect(useAppStore.getState().activeWorkbenchDockTabs).toEqual({});
+    });
+
+    it('stores dock tab selections per workbench mode', () => {
+      useAppStore.getState().setActiveWorkbenchDockTab('edit', 'layers');
+      useAppStore.getState().setActiveWorkbenchDockTab('generate', 'gallery');
+
+      expect(useAppStore.getState().activeWorkbenchDockTabs).toEqual({
+        edit: 'layers',
+        generate: 'gallery',
+      });
+    });
+  });
+
   // ── Job management ────────────────────────────────────────────────────
 
   describe('addJob', () => {
@@ -217,6 +233,7 @@ describe('appStore', () => {
       const persisted = (useAppStore as any).persist?.getOptions?.()?.partialize?.(state);
       if (persisted) {
         expect(persisted).toHaveProperty('sidebarCollapsed');
+        expect(persisted).toHaveProperty('activeWorkbenchDockTabs');
         expect(persisted).toHaveProperty('promptHistory');
         expect(persisted).toHaveProperty('assetLibrary');
         expect(persisted).not.toHaveProperty('activeJobs');

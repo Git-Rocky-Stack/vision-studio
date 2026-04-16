@@ -7,7 +7,6 @@ import { CropControls } from './CropControls';
 import { TextControls } from './TextControls';
 import { AIToolsPanel } from './AIToolsPanel';
 import { RegionLockProperties } from './RegionLockProperties';
-import { LayerPanel } from './LayerPanel';
 import { buildCropBox, getCropDimensions } from '@/features/edit/crop';
 import type { ImageAdjustments } from '@/types/editor';
 import {
@@ -503,9 +502,6 @@ export function EditPropertiesPanel() {
           )}
         </AnimatePresence>
       </div>
-
-      {/* Layer Panel — Always visible at bottom */}
-      <LayerPanel />
     </div>
   );
 }

@@ -19,6 +19,8 @@ interface WorkbenchShellProps {
   workflow: ReactNode;
   rightDockTabs?: WorkbenchDockTab[];
   defaultDockTabId?: string;
+  activeDockTabId?: string | null;
+  onDockTabChange?: (tabId: string) => void;
   toolRail?: ReactNode;
   bottom?: ReactNode;
 }
@@ -37,20 +39,28 @@ export function WorkbenchShell({
   workflow,
   rightDockTabs = [],
   defaultDockTabId,
+  activeDockTabId: controlledDockTabId,
+  onDockTabChange,
   toolRail,
   bottom,
 }: WorkbenchShellProps) {
   const initialDockTabId =
     defaultDockTabId ?? rightDockTabs.find((tab) => !tab.disabled)?.id ?? rightDockTabs[0]?.id ?? null;
-  const [activeDockTabId, setActiveDockTabId] = useState<string | null>(initialDockTabId);
+  const [uncontrolledDockTabId, setUncontrolledDockTabId] = useState<string | null>(initialDockTabId);
+  const selectedDockTabId = controlledDockTabId ?? uncontrolledDockTabId;
 
   const activeDockTab = useMemo(
     () =>
-      rightDockTabs.find((tab) => tab.id === activeDockTabId && !tab.disabled) ??
+      rightDockTabs.find((tab) => tab.id === selectedDockTabId && !tab.disabled) ??
       rightDockTabs.find((tab) => !tab.disabled) ??
       null,
-    [activeDockTabId, rightDockTabs]
+    [selectedDockTabId, rightDockTabs]
   );
+
+  const handleDockTabChange = (tabId: string) => {
+    setUncontrolledDockTabId(tabId);
+    onDockTabChange?.(tabId);
+  };
 
   const activeContent =
     activeView === 'viewer' ? viewer : activeView === 'workflow' ? workflow : canvas;
@@ -130,7 +140,7 @@ export function WorkbenchShell({
                     aria-controls={`workbench-dock-${tab.id}`}
                     id={`workbench-dock-${tab.id}-tab`}
                     disabled={tab.disabled}
-                    onClick={() => setActiveDockTabId(tab.id)}
+                    onClick={() => handleDockTabChange(tab.id)}
                     className={cn(
                       'flex-1 rounded-md border px-2.5 py-1.5 text-xs font-display transition-all',
                       isActive

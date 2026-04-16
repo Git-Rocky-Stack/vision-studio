@@ -14,5 +14,6 @@ describe('EditPropertiesPanel', () => {
     expect(() => render(<EditPropertiesPanel />)).not.toThrow();
 
     expect(screen.getByRole('tab', { name: /adjust/i })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.queryByText('No layers')).not.toBeInTheDocument();
   });
 });

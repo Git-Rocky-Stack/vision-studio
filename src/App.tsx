@@ -24,7 +24,9 @@ function App() {
   const {
     activePanel,
     activeWorkbenchView,
+    activeWorkbenchDockTabs,
     setActiveWorkbenchView,
+    setActiveWorkbenchDockTab,
     setSystemInfo,
     setAvailableModels,
     addJob,
@@ -138,6 +140,8 @@ function App() {
           activePanel={activePanel}
           activeWorkbenchView={activeWorkbenchView}
           onWorkbenchViewChange={setActiveWorkbenchView}
+          activeWorkbenchDockTabs={activeWorkbenchDockTabs}
+          onWorkbenchDockTabChange={setActiveWorkbenchDockTab}
           sidebar={<Sidebar />}
           header={<Header />}
           timeline={

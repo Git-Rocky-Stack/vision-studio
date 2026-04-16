@@ -8,6 +8,8 @@ function renderWorkspace(
   options: {
     activeWorkbenchView?: 'canvas' | 'viewer' | 'workflow';
     onWorkbenchViewChange?: (view: 'canvas' | 'viewer' | 'workflow') => void;
+    activeWorkbenchDockTabs?: Record<string, string>;
+    onWorkbenchDockTabChange?: (panel: 'generate' | 'quick' | 'edit', tabId: string) => void;
   } = {}
 ) {
   return render(
@@ -15,6 +17,8 @@ function renderWorkspace(
       activePanel={activePanel}
       activeWorkbenchView={options.activeWorkbenchView ?? 'canvas'}
       onWorkbenchViewChange={options.onWorkbenchViewChange ?? vi.fn()}
+      activeWorkbenchDockTabs={options.activeWorkbenchDockTabs ?? {}}
+      onWorkbenchDockTabChange={options.onWorkbenchDockTabChange ?? vi.fn()}
       sidebar={<nav>Global rail</nav>}
       header={<header>Project chrome</header>}
       timeline={<div>Timeline strip</div>}
@@ -48,8 +52,18 @@ describe('WorkspaceLayout', () => {
     expect(screen.getByRole('tab', { name: 'Workflow' })).toBeInTheDocument();
     expect(screen.getByTestId('workbench-right-dock')).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'Settings' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Gallery' })).toBeInTheDocument();
     expect(screen.getByText('Generate settings')).toBeInTheDocument();
     expect(screen.getByTestId('workbench-bottom')).toHaveTextContent('Timeline strip');
+  });
+
+  it('persists Generate dock tab changes by panel', () => {
+    const onWorkbenchDockTabChange = vi.fn();
+    renderWorkspace('generate', { onWorkbenchDockTabChange });
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Gallery' }));
+
+    expect(onWorkbenchDockTabChange).toHaveBeenCalledWith('generate', 'gallery');
   });
 
   it('requests workbench view changes from the mini-tabs', () => {
@@ -68,8 +82,17 @@ describe('WorkspaceLayout', () => {
     expect(screen.getByText('Edit canvas')).toBeInTheDocument();
     expect(screen.getByTestId('workbench-right-dock')).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'Inspector' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Layers' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Gallery' })).toBeInTheDocument();
     expect(screen.getByText('Edit inspector')).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'Workflow' })).toBeInTheDocument();
+  });
+
+  it('promotes Layers into the Edit dock', () => {
+    renderWorkspace('edit', { activeWorkbenchDockTabs: { edit: 'layers' } });
+
+    expect(screen.getByRole('tab', { name: 'Layers' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByText('No layers')).toBeInTheDocument();
   });
 
   it('renders the Workflow placeholder when the workbench view is workflow', () => {

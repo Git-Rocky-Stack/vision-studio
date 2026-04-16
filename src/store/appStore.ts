@@ -84,6 +84,8 @@ export interface BatchJob {
 }
 
 export type WorkbenchView = 'canvas' | 'viewer' | 'workflow';
+export type WorkbenchDockPanel = 'generate' | 'quick' | 'edit';
+export type WorkbenchDockTabs = Partial<Record<WorkbenchDockPanel, string>>;
 
 // Predefined templates
 export const PROJECT_TEMPLATES: ProjectTemplate[] = [
@@ -190,6 +192,7 @@ interface AppState {
   sidebarCollapsed: boolean;
   activePanel: 'generate' | 'quick' | 'storyboard' | 'edit' | 'assets' | 'settings' | 'templates' | 'batch';
   activeWorkbenchView: WorkbenchView;
+  activeWorkbenchDockTabs: WorkbenchDockTabs;
   darkMode: boolean;
 
   // Recent Projects (file-system level, not storyboard)
@@ -289,6 +292,7 @@ interface AppState {
   toggleSidebar: () => void;
   setActivePanel: (panel: AppState['activePanel']) => void;
   setActiveWorkbenchView: (view: WorkbenchView) => void;
+  setActiveWorkbenchDockTab: (panel: WorkbenchDockPanel, tabId: string) => void;
   setCurrentProject: (project: Project | null) => void;
   addJob: (job: GenerationJob) => void;
   updateJob: (jobId: string, updates: Partial<GenerationJob>) => void;
@@ -430,6 +434,7 @@ export const useAppStore = create<AppState>()(
       sidebarCollapsed: false,
       activePanel: 'generate',
       activeWorkbenchView: 'canvas',
+      activeWorkbenchDockTabs: {},
       darkMode: true,
       currentProject: null,
       recentProjects: [],
@@ -496,6 +501,13 @@ export const useAppStore = create<AppState>()(
       toggleSidebar: () => set((state) => ({ sidebarCollapsed: !state.sidebarCollapsed })),
       setActivePanel: (panel) => set({ activePanel: panel }),
       setActiveWorkbenchView: (view) => set({ activeWorkbenchView: view }),
+      setActiveWorkbenchDockTab: (panel, tabId) =>
+        set((state) => ({
+          activeWorkbenchDockTabs: {
+            ...state.activeWorkbenchDockTabs,
+            [panel]: tabId,
+          },
+        })),
       setCurrentProject: (project) => set({ currentProject: project }),
 
       addJob: (job) => set((state) => ({
@@ -1111,6 +1123,7 @@ export const useAppStore = create<AppState>()(
       name: 'vision-studio-storage',
       partialize: (state) => ({
         sidebarCollapsed: state.sidebarCollapsed,
+        activeWorkbenchDockTabs: state.activeWorkbenchDockTabs,
         darkMode: state.darkMode,
         recentProjects: state.recentProjects,
         projects: state.projects,

@@ -1,0 +1,91 @@
+import { useMemo } from 'react';
+import { ImageIcon } from 'lucide-react';
+
+import { useAppStore } from '@/store/appStore';
+import { ImageWithFallback } from '@/components/ui/ImageWithFallback';
+
+interface GalleryItem {
+  id: string;
+  label: string;
+  prompt: string;
+  thumbnail: string;
+  createdAt: number;
+  source: string;
+}
+
+export function WorkbenchGalleryDock() {
+  const { assetLibrary, batchResults } = useAppStore();
+
+  const items = useMemo<GalleryItem[]>(() => {
+    const assetItems = assetLibrary.map((asset) => ({
+      id: `asset-${asset.id}`,
+      label: asset.name || 'Generated asset',
+      prompt: asset.prompt || 'No prompt saved',
+      thumbnail: asset.thumbnail || asset.previewUrl || asset.path,
+      createdAt: new Date(asset.createdAt).getTime(),
+      source: asset.type === 'video' ? 'Video asset' : 'Image asset',
+    }));
+
+    const batchItems = batchResults.map((result) => ({
+      id: `batch-${result.id}`,
+      label: 'Batch result',
+      prompt: result.prompt,
+      thumbnail: result.imagePath,
+      createdAt: new Date(result.createdAt).getTime(),
+      source: result.isFavorite ? 'Favorite batch' : 'Batch result',
+    }));
+
+    return [...assetItems, ...batchItems]
+      .filter((item) => item.thumbnail)
+      .sort((a, b) => b.createdAt - a.createdAt)
+      .slice(0, 24);
+  }, [assetLibrary, batchResults]);
+
+  return (
+    <div className="flex h-full min-h-0 flex-col bg-surface">
+      <div className="flex items-center justify-between border-b border-border px-4 py-3">
+        <div>
+          <h2 className="font-display text-sm font-semibold text-text-primary">Gallery</h2>
+          <p className="mt-1 text-micro text-text-muted">{items.length} recent</p>
+        </div>
+      </div>
+
+      {items.length === 0 ? (
+        <div className="flex flex-1 flex-col items-center justify-center px-6 text-center">
+          <ImageIcon className="h-8 w-8 text-text-muted opacity-40" />
+          <p className="mt-3 font-display text-sm text-text-primary">Generated outputs will appear here.</p>
+          <p className="mt-1 max-w-56 text-xs text-text-muted">
+            Create or import an image to review it beside the active workbench.
+          </p>
+        </div>
+      ) : (
+        <div className="grid flex-1 auto-rows-min grid-cols-2 gap-2 overflow-y-auto p-3 scrollbar-hide">
+          {items.map((item) => (
+            <article
+              key={item.id}
+              className="min-w-0 overflow-hidden rounded-md border border-border bg-elevated"
+            >
+              <div className="aspect-square bg-void">
+                <ImageWithFallback
+                  src={item.thumbnail}
+                  alt={item.label}
+                  className="h-full w-full object-cover"
+                  fallbackClassName="h-full w-full"
+                />
+              </div>
+              <div className="space-y-1 p-2">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="truncate font-display text-xs text-text-primary">{item.label}</p>
+                  <span className="shrink-0 rounded border border-border px-1.5 py-0.5 text-micro text-text-muted">
+                    {item.source}
+                  </span>
+                </div>
+                <p className="line-clamp-2 text-micro text-text-body">{item.prompt}</p>
+              </div>
+            </article>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}

@@ -1,13 +1,17 @@
 import { useEffect, useRef } from 'react';
 import { CinematicTransition } from '@/components/effects/CinematicTransition';
-import type { WorkbenchView } from '@/store/appStore';
+import type { WorkbenchDockPanel, WorkbenchDockTabs, WorkbenchView } from '@/store/appStore';
 import { WorkbenchShell } from './WorkbenchShell';
+import { WorkbenchGalleryDock } from './WorkbenchGalleryDock';
 import { WorkflowPlaceholder } from '@/components/workflow/WorkflowPlaceholder';
+import { LayerPanel } from '@/components/edit/LayerPanel';
 
 interface WorkspaceLayoutProps {
   activePanel: string;
   activeWorkbenchView: WorkbenchView;
   onWorkbenchViewChange: (view: WorkbenchView) => void;
+  activeWorkbenchDockTabs: WorkbenchDockTabs;
+  onWorkbenchDockTabChange: (panel: WorkbenchDockPanel, tabId: string) => void;
   sidebar: React.ReactNode;
   header: React.ReactNode;
   timeline: React.ReactNode;
@@ -28,6 +32,8 @@ export function WorkspaceLayout({
   activePanel,
   activeWorkbenchView,
   onWorkbenchViewChange,
+  activeWorkbenchDockTabs,
+  onWorkbenchDockTabChange,
   sidebar,
   header,
   timeline,
@@ -66,12 +72,21 @@ export function WorkspaceLayout({
   }, [activePanel]);
 
   const renderWorkspace = () => {
+    const selectedDockTab = (panel: WorkbenchDockPanel, fallback: string) =>
+      activeWorkbenchDockTabs[panel] ?? fallback;
+
+    const handleDockTabChange = (panel: WorkbenchDockPanel) => (tabId: string) => {
+      onWorkbenchDockTabChange(panel, tabId);
+    };
+
     switch (activePanel) {
       case 'edit':
         return (
           <WorkbenchShell
             activeView={activeWorkbenchView}
             onViewChange={onWorkbenchViewChange}
+            activeDockTabId={selectedDockTab('edit', 'inspector')}
+            onDockTabChange={handleDockTabChange('edit')}
             toolRail={toolStrip}
             canvas={editCanvas || canvas}
             viewer={canvas}
@@ -85,11 +100,12 @@ export function WorkspaceLayout({
               {
                 id: 'layers',
                 label: 'Layers',
-                content: (
-                  <div className="p-4 text-sm font-display text-text-body">
-                    Layers remain in the Inspector while the dock is being upgraded.
-                  </div>
-                ),
+                content: <LayerPanel />,
+              },
+              {
+                id: 'gallery',
+                label: 'Gallery',
+                content: <WorkbenchGalleryDock />,
               },
             ]}
             defaultDockTabId="inspector"
@@ -126,6 +142,8 @@ export function WorkspaceLayout({
           <WorkbenchShell
             activeView={activeWorkbenchView}
             onViewChange={onWorkbenchViewChange}
+            activeDockTabId={selectedDockTab(activePanel, 'settings')}
+            onDockTabChange={handleDockTabChange(activePanel)}
             canvas={canvas}
             viewer={canvas}
             workflow={<WorkflowPlaceholder />}
@@ -134,6 +152,11 @@ export function WorkspaceLayout({
                 id: 'settings',
                 label: 'Settings',
                 content: panels[activePanel],
+              },
+              {
+                id: 'gallery',
+                label: 'Gallery',
+                content: <WorkbenchGalleryDock />,
               },
             ]}
             defaultDockTabId="settings"

@@ -61,4 +61,48 @@ describe('WorkbenchShell', () => {
     expect(screen.getByText('Workflow content')).toBeInTheDocument();
     expect(screen.queryByText('Canvas content')).not.toBeInTheDocument();
   });
+
+  it('renders a controlled right dock tab', () => {
+    render(
+      <WorkbenchShell
+        activeView="canvas"
+        onViewChange={vi.fn()}
+        canvas={<div>Canvas content</div>}
+        viewer={<div>Viewer content</div>}
+        workflow={<div>Workflow content</div>}
+        activeDockTabId="layers"
+        rightDockTabs={[
+          { id: 'settings', label: 'Settings', content: <div>Settings content</div> },
+          { id: 'layers', label: 'Layers', content: <div>Layers content</div> },
+        ]}
+      />
+    );
+
+    expect(screen.getByRole('tab', { name: 'Layers' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByText('Layers content')).toBeInTheDocument();
+    expect(screen.queryByText('Settings content')).not.toBeInTheDocument();
+  });
+
+  it('requests controlled right dock tab changes', () => {
+    const onDockTabChange = vi.fn();
+    render(
+      <WorkbenchShell
+        activeView="canvas"
+        onViewChange={vi.fn()}
+        canvas={<div>Canvas content</div>}
+        viewer={<div>Viewer content</div>}
+        workflow={<div>Workflow content</div>}
+        activeDockTabId="layers"
+        onDockTabChange={onDockTabChange}
+        rightDockTabs={[
+          { id: 'settings', label: 'Settings', content: <div>Settings content</div> },
+          { id: 'layers', label: 'Layers', content: <div>Layers content</div> },
+        ]}
+      />
+    );
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Settings' }));
+
+    expect(onDockTabChange).toHaveBeenCalledWith('settings');
+  });
 });
