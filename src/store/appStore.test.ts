@@ -29,6 +29,17 @@ describe('appStore', () => {
     });
   });
 
+  describe('workbench view', () => {
+    it('defaults the workbench view to canvas', () => {
+      expect(useAppStore.getState().activeWorkbenchView).toBe('canvas');
+    });
+
+    it('changes the active workbench view', () => {
+      useAppStore.getState().setActiveWorkbenchView('workflow');
+      expect(useAppStore.getState().activeWorkbenchView).toBe('workflow');
+    });
+  });
+
   // ── Job management ────────────────────────────────────────────────────
 
   describe('addJob', () => {

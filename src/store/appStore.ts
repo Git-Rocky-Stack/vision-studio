@@ -83,6 +83,8 @@ export interface BatchJob {
   createdAt: Date;
 }
 
+export type WorkbenchView = 'canvas' | 'viewer' | 'workflow';
+
 // Predefined templates
 export const PROJECT_TEMPLATES: ProjectTemplate[] = [
   {
@@ -187,6 +189,7 @@ interface AppState {
   // UI State
   sidebarCollapsed: boolean;
   activePanel: 'generate' | 'quick' | 'storyboard' | 'edit' | 'assets' | 'settings' | 'templates' | 'batch';
+  activeWorkbenchView: WorkbenchView;
   darkMode: boolean;
 
   // Recent Projects (file-system level, not storyboard)
@@ -285,6 +288,7 @@ interface AppState {
   // Existing actions
   toggleSidebar: () => void;
   setActivePanel: (panel: AppState['activePanel']) => void;
+  setActiveWorkbenchView: (view: WorkbenchView) => void;
   setCurrentProject: (project: Project | null) => void;
   addJob: (job: GenerationJob) => void;
   updateJob: (jobId: string, updates: Partial<GenerationJob>) => void;
@@ -425,6 +429,7 @@ export const useAppStore = create<AppState>()(
       // UI State
       sidebarCollapsed: false,
       activePanel: 'generate',
+      activeWorkbenchView: 'canvas',
       darkMode: true,
       currentProject: null,
       recentProjects: [],
@@ -490,6 +495,7 @@ export const useAppStore = create<AppState>()(
 
       toggleSidebar: () => set((state) => ({ sidebarCollapsed: !state.sidebarCollapsed })),
       setActivePanel: (panel) => set({ activePanel: panel }),
+      setActiveWorkbenchView: (view) => set({ activeWorkbenchView: view }),
       setCurrentProject: (project) => set({ currentProject: project }),
 
       addJob: (job) => set((state) => ({
