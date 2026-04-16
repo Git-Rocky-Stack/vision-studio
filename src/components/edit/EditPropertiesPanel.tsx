@@ -98,6 +98,9 @@ export function EditPropertiesPanel() {
     setRegionMode,
   } = useAppStore();
 
+  const [activeTab, setActiveTab] = useState<PropertiesTab>('adjustments');
+  const [expandedGroups, setExpandedGroups] = useState<string[]>(['Light', 'Color']);
+
   // Find the active region lock
   const activeRegionLock = (() => {
     if (!activeProjectId || !activeSceneId || !activeRegionId) return null;
@@ -123,9 +126,6 @@ export function EditPropertiesPanel() {
       setRegionMode(false);
     }
   }, [activeTab]);
-
-  const [activeTab, setActiveTab] = useState<PropertiesTab>('adjustments');
-  const [expandedGroups, setExpandedGroups] = useState<string[]>(['Light', 'Color']);
 
   // Filter state
   const [selectedFilters, setSelectedFilters] = useState<string[]>([]);
