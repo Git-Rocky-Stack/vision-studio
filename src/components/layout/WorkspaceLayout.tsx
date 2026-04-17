@@ -35,8 +35,6 @@ export function WorkspaceLayout({
   activePanel,
   activeWorkbenchView,
   onWorkbenchViewChange,
-  activeWorkbenchDockTabs,
-  onWorkbenchDockTabChange,
   sidebar,
   header,
   timeline,
@@ -75,43 +73,34 @@ export function WorkspaceLayout({
   }, [activePanel]);
 
   const renderWorkspace = () => {
-    const selectedDockTab = (panel: WorkbenchDockPanel, fallback: string) =>
-      activeWorkbenchDockTabs[panel] ?? fallback;
-
-    const handleDockTabChange = (panel: WorkbenchDockPanel) => (tabId: string) => {
-      onWorkbenchDockTabChange(panel, tabId);
-    };
-
     switch (activePanel) {
       case 'edit':
         return (
           <WorkbenchShell
             activeView={activeWorkbenchView}
             onViewChange={onWorkbenchViewChange}
-            activeDockTabId={selectedDockTab('edit', 'inspector')}
-            onDockTabChange={handleDockTabChange('edit')}
+            leftDock={editProperties}
             toolRail={toolStrip}
             canvas={editCanvas || canvas}
             viewer={<WorkbenchViewer />}
             workflow={<WorkflowPlaceholder />}
-            rightDockTabs={[
-              {
-                id: 'inspector',
-                label: 'Inspector',
-                content: editProperties,
-              },
-              {
-                id: 'layers',
-                label: 'Layers',
-                content: <LayerPanel />,
-              },
-              {
-                id: 'gallery',
-                label: 'Gallery',
-                content: <WorkbenchGalleryDock />,
-              },
-            ]}
-            defaultDockTabId="inspector"
+            rightDock={
+              <WorkbenchRightStack
+                sections={[
+                  {
+                    id: 'layers',
+                    label: 'Layers',
+                    content: <LayerPanel />,
+                    defaultHeight: '45%',
+                  },
+                  {
+                    id: 'gallery',
+                    label: 'Gallery',
+                    content: <WorkbenchGalleryDock />,
+                  },
+                ]}
+              />
+            }
             bottom={timeline}
           />
         );

@@ -83,24 +83,22 @@ describe('WorkspaceLayout', () => {
     expect(screen.queryByText('Canvas stage')).not.toBeInTheDocument();
   });
 
-  it('routes Edit through the workbench shell with tool rail and inspector dock', () => {
+  it('routes Edit through left inspector, tool rail, and right layers stack', () => {
     renderWorkspace('edit');
 
+    expect(screen.getByTestId('workbench-left-dock')).toHaveTextContent('Edit inspector');
     expect(screen.getByTestId('workbench-tool-rail')).toHaveTextContent('Edit tool rail');
     expect(screen.getByText('Edit canvas')).toBeInTheDocument();
-    expect(screen.getByTestId('workbench-right-dock')).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: 'Inspector' })).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: 'Layers' })).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: 'Gallery' })).toBeInTheDocument();
-    expect(screen.getByText('Edit inspector')).toBeInTheDocument();
+    expect(screen.getByTestId('workbench-right-dock')).toHaveTextContent('Layers');
+    expect(screen.getByTestId('workbench-right-dock')).toHaveTextContent('Gallery');
+    expect(screen.queryByRole('tab', { name: 'Inspector' })).not.toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'Workflow' })).toBeInTheDocument();
   });
 
-  it('promotes Layers into the Edit dock', () => {
-    renderWorkspace('edit', { activeWorkbenchDockTabs: { edit: 'layers' } });
+  it('renders Layers in the Edit right context stack', () => {
+    renderWorkspace('edit');
 
-    expect(screen.getByRole('tab', { name: 'Layers' })).toHaveAttribute('aria-selected', 'true');
-    expect(screen.getByText('No layers')).toBeInTheDocument();
+    expect(screen.getByTestId('workbench-right-dock')).toHaveTextContent('No layers');
   });
 
   it('renders the Workflow placeholder when the workbench view is workflow', () => {
