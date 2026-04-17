@@ -61,11 +61,11 @@ export function CharacterLibrary({ projectId }: CharacterLibraryProps) {
       <div className="px-4 py-2 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Users className="w-4 h-4 text-text-muted" aria-hidden="true" />
-          <h3 className="font-display font-semibold text-xs text-text-primary uppercase tracking-wider">
+          <h3 className="type-ui font-semibold text-text-primary">
             Characters
           </h3>
           {characters.length > 0 && (
-            <span className="text-micro text-text-muted font-display">
+            <span className="type-caption">
               {characters.length}
             </span>
           )}
@@ -80,10 +80,10 @@ export function CharacterLibrary({ projectId }: CharacterLibraryProps) {
         {characters.length === 0 ? (
           <div className="text-center py-4">
             <Users className="w-6 h-6 text-text-muted mx-auto mb-2" aria-hidden="true" />
-            <p className="text-xs text-text-muted font-display">
+            <p className="type-caption">
               No characters yet
             </p>
-            <p className="text-micro text-text-muted font-display mt-1">
+            <p className="type-caption mt-1">
               Add characters for cross-scene consistency
             </p>
           </div>
