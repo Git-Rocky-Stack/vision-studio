@@ -63,6 +63,14 @@ describe('appStore', () => {
       ]);
     });
 
+    it('seeds workflow records with user-facing metadata', () => {
+      const workflow = useAppStore.getState().workflowRecords[0] as any;
+
+      expect(workflow.description).toBe('Reusable text-to-image pass for current prompt and reference context.');
+      expect(workflow.tags).toEqual(['image', 'baseline']);
+      expect(workflow.notes).toBe('Use this path before branching accepted output into Viewer, Boards, or Gallery.');
+    });
+
     it('changes the active workflow', () => {
       useAppStore.getState().setActiveWorkflow('storyboard-frame');
 
@@ -83,6 +91,14 @@ describe('appStore', () => {
       expect(workflow.status).toBe('draft');
       expect(state.workflowRecords).toContainEqual(workflow);
       expect(state.activeWorkflowId).toBe(workflow.id);
+    });
+
+    it('creates draft workflows with empty metadata', () => {
+      const workflow = useAppStore.getState().createWorkflow('Product pass') as any;
+
+      expect(workflow.description).toBe('');
+      expect(workflow.tags).toEqual([]);
+      expect(workflow.notes).toBe('');
     });
 
     it('records a workflow run and updates the output summary', () => {

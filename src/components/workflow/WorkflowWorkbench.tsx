@@ -39,6 +39,36 @@ export function WorkflowWorkbench() {
           </div>
 
           <div>
+            <p className="type-ui text-text-muted">Description</p>
+            <p className="mt-2 type-caption">
+              {activeWorkflow.description || 'No description yet.'}
+            </p>
+          </div>
+
+          <div>
+            <p className="type-ui text-text-muted">Tags</p>
+            {activeWorkflow.tags.length > 0 ? (
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {activeWorkflow.tags.map((tag) => (
+                  <span
+                    key={tag}
+                    className="rounded-md border border-border bg-elevated px-2 py-1 type-ui text-text-body"
+                  >
+                    {tag}
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <p className="mt-2 type-caption">No tags yet.</p>
+            )}
+          </div>
+
+          <div>
+            <p className="type-ui text-text-muted">Notes</p>
+            <p className="mt-2 type-caption">{activeWorkflow.notes || 'No notes yet.'}</p>
+          </div>
+
+          <div>
             <p className="type-ui text-text-muted">Inputs</p>
             <div className="mt-2 space-y-2">
               {activeWorkflow.inputs.map((input) => (

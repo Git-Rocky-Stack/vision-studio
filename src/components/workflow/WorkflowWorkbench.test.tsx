@@ -31,6 +31,19 @@ describe('WorkflowWorkbench', () => {
     expect(screen.queryByText('Node workflows are coming to this workbench.')).not.toBeInTheDocument();
   });
 
+  it('renders active workflow description, tags, and notes', () => {
+    render(<WorkflowWorkbench />);
+
+    expect(
+      screen.getByText('Reusable text-to-image pass for current prompt and reference context.')
+    ).toBeInTheDocument();
+    expect(screen.getByText('image')).toBeInTheDocument();
+    expect(screen.getByText('baseline')).toBeInTheDocument();
+    expect(
+      screen.getByText('Use this path before branching accepted output into Viewer, Boards, or Gallery.')
+    ).toBeInTheDocument();
+  });
+
   it('renders an ordered linear run plan', () => {
     render(<WorkflowWorkbench />);
 
@@ -77,6 +90,20 @@ describe('WorkflowWorkbench', () => {
 
     expect(useAppStore.getState().activeWorkflowId).toBe('storyboard-frame');
     expect(screen.getByText('Scene continuity run')).toBeInTheDocument();
+  });
+
+  it('updates rendered metadata when selecting another workflow', async () => {
+    const user = userEvent.setup();
+
+    render(<WorkflowWorkbench />);
+    await user.click(screen.getByRole('button', { name: 'Storyboard frame' }));
+
+    expect(
+      screen.getByText('Creates a scene-aligned frame while preserving character and board context.')
+    ).toBeInTheDocument();
+    expect(screen.getByText('storyboard')).toBeInTheDocument();
+    expect(screen.getByText('scene')).toBeInTheDocument();
+    expect(screen.getByText('Use this path when a single board frame needs continuity before review.')).toBeInTheDocument();
   });
 
   it('uses Carbon Pro accent tokens instead of legacy primary red chrome', () => {

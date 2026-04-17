@@ -109,6 +109,9 @@ export interface WorkflowRecord {
   id: string;
   name: string;
   status: 'draft' | 'ready' | 'running' | 'complete';
+  description: string;
+  tags: string[];
+  notes: string;
   profile: string;
   summary: string;
   settings: {
@@ -161,6 +164,9 @@ export const DEFAULT_WORKFLOWS: WorkflowRecord[] = [
     id: 'image-generation-baseline',
     name: 'Image generation baseline',
     status: 'draft',
+    description: 'Reusable text-to-image pass for current prompt and reference context.',
+    tags: ['image', 'baseline'],
+    notes: 'Use this path before branching accepted output into Viewer, Boards, or Gallery.',
     profile: 'Balanced image run',
     summary: '1024 x 1024, 25 steps, CFG 7.5',
     settings: {
@@ -178,6 +184,9 @@ export const DEFAULT_WORKFLOWS: WorkflowRecord[] = [
     id: 'storyboard-frame',
     name: 'Storyboard frame',
     status: 'draft',
+    description: 'Creates a scene-aligned frame while preserving character and board context.',
+    tags: ['storyboard', 'scene'],
+    notes: 'Use this path when a single board frame needs continuity before review.',
     profile: 'Scene continuity run',
     summary: '1280 x 720, 30 steps, CFG 7',
     settings: {
@@ -197,6 +206,7 @@ function cloneWorkflow(workflow: WorkflowRecord): WorkflowRecord {
   return {
     ...workflow,
     settings: { ...workflow.settings },
+    tags: [...workflow.tags],
     inputs: [...workflow.inputs],
     steps: workflow.steps.map((step) => ({ ...step })),
     runHistory: workflow.runHistory.map((run) => ({ ...run })),
@@ -209,6 +219,9 @@ function createDraftWorkflow(name: string): WorkflowRecord {
     id: `workflow-${crypto.randomUUID()}`,
     name,
     status: 'draft',
+    description: '',
+    tags: [],
+    notes: '',
     runOutputSummary: null,
     runHistory: [],
   };
