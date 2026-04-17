@@ -104,10 +104,10 @@ export function ConfirmDialog({
                 <AlertTriangle className={variant === 'danger' ? 'w-5 h-5 text-red-primary' : 'w-5 h-5 text-accent-primary'} />
               </div>
               <div className="flex-1 min-w-0">
-                <h3 className="font-display font-semibold text-text-primary text-base">
+                <h3 className="type-section">
                   {title}
                 </h3>
-                <p className="mt-1 text-sm text-text-body font-display leading-relaxed">
+                <p className="mt-1 type-ui text-text-body leading-relaxed">
                   {message}
                 </p>
               </div>
