@@ -8,6 +8,43 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
+function splitRendererVendorChunk(id: string): string | undefined {
+  const normalizedId = id.replace(/\\/g, '/');
+
+  if (!normalizedId.includes('/node_modules/')) {
+    return undefined;
+  }
+
+  if (
+    normalizedId.includes('/node_modules/react/') ||
+    normalizedId.includes('/node_modules/react-dom/') ||
+    normalizedId.includes('/node_modules/scheduler/')
+  ) {
+    return 'vendor-react';
+  }
+
+  if (
+    normalizedId.includes('/node_modules/framer-motion/') ||
+    normalizedId.includes('/node_modules/motion-dom/') ||
+    normalizedId.includes('/node_modules/motion-utils/')
+  ) {
+    return 'vendor-motion';
+  }
+
+  if (normalizedId.includes('/node_modules/lucide-react/')) {
+    return 'vendor-icons';
+  }
+
+  if (
+    normalizedId.includes('/node_modules/konva/') ||
+    normalizedId.includes('/node_modules/react-konva/')
+  ) {
+    return 'vendor-canvas';
+  }
+
+  return 'vendor';
+}
+
 export default defineConfig({
   plugins: [
     react(),
@@ -52,6 +89,11 @@ export default defineConfig({
   },
   build: {
     outDir: 'dist',
+    rollupOptions: {
+      output: {
+        manualChunks: splitRendererVendorChunk,
+      },
+    },
   },
   optimizeDeps: {
     include: ['react', 'react-dom'],
