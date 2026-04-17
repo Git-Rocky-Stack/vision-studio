@@ -4,7 +4,16 @@ import { useAppStore } from '@/store/appStore';
 import { cn } from '@/utils/cn';
 
 export function WorkbenchBoardsDock() {
-  const { projects, activeProjectId, createProject, setActivePanel, setActiveProject } = useAppStore();
+  const {
+    projects,
+    activeProjectId,
+    addScene,
+    createProject,
+    setActivePanel,
+    setActiveProject,
+    setActiveScene,
+  } = useAppStore();
+  const activeProject = projects.find((project) => project.id === activeProjectId) ?? null;
   const nextBoardName = projects.length === 0 ? 'Untitled Board' : `Untitled Board ${projects.length + 1}`;
 
   const handleCreateBoard = () => {
@@ -15,6 +24,12 @@ export function WorkbenchBoardsDock() {
   const handleOpenStoryboard = () => {
     if (!activeProjectId) return;
     setActivePanel('storyboard');
+  };
+
+  const handleAddScene = () => {
+    if (!activeProject) return;
+    const scene = addScene(activeProject.id, { name: `Scene ${activeProject.scenes.length + 1}` });
+    setActiveScene(scene.id);
   };
 
   if (projects.length === 0) {
@@ -36,7 +51,7 @@ export function WorkbenchBoardsDock() {
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-surface">
-      <div className="flex items-center justify-between border-b border-border px-3 py-2">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-3 py-2">
         <div>
           <h2 className="font-display text-sm font-semibold text-text-primary">Boards</h2>
           <p className="mt-0.5 font-mono text-micro text-text-muted">{projects.length} active</p>
@@ -49,6 +64,14 @@ export function WorkbenchBoardsDock() {
             className="inline-flex items-center rounded-md border border-border px-2.5 py-1.5 font-display text-xs text-text-body transition-all hover:border-border-hover hover:bg-elevated hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-40"
           >
             Open Storyboard
+          </button>
+          <button
+            type="button"
+            onClick={handleAddScene}
+            disabled={!activeProject}
+            className="inline-flex items-center rounded-md border border-border px-2.5 py-1.5 font-display text-xs text-text-body transition-all hover:border-border-hover hover:bg-elevated hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            Add Scene
           </button>
           <button
             type="button"

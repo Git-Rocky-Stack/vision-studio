@@ -70,4 +70,20 @@ describe('WorkbenchBoardsDock', () => {
     expect(state.activeProjectId).toBe(existing.id);
     expect(state.activePanel).toBe('storyboard');
   });
+
+  it('adds and selects a scene on the active board', async () => {
+    const user = userEvent.setup();
+    const existing = useAppStore.getState().createProject('Campaign Boards', { width: 1024, height: 1024 });
+    useAppStore.getState().setActiveProject(existing.id);
+
+    render(<WorkbenchBoardsDock />);
+    await user.click(screen.getByRole('button', { name: 'Add Scene' }));
+
+    const state = useAppStore.getState();
+    const board = state.projects.find((project) => project.id === existing.id);
+    expect(board?.scenes).toHaveLength(1);
+    expect(board?.scenes[0].name).toBe('Scene 1');
+    expect(state.activeSceneId).toBe(board?.scenes[0].id);
+    expect(screen.getByText('1 scenes')).toBeInTheDocument();
+  });
 });
