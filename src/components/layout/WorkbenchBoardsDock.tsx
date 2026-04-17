@@ -1,8 +1,15 @@
 import { Plus } from 'lucide-react';
 
 import { useAppStore } from '@/store/appStore';
+import type { Project } from '@/types/project';
 import { ImageWithFallback } from '@/components/ui/ImageWithFallback';
 import { cn } from '@/utils/cn';
+
+const boardDateFormatter = new Intl.DateTimeFormat('en-US', {
+  month: 'short',
+  day: 'numeric',
+  year: 'numeric',
+});
 
 export function WorkbenchBoardsDock() {
   const {
@@ -16,6 +23,7 @@ export function WorkbenchBoardsDock() {
     setActiveScene,
   } = useAppStore();
   const activeProject = projects.find((project) => project.id === activeProjectId) ?? null;
+  const orderedProjects = [...projects].sort(compareProjectsByActivity);
   const nextBoardName = projects.length === 0 ? 'Untitled Board' : `Untitled Board ${projects.length + 1}`;
 
   const handleCreateBoard = () => {
@@ -88,7 +96,7 @@ export function WorkbenchBoardsDock() {
 
       <div className="min-h-0 flex-1 overflow-auto p-2">
         <div className="flex flex-col gap-1">
-          {projects.map((project) => {
+          {orderedProjects.map((project) => {
             const isActive = project.id === activeProjectId;
 
             return (
@@ -106,8 +114,11 @@ export function WorkbenchBoardsDock() {
                   <span className="block truncate type-ui text-text-primary">
                     {project.name}
                   </span>
-                  <span className="mt-1 block type-caption">
-                    {project.scenes.length} scenes
+                  <span className="mt-1 flex flex-wrap gap-x-2 gap-y-1 type-caption">
+                    <span>{project.scenes.length} scenes</span>
+                    <span>{project.dimensions.width} x {project.dimensions.height}</span>
+                    <span>{project.fps} fps</span>
+                    <span>{formatBoardUpdated(project.modified)}</span>
                   </span>
                 </button>
 
@@ -151,4 +162,27 @@ export function WorkbenchBoardsDock() {
       </div>
     </div>
   );
+}
+
+function compareProjectsByActivity(a: Project, b: Project) {
+  return (
+    timestampOf(b.modified) - timestampOf(a.modified) ||
+    timestampOf(b.created) - timestampOf(a.created) ||
+    a.name.localeCompare(b.name)
+  );
+}
+
+function timestampOf(value: string) {
+  const timestamp = Date.parse(value);
+  return Number.isNaN(timestamp) ? 0 : timestamp;
+}
+
+function formatBoardUpdated(modified: string) {
+  const date = new Date(modified);
+
+  if (Number.isNaN(date.getTime())) {
+    return 'Updated date unavailable';
+  }
+
+  return `Updated ${boardDateFormatter.format(date)}`;
 }

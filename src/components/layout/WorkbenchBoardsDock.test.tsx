@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { useAppStore } from '@/store/appStore';
+import type { Project, Scene } from '@/types/project';
 import { WorkbenchBoardsDock } from './WorkbenchBoardsDock';
 
 describe('WorkbenchBoardsDock', () => {
@@ -27,6 +28,50 @@ describe('WorkbenchBoardsDock', () => {
     expect(screen.getByText('Campaign Boards')).toBeInTheDocument();
     expect(screen.getByText('0 scenes')).toBeInTheDocument();
     expect(screen.getByText(project.name)).toBeInTheDocument();
+  });
+
+  it('renders board metadata from project details', () => {
+    const board = makeProject({
+      name: 'Campaign Boards',
+      modified: '2026-04-17T16:24:00.000Z',
+      dimensions: { width: 1280, height: 720 },
+      fps: 30,
+      scenes: [
+        makeScene({ id: 'scene-1', name: 'Opening frame' }),
+        makeScene({ id: 'scene-2', name: 'Closing frame' }),
+      ],
+    });
+    useAppStore.setState({ projects: [board], activeProjectId: board.id });
+
+    render(<WorkbenchBoardsDock />);
+
+    expect(screen.getByText('2 scenes')).toBeInTheDocument();
+    expect(screen.getByText('1280 x 720')).toBeInTheDocument();
+    expect(screen.getByText('30 fps')).toBeInTheDocument();
+    expect(screen.getByText('Updated Apr 17, 2026')).toBeInTheDocument();
+  });
+
+  it('renders recently modified boards first without mutating store order', () => {
+    const olderBoard = makeProject({
+      id: 'older-board',
+      name: 'Older Board',
+      created: '2026-04-15T09:00:00.000Z',
+      modified: '2026-04-15T09:00:00.000Z',
+    });
+    const freshBoard = makeProject({
+      id: 'fresh-board',
+      name: 'Fresh Board',
+      created: '2026-04-16T09:00:00.000Z',
+      modified: '2026-04-17T09:00:00.000Z',
+    });
+    useAppStore.setState({ projects: [olderBoard, freshBoard], activeProjectId: freshBoard.id });
+
+    render(<WorkbenchBoardsDock />);
+
+    const freshName = screen.getByText('Fresh Board');
+    const olderName = screen.getByText('Older Board');
+    expect(freshName.compareDocumentPosition(olderName) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(useAppStore.getState().projects.map((project) => project.name)).toEqual(['Older Board', 'Fresh Board']);
   });
 
   it('creates and selects a new board from the empty state', async () => {
@@ -117,3 +162,55 @@ describe('WorkbenchBoardsDock', () => {
     );
   });
 });
+
+function makeProject(overrides: Partial<Project> = {}): Project {
+  return {
+    id: 'board-1',
+    name: 'Board',
+    created: '2026-04-17T12:00:00.000Z',
+    modified: '2026-04-17T12:00:00.000Z',
+    dimensions: { width: 1024, height: 1024 },
+    fps: 24,
+    characters: [],
+    scenes: [],
+    metadata: {},
+    ...overrides,
+  };
+}
+
+function makeScene(overrides: Partial<Scene> = {}): Scene {
+  return {
+    id: 'scene-1',
+    orderIndex: 0,
+    name: 'Scene',
+    prompt: '',
+    negativePrompt: '',
+    generationConfig: {
+      model: 'stable-diffusion-xl',
+      steps: 25,
+      cfgScale: 7.5,
+      scheduler: 'euler_a',
+      seed: -1,
+      width: 1024,
+      height: 1024,
+      clipSkip: 1,
+      lora: [],
+      controlNet: [],
+    },
+    referenceImages: [],
+    frames: [],
+    regionLocks: [],
+    transitions: { type: 'cut', duration: 0 },
+    camera: [],
+    metadata: {
+      created: '2026-04-17T12:00:00.000Z',
+      modified: '2026-04-17T12:00:00.000Z',
+      duration: 0,
+      fps: 24,
+      notes: '',
+    },
+    status: 'draft',
+    characterRefs: [],
+    ...overrides,
+  };
+}
