@@ -148,6 +148,44 @@ class JobManagerListingTests(unittest.TestCase):
         for i in range(len(jobs) - 1):
             self.assertGreaterEqual(jobs[i].created_at, jobs[i + 1].created_at)
 
+    def test_cleanup_old_jobs_removes_only_terminal_jobs_past_max_age(self):
+        old_completed = GenerationJob(
+            id="old-completed",
+            type="image",
+            status=JobStatus.COMPLETED,
+            params={},
+            output_dir="/tmp/outputs/old-completed",
+            created_at=datetime.now() - timedelta(hours=25),
+        )
+        old_processing = GenerationJob(
+            id="old-processing",
+            type="image",
+            status=JobStatus.PROCESSING,
+            params={},
+            output_dir="/tmp/outputs/old-processing",
+            created_at=datetime.now() - timedelta(hours=25),
+        )
+        recent_failed = GenerationJob(
+            id="recent-failed",
+            type="image",
+            status=JobStatus.FAILED,
+            params={},
+            output_dir="/tmp/outputs/recent-failed",
+            created_at=datetime.now(),
+        )
+
+        manager = JobManager()
+        manager.add_job(old_completed)
+        manager.add_job(old_processing)
+        manager.add_job(recent_failed)
+
+        removed_count = manager.cleanup_old_jobs(max_age_hours=24)
+
+        self.assertEqual(removed_count, 1)
+        self.assertIsNone(manager.get_job("old-completed"))
+        self.assertIsNotNone(manager.get_job("old-processing"))
+        self.assertIsNotNone(manager.get_job("recent-failed"))
+
 
 class JobManagerSerializationTests(unittest.TestCase):
     """Tests for the job to_dict serialization contract."""

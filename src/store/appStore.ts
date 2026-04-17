@@ -979,7 +979,7 @@ export const useAppStore = create<AppState>()(
           transitions: config?.transitions ?? { ...DEFAULT_SCENE_TRANSITION },
           camera: [],
           metadata: { ...DEFAULT_SCENE_METADATA, created: now, modified: now },
-          status: 'draft',
+          status: config?.status ?? 'draft',
           characterRefs: [],
           thumbnail: config?.thumbnail,
         };

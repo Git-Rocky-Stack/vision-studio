@@ -25,4 +25,14 @@ test.describe('Workbench responsive layout', () => {
     const centerBox = await centerPanel.boundingBox();
     expect(centerBox?.width ?? 0).toBeGreaterThan(180);
   });
+
+  test('keeps the Generate center work area visible on phone widths', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 760 });
+
+    const centerPanel = page.locator('[role="tabpanel"][aria-labelledby="workbench-canvas-tab"]');
+    await expect(centerPanel).toBeVisible();
+
+    const centerBox = await centerPanel.boundingBox();
+    expect(centerBox?.width ?? 0).toBeGreaterThan(180);
+  });
 });

@@ -4,7 +4,7 @@ Job Manager - Manages generation jobs
 
 from enum import Enum
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional, Dict, List, Callable, Any
 from threading import Lock
 
@@ -104,7 +104,7 @@ class JobManager:
     def cleanup_old_jobs(self, max_age_hours: int = 24):
         """Remove jobs older than specified hours"""
         with self._lock:
-            cutoff = datetime.now() - datetime.timedelta(hours=max_age_hours)
+            cutoff = datetime.now() - timedelta(hours=max_age_hours)
             to_delete = [
                 job_id for job_id, job in self._jobs.items()
                 if job.created_at < cutoff and job.status in [

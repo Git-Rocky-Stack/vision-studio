@@ -74,7 +74,7 @@ export function WorkbenchShell({
       {leftDock && (
         <aside
           data-testid="workbench-left-dock"
-          className="flex w-[clamp(300px,32%,420px)] flex-shrink-0 flex-col border-r border-border bg-surface"
+          className="hidden w-[clamp(300px,32%,420px)] flex-shrink-0 flex-col border-r border-border bg-surface sm:flex"
         >
           {leftDock}
         </aside>

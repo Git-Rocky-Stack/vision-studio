@@ -349,6 +349,21 @@ describe('appStore', () => {
       expect(advancedGeneration.scheduler).toBe('Euler a');
     });
   });
+
+  describe('addScene', () => {
+    it('honors an explicit initial scene status', () => {
+      const project = useAppStore.getState().createProject('Migration target');
+
+      const scene = useAppStore.getState().addScene(project.id, {
+        name: 'Migrated output',
+        status: 'complete',
+      });
+
+      const storedProject = useAppStore.getState().projects.find((item) => item.id === project.id);
+      expect(scene.status).toBe('complete');
+      expect(storedProject?.scenes[0].status).toBe('complete');
+    });
+  });
 });
 
 // ── Helpers ───────────────────────────────────────────────────────────────
