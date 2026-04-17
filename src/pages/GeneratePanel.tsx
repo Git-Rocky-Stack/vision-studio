@@ -462,7 +462,7 @@ export function GeneratePanel() {
     <div className="flex-1 min-h-0 flex flex-col bg-panel">
       {/* Mode Toggle */}
       <div className="p-3 border-b border-border bg-panel">
-        <p className="mb-2 font-mono text-micro uppercase text-text-muted">Workflow</p>
+        <p className="mb-2 type-caption">Workflow</p>
         <div className="relative flex bg-canvas rounded-md p-1 border border-border">
           <motion.div
             layoutId="modeGlow"
@@ -483,7 +483,7 @@ export function GeneratePanel() {
             )}
           >
             <ImageIcon className="w-4 h-4" />
-            <span className="font-display text-sm font-medium">Image</span>
+            <span className="type-section">Image</span>
           </button>
           <button
             onClick={() => updateImageConfig({ generationType: 'video' })}
@@ -495,20 +495,20 @@ export function GeneratePanel() {
             )}
           >
             <Film className="w-4 h-4" />
-            <span className="font-display text-sm font-medium">Video</span>
+            <span className="type-section">Video</span>
           </button>
         </div>
       </div>
 
       {/* GPU Warning */}
       {!isGpuAvailable && (
-        <div className="mx-4 mt-4 p-3 rounded-lg bg-[var(--color-status-warning-muted)] border border-[var(--color-status-warning-border)] flex items-start gap-2">
-          <AlertCircle className="w-4 h-4 text-[var(--color-status-warning)] flex-shrink-0 mt-0.5" />
+        <div className="mx-4 mt-4 p-3 rounded-lg bg-status-warning-muted border border-status-warning-border flex items-start gap-2">
+          <AlertCircle className="w-4 h-4 text-status-warning flex-shrink-0 mt-0.5" />
           <div>
-            <p className="text-xs text-[var(--color-status-warning)] font-display font-medium">
+            <p className="type-ui text-status-warning">
               GPU Not Detected
             </p>
-            <p className="text-micro text-[var(--color-status-warning)] opacity-60">
+            <p className="type-caption text-status-warning opacity-60">
               Generation will be very slow on CPU. Consider using a CUDA-capable GPU.
             </p>
           </div>
@@ -631,13 +631,13 @@ export function GeneratePanel() {
                     <div className="min-w-0 text-left">
                       <span
                         className={cn(
-                          'font-display text-xs leading-tight block truncate',
+                          'block truncate type-ui leading-tight',
                           isSelected ? 'text-accent-primary' : 'text-text-body'
                         )}
                       >
                         {ratio.name}
                       </span>
-                      <span className="font-mono text-micro text-text-muted block leading-tight">
+                      <span className="block type-meta leading-tight text-text-muted">
                         {ratio.icon}
                       </span>
                     </div>
@@ -645,7 +645,7 @@ export function GeneratePanel() {
                 );
               })}
             </div>
-            <p className="font-mono text-xs text-text-muted">
+            <p className="type-meta text-text-muted">
               {imageConfig.selectedRatio.width} x {imageConfig.selectedRatio.height}px
             </p>
           </div>
@@ -658,7 +658,7 @@ export function GeneratePanel() {
 
         {/* Estimated Info */}
         <div className="p-3 rounded-md bg-elevated border border-border">
-          <div className="flex items-center gap-4 text-xs text-text-body font-display">
+          <div className="flex items-center gap-4 type-ui text-text-body">
             <div className="flex items-center gap-2">
               <Clock className="w-3.5 h-3.5" />
               <span>~{imageConfig.generationType === 'image' ? '15-30s' : '2-5min'}</span>
@@ -731,7 +731,7 @@ export function GeneratePanel() {
               <div className="relative flex items-center justify-between px-4 py-3.5">
                 <div className="flex items-center gap-2">
                   <Loader2 className="w-4 h-4 text-text-primary animate-spin" />
-                  <span className="font-display text-sm text-text-primary font-medium">
+                  <span className="type-section">
                     Step {genStatus.step}/{advancedGeneration.steps}
                   </span>
                 </div>
@@ -739,13 +739,13 @@ export function GeneratePanel() {
                 <button
                   onClick={handleCancel}
                   disabled={!genStatus.isGenerating}
-                  className="flex items-center gap-2 px-3 py-1 rounded-md bg-void/40 text-text-body hover:text-text-primary hover:bg-void/60 transition-all font-display text-xs disabled:opacity-30 disabled:cursor-not-allowed"
+                  className="flex items-center gap-2 px-3 py-1 rounded-md bg-void/40 type-ui text-text-body hover:text-text-primary hover:bg-void/60 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
                 >
                   <X className="w-3 h-3" />
                   Cancel
                 </button>
 
-                <span className="font-mono text-sm text-text-primary font-medium">
+                <span className="type-section">
                   {Math.round(genStatus.progress)}%
                 </span>
               </div>
@@ -760,7 +760,7 @@ export function GeneratePanel() {
               onClick={handleGenerate}
               disabled={!imageConfig.prompt.trim()}
               className={cn(
-                'w-full flex items-center justify-center gap-2.5 py-3.5 rounded-md font-display text-sm font-semibold transition-all',
+                'w-full flex items-center justify-center gap-2.5 py-3.5 rounded-md type-section transition-all',
                 imageConfig.prompt.trim()
                   ? 'bg-accent-primary text-void shadow-accent hover:bg-accent-primary-hover active:bg-accent-primary-pressed hover:scale-[1.005] active:scale-[0.995]'
                   : 'bg-elevated text-text-muted opacity-40 cursor-not-allowed'

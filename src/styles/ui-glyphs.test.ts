@@ -9,7 +9,8 @@ const decorativeGlyphPattern = new RegExp(
   String.raw`[\u00b7\u2022\u2014\u2013\u2212\u00d7\u2026]|&m${'iddot'};|&t${'imes'};`,
   'u'
 );
-const adHocShellTypographyPattern = /\b(?:font-display|tracking-\S+|uppercase|text-\[(?:\d|\.)[^\]]+\])/;
+const adHocShellTypographyPattern =
+  /\b(?:font-display|font-mono|text-micro|tracking-\S+|uppercase|text-\[(?:\d|\.)[^\]]+\])/;
 const shellTypographyFiles = [
   'src/components/layout/Header.tsx',
   'src/components/layout/ProjectDropdown.tsx',
@@ -19,6 +20,7 @@ const shellTypographyFiles = [
   'src/components/layout/WorkbenchRightStack.tsx',
   'src/components/layout/WorkbenchShell.tsx',
   'src/components/layout/WorkbenchViewer.tsx',
+  'src/pages/GeneratePanel.tsx',
 ];
 
 describe('app UI glyph policy', () => {
