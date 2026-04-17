@@ -44,7 +44,7 @@ export const RegionLockProperties = memo(function RegionLockProperties({
     >
       {/* Header */}
       <div className="flex items-center justify-between">
-        <h3 className="font-display font-semibold text-sm text-text-primary">
+        <h3 className="type-section">
           Region Lock
         </h3>
         <button
@@ -63,7 +63,7 @@ export const RegionLockProperties = memo(function RegionLockProperties({
 
       {/* Region name */}
       <div>
-        <label className="block text-micro font-display font-medium text-text-muted uppercase tracking-wider mb-1.5">
+        <label className="block type-caption font-medium mb-1.5">
           Name
         </label>
         <input
@@ -72,7 +72,7 @@ export const RegionLockProperties = memo(function RegionLockProperties({
           onChange={(e) => onUpdate({ name: e.target.value })}
           className={cn(
             'w-full px-3 py-2 rounded-lg bg-void border border-border',
-            'text-sm font-display text-text-primary',
+            'type-ui text-text-primary',
             'focus:outline-none focus:border-red-primary focus:ring-1 focus:ring-red-primary',
             'transition-colors duration-150',
             'placeholder:text-text-muted'
@@ -85,7 +85,7 @@ export const RegionLockProperties = memo(function RegionLockProperties({
       {/* Prompt */}
       {aiTool !== 'upscale' && (
         <div>
-          <label className="block text-micro font-display font-medium text-text-muted uppercase tracking-wider mb-1.5">
+          <label className="block type-caption font-medium mb-1.5">
             Prompt
           </label>
           <textarea
@@ -94,7 +94,7 @@ export const RegionLockProperties = memo(function RegionLockProperties({
             rows={3}
             className={cn(
               'w-full px-3 py-2 rounded-lg bg-void border border-border',
-              'text-sm font-display text-text-primary resize-y',
+              'type-ui text-text-primary resize-y',
               'focus:outline-none focus:border-red-primary focus:ring-1 focus:ring-red-primary',
               'transition-colors duration-150',
               'placeholder:text-text-muted'
@@ -113,7 +113,7 @@ export const RegionLockProperties = memo(function RegionLockProperties({
 
       {/* AI Tool selector */}
       <div>
-        <label className="block text-micro font-display font-medium text-text-muted uppercase tracking-wider mb-1.5">
+        <label className="block type-caption font-medium mb-1.5">
           AI Tool
         </label>
         <div className="grid grid-cols-2 gap-1.5">
@@ -136,7 +136,7 @@ export const RegionLockProperties = memo(function RegionLockProperties({
                 title={tool.description}
               >
                 <Icon className="w-3.5 h-3.5 flex-shrink-0" aria-hidden="true" />
-                <span className="text-xs font-display font-medium truncate">{tool.label}</span>
+                <span className="type-ui truncate">{tool.label}</span>
               </button>
             );
           })}
@@ -146,10 +146,10 @@ export const RegionLockProperties = memo(function RegionLockProperties({
       {/* Strength slider */}
       <div>
         <div className="flex items-center justify-between mb-1.5">
-          <label className="text-micro font-display font-medium text-text-muted uppercase tracking-wider">
+          <label className="type-caption font-medium">
             Strength
           </label>
-          <span className="text-micro font-display font-medium text-text-primary">
+          <span className="type-ui text-text-primary">
             {Math.round(strength * 100)}%
           </span>
         </div>
@@ -167,10 +167,10 @@ export const RegionLockProperties = memo(function RegionLockProperties({
       {/* Feather radius slider */}
       <div>
         <div className="flex items-center justify-between mb-1.5">
-          <label className="text-micro font-display font-medium text-text-muted uppercase tracking-wider">
+          <label className="type-caption font-medium">
             Feather
           </label>
-          <span className="text-micro font-display font-medium text-text-primary">
+          <span className="type-ui text-text-primary">
             {mask.featherRadius}px
           </span>
         </div>
@@ -193,7 +193,7 @@ export const RegionLockProperties = memo(function RegionLockProperties({
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Blend className="w-4 h-4 text-text-muted" aria-hidden="true" />
-          <span className="text-sm font-display text-text-primary">Blend Edges</span>
+          <span className="type-ui text-text-primary">Blend Edges</span>
         </div>
         <button
           onClick={() =>
@@ -227,7 +227,7 @@ export const RegionLockProperties = memo(function RegionLockProperties({
           ) : (
             <Lock className="w-4 h-4 text-text-muted" aria-hidden="true" />
           )}
-          <span className="text-sm font-display text-text-primary">Invert Mask</span>
+          <span className="type-ui text-text-primary">Invert Mask</span>
         </div>
         <button
           onClick={() => onUpdate({ invertMask: !invertMask })}
