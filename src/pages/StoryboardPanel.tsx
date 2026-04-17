@@ -111,10 +111,10 @@ export function StoryboardPanel() {
         <div className="w-16 h-16 rounded-2xl bg-elevated border border-border flex items-center justify-center mb-4">
           <Film className="w-8 h-8 text-text-muted" aria-hidden="true" />
         </div>
-        <h2 className="font-display font-semibold text-lg text-text-primary mb-2">
+        <h2 className="mb-2 type-title">
           No Project Open
         </h2>
-        <p className="text-sm text-text-muted font-display max-w-xs mb-6">
+        <p className="mb-6 max-w-xs type-caption">
           Create a new project to start building your storyboard with scenes, characters, and AI-generated frames.
         </p>
         <Button variant="primary" onClick={handleNewProject}>
@@ -133,10 +133,10 @@ export function StoryboardPanel() {
       <div className="px-4 py-3 border-b border-border flex items-center justify-between flex-shrink-0">
         <div className="flex items-center gap-2">
           <Film className="w-4 h-4 text-red-primary" aria-hidden="true" />
-          <h2 className="font-display font-semibold text-sm text-text-primary">
+          <h2 className="type-section">
             {activeProject.name}
           </h2>
-          <span className="text-micro text-text-muted font-display">
+          <span className="type-caption">
             {sortedScenes.length} scene{sortedScenes.length !== 1 ? 's' : ''}
           </span>
         </div>
@@ -152,7 +152,7 @@ export function StoryboardPanel() {
           <div className="w-14 h-14 rounded-xl bg-elevated border border-border flex items-center justify-center mb-3">
             <Film className="w-6 h-6 text-text-muted" aria-hidden="true" />
           </div>
-          <p className="text-sm text-text-muted font-display mb-4">
+          <p className="mb-4 type-caption">
             No scenes yet. Add your first scene to start building your storyboard.
           </p>
           <Button variant="primary" size="sm" onClick={handleAddScene}>
