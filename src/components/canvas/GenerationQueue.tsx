@@ -66,10 +66,10 @@ export const GenerationQueue = memo(function GenerationQueue() {
                   exit={{ opacity: 0, y: 5 }}
                   className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 p-2 bg-elevated border border-border rounded-md shadow-cinematic pointer-events-none"
                 >
-                  <p className="font-display text-xs text-text-primary line-clamp-2">
+                  <p className="line-clamp-2 type-ui text-text-primary">
                     {item.prompt}
                   </p>
-                  <p className="font-mono text-micro text-text-muted mt-1">
+                  <p className="mt-1 type-caption">
                     Click to load on canvas
                   </p>
                 </motion.div>
