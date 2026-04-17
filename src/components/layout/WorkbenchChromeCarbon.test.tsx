@@ -1,7 +1,7 @@
 import { cleanup, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { WorkflowPlaceholder } from '@/components/workflow/WorkflowPlaceholder';
+import { WorkflowWorkbench } from '@/components/workflow/WorkflowWorkbench';
 import { useAppStore } from '@/store/appStore';
 import { WorkbenchBoardsDock } from './WorkbenchBoardsDock';
 import { WorkbenchRightStack } from './WorkbenchRightStack';
@@ -34,7 +34,7 @@ describe('Workbench Carbon Pro chrome', () => {
         onViewChange={vi.fn()}
         canvas={<div>Canvas content</div>}
         viewer={<div>Viewer content</div>}
-        workflow={<WorkflowPlaceholder />}
+        workflow={<WorkflowWorkbench />}
         rightDockTabs={[
           { id: 'settings', label: 'Settings', content: <div>Settings content</div> },
         ]}
@@ -55,7 +55,7 @@ describe('Workbench Carbon Pro chrome', () => {
         leftDock={<div>Left settings content</div>}
         canvas={<div>Canvas content</div>}
         viewer={<div>Viewer content</div>}
-        workflow={<WorkflowPlaceholder />}
+        workflow={<WorkflowWorkbench />}
         rightDock={
           <WorkbenchRightStack
             sections={[
@@ -109,11 +109,11 @@ describe('Workbench Carbon Pro chrome', () => {
     expect(container.querySelector(legacyPrimarySelector)).toBeNull();
   });
 
-  it('keeps the Workflow placeholder on Carbon Pro accent tokens', () => {
-    const { container } = render(<WorkflowPlaceholder />);
+  it('keeps the Workflow workbench on Carbon Pro accent tokens', () => {
+    const { container } = render(<WorkflowWorkbench />);
 
-    expect(screen.getByText('Planned')).toHaveClass('bg-accent-primary-muted');
-    expect(screen.getByText('Linear UI')).toHaveClass('text-accent-primary');
-    expect(container.querySelector(legacyPrimarySelector)).not.toBeInTheDocument();
+    expect(screen.getByText('Draft')).toHaveClass('border-accent-primary-border');
+    expect(screen.getByText('Draft')).toHaveClass('bg-accent-primary-muted');
+    expect(container.querySelector(legacyPrimarySelector)).toBeNull();
   });
 });

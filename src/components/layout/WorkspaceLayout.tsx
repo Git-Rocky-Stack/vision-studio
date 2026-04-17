@@ -6,7 +6,7 @@ import { WorkbenchBoardsDock } from './WorkbenchBoardsDock';
 import { WorkbenchGalleryDock } from './WorkbenchGalleryDock';
 import { WorkbenchRightStack } from './WorkbenchRightStack';
 import { WorkbenchViewer } from './WorkbenchViewer';
-import { WorkflowPlaceholder } from '@/components/workflow/WorkflowPlaceholder';
+import { WorkflowWorkbench } from '@/components/workflow/WorkflowWorkbench';
 import { LayerPanel } from '@/components/edit/LayerPanel';
 
 interface WorkspaceLayoutProps {
@@ -81,7 +81,7 @@ export function WorkspaceLayout({
             toolRail={toolStrip}
             canvas={editCanvas || canvas}
             viewer={<WorkbenchViewer />}
-            workflow={<WorkflowPlaceholder />}
+            workflow={<WorkflowWorkbench />}
             rightDock={
               <WorkbenchRightStack
                 sections={[
@@ -135,7 +135,7 @@ export function WorkspaceLayout({
             leftDock={panels[activePanel]}
             canvas={canvas}
             viewer={<WorkbenchViewer />}
-            workflow={<WorkflowPlaceholder />}
+            workflow={<WorkflowWorkbench />}
             rightDock={
               <WorkbenchRightStack
                 sections={[

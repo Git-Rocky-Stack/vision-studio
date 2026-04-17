@@ -113,8 +113,9 @@ The approved visual constraints remain:
 
 ### Workflow
 
-The current placeholder remains in the center mini-tab. The future workflow
-editor should follow Invoke's split:
+Workflow can now move beyond the placeholder in the center mini-tab. The first
+usable workflow surface should follow Invoke's split while keeping execution,
+persistence, and graph editing incremental:
 
 - left dock: workflow fields, metadata, Linear UI controls
 - center: node canvas or linear run surface
@@ -207,7 +208,6 @@ Use browser smoke after implementation:
 
 ## Non-Goals
 
-- Do not build the node workflow editor in this pass.
 - Do not redesign every settings control.
 - Do not replace the generation pipeline.
 - Do not implement full board management unless a lightweight project/board

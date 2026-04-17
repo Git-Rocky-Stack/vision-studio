@@ -97,11 +97,14 @@ describe('WorkspaceLayout', () => {
     expect(screen.getByTestId('workbench-right-dock')).toHaveTextContent('No layers');
   });
 
-  it('renders the Workflow placeholder when the workbench view is workflow', () => {
+  it('renders the Workflow workbench when the workbench view is workflow', () => {
     renderWorkspace('edit', { activeWorkbenchView: 'workflow' });
 
     expect(screen.getByRole('tab', { name: 'Workflow' })).toHaveAttribute('aria-selected', 'true');
-    expect(screen.getByText('Node workflows are coming to this workbench.')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Workflow' })).toBeInTheDocument();
+    expect(screen.getByText('Image generation baseline')).toBeInTheDocument();
+    expect(screen.getByRole('list', { name: 'Workflow run plan' })).toBeInTheDocument();
+    expect(screen.queryByText('Node workflows are coming to this workbench.')).not.toBeInTheDocument();
   });
 
   it('keeps Batch on its specialized queue and results layout', () => {
