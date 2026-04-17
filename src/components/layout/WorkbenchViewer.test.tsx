@@ -53,6 +53,30 @@ describe('WorkbenchViewer', () => {
     expect(state.currentImageAssetPath).toBe('/outputs/neon.png');
   });
 
+  it('branches the active output into a generation draft', async () => {
+    const user = userEvent.setup();
+    seedViewerState({ activeWorkbenchView: 'viewer' });
+
+    render(<WorkbenchViewer />);
+    await user.click(screen.getByRole('button', { name: 'Branch Variant' }));
+
+    const state = useAppStore.getState();
+    expect(state.activePanel).toBe('generate');
+    expect(state.activeWorkbenchView).toBe('canvas');
+    expect(state.generationDraft).toMatchObject({
+      generationType: 'image',
+      prompt: 'rainy neon marketplace',
+      negativePrompt: '',
+      width: 1024,
+      height: 1024,
+      steps: 25,
+      cfgScale: 7.5,
+      model: 'flux-dev',
+      scheduler: 'Euler a',
+      seed: 123,
+    });
+  });
+
   it('pins the active output for comparison', async () => {
     const user = userEvent.setup();
     seedViewerState();

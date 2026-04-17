@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import {
   Columns2,
+  GitBranch,
   GitCompare,
   Grid3X3,
   ImageIcon,
@@ -13,6 +14,7 @@ import {
 
 import { useAppStore, type AppState } from '@/store/appStore';
 import { ImageWithFallback } from '@/components/ui/ImageWithFallback';
+import type { GenerationDraft } from '@/types/generation';
 import { cn } from '@/utils/cn';
 
 type CompareMode = Exclude<AppState['comparisonMode'], 'off'>;
@@ -34,6 +36,13 @@ interface ViewerItem {
   prompt: string;
   model: string | null;
   seed: number | null;
+  negativePrompt: string;
+  generationType: 'image' | 'video';
+  width: number | null;
+  height: number | null;
+  steps: number | null;
+  cfgScale: number | null;
+  scheduler: string | null;
   runtime: string | null;
   createdAt: number;
 }
@@ -46,8 +55,10 @@ export function WorkbenchViewer() {
     comparisonMode,
     setComparisonImages,
     setComparisonMode,
+    setGenerationDraft,
     setCurrentImage,
     setActivePanel,
+    setActiveWorkbenchView,
   } = useAppStore();
   const [activeItemId, setActiveItemId] = useState<string | null>(null);
 
@@ -60,8 +71,15 @@ export function WorkbenchViewer() {
       assetPath: asset.path,
       thumbnail: asset.thumbnail || asset.previewUrl || asset.path,
       prompt: asset.prompt || 'No prompt saved',
-      model: asset.model ?? null,
+      model: asset.model ?? getStringParam(asset.params, 'model'),
       seed: asset.seed ?? null,
+      negativePrompt: asset.negativePrompt || getStringParam(asset.params, 'negativePrompt', 'negative_prompt') || '',
+      generationType: asset.type,
+      width: asset.width ?? getNumberParam(asset.params, 'width'),
+      height: asset.height ?? getNumberParam(asset.params, 'height'),
+      steps: getNumberParam(asset.params, 'steps'),
+      cfgScale: getNumberParam(asset.params, 'cfgScale', 'cfg_scale'),
+      scheduler: getStringParam(asset.params, 'scheduler'),
       runtime: null,
       createdAt: new Date(asset.createdAt).getTime(),
     }));
@@ -76,6 +94,13 @@ export function WorkbenchViewer() {
       prompt: result.prompt,
       model: typeof result.params.model === 'string' ? result.params.model : null,
       seed: result.seed,
+      negativePrompt: getStringParam(result.params, 'negativePrompt', 'negative_prompt') || '',
+      generationType: 'image' as const,
+      width: getNumberParam(result.params, 'width'),
+      height: getNumberParam(result.params, 'height'),
+      steps: getNumberParam(result.params, 'steps'),
+      cfgScale: getNumberParam(result.params, 'cfgScale', 'cfg_scale'),
+      scheduler: getStringParam(result.params, 'scheduler'),
       runtime: `${result.generationTime.toFixed(1)}s`,
       createdAt: new Date(result.createdAt).getTime(),
     }));
@@ -104,6 +129,13 @@ export function WorkbenchViewer() {
         prompt: 'Pinned output',
         model: null,
         seed: null,
+        negativePrompt: '',
+        generationType: 'image',
+        width: null,
+        height: null,
+        steps: null,
+        cfgScale: null,
+        scheduler: null,
         runtime: null,
         createdAt: 0,
       };
@@ -128,6 +160,14 @@ export function WorkbenchViewer() {
 
     setCurrentImage(activeItem.imagePath, activeItem.assetPath);
     setActivePanel('edit');
+  };
+
+  const branchVariant = () => {
+    if (!activeItem) return;
+
+    setGenerationDraft(toGenerationDraft(activeItem));
+    setActiveWorkbenchView('canvas');
+    setActivePanel('generate');
   };
 
   const toggleComparePin = () => {
@@ -200,6 +240,14 @@ export function WorkbenchViewer() {
             </div>
 
             <div className="flex shrink-0 gap-2">
+              <button
+                type="button"
+                onClick={branchVariant}
+                className="inline-flex items-center gap-2 rounded-md border border-border px-3 py-2 text-xs font-display text-text-body transition-all hover:border-border-hover hover:bg-elevated hover:text-text-primary"
+              >
+                <GitBranch className="h-3.5 w-3.5" />
+                Branch Variant
+              </button>
               <button
                 type="button"
                 onClick={toggleComparePin}
@@ -423,6 +471,43 @@ function CompareReview({
       )}
     </section>
   );
+}
+
+function getNumberParam(params: Record<string, unknown>, ...keys: string[]) {
+  for (const key of keys) {
+    const value = params[key];
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      return value;
+    }
+  }
+
+  return null;
+}
+
+function getStringParam(params: Record<string, unknown>, ...keys: string[]) {
+  for (const key of keys) {
+    const value = params[key];
+    if (typeof value === 'string' && value.trim()) {
+      return value;
+    }
+  }
+
+  return null;
+}
+
+function toGenerationDraft(item: ViewerItem): GenerationDraft {
+  return {
+    generationType: item.generationType,
+    prompt: item.prompt === 'No prompt saved' ? '' : item.prompt,
+    negativePrompt: item.negativePrompt,
+    width: item.width ?? 1024,
+    height: item.height ?? 1024,
+    steps: item.steps ?? 25,
+    cfgScale: item.cfgScale ?? 7.5,
+    model: item.model ?? 'flux-dev',
+    scheduler: item.scheduler ?? 'Euler a',
+    seed: item.seed ?? -1,
+  };
 }
 
 function SideBySideCompare({
