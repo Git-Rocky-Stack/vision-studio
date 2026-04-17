@@ -9,7 +9,7 @@ function ImagePlaceholder({ label }: { label: string }) {
   return (
     <div className="w-full h-full bg-elevated flex flex-col items-center justify-center">
       <ImageIcon className="w-8 h-8 text-text-muted mb-2" />
-      <span className="font-display text-xs text-text-muted">
+      <span className="type-caption">
         Select image {label}
       </span>
     </div>
@@ -20,7 +20,7 @@ function ImageLabel({ label, className }: { label: string; className?: string })
   return (
     <div
       className={cn(
-        'absolute top-3 px-2 py-0.5 rounded bg-void/60 font-display text-xs text-text-primary backdrop-blur-sm',
+        'absolute top-3 rounded bg-void/60 px-2 py-0.5 type-ui text-text-primary backdrop-blur-sm',
         className
       )}
     >
@@ -256,7 +256,7 @@ export const ComparisonView = memo(function ComparisonView() {
                   </div>
                 )}
                 <div className="absolute bottom-1 left-1 right-1">
-                  <p className="text-micro font-display text-text-primary bg-void/60 backdrop-blur-sm rounded px-1.5 py-0.5 truncate">
+                  <p className="truncate rounded bg-void/60 px-1.5 py-0.5 type-caption text-text-primary backdrop-blur-sm">
                     {item.prompt}
                   </p>
                 </div>
@@ -265,7 +265,7 @@ export const ComparisonView = memo(function ComparisonView() {
             {recentImages.length === 0 && (
               <div className="col-span-3 py-16 text-center">
                 <ImageIcon className="w-10 h-10 text-text-muted mx-auto mb-3 opacity-30" />
-                <p className="font-display text-sm text-text-muted">
+                <p className="type-caption">
                   No generations to compare
                 </p>
               </div>

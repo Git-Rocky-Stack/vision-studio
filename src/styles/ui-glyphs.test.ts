@@ -20,6 +20,7 @@ const shellTypographyFiles = [
   'src/components/layout/WorkbenchRightStack.tsx',
   'src/components/layout/WorkbenchShell.tsx',
   'src/components/layout/WorkbenchViewer.tsx',
+  'src/components/canvas/ComparisonView.tsx',
   'src/components/canvas/GenerationQueue.tsx',
   'src/components/canvas/GenerationProgress.tsx',
   'src/pages/GeneratePanel.tsx',
