@@ -52,15 +52,15 @@ export function WorkbenchGalleryDock() {
     <div className="flex h-full min-h-0 flex-col bg-surface">
       <div className="flex items-center justify-between border-b border-border px-4 py-3">
         <div>
-          <h2 className="font-display text-sm font-semibold text-text-primary">Gallery</h2>
-          <p className="mt-1 text-micro text-text-muted">{items.length} recent</p>
+          <h2 className="type-section">Gallery</h2>
+          <p className="mt-1 type-caption">{items.length} recent</p>
         </div>
       </div>
 
       {items.length === 0 ? (
         <div className="flex flex-1 flex-col items-center justify-center px-6 text-center">
           <ImageIcon className="h-8 w-8 text-text-muted opacity-40" />
-          <p className="mt-3 font-display text-sm text-text-primary">Generated outputs will appear here.</p>
+          <p className="mt-3 type-section">Generated outputs will appear here.</p>
           <p className="mt-1 max-w-56 text-xs text-text-muted">
             Create or import an image to review it beside the active workbench.
           </p>
@@ -94,12 +94,12 @@ export function WorkbenchGalleryDock() {
               </div>
               <div className="space-y-1 p-2">
                 <div className="flex items-center justify-between gap-2">
-                  <p className="truncate font-display text-xs text-text-primary">{item.label}</p>
-                  <span className="shrink-0 rounded border border-border px-1.5 py-0.5 text-micro text-text-muted">
+                  <p className="truncate type-ui text-text-primary">{item.label}</p>
+                  <span className="shrink-0 rounded border border-border px-1.5 py-0.5 type-caption">
                     {item.source}
                   </span>
                 </div>
-                <p className="line-clamp-2 text-micro text-text-body">{item.prompt}</p>
+                <p className="line-clamp-2 type-caption text-text-body">{item.prompt}</p>
               </div>
             </button>
           ))}

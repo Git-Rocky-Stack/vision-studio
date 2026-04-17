@@ -160,7 +160,7 @@ const RegionMask = memo(function RegionMask({
         }}
       >
         <span className="font-semibold">{name}</span>
-        <span className="opacity-75">·</span>
+        <span className="h-3 w-px bg-white/40" aria-hidden="true" />
         <span>{toolLabel}</span>
         <span className="opacity-70">{Math.round(strength * 100)}%</span>
       </div>

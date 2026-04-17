@@ -24,7 +24,7 @@ export const ScenePlaybackStrip = memo(function ScenePlaybackStrip({
 
   const sortedScenes = [...scenes].sort((a, b) => a.orderIndex - b.orderIndex);
 
-  // Playback logic — advances through scenes at their duration intervals
+  // Playback logic - advances through scenes at their duration intervals
   const startPlayback = useCallback(() => {
     setIsPlaying(true);
 
@@ -96,7 +96,7 @@ export const ScenePlaybackStrip = memo(function ScenePlaybackStrip({
     return (
       <div className="h-12 bg-elevated border-t border-border flex items-center justify-center px-4">
         <p className="text-xs text-text-muted font-display">
-          No scenes to play — add scenes to your storyboard
+          No scenes to play - add scenes to your storyboard
         </p>
       </div>
     );

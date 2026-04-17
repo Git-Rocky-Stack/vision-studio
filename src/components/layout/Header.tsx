@@ -13,18 +13,13 @@ export const Header = memo(function Header() {
       data-testid="app-header"
     >
       <ProjectDropdown />
-      <div className="flex items-center gap-2">
-        {currentProject ? (
-          <>
-            <span className="text-xs text-text-muted">&middot;</span>
-            <span className="text-xs text-text-muted">
-              {currentProject.updatedAt
-                ? `Edited ${new Date(currentProject.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
-                : 'Unsaved changes'}
-            </span>
-          </>
-        ) : null}
-      </div>
+      {currentProject ? (
+        <div className="border-l border-border pl-3 type-caption">
+          {currentProject.updatedAt
+            ? `Edited ${new Date(currentProject.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+            : 'Unsaved changes'}
+        </div>
+      ) : null}
 
       <div className="ml-auto flex items-center gap-2" data-testid="header-right-actions">
         <div
@@ -39,7 +34,7 @@ export const Header = memo(function Header() {
             className={`w-1.5 h-1.5 rounded-full ${backendConnected ? 'bg-status-success' : 'bg-status-error'} ${backendConnected ? '' : 'animate-pulse'}`}
             aria-label={backendLabel}
           />
-          <span className="text-micro font-display font-medium select-none">
+          <span className="type-ui select-none">
             {backendConnected ? 'Ready' : 'Not ready'}
           </span>
         </div>

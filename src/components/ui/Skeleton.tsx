@@ -5,7 +5,7 @@ interface SkeletonProps {
 }
 
 /**
- * Base skeleton block — use directly for arbitrary shapes.
+ * Base skeleton block - use directly for arbitrary shapes.
  * Inherits the `animate-pulse` shimmer and matches the app's
  * dark cinema surface hierarchy via `bg-elevated`.
  */
@@ -21,7 +21,7 @@ export function Skeleton({ className }: SkeletonProps) {
 }
 
 /**
- * Two-line text placeholder — suitable for titles + subtitles,
+ * Two-line text placeholder - suitable for titles + subtitles,
  * or any short block of body copy.
  */
 export function SkeletonText({ className }: SkeletonProps) {
@@ -34,7 +34,7 @@ export function SkeletonText({ className }: SkeletonProps) {
 }
 
 /**
- * Card skeleton — mirrors the aspect-ratio thumbnail + metadata
+ * Card skeleton - mirrors the aspect-ratio thumbnail + metadata
  * layout used in AssetsPanel grid and ResultsGrid.
  */
 export function SkeletonCard({ className }: SkeletonProps) {
@@ -50,7 +50,7 @@ export function SkeletonCard({ className }: SkeletonProps) {
 }
 
 /**
- * List skeleton — renders `rows` placeholder rows, each with a
+ * List skeleton - renders `rows` placeholder rows, each with a
  * thumbnail-sized square and two lines of metadata. Matches the
  * list view layout used in AssetsPanel and ResultsGrid list mode.
  */
@@ -74,7 +74,7 @@ export function SkeletonList({
 }
 
 /**
- * Grid skeleton — renders a `cols × rows` grid of SkeletonCard
+ * Grid skeleton - renders a `cols x rows` grid of SkeletonCard
  * elements. Defaults to 2 columns / 2 rows (AssetsPanel default).
  * Use `cols={3}` for the ResultsGrid 3-column grid view.
  */

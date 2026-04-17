@@ -31,7 +31,7 @@ export function WorkbenchRightStack({ sections }: WorkbenchRightStackProps) {
             <button
               type="button"
               aria-expanded={!isCollapsed}
-              className="flex h-9 flex-shrink-0 items-center justify-between border-b border-border px-3 text-left font-display text-xs font-semibold text-text-body"
+              className="flex h-9 flex-shrink-0 items-center justify-between border-b border-border px-3 text-left type-ui text-text-body"
               onClick={() =>
                 setCollapsedSections((current) => ({
                   ...current,
@@ -40,7 +40,7 @@ export function WorkbenchRightStack({ sections }: WorkbenchRightStackProps) {
               }
             >
               <span>{section.label}</span>
-              <span aria-hidden="true" className="font-mono text-micro text-text-muted">
+              <span aria-hidden="true" className="type-caption">
                 {isCollapsed ? '+' : '-'}
               </span>
             </button>

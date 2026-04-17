@@ -344,7 +344,7 @@ export function AssetsPanel() {
                           )}
                         >
                           <span>{formatAssetMeta(asset)}</span>
-                          <span>&middot;</span>
+                          <span className="h-3 w-px bg-border" aria-hidden="true" />
                           <span>{new Date(asset.createdAt).toLocaleDateString()}</span>
                         </div>
                       </div>

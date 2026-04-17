@@ -425,7 +425,7 @@ export const Canvas = memo(function Canvas() {
                   <div className="flex items-center gap-2 justify-center text-xs text-text-muted font-mono">
                     <Hand className="w-3.5 h-3.5" />
                     <span>Shift + Drag to pan</span>
-                    <span>&middot;</span>
+                    <span className="h-3 w-px bg-border" aria-hidden="true" />
                     <span>Scroll to zoom</span>
                   </div>
                 </motion.div>
@@ -435,7 +435,7 @@ export const Canvas = memo(function Canvas() {
             {/* Canvas Border Overlay */}
             <div className="absolute inset-0 pointer-events-none border border-dashed border-border rounded-sm" />
 
-            {/* Region Lock Overlay — visible when region mode is active */}
+            {/* Region Lock Overlay - visible when region mode is active */}
             {regionMode && (
               <RegionLockOverlay
                 regionLocks={regionLocks}
@@ -446,7 +446,7 @@ export const Canvas = memo(function Canvas() {
               />
             )}
 
-            {/* Region Mask Drawer — active when region mode is on, a region is selected, and a drawing tool is chosen */}
+            {/* Region Mask Drawer - active when region mode is on, a region is selected, and a drawing tool is chosen */}
             {regionMode && activeRegion && activeMaskTool !== 'select' && (
               <RegionMaskDrawer
                 activeRegion={activeRegion}
@@ -475,7 +475,7 @@ export const Canvas = memo(function Canvas() {
       <div className="absolute bottom-4 left-4 z-10">
         <div className="px-3 py-1.5 glass glass-border rounded-md">
           <span className="font-mono text-xs text-text-body">
-            {imageSize.width} &times; {imageSize.height}px &middot; Artboard 1
+            {imageSize.width} x {imageSize.height}px, Artboard 1
           </span>
         </div>
       </div>

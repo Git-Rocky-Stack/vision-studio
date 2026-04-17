@@ -398,7 +398,7 @@ export function SettingsPanel() {
                         {systemInfo.gpuName || 'GPU not detected'}
                       </h4>
                       <p className="text-xs font-mono text-text-body">
-                        {systemInfo.gpuVram || 'CPU mode'} &middot;{' '}
+                        {systemInfo.gpuVram || 'CPU mode'}, {' '}
                         {systemInfo.cudaVersion || 'No CUDA'}
                       </p>
                     </div>
@@ -467,7 +467,7 @@ export function SettingsPanel() {
                           <p className="text-xs font-mono text-text-body">
                             {model.size}
                             {typeof model.progress === 'number' && model.status === 'downloading'
-                              ? ` · ${Math.round(model.progress)}%`
+                              ? ` (${Math.round(model.progress)}%)`
                               : ''}
                           </p>
                         </div>

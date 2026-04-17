@@ -1,11 +1,11 @@
 /**
- * UI_STRINGS — centralised string constants for all hardcoded UI text.
+ * UI_STRINGS - centralised string constants for all hardcoded UI text.
  *
  * Purpose: i18n preparation (Suggestion 16 from design review).
  * Usage:   import { UI_STRINGS } from '@/constants/strings';
  *
  * Do NOT import this file from hot paths that run at render time without
- * memoisation — the object is `as const` and therefore referentially stable,
+ * memoisation - the object is `as const` and therefore referentially stable,
  * so direct property access is zero-cost.
  */
 

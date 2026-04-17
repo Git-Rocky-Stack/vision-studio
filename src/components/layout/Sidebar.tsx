@@ -83,7 +83,7 @@ export const Sidebar = memo(function Sidebar() {
         )}
         <Icon className="w-4.5 h-4.5 flex-shrink-0 transition-all" />
         {!sidebarCollapsed && (
-          <span className="font-display font-medium text-xs whitespace-nowrap">
+          <span className="type-ui whitespace-nowrap">
             {item.label}
           </span>
         )}
@@ -110,13 +110,13 @@ export const Sidebar = memo(function Sidebar() {
       <div className="h-12 flex items-center px-3 border-b border-border">
         <div className={cn('flex items-center gap-2 min-w-0', sidebarCollapsed && 'mx-auto')}>
           <div className="h-6 w-6 rounded-md border border-accent-primary-border bg-accent-primary-muted flex items-center justify-center">
-            <span className="font-mono text-micro font-bold text-accent-primary">VS</span>
+            <Wand2 className="h-3.5 w-3.5 text-accent-primary" aria-hidden="true" />
           </div>
           {!sidebarCollapsed && (
             <motion.span
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              className="font-display font-semibold text-[11px] text-text-primary whitespace-nowrap"
+              className="type-ui text-text-primary whitespace-nowrap"
             >
               Vision Studio
             </motion.span>
@@ -129,7 +129,7 @@ export const Sidebar = memo(function Sidebar() {
         {(Object.keys(groupedItems) as NavItem['group'][]).map((group) => (
           <div key={group} className="space-y-1">
             {!sidebarCollapsed && (
-              <p className="px-3 pb-1 font-mono text-[9px] uppercase text-text-muted/70">
+              <p className="px-3 pb-1 type-caption">
                 {group}
               </p>
             )}
@@ -143,7 +143,7 @@ export const Sidebar = memo(function Sidebar() {
         <div className="px-3 py-3 border-t border-border">
           <div
             className={cn(
-              'flex items-center gap-2 px-2.5 py-2 rounded-md text-xs font-display border',
+              'flex items-center gap-2 px-2.5 py-2 rounded-md type-ui border',
               systemInfo.gpuAvailable
                 ? 'bg-status-success-muted text-status-success border-status-success-border'
                 : 'bg-status-warning-muted text-status-warning border-status-warning-border'

@@ -464,7 +464,7 @@ const ClipBlock = memo(function ClipBlock({
   );
 });
 
-/** Transport controls — play/pause, skip, time display */
+/** Transport controls - play/pause, skip, time display */
 const TransportControls = memo(function TransportControls({
   isPlaying,
   onTogglePlay,
@@ -951,7 +951,7 @@ export const Timeline = memo(function Timeline() {
             {/* ─── Storyboard Scene Playback Strip ──────────────────────── */}
             {storyboardScenes.length > 0 && (
               <div className="h-[36px] border-b border-border relative bg-elevated/30">
-                {/* Scene strip — uses existing ScenePlaybackStrip but in a horizontal layout */}
+                {/* Scene strip - uses existing ScenePlaybackStrip but in a horizontal layout */}
                 <div className="flex items-center h-full px-1 gap-0.5 overflow-x-auto scrollbar-hide">
                   {storyboardScenes
                     .sort((a, b) => a.orderIndex - b.orderIndex)

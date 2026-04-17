@@ -105,7 +105,7 @@ export function WorkbenchShell({
                   id={`workbench-${view.id}-tab`}
                   onClick={() => onViewChange(view.id)}
                   className={cn(
-                    'rounded-md border px-3 py-1.5 text-xs font-display transition-all',
+                    'rounded-md border px-3 py-1.5 type-ui transition-all',
                     isActive
                       ? 'border-accent-primary-border bg-accent-primary-muted text-accent-primary'
                       : 'border-transparent text-text-body hover:border-border-hover hover:bg-elevated hover:text-text-primary'
@@ -164,7 +164,7 @@ export function WorkbenchShell({
                     disabled={tab.disabled}
                     onClick={() => handleDockTabChange(tab.id)}
                     className={cn(
-                      'flex-1 rounded-md border px-2.5 py-1.5 text-xs font-display transition-all',
+                      'flex-1 rounded-md border px-2.5 py-1.5 type-ui transition-all',
                       isActive
                         ? 'border-accent-primary-border bg-accent-primary-muted text-accent-primary'
                         : 'border-transparent text-text-body hover:border-border-hover hover:bg-elevated hover:text-text-primary',

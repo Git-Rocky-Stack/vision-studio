@@ -152,7 +152,7 @@ export function TextControls() {
               aria-label="Decrease font size"
               className="p-2 rounded bg-elevated border border-border text-text-body hover:text-text-primary transition-all text-xs font-mono"
             >
-              −
+              -
             </button>
             <input
               type="number"

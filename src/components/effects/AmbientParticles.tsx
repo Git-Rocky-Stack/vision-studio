@@ -1,6 +1,6 @@
 import { memo, useEffect, useRef } from 'react';
 
-// Default warm-amber particle color — matches --z-overlay token family in index.css
+// Default warm-amber particle color - matches --z-overlay token family in index.css
 const PARTICLE_COLOR_DEFAULT = 'rgba(255, 200, 150, 0.3)';
 
 interface Particle {

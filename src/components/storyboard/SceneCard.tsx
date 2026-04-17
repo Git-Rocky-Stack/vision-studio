@@ -194,7 +194,7 @@ export const SceneCard = memo(function SceneCard({
         </div>
       </motion.article>
 
-      {/* Action buttons — duplicate + delete */}
+      {/* Action buttons - duplicate + delete */}
       <div className={cn(
         'absolute top-2 right-2 z-10 flex items-center gap-1',
         'transition-opacity duration-150',

@@ -243,7 +243,7 @@ function PromptHistoryRow({
           </span>
           {entry.model && (
             <>
-              <span className="text-text-muted/30">&middot;</span>
+              <span className="h-3 w-px bg-border" aria-hidden="true" />
               <span className="font-mono text-micro text-text-muted">
                 {entry.model}
               </span>

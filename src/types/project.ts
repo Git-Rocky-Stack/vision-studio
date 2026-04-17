@@ -1,5 +1,5 @@
 /**
- * Vision Studio — Phase 1 Data Model
+ * Vision Studio - Phase 1 Data Model
  * Project / Scene / Frame / CharacterRef / RegionLock types
  * Based on: 2026-04-13 Storyboard & Surgical AI Design Spec
  */
@@ -11,8 +11,8 @@ import type { Layer } from './editor';
 
 export interface GenerationConfig {
   model: string;
-  steps: number;          // 1–100, default 25
-  cfgScale: number;       // 1–30, default 7.5
+  steps: number;          // 1-100, default 25
+  cfgScale: number;       // 1-30, default 7.5
   scheduler: string;
   seed: number;           // -1 for random
   width: number;
@@ -95,11 +95,11 @@ export interface CharacterRef {
   projectId: string;
   name: string;
   description: string;
-  faceImages: string[];          // file paths, 1–5 required
+  faceImages: string[];          // file paths, 1-5 required
   bodyImages: string[];          // optional
   styleImages: string[];         // optional
   lockedFeatures: LockedFeature[];
-  consistencyStrength: number;   // 0.0–1.0, default 0.85
+  consistencyStrength: number;   // 0.0-1.0, default 0.85
   color: string;                 // hex, for UI identification
 }
 
@@ -124,7 +124,7 @@ export interface RegionMask {
   type: MaskType;
   points: Point[];
   bounds: BoundingBox;
-  featherRadius: number;   // 0–20px, default 2
+  featherRadius: number;   // 0-20px, default 2
   blendEdges: boolean;     // default true
 }
 
@@ -139,7 +139,7 @@ export interface RegionLock {
   generationConfig: Partial<GenerationConfig>;
   aiTool: AITool;
   prompt: string;               // for generative-fill and style-transfer
-  strength: number;             // 0.0–1.0, default 0.85
+  strength: number;             // 0.0-1.0, default 0.85
   invertMask: boolean;          // default false
 }
 
@@ -198,6 +198,6 @@ export const DEFAULT_REGION_MASK: RegionMask = {
   blendEdges: true,
 };
 
-// Re-exported for convenience — already imported above
+// Re-exported for convenience - already imported above
 export type { LoRAConfig, ControlNetConfig } from './generation';
 export type { Layer } from './editor';

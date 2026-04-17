@@ -58,7 +58,7 @@ function toPreviewUrl(assetPath: string) {
 }
 
 /* ───────────────────────────────────────────────────────────
-   BatchPromptQueue — The right panel (400px) in batch mode
+   BatchPromptQueue - The right panel (400px) in batch mode
    Contains results toolbar + batch generation controls
    ─────────────────────────────────────────────────────────── */
 
@@ -579,7 +579,7 @@ export function BatchPromptQueue() {
             Generation Settings
           </span>
           <span className="font-mono text-xs text-text-muted">
-            {width}&times;{height} &middot; {steps} steps
+            {width}x{height} - {steps} steps
           </span>
         </button>
 
@@ -705,7 +705,7 @@ export function BatchPromptQueue() {
 }
 
 /* ───────────────────────────────────────────────────────────
-   BatchResultsPanel — The left main area in batch mode
+   BatchResultsPanel - The left main area in batch mode
    Wraps ResultsGrid and ImagePreviewModal together
    ─────────────────────────────────────────────────────────── */
 
@@ -736,7 +736,7 @@ export function BatchResultsPanel() {
 }
 
 /* ───────────────────────────────────────────────────────────
-   BatchPanel — Legacy export for backward compatibility.
+   BatchPanel - Legacy export for backward compatibility.
    App.tsx now uses BatchPromptQueue + BatchResultsPanel directly.
    ─────────────────────────────────────────────────────────── */
 

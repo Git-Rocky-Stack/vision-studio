@@ -172,7 +172,7 @@ export function CropControls({
             <span className="text-label text-text-body">Crop Area</span>
           </div>
           <p className="font-mono text-sm text-text-primary mt-1">
-            {cropDimensions.width} &times; {cropDimensions.height}px
+            {cropDimensions.width} x {cropDimensions.height}px
           </p>
         </div>
       )}

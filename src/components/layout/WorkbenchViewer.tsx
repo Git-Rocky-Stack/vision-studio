@@ -217,7 +217,7 @@ export function WorkbenchViewer() {
     return (
       <div className="flex h-full flex-col items-center justify-center bg-void px-6 text-center">
         <ImageIcon className="h-9 w-9 text-text-muted opacity-40" />
-        <h2 className="mt-4 font-display text-lg font-semibold text-text-primary">
+        <h2 className="mt-4 type-title">
           Outputs will appear here.
         </h2>
         <p className="mt-2 max-w-sm text-sm text-text-body">
@@ -253,10 +253,10 @@ export function WorkbenchViewer() {
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
-                <h2 className="truncate font-display text-sm font-semibold text-text-primary">
+                <h2 className="truncate type-section">
                   {activeItem.label}
                 </h2>
-                <span className="rounded border border-border px-2 py-0.5 text-micro text-text-muted">
+                <span className="rounded border border-border px-2 py-0.5 type-caption">
                   {activeItem.source}
                 </span>
               </div>
@@ -268,7 +268,7 @@ export function WorkbenchViewer() {
                 type="button"
                 onClick={addToBoard}
                 disabled={!activeProject}
-                className="inline-flex items-center gap-2 rounded-md border border-border px-3 py-2 text-xs font-display text-text-body transition-all hover:border-border-hover hover:bg-elevated hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-40"
+                className="inline-flex items-center gap-2 rounded-md border border-border px-3 py-2 type-ui text-text-body transition-all hover:border-border-hover hover:bg-elevated hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-40"
               >
                 <Plus className="h-3.5 w-3.5" />
                 Add to Board
@@ -276,7 +276,7 @@ export function WorkbenchViewer() {
               <button
                 type="button"
                 onClick={branchVariant}
-                className="inline-flex items-center gap-2 rounded-md border border-border px-3 py-2 text-xs font-display text-text-body transition-all hover:border-border-hover hover:bg-elevated hover:text-text-primary"
+                className="inline-flex items-center gap-2 rounded-md border border-border px-3 py-2 type-ui text-text-body transition-all hover:border-border-hover hover:bg-elevated hover:text-text-primary"
               >
                 <GitBranch className="h-3.5 w-3.5" />
                 Branch Variant
@@ -285,7 +285,7 @@ export function WorkbenchViewer() {
                 type="button"
                 onClick={toggleComparePin}
                 className={cn(
-                  'inline-flex items-center gap-2 rounded-md border px-3 py-2 text-xs font-display transition-all',
+                  'inline-flex items-center gap-2 rounded-md border px-3 py-2 type-ui transition-all',
                   isPinned
                     ? 'border-accent-primary-border bg-accent-primary-muted text-accent-primary'
                     : 'border-border text-text-body hover:border-border-hover hover:bg-elevated hover:text-text-primary'
@@ -297,7 +297,7 @@ export function WorkbenchViewer() {
               <button
                 type="button"
                 onClick={sendToEdit}
-                className="inline-flex items-center gap-2 rounded-md border border-accent-primary-border bg-accent-primary-muted px-3 py-2 text-xs font-display text-accent-primary transition-all hover:bg-elevated"
+                className="inline-flex items-center gap-2 rounded-md border border-accent-primary-border bg-accent-primary-muted px-3 py-2 type-ui text-accent-primary transition-all hover:bg-elevated"
               >
                 <Pencil className="h-3.5 w-3.5" />
                 Send to Edit
@@ -371,8 +371,8 @@ function CompareReview({
     >
       <div className="flex flex-shrink-0 items-center justify-between gap-3 border-b border-border px-4 py-3">
         <div>
-          <h2 className="font-display text-sm font-semibold text-text-primary">Compare review</h2>
-          <p className="mt-1 font-mono text-micro text-text-muted">{items.length} pinned</p>
+          <h2 className="type-section">Compare review</h2>
+          <p className="mt-1 type-caption">{items.length} pinned</p>
         </div>
         <div className="flex flex-wrap justify-end gap-2">
           <div className="flex rounded-md border border-border bg-void p-1">
@@ -387,7 +387,7 @@ function CompareReview({
                   aria-pressed={isActive}
                   onClick={() => onModeChange(compareMode.id)}
                   className={cn(
-                    'inline-flex items-center gap-2 rounded px-2.5 py-1.5 text-xs font-display transition-all',
+                    'inline-flex items-center gap-2 rounded px-2.5 py-1.5 type-ui transition-all',
                     isActive
                       ? 'bg-accent-primary-muted text-accent-primary'
                       : 'text-text-body hover:bg-elevated hover:text-text-primary'
@@ -402,7 +402,7 @@ function CompareReview({
           <button
             type="button"
             onClick={onClear}
-            className="inline-flex items-center gap-2 rounded-md border border-border px-3 py-2 text-xs font-display text-text-body transition-all hover:border-border-hover hover:bg-elevated hover:text-text-primary"
+            className="inline-flex items-center gap-2 rounded-md border border-border px-3 py-2 type-ui text-text-body transition-all hover:border-border-hover hover:bg-elevated hover:text-text-primary"
           >
             Clear Compare
           </button>
@@ -433,7 +433,7 @@ function CompareReview({
           <CompareLabel item={firstItem} className="absolute left-3 top-3" />
           <CompareLabel item={secondItem} className="absolute right-3 top-3" />
           <div className="absolute bottom-4 left-4 right-4 flex items-center gap-3 rounded-md border border-border bg-void/80 px-3 py-2 backdrop-blur-sm">
-            <span className="font-display text-xs text-text-muted">Before</span>
+            <span className="type-caption">Before</span>
             <input
               type="range"
               aria-label="Comparison split"
@@ -443,7 +443,7 @@ function CompareReview({
               onChange={(event) => setSliderPosition(Number(event.target.value))}
               className="min-w-0 flex-1 accent-accent-primary"
             />
-            <span className="font-display text-xs text-text-muted">After</span>
+            <span className="type-caption">After</span>
           </div>
         </div>
       )}
@@ -466,7 +466,7 @@ function CompareReview({
           <CompareLabel item={firstItem} className="absolute left-3 top-3" />
           <CompareLabel item={secondItem} className="absolute right-3 top-3" />
           <label className="absolute bottom-4 left-1/2 flex w-72 max-w-[calc(100%-2rem)] -translate-x-1/2 items-center gap-3 rounded-md border border-border bg-void/80 px-3 py-2 backdrop-blur-sm">
-            <span className="font-display text-xs text-text-body">Overlay</span>
+            <span className="type-ui text-text-body">Overlay</span>
             <input
               type="range"
               aria-label="Overlay opacity"
@@ -476,7 +476,7 @@ function CompareReview({
               onChange={(event) => setOnionOpacity(Number(event.target.value))}
               className="min-w-0 flex-1 accent-accent-primary"
             />
-            <span className="w-8 text-right font-mono text-micro text-text-muted">{onionOpacity}%</span>
+            <span className="w-8 text-right type-meta text-text-muted">{onionOpacity}%</span>
           </label>
         </div>
       )}
@@ -593,8 +593,8 @@ function SideBySideCompare({
 function CompareLabel({ item, className }: { item: ViewerItem; className?: string }) {
   return (
     <div className={cn('min-w-0 rounded-md border border-border bg-void/70 px-2 py-1 backdrop-blur-sm', className)}>
-      <p className="truncate font-display text-xs font-semibold text-text-primary">{item.label}</p>
-      <p className="mt-0.5 font-mono text-micro text-text-muted">{item.source}</p>
+      <p className="truncate type-ui text-text-primary">{item.label}</p>
+      <p className="mt-0.5 type-caption">{item.source}</p>
     </div>
   );
 }
@@ -602,8 +602,8 @@ function CompareLabel({ item, className }: { item: ViewerItem; className?: strin
 function Metadata({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <dt className="text-micro uppercase text-text-muted">{label}</dt>
-      <dd className="mt-1 truncate font-mono text-text-primary">{value}</dd>
+      <dt className="type-caption">{label}</dt>
+      <dd className="mt-1 truncate type-meta text-text-primary">{value}</dd>
     </div>
   );
 }

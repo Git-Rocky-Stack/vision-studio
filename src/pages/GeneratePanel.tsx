@@ -99,7 +99,7 @@ export function GeneratePanel() {
   const updateGenStatus = (patch: Partial<typeof genStatus>) =>
     setGenStatus((prev) => ({ ...prev, ...patch }));
 
-  // Image generation config (basic settings — advanced settings are in store)
+  // Image generation config (basic settings - advanced settings are in store)
   const [imageConfig, setImageConfig] = useState({
     generationType: 'image' as GenerationType,
     prompt: '',
@@ -646,7 +646,7 @@ export function GeneratePanel() {
               })}
             </div>
             <p className="font-mono text-xs text-text-muted">
-              {imageConfig.selectedRatio.width} &times; {imageConfig.selectedRatio.height}px
+              {imageConfig.selectedRatio.width} x {imageConfig.selectedRatio.height}px
             </p>
           </div>
         )}

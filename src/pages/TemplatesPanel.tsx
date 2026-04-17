@@ -90,7 +90,7 @@ export function TemplatesPanel() {
   const sortedTemplates = [...filteredTemplates].sort((a, b) => {
     if (sortBy === 'alpha') return a.name.localeCompare(b.name);
     if (sortBy === 'newest') return (b.isCustom ? 1 : 0) - (a.isCustom ? 1 : 0);
-    return 0; // popular — default order
+    return 0; // popular - default order
   });
 
   const handleUseTemplate = (template: ProjectTemplate) => {
@@ -494,7 +494,7 @@ export function TemplatesPanel() {
                       {/* Settings Preview */}
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="font-mono text-micro px-2 py-0.5 bg-surface rounded text-text-muted">
-                          {template.settings.width}&times;{template.settings.height}
+                          {template.settings.width}x{template.settings.height}
                         </span>
                         <span className="font-mono text-micro px-2 py-0.5 bg-surface rounded text-text-muted">
                           {template.settings.model}

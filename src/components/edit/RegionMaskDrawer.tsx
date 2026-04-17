@@ -232,7 +232,7 @@ export const RegionMaskDrawer = memo(function RegionMaskDrawer({
     return null;
   })();
 
-  // 'select' tool: render nothing — parent uses pointer-events on overlay to select regions.
+  // 'select' tool: render nothing - parent uses pointer-events on overlay to select regions.
   if (tool === 'select') return null;
 
   const cursor = tool === 'erase' ? 'cell' : 'crosshair';

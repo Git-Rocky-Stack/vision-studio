@@ -161,7 +161,7 @@ export function TemplatePreviewModal({
                     }}
                   >
                     <span className="font-mono text-micro text-text-muted">
-                      {template.settings.width}&times;{template.settings.height}
+                      {template.settings.width}x{template.settings.height}
                     </span>
                   </div>
                 </div>

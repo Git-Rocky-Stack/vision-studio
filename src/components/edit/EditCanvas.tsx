@@ -215,7 +215,7 @@ export function EditCanvas() {
       className="w-full h-full relative overflow-hidden bg-void"
       style={{ cursor: getCursor() }}
     >
-      {/* Region Lock Toolbar — visible when region mode is active */}
+      {/* Region Lock Toolbar - visible when region mode is active */}
       {regionMode && (
         <RegionLockToolbar
           activeTool={activeMaskTool as RegionTool}

@@ -385,7 +385,7 @@ export function TemplateCreator({ onClose, editingTemplate }: TemplateCreatorPro
                     }}
                   >
                     <span className="font-mono text-xs text-text-muted">
-                      {width}&times;{height}
+                      {width}x{height}
                     </span>
                   </div>
                 </div>

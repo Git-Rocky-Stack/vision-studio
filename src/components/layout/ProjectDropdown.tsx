@@ -66,7 +66,7 @@ export const ProjectDropdown = memo(function ProjectDropdown() {
         className={cn(
           'flex items-center gap-2 px-3 py-1.5 rounded-md',
           'bg-elevated border border-border',
-          'text-sm font-display font-medium text-text-primary',
+          'type-ui text-text-primary',
           'transition-all duration-200',
           'hover:border-accent-primary-border hover:bg-surface',
           'focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary',
@@ -103,7 +103,7 @@ export const ProjectDropdown = memo(function ProjectDropdown() {
             {projects.length === 0 ? (
               <div className="px-4 py-6 text-center">
                 <FolderOpen className="w-6 h-6 text-text-muted mx-auto mb-2" aria-hidden="true" />
-                <p className="text-xs text-text-muted font-display">
+                <p className="type-caption">
                   No projects yet
                 </p>
               </div>
@@ -126,13 +126,13 @@ export const ProjectDropdown = memo(function ProjectDropdown() {
                 >
                   <FolderOpen className="w-4 h-4 flex-shrink-0" aria-hidden="true" />
                   <div className="min-w-0 flex-1">
-                    <div className="font-display font-medium text-sm truncate">
+                    <div className="type-ui truncate text-text-primary">
                       {project.name}
                     </div>
-                    <div className="text-micro text-text-muted font-display">
-                      {project.scenes.length} scene{project.scenes.length !== 1 ? 's' : ''}
-                      {' · '}
-                      {project.characters.length} character{project.characters.length !== 1 ? 's' : ''}
+                    <div className="mt-0.5 flex items-center gap-2 type-caption">
+                      <span>{project.scenes.length} scene{project.scenes.length !== 1 ? 's' : ''}</span>
+                      <span className="h-3 w-px bg-border" aria-hidden="true" />
+                      <span>{project.characters.length} character{project.characters.length !== 1 ? 's' : ''}</span>
                     </div>
                   </div>
                   {project.id === activeProjectId && (
@@ -149,7 +149,7 @@ export const ProjectDropdown = memo(function ProjectDropdown() {
               onClick={handleNewProject}
               className={cn(
                 'w-full flex items-center gap-2 px-3 py-2 rounded-md',
-                'text-sm font-display font-medium text-text-body',
+                'type-ui text-text-body',
                 'transition-colors duration-150',
                 'hover:bg-surface hover:text-text-primary',
                 'focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary'

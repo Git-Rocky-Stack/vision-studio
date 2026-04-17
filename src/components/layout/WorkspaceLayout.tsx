@@ -110,7 +110,7 @@ export function WorkspaceLayout({
             <div className="flex-1 min-w-0 bg-void">
               {batchResults || <div className="flex-1" />}
             </div>
-            {/* Batch panel (right) — same width as Generate */}
+            {/* Batch panel (right) - same width as Generate */}
             {batchQueue && (
               <div className="w-[400px] flex-shrink-0 border-l border-border bg-surface overflow-hidden">
                 {batchQueue}

@@ -37,12 +37,12 @@ export function WorkbenchBoardsDock() {
   if (projects.length === 0) {
     return (
       <div className="flex h-full flex-col justify-center px-4 text-center">
-        <h3 className="font-display text-sm font-semibold text-text-primary">Quick Captures</h3>
+        <h3 className="type-section">Quick Captures</h3>
         <p className="mt-2 text-xs text-text-muted">No scenes captured yet.</p>
         <button
           type="button"
           onClick={handleCreateBoard}
-          className="mx-auto mt-4 inline-flex items-center gap-2 rounded-md border border-border px-3 py-2 font-display text-xs text-text-body transition-all hover:border-border-hover hover:bg-elevated hover:text-text-primary"
+          className="mx-auto mt-4 inline-flex items-center gap-2 rounded-md border border-border px-3 py-2 type-ui text-text-body transition-all hover:border-border-hover hover:bg-elevated hover:text-text-primary"
         >
           <Plus className="h-3.5 w-3.5" aria-hidden="true" />
           New Board
@@ -55,15 +55,15 @@ export function WorkbenchBoardsDock() {
     <div className="flex h-full min-h-0 flex-col bg-surface">
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-3 py-2">
         <div>
-          <h2 className="font-display text-sm font-semibold text-text-primary">Boards</h2>
-          <p className="mt-0.5 font-mono text-micro text-text-muted">{projects.length} active</p>
+          <h2 className="type-section">Boards</h2>
+          <p className="mt-0.5 type-caption">{projects.length} active</p>
         </div>
         <div className="flex items-center gap-1.5">
           <button
             type="button"
             onClick={handleOpenStoryboard}
             disabled={!activeProjectId}
-            className="inline-flex items-center rounded-md border border-border px-2.5 py-1.5 font-display text-xs text-text-body transition-all hover:border-border-hover hover:bg-elevated hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-40"
+            className="inline-flex items-center rounded-md border border-border px-2.5 py-1.5 type-ui text-text-body transition-all hover:border-border-hover hover:bg-elevated hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-40"
           >
             Open Storyboard
           </button>
@@ -71,14 +71,14 @@ export function WorkbenchBoardsDock() {
             type="button"
             onClick={handleAddScene}
             disabled={!activeProject}
-            className="inline-flex items-center rounded-md border border-border px-2.5 py-1.5 font-display text-xs text-text-body transition-all hover:border-border-hover hover:bg-elevated hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-40"
+            className="inline-flex items-center rounded-md border border-border px-2.5 py-1.5 type-ui text-text-body transition-all hover:border-border-hover hover:bg-elevated hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-40"
           >
             Add Scene
           </button>
           <button
             type="button"
             onClick={handleCreateBoard}
-            className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 font-display text-xs text-text-body transition-all hover:border-border-hover hover:bg-elevated hover:text-text-primary"
+            className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 type-ui text-text-body transition-all hover:border-border-hover hover:bg-elevated hover:text-text-primary"
           >
             <Plus className="h-3.5 w-3.5" aria-hidden="true" />
             New Board
@@ -103,10 +103,10 @@ export function WorkbenchBoardsDock() {
                       : 'border-transparent hover:border-border-hover hover:bg-elevated'
                   )}
                 >
-                  <span className="block truncate font-display text-xs font-semibold text-text-primary">
+                  <span className="block truncate type-ui text-text-primary">
                     {project.name}
                   </span>
-                  <span className="mt-1 block font-mono text-micro text-text-muted">
+                  <span className="mt-1 block type-caption">
                     {project.scenes.length} scenes
                   </span>
                 </button>
@@ -124,7 +124,7 @@ export function WorkbenchBoardsDock() {
                           aria-pressed={isSceneActive}
                           onClick={() => setActiveScene(scene.id)}
                           className={cn(
-                            'flex min-w-0 items-center gap-2 rounded-md border px-2.5 py-1.5 text-left font-display text-xs transition-all',
+                            'flex min-w-0 items-center gap-2 rounded-md border px-2.5 py-1.5 text-left type-ui transition-all',
                             isSceneActive
                               ? 'border-accent-primary-border bg-accent-primary-muted text-accent-primary'
                               : 'border-transparent text-text-body hover:border-border-hover hover:bg-elevated hover:text-text-primary'

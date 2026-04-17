@@ -175,12 +175,12 @@ export function ImagePreviewModal({
 
   const metadataRows: { icon: React.ElementType; label: string; value: string }[] = [
     { icon: Cpu, label: 'Model', value: result.params?.model || 'Unknown' },
-    { icon: Sliders, label: 'Steps', value: String(result.params?.steps || '—') },
-    { icon: Scale, label: 'CFG Scale', value: String(result.params?.cfgScale || '—') },
+    { icon: Sliders, label: 'Steps', value: String(result.params?.steps || '-') },
+    { icon: Scale, label: 'CFG Scale', value: String(result.params?.cfgScale || '-') },
     { icon: Hash, label: 'Seed', value: String(result.seed) },
-    { icon: Settings2, label: 'Scheduler', value: result.params?.scheduler || '—' },
+    { icon: Settings2, label: 'Scheduler', value: result.params?.scheduler || '-' },
     { icon: Clock, label: 'Time', value: `${result.generationTime.toFixed(1)}s` },
-    { icon: Monitor, label: 'Resolution', value: result.params?.resolution || `${result.params?.width || '—'} x ${result.params?.height || '—'}` },
+    { icon: Monitor, label: 'Resolution', value: result.params?.resolution || `${result.params?.width || '-'} x ${result.params?.height || '-'}` },
   ];
 
   return (
