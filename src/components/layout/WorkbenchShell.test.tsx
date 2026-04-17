@@ -37,6 +37,41 @@ describe('WorkbenchShell', () => {
     expect(screen.getByText('Settings content')).toBeInTheDocument();
   });
 
+  it('renders a left workbench dock beside the working area', () => {
+    render(
+      <WorkbenchShell
+        activeView="canvas"
+        onViewChange={vi.fn()}
+        leftDock={<div>Left settings content</div>}
+        canvas={<div>Canvas content</div>}
+        viewer={<div>Viewer content</div>}
+        workflow={<div>Workflow content</div>}
+      />
+    );
+
+    expect(screen.getByTestId('workbench-left-dock')).toHaveTextContent('Left settings content');
+    expect(screen.getByText('Canvas content')).toBeInTheDocument();
+  });
+
+  it('renders a custom right dock stack instead of tabbed right dock content', () => {
+    render(
+      <WorkbenchShell
+        activeView="canvas"
+        onViewChange={vi.fn()}
+        canvas={<div>Canvas content</div>}
+        viewer={<div>Viewer content</div>}
+        workflow={<div>Workflow content</div>}
+        rightDock={<div>Boards and Gallery stack</div>}
+        rightDockTabs={[
+          { id: 'settings', label: 'Settings', content: <div>Settings content</div> },
+        ]}
+      />
+    );
+
+    expect(screen.getByTestId('workbench-right-dock')).toHaveTextContent('Boards and Gallery stack');
+    expect(screen.queryByText('Settings content')).not.toBeInTheDocument();
+  });
+
   it('requests a workbench view change when the Workflow tab is clicked', () => {
     const onViewChange = vi.fn();
     render(

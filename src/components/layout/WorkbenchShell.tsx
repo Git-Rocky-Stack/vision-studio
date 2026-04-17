@@ -17,6 +17,8 @@ interface WorkbenchShellProps {
   canvas: ReactNode;
   viewer: ReactNode;
   workflow: ReactNode;
+  leftDock?: ReactNode;
+  rightDock?: ReactNode;
   rightDockTabs?: WorkbenchDockTab[];
   defaultDockTabId?: string;
   activeDockTabId?: string | null;
@@ -37,6 +39,8 @@ export function WorkbenchShell({
   canvas,
   viewer,
   workflow,
+  leftDock,
+  rightDock,
   rightDockTabs = [],
   defaultDockTabId,
   activeDockTabId: controlledDockTabId,
@@ -67,6 +71,15 @@ export function WorkbenchShell({
 
   return (
     <div className="flex h-full min-h-0 bg-void">
+      {leftDock && (
+        <aside
+          data-testid="workbench-left-dock"
+          className="flex w-[clamp(340px,28%,420px)] flex-shrink-0 flex-col border-r border-border bg-surface"
+        >
+          {leftDock}
+        </aside>
+      )}
+
       {toolRail && (
         <aside
           data-testid="workbench-tool-rail"
@@ -121,7 +134,16 @@ export function WorkbenchShell({
         )}
       </main>
 
-      {rightDockTabs.length > 0 && (
+      {rightDock && (
+        <aside
+          data-testid="workbench-right-dock"
+          className="flex w-[clamp(320px,30%,420px)] flex-shrink-0 flex-col border-l border-border bg-surface"
+        >
+          {rightDock}
+        </aside>
+      )}
+
+      {!rightDock && rightDockTabs.length > 0 && (
         <aside
           data-testid="workbench-right-dock"
           className="flex w-[clamp(320px,30%,420px)] flex-shrink-0 flex-col border-l border-border bg-surface"
