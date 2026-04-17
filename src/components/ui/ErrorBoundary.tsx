@@ -33,15 +33,15 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
           <div className="w-12 h-12 rounded-xl bg-red-aura flex items-center justify-center mb-4">
             <AlertTriangle className="w-6 h-6 text-red-primary" />
           </div>
-          <h3 className="font-display font-semibold text-text-primary text-sm mb-1">
+          <h3 className="type-section mb-1">
             {this.props.fallbackLabel || UI_STRINGS.errors.somethingWentWrong}
           </h3>
-          <p className="font-mono text-xs text-text-muted mb-4 max-w-xs text-center">
+          <p className="type-meta text-text-muted mb-4 max-w-xs text-center">
             {this.state.error?.message || UI_STRINGS.errors.unexpectedError}
           </p>
           <button
             onClick={this.handleRetry}
-            className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-elevated border border-border text-sm font-display text-text-primary hover:bg-surface transition-all"
+            className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-elevated border border-border type-ui text-text-primary hover:bg-surface transition-all"
           >
             <RefreshCw className="w-3.5 h-3.5" />
             {UI_STRINGS.actions.retry}

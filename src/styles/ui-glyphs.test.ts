@@ -35,6 +35,7 @@ const shellTypographyFiles = [
   'src/components/storyboard/ScenePlaybackStrip.tsx',
   'src/components/storyboard/TransitionIndicator.tsx',
   'src/components/ui/ConfirmDialog.tsx',
+  'src/components/ui/ErrorBoundary.tsx',
   'src/components/ui/ImageWithFallback.tsx',
   'src/pages/GeneratePanel.tsx',
   'src/pages/QuickGeneratePanel.tsx',
