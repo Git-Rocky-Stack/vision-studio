@@ -1,4 +1,5 @@
 import { useState, type ReactNode } from 'react';
+import { ChevronDown, ChevronRight } from 'lucide-react';
 
 interface WorkbenchRightStackSection {
   id: string;
@@ -40,9 +41,11 @@ export function WorkbenchRightStack({ sections }: WorkbenchRightStackProps) {
               }
             >
               <span>{section.label}</span>
-              <span aria-hidden="true" className="type-caption">
-                {isCollapsed ? '+' : '-'}
-              </span>
+              {isCollapsed ? (
+                <ChevronRight className="h-3.5 w-3.5 text-text-muted" aria-hidden="true" />
+              ) : (
+                <ChevronDown className="h-3.5 w-3.5 text-text-muted" aria-hidden="true" />
+              )}
             </button>
             {!isCollapsed ? <div className="min-h-0 flex-1 overflow-hidden">{section.content}</div> : null}
           </section>
