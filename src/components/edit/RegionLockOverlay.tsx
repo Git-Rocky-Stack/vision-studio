@@ -151,7 +151,7 @@ const RegionMask = memo(function RegionMask({
       <div
         className={cn(
           'absolute -top-6 left-0 flex items-center gap-1.5',
-          'px-2 py-0.5 rounded-md text-micro font-display font-medium whitespace-nowrap',
+          'px-2 py-0.5 rounded-md type-ui whitespace-nowrap',
           'pointer-events-none'
         )}
         style={{
@@ -167,14 +167,14 @@ const RegionMask = memo(function RegionMask({
 
       {/* Erase indicator */}
       {isEraseMask && (
-        <div className="absolute -top-5 -right-1 px-1 py-0.5 rounded-sm bg-sky-400 text-micro text-white font-display font-bold pointer-events-none">
+        <div className="absolute -top-5 -right-1 px-1 py-0.5 rounded-sm bg-sky-400 type-ui text-white font-bold pointer-events-none">
           ERASE
         </div>
       )}
 
       {/* Invert indicator */}
       {invertMask && (
-        <div className="absolute -top-5 -right-1 px-1 py-0.5 rounded-sm bg-red-primary text-micro text-white font-display font-bold pointer-events-none">
+        <div className="absolute -top-5 -right-1 px-1 py-0.5 rounded-sm bg-red-primary type-ui text-white font-bold pointer-events-none">
           INV
         </div>
       )}
