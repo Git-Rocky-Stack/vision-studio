@@ -207,13 +207,13 @@ export function QuickGeneratePanel() {
       <div className="px-4 py-3 border-b border-border flex items-center justify-between flex-shrink-0">
         <div className="flex items-center gap-2">
           <Wand2 className="w-4 h-4 text-accent-primary" aria-hidden="true" />
-          <h2 className="font-display font-semibold text-sm text-text-primary">Quick Generate</h2>
+          <h2 className="type-section">Quick Generate</h2>
         </div>
         {genStatus.status === 'success' && (
           <motion.div
             initial={{ scale: 0.8, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
-            className="flex items-center gap-1.5 text-status-success text-xs font-display font-medium"
+            className="flex items-center gap-1.5 type-ui text-status-success"
           >
             <CheckCircle2 className="w-3.5 h-3.5" aria-hidden="true" />
             Done
@@ -226,7 +226,7 @@ export function QuickGeneratePanel() {
         <div className="p-4 space-y-4">
           {/* Prompt */}
           <div className="space-y-1.5">
-            <label htmlFor="quick-prompt" className="text-micro font-display font-medium text-text-muted uppercase tracking-wider">
+            <label htmlFor="quick-prompt" className="type-ui text-text-muted">
               Prompt
             </label>
             <textarea
@@ -238,8 +238,7 @@ export function QuickGeneratePanel() {
               className={cn(
                 'w-full resize-none rounded-md bg-elevated border border-border',
                 'px-3 py-2.5 text-sm text-text-primary placeholder:text-text-muted/50',
-                'focus:outline-none focus:ring-2 focus:ring-accent-primary/40 focus:border-accent-primary',
-                'font-display'
+                'focus:outline-none focus:ring-2 focus:ring-accent-primary/40 focus:border-accent-primary'
               )}
               disabled={genStatus.isGenerating}
             />
@@ -247,7 +246,7 @@ export function QuickGeneratePanel() {
 
           {/* Negative Prompt */}
           <div className="space-y-1.5">
-            <label htmlFor="quick-neg-prompt" className="text-micro font-display font-medium text-text-muted uppercase tracking-wider">
+            <label htmlFor="quick-neg-prompt" className="type-ui text-text-muted">
               Negative Prompt
             </label>
             <textarea
@@ -259,8 +258,7 @@ export function QuickGeneratePanel() {
               className={cn(
                 'w-full resize-none rounded-md bg-elevated border border-border',
                 'px-3 py-2.5 text-sm text-text-primary placeholder:text-text-muted/50',
-                'focus:outline-none focus:ring-2 focus:ring-accent-primary/40 focus:border-accent-primary',
-                'font-display'
+                'focus:outline-none focus:ring-2 focus:ring-accent-primary/40 focus:border-accent-primary'
               )}
               disabled={genStatus.isGenerating}
             />
@@ -269,7 +267,7 @@ export function QuickGeneratePanel() {
           {/* Model selector */}
           <div className="space-y-2">
             <div>
-              <label className="text-micro font-display font-medium text-text-muted uppercase tracking-wider">
+              <label className="type-ui text-text-muted">
                 Model Router
               </label>
               <p className="mt-1 text-xs text-text-muted">
@@ -285,7 +283,7 @@ export function QuickGeneratePanel() {
 
           {/* Aspect ratio */}
           <div className="space-y-1.5">
-            <label className="text-micro font-display font-medium text-text-muted uppercase tracking-wider">
+            <label className="type-ui text-text-muted">
               Aspect Ratio
             </label>
             <div className="grid grid-cols-4 gap-1.5">
@@ -301,8 +299,8 @@ export function QuickGeneratePanel() {
                       : 'bg-elevated text-text-body border-border hover:border-border-hover hover:text-text-primary'
                   )}
                 >
-                  <span className="font-display font-bold">{ratio.icon}</span>
-                  <span className="text-micro font-display">{ratio.name}</span>
+                  <span className="type-ui">{ratio.icon}</span>
+                  <span className="type-caption">{ratio.name}</span>
                 </button>
               ))}
             </div>
@@ -322,7 +320,7 @@ export function QuickGeneratePanel() {
           >
             <div className="flex items-start gap-2 py-2 px-3 rounded-md bg-status-error-muted border border-status-error-border text-status-error">
               <AlertCircle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" aria-hidden="true" />
-              <p className="text-xs font-display">{genStatus.errorMessage}</p>
+              <p className="type-ui">{genStatus.errorMessage}</p>
             </div>
           </motion.div>
         )}
@@ -339,8 +337,8 @@ export function QuickGeneratePanel() {
           >
             <div className="px-4 pt-2 pb-1">
               <div className="flex items-center justify-between mb-1">
-                <span className="text-micro font-display text-text-muted">Generating...</span>
-                <span className="text-micro font-display text-text-muted">{genStatus.progress}%</span>
+                <span className="type-caption">Generating...</span>
+                <span className="type-caption">{genStatus.progress}%</span>
               </div>
               <div className="h-1 bg-void rounded-full overflow-hidden">
                 <motion.div

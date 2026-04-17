@@ -21,6 +21,7 @@ const shellTypographyFiles = [
   'src/components/layout/WorkbenchShell.tsx',
   'src/components/layout/WorkbenchViewer.tsx',
   'src/pages/GeneratePanel.tsx',
+  'src/pages/QuickGeneratePanel.tsx',
 ];
 
 describe('app UI glyph policy', () => {
