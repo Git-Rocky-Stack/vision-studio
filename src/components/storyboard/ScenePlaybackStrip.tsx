@@ -95,7 +95,7 @@ export const ScenePlaybackStrip = memo(function ScenePlaybackStrip({
   if (sortedScenes.length === 0) {
     return (
       <div className="h-12 bg-elevated border-t border-border flex items-center justify-center px-4">
-        <p className="text-xs text-text-muted font-display">
+        <p className="type-caption">
           No scenes to play - add scenes to your storyboard
         </p>
       </div>
@@ -137,7 +137,7 @@ export const ScenePlaybackStrip = memo(function ScenePlaybackStrip({
           <SkipForward className="w-3.5 h-3.5" />
         </button>
 
-        <span className="font-mono text-micro text-text-muted ml-2">
+        <span className="type-meta text-text-muted ml-2">
           {currentPlaySceneIndex + 1}/{sortedScenes.length}
         </span>
       </div>
