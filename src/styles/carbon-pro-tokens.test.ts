@@ -5,9 +5,22 @@ import { describe, expect, it } from 'vitest';
 const css = readFileSync(resolve(process.cwd(), 'src/index.css'), 'utf8');
 
 describe('Carbon Pro design tokens', () => {
+  it('defines an AMOLED-neutral Carbon Pro shell without green or blue tinted greys', () => {
+    expect(css).toContain('--color-void: #000000');
+    expect(css).toContain('--color-canvas: #050505');
+    expect(css).toContain('--color-surface: #0d0d0d');
+    expect(css).toContain('--color-elevated: #141414');
+    expect(css).toContain('--color-panel: #101010');
+    expect(css).toContain('--color-panel-raised: #1a1a1a');
+    expect(css).toContain('--color-text-primary: #f5f5f5');
+    expect(css).toContain('--color-text-body: #b3b3b3');
+    expect(css).toContain('--color-text-muted: #7a7a7a');
+    expect(css).toContain('--color-border: rgba(255, 255, 255, 0.08)');
+  });
+
   it('defines the Carbon Pro primary accent and capability palette', () => {
-    expect(css).toContain('--color-accent-primary: #d9dee3');
-    expect(css).toContain('--color-accent-primary-muted: rgba(217, 222, 227, 0.1)');
+    expect(css).toContain('--color-accent-primary: #e6e6e6');
+    expect(css).toContain('--color-accent-primary-muted: rgba(230, 230, 230, 0.1)');
     expect(css).toContain('--color-capability-image:');
     expect(css).toContain('--color-capability-video:');
     expect(css).toContain('--color-capability-edit:');

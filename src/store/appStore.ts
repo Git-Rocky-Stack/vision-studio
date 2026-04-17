@@ -94,7 +94,7 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
     name: 'YouTube Thumbnail',
     description: 'High-impact 1280x720 thumbnail for YouTube videos',
     category: 'youtube',
-    thumbnail: '🎬',
+    thumbnail: 'YT',
     settings: {
       width: 1280, height: 720, model: 'flux-dev', steps: 25, cfgScale: 7.5,
       prompt: 'cinematic YouTube thumbnail, dramatic lighting, bold text overlay area, professional, high contrast, vibrant colors',
@@ -106,7 +106,7 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
     name: 'TikTok/Reels',
     description: '9:16 vertical format for short-form video',
     category: 'social',
-    thumbnail: '📱',
+    thumbnail: '9:16',
     settings: {
       width: 720, height: 1280, model: 'flux-dev', steps: 25, cfgScale: 7.5,
       prompt: 'vertical mobile content, vibrant colors, eye-catching, social media style, modern aesthetic',
@@ -118,7 +118,7 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
     name: 'Instagram Post',
     description: '1:1 square format for Instagram feed',
     category: 'social',
-    thumbnail: '📸',
+    thumbnail: '1:1',
     settings: {
       width: 1080, height: 1080, model: 'flux-dev', steps: 25, cfgScale: 7.5,
       prompt: 'Instagram aesthetic, cohesive color palette, lifestyle photography style, polished, engaging',
@@ -130,7 +130,7 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
     name: 'Stories',
     description: '9:16 format for Instagram/Facebook Stories',
     category: 'social',
-    thumbnail: '✨',
+    thumbnail: 'ST',
     settings: {
       width: 1080, height: 1920, model: 'flux-dev', steps: 20, cfgScale: 7.0,
       prompt: 'story format, immersive, full screen, engaging, social media story aesthetic',
@@ -142,7 +142,7 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
     name: 'Cinematic Wide',
     description: '16:9 widescreen for cinematic content',
     category: 'art',
-    thumbnail: '🎞️',
+    thumbnail: 'CIN',
     settings: {
       width: 1920, height: 1080, model: 'flux-dev', steps: 30, cfgScale: 7.5,
       prompt: 'cinematic composition, film grain, anamorphic lens, dramatic lighting, movie still, high production value',
@@ -154,7 +154,7 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
     name: 'Product Showcase',
     description: 'Clean professional product photography',
     category: 'marketing',
-    thumbnail: '🛍️',
+    thumbnail: 'PRD',
     settings: {
       width: 1024, height: 1024, model: 'flux-dev', steps: 30, cfgScale: 8.0,
       prompt: 'professional product photography, clean background, studio lighting, commercial quality, sharp focus',
@@ -166,7 +166,7 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
     name: 'AI Portrait',
     description: 'Optimized for AI portrait generation',
     category: 'art',
-    thumbnail: '👤',
+    thumbnail: 'POR',
     settings: {
       width: 896, height: 1152, model: 'flux-dev', steps: 25, cfgScale: 7.5,
       prompt: 'portrait, professional headshot, studio lighting, sharp focus, detailed skin texture, flattering angle',
@@ -178,7 +178,7 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
     name: '4K Wallpaper',
     description: 'High-res desktop wallpaper',
     category: 'art',
-    thumbnail: '🖥️',
+    thumbnail: '4K',
     settings: {
       width: 1920, height: 1080, model: 'flux-dev', steps: 35, cfgScale: 7.5,
       prompt: 'desktop wallpaper, detailed, high resolution, crisp, clean composition, visually stunning',

@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
@@ -62,9 +62,51 @@ describe('WorkbenchViewer', () => {
 
     expect(useAppStore.getState().comparisonImages).toEqual(['/outputs/neon.png']);
   });
+
+  it('renders a compare review surface when two outputs are pinned', () => {
+    seedViewerState({
+      comparisonImages: ['/outputs/neon.png', '/outputs/castle.png'],
+      comparisonMode: 'side-by-side',
+    });
+
+    render(<WorkbenchViewer />);
+
+    const compareReview = screen.getByRole('region', { name: 'Compare review' });
+    expect(within(compareReview).getByText('2 pinned')).toBeInTheDocument();
+    expect(within(compareReview).getByAltText('Compare Neon marketplace')).toBeInTheDocument();
+    expect(within(compareReview).getByAltText('Compare Batch result')).toBeInTheDocument();
+  });
+
+  it('clears pinned comparison outputs from the compare review surface', async () => {
+    const user = userEvent.setup();
+    seedViewerState({
+      comparisonImages: ['/outputs/neon.png', '/outputs/castle.png'],
+      comparisonMode: 'side-by-side',
+    });
+
+    render(<WorkbenchViewer />);
+    await user.click(screen.getByRole('button', { name: 'Clear Compare' }));
+
+    const state = useAppStore.getState();
+    expect(state.comparisonImages).toEqual([]);
+    expect(state.comparisonMode).toBe('off');
+  });
+
+  it('starts side-by-side comparison mode when a second output is pinned', async () => {
+    const user = userEvent.setup();
+    seedViewerState({ comparisonImages: ['/outputs/neon.png'] });
+
+    render(<WorkbenchViewer />);
+    await user.click(screen.getByRole('button', { name: /review Batch result/i }));
+    await user.click(screen.getByRole('button', { name: 'Pin Compare' }));
+
+    const state = useAppStore.getState();
+    expect(state.comparisonImages).toEqual(['/outputs/neon.png', '/outputs/castle.png']);
+    expect(state.comparisonMode).toBe('side-by-side');
+  });
 });
 
-function seedViewerState() {
+function seedViewerState(overrides: Partial<ReturnType<typeof useAppStore.getState>> = {}) {
   useAppStore.setState({
     assetLibrary: [
       {
@@ -99,5 +141,6 @@ function seedViewerState() {
         isFavorite: true,
       },
     ],
+    ...overrides,
   });
 }

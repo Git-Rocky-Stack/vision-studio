@@ -43,6 +43,13 @@ const DIMENSION_PRESETS = [
   { label: 'YouTube', width: 1280, height: 720 },
 ];
 
+const CATEGORY_THUMBNAILS: Record<ProjectTemplate['category'], string> = {
+  youtube: 'YT',
+  social: 'SOC',
+  marketing: 'MKT',
+  art: 'ART',
+};
+
 interface TemplateCreatorProps {
   onClose: () => void;
   editingTemplate?: ProjectTemplate | null;
@@ -100,7 +107,7 @@ export function TemplateCreator({ onClose, editingTemplate }: TemplateCreatorPro
   };
 
   const handleSave = () => {
-    const thumbnail = category === 'youtube' ? '🎬' : category === 'social' ? '📱' : category === 'marketing' ? '🛍️' : '🎨';
+    const thumbnail = CATEGORY_THUMBNAILS[category];
 
     const templateData: ProjectTemplate = {
       id: editingTemplate?.id || crypto.randomUUID(),

@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { GitCompare, ImageIcon, Pencil } from 'lucide-react';
+import { Columns2, GitCompare, ImageIcon, Pencil, X } from 'lucide-react';
 
 import { useAppStore } from '@/store/appStore';
 import { ImageWithFallback } from '@/components/ui/ImageWithFallback';
@@ -24,7 +24,9 @@ export function WorkbenchViewer() {
     assetLibrary,
     batchResults,
     comparisonImages,
+    comparisonMode,
     setComparisonImages,
+    setComparisonMode,
     setCurrentImage,
     setActivePanel,
   } = useAppStore();
@@ -66,6 +68,41 @@ export function WorkbenchViewer() {
 
   const activeItem = items.find((item) => item.id === activeItemId) ?? items[0] ?? null;
   const isPinned = activeItem ? comparisonImages.includes(activeItem.imagePath) : false;
+  const pinnedItems = useMemo<ViewerItem[]>(() => {
+    const itemsByPath = new Map(items.map((item) => [item.imagePath, item]));
+
+    return comparisonImages.slice(0, 4).map((imagePath, index) => {
+      const item = itemsByPath.get(imagePath);
+      if (item) return item;
+
+      return {
+        id: `pinned-${index}-${imagePath}`,
+        label: `Pinned output ${index + 1}`,
+        source: 'Pinned output',
+        imagePath,
+        assetPath: null,
+        thumbnail: imagePath,
+        prompt: 'Pinned output',
+        model: null,
+        seed: null,
+        runtime: null,
+        createdAt: 0,
+      };
+    });
+  }, [comparisonImages, items]);
+  const showCompareReview = pinnedItems.length >= 2;
+
+  const updateComparisonImages = (nextImages: string[]) => {
+    setComparisonImages(nextImages);
+
+    if (nextImages.length >= 2 && comparisonMode === 'off') {
+      setComparisonMode('side-by-side');
+    }
+
+    if (nextImages.length < 2) {
+      setComparisonMode('off');
+    }
+  };
 
   const sendToEdit = () => {
     if (!activeItem) return;
@@ -78,11 +115,25 @@ export function WorkbenchViewer() {
     if (!activeItem) return;
 
     if (isPinned) {
-      setComparisonImages(comparisonImages.filter((image) => image !== activeItem.imagePath));
+      updateComparisonImages(comparisonImages.filter((image) => image !== activeItem.imagePath));
       return;
     }
 
-    setComparisonImages([...comparisonImages, activeItem.imagePath].slice(-4));
+    updateComparisonImages([...comparisonImages, activeItem.imagePath].slice(-4));
+  };
+
+  const clearCompare = () => {
+    updateComparisonImages([]);
+  };
+
+  const removeCompareImage = (imagePath: string) => {
+    updateComparisonImages(comparisonImages.filter((image) => image !== imagePath));
+  };
+
+  const startSideBySideCompare = () => {
+    if (comparisonImages.length >= 2) {
+      setComparisonMode('side-by-side');
+    }
   };
 
   if (!activeItem) {
@@ -102,12 +153,21 @@ export function WorkbenchViewer() {
   return (
     <div className="flex h-full min-h-0 flex-col bg-void">
       <div className="flex min-h-0 flex-1 items-center justify-center p-4">
-        <ImageWithFallback
-          src={activeItem.imagePath}
-          alt={activeItem.label}
-          className="max-h-full max-w-full object-contain"
-          fallbackClassName="h-full w-full"
-        />
+        {showCompareReview ? (
+          <CompareReview
+            items={pinnedItems}
+            onClear={clearCompare}
+            onRemove={removeCompareImage}
+            onStartSideBySide={startSideBySideCompare}
+          />
+        ) : (
+          <ImageWithFallback
+            src={activeItem.imagePath}
+            alt={activeItem.label}
+            className="max-h-full max-w-full object-contain"
+            fallbackClassName="h-full w-full"
+          />
+        )}
       </div>
 
       <div className="flex flex-shrink-0 border-t border-border bg-surface">
@@ -189,6 +249,76 @@ export function WorkbenchViewer() {
         </aside>
       </div>
     </div>
+  );
+}
+
+function CompareReview({
+  items,
+  onClear,
+  onRemove,
+  onStartSideBySide,
+}: {
+  items: ViewerItem[];
+  onClear: () => void;
+  onRemove: (imagePath: string) => void;
+  onStartSideBySide: () => void;
+}) {
+  return (
+    <section
+      aria-label="Compare review"
+      className="flex h-full w-full min-h-0 flex-col rounded-md border border-border bg-canvas"
+    >
+      <div className="flex flex-shrink-0 items-center justify-between gap-3 border-b border-border px-4 py-3">
+        <div>
+          <h2 className="font-display text-sm font-semibold text-text-primary">Compare review</h2>
+          <p className="mt-1 font-mono text-micro text-text-muted">{items.length} pinned</p>
+        </div>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={onStartSideBySide}
+            className="inline-flex items-center gap-2 rounded-md border border-accent-primary-border bg-accent-primary-muted px-3 py-2 text-xs font-display text-accent-primary transition-all hover:bg-elevated"
+          >
+            <Columns2 className="h-3.5 w-3.5" />
+            Side by Side
+          </button>
+          <button
+            type="button"
+            onClick={onClear}
+            className="inline-flex items-center gap-2 rounded-md border border-border px-3 py-2 text-xs font-display text-text-body transition-all hover:border-border-hover hover:bg-elevated hover:text-text-primary"
+          >
+            Clear Compare
+          </button>
+        </div>
+      </div>
+
+      <div className="grid min-h-0 flex-1 grid-cols-2 gap-3 p-3">
+        {items.map((item, index) => (
+          <article key={`${item.id}-${index}`} className="relative min-h-0 overflow-hidden rounded-md border border-border bg-void">
+            <ImageWithFallback
+              src={item.imagePath}
+              alt={`Compare ${item.label}`}
+              className="h-full w-full object-contain"
+              fallbackClassName="h-full w-full"
+            />
+            <div className="absolute left-3 right-3 top-3 flex items-start justify-between gap-2">
+              <div className="min-w-0 rounded-md border border-border bg-void/70 px-2 py-1 backdrop-blur-sm">
+                <p className="truncate font-display text-xs font-semibold text-text-primary">{item.label}</p>
+                <p className="mt-0.5 font-mono text-micro text-text-muted">{item.source}</p>
+              </div>
+              <button
+                type="button"
+                aria-label={`Remove ${item.label} from compare`}
+                onClick={() => onRemove(item.imagePath)}
+                className="rounded-md border border-border bg-void/70 p-1.5 text-text-muted transition-all hover:border-border-hover hover:text-text-primary"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          </article>
+        ))}
+      </div>
+    </section>
   );
 }
 

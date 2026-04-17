@@ -2,30 +2,30 @@
 
 @theme {
   /* Carbon Pro Color Architecture */
-  --color-void: #070809;
-  --color-canvas: #0d0f10;
-  --color-surface: #111416;
-  --color-elevated: #181c1f;
-  --color-panel: #15191c;
-  --color-panel-raised: #1c2226;
-  --color-overlay: rgba(18, 22, 24, 0.82);
+  --color-void: #000000;
+  --color-canvas: #050505;
+  --color-surface: #0d0d0d;
+  --color-elevated: #141414;
+  --color-panel: #101010;
+  --color-panel-raised: #1a1a1a;
+  --color-overlay: rgba(0, 0, 0, 0.86);
 
   /* Signature accent system */
-  --color-accent-primary: #d9dee3;
-  --color-accent-primary-hover: #f4f7fa;
-  --color-accent-primary-pressed: #aeb6bf;
-  --color-accent-primary-muted: rgba(217, 222, 227, 0.1);
-  --color-accent-primary-border: rgba(217, 222, 227, 0.28);
-  --color-accent-primary-glow: rgba(217, 222, 227, 0.2);
+  --color-accent-primary: #e6e6e6;
+  --color-accent-primary-hover: #ffffff;
+  --color-accent-primary-pressed: #b8b8b8;
+  --color-accent-primary-muted: rgba(230, 230, 230, 0.1);
+  --color-accent-primary-border: rgba(230, 230, 230, 0.28);
+  --color-accent-primary-glow: rgba(230, 230, 230, 0.2);
 
   /* Text hierarchy - WCAG AA compliant */
-  --color-text-primary: #f4f6f3;
-  --color-text-body: #a7aea8;
-  --color-text-muted: #788179;
+  --color-text-primary: #f5f5f5;
+  --color-text-body: #b3b3b3;
+  --color-text-muted: #7a7a7a;
 
   /* Borders */
-  --color-border: rgba(229, 235, 224, 0.08);
-  --color-border-hover: rgba(229, 235, 224, 0.16);
+  --color-border: rgba(255, 255, 255, 0.08);
+  --color-border-hover: rgba(255, 255, 255, 0.16);
 
   /* Status colors */
   --color-status-success: #22c55e;
@@ -176,8 +176,8 @@
 
   /* Cinematic and brand shadows */
   --shadow-cinematic: 0 1px 0 rgba(255, 255, 255, 0.03), 0 18px 48px rgba(0, 0, 0, 0.38), 0 4px 12px rgba(0, 0, 0, 0.25);
-  --shadow-accent: 0 0 0 1px var(--color-accent-primary-border), 0 0 18px rgba(217, 222, 227, 0.08), 0 12px 28px rgba(0, 0, 0, 0.32);
-  --shadow-accent-subtle: 0 0 0 1px var(--color-accent-primary-border), 0 0 12px rgba(217, 222, 227, 0.06);
+  --shadow-accent: 0 0 0 1px var(--color-accent-primary-border), 0 0 18px rgba(230, 230, 230, 0.08), 0 12px 28px rgba(0, 0, 0, 0.32);
+  --shadow-accent-subtle: 0 0 0 1px var(--color-accent-primary-border), 0 0 12px rgba(230, 230, 230, 0.06);
   --shadow-glow-red: 0 0 8px rgba(239, 68, 68, 0.18), 0 0 18px rgba(239, 68, 68, 0.1), 0 2px 8px rgba(0, 0, 0, 0.4);
   --shadow-glow-red-subtle: 0 0 0 1px var(--color-status-error-border), 0 0 10px rgba(239, 68, 68, 0.08);
   --shadow-glow-red-strong: 0 0 12px rgba(239, 68, 68, 0.28), 0 0 28px rgba(239, 68, 68, 0.16), 0 0 48px rgba(239, 68, 68, 0.1);
@@ -256,24 +256,24 @@ body {
 
 :root[data-theme='light'],
 body[data-theme='light'] {
-  --color-void: #f4f5f0;
-  --color-canvas: #fbfcf7;
+  --color-void: #f4f4f4;
+  --color-canvas: #fbfbfb;
   --color-surface: #ffffff;
-  --color-elevated: #eef1ea;
-  --color-panel: #f7f8f4;
+  --color-elevated: #eeeeee;
+  --color-panel: #f7f7f7;
   --color-panel-raised: #ffffff;
   --color-overlay: rgba(255, 255, 255, 0.86);
-  --color-accent-primary: #3f464d;
-  --color-accent-primary-hover: #252b30;
-  --color-accent-primary-pressed: #171b1f;
-  --color-accent-primary-muted: rgba(63, 70, 77, 0.08);
-  --color-accent-primary-border: rgba(63, 70, 77, 0.24);
-  --color-accent-primary-glow: rgba(63, 70, 77, 0.16);
-  --color-text-primary: #161a17;
-  --color-text-body: #4c554d;
-  --color-text-muted: #687269;
-  --color-border: rgba(22, 26, 23, 0.09);
-  --color-border-hover: rgba(22, 26, 23, 0.18);
+  --color-accent-primary: #404040;
+  --color-accent-primary-hover: #262626;
+  --color-accent-primary-pressed: #171717;
+  --color-accent-primary-muted: rgba(64, 64, 64, 0.08);
+  --color-accent-primary-border: rgba(64, 64, 64, 0.24);
+  --color-accent-primary-glow: rgba(64, 64, 64, 0.16);
+  --color-text-primary: #171717;
+  --color-text-body: #525252;
+  --color-text-muted: #707070;
+  --color-border: rgba(0, 0, 0, 0.09);
+  --color-border-hover: rgba(0, 0, 0, 0.18);
   --color-status-success: #16a34a;
   --color-status-success-muted: rgba(22, 163, 74, 0.08);
   --color-status-success-border: rgba(22, 163, 74, 0.2);
@@ -377,10 +377,10 @@ p, li, dd, blockquote {
 
 @keyframes pulse-glow {
   0%, 100% {
-    box-shadow: 0 0 5px rgba(217, 222, 227, 0.14);
+    box-shadow: 0 0 5px rgba(230, 230, 230, 0.14);
   }
   50% {
-    box-shadow: 0 0 18px rgba(217, 222, 227, 0.2);
+    box-shadow: 0 0 18px rgba(230, 230, 230, 0.2);
   }
 }
 
@@ -416,13 +416,13 @@ p, li, dd, blockquote {
 @keyframes glow-pulse {
   0%, 100% {
     box-shadow:
-      0 0 8px rgba(217, 222, 227, 0.1),
-      0 0 18px rgba(217, 222, 227, 0.05);
+      0 0 8px rgba(230, 230, 230, 0.1),
+      0 0 18px rgba(230, 230, 230, 0.05);
   }
   50% {
     box-shadow:
-      0 0 10px rgba(217, 222, 227, 0.16),
-      0 0 24px rgba(217, 222, 227, 0.08);
+      0 0 10px rgba(230, 230, 230, 0.16),
+      0 0 24px rgba(230, 230, 230, 0.08);
   }
 }
 
