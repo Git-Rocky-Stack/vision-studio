@@ -372,6 +372,13 @@ body[data-theme='light'] {
   color: var(--color-text-muted);
 }
 
+.type-badge {
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-micro);
+  font-weight: var(--font-weight-medium);
+  line-height: 1;
+}
+
 .type-meta {
   font-family: var(--font-family-mono);
   font-size: var(--font-size-xs);

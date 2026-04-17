@@ -245,7 +245,7 @@ export function EditPropertiesPanel() {
           >
             <Undo2 className="w-4 h-4" />
             {undoCount > 0 && (
-              <span className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-red-primary text-text-primary text-[8px] font-mono flex items-center justify-center">
+              <span className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-red-primary text-text-primary type-badge flex items-center justify-center">
                 {Math.min(undoCount, 99)}
               </span>
             )}
@@ -291,7 +291,7 @@ export function EditPropertiesPanel() {
                 aria-controls={`tabpanel-${tab.id}`}
                 onClick={() => setActiveTab(tab.id)}
                 className={cn(
-                  'flex-1 flex flex-col items-center gap-1 py-2 rounded-lg transition-all font-display text-micro',
+                  'flex-1 flex flex-col items-center gap-1 py-2 rounded-lg transition-all type-caption',
                   isActive
                     ? 'bg-red-aura text-red-primary'
                     : 'text-text-body hover:text-text-primary hover:bg-elevated'
@@ -358,7 +358,7 @@ export function EditPropertiesPanel() {
               <div className="pt-4 border-t border-border">
                 <button
                   onClick={resetImageAdjustments}
-                  className="flex items-center gap-2 w-full py-2 text-sm text-text-muted hover:text-text-primary transition-all font-display justify-center"
+                  className="flex items-center gap-2 w-full py-2 type-ui text-text-muted hover:text-text-primary transition-all justify-center"
                 >
                   <RotateCcw className="w-3.5 h-3.5" />
                   Reset All Adjustments
@@ -465,10 +465,10 @@ export function EditPropertiesPanel() {
               ) : (
                 <div className="flex flex-col items-center justify-center py-12 text-center">
                   <Lock className="w-8 h-8 text-text-muted mb-3 opacity-40" />
-                  <p className="font-display text-sm text-text-muted">
+                  <p className="type-caption">
                     No region selected
                   </p>
-                  <p className="font-display text-xs text-text-muted mt-1 mb-4">
+                  <p className="type-caption mt-1 mb-4">
                     Create a region lock, then draw its mask on the canvas
                   </p>
                   <button
@@ -487,12 +487,12 @@ export function EditPropertiesPanel() {
                       setActiveRegionId(lock.id);
                       setActiveMaskTool('rectangle');
                     }}
-                    className="px-4 py-2 rounded-lg bg-red-primary text-white text-sm font-display font-medium hover:bg-red-highlight active:bg-red-pressed transition-colors disabled:opacity-40 disabled:cursor-not-allowed focus:outline-none focus-visible:ring-2 focus-visible:ring-red-primary"
+                    className="px-4 py-2 rounded-lg bg-red-primary text-white type-ui hover:bg-red-highlight active:bg-red-pressed transition-colors disabled:opacity-40 disabled:cursor-not-allowed focus:outline-none focus-visible:ring-2 focus-visible:ring-red-primary"
                   >
                     Create Region Lock
                   </button>
                   {!activeSceneId && (
-                    <p className="font-display text-xs text-text-muted mt-3">
+                    <p className="type-caption mt-3">
                       Select a scene first
                     </p>
                   )}

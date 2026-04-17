@@ -24,6 +24,7 @@ const shellTypographyFiles = [
   'src/components/canvas/ComparisonToolbar.tsx',
   'src/components/canvas/GenerationQueue.tsx',
   'src/components/canvas/GenerationProgress.tsx',
+  'src/components/edit/EditPropertiesPanel.tsx',
   'src/components/edit/RegionLockOverlay.tsx',
   'src/components/edit/RegionLockProperties.tsx',
   'src/components/edit/RegionLockToolbar.tsx',
