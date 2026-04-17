@@ -28,7 +28,7 @@ export const CharacterAssignmentChip = memo(function CharacterAssignmentChip({
       className={cn(
         'inline-flex items-center gap-1.5 pl-1 pr-2 py-0.5 rounded-full',
         'bg-elevated border border-border',
-        'text-xs font-display font-medium text-text-primary',
+        'type-ui text-text-primary',
         'transition-colors duration-150',
         'hover:border-red-primary/40'
       )}
@@ -52,7 +52,7 @@ export const CharacterAssignmentChip = memo(function CharacterAssignmentChip({
           {lockedFeatures.map((feature) => (
             <span
               key={feature}
-              className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-sm bg-red-aura text-micro text-red-primary font-display font-bold"
+              className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-sm bg-red-aura type-ui text-red-primary font-bold"
               title={feature.charAt(0).toUpperCase() + feature.slice(1)}
             >
               {FEATURE_ICONS[feature]}
