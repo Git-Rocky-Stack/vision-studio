@@ -74,7 +74,7 @@ export function WorkbenchShell({
       {leftDock && (
         <aside
           data-testid="workbench-left-dock"
-          className="flex w-[clamp(340px,28%,420px)] flex-shrink-0 flex-col border-r border-border bg-surface"
+          className="flex w-[clamp(300px,32%,420px)] flex-shrink-0 flex-col border-r border-border bg-surface"
         >
           {leftDock}
         </aside>
@@ -137,7 +137,7 @@ export function WorkbenchShell({
       {rightDock && (
         <aside
           data-testid="workbench-right-dock"
-          className="flex w-[clamp(320px,30%,420px)] flex-shrink-0 flex-col border-l border-border bg-surface"
+          className="hidden w-[clamp(280px,30%,420px)] flex-shrink-0 flex-col border-l border-border bg-surface lg:flex"
         >
           {rightDock}
         </aside>
@@ -146,7 +146,7 @@ export function WorkbenchShell({
       {!rightDock && rightDockTabs.length > 0 && (
         <aside
           data-testid="workbench-right-dock"
-          className="flex w-[clamp(320px,30%,420px)] flex-shrink-0 flex-col border-l border-border bg-surface"
+          className="hidden w-[clamp(280px,30%,420px)] flex-shrink-0 flex-col border-l border-border bg-surface lg:flex"
         >
           <div className="border-b border-border px-2 py-2">
             <div className="flex gap-1" role="tablist" aria-label="Workbench context">
