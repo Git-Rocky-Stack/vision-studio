@@ -27,7 +27,7 @@ export function ImageWithFallback({
       {state === 'error' && (
         <div className="absolute inset-0 flex flex-col items-center justify-center bg-elevated gap-1">
           <AlertCircle className="w-5 h-5 text-red-primary" aria-hidden="true" />
-          <span className="text-micro text-text-muted font-display">Failed to load</span>
+          <span className="type-caption">Failed to load</span>
         </div>
       )}
       {src && (
