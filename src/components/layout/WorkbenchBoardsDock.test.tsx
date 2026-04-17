@@ -146,6 +146,64 @@ describe('WorkbenchBoardsDock', () => {
     expect(useAppStore.getState().activeSceneId).toBe(secondScene.id);
   });
 
+  it('groups active board scenes by status', () => {
+    const board = makeProject({
+      id: 'board-1',
+      name: 'Campaign Boards',
+      scenes: [
+        makeScene({ id: 'scene-draft', name: 'Draft concept', status: 'draft', orderIndex: 0 }),
+        makeScene({ id: 'scene-queued', name: 'Queued render', status: 'queued', orderIndex: 1 }),
+        makeScene({ id: 'scene-generating', name: 'Generating render', status: 'generating', orderIndex: 2 }),
+        makeScene({ id: 'scene-complete', name: 'Approved frame', status: 'complete', orderIndex: 3 }),
+        makeScene({ id: 'scene-error', name: 'Failed frame', status: 'error', orderIndex: 4 }),
+      ],
+    });
+    useAppStore.setState({ projects: [board], activeProjectId: board.id });
+
+    render(<WorkbenchBoardsDock />);
+
+    expect(screen.getByRole('heading', { name: 'In Progress' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Complete' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Draft' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Needs Attention' })).toBeInTheDocument();
+  });
+
+  it('orders scenes inside status groups by order index', () => {
+    const board = makeProject({
+      id: 'board-1',
+      name: 'Campaign Boards',
+      scenes: [
+        makeScene({ id: 'scene-late', name: 'Late draft', status: 'draft', orderIndex: 2 }),
+        makeScene({ id: 'scene-early', name: 'Early draft', status: 'draft', orderIndex: 0 }),
+      ],
+    });
+    useAppStore.setState({ projects: [board], activeProjectId: board.id });
+
+    render(<WorkbenchBoardsDock />);
+
+    const earlyScene = screen.getByRole('button', { name: 'Early draft' });
+    const lateScene = screen.getByRole('button', { name: 'Late draft' });
+    expect(earlyScene.compareDocumentPosition(lateScene) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('selects a scene from a grouped board section', async () => {
+    const user = userEvent.setup();
+    const board = makeProject({
+      id: 'board-1',
+      name: 'Campaign Boards',
+      scenes: [
+        makeScene({ id: 'scene-queued', name: 'Queued render', status: 'queued', orderIndex: 0 }),
+        makeScene({ id: 'scene-complete', name: 'Approved frame', status: 'complete', orderIndex: 1 }),
+      ],
+    });
+    useAppStore.setState({ projects: [board], activeProjectId: board.id, activeSceneId: 'scene-queued' });
+
+    render(<WorkbenchBoardsDock />);
+    await user.click(screen.getByRole('button', { name: 'Approved frame' }));
+
+    expect(useAppStore.getState().activeSceneId).toBe('scene-complete');
+  });
+
   it('renders active board scene thumbnails when available', () => {
     const existing = useAppStore.getState().createProject('Campaign Boards', { width: 1024, height: 1024 });
     useAppStore.getState().addScene(existing.id, {

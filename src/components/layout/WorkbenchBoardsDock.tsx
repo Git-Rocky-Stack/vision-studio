@@ -1,7 +1,7 @@
 import { Plus } from 'lucide-react';
 
 import { useAppStore } from '@/store/appStore';
-import type { Project } from '@/types/project';
+import type { Project, Scene } from '@/types/project';
 import { ImageWithFallback } from '@/components/ui/ImageWithFallback';
 import { cn } from '@/utils/cn';
 
@@ -10,6 +10,13 @@ const boardDateFormatter = new Intl.DateTimeFormat('en-US', {
   day: 'numeric',
   year: 'numeric',
 });
+
+const sceneGroupDefinitions: { label: string; statuses: Scene['status'][] }[] = [
+  { label: 'In Progress', statuses: ['queued', 'generating'] },
+  { label: 'Complete', statuses: ['complete'] },
+  { label: 'Draft', statuses: ['draft'] },
+  { label: 'Needs Attention', statuses: ['error'] },
+];
 
 export function WorkbenchBoardsDock() {
   const {
@@ -124,35 +131,40 @@ export function WorkbenchBoardsDock() {
 
                 {isActive && project.scenes.length > 0 ? (
                   <div className="ml-3 flex flex-col gap-1 border-l border-border pl-2">
-                    {project.scenes.map((scene) => {
-                      const isSceneActive = scene.id === activeSceneId;
+                    {groupScenesByStatus(project.scenes).map((group) => (
+                      <section key={group.label} className="flex flex-col gap-1">
+                        <h3 className="px-2.5 pt-1 type-caption text-text-muted">{group.label}</h3>
+                        {group.scenes.map((scene) => {
+                          const isSceneActive = scene.id === activeSceneId;
 
-                      return (
-                        <button
-                          key={scene.id}
-                          type="button"
-                          aria-label={scene.name}
-                          aria-pressed={isSceneActive}
-                          onClick={() => setActiveScene(scene.id)}
-                          className={cn(
-                            'flex min-w-0 items-center gap-2 rounded-md border px-2.5 py-1.5 text-left type-ui transition-all',
-                            isSceneActive
-                              ? 'border-accent-primary-border bg-accent-primary-muted text-accent-primary'
-                              : 'border-transparent text-text-body hover:border-border-hover hover:bg-elevated hover:text-text-primary'
-                          )}
-                        >
-                          {scene.thumbnail ? (
-                            <ImageWithFallback
-                              src={scene.thumbnail}
-                              alt={`${scene.name} thumbnail`}
-                              className="h-full w-full object-cover"
-                              fallbackClassName="h-8 w-8 shrink-0 overflow-hidden rounded border border-border bg-void"
-                            />
-                          ) : null}
-                          <span className="min-w-0 truncate">{scene.name}</span>
-                        </button>
-                      );
-                    })}
+                          return (
+                            <button
+                              key={scene.id}
+                              type="button"
+                              aria-label={scene.name}
+                              aria-pressed={isSceneActive}
+                              onClick={() => setActiveScene(scene.id)}
+                              className={cn(
+                                'flex min-w-0 items-center gap-2 rounded-md border px-2.5 py-1.5 text-left type-ui transition-all',
+                                isSceneActive
+                                  ? 'border-accent-primary-border bg-accent-primary-muted text-accent-primary'
+                                  : 'border-transparent text-text-body hover:border-border-hover hover:bg-elevated hover:text-text-primary'
+                              )}
+                            >
+                              {scene.thumbnail ? (
+                                <ImageWithFallback
+                                  src={scene.thumbnail}
+                                  alt={`${scene.name} thumbnail`}
+                                  className="h-full w-full object-cover"
+                                  fallbackClassName="h-8 w-8 shrink-0 overflow-hidden rounded border border-border bg-void"
+                                />
+                              ) : null}
+                              <span className="min-w-0 truncate">{scene.name}</span>
+                            </button>
+                          );
+                        })}
+                      </section>
+                    ))}
                   </div>
                 ) : null}
               </div>
@@ -185,4 +197,15 @@ function formatBoardUpdated(modified: string) {
   }
 
   return `Updated ${boardDateFormatter.format(date)}`;
+}
+
+function groupScenesByStatus(scenes: Scene[]) {
+  return sceneGroupDefinitions
+    .map((group) => ({
+      label: group.label,
+      scenes: scenes
+        .filter((scene) => group.statuses.includes(scene.status))
+        .sort((a, b) => a.orderIndex - b.orderIndex || a.name.localeCompare(b.name)),
+    }))
+    .filter((group) => group.scenes.length > 0);
 }
