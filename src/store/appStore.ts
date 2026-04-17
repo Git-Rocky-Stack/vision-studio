@@ -190,6 +190,7 @@ interface AppState {
   sidebarCollapsed: boolean;
   activePanel: 'generate' | 'quick' | 'storyboard' | 'edit' | 'assets' | 'settings' | 'templates' | 'batch';
   activeWorkbenchView: WorkbenchView;
+  activeViewerItemId: string | null;
   darkMode: boolean;
 
   // Recent Projects (file-system level, not storyboard)
@@ -289,6 +290,7 @@ interface AppState {
   toggleSidebar: () => void;
   setActivePanel: (panel: AppState['activePanel']) => void;
   setActiveWorkbenchView: (view: WorkbenchView) => void;
+  setActiveViewerItemId: (itemId: string | null) => void;
   setCurrentProject: (project: Project | null) => void;
   addJob: (job: GenerationJob) => void;
   updateJob: (jobId: string, updates: Partial<GenerationJob>) => void;
@@ -430,6 +432,7 @@ export const useAppStore = create<AppState>()(
       sidebarCollapsed: false,
       activePanel: 'generate',
       activeWorkbenchView: 'canvas',
+      activeViewerItemId: null,
       darkMode: true,
       currentProject: null,
       recentProjects: [],
@@ -496,6 +499,7 @@ export const useAppStore = create<AppState>()(
       toggleSidebar: () => set((state) => ({ sidebarCollapsed: !state.sidebarCollapsed })),
       setActivePanel: (panel) => set({ activePanel: panel }),
       setActiveWorkbenchView: (view) => set({ activeWorkbenchView: view }),
+      setActiveViewerItemId: (itemId) => set({ activeViewerItemId: itemId }),
       setCurrentProject: (project) => set({ currentProject: project }),
 
       addJob: (job) => set((state) => ({

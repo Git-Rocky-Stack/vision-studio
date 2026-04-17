@@ -3,6 +3,7 @@ import { ImageIcon } from 'lucide-react';
 
 import { useAppStore } from '@/store/appStore';
 import { ImageWithFallback } from '@/components/ui/ImageWithFallback';
+import { cn } from '@/utils/cn';
 
 interface GalleryItem {
   id: string;
@@ -14,7 +15,13 @@ interface GalleryItem {
 }
 
 export function WorkbenchGalleryDock() {
-  const { assetLibrary, batchResults } = useAppStore();
+  const {
+    activeViewerItemId,
+    assetLibrary,
+    batchResults,
+    setActiveViewerItemId,
+    setActiveWorkbenchView,
+  } = useAppStore();
 
   const items = useMemo<GalleryItem[]>(() => {
     const assetItems = assetLibrary.map((asset) => ({
@@ -61,9 +68,21 @@ export function WorkbenchGalleryDock() {
       ) : (
         <div className="grid flex-1 auto-rows-min grid-cols-2 gap-2 overflow-y-auto p-3 scrollbar-hide">
           {items.map((item) => (
-            <article
+            <button
               key={item.id}
-              className="min-w-0 overflow-hidden rounded-md border border-border bg-elevated"
+              type="button"
+              aria-label={`Review ${item.label}`}
+              aria-pressed={activeViewerItemId === item.id}
+              onClick={() => {
+                setActiveViewerItemId(item.id);
+                setActiveWorkbenchView('viewer');
+              }}
+              className={cn(
+                'min-w-0 overflow-hidden rounded-md border bg-elevated text-left transition-all',
+                activeViewerItemId === item.id
+                  ? 'border-accent-primary-border ring-1 ring-accent-primary-border'
+                  : 'border-border hover:border-border-hover'
+              )}
             >
               <div className="aspect-square bg-void">
                 <ImageWithFallback
@@ -82,7 +101,7 @@ export function WorkbenchGalleryDock() {
                 </div>
                 <p className="line-clamp-2 text-micro text-text-body">{item.prompt}</p>
               </div>
-            </article>
+            </button>
           ))}
         </div>
       )}

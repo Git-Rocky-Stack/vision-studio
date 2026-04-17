@@ -29,6 +29,15 @@ describe('WorkbenchViewer', () => {
     expect(screen.getByText('123')).toBeInTheDocument();
   });
 
+  it('uses the shared active viewer item when opened from a dock selection', () => {
+    seedViewerState({ activeViewerItemId: 'batch-batch-1' });
+
+    render(<WorkbenchViewer />);
+
+    expect(screen.getByText('misty mountain castle')).toBeInTheDocument();
+    expect(screen.getByText('Batch result')).toBeInTheDocument();
+  });
+
   it('selects a batch result from the thumbnail rail', async () => {
     const user = userEvent.setup();
     seedViewerState();

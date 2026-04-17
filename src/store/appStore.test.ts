@@ -38,6 +38,14 @@ describe('appStore', () => {
       useAppStore.getState().setActiveWorkbenchView('workflow');
       expect(useAppStore.getState().activeWorkbenchView).toBe('workflow');
     });
+
+    it('tracks the active viewer item for cross-dock selection', () => {
+      expect(useAppStore.getState().activeViewerItemId).toBeNull();
+
+      useAppStore.getState().setActiveViewerItemId('batch-result-1');
+
+      expect(useAppStore.getState().activeViewerItemId).toBe('batch-result-1');
+    });
   });
 
   // ── Job management ────────────────────────────────────────────────────

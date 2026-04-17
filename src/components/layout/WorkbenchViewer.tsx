@@ -50,9 +50,11 @@ interface ViewerItem {
 export function WorkbenchViewer() {
   const {
     assetLibrary,
+    activeViewerItemId,
     batchResults,
     comparisonImages,
     comparisonMode,
+    setActiveViewerItemId,
     setComparisonImages,
     setComparisonMode,
     setGenerationDraft,
@@ -60,7 +62,6 @@ export function WorkbenchViewer() {
     setActivePanel,
     setActiveWorkbenchView,
   } = useAppStore();
-  const [activeItemId, setActiveItemId] = useState<string | null>(null);
 
   const items = useMemo<ViewerItem[]>(() => {
     const assets = assetLibrary.map((asset) => ({
@@ -110,7 +111,7 @@ export function WorkbenchViewer() {
       .sort((a, b) => b.createdAt - a.createdAt);
   }, [assetLibrary, batchResults]);
 
-  const activeItem = items.find((item) => item.id === activeItemId) ?? items[0] ?? null;
+  const activeItem = items.find((item) => item.id === activeViewerItemId) ?? items[0] ?? null;
   const isPinned = activeItem ? comparisonImages.includes(activeItem.imagePath) : false;
   const pinnedItems = useMemo<ViewerItem[]>(() => {
     const itemsByPath = new Map(items.map((item) => [item.imagePath, item]));
@@ -290,7 +291,7 @@ export function WorkbenchViewer() {
                   key={item.id}
                   type="button"
                   aria-label={`Review ${item.label}`}
-                  onClick={() => setActiveItemId(item.id)}
+                  onClick={() => setActiveViewerItemId(item.id)}
                   className={cn(
                     'h-20 w-20 shrink-0 overflow-hidden rounded-md border bg-void transition-all',
                     isActive

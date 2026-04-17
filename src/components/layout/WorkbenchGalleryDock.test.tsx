@@ -1,4 +1,5 @@
 import { cleanup, render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { useAppStore } from '@/store/appStore';
@@ -58,5 +59,35 @@ describe('WorkbenchGalleryDock', () => {
     expect(screen.getByText('rainy neon alley')).toBeInTheDocument();
     expect(screen.getByText('Batch result')).toBeInTheDocument();
     expect(screen.getByText('misty mountain castle')).toBeInTheDocument();
+  });
+
+  it('opens a selected gallery item in the Viewer work surface', async () => {
+    const user = userEvent.setup();
+    useAppStore.setState({
+      activeWorkbenchView: 'canvas',
+      assetLibrary: [
+        {
+          id: 'asset-1',
+          jobId: 'job-1',
+          name: 'Neon alley',
+          type: 'image',
+          path: '/outputs/neon.png',
+          previewUrl: '/outputs/neon.png',
+          thumbnail: '/outputs/neon-thumb.png',
+          createdAt: '2026-04-16T20:00:00.000Z',
+          prompt: 'rainy neon alley',
+          negativePrompt: '',
+          favorite: false,
+          params: {},
+        },
+      ],
+    });
+
+    render(<WorkbenchGalleryDock />);
+    await user.click(screen.getByRole('button', { name: /review Neon alley/i }));
+
+    const state = useAppStore.getState();
+    expect(state.activeWorkbenchView).toBe('viewer');
+    expect(state.activeViewerItemId).toBe('asset-asset-1');
   });
 });
