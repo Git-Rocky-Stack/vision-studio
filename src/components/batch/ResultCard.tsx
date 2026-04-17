@@ -98,7 +98,7 @@ export const ResultCard = memo(function ResultCard({
             className={cn(
               'p-2 rounded-lg transition-all',
               result.isFavorite
-                ? 'text-[var(--color-status-warning)] bg-[var(--color-status-warning-muted)]'
+                ? 'text-status-warning bg-status-warning-muted'
                 : 'text-text-muted hover:text-text-primary hover:bg-surface'
             )}
           >
@@ -195,7 +195,7 @@ export const ResultCard = memo(function ResultCard({
         {/* Favorite badge */}
         {result.isFavorite && (
           <div className="absolute top-2 right-2">
-            <Heart className="w-4 h-4 text-[var(--color-status-warning)] fill-current drop-shadow-lg" />
+            <Heart className="w-4 h-4 text-status-warning fill-current drop-shadow-lg" />
           </div>
         )}
 
@@ -217,7 +217,7 @@ export const ResultCard = memo(function ResultCard({
                 className={cn(
                   'p-2 rounded-lg backdrop-blur-sm transition-all focus-visible:opacity-100',
                   result.isFavorite
-                    ? 'bg-[var(--color-status-warning-muted)] text-[var(--color-status-warning)]'
+                    ? 'bg-status-warning-muted text-status-warning'
                     : 'bg-void/40 text-text-primary hover:bg-void/60'
                 )}
               >

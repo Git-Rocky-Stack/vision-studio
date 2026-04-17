@@ -1,8 +1,12 @@
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { extname, join, relative, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 const css = readFileSync(resolve(process.cwd(), 'src/index.css'), 'utf8');
+const appSourceRoot = join(process.cwd(), 'src');
+const appSourceExtensions = new Set(['.css', '.ts', '.tsx']);
+const arbitraryColorTokenPattern =
+  /\b(?:hover:)?(?:text|bg|border|fill)-\[(?:var\(--color-[^)]+\)|rgba\([^)]+\))\]/;
 
 describe('Carbon Pro design tokens', () => {
   it('defines an AMOLED-neutral Carbon Pro shell without green or blue tinted greys', () => {
@@ -33,4 +37,37 @@ describe('Carbon Pro design tokens', () => {
     expect(css).toContain('--color-red-primary: var(--color-status-error)');
     expect(css).toContain('--color-red-aura: var(--color-status-error-muted)');
   });
+
+  it('uses semantic token utilities instead of arbitrary color values in app source', () => {
+    const filesWithArbitraryColorTokens = listAppSourceFiles(appSourceRoot)
+      .filter((filePath) => !filePath.includes('.test.'))
+      .flatMap((filePath) =>
+        readFileSync(filePath, 'utf8')
+          .split(/\r?\n/)
+          .flatMap((line, lineIndex) =>
+            arbitraryColorTokenPattern.test(line)
+              ? [`${relative(process.cwd(), filePath)}:${lineIndex + 1}`]
+              : []
+          )
+      );
+
+    expect(filesWithArbitraryColorTokens).toEqual([]);
+  });
 });
+
+function listAppSourceFiles(directory: string): string[] {
+  return readdirSync(directory).flatMap((entry) => {
+    const entryPath = join(directory, entry);
+    const stats = statSync(entryPath);
+
+    if (stats.isDirectory()) {
+      return listAppSourceFiles(entryPath);
+    }
+
+    if (!appSourceExtensions.has(extname(entryPath))) {
+      return [];
+    }
+
+    return [entryPath];
+  });
+}

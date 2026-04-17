@@ -334,7 +334,7 @@ export function AssetsPanel() {
                             {asset.name}
                           </span>
                           {asset.favorite && (
-                            <Star className="w-3.5 h-3.5 text-[var(--color-status-warning)] fill-[var(--color-status-warning)]" />
+                            <Star className="w-3.5 h-3.5 text-status-warning fill-status-warning" />
                           )}
                         </div>
                         <div
@@ -363,9 +363,9 @@ export function AssetsPanel() {
                             e.stopPropagation();
                             toggleAssetFavorite(asset.id);
                           }}
-                          className="p-2 rounded bg-surface/80 text-text-body hover:text-[var(--color-status-warning)] hover:bg-surface transition-all focus-visible:opacity-100"
+                          className="p-2 rounded bg-surface/80 text-text-body hover:text-status-warning hover:bg-surface transition-all focus-visible:opacity-100"
                         >
-                          <Star className={cn('w-3.5 h-3.5', asset.favorite && 'fill-[var(--color-status-warning)] text-[var(--color-status-warning)]')} />
+                          <Star className={cn('w-3.5 h-3.5', asset.favorite && 'fill-status-warning text-status-warning')} />
                         </button>
                         <button
                           aria-label="Open in viewer"

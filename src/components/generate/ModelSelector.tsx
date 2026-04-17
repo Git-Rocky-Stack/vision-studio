@@ -148,19 +148,19 @@ const capabilityMeta: Record<
   ModelOption['capability'],
   { label: string; icon: ElementType; className: string }
 > = {
-  image: { label: 'Image', icon: ImageIcon, className: 'text-[var(--color-capability-image)] bg-[rgba(56,189,248,0.08)] border-[rgba(56,189,248,0.2)]' },
-  video: { label: 'Video', icon: Video, className: 'text-[var(--color-capability-video)] bg-[rgba(245,158,11,0.08)] border-[rgba(245,158,11,0.2)]' },
-  edit: { label: 'Edit', icon: Sparkles, className: 'text-[var(--color-capability-edit)] bg-[rgba(232,121,249,0.08)] border-[rgba(232,121,249,0.2)]' },
-  inpaint: { label: 'Inpaint', icon: Sparkles, className: 'text-[var(--color-capability-edit)] bg-[rgba(232,121,249,0.08)] border-[rgba(232,121,249,0.2)]' },
+  image: { label: 'Image', icon: ImageIcon, className: 'text-capability-image bg-capability-image/10 border-capability-image/20' },
+  video: { label: 'Video', icon: Video, className: 'text-capability-video bg-capability-video/10 border-capability-video/20' },
+  edit: { label: 'Edit', icon: Sparkles, className: 'text-capability-edit bg-capability-edit/10 border-capability-edit/20' },
+  inpaint: { label: 'Inpaint', icon: Sparkles, className: 'text-capability-edit bg-capability-edit/10 border-capability-edit/20' },
 };
 
 const runtimeMeta: Record<
   ModelOption['runtime'],
   { label: string; icon: ElementType; className: string }
 > = {
-  local: { label: 'Local', icon: HardDrive, className: 'text-[var(--color-capability-local)] bg-[rgba(34,197,94,0.08)] border-[rgba(34,197,94,0.2)]' },
-  comfyui: { label: 'ComfyUI', icon: MonitorCog, className: 'text-[var(--color-capability-cloud)] bg-[rgba(96,165,250,0.08)] border-[rgba(96,165,250,0.2)]' },
-  cloud: { label: 'Cloud', icon: Cloud, className: 'text-[var(--color-capability-cloud)] bg-[rgba(96,165,250,0.08)] border-[rgba(96,165,250,0.2)]' },
+  local: { label: 'Local', icon: HardDrive, className: 'text-capability-local bg-capability-local/10 border-capability-local/20' },
+  comfyui: { label: 'ComfyUI', icon: MonitorCog, className: 'text-capability-cloud bg-capability-cloud/10 border-capability-cloud/20' },
+  cloud: { label: 'Cloud', icon: Cloud, className: 'text-capability-cloud bg-capability-cloud/10 border-capability-cloud/20' },
   byom: { label: 'BYOM', icon: Cpu, className: 'text-accent-primary bg-accent-primary-muted border-accent-primary-border' },
 };
 
@@ -356,9 +356,9 @@ export function ModelSelector({ value, onChange, generationType }: ModelSelector
                   >
                     <div className="mt-0.5 flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md border border-border bg-canvas">
                       {model.type === 'video' ? (
-                        <Video className="h-3.5 w-3.5 text-[var(--color-capability-video)]" />
+                        <Video className="h-3.5 w-3.5 text-capability-video" />
                       ) : (
-                        <ImageIcon className="h-3.5 w-3.5 text-[var(--color-capability-image)]" />
+                        <ImageIcon className="h-3.5 w-3.5 text-capability-image" />
                       )}
                     </div>
                     <div className="min-w-0 flex-1">

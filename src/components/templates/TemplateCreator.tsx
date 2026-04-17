@@ -190,7 +190,7 @@ export function TemplateCreator({ onClose, editingTemplate }: TemplateCreatorPro
                   )}
                 >
                   {isComplete ? (
-                    <Check className="w-3 h-3 text-[var(--color-status-success)]" />
+                    <Check className="w-3 h-3 text-status-success" />
                   ) : (
                     <Icon className="w-3 h-3" />
                   )}

@@ -188,7 +188,7 @@ function SortableLayerRow({
         className="p-0.5 text-text-muted hover:text-text-primary transition-all"
       >
         {layer.locked ? (
-          <Lock className="w-3 h-3 text-[var(--color-status-warning)]" />
+          <Lock className="w-3 h-3 text-status-warning" />
         ) : (
           <Unlock className="w-3 h-3" />
         )}

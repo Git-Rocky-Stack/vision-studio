@@ -491,9 +491,9 @@ export function BatchPromptQueue() {
                 className={cn(
                   'relative p-3 rounded-lg border transition-all',
                   prompt.status === 'generating' &&
-                    'border-[var(--color-status-warning-border)] bg-[var(--color-status-warning-muted)]',
+                    'border-status-warning-border bg-status-warning-muted',
                   prompt.status === 'completed' &&
-                    'border-[var(--color-status-success-border)] bg-[var(--color-status-success-muted)]',
+                    'border-status-success-border bg-status-success-muted',
                   prompt.status === 'failed' &&
                     'border-status-error-border bg-status-error-muted',
                   prompt.status === 'pending' && 'border-border bg-elevated'
@@ -523,10 +523,10 @@ export function BatchPromptQueue() {
                   {/* Status/Actions */}
                   <div className="flex flex-col gap-1 pt-1">
                     {prompt.status === 'generating' && (
-                      <Loader2 className="w-4 h-4 text-[var(--color-status-warning)] animate-spin" />
+                      <Loader2 className="w-4 h-4 text-status-warning animate-spin" />
                     )}
                     {prompt.status === 'completed' && (
-                      <CheckCircle2 className="w-4 h-4 text-[var(--color-status-success)]" />
+                      <CheckCircle2 className="w-4 h-4 text-status-success" />
                     )}
                     {prompt.status === 'failed' && (
                       <XCircle className="w-4 h-4 text-status-error" />

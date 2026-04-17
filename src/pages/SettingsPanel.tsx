@@ -383,13 +383,13 @@ export function SettingsPanel() {
                     <div
                       className={cn(
                         'w-10 h-10 rounded-lg flex items-center justify-center',
-                        systemInfo.gpuAvailable ? 'bg-[var(--color-status-success-muted)]' : 'bg-[var(--color-status-warning-muted)]'
+                        systemInfo.gpuAvailable ? 'bg-status-success-muted' : 'bg-status-warning-muted'
                       )}
                     >
                       <Check
                         className={cn(
                           'w-5 h-5',
-                          systemInfo.gpuAvailable ? 'text-[var(--color-status-success)]' : 'text-[var(--color-status-warning)]'
+                          systemInfo.gpuAvailable ? 'text-status-success' : 'text-status-warning'
                         )}
                       />
                     </div>
@@ -475,7 +475,7 @@ export function SettingsPanel() {
                           <span
                             className={cn(
                               'text-xs font-display flex items-center gap-1',
-                              model.status === 'ready' ? 'text-[var(--color-status-success)]' : 'text-text-body'
+                              model.status === 'ready' ? 'text-status-success' : 'text-text-body'
                             )}
                           >
                             <Check className="w-3 h-3" />
