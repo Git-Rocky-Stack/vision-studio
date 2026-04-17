@@ -39,13 +39,14 @@ state, and model/runtime routing.
   restyles.
 - Feature-completion work should map into workbench zones: Settings, Canvas,
   Viewer, Inspector, Layers, Gallery, Timeline, Workflow.
-- Workflow planning should begin now, but implementation should start with shell
-  architecture and placeholders before node behavior.
+- Workflow implementation can now move past placeholder work. Continue from the
+  first workbench surface into records, linear UI, run history, and then node
+  editing.
 
 ### Defer
 
 - Broad one-off restyling of every remaining old-red component.
-- Node workflow editor implementation.
+- Full graph execution behavior until workflow records and linear UI are stable.
 - Full right-dock gallery redesign.
 - New provider/cloud runtime integration.
 
@@ -58,7 +59,7 @@ Goal: Establish the stable shell.
 Deliverables:
 
 - Working-area mini-tabs: Canvas, Viewer, Workflow.
-- Workflow placeholder.
+- Workflow workbench surface.
 - Optional mode tool rail.
 - Right context dock abstraction.
 - Edit and Generate mapped into the new shell.
@@ -98,7 +99,7 @@ Deliverables:
 - Workflow metadata: name, description, tags, notes.
 - Linear UI schema for exposed fields.
 - Workflow run history.
-- Placeholder replaced with workflow library/empty state.
+- Workflow workbench expanded with library, metadata, and run output state.
 
 ### Phase 5: Node Canvas
 
@@ -152,7 +153,7 @@ should be visible advantages, not hidden implementation details.
 1. Commit pivot design and roadmap docs.
 2. Commit first workbench layout implementation plan.
 3. Implement workbench shell behind existing behavior.
-4. Add Viewer/Workflow mini-tabs and placeholder.
+4. Add Viewer/Workflow mini-tabs and the first Workflow workbench surface.
 5. Move right-side context into a tabbed dock.
 6. Run browser screenshots against Generate and Edit.
 7. Commit and push the layout refactor.

@@ -39,8 +39,8 @@ Layers to the right stack.
 
 Vision Studio should copy the spatial grammar, not the brand palette.
 
-The current app already has a global rail, center mini-tabs, Viewer, Workflow
-placeholder, and right context dock. The mismatch is that Generate and Quick
+The current app already has a global rail, center mini-tabs, Viewer, a Workflow
+workbench surface, and right context dock. The mismatch is that Generate and Quick
 settings currently live in the right dock. To match Invoke's template, settings
 must move to the left workbench dock, and the right side must become output and
 asset context: Boards, Gallery, and Layers.

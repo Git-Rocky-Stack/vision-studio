@@ -40,8 +40,8 @@ is a layout architecture pass that makes the shell capable of supporting:
 
 - Canvas-first image generation and editing.
 - A persistent viewer for generated outputs and comparisons.
-- A visible workflow placeholder that establishes the product direction.
-- A future workflow editor without another shell rewrite.
+- A usable Workflow workbench surface that establishes the product direction.
+- A workflow editor that can grow without another shell rewrite.
 - Right-side context that can switch between inspector, layers, gallery, and
   workflow details.
 - Bottom continuity surfaces for timeline, queue, variants, and storyboard.
@@ -73,11 +73,11 @@ runtime metadata, and model routing.
 The app should feel like installed creative software. Use compact chrome,
 stable docking, fast switching, precise inspectors, and quiet but visible state.
 
-### Workflow Placeholder Now, Node Editor Later
+### Workflow Surface Now, Node Editing Incrementally
 
-The first layout refactor should show a Workflow mini-tab so the product
-direction is explicit. It should be honest about readiness: a polished
-placeholder, not a fake node editor.
+The Workflow mini-tab is now an active workbench surface. It should grow from
+metadata, linear run planning, library, and output context toward node editing
+without pretending incomplete execution paths are ready.
 
 ## Layout Model
 
@@ -107,7 +107,7 @@ The center owns the user's work. It contains a top-left mini-tab strip:
 
 - `Canvas`: the active image/canvas workspace.
 - `Viewer`: generated output viewer and comparison-oriented view.
-- `Workflow`: visible placeholder in the first pass.
+- `Workflow`: workflow metadata, linear run planning, library, and output context.
 
 This mini-tab strip should live inside the working area, not in the global nav.
 It communicates that these are alternate views of the current work context.
@@ -144,7 +144,7 @@ future timeline/variants pass harder.
 
 - Evolve `WorkspaceLayout` or introduce `WorkbenchLayout` around stable zones.
 - Add working-area mini-tabs for `Canvas`, `Viewer`, and `Workflow`.
-- Show a professional Workflow placeholder.
+- Show a professional Workflow workbench surface.
 - Move Edit mode into the new workbench model with tool rail, working area,
   right context dock, and bottom timeline.
 - Normalize Generate and Quick around the same working area plus context dock.
@@ -156,24 +156,24 @@ future timeline/variants pass harder.
 
 ### Out Of Scope
 
-- Building a node workflow editor.
-- Implementing workflow serialization.
+- Completing graph execution in the same batch as the first surface.
+- Implementing workflow serialization before workflow records are defined.
 - Changing backend generation APIs.
 - Replacing the model router or generation settings in the same batch.
 - Rebuilding layers, gallery, timeline, or storyboard behavior.
 - Adding cloud/provider integrations.
 
-## Workflow Placeholder
+## Workflow Surface
 
-The Workflow placeholder should be a serious product promise:
+The Workflow surface should be a serious production workspace:
 
 - Title: `Workflow`
-- Message: `Node workflows are coming to this workbench.`
-- Supporting text: `For now, keep building through Canvas and Viewer.`
-- Optional status chips: `Planned`, `Linear UI`, `Node Canvas`
+- Current workflow metadata and status.
+- Linear run plan for the generation path.
+- Workflow library and run output context.
 
 It should not be a marketing hero, empty decorative card, or apology screen.
-It should read as a disabled professional workspace view.
+It should read as a real professional workspace that can grow into node editing.
 
 ## Design Language
 
@@ -205,7 +205,7 @@ Inspector, Layers, and Gallery predictable across modes.
 
 ### Phase D: Workflow Foundation
 
-Replace the placeholder with a first workflow foundation: saved workflow records,
+Expand the first Workflow surface into a foundation: saved workflow records,
 linear UI schemas, workflow metadata, and a non-node workflow run surface.
 
 ### Phase E: Node Workflow Editor
@@ -224,8 +224,8 @@ variant branching, local/cloud model routing, and workflow-to-video pipelines.
 - Generate and Edit feel like configurations of the same workbench.
 - The user can switch between Canvas, Viewer, and Workflow without losing the
   global layout.
-- The Workflow placeholder establishes direction without overpromising
-  implemented behavior.
+- The Workflow surface establishes direction without overpromising incomplete
+  execution behavior.
 - Right-side context becomes a docked system, not one-off panels.
 - Existing generation/edit behavior remains intact.
 - New shell chrome follows Carbon Pro and contains no old red-primary active
