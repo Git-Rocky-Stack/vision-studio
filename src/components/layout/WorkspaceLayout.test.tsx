@@ -8,8 +8,6 @@ function renderWorkspace(
   options: {
     activeWorkbenchView?: 'canvas' | 'viewer' | 'workflow';
     onWorkbenchViewChange?: (view: 'canvas' | 'viewer' | 'workflow') => void;
-    activeWorkbenchDockTabs?: Record<string, string>;
-    onWorkbenchDockTabChange?: (panel: 'generate' | 'quick' | 'edit', tabId: string) => void;
   } = {}
 ) {
   return render(
@@ -17,8 +15,6 @@ function renderWorkspace(
       activePanel={activePanel}
       activeWorkbenchView={options.activeWorkbenchView ?? 'canvas'}
       onWorkbenchViewChange={options.onWorkbenchViewChange ?? vi.fn()}
-      activeWorkbenchDockTabs={options.activeWorkbenchDockTabs ?? {}}
-      onWorkbenchDockTabChange={options.onWorkbenchDockTabChange ?? vi.fn()}
       sidebar={<nav>Global rail</nav>}
       header={<header>Project chrome</header>}
       timeline={<div>Timeline strip</div>}

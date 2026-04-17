@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { CinematicTransition } from '@/components/effects/CinematicTransition';
-import type { WorkbenchDockPanel, WorkbenchDockTabs, WorkbenchView } from '@/store/appStore';
+import type { WorkbenchView } from '@/store/appStore';
 import { WorkbenchShell } from './WorkbenchShell';
 import { WorkbenchBoardsDock } from './WorkbenchBoardsDock';
 import { WorkbenchGalleryDock } from './WorkbenchGalleryDock';
@@ -13,8 +13,6 @@ interface WorkspaceLayoutProps {
   activePanel: string;
   activeWorkbenchView: WorkbenchView;
   onWorkbenchViewChange: (view: WorkbenchView) => void;
-  activeWorkbenchDockTabs: WorkbenchDockTabs;
-  onWorkbenchDockTabChange: (panel: WorkbenchDockPanel, tabId: string) => void;
   sidebar: React.ReactNode;
   header: React.ReactNode;
   timeline: React.ReactNode;
