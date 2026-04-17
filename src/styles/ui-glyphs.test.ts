@@ -28,6 +28,7 @@ const shellTypographyFiles = [
   'src/components/storyboard/CharacterAssignmentChip.tsx',
   'src/components/storyboard/CharacterLibrary.tsx',
   'src/components/storyboard/CharacterRefCard.tsx',
+  'src/components/storyboard/SceneCard.tsx',
   'src/components/storyboard/ScenePlaybackStrip.tsx',
   'src/components/storyboard/TransitionIndicator.tsx',
   'src/components/ui/ImageWithFallback.tsx',

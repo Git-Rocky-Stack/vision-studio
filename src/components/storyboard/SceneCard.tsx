@@ -155,7 +155,7 @@ export const SceneCard = memo(function SceneCard({
           )}
 
           {/* Scene number badge */}
-          <span className="absolute top-1 left-1 px-1.5 py-0.5 rounded bg-void/80 text-micro font-display font-bold text-text-primary">
+          <span className="absolute top-1 left-1 px-1.5 py-0.5 rounded bg-void/80 type-ui font-bold text-text-primary">
             {sceneNumber}
           </span>
         </div>
@@ -163,7 +163,7 @@ export const SceneCard = memo(function SceneCard({
         {/* Content */}
         <div className="flex-1 min-w-0 flex flex-col justify-between py-0.5">
           <div className="flex items-start justify-between gap-2">
-            <h3 className="font-display font-semibold text-sm text-text-primary truncate leading-tight">
+            <h3 className="type-section truncate leading-tight">
               {scene.name}
             </h3>
           </div>
@@ -172,7 +172,7 @@ export const SceneCard = memo(function SceneCard({
             {/* Status badge */}
             <span
               className={cn(
-                'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-micro font-display font-medium',
+                'inline-flex items-center gap-1 px-2 py-0.5 rounded-full type-ui',
                 status.className
               )}
             >
@@ -187,7 +187,7 @@ export const SceneCard = memo(function SceneCard({
             </span>
 
             {/* Duration */}
-            <span className="text-micro text-text-muted font-display">
+            <span className="type-caption">
               {formatDuration(scene.metadata.duration)}
             </span>
           </div>
