@@ -85,7 +85,7 @@ export const CharacterRefCard = memo(function CharacterRefCard({
 
         {/* Multi-image badge */}
         {character.faceImages.length > 1 && (
-          <span className="absolute -bottom-0.5 -right-0.5 px-1 rounded-full bg-red-primary text-micro text-text-primary font-display font-bold leading-none">
+          <span className="absolute -bottom-0.5 -right-0.5 px-1 rounded-full bg-red-primary type-ui text-text-primary font-bold leading-none">
             {character.faceImages.length}
           </span>
         )}
@@ -94,7 +94,7 @@ export const CharacterRefCard = memo(function CharacterRefCard({
       {/* Content */}
       <div className="flex-1 min-w-0">
         <div className="flex items-center justify-between gap-1">
-          <h4 className="font-display font-semibold text-xs text-text-primary truncate leading-tight">
+          <h4 className="type-ui font-semibold text-text-primary truncate leading-tight">
             {character.name}
           </h4>
 
@@ -132,7 +132,7 @@ export const CharacterRefCard = memo(function CharacterRefCard({
                 aria-label={`${FEATURE_LABELS[feature]} ${isLocked ? 'locked' : 'unlocked'}`}
                 aria-pressed={isLocked}
                 className={cn(
-                  'inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-micro font-display font-medium',
+                  'inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded type-ui',
                   'transition-colors duration-150',
                   isLocked
                     ? 'bg-red-aura text-red-primary border border-red-primary/30'
@@ -152,7 +152,7 @@ export const CharacterRefCard = memo(function CharacterRefCard({
 
         {/* Scene count */}
         {sceneCount > 0 && (
-          <p className="text-micro text-text-muted font-display mt-0.5">
+          <p className="type-caption mt-0.5">
             {sceneCount} scene{sceneCount !== 1 ? 's' : ''}
           </p>
         )}
