@@ -44,26 +44,26 @@ function renderWorkspace(
 describe('WorkspaceLayout', () => {
   afterEach(cleanup);
 
-  it('routes Generate through the workbench shell', () => {
+  it('routes Generate through Invoke-style left settings and right context', () => {
     renderWorkspace('generate');
 
+    expect(screen.getByTestId('workbench-left-dock')).toHaveTextContent('Generate settings');
     expect(screen.getByRole('tab', { name: 'Canvas' })).toHaveAttribute('aria-selected', 'true');
     expect(screen.getByRole('tab', { name: 'Viewer' })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'Workflow' })).toBeInTheDocument();
-    expect(screen.getByTestId('workbench-right-dock')).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: 'Settings' })).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: 'Gallery' })).toBeInTheDocument();
-    expect(screen.getByText('Generate settings')).toBeInTheDocument();
+    expect(screen.getByTestId('workbench-right-dock')).toHaveTextContent('Boards');
+    expect(screen.getByTestId('workbench-right-dock')).toHaveTextContent('Gallery');
+    expect(screen.queryByRole('tab', { name: 'Settings' })).not.toBeInTheDocument();
     expect(screen.getByTestId('workbench-bottom')).toHaveTextContent('Timeline strip');
   });
 
-  it('persists Generate dock tab changes by panel', () => {
-    const onWorkbenchDockTabChange = vi.fn();
-    renderWorkspace('generate', { onWorkbenchDockTabChange });
+  it('routes Quick through Invoke-style left settings and right context', () => {
+    renderWorkspace('quick');
 
-    fireEvent.click(screen.getByRole('tab', { name: 'Gallery' }));
-
-    expect(onWorkbenchDockTabChange).toHaveBeenCalledWith('generate', 'gallery');
+    expect(screen.getByTestId('workbench-left-dock')).toHaveTextContent('Quick settings');
+    expect(screen.getByTestId('workbench-right-dock')).toHaveTextContent('Boards');
+    expect(screen.getByTestId('workbench-right-dock')).toHaveTextContent('Gallery');
+    expect(screen.queryByRole('tab', { name: 'Settings' })).not.toBeInTheDocument();
   });
 
   it('requests workbench view changes from the mini-tabs', () => {

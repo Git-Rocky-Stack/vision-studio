@@ -2,7 +2,9 @@ import { useEffect, useRef } from 'react';
 import { CinematicTransition } from '@/components/effects/CinematicTransition';
 import type { WorkbenchDockPanel, WorkbenchDockTabs, WorkbenchView } from '@/store/appStore';
 import { WorkbenchShell } from './WorkbenchShell';
+import { WorkbenchBoardsDock } from './WorkbenchBoardsDock';
 import { WorkbenchGalleryDock } from './WorkbenchGalleryDock';
+import { WorkbenchRightStack } from './WorkbenchRightStack';
 import { WorkbenchViewer } from './WorkbenchViewer';
 import { WorkflowPlaceholder } from '@/components/workflow/WorkflowPlaceholder';
 import { LayerPanel } from '@/components/edit/LayerPanel';
@@ -143,24 +145,27 @@ export function WorkspaceLayout({
           <WorkbenchShell
             activeView={activeWorkbenchView}
             onViewChange={onWorkbenchViewChange}
-            activeDockTabId={selectedDockTab(activePanel, 'settings')}
-            onDockTabChange={handleDockTabChange(activePanel)}
+            leftDock={panels[activePanel]}
             canvas={canvas}
             viewer={<WorkbenchViewer />}
             workflow={<WorkflowPlaceholder />}
-            rightDockTabs={[
-              {
-                id: 'settings',
-                label: 'Settings',
-                content: panels[activePanel],
-              },
-              {
-                id: 'gallery',
-                label: 'Gallery',
-                content: <WorkbenchGalleryDock />,
-              },
-            ]}
-            defaultDockTabId="settings"
+            rightDock={
+              <WorkbenchRightStack
+                sections={[
+                  {
+                    id: 'boards',
+                    label: 'Boards',
+                    content: <WorkbenchBoardsDock />,
+                    defaultHeight: '34%',
+                  },
+                  {
+                    id: 'gallery',
+                    label: 'Gallery',
+                    content: <WorkbenchGalleryDock />,
+                  },
+                ]}
+              />
+            }
             bottom={timeline}
           />
         );
