@@ -36,7 +36,7 @@ export const ComparisonToolbar = memo(function ComparisonToolbar() {
               aria-label={mode.label}
               aria-pressed={isActive}
               className={cn(
-                'flex items-center gap-2 px-2.5 py-2 rounded-md text-xs font-display transition-all',
+                'flex items-center gap-2 rounded-md px-2.5 py-2 type-ui transition-all',
                 isActive
                   ? 'bg-red-aura text-red-primary'
                   : 'text-text-body hover:text-text-primary hover:bg-elevated'
