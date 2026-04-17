@@ -37,6 +37,7 @@ const shellTypographyFiles = [
   'src/components/ui/ConfirmDialog.tsx',
   'src/components/ui/ErrorBoundary.tsx',
   'src/components/ui/ImageWithFallback.tsx',
+  'src/components/ui/Tooltip.tsx',
   'src/pages/GeneratePanel.tsx',
   'src/pages/QuickGeneratePanel.tsx',
   'src/pages/StoryboardPanel.tsx',

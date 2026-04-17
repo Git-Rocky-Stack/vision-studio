@@ -89,7 +89,7 @@ export function Tooltip({
               className={cn(
                 'z-[var(--z-tooltip)] px-2.5 py-1.5 rounded-md',
                 'bg-panel-raised border border-border shadow-cinematic',
-                'font-display text-xs text-text-primary',
+                'type-ui text-text-primary',
                 'pointer-events-none whitespace-nowrap'
               )}
             >
