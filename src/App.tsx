@@ -54,9 +54,13 @@ function App() {
 
   // Fetch system info on mount
   useEffect(() => {
+    const electron = getElectronApi();
+
     const fetchSystemInfo = async () => {
+      if (!electron?.system?.getInfo) return;
+
       try {
-        const info = await window.electron.system.getInfo();
+        const info = await electron.system.getInfo();
         setSystemInfo({
           gpuAvailable: info.gpu_available,
           gpuName: info.gpu_name,
@@ -72,8 +76,10 @@ function App() {
     };
 
     const fetchModels = async () => {
+      if (!electron?.models?.list) return;
+
       try {
-        const models = await window.electron.models.list();
+        const models = await electron.models.list();
         setAvailableModels(models);
       } catch (e) {
         console.error('Failed to fetch models:', e);
@@ -89,12 +95,15 @@ function App() {
   }, [setSystemInfo, setAvailableModels]);
 
   useEffect(() => {
+    const electron = getElectronApi();
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
 
     const syncTheme = async (themePreference?: ThemePreference) => {
       const settings = themePreference
         ? { theme: themePreference }
-        : await window.electron.settings.get();
+        : electron?.settings?.get
+          ? await electron.settings.get()
+          : { theme: 'system' as ThemePreference };
       applyThemeToDocument(settings.theme, mediaQuery.matches);
     };
 
@@ -119,7 +128,10 @@ function App() {
 
   // Subscribe to generation progress
   useEffect(() => {
-    const unsubscribe = window.electron.generation.onProgress((data) => {
+    const electron = getElectronApi();
+    if (!electron?.generation?.onProgress) return;
+
+    const unsubscribe = electron.generation.onProgress((data) => {
       if (data.job_id && data.progress !== undefined) {
         updateJob(data.job_id, {
           progress: data.progress,
@@ -216,3 +228,7 @@ function App() {
 }
 
 export default App;
+
+function getElectronApi() {
+  return (window as Partial<Window>).electron;
+}
