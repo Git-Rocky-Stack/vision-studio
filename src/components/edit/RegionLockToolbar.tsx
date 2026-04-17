@@ -114,7 +114,7 @@ export const RegionLockToolbar = memo(function RegionLockToolbar({
             aria-label="Brush size"
             title={`Brush size: ${brushSize}px`}
           />
-          <span className="text-micro text-text-muted font-display">
+          <span className="type-caption">
             {brushSize}px
           </span>
         </div>
