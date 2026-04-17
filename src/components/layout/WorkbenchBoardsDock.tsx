@@ -1,6 +1,7 @@
 import { Plus } from 'lucide-react';
 
 import { useAppStore } from '@/store/appStore';
+import { ImageWithFallback } from '@/components/ui/ImageWithFallback';
 import { cn } from '@/utils/cn';
 
 export function WorkbenchBoardsDock() {
@@ -119,16 +120,25 @@ export function WorkbenchBoardsDock() {
                         <button
                           key={scene.id}
                           type="button"
+                          aria-label={scene.name}
                           aria-pressed={isSceneActive}
                           onClick={() => setActiveScene(scene.id)}
                           className={cn(
-                            'truncate rounded-md border px-2.5 py-1.5 text-left font-display text-xs transition-all',
+                            'flex min-w-0 items-center gap-2 rounded-md border px-2.5 py-1.5 text-left font-display text-xs transition-all',
                             isSceneActive
                               ? 'border-accent-primary-border bg-accent-primary-muted text-accent-primary'
                               : 'border-transparent text-text-body hover:border-border-hover hover:bg-elevated hover:text-text-primary'
                           )}
                         >
-                          {scene.name}
+                          {scene.thumbnail ? (
+                            <ImageWithFallback
+                              src={scene.thumbnail}
+                              alt={`${scene.name} thumbnail`}
+                              className="h-full w-full object-cover"
+                              fallbackClassName="h-8 w-8 shrink-0 overflow-hidden rounded border border-border bg-void"
+                            />
+                          ) : null}
+                          <span className="min-w-0 truncate">{scene.name}</span>
                         </button>
                       );
                     })}

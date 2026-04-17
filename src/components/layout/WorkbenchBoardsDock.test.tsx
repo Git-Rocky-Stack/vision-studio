@@ -100,4 +100,20 @@ describe('WorkbenchBoardsDock', () => {
 
     expect(useAppStore.getState().activeSceneId).toBe(secondScene.id);
   });
+
+  it('renders active board scene thumbnails when available', () => {
+    const existing = useAppStore.getState().createProject('Campaign Boards', { width: 1024, height: 1024 });
+    useAppStore.getState().addScene(existing.id, {
+      name: 'Opening frame',
+      thumbnail: '/outputs/opening.png',
+    });
+    useAppStore.getState().setActiveProject(existing.id);
+
+    render(<WorkbenchBoardsDock />);
+
+    expect(screen.getByRole('img', { name: 'Opening frame thumbnail' })).toHaveAttribute(
+      'src',
+      '/outputs/opening.png'
+    );
+  });
 });
