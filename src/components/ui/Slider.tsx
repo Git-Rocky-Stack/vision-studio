@@ -113,7 +113,7 @@ export function Slider({
           {label}
         </label>
         {showValue && (
-          <span className="font-mono text-sm text-accent-primary">{valueFormatter(value)}</span>
+          <span className="type-meta text-accent-primary">{valueFormatter(value)}</span>
         )}
       </div>
 
