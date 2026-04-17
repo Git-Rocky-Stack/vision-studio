@@ -4,12 +4,17 @@ import { useAppStore } from '@/store/appStore';
 import { cn } from '@/utils/cn';
 
 export function WorkbenchBoardsDock() {
-  const { projects, activeProjectId, createProject, setActiveProject } = useAppStore();
+  const { projects, activeProjectId, createProject, setActivePanel, setActiveProject } = useAppStore();
   const nextBoardName = projects.length === 0 ? 'Untitled Board' : `Untitled Board ${projects.length + 1}`;
 
   const handleCreateBoard = () => {
     const project = createProject(nextBoardName, { width: 1024, height: 1024 });
     setActiveProject(project.id);
+  };
+
+  const handleOpenStoryboard = () => {
+    if (!activeProjectId) return;
+    setActivePanel('storyboard');
   };
 
   if (projects.length === 0) {
@@ -36,14 +41,24 @@ export function WorkbenchBoardsDock() {
           <h2 className="font-display text-sm font-semibold text-text-primary">Boards</h2>
           <p className="mt-0.5 font-mono text-micro text-text-muted">{projects.length} active</p>
         </div>
-        <button
-          type="button"
-          onClick={handleCreateBoard}
-          className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 font-display text-xs text-text-body transition-all hover:border-border-hover hover:bg-elevated hover:text-text-primary"
-        >
-          <Plus className="h-3.5 w-3.5" aria-hidden="true" />
-          New Board
-        </button>
+        <div className="flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={handleOpenStoryboard}
+            disabled={!activeProjectId}
+            className="inline-flex items-center rounded-md border border-border px-2.5 py-1.5 font-display text-xs text-text-body transition-all hover:border-border-hover hover:bg-elevated hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            Open Storyboard
+          </button>
+          <button
+            type="button"
+            onClick={handleCreateBoard}
+            className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 font-display text-xs text-text-body transition-all hover:border-border-hover hover:bg-elevated hover:text-text-primary"
+          >
+            <Plus className="h-3.5 w-3.5" aria-hidden="true" />
+            New Board
+          </button>
+        </div>
       </div>
 
       <div className="min-h-0 flex-1 overflow-auto p-2">

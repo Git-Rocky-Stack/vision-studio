@@ -56,4 +56,18 @@ describe('WorkbenchBoardsDock', () => {
     expect(state.projects.map((project) => project.name)).toEqual(['Campaign Boards', 'Untitled Board 2']);
     expect(state.activeProjectId).toBe(state.projects[1].id);
   });
+
+  it('opens the selected board in Storyboard', async () => {
+    const user = userEvent.setup();
+    const existing = useAppStore.getState().createProject('Campaign Boards', { width: 1024, height: 1024 });
+    useAppStore.getState().setActiveProject(existing.id);
+    useAppStore.getState().setActivePanel('generate');
+
+    render(<WorkbenchBoardsDock />);
+    await user.click(screen.getByRole('button', { name: 'Open Storyboard' }));
+
+    const state = useAppStore.getState();
+    expect(state.activeProjectId).toBe(existing.id);
+    expect(state.activePanel).toBe('storyboard');
+  });
 });
