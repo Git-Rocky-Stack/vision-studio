@@ -5,6 +5,12 @@ function formatLabel(value: string) {
   return value.charAt(0).toUpperCase() + value.slice(1);
 }
 
+function formatTimestamp(value: string) {
+  const [date, time] = value.split('T');
+
+  return time ? `${date} ${time.slice(0, 5)}` : value;
+}
+
 export function WorkflowWorkbench() {
   const { workflowRecords, activeWorkflowId, setActiveWorkflow } = useAppStore();
   const activeWorkflow =
@@ -86,19 +92,19 @@ export function WorkflowWorkbench() {
                 const isActive = workflow.id === activeWorkflow.id;
 
                 return (
-                <button
-                  key={workflow.id}
-                  type="button"
-                  onClick={() => setActiveWorkflow(workflow.id)}
-                  className={cn(
-                    'rounded-md border px-3 py-2 text-left type-ui transition-all hover:border-border-hover hover:text-text-primary',
-                    isActive
-                      ? 'border-accent-primary-border bg-accent-primary-muted text-accent-primary'
-                      : 'border-border bg-elevated text-text-body'
-                  )}
-                >
-                  {workflow.name}
-                </button>
+                  <button
+                    key={workflow.id}
+                    type="button"
+                    onClick={() => setActiveWorkflow(workflow.id)}
+                    className={cn(
+                      'rounded-md border px-3 py-2 text-left type-ui transition-all hover:border-border-hover hover:text-text-primary',
+                      isActive
+                        ? 'border-accent-primary-border bg-accent-primary-muted text-accent-primary'
+                        : 'border-border bg-elevated text-text-body'
+                    )}
+                  >
+                    {workflow.name}
+                  </button>
                 );
               })}
             </div>
@@ -109,8 +115,33 @@ export function WorkflowWorkbench() {
           <div className="border-b border-border px-4 py-3">
             <h3 className="type-section">Run Output</h3>
           </div>
-          <div className="flex min-h-0 flex-1 items-center justify-center px-4 text-center">
-            <p className="type-caption">{activeWorkflow.runOutputSummary ?? 'No run output yet.'}</p>
+          <div
+            className={cn(
+              'min-h-0 flex-1',
+              activeWorkflow.runHistory.length > 0
+                ? 'overflow-auto p-3'
+                : 'flex items-center justify-center px-4 text-center'
+            )}
+          >
+            {activeWorkflow.runHistory.length > 0 ? (
+              <ul aria-label="Workflow run history" className="flex flex-col gap-2">
+                {activeWorkflow.runHistory.map((run) => (
+                  <li key={run.id} className="rounded-md border border-border bg-elevated px-3 py-2">
+                    <div className="flex items-start justify-between gap-3">
+                      <p className="min-w-0 type-ui text-text-primary">{run.summary}</p>
+                      <span className="shrink-0 rounded-md border border-border bg-surface px-2 py-1 type-ui text-text-body">
+                        {formatLabel(run.status)}
+                      </span>
+                    </div>
+                    <time dateTime={run.createdAt} className="mt-2 block type-caption">
+                      {formatTimestamp(run.createdAt)}
+                    </time>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="type-caption">No run output yet.</p>
+            )}
           </div>
         </section>
       </aside>

@@ -55,6 +55,20 @@ describe('WorkflowWorkbench', () => {
     expect(screen.getByText('No run output yet.')).toBeInTheDocument();
   });
 
+  it('renders recent workflow run history', () => {
+    useAppStore.getState().recordWorkflowRun('image-generation-baseline', {
+      id: 'run-1',
+      status: 'complete',
+      summary: 'Generated 2 images',
+      createdAt: '2026-04-17T12:00:00.000Z',
+    });
+
+    render(<WorkflowWorkbench />);
+
+    expect(screen.getByText('Generated 2 images')).toBeInTheDocument();
+    expect(screen.getByText('Complete')).toBeInTheDocument();
+  });
+
   it('selects a workflow from the library', async () => {
     const user = userEvent.setup();
 

@@ -94,6 +94,17 @@ export interface WorkflowStepRecord {
   state: WorkflowStepState;
 }
 
+export interface WorkflowRunRecord {
+  id: string;
+  status: 'queued' | 'running' | 'complete' | 'failed';
+  summary: string;
+  createdAt: string;
+  outputAssetId?: string;
+}
+
+export type WorkflowRunInput = Omit<WorkflowRunRecord, 'id' | 'createdAt'> &
+  Partial<Pick<WorkflowRunRecord, 'id' | 'createdAt'>>;
+
 export interface WorkflowRecord {
   id: string;
   name: string;
@@ -109,6 +120,7 @@ export interface WorkflowRecord {
   inputs: string[];
   steps: WorkflowStepRecord[];
   runOutputSummary: string | null;
+  runHistory: WorkflowRunRecord[];
 }
 
 const baselineWorkflowSteps: WorkflowStepRecord[] = [
@@ -160,6 +172,7 @@ export const DEFAULT_WORKFLOWS: WorkflowRecord[] = [
     inputs: ['Prompt', 'References'],
     steps: baselineWorkflowSteps,
     runOutputSummary: null,
+    runHistory: [],
   },
   {
     id: 'storyboard-frame',
@@ -176,6 +189,7 @@ export const DEFAULT_WORKFLOWS: WorkflowRecord[] = [
     inputs: ['Scene prompt', 'Character references'],
     steps: baselineWorkflowSteps.map((step) => ({ ...step })),
     runOutputSummary: null,
+    runHistory: [],
   },
 ];
 
@@ -185,6 +199,7 @@ function cloneWorkflow(workflow: WorkflowRecord): WorkflowRecord {
     settings: { ...workflow.settings },
     inputs: [...workflow.inputs],
     steps: workflow.steps.map((step) => ({ ...step })),
+    runHistory: workflow.runHistory.map((run) => ({ ...run })),
   };
 }
 
@@ -195,6 +210,7 @@ function createDraftWorkflow(name: string): WorkflowRecord {
     name,
     status: 'draft',
     runOutputSummary: null,
+    runHistory: [],
   };
 }
 
@@ -408,6 +424,7 @@ interface AppState {
   setActiveViewerItemId: (itemId: string | null) => void;
   setActiveWorkflow: (workflowId: string) => void;
   createWorkflow: (name: string) => WorkflowRecord;
+  recordWorkflowRun: (workflowId: string, run: WorkflowRunInput) => void;
   setCurrentProject: (project: Project | null) => void;
   addJob: (job: GenerationJob) => void;
   updateJob: (jobId: string, updates: Partial<GenerationJob>) => void;
@@ -633,6 +650,26 @@ export const useAppStore = create<AppState>()(
         }));
         return workflow;
       },
+      recordWorkflowRun: (workflowId, run) =>
+        set((state) => ({
+          workflowRecords: state.workflowRecords.map((workflow) => {
+            if (workflow.id !== workflowId) return workflow;
+
+            const storedRun: WorkflowRunRecord = {
+              id: run.id ?? `run-${crypto.randomUUID()}`,
+              status: run.status,
+              summary: run.summary,
+              createdAt: run.createdAt ?? new Date().toISOString(),
+              ...(run.outputAssetId ? { outputAssetId: run.outputAssetId } : {}),
+            };
+
+            return {
+              ...workflow,
+              runOutputSummary: storedRun.summary,
+              runHistory: [storedRun, ...workflow.runHistory].slice(0, 10),
+            };
+          }),
+        })),
       setCurrentProject: (project) => set({ currentProject: project }),
 
       addJob: (job) => set((state) => ({

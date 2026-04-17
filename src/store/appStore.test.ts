@@ -84,6 +84,55 @@ describe('appStore', () => {
       expect(state.workflowRecords).toContainEqual(workflow);
       expect(state.activeWorkflowId).toBe(workflow.id);
     });
+
+    it('records a workflow run and updates the output summary', () => {
+      useAppStore.getState().recordWorkflowRun('image-generation-baseline', {
+        id: 'run-1',
+        status: 'complete',
+        summary: 'Generated 2 images',
+        createdAt: '2026-04-17T12:00:00.000Z',
+      });
+
+      const workflow = useAppStore
+        .getState()
+        .workflowRecords.find((record) => record.id === 'image-generation-baseline');
+
+      expect(workflow?.runHistory).toHaveLength(1);
+      expect(workflow?.runHistory[0].summary).toBe('Generated 2 images');
+      expect(workflow?.runOutputSummary).toBe('Generated 2 images');
+    });
+
+    it('caps workflow run history at 10 entries', () => {
+      for (let index = 0; index < 12; index++) {
+        useAppStore.getState().recordWorkflowRun('image-generation-baseline', {
+          id: `run-${index}`,
+          status: 'complete',
+          summary: `Run ${index}`,
+          createdAt: `2026-04-17T12:${String(index).padStart(2, '0')}:00.000Z`,
+        });
+      }
+
+      const workflow = useAppStore
+        .getState()
+        .workflowRecords.find((record) => record.id === 'image-generation-baseline');
+
+      expect(workflow?.runHistory).toHaveLength(10);
+      expect(workflow?.runHistory[0].summary).toBe('Run 11');
+      expect(workflow?.runHistory.at(-1)?.summary).toBe('Run 2');
+    });
+
+    it('ignores run records for an unknown workflow id', () => {
+      useAppStore.getState().recordWorkflowRun('missing-workflow', {
+        id: 'run-1',
+        status: 'complete',
+        summary: 'Should not be stored',
+        createdAt: '2026-04-17T12:00:00.000Z',
+      });
+
+      expect(useAppStore.getState().workflowRecords.every((workflow) => workflow.runHistory.length === 0)).toBe(
+        true
+      );
+    });
   });
 
   // ── Job management ────────────────────────────────────────────────────
