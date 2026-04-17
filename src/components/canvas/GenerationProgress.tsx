@@ -77,7 +77,7 @@ export const GenerationProgress = memo(function GenerationProgress() {
 
           {/* Center text */}
           <div className="absolute inset-0 flex flex-col items-center justify-center">
-            <span className="font-mono text-lg text-text-primary font-medium">
+            <span className="type-title">
               {currentStep}
               <span className="text-text-muted text-sm"> / {totalSteps}</span>
             </span>
@@ -86,20 +86,20 @@ export const GenerationProgress = memo(function GenerationProgress() {
 
         <div className="text-center">
           <motion.p
-            className="font-display text-sm text-text-body"
+            className="type-section text-text-body"
             animate={{ opacity: [0.5, 1, 0.5] }}
             transition={{ duration: 2, repeat: Infinity }}
           >
             Generating...
           </motion.p>
-          <p className="font-mono text-xs text-text-muted mt-1" aria-live="polite">
+          <p className="mt-1 type-caption" aria-live="polite">
             {Math.round(progress)}% complete
           </p>
           <div className="mt-3 flex items-center justify-center gap-1.5">
-            <span className="rounded-md border border-border bg-canvas px-2 py-1 font-mono text-micro text-text-body">
+            <span className="rounded-md border border-border bg-canvas px-2 py-1 type-meta text-text-body">
               {model}
             </span>
-            <span className="rounded-md border border-accent-primary-border bg-accent-primary-muted px-2 py-1 font-mono text-micro text-accent-primary">
+            <span className="rounded-md border border-accent-primary-border bg-accent-primary-muted px-2 py-1 type-meta text-accent-primary">
               {runtime}
             </span>
           </div>
