@@ -62,6 +62,34 @@ describe('WorkbenchViewer', () => {
     expect(state.currentImageAssetPath).toBe('/outputs/neon.png');
   });
 
+  it('adds the active output to the active board as a completed scene', async () => {
+    const user = userEvent.setup();
+    seedViewerState();
+    const board = useAppStore.getState().createProject('Campaign Boards', { width: 1024, height: 1024 });
+    useAppStore.getState().setActiveProject(board.id);
+
+    render(<WorkbenchViewer />);
+    await user.click(screen.getByRole('button', { name: 'Add to Board' }));
+
+    const state = useAppStore.getState();
+    const updatedBoard = state.projects.find((project) => project.id === board.id);
+    expect(updatedBoard?.scenes).toHaveLength(1);
+    expect(updatedBoard?.scenes[0]).toMatchObject({
+      name: 'Neon marketplace',
+      prompt: 'rainy neon marketplace',
+      negativePrompt: '',
+      thumbnail: '/outputs/neon.png',
+      status: 'complete',
+      generationConfig: {
+        model: 'flux-dev',
+        seed: 123,
+        width: 1024,
+        height: 1024,
+      },
+    });
+    expect(state.activeSceneId).toBe(updatedBoard?.scenes[0].id);
+  });
+
   it('branches the active output into a generation draft', async () => {
     const user = userEvent.setup();
     seedViewerState({ activeWorkbenchView: 'viewer' });

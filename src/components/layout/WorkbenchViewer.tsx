@@ -7,6 +7,7 @@ import {
   ImageIcon,
   Layers,
   Pencil,
+  Plus,
   SplitSquareHorizontal,
   X,
   type LucideIcon,
@@ -15,6 +16,7 @@ import {
 import { useAppStore, type AppState } from '@/store/appStore';
 import { ImageWithFallback } from '@/components/ui/ImageWithFallback';
 import type { GenerationDraft } from '@/types/generation';
+import { DEFAULT_GENERATION_CONFIG } from '@/types/project';
 import { cn } from '@/utils/cn';
 
 type CompareMode = Exclude<AppState['comparisonMode'], 'off'>;
@@ -50,11 +52,16 @@ interface ViewerItem {
 export function WorkbenchViewer() {
   const {
     assetLibrary,
+    activeProjectId,
     activeViewerItemId,
     batchResults,
     comparisonImages,
     comparisonMode,
+    projects,
+    addScene,
     setActiveViewerItemId,
+    setActiveScene,
+    setSceneStatus,
     setComparisonImages,
     setComparisonMode,
     setGenerationDraft,
@@ -112,6 +119,7 @@ export function WorkbenchViewer() {
   }, [assetLibrary, batchResults]);
 
   const activeItem = items.find((item) => item.id === activeViewerItemId) ?? items[0] ?? null;
+  const activeProject = projects.find((project) => project.id === activeProjectId) ?? null;
   const isPinned = activeItem ? comparisonImages.includes(activeItem.imagePath) : false;
   const pinnedItems = useMemo<ViewerItem[]>(() => {
     const itemsByPath = new Map(items.map((item) => [item.imagePath, item]));
@@ -169,6 +177,21 @@ export function WorkbenchViewer() {
     setGenerationDraft(toGenerationDraft(activeItem));
     setActiveWorkbenchView('canvas');
     setActivePanel('generate');
+  };
+
+  const addToBoard = () => {
+    if (!activeItem || !activeProject) return;
+
+    const scene = addScene(activeProject.id, {
+      name: activeItem.label,
+      prompt: activeItem.prompt === 'No prompt saved' ? '' : activeItem.prompt,
+      negativePrompt: activeItem.negativePrompt,
+      generationConfig: toSceneGenerationConfig(activeItem),
+      thumbnail: activeItem.imagePath,
+      status: 'complete',
+    });
+    setSceneStatus(activeProject.id, scene.id, 'complete');
+    setActiveScene(scene.id);
   };
 
   const toggleComparePin = () => {
@@ -241,6 +264,15 @@ export function WorkbenchViewer() {
             </div>
 
             <div className="flex shrink-0 gap-2">
+              <button
+                type="button"
+                onClick={addToBoard}
+                disabled={!activeProject}
+                className="inline-flex items-center gap-2 rounded-md border border-border px-3 py-2 text-xs font-display text-text-body transition-all hover:border-border-hover hover:bg-elevated hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                Add to Board
+              </button>
               <button
                 type="button"
                 onClick={branchVariant}
@@ -508,6 +540,19 @@ function toGenerationDraft(item: ViewerItem): GenerationDraft {
     model: item.model ?? 'flux-dev',
     scheduler: item.scheduler ?? 'Euler a',
     seed: item.seed ?? -1,
+  };
+}
+
+function toSceneGenerationConfig(item: ViewerItem) {
+  return {
+    ...DEFAULT_GENERATION_CONFIG,
+    model: item.model ?? DEFAULT_GENERATION_CONFIG.model,
+    steps: item.steps ?? DEFAULT_GENERATION_CONFIG.steps,
+    cfgScale: item.cfgScale ?? DEFAULT_GENERATION_CONFIG.cfgScale,
+    scheduler: item.scheduler ?? DEFAULT_GENERATION_CONFIG.scheduler,
+    seed: item.seed ?? DEFAULT_GENERATION_CONFIG.seed,
+    width: item.width ?? DEFAULT_GENERATION_CONFIG.width,
+    height: item.height ?? DEFAULT_GENERATION_CONFIG.height,
   };
 }
 
