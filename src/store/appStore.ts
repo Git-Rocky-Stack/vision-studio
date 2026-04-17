@@ -85,6 +85,119 @@ export interface BatchJob {
 
 export type WorkbenchView = 'canvas' | 'viewer' | 'workflow';
 
+export type WorkflowStepState = 'ready' | 'pending' | 'complete';
+
+export interface WorkflowStepRecord {
+  id: string;
+  label: string;
+  detail: string;
+  state: WorkflowStepState;
+}
+
+export interface WorkflowRecord {
+  id: string;
+  name: string;
+  status: 'draft' | 'ready' | 'running' | 'complete';
+  profile: string;
+  summary: string;
+  settings: {
+    width: number;
+    height: number;
+    steps: number;
+    cfgScale: number;
+  };
+  inputs: string[];
+  steps: WorkflowStepRecord[];
+  runOutputSummary: string | null;
+}
+
+const baselineWorkflowSteps: WorkflowStepRecord[] = [
+  {
+    id: 'prompt',
+    label: 'Prompt',
+    detail: 'Collect prompt, negative prompt, and references.',
+    state: 'ready',
+  },
+  {
+    id: 'model',
+    label: 'Model',
+    detail: 'Use the selected generation profile.',
+    state: 'ready',
+  },
+  {
+    id: 'generate',
+    label: 'Generate',
+    detail: 'Queue the image generation run.',
+    state: 'pending',
+  },
+  {
+    id: 'review',
+    label: 'Review',
+    detail: 'Send output to Viewer for comparison.',
+    state: 'pending',
+  },
+  {
+    id: 'save',
+    label: 'Save',
+    detail: 'Capture accepted output to Boards and Gallery.',
+    state: 'pending',
+  },
+];
+
+export const DEFAULT_WORKFLOWS: WorkflowRecord[] = [
+  {
+    id: 'image-generation-baseline',
+    name: 'Image generation baseline',
+    status: 'draft',
+    profile: 'Balanced image run',
+    summary: '1024 x 1024, 25 steps, CFG 7.5',
+    settings: {
+      width: 1024,
+      height: 1024,
+      steps: 25,
+      cfgScale: 7.5,
+    },
+    inputs: ['Prompt', 'References'],
+    steps: baselineWorkflowSteps,
+    runOutputSummary: null,
+  },
+  {
+    id: 'storyboard-frame',
+    name: 'Storyboard frame',
+    status: 'draft',
+    profile: 'Scene continuity run',
+    summary: '1280 x 720, 30 steps, CFG 7',
+    settings: {
+      width: 1280,
+      height: 720,
+      steps: 30,
+      cfgScale: 7,
+    },
+    inputs: ['Scene prompt', 'Character references'],
+    steps: baselineWorkflowSteps.map((step) => ({ ...step })),
+    runOutputSummary: null,
+  },
+];
+
+function cloneWorkflow(workflow: WorkflowRecord): WorkflowRecord {
+  return {
+    ...workflow,
+    settings: { ...workflow.settings },
+    inputs: [...workflow.inputs],
+    steps: workflow.steps.map((step) => ({ ...step })),
+  };
+}
+
+function createDraftWorkflow(name: string): WorkflowRecord {
+  return {
+    ...cloneWorkflow(DEFAULT_WORKFLOWS[0]),
+    id: `workflow-${crypto.randomUUID()}`,
+    name,
+    status: 'draft',
+    runOutputSummary: null,
+  };
+}
+
 // Predefined templates
 export const PROJECT_TEMPLATES: ProjectTemplate[] = [
   {
@@ -191,6 +304,8 @@ interface AppState {
   activePanel: 'generate' | 'quick' | 'storyboard' | 'edit' | 'assets' | 'settings' | 'templates' | 'batch';
   activeWorkbenchView: WorkbenchView;
   activeViewerItemId: string | null;
+  workflowRecords: WorkflowRecord[];
+  activeWorkflowId: string;
   darkMode: boolean;
 
   // Recent Projects (file-system level, not storyboard)
@@ -291,6 +406,8 @@ interface AppState {
   setActivePanel: (panel: AppState['activePanel']) => void;
   setActiveWorkbenchView: (view: WorkbenchView) => void;
   setActiveViewerItemId: (itemId: string | null) => void;
+  setActiveWorkflow: (workflowId: string) => void;
+  createWorkflow: (name: string) => WorkflowRecord;
   setCurrentProject: (project: Project | null) => void;
   addJob: (job: GenerationJob) => void;
   updateJob: (jobId: string, updates: Partial<GenerationJob>) => void;
@@ -433,6 +550,8 @@ export const useAppStore = create<AppState>()(
       activePanel: 'generate',
       activeWorkbenchView: 'canvas',
       activeViewerItemId: null,
+      workflowRecords: DEFAULT_WORKFLOWS.map(cloneWorkflow),
+      activeWorkflowId: DEFAULT_WORKFLOWS[0].id,
       darkMode: true,
       currentProject: null,
       recentProjects: [],
@@ -500,6 +619,20 @@ export const useAppStore = create<AppState>()(
       setActivePanel: (panel) => set({ activePanel: panel }),
       setActiveWorkbenchView: (view) => set({ activeWorkbenchView: view }),
       setActiveViewerItemId: (itemId) => set({ activeViewerItemId: itemId }),
+      setActiveWorkflow: (workflowId) =>
+        set((state) =>
+          state.workflowRecords.some((workflow) => workflow.id === workflowId)
+            ? { activeWorkflowId: workflowId }
+            : {}
+        ),
+      createWorkflow: (name) => {
+        const workflow = createDraftWorkflow(name);
+        set((state) => ({
+          workflowRecords: [...state.workflowRecords, workflow],
+          activeWorkflowId: workflow.id,
+        }));
+        return workflow;
+      },
       setCurrentProject: (project) => set({ currentProject: project }),
 
       addJob: (job) => set((state) => ({

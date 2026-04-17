@@ -1,6 +1,8 @@
 import { cleanup, render, screen, within } from '@testing-library/react';
-import { afterEach, describe, expect, it } from 'vitest';
+import userEvent from '@testing-library/user-event';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
+import { useAppStore } from '@/store/appStore';
 import { WorkflowWorkbench } from './WorkflowWorkbench';
 
 const legacyPrimarySelector = [
@@ -14,13 +16,17 @@ const legacyPrimarySelector = [
 ].join(', ');
 
 describe('WorkflowWorkbench', () => {
+  beforeEach(() => {
+    useAppStore.setState(useAppStore.getInitialState(), true);
+  });
+
   afterEach(cleanup);
 
   it('renders workflow metadata instead of placeholder copy', () => {
     render(<WorkflowWorkbench />);
 
     expect(screen.getByRole('heading', { name: 'Workflow' })).toBeInTheDocument();
-    expect(screen.getByText('Image generation baseline')).toBeInTheDocument();
+    expect(screen.getAllByText('Image generation baseline').length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText('Draft')).toBeInTheDocument();
     expect(screen.queryByText('Node workflows are coming to this workbench.')).not.toBeInTheDocument();
   });
@@ -39,13 +45,24 @@ describe('WorkflowWorkbench', () => {
     expect(steps[4]).toHaveTextContent('Save');
   });
 
-  it('renders library presets and run output context', () => {
+  it('renders workflow library records and run output context', () => {
     render(<WorkflowWorkbench />);
 
     expect(screen.getByRole('heading', { name: 'Workflow Library' })).toBeInTheDocument();
-    expect(screen.getByText('Text to image')).toBeInTheDocument();
+    expect(screen.getAllByText('Image generation baseline')).toHaveLength(2);
+    expect(screen.getByText('Storyboard frame')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Run Output' })).toBeInTheDocument();
     expect(screen.getByText('No run output yet.')).toBeInTheDocument();
+  });
+
+  it('selects a workflow from the library', async () => {
+    const user = userEvent.setup();
+
+    render(<WorkflowWorkbench />);
+    await user.click(screen.getByRole('button', { name: 'Storyboard frame' }));
+
+    expect(useAppStore.getState().activeWorkflowId).toBe('storyboard-frame');
+    expect(screen.getByText('Scene continuity run')).toBeInTheDocument();
   });
 
   it('uses Carbon Pro accent tokens instead of legacy primary red chrome', () => {

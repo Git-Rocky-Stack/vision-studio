@@ -102,7 +102,7 @@ describe('WorkspaceLayout', () => {
 
     expect(screen.getByRole('tab', { name: 'Workflow' })).toHaveAttribute('aria-selected', 'true');
     expect(screen.getByRole('heading', { name: 'Workflow' })).toBeInTheDocument();
-    expect(screen.getByText('Image generation baseline')).toBeInTheDocument();
+    expect(screen.getAllByText('Image generation baseline').length).toBeGreaterThanOrEqual(1);
     expect(screen.getByRole('list', { name: 'Workflow run plan' })).toBeInTheDocument();
     expect(screen.queryByText('Node workflows are coming to this workbench.')).not.toBeInTheDocument();
   });

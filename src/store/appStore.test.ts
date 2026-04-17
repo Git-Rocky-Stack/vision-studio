@@ -48,6 +48,44 @@ describe('appStore', () => {
     });
   });
 
+  describe('workflow records', () => {
+    it('defaults to a baseline workflow record', () => {
+      const state = useAppStore.getState();
+
+      expect(state.activeWorkflowId).toBe('image-generation-baseline');
+      expect(state.workflowRecords.map((workflow) => workflow.id)).toContain('image-generation-baseline');
+      expect(state.workflowRecords[0].steps.map((step) => step.label)).toEqual([
+        'Prompt',
+        'Model',
+        'Generate',
+        'Review',
+        'Save',
+      ]);
+    });
+
+    it('changes the active workflow', () => {
+      useAppStore.getState().setActiveWorkflow('storyboard-frame');
+
+      expect(useAppStore.getState().activeWorkflowId).toBe('storyboard-frame');
+    });
+
+    it('does not change the active workflow for an unknown id', () => {
+      useAppStore.getState().setActiveWorkflow('missing-workflow');
+
+      expect(useAppStore.getState().activeWorkflowId).toBe('image-generation-baseline');
+    });
+
+    it('creates and selects a new draft workflow', () => {
+      const workflow = useAppStore.getState().createWorkflow('Product pass');
+      const state = useAppStore.getState();
+
+      expect(workflow.name).toBe('Product pass');
+      expect(workflow.status).toBe('draft');
+      expect(state.workflowRecords).toContainEqual(workflow);
+      expect(state.activeWorkflowId).toBe(workflow.id);
+    });
+  });
+
   // ── Job management ────────────────────────────────────────────────────
 
   describe('addJob', () => {
