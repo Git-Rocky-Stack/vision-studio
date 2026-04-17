@@ -1,9 +1,28 @@
 import { useMemo, useState } from 'react';
-import { Columns2, GitCompare, ImageIcon, Pencil, X } from 'lucide-react';
+import {
+  Columns2,
+  GitCompare,
+  Grid3X3,
+  ImageIcon,
+  Layers,
+  Pencil,
+  SplitSquareHorizontal,
+  X,
+  type LucideIcon,
+} from 'lucide-react';
 
-import { useAppStore } from '@/store/appStore';
+import { useAppStore, type AppState } from '@/store/appStore';
 import { ImageWithFallback } from '@/components/ui/ImageWithFallback';
 import { cn } from '@/utils/cn';
+
+type CompareMode = Exclude<AppState['comparisonMode'], 'off'>;
+
+const compareModes: { id: CompareMode; label: string; icon: LucideIcon }[] = [
+  { id: 'side-by-side', label: 'Side by Side', icon: Columns2 },
+  { id: 'slider', label: 'Slider', icon: SplitSquareHorizontal },
+  { id: 'onion', label: 'Onion Skin', icon: Layers },
+  { id: 'grid', label: 'Grid', icon: Grid3X3 },
+];
 
 interface ViewerItem {
   id: string;
@@ -130,12 +149,6 @@ export function WorkbenchViewer() {
     updateComparisonImages(comparisonImages.filter((image) => image !== imagePath));
   };
 
-  const startSideBySideCompare = () => {
-    if (comparisonImages.length >= 2) {
-      setComparisonMode('side-by-side');
-    }
-  };
-
   if (!activeItem) {
     return (
       <div className="flex h-full flex-col items-center justify-center bg-void px-6 text-center">
@@ -156,9 +169,10 @@ export function WorkbenchViewer() {
         {showCompareReview ? (
           <CompareReview
             items={pinnedItems}
+            mode={comparisonMode === 'off' ? 'side-by-side' : comparisonMode}
             onClear={clearCompare}
+            onModeChange={setComparisonMode}
             onRemove={removeCompareImage}
-            onStartSideBySide={startSideBySideCompare}
           />
         ) : (
           <ImageWithFallback
@@ -254,15 +268,21 @@ export function WorkbenchViewer() {
 
 function CompareReview({
   items,
+  mode,
   onClear,
+  onModeChange,
   onRemove,
-  onStartSideBySide,
 }: {
   items: ViewerItem[];
+  mode: CompareMode;
   onClear: () => void;
+  onModeChange: (mode: CompareMode) => void;
   onRemove: (imagePath: string) => void;
-  onStartSideBySide: () => void;
 }) {
+  const [sliderPosition, setSliderPosition] = useState(50);
+  const [onionOpacity, setOnionOpacity] = useState(50);
+  const [firstItem, secondItem] = items;
+
   return (
     <section
       aria-label="Compare review"
@@ -273,15 +293,31 @@ function CompareReview({
           <h2 className="font-display text-sm font-semibold text-text-primary">Compare review</h2>
           <p className="mt-1 font-mono text-micro text-text-muted">{items.length} pinned</p>
         </div>
-        <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={onStartSideBySide}
-            className="inline-flex items-center gap-2 rounded-md border border-accent-primary-border bg-accent-primary-muted px-3 py-2 text-xs font-display text-accent-primary transition-all hover:bg-elevated"
-          >
-            <Columns2 className="h-3.5 w-3.5" />
-            Side by Side
-          </button>
+        <div className="flex flex-wrap justify-end gap-2">
+          <div className="flex rounded-md border border-border bg-void p-1">
+            {compareModes.map((compareMode) => {
+              const Icon = compareMode.icon;
+              const isActive = mode === compareMode.id;
+
+              return (
+                <button
+                  key={compareMode.id}
+                  type="button"
+                  aria-pressed={isActive}
+                  onClick={() => onModeChange(compareMode.id)}
+                  className={cn(
+                    'inline-flex items-center gap-2 rounded px-2.5 py-1.5 text-xs font-display transition-all',
+                    isActive
+                      ? 'bg-accent-primary-muted text-accent-primary'
+                      : 'text-text-body hover:bg-elevated hover:text-text-primary'
+                  )}
+                >
+                  <Icon className="h-3.5 w-3.5" />
+                  {compareMode.label}
+                </button>
+              );
+            })}
+          </div>
           <button
             type="button"
             onClick={onClear}
@@ -292,33 +328,143 @@ function CompareReview({
         </div>
       </div>
 
-      <div className="grid min-h-0 flex-1 grid-cols-2 gap-3 p-3">
-        {items.map((item, index) => (
-          <article key={`${item.id}-${index}`} className="relative min-h-0 overflow-hidden rounded-md border border-border bg-void">
+      {mode === 'side-by-side' && <SideBySideCompare items={items} onRemove={onRemove} />}
+
+      {mode === 'slider' && firstItem && secondItem && (
+        <div className="relative min-h-0 flex-1 overflow-hidden bg-void">
+          <ImageWithFallback
+            src={secondItem.imagePath}
+            alt={`Slider after ${secondItem.label}`}
+            className="h-full w-full object-contain"
+            fallbackClassName="absolute inset-0 h-full w-full"
+          />
+          <div
+            className="absolute inset-0 overflow-hidden"
+            style={{ clipPath: `inset(0 ${100 - sliderPosition}% 0 0)` }}
+          >
             <ImageWithFallback
-              src={item.imagePath}
-              alt={`Compare ${item.label}`}
+              src={firstItem.imagePath}
+              alt={`Slider before ${firstItem.label}`}
               className="h-full w-full object-contain"
               fallbackClassName="h-full w-full"
             />
-            <div className="absolute left-3 right-3 top-3 flex items-start justify-between gap-2">
-              <div className="min-w-0 rounded-md border border-border bg-void/70 px-2 py-1 backdrop-blur-sm">
-                <p className="truncate font-display text-xs font-semibold text-text-primary">{item.label}</p>
-                <p className="mt-0.5 font-mono text-micro text-text-muted">{item.source}</p>
-              </div>
-              <button
-                type="button"
-                aria-label={`Remove ${item.label} from compare`}
-                onClick={() => onRemove(item.imagePath)}
-                className="rounded-md border border-border bg-void/70 p-1.5 text-text-muted transition-all hover:border-border-hover hover:text-text-primary"
-              >
-                <X className="h-3.5 w-3.5" />
-              </button>
-            </div>
-          </article>
-        ))}
-      </div>
+          </div>
+          <CompareLabel item={firstItem} className="absolute left-3 top-3" />
+          <CompareLabel item={secondItem} className="absolute right-3 top-3" />
+          <div className="absolute bottom-4 left-4 right-4 flex items-center gap-3 rounded-md border border-border bg-void/80 px-3 py-2 backdrop-blur-sm">
+            <span className="font-display text-xs text-text-muted">Before</span>
+            <input
+              type="range"
+              aria-label="Comparison split"
+              min={0}
+              max={100}
+              value={sliderPosition}
+              onChange={(event) => setSliderPosition(Number(event.target.value))}
+              className="min-w-0 flex-1 accent-accent-primary"
+            />
+            <span className="font-display text-xs text-text-muted">After</span>
+          </div>
+        </div>
+      )}
+
+      {mode === 'onion' && firstItem && secondItem && (
+        <div className="relative min-h-0 flex-1 overflow-hidden bg-void">
+          <ImageWithFallback
+            src={firstItem.imagePath}
+            alt={`Onion base ${firstItem.label}`}
+            className="h-full w-full object-contain"
+            fallbackClassName="absolute inset-0 h-full w-full"
+          />
+          <ImageWithFallback
+            src={secondItem.imagePath}
+            alt={`Onion overlay ${secondItem.label}`}
+            className="h-full w-full object-contain"
+            fallbackClassName="absolute inset-0 h-full w-full"
+            style={{ opacity: onionOpacity / 100 }}
+          />
+          <CompareLabel item={firstItem} className="absolute left-3 top-3" />
+          <CompareLabel item={secondItem} className="absolute right-3 top-3" />
+          <label className="absolute bottom-4 left-1/2 flex w-72 max-w-[calc(100%-2rem)] -translate-x-1/2 items-center gap-3 rounded-md border border-border bg-void/80 px-3 py-2 backdrop-blur-sm">
+            <span className="font-display text-xs text-text-body">Overlay</span>
+            <input
+              type="range"
+              aria-label="Overlay opacity"
+              min={0}
+              max={100}
+              value={onionOpacity}
+              onChange={(event) => setOnionOpacity(Number(event.target.value))}
+              className="min-w-0 flex-1 accent-accent-primary"
+            />
+            <span className="w-8 text-right font-mono text-micro text-text-muted">{onionOpacity}%</span>
+          </label>
+        </div>
+      )}
+
+      {mode === 'grid' && (
+        <ul
+          aria-label="Pinned comparison outputs"
+          className="grid min-h-0 flex-1 list-none grid-cols-2 gap-3 overflow-auto p-3 lg:grid-cols-4"
+        >
+          {items.map((item, index) => (
+            <li
+              key={`${item.id}-${index}`}
+              className="relative min-h-[220px] overflow-hidden rounded-md border border-border bg-void"
+            >
+              <ImageWithFallback
+                src={item.imagePath}
+                alt={`Grid compare ${item.label}`}
+                className="h-full w-full object-contain"
+                fallbackClassName="h-full w-full"
+              />
+              <CompareLabel item={item} className="absolute left-3 right-3 top-3" />
+            </li>
+          ))}
+        </ul>
+      )}
     </section>
+  );
+}
+
+function SideBySideCompare({
+  items,
+  onRemove,
+}: {
+  items: ViewerItem[];
+  onRemove: (imagePath: string) => void;
+}) {
+  return (
+    <div className="grid min-h-0 flex-1 grid-cols-2 gap-3 p-3">
+      {items.map((item, index) => (
+        <article key={`${item.id}-${index}`} className="relative min-h-0 overflow-hidden rounded-md border border-border bg-void">
+          <ImageWithFallback
+            src={item.imagePath}
+            alt={`Compare ${item.label}`}
+            className="h-full w-full object-contain"
+            fallbackClassName="h-full w-full"
+          />
+          <div className="absolute left-3 right-3 top-3 flex items-start justify-between gap-2">
+            <CompareLabel item={item} />
+            <button
+              type="button"
+              aria-label={`Remove ${item.label} from compare`}
+              onClick={() => onRemove(item.imagePath)}
+              className="rounded-md border border-border bg-void/70 p-1.5 text-text-muted transition-all hover:border-border-hover hover:text-text-primary"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        </article>
+      ))}
+    </div>
+  );
+}
+
+function CompareLabel({ item, className }: { item: ViewerItem; className?: string }) {
+  return (
+    <div className={cn('min-w-0 rounded-md border border-border bg-void/70 px-2 py-1 backdrop-blur-sm', className)}>
+      <p className="truncate font-display text-xs font-semibold text-text-primary">{item.label}</p>
+      <p className="mt-0.5 font-mono text-micro text-text-muted">{item.source}</p>
+    </div>
   );
 }
 

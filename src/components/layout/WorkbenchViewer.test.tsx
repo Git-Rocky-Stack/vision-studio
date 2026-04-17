@@ -104,6 +104,47 @@ describe('WorkbenchViewer', () => {
     expect(state.comparisonImages).toEqual(['/outputs/neon.png', '/outputs/castle.png']);
     expect(state.comparisonMode).toBe('side-by-side');
   });
+
+  it('switches compare review modes from the Viewer controls', async () => {
+    const user = userEvent.setup();
+    seedViewerState({
+      comparisonImages: ['/outputs/neon.png', '/outputs/castle.png'],
+      comparisonMode: 'side-by-side',
+    });
+
+    render(<WorkbenchViewer />);
+    await user.click(screen.getByRole('button', { name: 'Slider' }));
+
+    expect(useAppStore.getState().comparisonMode).toBe('slider');
+    expect(screen.getByRole('button', { name: 'Slider' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('slider', { name: 'Comparison split' })).toBeInTheDocument();
+  });
+
+  it('renders onion skin controls for pinned outputs', () => {
+    seedViewerState({
+      comparisonImages: ['/outputs/neon.png', '/outputs/castle.png'],
+      comparisonMode: 'onion',
+    });
+
+    render(<WorkbenchViewer />);
+
+    expect(screen.getByAltText('Onion base Neon marketplace')).toBeInTheDocument();
+    expect(screen.getByAltText('Onion overlay Batch result')).toBeInTheDocument();
+    expect(screen.getByRole('slider', { name: 'Overlay opacity' })).toHaveValue('50');
+  });
+
+  it('renders all pinned outputs in grid comparison mode', () => {
+    seedViewerState({
+      comparisonImages: ['/outputs/neon.png', '/outputs/castle.png'],
+      comparisonMode: 'grid',
+    });
+
+    render(<WorkbenchViewer />);
+
+    const compareGrid = screen.getByRole('list', { name: 'Pinned comparison outputs' });
+    expect(within(compareGrid).getByAltText('Grid compare Neon marketplace')).toBeInTheDocument();
+    expect(within(compareGrid).getByAltText('Grid compare Batch result')).toBeInTheDocument();
+  });
 });
 
 function seedViewerState(overrides: Partial<ReturnType<typeof useAppStore.getState>> = {}) {
