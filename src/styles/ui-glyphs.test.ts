@@ -25,6 +25,7 @@ const shellTypographyFiles = [
   'src/components/canvas/GenerationQueue.tsx',
   'src/components/canvas/GenerationProgress.tsx',
   'src/components/edit/RegionLockToolbar.tsx',
+  'src/components/storyboard/TransitionIndicator.tsx',
   'src/components/ui/ImageWithFallback.tsx',
   'src/pages/GeneratePanel.tsx',
   'src/pages/QuickGeneratePanel.tsx',

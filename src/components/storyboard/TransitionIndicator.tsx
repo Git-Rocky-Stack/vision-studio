@@ -65,16 +65,16 @@ export const TransitionIndicator = memo(function TransitionIndicator({
       onClick={onClick}
       className={cn(
         'flex items-center justify-center gap-1 py-1.5 w-full',
-        'text-xs font-display transition-colors duration-150',
+        'type-ui transition-colors duration-150',
         'hover:bg-elevated rounded-lg cursor-pointer',
         onClick ? 'cursor-pointer' : 'cursor-default',
         config.className
       )}
     >
       <Icon className="w-3 h-3" aria-hidden="true" />
-      <span className="text-micro">{config.label}</span>
+      <span>{config.label}</span>
       {duration !== undefined && duration > 0 && (
-        <span className="text-micro text-text-muted ml-0.5">
+        <span className="text-text-muted ml-0.5">
           {formatDuration(duration)}
         </span>
       )}
