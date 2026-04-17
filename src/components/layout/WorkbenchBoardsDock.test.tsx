@@ -1,4 +1,5 @@
 import { cleanup, render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { useAppStore } from '@/store/appStore';
@@ -29,5 +30,30 @@ describe('WorkbenchBoardsDock', () => {
     expect(screen.getByText('Campaign Boards')).toBeInTheDocument();
     expect(screen.getByText('0 scenes')).toBeInTheDocument();
     expect(screen.getByText(project.name)).toBeInTheDocument();
+  });
+
+  it('creates and selects a new board from the empty state', async () => {
+    const user = userEvent.setup();
+
+    render(<WorkbenchBoardsDock />);
+    await user.click(screen.getByRole('button', { name: 'New Board' }));
+
+    const state = useAppStore.getState();
+    expect(state.projects).toHaveLength(1);
+    expect(state.projects[0].name).toBe('Untitled Board');
+    expect(state.activeProjectId).toBe(state.projects[0].id);
+  });
+
+  it('creates and selects another board from the project list', async () => {
+    const user = userEvent.setup();
+    const existing = useAppStore.getState().createProject('Campaign Boards', { width: 1024, height: 1024 });
+    useAppStore.getState().setActiveProject(existing.id);
+
+    render(<WorkbenchBoardsDock />);
+    await user.click(screen.getByRole('button', { name: 'New Board' }));
+
+    const state = useAppStore.getState();
+    expect(state.projects.map((project) => project.name)).toEqual(['Campaign Boards', 'Untitled Board 2']);
+    expect(state.activeProjectId).toBe(state.projects[1].id);
   });
 });
