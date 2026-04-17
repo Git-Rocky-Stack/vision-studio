@@ -7,10 +7,7 @@ import { WorkbenchBoardsDock } from './WorkbenchBoardsDock';
 
 describe('WorkbenchBoardsDock', () => {
   beforeEach(() => {
-    useAppStore.setState({
-      projects: [],
-      activeProjectId: null,
-    });
+    useAppStore.setState(useAppStore.getInitialState(), true);
   });
 
   afterEach(cleanup);
@@ -85,5 +82,22 @@ describe('WorkbenchBoardsDock', () => {
     expect(board?.scenes[0].name).toBe('Scene 1');
     expect(state.activeSceneId).toBe(board?.scenes[0].id);
     expect(screen.getByText('1 scenes')).toBeInTheDocument();
+  });
+
+  it('shows scenes for the active board and selects a scene', async () => {
+    const user = userEvent.setup();
+    const existing = useAppStore.getState().createProject('Campaign Boards', { width: 1024, height: 1024 });
+    const firstScene = useAppStore.getState().addScene(existing.id, { name: 'Opening frame' });
+    const secondScene = useAppStore.getState().addScene(existing.id, { name: 'Closing frame' });
+    useAppStore.getState().setActiveProject(existing.id);
+    useAppStore.getState().setActiveScene(firstScene.id);
+
+    render(<WorkbenchBoardsDock />);
+
+    expect(screen.getByRole('button', { name: 'Opening frame' })).toHaveAttribute('aria-pressed', 'true');
+
+    await user.click(screen.getByRole('button', { name: 'Closing frame' }));
+
+    expect(useAppStore.getState().activeSceneId).toBe(secondScene.id);
   });
 });

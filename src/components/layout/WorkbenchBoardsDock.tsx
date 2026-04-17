@@ -7,6 +7,7 @@ export function WorkbenchBoardsDock() {
   const {
     projects,
     activeProjectId,
+    activeSceneId,
     addScene,
     createProject,
     setActivePanel,
@@ -90,24 +91,50 @@ export function WorkbenchBoardsDock() {
             const isActive = project.id === activeProjectId;
 
             return (
-              <button
-                key={project.id}
-                type="button"
-                onClick={() => setActiveProject(project.id)}
-                className={cn(
-                  'rounded-md border px-3 py-2 text-left transition-all',
-                  isActive
-                    ? 'border-accent-primary-border bg-accent-primary-muted'
-                    : 'border-transparent hover:border-border-hover hover:bg-elevated'
-                )}
-              >
-                <span className="block truncate font-display text-xs font-semibold text-text-primary">
-                  {project.name}
-                </span>
-                <span className="mt-1 block font-mono text-micro text-text-muted">
-                  {project.scenes.length} scenes
-                </span>
-              </button>
+              <div key={project.id} className="flex flex-col gap-1">
+                <button
+                  type="button"
+                  onClick={() => setActiveProject(project.id)}
+                  className={cn(
+                    'rounded-md border px-3 py-2 text-left transition-all',
+                    isActive
+                      ? 'border-accent-primary-border bg-accent-primary-muted'
+                      : 'border-transparent hover:border-border-hover hover:bg-elevated'
+                  )}
+                >
+                  <span className="block truncate font-display text-xs font-semibold text-text-primary">
+                    {project.name}
+                  </span>
+                  <span className="mt-1 block font-mono text-micro text-text-muted">
+                    {project.scenes.length} scenes
+                  </span>
+                </button>
+
+                {isActive && project.scenes.length > 0 ? (
+                  <div className="ml-3 flex flex-col gap-1 border-l border-border pl-2">
+                    {project.scenes.map((scene) => {
+                      const isSceneActive = scene.id === activeSceneId;
+
+                      return (
+                        <button
+                          key={scene.id}
+                          type="button"
+                          aria-pressed={isSceneActive}
+                          onClick={() => setActiveScene(scene.id)}
+                          className={cn(
+                            'truncate rounded-md border px-2.5 py-1.5 text-left font-display text-xs transition-all',
+                            isSceneActive
+                              ? 'border-accent-primary-border bg-accent-primary-muted text-accent-primary'
+                              : 'border-transparent text-text-body hover:border-border-hover hover:bg-elevated hover:text-text-primary'
+                          )}
+                        >
+                          {scene.name}
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : null}
+              </div>
             );
           })}
         </div>
