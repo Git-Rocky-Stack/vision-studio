@@ -1,0 +1,1 @@
+export const ProgressivePreview = () => <div>Progressive Preview (coming soon)</div>;
