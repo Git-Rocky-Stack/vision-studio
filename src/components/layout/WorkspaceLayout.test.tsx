@@ -103,7 +103,8 @@ describe('WorkspaceLayout', () => {
     expect(screen.getByRole('tab', { name: 'Workflow' })).toHaveAttribute('aria-selected', 'true');
     expect(screen.getByRole('heading', { name: 'Workflow' })).toBeInTheDocument();
     expect(screen.getAllByText('Image generation baseline').length).toBeGreaterThanOrEqual(1);
-    expect(screen.getByRole('list', { name: 'Workflow run plan' })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Workflow graph editor' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Sampler node' })).toBeInTheDocument();
     expect(screen.queryByText('Node workflows are coming to this workbench.')).not.toBeInTheDocument();
   });
 

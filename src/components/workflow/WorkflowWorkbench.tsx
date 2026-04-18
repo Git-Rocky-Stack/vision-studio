@@ -1,5 +1,10 @@
+import { useState } from 'react';
+
+import { exportWorkflowGraphToComfyPrompt } from '@/features/workflow/comfyExport';
 import { useAppStore } from '@/store/appStore';
+import type { WorkflowGraphNode } from '@/store/appStore';
 import { cn } from '@/utils/cn';
+import { WorkflowGraphEditor } from './WorkflowGraphEditor';
 
 function formatLabel(value: string) {
   return value.charAt(0).toUpperCase() + value.slice(1);
@@ -11,10 +16,112 @@ function formatTimestamp(value: string) {
   return time ? `${date} ${time.slice(0, 5)}` : value;
 }
 
+function createWorkflowNodeFromClassType(
+  classType: string,
+  nodeCount: number
+): Omit<WorkflowGraphNode, 'id'> {
+  const offset = nodeCount * 24;
+  const defaults: Record<string, Omit<WorkflowGraphNode, 'id'>> = {
+    CLIPTextEncode: {
+      classType: 'CLIPTextEncode',
+      label: 'Prompt Encode',
+      position: { x: 80 + offset, y: 120 + offset },
+      inputs: {
+        text: { kind: 'literal', value: '' },
+      },
+      metadata: {
+        state: 'pending',
+        description: 'Encode prompt text for generation.',
+      },
+    },
+    CheckpointLoaderSimple: {
+      classType: 'CheckpointLoaderSimple',
+      label: 'Model Loader',
+      position: { x: 80 + offset, y: 280 + offset },
+      inputs: {
+        ckpt_name: { kind: 'literal', value: 'flux-dev.safetensors' },
+      },
+      metadata: {
+        state: 'pending',
+        description: 'Load a model checkpoint.',
+      },
+    },
+    KSampler: {
+      classType: 'KSampler',
+      label: 'Sampler',
+      position: { x: 360 + offset, y: 200 + offset },
+      inputs: {
+        seed: { kind: 'literal', value: 1 },
+        steps: { kind: 'literal', value: 25 },
+        cfg: { kind: 'literal', value: 7.5 },
+      },
+      metadata: {
+        state: 'pending',
+        description: 'Queue the image generation run.',
+      },
+    },
+    PreviewImage: {
+      classType: 'PreviewImage',
+      label: 'Preview',
+      position: { x: 640 + offset, y: 120 + offset },
+      inputs: {},
+      metadata: {
+        state: 'pending',
+        description: 'Preview generated output.',
+      },
+    },
+    SaveImage: {
+      classType: 'SaveImage',
+      label: 'Save Output',
+      position: { x: 640 + offset, y: 300 + offset },
+      inputs: {
+        filename_prefix: { kind: 'literal', value: 'vision-studio' },
+      },
+      metadata: {
+        state: 'pending',
+        description: 'Save accepted output.',
+      },
+    },
+  };
+
+  return (
+    defaults[classType] ?? {
+      classType,
+      label: classType,
+      position: { x: 120 + offset, y: 120 + offset },
+      inputs: {},
+      metadata: {
+        state: 'pending',
+      },
+    }
+  );
+}
+
 export function WorkflowWorkbench() {
-  const { workflowRecords, activeWorkflowId, setActiveWorkflow } = useAppStore();
+  const {
+    workflowRecords,
+    activeWorkflowId,
+    setActiveWorkflow,
+    addWorkflowNode,
+    moveWorkflowNode,
+    connectWorkflowNodes,
+    deleteWorkflowNode,
+    deleteWorkflowEdge,
+  } = useAppStore();
+  const [exportedJson, setExportedJson] = useState<string | null>(null);
+  const [exportError, setExportError] = useState<string | null>(null);
   const activeWorkflow =
     workflowRecords.find((workflow) => workflow.id === activeWorkflowId) ?? workflowRecords[0];
+
+  function handleExportComfyJson() {
+    try {
+      setExportedJson(JSON.stringify(exportWorkflowGraphToComfyPrompt(activeWorkflow.graph), null, 2));
+      setExportError(null);
+    } catch (error) {
+      setExportedJson(null);
+      setExportError(error instanceof Error ? error.message : 'Unable to export graph.');
+    }
+  }
 
   return (
     <div className="grid h-full min-h-0 grid-cols-[minmax(220px,280px)_minmax(0,1fr)_minmax(260px,320px)] bg-void">
@@ -83,32 +190,50 @@ export function WorkflowWorkbench() {
       </aside>
 
       <main className="flex min-h-0 flex-col">
-        <div className="border-b border-border bg-surface px-5 py-3">
-          <p className="type-caption">Run Plan</p>
-          <h3 className="mt-1 type-section">Linear execution path</h3>
+        <div className="flex items-center justify-between gap-3 border-b border-border bg-surface px-5 py-3">
+          <div>
+            <p className="type-caption">Graph Editor</p>
+            <h3 className="mt-1 type-section">ComfyUI prompt graph</h3>
+          </div>
+          <button
+            type="button"
+            onClick={handleExportComfyJson}
+            className="rounded-md border border-border bg-elevated px-3 py-1.5 type-ui text-text-body transition-all hover:border-border-hover hover:text-text-primary"
+          >
+            Export ComfyUI JSON
+          </button>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-auto p-5">
-          <ol aria-label="Workflow run plan" className="flex flex-col gap-3">
-            {activeWorkflow.steps.map((step, index) => (
-              <li
-                key={step.label}
-                className="grid grid-cols-[2.5rem_minmax(0,1fr)_5rem] items-start gap-3 rounded-md border border-border bg-surface px-3 py-3"
-              >
-                <span className="flex h-8 w-8 items-center justify-center rounded-md border border-border bg-elevated type-meta text-text-body">
-                  {index + 1}
-                </span>
-                <span className="min-w-0">
-                  <span className="block type-section">{step.label}</span>
-                  <span className="mt-1 block type-caption">{step.detail}</span>
-                </span>
-                <span className="justify-self-end rounded-md border border-border bg-elevated px-2 py-1 type-ui text-text-body">
-                  {formatLabel(step.state)}
-                </span>
-              </li>
-            ))}
-          </ol>
-        </div>
+        <WorkflowGraphEditor
+          graph={activeWorkflow.graph}
+          onMoveNode={(nodeId, position) => moveWorkflowNode(activeWorkflow.id, nodeId, position)}
+          onAddNode={(classType) => {
+            addWorkflowNode(
+              activeWorkflow.id,
+              createWorkflowNodeFromClassType(classType, Object.keys(activeWorkflow.graph.nodes).length)
+            );
+          }}
+          onConnectNodes={(edge) => connectWorkflowNodes(activeWorkflow.id, edge)}
+          onDeleteSelection={(selection) => {
+            if (selection.type === 'node') deleteWorkflowNode(activeWorkflow.id, selection.id);
+            if (selection.type === 'edge') deleteWorkflowEdge(activeWorkflow.id, selection.id);
+          }}
+        />
+
+        {exportedJson && (
+          <pre
+            role="region"
+            aria-label="ComfyUI API JSON export"
+            className="max-h-48 overflow-auto border-t border-border bg-canvas p-3 type-meta text-text-body"
+          >
+            {exportedJson}
+          </pre>
+        )}
+        {exportError && (
+          <p className="border-t border-border bg-surface px-4 py-3 type-caption text-error" role="alert">
+            {exportError}
+          </p>
+        )}
       </main>
 
       <aside className="flex min-h-0 flex-col border-l border-border bg-surface">

@@ -1,4 +1,4 @@
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
@@ -44,18 +44,12 @@ describe('WorkflowWorkbench', () => {
     ).toBeInTheDocument();
   });
 
-  it('renders an ordered linear run plan', () => {
+  it('renders the editable workflow graph in the center work surface', () => {
     render(<WorkflowWorkbench />);
 
-    const runPlan = screen.getByRole('list', { name: 'Workflow run plan' });
-    const steps = within(runPlan).getAllByRole('listitem');
-
-    expect(steps).toHaveLength(5);
-    expect(steps[0]).toHaveTextContent('Prompt');
-    expect(steps[1]).toHaveTextContent('Model');
-    expect(steps[2]).toHaveTextContent('Generate');
-    expect(steps[3]).toHaveTextContent('Review');
-    expect(steps[4]).toHaveTextContent('Save');
+    expect(screen.getByRole('region', { name: 'Workflow graph editor' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Prompt Encode node' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Sampler node' })).toBeInTheDocument();
   });
 
   it('renders workflow library records and run output context', () => {
@@ -104,6 +98,18 @@ describe('WorkflowWorkbench', () => {
     expect(screen.getByText('storyboard')).toBeInTheDocument();
     expect(screen.getByText('scene')).toBeInTheDocument();
     expect(screen.getByText('Use this path when a single board frame needs continuity before review.')).toBeInTheDocument();
+  });
+
+  it('exports the active graph as ComfyUI API JSON', async () => {
+    const user = userEvent.setup();
+
+    render(<WorkflowWorkbench />);
+    await user.click(screen.getByRole('button', { name: 'Export ComfyUI JSON' }));
+
+    expect(screen.getByRole('region', { name: 'ComfyUI API JSON export' })).toHaveTextContent(
+      '"class_type": "KSampler"'
+    );
+    expect(screen.getByRole('region', { name: 'ComfyUI API JSON export' })).toHaveTextContent('"positive"');
   });
 
   it('uses Carbon Pro accent tokens instead of legacy primary red chrome', () => {
