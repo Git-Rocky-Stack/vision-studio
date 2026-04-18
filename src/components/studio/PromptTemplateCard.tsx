@@ -51,7 +51,7 @@ export const PromptTemplateCard = memo(function PromptTemplateCard({
           onClick={() => onToggleFavorite(template.id)}
           className={cn(
             'shrink-0 rounded p-0.5 transition-colors duration-normal',
-            'hover:bg-elevated focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary/30',
+            'hover:bg-elevated focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary/30',
             template.isFavorite
               ? 'text-yellow-400'
               : 'text-text-muted/40 hover:text-text-muted',
@@ -89,7 +89,7 @@ export const PromptTemplateCard = memo(function PromptTemplateCard({
         <button
           type="button"
           onClick={() => onApply(template.id)}
-          className="flex-1 rounded border border-accent-primary-border bg-accent-primary/10 px-2 py-1 text-xs font-medium text-accent-primary transition-colors duration-normal hover:bg-accent-primary/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary/30"
+          className="flex-1 rounded border border-accent-primary-border bg-accent-primary/10 px-2 py-1 text-xs font-medium text-accent-primary transition-colors duration-normal hover:bg-accent-primary/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary/30"
         >
           Apply
         </button>

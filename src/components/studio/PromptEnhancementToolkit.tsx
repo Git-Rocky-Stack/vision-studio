@@ -82,7 +82,7 @@ export const PromptEnhancementToolkit = memo(
               title={tool.description}
               className={cn(
                 'flex flex-col items-center gap-1.5 rounded-lg border p-3 transition-all duration-normal',
-                'focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary/30',
+                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary/30',
                 tool.isLoading
                   ? 'cursor-wait border-border bg-elevated/50 text-text-muted/50'
                   : 'border-border bg-surface text-text-muted hover:border-border-hover hover:bg-elevated hover:text-text-primary active:bg-void',

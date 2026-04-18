@@ -28,7 +28,7 @@ function CollapsibleSection({
       <button
         type="button"
         onClick={() => setIsOpen((prev) => !prev)}
-        className="flex w-full items-center gap-1.5 py-1 text-xs font-medium uppercase tracking-wider text-text-muted transition-colors duration-normal hover:text-text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary/30"
+        className="flex w-full items-center gap-1.5 py-1 text-xs font-medium uppercase tracking-wider text-text-muted transition-colors duration-normal hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary/30"
         aria-expanded={isOpen}
       >
         <ChevronDown

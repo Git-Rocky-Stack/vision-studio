@@ -81,6 +81,8 @@ export const ProgressiveStepOverlay = memo(function ProgressiveStepOverlay({
             text-xs font-medium text-text-body
             backdrop-blur-sm
           "
+          role="status"
+          aria-live="polite"
         >
           Step {currentStep} / {totalSteps}
         </span>

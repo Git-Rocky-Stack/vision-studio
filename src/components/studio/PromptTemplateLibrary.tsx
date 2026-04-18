@@ -79,17 +79,19 @@ export const PromptTemplateLibrary = memo(function PromptTemplateLibrary({
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search templates..."
-          className="w-full rounded-lg border border-border bg-void py-1.5 pl-8 pr-3 text-xs text-text-primary placeholder:text-text-muted/40 transition-colors duration-normal hover:border-border-hover focus:border-accent-primary-border focus:outline-none focus:ring-2 focus:ring-accent-primary/30"
+          aria-label="Search templates"
+          className="w-full rounded-lg border border-border bg-void py-1.5 pl-8 pr-3 text-xs text-text-primary placeholder:text-text-muted/40 transition-colors duration-normal hover:border-border-hover focus:border-accent-primary-border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary/30"
         />
       </div>
 
       {/* Category filter pills */}
-      <div className="flex flex-wrap gap-1.5">
+      <div className="flex flex-wrap gap-1.5" role="group" aria-label="Filter by category">
         {CATEGORIES.map((cat) => (
           <button
             key={cat.value}
             type="button"
             onClick={() => setActiveCategory(cat.value)}
+            aria-pressed={activeCategory === cat.value}
             className={cn(
               'rounded-full border px-2.5 py-0.5 text-[10px] font-medium uppercase tracking-wider transition-colors duration-normal',
               activeCategory === cat.value

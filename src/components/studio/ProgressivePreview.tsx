@@ -90,7 +90,7 @@ export const ProgressivePreview = memo(function ProgressivePreview() {
             "
             aria-hidden="true"
           />
-          <span className="text-sm text-text-body">
+          <span className="text-sm text-text-body" role="status">
             Initializing generation...
           </span>
         </div>
@@ -105,6 +105,7 @@ export const ProgressivePreview = memo(function ProgressivePreview() {
             text-xs font-medium text-text-body
             backdrop-blur-sm
           "
+          aria-hidden="true"
         >
           {zoomPercent}%
         </div>

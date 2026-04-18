@@ -63,10 +63,11 @@ export const TokenWeightedEditor = memo(function TokenWeightedEditor({
           onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder}
           spellCheck={false}
+          aria-label={label}
           className={cn(
             'relative z-10 h-32 w-full resize-y rounded-lg border bg-transparent p-2 font-mono text-xs leading-relaxed',
             'placeholder:text-text-muted/40',
-            'focus:outline-none focus:ring-2 focus:ring-accent-primary/30 focus:border-accent-primary-border',
+            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary/30 focus-visible:border-accent-primary-border',
             'transition-colors duration-normal',
             isOverLimit ? 'border-status-warning/60' : 'border-border hover:border-border-hover',
           )}

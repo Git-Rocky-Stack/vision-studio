@@ -110,7 +110,7 @@ export const CompositionPreview = memo(function CompositionPreview() {
                 'px-8 py-16 text-center',
               )}
             >
-              <ImagePlus className={cn('h-10 w-10 text-text-muted')} />
+              <ImagePlus className={cn('h-10 w-10 text-text-muted')} aria-hidden="true" />
               <p className={cn('text-sm text-text-muted')}>
                 Drop a reference image or start generating
               </p>

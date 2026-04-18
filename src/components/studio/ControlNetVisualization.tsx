@@ -47,6 +47,7 @@ export const ControlNetVisualization = memo(function ControlNetVisualization({
       />
       <div
         className={cn('absolute inset-0')}
+        aria-hidden="true"
         style={{ backgroundColor: tint, mixBlendMode: 'multiply' }}
       />
     </div>
