@@ -112,6 +112,16 @@ describe('WorkflowWorkbench', () => {
     expect(screen.getByRole('region', { name: 'ComfyUI API JSON export' })).toHaveTextContent('"positive"');
   });
 
+  it('clears exported JSON when switching workflows', async () => {
+    const user = userEvent.setup();
+
+    render(<WorkflowWorkbench />);
+    await user.click(screen.getByRole('button', { name: 'Export ComfyUI JSON' }));
+    await user.click(screen.getByRole('button', { name: 'Storyboard frame' }));
+
+    expect(screen.queryByRole('region', { name: 'ComfyUI API JSON export' })).not.toBeInTheDocument();
+  });
+
   it('uses Carbon Pro accent tokens instead of legacy primary red chrome', () => {
     const { container } = render(<WorkflowWorkbench />);
 

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { exportWorkflowGraphToComfyPrompt } from '@/features/workflow/comfyExport';
 import { useAppStore } from '@/store/appStore';
@@ -112,6 +112,11 @@ export function WorkflowWorkbench() {
   const [exportError, setExportError] = useState<string | null>(null);
   const activeWorkflow =
     workflowRecords.find((workflow) => workflow.id === activeWorkflowId) ?? workflowRecords[0];
+
+  useEffect(() => {
+    setExportedJson(null);
+    setExportError(null);
+  }, [activeWorkflow.id, activeWorkflow.graph]);
 
   function handleExportComfyJson() {
     try {

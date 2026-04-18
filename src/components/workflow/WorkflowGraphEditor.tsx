@@ -19,8 +19,6 @@ interface WorkflowGraphEditorProps {
 
 interface DragState {
   nodeId: string;
-  origin: WorkflowGraphNode['position'];
-  pointerStart: { x: number; y: number };
   cleanup: () => void;
 }
 
@@ -46,15 +44,35 @@ function getDefaultInputForClassType(classType: string) {
   return 'input';
 }
 
-function getEdgePath(edge: WorkflowGraphEdge, graph: WorkflowGraph) {
+function getDefaultInputForConnection(sourceOutput: string, targetClassType: string) {
+  if (targetClassType === 'KSampler') {
+    if (sourceOutput === 'MODEL') return 'model';
+    if (sourceOutput === 'CONDITIONING') return 'positive';
+    if (sourceOutput === 'LATENT') return 'latent_image';
+  }
+
+  if ((targetClassType === 'PreviewImage' || targetClassType === 'SaveImage') && sourceOutput === 'IMAGE') {
+    return 'images';
+  }
+
+  return getDefaultInputForClassType(targetClassType);
+}
+
+function getEdgePath(
+  edge: WorkflowGraphEdge,
+  graph: WorkflowGraph,
+  previewPositions: Record<string, WorkflowGraphNode['position']>
+) {
   const source = graph.nodes[edge.sourceNodeId];
   const target = graph.nodes[edge.targetNodeId];
   if (!source || !target) return '';
 
-  const sourceX = source.position.x + NODE_WIDTH;
-  const sourceY = source.position.y + NODE_HEIGHT / 2;
-  const targetX = target.position.x;
-  const targetY = target.position.y + NODE_HEIGHT / 2;
+  const sourcePosition = previewPositions[source.id] ?? source.position;
+  const targetPosition = previewPositions[target.id] ?? target.position;
+  const sourceX = sourcePosition.x + NODE_WIDTH;
+  const sourceY = sourcePosition.y + NODE_HEIGHT / 2;
+  const targetX = targetPosition.x;
+  const targetY = targetPosition.y + NODE_HEIGHT / 2;
   const curveOffset = Math.max(72, Math.abs(targetX - sourceX) / 2);
 
   return `M ${sourceX} ${sourceY} C ${sourceX + curveOffset} ${sourceY}, ${targetX - curveOffset} ${targetY}, ${targetX} ${targetY}`;
@@ -69,6 +87,7 @@ export function WorkflowGraphEditor({
 }: WorkflowGraphEditorProps) {
   const [selection, setSelection] = useState<GraphSelection | null>(null);
   const [connectionSourceId, setConnectionSourceId] = useState<string | null>(null);
+  const [previewPositions, setPreviewPositions] = useState<Record<string, WorkflowGraphNode['position']>>({});
   const dragRef = useRef<DragState | null>(null);
   const nodes = useMemo(() => Object.values(graph.nodes), [graph.nodes]);
   const selectedNode = selection?.type === 'node' ? graph.nodes[selection.id] : null;
@@ -79,11 +98,13 @@ export function WorkflowGraphEditor({
     if (connectionSourceId && connectionSourceId !== node.id) {
       const source = graph.nodes[connectionSourceId];
       if (source) {
+        const sourceOutput = getDefaultOutputForClassType(source.classType);
+
         onConnectNodes({
           sourceNodeId: source.id,
-          sourceOutput: getDefaultOutputForClassType(source.classType),
+          sourceOutput,
           targetNodeId: node.id,
-          targetInput: getDefaultInputForClassType(node.classType),
+          targetInput: getDefaultInputForConnection(sourceOutput, node.classType),
         });
       }
       setConnectionSourceId(null);
@@ -96,16 +117,31 @@ export function WorkflowGraphEditor({
     if (event.button !== 0) return;
     selectNode(node);
 
-    const handlePointerMove = () => {};
+    const renderedPosition = previewPositions[node.id] ?? node.position;
+    const pointerStart = { x: event.clientX, y: event.clientY };
+    const calculatePosition = (pointerEvent: PointerEvent) => ({
+      x: Math.round(renderedPosition.x + pointerEvent.clientX - pointerStart.x),
+      y: Math.round(renderedPosition.y + pointerEvent.clientY - pointerStart.y),
+    });
+    const handlePointerMove = (pointerEvent: PointerEvent) => {
+      const drag = dragRef.current;
+      if (!drag) return;
+
+      setPreviewPositions((positions) => ({
+        ...positions,
+        [drag.nodeId]: calculatePosition(pointerEvent),
+      }));
+    };
     const handlePointerUp = (pointerEvent: PointerEvent) => {
       const drag = dragRef.current;
       if (!drag) return;
 
-      const nextPosition = {
-        x: Math.round(drag.origin.x + pointerEvent.clientX - drag.pointerStart.x),
-        y: Math.round(drag.origin.y + pointerEvent.clientY - drag.pointerStart.y),
-      };
+      const nextPosition = calculatePosition(pointerEvent);
 
+      setPreviewPositions((positions) => ({
+        ...positions,
+        [drag.nodeId]: nextPosition,
+      }));
       onMoveNode(drag.nodeId, nextPosition);
       drag.cleanup();
       dragRef.current = null;
@@ -118,8 +154,6 @@ export function WorkflowGraphEditor({
 
     dragRef.current = {
       nodeId: node.id,
-      origin: { ...node.position },
-      pointerStart: { x: event.clientX, y: event.clientY },
       cleanup,
     };
 
@@ -158,7 +192,13 @@ export function WorkflowGraphEditor({
           type="button"
           disabled={!selection}
           onClick={() => {
-            if (selection) onDeleteSelection(selection);
+            if (!selection) return;
+
+            onDeleteSelection(selection);
+            if (selection.type === 'node' && connectionSourceId === selection.id) {
+              setConnectionSourceId(null);
+            }
+            setSelection(null);
           }}
           className="rounded-md border border-border bg-elevated px-3 py-1.5 type-ui text-text-body transition-all hover:border-border-hover hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-50"
         >
@@ -171,7 +211,7 @@ export function WorkflowGraphEditor({
           <svg className="absolute inset-0 h-full w-full" aria-hidden="true">
             {graph.edges.map((edge) => {
               const isSelected = selection?.type === 'edge' && selection.id === edge.id;
-              const path = getEdgePath(edge, graph);
+              const path = getEdgePath(edge, graph, previewPositions);
               if (!path) return null;
 
               return (
@@ -192,6 +232,8 @@ export function WorkflowGraphEditor({
             const source = graph.nodes[edge.sourceNodeId];
             const target = graph.nodes[edge.targetNodeId];
             if (!source || !target) return null;
+            const sourcePosition = previewPositions[source.id] ?? source.position;
+            const targetPosition = previewPositions[target.id] ?? target.position;
 
             return (
               <button
@@ -201,8 +243,8 @@ export function WorkflowGraphEditor({
                 onClick={() => setSelection({ type: 'edge', id: edge.id })}
                 className="absolute h-6 w-6 rounded-md border border-border bg-surface type-meta text-text-body"
                 style={{
-                  left: `${(source.position.x + target.position.x + NODE_WIDTH) / 2 - 12}px`,
-                  top: `${(source.position.y + target.position.y + NODE_HEIGHT) / 2 - 12}px`,
+                  left: `${(sourcePosition.x + targetPosition.x + NODE_WIDTH) / 2 - 12}px`,
+                  top: `${(sourcePosition.y + targetPosition.y + NODE_HEIGHT) / 2 - 12}px`,
                 }}
               >
                 +
@@ -213,6 +255,7 @@ export function WorkflowGraphEditor({
           {nodes.map((node) => {
             const isSelected = selection?.type === 'node' && selection.id === node.id;
             const isConnectionSource = connectionSourceId === node.id;
+            const position = previewPositions[node.id] ?? node.position;
 
             return (
               <button
@@ -229,8 +272,8 @@ export function WorkflowGraphEditor({
                   isConnectionSource && 'ring-2 ring-accent-primary/35'
                 )}
                 style={{
-                  left: `${node.position.x}px`,
-                  top: `${node.position.y}px`,
+                  left: `${position.x}px`,
+                  top: `${position.y}px`,
                   width: `${node.size?.width ?? NODE_WIDTH}px`,
                   minHeight: `${node.size?.height ?? NODE_HEIGHT}px`,
                 }}

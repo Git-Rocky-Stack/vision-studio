@@ -15,6 +15,15 @@ const graph: WorkflowGraph = {
         text: { kind: 'literal', value: 'test prompt' },
       },
     },
+    model: {
+      id: 'model',
+      classType: 'CheckpointLoaderSimple',
+      label: 'Model Loader',
+      position: { x: 40, y: 220 },
+      inputs: {
+        ckpt_name: { kind: 'literal', value: 'flux-dev.safetensors' },
+      },
+    },
     sampler: {
       id: 'sampler',
       classType: 'KSampler',
@@ -132,6 +141,30 @@ describe('WorkflowGraphEditor', () => {
     });
   });
 
+  it('connects model outputs to the sampler model input', () => {
+    const onConnectNodes = vi.fn();
+    render(
+      <WorkflowGraphEditor
+        graph={graph}
+        onMoveNode={() => {}}
+        onAddNode={() => {}}
+        onConnectNodes={onConnectNodes}
+        onDeleteSelection={() => {}}
+      />
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Model Loader node' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Start connection from selected node' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Sampler node' }));
+
+    expect(onConnectNodes).toHaveBeenCalledWith({
+      sourceNodeId: 'model',
+      sourceOutput: 'MODEL',
+      targetNodeId: 'sampler',
+      targetInput: 'model',
+    });
+  });
+
   it('moves a node by pointer drag', () => {
     const onMoveNode = vi.fn();
     render(
@@ -150,5 +183,40 @@ describe('WorkflowGraphEditor', () => {
     fireEvent.pointerUp(window, { clientX: 90, clientY: 120, pointerId: 1 });
 
     expect(onMoveNode).toHaveBeenCalledWith('prompt', { x: 80, y: 110 });
+  });
+
+  it('previews node movement while dragging', () => {
+    render(
+      <WorkflowGraphEditor
+        graph={graph}
+        onMoveNode={() => {}}
+        onAddNode={() => {}}
+        onConnectNodes={() => {}}
+        onDeleteSelection={() => {}}
+      />
+    );
+
+    const node = screen.getByRole('button', { name: 'Prompt Encode node' });
+    fireEvent.pointerDown(node, { clientX: 50, clientY: 90, pointerId: 1 });
+    fireEvent.pointerMove(window, { clientX: 90, clientY: 120, pointerId: 1 });
+
+    expect(node).toHaveStyle({ left: '80px', top: '110px' });
+  });
+
+  it('clears selection after deleting a selected node', () => {
+    render(
+      <WorkflowGraphEditor
+        graph={graph}
+        onMoveNode={() => {}}
+        onAddNode={() => {}}
+        onConnectNodes={() => {}}
+        onDeleteSelection={() => {}}
+      />
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Sampler node' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Delete selection' }));
+
+    expect(screen.getByRole('button', { name: 'Delete selection' })).toBeDisabled();
   });
 });
