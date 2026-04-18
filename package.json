@@ -52,6 +52,7 @@
     "@tanstack/react-virtual": "^3.13.21",
     "axios": "^1.7.9",
     "clsx": "^2.1.1",
+    "dockview": "^5.2.0",
     "electron-store": "^10.0.0",
     "electron-updater": "^6.3.9",
     "framer-motion": "^12.4.7",
