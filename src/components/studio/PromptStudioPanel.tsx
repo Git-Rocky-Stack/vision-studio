@@ -1,6 +1,7 @@
 import { memo, useState, useCallback } from 'react';
 import { ChevronDown } from 'lucide-react';
 import { cn } from '@/utils/cn';
+import { useAppStore } from '@/store/appStore';
 import { TokenWeightedEditor } from './TokenWeightedEditor';
 import { PromptEnhancementToolkit } from './PromptEnhancementToolkit';
 import { PromptTemplateLibrary } from './PromptTemplateLibrary';
@@ -63,13 +64,39 @@ export const PromptStudioPanel = memo(function PromptStudioPanel() {
   const [isEnhancing, setIsEnhancing] = useState(false);
   const [isExpanding, setIsExpanding] = useState(false);
 
-  // --- Enhancement handlers (placeholder - TODO: wire in Task 10) ----------
+  // --- Template apply: updates local prompt state & stamps lastUsedAt -------
 
-  const handleEnhance = useCallback(() => {
-    // TODO: Wire to AI enhancement service
-    setIsEnhancing(true);
-    setTimeout(() => setIsEnhancing(false), 2000);
+  const handleApplyTemplate = useCallback((id: string, mode: 'replace' | 'merge') => {
+    const template = useAppStore.getState().promptTemplates.find((t) => t.id === id);
+    if (!template) return;
+    if (mode === 'replace') {
+      setPositivePrompt(template.promptText);
+      if (template.negativePrompt) setNegativePrompt(template.negativePrompt);
+    } else {
+      setPositivePrompt((prev) => prev ? `${prev}, ${template.promptText}` : template.promptText);
+      if (template.negativePrompt) {
+        setNegativePrompt((prev) => prev ? `${prev}, ${template.negativePrompt}` : template.negativePrompt);
+      }
+    }
+    useAppStore.getState().applyPromptTemplate(id, mode);
   }, []);
+
+  // --- Enhancement handlers ------------------------------------------------
+
+  const handleEnhance = useCallback(async () => {
+    if (!window.electron?.generation?.enhancePrompt) return;
+    setIsEnhancing(true);
+    try {
+      const result = await window.electron.generation.enhancePrompt({ prompt: positivePrompt });
+      if (result.prompt) {
+        setPositivePrompt(result.prompt);
+      }
+    } catch {
+      // Enhancement failed - keep current prompt
+    } finally {
+      setIsEnhancing(false);
+    }
+  }, [positivePrompt]);
 
   const handleExpand = useCallback(() => {
     // TODO: Wire to prompt expansion service
@@ -81,12 +108,11 @@ export const PromptStudioPanel = memo(function PromptStudioPanel() {
     // TODO: Wire to negative prompt suggestion service
   }, []);
 
-  const handleStyleTransfer = useCallback(
-    (_modifier: string) => {
-      // TODO: Wire to style transfer service
-    },
-    [],
-  );
+  const handleStyleTransfer = useCallback((modifier: string) => {
+    if (modifier) {
+      setPositivePrompt((prev) => prev ? `${prev}, ${modifier}` : modifier);
+    }
+  }, []);
 
   // --------------------------------------------------------------------------
 
@@ -124,7 +150,7 @@ export const PromptStudioPanel = memo(function PromptStudioPanel() {
 
       {/* Section 3: Template Library */}
       <CollapsibleSection title="Templates" defaultOpen={false}>
-        <PromptTemplateLibrary />
+        <PromptTemplateLibrary onApply={handleApplyTemplate} />
       </CollapsibleSection>
     </div>
   );

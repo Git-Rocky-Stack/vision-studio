@@ -22,7 +22,13 @@ const CATEGORIES: Array<{ value: PromptTemplateCategory | 'all'; label: string }
  * Reads promptTemplates from the store and provides apply/favorite callbacks.
  * Sort order: favorites first, then built-in, then by createdAt desc.
  */
-export const PromptTemplateLibrary = memo(function PromptTemplateLibrary() {
+interface PromptTemplateLibraryProps {
+  onApply?: (id: string, mode: 'replace' | 'merge') => void;
+}
+
+export const PromptTemplateLibrary = memo(function PromptTemplateLibrary({
+  onApply,
+}: PromptTemplateLibraryProps) {
   const templates = useAppStore((s) => s.promptTemplates);
   const applyPromptTemplate = useAppStore((s) => s.applyPromptTemplate);
   const togglePromptTemplateFavorite = useAppStore(
@@ -103,7 +109,7 @@ export const PromptTemplateLibrary = memo(function PromptTemplateLibrary() {
             <PromptTemplateCard
               key={template.id}
               template={template}
-              onApply={(id) => applyPromptTemplate(id, 'replace')}
+              onApply={(id) => onApply ? onApply(id, 'replace') : applyPromptTemplate(id, 'replace')}
               onToggleFavorite={togglePromptTemplateFavorite}
             />
           ))}

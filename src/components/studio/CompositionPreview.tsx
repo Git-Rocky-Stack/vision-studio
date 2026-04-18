@@ -34,8 +34,9 @@ export const CompositionPreview = memo(function CompositionPreview() {
   }, []);
 
   const handleGenerate = useCallback(() => {
-    // Generation integration will be wired in a future task.
-    // For now this is a no-op placeholder.
+    // TODO: Wire to full generation action - this will trigger the generation
+    // and stream step images via the generationPreviewSlice
+    useAppStore.getState().setPreviewActive(true);
   }, []);
 
   // When preview is active (generation in progress), show the progressive preview
