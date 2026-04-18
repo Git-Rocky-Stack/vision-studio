@@ -524,6 +524,129 @@ describe('appStore', () => {
       expect(useAppStore.getState().centerView).toBe('workflow');
     });
   });
+
+  // ── Prompt Studio ───────────────────────────────────────────────────────
+
+  describe('prompt studio', () => {
+    it('defaults promptTemplates to >= 8 entries', () => {
+      expect(useAppStore.getState().promptTemplates.length).toBeGreaterThanOrEqual(8);
+    });
+
+    it('defaults compositionLayers visibility to true', () => {
+      const { compositionLayers } = useAppStore.getState();
+      expect(compositionLayers.aspectFrame.visible).toBe(true);
+      expect(compositionLayers.reference.visible).toBe(true);
+      expect(compositionLayers.controlNet.visible).toBe(true);
+      expect(compositionLayers.regionMasks.visible).toBe(true);
+    });
+
+    it('addUserPromptTemplate adds a template', () => {
+      const before = useAppStore.getState().promptTemplates.length;
+      useAppStore.getState().addUserPromptTemplate({
+        id: 'user-1',
+        name: 'My Template',
+        description: 'A custom template',
+        category: 'custom',
+        promptText: 'test prompt',
+        isBuiltIn: false,
+        isFavorite: false,
+        createdAt: Date.now(),
+      });
+      expect(useAppStore.getState().promptTemplates).toHaveLength(before + 1);
+      expect(useAppStore.getState().promptTemplates.at(-1)!.id).toBe('user-1');
+    });
+
+    it('deleteUserPromptTemplate removes non-built-in only', () => {
+      useAppStore.getState().addUserPromptTemplate({
+        id: 'user-2',
+        name: 'Custom',
+        description: 'Delete me',
+        category: 'custom',
+        promptText: 'custom prompt',
+        isBuiltIn: false,
+        isFavorite: false,
+        createdAt: Date.now(),
+      });
+      const builtInCount = useAppStore.getState().promptTemplates.filter((t) => t.isBuiltIn).length;
+      useAppStore.getState().deleteUserPromptTemplate('user-2');
+      expect(useAppStore.getState().promptTemplates.find((t) => t.id === 'user-2')).toBeUndefined();
+
+      // Built-in templates are protected
+      useAppStore.getState().deleteUserPromptTemplate('cinematic-portrait');
+      expect(useAppStore.getState().promptTemplates.find((t) => t.id === 'cinematic-portrait')).toBeDefined();
+      expect(useAppStore.getState().promptTemplates.filter((t) => t.isBuiltIn)).toHaveLength(builtInCount);
+    });
+
+    it('togglePromptTemplateFavorite toggles isFavorite', () => {
+      const before = useAppStore.getState().promptTemplates.find((t) => t.id === 'cinematic-portrait')!.isFavorite;
+      useAppStore.getState().togglePromptTemplateFavorite('cinematic-portrait');
+      expect(useAppStore.getState().promptTemplates.find((t) => t.id === 'cinematic-portrait')!.isFavorite).toBe(!before);
+      useAppStore.getState().togglePromptTemplateFavorite('cinematic-portrait');
+      expect(useAppStore.getState().promptTemplates.find((t) => t.id === 'cinematic-portrait')!.isFavorite).toBe(before);
+    });
+
+    it('setCompositionLayerVisibility toggles a layer', () => {
+      useAppStore.getState().setCompositionLayerVisibility('controlNet', false);
+      expect(useAppStore.getState().compositionLayers.controlNet.visible).toBe(false);
+      useAppStore.getState().setCompositionLayerVisibility('controlNet', true);
+      expect(useAppStore.getState().compositionLayers.controlNet.visible).toBe(true);
+    });
+
+    it('setCompositionLayerOpacity sets opacity', () => {
+      useAppStore.getState().setCompositionLayerOpacity('regionMasks', 0.3);
+      expect(useAppStore.getState().compositionLayers.regionMasks.opacity).toBe(0.3);
+    });
+  });
+
+  // ── Generation Preview ───────────────────────────────────────────────────
+
+  describe('generation preview', () => {
+    it('defaults to empty state', () => {
+      const state = useAppStore.getState();
+      expect(state.stepImages.size).toBe(0);
+      expect(state.currentStep).toBe(0);
+      expect(state.totalSteps).toBe(0);
+      expect(state.isPreviewActive).toBe(false);
+    });
+
+    it('addStepImage adds a step', () => {
+      useAppStore.getState().addStepImage(1, 'data:image/png;base64,abc');
+      const state = useAppStore.getState();
+      expect(state.stepImages.get(1)).toBe('data:image/png;base64,abc');
+      expect(state.currentStep).toBe(1);
+      expect(state.isPreviewActive).toBe(true);
+    });
+
+    it('addStepImage evicts oldest entries when cap exceeded', () => {
+      for (let i = 0; i < 12; i++) {
+        useAppStore.getState().addStepImage(i, `img-${i}`);
+      }
+      const state = useAppStore.getState();
+      expect(state.stepImages.size).toBe(10);
+      // Oldest entries (0, 1) should have been evicted
+      expect(state.stepImages.has(0)).toBe(false);
+      expect(state.stepImages.has(1)).toBe(false);
+      expect(state.stepImages.has(2)).toBe(true);
+    });
+
+    it('clearPreview resets state', () => {
+      useAppStore.getState().addStepImage(5, 'data');
+      useAppStore.getState().setTotalSteps(20);
+      useAppStore.getState().clearPreview();
+      const state = useAppStore.getState();
+      expect(state.stepImages.size).toBe(0);
+      expect(state.currentStep).toBe(0);
+      expect(state.totalSteps).toBe(0);
+      expect(state.isPreviewActive).toBe(false);
+    });
+
+    it('setPreviewActive toggles', () => {
+      useAppStore.getState().setPreviewActive(true);
+      expect(useAppStore.getState().isPreviewActive).toBe(true);
+      useAppStore.getState().setPreviewActive(false);
+      expect(useAppStore.getState().isPreviewActive).toBe(false);
+    });
+  });
 });
 
 // ── Helpers ───────────────────────────────────────────────────────────────

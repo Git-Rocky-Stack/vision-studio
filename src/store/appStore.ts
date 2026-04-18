@@ -9,6 +9,8 @@ import { editInitialState, createEditActions } from './slices/editSlice';
 import { generationInitialState, createGenerationActions } from './slices/generationSlice';
 import { projectInitialState, createProjectActions } from './slices/projectSlice';
 import { workflowInitialState, createWorkflowActions } from './slices/workflowSlice';
+import { promptStudioInitialState, createPromptStudioActions } from './slices/promptStudioSlice';
+import { generationPreviewInitialState, createGenerationPreviewActions } from './slices/generationPreviewSlice';
 
 // Re-exports: local types
 export type {
@@ -151,6 +153,10 @@ export const useAppStore = create<AppState>()(
       ...createProjectActions(set, get),
       ...workflowInitialState,
       ...createWorkflowActions(set, get),
+      ...promptStudioInitialState,
+      ...createPromptStudioActions(set, get),
+      ...generationPreviewInitialState,
+      ...createGenerationPreviewActions(set, get),
     }),
     {
       name: 'vision-studio-storage',
@@ -170,6 +176,8 @@ export const useAppStore = create<AppState>()(
         userTemplates: state.userTemplates,
         batchResults: state.batchResults.slice(0, 200),
         assetLibrary: state.assetLibrary.slice(0, 500),
+        promptTemplates: state.promptTemplates,
+        compositionLayers: state.compositionLayers,
       }),
     }
   )

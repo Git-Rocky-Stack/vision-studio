@@ -74,6 +74,8 @@ import type { ModelInfo } from '@/types/model';
 
 import type { ActiveTab, ActiveSubMode, CenterView } from '@/types/navigation';
 
+import type { PromptTemplate, CompositionLayerState } from '@/types/promptStudio';
+
 // ---------------------------------------------------------------------------
 // Local type definitions
 // ---------------------------------------------------------------------------
@@ -238,6 +240,16 @@ export interface AppState {
   };
   showAdvancedGeneration: boolean;
 
+  // ─── Prompt Studio ──────────────────────────────────────────────────────────
+  promptTemplates: PromptTemplate[];
+  compositionLayers: CompositionLayerState;
+
+  // ─── Generation Preview ──────────────────────────────────────────────────────
+  stepImages: Map<number, string>;
+  currentStep: number;
+  totalSteps: number;
+  isPreviewActive: boolean;
+
   // ─── Actions ─────────────────────────────────────────────────────────────
 
   // UI
@@ -332,6 +344,20 @@ export interface AppState {
   setGenerationDraft: (draft: GenerationDraft | null) => void;
   updateAdvancedGeneration: (patch: Partial<AppState['advancedGeneration']>) => void;
   setShowAdvancedGeneration: (show: boolean) => void;
+
+  // Prompt Studio
+  addUserPromptTemplate: (template: PromptTemplate) => void;
+  deleteUserPromptTemplate: (id: string) => void;
+  togglePromptTemplateFavorite: (id: string) => void;
+  setCompositionLayerVisibility: (layer: keyof CompositionLayerState, visible: boolean) => void;
+  setCompositionLayerOpacity: (layer: keyof CompositionLayerState, opacity: number) => void;
+  applyPromptTemplate: (id: string, mode: 'replace' | 'merge') => void;
+
+  // Generation Preview
+  addStepImage: (step: number, imageData: string) => void;
+  setTotalSteps: (total: number) => void;
+  clearPreview: () => void;
+  setPreviewActive: (active: boolean) => void;
 
   // Batch view
   setBatchViewMode: (mode: AppState['batchViewMode']) => void;
