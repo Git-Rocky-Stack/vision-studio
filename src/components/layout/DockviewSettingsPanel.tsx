@@ -4,6 +4,7 @@ import { cn } from '@/utils/cn';
 import { GeneratePanel } from '@/pages/GeneratePanel';
 import { QuickGeneratePanel } from '@/pages/QuickGeneratePanel';
 import { BatchPanel } from '@/pages/BatchPanel';
+import { PromptStudioPanel } from '@/components/studio/PromptStudioPanel';
 import { StoryboardPanel } from '@/pages/StoryboardPanel';
 import { TemplatesPanel } from '@/pages/TemplatesPanel';
 import { EditPropertiesPanel } from '@/components/edit/EditPropertiesPanel';
@@ -23,6 +24,7 @@ const GENERATE_SUB_MODES: SubModeOption[] = [
   { value: 'generate', label: 'Generate' },
   { value: 'quick', label: 'Quick' },
   { value: 'batch', label: 'Batch' },
+  { value: 'studio', label: 'Studio' },
 ];
 
 const STORY_SUB_MODES: SubModeOption[] = [
@@ -94,6 +96,7 @@ function SettingsContent({
       const sub = activeSubMode as GenerateSubMode;
       if (sub === 'quick') return <QuickGeneratePanel />;
       if (sub === 'batch') return <BatchPanel />;
+      if (sub === 'studio') return <PromptStudioPanel />;
       return <GeneratePanel />;
     }
 

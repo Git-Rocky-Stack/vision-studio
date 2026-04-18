@@ -11,6 +11,7 @@ import { DockviewBoardsPanel } from '@/components/layout/DockviewBoardsPanel';
 import { DockviewLayersPanel } from '@/components/layout/DockviewLayersPanel';
 import { AssetsPanel } from '@/pages/AssetsPanel';
 import { SettingsPanel } from '@/pages/SettingsPanel';
+import { CompositionPreview } from '@/components/studio/CompositionPreview';
 import { getLayoutPreset } from '@/components/layout/layoutPresets';
 import { cn } from '@/utils/cn';
 import type { CenterView } from '@/types/navigation';
@@ -65,7 +66,10 @@ const CENTER_VIEW_LABELS: Record<CenterView, string> = {
 export const DockviewLayout = memo(function DockviewLayout() {
   const activeTab = useAppStore((s) => s.activeTab);
   const centerView = useAppStore((s) => s.centerView);
+  const activeSubMode = useAppStore((s) => s.activeSubMode);
   const setCenterView = useAppStore((s) => s.setCenterView);
+
+  const isStudioMode = activeTab === 'generate' && activeSubMode === 'studio';
 
   const preset = getLayoutPreset(activeTab);
 
@@ -129,7 +133,7 @@ export const DockviewLayout = memo(function DockviewLayout() {
         {/* Center workspace */}
         <main className="flex min-w-0 flex-1 flex-col bg-void">
           {/* Center view tabs (only when preset has >1 center view) */}
-          {centerTabs.length > 1 && (
+          {centerTabs.length > 1 && !isStudioMode && (
             <div
               className="flex flex-shrink-0 items-center gap-1 border-b border-border px-2 py-1"
               role="tablist"
@@ -160,7 +164,7 @@ export const DockviewLayout = memo(function DockviewLayout() {
           {/* Center content */}
           <section className="min-h-0 flex-1 overflow-hidden">
             <ErrorBoundary fallbackLabel="Center view error">
-              <CenterContent centerView={centerView} />
+              {isStudioMode ? <CompositionPreview /> : <CenterContent centerView={centerView} />}
             </ErrorBoundary>
           </section>
         </main>

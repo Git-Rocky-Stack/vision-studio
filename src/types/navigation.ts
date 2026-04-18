@@ -1,6 +1,6 @@
 export type ActiveTab = 'generate' | 'canvas' | 'story' | 'workflows' | 'assets' | 'settings';
 
-export type GenerateSubMode = 'generate' | 'quick' | 'batch';
+export type GenerateSubMode = 'generate' | 'quick' | 'batch' | 'studio';
 
 export type StorySubMode = 'storyboard' | 'templates';
 

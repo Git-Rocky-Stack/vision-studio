@@ -18,7 +18,7 @@ const presets: Record<ActiveTab, LayoutPreset> = {
     hasRightDock: true,
     centerViews: ['canvas', 'viewer', 'workflow', 'launchpad'],
     rightDockPanels: ['gallery', 'boards'],
-    subModes: ['generate', 'quick', 'batch'],
+    subModes: ['generate', 'quick', 'batch', 'studio'],
     leftDockMinWidth: 380,
     rightDockMinWidth: 280,
   },

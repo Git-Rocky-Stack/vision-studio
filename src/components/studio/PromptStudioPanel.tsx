@@ -1,0 +1,1 @@
+export const PromptStudioPanel = () => <div>Prompt Studio (coming soon)</div>;
