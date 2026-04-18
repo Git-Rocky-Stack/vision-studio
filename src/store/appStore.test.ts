@@ -12,33 +12,42 @@ describe('appStore', () => {
 
   // ── UI state ──────────────────────────────────────────────────────────
 
-  describe('toggleSidebar', () => {
-    it('toggles the sidebar collapsed state', () => {
-      expect(useAppStore.getState().sidebarCollapsed).toBe(false);
-      useAppStore.getState().toggleSidebar();
-      expect(useAppStore.getState().sidebarCollapsed).toBe(true);
-      useAppStore.getState().toggleSidebar();
-      expect(useAppStore.getState().sidebarCollapsed).toBe(false);
+  // toggleSidebar removed -- NavBar is always narrow
+
+  describe('setActiveTab', () => {
+    it('changes the active tab', () => {
+      useAppStore.getState().setActiveTab('canvas');
+      expect(useAppStore.getState().activeTab).toBe('canvas');
+    });
+
+    it('sets default sub-mode when switching to generate', () => {
+      useAppStore.getState().setActiveTab('generate');
+      expect(useAppStore.getState().activeSubMode).toBe('generate');
+    });
+
+    it('sets default sub-mode when switching to story', () => {
+      useAppStore.getState().setActiveTab('story');
+      expect(useAppStore.getState().activeSubMode).toBe('storyboard');
+    });
+
+    it('sets sub-mode to null for tabs without sub-modes', () => {
+      useAppStore.getState().setActiveTab('assets');
+      expect(useAppStore.getState().activeSubMode).toBeNull();
     });
   });
 
-  describe('setActivePanel', () => {
-    it('changes the active panel', () => {
-      useAppStore.getState().setActivePanel('batch');
-      expect(useAppStore.getState().activePanel).toBe('batch');
+  describe('center view', () => {
+    it('defaults the center view to canvas', () => {
+      expect(useAppStore.getState().centerView).toBe('canvas');
+    });
+
+    it('changes the center view', () => {
+      useAppStore.getState().setCenterView('workflow');
+      expect(useAppStore.getState().centerView).toBe('workflow');
     });
   });
 
-  describe('workbench view', () => {
-    it('defaults the workbench view to canvas', () => {
-      expect(useAppStore.getState().activeWorkbenchView).toBe('canvas');
-    });
-
-    it('changes the active workbench view', () => {
-      useAppStore.getState().setActiveWorkbenchView('workflow');
-      expect(useAppStore.getState().activeWorkbenchView).toBe('workflow');
-    });
-
+  describe('active viewer item', () => {
     it('tracks the active viewer item for cross-dock selection', () => {
       expect(useAppStore.getState().activeViewerItemId).toBeNull();
 
