@@ -37,8 +37,7 @@ export function PromptArea({
     <div className="space-y-3">
       {/* Label */}
       <div className="flex items-center justify-between">
-        <label htmlFor="prompt-input" className="text-label text-text-body flex items-center gap-2">
-          <Sparkles className="w-3.5 h-3.5 text-accent-primary" />
+        <label htmlFor="prompt-input" className="text-label text-text-body">
           Prompt
         </label>
         <span className="font-mono text-xs text-text-muted" aria-live="polite">{prompt.length}</span>

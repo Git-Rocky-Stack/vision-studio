@@ -411,9 +411,7 @@ export const Canvas = memo(function Canvas() {
                   animate={{ opacity: 1, y: 0 }}
                   className="text-center space-y-5 max-w-sm px-8"
                 >
-                  <div className="w-16 h-16 mx-auto rounded-md bg-accent-primary-muted border border-accent-primary-border flex items-center justify-center">
-                    <Sparkles className="w-7 h-7 text-accent-primary" />
-                  </div>
+                  <div className="w-16 h-16 mx-auto rounded-md bg-accent-primary-muted border border-accent-primary-border" />
                   <div>
                     <h3 className="font-display text-xl font-semibold text-text-primary">
                       Start with an image, scene, or prompt

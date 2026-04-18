@@ -1,1 +1,71 @@
-"use strict";const n=require("electron"),o={app:{getVersion:()=>n.ipcRenderer.invoke("app:get-version"),openExternal:e=>n.ipcRenderer.invoke("app:open-external",e),getPath:e=>n.ipcRenderer.invoke("app:get-path",e),openPath:e=>n.ipcRenderer.invoke("app:open-path",e)},dialog:{selectFolder:()=>n.ipcRenderer.invoke("dialog:select-folder"),saveFile:e=>n.ipcRenderer.invoke("dialog:save-file",e)},store:{get:e=>n.ipcRenderer.invoke("store:get",e),set:(e,r)=>n.ipcRenderer.invoke("store:set",e,r),reset:()=>n.ipcRenderer.invoke("store:reset")},settings:{get:()=>n.ipcRenderer.invoke("settings:get"),update:e=>n.ipcRenderer.invoke("settings:update",e),reset:()=>n.ipcRenderer.invoke("settings:reset")},assets:{export:(e,r)=>n.ipcRenderer.invoke("assets:export",e,r),exportMany:(e,r)=>n.ipcRenderer.invoke("assets:export-many",e,r),delete:e=>n.ipcRenderer.invoke("assets:delete",e),reveal:e=>n.ipcRenderer.invoke("assets:reveal",e),clearCache:()=>n.ipcRenderer.invoke("assets:clear-cache")},generation:{generateImage:e=>n.ipcRenderer.invoke("generation:generate-image",e),generateVideo:e=>n.ipcRenderer.invoke("generation:generate-video",e),batch:e=>n.ipcRenderer.invoke("generation:batch",e),enhancePrompt:e=>n.ipcRenderer.invoke("generation:enhance-prompt",e),cropImage:e=>n.ipcRenderer.invoke("generation:crop-image",e),upscaleImage:e=>n.ipcRenderer.invoke("generation:upscale-image",e),getStatus:e=>n.ipcRenderer.invoke("generation:get-status",e),cancel:e=>n.ipcRenderer.invoke("generation:cancel",e),listJobs:e=>n.ipcRenderer.invoke("generation:list-jobs",e),onProgress:e=>{const r=(i,t)=>e(t);return n.ipcRenderer.on("generation:progress",r),()=>n.ipcRenderer.off("generation:progress",r)}},system:{getInfo:()=>n.ipcRenderer.invoke("system:get-info")},models:{list:()=>n.ipcRenderer.invoke("models:list"),download:e=>n.ipcRenderer.invoke("models:download",e),getStatus:e=>n.ipcRenderer.invoke("models:get-status",e),delete:e=>n.ipcRenderer.invoke("models:delete",e)},notifications:{notify:(e,r)=>n.ipcRenderer.invoke("notifications:notify",e,r)},backend:{start:()=>n.ipcRenderer.invoke("backend:start"),stop:()=>n.ipcRenderer.invoke("backend:stop"),getStatus:()=>n.ipcRenderer.invoke("backend:status"),checkBundled:()=>n.ipcRenderer.invoke("backend:check-bundled"),onStatusChange:e=>{const r=(i,t)=>e(t);return n.ipcRenderer.on("backend:status",r),()=>n.ipcRenderer.off("backend:status",r)}}};n.contextBridge.exposeInMainWorld("electron",o);
+"use strict";
+const electron = require("electron");
+const electronAPI = {
+  app: {
+    getVersion: () => electron.ipcRenderer.invoke("app:get-version"),
+    openExternal: (url) => electron.ipcRenderer.invoke("app:open-external", url),
+    getPath: (name) => electron.ipcRenderer.invoke("app:get-path", name),
+    openPath: (filePath) => electron.ipcRenderer.invoke("app:open-path", filePath)
+  },
+  dialog: {
+    selectFolder: () => electron.ipcRenderer.invoke("dialog:select-folder"),
+    saveFile: (options) => electron.ipcRenderer.invoke("dialog:save-file", options)
+  },
+  store: {
+    get: (key) => electron.ipcRenderer.invoke("store:get", key),
+    set: (key, value) => electron.ipcRenderer.invoke("store:set", key, value),
+    reset: () => electron.ipcRenderer.invoke("store:reset")
+  },
+  settings: {
+    get: () => electron.ipcRenderer.invoke("settings:get"),
+    update: (patch) => electron.ipcRenderer.invoke("settings:update", patch),
+    reset: () => electron.ipcRenderer.invoke("settings:reset")
+  },
+  assets: {
+    export: (sourcePath, destinationPath) => electron.ipcRenderer.invoke("assets:export", sourcePath, destinationPath),
+    exportMany: (sourcePaths, destinationDir) => electron.ipcRenderer.invoke("assets:export-many", sourcePaths, destinationDir),
+    delete: (sourcePath) => electron.ipcRenderer.invoke("assets:delete", sourcePath),
+    reveal: (sourcePath) => electron.ipcRenderer.invoke("assets:reveal", sourcePath),
+    clearCache: () => electron.ipcRenderer.invoke("assets:clear-cache")
+  },
+  generation: {
+    generateImage: (params) => electron.ipcRenderer.invoke("generation:generate-image", params),
+    generateVideo: (params) => electron.ipcRenderer.invoke("generation:generate-video", params),
+    batch: (params) => electron.ipcRenderer.invoke("generation:batch", params),
+    enhancePrompt: (params) => electron.ipcRenderer.invoke("generation:enhance-prompt", params),
+    cropImage: (params) => electron.ipcRenderer.invoke("generation:crop-image", params),
+    upscaleImage: (params) => electron.ipcRenderer.invoke("generation:upscale-image", params),
+    getStatus: (jobId) => electron.ipcRenderer.invoke("generation:get-status", jobId),
+    cancel: (jobId) => electron.ipcRenderer.invoke("generation:cancel", jobId),
+    listJobs: (options) => electron.ipcRenderer.invoke("generation:list-jobs", options),
+    onProgress: (callback) => {
+      const handler = (_event, data) => callback(data);
+      electron.ipcRenderer.on("generation:progress", handler);
+      return () => electron.ipcRenderer.off("generation:progress", handler);
+    }
+  },
+  system: {
+    getInfo: () => electron.ipcRenderer.invoke("system:get-info")
+  },
+  models: {
+    list: () => electron.ipcRenderer.invoke("models:list"),
+    download: (modelId) => electron.ipcRenderer.invoke("models:download", modelId),
+    getStatus: (modelId) => electron.ipcRenderer.invoke("models:get-status", modelId),
+    delete: (modelId) => electron.ipcRenderer.invoke("models:delete", modelId)
+  },
+  notifications: {
+    notify: (type, payload) => electron.ipcRenderer.invoke("notifications:notify", type, payload)
+  },
+  backend: {
+    start: () => electron.ipcRenderer.invoke("backend:start"),
+    stop: () => electron.ipcRenderer.invoke("backend:stop"),
+    getStatus: () => electron.ipcRenderer.invoke("backend:status"),
+    checkBundled: () => electron.ipcRenderer.invoke("backend:check-bundled"),
+    onStatusChange: (callback) => {
+      const handler = (_event, data) => callback(data);
+      electron.ipcRenderer.on("backend:status", handler);
+      return () => electron.ipcRenderer.off("backend:status", handler);
+    }
+  }
+};
+electron.contextBridge.exposeInMainWorld("electron", electronAPI);
