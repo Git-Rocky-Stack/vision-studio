@@ -136,6 +136,72 @@ describe('appStore', () => {
       );
     });
 
+    it('adds and moves a workflow graph node', () => {
+      const node = useAppStore.getState().addWorkflowNode('image-generation-baseline', {
+        classType: 'PreviewImage',
+        label: 'Alt Preview',
+        position: { x: 900, y: 120 },
+        inputs: {},
+      });
+
+      expect(node.id).toMatch(/^node-/);
+
+      useAppStore.getState().moveWorkflowNode('image-generation-baseline', node.id, { x: 940, y: 180 });
+      const workflow = useAppStore
+        .getState()
+        .workflowRecords.find((record) => record.id === 'image-generation-baseline');
+
+      expect(workflow?.graph.nodes[node.id].position).toEqual({ x: 940, y: 180 });
+    });
+
+    it('connects nodes and replaces an existing target input link', () => {
+      const edge = useAppStore.getState().connectWorkflowNodes('image-generation-baseline', {
+        sourceNodeId: 'prompt',
+        sourceOutput: 'CONDITIONING',
+        targetNodeId: 'sampler',
+        targetInput: 'positive',
+      });
+
+      const workflow = useAppStore
+        .getState()
+        .workflowRecords.find((record) => record.id === 'image-generation-baseline');
+
+      expect(edge.id).toBe('edge-prompt-sampler-positive');
+      expect(
+        workflow?.graph.edges.filter(
+          (item) => item.targetNodeId === 'sampler' && item.targetInput === 'positive'
+        )
+      ).toHaveLength(1);
+      expect(workflow?.graph.nodes.sampler.inputs.positive).toEqual({
+        kind: 'link',
+        nodeId: 'prompt',
+        output: 'CONDITIONING',
+      });
+    });
+
+    it('rejects invalid workflow graph connections', () => {
+      expect(() =>
+        useAppStore.getState().connectWorkflowNodes('image-generation-baseline', {
+          sourceNodeId: 'prompt',
+          sourceOutput: 'CONDITIONING',
+          targetNodeId: 'prompt',
+          targetInput: 'text',
+        })
+      ).toThrow('Cannot connect a workflow node to itself');
+    });
+
+    it('deletes workflow graph nodes and removes connected edges', () => {
+      useAppStore.getState().deleteWorkflowNode('image-generation-baseline', 'prompt');
+
+      const workflow = useAppStore
+        .getState()
+        .workflowRecords.find((record) => record.id === 'image-generation-baseline');
+
+      expect(workflow?.graph.nodes.prompt).toBeUndefined();
+      expect(workflow?.graph.edges.some((edge) => edge.sourceNodeId === 'prompt')).toBe(false);
+      expect(workflow?.graph.nodes.sampler.inputs.positive).toBeUndefined();
+    });
+
     it('records a workflow run and updates the output summary', () => {
       useAppStore.getState().recordWorkflowRun('image-generation-baseline', {
         id: 'run-1',

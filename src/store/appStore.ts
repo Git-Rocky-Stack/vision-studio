@@ -378,6 +378,10 @@ function cloneWorkflow(workflow: WorkflowRecord): WorkflowRecord {
   };
 }
 
+function createWorkflowEdgeId(edge: Omit<WorkflowGraphEdge, 'id'>): string {
+  return `edge-${edge.sourceNodeId}-${edge.targetNodeId}-${edge.targetInput}`;
+}
+
 function createDraftWorkflow(name: string): WorkflowRecord {
   return {
     ...cloneWorkflow(DEFAULT_WORKFLOWS[0]),
@@ -603,6 +607,30 @@ interface AppState {
   setActiveWorkflow: (workflowId: string) => void;
   createWorkflow: (name: string) => WorkflowRecord;
   recordWorkflowRun: (workflowId: string, run: WorkflowRunInput) => void;
+  addWorkflowNode: (
+    workflowId: string,
+    node: Omit<WorkflowGraphNode, 'id'>
+  ) => WorkflowGraphNode;
+  moveWorkflowNode: (
+    workflowId: string,
+    nodeId: string,
+    position: WorkflowGraphNode['position']
+  ) => void;
+  updateWorkflowNode: (
+    workflowId: string,
+    nodeId: string,
+    updates: Partial<Omit<WorkflowGraphNode, 'id'>>
+  ) => void;
+  deleteWorkflowNode: (workflowId: string, nodeId: string) => void;
+  connectWorkflowNodes: (
+    workflowId: string,
+    edge: Omit<WorkflowGraphEdge, 'id'>
+  ) => WorkflowGraphEdge;
+  deleteWorkflowEdge: (workflowId: string, edgeId: string) => void;
+  setWorkflowGraphViewport: (
+    workflowId: string,
+    viewport: NonNullable<WorkflowGraph['viewport']>
+  ) => void;
   setCurrentProject: (project: Project | null) => void;
   addJob: (job: GenerationJob) => void;
   updateJob: (jobId: string, updates: Partial<GenerationJob>) => void;
@@ -739,7 +767,7 @@ function createBaseImageLayer(imagePath: string, assetPath?: string | null): Lay
 
 export const useAppStore = create<AppState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       // UI State
       sidebarCollapsed: false,
       activePanel: 'generate',
@@ -847,6 +875,234 @@ export const useAppStore = create<AppState>()(
               runHistory: [storedRun, ...workflow.runHistory].slice(0, 10),
             };
           }),
+        })),
+      addWorkflowNode: (workflowId, node) => {
+        const workflow = get().workflowRecords.find((record) => record.id === workflowId);
+        if (!workflow) throw new Error(`Workflow "${workflowId}" not found`);
+
+        const storedNode: WorkflowGraphNode = {
+          ...node,
+          id: `node-${crypto.randomUUID()}`,
+          inputs: Object.fromEntries(
+            Object.entries(node.inputs).map(([inputName, input]) => [inputName, { ...input }])
+          ),
+          position: { ...node.position },
+          size: node.size ? { ...node.size } : undefined,
+          metadata: node.metadata ? { ...node.metadata } : undefined,
+        };
+
+        set((state) => ({
+          workflowRecords: state.workflowRecords.map((record) => {
+            if (record.id !== workflowId) return record;
+
+            return {
+              ...record,
+              graph: {
+                ...record.graph,
+                nodes: {
+                  ...record.graph.nodes,
+                  [storedNode.id]: storedNode,
+                },
+              },
+            };
+          }),
+        }));
+
+        return storedNode;
+      },
+      moveWorkflowNode: (workflowId, nodeId, position) =>
+        set((state) => ({
+          workflowRecords: state.workflowRecords.map((workflow) => {
+            if (workflow.id !== workflowId) return workflow;
+            const node = workflow.graph.nodes[nodeId];
+            if (!node) throw new Error(`Workflow graph node "${nodeId}" not found`);
+
+            return {
+              ...workflow,
+              graph: {
+                ...workflow.graph,
+                nodes: {
+                  ...workflow.graph.nodes,
+                  [nodeId]: {
+                    ...node,
+                    position: { ...position },
+                  },
+                },
+              },
+            };
+          }),
+        })),
+      updateWorkflowNode: (workflowId, nodeId, updates) =>
+        set((state) => ({
+          workflowRecords: state.workflowRecords.map((workflow) => {
+            if (workflow.id !== workflowId) return workflow;
+            const node = workflow.graph.nodes[nodeId];
+            if (!node) throw new Error(`Workflow graph node "${nodeId}" not found`);
+
+            return {
+              ...workflow,
+              graph: {
+                ...workflow.graph,
+                nodes: {
+                  ...workflow.graph.nodes,
+                  [nodeId]: {
+                    ...node,
+                    ...updates,
+                    inputs: updates.inputs
+                      ? Object.fromEntries(
+                          Object.entries(updates.inputs).map(([inputName, input]) => [
+                            inputName,
+                            { ...input },
+                          ])
+                        )
+                      : node.inputs,
+                    position: updates.position ? { ...updates.position } : node.position,
+                    size: updates.size ? { ...updates.size } : node.size,
+                    metadata: updates.metadata ? { ...updates.metadata } : node.metadata,
+                  },
+                },
+              },
+            };
+          }),
+        })),
+      deleteWorkflowNode: (workflowId, nodeId) =>
+        set((state) => ({
+          workflowRecords: state.workflowRecords.map((workflow) => {
+            if (workflow.id !== workflowId) return workflow;
+            if (!workflow.graph.nodes[nodeId]) throw new Error(`Workflow graph node "${nodeId}" not found`);
+
+            const { [nodeId]: _deletedNode, ...nodes } = workflow.graph.nodes;
+            const cleanedNodes = Object.fromEntries(
+              Object.entries(nodes).map(([id, node]) => [
+                id,
+                {
+                  ...node,
+                  inputs: Object.fromEntries(
+                    Object.entries(node.inputs).filter(([, input]) =>
+                      input.kind === 'link' ? input.nodeId !== nodeId : true
+                    )
+                  ),
+                },
+              ])
+            );
+
+            return {
+              ...workflow,
+              graph: {
+                ...workflow.graph,
+                nodes: cleanedNodes,
+                edges: workflow.graph.edges.filter(
+                  (edge) => edge.sourceNodeId !== nodeId && edge.targetNodeId !== nodeId
+                ),
+              },
+            };
+          }),
+        })),
+      connectWorkflowNodes: (workflowId, edge) => {
+        const workflow = get().workflowRecords.find((record) => record.id === workflowId);
+        if (!workflow) throw new Error(`Workflow "${workflowId}" not found`);
+        if (edge.sourceNodeId === edge.targetNodeId) {
+          throw new Error('Cannot connect a workflow node to itself');
+        }
+        if (!workflow.graph.nodes[edge.sourceNodeId]) {
+          throw new Error(`Workflow graph source node "${edge.sourceNodeId}" not found`);
+        }
+        if (!workflow.graph.nodes[edge.targetNodeId]) {
+          throw new Error(`Workflow graph target node "${edge.targetNodeId}" not found`);
+        }
+
+        const storedEdge: WorkflowGraphEdge = {
+          ...edge,
+          id: createWorkflowEdgeId(edge),
+        };
+
+        set((state) => ({
+          workflowRecords: state.workflowRecords.map((record) => {
+            if (record.id !== workflowId) return record;
+            const targetNode = record.graph.nodes[edge.targetNodeId];
+
+            return {
+              ...record,
+              graph: {
+                ...record.graph,
+                nodes: {
+                  ...record.graph.nodes,
+                  [edge.targetNodeId]: {
+                    ...targetNode,
+                    inputs: {
+                      ...targetNode.inputs,
+                      [edge.targetInput]: {
+                        kind: 'link',
+                        nodeId: edge.sourceNodeId,
+                        output: edge.sourceOutput,
+                      },
+                    },
+                  },
+                },
+                edges: [
+                  ...record.graph.edges.filter(
+                    (item) =>
+                      item.targetNodeId !== edge.targetNodeId ||
+                      item.targetInput !== edge.targetInput
+                  ),
+                  storedEdge,
+                ],
+              },
+            };
+          }),
+        }));
+
+        return storedEdge;
+      },
+      deleteWorkflowEdge: (workflowId, edgeId) =>
+        set((state) => ({
+          workflowRecords: state.workflowRecords.map((workflow) => {
+            if (workflow.id !== workflowId) return workflow;
+            const edge = workflow.graph.edges.find((item) => item.id === edgeId);
+            if (!edge) return workflow;
+            const targetNode = workflow.graph.nodes[edge.targetNodeId];
+            const targetInput = targetNode?.inputs[edge.targetInput];
+            const shouldDeleteInput =
+              targetInput?.kind === 'link' &&
+              targetInput.nodeId === edge.sourceNodeId &&
+              targetInput.output === edge.sourceOutput;
+
+            return {
+              ...workflow,
+              graph: {
+                ...workflow.graph,
+                nodes:
+                  targetNode && shouldDeleteInput
+                    ? {
+                        ...workflow.graph.nodes,
+                        [targetNode.id]: {
+                          ...targetNode,
+                          inputs: Object.fromEntries(
+                            Object.entries(targetNode.inputs).filter(
+                              ([inputName]) => inputName !== edge.targetInput
+                            )
+                          ),
+                        },
+                      }
+                    : workflow.graph.nodes,
+                edges: workflow.graph.edges.filter((item) => item.id !== edgeId),
+              },
+            };
+          }),
+        })),
+      setWorkflowGraphViewport: (workflowId, viewport) =>
+        set((state) => ({
+          workflowRecords: state.workflowRecords.map((workflow) =>
+            workflow.id === workflowId
+              ? {
+                  ...workflow,
+                  graph: {
+                    ...workflow.graph,
+                    viewport: { ...viewport },
+                  },
+                }
+              : workflow
+          ),
         })),
       setCurrentProject: (project) => set({ currentProject: project }),
 
