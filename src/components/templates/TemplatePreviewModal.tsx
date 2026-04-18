@@ -14,7 +14,7 @@ import {
   MessageSquare,
   MessageSquareX,
 } from 'lucide-react';
-import type { ProjectTemplate } from '@/store/appStore';
+import type { ProjectTemplate } from '@/types/template';
 
 const categoryColors: Record<string, string> = {
   youtube: 'var(--color-category-youtube)',

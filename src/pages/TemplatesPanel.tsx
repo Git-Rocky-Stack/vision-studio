@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useAppStore, PROJECT_TEMPLATES } from '@/store/appStore';
-import type { ProjectTemplate } from '@/store/appStore';
+import type { ProjectTemplate } from '@/types/template';
 import { cn } from '@/utils/cn';
 import { hexToRgba } from '@/utils/colorUtils';
 import { Button } from '@/components/ui/Button';

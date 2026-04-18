@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { CinematicTransition } from '@/components/effects/CinematicTransition';
-import type { WorkbenchView } from '@/store/appStore';
+import type { WorkbenchView } from '@/types/workflow';
 import { WorkbenchShell } from './WorkbenchShell';
 import { WorkbenchBoardsDock } from './WorkbenchBoardsDock';
 import { WorkbenchGalleryDock } from './WorkbenchGalleryDock';

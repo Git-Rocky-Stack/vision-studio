@@ -1,101 +1,11 @@
 import { useEffect, useState } from 'react';
 
 import { exportWorkflowGraphToComfyPrompt } from '@/features/workflow/comfyExport';
+import { createWorkflowNodeFromClassType } from '@/features/workflow/nodeDefaults';
 import { useAppStore } from '@/store/appStore';
-import type { WorkflowGraphNode } from '@/store/appStore';
 import { cn } from '@/utils/cn';
+import { formatLabel, formatTimestamp } from '@/utils/formatUtils';
 import { WorkflowGraphEditor } from './WorkflowGraphEditor';
-
-function formatLabel(value: string) {
-  return value.charAt(0).toUpperCase() + value.slice(1);
-}
-
-function formatTimestamp(value: string) {
-  const [date, time] = value.split('T');
-
-  return time ? `${date} ${time.slice(0, 5)}` : value;
-}
-
-function createWorkflowNodeFromClassType(
-  classType: string,
-  nodeCount: number
-): Omit<WorkflowGraphNode, 'id'> {
-  const offset = nodeCount * 24;
-  const defaults: Record<string, Omit<WorkflowGraphNode, 'id'>> = {
-    CLIPTextEncode: {
-      classType: 'CLIPTextEncode',
-      label: 'Prompt Encode',
-      position: { x: 80 + offset, y: 120 + offset },
-      inputs: {
-        text: { kind: 'literal', value: '' },
-      },
-      metadata: {
-        state: 'pending',
-        description: 'Encode prompt text for generation.',
-      },
-    },
-    CheckpointLoaderSimple: {
-      classType: 'CheckpointLoaderSimple',
-      label: 'Model Loader',
-      position: { x: 80 + offset, y: 280 + offset },
-      inputs: {
-        ckpt_name: { kind: 'literal', value: 'flux-dev.safetensors' },
-      },
-      metadata: {
-        state: 'pending',
-        description: 'Load a model checkpoint.',
-      },
-    },
-    KSampler: {
-      classType: 'KSampler',
-      label: 'Sampler',
-      position: { x: 360 + offset, y: 200 + offset },
-      inputs: {
-        seed: { kind: 'literal', value: 1 },
-        steps: { kind: 'literal', value: 25 },
-        cfg: { kind: 'literal', value: 7.5 },
-      },
-      metadata: {
-        state: 'pending',
-        description: 'Queue the image generation run.',
-      },
-    },
-    PreviewImage: {
-      classType: 'PreviewImage',
-      label: 'Preview',
-      position: { x: 640 + offset, y: 120 + offset },
-      inputs: {},
-      metadata: {
-        state: 'pending',
-        description: 'Preview generated output.',
-      },
-    },
-    SaveImage: {
-      classType: 'SaveImage',
-      label: 'Save Output',
-      position: { x: 640 + offset, y: 300 + offset },
-      inputs: {
-        filename_prefix: { kind: 'literal', value: 'vision-studio' },
-      },
-      metadata: {
-        state: 'pending',
-        description: 'Save accepted output.',
-      },
-    },
-  };
-
-  return (
-    defaults[classType] ?? {
-      classType,
-      label: classType,
-      position: { x: 120 + offset, y: 120 + offset },
-      inputs: {},
-      metadata: {
-        state: 'pending',
-      },
-    }
-  );
-}
 
 export function WorkflowWorkbench() {
   const {
@@ -116,7 +26,7 @@ export function WorkflowWorkbench() {
   useEffect(() => {
     setExportedJson(null);
     setExportError(null);
-  }, [activeWorkflow.id, activeWorkflow.graph]);
+  }, [activeWorkflow.id]);
 
   function handleExportComfyJson() {
     try {

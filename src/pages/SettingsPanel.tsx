@@ -4,6 +4,7 @@ import { cn } from '@/utils/cn';
 import { Button } from '@/components/ui/Button';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { useAppStore } from '@/store/appStore';
+import type { ModelInfo } from '@/types/model';
 import {
   Settings,
   Folder,
@@ -457,7 +458,7 @@ export function SettingsPanel() {
                       No models reported by the backend yet.
                     </div>
                   ) : (
-                    availableModels.map((model: any) => (
+                    availableModels.map((model: ModelInfo) => (
                       <div
                         key={model.id}
                         className="flex items-center justify-between py-3 border-b border-border/50"

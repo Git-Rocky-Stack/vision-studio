@@ -1,7 +1,7 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { WorkflowGraph } from '@/store/appStore';
+import type { WorkflowGraph } from '@/types/workflow';
 import { WorkflowGraphEditor } from './WorkflowGraphEditor';
 
 const graph: WorkflowGraph = {

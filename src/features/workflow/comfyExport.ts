@@ -1,4 +1,4 @@
-import type { WorkflowGraph } from '@/store/appStore';
+import type { WorkflowGraph } from '@/types/workflow';
 
 export type ComfyPrompt = Record<
   string,

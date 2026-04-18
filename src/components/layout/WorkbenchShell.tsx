@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 
-import type { WorkbenchView } from '@/store/appStore';
+import type { WorkbenchView } from '@/types/workflow';
 import { cn } from '@/utils/cn';
 
 export interface WorkbenchDockTab {

@@ -1,7 +1,12 @@
 import { useMemo, useRef, useState } from 'react';
 import type { PointerEvent as ReactPointerEvent } from 'react';
 
-import type { WorkflowGraph, WorkflowGraphEdge, WorkflowGraphNode } from '@/store/appStore';
+import type { WorkflowGraph, WorkflowGraphEdge, WorkflowGraphNode } from '@/types/workflow';
+import {
+  addNodeActions,
+  getDefaultOutputForClassType,
+  getDefaultInputForConnection,
+} from '@/features/workflow/nodeDefaults';
 import { cn } from '@/utils/cn';
 
 const NODE_WIDTH = 180;
@@ -20,42 +25,6 @@ interface WorkflowGraphEditorProps {
 interface DragState {
   nodeId: string;
   cleanup: () => void;
-}
-
-const addNodeActions = [
-  { label: 'Add Prompt Encode node', classType: 'CLIPTextEncode' },
-  { label: 'Add Model Loader node', classType: 'CheckpointLoaderSimple' },
-  { label: 'Add Sampler node', classType: 'KSampler' },
-  { label: 'Add Preview node', classType: 'PreviewImage' },
-  { label: 'Add Save Output node', classType: 'SaveImage' },
-];
-
-function getDefaultOutputForClassType(classType: string) {
-  if (classType === 'CLIPTextEncode') return 'CONDITIONING';
-  if (classType === 'CheckpointLoaderSimple') return 'MODEL';
-  if (classType === 'KSampler') return 'IMAGE';
-  return 'output';
-}
-
-function getDefaultInputForClassType(classType: string) {
-  if (classType === 'KSampler') return 'positive';
-  if (classType === 'PreviewImage') return 'images';
-  if (classType === 'SaveImage') return 'images';
-  return 'input';
-}
-
-function getDefaultInputForConnection(sourceOutput: string, targetClassType: string) {
-  if (targetClassType === 'KSampler') {
-    if (sourceOutput === 'MODEL') return 'model';
-    if (sourceOutput === 'CONDITIONING') return 'positive';
-    if (sourceOutput === 'LATENT') return 'latent_image';
-  }
-
-  if ((targetClassType === 'PreviewImage' || targetClassType === 'SaveImage') && sourceOutput === 'IMAGE') {
-    return 'images';
-  }
-
-  return getDefaultInputForClassType(targetClassType);
 }
 
 function getEdgePath(

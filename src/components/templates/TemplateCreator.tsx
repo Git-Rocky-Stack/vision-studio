@@ -4,7 +4,8 @@ import { hexToRgba } from '@/utils/colorUtils';
 import { Button } from '@/components/ui/Button';
 import { Slider } from '@/components/ui/Slider';
 import { useAppStore } from '@/store/appStore';
-import type { ProjectTemplate } from '@/store/appStore';
+import type { ProjectTemplate } from '@/types/template';
+import type { ModelInfo } from '@/types/model';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   X,
@@ -68,7 +69,7 @@ export function TemplateCreator({ onClose, editingTemplate }: TemplateCreatorPro
   const { addUserTemplate, updateUserTemplate, availableModels } = useAppStore();
 
   const models = availableModels.length > 0
-    ? availableModels.map((m: any) => ({ id: m.id ?? m.name, name: m.name ?? m.id }))
+    ? availableModels.map((m: ModelInfo) => ({ id: m.id ?? m.name, name: m.name ?? m.id }))
     : FALLBACK_MODELS;
   const [step, setStep] = useState(0);
 

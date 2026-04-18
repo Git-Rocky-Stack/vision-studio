@@ -1,0 +1,88 @@
+import type { Layer, EditHistoryEntry, ImageAdjustments } from '@/types/editor';
+import { DEFAULT_ADJUSTMENTS } from '@/types/editor';
+import type { AppSet, AppGet, AppState } from '../appStore.types';
+
+function createBaseImageLayer(imagePath: string, assetPath?: string | null): Layer {
+  return {
+    id: 'base-image-layer',
+    name: 'Base Image',
+    type: 'image',
+    visible: true,
+    opacity: 1,
+    blendMode: 'Normal',
+    locked: false,
+    data: {
+      previewUrl: imagePath,
+      assetPath: assetPath ?? null,
+      thumbnail: imagePath,
+    },
+  };
+}
+
+export const editInitialState = {
+  activeEditTool: 'move' as const,
+  editLayers: [] as Layer[],
+  editHistory: [] as EditHistoryEntry[],
+  editHistoryIndex: -1,
+  currentImage: null as string | null,
+  currentImageAssetPath: null as string | null,
+  imageAdjustments: { ...DEFAULT_ADJUSTMENTS } as ImageAdjustments,
+};
+
+export function createEditActions(set: AppSet, _get: AppGet) {
+  return {
+    setActiveEditTool: (tool: AppState['activeEditTool']) => set({ activeEditTool: tool }),
+    addEditLayer: (layer: Layer) => set((state) => ({
+      editLayers: [...state.editLayers, layer],
+    })),
+    updateEditLayer: (id: string, updates: Partial<Layer>) => set((state) => ({
+      editLayers: state.editLayers.map((l) =>
+        l.id === id ? { ...l, ...updates } : l
+      ),
+    })),
+    removeEditLayer: (id: string) => set((state) => ({
+      editLayers: state.editLayers.filter((l) => l.id !== id),
+    })),
+    reorderEditLayers: (layerIds: string[]) => set((state) => {
+      const layerMap = new Map(state.editLayers.map((l) => [l.id, l]));
+      return {
+        editLayers: layerIds
+          .map((id) => layerMap.get(id))
+          .filter((l): l is Layer => l !== undefined),
+      };
+    }),
+    pushEditHistory: (entry: EditHistoryEntry) => set((state) => {
+      const truncated = state.editHistory.slice(0, state.editHistoryIndex + 1);
+      const newHistory = [...truncated, entry].slice(-100);
+      return {
+        editHistory: newHistory,
+        editHistoryIndex: newHistory.length - 1,
+      };
+    }),
+    undo: () => set((state) => {
+      if (state.editHistoryIndex <= 0) return state;
+      const newIndex = state.editHistoryIndex - 1;
+      return { editHistoryIndex: newIndex };
+    }),
+    redo: () => set((state) => {
+      if (state.editHistoryIndex >= state.editHistory.length - 1) return state;
+      const newIndex = state.editHistoryIndex + 1;
+      return { editHistoryIndex: newIndex };
+    }),
+    canUndo: () => _get().editHistoryIndex > 0,
+    canRedo: () => _get().editHistoryIndex < _get().editHistory.length - 1,
+    setCurrentImage: (imagePath: string | null, assetPath?: string | null) =>
+      set({
+        currentImage: imagePath,
+        currentImageAssetPath: assetPath ?? null,
+        editLayers: imagePath ? [createBaseImageLayer(imagePath, assetPath)] : [],
+        editHistory: [],
+        editHistoryIndex: -1,
+        imageAdjustments: { ...DEFAULT_ADJUSTMENTS },
+      }),
+    setImageAdjustments: (adjustments: Partial<ImageAdjustments>) => set((state) => ({
+      imageAdjustments: { ...state.imageAdjustments, ...adjustments },
+    })),
+    resetImageAdjustments: () => set({ imageAdjustments: { ...DEFAULT_ADJUSTMENTS } }),
+  };
+}

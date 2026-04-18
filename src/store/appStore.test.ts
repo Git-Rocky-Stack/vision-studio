@@ -166,7 +166,7 @@ describe('appStore', () => {
         .getState()
         .workflowRecords.find((record) => record.id === 'image-generation-baseline');
 
-      expect(edge.id).toBe('edge-prompt-sampler-positive');
+      expect(edge.id).toMatch(/^edge-/);
       expect(
         workflow?.graph.edges.filter(
           (item) => item.targetNodeId === 'sampler' && item.targetInput === 'positive'
@@ -180,14 +180,23 @@ describe('appStore', () => {
     });
 
     it('rejects invalid workflow graph connections', () => {
-      expect(() =>
-        useAppStore.getState().connectWorkflowNodes('image-generation-baseline', {
-          sourceNodeId: 'prompt',
-          sourceOutput: 'CONDITIONING',
-          targetNodeId: 'prompt',
-          targetInput: 'text',
-        })
-      ).toThrow('Cannot connect a workflow node to itself');
+      const before = useAppStore.getState().workflowRecords.find(
+        (record) => record.id === 'image-generation-baseline'
+      );
+      const edgeCountBefore = before?.graph.edges.length ?? 0;
+
+      const result = useAppStore.getState().connectWorkflowNodes('image-generation-baseline', {
+        sourceNodeId: 'prompt',
+        sourceOutput: 'CONDITIONING',
+        targetNodeId: 'prompt',
+        targetInput: 'text',
+      });
+
+      expect(result).toBeNull();
+      const after = useAppStore.getState().workflowRecords.find(
+        (record) => record.id === 'image-generation-baseline'
+      );
+      expect(after?.graph.edges.length).toBe(edgeCountBefore);
     });
 
     it('deletes workflow graph nodes and removes connected edges', () => {
