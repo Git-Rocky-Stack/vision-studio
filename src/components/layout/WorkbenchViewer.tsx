@@ -66,8 +66,8 @@ export function WorkbenchViewer() {
     setComparisonMode,
     setGenerationDraft,
     setCurrentImage,
-    setActivePanel,
-    setActiveWorkbenchView,
+    setActiveTab,
+    setCenterView,
   } = useAppStore();
 
   const items = useMemo<ViewerItem[]>(() => {
@@ -168,15 +168,15 @@ export function WorkbenchViewer() {
     if (!activeItem) return;
 
     setCurrentImage(activeItem.imagePath, activeItem.assetPath);
-    setActivePanel('edit');
+    setActiveTab('canvas');
   };
 
   const branchVariant = () => {
     if (!activeItem) return;
 
     setGenerationDraft(toGenerationDraft(activeItem));
-    setActiveWorkbenchView('canvas');
-    setActivePanel('generate');
+    setCenterView('canvas');
+    setActiveTab('generate');
   };
 
   const addToBoard = () => {

@@ -57,7 +57,7 @@ describe('WorkbenchViewer', () => {
     await user.click(screen.getByRole('button', { name: 'Send to Edit' }));
 
     const state = useAppStore.getState();
-    expect(state.activePanel).toBe('edit');
+    expect(state.activeTab).toBe('canvas');
     expect(state.currentImage).toBe('/outputs/neon.png');
     expect(state.currentImageAssetPath).toBe('/outputs/neon.png');
   });
@@ -92,14 +92,14 @@ describe('WorkbenchViewer', () => {
 
   it('branches the active output into a generation draft', async () => {
     const user = userEvent.setup();
-    seedViewerState({ activeWorkbenchView: 'viewer' });
+    seedViewerState({ centerView: 'viewer' });
 
     render(<WorkbenchViewer />);
     await user.click(screen.getByRole('button', { name: 'Branch Variant' }));
 
     const state = useAppStore.getState();
-    expect(state.activePanel).toBe('generate');
-    expect(state.activeWorkbenchView).toBe('canvas');
+    expect(state.activeTab).toBe('generate');
+    expect(state.centerView).toBe('canvas');
     expect(state.generationDraft).toMatchObject({
       generationType: 'image',
       prompt: 'rainy neon marketplace',

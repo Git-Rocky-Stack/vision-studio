@@ -20,7 +20,7 @@ export function WorkbenchGalleryDock() {
     assetLibrary,
     batchResults,
     setActiveViewerItemId,
-    setActiveWorkbenchView,
+    setCenterView,
   } = useAppStore();
 
   const items = useMemo<GalleryItem[]>(() => {
@@ -75,7 +75,7 @@ export function WorkbenchGalleryDock() {
               aria-pressed={activeViewerItemId === item.id}
               onClick={() => {
                 setActiveViewerItemId(item.id);
-                setActiveWorkbenchView('viewer');
+                setCenterView('viewer');
               }}
               className={cn(
                 'min-w-0 overflow-hidden rounded-md border bg-elevated text-left transition-all',

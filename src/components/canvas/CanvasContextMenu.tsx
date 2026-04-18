@@ -26,7 +26,7 @@ interface CanvasContextMenuProps {
 }
 
 export function CanvasContextMenu({ x, y, onClose }: CanvasContextMenuProps) {
-  const { currentImage, currentImageAssetPath, setActivePanel } = useAppStore();
+  const { currentImage, currentImageAssetPath, setActiveTab } = useAppStore();
   const menuRef = useRef<HTMLDivElement>(null);
 
   // Close on outside click or Escape
@@ -101,7 +101,7 @@ export function CanvasContextMenu({ x, y, onClose }: CanvasContextMenuProps) {
 
   const handleSendToEdit = () => {
     if (currentImage) {
-      setActivePanel('edit');
+      setActiveTab('canvas');
     }
     onClose();
   };

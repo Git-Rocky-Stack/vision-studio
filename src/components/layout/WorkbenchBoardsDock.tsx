@@ -25,7 +25,8 @@ export function WorkbenchBoardsDock() {
     activeSceneId,
     addScene,
     createProject,
-    setActivePanel,
+    setActiveTab,
+    setActiveSubMode,
     setActiveProject,
     setActiveScene,
   } = useAppStore();
@@ -40,7 +41,7 @@ export function WorkbenchBoardsDock() {
 
   const handleOpenStoryboard = () => {
     if (!activeProjectId) return;
-    setActivePanel('storyboard');
+    setActiveTab('story'); setActiveSubMode('storyboard');
   };
 
   const handleAddScene = () => {

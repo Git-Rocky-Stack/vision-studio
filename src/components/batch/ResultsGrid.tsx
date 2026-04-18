@@ -33,7 +33,7 @@ export function ResultsGrid({
     batchResults,
     toggleBatchResultFavorite,
     setCurrentImage,
-    setActivePanel,
+    setActiveTab,
     removeBatchResults,
     removeAssetRecordsByPaths,
   } = useAppStore();
@@ -127,7 +127,7 @@ export function ResultsGrid({
     const result = batchResults.find((r) => r.id === id);
     if (result?.imagePath) {
       setCurrentImage(result.imagePath, result.assetPath);
-      setActivePanel('edit');
+      setActiveTab('canvas');
     }
   };
 

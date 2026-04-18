@@ -83,7 +83,7 @@ export function EditPropertiesPanel() {
     currentImageAssetPath,
     setCurrentImage,
     upsertDerivedAsset,
-    activePanel,
+    activeTab: navTab,
     regionMode,
     activeRegionId,
     projects,
@@ -214,7 +214,7 @@ export function EditPropertiesPanel() {
     upsertDerivedAsset(result, {
       prompt: '',
       params: {
-        sourcePanel: activePanel,
+        sourceTab: navTab,
         rotation,
         flipH,
         flipV,

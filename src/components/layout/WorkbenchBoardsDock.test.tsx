@@ -103,14 +103,15 @@ describe('WorkbenchBoardsDock', () => {
     const user = userEvent.setup();
     const existing = useAppStore.getState().createProject('Campaign Boards', { width: 1024, height: 1024 });
     useAppStore.getState().setActiveProject(existing.id);
-    useAppStore.getState().setActivePanel('generate');
+    useAppStore.getState().setActiveTab('generate');
 
     render(<WorkbenchBoardsDock />);
     await user.click(screen.getByRole('button', { name: 'Open Storyboard' }));
 
     const state = useAppStore.getState();
     expect(state.activeProjectId).toBe(existing.id);
-    expect(state.activePanel).toBe('storyboard');
+    expect(state.activeTab).toBe('story');
+    expect(state.activeSubMode).toBe('storyboard');
   });
 
   it('adds and selects a scene on the active board', async () => {
