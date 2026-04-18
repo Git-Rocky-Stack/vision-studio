@@ -71,6 +71,31 @@ describe('appStore', () => {
       expect(workflow.notes).toBe('Use this path before branching accepted output into Viewer, Boards, or Gallery.');
     });
 
+    it('seeds default workflows with editable graph nodes and edges', () => {
+      const workflow = useAppStore.getState().workflowRecords[0];
+
+      expect(Object.keys(workflow.graph.nodes)).toEqual([
+        'prompt',
+        'model',
+        'sampler',
+        'preview',
+        'save',
+      ]);
+      expect(workflow.graph.nodes.prompt.classType).toBe('CLIPTextEncode');
+      expect(workflow.graph.nodes.sampler.inputs.model).toEqual({
+        kind: 'link',
+        nodeId: 'model',
+        output: 'MODEL',
+      });
+      expect(workflow.graph.edges).toContainEqual({
+        id: 'edge-model-sampler-model',
+        sourceNodeId: 'model',
+        sourceOutput: 'MODEL',
+        targetNodeId: 'sampler',
+        targetInput: 'model',
+      });
+    });
+
     it('changes the active workflow', () => {
       useAppStore.getState().setActiveWorkflow('storyboard-frame');
 
@@ -99,6 +124,16 @@ describe('appStore', () => {
       expect(workflow.description).toBe('');
       expect(workflow.tags).toEqual([]);
       expect(workflow.notes).toBe('');
+    });
+
+    it('creates draft workflows with cloned editable graph state', () => {
+      const workflow = useAppStore.getState().createWorkflow('Product pass');
+
+      expect(workflow.graph).toBeDefined();
+      expect(workflow.graph.nodes.prompt).toBeDefined();
+      expect(workflow.graph.nodes.prompt).not.toBe(
+        useAppStore.getState().workflowRecords[0].graph.nodes.prompt
+      );
     });
 
     it('records a workflow run and updates the output summary', () => {

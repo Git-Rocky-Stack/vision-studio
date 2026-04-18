@@ -105,6 +105,37 @@ export interface WorkflowRunRecord {
 export type WorkflowRunInput = Omit<WorkflowRunRecord, 'id' | 'createdAt'> &
   Partial<Pick<WorkflowRunRecord, 'id' | 'createdAt'>>;
 
+export interface WorkflowGraph {
+  nodes: Record<string, WorkflowGraphNode>;
+  edges: WorkflowGraphEdge[];
+  viewport?: { x: number; y: number; zoom: number };
+}
+
+export interface WorkflowGraphNode {
+  id: string;
+  classType: string;
+  label: string;
+  inputs: Record<string, WorkflowGraphInput>;
+  position: { x: number; y: number };
+  size?: { width: number; height: number };
+  metadata?: {
+    state?: WorkflowStepState;
+    description?: string;
+  };
+}
+
+export type WorkflowGraphInput =
+  | { kind: 'literal'; value: string | number | boolean | null }
+  | { kind: 'link'; nodeId: string; output: string };
+
+export interface WorkflowGraphEdge {
+  id: string;
+  sourceNodeId: string;
+  sourceOutput: string;
+  targetNodeId: string;
+  targetInput: string;
+}
+
 export interface WorkflowRecord {
   id: string;
   name: string;
@@ -122,6 +153,7 @@ export interface WorkflowRecord {
   };
   inputs: string[];
   steps: WorkflowStepRecord[];
+  graph: WorkflowGraph;
   runOutputSummary: string | null;
   runHistory: WorkflowRunRecord[];
 }
@@ -159,6 +191,112 @@ const baselineWorkflowSteps: WorkflowStepRecord[] = [
   },
 ];
 
+const baselineWorkflowGraph: WorkflowGraph = {
+  nodes: {
+    prompt: {
+      id: 'prompt',
+      classType: 'CLIPTextEncode',
+      label: 'Prompt Encode',
+      position: { x: 40, y: 120 },
+      inputs: {
+        text: { kind: 'literal', value: '' },
+      },
+      metadata: {
+        state: 'ready',
+        description: 'Encode prompt text for generation.',
+      },
+    },
+    model: {
+      id: 'model',
+      classType: 'CheckpointLoaderSimple',
+      label: 'Model Loader',
+      position: { x: 40, y: 300 },
+      inputs: {
+        ckpt_name: { kind: 'literal', value: 'flux-dev.safetensors' },
+      },
+      metadata: {
+        state: 'ready',
+        description: 'Load the selected model checkpoint.',
+      },
+    },
+    sampler: {
+      id: 'sampler',
+      classType: 'KSampler',
+      label: 'Sampler',
+      position: { x: 320, y: 210 },
+      inputs: {
+        model: { kind: 'link', nodeId: 'model', output: 'MODEL' },
+        positive: { kind: 'link', nodeId: 'prompt', output: 'CONDITIONING' },
+        seed: { kind: 'literal', value: 1 },
+        steps: { kind: 'literal', value: 25 },
+        cfg: { kind: 'literal', value: 7.5 },
+      },
+      metadata: {
+        state: 'pending',
+        description: 'Queue the image generation run.',
+      },
+    },
+    preview: {
+      id: 'preview',
+      classType: 'PreviewImage',
+      label: 'Preview',
+      position: { x: 620, y: 120 },
+      inputs: {
+        images: { kind: 'link', nodeId: 'sampler', output: 'IMAGE' },
+      },
+      metadata: {
+        state: 'pending',
+        description: 'Preview generated output in the workbench.',
+      },
+    },
+    save: {
+      id: 'save',
+      classType: 'SaveImage',
+      label: 'Save Output',
+      position: { x: 620, y: 300 },
+      inputs: {
+        images: { kind: 'link', nodeId: 'sampler', output: 'IMAGE' },
+        filename_prefix: { kind: 'literal', value: 'vision-studio' },
+      },
+      metadata: {
+        state: 'pending',
+        description: 'Capture accepted output to Boards and Gallery.',
+      },
+    },
+  },
+  edges: [
+    {
+      id: 'edge-prompt-sampler-positive',
+      sourceNodeId: 'prompt',
+      sourceOutput: 'CONDITIONING',
+      targetNodeId: 'sampler',
+      targetInput: 'positive',
+    },
+    {
+      id: 'edge-model-sampler-model',
+      sourceNodeId: 'model',
+      sourceOutput: 'MODEL',
+      targetNodeId: 'sampler',
+      targetInput: 'model',
+    },
+    {
+      id: 'edge-sampler-preview-images',
+      sourceNodeId: 'sampler',
+      sourceOutput: 'IMAGE',
+      targetNodeId: 'preview',
+      targetInput: 'images',
+    },
+    {
+      id: 'edge-sampler-save-images',
+      sourceNodeId: 'sampler',
+      sourceOutput: 'IMAGE',
+      targetNodeId: 'save',
+      targetInput: 'images',
+    },
+  ],
+  viewport: { x: 0, y: 0, zoom: 1 },
+};
+
 export const DEFAULT_WORKFLOWS: WorkflowRecord[] = [
   {
     id: 'image-generation-baseline',
@@ -177,6 +315,7 @@ export const DEFAULT_WORKFLOWS: WorkflowRecord[] = [
     },
     inputs: ['Prompt', 'References'],
     steps: baselineWorkflowSteps,
+    graph: baselineWorkflowGraph,
     runOutputSummary: null,
     runHistory: [],
   },
@@ -197,10 +336,35 @@ export const DEFAULT_WORKFLOWS: WorkflowRecord[] = [
     },
     inputs: ['Scene prompt', 'Character references'],
     steps: baselineWorkflowSteps.map((step) => ({ ...step })),
+    graph: baselineWorkflowGraph,
     runOutputSummary: null,
     runHistory: [],
   },
 ];
+
+function cloneWorkflowGraph(graph: WorkflowGraph): WorkflowGraph {
+  return {
+    nodes: Object.fromEntries(
+      Object.entries(graph.nodes).map(([id, node]) => [
+        id,
+        {
+          ...node,
+          inputs: Object.fromEntries(
+            Object.entries(node.inputs).map(([inputName, input]) => [
+              inputName,
+              { ...input },
+            ])
+          ),
+          position: { ...node.position },
+          size: node.size ? { ...node.size } : undefined,
+          metadata: node.metadata ? { ...node.metadata } : undefined,
+        },
+      ])
+    ),
+    edges: graph.edges.map((edge) => ({ ...edge })),
+    viewport: graph.viewport ? { ...graph.viewport } : undefined,
+  };
+}
 
 function cloneWorkflow(workflow: WorkflowRecord): WorkflowRecord {
   return {
@@ -209,6 +373,7 @@ function cloneWorkflow(workflow: WorkflowRecord): WorkflowRecord {
     tags: [...workflow.tags],
     inputs: [...workflow.inputs],
     steps: workflow.steps.map((step) => ({ ...step })),
+    graph: cloneWorkflowGraph(workflow.graph),
     runHistory: workflow.runHistory.map((run) => ({ ...run })),
   };
 }
