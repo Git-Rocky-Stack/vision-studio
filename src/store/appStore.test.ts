@@ -474,6 +474,47 @@ describe('appStore', () => {
       expect(storedProject?.scenes[0].status).toBe('complete');
     });
   });
+
+  // ── Navigation refactor ──────────────────────────────────────────────────
+
+  describe('navigation refactor', () => {
+    it('defaults activeTab to generate', () => {
+      expect(useAppStore.getState().activeTab).toBe('generate');
+    });
+
+    it('defaults activeSubMode to generate', () => {
+      expect(useAppStore.getState().activeSubMode).toBe('generate');
+    });
+
+    it('defaults centerView to canvas', () => {
+      expect(useAppStore.getState().centerView).toBe('canvas');
+    });
+
+    it('setActiveTab changes the active tab', () => {
+      useAppStore.getState().setActiveTab('canvas');
+      expect(useAppStore.getState().activeTab).toBe('canvas');
+    });
+
+    it('setActiveSubMode changes the sub-mode', () => {
+      useAppStore.getState().setActiveSubMode('quick');
+      expect(useAppStore.getState().activeSubMode).toBe('quick');
+    });
+
+    it('setActiveTab sets default sub-mode for the new tab', () => {
+      useAppStore.getState().setActiveTab('story');
+      expect(useAppStore.getState().activeSubMode).toBe('storyboard');
+    });
+
+    it('setActiveTab sets sub-mode to null for tabs without sub-modes', () => {
+      useAppStore.getState().setActiveTab('assets');
+      expect(useAppStore.getState().activeSubMode).toBeNull();
+    });
+
+    it('setCenterView changes the center workspace view', () => {
+      useAppStore.getState().setCenterView('workflow');
+      expect(useAppStore.getState().centerView).toBe('workflow');
+    });
+  });
 });
 
 // ── Helpers ───────────────────────────────────────────────────────────────

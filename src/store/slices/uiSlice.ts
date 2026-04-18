@@ -10,6 +10,9 @@ export const uiInitialState = {
   batchViewMode: 'grid' as const,
   batchSortBy: 'created' as const,
   batchFilterBy: 'all' as const,
+  activeTab: 'generate' as const,
+  activeSubMode: 'generate' as const,
+  centerView: 'canvas' as const,
 };
 
 export function createUIActions(set: AppSet, _get: AppGet) {
@@ -22,5 +25,18 @@ export function createUIActions(set: AppSet, _get: AppGet) {
     setBatchViewMode: (mode: AppState['batchViewMode']) => set({ batchViewMode: mode }),
     setBatchSortBy: (sort: AppState['batchSortBy']) => set({ batchSortBy: sort }),
     setBatchFilterBy: (filter: AppState['batchFilterBy']) => set({ batchFilterBy: filter }),
+    setActiveTab: (tab: AppState['activeTab']) => {
+      const subModeDefaults: Record<string, AppState['activeSubMode']> = {
+        generate: 'generate',
+        canvas: null,
+        story: 'storyboard',
+        workflows: null,
+        assets: null,
+        settings: null,
+      };
+      set({ activeTab: tab, activeSubMode: subModeDefaults[tab] ?? null });
+    },
+    setActiveSubMode: (subMode: AppState['activeSubMode']) => set({ activeSubMode: subMode }),
+    setCenterView: (view: AppState['centerView']) => set({ centerView: view }),
   };
 }

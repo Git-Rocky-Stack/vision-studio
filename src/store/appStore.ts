@@ -157,6 +157,9 @@ export const useAppStore = create<AppState>()(
       name: 'vision-studio-storage',
       partialize: (state) => ({
         sidebarCollapsed: state.sidebarCollapsed,
+        activeTab: state.activeTab,
+        activeSubMode: state.activeSubMode,
+        centerView: state.centerView,
         darkMode: state.darkMode,
         recentProjects: state.recentProjects,
         projects: state.projects,

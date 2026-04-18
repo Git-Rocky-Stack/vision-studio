@@ -74,6 +74,8 @@ import type {
 import type { ProjectTemplate } from '@/types/template';
 import type { ModelInfo } from '@/types/model';
 
+import type { ActiveTab, ActiveSubMode, CenterView } from '@/types/navigation';
+
 // ---------------------------------------------------------------------------
 // Local type definitions
 // ---------------------------------------------------------------------------
@@ -142,6 +144,11 @@ export interface AppState {
   activeWorkbenchView: WorkbenchView;
   activeViewerItemId: string | null;
   darkMode: boolean;
+
+  // New navigation model (coexists with activePanel during migration)
+  activeTab: ActiveTab;
+  activeSubMode: ActiveSubMode;
+  centerView: CenterView;
 
   // ─── Workflow ────────────────────────────────────────────────────────────
   workflowRecords: WorkflowRecord[];
@@ -243,6 +250,9 @@ export interface AppState {
   setActivePanel: (panel: AppState['activePanel']) => void;
   setActiveWorkbenchView: (view: WorkbenchView) => void;
   setActiveViewerItemId: (itemId: string | null) => void;
+  setActiveTab: (tab: ActiveTab) => void;
+  setActiveSubMode: (subMode: ActiveSubMode) => void;
+  setCenterView: (view: CenterView) => void;
 
   // Workflow
   setActiveWorkflow: (workflowId: string) => void;
