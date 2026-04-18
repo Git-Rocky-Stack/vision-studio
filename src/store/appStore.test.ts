@@ -446,7 +446,7 @@ describe('appStore', () => {
       // Access the persist API
       const persisted = (useAppStore as any).persist?.getOptions?.()?.partialize?.(state);
       if (persisted) {
-        expect(persisted).toHaveProperty('sidebarCollapsed');
+        expect(persisted).toHaveProperty('activeTab');
         expect(persisted).toHaveProperty('promptHistory');
         expect(persisted).toHaveProperty('assetLibrary');
         expect(persisted).not.toHaveProperty('activeJobs');

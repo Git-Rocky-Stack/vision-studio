@@ -39,7 +39,7 @@ export function ImagePreviewModal({
 }: ImagePreviewModalProps) {
   const {
     setCurrentImage,
-    setActivePanel,
+    setActiveTab,
     setGenerationDraft,
     removeBatchResults,
     removeAssetRecordsByPaths,
@@ -86,7 +86,9 @@ export function ImagePreviewModal({
   const handleSendToEdit = () => {
     if (result?.imagePath) {
       setCurrentImage(result.imagePath, result.assetPath);
-      setActivePanel('edit');
+      setActiveTab('canvas');
+      useAppStore.getState().setActiveSubMode(null);
+      useAppStore.getState().setCenterView('canvas');
       onClose();
     }
   };
@@ -100,7 +102,7 @@ export function ImagePreviewModal({
   const handleRegenerate = () => {
     if (result) {
       setGenerationDraft(toGenerationDraftFromResult(result));
-      setActivePanel('generate');
+      setActiveTab('generate');
       onClose();
     }
   };
@@ -167,7 +169,9 @@ export function ImagePreviewModal({
         : `http://localhost:8000${upscaleResult.image}`,
       upscaleResult.output_path
     );
-    setActivePanel('edit');
+    setActiveTab('canvas');
+    useAppStore.getState().setActiveSubMode(null);
+    useAppStore.getState().setCenterView('canvas');
     onClose();
   };
 

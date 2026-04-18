@@ -53,7 +53,7 @@ type ViewMode = 'cards' | 'compact';
 
 export function TemplatesPanel() {
   const {
-    setActivePanel,
+    setActiveTab,
     setCurrentProject,
     userTemplates,
     deleteUserTemplate,
@@ -103,7 +103,7 @@ export function TemplatesPanel() {
       template: template,
     };
     setCurrentProject(newProject as any);
-    setActivePanel('generate');
+    setActiveTab('generate');
   };
 
   const handleDeleteTemplate = (templateId: string) => {

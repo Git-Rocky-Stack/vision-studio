@@ -21,7 +21,6 @@ export type {
 
 // Re-exports: external types (backward compat for consumers importing from this module)
 export type {
-  WorkbenchView,
   WorkflowStepState,
   WorkflowStepRecord,
   WorkflowRunRecord,
@@ -156,7 +155,6 @@ export const useAppStore = create<AppState>()(
     {
       name: 'vision-studio-storage',
       partialize: (state) => ({
-        sidebarCollapsed: state.sidebarCollapsed,
         activeTab: state.activeTab,
         activeSubMode: state.activeSubMode,
         centerView: state.centerView,

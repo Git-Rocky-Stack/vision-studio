@@ -11,7 +11,6 @@
 // ---------------------------------------------------------------------------
 
 export type {
-  WorkbenchView,
   WorkflowStepState,
   WorkflowStepRecord,
   WorkflowRunRecord,
@@ -63,7 +62,6 @@ import type {
 } from '@/types/assets';
 
 import type {
-  WorkbenchView,
   WorkflowRunInput,
   WorkflowGraphNode,
   WorkflowGraphEdge,
@@ -139,13 +137,10 @@ export interface BatchJob {
 
 export interface AppState {
   // ─── UI State ────────────────────────────────────────────────────────────
-  sidebarCollapsed: boolean;
-  activePanel: 'generate' | 'quick' | 'storyboard' | 'edit' | 'assets' | 'settings' | 'templates' | 'batch';
-  activeWorkbenchView: WorkbenchView;
   activeViewerItemId: string | null;
   darkMode: boolean;
 
-  // New navigation model (coexists with activePanel during migration)
+  // Navigation model
   activeTab: ActiveTab;
   activeSubMode: ActiveSubMode;
   centerView: CenterView;
@@ -246,9 +241,6 @@ export interface AppState {
   // ─── Actions ─────────────────────────────────────────────────────────────
 
   // UI
-  toggleSidebar: () => void;
-  setActivePanel: (panel: AppState['activePanel']) => void;
-  setActiveWorkbenchView: (view: WorkbenchView) => void;
   setActiveViewerItemId: (itemId: string | null) => void;
   setActiveTab: (tab: ActiveTab) => void;
   setActiveSubMode: (subMode: ActiveSubMode) => void;
