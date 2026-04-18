@@ -1,4 +1,4 @@
-export type WorkbenchView = 'canvas' | 'viewer' | 'workflow';
+export type WorkbenchView = 'canvas' | 'viewer' | 'workflow' | 'launchpad';
 
 export type WorkflowStepState = 'ready' | 'pending' | 'complete';
 
