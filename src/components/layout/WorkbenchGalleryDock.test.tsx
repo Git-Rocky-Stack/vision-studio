@@ -64,7 +64,7 @@ describe('WorkbenchGalleryDock', () => {
   it('opens a selected gallery item in the Viewer work surface', async () => {
     const user = userEvent.setup();
     useAppStore.setState({
-      activeWorkbenchView: 'canvas',
+      centerView: 'canvas',
       assetLibrary: [
         {
           id: 'asset-1',
@@ -87,7 +87,7 @@ describe('WorkbenchGalleryDock', () => {
     await user.click(screen.getByRole('button', { name: /review Neon alley/i }));
 
     const state = useAppStore.getState();
-    expect(state.activeWorkbenchView).toBe('viewer');
+    expect(state.centerView).toBe('viewer');
     expect(state.activeViewerItemId).toBe('asset-asset-1');
   });
 });

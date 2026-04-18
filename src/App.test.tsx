@@ -28,7 +28,7 @@ describe('App', () => {
 
     render(<App />);
 
-    expect(await screen.findByTestId('workbench-left-dock')).toHaveTextContent('Model Router');
-    expect(screen.getByTestId('workbench-right-dock')).toHaveTextContent('Boards');
+    expect(await screen.findByTestId('left-dock')).toHaveTextContent('Model Router');
+    expect(screen.getByTestId('right-dock')).toHaveTextContent('Boards');
   });
 });

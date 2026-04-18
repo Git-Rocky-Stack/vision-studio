@@ -1,33 +1,15 @@
 import { useEffect, useState } from 'react';
 import { useAppStore } from '@/store/appStore';
-import { Sidebar } from '@/components/layout/Sidebar';
-import { Header } from '@/components/layout/Header';
-import { Canvas } from '@/components/layout/Canvas';
-import { Timeline } from '@/components/layout/Timeline';
-import { WorkspaceLayout } from '@/components/layout/WorkspaceLayout';
+import { DockviewLayout } from '@/components/layout/DockviewLayout';
 import { FilmGrainOverlay } from '@/components/effects/FilmGrainOverlay';
-import { GeneratePanel } from '@/pages/GeneratePanel';
-import { EditPanel } from '@/pages/EditPanel';
-import { AssetsPanel } from '@/pages/AssetsPanel';
-import { SettingsPanel } from '@/pages/SettingsPanel';
-import { TemplatesPanel } from '@/pages/TemplatesPanel';
-import { BatchPromptQueue, BatchResultsPanel } from '@/pages/BatchPanel';
-import { QuickGeneratePanel } from '@/pages/QuickGeneratePanel';
-import { StoryboardPanel } from '@/pages/StoryboardPanel';
-import { ToolStrip } from '@/components/edit/ToolStrip';
-import { EditPropertiesPanel } from '@/components/edit/EditPropertiesPanel';
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
 import { KeyboardShortcuts } from '@/components/ui/KeyboardShortcuts';
 import { applyThemeToDocument, type ThemePreference } from '@/features/theme/theme';
 
 function App() {
   const {
-    activePanel,
-    activeWorkbenchView,
-    setActiveWorkbenchView,
     setSystemInfo,
     setAvailableModels,
-    addJob,
     updateJob
   } = useAppStore();
 
@@ -146,83 +128,10 @@ function App() {
   return (
     <>
       <ErrorBoundary fallbackLabel="Workspace error">
-        <WorkspaceLayout
-          activePanel={activePanel}
-          activeWorkbenchView={activeWorkbenchView}
-          onWorkbenchViewChange={setActiveWorkbenchView}
-          sidebar={<Sidebar />}
-          header={<Header />}
-          timeline={
-            <ErrorBoundary fallbackLabel="Timeline error">
-              <Timeline />
-            </ErrorBoundary>
-          }
-          canvas={
-            <ErrorBoundary fallbackLabel="Canvas error">
-              <Canvas />
-            </ErrorBoundary>
-          }
-          panels={{
-            generate: (
-              <ErrorBoundary fallbackLabel="Generate panel error">
-                <GeneratePanel />
-              </ErrorBoundary>
-            ),
-            quick: (
-              <ErrorBoundary fallbackLabel="Quick generate panel error">
-                <QuickGeneratePanel />
-              </ErrorBoundary>
-            ),
-            storyboard: (
-              <ErrorBoundary fallbackLabel="Storyboard panel error">
-                <StoryboardPanel />
-              </ErrorBoundary>
-            ),
-            edit: (
-              <ErrorBoundary fallbackLabel="Edit panel error">
-                <EditPanel />
-              </ErrorBoundary>
-            ),
-            assets: (
-              <ErrorBoundary fallbackLabel="Assets panel error">
-                <AssetsPanel />
-              </ErrorBoundary>
-            ),
-            settings: (
-              <ErrorBoundary fallbackLabel="Settings panel error">
-                <SettingsPanel />
-              </ErrorBoundary>
-            ),
-            templates: (
-              <ErrorBoundary fallbackLabel="Templates panel error">
-                <TemplatesPanel />
-              </ErrorBoundary>
-            ),
-          }}
-          toolStrip={
-            <ErrorBoundary fallbackLabel="Tool strip error">
-              <ToolStrip />
-            </ErrorBoundary>
-          }
-          editProperties={
-            <ErrorBoundary fallbackLabel="Properties panel error">
-              <EditPropertiesPanel />
-            </ErrorBoundary>
-          }
-          batchQueue={
-            <ErrorBoundary fallbackLabel="Batch queue error">
-              <BatchPromptQueue />
-            </ErrorBoundary>
-          }
-          batchResults={
-            <ErrorBoundary fallbackLabel="Batch results error">
-              <BatchResultsPanel />
-            </ErrorBoundary>
-          }
-        />
+        <DockviewLayout />
       </ErrorBoundary>
-      <FilmGrainOverlay opacity={0.025} />
       <KeyboardShortcuts open={showShortcuts} onClose={() => setShowShortcuts(false)} />
+      <FilmGrainOverlay opacity={0.025} />
     </>
   );
 }
