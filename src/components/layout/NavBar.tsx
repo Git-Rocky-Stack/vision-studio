@@ -62,6 +62,7 @@ export const NavBar = memo(function NavBar() {
         className={cn(
           'w-10 h-10 flex items-center justify-center rounded-lg transition-all duration-150',
           'min-w-[44px] min-h-[44px]', // touch target
+          'focus-visible:ring-2 focus-visible:ring-accent-primary focus-visible:ring-offset-1 focus-visible:outline-none',
           isActive
             ? 'bg-accent-primary-muted text-accent-primary border border-accent-primary-border shadow-accent-subtle'
             : 'text-text-muted border border-transparent hover:text-text-primary hover:bg-elevated/70 hover:border-border'

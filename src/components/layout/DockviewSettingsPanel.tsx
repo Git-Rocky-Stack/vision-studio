@@ -51,6 +51,8 @@ function SegmentedControl({ options, value, onChange }: SegmentedControlProps) {
     <div
       className="flex gap-0.5 rounded-md border border-border bg-surface p-0.5"
       role="tablist"
+      id="settings-segmented-control"
+      aria-label="Settings sub-mode"
     >
       {options.map((option) => {
         const isActive = value === option.value;
@@ -152,7 +154,12 @@ export const DockviewSettingsPanel = memo(function DockviewSettingsPanel() {
       )}
 
       {/* Content area */}
-      <div className="min-h-0 flex-1 overflow-y-auto">
+      <div
+        role="tabpanel"
+        id="settings-tabpanel"
+        aria-labelledby="settings-segmented-control"
+        className="min-h-0 flex-1 overflow-y-auto"
+      >
         <SettingsContent activeTab={activeTab} activeSubMode={activeSubMode} />
       </div>
     </div>

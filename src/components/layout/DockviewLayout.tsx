@@ -114,6 +114,8 @@ export const DockviewLayout = memo(function DockviewLayout() {
         {/* Left dock - settings panel */}
         <aside
           data-testid="left-dock"
+          role="complementary"
+          aria-label="Settings panel"
           className={cn(
             'h-full flex-shrink-0 border-r border-border bg-surface',
             'w-[clamp(340px,32%,420px)]',
@@ -166,6 +168,8 @@ export const DockviewLayout = memo(function DockviewLayout() {
         {/* Right dock */}
         <aside
           data-testid="right-dock"
+          role="complementary"
+          aria-label="Gallery panel"
           className={cn(
             'h-full flex-shrink-0 border-l border-border bg-surface',
             'w-[clamp(280px,30%,420px)]',
