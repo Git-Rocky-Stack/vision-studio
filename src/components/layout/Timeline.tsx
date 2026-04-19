@@ -603,6 +603,10 @@ export const Timeline = memo(function Timeline() {
   const activeSceneId = useAppStore((s) => s.activeSceneId);
   const setActiveScene = useAppStore((s) => s.setActiveScene);
   const deleteCompletedJob = useAppStore((s) => s.deleteCompletedJob);
+  const timelineMode = useAppStore((s) => s.timelineMode);
+  const setTimelineMode = useAppStore((s) => s.setTimelineMode);
+  const onionSkinEnabled = useAppStore((s) => s.onionSkinEnabled);
+  const setOnionSkinEnabled = useAppStore((s) => s.setOnionSkinEnabled);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -832,6 +836,31 @@ export const Timeline = memo(function Timeline() {
 
           <div className="w-px h-5 bg-border mx-1" />
 
+          {/* Timeline mode switcher */}
+          <div className="flex items-center gap-0.5 bg-void rounded-md p-0.5">
+            {(['storyboard', 'animation', 'canvas'] as const).map((mode) => {
+              const isActive = timelineMode === mode;
+              return (
+                <button
+                  key={mode}
+                  onClick={() => setTimelineMode(mode)}
+                  className={cn(
+                    'px-2 py-0.5 rounded text-xs font-display capitalize transition-all',
+                    isActive
+                      ? 'bg-surface text-accent-primary shadow-sm'
+                      : 'text-text-muted hover:text-text-body'
+                  )}
+                  aria-label={`${mode} mode`}
+                  data-active={isActive}
+                >
+                  {mode}
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="w-px h-5 bg-border mx-1" />
+
           {/* Track actions */}
           <button
             className={cn(
@@ -886,6 +915,24 @@ export const Timeline = memo(function Timeline() {
 
         <div className="flex items-center gap-2">
           <ZoomControls zoom={zoom} onZoomChange={setZoom} />
+
+          <div className="w-px h-5 bg-border mx-1" />
+
+          {/* Onion skin toggle */}
+          <button
+            onClick={() => setOnionSkinEnabled(!onionSkinEnabled)}
+            className={cn(
+              'p-1.5 rounded-md transition-all',
+              onionSkinEnabled
+                ? 'text-accent-primary bg-accent-primary-muted'
+                : 'text-text-body hover:text-text-primary hover:bg-surface'
+            )}
+            aria-label="Toggle onion skin"
+            aria-pressed={onionSkinEnabled}
+            title="Onion skin (O)"
+          >
+            <Layers className="w-3.5 h-3.5" />
+          </button>
 
           <div className="w-px h-5 bg-border mx-1" />
 
