@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { Stage, Layer, Rect, Image as KonvaImage, Line, Text, Transformer } from 'react-konva';
 import { useAppStore } from '@/store/appStore';
+import { useShallow } from 'zustand/react/shallow';
 import { RegionLockToolbar } from '@/components/edit/RegionLockToolbar';
 import type { RegionTool } from '@/components/edit/RegionLockToolbar';
 import type Konva from 'konva';
@@ -22,7 +23,21 @@ export function EditCanvas() {
     setActiveRegionId,
     setMaskBrushSize,
     toggleMaskInverted,
-  } = useAppStore();
+  } = useAppStore(useShallow((s) => ({
+    currentImage: s.currentImage,
+    activeEditTool: s.activeEditTool,
+    imageAdjustments: s.imageAdjustments,
+    editLayers: s.editLayers,
+    regionMode: s.regionMode,
+    activeMaskTool: s.activeMaskTool,
+    activeRegionId: s.activeRegionId,
+    maskBrushSize: s.maskBrushSize,
+    maskInverted: s.maskInverted,
+    setActiveMaskTool: s.setActiveMaskTool,
+    setActiveRegionId: s.setActiveRegionId,
+    setMaskBrushSize: s.setMaskBrushSize,
+    toggleMaskInverted: s.toggleMaskInverted,
+  })));
 
   const containerRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<Konva.Stage>(null);

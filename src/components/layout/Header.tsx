@@ -3,7 +3,8 @@ import { useAppStore } from '@/store/appStore';
 import { ProjectDropdown } from './ProjectDropdown';
 
 export const Header = memo(function Header() {
-  const { currentProject, systemInfo } = useAppStore();
+  const currentProject = useAppStore((s) => s.currentProject);
+  const systemInfo = useAppStore((s) => s.systemInfo);
   const backendConnected = systemInfo.backendConnected;
   const backendLabel = backendConnected ? 'Backend ready' : 'Backend not ready';
 
