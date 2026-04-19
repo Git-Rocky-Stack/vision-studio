@@ -104,6 +104,7 @@ export function TextControls() {
         <button
           onClick={() => setShowFontDropdown(!showFontDropdown)}
           aria-expanded={showFontDropdown}
+          aria-haspopup="listbox"
           className="w-full flex items-center justify-between px-3 py-2 rounded-lg bg-elevated border border-border hover:border-border-hover transition-all text-left"
         >
           <span className="text-sm text-text-primary" style={{ fontFamily }}>
@@ -114,6 +115,8 @@ export function TextControls() {
         <AnimatePresence>
           {showFontDropdown && (
             <motion.div
+              role="listbox"
+              aria-label="Font family"
               initial={{ opacity: 0, y: -4 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -4 }}
@@ -122,6 +125,8 @@ export function TextControls() {
               {FONTS.map((font) => (
                 <button
                   key={font}
+                  role="option"
+                  aria-selected={fontFamily === font}
                   onClick={() => {
                     setFontFamily(font);
                     setShowFontDropdown(false);

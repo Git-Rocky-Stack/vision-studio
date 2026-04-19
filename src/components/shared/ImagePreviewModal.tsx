@@ -1,4 +1,4 @@
-import { useEffect, useCallback } from 'react';
+import { useEffect, useCallback, useRef } from 'react';
 import { cn } from '@/utils/cn';
 import { Button } from '@/components/ui/Button';
 import { useAppStore } from '@/store/appStore';
@@ -77,10 +77,52 @@ export function ImagePreviewModal({
   }, [result, onClose, goToPrev, goToNext]);
 
   // Focus trap
+  const modalRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     if (!result) return;
     const previousFocus = document.activeElement as HTMLElement;
-    return () => { previousFocus?.focus(); };
+
+    // Focus the first focusable element when modal opens
+    const container = modalRef.current;
+    if (container) {
+      const focusableSelector = 'a[href], button:not([disabled]), textarea, input, select, [tabindex]:not([tabindex="-1"])';
+      const focusableElements = container.querySelectorAll<HTMLElement>(focusableSelector);
+      if (focusableElements.length > 0) {
+        focusableElements[0].focus();
+      }
+    }
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'Tab') return;
+      const container = modalRef.current;
+      if (!container) return;
+
+      const focusableSelector = 'a[href], button:not([disabled]), textarea, input, select, [tabindex]:not([tabindex="-1"])';
+      const focusableElements = Array.from(container.querySelectorAll<HTMLElement>(focusableSelector));
+      if (focusableElements.length === 0) return;
+
+      const first = focusableElements[0];
+      const last = focusableElements[focusableElements.length - 1];
+
+      if (e.shiftKey) {
+        if (document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        }
+      } else {
+        if (document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+      previousFocus?.focus();
+    };
   }, [result]);
 
   const handleSendToEdit = () => {
@@ -205,6 +247,7 @@ export function ImagePreviewModal({
 
           {/* Content */}
           <div
+            ref={modalRef}
             className="relative flex flex-1"
             onClick={(e) => e.stopPropagation()}
           >

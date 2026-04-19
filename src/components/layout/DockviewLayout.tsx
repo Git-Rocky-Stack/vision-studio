@@ -93,7 +93,12 @@ export const DockviewLayout = memo(function DockviewLayout() {
       <div className="flex h-full">
         <NavBar />
         <main className="flex min-w-0 flex-1 flex-col bg-void">
-          <section className="min-h-0 flex-1 overflow-hidden">
+          <section
+            id={`panel-${activeTab}`}
+            role="tabpanel"
+            aria-label={`${activeTab} panel`}
+            className="min-h-0 flex-1 overflow-hidden"
+          >
             <ErrorBoundary fallbackLabel={`${activeTab} panel error`}>
               {activeTab === 'assets' ? <AssetsPanel /> : activeTab === 'collections' ? <CollectionsPage /> : <SettingsPanel />}
             </ErrorBoundary>
@@ -147,9 +152,11 @@ export const DockviewLayout = memo(function DockviewLayout() {
               {centerTabs.map((tab) => (
                 <button
                   key={tab.id}
+                  id={`center-tab-${tab.id}`}
                   type="button"
                   role="tab"
                   aria-selected={centerView === tab.id}
+                  aria-controls={`center-panel-${tab.id}`}
                   data-testid={`center-tab-${tab.id}`}
                   onClick={() => handleCenterTabClick(tab.id)}
                   className={cn(
@@ -173,7 +180,12 @@ export const DockviewLayout = memo(function DockviewLayout() {
           )}
 
           {/* Center content */}
-          <section className="min-h-0 flex-1 overflow-hidden">
+          <section
+            id={`center-panel-${centerView}`}
+            role="tabpanel"
+            aria-labelledby={`center-tab-${centerView}`}
+            className="min-h-0 flex-1 overflow-hidden"
+          >
             <ErrorBoundary fallbackLabel="Center view error">
               {isStudioMode ? <CompositionPreview /> : <CenterContent centerView={centerView} />}
             </ErrorBoundary>

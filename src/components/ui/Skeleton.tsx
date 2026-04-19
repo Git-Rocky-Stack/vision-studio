@@ -12,6 +12,9 @@ interface SkeletonProps {
 export function Skeleton({ className }: SkeletonProps) {
   return (
     <div
+      role="progressbar"
+      aria-busy="true"
+      aria-label="Loading"
       className={cn(
         'animate-pulse rounded-lg bg-elevated',
         className

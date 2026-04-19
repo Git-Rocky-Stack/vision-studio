@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useAppStore } from '@/store/appStore';
 import { cn } from '@/utils/cn';
 import { Button } from '@/components/ui/Button';
@@ -97,6 +97,15 @@ export function BatchPromptQueue() {
     removeBatchResults,
     removeAssetRecordsByPaths,
   } = useAppStore();
+
+  // Ref for polling interval cleanup
+  const batchPollRef = useRef<ReturnType<typeof setInterval>>(null);
+  useEffect(() => {
+    return () => {
+      if (batchPollRef.current) clearInterval(batchPollRef.current);
+    };
+  }, []);
+
   const [prompts, setPrompts] = useState<BatchPrompt[]>([
     { id: '1', prompt: '', status: 'pending' },
   ]);
@@ -214,6 +223,7 @@ export function BatchPromptQueue() {
     outputRoot: string
   ) => {
     const checkInterval = setInterval(async () => {
+      batchPollRef.current = checkInterval;
       let allCompleted = true;
       const updatedPrompts = [...startingPrompts];
 
@@ -279,6 +289,7 @@ export function BatchPromptQueue() {
 
       if (allCompleted) {
         clearInterval(checkInterval);
+        batchPollRef.current = null;
         setIsGenerating(false);
       }
     }, 2000);
@@ -572,6 +583,8 @@ export function BatchPromptQueue() {
       <div className="border-t border-border">
         <button
           onClick={() => setShowSettings(!showSettings)}
+          aria-expanded={showSettings}
+          aria-controls="batch-settings-panel"
           className="w-full flex items-center justify-between p-4 text-sm text-text-body hover:text-text-primary transition-all font-display"
         >
           <span className="flex items-center gap-2">
@@ -586,6 +599,7 @@ export function BatchPromptQueue() {
         <AnimatePresence>
           {showSettings && (
             <motion.div
+              id="batch-settings-panel"
               initial={{ height: 0 }}
               animate={{ height: 'auto' }}
               exit={{ height: 0 }}

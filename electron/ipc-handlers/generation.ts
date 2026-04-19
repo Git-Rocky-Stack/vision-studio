@@ -7,6 +7,8 @@ const WS_URL = 'ws://127.0.0.1:8000/ws';
 
 let ws: WebSocket | null = null;
 let mainWindow: BrowserWindow | null = null;
+let wsReconnectAttempts = 0;
+const WS_BASE_DELAY = 1000; // 1s initial delay, doubles each attempt up to 30s
 
 function isConnectionRefused(error: any) {
   return typeof error?.message === 'string' && error.message.includes('ECONNREFUSED');
@@ -54,6 +56,7 @@ function connectWebSocket() {
   ws = new WebSocket(WS_URL);
   
   ws.on('open', () => {
+    wsReconnectAttempts = 0;
     console.log('Connected to Python backend WebSocket');
   });
   
@@ -71,8 +74,10 @@ function connectWebSocket() {
   });
   
   ws.on('close', () => {
-    console.log('WebSocket closed, reconnecting in 5s...');
-    setTimeout(connectWebSocket, 5000);
+    const delay = Math.min(WS_BASE_DELAY * Math.pow(2, wsReconnectAttempts), 30000);
+    wsReconnectAttempts++;
+    console.log(`WebSocket closed, reconnecting in ${delay}ms (attempt ${wsReconnectAttempts})...`);
+    setTimeout(connectWebSocket, delay);
   });
   
   ws.on('error', (err) => {
