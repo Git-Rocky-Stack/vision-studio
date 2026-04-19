@@ -753,6 +753,34 @@ describe('appStore', () => {
 
   // ── Smart Collections ───────────────────────────────────────────────────
 
+  describe('video generation', () => {
+    it('defaults generationMode to image', () => {
+      expect(useAppStore.getState().generationMode).toBe('image');
+    });
+
+    it('defaults start/end frame to null', () => {
+      expect(useAppStore.getState().startFrameImage).toBeNull();
+      expect(useAppStore.getState().endFrameImage).toBeNull();
+    });
+
+    it('setGenerationMode switches mode', () => {
+      useAppStore.getState().setGenerationMode('video');
+      expect(useAppStore.getState().generationMode).toBe('video');
+    });
+
+    it('setStartFrameImage stores the image', () => {
+      useAppStore.getState().setStartFrameImage('data:image/png;base64,test');
+      expect(useAppStore.getState().startFrameImage).toBe('data:image/png;base64,test');
+    });
+
+    it('setEndFrameImage stores and clears the image', () => {
+      useAppStore.getState().setEndFrameImage('data:image/png;base64,test');
+      expect(useAppStore.getState().endFrameImage).toBe('data:image/png;base64,test');
+      useAppStore.getState().setEndFrameImage(null);
+      expect(useAppStore.getState().endFrameImage).toBeNull();
+    });
+  });
+
   describe('smart collections', () => {
     it('defaults to empty collections state', () => {
       const state = useAppStore.getState();

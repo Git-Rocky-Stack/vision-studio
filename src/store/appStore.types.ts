@@ -55,6 +55,7 @@ import type {
   GenerationQueueItem,
   BatchResult,
   GenerationDraft,
+  GenerationMode,
 } from '@/types/generation';
 
 import type {
@@ -186,6 +187,9 @@ export interface AppState {
   migrationProgress: number; // 0-100
 
   // ─── Generation ──────────────────────────────────────────────────────────
+  generationMode: GenerationMode;
+  startFrameImage: string | null;
+  endFrameImage: string | null;
   activeJobs: GenerationJob[];
   completedJobs: GenerationJob[];
 
@@ -376,6 +380,11 @@ export interface AppState {
     },
   ) => void;
   removeBatchResults: (ids: string[]) => void;
+
+  // Video generation
+  setGenerationMode: (mode: GenerationMode) => void;
+  setStartFrameImage: (image: string | null) => void;
+  setEndFrameImage: (image: string | null) => void;
 
   // Generation draft & advanced generation
   setGenerationDraft: (draft: GenerationDraft | null) => void;

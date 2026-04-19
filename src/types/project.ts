@@ -20,6 +20,11 @@ export interface GenerationConfig {
   clipSkip: number;
   lora: LoRAConfig[];
   controlNet: ControlNetConfig[];
+  // Video fields
+  videoDuration?: number;       // seconds, 1-10, default 3
+  videoFps?: number;            // 8|12|16|24, default 24
+  motionStrength?: number;      // 0.1-1.0, default 0.5
+  loopVideo?: boolean;          // default false
 }
 
 // ─── Project ────────────────────────────────────────────────────────────────

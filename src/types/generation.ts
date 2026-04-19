@@ -69,6 +69,14 @@ export interface ControlNetConfig {
   endStep: number;
 }
 
+export type GenerationMode = 'image' | 'video';
+
+export interface VideoFrameInput {
+  id: string;
+  imageData: string;   // data URL or file path
+  label: string;       // 'Start Frame' | 'End Frame'
+}
+
 export const BUILT_IN_STYLE_PRESETS: StylePreset[] = [
   // Cinematic
   { id: 'cinematic', name: 'Cinematic', modifier: 'cinematic lighting, film grain, dramatic atmosphere, movie still', color: 'var(--color-feature-01)', category: 'cinematic', isCustom: false },

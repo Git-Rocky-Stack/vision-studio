@@ -225,6 +225,7 @@ export const useAppStore = create<AppState>()(
         resolutionTier: state.resolutionTier,
         customWidth: state.customWidth,
         customHeight: state.customHeight,
+        generationMode: state.generationMode,
         darkMode: state.darkMode,
         recentProjects: state.recentProjects,
         projects: state.projects,
