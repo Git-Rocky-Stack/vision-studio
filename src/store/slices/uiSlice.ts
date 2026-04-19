@@ -10,6 +10,10 @@ export const uiInitialState = {
   activeTab: 'generate' as const,
   activeSubMode: 'generate' as const,
   centerView: 'canvas' as const,
+  aspectRatio: '1:1' as const,
+  resolutionTier: 'ultra' as const,
+  customWidth: 1024,
+  customHeight: 1024,
 };
 
 export function createUIActions(set: AppSet, _get: AppGet) {
@@ -33,5 +37,9 @@ export function createUIActions(set: AppSet, _get: AppGet) {
     },
     setActiveSubMode: (subMode: AppState['activeSubMode']) => set({ activeSubMode: subMode }),
     setCenterView: (view: AppState['centerView']) => set({ centerView: view }),
+    setAspectRatio: (ratio: AppState['aspectRatio']) => set({ aspectRatio: ratio }),
+    setResolutionTier: (tier: AppState['resolutionTier']) => set({ resolutionTier: tier }),
+    setCustomWidth: (width: number) => set({ customWidth: width }),
+    setCustomHeight: (height: number) => set({ customHeight: height }),
   };
 }

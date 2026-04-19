@@ -525,6 +525,28 @@ describe('appStore', () => {
     });
   });
 
+  // ── Resolution picker ──────────────────────────────────────────────────
+
+  describe('resolution picker', () => {
+    it('defaults aspect ratio to 1:1', () => {
+      expect(useAppStore.getState().aspectRatio).toBe('1:1');
+    });
+
+    it('defaults resolution tier to ultra', () => {
+      expect(useAppStore.getState().resolutionTier).toBe('ultra');
+    });
+
+    it('setAspectRatio changes the ratio', () => {
+      useAppStore.getState().setAspectRatio('16:9');
+      expect(useAppStore.getState().aspectRatio).toBe('16:9');
+    });
+
+    it('setResolutionTier changes the tier', () => {
+      useAppStore.getState().setResolutionTier('standard');
+      expect(useAppStore.getState().resolutionTier).toBe('standard');
+    });
+  });
+
   // ── Prompt Studio ───────────────────────────────────────────────────────
 
   describe('prompt studio', () => {

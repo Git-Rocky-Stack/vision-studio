@@ -26,6 +26,8 @@ export type { ProjectTemplate } from '@/types/template';
 
 export type { ModelInfo, ModelStatus } from '@/types/model';
 
+export type { AspectRatio, ResolutionTier } from '@/types/resolution';
+
 // ---------------------------------------------------------------------------
 // Imports used only internally by AppState (not re-exported)
 // ---------------------------------------------------------------------------
@@ -71,6 +73,8 @@ import type {
 
 import type { ProjectTemplate } from '@/types/template';
 import type { ModelInfo } from '@/types/model';
+
+import type { AspectRatio, ResolutionTier } from '@/types/resolution';
 
 import type { ActiveTab, ActiveSubMode, CenterView } from '@/types/navigation';
 
@@ -150,6 +154,12 @@ export interface AppState {
   activeTab: ActiveTab;
   activeSubMode: ActiveSubMode;
   centerView: CenterView;
+
+  // Resolution
+  aspectRatio: AspectRatio;
+  resolutionTier: ResolutionTier;
+  customWidth: number;
+  customHeight: number;
 
   // ─── Workflow ────────────────────────────────────────────────────────────
   workflowRecords: WorkflowRecord[];
@@ -277,6 +287,12 @@ export interface AppState {
   setActiveTab: (tab: ActiveTab) => void;
   setActiveSubMode: (subMode: ActiveSubMode) => void;
   setCenterView: (view: CenterView) => void;
+
+  // Resolution
+  setAspectRatio: (ratio: AspectRatio) => void;
+  setResolutionTier: (tier: ResolutionTier) => void;
+  setCustomWidth: (width: number) => void;
+  setCustomHeight: (height: number) => void;
 
   // Workflow
   setActiveWorkflow: (workflowId: string) => void;
