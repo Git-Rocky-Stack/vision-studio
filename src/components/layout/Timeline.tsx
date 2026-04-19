@@ -597,15 +597,18 @@ const ZoomControls = memo(function ZoomControls({
 // ─── Main Component ──────────────────────────────────────────────────────────
 
 export const Timeline = memo(function Timeline() {
-  const { completedJobs, projects, activeProjectId, activeSceneId, setActiveScene } = useAppStore();
+  const completedJobs = useAppStore((s) => s.completedJobs);
+  const projects = useAppStore((s) => s.projects);
+  const activeProjectId = useAppStore((s) => s.activeProjectId);
+  const activeSceneId = useAppStore((s) => s.activeSceneId);
+  const setActiveScene = useAppStore((s) => s.setActiveScene);
+  const deleteCompletedJob = useAppStore((s) => s.deleteCompletedJob);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [selectedTrackId, setSelectedTrackId] = useState<string | null>(null);
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
   const [zoom, setZoom] = useState(1);
-
-  const { deleteCompletedJob } = useAppStore();
 
   // Derive storyboard scenes from active project
   const activeProject = projects.find((p) => p.id === activeProjectId);
