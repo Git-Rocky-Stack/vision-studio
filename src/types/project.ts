@@ -6,6 +6,7 @@
 
 import type { LoRAConfig, ControlNetConfig } from './generation';
 import type { Layer } from './editor';
+import type { KeyframeInterpolation } from '@/types/timeline';
 
 // ─── Generation Config ──────────────────────────────────────────────────────
 
@@ -63,7 +64,7 @@ export interface Scene {
   frames: Frame[];
   regionLocks: RegionLock[];
   transitions: SceneTransition;
-  camera: CameraKeyframe[]; // Phase 2 placeholder
+  camera: CameraKeyframe[];
   metadata: {
     created: string;      // ISO 8601
     modified: string;      // ISO 8601
@@ -157,7 +158,7 @@ export interface ReferenceImage {
   label?: string;
 }
 
-// ─── Camera Keyframe (Phase 2 placeholder) ──────────────────────────────────
+// ─── Camera Keyframe ────────────────────────────────────────────────────────
 
 export interface CameraKeyframe {
   id: string;
@@ -165,6 +166,8 @@ export interface CameraKeyframe {
   pan: { x: number; y: number };
   zoom: number;
   rotation: number;
+  interpolation: KeyframeInterpolation;
+  easingStrength: number;
 }
 
 // ─── Default Values ──────────────────────────────────────────────────────────
