@@ -2,7 +2,6 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { cn } from '@/utils/cn';
 import { useAppStore } from '@/store/appStore';
-import { Button } from '@/components/ui/Button';
 import { PromptArea } from '@/components/generate/PromptArea';
 import { StylePresetsBar } from '@/components/generate/StylePresetsBar';
 import { ModelSelector } from '@/components/generate/ModelSelector';
@@ -11,6 +10,8 @@ import { ImageDropZone } from '@/components/generate/ImageDropZone';
 import { ControlNetPanel } from '@/components/generate/ControlNetPanel';
 import { LoRAMixer } from '@/components/generate/LoRAMixer';
 import { PromptHistory } from '@/components/generate/PromptHistory';
+import { AspectRatioPicker } from '@/components/generate/AspectRatioPicker';
+import { computeDimensions } from '@/types/resolution';
 import {
   clearResolvedGenerationError,
   SVD_REFERENCE_ERROR,
@@ -31,21 +32,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useMotionConfig } from '@/utils/animation';
 
 type GenerationType = 'image' | 'video';
-
-interface AspectRatio {
-  name: string;
-  width: number;
-  height: number;
-  icon: string;
-}
-
-const aspectRatios: AspectRatio[] = [
-  { name: 'Square', width: 1024, height: 1024, icon: '1:1' },
-  { name: 'Portrait', width: 768, height: 1344, icon: '9:16' },
-  { name: 'Landscape', width: 1344, height: 768, icon: '16:9' },
-  { name: 'Widescreen', width: 1920, height: 1080, icon: '16:9' },
-  { name: 'Mobile', width: 720, height: 1280, icon: '9:16' },
-];
 
 const RANDOM_PROMPTS = [
   'A mystical forest at twilight with bioluminescent mushrooms and fireflies',
@@ -125,7 +111,6 @@ export function GeneratePanel() {
     generationType: 'image' as GenerationType,
     prompt: '',
     negativePrompt: '',
-    selectedRatio: aspectRatios[0] as AspectRatio,
     model: 'flux-dev',
     activeStylePresets: [] as string[],
     videoModel: 'ltx-video',
@@ -137,6 +122,15 @@ export function GeneratePanel() {
       updateAdvancedGeneration({ generationType: patch.generationType });
     }
   };
+
+  // Resolution dimensions from store
+  const { aspectRatio, resolutionTier, customWidth, customHeight } = useAppStore(useShallow(s => ({
+    aspectRatio: s.aspectRatio,
+    resolutionTier: s.resolutionTier,
+    customWidth: s.customWidth,
+    customHeight: s.customHeight,
+  })));
+  const dimensions = computeDimensions(aspectRatio, resolutionTier, customWidth, customHeight);
 
   // Reference image / ControlNet / LoRA config (consolidated)
   const [refConfig, setRefConfig] = useState({
@@ -154,10 +148,6 @@ export function GeneratePanel() {
     if (currentProject?.template) {
       const settings = currentProject.template.settings;
       updateImageConfig({
-        selectedRatio:
-          aspectRatios.find(
-            (r) => r.width === settings.width && r.height === settings.height
-          ) || aspectRatios[0],
         model: settings.model,
         prompt: settings.prompt,
         negativePrompt: settings.negativePrompt,
@@ -178,15 +168,6 @@ export function GeneratePanel() {
       generationType: generationDraft.generationType,
       prompt: generationDraft.prompt,
       negativePrompt: generationDraft.negativePrompt,
-      selectedRatio:
-        aspectRatios.find(
-          (ratio) => ratio.width === generationDraft.width && ratio.height === generationDraft.height
-        ) ?? {
-          name: 'Custom',
-          width: generationDraft.width,
-          height: generationDraft.height,
-          icon: `${generationDraft.width}:${generationDraft.height}`,
-        },
       ...(generationDraft.generationType === 'image'
         ? { model: generationDraft.model }
         : { videoModel: generationDraft.model }),
@@ -259,8 +240,8 @@ export function GeneratePanel() {
         const result = await window.electron.generation.generateImage({
           prompt: imageConfig.prompt.trim(),
           negative_prompt: imageConfig.negativePrompt.trim(),
-          width: imageConfig.selectedRatio.width,
-          height: imageConfig.selectedRatio.height,
+          width: dimensions.width,
+          height: dimensions.height,
           steps: advancedGeneration.steps,
           cfg_scale: advancedGeneration.cfgScale,
           seed: advancedGeneration.seed === -1 ? undefined : advancedGeneration.seed,
@@ -278,8 +259,8 @@ export function GeneratePanel() {
             params: {
               prompt: imageConfig.prompt.trim(),
               negative_prompt: imageConfig.negativePrompt.trim(),
-              width: imageConfig.selectedRatio.width,
-              height: imageConfig.selectedRatio.height,
+              width: dimensions.width,
+              height: dimensions.height,
               steps: advancedGeneration.steps,
               cfg_scale: advancedGeneration.cfgScale,
               seed: advancedGeneration.seed,
@@ -301,8 +282,8 @@ export function GeneratePanel() {
         const result = await window.electron.generation.generateVideo({
           prompt: imageConfig.prompt.trim(),
           image_path: refConfig.referenceImage ?? undefined,
-          width: imageConfig.selectedRatio.width,
-          height: imageConfig.selectedRatio.height,
+          width: dimensions.width,
+          height: dimensions.height,
           duration: advancedGeneration.duration,
           fps: advancedGeneration.fps,
           steps: advancedGeneration.steps,
@@ -319,8 +300,8 @@ export function GeneratePanel() {
             progress: 0,
             params: {
               prompt: imageConfig.prompt.trim(),
-              width: imageConfig.selectedRatio.width,
-              height: imageConfig.selectedRatio.height,
+              width: dimensions.width,
+              height: dimensions.height,
               duration: advancedGeneration.duration,
               fps: advancedGeneration.fps,
               steps: advancedGeneration.steps,
@@ -640,58 +621,7 @@ export function GeneratePanel() {
         )}
 
         {/* Aspect Ratio */}
-        {imageConfig.generationType === 'image' && (
-          <div className="space-y-3">
-            <label className="text-label text-text-body">Aspect Ratio</label>
-            <div className="grid grid-cols-3 gap-2">
-              {aspectRatios.map((ratio) => {
-                const isSelected = imageConfig.selectedRatio.name === ratio.name;
-                const isDisabled = genStatus.isGenerating;
-                return (
-                  <button
-                    key={ratio.name}
-                    onClick={() => updateImageConfig({ selectedRatio: ratio })}
-                    disabled={isDisabled}
-                    className={cn(
-                      'px-2 py-2 rounded-md border transition-all flex items-center gap-2',
-                      isSelected
-                        ? 'border-accent-primary-border bg-accent-primary-muted shadow-accent-subtle'
-                        : 'border-border hover:border-border-hover bg-elevated',
-                      isDisabled && 'opacity-40 cursor-not-allowed hover:border-border hover:bg-elevated'
-                    )}
-                  >
-                    <div
-                      className={cn(
-                        'flex-shrink-0 rounded-sm',
-                        isSelected ? 'bg-accent-primary' : 'bg-text-muted'
-                      )}
-                      style={{
-                        width: ratio.width > ratio.height ? '18px' : '11px',
-                        height: ratio.width > ratio.height ? '11px' : '18px',
-                      }}
-                    />
-                    <div className="min-w-0 text-left">
-                      <span
-                        className={cn(
-                          'block truncate type-ui leading-tight',
-                          isSelected ? 'text-accent-primary' : 'text-text-body'
-                        )}
-                      >
-                        {ratio.name}
-                      </span>
-                      <span className="block type-meta leading-tight text-text-muted">
-                        {ratio.icon}
-                      </span>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-            <p className="type-meta text-text-muted">
-              {imageConfig.selectedRatio.width} x {imageConfig.selectedRatio.height}px
-            </p>
-          </div>
-        )}
+        <AspectRatioPicker />
 
         {/* Advanced Controls */}
         <div className="rounded-md border border-border bg-surface p-3">
