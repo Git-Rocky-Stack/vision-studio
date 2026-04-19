@@ -45,9 +45,13 @@ export function createGenerationActions(set: AppSet, _get: AppGet) {
     addJob: (job: GenerationJob) => set((state) => ({
       activeJobs: [...state.activeJobs.filter((existing) => existing.id !== job.id), job],
     })),
-    updateJob: (jobId: string, updates: Partial<GenerationJob>) => set((state) => {
+    updateJob: (jobId: string, updates: Partial<GenerationJob>) => {
+      const state = _get();
       const existingJob = state.activeJobs.find((job) => job.id === jobId);
-      if (!existingJob) return { activeJobs: state.activeJobs };
+      if (!existingJob) {
+        set((s) => ({ activeJobs: s.activeJobs }));
+        return;
+      }
 
       const updatedJob = { ...existingJob, ...updates };
       const isTerminal =
@@ -55,15 +59,24 @@ export function createGenerationActions(set: AppSet, _get: AppGet) {
         updatedJob.status === 'failed' ||
         updatedJob.status === 'cancelled';
 
-      if (!isTerminal) {
-        return { activeJobs: state.activeJobs.map((job) => job.id === jobId ? updatedJob : job) };
+      // When a job completes, add it to the iteration tree
+      if (updatedJob.status === 'completed') {
+        const thumbnail = (updatedJob.result?.images?.[0]) ?? '';
+        const parentId = null; // Root iteration for now; can be wired to re-roll parent later
+        state.addIteration({ job: updatedJob, parentId, thumbnail });
       }
 
-      return {
-        activeJobs: state.activeJobs.filter((job) => job.id !== jobId),
-        completedJobs: [updatedJob, ...state.completedJobs.filter((job) => job.id !== jobId)].slice(0, 100),
-      };
-    }),
+      set((s) => {
+        if (!isTerminal) {
+          return { activeJobs: s.activeJobs.map((job) => job.id === jobId ? updatedJob : job) };
+        }
+
+        return {
+          activeJobs: s.activeJobs.filter((job) => job.id !== jobId),
+          completedJobs: [updatedJob, ...s.completedJobs.filter((job) => job.id !== jobId)].slice(0, 100),
+        };
+      });
+    },
     removeJob: (jobId: string) => set((state) => {
       const job = state.activeJobs.find((j) => j.id === jobId);
       return {

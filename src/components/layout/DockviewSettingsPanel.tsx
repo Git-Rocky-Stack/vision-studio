@@ -9,6 +9,7 @@ import { StoryboardPanel } from '@/pages/StoryboardPanel';
 import { TemplatesPanel } from '@/pages/TemplatesPanel';
 import { EditPropertiesPanel } from '@/components/edit/EditPropertiesPanel';
 import { ToolStrip } from '@/components/edit/ToolStrip';
+import { IterationTimeline } from '@/components/iteration/IterationTimeline';
 import type { ActiveSubMode, GenerateSubMode, StorySubMode } from '@/types/navigation';
 
 /* -------------------------------------------------------------------------- */
@@ -134,6 +135,8 @@ export const DockviewSettingsPanel = memo(function DockviewSettingsPanel() {
   const activeSubMode = useAppStore((s) => s.activeSubMode);
   const setActiveSubMode = useAppStore((s) => s.setActiveSubMode);
 
+  const iterationBranches = useAppStore((s) => s.iterationBranches);
+
   const subModes = getSubModesForTab(activeTab);
 
   const handleSubModeChange = useCallback(
@@ -165,6 +168,13 @@ export const DockviewSettingsPanel = memo(function DockviewSettingsPanel() {
       >
         <SettingsContent activeTab={activeTab} activeSubMode={activeSubMode} />
       </div>
+
+      {/* Iteration timeline for generate/canvas */}
+      {(activeTab === 'generate' || activeTab === 'canvas') && iterationBranches.length > 0 && (
+        <div className="flex-shrink-0 border-t border-border">
+          <IterationTimeline className="h-16" />
+        </div>
+      )}
     </div>
   );
 });

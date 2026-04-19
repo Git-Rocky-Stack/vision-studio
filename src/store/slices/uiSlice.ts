@@ -26,6 +26,7 @@ export function createUIActions(set: AppSet, _get: AppGet) {
         story: 'storyboard',
         workflows: null,
         assets: null,
+        collections: null,
         settings: null,
       };
       set({ activeTab: tab, activeSubMode: subModeDefaults[tab] ?? null });

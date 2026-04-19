@@ -6,6 +6,7 @@ import {
   Clapperboard,
   GitBranch,
   FolderOpen,
+  Layers,
   Settings,
   CheckCircle2,
   AlertCircle,
@@ -32,6 +33,7 @@ const navBarTabs: NavBarTabDef[] = [
   { id: 'story', label: 'Story', icon: Clapperboard, cluster: 'top' },
   { id: 'workflows', label: 'Workflows', icon: GitBranch, cluster: 'top' },
   { id: 'assets', label: 'Assets', icon: FolderOpen, cluster: 'bottom' },
+  { id: 'collections', label: 'Collections', icon: Layers, cluster: 'bottom' },
   { id: 'settings', label: 'Settings', icon: Settings, cluster: 'bottom' },
 ];
 

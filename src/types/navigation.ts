@@ -1,4 +1,4 @@
-export type ActiveTab = 'generate' | 'canvas' | 'story' | 'workflows' | 'assets' | 'settings';
+export type ActiveTab = 'generate' | 'canvas' | 'story' | 'workflows' | 'assets' | 'collections' | 'settings';
 
 export type GenerateSubMode = 'generate' | 'quick' | 'batch' | 'studio';
 

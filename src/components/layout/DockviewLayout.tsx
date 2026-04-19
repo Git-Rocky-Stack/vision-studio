@@ -11,7 +11,10 @@ import { DockviewBoardsPanel } from '@/components/layout/DockviewBoardsPanel';
 import { DockviewLayersPanel } from '@/components/layout/DockviewLayersPanel';
 import { AssetsPanel } from '@/pages/AssetsPanel';
 import { SettingsPanel } from '@/pages/SettingsPanel';
+import { CollectionsPage } from '@/pages/CollectionsPage';
 import { CompositionPreview } from '@/components/studio/CompositionPreview';
+import { IterationViewSelector } from '@/components/iteration/IterationViewSelector';
+import { IterationTreePanel } from '@/components/iteration/IterationTreePanel';
 import { getLayoutPreset } from '@/components/layout/layoutPresets';
 import { cn } from '@/utils/cn';
 import type { CenterView } from '@/types/navigation';
@@ -70,6 +73,7 @@ export const DockviewLayout = memo(function DockviewLayout() {
   const setCenterView = useAppStore((s) => s.setCenterView);
 
   const isStudioMode = activeTab === 'generate' && activeSubMode === 'studio';
+  const showIterationView = activeTab === 'generate' || activeTab === 'canvas';
 
   const preset = getLayoutPreset(activeTab);
 
@@ -91,7 +95,7 @@ export const DockviewLayout = memo(function DockviewLayout() {
         <main className="flex min-w-0 flex-1 flex-col bg-void">
           <section className="min-h-0 flex-1 overflow-hidden">
             <ErrorBoundary fallbackLabel={`${activeTab} panel error`}>
-              {activeTab === 'assets' ? <AssetsPanel /> : <SettingsPanel />}
+              {activeTab === 'assets' ? <AssetsPanel /> : activeTab === 'collections' ? <CollectionsPage /> : <SettingsPanel />}
             </ErrorBoundary>
           </section>
         </main>
@@ -158,6 +162,13 @@ export const DockviewLayout = memo(function DockviewLayout() {
                   {tab.label}
                 </button>
               ))}
+
+              {/* Iteration view selector for generate/canvas */}
+              {showIterationView && (
+                <div className="ml-auto">
+                  <IterationViewSelector />
+                </div>
+              )}
             </div>
           )}
 
@@ -198,6 +209,11 @@ export const DockviewLayout = memo(function DockviewLayout() {
                 <div className="flex min-h-0 flex-1 flex-col border-t border-border">
                   <DockviewBoardsPanel />
                 </div>
+                {showIterationView && (
+                  <div className="flex min-h-0 flex-1 flex-col border-t border-border">
+                    <IterationTreePanel />
+                  </div>
+                )}
               </>
             )}
           </ErrorBoundary>

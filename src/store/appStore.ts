@@ -11,6 +11,8 @@ import { projectInitialState, createProjectActions } from './slices/projectSlice
 import { workflowInitialState, createWorkflowActions } from './slices/workflowSlice';
 import { promptStudioInitialState, createPromptStudioActions } from './slices/promptStudioSlice';
 import { generationPreviewInitialState, createGenerationPreviewActions } from './slices/generationPreviewSlice';
+import { iterationInitialState, createIterationActions } from './slices/iterationSlice';
+import { collectionsInitialState, createCollectionsActions } from './slices/collectionsSlice';
 
 // Re-exports: local types
 export type {
@@ -157,6 +159,10 @@ export const useAppStore = create<AppState>()(
       ...createPromptStudioActions(set, get),
       ...generationPreviewInitialState,
       ...createGenerationPreviewActions(set, get),
+      ...iterationInitialState,
+      ...createIterationActions(set, get),
+      ...collectionsInitialState,
+      ...createCollectionsActions(set, get),
     }),
     {
       name: 'vision-studio-storage',
@@ -178,6 +184,13 @@ export const useAppStore = create<AppState>()(
         assetLibrary: state.assetLibrary.slice(0, 500),
         promptTemplates: state.promptTemplates,
         compositionLayers: state.compositionLayers,
+        iterationBranches: state.iterationBranches,
+        activeIterationId: state.activeIterationId,
+        iterationView: state.iterationView,
+        iterationComparisonMode: state.iterationComparisonMode,
+        collections: state.collections,
+        availableTags: state.availableTags,
+        taggingMode: state.taggingMode,
       }),
     }
   )

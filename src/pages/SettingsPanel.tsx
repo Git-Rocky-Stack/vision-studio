@@ -18,6 +18,7 @@ import {
   Monitor,
   AlertTriangle,
   Play,
+  Tag,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -66,6 +67,8 @@ export function SettingsPanel() {
     clearBatchResults,
     setAvailableModels,
     setSystemInfo,
+    taggingMode,
+    setTaggingMode,
   } = useAppStore();
   const [activeTab, setActiveTab] = useState<SettingsTab>('general');
   const [settings, setSettings] = useState<SettingsState>(defaultSettingsState);
@@ -449,6 +452,36 @@ export function SettingsPanel() {
                     </div>
                   </div>
                 )}
+
+                <div className="space-y-4">
+                  <h3 className="text-label text-text-body flex items-center gap-2">
+                    <Tag className="w-4 h-4" />
+                    AI Tagging Mode
+                  </h3>
+                  <p className="text-xs text-text-body mb-3">
+                    Control when AI analyzes generated assets to create smart collection tags.
+                  </p>
+                  {([
+                    { value: 'on-generation' as const, label: 'On Generation', desc: 'Analyze each asset immediately after generation' },
+                    { value: 'background-batch' as const, label: 'Background Batch', desc: 'Analyze assets in batches during idle time' },
+                    { value: 'on-demand' as const, label: 'On Demand', desc: 'Only analyze when you manually trigger it' },
+                    { value: 'off' as const, label: 'Off', desc: 'Disable automatic AI tagging entirely' },
+                  ]).map((mode) => (
+                    <label key={mode.value} className="flex items-start gap-3 py-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="tagging-mode"
+                        checked={taggingMode === mode.value}
+                        onChange={() => setTaggingMode(mode.value)}
+                        className="mt-1 accent-accent-primary"
+                      />
+                      <div>
+                        <span className="text-sm font-display font-medium text-text-primary">{mode.label}</span>
+                        <p className="text-xs text-text-muted">{mode.desc}</p>
+                      </div>
+                    </label>
+                  ))}
+                </div>
 
                 <div className="space-y-4">
                   <h3 className="text-label text-text-body">Installed Models</h3>
