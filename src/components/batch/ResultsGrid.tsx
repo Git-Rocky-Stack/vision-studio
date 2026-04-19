@@ -2,6 +2,7 @@ import { useState, useCallback, useRef } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { cn } from '@/utils/cn';
 import { ResultCard } from './ResultCard';
+import { useShallow } from 'zustand/react/shallow';
 import { useAppStore } from '@/store/appStore';
 import {
   Download,
@@ -36,7 +37,16 @@ export function ResultsGrid({
     setActiveTab,
     removeBatchResults,
     removeAssetRecordsByPaths,
-  } = useAppStore();
+  } = useAppStore(
+    useShallow((s) => ({
+      batchResults: s.batchResults,
+      toggleBatchResultFavorite: s.toggleBatchResultFavorite,
+      setCurrentImage: s.setCurrentImage,
+      setActiveTab: s.setActiveTab,
+      removeBatchResults: s.removeBatchResults,
+      removeAssetRecordsByPaths: s.removeAssetRecordsByPaths,
+    }))
+  );
 
   const [viewModeLocal, setViewModeLocal] = useState<ViewMode>('grid');
   const [sortByLocal, setSortByLocal] = useState<SortBy>('created');

@@ -61,8 +61,8 @@ win:
   # Publisher name (must match certificate subject)
   publisherName: Vision Studio Team
 
-  # Verify code signature on updates (disabled for unsigned builds)
-  verifyUpdateCodeSignature: false
+  # Verify code signature on updates. Release builds must be signed.
+  verifyUpdateCodeSignature: true
 
   # Run as current user (admin not needed for normal operation)
   requestedExecutionLevel: asInvoker

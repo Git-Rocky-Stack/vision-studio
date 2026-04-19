@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import { useAppStore, PROJECT_TEMPLATES } from '@/store/appStore';
 import type { ProjectTemplate } from '@/types/template';
 import { cn } from '@/utils/cn';
@@ -57,7 +58,12 @@ export function TemplatesPanel() {
     setCurrentProject,
     userTemplates,
     deleteUserTemplate,
-  } = useAppStore();
+  } = useAppStore(useShallow(s => ({
+    setActiveTab: s.setActiveTab,
+    setCurrentProject: s.setCurrentProject,
+    userTemplates: s.userTemplates,
+    deleteUserTemplate: s.deleteUserTemplate,
+  })));
 
   const [selectedCategory, setSelectedCategory] = useState<string | 'all' | 'mine'>('all');
   const [hoveredTemplate, setHoveredTemplate] = useState<string | null>(null);

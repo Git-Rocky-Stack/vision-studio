@@ -115,4 +115,30 @@ describe('NavBar', () => {
       Node.DOCUMENT_POSITION_FOLLOWING
     );
   });
+
+  it('exposes workspace tabs with selected state instead of current-page navigation state', () => {
+    useAppStore.setState({ activeTab: 'canvas' });
+    render(<NavBar />);
+
+    expect(screen.getByRole('tablist', { name: 'Primary workspace tabs' })).toBeInTheDocument();
+
+    const canvasTab = screen.getByRole('tab', { name: 'Canvas' });
+    expect(canvasTab).toHaveAttribute('aria-selected', 'true');
+    expect(canvasTab).not.toHaveAttribute('aria-current');
+
+    expect(screen.getByRole('tab', { name: 'Generate' })).toHaveAttribute('aria-selected', 'false');
+  });
+
+  it('moves between workspace tabs with arrow keys', async () => {
+    const user = userEvent.setup();
+    render(<NavBar />);
+
+    const generateTab = screen.getByRole('tab', { name: 'Generate' });
+    generateTab.focus();
+
+    await user.keyboard('{ArrowDown}');
+
+    expect(useAppStore.getState().activeTab).toBe('canvas');
+    expect(screen.getByRole('tab', { name: 'Canvas' })).toHaveFocus();
+  });
 });

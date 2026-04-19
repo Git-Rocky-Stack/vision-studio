@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import { useAppStore } from '@/store/appStore';
 import { DockviewLayout } from '@/components/layout/DockviewLayout';
 import { FilmGrainOverlay } from '@/components/effects/FilmGrainOverlay';
@@ -7,11 +8,13 @@ import { KeyboardShortcuts } from '@/components/ui/KeyboardShortcuts';
 import { applyThemeToDocument, type ThemePreference } from '@/features/theme/theme';
 
 function App() {
-  const {
-    setSystemInfo,
-    setAvailableModels,
-    updateJob
-  } = useAppStore();
+  const { setSystemInfo, setAvailableModels, updateJob } = useAppStore(
+    useShallow((s) => ({
+      setSystemInfo: s.setSystemInfo,
+      setAvailableModels: s.setAvailableModels,
+      updateJob: s.updateJob,
+    }))
+  );
 
   const [showShortcuts, setShowShortcuts] = useState(false);
 

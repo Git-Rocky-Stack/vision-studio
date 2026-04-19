@@ -1,0 +1,3 @@
+  ✓ PERF-003 / STATE-004: Verified no no-selector useAppStore() subscriptions remain
+  ✓ P2 Accessibility items: Remediated and covered by regression tests
+  ✓ Security audit outstanding items: Remediated except release signing credentials and store-encryption migration

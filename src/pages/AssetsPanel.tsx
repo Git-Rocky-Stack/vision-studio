@@ -3,6 +3,7 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { cn } from '@/utils/cn';
 import { Button } from '@/components/ui/Button';
+import { useShallow } from 'zustand/react/shallow';
 import { useAppStore } from '@/store/appStore';
 import type { AssetRecord } from '@/types/assets';
 import { ImageWithFallback } from '@/components/ui/ImageWithFallback';
@@ -37,11 +38,13 @@ function formatAssetMeta(asset: AssetRecord) {
 }
 
 export function AssetsPanel() {
-  const {
-    assetLibrary,
-    deleteAssetRecord,
-    toggleAssetFavorite,
-  } = useAppStore();
+  const { assetLibrary, deleteAssetRecord, toggleAssetFavorite } = useAppStore(
+    useShallow((s) => ({
+      assetLibrary: s.assetLibrary,
+      deleteAssetRecord: s.deleteAssetRecord,
+      toggleAssetFavorite: s.toggleAssetFavorite,
+    }))
+  );
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
   const [filter, setFilter] = useState<AssetType>('all');
   const [searchQuery, setSearchQuery] = useState('');

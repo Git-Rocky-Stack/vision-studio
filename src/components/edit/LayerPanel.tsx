@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { cn } from '@/utils/cn';
 import { useAppStore } from '@/store/appStore';
+import { useShallow } from 'zustand/react/shallow';
 import { ImageWithFallback } from '@/components/ui/ImageWithFallback';
 import {
   DndContext,
@@ -54,6 +55,10 @@ function SortableLayerRow({
   onOpacityChange,
   onBlendModeChange,
   onRename,
+  onMoveUp,
+  onMoveDown,
+  canMoveUp,
+  canMoveDown,
 }: {
   layer: Layer;
   isSelected: boolean;
@@ -63,6 +68,10 @@ function SortableLayerRow({
   onOpacityChange: (opacity: number) => void;
   onBlendModeChange: (mode: string) => void;
   onRename: (name: string) => void;
+  onMoveUp: () => void;
+  onMoveDown: () => void;
+  canMoveUp: boolean;
+  canMoveDown: boolean;
 }) {
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState(layer.name);
@@ -93,6 +102,20 @@ function SortableLayerRow({
     }
   };
 
+  const handleReorderKeyDown = (event: React.KeyboardEvent<HTMLButtonElement>) => {
+    if (event.key === 'ArrowUp' && canMoveUp) {
+      event.preventDefault();
+      event.stopPropagation();
+      onMoveUp();
+    }
+
+    if (event.key === 'ArrowDown' && canMoveDown) {
+      event.preventDefault();
+      event.stopPropagation();
+      onMoveDown();
+    }
+  };
+
   return (
     <div
       ref={setNodeRef}
@@ -110,7 +133,10 @@ function SortableLayerRow({
       <button
         {...attributes}
         {...listeners}
-        className="p-0.5 text-text-muted hover:text-text-primary cursor-grab active:cursor-grabbing"
+        onKeyDown={handleReorderKeyDown}
+        aria-label={`Reorder ${layer.name}. Use Arrow Up or Arrow Down to move the layer.`}
+        aria-keyshortcuts="ArrowUp ArrowDown"
+        className="p-0.5 min-w-[44px] min-h-[44px] text-text-muted hover:text-text-primary cursor-grab active:cursor-grabbing"
       >
         <GripVertical className="w-3 h-3" />
       </button>
@@ -119,7 +145,7 @@ function SortableLayerRow({
       <button
         onClick={(e) => { e.stopPropagation(); onToggleVisibility(); }}
         aria-label={layer.visible ? 'Hide layer' : 'Show layer'}
-        className="p-0.5 text-text-muted hover:text-text-primary transition-all"
+        className="p-0.5 min-w-[44px] min-h-[44px] text-text-muted hover:text-text-primary transition-all"
       >
         {layer.visible ? (
           <Eye className="w-3 h-3" />
@@ -185,7 +211,7 @@ function SortableLayerRow({
       <button
         onClick={(e) => { e.stopPropagation(); onToggleLock(); }}
         aria-label={layer.locked ? 'Unlock layer' : 'Lock layer'}
-        className="p-0.5 text-text-muted hover:text-text-primary transition-all"
+        className="p-0.5 min-w-[44px] min-h-[44px] text-text-muted hover:text-text-primary transition-all"
       >
         {layer.locked ? (
           <Lock className="w-3 h-3 text-status-warning" />
@@ -206,7 +232,15 @@ export function LayerPanel() {
     updateEditLayer,
     removeEditLayer,
     reorderEditLayers,
-  } = useAppStore();
+  } = useAppStore(
+    useShallow((s) => ({
+      editLayers: s.editLayers,
+      addEditLayer: s.addEditLayer,
+      updateEditLayer: s.updateEditLayer,
+      removeEditLayer: s.removeEditLayer,
+      reorderEditLayers: s.reorderEditLayers,
+    }))
+  );
 
   const [selectedLayerId, setSelectedLayerId] = useState<string | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -226,6 +260,15 @@ export function LayerPanel() {
     const newIndex = editLayers.findIndex((l) => l.id === over.id);
     const reordered = arrayMove(editLayers, oldIndex, newIndex);
     reorderEditLayers(reordered.map((l) => l.id));
+  };
+
+  const handleMoveLayer = (layerId: string, offset: -1 | 1) => {
+    const oldIndex = editLayers.findIndex((layer) => layer.id === layerId);
+    const newIndex = oldIndex + offset;
+    if (oldIndex < 0 || newIndex < 0 || newIndex >= editLayers.length) return;
+
+    const reordered = arrayMove(editLayers, oldIndex, newIndex);
+    reorderEditLayers(reordered.map((layer) => layer.id));
   };
 
   const handleAddLayer = () => {
@@ -338,12 +381,16 @@ export function LayerPanel() {
               items={editLayers.map((l) => l.id)}
               strategy={verticalListSortingStrategy}
             >
-              {editLayers.map((layer) => (
+              {editLayers.map((layer, index) => (
                 <SortableLayerRow
                   key={layer.id}
                   layer={layer}
                   isSelected={selectedLayerId === layer.id}
                   onSelect={() => setSelectedLayerId(layer.id)}
+                  onMoveUp={() => handleMoveLayer(layer.id, -1)}
+                  onMoveDown={() => handleMoveLayer(layer.id, 1)}
+                  canMoveUp={index > 0}
+                  canMoveDown={index < editLayers.length - 1}
                   onToggleVisibility={() =>
                     updateEditLayer(layer.id, { visible: !layer.visible })
                   }

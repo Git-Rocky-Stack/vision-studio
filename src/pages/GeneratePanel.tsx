@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import { cn } from '@/utils/cn';
 import { useAppStore } from '@/store/appStore';
 import { Button } from '@/components/ui/Button';
@@ -83,7 +84,20 @@ export function GeneratePanel() {
     setGenerationDraft,
     advancedGeneration,
     updateAdvancedGeneration,
-  } = useAppStore();
+  } = useAppStore(useShallow(s => ({
+    addJob: s.addJob,
+    updateJob: s.updateJob,
+    syncAssetsFromJobStatus: s.syncAssetsFromJobStatus,
+    systemInfo: s.systemInfo,
+    currentProject: s.currentProject,
+    addToPromptHistory: s.addToPromptHistory,
+    favoritePrompts: s.favoritePrompts,
+    toggleFavoritePrompt: s.toggleFavoritePrompt,
+    generationDraft: s.generationDraft,
+    setGenerationDraft: s.setGenerationDraft,
+    advancedGeneration: s.advancedGeneration,
+    updateAdvancedGeneration: s.updateAdvancedGeneration,
+  })));
 
   const { reduced, transition, scaleIn, fadeIn } = useMotionConfig();
 

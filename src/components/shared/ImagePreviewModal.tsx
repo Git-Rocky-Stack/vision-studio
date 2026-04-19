@@ -2,6 +2,7 @@ import { useEffect, useCallback, useRef } from 'react';
 import { cn } from '@/utils/cn';
 import { Button } from '@/components/ui/Button';
 import { useAppStore } from '@/store/appStore';
+import { useShallow } from 'zustand/react/shallow';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   X,
@@ -44,7 +45,16 @@ export function ImagePreviewModal({
     removeBatchResults,
     removeAssetRecordsByPaths,
     upsertDerivedAsset,
-  } = useAppStore();
+  } = useAppStore(
+    useShallow((s) => ({
+      setCurrentImage: s.setCurrentImage,
+      setActiveTab: s.setActiveTab,
+      setGenerationDraft: s.setGenerationDraft,
+      removeBatchResults: s.removeBatchResults,
+      removeAssetRecordsByPaths: s.removeAssetRecordsByPaths,
+      upsertDerivedAsset: s.upsertDerivedAsset,
+    }))
+  );
 
   const currentIndex = result ? results.findIndex((r) => r.id === result.id) : -1;
   const hasPrev = currentIndex > 0;

@@ -1,6 +1,6 @@
 // Must load before any module registers ipcMain handlers.
 import './ipc-guard';
-import { app, BrowserWindow, ipcMain, dialog, shell, Notification } from 'electron';
+import { app, BrowserWindow, ipcMain, dialog, shell, Notification, session } from 'electron';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import Store from 'electron-store';
@@ -17,6 +17,13 @@ import {
   getBackendStatusSnapshot,
   waitForBackendReady,
 } from './services/backend';
+import { BACKEND_AUTH_TOKEN, backendAuthHeaders } from './services/backendAuth';
+import {
+  isAllowedStoreKey,
+  isSafeExternalUrl,
+  isSafePythonCommand,
+  resolveSafeExportDestination,
+} from './services/security';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -53,6 +60,16 @@ const store = new Store<StoreSchema>({
 let mainWindow: BrowserWindow | null = null;
 let pythonBackend: ChildProcess | null = null;
 let backendReady = false;
+
+const CONTENT_SECURITY_POLICY = [
+  "default-src 'self'",
+  "script-src 'self' 'unsafe-inline'",
+  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+  "font-src 'self' https://fonts.gstatic.com",
+  "img-src 'self' data: blob:",
+  "connect-src 'self' http://localhost:* http://127.0.0.1:* ws://localhost:* ws://127.0.0.1:*",
+  "media-src 'self' blob:",
+].join('; ');
 
 function getAppSettings() {
   return {
@@ -120,6 +137,17 @@ function resolveManagedAssetPath(assetPath: string) {
   return resolvedPath;
 }
 
+function getAllowedExportRoots() {
+  return [
+    app.getPath('home'),
+    app.getPath('desktop'),
+    app.getPath('documents'),
+    app.getPath('downloads'),
+    app.getPath('pictures'),
+    app.getPath('videos'),
+  ];
+}
+
 /**
  * Get the path to the bundled Python backend executable
  */
@@ -173,10 +201,8 @@ function getBackendCommand(): { command: string; args: string[]; cwd: string } |
     ? join(__dirname, '../backend')
     : join(process.resourcesPath, 'backend-source');
   const rawPythonPath = store.get('settings').pythonPath || 'python';
-  // Validate pythonPath: must be an absolute path or a simple executable name (no shell metacharacters)
-  const isSafePath = /^[a-zA-Z0-9_./\\:-]+$/.test(rawPythonPath);
-  if (!isSafePath) {
-    console.error(`❌ Invalid pythonPath rejected (unsafe characters): ${rawPythonPath}`);
+  if (!isSafePythonCommand(rawPythonPath)) {
+    console.error(`❌ Invalid pythonPath rejected: ${rawPythonPath}`);
     return null;
   }
   const pythonPath = rawPythonPath;
@@ -234,6 +260,8 @@ function startPythonBackend(): Promise<boolean> {
         DATABASE_PATH: join(app.getPath('userData'), 'data', 'vision_studio.db'),
         // Write backend logs to app data for diagnostics
         LOG_FILE: join(app.getPath('userData'), 'logs', 'backend.log'),
+        // Per-launch token that prevents unrelated local processes from using the backend API.
+        VISION_STUDIO_BACKEND_AUTH_TOKEN: BACKEND_AUTH_TOKEN,
       },
       detached: false,
     });
@@ -432,8 +460,20 @@ function createWindow() {
   });
 }
 
+function registerContentSecurityPolicy() {
+  session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+    callback({
+      responseHeaders: {
+        ...details.responseHeaders,
+        'Content-Security-Policy': [CONTENT_SECURITY_POLICY],
+      },
+    });
+  });
+}
+
 // App lifecycle
 app.whenReady().then(async () => {
+  registerContentSecurityPolicy();
   rememberOutputRoot(getInternalOutputDirectory());
   rememberOutputRoot(getResolvedOutputDirectory());
   createWindow();
@@ -480,9 +520,8 @@ app.on('before-quit', () => {
 ipcMain.handle('app:get-version', () => app.getVersion());
 
 ipcMain.handle('app:open-external', (_event, url: string) => {
-  // Only allow http/https URLs to prevent arbitrary program execution
-  if (!/^https?:\/\//i.test(url)) {
-    console.warn('Blocked open-external for non-HTTP URL:', url);
+  if (!isSafeExternalUrl(url)) {
+    console.warn('Blocked open-external for unsafe URL:', url);
     return;
   }
   shell.openExternal(url);
@@ -508,13 +547,8 @@ ipcMain.handle('dialog:save-file', async (_event, options: { defaultPath?: strin
   return result.filePath || null;
 });
 
-// Store handlers — only allow known settings keys
-const ALLOWED_STORE_KEYS = new Set<string>([
-  'settings', 'projects', 'recentProjects', 'theme',
-]);
-
 ipcMain.handle('store:get', (_event, key: string) => {
-  if (!ALLOWED_STORE_KEYS.has(key)) {
+  if (!isAllowedStoreKey(key)) {
     console.warn(`Blocked store:get for unknown key: ${key}`);
     return undefined;
   }
@@ -522,7 +556,7 @@ ipcMain.handle('store:get', (_event, key: string) => {
 });
 
 ipcMain.handle('store:set', (_event, key: string, value: unknown) => {
-  if (!ALLOWED_STORE_KEYS.has(key)) {
+  if (!isAllowedStoreKey(key)) {
     console.warn(`Blocked store:set for unknown key: ${key}`);
     return;
   }
@@ -578,9 +612,8 @@ ipcMain.handle('settings:reset', async () => {
 ipcMain.handle('assets:export', async (_event, sourcePath: string, destinationPath: string) => {
   try {
     const resolvedSource = resolveManagedAssetPath(sourcePath);
-    // Validate destination is not a path traversal
-    const resolvedDest = path.resolve(destinationPath);
-    if (resolvedDest.includes('..')) {
+    const resolvedDest = resolveSafeExportDestination(destinationPath, getAllowedExportRoots());
+    if (!resolvedDest) {
       return { success: false, error: 'Invalid destination path' };
     }
     await fs.promises.mkdir(path.dirname(resolvedDest), { recursive: true });
@@ -596,9 +629,8 @@ ipcMain.handle('assets:export', async (_event, sourcePath: string, destinationPa
 
 ipcMain.handle('assets:export-many', async (_event, sourcePaths: string[], destinationDir: string) => {
   try {
-    // Validate destination directory is not a path traversal
-    const resolvedDestDir = path.resolve(destinationDir);
-    if (resolvedDestDir.includes('..')) {
+    const resolvedDestDir = resolveSafeExportDestination(destinationDir, getAllowedExportRoots());
+    if (!resolvedDestDir) {
       return { success: false, error: 'Invalid destination directory' };
     }
     await fs.promises.mkdir(resolvedDestDir, { recursive: true });
@@ -700,6 +732,7 @@ ipcMain.handle('system:get-info', async () => {
   if (pythonBackend && pythonBackend.exitCode === null) {
     try {
       const response = await fetch('http://127.0.0.1:8000/api/system/info', {
+        headers: backendAuthHeaders(),
         signal: AbortSignal.timeout(3000),
       });
       if (response.ok) {

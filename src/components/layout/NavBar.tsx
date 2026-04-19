@@ -49,6 +49,45 @@ export const NavBar = memo(function NavBar() {
   const setActiveTab = useAppStore((s) => s.setActiveTab);
   const systemInfo = useAppStore((s) => s.systemInfo);
 
+  const focusTab = (tabId: ActiveTab) => {
+    window.requestAnimationFrame(() => {
+      document.querySelector<HTMLButtonElement>(`[data-testid="nav-${tabId}"]`)?.focus();
+    });
+  };
+
+  const activateTab = (tabId: ActiveTab) => {
+    setActiveTab(tabId);
+    focusTab(tabId);
+  };
+
+  const handleTabKeyDown = (event: React.KeyboardEvent<HTMLButtonElement>, tab: NavBarTabDef) => {
+    const currentIndex = navBarTabs.findIndex((item) => item.id === tab.id);
+    const lastIndex = navBarTabs.length - 1;
+    let nextIndex: number | null = null;
+
+    switch (event.key) {
+      case 'ArrowDown':
+      case 'ArrowRight':
+        nextIndex = currentIndex === lastIndex ? 0 : currentIndex + 1;
+        break;
+      case 'ArrowUp':
+      case 'ArrowLeft':
+        nextIndex = currentIndex === 0 ? lastIndex : currentIndex - 1;
+        break;
+      case 'Home':
+        nextIndex = 0;
+        break;
+      case 'End':
+        nextIndex = lastIndex;
+        break;
+      default:
+        return;
+    }
+
+    event.preventDefault();
+    activateTab(navBarTabs[nextIndex].id);
+  };
+
   const renderTab = (tab: NavBarTabDef) => {
     const Icon = tab.icon;
     const isActive = activeTab === tab.id;
@@ -58,9 +97,12 @@ export const NavBar = memo(function NavBar() {
         key={tab.id}
         data-testid={`nav-${tab.id}`}
         data-active={isActive || undefined}
-        onClick={() => setActiveTab(tab.id)}
+        role="tab"
+        aria-selected={isActive}
+        tabIndex={isActive ? 0 : -1}
+        onClick={() => activateTab(tab.id)}
+        onKeyDown={(event) => handleTabKeyDown(event, tab)}
         aria-label={tab.label}
-        aria-current={isActive ? 'page' : undefined}
         className={cn(
           'w-10 h-10 flex items-center justify-center rounded-lg transition-all duration-150',
           'min-w-[44px] min-h-[44px]', // touch target
@@ -97,7 +139,12 @@ export const NavBar = memo(function NavBar() {
       </div>
 
       {/* Top cluster */}
-      <nav aria-label="Primary navigation" className="flex flex-col items-center gap-1">
+      <nav
+        aria-label="Primary workspace tabs"
+        className="flex flex-col items-center gap-1"
+        role="tablist"
+        aria-orientation="vertical"
+      >
         {topTabs.map(renderTab)}
       </nav>
 
@@ -112,7 +159,12 @@ export const NavBar = memo(function NavBar() {
       />
 
       {/* Bottom cluster */}
-      <nav aria-label="Secondary navigation" className="flex flex-col items-center gap-1">
+      <nav
+        aria-label="Secondary workspace tabs"
+        className="flex flex-col items-center gap-1"
+        role="tablist"
+        aria-orientation="vertical"
+      >
         {bottomTabs.map(renderTab)}
       </nav>
 

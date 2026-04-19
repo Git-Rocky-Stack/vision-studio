@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import packageJson from '../../package.json';
 import { cn } from '@/utils/cn';
 import { Button } from '@/components/ui/Button';
+import { useShallow } from 'zustand/react/shallow';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { useAppStore } from '@/store/appStore';
 import type { ModelInfo } from '@/types/model';
@@ -69,7 +70,17 @@ export function SettingsPanel() {
     setSystemInfo,
     taggingMode,
     setTaggingMode,
-  } = useAppStore();
+  } = useAppStore(useShallow(s => ({
+    assetLibrary: s.assetLibrary,
+    systemInfo: s.systemInfo,
+    availableModels: s.availableModels,
+    removeAssetsByRoot: s.removeAssetsByRoot,
+    clearBatchResults: s.clearBatchResults,
+    setAvailableModels: s.setAvailableModels,
+    setSystemInfo: s.setSystemInfo,
+    taggingMode: s.taggingMode,
+    setTaggingMode: s.setTaggingMode,
+  })));
   const [activeTab, setActiveTab] = useState<SettingsTab>('general');
   const [settings, setSettings] = useState<SettingsState>(defaultSettingsState);
   const [activeModelId, setActiveModelId] = useState<string | null>(null);

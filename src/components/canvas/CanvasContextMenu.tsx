@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { cn } from '@/utils/cn';
 import { useAppStore } from '@/store/appStore';
+import { useShallow } from 'zustand/react/shallow';
 import {
   Copy,
   Save,
@@ -26,7 +27,13 @@ interface CanvasContextMenuProps {
 }
 
 export function CanvasContextMenu({ x, y, onClose }: CanvasContextMenuProps) {
-  const { currentImage, currentImageAssetPath, setActiveTab } = useAppStore();
+  const { currentImage, currentImageAssetPath, setActiveTab } = useAppStore(
+    useShallow((s) => ({
+      currentImage: s.currentImage,
+      currentImageAssetPath: s.currentImageAssetPath,
+      setActiveTab: s.setActiveTab,
+    }))
+  );
   const menuRef = useRef<HTMLDivElement>(null);
 
   // Close on outside click or Escape

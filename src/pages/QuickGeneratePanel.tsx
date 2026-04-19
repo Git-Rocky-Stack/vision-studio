@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import { useAppStore } from '@/store/appStore';
 import { Button } from '@/components/ui/Button';
 import { ModelSelector } from '@/components/generate/ModelSelector';
@@ -25,7 +26,13 @@ function resolveOutputRoot(defaultOutputPath: string, userDataPath: string) {
 }
 
 export function QuickGeneratePanel() {
-  const { addJob, updateJob, syncAssetsFromJobStatus, advancedGeneration, systemInfo } = useAppStore();
+  const { addJob, updateJob, syncAssetsFromJobStatus, advancedGeneration, systemInfo } = useAppStore(useShallow(s => ({
+    addJob: s.addJob,
+    updateJob: s.updateJob,
+    syncAssetsFromJobStatus: s.syncAssetsFromJobStatus,
+    advancedGeneration: s.advancedGeneration,
+    systemInfo: s.systemInfo,
+  })));
 
   // Refs for cleanup
   const intervalRef = useRef<ReturnType<typeof setInterval>>(null);

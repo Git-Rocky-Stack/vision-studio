@@ -284,7 +284,7 @@ const TrackHeader = memo(function TrackHeader({
             setIsMuted(!isMuted);
           }}
           className={cn(
-            'p-0.5 rounded transition-all opacity-0 group-hover:opacity-100 focus:opacity-100',
+            'p-0.5 min-w-[44px] min-h-[44px] rounded transition-all opacity-0 group-hover:opacity-100 focus:opacity-100 focus-visible:opacity-100',
             isMuted ? 'text-status-error opacity-100' : 'text-text-muted hover:text-text-body'
           )}
           aria-label={isMuted ? 'Unmute track' : 'Mute track'}
@@ -301,7 +301,7 @@ const TrackHeader = memo(function TrackHeader({
           setIsVisible(!isVisible);
         }}
         className={cn(
-          'p-0.5 rounded transition-all opacity-0 group-hover:opacity-100 focus:opacity-100',
+          'p-0.5 min-w-[44px] min-h-[44px] rounded transition-all opacity-0 group-hover:opacity-100 focus:opacity-100 focus-visible:opacity-100',
           !isVisible ? 'text-status-error opacity-100' : 'text-text-muted hover:text-text-body'
         )}
         aria-label={isVisible ? 'Hide track' : 'Show track'}
@@ -317,7 +317,7 @@ const TrackHeader = memo(function TrackHeader({
           setIsLocked(!isLocked);
         }}
         className={cn(
-          'p-0.5 rounded transition-all opacity-0 group-hover:opacity-100 focus:opacity-100',
+          'p-0.5 min-w-[44px] min-h-[44px] rounded transition-all opacity-0 group-hover:opacity-100 focus:opacity-100 focus-visible:opacity-100',
           isLocked ? 'text-status-warning opacity-100' : 'text-text-muted hover:text-text-body'
         )}
         aria-label={isLocked ? 'Unlock track' : 'Lock track'}

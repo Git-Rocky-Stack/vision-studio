@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { cn } from '@/utils/cn';
 import { useAppStore } from '@/store/appStore';
+import { useShallow } from 'zustand/react/shallow';
 import { Slider } from '@/components/ui/Slider';
 import { FilterGrid } from './FilterGrid';
 import { CropControls } from './CropControls';
@@ -95,7 +96,30 @@ export function EditPropertiesPanel() {
     setActiveRegionId,
     setActiveMaskTool,
     setRegionMode,
-  } = useAppStore();
+  } = useAppStore(
+    useShallow((s) => ({
+      imageAdjustments: s.imageAdjustments,
+      setImageAdjustments: s.setImageAdjustments,
+      resetImageAdjustments: s.resetImageAdjustments,
+      editHistory: s.editHistory,
+      currentImage: s.currentImage,
+      currentImageAssetPath: s.currentImageAssetPath,
+      setCurrentImage: s.setCurrentImage,
+      upsertDerivedAsset: s.upsertDerivedAsset,
+      activeTab: s.activeTab,
+      regionMode: s.regionMode,
+      activeRegionId: s.activeRegionId,
+      projects: s.projects,
+      activeProjectId: s.activeProjectId,
+      activeSceneId: s.activeSceneId,
+      updateRegionLock: s.updateRegionLock,
+      deleteRegionLock: s.deleteRegionLock,
+      createRegionLock: s.createRegionLock,
+      setActiveRegionId: s.setActiveRegionId,
+      setActiveMaskTool: s.setActiveMaskTool,
+      setRegionMode: s.setRegionMode,
+    }))
+  );
 
   const [activeTab, setActiveTab] = useState<PropertiesTab>('adjustments');
   const [expandedGroups, setExpandedGroups] = useState<string[]>(['Light', 'Color']);

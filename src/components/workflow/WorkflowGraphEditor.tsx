@@ -62,6 +62,14 @@ export function WorkflowGraphEditor({
   const selectedNode = selection?.type === 'node' ? graph.nodes[selection.id] : null;
   const selectedEdge =
     selection?.type === 'edge' ? graph.edges.find((edge) => edge.id === selection.id) : null;
+  const connectionDescription = graph.edges
+    .map((edge) => {
+      const source = graph.nodes[edge.sourceNodeId];
+      const target = graph.nodes[edge.targetNodeId];
+      return source && target ? `${source.label} connects to ${target.label}` : null;
+    })
+    .filter(Boolean)
+    .join('. ');
 
   function selectNode(node: WorkflowGraphNode) {
     if (connectionSourceId && connectionSourceId !== node.id) {
@@ -130,6 +138,33 @@ export function WorkflowGraphEditor({
     window.addEventListener('pointerup', handlePointerUp);
   }
 
+  function handleNodeKeyDown(event: React.KeyboardEvent<HTMLButtonElement>, node: WorkflowGraphNode) {
+    const step = event.shiftKey ? 64 : 16;
+    const movement: Record<string, { x: number; y: number }> = {
+      ArrowUp: { x: 0, y: -step },
+      ArrowDown: { x: 0, y: step },
+      ArrowLeft: { x: -step, y: 0 },
+      ArrowRight: { x: step, y: 0 },
+    };
+    const delta = movement[event.key];
+    if (!delta) {
+      return;
+    }
+
+    event.preventDefault();
+    selectNode(node);
+    const currentPosition = previewPositions[node.id] ?? node.position;
+    const nextPosition = {
+      x: currentPosition.x + delta.x,
+      y: currentPosition.y + delta.y,
+    };
+    setPreviewPositions((positions) => ({
+      ...positions,
+      [node.id]: nextPosition,
+    }));
+    onMoveNode(node.id, nextPosition);
+  }
+
   return (
     <section
       role="region"
@@ -177,7 +212,12 @@ export function WorkflowGraphEditor({
 
       <div className="relative min-h-[520px] flex-1 overflow-auto">
         <div className="relative h-[640px] min-w-[980px]">
-          <svg className="absolute inset-0 h-full w-full" aria-hidden="true">
+          <svg
+            className="absolute inset-0 h-full w-full"
+            aria-label={`Workflow graph with ${nodes.length} nodes and ${graph.edges.length} ${graph.edges.length === 1 ? 'connection' : 'connections'}`}
+          >
+            <title>Workflow graph editor</title>
+            <desc>{connectionDescription || 'No workflow connections.'}</desc>
             {graph.edges.map((edge) => {
               const isSelected = selection?.type === 'edge' && selection.id === edge.id;
               const path = getEdgePath(edge, graph, previewPositions);
@@ -232,6 +272,7 @@ export function WorkflowGraphEditor({
                 type="button"
                 aria-label={`${node.label} node`}
                 onClick={() => selectNode(node)}
+                onKeyDown={(event) => handleNodeKeyDown(event, node)}
                 onPointerDown={(event) => startDrag(event, node)}
                 className={cn(
                   'absolute flex flex-col items-start rounded-md border bg-surface px-3 py-3 text-left shadow-sm transition-all',

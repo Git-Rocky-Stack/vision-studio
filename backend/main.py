@@ -44,6 +44,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, BackgroundTasks, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from slowapi import _rate_limit_exceeded_handler
@@ -80,6 +81,9 @@ OUTPUT_DIR = os.getenv("OUTPUT_DIR", os.path.join(os.path.dirname(__file__), "ou
 MODELS_DIR = os.getenv("MODELS_DIR", os.path.join(os.path.dirname(__file__), "models"))
 COMFYUI_URL = os.getenv("COMFYUI_URL", "http://127.0.0.1:8188")
 DATABASE_PATH = os.getenv("DATABASE_PATH", os.path.join(os.path.dirname(__file__), "data", "vision_studio.db"))
+BACKEND_AUTH_HEADER = "x-vision-studio-token"
+BACKEND_AUTH_TOKEN = os.getenv("VISION_STUDIO_BACKEND_AUTH_TOKEN")
+AUTH_EXEMPT_PATHS = {"/", "/api/health", "/api/docs", "/api/redoc", "/api/openapi.json"}
 
 # Ensure directories exist
 os.makedirs(OUTPUT_DIR, exist_ok=True)
@@ -199,6 +203,18 @@ app.state.limiter = limiter
 
 # Register rate limit exceeded exception handler
 app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
+
+
+@app.middleware("http")
+async def require_local_auth_token(request: Request, call_next):
+    path = request.url.path
+    is_exempt = path in AUTH_EXEMPT_PATHS or path.startswith("/outputs/")
+    if BACKEND_AUTH_TOKEN and not is_exempt:
+        if request.headers.get(BACKEND_AUTH_HEADER) != BACKEND_AUTH_TOKEN:
+            return JSONResponse(status_code=403, content={"detail": "Forbidden"})
+
+    return await call_next(request)
+
 
 # Request/Response logging middleware with timing
 @app.middleware("http")
@@ -1151,6 +1167,10 @@ async def websocket_endpoint(websocket: WebSocket):
     The server automatically removes disconnected clients. Reconnect with exponential backoff
     if the connection is lost.
     """
+    if BACKEND_AUTH_TOKEN and websocket.query_params.get("token") != BACKEND_AUTH_TOKEN:
+        await websocket.close(code=1008)
+        return
+
     await manager.connect(websocket)
 
     # Start background task to send updates

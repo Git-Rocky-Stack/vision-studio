@@ -227,9 +227,16 @@ export function EditCanvas() {
   return (
     <div
       ref={containerRef}
+      role="application"
+      aria-label="Image editor canvas"
+      aria-roledescription="canvas editor"
+      tabIndex={0}
       className="w-full h-full relative overflow-hidden bg-void"
       style={{ cursor: getCursor() }}
     >
+      <div className="sr-only" aria-live="polite">
+        {`Editing ${currentImage ? 'image' : 'empty canvas'}. ${editLayers.length} layers. Active tool: ${activeEditTool}.`}
+      </div>
       {/* Region Lock Toolbar - visible when region mode is active */}
       {regionMode && (
         <RegionLockToolbar

@@ -10,6 +10,32 @@
 
 The application demonstrates strong security fundamentals: contextIsolation enabled, nodeIntegration disabled, proper contextBridge usage, and path traversal protections on asset handlers. However, there are 12 findings (4 P1, 4 P2, 4 P3) that require attention. The most urgent are sandbox being disabled, missing CSP, unvalidated shell.openExternal, and command injection via pythonPath.
 
+### Remediation Update - 2026-04-19
+
+The audit remediation pass resolved the actionable P1/P2 items and most P3 items, with one residual release-process item and one deliberate data-migration follow-up:
+
+| ID | Status | Notes |
+|----|--------|-------|
+| 01 | Fixed | `BrowserWindow` now uses `sandbox: true`. |
+| 02 | Fixed | CSP is present in `index.html` and enforced from Electron via `session.defaultSession.webRequest.onHeadersReceived`. |
+| 03 | Fixed | `app:open-external` now accepts only `http:` and `https:` URLs. |
+| 04 | Fixed | `pythonPath` is validated against shell metacharacters and non-Python executables before `spawn()`. |
+| 05 | Fixed | `assets:export` destinations must be absolute paths inside approved user export roots. |
+| 06 | Fixed | Generic store IPC is restricted to an allow-list of known keys. |
+| 07 | Fixed | Generation/model IPC handlers log raw backend details in the main process and return sanitized renderer messages. |
+| 08 | Deferred | Store encryption-at-rest needs a deliberate migration plan to avoid corrupting existing user settings. |
+| 09 | Partially fixed | `verifyUpdateCodeSignature` is enabled; production signing certificate provisioning remains a release operations task. |
+| 10 | Fixed | `will-navigate` and `setWindowOpenHandler` deny renderer navigation/window escapes. |
+| 11 | Fixed | Electron now launches the backend with a per-process token, sends it on API requests, and adds it to the WebSocket URL. Generated `/outputs` assets remain public so media elements can render them directly. |
+| 12 | Fixed | `assets:export-many` destinations use the same approved-root validation as single export. |
+
+Verification completed:
+
+- `npm run typecheck` passed.
+- `npm run build` passed.
+- `npm test` passed: 68 files, 645 tests.
+- `python -m py_compile backend/main.py` passed.
+
 ---
 
 ## Findings

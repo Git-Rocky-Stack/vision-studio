@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { ImageIcon } from 'lucide-react';
 
 import { useAppStore } from '@/store/appStore';
+import { useShallow } from 'zustand/react/shallow';
 import { ImageWithFallback } from '@/components/ui/ImageWithFallback';
 import { cn } from '@/utils/cn';
 
@@ -21,7 +22,13 @@ export function WorkbenchGalleryDock() {
     batchResults,
     setActiveViewerItemId,
     setCenterView,
-  } = useAppStore();
+  } = useAppStore(useShallow(s => ({
+    activeViewerItemId: s.activeViewerItemId,
+    assetLibrary: s.assetLibrary,
+    batchResults: s.batchResults,
+    setActiveViewerItemId: s.setActiveViewerItemId,
+    setCenterView: s.setCenterView,
+  })));
 
   const items = useMemo<GalleryItem[]>(() => {
     const assetItems = assetLibrary.map((asset) => ({

@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import { useAppStore } from '@/store/appStore';
 import { cn } from '@/utils/cn';
 import { Button } from '@/components/ui/Button';
@@ -96,7 +97,23 @@ export function BatchPromptQueue() {
     setBatchFilterBy,
     removeBatchResults,
     removeAssetRecordsByPaths,
-  } = useAppStore();
+  } = useAppStore(
+    useShallow((s) => ({
+      addBatchJob: s.addBatchJob,
+      addBatchResult: s.addBatchResult,
+      syncAssetsFromJobStatus: s.syncAssetsFromJobStatus,
+      systemInfo: s.systemInfo,
+      batchResults: s.batchResults,
+      batchViewMode: s.batchViewMode,
+      batchSortBy: s.batchSortBy,
+      batchFilterBy: s.batchFilterBy,
+      setBatchViewMode: s.setBatchViewMode,
+      setBatchSortBy: s.setBatchSortBy,
+      setBatchFilterBy: s.setBatchFilterBy,
+      removeBatchResults: s.removeBatchResults,
+      removeAssetRecordsByPaths: s.removeAssetRecordsByPaths,
+    }))
+  );
 
   // Ref for polling interval cleanup
   const batchPollRef = useRef<ReturnType<typeof setInterval>>(null);
@@ -724,7 +741,14 @@ export function BatchPromptQueue() {
    ─────────────────────────────────────────────────────────── */
 
 export function BatchResultsPanel() {
-  const { batchResults, batchViewMode, batchSortBy, batchFilterBy } = useAppStore();
+  const { batchResults, batchViewMode, batchSortBy, batchFilterBy } = useAppStore(
+    useShallow((s) => ({
+      batchResults: s.batchResults,
+      batchViewMode: s.batchViewMode,
+      batchSortBy: s.batchSortBy,
+      batchFilterBy: s.batchFilterBy,
+    }))
+  );
   const [previewResultId, setPreviewResultId] = useState<string | null>(null);
 
   const previewResult = previewResultId

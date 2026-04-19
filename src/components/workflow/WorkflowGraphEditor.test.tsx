@@ -49,7 +49,7 @@ describe('WorkflowGraphEditor', () => {
   afterEach(cleanup);
 
   it('renders graph nodes and edges', () => {
-    render(
+    const { container } = render(
       <WorkflowGraphEditor
         graph={graph}
         onMoveNode={() => {}}
@@ -60,6 +60,9 @@ describe('WorkflowGraphEditor', () => {
     );
 
     expect(screen.getByRole('region', { name: 'Workflow graph editor' })).toBeInTheDocument();
+    expect(
+      container.querySelector('svg[aria-label="Workflow graph with 3 nodes and 1 connection"]')
+    ).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Prompt Encode node' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Sampler node' })).toBeInTheDocument();
     expect(screen.getByTestId('workflow-edge-edge-prompt-sampler-positive')).toBeInTheDocument();
@@ -183,6 +186,25 @@ describe('WorkflowGraphEditor', () => {
     fireEvent.pointerUp(window, { clientX: 90, clientY: 120, pointerId: 1 });
 
     expect(onMoveNode).toHaveBeenCalledWith('prompt', { x: 80, y: 110 });
+  });
+
+  it('moves a node with arrow keys', () => {
+    const onMoveNode = vi.fn();
+    render(
+      <WorkflowGraphEditor
+        graph={graph}
+        onMoveNode={onMoveNode}
+        onAddNode={() => {}}
+        onConnectNodes={() => {}}
+        onDeleteSelection={() => {}}
+      />
+    );
+
+    fireEvent.keyDown(screen.getByRole('button', { name: 'Prompt Encode node' }), {
+      key: 'ArrowRight',
+    });
+
+    expect(onMoveNode).toHaveBeenCalledWith('prompt', { x: 56, y: 80 });
   });
 
   it('previews node movement while dragging', () => {

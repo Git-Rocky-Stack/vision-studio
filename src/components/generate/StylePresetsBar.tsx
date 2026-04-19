@@ -23,7 +23,8 @@ const CATEGORY_LABELS: Record<string, string> = {
 const CATEGORY_ORDER = ['cinematic', 'anime', 'photography', 'artistic', 'illustration', 'creative', 'abstract'];
 
 export function StylePresetsBar({ activePresets, onTogglePreset }: StylePresetsBarProps) {
-  const { stylePresets, customStylePresets } = useAppStore();
+  const stylePresets = useAppStore((s) => s.stylePresets);
+  const customStylePresets = useAppStore((s) => s.customStylePresets);
   const allPresets = [...stylePresets, ...customStylePresets];
 
   const grouped = CATEGORY_ORDER.reduce<Record<string, typeof allPresets>>((acc, cat) => {

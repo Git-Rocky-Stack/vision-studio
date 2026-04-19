@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { cn } from '@/utils/cn';
 import { useAppStore } from '@/store/appStore';
+import { useShallow } from 'zustand/react/shallow';
 import { Slider } from '@/components/ui/Slider';
 import { ImageIcon } from 'lucide-react';
 import { motion } from 'framer-motion';
@@ -30,7 +31,13 @@ function ImageLabel({ label, className }: { label: string; className?: string })
 }
 
 export const ComparisonView = memo(function ComparisonView() {
-  const { comparisonMode, comparisonImages, generationQueue } = useAppStore();
+  const { comparisonMode, comparisonImages, generationQueue } = useAppStore(
+    useShallow((s) => ({
+      comparisonMode: s.comparisonMode,
+      comparisonImages: s.comparisonImages,
+      generationQueue: s.generationQueue,
+    }))
+  );
   const [sliderPosition, setSliderPosition] = useState(50);
   const [onionOpacity, setOnionOpacity] = useState(50);
   const [isDragging, setIsDragging] = useState(false);

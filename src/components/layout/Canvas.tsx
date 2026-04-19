@@ -1,5 +1,6 @@
 import { cn } from '@/utils/cn';
 import { useAppStore } from '@/store/appStore';
+import { useShallow } from 'zustand/react/shallow';
 import {
   ZoomIn,
   ZoomOut,
@@ -35,7 +36,23 @@ export const Canvas = memo(function Canvas() {
     projects,
     activeProjectId,
     activeSceneId,
-  } = useAppStore();
+  } = useAppStore(useShallow(s => ({
+    activeJobs: s.activeJobs,
+    currentImage: s.currentImage,
+    regionMode: s.regionMode,
+    activeRegionId: s.activeRegionId,
+    activeMaskTool: s.activeMaskTool,
+    maskBrushSize: s.maskBrushSize,
+    maskInverted: s.maskInverted,
+    setActiveRegionId: s.setActiveRegionId,
+    setActiveMaskTool: s.setActiveMaskTool,
+    toggleMaskInverted: s.toggleMaskInverted,
+    setActiveEditTool: s.setActiveEditTool,
+    updateRegionLock: s.updateRegionLock,
+    projects: s.projects,
+    activeProjectId: s.activeProjectId,
+    activeSceneId: s.activeSceneId,
+  })));
 
   // Derive region locks from the active scene
   const regionLocks = useMemo(() => {
@@ -84,6 +101,17 @@ export const Canvas = memo(function Canvas() {
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     setContextMenu({ x: e.clientX, y: e.clientY });
+  }, []);
+
+  const handleCanvasKeyDown = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
+    if ((e.shiftKey && e.key === 'F10') || e.key === 'ContextMenu') {
+      e.preventDefault();
+      const rect = containerRef.current?.getBoundingClientRect();
+      setContextMenu({
+        x: rect ? rect.left + rect.width / 2 : 0,
+        y: rect ? rect.top + rect.height / 2 : 0,
+      });
+    }
   }, []);
 
   const isGenerating = activeJobs.some(
@@ -343,11 +371,21 @@ export const Canvas = memo(function Canvas() {
       <div
         ref={containerRef}
         onContextMenu={handleContextMenu}
+        onKeyDown={handleCanvasKeyDown}
+        role="application"
+        aria-label="Image canvas"
+        aria-roledescription="canvas workspace"
+        tabIndex={0}
         className={cn(
           'flex-1 relative overflow-hidden',
           isDragging ? 'cursor-grabbing' : 'cursor-grab'
         )}
       >
+        <div className="sr-only" aria-live="polite">
+          {currentImage
+            ? `Canvas image loaded at ${imageSize.width} by ${imageSize.height} pixels. Zoom ${zoom} percent.`
+            : `Empty image canvas. Zoom ${zoom} percent.`}
+        </div>
         {/* Grid Background */}
         {showGrid && (
           <div

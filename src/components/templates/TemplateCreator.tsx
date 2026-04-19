@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { cn } from '@/utils/cn';
 import { hexToRgba } from '@/utils/colorUtils';
 import { Button } from '@/components/ui/Button';
 import { Slider } from '@/components/ui/Slider';
 import { useAppStore } from '@/store/appStore';
+import { useShallow } from 'zustand/react/shallow';
 import type { ProjectTemplate } from '@/types/template';
 import type { ModelInfo } from '@/types/model';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -66,7 +67,9 @@ const FALLBACK_MODELS = [
 ];
 
 export function TemplateCreator({ onClose, editingTemplate }: TemplateCreatorProps) {
-  const { addUserTemplate, updateUserTemplate, availableModels } = useAppStore();
+  const { addUserTemplate, updateUserTemplate, availableModels } = useAppStore(
+    useShallow((s) => ({ addUserTemplate: s.addUserTemplate, updateUserTemplate: s.updateUserTemplate, availableModels: s.availableModels }))
+  );
 
   const models = availableModels.length > 0
     ? availableModels.map((m: ModelInfo) => ({ id: m.id ?? m.name, name: m.name ?? m.id }))
@@ -89,6 +92,58 @@ export function TemplateCreator({ onClose, editingTemplate }: TemplateCreatorPro
   const [negativePrompt, setNegativePrompt] = useState(
     editingTemplate?.settings.negativePrompt || ''
   );
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const previousFocusRef = useRef<HTMLElement | null>(null);
+  const titleId = useId();
+  const nameId = useId();
+  const descriptionId = useId();
+  const categoryId = useId();
+  const widthId = useId();
+  const heightId = useId();
+  const modelId = useId();
+  const promptId = useId();
+  const negativePromptId = useId();
+
+  useEffect(() => {
+    previousFocusRef.current = document.activeElement as HTMLElement | null;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        onClose();
+        return;
+      }
+
+      if (event.key !== 'Tab') {
+        return;
+      }
+
+      const focusable = dialogRef.current?.querySelectorAll<HTMLElement>(
+        'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
+      );
+      if (!focusable || focusable.length === 0) {
+        return;
+      }
+
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+      previousFocusRef.current?.focus?.();
+    };
+  }, [onClose]);
 
   const STEPS = [
     { label: 'Details', icon: Type },
@@ -148,6 +203,10 @@ export function TemplateCreator({ onClose, editingTemplate }: TemplateCreatorPro
       <div className="absolute inset-0 bg-void/90 backdrop-blur-sm" />
 
       <motion.div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
         initial={{ opacity: 0, scale: 0.95, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: 20 }}
@@ -158,6 +217,7 @@ export function TemplateCreator({ onClose, editingTemplate }: TemplateCreatorPro
         {/* Close */}
         <button
           onClick={onClose}
+          aria-label="Close template creator"
           className="absolute top-4 right-4 z-10 p-2 rounded-lg bg-elevated/80 text-text-muted hover:text-text-primary hover:bg-elevated transition-all"
         >
           <X className="w-4 h-4" />
@@ -165,7 +225,7 @@ export function TemplateCreator({ onClose, editingTemplate }: TemplateCreatorPro
 
         {/* Header */}
         <div className="p-6 pb-4 border-b border-border">
-          <h2 className="font-display text-lg font-bold text-text-primary">
+          <h2 id={titleId} className="font-display text-lg font-bold text-text-primary">
             {editingTemplate ? 'Edit Template' : 'Create Template'}
           </h2>
           <p className="text-sm text-text-body mt-1">
@@ -223,10 +283,11 @@ export function TemplateCreator({ onClose, editingTemplate }: TemplateCreatorPro
                 className="space-y-4"
               >
                 <div>
-                  <label className="text-label text-text-body mb-1.5 block">
+                  <label htmlFor={nameId} className="text-label text-text-body mb-1.5 block">
                     Template Name
                   </label>
                   <input
+                    id={nameId}
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     placeholder="e.g., My YouTube Thumbnail"
@@ -236,10 +297,11 @@ export function TemplateCreator({ onClose, editingTemplate }: TemplateCreatorPro
                 </div>
 
                 <div>
-                  <label className="text-label text-text-body mb-1.5 block">
+                  <label htmlFor={descriptionId} className="text-label text-text-body mb-1.5 block">
                     Description
                   </label>
                   <textarea
+                    id={descriptionId}
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}
                     placeholder="What is this template for?"
@@ -249,10 +311,10 @@ export function TemplateCreator({ onClose, editingTemplate }: TemplateCreatorPro
                 </div>
 
                 <div>
-                  <label className="text-label text-text-body mb-2 block">
+                  <span id={categoryId} className="text-label text-text-body mb-2 block">
                     Category
-                  </label>
-                  <div className="grid grid-cols-2 gap-2">
+                  </span>
+                  <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-labelledby={categoryId}>
                     {CATEGORIES.map((cat) => {
                       const isSelected = category === cat.id;
                       const Icon = cat.icon;
@@ -260,6 +322,8 @@ export function TemplateCreator({ onClose, editingTemplate }: TemplateCreatorPro
                         <button
                           key={cat.id}
                           onClick={() => setCategory(cat.id)}
+                          role="radio"
+                          aria-checked={isSelected}
                           className={cn(
                             'flex items-center gap-3 p-3 rounded-lg border transition-all text-left',
                             isSelected
@@ -345,10 +409,11 @@ export function TemplateCreator({ onClose, editingTemplate }: TemplateCreatorPro
                   {useCustomDimensions && (
                     <div className="grid grid-cols-2 gap-3 mt-3">
                       <div>
-                        <label className="text-label text-text-body mb-1 block">
+                        <label htmlFor={widthId} className="text-label text-text-body mb-1 block">
                           Width
                         </label>
                         <input
+                          id={widthId}
                           type="number"
                           value={width}
                           onChange={(e) => setWidth(Number(e.target.value))}
@@ -359,10 +424,11 @@ export function TemplateCreator({ onClose, editingTemplate }: TemplateCreatorPro
                         />
                       </div>
                       <div>
-                        <label className="text-label text-text-body mb-1 block">
+                        <label htmlFor={heightId} className="text-label text-text-body mb-1 block">
                           Height
                         </label>
                         <input
+                          id={heightId}
                           type="number"
                           value={height}
                           onChange={(e) => setHeight(Number(e.target.value))}
@@ -403,14 +469,16 @@ export function TemplateCreator({ onClose, editingTemplate }: TemplateCreatorPro
                 className="space-y-4"
               >
                 <div>
-                  <label className="text-label text-text-body mb-1.5 block">
+                  <span id={modelId} className="text-label text-text-body mb-1.5 block">
                     Model
-                  </label>
-                  <div className="grid grid-cols-2 gap-2">
+                  </span>
+                  <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-labelledby={modelId}>
                     {models.map((m) => (
                       <button
                         key={m.id}
                         onClick={() => setModel(m.id)}
+                        role="radio"
+                        aria-checked={model === m.id}
                         className={cn(
                           'p-3 rounded-lg border text-left transition-all',
                           model === m.id
@@ -464,10 +532,11 @@ export function TemplateCreator({ onClose, editingTemplate }: TemplateCreatorPro
                 className="space-y-4"
               >
                 <div>
-                  <label className="text-label text-text-body mb-1.5 block">
+                  <label htmlFor={promptId} className="text-label text-text-body mb-1.5 block">
                     Default Prompt
                   </label>
                   <textarea
+                    id={promptId}
                     value={prompt}
                     onChange={(e) => setPrompt(e.target.value)}
                     placeholder="Describe the default generation style and content..."
@@ -481,10 +550,11 @@ export function TemplateCreator({ onClose, editingTemplate }: TemplateCreatorPro
                 </div>
 
                 <div>
-                  <label className="text-label text-text-body mb-1.5 block">
+                  <label htmlFor={negativePromptId} className="text-label text-text-body mb-1.5 block">
                     Negative Prompt
                   </label>
                   <textarea
+                    id={negativePromptId}
                     value={negativePrompt}
                     onChange={(e) => setNegativePrompt(e.target.value)}
                     placeholder="What to avoid in generation..."

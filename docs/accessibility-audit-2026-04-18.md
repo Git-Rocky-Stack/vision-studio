@@ -15,6 +15,28 @@
 
 The application demonstrates strong accessibility foundations in many areas -- NavBar, ConfirmDialog, Slider, Switch, Tooltip, ModelSelector, and ProjectDropdown all implement proper ARIA patterns. However, several systemic issues require attention: missing skip links, no reduced-motion support, form label associations, incomplete tab panel semantics, small touch targets, and absent heading hierarchy on most pages.
 
+### Remediation Update - 2026-04-19
+
+The requested P2 accessibility remediation pass is complete.
+
+Resolved P2 items:
+
+| ID | Status | Notes |
+|----|--------|-------|
+| A-014 | Fixed | `type-micro` now uses a 12px token. |
+| A-015 | Fixed | Muted text tokens were raised for dark and light themes. |
+| A-016 | Fixed | NavBar now uses tablist/tab semantics with `aria-selected` and roving focus. |
+| A-017 | Fixed | TemplateCreator now has modal dialog semantics, Escape close, focus containment, and focus restoration. |
+| A-018 | Fixed | EditCanvas exposes an accessible application region and live canvas summary. |
+| A-019 | Fixed | WorkflowGraphEditor SVG includes accessible title/description, and nodes support keyboard movement. |
+| A-020 | Fixed | Timeline action buttons have expanded targets and keyboard-visible focus states. |
+| A-021 | Fixed | RegionLockOverlay dynamic labels are announced through polite status regions. |
+| A-022 | Fixed | Workflow nodes support keyboard movement; scenes expose Move up/down controls; layer reorder handles support Arrow Up/Down. |
+| A-023 | Fixed | Canvas context menu opens by keyboard using Shift+F10 or the Context Menu key. |
+| A-024 | Fixed | Button loading spinner is hidden from assistive technology while text communicates loading state. |
+
+Regression coverage added or updated for NavBar, Canvas, EditCanvas, WorkflowGraphEditor, RegionLockOverlay, TemplateCreator, and SceneCard keyboard reordering. Full verification passed with `npm test` reporting 68 files and 645 tests.
+
 ---
 
 ## P0 Findings (Critical -- Blocks users)
