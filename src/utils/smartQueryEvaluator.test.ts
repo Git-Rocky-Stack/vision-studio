@@ -63,4 +63,23 @@ describe('smartQueryEvaluator', () => {
     const query = { tags: ['portrait'] };
     expect(evaluateSmartQuery(query, undefined, undefined)).toBe(false);
   });
+
+  it('returns false when prompt text is specified but context has no prompt', () => {
+    const query = { promptText: 'sunset' };
+    expect(evaluateSmartQuery(query, undefined)).toBe(false);
+    expect(evaluateSmartQuery(query, { model: 'flux-dev' })).toBe(false);
+  });
+
+  it('returns false when model is specified but context has no model', () => {
+    const query = { model: 'flux-dev' };
+    expect(evaluateSmartQuery(query, undefined)).toBe(false);
+    expect(evaluateSmartQuery(query, { prompt: 'test' })).toBe(false);
+  });
+
+  it('returns false when date range is specified but context has no createdAt', () => {
+    const now = Date.now();
+    const query = { dateRange: { from: now - 86400000, to: now } };
+    expect(evaluateSmartQuery(query, undefined)).toBe(false);
+    expect(evaluateSmartQuery(query, { prompt: 'test' })).toBe(false);
+  });
 });

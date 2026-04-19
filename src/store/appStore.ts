@@ -166,6 +166,19 @@ export const useAppStore = create<AppState>()(
     }),
     {
       name: 'vision-studio-storage',
+      merge: (persistedState, currentState) => {
+        const persisted = persistedState as Record<string, unknown>;
+        // Reconstruct Map from serialized array
+        if (Array.isArray(persisted.iterationNodes)) {
+          (persisted as Record<string, unknown>).iterationNodes = new Map(
+            persisted.iterationNodes as [string, unknown][]
+          );
+        }
+        return {
+          ...currentState,
+          ...(persisted as Partial<AppState>),
+        };
+      },
       partialize: (state) => ({
         activeTab: state.activeTab,
         activeSubMode: state.activeSubMode,
@@ -185,6 +198,7 @@ export const useAppStore = create<AppState>()(
         promptTemplates: state.promptTemplates,
         compositionLayers: state.compositionLayers,
         iterationBranches: state.iterationBranches,
+        iterationNodes: Array.from(state.iterationNodes.entries()),
         activeIterationId: state.activeIterationId,
         iterationView: state.iterationView,
         iterationComparisonMode: state.iterationComparisonMode,

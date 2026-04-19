@@ -125,6 +125,13 @@ export function createIterationActions(set: AppSet, get: AppGet) {
       });
       const newNodes = new Map(get().iterationNodes);
       for (const id of branchNodeIds) newNodes.delete(id);
+      // Clean up dangling childrenIds references in remaining nodes
+      for (const [nodeId, node] of newNodes) {
+        const cleaned = node.childrenIds.filter(cid => !branchNodeIds.has(cid));
+        if (cleaned.length !== node.childrenIds.length) {
+          newNodes.set(nodeId, { ...node, childrenIds: cleaned });
+        }
+      }
       set({ iterationBranches: branches, iterationNodes: newNodes });
     },
   };

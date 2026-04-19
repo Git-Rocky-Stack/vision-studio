@@ -9,7 +9,8 @@ interface GenerationContext {
 
 /**
  * Evaluates whether an asset matches a smart collection query.
- * All criteria are AND-combined (must match all non-undefined criteria).
+ * All criteria are AND-combined (must match all specified criteria).
+ * If a criterion is specified but the required data is absent, the asset does NOT match.
  */
 export function evaluateSmartQuery(
   query: SmartQuery,
@@ -17,15 +18,15 @@ export function evaluateSmartQuery(
   metadata?: AssetMetadata,
 ): boolean {
   // Prompt text match
-  if (query.promptText && generationContext?.prompt) {
-    if (!generationContext.prompt.toLowerCase().includes(query.promptText.toLowerCase())) {
+  if (query.promptText) {
+    if (!generationContext?.prompt || !generationContext.prompt.toLowerCase().includes(query.promptText.toLowerCase())) {
       return false;
     }
   }
 
   // Model match
-  if (query.model && generationContext?.model) {
-    if (generationContext.model !== query.model) {
+  if (query.model) {
+    if (!generationContext?.model || generationContext.model !== query.model) {
       return false;
     }
   }
@@ -40,7 +41,8 @@ export function evaluateSmartQuery(
   }
 
   // Date range match
-  if (query.dateRange && generationContext?.createdAt) {
+  if (query.dateRange) {
+    if (!generationContext?.createdAt) return false;
     if (generationContext.createdAt < query.dateRange.from || generationContext.createdAt > query.dateRange.to) {
       return false;
     }

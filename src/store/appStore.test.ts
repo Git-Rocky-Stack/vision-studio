@@ -703,6 +703,30 @@ describe('appStore', () => {
       useAppStore.getState().setIterationComparisonMode('grid');
       expect(useAppStore.getState().iterationComparisonMode).toBe('grid');
     });
+
+    it('cleans up dangling childrenIds when deleting a branch', () => {
+      const job1 = makeIterationJob('iter-1');
+      useAppStore.getState().addIteration({ job: job1, parentId: null, thumbnail: 'thumb1' });
+      const branch1Id = useAppStore.getState().iterationBranches[0].id;
+      const job2 = makeIterationJob('iter-2');
+      useAppStore.getState().addIteration({ job: job2, parentId: 'iter-1', thumbnail: 'thumb2', branchId: branch1Id });
+      // Fork creates a new branch
+      const job3 = makeIterationJob('iter-3');
+      useAppStore.getState().forkIteration({ job: job3, parentId: 'iter-1', thumbnail: 'thumb3' });
+      // iter-1 should have both iter-2 and iter-3 as children
+      expect(useAppStore.getState().iterationNodes.get('iter-1')?.childrenIds).toContain('iter-2');
+      expect(useAppStore.getState().iterationNodes.get('iter-1')?.childrenIds).toContain('iter-3');
+      // Get the forked branch id
+      const forkedBranchId = useAppStore.getState().iterationBranches.find(b => b.id !== branch1Id)?.id;
+      // Delete the forked branch (containing iter-3)
+      if (forkedBranchId) {
+        useAppStore.getState().deleteIterationBranch(forkedBranchId);
+      }
+      // iter-1 should no longer reference iter-3 in childrenIds
+      expect(useAppStore.getState().iterationNodes.get('iter-1')?.childrenIds).not.toContain('iter-3');
+      // iter-2 should still be referenced
+      expect(useAppStore.getState().iterationNodes.get('iter-1')?.childrenIds).toContain('iter-2');
+    });
   });
 
   // ── Smart Collections ───────────────────────────────────────────────────

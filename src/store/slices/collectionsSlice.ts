@@ -63,16 +63,15 @@ export function createCollectionsActions(set: AppSet, get: AppGet) {
       const collection = get().collections.find(c => c.id === id);
       if (!collection || collection.type !== 'smart' || !collection.smartQuery) return;
 
-      // Gather all asset IDs that match the smart query
       const matchedAssetIds: string[] = [];
       const metadata = get().assetMetadata;
-      const jobs = get().completedJobs;
 
       for (const asset of get().assetLibrary) {
         const assetMeta = metadata.get(asset.id);
         const generationContext = {
           prompt: asset.prompt,
-          createdAt: asset.createdAt instanceof Date ? asset.createdAt.getTime() : undefined,
+          model: asset.model,
+          createdAt: typeof asset.createdAt === 'string' ? new Date(asset.createdAt).getTime() : asset.createdAt instanceof Date ? asset.createdAt.getTime() : undefined,
         };
         if (evaluateSmartQuery(collection.smartQuery!, generationContext, assetMeta)) {
           matchedAssetIds.push(asset.id);
