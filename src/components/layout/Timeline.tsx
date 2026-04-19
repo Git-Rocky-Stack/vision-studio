@@ -4,6 +4,7 @@ import { hexToRgba } from '@/utils/colorUtils';
 import { useAppStore } from '@/store/appStore';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { ScenePlaybackStrip } from '@/components/storyboard/ScenePlaybackStrip';
+import { StoryboardPlayback } from '@/components/timeline/StoryboardPlayback';
 import {
   Play,
   Pause,
@@ -948,6 +949,9 @@ export const Timeline = memo(function Timeline() {
       </div>
 
       {/* ─── Timeline Body ────────────────────────────────────────────────── */}
+      {timelineMode === 'storyboard' ? (
+        <StoryboardPlayback className="flex-1" />
+      ) : (
       <div className="flex-1 flex min-h-0 overflow-hidden">
         {/* ─── Track Headers (fixed left column) ────────────────────────── */}
         <div
@@ -1115,6 +1119,7 @@ export const Timeline = memo(function Timeline() {
           </div>
         </div>
       </div>
+      )}
 
       <ConfirmDialog
         open={deleteTargetId !== null}
