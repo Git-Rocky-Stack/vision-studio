@@ -30,6 +30,15 @@ export type { AspectRatio, ResolutionTier } from '@/types/resolution';
 
 export type { TimelineMode, PlayState, KeyframeInterpolation, Keyframe } from '@/types/timeline';
 
+export type {
+  PipelineStepType,
+  PipelineStep,
+  PipelineDefinition,
+  StepExecutionStatus,
+  StepExecutionResult,
+  PipelineExecution,
+} from '@/types/pipeline';
+
 // ---------------------------------------------------------------------------
 // Imports used only internally by AppState (not re-exported)
 // ---------------------------------------------------------------------------
@@ -87,6 +96,8 @@ import type { Collection, AssetTag, AssetMetadata, TaggingMode, SmartQuery } fro
 import type { PromptTemplate, CompositionLayerState } from '@/types/promptStudio';
 
 import type { TimelineMode, PlayState, Keyframe } from '@/types/timeline';
+
+import type { PipelineDefinition, PipelineExecution } from '@/types/pipeline';
 
 // ---------------------------------------------------------------------------
 // Local type definitions
@@ -301,6 +312,12 @@ export interface AppState {
   onionSkinDirection: 'prev' | 'next' | 'both';
   keyframes: Keyframe[];
   activeKeyframeId: string | null;
+
+  // ─── Pipeline ──────────────────────────────────────────────────────────
+  pipelines: PipelineDefinition[];
+  activePipelineId: string | null;
+  pipelineExecutions: PipelineExecution[];
+  isPipelineBuilderOpen: boolean;
 
   // ─── Actions ─────────────────────────────────────────────────────────────
 
@@ -529,6 +546,16 @@ export interface AppState {
   updateKeyframe: (id: string, updates: Partial<Keyframe>) => void;
   deleteKeyframe: (id: string) => void;
   setActiveKeyframeId: (id: string | null) => void;
+
+  // Pipeline
+  createPipeline: (params: { name: string; description: string; steps: import('@/types/pipeline').PipelineStep[] }) => void;
+  updatePipeline: (id: string, updates: Partial<Pick<PipelineDefinition, 'name' | 'description' | 'steps'>>) => void;
+  deletePipeline: (id: string) => void;
+  duplicatePipeline: (id: string, newName: string) => void;
+  runPipeline: (pipelineId: string, sourceImageId: string) => void;
+  cancelPipelineExecution: (executionId: string) => void;
+  setActivePipelineId: (id: string | null) => void;
+  setPipelineBuilderOpen: (open: boolean) => void;
 }
 
 // ---------------------------------------------------------------------------
