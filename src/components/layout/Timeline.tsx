@@ -609,6 +609,9 @@ export const Timeline = memo(function Timeline() {
   const setTimelineMode = useAppStore((s) => s.setTimelineMode);
   const onionSkinEnabled = useAppStore((s) => s.onionSkinEnabled);
   const setOnionSkinEnabled = useAppStore((s) => s.setOnionSkinEnabled);
+  const keyframes = useAppStore((s) => s.keyframes);
+  const activeKeyframeId = useAppStore((s) => s.activeKeyframeId);
+  const setActiveKeyframeId = useAppStore((s) => s.setActiveKeyframeId);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -1113,6 +1116,32 @@ export const Timeline = memo(function Timeline() {
                           isSelected={isSelected}
                           index={index}
                         />
+
+                        {/* Keyframe markers on this track */}
+                        {keyframes
+                          .filter((kf) => kf.entityId === track.id)
+                          .map((kf) => {
+                            const kfLeft = (kf.time / 1000 / totalDuration) * 100;
+                            const isActive = activeKeyframeId === kf.id;
+                            return (
+                              <button
+                                key={kf.id}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setActiveKeyframeId(isActive ? null : kf.id);
+                                }}
+                                className={cn(
+                                  'absolute z-10 w-2.5 h-2.5 rotate-45 transition-all cursor-pointer',
+                                  isActive
+                                    ? 'bg-accent-primary ring-2 ring-accent-primary/50 ring-offset-1 ring-offset-surface'
+                                    : 'bg-text-body/60 hover:bg-text-body'
+                                )}
+                                style={{ left: `${kfLeft}%`, top: '50%', marginTop: '-5px' }}
+                                aria-label={`Keyframe at ${(kf.time / 1000).toFixed(1)}s`}
+                                title={`${kf.interpolation} at ${(kf.time / 1000).toFixed(1)}s`}
+                              />
+                            );
+                          })}
                       </div>
                     </div>
                   );
