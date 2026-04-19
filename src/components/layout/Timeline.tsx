@@ -5,6 +5,7 @@ import { useAppStore } from '@/store/appStore';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { ScenePlaybackStrip } from '@/components/storyboard/ScenePlaybackStrip';
 import { StoryboardPlayback } from '@/components/timeline/StoryboardPlayback';
+import { AnimationTrackEditor } from '@/components/timeline/AnimationTrackEditor';
 import {
   Play,
   Pause,
@@ -951,6 +952,8 @@ export const Timeline = memo(function Timeline() {
       {/* ─── Timeline Body ────────────────────────────────────────────────── */}
       {timelineMode === 'storyboard' ? (
         <StoryboardPlayback className="flex-1" />
+      ) : timelineMode === 'animation' ? (
+        <AnimationTrackEditor className="flex-1" />
       ) : (
       <div className="flex-1 flex min-h-0 overflow-hidden">
         {/* ─── Track Headers (fixed left column) ────────────────────────── */}
