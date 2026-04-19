@@ -91,8 +91,8 @@ export const PromptStudioPanel = memo(function PromptStudioPanel() {
       if (result.prompt) {
         setPositivePrompt(result.prompt);
       }
-    } catch {
-      // Enhancement failed - keep current prompt
+    } catch (err) {
+      console.error('Prompt enhancement failed:', err);
     } finally {
       setIsEnhancing(false);
     }

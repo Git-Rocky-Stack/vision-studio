@@ -84,6 +84,9 @@ export function createGenerationActions(set: AppSet, _get: AppGet) {
         completedJobs: job ? [...state.completedJobs, job].slice(-50) : state.completedJobs,
       };
     }),
+    deleteCompletedJob: (jobId: string) => set((state) => ({
+      completedJobs: state.completedJobs.filter((j) => j.id !== jobId),
+    })),
     setSystemInfo: (info: AppState['systemInfo']) => set({ systemInfo: info }),
     setAvailableModels: (models: ModelInfo[]) => set({ availableModels: models }),
     addBatchJob: (batchJob: BatchJob) => set((state) => ({

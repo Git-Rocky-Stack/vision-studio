@@ -108,6 +108,7 @@ export function StoryboardPanel() {
   if (!activeProject) {
     return (
       <div className="flex flex-col items-center justify-center h-full text-center p-8">
+        <h1 className="sr-only">Storyboard</h1>
         <div className="w-16 h-16 rounded-2xl bg-elevated border border-border flex items-center justify-center mb-4">
           <Film className="w-8 h-8 text-text-muted" aria-hidden="true" />
         </div>
@@ -129,6 +130,7 @@ export function StoryboardPanel() {
 
   return (
     <div className="flex flex-col h-full bg-surface">
+      <h1 className="sr-only">Storyboard</h1>
       {/* Header */}
       <div className="px-4 py-3 border-b border-border flex items-center justify-between flex-shrink-0">
         <div className="flex items-center gap-2">

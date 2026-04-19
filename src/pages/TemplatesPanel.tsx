@@ -102,7 +102,7 @@ export function TemplatesPanel() {
       updatedAt: new Date(),
       template: template,
     };
-    setCurrentProject(newProject as any);
+    setCurrentProject(newProject);
     setActiveTab('generate');
   };
 
@@ -153,6 +153,7 @@ export function TemplatesPanel() {
 
   return (
     <div className="h-full flex flex-col bg-void">
+      <h1 className="sr-only">Templates</h1>
       {/* Top Bar */}
       <div className="px-6 pt-6 pb-4 border-b border-border bg-surface/50">
         <div className="flex items-center justify-between mb-4">

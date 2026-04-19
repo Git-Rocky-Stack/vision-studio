@@ -172,7 +172,14 @@ function getBackendCommand(): { command: string; args: string[]; cwd: string } |
   const backendPath = isDev
     ? join(__dirname, '../backend')
     : join(process.resourcesPath, 'backend-source');
-  const pythonPath = store.get('settings').pythonPath || 'python';
+  const rawPythonPath = store.get('settings').pythonPath || 'python';
+  // Validate pythonPath: must be an absolute path or a simple executable name (no shell metacharacters)
+  const isSafePath = /^[a-zA-Z0-9_./\\:-]+$/.test(rawPythonPath);
+  if (!isSafePath) {
+    console.error(`❌ Invalid pythonPath rejected (unsafe characters): ${rawPythonPath}`);
+    return null;
+  }
+  const pythonPath = rawPythonPath;
 
   const mainPy = join(backendPath, 'main.py');
   console.log(`🐍 Fallback to system Python: ${pythonPath}, main.py at: ${mainPy} (exists: ${fs.existsSync(mainPy)})`);
@@ -394,7 +401,7 @@ function createWindow() {
       preload: join(__dirname, 'preload.cjs'),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: false,
+      sandbox: true,
     },
     show: true,
   });
@@ -465,6 +472,11 @@ app.on('before-quit', () => {
 ipcMain.handle('app:get-version', () => app.getVersion());
 
 ipcMain.handle('app:open-external', (_event, url: string) => {
+  // Only allow http/https URLs to prevent arbitrary program execution
+  if (!/^https?:\/\//i.test(url)) {
+    console.warn('Blocked open-external for non-HTTP URL:', url);
+    return;
+  }
   shell.openExternal(url);
 });
 

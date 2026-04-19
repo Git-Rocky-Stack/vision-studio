@@ -91,6 +91,7 @@ export interface RecentProject {
   createdAt: Date;
   updatedAt: Date;
   thumbnail?: string;
+  template?: ProjectTemplate;
 }
 
 export interface GenerationJobParams {
@@ -311,6 +312,7 @@ export interface AppState {
   addJob: (job: GenerationJob) => void;
   updateJob: (jobId: string, updates: Partial<GenerationJob>) => void;
   removeJob: (jobId: string) => void;
+  deleteCompletedJob: (jobId: string) => void;
   setSystemInfo: (info: AppState['systemInfo']) => void;
   setAvailableModels: (models: ModelInfo[]) => void;
   addBatchJob: (batchJob: BatchJob) => void;

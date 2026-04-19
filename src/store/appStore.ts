@@ -168,10 +168,15 @@ export const useAppStore = create<AppState>()(
       name: 'vision-studio-storage',
       merge: (persistedState, currentState) => {
         const persisted = persistedState as Record<string, unknown>;
-        // Reconstruct Map from serialized array
+        // Reconstruct Maps from serialized arrays
         if (Array.isArray(persisted.iterationNodes)) {
           (persisted as Record<string, unknown>).iterationNodes = new Map(
             persisted.iterationNodes as [string, unknown][]
+          );
+        }
+        if (Array.isArray(persisted.assetMetadata)) {
+          (persisted as Record<string, unknown>).assetMetadata = new Map(
+            persisted.assetMetadata as [string, unknown][]
           );
         }
         return {
@@ -205,6 +210,7 @@ export const useAppStore = create<AppState>()(
         collections: state.collections,
         availableTags: state.availableTags,
         taggingMode: state.taggingMode,
+        assetMetadata: Array.from(state.assetMetadata.entries()),
       }),
     }
   )

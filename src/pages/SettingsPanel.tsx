@@ -205,6 +205,7 @@ export function SettingsPanel() {
 
   return (
     <div className="h-full flex bg-surface">
+      <h1 className="sr-only">Settings</h1>
       <div className="w-56 border-r border-border bg-elevated p-3">
         <nav className="space-y-1">
           {sections.map((section) => {

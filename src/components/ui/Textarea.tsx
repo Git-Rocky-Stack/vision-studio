@@ -1,5 +1,5 @@
 import { cn } from '@/utils/cn';
-import { forwardRef } from 'react';
+import { forwardRef, useId } from 'react';
 
 interface TextareaProps extends React.TextareaHTMLAttributes<HTMLTextAreaElement> {
   label?: string;
@@ -8,17 +8,29 @@ interface TextareaProps extends React.TextareaHTMLAttributes<HTMLTextAreaElement
 }
 
 export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
-  ({ className, label, error, helper, rows = 4, ...props }, ref) => {
+  ({ className, label, error, helper, rows = 4, id: externalId, ...props }, ref) => {
+    const generatedId = useId();
+    const textareaId = externalId ?? generatedId;
+
+    // Build aria-describedby from error/helper messages
+    const helperId = helper ? `${textareaId}-helper` : undefined;
+    const errorId = error ? `${textareaId}-error` : undefined;
+    const describedBy = [props['aria-describedby'], helper && !error ? helperId : undefined, error ? errorId : undefined]
+      .filter(Boolean)
+      .join(' ') || undefined;
+
     return (
       <div className="space-y-1.5">
         {label && (
-          <label className="text-label text-text-body">
+          <label htmlFor={textareaId} className="text-label text-text-body">
             {label}
           </label>
         )}
         <textarea
           ref={ref}
+          id={textareaId}
           rows={rows}
+          aria-describedby={describedBy}
           className={cn(
             'w-full bg-elevated border border-border rounded-md text-text-primary placeholder:text-text-muted',
             'focus:border-accent-primary focus:ring-1 focus:ring-accent-primary/35 transition-all duration-200 resize-none',
@@ -29,10 +41,10 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
           {...props}
         />
         {helper && !error && (
-          <p className="text-xs text-text-muted">{helper}</p>
+          <p id={helperId} className="text-xs text-text-muted">{helper}</p>
         )}
         {error && (
-          <p className="text-xs text-red-primary">{error}</p>
+          <p id={errorId} className="text-xs text-red-primary">{error}</p>
         )}
       </div>
     );

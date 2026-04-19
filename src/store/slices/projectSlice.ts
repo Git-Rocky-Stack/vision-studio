@@ -291,7 +291,8 @@ export function createProjectActions(set: AppSet, _get: AppGet) {
           state.createProject('Quick Captures', { width: 1024, height: 1024 });
         }
         set({ migrationStatus: 'complete', migrationProgress: 100 });
-      } catch {
+      } catch (err) {
+        console.error('Migration failed:', err);
         set({ migrationStatus: 'error', migrationProgress: 0 });
       }
     },

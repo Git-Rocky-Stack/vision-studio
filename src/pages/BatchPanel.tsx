@@ -741,5 +741,10 @@ export function BatchResultsPanel() {
    ─────────────────────────────────────────────────────────── */
 
 export function BatchPanel() {
-  return <BatchPromptQueue />;
+  return (
+    <>
+      <h1 className="sr-only">Batch Generation</h1>
+      <BatchPromptQueue />
+    </>
+  );
 }

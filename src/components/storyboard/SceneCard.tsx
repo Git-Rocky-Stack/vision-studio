@@ -139,7 +139,6 @@ export const SceneCard = memo(function SceneCard({
         {/* Thumbnail */}
         <div className="relative w-24 h-16 rounded-lg overflow-hidden flex-shrink-0 bg-void border border-border">
           {scene.thumbnail ? (
-            // eslint-disable-next-line @next/next/no-img-element
             <img
               src={scene.thumbnail}
               alt="Scene thumbnail"

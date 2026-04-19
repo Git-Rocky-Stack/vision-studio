@@ -127,9 +127,17 @@ function App() {
 
   return (
     <>
-      <ErrorBoundary fallbackLabel="Workspace error">
-        <DockviewLayout />
-      </ErrorBoundary>
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:absolute focus:z-[9999] focus:p-4 focus:bg-accent-primary focus:text-white focus:rounded-md focus:m-2"
+      >
+        Skip to main content
+      </a>
+      <div id="main-content">
+        <ErrorBoundary fallbackLabel="Workspace error">
+          <DockviewLayout />
+        </ErrorBoundary>
+      </div>
       <KeyboardShortcuts open={showShortcuts} onClose={() => setShowShortcuts(false)} />
       <FilmGrainOverlay opacity={0.025} />
     </>

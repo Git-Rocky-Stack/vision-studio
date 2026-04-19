@@ -1,6 +1,6 @@
 import { cn } from '@/utils/cn';
 import { LucideIcon } from 'lucide-react';
-import { forwardRef } from 'react';
+import { forwardRef, useId } from 'react';
 
 interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   label?: string;
@@ -10,13 +10,23 @@ interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
 }
 
 export const Input = forwardRef<HTMLInputElement, InputProps>(
-  ({ className, label, error, icon: Icon, helper, type, ...props }, ref) => {
+  ({ className, label, error, icon: Icon, helper, type, id: externalId, ...props }, ref) => {
+    const generatedId = useId();
+    const inputId = externalId ?? generatedId;
+
+    // Build aria-describedby from error/helper messages
+    const helperId = helper ? `${inputId}-helper` : undefined;
+    const errorId = error ? `${inputId}-error` : undefined;
+    const describedBy = [props['aria-describedby'], helper && !error ? helperId : undefined, error ? errorId : undefined]
+      .filter(Boolean)
+      .join(' ') || undefined;
+
     const isNumeric = type === 'number';
 
     return (
       <div className="space-y-1.5">
         {label && (
-          <label className="text-label text-text-body">
+          <label htmlFor={inputId} className="text-label text-text-body">
             {label}
           </label>
         )}
@@ -26,7 +36,9 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
           )}
           <input
             ref={ref}
+            id={inputId}
             type={type}
+            aria-describedby={describedBy}
             className={cn(
               'w-full bg-elevated border border-border rounded-md text-text-primary placeholder:text-text-muted',
               'focus:border-accent-primary focus:ring-1 focus:ring-accent-primary/35 transition-all duration-200',
@@ -41,10 +53,10 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
           />
         </div>
         {helper && !error && (
-          <p className="text-xs text-text-muted">{helper}</p>
+          <p id={helperId} className="text-xs text-text-muted">{helper}</p>
         )}
         {error && (
-          <p className="text-xs text-red-primary">{error}</p>
+          <p id={errorId} className="text-xs text-red-primary">{error}</p>
         )}
       </div>
     );

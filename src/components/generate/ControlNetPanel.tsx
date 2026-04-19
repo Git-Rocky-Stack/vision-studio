@@ -37,7 +37,7 @@ export function ControlNetPanel({ config, onChange }: ControlNetPanelProps) {
     if (!file) return;
     readFileAsDataUrl(file).then((dataUrl) => {
       update({ referenceImage: dataUrl });
-    }).catch(() => {/* ignore read errors */});
+    }).catch((err) => { console.error('Failed to read reference image:', err); });
   };
 
   return (

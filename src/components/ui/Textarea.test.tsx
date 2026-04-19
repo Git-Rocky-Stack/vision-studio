@@ -74,10 +74,30 @@ describe('Textarea', () => {
     expect(textarea).toHaveValue('line 1\nline 2');
   });
 
-  it('renders label correctly when provided', () => {
+  it('renders label correctly when provided and associates it with the textarea', () => {
     render(<Textarea label="Description" />);
-    expect(screen.getByText('Description')).toBeInTheDocument();
-    expect(screen.getByText('Description')).toHaveClass('text-label');
+    const label = screen.getByText('Description');
+    const textarea = screen.getByRole('textbox');
+    expect(label).toBeInTheDocument();
+    expect(label).toHaveClass('text-label');
+    expect(label).toHaveAttribute('for');
+    expect(label.getAttribute('for')).toBe(textarea.getAttribute('id'));
+  });
+
+  it('uses explicit id when provided and connects label', () => {
+    render(<Textarea label="Bio" id="bio-input" />);
+    const label = screen.getByText('Bio');
+    const textarea = screen.getByRole('textbox');
+    expect(textarea).toHaveAttribute('id', 'bio-input');
+    expect(label).toHaveAttribute('for', 'bio-input');
+  });
+
+  it('auto-generates id for label association when no id provided', () => {
+    render(<Textarea label="Notes" />);
+    const textarea = screen.getByRole('textbox');
+    expect(textarea).toHaveAttribute('id');
+    expect(textarea.getAttribute('id')).toBeTruthy();
+    expect(screen.getByText('Notes').getAttribute('for')).toBe(textarea.getAttribute('id'));
   });
 
   it('uses Carbon Pro accent styling for normal focus state', () => {
@@ -121,7 +141,32 @@ describe('Textarea', () => {
     render(<Textarea label="Comments" aria-label="Enter your comments" aria-describedby="comments-help" />);
     const textarea = screen.getByRole('textbox');
     expect(textarea).toHaveAttribute('aria-label', 'Enter your comments');
-    expect(textarea).toHaveAttribute('aria-describedby', 'comments-help');
+    // aria-describedby composes: external ref + generated message ids
+    const describedBy = textarea.getAttribute('aria-describedby');
+    expect(describedBy).toContain('comments-help');
+  });
+
+  it('associates error message via aria-describedby', () => {
+    render(<Textarea error="Description is required" />);
+    const textarea = screen.getByRole('textbox');
+    const errorMsg = screen.getByText('Description is required');
+    expect(textarea.getAttribute('aria-describedby')).toBe(errorMsg.getAttribute('id'));
+  });
+
+  it('associates helper text via aria-describedby', () => {
+    render(<Textarea helper="Max 500 characters" />);
+    const textarea = screen.getByRole('textbox');
+    const helperMsg = screen.getByText('Max 500 characters');
+    expect(textarea.getAttribute('aria-describedby')).toBe(helperMsg.getAttribute('id'));
+  });
+
+  it('prefers error aria-describedby over helper when both are provided', () => {
+    render(<Textarea helper="Helper text" error="Error message" />);
+    const textarea = screen.getByRole('textbox');
+    const errorMsg = screen.getByText('Error message');
+    const describedBy = textarea.getAttribute('aria-describedby');
+    expect(describedBy).toBe(errorMsg.getAttribute('id'));
+    expect(screen.queryByText('Helper text')).not.toBeInTheDocument();
   });
 
   it('composes custom className with base styles', () => {

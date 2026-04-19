@@ -169,6 +169,7 @@ export function AssetsPanel() {
 
   return (
     <div className="h-full flex flex-col bg-surface">
+      <h1 className="sr-only">Assets</h1>
       <div className="p-4 border-b border-border space-y-4">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />

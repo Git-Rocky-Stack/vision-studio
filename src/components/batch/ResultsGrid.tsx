@@ -75,7 +75,7 @@ export function ResultsGrid({
 
   // Multi-select handler (Shift+click for range, Ctrl+click for toggle)
   const handleSelect = useCallback(
-    (id: string, e: React.MouseEvent) => {
+    (id: string, e: React.MouseEvent | React.KeyboardEvent) => {
       if (e.shiftKey && lastSelectedId) {
         // Range select
         const allIds = sortedResults.map((r) => r.id);
