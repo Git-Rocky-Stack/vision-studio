@@ -28,6 +28,8 @@ export type { ModelInfo, ModelStatus } from '@/types/model';
 
 export type { AspectRatio, ResolutionTier } from '@/types/resolution';
 
+export type { TimelineMode, PlayState, KeyframeInterpolation, Keyframe } from '@/types/timeline';
+
 // ---------------------------------------------------------------------------
 // Imports used only internally by AppState (not re-exported)
 // ---------------------------------------------------------------------------
@@ -83,6 +85,8 @@ import type { IterationNode, IterationBranch, IterationView, ComparisonMode as I
 import type { Collection, AssetTag, AssetMetadata, TaggingMode, SmartQuery } from '@/types/collections';
 
 import type { PromptTemplate, CompositionLayerState } from '@/types/promptStudio';
+
+import type { TimelineMode, PlayState, Keyframe } from '@/types/timeline';
 
 // ---------------------------------------------------------------------------
 // Local type definitions
@@ -283,6 +287,20 @@ export interface AppState {
   taggingMode: TaggingMode;
   taggingQueue: string[];
   activeCollectionId: string | null;
+
+  // ─── Timeline ──────────────────────────────────────────────────────────
+  timelineMode: TimelineMode;
+  playState: PlayState;
+  currentTime: number;
+  timelineFps: number;
+  timelineLoop: boolean;
+  timelineSpeed: number;
+  onionSkinEnabled: boolean;
+  onionSkinFrameCount: number;
+  onionSkinOpacity: number;
+  onionSkinDirection: 'prev' | 'next' | 'both';
+  keyframes: Keyframe[];
+  activeKeyframeId: string | null;
 
   // ─── Actions ─────────────────────────────────────────────────────────────
 
@@ -493,6 +511,24 @@ export interface AppState {
 
   // Migration
   runMigration: () => Promise<void>;
+
+  // Timeline
+  setTimelineMode: (mode: TimelineMode) => void;
+  timelinePlay: () => void;
+  timelinePause: () => void;
+  timelineStop: () => void;
+  seekTo: (time: number) => void;
+  setTimelineFps: (fps: number) => void;
+  setTimelineSpeed: (speed: number) => void;
+  toggleTimelineLoop: () => void;
+  setOnionSkinEnabled: (enabled: boolean) => void;
+  setOnionSkinFrameCount: (count: number) => void;
+  setOnionSkinOpacity: (opacity: number) => void;
+  setOnionSkinDirection: (dir: 'prev' | 'next' | 'both') => void;
+  addKeyframe: (kf: Keyframe) => void;
+  updateKeyframe: (id: string, updates: Partial<Keyframe>) => void;
+  deleteKeyframe: (id: string) => void;
+  setActiveKeyframeId: (id: string | null) => void;
 }
 
 // ---------------------------------------------------------------------------

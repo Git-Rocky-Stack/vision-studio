@@ -13,6 +13,7 @@ import { promptStudioInitialState, createPromptStudioActions } from './slices/pr
 import { generationPreviewInitialState, createGenerationPreviewActions } from './slices/generationPreviewSlice';
 import { iterationInitialState, createIterationActions } from './slices/iterationSlice';
 import { collectionsInitialState, createCollectionsActions } from './slices/collectionsSlice';
+import { timelineInitialState, createTimelineActions } from './slices/timelineSlice';
 
 // Re-exports: local types
 export type {
@@ -195,6 +196,8 @@ export const useAppStore = create<AppState>()(
       ...createIterationActions(set, get),
       ...collectionsInitialState,
       ...createCollectionsActions(set, get),
+      ...timelineInitialState,
+      ...createTimelineActions(set),
     }),
     {
       name: 'vision-studio-storage',
