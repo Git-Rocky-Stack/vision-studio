@@ -7,7 +7,7 @@ describe('Textarea', () => {
   afterEach(cleanup);
 
   it('renders with value and placeholder', () => {
-    render(<Textarea value="test content" placeholder="Enter text" />);
+    render(<Textarea readOnly value="test content" placeholder="Enter text" />);
     const textarea = screen.getByRole('textbox');
     expect(textarea).toHaveValue('test content');
     expect(textarea).toHaveAttribute('placeholder', 'Enter text');

@@ -15,8 +15,13 @@ describe('ErrorBoundary', () => {
   const originalError = console.error;
   beforeAll(() => {
     console.error = (...args: unknown[]) => {
-      const msg = typeof args[0] === 'string' ? args[0] : '';
-      if (msg.includes('Error: Uncaught') || msg.includes('The above error')) return;
+      const msg = args.map((arg) => arg instanceof Error ? arg.message : String(arg)).join(' ');
+      if (
+        msg.includes('Error: Uncaught') ||
+        msg.includes('The above error') ||
+        msg.includes('Test explosion') ||
+        msg.includes('Boom')
+      ) return;
       originalError(...args);
     };
   });

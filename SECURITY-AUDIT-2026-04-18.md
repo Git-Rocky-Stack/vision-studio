@@ -23,8 +23,8 @@ The audit remediation pass resolved the actionable P1/P2 items and most P3 items
 | 05 | Fixed | `assets:export` destinations must be absolute paths inside approved user export roots. |
 | 06 | Fixed | Generic store IPC is restricted to an allow-list of known keys. |
 | 07 | Fixed | Generation/model IPC handlers log raw backend details in the main process and return sanitized renderer messages. |
-| 08 | Deferred | Store encryption-at-rest needs a deliberate migration plan to avoid corrupting existing user settings. |
-| 09 | Partially fixed | `verifyUpdateCodeSignature` is enabled; production signing certificate provisioning remains a release operations task. |
+| 08 | Fixed | `electron-store` now uses a `safeStorage`-protected encryption key when OS encryption is available, backs up plaintext config before the first encrypted rewrite, and falls back without rewriting if encryption or backup is unavailable. |
+| 09 | Release-gated | `verifyUpdateCodeSignature` is enabled and tagged Windows releases now fail closed unless signing credentials are configured; actual certificate/HSM secrets remain external release credentials. |
 | 10 | Fixed | `will-navigate` and `setWindowOpenHandler` deny renderer navigation/window escapes. |
 | 11 | Fixed | Electron now launches the backend with a per-process token, sends it on API requests, and adds it to the WebSocket URL. Generated `/outputs` assets remain public so media elements can render them directly. |
 | 12 | Fixed | `assets:export-many` destinations use the same approved-root validation as single export. |
@@ -33,7 +33,7 @@ Verification completed:
 
 - `npm run typecheck` passed.
 - `npm run build` passed.
-- `npm test` passed: 68 files, 645 tests.
+- `npm test` passed: 70 files, 653 tests.
 - `python -m py_compile backend/main.py` passed.
 
 ---
@@ -183,6 +183,6 @@ Verification completed:
 
 ### Medium-Term (P3, within 1 month)
 8. Sanitize backend error messages to renderer
-9. Encrypt electron-store at rest
+9. Keep release signing credentials provisioned in CI/CD secrets
 10. Add will-navigate and setWindowOpenHandler guards
 11. Add auth token for backend API/WebSocket

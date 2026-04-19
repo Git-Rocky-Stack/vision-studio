@@ -1,6 +1,6 @@
 // Must load before any module registers ipcMain handlers.
 import './ipc-guard';
-import { app, BrowserWindow, ipcMain, dialog, shell, Notification, session } from 'electron';
+import { app, BrowserWindow, ipcMain, dialog, shell, Notification, session, safeStorage } from 'electron';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import Store from 'electron-store';
@@ -24,6 +24,7 @@ import {
   isSafePythonCommand,
   resolveSafeExportDestination,
 } from './services/security';
+import { createSecureStore } from './services/secureStore';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -47,13 +48,19 @@ const DEFAULT_SETTINGS: Required<Omit<AppSettings, 'pythonPath'>> = {
   notifyOnModelDownloads: true,
 };
 
-const store = new Store<StoreSchema>({
-  defaults: {
-    recentProjects: [],
-    settings: DEFAULT_SETTINGS,
-    firstRun: true,
-    modelsDownloaded: [],
-    managedOutputRoots: [],
+const store = createSecureStore<StoreSchema>({
+  Store,
+  safeStorage,
+  userDataPath: app.getPath('userData'),
+  logger: console,
+  options: {
+    defaults: {
+      recentProjects: [],
+      settings: DEFAULT_SETTINGS,
+      firstRun: true,
+      modelsDownloaded: [],
+      managedOutputRoots: [],
+    },
   },
 });
 

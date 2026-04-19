@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { createJSONStorage, persist, type StateStorage } from 'zustand/middleware';
 import type { AppState } from './appStore.types';
 import type { ProjectTemplate } from '@/types/template';
 
@@ -41,6 +41,38 @@ export type { ModelInfo, ModelStatus } from '@/types/model';
 
 // Re-exports: constants now owned by slices
 export { DEFAULT_WORKFLOWS } from './slices/workflowSlice';
+
+function createMemoryStorage(): StateStorage {
+  const storage = new Map<string, string>();
+
+  return {
+    getItem: (name) => storage.get(name) ?? null,
+    setItem: (name, value) => {
+      storage.set(name, value);
+    },
+    removeItem: (name) => {
+      storage.delete(name);
+    },
+  };
+}
+
+const nodeTestStorage = createMemoryStorage();
+
+function getPersistStorage(): StateStorage {
+  try {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      return window.localStorage;
+    }
+
+    if (typeof globalThis.localStorage !== 'undefined') {
+      return globalThis.localStorage;
+    }
+  } catch {
+    // Some browser contexts expose localStorage but deny access.
+  }
+
+  return nodeTestStorage;
+}
 
 // Predefined project templates
 export const PROJECT_TEMPLATES: ProjectTemplate[] = [
@@ -166,6 +198,7 @@ export const useAppStore = create<AppState>()(
     }),
     {
       name: 'vision-studio-storage',
+      storage: createJSONStorage(getPersistStorage),
       merge: (persistedState, currentState) => {
         const persisted = persistedState as Record<string, unknown>;
         // Reconstruct Maps from serialized arrays
