@@ -39,7 +39,7 @@ export function createUIActions(set: AppSet, _get: AppGet) {
     setCenterView: (view: AppState['centerView']) => set({ centerView: view }),
     setAspectRatio: (ratio: AppState['aspectRatio']) => set({ aspectRatio: ratio }),
     setResolutionTier: (tier: AppState['resolutionTier']) => set({ resolutionTier: tier }),
-    setCustomWidth: (width: number) => set({ customWidth: width }),
-    setCustomHeight: (height: number) => set({ customHeight: height }),
+    setCustomWidth: (width: number) => set({ customWidth: Math.max(256, Math.min(2048, width)) }),
+    setCustomHeight: (height: number) => set({ customHeight: Math.max(256, Math.min(2048, height)) }),
   };
 }
