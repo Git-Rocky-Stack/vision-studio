@@ -414,6 +414,14 @@ function createWindow() {
     mainWindow.loadFile(join(__dirname, '../dist/index.html'));
   }
 
+  // Navigation security: prevent the renderer from navigating away from the app
+  mainWindow.webContents.on('will-navigate', (event) => {
+    event.preventDefault();
+  });
+  mainWindow.webContents.setWindowOpenHandler(() => {
+    return { action: 'deny' };
+  });
+
   mainWindow.once('ready-to-show', () => {
     // Check first run after window is shown
     checkFirstRun();
@@ -500,13 +508,25 @@ ipcMain.handle('dialog:save-file', async (_event, options: { defaultPath?: strin
   return result.filePath || null;
 });
 
-// Store handlers
-ipcMain.handle('store:get', (_event, key: keyof StoreSchema) => {
-  return store.get(key);
+// Store handlers — only allow known settings keys
+const ALLOWED_STORE_KEYS = new Set<string>([
+  'settings', 'projects', 'recentProjects', 'theme',
+]);
+
+ipcMain.handle('store:get', (_event, key: string) => {
+  if (!ALLOWED_STORE_KEYS.has(key)) {
+    console.warn(`Blocked store:get for unknown key: ${key}`);
+    return undefined;
+  }
+  return store.get(key as keyof StoreSchema);
 });
 
-ipcMain.handle('store:set', (_event, key: keyof StoreSchema, value: any) => {
-  store.set(key, value);
+ipcMain.handle('store:set', (_event, key: string, value: unknown) => {
+  if (!ALLOWED_STORE_KEYS.has(key)) {
+    console.warn(`Blocked store:set for unknown key: ${key}`);
+    return;
+  }
+  store.set(key as keyof StoreSchema, value);
 });
 
 ipcMain.handle('store:reset', () => {
@@ -558,9 +578,14 @@ ipcMain.handle('settings:reset', async () => {
 ipcMain.handle('assets:export', async (_event, sourcePath: string, destinationPath: string) => {
   try {
     const resolvedSource = resolveManagedAssetPath(sourcePath);
-    await fs.promises.mkdir(path.dirname(destinationPath), { recursive: true });
-    await fs.promises.copyFile(resolvedSource, destinationPath);
-    return { success: true, destinationPath };
+    // Validate destination is not a path traversal
+    const resolvedDest = path.resolve(destinationPath);
+    if (resolvedDest.includes('..')) {
+      return { success: false, error: 'Invalid destination path' };
+    }
+    await fs.promises.mkdir(path.dirname(resolvedDest), { recursive: true });
+    await fs.promises.copyFile(resolvedSource, resolvedDest);
+    return { success: true, destinationPath: resolvedDest };
   } catch (error: any) {
     return {
       success: false,
@@ -571,7 +596,12 @@ ipcMain.handle('assets:export', async (_event, sourcePath: string, destinationPa
 
 ipcMain.handle('assets:export-many', async (_event, sourcePaths: string[], destinationDir: string) => {
   try {
-    await fs.promises.mkdir(destinationDir, { recursive: true });
+    // Validate destination directory is not a path traversal
+    const resolvedDestDir = path.resolve(destinationDir);
+    if (resolvedDestDir.includes('..')) {
+      return { success: false, error: 'Invalid destination directory' };
+    }
+    await fs.promises.mkdir(resolvedDestDir, { recursive: true });
     const usedNames = new Set<string>();
 
     for (const sourcePath of sourcePaths) {
@@ -586,7 +616,7 @@ ipcMain.handle('assets:export-many', async (_event, sourcePaths: string[], desti
       }
 
       usedNames.add(candidateName);
-      await fs.promises.copyFile(resolvedSource, path.join(destinationDir, candidateName));
+      await fs.promises.copyFile(resolvedSource, path.join(resolvedDestDir, candidateName));
     }
 
     return { success: true, exportedCount: sourcePaths.length };
