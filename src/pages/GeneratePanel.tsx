@@ -11,6 +11,8 @@ import { ControlNetPanel } from '@/components/generate/ControlNetPanel';
 import { LoRAMixer } from '@/components/generate/LoRAMixer';
 import { PromptHistory } from '@/components/generate/PromptHistory';
 import { AspectRatioPicker } from '@/components/generate/AspectRatioPicker';
+import { CompactImageDropZone } from '@/components/generate/CompactImageDropZone';
+import { VideoControls } from '@/components/generate/VideoControls';
 import { computeDimensions } from '@/types/resolution';
 import {
   clearResolvedGenerationError,
@@ -131,6 +133,23 @@ export function GeneratePanel() {
     customHeight: s.customHeight,
   })));
   const dimensions = computeDimensions(aspectRatio, resolutionTier, customWidth, customHeight);
+
+  // Video generation state
+  const {
+    generationMode,
+    setGenerationMode,
+    startFrameImage,
+    endFrameImage,
+    setStartFrameImage,
+    setEndFrameImage,
+  } = useAppStore(useShallow(s => ({
+    generationMode: s.generationMode,
+    setGenerationMode: s.setGenerationMode,
+    startFrameImage: s.startFrameImage,
+    endFrameImage: s.endFrameImage,
+    setStartFrameImage: s.setStartFrameImage,
+    setEndFrameImage: s.setEndFrameImage,
+  })));
 
   // Reference image / ControlNet / LoRA config (consolidated)
   const [refConfig, setRefConfig] = useState({
@@ -605,6 +624,29 @@ export function GeneratePanel() {
               </div>
             )}
           </>
+        )}
+
+        {/* Start Frame (video only) */}
+        {imageConfig.generationType === 'video' && (
+          <CompactImageDropZone
+            label="Start Frame"
+            image={startFrameImage}
+            onImageChange={setStartFrameImage}
+          />
+        )}
+
+        {/* End Frame (video only) */}
+        {imageConfig.generationType === 'video' && (
+          <CompactImageDropZone
+            label="End Frame"
+            image={endFrameImage}
+            onImageChange={setEndFrameImage}
+          />
+        )}
+
+        {/* Video Controls (video only) */}
+        {imageConfig.generationType === 'video' && (
+          <VideoControls />
         )}
 
         {/* ControlNet */}
