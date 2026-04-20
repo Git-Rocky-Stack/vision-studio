@@ -7,7 +7,7 @@ import { PipelineNode } from './PipelineNode';
 import { PipelineNodePalette } from './PipelineNodePalette';
 import { PipelineNodeConfig } from './PipelineNodeConfig';
 import { PipelinePreview } from './PipelinePreview';
-import { Plus, Save, Copy, Trash2, Pipeline } from 'lucide-react';
+import { Plus, Save, Copy, Trash2, Workflow } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface PipelineBuilderProps {
@@ -103,7 +103,7 @@ export const PipelineBuilder = memo(function PipelineBuilder({
     <div className={cn('flex flex-col h-full', className)}>
       {/* Toolbar */}
       <div className="flex items-center gap-2 px-3 py-2 border-b border-border bg-surface/50">
-        <Pipeline className="w-4 h-4 text-red-primary shrink-0" />
+        <Workflow className="w-4 h-4 text-red-primary shrink-0" />
 
         {editingName ? (
           <input
@@ -203,7 +203,7 @@ export const PipelineBuilder = memo(function PipelineBuilder({
       <div className="flex-1 overflow-auto">
         {pipeline.steps.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full gap-3 text-text-muted">
-            <Pipeline className="w-10 h-10 opacity-30" />
+            <Workflow className="w-10 h-10 opacity-30" />
             <p className="text-sm">Add a step to get started</p>
             <button
               type="button"
