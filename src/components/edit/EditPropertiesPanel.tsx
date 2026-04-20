@@ -483,7 +483,12 @@ export function EditPropertiesPanel() {
                     deleteRegionLock(activeRegionLock.sceneId, activeRegionLock.id);
                   }}
                   onGenerate={() => {
-                    // TODO: Wire to generation pipeline
+                    if (!currentImageAssetPath) return;
+                    const { pipelines, runPipeline } = useAppStore.getState();
+                    const firstPipeline = pipelines[0];
+                    if (firstPipeline) {
+                      runPipeline(firstPipeline.id, currentImageAssetPath);
+                    }
                   }}
                 />
               ) : (

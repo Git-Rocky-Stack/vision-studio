@@ -31,7 +31,7 @@ export function createUIActions(set: AppSet, _get: AppGet) {
         generate: 'generate',
         canvas: null,
         story: 'storyboard',
-        workflows: null,
+        workflows: 'workflows',
         assets: null,
         collections: null,
         settings: null,

@@ -10,7 +10,8 @@ import { TemplatesPanel } from '@/pages/TemplatesPanel';
 import { EditPropertiesPanel } from '@/components/edit/EditPropertiesPanel';
 import { ToolStrip } from '@/components/edit/ToolStrip';
 import { IterationTimeline } from '@/components/iteration/IterationTimeline';
-import type { ActiveSubMode, GenerateSubMode, StorySubMode } from '@/types/navigation';
+import { PipelineBuilder } from '@/components/pipeline/PipelineBuilder';
+import type { ActiveSubMode, GenerateSubMode, StorySubMode, WorkflowsSubMode } from '@/types/navigation';
 
 /* -------------------------------------------------------------------------- */
 /*  Sub-mode configuration per tab                                            */
@@ -33,9 +34,15 @@ const STORY_SUB_MODES: SubModeOption[] = [
   { value: 'templates', label: 'Templates' },
 ];
 
+const WORKFLOWS_SUB_MODES: SubModeOption[] = [
+  { value: 'workflows', label: 'Workflows' },
+  { value: 'pipelines', label: 'Pipelines' },
+];
+
 function getSubModesForTab(tab: string): SubModeOption[] {
   if (tab === 'generate') return GENERATE_SUB_MODES;
   if (tab === 'story') return STORY_SUB_MODES;
+  if (tab === 'workflows') return WORKFLOWS_SUB_MODES;
   return [];
 }
 
@@ -117,9 +124,20 @@ function SettingsContent({
       return <StoryboardPanel />;
     }
 
-    case 'workflows':
-      // Placeholder - will become a workflow inspector panel later
+    case 'workflows': {
+      const sub = activeSubMode as WorkflowsSubMode;
+      if (sub === 'pipelines') {
+        const { activePipelineId, pipelines } = useAppStore.getState();
+        const active = pipelines.find((p) => p.id === activePipelineId) ?? pipelines[0];
+        if (active) return <PipelineBuilder pipeline={active} />;
+        return (
+          <div className="flex flex-col items-center justify-center h-full gap-3 text-text-muted p-6">
+            <p className="text-sm">No pipelines available</p>
+          </div>
+        );
+      }
       return <StoryboardPanel />;
+    }
 
     default:
       return <GeneratePanel />;

@@ -4,7 +4,9 @@ export type GenerateSubMode = 'generate' | 'quick' | 'batch' | 'studio';
 
 export type StorySubMode = 'storyboard' | 'templates';
 
-export type ActiveSubMode = GenerateSubMode | StorySubMode | null;
+export type WorkflowsSubMode = 'workflows' | 'pipelines';
+
+export type ActiveSubMode = GenerateSubMode | StorySubMode | WorkflowsSubMode | null;
 
 export type CenterView = 'canvas' | 'viewer' | 'workflow' | 'launchpad';
 
