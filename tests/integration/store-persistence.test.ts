@@ -25,15 +25,21 @@ describe('store persistence partialize', () => {
     const persisted = partialize(state);
 
     // Included
-    expect(persisted).toHaveProperty('sidebarCollapsed');
+    expect(persisted).toHaveProperty('activeTab');
+    expect(persisted).toHaveProperty('activeSubMode');
+    expect(persisted).toHaveProperty('centerView');
     expect(persisted).toHaveProperty('darkMode');
     expect(persisted).toHaveProperty('recentProjects');
+    expect(persisted).toHaveProperty('projects');
+    expect(persisted).toHaveProperty('activeProjectId');
+    expect(persisted).toHaveProperty('activeSceneId');
     expect(persisted).toHaveProperty('promptHistory');
     expect(persisted).toHaveProperty('favoritePrompts');
     expect(persisted).toHaveProperty('customStylePresets');
     expect(persisted).toHaveProperty('userTemplates');
     expect(persisted).toHaveProperty('batchResults');
     expect(persisted).toHaveProperty('assetLibrary');
+    expect(persisted).toHaveProperty('assetMetadata');
 
     // Excluded (transient state)
     expect(persisted).not.toHaveProperty('activeJobs');

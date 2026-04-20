@@ -69,6 +69,7 @@ describe('RegionLockOverlay', () => {
     expect(screen.getByText('Shirt Region')).toBeInTheDocument();
     expect(screen.getByText('Fill')).toBeInTheDocument();
     expect(screen.getByText('85%')).toBeInTheDocument();
+    expect(screen.getByRole('status', { name: 'Shirt Region Fill 85%' })).toBeInTheDocument();
   });
 
   it('renders invert indicator when invertMask is true', () => {

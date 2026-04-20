@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 
 import { exportWorkflowGraphToComfyPrompt } from '@/features/workflow/comfyExport';
 import { createWorkflowNodeFromClassType } from '@/features/workflow/nodeDefaults';
+import { useShallow } from 'zustand/react/shallow';
 import { useAppStore } from '@/store/appStore';
 import { cn } from '@/utils/cn';
 import { formatLabel, formatTimestamp } from '@/utils/formatUtils';
@@ -17,7 +18,18 @@ export function WorkflowWorkbench() {
     connectWorkflowNodes,
     deleteWorkflowNode,
     deleteWorkflowEdge,
-  } = useAppStore();
+  } = useAppStore(
+    useShallow((s) => ({
+      workflowRecords: s.workflowRecords,
+      activeWorkflowId: s.activeWorkflowId,
+      setActiveWorkflow: s.setActiveWorkflow,
+      addWorkflowNode: s.addWorkflowNode,
+      moveWorkflowNode: s.moveWorkflowNode,
+      connectWorkflowNodes: s.connectWorkflowNodes,
+      deleteWorkflowNode: s.deleteWorkflowNode,
+      deleteWorkflowEdge: s.deleteWorkflowEdge,
+    }))
+  );
   const [exportedJson, setExportedJson] = useState<string | null>(null);
   const [exportError, setExportError] = useState<string | null>(null);
   const activeWorkflow =

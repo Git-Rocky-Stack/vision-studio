@@ -11,6 +11,8 @@
  *   - Backend autostart is disabled to keep tests fast and isolated.
  */
 import { test as base, _electron as electron, type ElectronApplication, type Page } from '@playwright/test';
+import fs from 'fs';
+import os from 'os';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -26,9 +28,10 @@ export const test = base.extend<ElectronFixtures>({
   app: async ({}, use) => {
     const projectRoot = path.resolve(__dirname, '../../..');
     const mainEntry = path.join(projectRoot, 'dist-electron/main.mjs');
+    const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'vision-studio-e2e-'));
 
     const electronApp = await electron.launch({
-      args: [mainEntry],
+      args: [`--user-data-dir=${userDataDir}`, mainEntry],
       cwd: projectRoot,
       env: {
         ...process.env,
@@ -38,8 +41,12 @@ export const test = base.extend<ElectronFixtures>({
       },
     });
 
-    await use(electronApp);
-    await electronApp.close();
+    try {
+      await use(electronApp);
+    } finally {
+      await electronApp.close();
+      fs.rmSync(userDataDir, { recursive: true, force: true });
+    }
   },
 
   page: async ({ app }, use) => {

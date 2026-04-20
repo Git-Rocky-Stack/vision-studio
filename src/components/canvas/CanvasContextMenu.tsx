@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { cn } from '@/utils/cn';
 import { useAppStore } from '@/store/appStore';
+import { useShallow } from 'zustand/react/shallow';
 import {
   Copy,
   Save,
@@ -9,6 +10,7 @@ import {
   FolderOpen,
   Maximize,
   ZoomIn,
+  Sparkles,
 } from 'lucide-react';
 
 interface MenuItem {
@@ -26,7 +28,15 @@ interface CanvasContextMenuProps {
 }
 
 export function CanvasContextMenu({ x, y, onClose }: CanvasContextMenuProps) {
-  const { currentImage, currentImageAssetPath, setActivePanel } = useAppStore();
+  const { currentImage, currentImageAssetPath, setActiveTab, pipelines, runPipeline } = useAppStore(
+    useShallow((s) => ({
+      currentImage: s.currentImage,
+      currentImageAssetPath: s.currentImageAssetPath,
+      setActiveTab: s.setActiveTab,
+      pipelines: s.pipelines,
+      runPipeline: s.runPipeline,
+    }))
+  );
   const menuRef = useRef<HTMLDivElement>(null);
 
   // Close on outside click or Escape
@@ -101,7 +111,7 @@ export function CanvasContextMenu({ x, y, onClose }: CanvasContextMenuProps) {
 
   const handleSendToEdit = () => {
     if (currentImage) {
-      setActivePanel('edit');
+      setActiveTab('canvas');
     }
     onClose();
   };
@@ -116,12 +126,28 @@ export function CanvasContextMenu({ x, y, onClose }: CanvasContextMenuProps) {
     onClose();
   };
 
+  const refineItems: MenuItem[] = pipelines.map((p) => ({
+    id: `refine-${p.id}`,
+    label: p.name,
+    icon: Sparkles,
+    action: () => {
+      if (currentImageAssetPath) {
+        runPipeline(p.id, currentImageAssetPath);
+      }
+      onClose();
+    },
+    disabled: !currentImageAssetPath,
+  }));
+
   const sections: (MenuItem | 'divider')[][] = [
     [
       { id: 'copy', label: 'Copy Image', icon: Copy, action: handleCopyImage, disabled: !currentImage },
       { id: 'save', label: 'Save As...', icon: Save, action: handleSaveAs, disabled: !currentImageAssetPath },
       { id: 'edit', label: 'Send to Edit', icon: Pencil, action: handleSendToEdit, disabled: !currentImage },
     ],
+    refineItems.length > 0
+      ? [{ id: 'refine-header' as const, label: 'Refine', icon: Sparkles, action: () => {}, disabled: true }, ...refineItems]
+      : [],
     [
       { id: 'info', label: 'Generation Info', icon: Info, action: () => { onClose(); }, disabled: !currentImage },
       { id: 'explorer', label: 'Open in Explorer', icon: FolderOpen, action: handleOpenInExplorer, disabled: !currentImageAssetPath },

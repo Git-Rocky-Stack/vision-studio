@@ -2,8 +2,10 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import packageJson from '../../package.json';
 import { cn } from '@/utils/cn';
 import { Button } from '@/components/ui/Button';
+import { useShallow } from 'zustand/react/shallow';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { useAppStore } from '@/store/appStore';
+import { UserGuidePage } from '@/pages/UserGuidePage';
 import type { ModelInfo } from '@/types/model';
 import {
   Settings,
@@ -18,10 +20,12 @@ import {
   Monitor,
   AlertTriangle,
   Play,
+  Tag,
+  HelpCircle,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-type SettingsTab = 'general' | 'ai' | 'appearance' | 'notifications';
+type SettingsTab = 'general' | 'ai' | 'appearance' | 'notifications' | 'guide';
 
 interface SettingsSection {
   id: SettingsTab;
@@ -45,6 +49,7 @@ const sections: SettingsSection[] = [
   { id: 'ai', label: 'AI & Models', icon: Cpu },
   { id: 'appearance', label: 'Appearance', icon: Palette },
   { id: 'notifications', label: 'Notifications', icon: Bell },
+  { id: 'guide', label: 'User Guide', icon: HelpCircle },
 ];
 
 const defaultSettingsState: SettingsState = {
@@ -66,7 +71,19 @@ export function SettingsPanel() {
     clearBatchResults,
     setAvailableModels,
     setSystemInfo,
-  } = useAppStore();
+    taggingMode,
+    setTaggingMode,
+  } = useAppStore(useShallow(s => ({
+    assetLibrary: s.assetLibrary,
+    systemInfo: s.systemInfo,
+    availableModels: s.availableModels,
+    removeAssetsByRoot: s.removeAssetsByRoot,
+    clearBatchResults: s.clearBatchResults,
+    setAvailableModels: s.setAvailableModels,
+    setSystemInfo: s.setSystemInfo,
+    taggingMode: s.taggingMode,
+    setTaggingMode: s.setTaggingMode,
+  })));
   const [activeTab, setActiveTab] = useState<SettingsTab>('general');
   const [settings, setSettings] = useState<SettingsState>(defaultSettingsState);
   const [activeModelId, setActiveModelId] = useState<string | null>(null);
@@ -201,7 +218,8 @@ export function SettingsPanel() {
   };
 
   return (
-    <div className="h-full flex bg-surface">
+    <div className="h-full flex bg-surface" data-testid="settings-panel">
+      <h1 className="sr-only">Settings</h1>
       <div className="w-56 border-r border-border bg-elevated p-3">
         <nav className="space-y-1">
           {sections.map((section) => {
@@ -451,6 +469,36 @@ export function SettingsPanel() {
                 )}
 
                 <div className="space-y-4">
+                  <h3 className="text-label text-text-body flex items-center gap-2">
+                    <Tag className="w-4 h-4" />
+                    AI Tagging Mode
+                  </h3>
+                  <p className="text-xs text-text-body mb-3">
+                    Control when AI analyzes generated assets to create smart collection tags.
+                  </p>
+                  {([
+                    { value: 'on-generation' as const, label: 'On Generation', desc: 'Analyze each asset immediately after generation' },
+                    { value: 'background-batch' as const, label: 'Background Batch', desc: 'Analyze assets in batches during idle time' },
+                    { value: 'on-demand' as const, label: 'On Demand', desc: 'Only analyze when you manually trigger it' },
+                    { value: 'off' as const, label: 'Off', desc: 'Disable automatic AI tagging entirely' },
+                  ]).map((mode) => (
+                    <label key={mode.value} className="flex items-start gap-3 py-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="tagging-mode"
+                        checked={taggingMode === mode.value}
+                        onChange={() => setTaggingMode(mode.value)}
+                        className="mt-1 accent-accent-primary"
+                      />
+                      <div>
+                        <span className="text-sm font-display font-medium text-text-primary">{mode.label}</span>
+                        <p className="text-xs text-text-muted">{mode.desc}</p>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+
+                <div className="space-y-4">
                   <h3 className="text-label text-text-body">Installed Models</h3>
 
                   {availableModels.length === 0 ? (
@@ -664,6 +712,8 @@ export function SettingsPanel() {
                 </div>
               </div>
             )}
+
+            {activeTab === 'guide' && <UserGuidePage />}
           </motion.div>
         </AnimatePresence>
       </div>

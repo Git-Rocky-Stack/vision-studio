@@ -1,4 +1,5 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import { useAppStore } from '@/store/appStore';
 import { Button } from '@/components/ui/Button';
 import { ModelSelector } from '@/components/generate/ModelSelector';
@@ -25,7 +26,19 @@ function resolveOutputRoot(defaultOutputPath: string, userDataPath: string) {
 }
 
 export function QuickGeneratePanel() {
-  const { addJob, updateJob, syncAssetsFromJobStatus, advancedGeneration, systemInfo } = useAppStore();
+  const { addJob, updateJob, syncAssetsFromJobStatus, advancedGeneration, systemInfo } = useAppStore(useShallow(s => ({
+    addJob: s.addJob,
+    updateJob: s.updateJob,
+    syncAssetsFromJobStatus: s.syncAssetsFromJobStatus,
+    advancedGeneration: s.advancedGeneration,
+    systemInfo: s.systemInfo,
+  })));
+
+  // Refs for cleanup
+  const intervalRef = useRef<ReturnType<typeof setInterval>>(null);
+  const safetyTimeoutRef = useRef<ReturnType<typeof setTimeout>>(null);
+  const unwatchRef = useRef<(() => void) | null>(null);
+  const isGeneratingRef = useRef(false);
 
   const [prompt, setPrompt] = useState('');
   const [negativePrompt, setNegativePrompt] = useState('');
@@ -75,6 +88,11 @@ export function QuickGeneratePanel() {
             });
 
             setGenStatus({ isGenerating: false, progress: 100, status: 'success', errorMessage: '' });
+            isGeneratingRef.current = false;
+            // Clear refs on completion
+            if (intervalRef.current) clearInterval(intervalRef.current);
+            if (unwatchRef.current) unwatchRef.current();
+            if (safetyTimeoutRef.current) clearTimeout(safetyTimeoutRef.current);
           } else if (status.status === 'failed') {
             updateJob(jobId, {
               status: 'failed',
@@ -92,6 +110,10 @@ export function QuickGeneratePanel() {
               status: 'error',
               errorMessage: status.error || 'Generation failed',
             });
+            isGeneratingRef.current = false;
+            if (intervalRef.current) clearInterval(intervalRef.current);
+            if (unwatchRef.current) unwatchRef.current();
+            if (safetyTimeoutRef.current) clearTimeout(safetyTimeoutRef.current);
           } else {
             updateJob(jobId, {
               status: status.status,
@@ -108,26 +130,39 @@ export function QuickGeneratePanel() {
       };
 
       const interval = setInterval(checkStatus, 500);
+      intervalRef.current = interval;
       const unwatch = window.electron.generation.onProgress((data) => {
         if (data.job_id === jobId && data.progress !== undefined) {
           setGenStatus((prev) => ({ ...prev, progress: data.progress ?? prev.progress }));
         }
       });
+      unwatchRef.current = unwatch;
 
       // Initial check
       await checkStatus();
 
       // Stop after 5 minutes
-      setTimeout(() => {
-        clearInterval(interval);
-        unwatch();
+      safetyTimeoutRef.current = setTimeout(() => {
+        clearInterval(intervalRef.current!);
+        unwatchRef.current?.();
       }, 5 * 60 * 1000);
     },
     [updateJob, syncAssetsFromJobStatus, prompt]
   );
 
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+      if (unwatchRef.current) unwatchRef.current();
+      if (safetyTimeoutRef.current) clearTimeout(safetyTimeoutRef.current);
+    };
+  }, []);
+
   const handleGenerate = async () => {
     if (!prompt.trim()) return;
+    if (isGeneratingRef.current) return;
+    isGeneratingRef.current = true;
 
     // Guard: backend must be connected to generate
     if (!systemInfo.backendConnected) {
@@ -137,6 +172,7 @@ export function QuickGeneratePanel() {
         status: 'error',
         errorMessage: 'The AI backend is not running. Please restart the app or start the backend from Settings.',
       });
+      isGeneratingRef.current = false;
       return;
     }
 
@@ -192,6 +228,7 @@ export function QuickGeneratePanel() {
         status: 'error',
         errorMessage: message,
       });
+      isGeneratingRef.current = false;
     }
   };
 
@@ -203,6 +240,7 @@ export function QuickGeneratePanel() {
 
   return (
     <div className="flex flex-col h-full bg-panel">
+      <h1 className="sr-only">Quick Generate</h1>
       {/* Header */}
       <div className="px-4 py-3 border-b border-border flex items-center justify-between flex-shrink-0">
         <div className="flex items-center gap-2">

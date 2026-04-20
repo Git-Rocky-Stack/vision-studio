@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import { useAppStore } from '@/store/appStore';
 import { SceneCard } from '@/components/storyboard/SceneCard';
 import { CharacterLibrary } from '@/components/storyboard/CharacterLibrary';
@@ -37,7 +38,19 @@ export function StoryboardPanel() {
     createProject,
     setActiveProject,
     removeCharacterFromScene,
-  } = useAppStore();
+  } = useAppStore(useShallow(s => ({
+    projects: s.projects,
+    activeProjectId: s.activeProjectId,
+    activeSceneId: s.activeSceneId,
+    setActiveScene: s.setActiveScene,
+    addScene: s.addScene,
+    deleteScene: s.deleteScene,
+    duplicateScene: s.duplicateScene,
+    reorderScenes: s.reorderScenes,
+    createProject: s.createProject,
+    setActiveProject: s.setActiveProject,
+    removeCharacterFromScene: s.removeCharacterFromScene,
+  })));
 
   const [deleteTarget, setDeleteTarget] = useState<Scene | null>(null);
   const [contextMenuScene, setContextMenuScene] = useState<Scene | null>(null);
@@ -61,6 +74,20 @@ export function StoryboardPanel() {
     reordered.splice(oldIndex, 1);
     reordered.splice(newIndex, 0, String(active.id));
 
+    reorderScenes(activeProject.id, reordered);
+  };
+
+  const handleMoveScene = (sceneId: string, offset: -1 | 1) => {
+    if (!activeProject) return;
+
+    const sortedScenes = [...activeProject.scenes].sort((a, b) => a.orderIndex - b.orderIndex);
+    const oldIndex = sortedScenes.findIndex((scene) => scene.id === sceneId);
+    const newIndex = oldIndex + offset;
+    if (oldIndex < 0 || newIndex < 0 || newIndex >= sortedScenes.length) return;
+
+    const reordered = sortedScenes.map((scene) => scene.id);
+    const [movedSceneId] = reordered.splice(oldIndex, 1);
+    reordered.splice(newIndex, 0, movedSceneId);
     reorderScenes(activeProject.id, reordered);
   };
 
@@ -108,6 +135,7 @@ export function StoryboardPanel() {
   if (!activeProject) {
     return (
       <div className="flex flex-col items-center justify-center h-full text-center p-8">
+        <h1 className="sr-only">Storyboard</h1>
         <div className="w-16 h-16 rounded-2xl bg-elevated border border-border flex items-center justify-center mb-4">
           <Film className="w-8 h-8 text-text-muted" aria-hidden="true" />
         </div>
@@ -129,6 +157,7 @@ export function StoryboardPanel() {
 
   return (
     <div className="flex flex-col h-full bg-surface">
+      <h1 className="sr-only">Storyboard</h1>
       {/* Header */}
       <div className="px-4 py-3 border-b border-border flex items-center justify-between flex-shrink-0">
         <div className="flex items-center gap-2">
@@ -185,6 +214,10 @@ export function StoryboardPanel() {
                         onClick={() => setActiveScene(scene.id === activeSceneId ? null : scene.id)}
                         onDelete={() => setDeleteTarget(scene)}
                         onDuplicate={() => handleDuplicateScene(scene)}
+                        onMoveUp={() => handleMoveScene(scene.id, -1)}
+                        onMoveDown={() => handleMoveScene(scene.id, 1)}
+                        canMoveUp={index > 0}
+                        canMoveDown={index < sortedScenes.length - 1}
                       />
 
                       {/* Character assignment chips */}

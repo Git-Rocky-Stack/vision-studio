@@ -12,33 +12,42 @@ describe('appStore', () => {
 
   // ── UI state ──────────────────────────────────────────────────────────
 
-  describe('toggleSidebar', () => {
-    it('toggles the sidebar collapsed state', () => {
-      expect(useAppStore.getState().sidebarCollapsed).toBe(false);
-      useAppStore.getState().toggleSidebar();
-      expect(useAppStore.getState().sidebarCollapsed).toBe(true);
-      useAppStore.getState().toggleSidebar();
-      expect(useAppStore.getState().sidebarCollapsed).toBe(false);
+  // toggleSidebar removed -- NavBar is always narrow
+
+  describe('setActiveTab', () => {
+    it('changes the active tab', () => {
+      useAppStore.getState().setActiveTab('canvas');
+      expect(useAppStore.getState().activeTab).toBe('canvas');
+    });
+
+    it('sets default sub-mode when switching to generate', () => {
+      useAppStore.getState().setActiveTab('generate');
+      expect(useAppStore.getState().activeSubMode).toBe('generate');
+    });
+
+    it('sets default sub-mode when switching to story', () => {
+      useAppStore.getState().setActiveTab('story');
+      expect(useAppStore.getState().activeSubMode).toBe('storyboard');
+    });
+
+    it('sets sub-mode to null for tabs without sub-modes', () => {
+      useAppStore.getState().setActiveTab('assets');
+      expect(useAppStore.getState().activeSubMode).toBeNull();
     });
   });
 
-  describe('setActivePanel', () => {
-    it('changes the active panel', () => {
-      useAppStore.getState().setActivePanel('batch');
-      expect(useAppStore.getState().activePanel).toBe('batch');
+  describe('center view', () => {
+    it('defaults the center view to canvas', () => {
+      expect(useAppStore.getState().centerView).toBe('canvas');
+    });
+
+    it('changes the center view', () => {
+      useAppStore.getState().setCenterView('workflow');
+      expect(useAppStore.getState().centerView).toBe('workflow');
     });
   });
 
-  describe('workbench view', () => {
-    it('defaults the workbench view to canvas', () => {
-      expect(useAppStore.getState().activeWorkbenchView).toBe('canvas');
-    });
-
-    it('changes the active workbench view', () => {
-      useAppStore.getState().setActiveWorkbenchView('workflow');
-      expect(useAppStore.getState().activeWorkbenchView).toBe('workflow');
-    });
-
+  describe('active viewer item', () => {
     it('tracks the active viewer item for cross-dock selection', () => {
       expect(useAppStore.getState().activeViewerItemId).toBeNull();
 
@@ -437,7 +446,7 @@ describe('appStore', () => {
       // Access the persist API
       const persisted = (useAppStore as any).persist?.getOptions?.()?.partialize?.(state);
       if (persisted) {
-        expect(persisted).toHaveProperty('sidebarCollapsed');
+        expect(persisted).toHaveProperty('activeTab');
         expect(persisted).toHaveProperty('promptHistory');
         expect(persisted).toHaveProperty('assetLibrary');
         expect(persisted).not.toHaveProperty('activeJobs');
@@ -472,6 +481,346 @@ describe('appStore', () => {
       const storedProject = useAppStore.getState().projects.find((item) => item.id === project.id);
       expect(scene.status).toBe('complete');
       expect(storedProject?.scenes[0].status).toBe('complete');
+    });
+  });
+
+  // ── Navigation refactor ──────────────────────────────────────────────────
+
+  describe('navigation refactor', () => {
+    it('defaults activeTab to generate', () => {
+      expect(useAppStore.getState().activeTab).toBe('generate');
+    });
+
+    it('defaults activeSubMode to generate', () => {
+      expect(useAppStore.getState().activeSubMode).toBe('generate');
+    });
+
+    it('defaults centerView to canvas', () => {
+      expect(useAppStore.getState().centerView).toBe('canvas');
+    });
+
+    it('setActiveTab changes the active tab', () => {
+      useAppStore.getState().setActiveTab('canvas');
+      expect(useAppStore.getState().activeTab).toBe('canvas');
+    });
+
+    it('setActiveSubMode changes the sub-mode', () => {
+      useAppStore.getState().setActiveSubMode('quick');
+      expect(useAppStore.getState().activeSubMode).toBe('quick');
+    });
+
+    it('setActiveTab sets default sub-mode for the new tab', () => {
+      useAppStore.getState().setActiveTab('story');
+      expect(useAppStore.getState().activeSubMode).toBe('storyboard');
+    });
+
+    it('setActiveTab sets sub-mode to null for tabs without sub-modes', () => {
+      useAppStore.getState().setActiveTab('assets');
+      expect(useAppStore.getState().activeSubMode).toBeNull();
+    });
+
+    it('setCenterView changes the center workspace view', () => {
+      useAppStore.getState().setCenterView('workflow');
+      expect(useAppStore.getState().centerView).toBe('workflow');
+    });
+  });
+
+  // ── Resolution picker ──────────────────────────────────────────────────
+
+  describe('resolution picker', () => {
+    it('defaults aspect ratio to 1:1', () => {
+      expect(useAppStore.getState().aspectRatio).toBe('1:1');
+    });
+
+    it('defaults resolution tier to ultra', () => {
+      expect(useAppStore.getState().resolutionTier).toBe('ultra');
+    });
+
+    it('setAspectRatio changes the ratio', () => {
+      useAppStore.getState().setAspectRatio('16:9');
+      expect(useAppStore.getState().aspectRatio).toBe('16:9');
+    });
+
+    it('setResolutionTier changes the tier', () => {
+      useAppStore.getState().setResolutionTier('standard');
+      expect(useAppStore.getState().resolutionTier).toBe('standard');
+    });
+  });
+
+  // ── Prompt Studio ───────────────────────────────────────────────────────
+
+  describe('prompt studio', () => {
+    it('defaults promptTemplates to >= 8 entries', () => {
+      expect(useAppStore.getState().promptTemplates.length).toBeGreaterThanOrEqual(8);
+    });
+
+    it('defaults compositionLayers visibility to true', () => {
+      const { compositionLayers } = useAppStore.getState();
+      expect(compositionLayers.aspectFrame.visible).toBe(true);
+      expect(compositionLayers.reference.visible).toBe(true);
+      expect(compositionLayers.controlNet.visible).toBe(true);
+      expect(compositionLayers.regionMasks.visible).toBe(true);
+    });
+
+    it('addUserPromptTemplate adds a template', () => {
+      const before = useAppStore.getState().promptTemplates.length;
+      useAppStore.getState().addUserPromptTemplate({
+        id: 'user-1',
+        name: 'My Template',
+        description: 'A custom template',
+        category: 'custom',
+        promptText: 'test prompt',
+        isBuiltIn: false,
+        isFavorite: false,
+        createdAt: Date.now(),
+      });
+      expect(useAppStore.getState().promptTemplates).toHaveLength(before + 1);
+      expect(useAppStore.getState().promptTemplates.at(-1)!.id).toBe('user-1');
+    });
+
+    it('deleteUserPromptTemplate removes non-built-in only', () => {
+      useAppStore.getState().addUserPromptTemplate({
+        id: 'user-2',
+        name: 'Custom',
+        description: 'Delete me',
+        category: 'custom',
+        promptText: 'custom prompt',
+        isBuiltIn: false,
+        isFavorite: false,
+        createdAt: Date.now(),
+      });
+      const builtInCount = useAppStore.getState().promptTemplates.filter((t) => t.isBuiltIn).length;
+      useAppStore.getState().deleteUserPromptTemplate('user-2');
+      expect(useAppStore.getState().promptTemplates.find((t) => t.id === 'user-2')).toBeUndefined();
+
+      // Built-in templates are protected
+      useAppStore.getState().deleteUserPromptTemplate('cinematic-portrait');
+      expect(useAppStore.getState().promptTemplates.find((t) => t.id === 'cinematic-portrait')).toBeDefined();
+      expect(useAppStore.getState().promptTemplates.filter((t) => t.isBuiltIn)).toHaveLength(builtInCount);
+    });
+
+    it('togglePromptTemplateFavorite toggles isFavorite', () => {
+      const before = useAppStore.getState().promptTemplates.find((t) => t.id === 'cinematic-portrait')!.isFavorite;
+      useAppStore.getState().togglePromptTemplateFavorite('cinematic-portrait');
+      expect(useAppStore.getState().promptTemplates.find((t) => t.id === 'cinematic-portrait')!.isFavorite).toBe(!before);
+      useAppStore.getState().togglePromptTemplateFavorite('cinematic-portrait');
+      expect(useAppStore.getState().promptTemplates.find((t) => t.id === 'cinematic-portrait')!.isFavorite).toBe(before);
+    });
+
+    it('setCompositionLayerVisibility toggles a layer', () => {
+      useAppStore.getState().setCompositionLayerVisibility('controlNet', false);
+      expect(useAppStore.getState().compositionLayers.controlNet.visible).toBe(false);
+      useAppStore.getState().setCompositionLayerVisibility('controlNet', true);
+      expect(useAppStore.getState().compositionLayers.controlNet.visible).toBe(true);
+    });
+
+    it('setCompositionLayerOpacity sets opacity', () => {
+      useAppStore.getState().setCompositionLayerOpacity('regionMasks', 0.3);
+      expect(useAppStore.getState().compositionLayers.regionMasks.opacity).toBe(0.3);
+    });
+  });
+
+  // ── Generation Preview ───────────────────────────────────────────────────
+
+  describe('generation preview', () => {
+    it('defaults to empty state', () => {
+      const state = useAppStore.getState();
+      expect(state.stepImages.size).toBe(0);
+      expect(state.currentStep).toBe(0);
+      expect(state.totalSteps).toBe(0);
+      expect(state.isPreviewActive).toBe(false);
+    });
+
+    it('addStepImage adds a step', () => {
+      useAppStore.getState().addStepImage(1, 'data:image/png;base64,abc');
+      const state = useAppStore.getState();
+      expect(state.stepImages.get(1)).toBe('data:image/png;base64,abc');
+      expect(state.currentStep).toBe(1);
+      expect(state.isPreviewActive).toBe(true);
+    });
+
+    it('addStepImage evicts oldest entries when cap exceeded', () => {
+      for (let i = 0; i < 12; i++) {
+        useAppStore.getState().addStepImage(i, `img-${i}`);
+      }
+      const state = useAppStore.getState();
+      expect(state.stepImages.size).toBe(10);
+      // Oldest entries (0, 1) should have been evicted
+      expect(state.stepImages.has(0)).toBe(false);
+      expect(state.stepImages.has(1)).toBe(false);
+      expect(state.stepImages.has(2)).toBe(true);
+    });
+
+    it('clearPreview resets state', () => {
+      useAppStore.getState().addStepImage(5, 'data');
+      useAppStore.getState().setTotalSteps(20);
+      useAppStore.getState().clearPreview();
+      const state = useAppStore.getState();
+      expect(state.stepImages.size).toBe(0);
+      expect(state.currentStep).toBe(0);
+      expect(state.totalSteps).toBe(0);
+      expect(state.isPreviewActive).toBe(false);
+    });
+
+    it('setPreviewActive toggles', () => {
+      useAppStore.getState().setPreviewActive(true);
+      expect(useAppStore.getState().isPreviewActive).toBe(true);
+      useAppStore.getState().setPreviewActive(false);
+      expect(useAppStore.getState().isPreviewActive).toBe(false);
+    });
+  });
+
+  // ── Iteration History ────────────────────────────────────────────────────
+
+  describe('iteration history', () => {
+    it('defaults to empty iteration state', () => {
+      const state = useAppStore.getState();
+      expect(state.iterationNodes.size).toBe(0);
+      expect(state.iterationBranches).toHaveLength(0);
+      expect(state.activeIterationId).toBeNull();
+      expect(state.iterationView).toBe('panel');
+      expect(state.iterationComparisonMode).toBe('side-by-side');
+    });
+
+    it('adds a root iteration', () => {
+      const job = makeIterationJob('iter-1');
+      useAppStore.getState().addIteration({ job, parentId: null, thumbnail: 'data:image/png;base64,abc' });
+      expect(useAppStore.getState().iterationNodes.size).toBe(1);
+      expect(useAppStore.getState().iterationBranches).toHaveLength(1);
+      expect(useAppStore.getState().iterationBranches[0].rootNodeId).toBe('iter-1');
+    });
+
+    it('adds a child iteration (re-roll)', () => {
+      const job1 = makeIterationJob('iter-1');
+      useAppStore.getState().addIteration({ job: job1, parentId: null, thumbnail: 'thumb1' });
+      const branchId = useAppStore.getState().iterationBranches[0].id;
+      const job2 = makeIterationJob('iter-2');
+      useAppStore.getState().addIteration({ job: job2, parentId: 'iter-1', thumbnail: 'thumb2', branchId });
+      expect(useAppStore.getState().iterationNodes.get('iter-1')?.childrenIds).toContain('iter-2');
+    });
+
+    it('forks a new branch when re-rolling from a node with existing children', () => {
+      const job1 = makeIterationJob('iter-1');
+      useAppStore.getState().addIteration({ job: job1, parentId: null, thumbnail: 'thumb1' });
+      const branchId = useAppStore.getState().iterationBranches[0].id;
+      const job2 = makeIterationJob('iter-2');
+      useAppStore.getState().addIteration({ job: job2, parentId: 'iter-1', thumbnail: 'thumb2', branchId });
+      const job3 = makeIterationJob('iter-3');
+      useAppStore.getState().forkIteration({ job: job3, parentId: 'iter-1', thumbnail: 'thumb3' });
+      expect(useAppStore.getState().iterationBranches).toHaveLength(2);
+    });
+
+    it('pins and unpins an iteration', () => {
+      const job = makeIterationJob('iter-1');
+      useAppStore.getState().addIteration({ job, parentId: null, thumbnail: 'thumb1' });
+      useAppStore.getState().pinIteration('iter-1');
+      expect(useAppStore.getState().iterationNodes.get('iter-1')?.isPinned).toBe(true);
+      useAppStore.getState().pinIteration('iter-1');
+      expect(useAppStore.getState().iterationNodes.get('iter-1')?.isPinned).toBe(false);
+    });
+
+    it('sets iteration view and comparison mode', () => {
+      useAppStore.getState().setIterationView('timeline');
+      expect(useAppStore.getState().iterationView).toBe('timeline');
+      useAppStore.getState().setIterationComparisonMode('grid');
+      expect(useAppStore.getState().iterationComparisonMode).toBe('grid');
+    });
+
+    it('cleans up dangling childrenIds when deleting a branch', () => {
+      const job1 = makeIterationJob('iter-1');
+      useAppStore.getState().addIteration({ job: job1, parentId: null, thumbnail: 'thumb1' });
+      const branch1Id = useAppStore.getState().iterationBranches[0].id;
+      const job2 = makeIterationJob('iter-2');
+      useAppStore.getState().addIteration({ job: job2, parentId: 'iter-1', thumbnail: 'thumb2', branchId: branch1Id });
+      // Fork creates a new branch
+      const job3 = makeIterationJob('iter-3');
+      useAppStore.getState().forkIteration({ job: job3, parentId: 'iter-1', thumbnail: 'thumb3' });
+      // iter-1 should have both iter-2 and iter-3 as children
+      expect(useAppStore.getState().iterationNodes.get('iter-1')?.childrenIds).toContain('iter-2');
+      expect(useAppStore.getState().iterationNodes.get('iter-1')?.childrenIds).toContain('iter-3');
+      // Get the forked branch id
+      const forkedBranchId = useAppStore.getState().iterationBranches.find(b => b.id !== branch1Id)?.id;
+      // Delete the forked branch (containing iter-3)
+      if (forkedBranchId) {
+        useAppStore.getState().deleteIterationBranch(forkedBranchId);
+      }
+      // iter-1 should no longer reference iter-3 in childrenIds
+      expect(useAppStore.getState().iterationNodes.get('iter-1')?.childrenIds).not.toContain('iter-3');
+      // iter-2 should still be referenced
+      expect(useAppStore.getState().iterationNodes.get('iter-1')?.childrenIds).toContain('iter-2');
+    });
+  });
+
+  // ── Smart Collections ───────────────────────────────────────────────────
+
+  describe('video generation', () => {
+    it('defaults generationMode to image', () => {
+      expect(useAppStore.getState().generationMode).toBe('image');
+    });
+
+    it('defaults start/end frame to null', () => {
+      expect(useAppStore.getState().startFrameImage).toBeNull();
+      expect(useAppStore.getState().endFrameImage).toBeNull();
+    });
+
+    it('setGenerationMode switches mode', () => {
+      useAppStore.getState().setGenerationMode('video');
+      expect(useAppStore.getState().generationMode).toBe('video');
+    });
+
+    it('setStartFrameImage stores the image', () => {
+      useAppStore.getState().setStartFrameImage('data:image/png;base64,test');
+      expect(useAppStore.getState().startFrameImage).toBe('data:image/png;base64,test');
+    });
+
+    it('setEndFrameImage stores and clears the image', () => {
+      useAppStore.getState().setEndFrameImage('data:image/png;base64,test');
+      expect(useAppStore.getState().endFrameImage).toBe('data:image/png;base64,test');
+      useAppStore.getState().setEndFrameImage(null);
+      expect(useAppStore.getState().endFrameImage).toBeNull();
+    });
+  });
+
+  describe('smart collections', () => {
+    it('defaults to empty collections state', () => {
+      const state = useAppStore.getState();
+      expect(state.collections).toHaveLength(0);
+      expect(state.assetMetadata.size).toBe(0);
+      expect(state.taggingMode).toBe('on-generation');
+    });
+
+    it('creates a manual collection', () => {
+      useAppStore.getState().createCollection({ name: 'My Favorites', type: 'manual' });
+      expect(useAppStore.getState().collections).toHaveLength(1);
+      expect(useAppStore.getState().collections[0].name).toBe('My Favorites');
+      expect(useAppStore.getState().collections[0].type).toBe('manual');
+    });
+
+    it('creates a smart collection with query', () => {
+      useAppStore.getState().createCollection({
+        name: 'Portraits',
+        type: 'smart',
+        smartQuery: { tags: ['portrait'], styleCategories: ['cinematic'] },
+        isAutoGenerated: true,
+      });
+      const coll = useAppStore.getState().collections[0];
+      expect(coll.smartQuery?.tags).toContain('portrait');
+    });
+
+    it('adds and removes assets from collection', () => {
+      useAppStore.getState().createCollection({ name: 'Test', type: 'manual' });
+      const collId = useAppStore.getState().collections[0].id;
+      useAppStore.getState().addAssetToCollection(collId, 'asset-1');
+      expect(useAppStore.getState().collections[0].assetIds).toContain('asset-1');
+      useAppStore.getState().removeAssetFromCollection(collId, 'asset-1');
+      expect(useAppStore.getState().collections[0].assetIds).not.toContain('asset-1');
+    });
+
+    it('changes tagging mode', () => {
+      useAppStore.getState().setTaggingMode('off');
+      expect(useAppStore.getState().taggingMode).toBe('off');
+      useAppStore.getState().setTaggingMode('on-generation');
+      expect(useAppStore.getState().taggingMode).toBe('on-generation');
     });
   });
 });
@@ -519,5 +868,16 @@ function makeHistoryEntry(id: string): EditHistoryEntry {
     id,
     action: 'test-action',
     timestamp: new Date(),
+  };
+}
+
+function makeIterationJob(id: string) {
+  return {
+    id,
+    type: 'image' as const,
+    status: 'completed' as const,
+    progress: 100,
+    params: {},
+    createdAt: new Date(),
   };
 }

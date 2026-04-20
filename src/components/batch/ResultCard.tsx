@@ -8,7 +8,7 @@ import { ImageWithFallback } from '@/components/ui/ImageWithFallback';
 interface ResultCardProps {
   result: BatchResult;
   isSelected: boolean;
-  onSelect: (id: string, e: React.MouseEvent) => void;
+  onSelect: (id: string, e: React.MouseEvent | React.KeyboardEvent) => void;
   onPreview: (id: string) => void;
   onToggleFavorite: (id: string) => void;
   onDownload: (id: string) => void;
@@ -46,7 +46,7 @@ export const ResultCard = memo(function ResultCard({
         onKeyDown={(e) => {
           if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault();
-            onSelect(result.id, e as any);
+            onSelect(result.id, e);
           }
         }}
         className={cn(
@@ -140,7 +140,7 @@ export const ResultCard = memo(function ResultCard({
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault();
-          onSelect(result.id, e as any);
+          onSelect(result.id, e);
         }
       }}
       className={cn(

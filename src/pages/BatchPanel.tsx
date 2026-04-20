@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import { useAppStore } from '@/store/appStore';
 import { cn } from '@/utils/cn';
 import { Button } from '@/components/ui/Button';
@@ -96,7 +97,32 @@ export function BatchPromptQueue() {
     setBatchFilterBy,
     removeBatchResults,
     removeAssetRecordsByPaths,
-  } = useAppStore();
+  } = useAppStore(
+    useShallow((s) => ({
+      addBatchJob: s.addBatchJob,
+      addBatchResult: s.addBatchResult,
+      syncAssetsFromJobStatus: s.syncAssetsFromJobStatus,
+      systemInfo: s.systemInfo,
+      batchResults: s.batchResults,
+      batchViewMode: s.batchViewMode,
+      batchSortBy: s.batchSortBy,
+      batchFilterBy: s.batchFilterBy,
+      setBatchViewMode: s.setBatchViewMode,
+      setBatchSortBy: s.setBatchSortBy,
+      setBatchFilterBy: s.setBatchFilterBy,
+      removeBatchResults: s.removeBatchResults,
+      removeAssetRecordsByPaths: s.removeAssetRecordsByPaths,
+    }))
+  );
+
+  // Ref for polling interval cleanup
+  const batchPollRef = useRef<ReturnType<typeof setInterval>>(null);
+  useEffect(() => {
+    return () => {
+      if (batchPollRef.current) clearInterval(batchPollRef.current);
+    };
+  }, []);
+
   const [prompts, setPrompts] = useState<BatchPrompt[]>([
     { id: '1', prompt: '', status: 'pending' },
   ]);
@@ -214,6 +240,7 @@ export function BatchPromptQueue() {
     outputRoot: string
   ) => {
     const checkInterval = setInterval(async () => {
+      batchPollRef.current = checkInterval;
       let allCompleted = true;
       const updatedPrompts = [...startingPrompts];
 
@@ -279,6 +306,7 @@ export function BatchPromptQueue() {
 
       if (allCompleted) {
         clearInterval(checkInterval);
+        batchPollRef.current = null;
         setIsGenerating(false);
       }
     }, 2000);
@@ -347,7 +375,7 @@ export function BatchPromptQueue() {
     prompts.length > 0 ? (completedCount / prompts.length) * 100 : 0;
 
   return (
-    <div className="h-full flex flex-col bg-surface">
+    <div className="h-full flex flex-col bg-surface" data-testid="batch-panel">
       {/* Results Toolbar */}
       <div className="p-3 border-b border-border space-y-3">
         {/* View / Sort row */}
@@ -572,6 +600,8 @@ export function BatchPromptQueue() {
       <div className="border-t border-border">
         <button
           onClick={() => setShowSettings(!showSettings)}
+          aria-expanded={showSettings}
+          aria-controls="batch-settings-panel"
           className="w-full flex items-center justify-between p-4 text-sm text-text-body hover:text-text-primary transition-all font-display"
         >
           <span className="flex items-center gap-2">
@@ -586,6 +616,7 @@ export function BatchPromptQueue() {
         <AnimatePresence>
           {showSettings && (
             <motion.div
+              id="batch-settings-panel"
               initial={{ height: 0 }}
               animate={{ height: 'auto' }}
               exit={{ height: 0 }}
@@ -710,7 +741,14 @@ export function BatchPromptQueue() {
    ─────────────────────────────────────────────────────────── */
 
 export function BatchResultsPanel() {
-  const { batchResults, batchViewMode, batchSortBy, batchFilterBy } = useAppStore();
+  const { batchResults, batchViewMode, batchSortBy, batchFilterBy } = useAppStore(
+    useShallow((s) => ({
+      batchResults: s.batchResults,
+      batchViewMode: s.batchViewMode,
+      batchSortBy: s.batchSortBy,
+      batchFilterBy: s.batchFilterBy,
+    }))
+  );
   const [previewResultId, setPreviewResultId] = useState<string | null>(null);
 
   const previewResult = previewResultId
@@ -741,5 +779,10 @@ export function BatchResultsPanel() {
    ─────────────────────────────────────────────────────────── */
 
 export function BatchPanel() {
-  return <BatchPromptQueue />;
+  return (
+    <>
+      <h1 className="sr-only">Batch Generation</h1>
+      <BatchPromptQueue />
+    </>
+  );
 }

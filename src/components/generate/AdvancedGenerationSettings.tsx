@@ -1,5 +1,6 @@
 import { cn } from '@/utils/cn';
 import { useAppStore } from '@/store/appStore';
+import { useShallow } from 'zustand/react/shallow';
 import { Slider } from '@/components/ui/Slider';
 import { Settings2, ChevronDown, Dice5 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -27,7 +28,14 @@ export function AdvancedGenerationSettings({
     updateAdvancedGeneration,
     showAdvancedGeneration,
     setShowAdvancedGeneration,
-  } = useAppStore();
+  } = useAppStore(
+    useShallow((s) => ({
+      advancedGeneration: s.advancedGeneration,
+      updateAdvancedGeneration: s.updateAdvancedGeneration,
+      showAdvancedGeneration: s.showAdvancedGeneration,
+      setShowAdvancedGeneration: s.setShowAdvancedGeneration,
+    }))
+  );
 
   const generationType = advancedGeneration.generationType;
 

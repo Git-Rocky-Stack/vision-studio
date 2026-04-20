@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { cn } from '@/utils/cn';
 import { hexToRgba } from '@/utils/colorUtils';
 import { Button } from '@/components/ui/Button';
@@ -43,14 +43,58 @@ export function TemplatePreviewModal({
   onUseTemplate,
   onEditTemplate,
 }: TemplatePreviewModalProps) {
-  // Keyboard: Escape to close
+  // Focus trap and keyboard handling
+  const modalRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     if (!template) return;
-    const handleKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+    const previousFocus = document.activeElement as HTMLElement;
+
+    // Focus the first focusable element when modal opens
+    const container = modalRef.current;
+    if (container) {
+      const focusableSelector = 'a[href], button:not([disabled]), textarea, input, select, [tabindex]:not([tabindex="-1"])';
+      const focusableElements = container.querySelectorAll<HTMLElement>(focusableSelector);
+      if (focusableElements.length > 0) {
+        focusableElements[0].focus();
+      }
+    }
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+        return;
+      }
+
+      if (e.key !== 'Tab') return;
+      const container = modalRef.current;
+      if (!container) return;
+
+      const focusableSelector = 'a[href], button:not([disabled]), textarea, input, select, [tabindex]:not([tabindex="-1"])';
+      const focusableElements = Array.from(container.querySelectorAll<HTMLElement>(focusableSelector));
+      if (focusableElements.length === 0) return;
+
+      const first = focusableElements[0];
+      const last = focusableElements[focusableElements.length - 1];
+
+      if (e.shiftKey) {
+        if (document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        }
+      } else {
+        if (document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
     };
-    window.addEventListener('keydown', handleKey);
-    return () => window.removeEventListener('keydown', handleKey);
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+      previousFocus?.focus();
+    };
   }, [template, onClose]);
 
   return (
@@ -68,6 +112,7 @@ export function TemplatePreviewModal({
 
           {/* Modal */}
           <motion.div
+            ref={modalRef}
             initial={{ opacity: 0, scale: 0.95, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 20 }}

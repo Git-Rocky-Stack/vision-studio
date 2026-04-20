@@ -19,7 +19,8 @@ const modes: { id: ComparisonMode; label: string; icon: React.ElementType }[] = 
 ];
 
 export const ComparisonToolbar = memo(function ComparisonToolbar() {
-  const { comparisonMode, setComparisonMode } = useAppStore();
+  const comparisonMode = useAppStore((s) => s.comparisonMode);
+  const setComparisonMode = useAppStore((s) => s.setComparisonMode);
 
   if (!comparisonMode || comparisonMode === 'off') return null;
 

@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 
 import { useAppStore, type AppState } from '@/store/appStore';
+import { useShallow } from 'zustand/react/shallow';
 import { ImageWithFallback } from '@/components/ui/ImageWithFallback';
 import type { GenerationDraft } from '@/types/generation';
 import { DEFAULT_GENERATION_CONFIG } from '@/types/project';
@@ -66,9 +67,27 @@ export function WorkbenchViewer() {
     setComparisonMode,
     setGenerationDraft,
     setCurrentImage,
-    setActivePanel,
-    setActiveWorkbenchView,
-  } = useAppStore();
+    setActiveTab,
+    setCenterView,
+  } = useAppStore(useShallow(s => ({
+    assetLibrary: s.assetLibrary,
+    activeProjectId: s.activeProjectId,
+    activeViewerItemId: s.activeViewerItemId,
+    batchResults: s.batchResults,
+    comparisonImages: s.comparisonImages,
+    comparisonMode: s.comparisonMode,
+    projects: s.projects,
+    addScene: s.addScene,
+    setActiveViewerItemId: s.setActiveViewerItemId,
+    setActiveScene: s.setActiveScene,
+    setSceneStatus: s.setSceneStatus,
+    setComparisonImages: s.setComparisonImages,
+    setComparisonMode: s.setComparisonMode,
+    setGenerationDraft: s.setGenerationDraft,
+    setCurrentImage: s.setCurrentImage,
+    setActiveTab: s.setActiveTab,
+    setCenterView: s.setCenterView,
+  })));
 
   const items = useMemo<ViewerItem[]>(() => {
     const assets = assetLibrary.map((asset) => ({
@@ -168,15 +187,15 @@ export function WorkbenchViewer() {
     if (!activeItem) return;
 
     setCurrentImage(activeItem.imagePath, activeItem.assetPath);
-    setActivePanel('edit');
+    setActiveTab('canvas');
   };
 
   const branchVariant = () => {
     if (!activeItem) return;
 
     setGenerationDraft(toGenerationDraft(activeItem));
-    setActiveWorkbenchView('canvas');
-    setActivePanel('generate');
+    setCenterView('canvas');
+    setActiveTab('generate');
   };
 
   const addToBoard = () => {

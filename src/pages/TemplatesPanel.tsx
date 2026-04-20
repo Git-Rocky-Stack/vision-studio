@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import { useAppStore, PROJECT_TEMPLATES } from '@/store/appStore';
 import type { ProjectTemplate } from '@/types/template';
 import { cn } from '@/utils/cn';
@@ -53,11 +54,16 @@ type ViewMode = 'cards' | 'compact';
 
 export function TemplatesPanel() {
   const {
-    setActivePanel,
+    setActiveTab,
     setCurrentProject,
     userTemplates,
     deleteUserTemplate,
-  } = useAppStore();
+  } = useAppStore(useShallow(s => ({
+    setActiveTab: s.setActiveTab,
+    setCurrentProject: s.setCurrentProject,
+    userTemplates: s.userTemplates,
+    deleteUserTemplate: s.deleteUserTemplate,
+  })));
 
   const [selectedCategory, setSelectedCategory] = useState<string | 'all' | 'mine'>('all');
   const [hoveredTemplate, setHoveredTemplate] = useState<string | null>(null);
@@ -102,8 +108,8 @@ export function TemplatesPanel() {
       updatedAt: new Date(),
       template: template,
     };
-    setCurrentProject(newProject as any);
-    setActivePanel('generate');
+    setCurrentProject(newProject);
+    setActiveTab('generate');
   };
 
   const handleDeleteTemplate = (templateId: string) => {
@@ -152,7 +158,8 @@ export function TemplatesPanel() {
   ];
 
   return (
-    <div className="h-full flex flex-col bg-void">
+    <div className="h-full flex flex-col bg-void" data-testid="templates-panel">
+      <h1 className="sr-only">Templates</h1>
       {/* Top Bar */}
       <div className="px-6 pt-6 pb-4 border-b border-border bg-surface/50">
         <div className="flex items-center justify-between mb-4">

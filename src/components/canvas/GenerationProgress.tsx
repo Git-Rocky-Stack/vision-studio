@@ -3,7 +3,7 @@ import { useAppStore } from '@/store/appStore';
 import { motion } from 'framer-motion';
 
 export const GenerationProgress = memo(function GenerationProgress() {
-  const { activeJobs } = useAppStore();
+  const activeJobs = useAppStore((s) => s.activeJobs);
   const activeJob = activeJobs.find(
     (j) => j.status === 'pending' || j.status === 'processing'
   );

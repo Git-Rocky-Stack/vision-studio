@@ -73,6 +73,7 @@ export function Tooltip({
         onKeyDown: (event: React.KeyboardEvent) => {
           getReferenceProps().onKeyDown?.(event);
           handleReferenceKeyDown(event);
+          children.props.onKeyDown?.(event);
         },
       })}
       <FloatingPortal>

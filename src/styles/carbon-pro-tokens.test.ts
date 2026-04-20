@@ -18,7 +18,7 @@ describe('Carbon Pro design tokens', () => {
     expect(css).toContain('--color-panel-raised: #1a1a1a');
     expect(css).toContain('--color-text-primary: #f5f5f5');
     expect(css).toContain('--color-text-body: #b3b3b3');
-    expect(css).toContain('--color-text-muted: #7a7a7a');
+    expect(css).toContain('--color-text-muted: #888888');
     expect(css).toContain('--color-border: rgba(255, 255, 255, 0.08)');
   });
 

@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { ImageIcon } from 'lucide-react';
 
 import { useAppStore } from '@/store/appStore';
+import { useShallow } from 'zustand/react/shallow';
 import { ImageWithFallback } from '@/components/ui/ImageWithFallback';
 import { cn } from '@/utils/cn';
 
@@ -20,8 +21,14 @@ export function WorkbenchGalleryDock() {
     assetLibrary,
     batchResults,
     setActiveViewerItemId,
-    setActiveWorkbenchView,
-  } = useAppStore();
+    setCenterView,
+  } = useAppStore(useShallow(s => ({
+    activeViewerItemId: s.activeViewerItemId,
+    assetLibrary: s.assetLibrary,
+    batchResults: s.batchResults,
+    setActiveViewerItemId: s.setActiveViewerItemId,
+    setCenterView: s.setCenterView,
+  })));
 
   const items = useMemo<GalleryItem[]>(() => {
     const assetItems = assetLibrary.map((asset) => ({
@@ -75,7 +82,7 @@ export function WorkbenchGalleryDock() {
               aria-pressed={activeViewerItemId === item.id}
               onClick={() => {
                 setActiveViewerItemId(item.id);
-                setActiveWorkbenchView('viewer');
+                setCenterView('viewer');
               }}
               className={cn(
                 'min-w-0 overflow-hidden rounded-md border bg-elevated text-left transition-all',

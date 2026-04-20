@@ -204,6 +204,8 @@ export function LoRAMixer({ configs, onChange }: LoRAMixerProps) {
     return (
       <button
         onClick={() => setIsExpanded(true)}
+        aria-expanded={isExpanded}
+        aria-controls="lora-mixer-panel"
         className="flex items-center gap-2 w-full py-3 px-3 rounded-lg border border-dashed border-border text-text-body hover:text-text-primary hover:border-border-hover transition-all font-display text-sm"
       >
         <Layers className="w-4 h-4" />

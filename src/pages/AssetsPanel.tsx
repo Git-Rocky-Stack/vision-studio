@@ -3,6 +3,7 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { cn } from '@/utils/cn';
 import { Button } from '@/components/ui/Button';
+import { useShallow } from 'zustand/react/shallow';
 import { useAppStore } from '@/store/appStore';
 import type { AssetRecord } from '@/types/assets';
 import { ImageWithFallback } from '@/components/ui/ImageWithFallback';
@@ -37,11 +38,13 @@ function formatAssetMeta(asset: AssetRecord) {
 }
 
 export function AssetsPanel() {
-  const {
-    assetLibrary,
-    deleteAssetRecord,
-    toggleAssetFavorite,
-  } = useAppStore();
+  const { assetLibrary, deleteAssetRecord, toggleAssetFavorite } = useAppStore(
+    useShallow((s) => ({
+      assetLibrary: s.assetLibrary,
+      deleteAssetRecord: s.deleteAssetRecord,
+      toggleAssetFavorite: s.toggleAssetFavorite,
+    }))
+  );
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
   const [filter, setFilter] = useState<AssetType>('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -168,7 +171,8 @@ export function AssetsPanel() {
   });
 
   return (
-    <div className="h-full flex flex-col bg-surface">
+    <div className="h-full flex flex-col bg-surface" data-testid="assets-panel">
+      <h1 className="sr-only">Assets</h1>
       <div className="p-4 border-b border-border space-y-4">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />

@@ -29,7 +29,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
   render() {
     if (this.state.hasError) {
       return (
-        <div className="flex-1 flex flex-col items-center justify-center p-8 bg-surface">
+        <div role="alert" className="flex-1 flex flex-col items-center justify-center p-8 bg-surface">
           <div className="w-12 h-12 rounded-xl bg-red-aura flex items-center justify-center mb-4">
             <AlertTriangle className="w-6 h-6 text-red-primary" />
           </div>

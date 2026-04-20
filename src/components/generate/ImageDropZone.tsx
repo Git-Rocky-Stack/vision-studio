@@ -50,7 +50,7 @@ export function ImageDropZone({
       readFileAsDataUrl(file).then((dataUrl) => {
         onImageChange(dataUrl);
         setIsExpanded(true);
-      }).catch(() => {/* ignore read errors */});
+      }).catch((err) => { console.error('Failed to read file:', err); });
     },
     [onImageChange]
   );

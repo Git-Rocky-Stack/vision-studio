@@ -4,6 +4,8 @@ import { hexToRgba } from '@/utils/colorUtils';
 import { useAppStore } from '@/store/appStore';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { ScenePlaybackStrip } from '@/components/storyboard/ScenePlaybackStrip';
+import { StoryboardPlayback } from '@/components/timeline/StoryboardPlayback';
+import { AnimationTrackEditor } from '@/components/timeline/AnimationTrackEditor';
 import {
   Play,
   Pause,
@@ -284,7 +286,7 @@ const TrackHeader = memo(function TrackHeader({
             setIsMuted(!isMuted);
           }}
           className={cn(
-            'p-0.5 rounded transition-all opacity-0 group-hover:opacity-100 focus:opacity-100',
+            'p-0.5 min-w-[44px] min-h-[44px] rounded transition-all opacity-0 group-hover:opacity-100 focus:opacity-100 focus-visible:opacity-100',
             isMuted ? 'text-status-error opacity-100' : 'text-text-muted hover:text-text-body'
           )}
           aria-label={isMuted ? 'Unmute track' : 'Mute track'}
@@ -301,7 +303,7 @@ const TrackHeader = memo(function TrackHeader({
           setIsVisible(!isVisible);
         }}
         className={cn(
-          'p-0.5 rounded transition-all opacity-0 group-hover:opacity-100 focus:opacity-100',
+          'p-0.5 min-w-[44px] min-h-[44px] rounded transition-all opacity-0 group-hover:opacity-100 focus:opacity-100 focus-visible:opacity-100',
           !isVisible ? 'text-status-error opacity-100' : 'text-text-muted hover:text-text-body'
         )}
         aria-label={isVisible ? 'Hide track' : 'Show track'}
@@ -317,7 +319,7 @@ const TrackHeader = memo(function TrackHeader({
           setIsLocked(!isLocked);
         }}
         className={cn(
-          'p-0.5 rounded transition-all opacity-0 group-hover:opacity-100 focus:opacity-100',
+          'p-0.5 min-w-[44px] min-h-[44px] rounded transition-all opacity-0 group-hover:opacity-100 focus:opacity-100 focus-visible:opacity-100',
           isLocked ? 'text-status-warning opacity-100' : 'text-text-muted hover:text-text-body'
         )}
         aria-label={isLocked ? 'Unlock track' : 'Lock track'}
@@ -597,15 +599,25 @@ const ZoomControls = memo(function ZoomControls({
 // ─── Main Component ──────────────────────────────────────────────────────────
 
 export const Timeline = memo(function Timeline() {
-  const { completedJobs, projects, activeProjectId, activeSceneId, setActiveScene } = useAppStore();
+  const completedJobs = useAppStore((s) => s.completedJobs);
+  const projects = useAppStore((s) => s.projects);
+  const activeProjectId = useAppStore((s) => s.activeProjectId);
+  const activeSceneId = useAppStore((s) => s.activeSceneId);
+  const setActiveScene = useAppStore((s) => s.setActiveScene);
+  const deleteCompletedJob = useAppStore((s) => s.deleteCompletedJob);
+  const timelineMode = useAppStore((s) => s.timelineMode);
+  const setTimelineMode = useAppStore((s) => s.setTimelineMode);
+  const onionSkinEnabled = useAppStore((s) => s.onionSkinEnabled);
+  const setOnionSkinEnabled = useAppStore((s) => s.setOnionSkinEnabled);
+  const keyframes = useAppStore((s) => s.keyframes);
+  const activeKeyframeId = useAppStore((s) => s.activeKeyframeId);
+  const setActiveKeyframeId = useAppStore((s) => s.setActiveKeyframeId);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [selectedTrackId, setSelectedTrackId] = useState<string | null>(null);
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
   const [zoom, setZoom] = useState(1);
-
-  const { deleteCompletedJob } = useAppStore();
 
   // Derive storyboard scenes from active project
   const activeProject = projects.find((p) => p.id === activeProjectId);
@@ -829,6 +841,31 @@ export const Timeline = memo(function Timeline() {
 
           <div className="w-px h-5 bg-border mx-1" />
 
+          {/* Timeline mode switcher */}
+          <div className="flex items-center gap-0.5 bg-void rounded-md p-0.5">
+            {(['storyboard', 'animation', 'canvas'] as const).map((mode) => {
+              const isActive = timelineMode === mode;
+              return (
+                <button
+                  key={mode}
+                  onClick={() => setTimelineMode(mode)}
+                  className={cn(
+                    'px-2 py-0.5 rounded text-xs font-display capitalize transition-all',
+                    isActive
+                      ? 'bg-surface text-accent-primary shadow-sm'
+                      : 'text-text-muted hover:text-text-body'
+                  )}
+                  aria-label={`${mode} mode`}
+                  data-active={isActive}
+                >
+                  {mode}
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="w-px h-5 bg-border mx-1" />
+
           {/* Track actions */}
           <button
             className={cn(
@@ -886,6 +923,24 @@ export const Timeline = memo(function Timeline() {
 
           <div className="w-px h-5 bg-border mx-1" />
 
+          {/* Onion skin toggle */}
+          <button
+            onClick={() => setOnionSkinEnabled(!onionSkinEnabled)}
+            className={cn(
+              'p-1.5 rounded-md transition-all',
+              onionSkinEnabled
+                ? 'text-accent-primary bg-accent-primary-muted'
+                : 'text-text-body hover:text-text-primary hover:bg-surface'
+            )}
+            aria-label="Toggle onion skin"
+            aria-pressed={onionSkinEnabled}
+            title="Onion skin (O)"
+          >
+            <Layers className="w-3.5 h-3.5" />
+          </button>
+
+          <div className="w-px h-5 bg-border mx-1" />
+
           <button
             onClick={() => setIsCollapsed(true)}
             className="p-1.5 rounded-md text-text-body hover:text-text-primary hover:bg-surface transition-all"
@@ -898,6 +953,11 @@ export const Timeline = memo(function Timeline() {
       </div>
 
       {/* ─── Timeline Body ────────────────────────────────────────────────── */}
+      {timelineMode === 'storyboard' ? (
+        <StoryboardPlayback className="flex-1" />
+      ) : timelineMode === 'animation' ? (
+        <AnimationTrackEditor className="flex-1" />
+      ) : (
       <div className="flex-1 flex min-h-0 overflow-hidden">
         {/* ─── Track Headers (fixed left column) ────────────────────────── */}
         <div
@@ -1056,6 +1116,32 @@ export const Timeline = memo(function Timeline() {
                           isSelected={isSelected}
                           index={index}
                         />
+
+                        {/* Keyframe markers on this track */}
+                        {keyframes
+                          .filter((kf) => kf.entityId === track.id)
+                          .map((kf) => {
+                            const kfLeft = (kf.time / 1000 / totalDuration) * 100;
+                            const isActive = activeKeyframeId === kf.id;
+                            return (
+                              <button
+                                key={kf.id}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setActiveKeyframeId(isActive ? null : kf.id);
+                                }}
+                                className={cn(
+                                  'absolute z-10 w-2.5 h-2.5 rotate-45 transition-all cursor-pointer',
+                                  isActive
+                                    ? 'bg-accent-primary ring-2 ring-accent-primary/50 ring-offset-1 ring-offset-surface'
+                                    : 'bg-text-body/60 hover:bg-text-body'
+                                )}
+                                style={{ left: `${kfLeft}%`, top: '50%', marginTop: '-5px' }}
+                                aria-label={`Keyframe at ${(kf.time / 1000).toFixed(1)}s`}
+                                title={`${kf.interpolation} at ${(kf.time / 1000).toFixed(1)}s`}
+                              />
+                            );
+                          })}
                       </div>
                     </div>
                   );
@@ -1065,6 +1151,7 @@ export const Timeline = memo(function Timeline() {
           </div>
         </div>
       </div>
+      )}
 
       <ConfirmDialog
         open={deleteTargetId !== null}

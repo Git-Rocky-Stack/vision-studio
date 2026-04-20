@@ -22,12 +22,16 @@ const baseStore = {
   },
 };
 
+function mockStore(overrides: Partial<typeof baseStore> = {}) {
+  const state = { ...baseStore, ...overrides };
+  vi.mocked(useAppStore).mockImplementation((selector: (s: typeof state) => unknown) => selector(state));
+}
+
 describe('Header', () => {
   afterEach(cleanup);
 
   it('renders quiet production chrome without oversized branding', () => {
-    vi.mocked(useAppStore).mockReturnValue({
-      ...baseStore,
+    mockStore({
       systemInfo: {
         ...baseStore.systemInfo,
         backendConnected: true,
@@ -45,7 +49,7 @@ describe('Header', () => {
   });
 
   it('marks the backend as not ready when generation is unavailable', () => {
-    vi.mocked(useAppStore).mockReturnValue(baseStore);
+    mockStore();
 
     render(<Header />);
 

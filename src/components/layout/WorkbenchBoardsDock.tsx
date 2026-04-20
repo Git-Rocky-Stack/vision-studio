@@ -1,6 +1,7 @@
 import { Plus } from 'lucide-react';
 
 import { useAppStore } from '@/store/appStore';
+import { useShallow } from 'zustand/react/shallow';
 import type { Project, Scene } from '@/types/project';
 import { ImageWithFallback } from '@/components/ui/ImageWithFallback';
 import { cn } from '@/utils/cn';
@@ -25,10 +26,21 @@ export function WorkbenchBoardsDock() {
     activeSceneId,
     addScene,
     createProject,
-    setActivePanel,
+    setActiveTab,
+    setActiveSubMode,
     setActiveProject,
     setActiveScene,
-  } = useAppStore();
+  } = useAppStore(useShallow(s => ({
+    projects: s.projects,
+    activeProjectId: s.activeProjectId,
+    activeSceneId: s.activeSceneId,
+    addScene: s.addScene,
+    createProject: s.createProject,
+    setActiveTab: s.setActiveTab,
+    setActiveSubMode: s.setActiveSubMode,
+    setActiveProject: s.setActiveProject,
+    setActiveScene: s.setActiveScene,
+  })));
   const activeProject = projects.find((project) => project.id === activeProjectId) ?? null;
   const orderedProjects = [...projects].sort(compareProjectsByActivity);
   const nextBoardName = projects.length === 0 ? 'Untitled Board' : `Untitled Board ${projects.length + 1}`;
@@ -40,7 +52,7 @@ export function WorkbenchBoardsDock() {
 
   const handleOpenStoryboard = () => {
     if (!activeProjectId) return;
-    setActivePanel('storyboard');
+    setActiveTab('story'); setActiveSubMode('storyboard');
   };
 
   const handleAddScene = () => {

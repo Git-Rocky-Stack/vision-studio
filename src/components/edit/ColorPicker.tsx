@@ -49,6 +49,7 @@ export function ColorPicker({ value, onChange, recentColors }: ColorPickerProps)
       <button
         onClick={() => setIsOpen(!isOpen)}
         aria-expanded={isOpen}
+        aria-haspopup="listbox"
         className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-elevated border border-border hover:border-border-hover transition-all"
       >
         <div

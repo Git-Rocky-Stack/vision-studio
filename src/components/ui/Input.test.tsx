@@ -7,7 +7,7 @@ describe('Input', () => {
   afterEach(cleanup);
 
   it('renders with value and placeholder', () => {
-    render(<Input value="test" placeholder="Enter text" />);
+    render(<Input readOnly value="test" placeholder="Enter text" />);
     const input = screen.getByRole('textbox');
     expect(input).toHaveValue('test');
     expect(input).toHaveAttribute('placeholder', 'Enter text');
@@ -79,10 +79,30 @@ describe('Input', () => {
     expect(input).toHaveValue('test input');
   });
 
-  it('renders label correctly when provided', () => {
+  it('renders label correctly when provided and associates it with the input', () => {
     render(<Input label="Test Label" />);
-    expect(screen.getByText('Test Label')).toBeInTheDocument();
-    expect(screen.getByText('Test Label')).toHaveClass('text-label');
+    const label = screen.getByText('Test Label');
+    const input = screen.getByRole('textbox');
+    expect(label).toBeInTheDocument();
+    expect(label).toHaveClass('text-label');
+    expect(label).toHaveAttribute('for');
+    expect(label.getAttribute('for')).toBe(input.getAttribute('id'));
+  });
+
+  it('uses explicit id when provided and connects label', () => {
+    render(<Input label="Email" id="email-input" />);
+    const label = screen.getByText('Email');
+    const input = screen.getByRole('textbox');
+    expect(input).toHaveAttribute('id', 'email-input');
+    expect(label).toHaveAttribute('for', 'email-input');
+  });
+
+  it('auto-generates id for label association when no id provided', () => {
+    render(<Input label="Username" />);
+    const input = screen.getByRole('textbox');
+    expect(input).toHaveAttribute('id');
+    expect(input.getAttribute('id')).toBeTruthy();
+    expect(screen.getByText('Username').getAttribute('for')).toBe(input.getAttribute('id'));
   });
 
   it('uses Carbon Pro accent styling for normal focus state', () => {
@@ -134,6 +154,31 @@ describe('Input', () => {
     render(<Input label="Email" aria-label="Email address" aria-describedby="email-help" />);
     const input = screen.getByRole('textbox');
     expect(input).toHaveAttribute('aria-label', 'Email address');
-    expect(input).toHaveAttribute('aria-describedby', 'email-help');
+    // aria-describedby composes: external ref + generated message ids
+    const describedBy = input.getAttribute('aria-describedby');
+    expect(describedBy).toContain('email-help');
+  });
+
+  it('associates error message via aria-describedby', () => {
+    render(<Input error="This field is required" />);
+    const input = screen.getByRole('textbox');
+    const errorMsg = screen.getByText('This field is required');
+    expect(input.getAttribute('aria-describedby')).toBe(errorMsg.getAttribute('id'));
+  });
+
+  it('associates helper text via aria-describedby', () => {
+    render(<Input helper="Enter your email" />);
+    const input = screen.getByRole('textbox');
+    const helperMsg = screen.getByText('Enter your email');
+    expect(input.getAttribute('aria-describedby')).toBe(helperMsg.getAttribute('id'));
+  });
+
+  it('prefers error aria-describedby over helper when both are provided', () => {
+    render(<Input helper="Helper text" error="Error message" />);
+    const input = screen.getByRole('textbox');
+    const errorMsg = screen.getByText('Error message');
+    const describedBy = input.getAttribute('aria-describedby');
+    expect(describedBy).toBe(errorMsg.getAttribute('id'));
+    expect(screen.queryByText('Helper text')).not.toBeInTheDocument();
   });
 });

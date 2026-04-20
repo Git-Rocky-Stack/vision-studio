@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { cn } from '@/utils/cn';
 import { useAppStore } from '@/store/appStore';
+import { useShallow } from 'zustand/react/shallow';
 import { ImageWithFallback } from '@/components/ui/ImageWithFallback';
 import {
   Clock,
@@ -25,8 +26,13 @@ export function PromptHistory({
   onClose,
   onSelectPrompt,
 }: PromptHistoryProps) {
-  const { promptHistory, favoritePrompts, toggleFavoritePrompt } =
-    useAppStore();
+  const { promptHistory, favoritePrompts, toggleFavoritePrompt } = useAppStore(
+    useShallow((s) => ({
+      promptHistory: s.promptHistory,
+      favoritePrompts: s.favoritePrompts,
+      toggleFavoritePrompt: s.toggleFavoritePrompt,
+    }))
+  );
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<'all' | 'favorites'>('all');
   const panelRef = useRef<HTMLDivElement>(null);

@@ -1,7 +1,8 @@
-import { useEffect, useCallback } from 'react';
+import { useEffect, useCallback, useRef } from 'react';
 import { cn } from '@/utils/cn';
 import { Button } from '@/components/ui/Button';
 import { useAppStore } from '@/store/appStore';
+import { useShallow } from 'zustand/react/shallow';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   X,
@@ -39,12 +40,21 @@ export function ImagePreviewModal({
 }: ImagePreviewModalProps) {
   const {
     setCurrentImage,
-    setActivePanel,
+    setActiveTab,
     setGenerationDraft,
     removeBatchResults,
     removeAssetRecordsByPaths,
     upsertDerivedAsset,
-  } = useAppStore();
+  } = useAppStore(
+    useShallow((s) => ({
+      setCurrentImage: s.setCurrentImage,
+      setActiveTab: s.setActiveTab,
+      setGenerationDraft: s.setGenerationDraft,
+      removeBatchResults: s.removeBatchResults,
+      removeAssetRecordsByPaths: s.removeAssetRecordsByPaths,
+      upsertDerivedAsset: s.upsertDerivedAsset,
+    }))
+  );
 
   const currentIndex = result ? results.findIndex((r) => r.id === result.id) : -1;
   const hasPrev = currentIndex > 0;
@@ -77,16 +87,60 @@ export function ImagePreviewModal({
   }, [result, onClose, goToPrev, goToNext]);
 
   // Focus trap
+  const modalRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     if (!result) return;
     const previousFocus = document.activeElement as HTMLElement;
-    return () => { previousFocus?.focus(); };
+
+    // Focus the first focusable element when modal opens
+    const container = modalRef.current;
+    if (container) {
+      const focusableSelector = 'a[href], button:not([disabled]), textarea, input, select, [tabindex]:not([tabindex="-1"])';
+      const focusableElements = container.querySelectorAll<HTMLElement>(focusableSelector);
+      if (focusableElements.length > 0) {
+        focusableElements[0].focus();
+      }
+    }
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'Tab') return;
+      const container = modalRef.current;
+      if (!container) return;
+
+      const focusableSelector = 'a[href], button:not([disabled]), textarea, input, select, [tabindex]:not([tabindex="-1"])';
+      const focusableElements = Array.from(container.querySelectorAll<HTMLElement>(focusableSelector));
+      if (focusableElements.length === 0) return;
+
+      const first = focusableElements[0];
+      const last = focusableElements[focusableElements.length - 1];
+
+      if (e.shiftKey) {
+        if (document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        }
+      } else {
+        if (document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+      previousFocus?.focus();
+    };
   }, [result]);
 
   const handleSendToEdit = () => {
     if (result?.imagePath) {
       setCurrentImage(result.imagePath, result.assetPath);
-      setActivePanel('edit');
+      setActiveTab('canvas');
+      useAppStore.getState().setActiveSubMode(null);
+      useAppStore.getState().setCenterView('canvas');
       onClose();
     }
   };
@@ -100,7 +154,7 @@ export function ImagePreviewModal({
   const handleRegenerate = () => {
     if (result) {
       setGenerationDraft(toGenerationDraftFromResult(result));
-      setActivePanel('generate');
+      setActiveTab('generate');
       onClose();
     }
   };
@@ -167,7 +221,9 @@ export function ImagePreviewModal({
         : `http://localhost:8000${upscaleResult.image}`,
       upscaleResult.output_path
     );
-    setActivePanel('edit');
+    setActiveTab('canvas');
+    useAppStore.getState().setActiveSubMode(null);
+    useAppStore.getState().setCenterView('canvas');
     onClose();
   };
 
@@ -201,6 +257,7 @@ export function ImagePreviewModal({
 
           {/* Content */}
           <div
+            ref={modalRef}
             className="relative flex flex-1"
             onClick={(e) => e.stopPropagation()}
           >

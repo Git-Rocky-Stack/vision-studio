@@ -15,9 +15,9 @@ import { fileURLToPath } from 'url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const MAIN_ENTRY = path.resolve(__dirname, '../../dist-electron/main.mjs');
 
-// 1x1 transparent PNG as a data URL — suitable for `currentImage` without network/fs I/O.
-const TINY_PNG =
-  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=';
+// Inline 800x600 SVG as a data URL - suitable for `currentImage` without network/fs I/O.
+const TEST_IMAGE =
+  'data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22800%22%20height%3D%22600%22%3E%3Crect%20width%3D%22800%22%20height%3D%22600%22%20fill%3D%22%23161616%22%2F%3E%3C%2Fsvg%3E';
 
 async function seedProject(page: import('@playwright/test').Page) {
   // Create a minimal project + scene and set it active, plus load a current image
@@ -62,9 +62,9 @@ async function seedProject(page: import('@playwright/test').Page) {
       activeProjectId: 'p-e2e-1',
       activeSceneId: 's-e2e-1',
       currentImage: img,
-      activePanel: 'edit',
+      activeTab: 'canvas',
     });
-  }, TINY_PNG);
+  }, TEST_IMAGE);
 }
 
 test.describe('Region Lock - workflow', () => {

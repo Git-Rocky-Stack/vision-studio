@@ -1,6 +1,17 @@
 import { memo, useState } from 'react';
 import { cn } from '@/utils/cn';
-import { ImageOff, Trash2, Copy, CheckCircle2, Clock, AlertCircle, Loader2, GripVertical } from 'lucide-react';
+import {
+  ImageOff,
+  Trash2,
+  Copy,
+  CheckCircle2,
+  Clock,
+  AlertCircle,
+  Loader2,
+  GripVertical,
+  ArrowUp,
+  ArrowDown,
+} from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
@@ -12,6 +23,10 @@ interface SceneCardProps {
   onClick: () => void;
   onDelete?: () => void;
   onDuplicate?: () => void;
+  onMoveUp?: () => void;
+  onMoveDown?: () => void;
+  canMoveUp?: boolean;
+  canMoveDown?: boolean;
 }
 
 const STATUS_CONFIG: Record<
@@ -62,6 +77,10 @@ export const SceneCard = memo(function SceneCard({
   onClick,
   onDelete,
   onDuplicate,
+  onMoveUp,
+  onMoveDown,
+  canMoveUp = false,
+  canMoveDown = false,
 }: SceneCardProps) {
   const [isHovered, setIsHovered] = useState(false);
 
@@ -99,13 +118,12 @@ export const SceneCard = memo(function SceneCard({
         {...listeners}
         aria-label="Drag to reorder scene"
         className={cn(
-          'absolute left-1 top-1/2 -translate-y-1/2 z-20 p-1 rounded-lg',
+          'absolute left-1 top-1/2 -translate-y-1/2 z-20 p-1 min-w-[44px] min-h-[44px] rounded-lg',
           'text-text-muted hover:text-text-primary hover:bg-elevated',
-          'opacity-0 group-hover:opacity-100 focus:opacity-100',
+          'opacity-0 group-hover:opacity-100 focus:opacity-100 focus-visible:opacity-100',
           isDragging && 'opacity-100',
           'cursor-grab active:cursor-grabbing'
         )}
-        tabIndex={-1}
       >
         <GripVertical className="w-3.5 h-3.5" aria-hidden="true" />
       </button>
@@ -139,7 +157,6 @@ export const SceneCard = memo(function SceneCard({
         {/* Thumbnail */}
         <div className="relative w-24 h-16 rounded-lg overflow-hidden flex-shrink-0 bg-void border border-border">
           {scene.thumbnail ? (
-            // eslint-disable-next-line @next/next/no-img-element
             <img
               src={scene.thumbnail}
               alt="Scene thumbnail"
@@ -198,9 +215,49 @@ export const SceneCard = memo(function SceneCard({
       <div className={cn(
         'absolute top-2 right-2 z-10 flex items-center gap-1',
         'transition-opacity duration-150',
-        'opacity-0 pointer-events-none',
+        'opacity-0 pointer-events-none focus-within:opacity-100 focus-within:pointer-events-auto',
         (isHovered || isSelected) && 'opacity-100 pointer-events-auto'
       )}>
+        {onMoveUp && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onMoveUp();
+            }}
+            disabled={!canMoveUp}
+            aria-label="Move scene up"
+            className={cn(
+              'p-1.5 min-w-[44px] min-h-[44px] rounded-lg transition-all duration-150',
+              'bg-elevated/90 backdrop-blur-sm border border-border',
+              canMoveUp
+                ? 'text-text-muted hover:text-text-primary hover:bg-surface'
+                : 'text-text-muted/30 cursor-not-allowed',
+              'focus:outline-none focus-visible:ring-2 focus-visible:ring-red-primary'
+            )}
+          >
+            <ArrowUp className="w-3.5 h-3.5" aria-hidden="true" />
+          </button>
+        )}
+        {onMoveDown && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onMoveDown();
+            }}
+            disabled={!canMoveDown}
+            aria-label="Move scene down"
+            className={cn(
+              'p-1.5 min-w-[44px] min-h-[44px] rounded-lg transition-all duration-150',
+              'bg-elevated/90 backdrop-blur-sm border border-border',
+              canMoveDown
+                ? 'text-text-muted hover:text-text-primary hover:bg-surface'
+                : 'text-text-muted/30 cursor-not-allowed',
+              'focus:outline-none focus-visible:ring-2 focus-visible:ring-red-primary'
+            )}
+          >
+            <ArrowDown className="w-3.5 h-3.5" aria-hidden="true" />
+          </button>
+        )}
         {onDuplicate && (
           <button
             onClick={(e) => {
@@ -209,7 +266,7 @@ export const SceneCard = memo(function SceneCard({
             }}
             aria-label="Duplicate scene"
             className={cn(
-              'p-1.5 rounded-lg transition-all duration-150',
+              'p-1.5 min-w-[44px] min-h-[44px] rounded-lg transition-all duration-150',
               'bg-elevated/90 backdrop-blur-sm text-text-muted hover:text-text-primary hover:bg-surface',
               'focus:outline-none focus-visible:ring-2 focus-visible:ring-red-primary',
               'border border-border'
@@ -226,7 +283,7 @@ export const SceneCard = memo(function SceneCard({
             }}
             aria-label="Delete scene"
             className={cn(
-              'p-1.5 rounded-lg transition-all duration-150',
+              'p-1.5 min-w-[44px] min-h-[44px] rounded-lg transition-all duration-150',
               'bg-elevated/90 backdrop-blur-sm text-text-muted hover:text-red-primary hover:bg-red-aura',
               'focus:outline-none focus-visible:ring-2 focus-visible:ring-red-primary',
               'border border-border'

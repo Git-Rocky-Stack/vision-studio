@@ -231,6 +231,32 @@ describe('SceneCard', () => {
       expect(onDuplicate).toHaveBeenCalledTimes(1);
       expect(onClick).not.toHaveBeenCalled();
     });
+
+    it('calls reorder callbacks from keyboard-accessible move buttons', async () => {
+      const onMoveUp = vi.fn();
+      const onMoveDown = vi.fn();
+      const onClick = vi.fn();
+      const user = userEvent.setup();
+      render(
+        <SceneCard
+          scene={mockScene}
+          isSelected={false}
+          onClick={onClick}
+          onMoveUp={onMoveUp}
+          onMoveDown={onMoveDown}
+          canMoveUp
+          canMoveDown
+        />
+      );
+
+      await user.hover(screen.getByTestId('scene-card'));
+      await user.click(screen.getByRole('button', { name: /move scene up/i }));
+      await user.click(screen.getByRole('button', { name: /move scene down/i }));
+
+      expect(onMoveUp).toHaveBeenCalledTimes(1);
+      expect(onMoveDown).toHaveBeenCalledTimes(1);
+      expect(onClick).not.toHaveBeenCalled();
+    });
   });
 
   describe('accessibility', () => {

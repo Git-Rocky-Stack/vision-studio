@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import { useAppStore } from '@/store/appStore';
+import { useShallow } from 'zustand/react/shallow';
 import { CharacterRefCard } from '@/components/storyboard/CharacterRefCard';
 import { Button } from '@/components/ui/Button';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
@@ -12,11 +13,9 @@ interface CharacterLibraryProps {
 }
 
 export function CharacterLibrary({ projectId }: CharacterLibraryProps) {
-  const {
-    projects,
-    deleteCharacter,
-    updateCharacter,
-  } = useAppStore();
+  const { projects, deleteCharacter, updateCharacter } = useAppStore(
+    useShallow((s) => ({ projects: s.projects, deleteCharacter: s.deleteCharacter, updateCharacter: s.updateCharacter }))
+  );
 
   const [deleteTarget, setDeleteTarget] = useState<CharacterRef | null>(null);
   const [isAdding, setIsAdding] = useState(false);

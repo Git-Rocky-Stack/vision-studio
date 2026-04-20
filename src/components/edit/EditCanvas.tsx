@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { Stage, Layer, Rect, Image as KonvaImage, Line, Text, Transformer } from 'react-konva';
 import { useAppStore } from '@/store/appStore';
+import { useShallow } from 'zustand/react/shallow';
 import { RegionLockToolbar } from '@/components/edit/RegionLockToolbar';
 import type { RegionTool } from '@/components/edit/RegionLockToolbar';
 import type Konva from 'konva';
@@ -22,7 +23,21 @@ export function EditCanvas() {
     setActiveRegionId,
     setMaskBrushSize,
     toggleMaskInverted,
-  } = useAppStore();
+  } = useAppStore(useShallow((s) => ({
+    currentImage: s.currentImage,
+    activeEditTool: s.activeEditTool,
+    imageAdjustments: s.imageAdjustments,
+    editLayers: s.editLayers,
+    regionMode: s.regionMode,
+    activeMaskTool: s.activeMaskTool,
+    activeRegionId: s.activeRegionId,
+    maskBrushSize: s.maskBrushSize,
+    maskInverted: s.maskInverted,
+    setActiveMaskTool: s.setActiveMaskTool,
+    setActiveRegionId: s.setActiveRegionId,
+    setMaskBrushSize: s.setMaskBrushSize,
+    toggleMaskInverted: s.toggleMaskInverted,
+  })));
 
   const containerRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<Konva.Stage>(null);
@@ -212,9 +227,16 @@ export function EditCanvas() {
   return (
     <div
       ref={containerRef}
+      role="application"
+      aria-label="Image editor canvas"
+      aria-roledescription="canvas editor"
+      tabIndex={0}
       className="w-full h-full relative overflow-hidden bg-void"
       style={{ cursor: getCursor() }}
     >
+      <div className="sr-only" aria-live="polite">
+        {`Editing ${currentImage ? 'image' : 'empty canvas'}. ${editLayers.length} layers. Active tool: ${activeEditTool}.`}
+      </div>
       {/* Region Lock Toolbar - visible when region mode is active */}
       {regionMode && (
         <RegionLockToolbar

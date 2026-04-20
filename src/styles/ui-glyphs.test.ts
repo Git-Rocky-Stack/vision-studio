@@ -14,11 +14,8 @@ const adHocShellTypographyPattern =
 const shellTypographyFiles = [
   'src/components/layout/Header.tsx',
   'src/components/layout/ProjectDropdown.tsx',
-  'src/components/layout/Sidebar.tsx',
   'src/components/layout/WorkbenchBoardsDock.tsx',
   'src/components/layout/WorkbenchGalleryDock.tsx',
-  'src/components/layout/WorkbenchRightStack.tsx',
-  'src/components/layout/WorkbenchShell.tsx',
   'src/components/layout/WorkbenchViewer.tsx',
   'src/components/canvas/ComparisonView.tsx',
   'src/components/canvas/ComparisonToolbar.tsx',

@@ -1,0 +1,236 @@
+import { memo, useCallback } from 'react';
+import { useAppStore } from '@/store/appStore';
+import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
+import { NavBar } from '@/components/layout/NavBar';
+import { Canvas } from '@/components/layout/Canvas';
+import { WorkbenchViewer } from '@/components/layout/WorkbenchViewer';
+import { WorkflowWorkbench } from '@/components/workflow/WorkflowWorkbench';
+import { DockviewSettingsPanel } from '@/components/layout/DockviewSettingsPanel';
+import { DockviewGalleryPanel } from '@/components/layout/DockviewGalleryPanel';
+import { DockviewBoardsPanel } from '@/components/layout/DockviewBoardsPanel';
+import { DockviewLayersPanel } from '@/components/layout/DockviewLayersPanel';
+import { AssetsPanel } from '@/pages/AssetsPanel';
+import { SettingsPanel } from '@/pages/SettingsPanel';
+import { CollectionsPage } from '@/pages/CollectionsPage';
+import { CompositionPreview } from '@/components/studio/CompositionPreview';
+import { IterationViewSelector } from '@/components/iteration/IterationViewSelector';
+import { IterationTreePanel } from '@/components/iteration/IterationTreePanel';
+import { getLayoutPreset } from '@/components/layout/layoutPresets';
+import { cn } from '@/utils/cn';
+import type { CenterView } from '@/types/navigation';
+
+/* -------------------------------------------------------------------------- */
+/*  Center content renderer                                                   */
+/* -------------------------------------------------------------------------- */
+
+function CenterContent({ centerView }: { centerView: CenterView }) {
+  switch (centerView) {
+    case 'canvas':
+      return <Canvas />;
+    case 'viewer':
+      return <WorkbenchViewer />;
+    case 'workflow':
+      return <WorkflowWorkbench />;
+    case 'launchpad':
+      return (
+        <div className="flex h-full items-center justify-center text-text-muted type-body">
+          Launchpad
+        </div>
+      );
+    default:
+      return (
+        <div className="flex h-full items-center justify-center text-text-muted type-body">
+          Unknown view
+        </div>
+      );
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Center tab bar                                                            */
+/* -------------------------------------------------------------------------- */
+
+interface CenterTabDef {
+  id: CenterView;
+  label: string;
+}
+
+const CENTER_VIEW_LABELS: Record<CenterView, string> = {
+  canvas: 'Canvas',
+  viewer: 'Viewer',
+  workflow: 'Workflow',
+  launchpad: 'Launchpad',
+};
+
+/* -------------------------------------------------------------------------- */
+/*  DockviewLayout                                                            */
+/* -------------------------------------------------------------------------- */
+
+export const DockviewLayout = memo(function DockviewLayout() {
+  const activeTab = useAppStore((s) => s.activeTab);
+  const centerView = useAppStore((s) => s.centerView);
+  const activeSubMode = useAppStore((s) => s.activeSubMode);
+  const setCenterView = useAppStore((s) => s.setCenterView);
+
+  const isStudioMode = activeTab === 'generate' && activeSubMode === 'studio';
+  const showIterationView = activeTab === 'generate' || activeTab === 'canvas';
+
+  const preset = getLayoutPreset(activeTab);
+
+  const handleCenterTabClick = useCallback(
+    (view: CenterView) => {
+      setCenterView(view);
+    },
+    [setCenterView],
+  );
+
+  /* ------------------------------------------------------------------------ */
+  /*  Full-width tabs (assets, settings)                                      */
+  /* ------------------------------------------------------------------------ */
+
+  if (!preset.hasLeftDock && !preset.hasRightDock) {
+    return (
+      <div className="flex h-full">
+        <NavBar />
+        <main className="flex min-w-0 flex-1 flex-col bg-void">
+          <section
+            id={`panel-${activeTab}`}
+            role="tabpanel"
+            aria-label={`${activeTab} panel`}
+            className="min-h-0 flex-1 overflow-hidden"
+          >
+            <ErrorBoundary fallbackLabel={`${activeTab} panel error`}>
+              {activeTab === 'assets' ? <AssetsPanel /> : activeTab === 'collections' ? <CollectionsPage /> : <SettingsPanel />}
+            </ErrorBoundary>
+          </section>
+        </main>
+      </div>
+    );
+  }
+
+  /* ------------------------------------------------------------------------ */
+  /*  Three-panel layout (generate, canvas, story, workflows)                  */
+  /* ------------------------------------------------------------------------ */
+
+  const centerTabs: CenterTabDef[] = preset.centerViews.map((id) => ({
+    id,
+    label: CENTER_VIEW_LABELS[id],
+  }));
+
+  const isCanvasTab = activeTab === 'canvas';
+
+  return (
+    <div className="flex h-full">
+      <NavBar />
+
+      <div className="flex flex-1 min-w-0">
+        {/* Left dock - settings panel */}
+        <aside
+          data-testid="left-dock"
+          role="complementary"
+          aria-label="Settings panel"
+          className={cn(
+            'h-full flex-shrink-0 border-r border-border bg-surface',
+            'w-[clamp(150px,32vw,420px)]',
+          )}
+        >
+          <ErrorBoundary fallbackLabel="Settings panel error">
+            <DockviewSettingsPanel />
+          </ErrorBoundary>
+        </aside>
+
+        {/* Center workspace */}
+        <main className="flex min-w-0 flex-1 flex-col bg-void">
+          {/* Center view tabs (only when preset has >1 center view) */}
+          {centerTabs.length > 1 && !isStudioMode && (
+            <div
+              className="flex flex-shrink-0 items-center gap-1 border-b border-border px-2 py-1"
+              data-testid="center-tab-bar"
+            >
+              <div role="tablist" aria-label="Center views" className="flex items-center gap-1">
+                {centerTabs.map((tab) => (
+                  <button
+                    key={tab.id}
+                    id={`center-tab-${tab.id}`}
+                    type="button"
+                    role="tab"
+                    aria-selected={centerView === tab.id}
+                    aria-controls={`center-panel-${tab.id}`}
+                    data-testid={`center-tab-${tab.id}`}
+                    onClick={() => handleCenterTabClick(tab.id)}
+                    className={cn(
+                      'rounded-sm px-2.5 py-1.5 type-ui transition-colors',
+                      centerView === tab.id
+                        ? 'bg-elevated text-text-primary shadow-sm'
+                        : 'text-text-body hover:bg-elevated hover:text-text-primary',
+                    )}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Iteration view selector for generate/canvas */}
+              {showIterationView && (
+                <div className="ml-auto">
+                  <IterationViewSelector />
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Center content */}
+          <section
+            id={`center-panel-${centerView}`}
+            role="tabpanel"
+            aria-labelledby={`center-tab-${centerView}`}
+            className="min-h-0 flex-1 overflow-hidden"
+          >
+            <ErrorBoundary fallbackLabel="Center view error">
+              {isStudioMode ? <CompositionPreview /> : <CenterContent centerView={centerView} />}
+            </ErrorBoundary>
+          </section>
+        </main>
+
+        {/* Right dock */}
+        <aside
+          data-testid="right-dock"
+          role="complementary"
+          aria-label="Gallery panel"
+          className={cn(
+            'hidden h-full flex-shrink-0 border-l border-border bg-surface xl:flex',
+            'w-[clamp(280px,30%,420px)]',
+            'flex-col',
+          )}
+        >
+          <ErrorBoundary fallbackLabel="Right dock error">
+            {isCanvasTab ? (
+              <>
+                <div className="flex min-h-0 flex-1 flex-col">
+                  <DockviewLayersPanel />
+                </div>
+                <div className="flex min-h-0 flex-1 flex-col border-t border-border">
+                  <DockviewGalleryPanel />
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="flex min-h-0 flex-1 flex-col">
+                  <DockviewGalleryPanel />
+                </div>
+                <div className="flex min-h-0 flex-1 flex-col border-t border-border">
+                  <DockviewBoardsPanel />
+                </div>
+                {showIterationView && (
+                  <div className="flex min-h-0 flex-1 flex-col border-t border-border">
+                    <IterationTreePanel />
+                  </div>
+                )}
+              </>
+            )}
+          </ErrorBoundary>
+        </aside>
+      </div>
+    </div>
+  );
+});

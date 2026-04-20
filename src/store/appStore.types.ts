@@ -11,7 +11,6 @@
 // ---------------------------------------------------------------------------
 
 export type {
-  WorkbenchView,
   WorkflowStepState,
   WorkflowStepRecord,
   WorkflowRunRecord,
@@ -26,6 +25,19 @@ export type {
 export type { ProjectTemplate } from '@/types/template';
 
 export type { ModelInfo, ModelStatus } from '@/types/model';
+
+export type { AspectRatio, ResolutionTier } from '@/types/resolution';
+
+export type { TimelineMode, PlayState, KeyframeInterpolation, Keyframe } from '@/types/timeline';
+
+export type {
+  PipelineStepType,
+  PipelineStep,
+  PipelineDefinition,
+  StepExecutionStatus,
+  StepExecutionResult,
+  PipelineExecution,
+} from '@/types/pipeline';
 
 // ---------------------------------------------------------------------------
 // Imports used only internally by AppState (not re-exported)
@@ -54,6 +66,7 @@ import type {
   GenerationQueueItem,
   BatchResult,
   GenerationDraft,
+  GenerationMode,
 } from '@/types/generation';
 
 import type {
@@ -63,7 +76,6 @@ import type {
 } from '@/types/assets';
 
 import type {
-  WorkbenchView,
   WorkflowRunInput,
   WorkflowGraphNode,
   WorkflowGraphEdge,
@@ -73,6 +85,19 @@ import type {
 
 import type { ProjectTemplate } from '@/types/template';
 import type { ModelInfo } from '@/types/model';
+
+import type { AspectRatio, ResolutionTier } from '@/types/resolution';
+
+import type { ActiveTab, ActiveSubMode, CenterView } from '@/types/navigation';
+
+import type { IterationNode, IterationBranch, IterationView, ComparisonMode as IterationComparisonMode } from '@/types/iteration';
+import type { Collection, AssetTag, AssetMetadata, TaggingMode, SmartQuery } from '@/types/collections';
+
+import type { PromptTemplate, CompositionLayerState } from '@/types/promptStudio';
+
+import type { TimelineMode, PlayState, Keyframe } from '@/types/timeline';
+
+import type { PipelineDefinition, PipelineExecution } from '@/types/pipeline';
 
 // ---------------------------------------------------------------------------
 // Local type definitions
@@ -86,6 +111,7 @@ export interface RecentProject {
   createdAt: Date;
   updatedAt: Date;
   thumbnail?: string;
+  template?: ProjectTemplate;
 }
 
 export interface GenerationJobParams {
@@ -137,11 +163,19 @@ export interface BatchJob {
 
 export interface AppState {
   // ─── UI State ────────────────────────────────────────────────────────────
-  sidebarCollapsed: boolean;
-  activePanel: 'generate' | 'quick' | 'storyboard' | 'edit' | 'assets' | 'settings' | 'templates' | 'batch';
-  activeWorkbenchView: WorkbenchView;
   activeViewerItemId: string | null;
   darkMode: boolean;
+
+  // Navigation model
+  activeTab: ActiveTab;
+  activeSubMode: ActiveSubMode;
+  centerView: CenterView;
+
+  // Resolution
+  aspectRatio: AspectRatio;
+  resolutionTier: ResolutionTier;
+  customWidth: number;
+  customHeight: number;
 
   // ─── Workflow ────────────────────────────────────────────────────────────
   workflowRecords: WorkflowRecord[];
@@ -168,6 +202,9 @@ export interface AppState {
   migrationProgress: number; // 0-100
 
   // ─── Generation ──────────────────────────────────────────────────────────
+  generationMode: GenerationMode;
+  startFrameImage: string | null;
+  endFrameImage: string | null;
   activeJobs: GenerationJob[];
   completedJobs: GenerationJob[];
 
@@ -236,13 +273,65 @@ export interface AppState {
   };
   showAdvancedGeneration: boolean;
 
+  // ─── Prompt Studio ──────────────────────────────────────────────────────────
+  promptTemplates: PromptTemplate[];
+  compositionLayers: CompositionLayerState;
+
+  // ─── Generation Preview ──────────────────────────────────────────────────────
+  stepImages: Map<number, string>;
+  currentStep: number;
+  totalSteps: number;
+  isPreviewActive: boolean;
+
+  // ─── Iteration History ──────────────────────────────────────────────────────
+  iterationNodes: Map<string, IterationNode>;
+  iterationBranches: IterationBranch[];
+  activeIterationId: string | null;
+  iterationView: IterationView;
+  iterationComparisonMode: IterationComparisonMode;
+  comparisonIds: [string, string] | null;
+
+  // ─── Collections ──────────────────────────────────────────────────────────
+  collections: Collection[];
+  assetMetadata: Map<string, AssetMetadata>;
+  availableTags: AssetTag[];
+  taggingMode: TaggingMode;
+  taggingQueue: string[];
+  activeCollectionId: string | null;
+
+  // ─── Timeline ──────────────────────────────────────────────────────────
+  timelineMode: TimelineMode;
+  playState: PlayState;
+  currentTime: number;
+  timelineFps: number;
+  timelineLoop: boolean;
+  timelineSpeed: number;
+  onionSkinEnabled: boolean;
+  onionSkinFrameCount: number;
+  onionSkinOpacity: number;
+  onionSkinDirection: 'prev' | 'next' | 'both';
+  keyframes: Keyframe[];
+  activeKeyframeId: string | null;
+
+  // ─── Pipeline ──────────────────────────────────────────────────────────
+  pipelines: PipelineDefinition[];
+  activePipelineId: string | null;
+  pipelineExecutions: PipelineExecution[];
+  isPipelineBuilderOpen: boolean;
+
   // ─── Actions ─────────────────────────────────────────────────────────────
 
   // UI
-  toggleSidebar: () => void;
-  setActivePanel: (panel: AppState['activePanel']) => void;
-  setActiveWorkbenchView: (view: WorkbenchView) => void;
   setActiveViewerItemId: (itemId: string | null) => void;
+  setActiveTab: (tab: ActiveTab) => void;
+  setActiveSubMode: (subMode: ActiveSubMode) => void;
+  setCenterView: (view: CenterView) => void;
+
+  // Resolution
+  setAspectRatio: (ratio: AspectRatio) => void;
+  setResolutionTier: (tier: ResolutionTier) => void;
+  setCustomWidth: (width: number) => void;
+  setCustomHeight: (height: number) => void;
 
   // Workflow
   setActiveWorkflow: (workflowId: string) => void;
@@ -278,6 +367,7 @@ export interface AppState {
   addJob: (job: GenerationJob) => void;
   updateJob: (jobId: string, updates: Partial<GenerationJob>) => void;
   removeJob: (jobId: string) => void;
+  deleteCompletedJob: (jobId: string) => void;
   setSystemInfo: (info: AppState['systemInfo']) => void;
   setAvailableModels: (models: ModelInfo[]) => void;
   addBatchJob: (batchJob: BatchJob) => void;
@@ -326,10 +416,54 @@ export interface AppState {
   ) => void;
   removeBatchResults: (ids: string[]) => void;
 
+  // Video generation
+  setGenerationMode: (mode: GenerationMode) => void;
+  setStartFrameImage: (image: string | null) => void;
+  setEndFrameImage: (image: string | null) => void;
+
   // Generation draft & advanced generation
   setGenerationDraft: (draft: GenerationDraft | null) => void;
   updateAdvancedGeneration: (patch: Partial<AppState['advancedGeneration']>) => void;
   setShowAdvancedGeneration: (show: boolean) => void;
+
+  // Prompt Studio
+  addUserPromptTemplate: (template: PromptTemplate) => void;
+  deleteUserPromptTemplate: (id: string) => void;
+  togglePromptTemplateFavorite: (id: string) => void;
+  setCompositionLayerVisibility: (layer: keyof CompositionLayerState, visible: boolean) => void;
+  setCompositionLayerOpacity: (layer: keyof CompositionLayerState, opacity: number) => void;
+  applyPromptTemplate: (id: string, mode: 'replace' | 'merge') => void;
+
+  // Generation Preview
+  addStepImage: (step: number, imageData: string) => void;
+  setTotalSteps: (total: number) => void;
+  clearPreview: () => void;
+  setPreviewActive: (active: boolean) => void;
+
+  // Iteration History
+  addIteration: (params: { job: GenerationJob; parentId: string | null; thumbnail: string; branchId?: string }) => void;
+  forkIteration: (params: { job: GenerationJob; parentId: string; thumbnail: string }) => void;
+  pinIteration: (id: string) => void;
+  setIterationNote: (id: string, note: string) => void;
+  setActiveIteration: (id: string | null) => void;
+  setIterationView: (view: IterationView) => void;
+  setIterationComparisonMode: (mode: IterationComparisonMode) => void;
+  setComparisonIds: (ids: [string, string] | null) => void;
+  deleteIterationBranch: (branchId: string) => void;
+
+  // Collections
+  createCollection: (params: { name: string; type: Collection['type']; smartQuery?: SmartQuery; isAutoGenerated?: boolean }) => void;
+  deleteCollection: (id: string) => void;
+  renameCollection: (id: string, name: string) => void;
+  addAssetToCollection: (collectionId: string, assetId: string) => void;
+  removeAssetFromCollection: (collectionId: string, assetId: string) => void;
+  createSmartCollection: (params: { name: string; smartQuery: SmartQuery; isAutoGenerated?: boolean }) => void;
+  refreshSmartCollection: (id: string) => void;
+  analyzeAssets: (assetIds: string[]) => void;
+  setTaggingMode: (mode: TaggingMode) => void;
+  addUserTag: (tag: AssetTag) => void;
+  removeUserTag: (tagId: string) => void;
+  setActiveCollection: (id: string | null) => void;
 
   // Batch view
   setBatchViewMode: (mode: AppState['batchViewMode']) => void;
@@ -394,6 +528,34 @@ export interface AppState {
 
   // Migration
   runMigration: () => Promise<void>;
+
+  // Timeline
+  setTimelineMode: (mode: TimelineMode) => void;
+  timelinePlay: () => void;
+  timelinePause: () => void;
+  timelineStop: () => void;
+  seekTo: (time: number) => void;
+  setTimelineFps: (fps: number) => void;
+  setTimelineSpeed: (speed: number) => void;
+  toggleTimelineLoop: () => void;
+  setOnionSkinEnabled: (enabled: boolean) => void;
+  setOnionSkinFrameCount: (count: number) => void;
+  setOnionSkinOpacity: (opacity: number) => void;
+  setOnionSkinDirection: (dir: 'prev' | 'next' | 'both') => void;
+  addKeyframe: (kf: Keyframe) => void;
+  updateKeyframe: (id: string, updates: Partial<Keyframe>) => void;
+  deleteKeyframe: (id: string) => void;
+  setActiveKeyframeId: (id: string | null) => void;
+
+  // Pipeline
+  createPipeline: (params: { name: string; description: string; steps: import('@/types/pipeline').PipelineStep[] }) => void;
+  updatePipeline: (id: string, updates: Partial<Pick<PipelineDefinition, 'name' | 'description' | 'steps'>>) => void;
+  deletePipeline: (id: string) => void;
+  duplicatePipeline: (id: string, newName: string) => void;
+  runPipeline: (pipelineId: string, sourceImageId: string) => void;
+  cancelPipelineExecution: (executionId: string) => void;
+  setActivePipelineId: (id: string | null) => void;
+  setPipelineBuilderOpen: (open: boolean) => void;
 }
 
 // ---------------------------------------------------------------------------

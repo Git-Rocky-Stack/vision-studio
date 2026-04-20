@@ -2,6 +2,7 @@ import { useState, useCallback, useRef } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { cn } from '@/utils/cn';
 import { ResultCard } from './ResultCard';
+import { useShallow } from 'zustand/react/shallow';
 import { useAppStore } from '@/store/appStore';
 import {
   Download,
@@ -33,10 +34,19 @@ export function ResultsGrid({
     batchResults,
     toggleBatchResultFavorite,
     setCurrentImage,
-    setActivePanel,
+    setActiveTab,
     removeBatchResults,
     removeAssetRecordsByPaths,
-  } = useAppStore();
+  } = useAppStore(
+    useShallow((s) => ({
+      batchResults: s.batchResults,
+      toggleBatchResultFavorite: s.toggleBatchResultFavorite,
+      setCurrentImage: s.setCurrentImage,
+      setActiveTab: s.setActiveTab,
+      removeBatchResults: s.removeBatchResults,
+      removeAssetRecordsByPaths: s.removeAssetRecordsByPaths,
+    }))
+  );
 
   const [viewModeLocal, setViewModeLocal] = useState<ViewMode>('grid');
   const [sortByLocal, setSortByLocal] = useState<SortBy>('created');
@@ -75,7 +85,7 @@ export function ResultsGrid({
 
   // Multi-select handler (Shift+click for range, Ctrl+click for toggle)
   const handleSelect = useCallback(
-    (id: string, e: React.MouseEvent) => {
+    (id: string, e: React.MouseEvent | React.KeyboardEvent) => {
       if (e.shiftKey && lastSelectedId) {
         // Range select
         const allIds = sortedResults.map((r) => r.id);
@@ -127,7 +137,7 @@ export function ResultsGrid({
     const result = batchResults.find((r) => r.id === id);
     if (result?.imagePath) {
       setCurrentImage(result.imagePath, result.assetPath);
-      setActivePanel('edit');
+      setActiveTab('canvas');
     }
   };
 

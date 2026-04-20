@@ -6,6 +6,7 @@
 
 import type { LoRAConfig, ControlNetConfig } from './generation';
 import type { Layer } from './editor';
+import type { KeyframeInterpolation } from '@/types/timeline';
 
 // ─── Generation Config ──────────────────────────────────────────────────────
 
@@ -20,6 +21,11 @@ export interface GenerationConfig {
   clipSkip: number;
   lora: LoRAConfig[];
   controlNet: ControlNetConfig[];
+  // Video fields
+  videoDuration?: number;       // seconds, 1-10, default 3
+  videoFps?: number;            // 8|12|16|24, default 24
+  motionStrength?: number;      // 0.1-1.0, default 0.5
+  loopVideo?: boolean;          // default false
 }
 
 // ─── Project ────────────────────────────────────────────────────────────────
@@ -58,7 +64,7 @@ export interface Scene {
   frames: Frame[];
   regionLocks: RegionLock[];
   transitions: SceneTransition;
-  camera: CameraKeyframe[]; // Phase 2 placeholder
+  camera: CameraKeyframe[];
   metadata: {
     created: string;      // ISO 8601
     modified: string;      // ISO 8601
@@ -152,7 +158,7 @@ export interface ReferenceImage {
   label?: string;
 }
 
-// ─── Camera Keyframe (Phase 2 placeholder) ──────────────────────────────────
+// ─── Camera Keyframe ────────────────────────────────────────────────────────
 
 export interface CameraKeyframe {
   id: string;
@@ -160,6 +166,8 @@ export interface CameraKeyframe {
   pan: { x: number; y: number };
   zoom: number;
   rotation: number;
+  interpolation: KeyframeInterpolation;
+  easingStrength: number;
 }
 
 // ─── Default Values ──────────────────────────────────────────────────────────

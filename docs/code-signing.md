@@ -228,17 +228,30 @@ dotnet tool install --global AzureSignTool
 
 ### electron-builder Integration
 
-The `electron-builder.yml` configuration includes:
+Production Windows releases are gated by `scripts/verify-release-signing.cjs`.
+The release workflow runs `npm run release:signing:check` before packaging and
+then packages with `npm run package:win:signed`. If no supported signing
+configuration is present, the build fails before any artifact can be uploaded.
 
-```yaml
-win:
-  signingHashAlgorithms:
-    - sha256
-  rfc3161TimeStampServer: http://timestamp.digicert.com
-  sign: "./scripts/code-sign.ps1"
+Supported release signing modes:
+
+| Mode | Required environment |
+|------|----------------------|
+| electron-builder CSC/PFX | `WIN_CSC_LINK` or `CSC_LINK`, plus `WIN_CSC_KEY_PASSWORD` or `CSC_KEY_PASSWORD` |
+| Windows certificate store / hardware token | `WIN_CSC_SUBJECT_NAME` or `WIN_CSC_SHA1` |
+| Azure Trusted Signing | `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, one Azure auth method such as `AZURE_CLIENT_SECRET`, plus `AZURE_TRUSTED_SIGNING_ENDPOINT`, `AZURE_TRUSTED_SIGNING_ACCOUNT_NAME`, and `AZURE_TRUSTED_SIGNING_CERTIFICATE_PROFILE_NAME` |
+
+Local verification:
+
+```powershell
+npm run release:signing:check
+npm run build
+npm run package:win:signed
 ```
 
-This automatically calls the signing script during the build process.
+For Azure Trusted Signing, the packaging wrapper passes the required
+`win.azureSignOptions` values to electron-builder at runtime so local unsigned
+packaging with `npm run package:win` remains available for development builds.
 
 ---
 

@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { createJSONStorage, persist, type StateStorage } from 'zustand/middleware';
 import type { AppState } from './appStore.types';
 import type { ProjectTemplate } from '@/types/template';
 
@@ -9,6 +9,12 @@ import { editInitialState, createEditActions } from './slices/editSlice';
 import { generationInitialState, createGenerationActions } from './slices/generationSlice';
 import { projectInitialState, createProjectActions } from './slices/projectSlice';
 import { workflowInitialState, createWorkflowActions } from './slices/workflowSlice';
+import { promptStudioInitialState, createPromptStudioActions } from './slices/promptStudioSlice';
+import { generationPreviewInitialState, createGenerationPreviewActions } from './slices/generationPreviewSlice';
+import { iterationInitialState, createIterationActions } from './slices/iterationSlice';
+import { collectionsInitialState, createCollectionsActions } from './slices/collectionsSlice';
+import { timelineInitialState, createTimelineActions } from './slices/timelineSlice';
+import { pipelineInitialState, createPipelineActions } from './slices/pipelineSlice';
 
 // Re-exports: local types
 export type {
@@ -21,7 +27,6 @@ export type {
 
 // Re-exports: external types (backward compat for consumers importing from this module)
 export type {
-  WorkbenchView,
   WorkflowStepState,
   WorkflowStepRecord,
   WorkflowRunRecord,
@@ -38,6 +43,38 @@ export type { ModelInfo, ModelStatus } from '@/types/model';
 
 // Re-exports: constants now owned by slices
 export { DEFAULT_WORKFLOWS } from './slices/workflowSlice';
+
+function createMemoryStorage(): StateStorage {
+  const storage = new Map<string, string>();
+
+  return {
+    getItem: (name) => storage.get(name) ?? null,
+    setItem: (name, value) => {
+      storage.set(name, value);
+    },
+    removeItem: (name) => {
+      storage.delete(name);
+    },
+  };
+}
+
+const nodeTestStorage = createMemoryStorage();
+
+function getPersistStorage(): StateStorage {
+  try {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      return window.localStorage;
+    }
+
+    if (typeof globalThis.localStorage !== 'undefined') {
+      return globalThis.localStorage;
+    }
+  } catch {
+    // Some browser contexts expose localStorage but deny access.
+  }
+
+  return nodeTestStorage;
+}
 
 // Predefined project templates
 export const PROJECT_TEMPLATES: ProjectTemplate[] = [
@@ -152,11 +189,49 @@ export const useAppStore = create<AppState>()(
       ...createProjectActions(set, get),
       ...workflowInitialState,
       ...createWorkflowActions(set, get),
+      ...promptStudioInitialState,
+      ...createPromptStudioActions(set, get),
+      ...generationPreviewInitialState,
+      ...createGenerationPreviewActions(set, get),
+      ...iterationInitialState,
+      ...createIterationActions(set, get),
+      ...collectionsInitialState,
+      ...createCollectionsActions(set, get),
+      ...timelineInitialState,
+      ...createTimelineActions(set),
+      ...pipelineInitialState,
+      ...createPipelineActions(set),
     }),
     {
       name: 'vision-studio-storage',
+      storage: createJSONStorage(getPersistStorage),
+      merge: (persistedState, currentState) => {
+        const persisted = persistedState as Record<string, unknown>;
+        // Reconstruct Maps from serialized arrays
+        if (Array.isArray(persisted.iterationNodes)) {
+          (persisted as Record<string, unknown>).iterationNodes = new Map(
+            persisted.iterationNodes as [string, unknown][]
+          );
+        }
+        if (Array.isArray(persisted.assetMetadata)) {
+          (persisted as Record<string, unknown>).assetMetadata = new Map(
+            persisted.assetMetadata as [string, unknown][]
+          );
+        }
+        return {
+          ...currentState,
+          ...(persisted as Partial<AppState>),
+        };
+      },
       partialize: (state) => ({
-        sidebarCollapsed: state.sidebarCollapsed,
+        activeTab: state.activeTab,
+        activeSubMode: state.activeSubMode,
+        centerView: state.centerView,
+        aspectRatio: state.aspectRatio,
+        resolutionTier: state.resolutionTier,
+        customWidth: state.customWidth,
+        customHeight: state.customHeight,
+        generationMode: state.generationMode,
         darkMode: state.darkMode,
         recentProjects: state.recentProjects,
         projects: state.projects,
@@ -169,6 +244,17 @@ export const useAppStore = create<AppState>()(
         userTemplates: state.userTemplates,
         batchResults: state.batchResults.slice(0, 200),
         assetLibrary: state.assetLibrary.slice(0, 500),
+        promptTemplates: state.promptTemplates,
+        compositionLayers: state.compositionLayers,
+        iterationBranches: state.iterationBranches,
+        iterationNodes: Array.from(state.iterationNodes.entries()),
+        activeIterationId: state.activeIterationId,
+        iterationView: state.iterationView,
+        iterationComparisonMode: state.iterationComparisonMode,
+        collections: state.collections,
+        availableTags: state.availableTags,
+        taggingMode: state.taggingMode,
+        assetMetadata: Array.from(state.assetMetadata.entries()),
       }),
     }
   )

@@ -21,7 +21,7 @@
   /* Text hierarchy - WCAG AA compliant */
   --color-text-primary: #f5f5f5;
   --color-text-body: #b3b3b3;
-  --color-text-muted: #7a7a7a;
+  --color-text-muted: #888888;
 
   /* Borders */
   --color-border: rgba(255, 255, 255, 0.08);
@@ -76,7 +76,7 @@
   --color-gradient-progress-end: var(--color-accent-primary);
 
   /* Type scale with paired line-heights */
-  --font-size-micro: 0.625rem;   /* 10px - use sparingly */
+  --font-size-micro: 0.75rem;  /* 12px - minimum readable size per WCAG */
   --font-size-xs: 0.75rem;       /* 12px */
   --font-size-sm: 0.875rem;      /* 14px */
   --font-size-base: 1rem;        /* 16px */
@@ -281,7 +281,7 @@ body[data-theme='light'] {
   --color-accent-primary-glow: rgba(64, 64, 64, 0.16);
   --color-text-primary: #171717;
   --color-text-body: #525252;
-  --color-text-muted: #707070;
+  --color-text-muted: #616161;
   --color-border: rgba(0, 0, 0, 0.09);
   --color-border-hover: rgba(0, 0, 0, 0.18);
   --color-status-success: #16a34a;
@@ -616,7 +616,10 @@ p, li, dd, blockquote {
 button:focus-visible,
 input:focus-visible,
 textarea:focus-visible,
-select:focus-visible {
+select:focus-visible,
+[tabindex]:focus-visible,
+[role="button"]:focus-visible,
+[role="tab"]:focus-visible {
   outline: 2px solid var(--color-accent-primary);
   outline-offset: 2px;
 }

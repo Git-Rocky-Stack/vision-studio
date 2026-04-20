@@ -74,6 +74,7 @@ export function SetupWizard() {
         vram: info.gpu_vram,
       });
     } catch (e) {
+      console.error('Failed to detect GPU:', e);
       setGpuInfo({ available: false });
     }
 

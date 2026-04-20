@@ -1,5 +1,6 @@
 import { memo, useState, useRef, useEffect } from 'react';
 import { useAppStore } from '@/store/appStore';
+import { useShallow } from 'zustand/react/shallow';
 import { cn } from '@/utils/cn';
 import { ChevronDown, FolderOpen, Plus } from 'lucide-react';
 
@@ -9,7 +10,12 @@ export const ProjectDropdown = memo(function ProjectDropdown() {
     activeProjectId,
     setActiveProject,
     createProject,
-  } = useAppStore();
+  } = useAppStore(useShallow(s => ({
+    projects: s.projects,
+    activeProjectId: s.activeProjectId,
+    setActiveProject: s.setActiveProject,
+    createProject: s.createProject,
+  })));
 
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);

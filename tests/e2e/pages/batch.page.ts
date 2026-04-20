@@ -12,7 +12,8 @@ export class BatchPage {
 
   /** Click the Batch nav item in the sidebar */
   async navigateTo() {
-    await this.page.getByTestId('nav-batch').click();
+    await this.page.getByTestId('nav-generate').click();
+    await this.page.getByRole('tab', { name: 'Batch' }).click();
   }
 
   // ── Selectors ─────────────────────────────────────────────────

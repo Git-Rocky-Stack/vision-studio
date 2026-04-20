@@ -4,6 +4,20 @@ Prompt enhancement helpers.
 
 from typing import Dict, List
 
+from utils.json_schema_enforcer import enforce_json_schema
+
+
+PROMPT_ENHANCEMENT_SCHEMA = {
+    "type": "object",
+    "required": ["mode", "prompt", "variations"],
+    "additionalProperties": False,
+    "properties": {
+        "mode": {"type": "string", "enum": ["clarify", "cinematic", "concise", "variations"]},
+        "prompt": {"type": "string"},
+        "variations": {"type": "array", "items": {"type": "string"}},
+    },
+}
+
 
 def _normalize_prompt(prompt: str) -> str:
     normalized = " ".join(prompt.strip().split())
@@ -43,37 +57,30 @@ def _build_variations(prompt: str) -> List[str]:
     return [f"{prompt}, {modifier}" for modifier in modifiers]
 
 
+def _structured_response(mode: str, prompt: str, variations: List[str]) -> Dict[str, object]:
+    response: Dict[str, object] = {
+        "mode": mode,
+        "prompt": prompt,
+        "variations": variations,
+    }
+    return enforce_json_schema(response, PROMPT_ENHANCEMENT_SCHEMA)
+
+
 def enhance_prompt(prompt: str, mode: str = "clarify") -> Dict[str, object]:
     normalized = _normalize_prompt(prompt)
     normalized_mode = mode.strip().lower()
 
     if normalized_mode == "clarify":
-        return {
-            "mode": normalized_mode,
-            "prompt": _clarify_prompt(normalized),
-            "variations": [],
-        }
+        return _structured_response(normalized_mode, _clarify_prompt(normalized), [])
 
     if normalized_mode == "cinematic":
-        return {
-            "mode": normalized_mode,
-            "prompt": _cinematic_prompt(normalized),
-            "variations": [],
-        }
+        return _structured_response(normalized_mode, _cinematic_prompt(normalized), [])
 
     if normalized_mode == "concise":
-        return {
-            "mode": normalized_mode,
-            "prompt": _concise_prompt(normalized),
-            "variations": [],
-        }
+        return _structured_response(normalized_mode, _concise_prompt(normalized), [])
 
     if normalized_mode == "variations":
         variations = _build_variations(normalized)
-        return {
-            "mode": normalized_mode,
-            "prompt": normalized,
-            "variations": variations,
-        }
+        return _structured_response(normalized_mode, normalized, variations)
 
     raise ValueError(f"Unsupported enhancement mode: {mode}")

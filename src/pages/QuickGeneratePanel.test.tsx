@@ -15,7 +15,7 @@ describe('QuickGeneratePanel', () => {
   it('renders as a Carbon Pro inspector without legacy red primary chrome', () => {
     const { container } = render(<QuickGeneratePanel />);
 
-    expect(screen.getByRole('heading', { name: 'Quick Generate' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 2, name: 'Quick Generate' })).toBeInTheDocument();
     expect(screen.getByLabelText('Prompt')).toHaveClass('focus:border-accent-primary');
     expect(screen.getByText('Model Router')).toBeInTheDocument();
     expect(container.querySelector('.text-red-primary, .bg-red-aura')).not.toBeInTheDocument();

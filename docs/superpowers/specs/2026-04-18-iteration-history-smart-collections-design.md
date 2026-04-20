@@ -1,0 +1,381 @@
+# Iteration History + Smart Collections — Design Spec
+
+**Date:** 2026-04-18
+**Phase:** 3 of 5 (Iteration History + Smart Collections)
+**Status:** Approved
+**Approach:** Integrated History Engine (Approach A)
+
+## Overview
+
+Add generation iteration trees with branching, forking, and three visualization modes. Add smart collections with AI auto-tagging, manual collections, and configurable tagging modes. Both features integrate into the existing layout with dedicated panels, a bottom timeline, and a new Collections tab.
+
+**Goal:** Transform flat generation history into a navigable tree, and transform the flat asset library into an organized, searchable collection system with AI assistance.
+
+## Scope
+
+- Iteration trees: every generation creates a tree node linked to its parent
+- Three visualization modes: dedicated panel (default), bottom timeline, overlay canvas — user-selectable
+- Three comparison modes: side-by-side (default), slider, grid — user-selectable
+- Forking: re-roll from any iteration creates a new branch
+- Smart collections: AI-tagged auto-generated collections + user-created manual collections
+- AI tagging modes: on-generation, background-batch, on-demand, off — user-configurable
+- Collections right dock panel + Collections NavBar tab (full workspace)
+- New Electron IPC endpoints for image analysis and batch tagging
+
+**Out of scope (future phases):**
+- Iteration history undo/redo (beyond forking)
+- Collection sharing or export
+- Video iteration trees (image-only for now)
+- Enhanced Timeline (Phase 4)
+- Refinement Pipeline (Phase 5)
+
+---
+
+## 1. Iteration History Data Model
+
+### IterationNode
+
+```ts
+interface IterationNode {
+  id: string;                    // Same as GenerationJob.id
+  parentId: string | null;       // null = root iteration
+  branchId: string;              // Groups sibling nodes in the same branch
+  childrenIds: string[];         // Child iteration IDs (re-rolls, variations)
+  generationJob: GenerationJob;  // Reference to the full job data
+  thumbnail: string;              // Base64 or path to small preview
+  settingsDiff: SettingsDiff | null;  // Diff from parent, null for roots
+  createdAt: number;
+  isPinned: boolean;             // User-pinned iterations
+  note: string;                  // Optional user annotation
+}
+
+interface SettingsDiff {
+  prompt?: string;               // Changed prompt (null if same)
+  negativePrompt?: string;       // Changed negative prompt
+  model?: string;                // Changed model
+  seed?: number;                 // Changed seed
+  steps?: number;               // Changed steps
+  cfgScale?: number;           // Changed CFG
+  [key: string]: unknown;       // Any other changed setting
+}
+```
+
+### Branch
+
+```ts
+interface IterationBranch {
+  id: string;
+  name: string;                  // Auto-generated: "Branch 1", "Branch 2", etc.
+  rootNodeId: string;            // First node in this branch
+  activeNodeId: string;          // Currently selected node
+  createdAt: number;
+}
+```
+
+### IterationTree (computed via selector)
+
+```ts
+interface IterationTree {
+  roots: IterationNode[];        // All root nodes (no parent)
+  branches: IterationBranch[];   // All branches
+  getNode: (id: string) => IterationNode | undefined;
+  getPath: (id: string) => IterationNode[];  // From root to this node
+  getSiblings: (id: string) => IterationNode[];  // Same parent
+}
+```
+
+### Store additions (`iterationSlice`)
+
+| Key | Type | Description |
+|-----|------|-------------|
+| `iterationNodes` | `Map<string, IterationNode>` | All nodes by ID |
+| `iterationBranches` | `IterationBranch[]` | All branches |
+| `activeIterationId` | `string \| null` | Currently selected iteration |
+| `iterationView` | `'panel' \| 'timeline' \| 'overlay'` | Current visualization mode |
+| `comparisonMode` | `'side-by-side' \| 'slider' \| 'grid'` | Default: `'side-by-side'` |
+| `comparisonIds` | `[string, string] \| null` | Two iterations being compared |
+
+**Actions:** `addIteration`, `forkIteration`, `pinIteration`, `setIterationNote`, `setActiveIteration`, `setIterationView`, `setComparisonMode`, `setComparisonIds`, `deleteIterationBranch`
+
+When a generation completes, `addIteration` is called with the parent ID (null for new roots, existing ID for re-rolls/variations). This automatically creates a new branch if the parent already has children (forking).
+
+---
+
+## 2. Smart Collections Data Model
+
+### Collection Types
+
+```ts
+type CollectionType = 'manual' | 'smart';
+
+interface Collection {
+  id: string;
+  name: string;
+  description?: string;
+  type: CollectionType;
+  coverAssetId?: string;           // First or user-chosen thumbnail
+  assetIds: string[];              // For manual: explicitly added
+  smartQuery?: SmartQuery;         // For smart: the query that defines membership
+  tagIds: string[];                // Tags associated with this collection
+  isAutoGenerated: boolean;        // True if system created it
+  createdAt: number;
+  updatedAt: number;
+}
+
+interface SmartQuery {
+  promptText?: string;             // Match prompt containing text
+  model?: string;                  // Match by model name
+  tags?: string[];                 // Match by asset tags
+  dateRange?: { from: number; to: number };  // Match by creation date
+  styleCategories?: string[];      // Match by AI-detected style category
+  colorPalette?: string[];          // Match by dominant color names
+  mood?: string[];                 // Match by mood (calm, dramatic, etc.)
+}
+
+interface AssetTag {
+  id: string;
+  name: string;
+  category: 'style' | 'subject' | 'color' | 'mood' | 'custom';
+  source: 'ai' | 'user';          // Who created this tag
+  confidence: number;               // 0-1, AI confidence score
+}
+
+interface AssetMetadata {
+  assetId: string;
+  tags: AssetTag[];
+  dominantColors: string[];        // Hex color values
+  colorNames: string[];            // Semantic color names
+  detectedStyle: string[];         // AI-detected styles
+  detectedSubject: string[];       // AI-detected subjects
+  detectedMood: string[];          // AI-detected moods
+  analyzedAt: number;              // When AI analysis was performed
+}
+```
+
+### Tagging Mode Setting
+
+```ts
+type TaggingMode = 'on-generation' | 'background-batch' | 'on-demand' | 'off';
+```
+
+- **on-generation**: Analyze immediately after each generation completes
+- **background-batch**: Queue untagged assets for background processing
+- **on-demand**: User triggers analysis on selected assets
+- **off**: No AI tagging, manual tags only
+
+### Store additions (`collectionsSlice`)
+
+| Key | Type | Description |
+|-----|------|-------------|
+| `collections` | `Collection[]` | All collections |
+| `assetMetadata` | `Map<string, AssetMetadata>` | AI analysis results per asset |
+| `availableTags` | `AssetTag[]` | All known tags (AI + user) |
+| `taggingMode` | `TaggingMode` | Current tagging setting |
+| `taggingQueue` | `string[]` | Asset IDs queued for background tagging |
+| `activeCollectionId` | `string \| null` | Currently viewed collection |
+
+**Actions:** `createCollection`, `deleteCollection`, `renameCollection`, `addAssetToCollection`, `removeAssetFromCollection`, `createSmartCollection`, `refreshSmartCollection`, `analyzeAssets`, `setTaggingMode`, `addUserTag`, `removeUserTag`, `setActiveCollection`
+
+---
+
+## 3. UI Components & Layout
+
+### Iteration History Views (3 modes, user-selectable)
+
+#### Dedicated Panel (Default)
+
+Left/right dock panel with:
+- Tree view with expandable/collapsible branches
+- Branch tabs at top for switching between variations
+- Selected node shows full settings and diff from parent
+- Action buttons: "Use as starting point", "Add to Collection", "Compare", "Fork"
+- Pinned iterations shown with star icon
+
+#### Bottom Timeline
+
+Horizontal bar at bottom of workspace:
+- Linear sequence of the current branch
+- Click any node to select it
+- Branch indicator shows current branch
+- Tree popover for switching branches
+- Compare toggle and close buttons
+
+#### Overlay Canvas
+
+Iteration nodes rendered as connected circles on the canvas:
+- Nodes are draggable circles with thumbnails
+- Lines connect parent to child
+- Active node highlighted with accent border
+- Double-click to select and load settings
+- Right-click context menu for "Use as starting point"
+
+### Comparison Modes (3 modes, user-selectable)
+
+#### Side-by-Side (Default)
+
+Two images next to each other with settings diff panel below showing what changed between iterations with color-coded additions/removals.
+
+#### Slider Comparison
+
+Before/after slider overlay on the images with collapsible settings diff panel.
+
+#### Grid Comparison
+
+Multi-iteration grid (2-6 images) with columns for image, prompt, key settings. Select any two to enter side-by-side mode.
+
+### Smart Collections UI
+
+#### Right Dock Panel
+
+Available on any tab alongside Gallery/Boards/Layers:
+- Auto-generated collections at top with star icon
+- Manual collections below with folder icon
+- Search filters by name, tag, or content
+- Click to view collection contents
+- Drag assets between collections
+- "+" creates new manual or smart collection
+
+#### Collections Tab (Full Workspace)
+
+New NavBar tab (7th icon, bottom cluster):
+- Category filters: All, Smart, Manual, Tagged, Untagged
+- Collection cards show thumbnail grid + count + type badge
+- "Analyze Untagged" button for on-demand tagging
+- Click a collection to see full asset grid with metadata
+- Bulk operations: select multiple assets, tag, add to collection, delete
+
+### NavBar Addition
+
+`ActiveTab` gains `'collections'` value. NavBar bottom cluster gains a Collections icon (FolderOpen + Layers composite or similar).
+
+---
+
+## 4. Electron IPC & AI Tagging
+
+### New IPC Endpoints
+
+| Channel | Direction | Payload | Description |
+|---------|-----------|---------|-------------|
+| `generation.onIterationCreated` | Electron → Renderer | `{ jobId, parentId, branchId }` | Fired when generation completes and iteration node is created |
+| `generation.analyzeImage` | Renderer → Electron | `{ assetId, imagePath }` → `Promise<AssetMetadata>` | Analyzes an image with AI, returns tags, colors, style, subject, mood |
+| `generation.batchAnalyzeImages` | Renderer → Electron | `{ assetIds: string[] }` → `Promise<void>` | Queues assets for background analysis |
+| `generation.onAnalysisComplete` | Electron → Renderer | `{ assetId, metadata: AssetMetadata }` | Fired when background analysis completes |
+| `generation.getTagSuggestions` | Renderer → Electron | `{ prompt: string }` → `Promise<string[]>` | Returns tag suggestions based on prompt text |
+
+### AI Tagging Pipeline
+
+- **On-generation**: Analyze immediately after generation → store results → auto-update smart collections
+- **Background-batch**: Queue untagged assets → process max 5 concurrently → results arrive via event → auto-update
+- **On-demand**: User triggers → immediate analysis → store results → auto-update
+- **Off**: No AI calls. Manual tags only.
+
+### Auto-Collection Generation
+
+After AI analysis, if any tag appears on 5+ assets with confidence >= 0.7:
+1. Check if a smart collection already exists for that tag
+2. If not, auto-create a `SmartCollection` with a query matching that tag
+3. Mark `isAutoGenerated: true`
+4. User can rename, edit, or delete auto-generated collections
+
+---
+
+## 5. Error Handling & Testing
+
+### Error Handling
+
+| Scenario | Handling |
+|----------|----------|
+| Iteration node references deleted job | Show "Generation data unavailable" with recovery option. Node stays with dimmed thumbnail |
+| Fork from node with missing parent | Treat as new root. Prompt: "Parent not found — create new branch?" |
+| AI analysis fails | Retry up to 2 times with exponential backoff. After 3 failures, mark `analysisFailed: true` |
+| Smart collection query too many results | Cap at 200 with "Show all N results" button. Virtualized grid |
+| Compare iterations from different branches | Allow it — show "different branch" badge |
+| Auto-generated collection name collision | Append number: "Portraits (2)" |
+| Background tagging queue overflow | Cap at 100. Max 5 concurrent. Oldest unanalyzed deprioritized |
+| Delete iteration with children | Re-parent children to deleted node's parent. If root, children become their own roots |
+
+### Testing Strategy
+
+| Layer | Tests | Count Target |
+|-------|-------|-------------|
+| `iterationSlice` | Add iteration, fork, pin, delete branch, tree selectors, comparison state | ~15 tests |
+| `collectionsSlice` | CRUD collections, add/remove assets, smart query matching, auto-generation, tagging mode | ~15 tests |
+| `IterationTreePanel` | Renders tree, node selection, branch tabs, fork action, pin action | ~12 tests |
+| `IterationTimeline` | Renders branch, node click, comparison toggle, tree popover | ~10 tests |
+| `IterationCanvasOverlay` | Renders nodes, drag, double-click select, zoom/pan | ~8 tests |
+| `ComparisonPanel` | Side-by-side, slider, grid modes, settings diff, visual diff | ~12 tests |
+| `CollectionsPanel` (dock) | Renders collections, search, click to view, drag assets | ~8 tests |
+| `CollectionsTab` (workspace) | Category filters, collection cards, bulk operations, analyze button | ~10 tests |
+| `SmartCollection` matching | Query evaluation, tag matching, date range, auto-creation trigger | ~10 tests |
+| `AssetMetadata` & AI tagging | Tag confidence, duplicate detection, confidence threshold | ~8 tests |
+| Store integration | Full iteration flow, collection updates, view switching | ~8 tests |
+| **Total new tests** | | **~116** |
+
+### Performance Considerations
+
+- **Iteration tree rendering**: Virtualize node list for 100+ nodes using `@tanstack/react-virtual`
+- **Smart collection queries**: Compute membership lazily (on view), not eagerly on every asset addition
+- **AI tagging**: Rate limit 5 concurrent analyses. Queue depth capped at 100
+- **Comparison images**: Load thumbnails (128px) for grid, full images for side-by-side/slider
+- **Asset metadata**: Store in `Map<string, AssetMetadata>` for O(1) lookup
+- **Collection asset lists**: Use `Set` internally for O(1) add/remove, convert to array for rendering
+
+---
+
+## 6. Component Architecture & File Structure
+
+### New Files
+
+| File | Responsibility |
+|------|---------------|
+| `src/types/iteration.ts` | IterationNode, SettingsDiff, IterationBranch, IterationTree types |
+| `src/types/collections.ts` | Collection, SmartQuery, AssetTag, AssetMetadata, TaggingMode types |
+| `src/store/slices/iterationSlice.ts` | Iteration tree state and actions |
+| `src/store/slices/collectionsSlice.ts` | Collections, metadata, tags, tagging queue state and actions |
+| `src/components/iteration/IterationTreePanel.tsx` | Dedicated panel tree view with branch tabs |
+| `src/components/iteration/IterationTimeline.tsx` | Bottom timeline bar |
+| `src/components/iteration/IterationCanvasOverlay.tsx` | Overlay canvas with connected nodes |
+| `src/components/iteration/IterationNode.tsx` | Single tree/timeline/overlay node component |
+| `src/components/iteration/IterationNodeDetail.tsx` | Selected node detail panel (prompt, settings, diff) |
+| `src/components/iteration/ComparisonPanel.tsx` | Side-by-side, slider, and grid comparison views |
+| `src/components/iteration/SettingsDiffPanel.tsx` | Settings difference display between two iterations |
+| `src/components/iteration/IterationViewSelector.tsx` | View mode toggle (panel/timeline/overlay) |
+| `src/components/collections/CollectionsPanel.tsx` | Right dock collections panel |
+| `src/components/collections/CollectionsTab.tsx` | Full workspace collections view |
+| `src/components/collections/CollectionCard.tsx` | Single collection card with thumbnail grid |
+| `src/components/collections/CollectionGrid.tsx` | Asset grid within a collection |
+| `src/components/collections/SmartQueryEditor.tsx` | Visual smart collection query builder |
+| `src/components/collections/TagBadge.tsx` | Tag chip with category color and confidence |
+| `src/components/collections/AssetTagger.tsx` | Tag editor for individual assets |
+| `src/components/collections/AnalyzeButton.tsx` | Triggers on-demand AI analysis |
+| `src/utils/smartQueryEvaluator.ts` | Evaluates smart collection queries against assets |
+| `src/utils/smartQueryEvaluator.test.ts` | Smart query evaluator unit tests |
+| `src/utils/iterationTreeUtils.ts` | Tree traversal, diff computation, branch management |
+| `src/utils/iterationTreeUtils.test.ts` | Iteration tree utility tests |
+
+### Modified Files
+
+| File | Change |
+|------|--------|
+| `src/types/navigation.ts` | Add `'collections'` to `ActiveTab` union |
+| `src/store/slices/uiSlice.ts` | Add `'collections'` to NavBar, default sub-mode null |
+| `src/store/appStore.types.ts` | Add iteration + collections state keys and actions |
+| `src/store/appStore.ts` | Register new slices, update partialize |
+| `src/components/layout/layoutPresets.ts` | Add collections tab preset |
+| `src/components/layout/NavBar.tsx` | Add Collections tab icon (bottom cluster) |
+| `src/components/layout/DockviewLayout.tsx` | Add collections full-width tab, add iteration panel to right dock |
+| `src/components/layout/DockviewSettingsPanel.tsx` | Add iteration history section for Generate/Canvas tabs |
+| `src/pages/SettingsPanel.tsx` | Add tagging mode setting |
+
+### Removed Files
+
+None — purely additive.
+
+---
+
+## Future Phases (out of scope)
+
+| Phase | Scope |
+|-------|-------|
+| **4** | Enhanced Timeline (keyframes, scrubbing, playback, onion-skinning) |
+| **5** | Refinement Pipeline (one-click image enhancement chains) |

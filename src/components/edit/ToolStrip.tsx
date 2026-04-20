@@ -56,7 +56,8 @@ const toolGroups: ToolDef[][] = [
 ];
 
 export const ToolStrip = memo(function ToolStrip() {
-  const { activeEditTool, setActiveEditTool } = useAppStore();
+  const activeEditTool = useAppStore(s => s.activeEditTool);
+  const setActiveEditTool = useAppStore(s => s.setActiveEditTool);
 
   return (
     <div className="h-full flex flex-col items-center py-3 gap-1">

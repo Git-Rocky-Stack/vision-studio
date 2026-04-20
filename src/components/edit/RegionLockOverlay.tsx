@@ -154,6 +154,9 @@ const RegionMask = memo(function RegionMask({
           'px-2 py-0.5 rounded-md type-ui whitespace-nowrap',
           'pointer-events-none'
         )}
+        role="status"
+        aria-live="polite"
+        aria-label={`${name} ${toolLabel} ${Math.round(strength * 100)}%`}
         style={{
           backgroundColor: isEraseMask ? 'rgba(56, 189, 248, 0.9)' : invertMask ? 'rgba(239, 68, 68, 0.9)' : toolColor,
           color: '#fff',

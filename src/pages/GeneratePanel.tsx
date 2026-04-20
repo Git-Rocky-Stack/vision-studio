@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import { cn } from '@/utils/cn';
 import { useAppStore } from '@/store/appStore';
-import { Button } from '@/components/ui/Button';
 import { PromptArea } from '@/components/generate/PromptArea';
 import { StylePresetsBar } from '@/components/generate/StylePresetsBar';
 import { ModelSelector } from '@/components/generate/ModelSelector';
@@ -10,6 +10,10 @@ import { ImageDropZone } from '@/components/generate/ImageDropZone';
 import { ControlNetPanel } from '@/components/generate/ControlNetPanel';
 import { LoRAMixer } from '@/components/generate/LoRAMixer';
 import { PromptHistory } from '@/components/generate/PromptHistory';
+import { AspectRatioPicker } from '@/components/generate/AspectRatioPicker';
+import { CompactImageDropZone } from '@/components/generate/CompactImageDropZone';
+import { VideoControls } from '@/components/generate/VideoControls';
+import { computeDimensions } from '@/types/resolution';
 import {
   clearResolvedGenerationError,
   SVD_REFERENCE_ERROR,
@@ -27,23 +31,9 @@ import {
   X,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useMotionConfig } from '@/utils/animation';
 
 type GenerationType = 'image' | 'video';
-
-interface AspectRatio {
-  name: string;
-  width: number;
-  height: number;
-  icon: string;
-}
-
-const aspectRatios: AspectRatio[] = [
-  { name: 'Square', width: 1024, height: 1024, icon: '1:1' },
-  { name: 'Portrait', width: 768, height: 1344, icon: '9:16' },
-  { name: 'Landscape', width: 1344, height: 768, icon: '16:9' },
-  { name: 'Widescreen', width: 1920, height: 1080, icon: '16:9' },
-  { name: 'Mobile', width: 720, height: 1280, icon: '9:16' },
-];
 
 const RANDOM_PROMPTS = [
   'A mystical forest at twilight with bioluminescent mushrooms and fireflies',
@@ -82,7 +72,26 @@ export function GeneratePanel() {
     setGenerationDraft,
     advancedGeneration,
     updateAdvancedGeneration,
-  } = useAppStore();
+  } = useAppStore(useShallow(s => ({
+    addJob: s.addJob,
+    updateJob: s.updateJob,
+    syncAssetsFromJobStatus: s.syncAssetsFromJobStatus,
+    systemInfo: s.systemInfo,
+    currentProject: s.currentProject,
+    addToPromptHistory: s.addToPromptHistory,
+    favoritePrompts: s.favoritePrompts,
+    toggleFavoritePrompt: s.toggleFavoritePrompt,
+    generationDraft: s.generationDraft,
+    setGenerationDraft: s.setGenerationDraft,
+    advancedGeneration: s.advancedGeneration,
+    updateAdvancedGeneration: s.updateAdvancedGeneration,
+  })));
+
+  const { reduced, transition, scaleIn, fadeIn } = useMotionConfig();
+
+  // Polling cleanup ref
+  const pollingTimeoutRef = useRef<ReturnType<typeof setTimeout>>(null);
+  const isGeneratingRef = useRef(false);
 
   // UI toggles
   const [showHistory, setShowHistory] = useState(false);
@@ -104,7 +113,6 @@ export function GeneratePanel() {
     generationType: 'image' as GenerationType,
     prompt: '',
     negativePrompt: '',
-    selectedRatio: aspectRatios[0] as AspectRatio,
     model: 'flux-dev',
     activeStylePresets: [] as string[],
     videoModel: 'ltx-video',
@@ -116,6 +124,32 @@ export function GeneratePanel() {
       updateAdvancedGeneration({ generationType: patch.generationType });
     }
   };
+
+  // Resolution dimensions from store
+  const { aspectRatio, resolutionTier, customWidth, customHeight } = useAppStore(useShallow(s => ({
+    aspectRatio: s.aspectRatio,
+    resolutionTier: s.resolutionTier,
+    customWidth: s.customWidth,
+    customHeight: s.customHeight,
+  })));
+  const dimensions = computeDimensions(aspectRatio, resolutionTier, customWidth, customHeight);
+
+  // Video generation state
+  const {
+    generationMode,
+    setGenerationMode,
+    startFrameImage,
+    endFrameImage,
+    setStartFrameImage,
+    setEndFrameImage,
+  } = useAppStore(useShallow(s => ({
+    generationMode: s.generationMode,
+    setGenerationMode: s.setGenerationMode,
+    startFrameImage: s.startFrameImage,
+    endFrameImage: s.endFrameImage,
+    setStartFrameImage: s.setStartFrameImage,
+    setEndFrameImage: s.setEndFrameImage,
+  })));
 
   // Reference image / ControlNet / LoRA config (consolidated)
   const [refConfig, setRefConfig] = useState({
@@ -131,12 +165,8 @@ export function GeneratePanel() {
   // Load template settings if project has one
   useEffect(() => {
     if (currentProject?.template) {
-      const settings = (currentProject as any).template.settings;
+      const settings = currentProject.template.settings;
       updateImageConfig({
-        selectedRatio:
-          aspectRatios.find(
-            (r) => r.width === settings.width && r.height === settings.height
-          ) || aspectRatios[0],
         model: settings.model,
         prompt: settings.prompt,
         negativePrompt: settings.negativePrompt,
@@ -157,15 +187,6 @@ export function GeneratePanel() {
       generationType: generationDraft.generationType,
       prompt: generationDraft.prompt,
       negativePrompt: generationDraft.negativePrompt,
-      selectedRatio:
-        aspectRatios.find(
-          (ratio) => ratio.width === generationDraft.width && ratio.height === generationDraft.height
-        ) ?? {
-          name: 'Custom',
-          width: generationDraft.width,
-          height: generationDraft.height,
-          icon: `${generationDraft.width}:${generationDraft.height}`,
-        },
       ...(generationDraft.generationType === 'image'
         ? { model: generationDraft.model }
         : { videoModel: generationDraft.model }),
@@ -198,6 +219,8 @@ export function GeneratePanel() {
 
   const handleGenerate = async () => {
     if (!imageConfig.prompt.trim()) return;
+    if (isGeneratingRef.current) return;
+    isGeneratingRef.current = true;
 
     // Guard: backend must be connected to generate
     if (!systemInfo.backendConnected) {
@@ -206,6 +229,7 @@ export function GeneratePanel() {
         errorMessage: 'The AI backend is not running. Please restart the app or start the backend from Settings.',
         isGenerating: false,
       });
+      isGeneratingRef.current = false;
       return;
     }
 
@@ -235,8 +259,8 @@ export function GeneratePanel() {
         const result = await window.electron.generation.generateImage({
           prompt: imageConfig.prompt.trim(),
           negative_prompt: imageConfig.negativePrompt.trim(),
-          width: imageConfig.selectedRatio.width,
-          height: imageConfig.selectedRatio.height,
+          width: dimensions.width,
+          height: dimensions.height,
           steps: advancedGeneration.steps,
           cfg_scale: advancedGeneration.cfgScale,
           seed: advancedGeneration.seed === -1 ? undefined : advancedGeneration.seed,
@@ -254,8 +278,8 @@ export function GeneratePanel() {
             params: {
               prompt: imageConfig.prompt.trim(),
               negative_prompt: imageConfig.negativePrompt.trim(),
-              width: imageConfig.selectedRatio.width,
-              height: imageConfig.selectedRatio.height,
+              width: dimensions.width,
+              height: dimensions.height,
               steps: advancedGeneration.steps,
               cfg_scale: advancedGeneration.cfgScale,
               seed: advancedGeneration.seed,
@@ -277,8 +301,8 @@ export function GeneratePanel() {
         const result = await window.electron.generation.generateVideo({
           prompt: imageConfig.prompt.trim(),
           image_path: refConfig.referenceImage ?? undefined,
-          width: imageConfig.selectedRatio.width,
-          height: imageConfig.selectedRatio.height,
+          width: dimensions.width,
+          height: dimensions.height,
           duration: advancedGeneration.duration,
           fps: advancedGeneration.fps,
           steps: advancedGeneration.steps,
@@ -295,8 +319,8 @@ export function GeneratePanel() {
             progress: 0,
             params: {
               prompt: imageConfig.prompt.trim(),
-              width: imageConfig.selectedRatio.width,
-              height: imageConfig.selectedRatio.height,
+              width: dimensions.width,
+              height: dimensions.height,
               duration: advancedGeneration.duration,
               fps: advancedGeneration.fps,
               steps: advancedGeneration.steps,
@@ -320,10 +344,11 @@ export function GeneratePanel() {
         isGenerating: false,
         activeJobId: null,
       });
+      isGeneratingRef.current = false;
     }
   };
 
-  const pollJobStatus = async (jobId: string) => {
+  const pollJobStatus = useCallback(async (jobId: string) => {
     const checkStatus = async () => {
       try {
         const status = await window.electron.generation.getStatus(jobId);
@@ -364,6 +389,7 @@ export function GeneratePanel() {
             isGenerating: false,
             activeJobId: null,
           });
+          isGeneratingRef.current = false;
         } else if (status.status === 'failed') {
           updateJob(jobId, {
             status: 'failed',
@@ -381,6 +407,7 @@ export function GeneratePanel() {
             isGenerating: false,
             activeJobId: null,
           });
+          isGeneratingRef.current = false;
         } else {
           updateJob(jobId, {
             status: status.status,
@@ -396,26 +423,40 @@ export function GeneratePanel() {
           if (Object.keys(progressPatch).length > 0) {
             updateGenStatus(progressPatch);
           }
-          setTimeout(checkStatus, 1000);
+          pollingTimeoutRef.current = setTimeout(checkStatus, 1000);
         }
       } catch (e) {
         console.error('Failed to get job status:', e);
-        setTimeout(checkStatus, 2000);
+        pollingTimeoutRef.current = setTimeout(checkStatus, 2000);
       }
     };
     checkStatus();
-  };
+  }, [updateJob, syncAssetsFromJobStatus, imageConfig.generationType, imageConfig.prompt]);
 
   const handleCancel = () => {
     if (genStatus.activeJobId) {
       window.electron.generation.cancel(genStatus.activeJobId);
+    }
+    if (pollingTimeoutRef.current) {
+      clearTimeout(pollingTimeoutRef.current);
+      pollingTimeoutRef.current = null;
     }
     updateGenStatus({
       isGenerating: false,
       status: 'idle',
       activeJobId: null,
     });
+    isGeneratingRef.current = false;
   };
+
+  // Cleanup polling timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (pollingTimeoutRef.current) {
+        clearTimeout(pollingTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const handleRandomPrompt = () => {
     const idx = Math.floor(Math.random() * RANDOM_PROMPTS.length);
@@ -459,7 +500,8 @@ export function GeneratePanel() {
   const videoModelRequiresReference = imageConfig.generationType === 'video' && imageConfig.videoModel === 'svd';
 
   return (
-    <div className="flex-1 min-h-0 flex flex-col bg-panel">
+    <div className="flex-1 min-h-0 flex flex-col bg-panel" data-testid="generate-panel">
+      <h1 className="sr-only">Generate</h1>
       {/* Mode Toggle */}
       <div className="p-3 border-b border-border bg-panel">
         <p className="mb-2 type-caption">Workflow</p>
@@ -471,7 +513,7 @@ export function GeneratePanel() {
             animate={{
               x: imageConfig.generationType === 'image' ? 0 : 'calc(100% + 4px)',
             }}
-            transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+            transition={reduced ? { duration: 0 } : { type: 'spring', stiffness: 400, damping: 30 }}
           />
           <button
             onClick={() => updateImageConfig({ generationType: 'image' })}
@@ -584,6 +626,29 @@ export function GeneratePanel() {
           </>
         )}
 
+        {/* Start Frame (video only) */}
+        {imageConfig.generationType === 'video' && (
+          <CompactImageDropZone
+            label="Start Frame"
+            image={startFrameImage}
+            onImageChange={setStartFrameImage}
+          />
+        )}
+
+        {/* End Frame (video only) */}
+        {imageConfig.generationType === 'video' && (
+          <CompactImageDropZone
+            label="End Frame"
+            image={endFrameImage}
+            onImageChange={setEndFrameImage}
+          />
+        )}
+
+        {/* Video Controls (video only) */}
+        {imageConfig.generationType === 'video' && (
+          <VideoControls />
+        )}
+
         {/* ControlNet */}
         {imageConfig.generationType === 'image' && (
           <ControlNetPanel
@@ -598,58 +663,7 @@ export function GeneratePanel() {
         )}
 
         {/* Aspect Ratio */}
-        {imageConfig.generationType === 'image' && (
-          <div className="space-y-3">
-            <label className="text-label text-text-body">Aspect Ratio</label>
-            <div className="grid grid-cols-3 gap-2">
-              {aspectRatios.map((ratio) => {
-                const isSelected = imageConfig.selectedRatio.name === ratio.name;
-                const isDisabled = genStatus.isGenerating;
-                return (
-                  <button
-                    key={ratio.name}
-                    onClick={() => updateImageConfig({ selectedRatio: ratio })}
-                    disabled={isDisabled}
-                    className={cn(
-                      'px-2 py-2 rounded-md border transition-all flex items-center gap-2',
-                      isSelected
-                        ? 'border-accent-primary-border bg-accent-primary-muted shadow-accent-subtle'
-                        : 'border-border hover:border-border-hover bg-elevated',
-                      isDisabled && 'opacity-40 cursor-not-allowed hover:border-border hover:bg-elevated'
-                    )}
-                  >
-                    <div
-                      className={cn(
-                        'flex-shrink-0 rounded-sm',
-                        isSelected ? 'bg-accent-primary' : 'bg-text-muted'
-                      )}
-                      style={{
-                        width: ratio.width > ratio.height ? '18px' : '11px',
-                        height: ratio.width > ratio.height ? '11px' : '18px',
-                      }}
-                    />
-                    <div className="min-w-0 text-left">
-                      <span
-                        className={cn(
-                          'block truncate type-ui leading-tight',
-                          isSelected ? 'text-accent-primary' : 'text-text-body'
-                        )}
-                      >
-                        {ratio.name}
-                      </span>
-                      <span className="block type-meta leading-tight text-text-muted">
-                        {ratio.icon}
-                      </span>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-            <p className="type-meta text-text-muted">
-              {imageConfig.selectedRatio.width} x {imageConfig.selectedRatio.height}px
-            </p>
-          </div>
-        )}
+        <AspectRatioPicker />
 
         {/* Advanced Controls */}
         <div className="rounded-md border border-border bg-surface p-3">
@@ -673,8 +687,9 @@ export function GeneratePanel() {
         {/* Error Message */}
         {genStatus.status === 'error' && (
           <motion.div
-            initial={{ opacity: 0, y: -10 }}
+            initial={reduced ? {} : { opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
+            transition={transition}
             className="p-3 rounded-lg bg-status-error-muted border border-status-error-border flex items-start gap-2"
           >
             <AlertCircle className="w-4 h-4 text-status-error flex-shrink-0 mt-0.5" />
@@ -685,8 +700,9 @@ export function GeneratePanel() {
         {/* Success Message */}
         {genStatus.status === 'success' && (
           <motion.div
-            initial={{ opacity: 0, y: -10 }}
+            initial={reduced ? {} : { opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
+            transition={transition}
             className="p-3 rounded-lg bg-status-success-muted border border-status-success-border flex items-start gap-2"
           >
             <Check className="w-4 h-4 text-status-success flex-shrink-0 mt-0.5" />
@@ -704,9 +720,10 @@ export function GeneratePanel() {
             <motion.div
               key="progress"
               data-testid="generation-progress"
-              initial={{ opacity: 0, scale: 0.98 }}
+              initial={reduced ? {} : { opacity: 0, scale: 0.98 }}
               animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.98 }}
+              exit={reduced ? {} : { opacity: 0, scale: 0.98 }}
+              transition={transition}
               className="relative overflow-hidden rounded-md bg-elevated border border-border"
             >
               {/* Progress fill */}
@@ -754,9 +771,10 @@ export function GeneratePanel() {
             <motion.button
               key="generate"
               data-testid="generate-button"
-              initial={{ opacity: 0, scale: 0.98 }}
+              initial={reduced ? {} : { opacity: 0, scale: 0.98 }}
               animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.98 }}
+              exit={reduced ? {} : { opacity: 0, scale: 0.98 }}
+              transition={transition}
               onClick={handleGenerate}
               disabled={!imageConfig.prompt.trim()}
               className={cn(

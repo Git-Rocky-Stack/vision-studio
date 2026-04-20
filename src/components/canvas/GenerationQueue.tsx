@@ -6,7 +6,8 @@ import { ImageIcon } from 'lucide-react';
 import { ImageWithFallback } from '@/components/ui/ImageWithFallback';
 
 export const GenerationQueue = memo(function GenerationQueue() {
-  const { generationQueue, setCurrentImage } = useAppStore();
+  const generationQueue = useAppStore((s) => s.generationQueue);
+  const setCurrentImage = useAppStore((s) => s.setCurrentImage);
   const [hoveredItem, setHoveredItem] = useState<string | null>(null);
 
   const completedItems = generationQueue.filter(
