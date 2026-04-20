@@ -131,7 +131,7 @@ export const DockviewLayout = memo(function DockviewLayout() {
           aria-label="Settings panel"
           className={cn(
             'h-full flex-shrink-0 border-r border-border bg-surface',
-            'w-[clamp(340px,32%,420px)]',
+            'w-[clamp(150px,32vw,420px)]',
           )}
         >
           <ErrorBoundary fallbackLabel="Settings panel error">
@@ -145,30 +145,30 @@ export const DockviewLayout = memo(function DockviewLayout() {
           {centerTabs.length > 1 && !isStudioMode && (
             <div
               className="flex flex-shrink-0 items-center gap-1 border-b border-border px-2 py-1"
-              role="tablist"
-              aria-label="Center views"
               data-testid="center-tab-bar"
             >
-              {centerTabs.map((tab) => (
-                <button
-                  key={tab.id}
-                  id={`center-tab-${tab.id}`}
-                  type="button"
-                  role="tab"
-                  aria-selected={centerView === tab.id}
-                  aria-controls={`center-panel-${tab.id}`}
-                  data-testid={`center-tab-${tab.id}`}
-                  onClick={() => handleCenterTabClick(tab.id)}
-                  className={cn(
-                    'rounded-sm px-2.5 py-1.5 type-ui transition-colors',
-                    centerView === tab.id
-                      ? 'bg-elevated text-text-primary shadow-sm'
-                      : 'text-text-body hover:bg-elevated hover:text-text-primary',
-                  )}
-                >
-                  {tab.label}
-                </button>
-              ))}
+              <div role="tablist" aria-label="Center views" className="flex items-center gap-1">
+                {centerTabs.map((tab) => (
+                  <button
+                    key={tab.id}
+                    id={`center-tab-${tab.id}`}
+                    type="button"
+                    role="tab"
+                    aria-selected={centerView === tab.id}
+                    aria-controls={`center-panel-${tab.id}`}
+                    data-testid={`center-tab-${tab.id}`}
+                    onClick={() => handleCenterTabClick(tab.id)}
+                    className={cn(
+                      'rounded-sm px-2.5 py-1.5 type-ui transition-colors',
+                      centerView === tab.id
+                        ? 'bg-elevated text-text-primary shadow-sm'
+                        : 'text-text-body hover:bg-elevated hover:text-text-primary',
+                    )}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
 
               {/* Iteration view selector for generate/canvas */}
               {showIterationView && (
@@ -198,9 +198,9 @@ export const DockviewLayout = memo(function DockviewLayout() {
           role="complementary"
           aria-label="Gallery panel"
           className={cn(
-            'h-full flex-shrink-0 border-l border-border bg-surface',
+            'hidden h-full flex-shrink-0 border-l border-border bg-surface xl:flex',
             'w-[clamp(280px,30%,420px)]',
-            'flex flex-col',
+            'flex-col',
           )}
         >
           <ErrorBoundary fallbackLabel="Right dock error">

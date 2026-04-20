@@ -55,11 +55,34 @@ export function createPromptStudioActions(set: AppSet, _get: AppGet) {
         },
       })),
 
-    applyPromptTemplate: (id: string, _mode: 'replace' | 'merge') =>
+    applyPromptTemplate: (id: string, mode: 'replace' | 'merge') => {
+      const state = _get();
+      const template = state.promptTemplates.find((t) => t.id === id);
+      if (!template) return;
+
+      const draft = state.generationDraft;
+      const updatedPrompt = mode === 'replace'
+        ? template.promptText
+        : draft
+          ? `${draft.prompt} ${template.promptText}`.trim()
+          : template.promptText;
+
+      const updatedNegative = mode === 'replace'
+        ? (template.negativePrompt ?? draft?.negativePrompt ?? '')
+        : template.negativePrompt
+          ? draft
+            ? `${draft.negativePrompt} ${template.negativePrompt}`.trim()
+            : template.negativePrompt
+          : draft?.negativePrompt ?? '';
+
       set((state) => ({
         promptTemplates: state.promptTemplates.map((t) =>
           t.id === id ? { ...t, lastUsedAt: Date.now() } : t,
         ),
-      })),
+        generationDraft: draft
+          ? { ...draft, prompt: updatedPrompt, negativePrompt: updatedNegative }
+          : { generationType: 'image', prompt: updatedPrompt, negativePrompt: updatedNegative, width: 1024, height: 1024 },
+      }));
+    },
   };
 }

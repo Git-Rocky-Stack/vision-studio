@@ -38,7 +38,7 @@ export const PipelineBuilder = memo(function PipelineBuilder({
   const execution = pipelineExecutions.find((e) => e.pipelineId === pipeline.id) ?? null;
 
   function handleAddStep(type: PipelineStepType) {
-    const id = `step-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+    const id = crypto.randomUUID();
     const labels: Record<string, string> = {
       upscale: 'Upscale',
       denoise: 'Denoise',

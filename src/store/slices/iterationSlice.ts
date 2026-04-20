@@ -1,6 +1,7 @@
 import type { AppSet, AppGet } from '../appStore.types';
-import type { IterationNode, IterationBranch, IterationView, ComparisonMode as IterationComparisonMode, SettingsDiff } from '@/types/iteration';
+import type { IterationNode, IterationBranch, IterationView, ComparisonMode as IterationComparisonMode } from '@/types/iteration';
 import type { GenerationJob } from '@/store/appStore.types';
+import { computeSettingsDiff } from '@/utils/iterationTreeUtils';
 
 export const iterationInitialState = {
   iterationNodes: new Map<string, IterationNode>(),
@@ -11,20 +12,6 @@ export const iterationInitialState = {
   comparisonIds: null as [string, string] | null,
 };
 
-function computeSettingsDiff(
-  parent: GenerationJob['params'],
-  child: GenerationJob['params'],
-): SettingsDiff | null {
-  const diff: SettingsDiff = {};
-  const keys = Object.keys(child) as (keyof typeof child)[];
-  for (const key of keys) {
-    if (child[key] !== parent[key]) {
-      (diff as Record<string, unknown>)[key] = child[key];
-    }
-  }
-  return Object.keys(diff).length > 0 ? diff : null;
-}
-
 export function createIterationActions(set: AppSet, get: AppGet) {
   return {
     addIteration: (params: { job: GenerationJob; parentId: string | null; thumbnail: string; branchId?: string }) => {
@@ -32,14 +19,15 @@ export function createIterationActions(set: AppSet, get: AppGet) {
       const nodes = get().iterationNodes;
       const branches = get().iterationBranches;
 
-      const settingsDiff = parentId && nodes.has(parentId)
-        ? computeSettingsDiff(nodes.get(parentId)!.generationJob.params, job.params)
+      const parentNode = parentId ? nodes.get(parentId) : undefined;
+      const settingsDiff = parentNode
+        ? computeSettingsDiff(parentNode.generationJob.params, job.params)
         : null;
 
       let targetBranchId = branchId;
       if (!targetBranchId) {
-        if (parentId && nodes.has(parentId)) {
-          targetBranchId = nodes.get(parentId)!.branchId;
+        if (parentNode) {
+          targetBranchId = parentNode.branchId;
         } else {
           targetBranchId = crypto.randomUUID();
         }
@@ -61,9 +49,11 @@ export function createIterationActions(set: AppSet, get: AppGet) {
       const newNodes = new Map(nodes);
       newNodes.set(job.id, node);
 
-      if (parentId && newNodes.has(parentId)) {
-        const parent = newNodes.get(parentId)!;
-        newNodes.set(parentId, { ...parent, childrenIds: [...parent.childrenIds, job.id] });
+      if (parentId) {
+        const existingParent = newNodes.get(parentId);
+        if (existingParent) {
+          newNodes.set(parentId, { ...existingParent, childrenIds: [...existingParent.childrenIds, job.id] });
+        }
       }
 
       let newBranches = [...branches];

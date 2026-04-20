@@ -19,7 +19,7 @@ test.describe('Workbench responsive layout', () => {
   test('keeps the Generate center work area usable at narrow widths', async ({ page }) => {
     await page.setViewportSize({ width: 760, height: 760 });
 
-    const centerPanel = page.locator('[role="tabpanel"][aria-labelledby="workbench-canvas-tab"]');
+    const centerPanel = page.locator('[role="tabpanel"][aria-labelledby="center-tab-canvas"]');
     await expect(centerPanel).toBeVisible();
 
     const centerBox = await centerPanel.boundingBox();
@@ -29,7 +29,7 @@ test.describe('Workbench responsive layout', () => {
   test('keeps the Generate center work area visible on phone widths', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 760 });
 
-    const centerPanel = page.locator('[role="tabpanel"][aria-labelledby="workbench-canvas-tab"]');
+    const centerPanel = page.locator('[role="tabpanel"][aria-labelledby="center-tab-canvas"]');
     await expect(centerPanel).toBeVisible();
 
     const centerBox = await centerPanel.boundingBox();

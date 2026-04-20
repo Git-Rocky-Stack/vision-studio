@@ -29,6 +29,8 @@ resources/VisionStudio-Backend.exe
 # Development artifacts
 output/
 scripts/Output/
+docs/code-quality-review-*.md
+docs/qa-testing-strategy*.md
 
 # Editor directories and files
 .vscode/*

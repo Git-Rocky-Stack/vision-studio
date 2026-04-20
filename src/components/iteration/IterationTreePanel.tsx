@@ -50,17 +50,27 @@ export const IterationTreePanel = memo(function IterationTreePanel({ className }
 
       {/* Branch tabs */}
       {iterationBranches.length > 1 && (
-        <div className="flex gap-1 px-3 py-1 border-b border-border overflow-x-auto">
-          {iterationBranches.map((branch) => (
-            <button
-              key={branch.id}
-              type="button"
-              className="rounded-md px-2 py-0.5 type-micro text-text-muted hover:text-text-body hover:bg-elevated transition-colors"
-              onClick={() => setActiveIteration(branch.activeNodeId)}
-            >
-              {branch.name}
-            </button>
-          ))}
+        <div className="flex gap-1 px-3 py-1 border-b border-border overflow-x-auto" role="tablist" aria-label="Iteration branches">
+          {iterationBranches.map((branch) => {
+            const isActive = activeNode?.branchId === branch.id;
+            return (
+              <button
+                key={branch.id}
+                type="button"
+                role="tab"
+                aria-selected={isActive}
+                className={cn(
+                  'rounded-md px-2 py-0.5 type-micro transition-colors',
+                  isActive
+                    ? 'bg-elevated text-text-primary shadow-sm'
+                    : 'text-text-muted hover:text-text-body hover:bg-elevated',
+                )}
+                onClick={() => setActiveIteration(branch.activeNodeId)}
+              >
+                {branch.name}
+              </button>
+            );
+          })}
         </div>
       )}
 
@@ -98,7 +108,11 @@ interface TreeNodeProps {
   depth: number;
 }
 
+const MAX_TREE_DEPTH = 20;
+
 function TreeNode({ nodeId, iterationNodes, activeIterationId, onSelect, onPin, depth }: TreeNodeProps) {
+  if (depth > MAX_TREE_DEPTH) return null;
+
   const node = iterationNodes.get(nodeId);
   if (!node) return null;
 

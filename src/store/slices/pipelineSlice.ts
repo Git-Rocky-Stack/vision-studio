@@ -5,10 +5,6 @@ import type { PipelineDefinition, PipelineStep, PipelineExecution } from '@/type
 // Helpers
 // ---------------------------------------------------------------------------
 
-function uid(): string {
-  return `p${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
-}
-
 function now(): string {
   return new Date().toISOString();
 }
@@ -112,7 +108,7 @@ export function createPipelineActions(set: AppSet) {
         pipelines: [
           ...s.pipelines,
           {
-            id: uid(),
+            id: crypto.randomUUID(),
             name: params.name,
             description: params.description,
             steps: params.steps,
@@ -146,7 +142,7 @@ export function createPipelineActions(set: AppSet) {
             ...s.pipelines,
             {
               ...source,
-              id: uid(),
+              id: crypto.randomUUID(),
               name: newName,
               isBuiltIn: false,
               created: now(),
@@ -164,7 +160,7 @@ export function createPipelineActions(set: AppSet) {
           pipelineExecutions: [
             ...s.pipelineExecutions,
             {
-              id: uid(),
+              id: crypto.randomUUID(),
               pipelineId,
               sourceImageId,
               status: 'queued' as const,

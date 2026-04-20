@@ -158,7 +158,7 @@ export function TemplatesPanel() {
   ];
 
   return (
-    <div className="h-full flex flex-col bg-void">
+    <div className="h-full flex flex-col bg-void" data-testid="templates-panel">
       <h1 className="sr-only">Templates</h1>
       {/* Top Bar */}
       <div className="px-6 pt-6 pb-4 border-b border-border bg-surface/50">

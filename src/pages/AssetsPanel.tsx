@@ -171,7 +171,7 @@ export function AssetsPanel() {
   });
 
   return (
-    <div className="h-full flex flex-col bg-surface">
+    <div className="h-full flex flex-col bg-surface" data-testid="assets-panel">
       <h1 className="sr-only">Assets</h1>
       <div className="p-4 border-b border-border space-y-4">
         <div className="relative">

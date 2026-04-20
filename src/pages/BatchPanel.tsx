@@ -375,7 +375,7 @@ export function BatchPromptQueue() {
     prompts.length > 0 ? (completedCount / prompts.length) * 100 : 0;
 
   return (
-    <div className="h-full flex flex-col bg-surface">
+    <div className="h-full flex flex-col bg-surface" data-testid="batch-panel">
       {/* Results Toolbar */}
       <div className="p-3 border-b border-border space-y-3">
         {/* View / Sort row */}

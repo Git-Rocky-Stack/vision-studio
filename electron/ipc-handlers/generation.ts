@@ -1,7 +1,7 @@
 import { ipcMain, BrowserWindow } from 'electron';
 import axios from 'axios';
 import WebSocket from 'ws';
-import { BACKEND_AUTH_TOKEN, backendAuthHeaders } from '../services/backendAuth';
+import { getBackendAuthToken, backendAuthHeaders } from '../services/backendAuth';
 import { toSafeRendererError } from '../services/security';
 
 const BACKEND_URL = 'http://127.0.0.1:8000';
@@ -55,7 +55,7 @@ export function setupGenerationHandlers(window: BrowserWindow) {
 }
 
 function connectWebSocket() {
-  ws = new WebSocket(`${WS_URL}?token=${encodeURIComponent(BACKEND_AUTH_TOKEN)}`);
+  ws = new WebSocket(`${WS_URL}?token=${encodeURIComponent(getBackendAuthToken())}`);
   
   ws.on('open', () => {
     wsReconnectAttempts = 0;

@@ -500,7 +500,7 @@ export function GeneratePanel() {
   const videoModelRequiresReference = imageConfig.generationType === 'video' && imageConfig.videoModel === 'svd';
 
   return (
-    <div className="flex-1 min-h-0 flex flex-col bg-panel">
+    <div className="flex-1 min-h-0 flex flex-col bg-panel" data-testid="generate-panel">
       <h1 className="sr-only">Generate</h1>
       {/* Mode Toggle */}
       <div className="p-3 border-b border-border bg-panel">

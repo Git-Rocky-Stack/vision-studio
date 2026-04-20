@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/Button';
 import { useShallow } from 'zustand/react/shallow';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { useAppStore } from '@/store/appStore';
+import { UserGuidePage } from '@/pages/UserGuidePage';
 import type { ModelInfo } from '@/types/model';
 import {
   Settings,
@@ -20,10 +21,11 @@ import {
   AlertTriangle,
   Play,
   Tag,
+  HelpCircle,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-type SettingsTab = 'general' | 'ai' | 'appearance' | 'notifications';
+type SettingsTab = 'general' | 'ai' | 'appearance' | 'notifications' | 'guide';
 
 interface SettingsSection {
   id: SettingsTab;
@@ -47,6 +49,7 @@ const sections: SettingsSection[] = [
   { id: 'ai', label: 'AI & Models', icon: Cpu },
   { id: 'appearance', label: 'Appearance', icon: Palette },
   { id: 'notifications', label: 'Notifications', icon: Bell },
+  { id: 'guide', label: 'User Guide', icon: HelpCircle },
 ];
 
 const defaultSettingsState: SettingsState = {
@@ -215,7 +218,7 @@ export function SettingsPanel() {
   };
 
   return (
-    <div className="h-full flex bg-surface">
+    <div className="h-full flex bg-surface" data-testid="settings-panel">
       <h1 className="sr-only">Settings</h1>
       <div className="w-56 border-r border-border bg-elevated p-3">
         <nav className="space-y-1">
@@ -709,6 +712,8 @@ export function SettingsPanel() {
                 </div>
               </div>
             )}
+
+            {activeTab === 'guide' && <UserGuidePage />}
           </motion.div>
         </AnimatePresence>
       </div>
