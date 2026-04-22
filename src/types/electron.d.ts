@@ -66,6 +66,7 @@ export interface SystemInfo {
   cuda_version?: string;
   comfyui_connected: boolean;
   models_count: number;
+  backendConnected?: boolean;
 }
 
 export interface ModelInfo {

@@ -232,6 +232,8 @@ export interface AppState {
     comfyuiConnected: boolean;
     modelsCount: number;
     backendConnected: boolean;
+    backendRunning?: boolean;
+    bundledBackend?: boolean;
   };
 
   // ─── Models ──────────────────────────────────────────────────────────────

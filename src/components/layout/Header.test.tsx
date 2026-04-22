@@ -16,37 +16,37 @@ vi.mock('./ProjectDropdown', () => ({
   ProjectDropdown: () => <button type="button">Project</button>,
 }));
 
-const baseStore: {
-  currentProject: null | {
+const baseStore = {
+  currentProject: null as null | {
     id: string;
     name: string;
     updatedAt?: string;
-  };
+  },
   systemInfo: {
     gpuAvailable: false,
     comfyuiConnected: false,
     modelsCount: 0,
     backendConnected: false,
+    backendRunning: false,
+    bundledBackend: false,
   },
-} = {
-  currentProject: null,
-  systemInfo: {
-    gpuAvailable: false,
-    comfyuiConnected: false,
-    modelsCount: 0,
-    backendConnected: false,
-  },
+  availableModels: [] as { id: string; status: string }[],
+  activeJobs: [] as Array<{ id: string }>,
+  generationQueue: [] as Array<{ id: string }>,
 };
 
 function mockStore(overrides: Partial<typeof baseStore> = {}) {
-  const state = { ...baseStore, ...overrides };
+  const state = {
+    ...baseStore,
+    ...overrides,
+  };
   vi.mocked(useAppStore).mockImplementation((selector: (s: typeof state) => unknown) => selector(state));
 }
 
 describe('Header', () => {
   afterEach(cleanup);
 
-  it('renders quiet production chrome without oversized branding', () => {
+  it('renders GPU ready status with model detail', () => {
     mockStore({
       currentProject: {
         id: 'project-1',
@@ -55,7 +55,10 @@ describe('Header', () => {
       },
       systemInfo: {
         ...baseStore.systemInfo,
+        gpuAvailable: true,
+        modelsCount: 3,
         backendConnected: true,
+        backendRunning: true,
       },
     });
 
@@ -66,16 +69,54 @@ describe('Header', () => {
     expect(screen.getByTestId('header-right-actions')).toBeInTheDocument();
     expect(screen.getByTestId('app-header')).toHaveClass('app-region-drag', 'h-14', 'pr-36');
     expect(screen.getByTestId('header-right-actions')).toHaveClass('app-region-no-drag');
-    expect(screen.getByLabelText('Backend ready')).toBeInTheDocument();
-    expect(screen.getByText('Ready')).toBeInTheDocument();
+    expect(screen.getByLabelText('GPU backend ready')).toBeInTheDocument();
+    expect(screen.getByText('GPU ready')).toBeInTheDocument();
+    expect(screen.getByText('3 models online')).toBeInTheDocument();
   });
 
-  it('marks the backend as not ready when generation is unavailable', () => {
+  it('surfaces warming state while the backend process is starting', () => {
+    mockStore({
+      systemInfo: {
+        ...baseStore.systemInfo,
+        backendRunning: true,
+        bundledBackend: true,
+      },
+    });
+
+    render(<Header />);
+
+    expect(screen.getByLabelText('Backend is warming up')).toBeInTheDocument();
+    expect(screen.getByText('Warming')).toBeInTheDocument();
+    expect(screen.getByText('Bundled backend starting')).toBeInTheDocument();
+  });
+
+  it('shows queue activity ahead of steady ready state', () => {
+    mockStore({
+      systemInfo: {
+        ...baseStore.systemInfo,
+        gpuAvailable: true,
+        modelsCount: 2,
+        backendConnected: true,
+        backendRunning: true,
+      },
+      activeJobs: [{ id: 'job-1' }],
+      generationQueue: [{ id: 'queue-1' }, { id: 'queue-2' }],
+    });
+
+    render(<Header />);
+
+    expect(screen.getByLabelText('Generation queue active')).toBeInTheDocument();
+    expect(screen.getByText('Queue active')).toBeInTheDocument();
+    expect(screen.getByText('1 running job, 2 queued items')).toBeInTheDocument();
+  });
+
+  it('marks the backend as not ready when neither process nor health are available', () => {
     mockStore();
 
     render(<Header />);
 
     expect(screen.getByLabelText('Backend not ready')).toBeInTheDocument();
     expect(screen.getByText('Not ready')).toBeInTheDocument();
+    expect(screen.getByText('Backend offline')).toBeInTheDocument();
   });
 });

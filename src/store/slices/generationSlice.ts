@@ -15,6 +15,8 @@ export const generationInitialState = {
     comfyuiConnected: false,
     modelsCount: 0,
     backendConnected: false,
+    backendRunning: false,
+    bundledBackend: false,
   },
   availableModels: [] as ModelInfo[],
   promptHistory: [] as PromptHistoryEntry[],

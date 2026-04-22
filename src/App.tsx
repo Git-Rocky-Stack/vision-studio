@@ -46,7 +46,10 @@ function App() {
       if (!electron?.system?.getInfo) return;
 
       try {
-        const info = await electron.system.getInfo();
+        const [info, backendStatus] = await Promise.all([
+          electron.system.getInfo(),
+          electron?.backend?.getStatus ? electron.backend.getStatus() : Promise.resolve(undefined),
+        ]);
         setSystemInfo({
           gpuAvailable: info.gpu_available,
           gpuName: info.gpu_name,
@@ -55,6 +58,8 @@ function App() {
           comfyuiConnected: info.comfyui_connected,
           modelsCount: info.models_count,
           backendConnected: info.backendConnected,
+          backendRunning: backendStatus?.running,
+          bundledBackend: backendStatus?.bundled,
         });
       } catch (e) {
         console.error('Failed to fetch system info:', e);
@@ -77,7 +82,14 @@ function App() {
 
     // Poll system info every 30 seconds
     const interval = setInterval(fetchSystemInfo, 30000);
-    return () => clearInterval(interval);
+    const unsubscribeBackendStatus = electron?.backend?.onStatusChange?.(() => {
+      void fetchSystemInfo();
+    });
+
+    return () => {
+      clearInterval(interval);
+      unsubscribeBackendStatus?.();
+    };
   }, [setSystemInfo, setAvailableModels]);
 
   useEffect(() => {

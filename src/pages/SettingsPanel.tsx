@@ -445,7 +445,10 @@ export function SettingsPanel() {
                             if (result.success) {
                               // Re-fetch system info after a short delay for backend to initialize
                               setTimeout(async () => {
-                                const info = await window.electron.system.getInfo();
+                                const [info, backendStatus] = await Promise.all([
+                                  window.electron.system.getInfo(),
+                                  window.electron.backend.getStatus(),
+                                ]);
                                 setSystemInfo({
                                   gpuAvailable: info.gpu_available,
                                   gpuName: info.gpu_name,
@@ -454,6 +457,8 @@ export function SettingsPanel() {
                                   comfyuiConnected: info.comfyui_connected,
                                   modelsCount: info.models_count,
                                   backendConnected: info.backendConnected,
+                                  backendRunning: backendStatus.running,
+                                  bundledBackend: backendStatus.bundled,
                                 });
                                 const models = await window.electron.models.list();
                                 setAvailableModels(models);
