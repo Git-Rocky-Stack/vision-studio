@@ -182,7 +182,7 @@ export const DockviewSettingsPanel = memo(function DockviewSettingsPanel() {
         role="tabpanel"
         id="settings-tabpanel"
         aria-labelledby="settings-segmented-control"
-        className="min-h-0 flex-1 overflow-y-auto"
+        className="scroll-shadow-y min-h-0 flex-1 overflow-y-auto"
       >
         <SettingsContent activeTab={activeTab} activeSubMode={activeSubMode} />
       </div>

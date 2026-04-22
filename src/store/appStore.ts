@@ -227,6 +227,7 @@ export const useAppStore = create<AppState>()(
         activeTab: state.activeTab,
         activeSubMode: state.activeSubMode,
         centerView: state.centerView,
+        layoutPreferences: state.layoutPreferences,
         aspectRatio: state.aspectRatio,
         resolutionTier: state.resolutionTier,
         customWidth: state.customWidth,

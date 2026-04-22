@@ -116,7 +116,7 @@ export function WorkbenchBoardsDock() {
         </div>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-auto p-2">
+      <div className="scroll-shadow-y min-h-0 flex-1 overflow-auto p-2">
         <div className="flex flex-col gap-1">
           {orderedProjects.map((project) => {
             const isActive = project.id === activeProjectId;

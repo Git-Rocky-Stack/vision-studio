@@ -75,7 +75,7 @@ export const IterationTreePanel = memo(function IterationTreePanel({ className }
       )}
 
       {/* Tree */}
-      <div className="flex-1 overflow-y-auto p-2 space-y-1">
+      <div className="scroll-shadow-y flex-1 overflow-y-auto p-2 space-y-1">
         {tree.roots.map((root) => (
           <TreeNode
             key={root.id}
@@ -91,7 +91,7 @@ export const IterationTreePanel = memo(function IterationTreePanel({ className }
 
       {/* Detail panel */}
       {activeNode && (
-        <div className="border-t border-border max-h-[40%] overflow-y-auto">
+        <div className="scroll-shadow-y border-t border-border max-h-[40%] overflow-y-auto">
           <IterationNodeDetail node={activeNode} />
         </div>
       )}

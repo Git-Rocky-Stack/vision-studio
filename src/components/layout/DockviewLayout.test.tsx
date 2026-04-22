@@ -142,6 +142,15 @@ describe('DockviewLayout', () => {
     expect(screen.getByTestId('right-dock')).toBeInTheDocument();
   });
 
+  it('renders shell splitter handles for docked layouts', () => {
+    useAppStore.setState({ activeTab: 'generate' });
+    render(<DockviewLayout />);
+
+    expect(screen.getByTestId('splitter-left-dock')).toBeInTheDocument();
+    expect(screen.getByTestId('splitter-right-dock')).toBeInTheDocument();
+    expect(screen.getByTestId('splitter-right-dock-triple-0')).toBeInTheDocument();
+  });
+
   it('does NOT render side docks for assets tab', () => {
     useAppStore.setState({ activeTab: 'assets' });
     render(<DockviewLayout />);
@@ -245,5 +254,46 @@ describe('DockviewLayout', () => {
     await user.click(viewerTab);
 
     expect(useAppStore.getState().centerView).toBe('viewer');
+  });
+
+  it('supports keyboard resizing for the left dock splitter', async () => {
+    const user = userEvent.setup();
+    useAppStore.setState({ activeTab: 'generate' });
+    render(<DockviewLayout />);
+
+    const splitter = screen.getByTestId('splitter-left-dock');
+    splitter.focus();
+    await user.keyboard('{ArrowRight}');
+
+    expect(useAppStore.getState().layoutPreferences.leftDockWidth).toBeGreaterThan(320);
+  });
+
+  it('resets the right dock width on splitter double click', async () => {
+    const user = userEvent.setup();
+    useAppStore.setState({
+      activeTab: 'generate',
+      layoutPreferences: {
+        ...useAppStore.getState().layoutPreferences,
+        rightDockWidth: 300,
+      },
+    });
+    render(<DockviewLayout />);
+
+    await user.dblClick(screen.getByTestId('splitter-right-dock'));
+
+    expect(useAppStore.getState().layoutPreferences.rightDockWidth).toBe(360);
+  });
+
+  it('supports keyboard resizing for the triple right dock stack', async () => {
+    const user = userEvent.setup();
+    useAppStore.setState({ activeTab: 'generate' });
+    render(<DockviewLayout />);
+
+    const initialTopRatio = useAppStore.getState().layoutPreferences.rightDockTripleRatios[0];
+    const splitter = screen.getByTestId('splitter-right-dock-triple-0');
+    splitter.focus();
+    await user.keyboard('{ArrowDown}');
+
+    expect(useAppStore.getState().layoutPreferences.rightDockTripleRatios[0]).toBeGreaterThan(initialTopRatio);
   });
 });

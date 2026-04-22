@@ -1,5 +1,12 @@
 import { describe, expect, it, beforeEach } from 'vitest';
 import { useAppStore } from './appStore';
+import {
+  LEFT_DOCK_DEFAULT_WIDTH,
+  LEFT_DOCK_MAX_WIDTH,
+  LEFT_DOCK_MIN_WIDTH,
+  RIGHT_DOCK_DUAL_DEFAULT_RATIOS,
+  RIGHT_DOCK_TRIPLE_MIN_RATIO,
+} from './layoutPreferences';
 import type { EditHistoryEntry } from '@/types/editor';
 import type { BatchResult, PromptHistoryEntry } from '@/types/generation';
 
@@ -54,6 +61,24 @@ describe('appStore', () => {
       useAppStore.getState().setActiveViewerItemId('batch-result-1');
 
       expect(useAppStore.getState().activeViewerItemId).toBe('batch-result-1');
+    });
+  });
+
+  describe('layout preferences', () => {
+    it('clamps dock widths to supported bounds', () => {
+      useAppStore.getState().setLeftDockWidth(LEFT_DOCK_MIN_WIDTH - 80);
+      expect(useAppStore.getState().layoutPreferences.leftDockWidth).toBe(LEFT_DOCK_MIN_WIDTH);
+
+      useAppStore.getState().setLeftDockWidth(LEFT_DOCK_MAX_WIDTH + 120);
+      expect(useAppStore.getState().layoutPreferences.leftDockWidth).toBe(LEFT_DOCK_MAX_WIDTH);
+    });
+
+    it('normalizes right dock triple ratios and preserves minimum panel sizes', () => {
+      useAppStore.getState().setRightDockTripleRatios([9, 0.01, 0.01]);
+
+      const ratios = useAppStore.getState().layoutPreferences.rightDockTripleRatios;
+      expect(ratios.reduce((sum, value) => sum + value, 0)).toBeCloseTo(1, 5);
+      expect(Math.min(...ratios)).toBeGreaterThanOrEqual(RIGHT_DOCK_TRIPLE_MIN_RATIO);
     });
   });
 
@@ -447,11 +472,19 @@ describe('appStore', () => {
       const persisted = (useAppStore as any).persist?.getOptions?.()?.partialize?.(state);
       if (persisted) {
         expect(persisted).toHaveProperty('activeTab');
+        expect(persisted).toHaveProperty('layoutPreferences');
         expect(persisted).toHaveProperty('promptHistory');
         expect(persisted).toHaveProperty('assetLibrary');
         expect(persisted).not.toHaveProperty('activeJobs');
         expect(persisted).not.toHaveProperty('completedJobs');
         expect(persisted).not.toHaveProperty('editHistory');
+        expect(persisted.layoutPreferences).toEqual({
+          leftDockWidth: LEFT_DOCK_DEFAULT_WIDTH,
+          rightDockWidth: 360,
+          rightDockCanvasRatios: [0.52, 0.48],
+          rightDockDualRatios: [...RIGHT_DOCK_DUAL_DEFAULT_RATIOS],
+          rightDockTripleRatios: [0.4, 0.32, 0.28],
+        });
       }
     });
   });

@@ -73,7 +73,7 @@ export function WorkbenchGalleryDock() {
             <p className="type-caption text-text-muted">{items.length} recent captures</p>
             <p className="hidden type-caption text-text-muted sm:block">Click any card to review</p>
           </div>
-          <div className="grid flex-1 auto-rows-min grid-cols-2 gap-2 overflow-y-auto p-3">
+          <div className="scroll-shadow-y grid flex-1 auto-rows-min grid-cols-2 gap-2 overflow-y-auto p-3">
             {items.map((item) => (
               <button
                 key={item.id}

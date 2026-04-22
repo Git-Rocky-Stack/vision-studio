@@ -438,6 +438,19 @@ p, li, dd, blockquote {
   scrollbar-width: none;
 }
 
+.scroll-shadow-y {
+  --scroll-shadow-bg: var(--color-surface);
+  --scroll-shadow-strength: rgba(0, 0, 0, 0.36);
+  background:
+    linear-gradient(var(--scroll-shadow-bg) 35%, rgba(0, 0, 0, 0)) center top,
+    linear-gradient(rgba(0, 0, 0, 0), var(--scroll-shadow-bg) 65%) center bottom,
+    radial-gradient(farthest-side at 50% 0, var(--scroll-shadow-strength), rgba(0, 0, 0, 0)) center top,
+    radial-gradient(farthest-side at 50% 100%, var(--scroll-shadow-strength), rgba(0, 0, 0, 0)) center bottom;
+  background-repeat: no-repeat;
+  background-size: 100% 24px, 100% 24px, 100% 10px, 100% 10px;
+  background-attachment: local, local, scroll, scroll;
+}
+
 /* Selection */
 ::selection {
   background-color: var(--color-accent-primary-muted);

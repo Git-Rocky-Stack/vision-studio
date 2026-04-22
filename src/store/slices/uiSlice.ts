@@ -1,8 +1,24 @@
 import type { AppState, AppSet, AppGet } from '../appStore.types';
+import {
+  LEFT_DOCK_MAX_WIDTH,
+  LEFT_DOCK_MIN_WIDTH,
+  RIGHT_DOCK_CANVAS_DEFAULT_RATIOS,
+  RIGHT_DOCK_CANVAS_MIN_RATIO,
+  RIGHT_DOCK_DUAL_DEFAULT_RATIOS,
+  RIGHT_DOCK_DUAL_MIN_RATIO,
+  RIGHT_DOCK_MAX_WIDTH,
+  RIGHT_DOCK_MIN_WIDTH,
+  RIGHT_DOCK_TRIPLE_DEFAULT_RATIOS,
+  RIGHT_DOCK_TRIPLE_MIN_RATIO,
+  clampDockWidth,
+  createDefaultLayoutPreferences,
+  normalizePanelRatios,
+} from '../layoutPreferences';
 
 export const uiInitialState = {
   activeViewerItemId: null as string | null,
   darkMode: true,
+  layoutPreferences: createDefaultLayoutPreferences(),
   showAdvancedGeneration: false,
   batchViewMode: 'grid' as const,
   batchSortBy: 'created' as const,
@@ -22,6 +38,53 @@ export const uiInitialState = {
 export function createUIActions(set: AppSet, _get: AppGet) {
   return {
     setActiveViewerItemId: (itemId: string | null) => set({ activeViewerItemId: itemId }),
+    setLeftDockWidth: (width: number) =>
+      set((state) => ({
+        layoutPreferences: {
+          ...state.layoutPreferences,
+          leftDockWidth: clampDockWidth(width, LEFT_DOCK_MIN_WIDTH, LEFT_DOCK_MAX_WIDTH),
+        },
+      })),
+    setRightDockWidth: (width: number) =>
+      set((state) => ({
+        layoutPreferences: {
+          ...state.layoutPreferences,
+          rightDockWidth: clampDockWidth(width, RIGHT_DOCK_MIN_WIDTH, RIGHT_DOCK_MAX_WIDTH),
+        },
+      })),
+    setRightDockCanvasRatios: (ratios: [number, number]) =>
+      set((state) => ({
+        layoutPreferences: {
+          ...state.layoutPreferences,
+          rightDockCanvasRatios: normalizePanelRatios<[number, number]>(
+            ratios,
+            RIGHT_DOCK_CANVAS_DEFAULT_RATIOS,
+            RIGHT_DOCK_CANVAS_MIN_RATIO,
+          ),
+        },
+      })),
+    setRightDockDualRatios: (ratios: [number, number]) =>
+      set((state) => ({
+        layoutPreferences: {
+          ...state.layoutPreferences,
+          rightDockDualRatios: normalizePanelRatios<[number, number]>(
+            ratios,
+            RIGHT_DOCK_DUAL_DEFAULT_RATIOS,
+            RIGHT_DOCK_DUAL_MIN_RATIO,
+          ),
+        },
+      })),
+    setRightDockTripleRatios: (ratios: [number, number, number]) =>
+      set((state) => ({
+        layoutPreferences: {
+          ...state.layoutPreferences,
+          rightDockTripleRatios: normalizePanelRatios<[number, number, number]>(
+            ratios,
+            RIGHT_DOCK_TRIPLE_DEFAULT_RATIOS,
+            RIGHT_DOCK_TRIPLE_MIN_RATIO,
+          ),
+        },
+      })),
     setShowAdvancedGeneration: (show: boolean) => set({ showAdvancedGeneration: show }),
     setBatchViewMode: (mode: AppState['batchViewMode']) => set({ batchViewMode: mode }),
     setBatchSortBy: (sort: AppState['batchSortBy']) => set({ batchSortBy: sort }),

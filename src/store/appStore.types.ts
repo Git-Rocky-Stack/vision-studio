@@ -157,6 +157,14 @@ export interface BatchJob {
   createdAt: Date;
 }
 
+export interface LayoutPreferences {
+  leftDockWidth: number;
+  rightDockWidth: number;
+  rightDockCanvasRatios: [number, number];
+  rightDockDualRatios: [number, number];
+  rightDockTripleRatios: [number, number, number];
+}
+
 // ---------------------------------------------------------------------------
 // AppState - the central type for the entire store
 // ---------------------------------------------------------------------------
@@ -165,6 +173,7 @@ export interface AppState {
   // ─── UI State ────────────────────────────────────────────────────────────
   activeViewerItemId: string | null;
   darkMode: boolean;
+  layoutPreferences: LayoutPreferences;
 
   // Navigation model
   activeTab: ActiveTab;
@@ -323,6 +332,11 @@ export interface AppState {
 
   // UI
   setActiveViewerItemId: (itemId: string | null) => void;
+  setLeftDockWidth: (width: number) => void;
+  setRightDockWidth: (width: number) => void;
+  setRightDockCanvasRatios: (ratios: [number, number]) => void;
+  setRightDockDualRatios: (ratios: [number, number]) => void;
+  setRightDockTripleRatios: (ratios: [number, number, number]) => void;
   setActiveTab: (tab: ActiveTab) => void;
   setActiveSubMode: (subMode: ActiveSubMode) => void;
   setCenterView: (view: CenterView) => void;
