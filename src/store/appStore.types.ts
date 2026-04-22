@@ -98,6 +98,7 @@ import type { PromptTemplate, CompositionLayerState } from '@/types/promptStudio
 import type { TimelineMode, PlayState, Keyframe } from '@/types/timeline';
 
 import type { PipelineDefinition, PipelineExecution } from '@/types/pipeline';
+import type { GenerateCollapsibleSectionId } from './layoutPreferences';
 
 // ---------------------------------------------------------------------------
 // Local type definitions
@@ -163,6 +164,7 @@ export interface LayoutPreferences {
   rightDockCanvasRatios: [number, number];
   rightDockDualRatios: [number, number];
   rightDockTripleRatios: [number, number, number];
+  collapsedGenerateSections: GenerateCollapsibleSectionId[];
 }
 
 // ---------------------------------------------------------------------------
@@ -280,7 +282,6 @@ export interface AppState {
     duration: number;
     fps: number;
   };
-  showAdvancedGeneration: boolean;
 
   // ─── Prompt Studio ──────────────────────────────────────────────────────────
   promptTemplates: PromptTemplate[];
@@ -337,6 +338,7 @@ export interface AppState {
   setRightDockCanvasRatios: (ratios: [number, number]) => void;
   setRightDockDualRatios: (ratios: [number, number]) => void;
   setRightDockTripleRatios: (ratios: [number, number, number]) => void;
+  setGenerateSectionCollapsed: (sectionId: GenerateCollapsibleSectionId, collapsed: boolean) => void;
   setActiveTab: (tab: ActiveTab) => void;
   setActiveSubMode: (subMode: ActiveSubMode) => void;
   setCenterView: (view: CenterView) => void;
@@ -438,7 +440,6 @@ export interface AppState {
   // Generation draft & advanced generation
   setGenerationDraft: (draft: GenerationDraft | null) => void;
   updateAdvancedGeneration: (patch: Partial<AppState['advancedGeneration']>) => void;
-  setShowAdvancedGeneration: (show: boolean) => void;
 
   // Prompt Studio
   addUserPromptTemplate: (template: PromptTemplate) => void;

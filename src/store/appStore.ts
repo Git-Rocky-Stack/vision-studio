@@ -2,6 +2,15 @@ import { create } from 'zustand';
 import { createJSONStorage, persist, type StateStorage } from 'zustand/middleware';
 import type { AppState } from './appStore.types';
 import type { ProjectTemplate } from '@/types/template';
+import {
+  LEFT_DOCK_MAX_WIDTH,
+  LEFT_DOCK_MIN_WIDTH,
+  RIGHT_DOCK_MAX_WIDTH,
+  RIGHT_DOCK_MIN_WIDTH,
+  clampDockWidth,
+  createDefaultLayoutPreferences,
+  normalizeCollapsedGenerateSections,
+} from './layoutPreferences';
 
 // Slice imports
 import { uiInitialState, createUIActions } from './slices/uiSlice';
@@ -217,6 +226,35 @@ export const useAppStore = create<AppState>()(
           (persisted as Record<string, unknown>).assetMetadata = new Map(
             persisted.assetMetadata as [string, unknown][]
           );
+        }
+        if (persisted.layoutPreferences && typeof persisted.layoutPreferences === 'object') {
+          const persistedLayout = persisted.layoutPreferences as Record<string, unknown>;
+          const currentLayout = createDefaultLayoutPreferences();
+          (persisted as Record<string, unknown>).layoutPreferences = {
+            ...currentLayout,
+            ...persistedLayout,
+            leftDockWidth: clampDockWidth(
+              typeof persistedLayout.leftDockWidth === 'number'
+                ? persistedLayout.leftDockWidth
+                : currentLayout.leftDockWidth,
+              LEFT_DOCK_MIN_WIDTH,
+              LEFT_DOCK_MAX_WIDTH,
+            ),
+            rightDockWidth: clampDockWidth(
+              typeof persistedLayout.rightDockWidth === 'number'
+                ? persistedLayout.rightDockWidth
+                : currentLayout.rightDockWidth,
+              RIGHT_DOCK_MIN_WIDTH,
+              RIGHT_DOCK_MAX_WIDTH,
+            ),
+            collapsedGenerateSections: normalizeCollapsedGenerateSections(
+              Array.isArray(persistedLayout.collapsedGenerateSections)
+                ? persistedLayout.collapsedGenerateSections.filter(
+                    (value): value is string => typeof value === 'string',
+                  )
+                : undefined,
+            ),
+          };
         }
         return {
           ...currentState,

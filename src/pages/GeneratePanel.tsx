@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { cn } from '@/utils/cn';
 import { useAppStore } from '@/store/appStore';
@@ -19,18 +19,27 @@ import {
   SVD_REFERENCE_ERROR,
 } from '@/features/generate/validation';
 import type { ControlNetConfig, LoRAConfig } from '@/types/generation';
+import type { GenerateCollapsibleSectionId } from '@/store/layoutPreferences';
 import {
-  Wand2,
-  Image as ImageIcon,
-  Film,
-  Zap,
-  Clock,
-  Loader2,
   AlertCircle,
   Check,
+  ChevronDown,
+  Clapperboard,
+  Clock,
+  Film,
+  Frame,
+  Image as ImageIcon,
+  ImagePlus,
+  Layers3,
+  Loader2,
+  Settings2,
+  SlidersHorizontal,
+  Wand2,
   X,
+  Zap,
+  type LucideIcon,
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { AnimatePresence, motion } from 'framer-motion';
 import { useMotionConfig } from '@/utils/animation';
 
 type GenerationType = 'image' | 'video';
@@ -58,6 +67,78 @@ function resolveOutputRoot(defaultOutputPath: string, userDataPath: string) {
   return (defaultOutputPath || `${userDataPath.replace(/\\/g, '/')}/outputs`).replace(/\\/g, '/');
 }
 
+interface GenerateSectionCardProps {
+  sectionId: string;
+  title: string;
+  description: string;
+  icon: LucideIcon;
+  summary?: string;
+  badge?: string;
+  collapsible?: boolean;
+  collapsed?: boolean;
+  onToggle?: () => void;
+  children: ReactNode;
+}
+
+function GenerateSectionCard({
+  sectionId,
+  title,
+  description,
+  icon: Icon,
+  summary,
+  badge,
+  collapsible = false,
+  collapsed = false,
+  onToggle,
+  children,
+}: GenerateSectionCardProps) {
+  return (
+    <section
+      data-testid={`generate-section-${sectionId}`}
+      className="rounded-xl border border-border bg-surface shadow-cinematic"
+    >
+      <div className="flex items-start gap-3 px-4 py-3">
+        <div className="mt-0.5 flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg border border-border bg-elevated text-text-body">
+          <Icon className="h-4 w-4" />
+        </div>
+
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 className="type-section">{title}</h2>
+            {badge ? (
+              <span className="rounded-full border border-border bg-elevated px-2 py-0.5 type-caption text-text-body">
+                {badge}
+              </span>
+            ) : null}
+          </div>
+          <p className="mt-1 type-caption">
+            {collapsible && collapsed && summary ? summary : description}
+          </p>
+        </div>
+
+        {collapsible && onToggle ? (
+          <button
+            type="button"
+            aria-expanded={!collapsed}
+            aria-controls={`generate-section-body-${sectionId}`}
+            data-testid={`toggle-generate-section-${sectionId}`}
+            onClick={onToggle}
+            className="rounded-md border border-border bg-elevated p-2 text-text-body transition-all hover:border-border-hover hover:text-text-primary"
+          >
+            <ChevronDown className={cn('h-4 w-4 transition-transform', collapsed ? '' : 'rotate-180')} />
+          </button>
+        ) : null}
+      </div>
+
+      {(!collapsible || !collapsed) && (
+        <div id={`generate-section-body-${sectionId}`} className="border-t border-border/80 px-4 py-4">
+          {children}
+        </div>
+      )}
+    </section>
+  );
+}
+
 export function GeneratePanel() {
   const {
     addJob,
@@ -69,7 +150,9 @@ export function GeneratePanel() {
     favoritePrompts,
     toggleFavoritePrompt,
     generationDraft,
+    layoutPreferences,
     setGenerationDraft,
+    setGenerateSectionCollapsed,
     advancedGeneration,
     updateAdvancedGeneration,
   } = useAppStore(useShallow(s => ({
@@ -82,21 +165,19 @@ export function GeneratePanel() {
     favoritePrompts: s.favoritePrompts,
     toggleFavoritePrompt: s.toggleFavoritePrompt,
     generationDraft: s.generationDraft,
+    layoutPreferences: s.layoutPreferences,
     setGenerationDraft: s.setGenerationDraft,
+    setGenerateSectionCollapsed: s.setGenerateSectionCollapsed,
     advancedGeneration: s.advancedGeneration,
     updateAdvancedGeneration: s.updateAdvancedGeneration,
   })));
 
-  const { reduced, transition, scaleIn, fadeIn } = useMotionConfig();
+  const { reduced, transition } = useMotionConfig();
 
-  // Polling cleanup ref
   const pollingTimeoutRef = useRef<ReturnType<typeof setTimeout>>(null);
   const isGeneratingRef = useRef(false);
 
-  // UI toggles
   const [showHistory, setShowHistory] = useState(false);
-
-  // Generation status state (consolidated)
   const [genStatus, setGenStatus] = useState({
     isGenerating: false,
     progress: 0,
@@ -108,7 +189,6 @@ export function GeneratePanel() {
   const updateGenStatus = (patch: Partial<typeof genStatus>) =>
     setGenStatus((prev) => ({ ...prev, ...patch }));
 
-  // Image generation config (basic settings - advanced settings are in store)
   const [imageConfig, setImageConfig] = useState({
     generationType: 'image' as GenerationType,
     prompt: '',
@@ -119,13 +199,11 @@ export function GeneratePanel() {
   });
   const updateImageConfig = (patch: Partial<typeof imageConfig>) => {
     setImageConfig((prev) => ({ ...prev, ...patch }));
-    // Sync generationType to the store so the sidebar Advanced Settings knows
     if (patch.generationType) {
       updateAdvancedGeneration({ generationType: patch.generationType });
     }
   };
 
-  // Resolution dimensions from store
   const { aspectRatio, resolutionTier, customWidth, customHeight } = useAppStore(useShallow(s => ({
     aspectRatio: s.aspectRatio,
     resolutionTier: s.resolutionTier,
@@ -134,24 +212,15 @@ export function GeneratePanel() {
   })));
   const dimensions = computeDimensions(aspectRatio, resolutionTier, customWidth, customHeight);
 
-  // Video generation state
-  const {
-    generationMode,
-    setGenerationMode,
-    startFrameImage,
-    endFrameImage,
-    setStartFrameImage,
-    setEndFrameImage,
-  } = useAppStore(useShallow(s => ({
-    generationMode: s.generationMode,
-    setGenerationMode: s.setGenerationMode,
-    startFrameImage: s.startFrameImage,
-    endFrameImage: s.endFrameImage,
-    setStartFrameImage: s.setStartFrameImage,
-    setEndFrameImage: s.setEndFrameImage,
-  })));
+  const { startFrameImage, endFrameImage, setStartFrameImage, setEndFrameImage } = useAppStore(
+    useShallow(s => ({
+      startFrameImage: s.startFrameImage,
+      endFrameImage: s.endFrameImage,
+      setStartFrameImage: s.setStartFrameImage,
+      setEndFrameImage: s.setEndFrameImage,
+    }))
+  );
 
-  // Reference image / ControlNet / LoRA config (consolidated)
   const [refConfig, setRefConfig] = useState({
     referenceImage: null as string | null,
     denoisingStrength: 0.75,
@@ -162,7 +231,6 @@ export function GeneratePanel() {
   const updateRefConfig = (patch: Partial<typeof refConfig>) =>
     setRefConfig((prev) => ({ ...prev, ...patch }));
 
-  // Load template settings if project has one
   useEffect(() => {
     if (currentProject?.template) {
       const settings = currentProject.template.settings;
@@ -176,7 +244,7 @@ export function GeneratePanel() {
         cfgScale: settings.cfgScale,
       });
     }
-  }, [currentProject]);
+  }, [currentProject, updateAdvancedGeneration]);
 
   useEffect(() => {
     if (!generationDraft) {
@@ -200,7 +268,7 @@ export function GeneratePanel() {
     });
 
     setGenerationDraft(null);
-  }, [generationDraft, setGenerationDraft]);
+  }, [generationDraft, setGenerationDraft, updateAdvancedGeneration]);
 
   useEffect(() => {
     if (genStatus.status !== 'error' || !genStatus.errorMessage) {
@@ -215,14 +283,13 @@ export function GeneratePanel() {
     if (nextErrorMessage !== genStatus.errorMessage) {
       updateGenStatus({ errorMessage: nextErrorMessage, status: 'idle' });
     }
-  }, [genStatus.errorMessage, genStatus.status, imageConfig.generationType, refConfig.referenceImage, imageConfig.videoModel]);
+  }, [genStatus.errorMessage, genStatus.status, imageConfig.generationType, imageConfig.videoModel, refConfig.referenceImage]);
 
   const handleGenerate = async () => {
     if (!imageConfig.prompt.trim()) return;
     if (isGeneratingRef.current) return;
     isGeneratingRef.current = true;
 
-    // Guard: backend must be connected to generate
     if (!systemInfo.backendConnected) {
       updateGenStatus({
         status: 'error',
@@ -241,7 +308,6 @@ export function GeneratePanel() {
       errorMessage: '',
     });
 
-    // Save to history
     addToPromptHistory({
       id: crypto.randomUUID(),
       prompt: imageConfig.prompt.trim(),
@@ -425,13 +491,14 @@ export function GeneratePanel() {
           }
           pollingTimeoutRef.current = setTimeout(checkStatus, 1000);
         }
-      } catch (e) {
-        console.error('Failed to get job status:', e);
+      } catch (error) {
+        console.error('Failed to get job status:', error);
         pollingTimeoutRef.current = setTimeout(checkStatus, 2000);
       }
     };
+
     checkStatus();
-  }, [updateJob, syncAssetsFromJobStatus, imageConfig.generationType, imageConfig.prompt]);
+  }, [imageConfig.generationType, imageConfig.prompt, syncAssetsFromJobStatus, updateJob]);
 
   const handleCancel = () => {
     if (genStatus.activeJobId) {
@@ -449,7 +516,6 @@ export function GeneratePanel() {
     isGeneratingRef.current = false;
   };
 
-  // Cleanup polling timeout on unmount
   useEffect(() => {
     return () => {
       if (pollingTimeoutRef.current) {
@@ -498,223 +564,331 @@ export function GeneratePanel() {
   const isFavorited = favoritePrompts.includes(imageConfig.prompt.trim());
   const currentModel = imageConfig.generationType === 'image' ? imageConfig.model : imageConfig.videoModel;
   const videoModelRequiresReference = imageConfig.generationType === 'video' && imageConfig.videoModel === 'svd';
+  const estimatedDuration = imageConfig.generationType === 'image' ? '15-30s' : '2-5min';
+  const collapsedGenerateSections = layoutPreferences.collapsedGenerateSections;
+
+  const isGenerateSectionCollapsed = useCallback(
+    (sectionId: GenerateCollapsibleSectionId) => collapsedGenerateSections.includes(sectionId),
+    [collapsedGenerateSections],
+  );
+
+  const toggleGenerateSection = useCallback(
+    (sectionId: GenerateCollapsibleSectionId) => {
+      setGenerateSectionCollapsed(sectionId, !collapsedGenerateSections.includes(sectionId));
+    },
+    [collapsedGenerateSections, setGenerateSectionCollapsed],
+  );
+
+  const referenceSummary = refConfig.referenceImage
+    ? `${refConfig.referenceMode === 'controlnet' ? 'Control reference attached' : 'Reference image attached'}`
+    : videoModelRequiresReference
+      ? 'Reference image required for Stable Video Diffusion'
+      : 'No guide image attached';
+  const controlLayersSummary = `${refConfig.controlNetConfig.enabled ? 'ControlNet on' : 'ControlNet off'}, ${refConfig.loraConfigs.length} LoRA${refConfig.loraConfigs.length === 1 ? '' : 's'}`;
+  const advancedSummary = imageConfig.generationType === 'image'
+    ? `${advancedGeneration.steps} steps, CFG ${advancedGeneration.cfgScale}, ${advancedGeneration.scheduler}`
+    : `${advancedGeneration.duration}s duration, ${advancedGeneration.fps} fps`;
+  const footerWarning = !systemInfo.backendConnected
+    ? 'Backend offline. Start it from Settings before generating.'
+    : videoModelRequiresReference && !refConfig.referenceImage
+      ? 'Stable Video Diffusion requires a reference image.'
+      : null;
+  const footerStatusLabel = genStatus.isGenerating
+    ? `Generating ${imageConfig.generationType}`
+    : `Ready to generate ${imageConfig.generationType}`;
+  const footerMeta = `${currentModel} / ${dimensions.width} x ${dimensions.height}`;
+  const footerSupportMeta = [
+    `${isGpuAvailable ? 'GPU' : 'CPU'} mode`,
+    `~${estimatedDuration}`,
+    genStatus.isGenerating ? `Step ${Math.max(genStatus.step, 1)}/${advancedGeneration.steps}` : null,
+  ].filter(Boolean).join(' / ');
 
   return (
-    <div className="flex-1 min-h-0 flex flex-col bg-panel" data-testid="generate-panel">
+    <div className="flex min-h-0 flex-1 flex-col bg-panel" data-testid="generate-panel">
       <h1 className="sr-only">Generate</h1>
-      {/* Mode Toggle */}
-      <div className="p-3 border-b border-border bg-panel">
-        <p className="mb-2 type-caption">Workflow</p>
-        <div className="relative flex bg-canvas rounded-md p-1 border border-border">
-          <motion.div
-            layoutId="modeGlow"
-            className="absolute top-1 bottom-1 rounded-md bg-accent-primary-muted border border-accent-primary-border"
-            style={{ width: 'calc(50% - 4px)' }}
-            animate={{
-              x: imageConfig.generationType === 'image' ? 0 : 'calc(100% + 4px)',
-            }}
-            transition={reduced ? { duration: 0 } : { type: 'spring', stiffness: 400, damping: 30 }}
-          />
-          <button
-            onClick={() => updateImageConfig({ generationType: 'image' })}
-            className={cn(
-              'relative z-10 flex-1 flex items-center justify-center gap-2 py-2 rounded-md transition-colors',
-              imageConfig.generationType === 'image'
-                ? 'text-accent-primary'
-                : 'text-text-muted hover:text-text-body'
-            )}
-          >
-            <ImageIcon className="w-4 h-4" />
-            <span className="type-section">Image</span>
-          </button>
-          <button
-            onClick={() => updateImageConfig({ generationType: 'video' })}
-            className={cn(
-              'relative z-10 flex-1 flex items-center justify-center gap-2 py-2 rounded-md transition-colors',
-              imageConfig.generationType === 'video'
-                ? 'text-accent-primary'
-                : 'text-text-muted hover:text-text-body'
-            )}
-          >
-            <Film className="w-4 h-4" />
-            <span className="type-section">Video</span>
-          </button>
+
+      <div className="border-b border-border bg-panel px-3 py-3">
+        <div className="rounded-xl border border-border bg-surface px-3 py-3 shadow-cinematic">
+          <div className="mb-2 flex items-center justify-between gap-2">
+            <div>
+              <p className="type-section text-text-primary">Workflow</p>
+              <p className="mt-1 type-caption">Choose the generation lane before you tune the rest of the pass.</p>
+            </div>
+            <span className="rounded-full border border-border bg-elevated px-2 py-0.5 type-caption text-text-body">
+              {imageConfig.generationType === 'image' ? 'Still' : 'Motion'}
+            </span>
+          </div>
+
+          <div className="relative flex rounded-md border border-border bg-canvas p-1">
+            <motion.div
+              layoutId="modeGlow"
+              className="absolute top-1 bottom-1 rounded-md border border-accent-primary-border bg-accent-primary-muted"
+              style={{ width: 'calc(50% - 4px)' }}
+              animate={{
+                x: imageConfig.generationType === 'image' ? 0 : 'calc(100% + 4px)',
+              }}
+              transition={reduced ? { duration: 0 } : { type: 'spring', stiffness: 400, damping: 30 }}
+            />
+            <button
+              type="button"
+              onClick={() => updateImageConfig({ generationType: 'image' })}
+              className={cn(
+                'relative z-10 flex flex-1 items-center justify-center gap-2 rounded-md py-2 transition-colors',
+                imageConfig.generationType === 'image'
+                  ? 'text-accent-primary'
+                  : 'text-text-muted hover:text-text-body'
+              )}
+            >
+              <ImageIcon className="h-4 w-4" />
+              <span className="type-section">Image</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => updateImageConfig({ generationType: 'video' })}
+              className={cn(
+                'relative z-10 flex flex-1 items-center justify-center gap-2 rounded-md py-2 transition-colors',
+                imageConfig.generationType === 'video'
+                  ? 'text-accent-primary'
+                  : 'text-text-muted hover:text-text-body'
+              )}
+            >
+              <Film className="h-4 w-4" />
+              <span className="type-section">Video</span>
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* GPU Warning */}
-      {!isGpuAvailable && (
-        <div className="mx-4 mt-4 p-3 rounded-lg bg-status-warning-muted border border-status-warning-border flex items-start gap-2">
-          <AlertCircle className="w-4 h-4 text-status-warning flex-shrink-0 mt-0.5" />
-          <div>
-            <p className="type-ui text-status-warning">
-              GPU Not Detected
-            </p>
-            <p className="type-caption text-status-warning opacity-60">
-              Generation will be very slow on CPU. Consider using a CUDA-capable GPU.
-            </p>
-          </div>
-        </div>
-      )}
-
-      {/* Scrollable Content */}
-      <div className="h-0 flex-1 overflow-y-scroll p-4 space-y-5">
-        {/* Prompt Area */}
-        <div className="relative">
-          <PromptArea
-            prompt={imageConfig.prompt}
-            onPromptChange={(v) => updateImageConfig({ prompt: v })}
-            negativePrompt={imageConfig.negativePrompt}
-            onNegativePromptChange={(v) => updateImageConfig({ negativePrompt: v })}
-            generationType={imageConfig.generationType}
-            isFavorited={isFavorited}
-            onRandomize={handleRandomPrompt}
-            onEnhance={handleEnhancePrompt}
-            onShowHistory={() => setShowHistory(!showHistory)}
-            onToggleFavorite={() => toggleFavoritePrompt(imageConfig.prompt.trim())}
-          />
-          <PromptHistory
-            isOpen={showHistory}
-            onClose={() => setShowHistory(false)}
-            onSelectPrompt={(p, np) => {
-              updateImageConfig({ prompt: p, negativePrompt: np });
-              setShowHistory(false);
-            }}
-          />
-        </div>
-
-        {/* Style Presets */}
-        <StylePresetsBar
-          activePresets={imageConfig.activeStylePresets}
-          onTogglePreset={handleToggleStylePreset}
-        />
-
-        {/* Model Routing */}
-        <div className="space-y-3">
-          <div>
-            <label className="text-label text-text-body">Model Router</label>
-            <p className="mt-1 text-xs text-text-muted">
-              Pick the capability, runtime, and hardware profile for this generation.
-            </p>
-          </div>
-          <ModelSelector
-            value={currentModel}
-            onChange={(id) => {
-              if (imageConfig.generationType === 'image') updateImageConfig({ model: id });
-              else updateImageConfig({ videoModel: id });
-            }}
-            generationType={imageConfig.generationType}
-          />
-        </div>
-
-        {/* Reference Image (img2img / image-to-video) */}
-        {(imageConfig.generationType === 'image' || videoModelRequiresReference) && (
-          <>
-            <ImageDropZone
-              referenceImage={refConfig.referenceImage}
-              onImageChange={(v) => updateRefConfig({ referenceImage: v })}
-              denoisingStrength={refConfig.denoisingStrength}
-              onDenoisingStrengthChange={(v) => updateRefConfig({ denoisingStrength: v })}
-              mode={refConfig.referenceMode}
-              onModeChange={(v) => updateRefConfig({ referenceMode: v })}
+      <div className="h-0 flex-1 overflow-y-scroll p-4 space-y-4">
+        <GenerateSectionCard
+          sectionId="prompt"
+          title="Prompt"
+          description="Set the creative direction first, then keep your negative prompt close for cleanup passes."
+          icon={Wand2}
+          badge={imageConfig.generationType === 'image' ? 'Image' : 'Video'}
+        >
+          <div className="relative">
+            <PromptArea
+              prompt={imageConfig.prompt}
+              onPromptChange={(value) => updateImageConfig({ prompt: value })}
+              negativePrompt={imageConfig.negativePrompt}
+              onNegativePromptChange={(value) => updateImageConfig({ negativePrompt: value })}
+              generationType={imageConfig.generationType}
+              isFavorited={isFavorited}
+              onRandomize={handleRandomPrompt}
+              onEnhance={handleEnhancePrompt}
+              onShowHistory={() => setShowHistory(!showHistory)}
+              onToggleFavorite={() => toggleFavoritePrompt(imageConfig.prompt.trim())}
             />
-            {videoModelRequiresReference && !refConfig.referenceImage && (
-              <div className="px-3 py-2 rounded-lg border border-amber-500/30 bg-amber-500/10 text-xs text-amber-200">
-                Stable Video Diffusion requires a reference image.
+            <PromptHistory
+              isOpen={showHistory}
+              onClose={() => setShowHistory(false)}
+              onSelectPrompt={(prompt, negativePrompt) => {
+                updateImageConfig({ prompt, negativePrompt });
+                setShowHistory(false);
+              }}
+            />
+          </div>
+        </GenerateSectionCard>
+
+        <GenerateSectionCard
+          sectionId="style-model"
+          title="Style + Model"
+          description="Pick the visual treatment and runtime profile for this pass before you add heavier control layers."
+          icon={SlidersHorizontal}
+        >
+          <div className="space-y-4">
+            <StylePresetsBar
+              activePresets={imageConfig.activeStylePresets}
+              onTogglePreset={handleToggleStylePreset}
+            />
+
+            <div className="space-y-3">
+              <div>
+                <label className="text-label text-text-body">Model Router</label>
+                <p className="mt-1 text-xs text-text-muted">
+                  Pick the capability, runtime, and hardware profile for this generation.
+                </p>
               </div>
-            )}
-          </>
-        )}
-
-        {/* Start Frame (video only) */}
-        {imageConfig.generationType === 'video' && (
-          <CompactImageDropZone
-            label="Start Frame"
-            image={startFrameImage}
-            onImageChange={setStartFrameImage}
-          />
-        )}
-
-        {/* End Frame (video only) */}
-        {imageConfig.generationType === 'video' && (
-          <CompactImageDropZone
-            label="End Frame"
-            image={endFrameImage}
-            onImageChange={setEndFrameImage}
-          />
-        )}
-
-        {/* Video Controls (video only) */}
-        {imageConfig.generationType === 'video' && (
-          <VideoControls />
-        )}
-
-        {/* ControlNet */}
-        {imageConfig.generationType === 'image' && (
-          <ControlNetPanel
-            config={refConfig.controlNetConfig}
-            onChange={(v) => updateRefConfig({ controlNetConfig: v })}
-          />
-        )}
-
-        {/* LoRA Mixer */}
-        {imageConfig.generationType === 'image' && (
-          <LoRAMixer configs={refConfig.loraConfigs} onChange={(v) => updateRefConfig({ loraConfigs: v })} />
-        )}
-
-        {/* Aspect Ratio */}
-        <AspectRatioPicker />
-
-        {/* Advanced Controls */}
-        <div className="rounded-md border border-border bg-surface p-3">
-          <AdvancedGenerationSettings />
-        </div>
-
-        {/* Estimated Info */}
-        <div className="p-3 rounded-md bg-elevated border border-border">
-          <div className="flex items-center gap-4 type-ui text-text-body">
-            <div className="flex items-center gap-2">
-              <Clock className="w-3.5 h-3.5" />
-              <span>~{imageConfig.generationType === 'image' ? '15-30s' : '2-5min'}</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <Zap className="w-3.5 h-3.5" />
-              <span>{isGpuAvailable ? 'GPU Accelerated' : 'CPU Mode'}</span>
+              <ModelSelector
+                value={currentModel}
+                onChange={(id) => {
+                  if (imageConfig.generationType === 'image') updateImageConfig({ model: id });
+                  else updateImageConfig({ videoModel: id });
+                }}
+                generationType={imageConfig.generationType}
+              />
             </div>
           </div>
-        </div>
+        </GenerateSectionCard>
 
-        {/* Error Message */}
+        {(imageConfig.generationType === 'image' || videoModelRequiresReference) && (
+          <GenerateSectionCard
+            sectionId="reference-inputs"
+            title="Reference Inputs"
+            description="Attach a guide image when you want direct composition, structure, or motion steering."
+            summary={referenceSummary}
+            icon={ImagePlus}
+            collapsible
+            collapsed={isGenerateSectionCollapsed('reference-inputs')}
+            onToggle={() => toggleGenerateSection('reference-inputs')}
+          >
+            <div className="space-y-4">
+              <ImageDropZone
+                referenceImage={refConfig.referenceImage}
+                onImageChange={(value) => updateRefConfig({ referenceImage: value })}
+                denoisingStrength={refConfig.denoisingStrength}
+                onDenoisingStrengthChange={(value) => updateRefConfig({ denoisingStrength: value })}
+                mode={refConfig.referenceMode}
+                onModeChange={(value) => updateRefConfig({ referenceMode: value })}
+              />
+              {videoModelRequiresReference && !refConfig.referenceImage && (
+                <div className="rounded-lg border border-status-warning-border bg-status-warning-muted px-3 py-2 text-xs text-status-warning">
+                  Stable Video Diffusion requires a reference image before launch.
+                </div>
+              )}
+            </div>
+          </GenerateSectionCard>
+        )}
+
+        {imageConfig.generationType === 'video' && (
+          <GenerateSectionCard
+            sectionId="motion"
+            title="Motion"
+            description="Set the timing and frame anchors for motion generation so the run stays bounded."
+            icon={Clapperboard}
+          >
+            <div className="space-y-4">
+              <CompactImageDropZone
+                label="Start Frame"
+                image={startFrameImage}
+                onImageChange={setStartFrameImage}
+              />
+              <CompactImageDropZone
+                label="End Frame"
+                image={endFrameImage}
+                onImageChange={setEndFrameImage}
+              />
+              <VideoControls />
+            </div>
+          </GenerateSectionCard>
+        )}
+
+        {imageConfig.generationType === 'image' && (
+          <GenerateSectionCard
+            sectionId="control-layers"
+            title="Control Layers"
+            description="Layer structural guidance and LoRAs only when the base prompt is already close."
+            summary={controlLayersSummary}
+            icon={Layers3}
+            collapsible
+            collapsed={isGenerateSectionCollapsed('control-layers')}
+            onToggle={() => toggleGenerateSection('control-layers')}
+          >
+            <div className="space-y-4">
+              <ControlNetPanel
+                config={refConfig.controlNetConfig}
+                onChange={(value) => updateRefConfig({ controlNetConfig: value })}
+              />
+              <LoRAMixer
+                configs={refConfig.loraConfigs}
+                onChange={(value) => updateRefConfig({ loraConfigs: value })}
+              />
+            </div>
+          </GenerateSectionCard>
+        )}
+
+        <GenerateSectionCard
+          sectionId="output"
+          title="Output"
+          description="Dial the frame and expected runtime before you send the job."
+          summary={`${dimensions.width} x ${dimensions.height}, ${estimatedDuration}, ${isGpuAvailable ? 'GPU' : 'CPU'} mode`}
+          icon={Frame}
+        >
+          <div className="space-y-4">
+            <AspectRatioPicker />
+
+            <div className="rounded-lg border border-border bg-elevated px-3 py-3">
+              <div className="flex flex-wrap items-center gap-4 type-ui text-text-body">
+                <div className="flex items-center gap-2">
+                  <Frame className="h-3.5 w-3.5" />
+                  <span>{dimensions.width} x {dimensions.height}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Clock className="h-3.5 w-3.5" />
+                  <span>~{estimatedDuration}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Zap className="h-3.5 w-3.5" />
+                  <span>{isGpuAvailable ? 'GPU Accelerated' : 'CPU Mode'}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </GenerateSectionCard>
+
+        <GenerateSectionCard
+          sectionId="advanced"
+          title="Advanced"
+          description="Tune sampler behavior, seed, and video timing only when the default pass is not enough."
+          summary={advancedSummary}
+          icon={Settings2}
+          collapsible
+          collapsed={isGenerateSectionCollapsed('advanced')}
+          onToggle={() => toggleGenerateSection('advanced')}
+        >
+          <AdvancedGenerationSettings />
+        </GenerateSectionCard>
+
         {genStatus.status === 'error' && (
           <motion.div
             initial={reduced ? {} : { opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={transition}
-            className="p-3 rounded-lg bg-status-error-muted border border-status-error-border flex items-start gap-2"
+            className="flex items-start gap-2 rounded-lg border border-status-error-border bg-status-error-muted p-3"
           >
-            <AlertCircle className="w-4 h-4 text-status-error flex-shrink-0 mt-0.5" />
+            <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0 text-status-error" />
             <p className="text-xs text-status-error">{genStatus.errorMessage}</p>
           </motion.div>
         )}
 
-        {/* Success Message */}
         {genStatus.status === 'success' && (
           <motion.div
             initial={reduced ? {} : { opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={transition}
-            className="p-3 rounded-lg bg-status-success-muted border border-status-success-border flex items-start gap-2"
+            className="flex items-start gap-2 rounded-lg border border-status-success-border bg-status-success-muted p-3"
           >
-            <Check className="w-4 h-4 text-status-success flex-shrink-0 mt-0.5" />
+            <Check className="mt-0.5 h-4 w-4 flex-shrink-0 text-status-success" />
             <p className="text-xs text-status-success">
-              Generation completed! Check the Assets panel.
+              Generation completed. Review the result in the gallery or assets panel.
             </p>
           </motion.div>
         )}
       </div>
 
-      {/* Generate Button / Progress Bar - Sticky bottom */}
-      <div className="p-4 border-t border-border bg-panel">
+      <div className="border-t border-border bg-panel p-4">
+        <div
+          data-testid="generate-preflight-summary"
+          className="mb-3 rounded-lg border border-border bg-surface px-3 py-3"
+        >
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <p className="type-caption">{footerStatusLabel}</p>
+              <p className="truncate type-section text-text-primary">{footerMeta}</p>
+            </div>
+            <span className="rounded-full border border-border bg-elevated px-2 py-0.5 type-caption text-text-body">
+              {imageConfig.generationType === 'image' ? 'Image' : 'Video'}
+            </span>
+          </div>
+          <p className="mt-2 type-caption text-text-body">{footerSupportMeta}</p>
+          {footerWarning && (
+            <p data-testid="generate-preflight-warning" className="mt-2 text-xs text-status-warning">
+              {footerWarning}
+            </p>
+          )}
+        </div>
+
         <AnimatePresence mode="wait">
           {genStatus.isGenerating ? (
             <motion.div
@@ -724,9 +898,8 @@ export function GeneratePanel() {
               animate={{ opacity: 1, scale: 1 }}
               exit={reduced ? {} : { opacity: 0, scale: 0.98 }}
               transition={transition}
-              className="relative overflow-hidden rounded-md bg-elevated border border-border"
+              className="relative overflow-hidden rounded-md border border-border bg-elevated"
             >
-              {/* Progress fill */}
               <motion.div
                 className="absolute inset-y-0 left-0 rounded-md"
                 role="progressbar"
@@ -744,32 +917,31 @@ export function GeneratePanel() {
                 }}
               />
 
-              {/* Content overlay */}
               <div className="relative flex items-center justify-between px-4 py-3.5">
                 <div className="flex items-center gap-2">
-                  <Loader2 className="w-4 h-4 text-text-primary animate-spin" />
+                  <Loader2 className="h-4 w-4 animate-spin text-text-primary" />
                   <span className="type-section">
                     Step {genStatus.step}/{advancedGeneration.steps}
                   </span>
                 </div>
 
                 <button
+                  type="button"
                   onClick={handleCancel}
                   disabled={!genStatus.isGenerating}
-                  className="flex items-center gap-2 px-3 py-1 rounded-md bg-void/40 type-ui text-text-body hover:text-text-primary hover:bg-void/60 transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+                  className="flex items-center gap-2 rounded-md bg-void/40 px-3 py-1 type-ui text-text-body transition-all hover:bg-void/60 hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-30"
                 >
-                  <X className="w-3 h-3" />
+                  <X className="h-3 w-3" />
                   Cancel
                 </button>
 
-                <span className="type-section">
-                  {Math.round(genStatus.progress)}%
-                </span>
+                <span className="type-section">{Math.round(genStatus.progress)}%</span>
               </div>
             </motion.div>
           ) : (
             <motion.button
               key="generate"
+              type="button"
               data-testid="generate-button"
               initial={reduced ? {} : { opacity: 0, scale: 0.98 }}
               animate={{ opacity: 1, scale: 1 }}
@@ -778,13 +950,13 @@ export function GeneratePanel() {
               onClick={handleGenerate}
               disabled={!imageConfig.prompt.trim()}
               className={cn(
-                'w-full flex items-center justify-center gap-2.5 py-3.5 rounded-md type-section transition-all',
+                'flex w-full items-center justify-center gap-2.5 rounded-md py-3.5 type-section transition-all',
                 imageConfig.prompt.trim()
-                  ? 'bg-accent-primary text-void shadow-accent hover:bg-accent-primary-hover active:bg-accent-primary-pressed hover:scale-[1.005] active:scale-[0.995]'
-                  : 'bg-elevated text-text-muted opacity-40 cursor-not-allowed'
+                  ? 'bg-accent-primary text-void shadow-accent hover:bg-accent-primary-hover active:scale-[0.995] active:bg-accent-primary-pressed hover:scale-[1.005]'
+                  : 'cursor-not-allowed bg-elevated text-text-muted opacity-40'
               )}
             >
-              <Wand2 className="w-4.5 h-4.5" />
+              <Wand2 className="h-4.5 w-4.5" />
               Generate {imageConfig.generationType === 'image' ? 'Image' : 'Video'}
             </motion.button>
           )}

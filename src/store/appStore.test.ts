@@ -1,6 +1,7 @@
 import { describe, expect, it, beforeEach } from 'vitest';
 import { useAppStore } from './appStore';
 import {
+  DEFAULT_COLLAPSED_GENERATE_SECTIONS,
   LEFT_DOCK_DEFAULT_WIDTH,
   LEFT_DOCK_MAX_WIDTH,
   LEFT_DOCK_MIN_WIDTH,
@@ -79,6 +80,21 @@ describe('appStore', () => {
       const ratios = useAppStore.getState().layoutPreferences.rightDockTripleRatios;
       expect(ratios.reduce((sum, value) => sum + value, 0)).toBeCloseTo(1, 5);
       expect(Math.min(...ratios)).toBeGreaterThanOrEqual(RIGHT_DOCK_TRIPLE_MIN_RATIO);
+    });
+
+    it('tracks curated collapsed generate sections', () => {
+      expect(useAppStore.getState().layoutPreferences.collapsedGenerateSections).toEqual(
+        DEFAULT_COLLAPSED_GENERATE_SECTIONS,
+      );
+
+      useAppStore.getState().setGenerateSectionCollapsed('advanced', false);
+      expect(useAppStore.getState().layoutPreferences.collapsedGenerateSections).toEqual([]);
+
+      useAppStore.getState().setGenerateSectionCollapsed('reference-inputs', true);
+
+      expect(useAppStore.getState().layoutPreferences.collapsedGenerateSections).toEqual([
+        'reference-inputs',
+      ]);
     });
   });
 
@@ -479,6 +495,7 @@ describe('appStore', () => {
         expect(persisted).not.toHaveProperty('completedJobs');
         expect(persisted).not.toHaveProperty('editHistory');
         expect(persisted.layoutPreferences).toEqual({
+          collapsedGenerateSections: DEFAULT_COLLAPSED_GENERATE_SECTIONS,
           leftDockWidth: LEFT_DOCK_DEFAULT_WIDTH,
           rightDockWidth: 360,
           rightDockCanvasRatios: [0.52, 0.48],

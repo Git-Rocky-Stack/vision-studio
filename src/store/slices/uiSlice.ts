@@ -1,7 +1,9 @@
 import type { AppState, AppSet, AppGet } from '../appStore.types';
+import type { GenerateCollapsibleSectionId } from '../layoutPreferences';
 import {
   LEFT_DOCK_MAX_WIDTH,
   LEFT_DOCK_MIN_WIDTH,
+  normalizeCollapsedGenerateSections,
   RIGHT_DOCK_CANVAS_DEFAULT_RATIOS,
   RIGHT_DOCK_CANVAS_MIN_RATIO,
   RIGHT_DOCK_DUAL_DEFAULT_RATIOS,
@@ -19,7 +21,6 @@ export const uiInitialState = {
   activeViewerItemId: null as string | null,
   darkMode: true,
   layoutPreferences: createDefaultLayoutPreferences(),
-  showAdvancedGeneration: false,
   batchViewMode: 'grid' as const,
   batchSortBy: 'created' as const,
   batchFilterBy: 'all' as const,
@@ -85,7 +86,22 @@ export function createUIActions(set: AppSet, _get: AppGet) {
           ),
         },
       })),
-    setShowAdvancedGeneration: (show: boolean) => set({ showAdvancedGeneration: show }),
+    setGenerateSectionCollapsed: (sectionId: GenerateCollapsibleSectionId, collapsed: boolean) =>
+      set((state) => {
+        const nextSections = new Set(state.layoutPreferences.collapsedGenerateSections);
+        if (collapsed) {
+          nextSections.add(sectionId);
+        } else {
+          nextSections.delete(sectionId);
+        }
+
+        return {
+          layoutPreferences: {
+            ...state.layoutPreferences,
+            collapsedGenerateSections: normalizeCollapsedGenerateSections(Array.from(nextSections)),
+          },
+        };
+      }),
     setBatchViewMode: (mode: AppState['batchViewMode']) => set({ batchViewMode: mode }),
     setBatchSortBy: (sort: AppState['batchSortBy']) => set({ batchSortBy: sort }),
     setBatchFilterBy: (filter: AppState['batchFilterBy']) => set({ batchFilterBy: filter }),

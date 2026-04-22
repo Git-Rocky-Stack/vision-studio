@@ -13,6 +13,15 @@ export const RIGHT_DOCK_TRIPLE_MIN_RATIO = 0.18;
 export const RIGHT_DOCK_CANVAS_DEFAULT_RATIOS = [0.52, 0.48] as const;
 export const RIGHT_DOCK_DUAL_DEFAULT_RATIOS = [0.58, 0.42] as const;
 export const RIGHT_DOCK_TRIPLE_DEFAULT_RATIOS = [0.4, 0.32, 0.28] as const;
+export const GENERATE_COLLAPSIBLE_SECTION_IDS = [
+  'reference-inputs',
+  'control-layers',
+  'advanced',
+] as const;
+
+export type GenerateCollapsibleSectionId = (typeof GENERATE_COLLAPSIBLE_SECTION_IDS)[number];
+
+export const DEFAULT_COLLAPSED_GENERATE_SECTIONS: GenerateCollapsibleSectionId[] = ['advanced'];
 
 export function createDefaultLayoutPreferences() {
   return {
@@ -21,7 +30,23 @@ export function createDefaultLayoutPreferences() {
     rightDockCanvasRatios: [...RIGHT_DOCK_CANVAS_DEFAULT_RATIOS] as [number, number],
     rightDockDualRatios: [...RIGHT_DOCK_DUAL_DEFAULT_RATIOS] as [number, number],
     rightDockTripleRatios: [...RIGHT_DOCK_TRIPLE_DEFAULT_RATIOS] as [number, number, number],
+    collapsedGenerateSections: [...DEFAULT_COLLAPSED_GENERATE_SECTIONS],
   };
+}
+
+export function normalizeCollapsedGenerateSections(
+  sections: readonly string[] | undefined,
+): GenerateCollapsibleSectionId[] {
+  if (sections === undefined) {
+    return [...DEFAULT_COLLAPSED_GENERATE_SECTIONS];
+  }
+  if (sections.length === 0) {
+    return [];
+  }
+
+  const validSections = new Set<string>(GENERATE_COLLAPSIBLE_SECTION_IDS);
+  const uniqueSections = Array.from(new Set(sections.filter((section) => validSections.has(section))));
+  return uniqueSections as GenerateCollapsibleSectionId[];
 }
 
 export function clampDockWidth(width: number, minWidth: number, maxWidth: number) {
