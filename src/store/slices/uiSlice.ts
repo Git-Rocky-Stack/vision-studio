@@ -1,9 +1,10 @@
 import type { AppState, AppSet, AppGet } from '../appStore.types';
-import type { GenerateCollapsibleSectionId } from '../layoutPreferences';
+import type { GenerateCollapsibleSectionId, ReviewDensity } from '../layoutPreferences';
 import {
   LEFT_DOCK_MAX_WIDTH,
   LEFT_DOCK_MIN_WIDTH,
   normalizeCollapsedGenerateSections,
+  normalizeReviewDensity,
   RIGHT_DOCK_CANVAS_DEFAULT_RATIOS,
   RIGHT_DOCK_CANVAS_MIN_RATIO,
   RIGHT_DOCK_DUAL_DEFAULT_RATIOS,
@@ -84,6 +85,13 @@ export function createUIActions(set: AppSet, _get: AppGet) {
             RIGHT_DOCK_TRIPLE_DEFAULT_RATIOS,
             RIGHT_DOCK_TRIPLE_MIN_RATIO,
           ),
+        },
+      })),
+    setReviewDensity: (density: ReviewDensity) =>
+      set((state) => ({
+        layoutPreferences: {
+          ...state.layoutPreferences,
+          reviewDensity: normalizeReviewDensity(density),
         },
       })),
     setGenerateSectionCollapsed: (sectionId: GenerateCollapsibleSectionId, collapsed: boolean) =>

@@ -35,4 +35,12 @@ describe('Canvas', () => {
 
     expect(screen.getByRole('menu', { name: 'Canvas actions' })).toBeInTheDocument();
   });
+
+  it('routes the empty canvas CTA to Viewer', () => {
+    render(<Canvas />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Viewer' }));
+
+    expect(useAppStore.getState().centerView).toBe('viewer');
+  });
 });

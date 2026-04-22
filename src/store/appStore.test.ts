@@ -2,6 +2,7 @@ import { describe, expect, it, beforeEach } from 'vitest';
 import { useAppStore } from './appStore';
 import {
   DEFAULT_COLLAPSED_GENERATE_SECTIONS,
+  DEFAULT_REVIEW_DENSITY,
   LEFT_DOCK_DEFAULT_WIDTH,
   LEFT_DOCK_MAX_WIDTH,
   LEFT_DOCK_MIN_WIDTH,
@@ -95,6 +96,14 @@ describe('appStore', () => {
       expect(useAppStore.getState().layoutPreferences.collapsedGenerateSections).toEqual([
         'reference-inputs',
       ]);
+    });
+
+    it('persists the shared review density preference', () => {
+      expect(useAppStore.getState().layoutPreferences.reviewDensity).toBe(DEFAULT_REVIEW_DENSITY);
+
+      useAppStore.getState().setReviewDensity('compact');
+
+      expect(useAppStore.getState().layoutPreferences.reviewDensity).toBe('compact');
     });
   });
 
@@ -501,6 +510,7 @@ describe('appStore', () => {
           rightDockCanvasRatios: [0.52, 0.48],
           rightDockDualRatios: [...RIGHT_DOCK_DUAL_DEFAULT_RATIOS],
           rightDockTripleRatios: [0.4, 0.32, 0.28],
+          reviewDensity: DEFAULT_REVIEW_DENSITY,
         });
       }
     });

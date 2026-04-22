@@ -32,6 +32,9 @@ export const Canvas = memo(function Canvas() {
     setActiveMaskTool,
     toggleMaskInverted,
     setActiveEditTool,
+    setActiveSubMode,
+    setActiveTab,
+    setCenterView,
     updateRegionLock,
     projects,
     activeProjectId,
@@ -48,6 +51,9 @@ export const Canvas = memo(function Canvas() {
     setActiveMaskTool: s.setActiveMaskTool,
     toggleMaskInverted: s.toggleMaskInverted,
     setActiveEditTool: s.setActiveEditTool,
+    setActiveSubMode: s.setActiveSubMode,
+    setActiveTab: s.setActiveTab,
+    setCenterView: s.setCenterView,
     updateRegionLock: s.updateRegionLock,
     projects: s.projects,
     activeProjectId: s.activeProjectId,
@@ -125,6 +131,16 @@ export const Canvas = memo(function Canvas() {
   const handleResetZoom = () => {
     setZoom(100);
     setPan({ x: 0, y: 0 });
+  };
+  const openGenerate = () => {
+    setActiveTab('generate');
+  };
+  const openViewer = () => {
+    setCenterView('viewer');
+  };
+  const openStoryboard = () => {
+    setActiveTab('story');
+    setActiveSubMode('storyboard');
   };
 
   // Detect image dimensions when currentImage changes
@@ -461,15 +477,27 @@ export const Canvas = memo(function Canvas() {
                     </p>
                   </div>
                   <div className="flex flex-wrap items-center justify-center gap-2">
-                    <span className="rounded-full border border-border bg-elevated px-3 py-1 type-caption text-text-body">
-                      Drop an image
-                    </span>
-                    <span className="rounded-full border border-border bg-elevated px-3 py-1 type-caption text-text-body">
+                    <button
+                      type="button"
+                      onClick={openGenerate}
+                      className="inline-flex items-center rounded-md border border-accent-primary-border bg-accent-primary-muted px-3 py-2 type-ui text-accent-primary transition-all hover:bg-elevated"
+                    >
                       Generate from prompt
-                    </span>
-                    <span className="rounded-full border border-border bg-elevated px-3 py-1 type-caption text-text-body">
-                      Review in viewer
-                    </span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={openViewer}
+                      className="inline-flex items-center rounded-md border border-border px-3 py-2 type-ui text-text-body transition-all hover:border-border-hover hover:bg-elevated hover:text-text-primary"
+                    >
+                      Open Viewer
+                    </button>
+                    <button
+                      type="button"
+                      onClick={openStoryboard}
+                      className="inline-flex items-center rounded-md border border-border px-3 py-2 type-ui text-text-body transition-all hover:border-border-hover hover:bg-elevated hover:text-text-primary"
+                    >
+                      Open Storyboard
+                    </button>
                   </div>
                   <div className="flex items-center gap-2 justify-center text-xs text-text-muted font-mono">
                     <Hand className="w-3.5 h-3.5" />

@@ -98,7 +98,7 @@ import type { PromptTemplate, CompositionLayerState } from '@/types/promptStudio
 import type { TimelineMode, PlayState, Keyframe } from '@/types/timeline';
 
 import type { PipelineDefinition, PipelineExecution } from '@/types/pipeline';
-import type { GenerateCollapsibleSectionId } from './layoutPreferences';
+import type { GenerateCollapsibleSectionId, ReviewDensity } from './layoutPreferences';
 
 // ---------------------------------------------------------------------------
 // Local type definitions
@@ -164,6 +164,7 @@ export interface LayoutPreferences {
   rightDockCanvasRatios: [number, number];
   rightDockDualRatios: [number, number];
   rightDockTripleRatios: [number, number, number];
+  reviewDensity: ReviewDensity;
   collapsedGenerateSections: GenerateCollapsibleSectionId[];
 }
 
@@ -338,6 +339,7 @@ export interface AppState {
   setRightDockCanvasRatios: (ratios: [number, number]) => void;
   setRightDockDualRatios: (ratios: [number, number]) => void;
   setRightDockTripleRatios: (ratios: [number, number, number]) => void;
+  setReviewDensity: (density: ReviewDensity) => void;
   setGenerateSectionCollapsed: (sectionId: GenerateCollapsibleSectionId, collapsed: boolean) => void;
   setActiveTab: (tab: ActiveTab) => void;
   setActiveSubMode: (subMode: ActiveSubMode) => void;

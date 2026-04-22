@@ -64,17 +64,28 @@ export function WorkbenchBoardsDock() {
   if (projects.length === 0) {
     return (
       <div className="flex h-full items-center p-4">
-        <div className="w-full rounded-xl border border-dashed border-border bg-[linear-gradient(180deg,rgba(255,255,255,0.035),rgba(255,255,255,0.01))] px-5 py-8 text-center shadow-cinematic">
-          <h3 className="type-section">Quick Captures</h3>
-          <p className="mt-2 text-xs text-text-muted">No scenes captured yet.</p>
-          <button
-            type="button"
-            onClick={handleCreateBoard}
-            className="mx-auto mt-4 inline-flex items-center gap-2 rounded-md border border-border px-3 py-2 type-ui text-text-body transition-all hover:border-border-hover hover:bg-elevated hover:text-text-primary"
-          >
-            <Plus className="h-3.5 w-3.5" aria-hidden="true" />
-            New Board
-          </button>
+        <div className="w-full rounded-2xl border border-dashed border-border bg-[linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.01))] px-5 py-8 text-center shadow-cinematic">
+          <h3 className="type-section">Boards keep approved ideas together.</h3>
+          <p className="mt-2 text-xs text-text-muted">
+            Create a board, then pull in scenes from Generate and Viewer as you refine the story.
+          </p>
+          <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+            <button
+              type="button"
+              onClick={handleCreateBoard}
+              className="inline-flex items-center gap-2 rounded-md border border-accent-primary-border bg-accent-primary-muted px-3 py-2 type-ui text-accent-primary transition-all hover:bg-elevated"
+            >
+              <Plus className="h-3.5 w-3.5" aria-hidden="true" />
+              New Board
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('generate')}
+              className="inline-flex items-center rounded-md border border-border px-3 py-2 type-ui text-text-body transition-all hover:border-border-hover hover:bg-elevated hover:text-text-primary"
+            >
+              Open Generate
+            </button>
+          </div>
         </div>
       </div>
     );

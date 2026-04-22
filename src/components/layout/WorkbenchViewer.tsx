@@ -19,6 +19,7 @@ import { ImageWithFallback } from '@/components/ui/ImageWithFallback';
 import type { GenerationDraft } from '@/types/generation';
 import { DEFAULT_GENERATION_CONFIG } from '@/types/project';
 import { cn } from '@/utils/cn';
+import { ReviewDensityToggle } from './ReviewDensityToggle';
 
 type CompareMode = Exclude<AppState['comparisonMode'], 'off'>;
 
@@ -58,6 +59,7 @@ export function WorkbenchViewer() {
     batchResults,
     comparisonImages,
     comparisonMode,
+    layoutPreferences,
     projects,
     addScene,
     setActiveViewerItemId,
@@ -69,6 +71,7 @@ export function WorkbenchViewer() {
     setCurrentImage,
     setActiveTab,
     setCenterView,
+    setReviewDensity,
   } = useAppStore(useShallow(s => ({
     assetLibrary: s.assetLibrary,
     activeProjectId: s.activeProjectId,
@@ -76,6 +79,7 @@ export function WorkbenchViewer() {
     batchResults: s.batchResults,
     comparisonImages: s.comparisonImages,
     comparisonMode: s.comparisonMode,
+    layoutPreferences: s.layoutPreferences,
     projects: s.projects,
     addScene: s.addScene,
     setActiveViewerItemId: s.setActiveViewerItemId,
@@ -87,6 +91,7 @@ export function WorkbenchViewer() {
     setCurrentImage: s.setCurrentImage,
     setActiveTab: s.setActiveTab,
     setCenterView: s.setCenterView,
+    setReviewDensity: s.setReviewDensity,
   })));
 
   const items = useMemo<ViewerItem[]>(() => {
@@ -170,6 +175,10 @@ export function WorkbenchViewer() {
     });
   }, [comparisonImages, items]);
   const showCompareReview = pinnedItems.length >= 2;
+  const reviewDensity = layoutPreferences.reviewDensity;
+  const isCompact = reviewDensity === 'compact';
+  const compareModeLabel =
+    compareModes.find((item) => item.id === comparisonMode)?.label ?? 'Side by Side';
 
   const updateComparisonImages = (nextImages: string[]) => {
     setComparisonImages(nextImages);
@@ -236,12 +245,26 @@ export function WorkbenchViewer() {
     return (
       <div className="flex h-full flex-col items-center justify-center bg-void px-6 text-center">
         <ImageIcon className="h-9 w-9 text-text-muted opacity-40" />
-        <h2 className="mt-4 type-title">
-          Outputs will appear here.
-        </h2>
+        <h2 className="mt-4 type-title">Outputs will appear here.</h2>
         <p className="mt-2 max-w-sm text-sm text-text-body">
           Generate or import an image to review it beside Canvas and Workflow.
         </p>
+        <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+          <button
+            type="button"
+            onClick={() => setActiveTab('generate')}
+            className="inline-flex items-center rounded-md border border-accent-primary-border bg-accent-primary-muted px-3 py-2 type-ui text-accent-primary transition-all hover:bg-elevated"
+          >
+            Open Generate
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('assets')}
+            className="inline-flex items-center rounded-md border border-border px-3 py-2 type-ui text-text-body transition-all hover:border-border-hover hover:bg-elevated hover:text-text-primary"
+          >
+            Open Assets
+          </button>
+        </div>
       </div>
     );
   }
@@ -251,6 +274,7 @@ export function WorkbenchViewer() {
       <div className="flex min-h-0 flex-1 items-center justify-center p-4">
         {showCompareReview ? (
           <CompareReview
+            density={reviewDensity}
             items={pinnedItems}
             mode={comparisonMode === 'off' ? 'side-by-side' : comparisonMode}
             onClear={clearCompare}
@@ -324,6 +348,32 @@ export function WorkbenchViewer() {
             </div>
           </div>
 
+          {comparisonImages.length > 0 ? (
+            <div
+              data-testid="viewer-compare-status"
+              className={cn(
+                'mt-3 rounded-lg border px-3 py-2',
+                showCompareReview
+                  ? 'border-accent-primary-border bg-accent-primary-muted'
+                  : 'border-border bg-elevated',
+              )}
+            >
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="type-ui text-text-primary">
+                  {showCompareReview ? 'Compare review ready' : 'Compare queue started'}
+                </p>
+                <span className="rounded-full border border-border px-2 py-0.5 type-caption text-text-body">
+                  {comparisonImages.length} pinned
+                </span>
+              </div>
+              <p className="mt-1 type-caption text-text-body">
+                {showCompareReview
+                  ? `${compareModeLabel} is active for the pinned outputs.`
+                  : 'Pin one more output to open the compare review surface.'}
+              </p>
+            </div>
+          ) : null}
+
           <dl className="mt-3 grid grid-cols-2 gap-3 text-xs sm:grid-cols-4">
             <Metadata label="Model" value={activeItem.model ?? 'Unknown'} />
             <Metadata label="Seed" value={activeItem.seed === null ? 'Random' : String(activeItem.seed)} />
@@ -332,9 +382,26 @@ export function WorkbenchViewer() {
           </dl>
         </section>
 
-        <aside className="w-[280px] shrink-0 overflow-x-auto p-3">
-          <div className="flex gap-2">
-            {items.slice(0, 12).map((item) => {
+        <aside
+          className={cn(
+            'shrink-0 border-l border-border bg-surface',
+            isCompact ? 'w-[232px]' : 'w-[280px]',
+          )}
+        >
+          <div className="flex items-center justify-between gap-3 border-b border-border px-3 py-2">
+            <div className="min-w-0">
+              <p className="type-caption text-text-muted">Recent outputs</p>
+              <p className="truncate type-caption text-text-muted">
+                {items.length} items ready for review
+              </p>
+            </div>
+            <ReviewDensityToggle density={reviewDensity} onChange={setReviewDensity} />
+          </div>
+          <div
+            data-testid="viewer-thumbnail-rail"
+            className={cn('scroll-shadow-x flex overflow-x-auto p-3', isCompact ? 'gap-1.5' : 'gap-2')}
+          >
+            {items.slice(0, isCompact ? 16 : 12).map((item) => {
               const isActive = item.id === activeItem.id;
 
               return (
@@ -344,7 +411,8 @@ export function WorkbenchViewer() {
                   aria-label={`Review ${item.label}`}
                   onClick={() => setActiveViewerItemId(item.id)}
                   className={cn(
-                    'h-20 w-20 shrink-0 overflow-hidden rounded-md border bg-void transition-all',
+                    'shrink-0 overflow-hidden rounded-md border bg-void transition-all',
+                    isCompact ? 'h-16 w-16' : 'h-20 w-20',
                     isActive
                       ? 'border-accent-primary-border ring-1 ring-accent-primary-border'
                       : 'border-border hover:border-border-hover'
@@ -367,12 +435,14 @@ export function WorkbenchViewer() {
 }
 
 function CompareReview({
+  density,
   items,
   mode,
   onClear,
   onModeChange,
   onRemove,
 }: {
+  density: 'comfortable' | 'compact';
   items: ViewerItem[];
   mode: CompareMode;
   onClear: () => void;
@@ -428,7 +498,9 @@ function CompareReview({
         </div>
       </div>
 
-      {mode === 'side-by-side' && <SideBySideCompare items={items} onRemove={onRemove} />}
+      {mode === 'side-by-side' && (
+        <SideBySideCompare density={density} items={items} onRemove={onRemove} />
+      )}
 
       {mode === 'slider' && firstItem && secondItem && (
         <div className="relative min-h-0 flex-1 overflow-hidden bg-void">
@@ -503,7 +575,10 @@ function CompareReview({
       {mode === 'grid' && (
         <ul
           aria-label="Pinned comparison outputs"
-          className="grid min-h-0 flex-1 list-none grid-cols-2 gap-3 overflow-auto p-3 lg:grid-cols-4"
+          className={cn(
+            'grid min-h-0 flex-1 list-none overflow-auto lg:grid-cols-4',
+            density === 'compact' ? 'grid-cols-2 gap-2 p-2' : 'grid-cols-2 gap-3 p-3',
+          )}
         >
           {items.map((item, index) => (
             <li
@@ -576,14 +651,21 @@ function toSceneGenerationConfig(item: ViewerItem) {
 }
 
 function SideBySideCompare({
+  density,
   items,
   onRemove,
 }: {
+  density: 'comfortable' | 'compact';
   items: ViewerItem[];
   onRemove: (imagePath: string) => void;
 }) {
   return (
-    <div className="grid min-h-0 flex-1 grid-cols-2 gap-3 p-3">
+    <div
+      className={cn(
+        'grid min-h-0 flex-1 grid-cols-2',
+        density === 'compact' ? 'gap-2 p-2' : 'gap-3 p-3',
+      )}
+    >
       {items.map((item, index) => (
         <article key={`${item.id}-${index}`} className="relative min-h-0 overflow-hidden rounded-md border border-border bg-void">
           <ImageWithFallback

@@ -10,6 +10,7 @@ import {
   clampDockWidth,
   createDefaultLayoutPreferences,
   normalizeCollapsedGenerateSections,
+  normalizeReviewDensity,
 } from './layoutPreferences';
 
 // Slice imports
@@ -246,6 +247,11 @@ export const useAppStore = create<AppState>()(
                 : currentLayout.rightDockWidth,
               RIGHT_DOCK_MIN_WIDTH,
               RIGHT_DOCK_MAX_WIDTH,
+            ),
+            reviewDensity: normalizeReviewDensity(
+              typeof persistedLayout.reviewDensity === 'string'
+                ? persistedLayout.reviewDensity
+                : undefined,
             ),
             collapsedGenerateSections: normalizeCollapsedGenerateSections(
               Array.isArray(persistedLayout.collapsedGenerateSections)
