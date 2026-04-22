@@ -4,6 +4,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import App from './App';
 import { useAppStore } from './store/appStore';
 
+vi.mock('@/../public/s2.png', () => ({
+  default: '/s2.png',
+}));
+
 describe('App', () => {
   beforeEach(() => {
     useAppStore.setState(useAppStore.getInitialState(), true);
@@ -28,6 +32,8 @@ describe('App', () => {
 
     render(<App />);
 
+    expect(screen.getByTestId('app-header')).toBeInTheDocument();
+    expect(document.getElementById('main-content')).toHaveClass('min-h-0', 'flex-1');
     expect(await screen.findByTestId('left-dock')).toHaveTextContent('Model Router');
     expect(screen.getByTestId('right-dock')).toHaveTextContent('Boards');
   });

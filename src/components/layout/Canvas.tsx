@@ -443,13 +443,15 @@ export const Canvas = memo(function Canvas() {
                 </div>
               </div>
             ) : (
-              <div className="absolute inset-0 flex flex-col items-center justify-center text-text-body">
+              <div className="absolute inset-0 flex items-center justify-center p-6 text-text-body">
                 <motion.div
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className="text-center space-y-5 max-w-sm px-8"
+                  className="w-full max-w-md rounded-2xl border border-border bg-[linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.01))] px-8 py-10 text-center shadow-cinematic"
                 >
-                  <div className="w-16 h-16 mx-auto rounded-md bg-accent-primary-muted border border-accent-primary-border" />
+                  <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl border border-accent-primary-border bg-accent-primary-muted shadow-accent-subtle">
+                    <Sparkles className="h-6 w-6 text-accent-primary" />
+                  </div>
                   <div>
                     <h3 className="font-display text-xl font-semibold text-text-primary">
                       Start with an image, scene, or prompt
@@ -457,6 +459,17 @@ export const Canvas = memo(function Canvas() {
                     <p className="text-sm text-text-body mt-1">
                       Choose a workflow and build from every result.
                     </p>
+                  </div>
+                  <div className="flex flex-wrap items-center justify-center gap-2">
+                    <span className="rounded-full border border-border bg-elevated px-3 py-1 type-caption text-text-body">
+                      Drop an image
+                    </span>
+                    <span className="rounded-full border border-border bg-elevated px-3 py-1 type-caption text-text-body">
+                      Generate from prompt
+                    </span>
+                    <span className="rounded-full border border-border bg-elevated px-3 py-1 type-caption text-text-body">
+                      Review in viewer
+                    </span>
                   </div>
                   <div className="flex items-center gap-2 justify-center text-xs text-text-muted font-mono">
                     <Hand className="w-3.5 h-3.5" />

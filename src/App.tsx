@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useAppStore } from '@/store/appStore';
+import { Header } from '@/components/layout/Header';
 import { DockviewLayout } from '@/components/layout/DockviewLayout';
 import { FilmGrainOverlay } from '@/components/effects/FilmGrainOverlay';
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
@@ -136,10 +137,13 @@ function App() {
       >
         Skip to main content
       </a>
-      <div id="main-content">
-        <ErrorBoundary fallbackLabel="Workspace error">
-          <DockviewLayout />
-        </ErrorBoundary>
+      <div className="flex h-full min-h-0 flex-col">
+        <Header />
+        <div id="main-content" data-testid="main-content" className="min-h-0 flex-1">
+          <ErrorBoundary fallbackLabel="Workspace error">
+            <DockviewLayout />
+          </ErrorBoundary>
+        </div>
       </div>
       <KeyboardShortcuts open={showShortcuts} onClose={() => setShowShortcuts(false)} />
       <FilmGrainOverlay opacity={0.025} />

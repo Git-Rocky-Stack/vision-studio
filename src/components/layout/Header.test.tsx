@@ -8,11 +8,27 @@ vi.mock('@/store/appStore', () => ({
   useAppStore: vi.fn(),
 }));
 
+vi.mock('@/../public/s2.png', () => ({
+  default: '/s2.png',
+}));
+
 vi.mock('./ProjectDropdown', () => ({
   ProjectDropdown: () => <button type="button">Project</button>,
 }));
 
-const baseStore = {
+const baseStore: {
+  currentProject: null | {
+    id: string;
+    name: string;
+    updatedAt?: string;
+  };
+  systemInfo: {
+    gpuAvailable: false,
+    comfyuiConnected: false,
+    modelsCount: 0,
+    backendConnected: false,
+  },
+} = {
   currentProject: null,
   systemInfo: {
     gpuAvailable: false,
@@ -32,6 +48,11 @@ describe('Header', () => {
 
   it('renders quiet production chrome without oversized branding', () => {
     mockStore({
+      currentProject: {
+        id: 'project-1',
+        name: 'Project',
+        updatedAt: '2026-04-22T12:34:00.000Z',
+      },
       systemInfo: {
         ...baseStore.systemInfo,
         backendConnected: true,
@@ -41,9 +62,10 @@ describe('Header', () => {
     render(<Header />);
 
     expect(screen.getByRole('button', { name: 'Project' })).toBeInTheDocument();
-    expect(screen.queryByRole('img', { name: 'Vision Studio' })).not.toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'Vision Studio' })).toBeInTheDocument();
     expect(screen.getByTestId('header-right-actions')).toBeInTheDocument();
-    expect(screen.getByTestId('app-header')).toHaveClass('h-12', 'px-4');
+    expect(screen.getByTestId('app-header')).toHaveClass('app-region-drag', 'h-14', 'pr-36');
+    expect(screen.getByTestId('header-right-actions')).toHaveClass('app-region-no-drag');
     expect(screen.getByLabelText('Backend ready')).toBeInTheDocument();
     expect(screen.getByText('Ready')).toBeInTheDocument();
   });

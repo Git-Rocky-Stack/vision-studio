@@ -24,7 +24,7 @@ export function createBrowserWindowOptions(preloadPath: string): BrowserWindowCo
     titleBarOverlay: {
       color: '#0a0a0a',
       symbolColor: '#e5e5e5',
-      height: 40,
+      height: 56,
     },
     backgroundColor: '#0a0a0a',
     webPreferences: {

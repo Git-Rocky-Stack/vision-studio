@@ -13,6 +13,11 @@ describe('mainWindow service helpers', () => {
       minWidth: 1200,
       minHeight: 800,
       titleBarStyle: 'hidden',
+      titleBarOverlay: {
+        color: '#0a0a0a',
+        symbolColor: '#e5e5e5',
+        height: 56,
+      },
       backgroundColor: '#0a0a0a',
       show: true,
       webPreferences: {

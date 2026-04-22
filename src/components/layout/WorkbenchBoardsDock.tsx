@@ -63,17 +63,19 @@ export function WorkbenchBoardsDock() {
 
   if (projects.length === 0) {
     return (
-      <div className="flex h-full flex-col justify-center px-4 text-center">
-        <h3 className="type-section">Quick Captures</h3>
-        <p className="mt-2 text-xs text-text-muted">No scenes captured yet.</p>
-        <button
-          type="button"
-          onClick={handleCreateBoard}
-          className="mx-auto mt-4 inline-flex items-center gap-2 rounded-md border border-border px-3 py-2 type-ui text-text-body transition-all hover:border-border-hover hover:bg-elevated hover:text-text-primary"
-        >
-          <Plus className="h-3.5 w-3.5" aria-hidden="true" />
-          New Board
-        </button>
+      <div className="flex h-full items-center p-4">
+        <div className="w-full rounded-xl border border-dashed border-border bg-[linear-gradient(180deg,rgba(255,255,255,0.035),rgba(255,255,255,0.01))] px-5 py-8 text-center shadow-cinematic">
+          <h3 className="type-section">Quick Captures</h3>
+          <p className="mt-2 text-xs text-text-muted">No scenes captured yet.</p>
+          <button
+            type="button"
+            onClick={handleCreateBoard}
+            className="mx-auto mt-4 inline-flex items-center gap-2 rounded-md border border-border px-3 py-2 type-ui text-text-body transition-all hover:border-border-hover hover:bg-elevated hover:text-text-primary"
+          >
+            <Plus className="h-3.5 w-3.5" aria-hidden="true" />
+            New Board
+          </button>
+        </div>
       </div>
     );
   }
@@ -81,9 +83,10 @@ export function WorkbenchBoardsDock() {
   return (
     <div className="flex h-full min-h-0 flex-col bg-surface">
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-3 py-2">
-        <div>
-          <h2 className="type-section">Boards</h2>
-          <p className="mt-0.5 type-caption">{projects.length} active</p>
+        <div className="min-w-0">
+          <p className="type-caption text-text-muted">
+            {projects.length} active {projects.length === 1 ? 'board' : 'boards'}
+          </p>
         </div>
         <div className="flex items-center gap-1.5">
           <button

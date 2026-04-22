@@ -961,7 +961,7 @@ export const Timeline = memo(function Timeline() {
       <div className="flex-1 flex min-h-0 overflow-hidden">
         {/* ─── Track Headers (fixed left column) ────────────────────────── */}
         <div
-          className="flex-shrink-0 border-r border-border bg-canvas overflow-y-auto scrollbar-hide"
+          className="flex-shrink-0 overflow-y-auto border-r border-border bg-canvas"
           style={{ width: HEADER_WIDTH }}
         >
           {/* Ruler header spacer */}
@@ -999,7 +999,7 @@ export const Timeline = memo(function Timeline() {
 
         {/* ─── Scrollable Timeline Area ──────────────────────────────────── */}
         <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-          <div className="flex-1 overflow-auto scrollbar-hide relative">
+          <div className="relative flex-1 overflow-auto">
             {/* ─── Ruler ────────────────────────────────────────────────── */}
             <TimeRuler
               totalDuration={totalDuration}
@@ -1012,7 +1012,7 @@ export const Timeline = memo(function Timeline() {
             {storyboardScenes.length > 0 && (
               <div className="h-[36px] border-b border-border relative bg-elevated/30">
                 {/* Scene strip - uses existing ScenePlaybackStrip but in a horizontal layout */}
-                <div className="flex items-center h-full px-1 gap-0.5 overflow-x-auto scrollbar-hide">
+                <div className="flex h-full items-center gap-0.5 overflow-x-auto px-1">
                   {storyboardScenes
                     .sort((a, b) => a.orderIndex - b.orderIndex)
                     .map((scene) => {

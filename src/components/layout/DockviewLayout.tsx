@@ -90,9 +90,9 @@ export const DockviewLayout = memo(function DockviewLayout() {
 
   if (!preset.hasLeftDock && !preset.hasRightDock) {
     return (
-      <div className="flex h-full">
+      <div className="flex h-full min-h-0">
         <NavBar />
-        <main className="flex min-w-0 flex-1 flex-col bg-void">
+        <main className="flex min-h-0 min-w-0 flex-1 flex-col bg-void">
           <section
             id={`panel-${activeTab}`}
             role="tabpanel"
@@ -120,10 +120,10 @@ export const DockviewLayout = memo(function DockviewLayout() {
   const isCanvasTab = activeTab === 'canvas';
 
   return (
-    <div className="flex h-full">
+    <div className="flex h-full min-h-0">
       <NavBar />
 
-      <div className="flex flex-1 min-w-0">
+      <div className="flex min-h-0 flex-1 min-w-0">
         {/* Left dock - settings panel */}
         <aside
           data-testid="left-dock"
@@ -140,7 +140,7 @@ export const DockviewLayout = memo(function DockviewLayout() {
         </aside>
 
         {/* Center workspace */}
-        <main className="flex min-w-0 flex-1 flex-col bg-void">
+        <main className="flex min-h-0 min-w-0 flex-1 flex-col bg-void">
           {/* Center view tabs (only when preset has >1 center view) */}
           {centerTabs.length > 1 && !isStudioMode && (
             <div

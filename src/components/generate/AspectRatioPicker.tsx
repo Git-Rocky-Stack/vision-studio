@@ -1,4 +1,5 @@
 import { memo, useMemo } from 'react';
+import { ArrowLeftRight } from 'lucide-react';
 import { useAppStore } from '@/store/appStore';
 import { cn } from '@/utils/cn';
 import { ASPECT_RATIOS, computeDimensions, type AspectRatio, type ResolutionTier } from '@/types/resolution';
@@ -76,7 +77,7 @@ export const AspectRatioPicker = memo(function AspectRatioPicker() {
               : 'border-border text-text-body hover:border-border-hover hover:bg-elevated hover:text-text-primary'
           )}
         >
-          <span className="text-xs mb-1">⟷</span>
+          <ArrowLeftRight className="mb-1 h-3.5 w-3.5" aria-hidden="true" />
           <span className="font-mono text-micro leading-none">Custom</span>
         </button>
       </div>
