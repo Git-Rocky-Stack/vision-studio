@@ -556,6 +556,7 @@ describe('appStore', () => {
       const project = useAppStore.getState().createProject('Timeline target');
 
       expect(project.timelineSequenceId).toBeNull();
+      expect(project.referenceSetIds).toEqual([]);
     });
 
     it('honors an explicit initial scene status', () => {
@@ -576,6 +577,43 @@ describe('appStore', () => {
       const scene = useAppStore.getState().addScene(project.id, { name: 'Scene 1' });
 
       expect(scene.timelineClipIds).toEqual([]);
+      expect(scene.referenceSetIds).toEqual([]);
+    });
+
+    it('syncs scene reference adapters when a scoped reference set is attached', () => {
+      const project = useAppStore.getState().createProject('Reference target');
+      const scene = useAppStore.getState().addScene(project.id, { name: 'Scene 1' });
+
+      const referenceSet = useAppStore.getState().createReferenceSet({
+        name: 'Shot refs',
+        scope: 'scene',
+        projectId: project.id,
+        sceneId: scene.id,
+        items: [
+          {
+            id: 'shot-ref-1',
+            slot: 'composition',
+            path: 'C:/vision-studio-output/refs/shot.png',
+            label: 'Shot reference',
+            orderIndex: 0,
+          },
+        ],
+      });
+
+      const storedScene = useAppStore
+        .getState()
+        .projects.find((item) => item.id === project.id)
+        ?.scenes.find((item) => item.id === scene.id);
+
+      expect(storedScene?.referenceSetIds).toContain(referenceSet.id);
+      expect(storedScene?.referenceImages).toEqual([
+        expect.objectContaining({
+          id: 'shot-ref-1',
+          path: 'C:/vision-studio-output/refs/shot.png',
+          type: 'composition',
+          referenceSetId: referenceSet.id,
+        }),
+      ]);
     });
   });
 

@@ -634,7 +634,7 @@ export interface AppState {
   setActiveProject: (id: string | null) => void;
   updateProject: (
     id: string,
-    updates: Partial<Pick<Project, 'name' | 'dimensions' | 'fps' | 'metadata'>>,
+    updates: Partial<Pick<Project, 'name' | 'dimensions' | 'fps' | 'metadata' | 'timelineSequenceId' | 'referenceSetIds'>>,
   ) => void;
 
   // Scene CRUD

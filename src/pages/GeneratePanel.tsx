@@ -1,4 +1,4 @@
-import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react';
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { cn } from '@/utils/cn';
 import { useAppStore } from '@/store/appStore';
@@ -6,13 +6,13 @@ import { PromptArea } from '@/components/generate/PromptArea';
 import { StylePresetsBar } from '@/components/generate/StylePresetsBar';
 import { ModelSelector } from '@/components/generate/ModelSelector';
 import { AdvancedGenerationSettings } from '@/components/generate/AdvancedGenerationSettings';
-import { ImageDropZone } from '@/components/generate/ImageDropZone';
 import { ControlNetPanel } from '@/components/generate/ControlNetPanel';
 import { LoRAMixer } from '@/components/generate/LoRAMixer';
 import { PromptHistory } from '@/components/generate/PromptHistory';
 import { AspectRatioPicker } from '@/components/generate/AspectRatioPicker';
 import { CompactImageDropZone } from '@/components/generate/CompactImageDropZone';
 import { VideoControls } from '@/components/generate/VideoControls';
+import { ReferenceMediaPanel } from '@/components/reference/ReferenceMediaPanel';
 import { computeDimensions } from '@/types/resolution';
 import {
   clearResolvedGenerationError,
@@ -20,6 +20,7 @@ import {
 } from '@/features/generate/validation';
 import type { ControlNetConfig, LoRAConfig } from '@/types/generation';
 import type { GenerateCollapsibleSectionId } from '@/store/layoutPreferences';
+import type { MediaAsset, ReferenceSet } from '@/types/media';
 import {
   AlertCircle,
   Check,
@@ -139,6 +140,95 @@ function GenerateSectionCard({
   );
 }
 
+function findScopedReferenceSet(
+  referenceSets: ReferenceSet[],
+  scope: ReferenceSet['scope'],
+  projectId: string | null,
+  sceneId: string | null,
+  clipId: string | null,
+) {
+  return (
+    referenceSets.find(
+      (referenceSet) =>
+        referenceSet.scope === scope &&
+        referenceSet.projectId === projectId &&
+        referenceSet.sceneId === sceneId &&
+        referenceSet.clipId === clipId,
+    ) ?? null
+  );
+}
+
+function resolveReferenceItemPath(
+  item: ReferenceSet['items'][number],
+  mediaAssets: MediaAsset[],
+) {
+  if (item.path) {
+    return item.path;
+  }
+
+  if (!item.mediaAssetId) {
+    return null;
+  }
+
+  return mediaAssets.find((asset) => asset.id === item.mediaAssetId)?.path ?? null;
+}
+
+function resolveReferenceContext(
+  generationType: GenerationType,
+  referenceSets: Array<ReferenceSet | null>,
+  mediaAssets: MediaAsset[],
+) {
+  type ResolvedReferenceItem = {
+    path: string;
+    label: string;
+    slot: ReferenceSet['items'][number]['slot'];
+    orderIndex: number;
+    scopeIndex: number;
+  };
+  const slotPriority =
+    generationType === 'video'
+      ? ['motion', 'composition', 'character', 'style', 'pose']
+      : ['composition', 'style', 'character', 'pose', 'motion'];
+
+  const resolvedItems = referenceSets.flatMap<ResolvedReferenceItem>((referenceSet, scopeIndex) =>
+    (referenceSet?.items ?? [])
+      .map((item) => {
+        const path = resolveReferenceItemPath(item, mediaAssets);
+        if (!path) {
+          return null;
+        }
+
+        return {
+          path,
+          label: item.label ?? 'Reference image',
+          slot: item.slot,
+          orderIndex: item.orderIndex,
+          scopeIndex,
+        };
+      })
+      .filter((item): item is ResolvedReferenceItem => Boolean(item)),
+  );
+
+  const prioritizedItems = [...resolvedItems].sort((left, right) => {
+    const leftSlotIndex = slotPriority.indexOf(left.slot);
+    const rightSlotIndex = slotPriority.indexOf(right.slot);
+
+    return (
+      left.scopeIndex - right.scopeIndex ||
+      (leftSlotIndex === -1 ? slotPriority.length : leftSlotIndex) -
+        (rightSlotIndex === -1 ? slotPriority.length : rightSlotIndex) ||
+      left.orderIndex - right.orderIndex
+    );
+  });
+
+  return {
+    primaryReferenceImage: prioritizedItems[0]?.path ?? null,
+    primaryReferenceLabel: prioritizedItems[0]?.label ?? null,
+    totalReferenceItems: resolvedItems.length,
+    activeReferenceSetCount: referenceSets.filter((referenceSet) => (referenceSet?.items.length ?? 0) > 0).length,
+  };
+}
+
 export function GeneratePanel() {
   const {
     addJob,
@@ -146,6 +236,11 @@ export function GeneratePanel() {
     syncAssetsFromJobStatus,
     systemInfo,
     currentProject,
+    projects,
+    activeProjectId,
+    activeSceneId,
+    referenceSets,
+    mediaAssets,
     addToPromptHistory,
     favoritePrompts,
     toggleFavoritePrompt,
@@ -161,6 +256,11 @@ export function GeneratePanel() {
     syncAssetsFromJobStatus: s.syncAssetsFromJobStatus,
     systemInfo: s.systemInfo,
     currentProject: s.currentProject,
+    projects: s.projects,
+    activeProjectId: s.activeProjectId,
+    activeSceneId: s.activeSceneId,
+    referenceSets: s.referenceSets,
+    mediaAssets: s.mediaAssets,
     addToPromptHistory: s.addToPromptHistory,
     favoritePrompts: s.favoritePrompts,
     toggleFavoritePrompt: s.toggleFavoritePrompt,
@@ -222,7 +322,6 @@ export function GeneratePanel() {
   );
 
   const [refConfig, setRefConfig] = useState({
-    referenceImage: null as string | null,
     denoisingStrength: 0.75,
     referenceMode: 'img2img' as 'img2img' | 'inpaint' | 'controlnet',
     controlNetConfig: DEFAULT_CONTROLNET as ControlNetConfig,
@@ -230,6 +329,53 @@ export function GeneratePanel() {
   });
   const updateRefConfig = (patch: Partial<typeof refConfig>) =>
     setRefConfig((prev) => ({ ...prev, ...patch }));
+
+  const activeProject = useMemo(
+    () => projects.find((project) => project.id === activeProjectId) ?? null,
+    [activeProjectId, projects],
+  );
+  const activeScene = useMemo(
+    () => activeProject?.scenes.find((scene) => scene.id === activeSceneId) ?? null,
+    [activeProject, activeSceneId],
+  );
+  const adhocReferenceSet = useMemo(
+    () => findScopedReferenceSet(referenceSets, 'adhoc', activeProjectId, activeSceneId, null),
+    [activeProjectId, activeSceneId, referenceSets],
+  );
+  const sceneReferenceSet = useMemo(
+    () =>
+      activeScene
+        ? findScopedReferenceSet(referenceSets, 'scene', activeProjectId, activeScene.id, null)
+        : null,
+    [activeProjectId, activeScene, referenceSets],
+  );
+  const projectReferenceSet = useMemo(
+    () =>
+      activeProject
+        ? findScopedReferenceSet(referenceSets, 'project', activeProject.id, null, null)
+        : null,
+    [activeProject, referenceSets],
+  );
+  const {
+    primaryReferenceImage,
+    primaryReferenceLabel,
+    totalReferenceItems,
+    activeReferenceSetCount,
+  } = useMemo(
+    () =>
+      resolveReferenceContext(
+        imageConfig.generationType,
+        [adhocReferenceSet, sceneReferenceSet, projectReferenceSet],
+        mediaAssets,
+      ),
+    [
+      adhocReferenceSet,
+      imageConfig.generationType,
+      mediaAssets,
+      projectReferenceSet,
+      sceneReferenceSet,
+    ],
+  );
 
   useEffect(() => {
     if (currentProject?.template) {
@@ -278,12 +424,12 @@ export function GeneratePanel() {
     const nextErrorMessage = clearResolvedGenerationError(genStatus.errorMessage, {
       generationType: imageConfig.generationType,
       videoModel: imageConfig.videoModel,
-      referenceImage: refConfig.referenceImage,
+      referenceImage: primaryReferenceImage,
     });
     if (nextErrorMessage !== genStatus.errorMessage) {
       updateGenStatus({ errorMessage: nextErrorMessage, status: 'idle' });
     }
-  }, [genStatus.errorMessage, genStatus.status, imageConfig.generationType, imageConfig.videoModel, refConfig.referenceImage]);
+  }, [genStatus.errorMessage, genStatus.status, imageConfig.generationType, imageConfig.videoModel, primaryReferenceImage]);
 
   const handleGenerate = async () => {
     if (!imageConfig.prompt.trim()) return;
@@ -360,13 +506,13 @@ export function GeneratePanel() {
           throw new Error(result.error || 'Generation failed');
         }
       } else {
-        if (imageConfig.videoModel === 'svd' && !refConfig.referenceImage) {
+        if (imageConfig.videoModel === 'svd' && !primaryReferenceImage) {
           throw new Error(SVD_REFERENCE_ERROR);
         }
 
         const result = await window.electron.generation.generateVideo({
           prompt: imageConfig.prompt.trim(),
-          image_path: refConfig.referenceImage ?? undefined,
+          image_path: primaryReferenceImage ?? undefined,
           width: dimensions.width,
           height: dimensions.height,
           duration: advancedGeneration.duration,
@@ -579,18 +725,18 @@ export function GeneratePanel() {
     [collapsedGenerateSections, setGenerateSectionCollapsed],
   );
 
-  const referenceSummary = refConfig.referenceImage
-    ? `${refConfig.referenceMode === 'controlnet' ? 'Control reference attached' : 'Reference image attached'}`
+  const referenceSummary = totalReferenceItems > 0
+    ? `${totalReferenceItems} reference image${totalReferenceItems === 1 ? '' : 's'} across ${activeReferenceSetCount} set${activeReferenceSetCount === 1 ? '' : 's'}${primaryReferenceLabel ? `, primary ${primaryReferenceLabel}` : ''}`
     : videoModelRequiresReference
       ? 'Reference image required for Stable Video Diffusion'
-      : 'No guide image attached';
+      : 'No reference media attached';
   const controlLayersSummary = `${refConfig.controlNetConfig.enabled ? 'ControlNet on' : 'ControlNet off'}, ${refConfig.loraConfigs.length} LoRA${refConfig.loraConfigs.length === 1 ? '' : 's'}`;
   const advancedSummary = imageConfig.generationType === 'image'
     ? `${advancedGeneration.steps} steps, CFG ${advancedGeneration.cfgScale}, ${advancedGeneration.scheduler}`
     : `${advancedGeneration.duration}s duration, ${advancedGeneration.fps} fps`;
   const footerWarning = !systemInfo.backendConnected
     ? 'Backend offline. Start it from Settings before generating.'
-    : videoModelRequiresReference && !refConfig.referenceImage
+    : videoModelRequiresReference && !primaryReferenceImage
       ? 'Stable Video Diffusion requires a reference image.'
       : null;
   const footerStatusLabel = genStatus.isGenerating
@@ -722,34 +868,103 @@ export function GeneratePanel() {
           </div>
         </GenerateSectionCard>
 
-        {(imageConfig.generationType === 'image' || videoModelRequiresReference) && (
-          <GenerateSectionCard
-            sectionId="reference-inputs"
-            title="Reference Inputs"
-            description="Attach a guide image when you want direct composition, structure, or motion steering."
-            summary={referenceSummary}
-            icon={ImagePlus}
-            collapsible
-            collapsed={isGenerateSectionCollapsed('reference-inputs')}
-            onToggle={() => toggleGenerateSection('reference-inputs')}
-          >
-            <div className="space-y-4">
-              <ImageDropZone
-                referenceImage={refConfig.referenceImage}
-                onImageChange={(value) => updateRefConfig({ referenceImage: value })}
-                denoisingStrength={refConfig.denoisingStrength}
-                onDenoisingStrengthChange={(value) => updateRefConfig({ denoisingStrength: value })}
-                mode={refConfig.referenceMode}
-                onModeChange={(value) => updateRefConfig({ referenceMode: value })}
+        <GenerateSectionCard
+          sectionId="reference-inputs"
+          title="Reference Inputs"
+          description="Attach reusable guide media for the current pass, the active scene, and the broader board."
+          summary={referenceSummary}
+          icon={ImagePlus}
+          collapsible
+          collapsed={isGenerateSectionCollapsed('reference-inputs')}
+          onToggle={() => toggleGenerateSection('reference-inputs')}
+        >
+          <div className="space-y-4">
+            <ReferenceMediaPanel
+              testId="generate-run-reference-panel"
+              title="Current Run"
+              description="Prompt-specific references that travel with this generation pass."
+              scope="adhoc"
+              projectId={activeProjectId}
+              sceneId={activeSceneId}
+              preferredSlots={
+                imageConfig.generationType === 'video'
+                  ? ['motion', 'composition', 'character', 'style', 'pose']
+                  : ['composition', 'style', 'character', 'pose', 'motion']
+              }
+            />
+
+            {activeScene ? (
+              <ReferenceMediaPanel
+                testId="generate-scene-reference-panel"
+                title={`${activeScene.name} Scene References`}
+                description="Shot-specific references that should stay attached to the selected scene."
+                scope="scene"
+                projectId={activeProjectId}
+                sceneId={activeScene.id}
               />
-              {videoModelRequiresReference && !refConfig.referenceImage && (
-                <div className="rounded-lg border border-status-warning-border bg-status-warning-muted px-3 py-2 text-xs text-status-warning">
-                  Stable Video Diffusion requires a reference image before launch.
-                </div>
-              )}
-            </div>
-          </GenerateSectionCard>
-        )}
+            ) : null}
+
+            {activeProject ? (
+              <ReferenceMediaPanel
+                testId="generate-project-reference-panel"
+                title={`${activeProject.name} Board References`}
+                description="Board-level references that set shared style, character, and composition language."
+                scope="project"
+                projectId={activeProject.id}
+              />
+            ) : null}
+
+            {imageConfig.generationType === 'image' ? (
+              <div className="grid gap-3 rounded-lg border border-border bg-elevated px-3 py-3 md:grid-cols-2">
+                <label className="space-y-1.5">
+                  <span className="type-caption text-text-muted">Reference routing</span>
+                  <select
+                    value={refConfig.referenceMode}
+                    onChange={(event) =>
+                      updateRefConfig({
+                        referenceMode: event.target.value as 'img2img' | 'inpaint' | 'controlnet',
+                      })
+                    }
+                    className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-text-primary"
+                  >
+                    <option value="img2img">Img2Img</option>
+                    <option value="inpaint">Inpaint</option>
+                    <option value="controlnet">ControlNet</option>
+                  </select>
+                </label>
+
+                <label className="space-y-1.5">
+                  <span className="type-caption text-text-muted">
+                    Denoising strength {refConfig.denoisingStrength.toFixed(2)}
+                  </span>
+                  <input
+                    type="range"
+                    min="0"
+                    max="1"
+                    step="0.05"
+                    value={refConfig.denoisingStrength}
+                    onChange={(event) =>
+                      updateRefConfig({ denoisingStrength: Number(event.target.value) })
+                    }
+                    className="w-full accent-accent-primary"
+                  />
+                </label>
+              </div>
+            ) : (
+              <div className="rounded-lg border border-border bg-elevated px-3 py-3 text-sm text-text-body">
+                {primaryReferenceImage
+                  ? `Primary motion reference ready${primaryReferenceLabel ? `: ${primaryReferenceLabel}` : ''}.`
+                  : 'Attach at least one reference image when you need shot continuity or motion steering.'}
+              </div>
+            )}
+
+            {videoModelRequiresReference && !primaryReferenceImage && (
+              <div className="rounded-lg border border-status-warning-border bg-status-warning-muted px-3 py-2 text-xs text-status-warning">
+                Stable Video Diffusion requires a reference image before launch.
+              </div>
+            )}
+          </div>
+        </GenerateSectionCard>
 
         {imageConfig.generationType === 'video' && (
           <GenerateSectionCard

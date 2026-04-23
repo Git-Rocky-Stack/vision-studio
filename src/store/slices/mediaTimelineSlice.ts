@@ -7,7 +7,9 @@ import type {
   MediaAsset,
   ReferenceSet,
   ReferenceSetItem,
+  ReferenceSlotType,
 } from '@/types/media';
+import type { ReferenceImage } from '@/types/project';
 import type {
   ClipGenerationBinding,
   TimelineClip,
@@ -36,6 +38,138 @@ interface CreateReferenceSetParams {
   items?: ReferenceSetItem[];
   notes?: string;
   tags?: string[];
+}
+
+function resolveReferenceItemPath(
+  item: ReferenceSetItem,
+  mediaAssets: MediaAsset[],
+): string | null {
+  if (item.path) {
+    return item.path;
+  }
+
+  if (!item.mediaAssetId) {
+    return null;
+  }
+
+  return mediaAssets.find((asset) => asset.id === item.mediaAssetId)?.path ?? null;
+}
+
+function mapReferenceSlotToLegacyType(slot: ReferenceSlotType): ReferenceImage['type'] {
+  switch (slot) {
+    case 'character':
+      return 'character';
+    case 'motion':
+      return 'motion';
+    default:
+      return slot;
+  }
+}
+
+function buildSceneReferenceImages(
+  scene: AppState['projects'][number]['scenes'][number],
+  referenceSets: ReferenceSet[],
+  mediaAssets: MediaAsset[],
+): ReferenceImage[] {
+  const attachedReferenceSets = (scene.referenceSetIds ?? [])
+    .map((referenceSetId) => referenceSets.find((referenceSet) => referenceSet.id === referenceSetId))
+    .filter((referenceSet): referenceSet is ReferenceSet => Boolean(referenceSet));
+
+  return attachedReferenceSets.flatMap((referenceSet) =>
+    [...referenceSet.items]
+      .sort((a, b) => a.orderIndex - b.orderIndex)
+      .map((item) => {
+        const path = resolveReferenceItemPath(item, mediaAssets);
+        if (!path) {
+          return null;
+        }
+
+        return {
+          id: item.id,
+          path,
+          type: mapReferenceSlotToLegacyType(item.slot),
+          label: item.label,
+          mediaAssetId: item.mediaAssetId ?? undefined,
+          referenceSetId: referenceSet.id,
+        } satisfies ReferenceImage;
+      })
+      .filter((image): image is ReferenceImage => Boolean(image)),
+  );
+}
+
+function syncProjectsWithReferenceAdapters(
+  projects: AppState['projects'],
+  referenceSets: ReferenceSet[],
+  mediaAssets: MediaAsset[],
+): AppState['projects'] {
+  const validReferenceSetIds = new Set(referenceSets.map((referenceSet) => referenceSet.id));
+
+  return projects.map((project) => ({
+    ...project,
+    referenceSetIds: (project.referenceSetIds ?? []).filter((referenceSetId) =>
+      validReferenceSetIds.has(referenceSetId),
+    ),
+    scenes: project.scenes.map((scene) => {
+      const nextReferenceSetIds = (scene.referenceSetIds ?? []).filter((referenceSetId) =>
+        validReferenceSetIds.has(referenceSetId),
+      );
+      const preservedReferenceImages = scene.referenceImages.filter((image) => !image.referenceSetId);
+      const adapterReferenceImages = buildSceneReferenceImages(
+        { ...scene, referenceSetIds: nextReferenceSetIds },
+        referenceSets,
+        mediaAssets,
+      );
+
+      return {
+        ...scene,
+        referenceSetIds: nextReferenceSetIds,
+        referenceImages: [...preservedReferenceImages, ...adapterReferenceImages],
+      };
+    }),
+  }));
+}
+
+function attachReferenceSetToProjects(
+  projects: AppState['projects'],
+  referenceSet: ReferenceSet,
+): AppState['projects'] {
+  return projects.map((project) => {
+    const nextProjectReferenceSetIds =
+      referenceSet.scope === 'project' && project.id === referenceSet.projectId
+        ? Array.from(new Set([...(project.referenceSetIds ?? []), referenceSet.id]))
+        : (project.referenceSetIds ?? []);
+
+    return {
+      ...project,
+      referenceSetIds: nextProjectReferenceSetIds,
+      scenes: project.scenes.map((scene) =>
+        referenceSet.scope === 'scene' && scene.id === referenceSet.sceneId
+          ? {
+              ...scene,
+              referenceSetIds: Array.from(new Set([...(scene.referenceSetIds ?? []), referenceSet.id])),
+            }
+          : scene,
+      ),
+    };
+  });
+}
+
+function attachReferenceSetToClips(
+  clips: TimelineClip[],
+  referenceSet: ReferenceSet,
+): TimelineClip[] {
+  if (referenceSet.scope !== 'clip' || !referenceSet.clipId) {
+    return clips;
+  }
+
+  return clips.map((clip) =>
+    clip.id === referenceSet.clipId
+      ? {
+          ...clip,
+          referenceSetIds: Array.from(new Set([...clip.referenceSetIds, referenceSet.id])),
+        }
+      : clip,
+  );
 }
 
 interface EnsureTimelineSequenceParams {
@@ -108,19 +242,34 @@ export function createMediaTimelineActions(set: AppSet, get: AppGet) {
     upsertMediaAsset: (asset: MediaAsset) =>
       set((state) => {
         const existingIndex = state.mediaAssets.findIndex((item) => item.id === asset.id);
-        if (existingIndex === -1) {
-          return { mediaAssets: [...state.mediaAssets, asset] };
-        }
+        const nextAssets =
+          existingIndex === -1
+            ? [...state.mediaAssets, asset]
+            : state.mediaAssets.map((item) => (item.id === asset.id ? asset : item));
 
-        const nextAssets = [...state.mediaAssets];
-        nextAssets[existingIndex] = asset;
-        return { mediaAssets: nextAssets };
+        return {
+          mediaAssets: nextAssets,
+          projects: syncProjectsWithReferenceAdapters(
+            state.projects,
+            state.referenceSets,
+            nextAssets,
+          ),
+        };
       }),
 
     removeMediaAsset: (assetId: string) =>
-      set((state) => ({
-        mediaAssets: state.mediaAssets.filter((asset) => asset.id !== assetId),
-      })),
+      set((state) => {
+        const nextAssets = state.mediaAssets.filter((asset) => asset.id !== assetId);
+
+        return {
+          mediaAssets: nextAssets,
+          projects: syncProjectsWithReferenceAdapters(
+            state.projects,
+            state.referenceSets,
+            nextAssets,
+          ),
+        };
+      }),
 
     createReferenceSet: (params: CreateReferenceSetParams) => {
       const now = new Date().toISOString();
@@ -141,16 +290,26 @@ export function createMediaTimelineActions(set: AppSet, get: AppGet) {
         updatedAt: now,
       };
 
-      set((state) => ({
-        referenceSets: [...state.referenceSets, referenceSet],
-      }));
+      set((state) => {
+        const nextReferenceSets = [...state.referenceSets, referenceSet];
+
+        return {
+          referenceSets: nextReferenceSets,
+          projects: syncProjectsWithReferenceAdapters(
+            attachReferenceSetToProjects(state.projects, referenceSet),
+            nextReferenceSets,
+            state.mediaAssets,
+          ),
+          timelineClips: attachReferenceSetToClips(state.timelineClips, referenceSet),
+        };
+      });
 
       return referenceSet;
     },
 
     updateReferenceSet: (id: string, updates: Partial<Omit<ReferenceSet, 'id' | 'createdAt'>>) =>
-      set((state) => ({
-        referenceSets: state.referenceSets.map((referenceSet) =>
+      set((state) => {
+        const nextReferenceSets = state.referenceSets.map((referenceSet) =>
           referenceSet.id === id
             ? {
                 ...referenceSet,
@@ -158,21 +317,47 @@ export function createMediaTimelineActions(set: AppSet, get: AppGet) {
                 updatedAt: new Date().toISOString(),
               }
             : referenceSet,
-        ),
-      })),
+        );
+
+        return {
+          referenceSets: nextReferenceSets,
+          projects: syncProjectsWithReferenceAdapters(
+            state.projects,
+            nextReferenceSets,
+            state.mediaAssets,
+          ),
+        };
+      }),
 
     deleteReferenceSet: (id: string) =>
-      set((state) => ({
-        referenceSets: state.referenceSets.filter((referenceSet) => referenceSet.id !== id),
-        timelineClips: state.timelineClips.map((clip) => ({
-          ...clip,
-          referenceSetIds: clip.referenceSetIds.filter((referenceSetId) => referenceSetId !== id),
-        })),
-        clipGenerationBindings: state.clipGenerationBindings.map((binding) => ({
-          ...binding,
-          referenceSetIds: binding.referenceSetIds.filter((referenceSetId) => referenceSetId !== id),
-        })),
-      })),
+      set((state) => {
+        const nextReferenceSets = state.referenceSets.filter((referenceSet) => referenceSet.id !== id);
+        const nextProjects = state.projects.map((project) => ({
+          ...project,
+          referenceSetIds: (project.referenceSetIds ?? []).filter((referenceSetId) => referenceSetId !== id),
+          scenes: project.scenes.map((scene) => ({
+            ...scene,
+            referenceSetIds: (scene.referenceSetIds ?? []).filter((referenceSetId) => referenceSetId !== id),
+          })),
+        }));
+
+        return {
+          referenceSets: nextReferenceSets,
+          projects: syncProjectsWithReferenceAdapters(
+            nextProjects,
+            nextReferenceSets,
+            state.mediaAssets,
+          ),
+          timelineClips: state.timelineClips.map((clip) => ({
+            ...clip,
+            referenceSetIds: clip.referenceSetIds.filter((referenceSetId) => referenceSetId !== id),
+          })),
+          clipGenerationBindings: state.clipGenerationBindings.map((binding) => ({
+            ...binding,
+            referenceSetIds: binding.referenceSetIds.filter((referenceSetId) => referenceSetId !== id),
+          })),
+        };
+      }),
 
     ensureTimelineSequenceForProject: (
       projectId: string,

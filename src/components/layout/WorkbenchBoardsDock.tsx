@@ -3,6 +3,7 @@ import { Plus } from 'lucide-react';
 import { useAppStore } from '@/store/appStore';
 import { useShallow } from 'zustand/react/shallow';
 import type { Project, Scene } from '@/types/project';
+import type { ReferenceSet } from '@/types/media';
 import { ImageWithFallback } from '@/components/ui/ImageWithFallback';
 import { cn } from '@/utils/cn';
 
@@ -22,6 +23,7 @@ const sceneGroupDefinitions: { label: string; statuses: Scene['status'][] }[] = 
 export function WorkbenchBoardsDock() {
   const {
     projects,
+    referenceSets,
     activeProjectId,
     activeSceneId,
     addScene,
@@ -32,6 +34,7 @@ export function WorkbenchBoardsDock() {
     setActiveScene,
   } = useAppStore(useShallow(s => ({
     projects: s.projects,
+    referenceSets: s.referenceSets,
     activeProjectId: s.activeProjectId,
     activeSceneId: s.activeSceneId,
     addScene: s.addScene,
@@ -149,6 +152,7 @@ export function WorkbenchBoardsDock() {
                   </span>
                   <span className="mt-1 flex flex-wrap gap-x-2 gap-y-1 type-caption">
                     <span>{project.scenes.length} scenes</span>
+                    <span>{countReferenceItems(project.referenceSetIds ?? [], referenceSets)} refs</span>
                     <span>{project.dimensions.width} x {project.dimensions.height}</span>
                     <span>{project.fps} fps</span>
                     <span>{formatBoardUpdated(project.modified)}</span>
@@ -186,6 +190,11 @@ export function WorkbenchBoardsDock() {
                                 />
                               ) : null}
                               <span className="min-w-0 truncate">{scene.name}</span>
+                              {countReferenceItems(scene.referenceSetIds ?? [], referenceSets) > 0 ? (
+                                <span className="ml-auto rounded-full border border-border bg-elevated px-2 py-0.5 type-caption text-text-muted">
+                                  {countReferenceItems(scene.referenceSetIds ?? [], referenceSets)} refs
+                                </span>
+                              ) : null}
                             </button>
                           );
                         })}
@@ -223,6 +232,13 @@ function formatBoardUpdated(modified: string) {
   }
 
   return `Updated ${boardDateFormatter.format(date)}`;
+}
+
+function countReferenceItems(referenceSetIds: string[], referenceSets: ReferenceSet[]) {
+  return referenceSetIds.reduce((count, referenceSetId) => {
+    const referenceSet = referenceSets.find((item) => item.id === referenceSetId);
+    return count + (referenceSet?.items.length ?? 0);
+  }, 0);
 }
 
 function groupScenesByStatus(scenes: Scene[]) {

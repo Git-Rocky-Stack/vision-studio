@@ -5,6 +5,7 @@ import { SceneCard } from '@/components/storyboard/SceneCard';
 import { CharacterLibrary } from '@/components/storyboard/CharacterLibrary';
 import { CharacterAssignmentChip } from '@/components/storyboard/CharacterAssignmentChip';
 import { TransitionIndicator } from '@/components/storyboard/TransitionIndicator';
+import { ReferenceMediaPanel } from '@/components/reference/ReferenceMediaPanel';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { Button } from '@/components/ui/Button';
 import { cn } from '@/utils/cn';
@@ -56,6 +57,7 @@ export function StoryboardPanel() {
   const [contextMenuScene, setContextMenuScene] = useState<Scene | null>(null);
 
   const activeProject = projects.find((p) => p.id === activeProjectId) ?? null;
+  const activeScene = activeProject?.scenes.find((scene) => scene.id === activeSceneId) ?? null;
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
@@ -253,6 +255,35 @@ export function StoryboardPanel() {
           </DndContext>
         </div>
       )}
+
+      <div className="shrink-0 border-t border-border bg-panel/40 px-3 py-3">
+        <div className="max-h-[320px] space-y-3 overflow-y-auto pr-1">
+          <ReferenceMediaPanel
+            testId="storyboard-project-reference-panel"
+            title={`${activeProject.name} Board References`}
+            description="Keep shared style, character, and composition guides visible while you sequence the board."
+            scope="project"
+            projectId={activeProject.id}
+          />
+
+          {activeScene ? (
+            <ReferenceMediaPanel
+              testId="storyboard-scene-reference-panel"
+              title={`${activeScene.name} Scene References`}
+              description="Attach shot-specific references to the currently selected scene."
+              scope="scene"
+              projectId={activeProject.id}
+              sceneId={activeScene.id}
+            />
+          ) : (
+            <div className="rounded-lg border border-dashed border-border px-4 py-4 text-center">
+              <p className="text-sm text-text-body">
+                Select a scene to attach shot-specific references.
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
 
       {/* Character Library */}
       <CharacterLibrary projectId={activeProject.id} />

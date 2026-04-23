@@ -38,6 +38,7 @@ export interface Project {
   dimensions: { width: number; height: number };
   fps: number;            // default 24
   timelineSequenceId: string | null;
+  referenceSetIds?: string[];
   characters: CharacterRef[];
   scenes: Scene[];
   metadata: Record<string, unknown>;
@@ -62,6 +63,7 @@ export interface Scene {
   negativePrompt: string;
   generationConfig: GenerationConfig;
   referenceImages: ReferenceImage[];
+  referenceSetIds?: string[];
   timelineClipIds: string[];
   frames: Frame[];
   regionLocks: RegionLock[];
@@ -156,7 +158,7 @@ export interface RegionLock {
 export interface ReferenceImage {
   id: string;
   path: string;           // file path or data URL
-  type: 'face' | 'body' | 'style' | 'pose' | 'composition';
+  type: 'face' | 'body' | 'style' | 'pose' | 'composition' | 'character' | 'motion';
   label?: string;
   mediaAssetId?: string;
   referenceSetId?: string;

@@ -30,6 +30,7 @@ export function createProjectActions(set: AppSet, _get: AppGet) {
         dimensions: dimensions ?? { width: 1920, height: 1080 },
         fps: 24,
         timelineSequenceId: null,
+        referenceSetIds: [],
         characters: [],
         scenes: [],
         metadata: {},
@@ -43,7 +44,7 @@ export function createProjectActions(set: AppSet, _get: AppGet) {
       activeSceneId: state.activeProjectId === id ? null : state.activeSceneId,
     })),
     setActiveProject: (id: string | null) => set({ activeProjectId: id, activeSceneId: null }),
-    updateProject: (id: string, updates: Partial<Pick<Project, 'name' | 'dimensions' | 'fps' | 'metadata' | 'timelineSequenceId'>>) => set((state) => ({
+    updateProject: (id: string, updates: Partial<Pick<Project, 'name' | 'dimensions' | 'fps' | 'metadata' | 'timelineSequenceId' | 'referenceSetIds'>>) => set((state) => ({
       projects: state.projects.map((p) =>
         p.id === id ? { ...p, ...updates, modified: new Date().toISOString() } : p
       ),
@@ -58,6 +59,7 @@ export function createProjectActions(set: AppSet, _get: AppGet) {
         negativePrompt: config?.negativePrompt ?? '',
         generationConfig: config?.generationConfig ?? { ...DEFAULT_GENERATION_CONFIG },
         referenceImages: config?.referenceImages ?? [],
+        referenceSetIds: config?.referenceSetIds ?? [],
         timelineClipIds: config?.timelineClipIds ?? [],
         frames: [],
         regionLocks: [],
