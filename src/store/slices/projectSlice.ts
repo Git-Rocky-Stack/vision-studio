@@ -2,6 +2,10 @@ import type {
   Project,
   Scene,
   CharacterRef,
+  ImportDraft,
+  ImportDraftElementCandidate,
+  ImportDraftIssue,
+  ImportDraftScene,
   RegionLock,
   SceneStatus,
   GenerationConfig,
@@ -26,6 +30,51 @@ function cloneRegionMask(mask?: RegionMask): RegionMask {
     ...source,
     points: source.points.map((point) => ({ ...point })),
     bounds: { ...source.bounds },
+  };
+}
+
+function cloneSceneShotBeats(shotBeats?: Scene['shotBeats']): Scene['shotBeats'] {
+  return (shotBeats ?? []).map((beat) => ({
+    ...beat,
+    elementIds: [...beat.elementIds],
+    metadata: { ...beat.metadata },
+  }));
+}
+
+function cloneImportDraftScene(draftScene: ImportDraftScene): ImportDraftScene {
+  return {
+    ...draftScene,
+    elementCandidateIds: [...draftScene.elementCandidateIds],
+    shotBeats: cloneSceneShotBeats(draftScene.shotBeats) ?? [],
+    metadata: { ...draftScene.metadata },
+  };
+}
+
+function cloneImportDraftElementCandidate(
+  candidate: ImportDraftElementCandidate,
+): ImportDraftElementCandidate {
+  return {
+    ...candidate,
+    aliases: [...candidate.aliases],
+    tags: [...candidate.tags],
+    referenceSetIds: [...candidate.referenceSetIds],
+    metadata: { ...candidate.metadata },
+  };
+}
+
+function cloneImportDraftIssue(issue: ImportDraftIssue): ImportDraftIssue {
+  return {
+    ...issue,
+  };
+}
+
+function cloneImportDraft(draft: ImportDraft): ImportDraft {
+  return {
+    ...draft,
+    sceneDrafts: draft.sceneDrafts.map((sceneDraft) => cloneImportDraftScene(sceneDraft)),
+    elementDrafts: draft.elementDrafts.map((candidate) => cloneImportDraftElementCandidate(candidate)),
+    issues: draft.issues.map((issue) => cloneImportDraftIssue(issue)),
+    metadata: { ...draft.metadata },
   };
 }
 
@@ -122,6 +171,8 @@ function buildScene(config: Partial<Scene> | undefined, now: string): Scene {
     metadata: { ...DEFAULT_SCENE_METADATA, created: now, modified: now },
     status: config?.status ?? 'draft',
     characterRefs: config?.characterRefs ?? [],
+    elementIds: config?.elementIds ? [...config.elementIds] : [],
+    shotBeats: cloneSceneShotBeats(config?.shotBeats) ?? [],
     thumbnail: config?.thumbnail,
   };
 }
@@ -154,6 +205,8 @@ export const projectInitialState = {
   projects: [] as Project[],
   activeProjectId: null as string | null,
   activeSceneId: null as string | null,
+  storyboardImportDrafts: [] as ImportDraft[],
+  activeStoryboardImportDraftId: null as string | null,
   regionMode: false,
   activeRegionId: null as string | null,
   activeMaskTool: 'select' as MaskType | 'select',
@@ -178,23 +231,73 @@ export function createProjectActions(set: AppSet, _get: AppGet) {
         timelineSequenceId: null,
         referenceSetIds: [],
         characters: [],
+        elements: [],
         scenes: [],
         metadata: {},
       };
       set((state) => ({ projects: [...state.projects, project] }));
       return project;
     },
-    deleteProject: (id: string) => set((state) => ({
-      projects: state.projects.filter((p) => p.id !== id),
-      activeProjectId: state.activeProjectId === id ? null : state.activeProjectId,
-      activeSceneId: state.activeProjectId === id ? null : state.activeSceneId,
-    })),
+    deleteProject: (id: string) =>
+      set((state) => {
+        const nextStoryboardImportDrafts = state.storyboardImportDrafts.filter(
+          (draft) => draft.projectId !== id,
+        );
+        const activeStoryboardImportDraftId = nextStoryboardImportDrafts.some(
+          (draft) => draft.id === state.activeStoryboardImportDraftId,
+        )
+          ? state.activeStoryboardImportDraftId
+          : null;
+
+        return {
+          projects: state.projects.filter((p) => p.id !== id),
+          activeProjectId: state.activeProjectId === id ? null : state.activeProjectId,
+          activeSceneId: state.activeProjectId === id ? null : state.activeSceneId,
+          storyboardImportDrafts: nextStoryboardImportDrafts,
+          activeStoryboardImportDraftId,
+        };
+      }),
     setActiveProject: (id: string | null) => set({ activeProjectId: id, activeSceneId: null }),
     updateProject: (id: string, updates: Partial<Pick<Project, 'name' | 'dimensions' | 'fps' | 'metadata' | 'timelineSequenceId' | 'referenceSetIds'>>) => set((state) => ({
       projects: state.projects.map((p) =>
         p.id === id ? { ...p, ...updates, modified: new Date().toISOString() } : p
       ),
     })),
+    upsertStoryboardImportDraft: (draft: ImportDraft): ImportDraft => {
+      const nextDraft = cloneImportDraft(draft);
+
+      set((state) => ({
+        storyboardImportDrafts: [
+          nextDraft,
+          ...state.storyboardImportDrafts.filter((item) => item.id !== nextDraft.id),
+        ],
+        activeStoryboardImportDraftId: nextDraft.id,
+      }));
+
+      return nextDraft;
+    },
+    deleteStoryboardImportDraft: (id: string) =>
+      set((state) => {
+        const nextStoryboardImportDrafts = state.storyboardImportDrafts.filter(
+          (draft) => draft.id !== id,
+        );
+        const fallbackDraftId = nextStoryboardImportDrafts[0]?.id ?? null;
+
+        return {
+          storyboardImportDrafts: nextStoryboardImportDrafts,
+          activeStoryboardImportDraftId:
+            state.activeStoryboardImportDraftId === id
+              ? fallbackDraftId
+              : state.activeStoryboardImportDraftId,
+        };
+      }),
+    setActiveStoryboardImportDraft: (id: string | null) =>
+      set((state) => ({
+        activeStoryboardImportDraftId:
+          id !== null && !state.storyboardImportDrafts.some((draft) => draft.id === id)
+            ? state.activeStoryboardImportDraftId
+            : id,
+      })),
     addScene: (projectId: string, config?: Partial<Scene>): Scene => {
       const now = new Date().toISOString();
       const scene = buildScene(config, now);

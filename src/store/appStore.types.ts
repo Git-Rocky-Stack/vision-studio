@@ -76,6 +76,7 @@ import type {
   Project,
   Scene,
   CharacterRef,
+  ImportDraft,
   RegionLock,
   CanvasControlLayer,
   SceneStatus,
@@ -254,6 +255,8 @@ export interface AppState {
   projects: Project[];
   activeProjectId: string | null;
   activeSceneId: string | null;
+  storyboardImportDrafts: ImportDraft[];
+  activeStoryboardImportDraftId: string | null;
 
   // ─── Region Lock ─────────────────────────────────────────────────────────
   regionMode: boolean;
@@ -652,6 +655,9 @@ export interface AppState {
     id: string,
     updates: Partial<Pick<Project, 'name' | 'dimensions' | 'fps' | 'metadata' | 'timelineSequenceId' | 'referenceSetIds'>>,
   ) => void;
+  upsertStoryboardImportDraft: (draft: ImportDraft) => ImportDraft;
+  deleteStoryboardImportDraft: (id: string) => void;
+  setActiveStoryboardImportDraft: (id: string | null) => void;
 
   // Scene CRUD
   addScene: (projectId: string, config?: Partial<Scene>) => Scene;

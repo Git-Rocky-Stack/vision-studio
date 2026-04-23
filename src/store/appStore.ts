@@ -6,8 +6,14 @@ import {
   DEFAULT_CANVAS_CONTROL_LAYER_MASK,
   DEFAULT_REGION_MASK,
   type CanvasControlLayer,
+  type Element,
+  type ImportDraft,
+  type ImportDraftElementCandidate,
+  type ImportDraftIssue,
+  type ImportDraftScene,
   type Project,
   type RegionMask,
+  type SceneShotBeat,
   type Scene,
 } from '@/types/project';
 import {
@@ -155,6 +161,225 @@ function normalizeCanvasControlLayer(
   };
 }
 
+function normalizeElement(
+  element: Partial<Element> | undefined,
+  projectId: string,
+): Element | null {
+  if (!element || typeof element.id !== 'string' || element.id.length === 0) {
+    return null;
+  }
+
+  return {
+    id: element.id,
+    projectId,
+    type:
+      element.type === 'character' ||
+      element.type === 'object' ||
+      element.type === 'location' ||
+      element.type === 'style'
+        ? element.type
+        : 'character',
+    name: typeof element.name === 'string' && element.name.length > 0 ? element.name : 'Untitled Element',
+    aliases: Array.isArray(element.aliases)
+      ? element.aliases.filter((value): value is string => typeof value === 'string')
+      : [],
+    description: typeof element.description === 'string' ? element.description : '',
+    tags: Array.isArray(element.tags)
+      ? element.tags.filter((value): value is string => typeof value === 'string')
+      : [],
+    continuityNotes: typeof element.continuityNotes === 'string' ? element.continuityNotes : '',
+    referenceSetIds: Array.isArray(element.referenceSetIds)
+      ? element.referenceSetIds.filter((value): value is string => typeof value === 'string')
+      : [],
+    heroMediaAssetId:
+      typeof element.heroMediaAssetId === 'string' ? element.heroMediaAssetId : null,
+    status:
+      element.status === 'approved' || element.status === 'archived' || element.status === 'draft'
+        ? element.status
+        : 'draft',
+    color: typeof element.color === 'string' && element.color.length > 0 ? element.color : '#9ca3af',
+    metadata:
+      element.metadata && typeof element.metadata === 'object'
+        ? { ...(element.metadata as Record<string, unknown>) }
+        : {},
+  };
+}
+
+function normalizeSceneShotBeat(shotBeat: Partial<SceneShotBeat> | undefined): SceneShotBeat | null {
+  if (!shotBeat || typeof shotBeat.id !== 'string' || shotBeat.id.length === 0) {
+    return null;
+  }
+
+  return {
+    id: shotBeat.id,
+    summary: typeof shotBeat.summary === 'string' ? shotBeat.summary : '',
+    promptSeed: typeof shotBeat.promptSeed === 'string' ? shotBeat.promptSeed : '',
+    notes: typeof shotBeat.notes === 'string' ? shotBeat.notes : '',
+    orderIndex: typeof shotBeat.orderIndex === 'number' ? shotBeat.orderIndex : 0,
+    durationMs: typeof shotBeat.durationMs === 'number' ? shotBeat.durationMs : null,
+    elementIds: Array.isArray(shotBeat.elementIds)
+      ? shotBeat.elementIds.filter((value): value is string => typeof value === 'string')
+      : [],
+    metadata:
+      shotBeat.metadata && typeof shotBeat.metadata === 'object'
+        ? { ...(shotBeat.metadata as Record<string, unknown>) }
+        : {},
+  };
+}
+
+function normalizeImportDraftIssue(
+  issue: Partial<ImportDraftIssue> | undefined,
+): ImportDraftIssue | null {
+  if (!issue || typeof issue.id !== 'string' || issue.id.length === 0) {
+    return null;
+  }
+
+  return {
+    id: issue.id,
+    severity:
+      issue.severity === 'info' || issue.severity === 'warning' || issue.severity === 'error'
+        ? issue.severity
+        : 'warning',
+    code: typeof issue.code === 'string' ? issue.code : 'import-issue',
+    message: typeof issue.message === 'string' ? issue.message : '',
+    targetId: typeof issue.targetId === 'string' ? issue.targetId : undefined,
+  };
+}
+
+function normalizeImportDraftElementCandidate(
+  candidate: Partial<ImportDraftElementCandidate> | undefined,
+): ImportDraftElementCandidate | null {
+  if (!candidate || typeof candidate.id !== 'string' || candidate.id.length === 0) {
+    return null;
+  }
+
+  return {
+    id: candidate.id,
+    type:
+      candidate.type === 'character' ||
+      candidate.type === 'object' ||
+      candidate.type === 'location' ||
+      candidate.type === 'style'
+        ? candidate.type
+        : 'character',
+    name:
+      typeof candidate.name === 'string' && candidate.name.length > 0
+        ? candidate.name
+        : 'Untitled Element',
+    aliases: Array.isArray(candidate.aliases)
+      ? candidate.aliases.filter((value): value is string => typeof value === 'string')
+      : [],
+    description: typeof candidate.description === 'string' ? candidate.description : '',
+    tags: Array.isArray(candidate.tags)
+      ? candidate.tags.filter((value): value is string => typeof value === 'string')
+      : [],
+    continuityNotes:
+      typeof candidate.continuityNotes === 'string' ? candidate.continuityNotes : '',
+    referenceSetIds: Array.isArray(candidate.referenceSetIds)
+      ? candidate.referenceSetIds.filter((value): value is string => typeof value === 'string')
+      : [],
+    heroMediaAssetId:
+      typeof candidate.heroMediaAssetId === 'string' ? candidate.heroMediaAssetId : null,
+    color:
+      typeof candidate.color === 'string' && candidate.color.length > 0
+        ? candidate.color
+        : '#9ca3af',
+    mergeTargetElementId:
+      typeof candidate.mergeTargetElementId === 'string' ? candidate.mergeTargetElementId : null,
+    accepted: typeof candidate.accepted === 'boolean' ? candidate.accepted : true,
+    metadata:
+      candidate.metadata && typeof candidate.metadata === 'object'
+        ? { ...(candidate.metadata as Record<string, unknown>) }
+        : {},
+  };
+}
+
+function normalizeImportDraftScene(
+  sceneDraft: Partial<ImportDraftScene> | undefined,
+): ImportDraftScene | null {
+  if (!sceneDraft || typeof sceneDraft.id !== 'string' || sceneDraft.id.length === 0) {
+    return null;
+  }
+
+  return {
+    id: sceneDraft.id,
+    name: typeof sceneDraft.name === 'string' && sceneDraft.name.length > 0 ? sceneDraft.name : 'Untitled Scene',
+    summary: typeof sceneDraft.summary === 'string' ? sceneDraft.summary : '',
+    promptSeed: typeof sceneDraft.promptSeed === 'string' ? sceneDraft.promptSeed : '',
+    notes: typeof sceneDraft.notes === 'string' ? sceneDraft.notes : '',
+    orderIndex: typeof sceneDraft.orderIndex === 'number' ? sceneDraft.orderIndex : 0,
+    elementCandidateIds: Array.isArray(sceneDraft.elementCandidateIds)
+      ? sceneDraft.elementCandidateIds.filter((value): value is string => typeof value === 'string')
+      : [],
+    shotBeats: Array.isArray(sceneDraft.shotBeats)
+      ? sceneDraft.shotBeats
+          .map((shotBeat) => normalizeSceneShotBeat(shotBeat))
+          .filter((shotBeat): shotBeat is SceneShotBeat => Boolean(shotBeat))
+      : [],
+    accepted: typeof sceneDraft.accepted === 'boolean' ? sceneDraft.accepted : true,
+    metadata:
+      sceneDraft.metadata && typeof sceneDraft.metadata === 'object'
+        ? { ...(sceneDraft.metadata as Record<string, unknown>) }
+        : {},
+  };
+}
+
+function normalizeStoryboardImportDraft(
+  draft: Partial<ImportDraft> | undefined,
+): ImportDraft | null {
+  if (
+    !draft ||
+    typeof draft.id !== 'string' ||
+    draft.id.length === 0 ||
+    typeof draft.projectId !== 'string' ||
+    draft.projectId.length === 0
+  ) {
+    return null;
+  }
+
+  return {
+    id: draft.id,
+    projectId: draft.projectId,
+    title: typeof draft.title === 'string' ? draft.title : '',
+    sourceText: typeof draft.sourceText === 'string' ? draft.sourceText : '',
+    sceneDrafts: Array.isArray(draft.sceneDrafts)
+      ? draft.sceneDrafts
+          .map((sceneDraft) => normalizeImportDraftScene(sceneDraft))
+          .filter((sceneDraft): sceneDraft is ImportDraftScene => Boolean(sceneDraft))
+      : [],
+    elementDrafts: Array.isArray(draft.elementDrafts)
+      ? draft.elementDrafts
+          .map((candidate) => normalizeImportDraftElementCandidate(candidate))
+          .filter((candidate): candidate is ImportDraftElementCandidate => Boolean(candidate))
+      : [],
+    issues: Array.isArray(draft.issues)
+      ? draft.issues
+          .map((issue) => normalizeImportDraftIssue(issue))
+          .filter((issue): issue is ImportDraftIssue => Boolean(issue))
+      : [],
+    status:
+      draft.status === 'reviewing' || draft.status === 'approved' || draft.status === 'draft'
+        ? draft.status
+        : 'draft',
+    createdAt: typeof draft.createdAt === 'string' ? draft.createdAt : '',
+    updatedAt: typeof draft.updatedAt === 'string' ? draft.updatedAt : '',
+    metadata:
+      draft.metadata && typeof draft.metadata === 'object'
+        ? { ...(draft.metadata as Record<string, unknown>) }
+        : {},
+  };
+}
+
+function normalizeStoryboardImportDrafts(importDrafts: ImportDraft[] | undefined): ImportDraft[] {
+  if (!Array.isArray(importDrafts)) {
+    return [];
+  }
+
+  return importDrafts
+    .map((draft) => normalizeStoryboardImportDraft(draft))
+    .filter((draft): draft is ImportDraft => Boolean(draft));
+}
+
 function normalizeScene(scene: Scene): Scene {
   const canvasControlLayers = Array.isArray(scene.canvasControlLayers)
     ? scene.canvasControlLayers
@@ -171,6 +396,12 @@ function normalizeScene(scene: Scene): Scene {
   return {
     ...scene,
     referenceSetIds: Array.isArray(scene.referenceSetIds) ? scene.referenceSetIds : [],
+    elementIds: Array.isArray(scene.elementIds) ? scene.elementIds : [],
+    shotBeats: Array.isArray(scene.shotBeats)
+      ? scene.shotBeats
+          .map((shotBeat) => normalizeSceneShotBeat(shotBeat))
+          .filter((shotBeat): shotBeat is SceneShotBeat => Boolean(shotBeat))
+      : [],
     timelineClipIds: Array.isArray(scene.timelineClipIds) ? scene.timelineClipIds : [],
     canvasControlLayers,
     activeCanvasControlLayerId,
@@ -184,6 +415,11 @@ function normalizeProjects(projects: Project[] | undefined): Project[] {
 
   return projects.map((project) => ({
     ...project,
+    elements: Array.isArray(project.elements)
+      ? project.elements
+          .map((element) => normalizeElement(element, project.id))
+          .filter((element): element is Element => Boolean(element))
+      : [],
     referenceSetIds: Array.isArray(project.referenceSetIds) ? project.referenceSetIds : [],
     scenes: Array.isArray(project.scenes) ? project.scenes.map((scene) => normalizeScene(scene)) : [],
   }));
@@ -391,6 +627,23 @@ export const useAppStore = create<AppState>()(
               ? ((persisted as Partial<AppState>).projects as Project[])
               : currentState.projects,
           ),
+          storyboardImportDrafts: normalizeStoryboardImportDrafts(
+            Array.isArray((persisted as Partial<AppState>).storyboardImportDrafts)
+              ? ((persisted as Partial<AppState>).storyboardImportDrafts as ImportDraft[])
+              : currentState.storyboardImportDrafts,
+          ),
+          activeStoryboardImportDraftId:
+            typeof (persisted as Partial<AppState>).activeStoryboardImportDraftId === 'string' &&
+            normalizeStoryboardImportDrafts(
+              Array.isArray((persisted as Partial<AppState>).storyboardImportDrafts)
+                ? ((persisted as Partial<AppState>).storyboardImportDrafts as ImportDraft[])
+                : currentState.storyboardImportDrafts,
+            ).some(
+              (draft) =>
+                draft.id === (persisted as Partial<AppState>).activeStoryboardImportDraftId,
+            )
+              ? ((persisted as Partial<AppState>).activeStoryboardImportDraftId as string)
+              : null,
         };
       },
       partialize: (state) => ({
@@ -408,6 +661,8 @@ export const useAppStore = create<AppState>()(
         projects: state.projects,
         activeProjectId: state.activeProjectId,
         activeSceneId: state.activeSceneId,
+        storyboardImportDrafts: state.storyboardImportDrafts,
+        activeStoryboardImportDraftId: state.activeStoryboardImportDraftId,
         migrationStatus: state.migrationStatus,
         promptHistory: state.promptHistory.slice(0, 50),
         favoritePrompts: state.favoritePrompts,

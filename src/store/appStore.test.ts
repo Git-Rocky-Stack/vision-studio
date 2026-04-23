@@ -538,6 +538,7 @@ describe('appStore', () => {
         expect(persisted).toHaveProperty('promptHistory');
         expect(persisted).toHaveProperty('assetLibrary');
         expect(persisted).toHaveProperty('mediaAssets');
+        expect(persisted).toHaveProperty('storyboardImportDrafts');
         expect(persisted).toHaveProperty('referenceSets');
         expect(persisted).toHaveProperty('timelineSequences');
         expect(persisted).toHaveProperty('timelineTracks');
@@ -558,7 +559,7 @@ describe('appStore', () => {
       }
     });
 
-    it('normalizes persisted scenes that predate canvas control layers', () => {
+    it('normalizes persisted storyboard state that predates elements and canvas control layers', () => {
       const merge = (useAppStore as any).persist?.getOptions?.()?.merge;
       expect(typeof merge).toBe('function');
 
@@ -619,8 +620,85 @@ describe('appStore', () => {
         currentState,
       );
 
+      expect(merged.projects[0].elements).toEqual([]);
+      expect(merged.projects[0].scenes[0].elementIds).toEqual([]);
+      expect(merged.projects[0].scenes[0].shotBeats).toEqual([]);
       expect(merged.projects[0].scenes[0].canvasControlLayers).toEqual([]);
       expect(merged.projects[0].scenes[0].activeCanvasControlLayerId).toBeNull();
+      expect(merged.storyboardImportDrafts).toEqual([]);
+      expect(merged.activeStoryboardImportDraftId).toBeNull();
+    });
+
+    it('normalizes persisted storyboard import drafts and active selection', () => {
+      const merge = (useAppStore as any).persist?.getOptions?.()?.merge;
+      expect(typeof merge).toBe('function');
+
+      const currentState = useAppStore.getInitialState();
+      const merged = merge(
+        {
+          storyboardImportDrafts: [
+            {
+              id: 'draft-1',
+              projectId: 'project-1',
+              title: 'Opening Act',
+              sourceText: 'INT. CONTROL ROOM - NIGHT',
+              sceneDrafts: [
+                {
+                  id: 'scene-draft-1',
+                  name: 'Scene 1',
+                  summary: 'A tense opening.',
+                  promptSeed: 'control room at night',
+                  notes: '',
+                  orderIndex: 0,
+                  elementCandidateIds: ['element-draft-1'],
+                  shotBeats: [
+                    {
+                      id: 'beat-1',
+                      summary: 'Console lights flicker.',
+                      promptSeed: 'neon control room close-up',
+                      notes: '',
+                      orderIndex: 0,
+                      durationMs: 1800,
+                      elementIds: [],
+                      metadata: {},
+                    },
+                  ],
+                  accepted: true,
+                  metadata: {},
+                },
+              ],
+              elementDrafts: [
+                {
+                  id: 'element-draft-1',
+                  type: 'location',
+                  name: 'Control Room',
+                  aliases: ['Bridge'],
+                  description: 'Primary command center.',
+                  tags: ['sci-fi'],
+                  continuityNotes: '',
+                  referenceSetIds: [],
+                  heroMediaAssetId: null,
+                  color: '#123456',
+                  mergeTargetElementId: null,
+                  accepted: true,
+                  metadata: {},
+                },
+              ],
+              issues: [],
+              status: 'reviewing',
+              createdAt: '2026-04-23T00:00:00.000Z',
+              updatedAt: '2026-04-23T00:00:00.000Z',
+              metadata: {},
+            },
+          ],
+          activeStoryboardImportDraftId: 'draft-1',
+        },
+        currentState,
+      );
+
+      expect(merged.storyboardImportDrafts).toHaveLength(1);
+      expect(merged.storyboardImportDrafts[0].sceneDrafts[0].shotBeats).toHaveLength(1);
+      expect(merged.activeStoryboardImportDraftId).toBe('draft-1');
     });
   });
 
@@ -643,6 +721,7 @@ describe('appStore', () => {
 
       expect(project.timelineSequenceId).toBeNull();
       expect(project.referenceSetIds).toEqual([]);
+      expect(project.elements).toEqual([]);
     });
 
     it('honors an explicit initial scene status', () => {
@@ -666,6 +745,8 @@ describe('appStore', () => {
       expect(scene.referenceSetIds).toEqual([]);
       expect(scene.canvasControlLayers).toEqual([]);
       expect(scene.activeCanvasControlLayerId).toBeNull();
+      expect(scene.elementIds).toEqual([]);
+      expect(scene.shotBeats).toEqual([]);
     });
 
     it('syncs scene reference adapters when a scoped reference set is attached', () => {
@@ -818,6 +899,67 @@ describe('appStore', () => {
       expect(duplicatedScene?.activeCanvasControlLayerId).toBe(
         duplicatedScene?.canvasControlLayers[0].id,
       );
+    });
+  });
+
+  describe('storyboard import drafts', () => {
+    it('upserts, selects, and deletes storyboard import drafts', () => {
+      const project = useAppStore.getState().createProject('Draft target');
+
+      const firstDraft = useAppStore.getState().upsertStoryboardImportDraft({
+        id: 'draft-1',
+        projectId: project.id,
+        title: 'Draft One',
+        sourceText: 'INT. WAREHOUSE - NIGHT',
+        sceneDrafts: [],
+        elementDrafts: [],
+        issues: [],
+        status: 'draft',
+        createdAt: '2026-04-23T00:00:00.000Z',
+        updatedAt: '2026-04-23T00:00:00.000Z',
+        metadata: {},
+      });
+
+      expect(useAppStore.getState().storyboardImportDrafts).toHaveLength(1);
+      expect(useAppStore.getState().activeStoryboardImportDraftId).toBe(firstDraft.id);
+
+      useAppStore.getState().upsertStoryboardImportDraft({
+        ...firstDraft,
+        title: 'Draft One Updated',
+      });
+
+      expect(useAppStore.getState().storyboardImportDrafts).toHaveLength(1);
+      expect(useAppStore.getState().storyboardImportDrafts[0].title).toBe('Draft One Updated');
+
+      useAppStore.getState().setActiveStoryboardImportDraft('draft-1');
+      expect(useAppStore.getState().activeStoryboardImportDraftId).toBe('draft-1');
+
+      useAppStore.getState().deleteStoryboardImportDraft('draft-1');
+      expect(useAppStore.getState().storyboardImportDrafts).toEqual([]);
+      expect(useAppStore.getState().activeStoryboardImportDraftId).toBeNull();
+    });
+
+    it('removes project-scoped storyboard import drafts when deleting a project', () => {
+      const project = useAppStore.getState().createProject('Draft target');
+
+      useAppStore.getState().upsertStoryboardImportDraft({
+        id: 'draft-1',
+        projectId: project.id,
+        title: 'Draft One',
+        sourceText: 'INT. WAREHOUSE - NIGHT',
+        sceneDrafts: [],
+        elementDrafts: [],
+        issues: [],
+        status: 'draft',
+        createdAt: '2026-04-23T00:00:00.000Z',
+        updatedAt: '2026-04-23T00:00:00.000Z',
+        metadata: {},
+      });
+
+      useAppStore.getState().deleteProject(project.id);
+
+      expect(useAppStore.getState().storyboardImportDrafts).toEqual([]);
+      expect(useAppStore.getState().activeStoryboardImportDraftId).toBeNull();
     });
   });
 

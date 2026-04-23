@@ -1,6 +1,6 @@
 /**
  * Vision Studio - Phase 1 Data Model
- * Project / Scene / Frame / CharacterRef / RegionLock types
+ * Project / Scene / Frame / CharacterRef / Element / RegionLock / ImportDraft types
  * Based on: 2026-04-13 Storyboard & Surgical AI Design Spec
  */
 
@@ -40,6 +40,7 @@ export interface Project {
   timelineSequenceId: string | null;
   referenceSetIds?: string[];
   characters: CharacterRef[];
+  elements?: Element[];
   scenes: Scene[];
   metadata: Record<string, unknown>;
 }
@@ -80,6 +81,8 @@ export interface Scene {
   };
   status: SceneStatus;
   characterRefs: string[];  // CharacterRef IDs assigned to this scene
+  elementIds?: string[];    // Element IDs assigned to this scene
+  shotBeats?: SceneShotBeat[];
   thumbnail?: string;        // file path or data URL
 }
 
@@ -113,6 +116,38 @@ export interface CharacterRef {
   lockedFeatures: LockedFeature[];
   consistencyStrength: number;   // 0.0-1.0, default 0.85
   color: string;                 // hex, for UI identification
+}
+
+// ─── Elements ──────────────────────────────────────────────────────────────
+
+export type ElementType = 'character' | 'object' | 'location' | 'style';
+export type ElementStatus = 'draft' | 'approved' | 'archived';
+
+export interface Element {
+  id: string;
+  projectId: string;
+  type: ElementType;
+  name: string;
+  aliases: string[];
+  description: string;
+  tags: string[];
+  continuityNotes: string;
+  referenceSetIds: string[];
+  heroMediaAssetId: string | null;
+  status: ElementStatus;
+  color: string;
+  metadata: Record<string, unknown>;
+}
+
+export interface SceneShotBeat {
+  id: string;
+  summary: string;
+  promptSeed: string;
+  notes: string;
+  orderIndex: number;
+  durationMs: number | null;
+  elementIds: string[];
+  metadata: Record<string, unknown>;
 }
 
 // ─── Region Lock ────────────────────────────────────────────────────────────
@@ -188,6 +223,62 @@ export interface ReferenceImage {
   label?: string;
   mediaAssetId?: string;
   referenceSetId?: string;
+}
+
+// ─── Storyboard Import Drafts ──────────────────────────────────────────────
+
+export type ImportDraftStatus = 'draft' | 'reviewing' | 'approved';
+export type ImportDraftIssueSeverity = 'info' | 'warning' | 'error';
+
+export interface ImportDraftIssue {
+  id: string;
+  severity: ImportDraftIssueSeverity;
+  code: string;
+  message: string;
+  targetId?: string;
+}
+
+export interface ImportDraftElementCandidate {
+  id: string;
+  type: ElementType;
+  name: string;
+  aliases: string[];
+  description: string;
+  tags: string[];
+  continuityNotes: string;
+  referenceSetIds: string[];
+  heroMediaAssetId: string | null;
+  color: string;
+  mergeTargetElementId: string | null;
+  accepted: boolean;
+  metadata: Record<string, unknown>;
+}
+
+export interface ImportDraftScene {
+  id: string;
+  name: string;
+  summary: string;
+  promptSeed: string;
+  notes: string;
+  orderIndex: number;
+  elementCandidateIds: string[];
+  shotBeats: SceneShotBeat[];
+  accepted: boolean;
+  metadata: Record<string, unknown>;
+}
+
+export interface ImportDraft {
+  id: string;
+  projectId: string;
+  title: string;
+  sourceText: string;
+  sceneDrafts: ImportDraftScene[];
+  elementDrafts: ImportDraftElementCandidate[];
+  issues: ImportDraftIssue[];
+  status: ImportDraftStatus;
+  createdAt: string;
+  updatedAt: string;
+  metadata: Record<string, unknown>;
 }
 
 // ─── Camera Keyframe ────────────────────────────────────────────────────────
