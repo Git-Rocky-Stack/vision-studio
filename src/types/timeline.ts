@@ -75,6 +75,8 @@ export interface TimelineTransition {
   durationMs: number;
 }
 
+export type TimelineTransitionEdge = 'in' | 'out';
+
 export interface TimelinePlayRange {
   startMs: number;
   endMs: number;
@@ -121,6 +123,25 @@ export interface TimelineClip {
   generationBindingId: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface TimelineClipMoveOptions {
+  trackId?: string;
+  startMs?: number;
+  ripple?: boolean;
+  snapToFrames?: boolean;
+}
+
+export interface TimelineClipTrimOptions {
+  startMs?: number;
+  endMs?: number;
+  ripple?: boolean;
+  snapToFrames?: boolean;
+}
+
+export interface TimelineSplitResult {
+  leftClipId: string;
+  rightClipId: string;
 }
 
 export interface ClipGenerationRunSummary {

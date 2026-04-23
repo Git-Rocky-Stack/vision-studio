@@ -617,6 +617,131 @@ describe('appStore', () => {
     });
   });
 
+  describe('timeline clip editing', () => {
+    function seedTimelineClips() {
+      const state = useAppStore.getState();
+      const project = state.createProject('Timeline Edit');
+      const sequence = state.ensureTimelineSequenceForProject(project.id)!;
+      const primaryTrack = useAppStore.getState().timelineTracks.find((track) => track.sequenceId === sequence.id)!;
+      const altTrack = state.createTimelineTrack(sequence.id, { kind: 'video', name: 'B-Roll' })!;
+
+      state.upsertMediaAsset({
+        id: 'timeline-media',
+        name: 'Shot Source',
+        type: 'video',
+        source: 'generated',
+        path: '/outputs/timeline.mp4',
+        previewUrl: '/outputs/timeline.mp4',
+        thumbnailUrl: '/outputs/timeline.jpg',
+        posterUrl: '/outputs/timeline.jpg',
+        durationMs: 6000,
+        fps: 24,
+        metadata: {},
+        createdAt: '2026-04-22T00:00:00.000Z',
+      });
+
+      const clipA = state.createTimelineClip({
+        trackId: primaryTrack.id,
+        mediaAssetId: 'timeline-media',
+        startMs: 0,
+        durationMs: 1000,
+        label: 'Clip A',
+      })!;
+
+      const clipB = state.createTimelineClip({
+        trackId: primaryTrack.id,
+        mediaAssetId: 'timeline-media',
+        startMs: 1000,
+        durationMs: 1000,
+        label: 'Clip B',
+      })!;
+
+      return { sequence, primaryTrack, altTrack, clipA, clipB };
+    }
+
+    it('moves clips ripple-safe across tracks and stores play ranges and transitions', () => {
+      const { sequence, altTrack, clipA, clipB } = seedTimelineClips();
+
+      useAppStore.getState().moveTimelineClip(clipA.id, { startMs: 800 });
+      let state = useAppStore.getState();
+      let movedA = state.timelineClips.find((clip) => clip.id === clipA.id)!;
+      let movedB = state.timelineClips.find((clip) => clip.id === clipB.id)!;
+      expect(movedB.startMs).toBeGreaterThanOrEqual(movedA.startMs + movedA.durationMs);
+
+      useAppStore.getState().moveTimelineClip(clipA.id, { trackId: altTrack.id, startMs: 500 });
+      state = useAppStore.getState();
+      movedA = state.timelineClips.find((clip) => clip.id === clipA.id)!;
+      expect(movedA.trackId).toBe(altTrack.id);
+
+      useAppStore.getState().trimTimelineClip(clipA.id, { endMs: 1800 });
+      state = useAppStore.getState();
+      movedA = state.timelineClips.find((clip) => clip.id === clipA.id)!;
+      expect(movedA.durationMs).toBeGreaterThanOrEqual(1200);
+
+      useAppStore.getState().setTimelineClipTransition(clipA.id, 'in', {
+        type: 'fade',
+        durationMs: 400,
+      });
+      useAppStore.getState().setTimelineSequencePlayRange(sequence.id, {
+        startMs: 500,
+        endMs: 2500,
+      });
+
+      state = useAppStore.getState();
+      expect(state.timelineClips.find((clip) => clip.id === clipA.id)?.transitionIn).toEqual({
+        type: 'fade',
+        durationMs: 400,
+      });
+      expect(state.timelineSequences.find((item) => item.id === sequence.id)?.playRange).toEqual({
+        startMs: 500,
+        endMs: 2500,
+      });
+    });
+
+    it('splits duplicates and deletes clips while keeping selection valid', () => {
+      const state = useAppStore.getState();
+      const project = state.createProject('Split Timeline');
+      const sequence = state.ensureTimelineSequenceForProject(project.id)!;
+      const track = useAppStore.getState().timelineTracks.find((item) => item.sequenceId === sequence.id)!;
+
+      state.upsertMediaAsset({
+        id: 'split-media',
+        name: 'Split Source',
+        type: 'video',
+        source: 'generated',
+        path: '/outputs/split.mp4',
+        previewUrl: '/outputs/split.mp4',
+        thumbnailUrl: '/outputs/split.jpg',
+        posterUrl: '/outputs/split.jpg',
+        durationMs: 5000,
+        fps: 24,
+        metadata: {},
+        createdAt: '2026-04-22T00:00:00.000Z',
+      });
+
+      const clip = state.createTimelineClip({
+        trackId: track.id,
+        mediaAssetId: 'split-media',
+        startMs: 0,
+        durationMs: 2000,
+        label: 'Hero Clip',
+      })!;
+
+      const splitResult = useAppStore.getState().splitTimelineClip(clip.id, 1000);
+      expect(splitResult).not.toBeNull();
+      expect(useAppStore.getState().timelineClips).toHaveLength(2);
+      expect(useAppStore.getState().activeTimelineClipId).toBe(splitResult?.rightClipId ?? null);
+
+      const duplicate = useAppStore.getState().duplicateTimelineClip(splitResult!.rightClipId);
+      expect(duplicate).not.toBeNull();
+      expect(useAppStore.getState().timelineClips).toHaveLength(3);
+
+      useAppStore.getState().deleteTimelineClip(duplicate!.id);
+      expect(useAppStore.getState().timelineClips).toHaveLength(2);
+      expect(useAppStore.getState().activeTimelineClipId).not.toBe(duplicate!.id);
+    });
+  });
+
   // ── Navigation refactor ──────────────────────────────────────────────────
 
   describe('navigation refactor', () => {

@@ -13,8 +13,13 @@ import type { ReferenceImage } from '@/types/project';
 import type {
   ClipGenerationBinding,
   TimelineClip,
+  TimelineClipMoveOptions,
+  TimelineClipTrimOptions,
   TimelineSequence,
+  TimelineSplitResult,
   TimelineTrack,
+  TimelineTransitionEdge,
+  TimelinePlayRange,
   TimelineTransition,
 } from '@/types/timeline';
 
@@ -201,6 +206,173 @@ interface CreateTimelineClipParams {
   generationBindingId?: string | null;
 }
 
+const DEFAULT_IMAGE_CLIP_DURATION_MS = 2000;
+const DEFAULT_VIDEO_CLIP_DURATION_MS = 5000;
+const MIN_TIMELINE_CLIP_DURATION_MS = 120;
+const SNAP_TOLERANCE_MS = 120;
+
+function clamp(value: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, value));
+}
+
+function sortClipsByStart(clips: TimelineClip[]) {
+  return [...clips].sort((left, right) => {
+    if (left.startMs === right.startMs) {
+      return left.createdAt.localeCompare(right.createdAt);
+    }
+
+    return left.startMs - right.startMs;
+  });
+}
+
+function listTrackClips(trackId: string, clips: TimelineClip[]) {
+  return sortClipsByStart(clips.filter((clip) => clip.trackId === trackId));
+}
+
+function findSequenceForTrack(trackId: string, tracks: TimelineTrack[], sequences: TimelineSequence[]) {
+  const track = tracks.find((item) => item.id === trackId);
+  if (!track) {
+    return null;
+  }
+
+  return sequences.find((sequence) => sequence.id === track.sequenceId) ?? null;
+}
+
+function resolveMediaAssetDuration(mediaAsset: MediaAsset | undefined, clip: TimelineClip) {
+  if (typeof mediaAsset?.durationMs === 'number' && Number.isFinite(mediaAsset.durationMs)) {
+    return mediaAsset.durationMs;
+  }
+
+  if (mediaAsset?.type === 'image') {
+    return clip.sourceOutMs;
+  }
+
+  return null;
+}
+
+function sortTrackClipIds(track: TimelineTrack, clips: TimelineClip[]) {
+  const clipLookup = new Map(clips.map((clip) => [clip.id, clip]));
+
+  return [...track.clipIds].sort((leftId, rightId) => {
+    const left = clipLookup.get(leftId);
+    const right = clipLookup.get(rightId);
+
+    if (!left && !right) {
+      return 0;
+    }
+
+    if (!left) {
+      return 1;
+    }
+
+    if (!right) {
+      return -1;
+    }
+
+    if (left.startMs === right.startMs) {
+      return left.createdAt.localeCompare(right.createdAt);
+    }
+
+    return left.startMs - right.startMs;
+  });
+}
+
+function syncTrackClipIds(tracks: TimelineTrack[], clips: TimelineClip[]) {
+  return tracks.map((track) => ({
+    ...track,
+    clipIds: sortTrackClipIds(track, clips).filter((clipId) => clips.some((clip) => clip.id === clipId)),
+  }));
+}
+
+function collectSnapAnchors(
+  trackId: string,
+  clips: TimelineClip[],
+  excludeClipId: string,
+  sequence: TimelineSequence | null,
+) {
+  const anchors = new Set<number>([
+    0,
+    sequence?.playRange?.startMs ?? 0,
+    sequence?.playRange?.endMs ?? sequence?.durationMs ?? 0,
+  ]);
+
+  for (const clip of clips) {
+    if (clip.trackId !== trackId || clip.id === excludeClipId) {
+      continue;
+    }
+
+    anchors.add(clip.startMs);
+    anchors.add(clip.startMs + clip.durationMs);
+  }
+
+  return [...anchors].filter((value) => Number.isFinite(value));
+}
+
+function snapTimelineValue(
+  value: number,
+  fps: number,
+  anchors: number[],
+  snapToFrames: boolean | undefined,
+) {
+  if (snapToFrames === false) {
+    return Math.max(0, Math.round(value));
+  }
+
+  const frameMs = 1000 / Math.max(1, fps);
+  let snapped = Math.round(value / frameMs) * frameMs;
+
+  for (const anchor of anchors) {
+    if (Math.abs(anchor - value) <= SNAP_TOLERANCE_MS) {
+      snapped = anchor;
+      break;
+    }
+  }
+
+  return Math.max(0, Math.round(snapped));
+}
+
+function buildClipMap(clips: TimelineClip[]) {
+  return new Map(clips.map((clip) => [clip.id, clip]));
+}
+
+function reflowTrackClips(
+  trackId: string,
+  clips: TimelineClip[],
+  pinnedClipId: string,
+  preferredStartMs: number,
+) {
+  const byId = buildClipMap(clips);
+  const ordered = sortClipsByStart(clips.filter((clip) => clip.trackId === trackId)).map((clip) =>
+    clip.id === pinnedClipId ? { ...clip, startMs: preferredStartMs } : clip,
+  );
+
+  let cursor = 0;
+  const nextById = new Map<string, TimelineClip>();
+
+  for (const clip of ordered) {
+    const nextStartMs = Math.max(cursor, clip.startMs);
+    const nextClip =
+      nextStartMs === clip.startMs
+        ? clip
+        : {
+            ...clip,
+            startMs: nextStartMs,
+            updatedAt: new Date().toISOString(),
+          };
+    cursor = nextClip.startMs + nextClip.durationMs;
+    nextById.set(nextClip.id, nextClip);
+  }
+
+  return clips.map((clip) => nextById.get(clip.id) ?? byId.get(clip.id) ?? clip);
+}
+
+function updateSequenceDurations(sequences: TimelineSequence[], tracks: TimelineTrack[], clips: TimelineClip[]) {
+  return sequences.map((sequence) => ({
+    ...sequence,
+    durationMs: computeSequenceDuration(sequence.id, tracks, clips),
+  }));
+}
+
 function computeSequenceDuration(
   sequenceId: string,
   tracks: TimelineTrack[],
@@ -231,6 +403,42 @@ function updateSceneClipIds(
       scene.id === sceneId ? { ...scene, timelineClipIds: nextClipIds } : scene,
     ),
   }));
+}
+
+function appendSceneClipId(
+  projects: AppState['projects'],
+  sceneId: string,
+  clipId: string,
+): AppState['projects'] {
+  const scene = projects.flatMap((project) => project.scenes).find((item) => item.id === sceneId);
+  if (!scene) {
+    return projects;
+  }
+
+  return updateSceneClipIds(
+    projects,
+    sceneId,
+    scene.timelineClipIds.includes(clipId)
+      ? scene.timelineClipIds
+      : [...scene.timelineClipIds, clipId],
+  );
+}
+
+function removeSceneClipId(
+  projects: AppState['projects'],
+  sceneId: string,
+  clipId: string,
+): AppState['projects'] {
+  const scene = projects.flatMap((project) => project.scenes).find((item) => item.id === sceneId);
+  if (!scene) {
+    return projects;
+  }
+
+  return updateSceneClipIds(
+    projects,
+    sceneId,
+    scene.timelineClipIds.filter((item) => item !== clipId),
+  );
 }
 
 export function createMediaTimelineActions(set: AppSet, get: AppGet) {
@@ -527,25 +735,59 @@ export function createMediaTimelineActions(set: AppSet, get: AppGet) {
     createTimelineClip: (params: CreateTimelineClipParams) => {
       const state = get();
       const track = state.timelineTracks.find((item) => item.id === params.trackId);
-      if (!track) {
+      if (!track || track.locked) {
         return null;
       }
 
       const now = new Date().toISOString();
+      const mediaAsset = state.mediaAssets.find((item) => item.id === params.mediaAssetId);
+      const fallbackDuration =
+        mediaAsset?.type === 'video' ? DEFAULT_VIDEO_CLIP_DURATION_MS : DEFAULT_IMAGE_CLIP_DURATION_MS;
+      const sourceInMs = Math.max(0, params.sourceInMs ?? 0);
+      const requestedDurationMs = Math.max(
+        MIN_TIMELINE_CLIP_DURATION_MS,
+        params.durationMs || mediaAsset?.durationMs || fallbackDuration,
+      );
+      const resolvedMediaDuration = mediaAsset
+        ? resolveMediaAssetDuration(mediaAsset, {
+            id: 'preview',
+            trackId: params.trackId,
+            mediaAssetId: params.mediaAssetId,
+            sceneId: params.sceneId ?? null,
+            startMs: Math.max(0, params.startMs),
+            durationMs: requestedDurationMs,
+            sourceInMs,
+            sourceOutMs: sourceInMs + requestedDurationMs,
+            transitionIn: null,
+            transitionOut: null,
+            label: params.label ?? 'Timeline Clip',
+            posterUrl: params.posterUrl ?? null,
+            referenceSetIds: params.referenceSetIds ?? [],
+            generationBindingId: params.generationBindingId ?? null,
+            createdAt: now,
+            updatedAt: now,
+          })
+        : null;
+      const requestedSourceOutMs = params.sourceOutMs ?? sourceInMs + requestedDurationMs;
+      const maxSourceOutMs = resolvedMediaDuration ?? requestedSourceOutMs;
+      const sourceOutMs = clamp(
+        requestedSourceOutMs,
+        sourceInMs + MIN_TIMELINE_CLIP_DURATION_MS,
+        Math.max(sourceInMs + MIN_TIMELINE_CLIP_DURATION_MS, maxSourceOutMs),
+      );
       const clip: TimelineClip = {
         id: crypto.randomUUID(),
         trackId: params.trackId,
         mediaAssetId: params.mediaAssetId,
         sceneId: params.sceneId ?? null,
-        startMs: params.startMs,
-        durationMs: params.durationMs,
-        sourceInMs: params.sourceInMs ?? 0,
-        sourceOutMs:
-          params.sourceOutMs ?? (params.sourceInMs ?? 0) + params.durationMs,
+        startMs: Math.max(0, params.startMs),
+        durationMs: sourceOutMs - sourceInMs,
+        sourceInMs,
+        sourceOutMs,
         transitionIn: params.transitionIn ?? null,
         transitionOut: params.transitionOut ?? null,
         label: params.label ?? 'Timeline Clip',
-        posterUrl: params.posterUrl ?? null,
+        posterUrl: params.posterUrl ?? mediaAsset?.posterUrl ?? null,
         referenceSetIds: params.referenceSetIds ?? [],
         generationBindingId: params.generationBindingId ?? null,
         createdAt: now,
@@ -553,23 +795,20 @@ export function createMediaTimelineActions(set: AppSet, get: AppGet) {
       };
 
       set((currentState) => {
-        const nextTracks = currentState.timelineTracks.map((item) =>
-          item.id === params.trackId
-            ? { ...item, clipIds: [...item.clipIds, clip.id] }
-            : item,
+        let nextClips = [...currentState.timelineClips, clip];
+        nextClips = reflowTrackClips(track.id, nextClips, clip.id, clip.startMs);
+        const nextTracks = syncTrackClipIds(
+          currentState.timelineTracks.map((item) =>
+            item.id === params.trackId
+              ? { ...item, clipIds: [...item.clipIds, clip.id] }
+              : item,
+          ),
+          nextClips,
         );
-        const nextClips = [...currentState.timelineClips, clip];
         const nextProjects =
           clip.sceneId === null
             ? currentState.projects
-            : currentState.projects.map((project) => ({
-                ...project,
-                scenes: project.scenes.map((scene) =>
-                  scene.id === clip.sceneId
-                    ? { ...scene, timelineClipIds: [...scene.timelineClipIds, clip.id] }
-                    : scene,
-                ),
-              }));
+            : appendSceneClipId(currentState.projects, clip.sceneId, clip.id);
 
         return {
           projects: nextProjects,
@@ -581,7 +820,7 @@ export function createMediaTimelineActions(set: AppSet, get: AppGet) {
               ? {
                   ...sequence,
                   durationMs: computeSequenceDuration(sequence.id, nextTracks, nextClips),
-                  updatedAt: new Date().toISOString(),
+                  updatedAt: now,
                 }
               : sequence,
           ),
@@ -637,8 +876,11 @@ export function createMediaTimelineActions(set: AppSet, get: AppGet) {
           }
         }
 
+        const nextTracks = syncTrackClipIds(state.timelineTracks, nextClips);
+
         return {
           projects: nextProjects,
+          timelineTracks: nextTracks,
           timelineClips: nextClips,
           timelineSequences:
             track === undefined
@@ -649,7 +891,7 @@ export function createMediaTimelineActions(set: AppSet, get: AppGet) {
                         ...sequence,
                         durationMs: computeSequenceDuration(
                           sequence.id,
-                          state.timelineTracks,
+                          nextTracks,
                           nextClips,
                         ),
                         updatedAt: new Date().toISOString(),
@@ -659,6 +901,346 @@ export function createMediaTimelineActions(set: AppSet, get: AppGet) {
         };
       }),
 
+    moveTimelineClip: (clipId: string, updates: TimelineClipMoveOptions) =>
+      set((state) => {
+        const currentClip = state.timelineClips.find((item) => item.id === clipId);
+        if (!currentClip) {
+          return {};
+        }
+
+        const sourceTrack = state.timelineTracks.find((item) => item.id === currentClip.trackId);
+        const targetTrack = state.timelineTracks.find(
+          (item) => item.id === (updates.trackId ?? currentClip.trackId),
+        );
+        if (!sourceTrack || !targetTrack || targetTrack.locked) {
+          return {};
+        }
+
+        const sourceSequence = state.timelineSequences.find((item) => item.id === sourceTrack.sequenceId);
+        const targetSequence = state.timelineSequences.find((item) => item.id === targetTrack.sequenceId);
+        if (!sourceSequence || !targetSequence || sourceSequence.id !== targetSequence.id) {
+          return {};
+        }
+
+        const now = new Date().toISOString();
+        const desiredStartMs = snapTimelineValue(
+          updates.startMs ?? currentClip.startMs,
+          targetSequence.fps,
+          collectSnapAnchors(targetTrack.id, state.timelineClips, clipId, targetSequence),
+          updates.snapToFrames,
+        );
+
+        let nextClips = state.timelineClips.map((clip) =>
+          clip.id === clipId
+            ? {
+                ...clip,
+                trackId: targetTrack.id,
+                startMs: desiredStartMs,
+                updatedAt: now,
+              }
+            : clip,
+        );
+
+        nextClips = reflowTrackClips(targetTrack.id, nextClips, clipId, desiredStartMs);
+        const nextTracks = syncTrackClipIds(
+          state.timelineTracks.map((track) => {
+            if (track.id === sourceTrack.id && sourceTrack.id !== targetTrack.id) {
+              return {
+                ...track,
+                clipIds: track.clipIds.filter((id) => id !== clipId),
+              };
+            }
+
+            if (track.id === targetTrack.id && !track.clipIds.includes(clipId)) {
+              return {
+                ...track,
+                clipIds: [...track.clipIds, clipId],
+              };
+            }
+
+            return track;
+          }),
+          nextClips,
+        );
+
+        return {
+          timelineTracks: nextTracks,
+          timelineClips: nextClips,
+          timelineSequences: state.timelineSequences.map((sequence) =>
+            sequence.id === targetSequence.id || sequence.id === sourceSequence.id
+              ? {
+                  ...sequence,
+                  durationMs: computeSequenceDuration(sequence.id, nextTracks, nextClips),
+                  updatedAt: now,
+                }
+              : sequence,
+          ),
+        };
+      }),
+
+    trimTimelineClip: (clipId: string, updates: TimelineClipTrimOptions) =>
+      set((state) => {
+        const currentClip = state.timelineClips.find((item) => item.id === clipId);
+        if (!currentClip) {
+          return {};
+        }
+
+        const track = state.timelineTracks.find((item) => item.id === currentClip.trackId);
+        const sequence = track
+          ? state.timelineSequences.find((item) => item.id === track.sequenceId) ?? null
+          : null;
+        if (!track || !sequence || track.locked) {
+          return {};
+        }
+
+        const mediaAsset = state.mediaAssets.find((item) => item.id === currentClip.mediaAssetId);
+        const mediaDuration = resolveMediaAssetDuration(mediaAsset, currentClip);
+        const anchors = collectSnapAnchors(track.id, state.timelineClips, clipId, sequence);
+        const now = new Date().toISOString();
+
+        let nextStartMs = currentClip.startMs;
+        let sourceInMs = currentClip.sourceInMs;
+        let sourceOutMs = currentClip.sourceOutMs;
+
+        if (typeof updates.startMs === 'number') {
+          const requestedStartMs = snapTimelineValue(
+            updates.startMs,
+            sequence.fps,
+            anchors,
+            updates.snapToFrames,
+          );
+          const requestedSourceInMs = currentClip.sourceInMs + (requestedStartMs - currentClip.startMs);
+          sourceInMs = clamp(
+            requestedSourceInMs,
+            0,
+            Math.max(0, sourceOutMs - MIN_TIMELINE_CLIP_DURATION_MS),
+          );
+          nextStartMs = currentClip.startMs + (sourceInMs - currentClip.sourceInMs);
+        }
+
+        if (typeof updates.endMs === 'number') {
+          const requestedEndMs = snapTimelineValue(
+            updates.endMs,
+            sequence.fps,
+            anchors,
+            updates.snapToFrames,
+          );
+          sourceOutMs = sourceInMs + Math.max(
+            MIN_TIMELINE_CLIP_DURATION_MS,
+            requestedEndMs - nextStartMs,
+          );
+        }
+
+        if (mediaDuration !== null) {
+          sourceOutMs = Math.min(sourceOutMs, mediaDuration);
+        }
+
+        if (sourceOutMs - sourceInMs < MIN_TIMELINE_CLIP_DURATION_MS) {
+          sourceOutMs = sourceInMs + MIN_TIMELINE_CLIP_DURATION_MS;
+        }
+
+        const trimmedClip: TimelineClip = {
+          ...currentClip,
+          startMs: nextStartMs,
+          durationMs: sourceOutMs - sourceInMs,
+          sourceInMs,
+          sourceOutMs,
+          updatedAt: now,
+        };
+
+        let nextClips = state.timelineClips.map((clip) => (clip.id === clipId ? trimmedClip : clip));
+        nextClips = reflowTrackClips(track.id, nextClips, clipId, trimmedClip.startMs);
+        const nextTracks = syncTrackClipIds(state.timelineTracks, nextClips);
+
+        return {
+          timelineTracks: nextTracks,
+          timelineClips: nextClips,
+          timelineSequences: state.timelineSequences.map((item) =>
+            item.id === sequence.id
+              ? {
+                  ...item,
+                  durationMs: computeSequenceDuration(item.id, nextTracks, nextClips),
+                  updatedAt: now,
+                }
+              : item,
+          ),
+        };
+      }),
+
+    splitTimelineClip: (clipId: string, splitMs: number): TimelineSplitResult | null => {
+      const state = get();
+      const currentClip = state.timelineClips.find((item) => item.id === clipId);
+      if (!currentClip) {
+        return null;
+      }
+
+      const track = state.timelineTracks.find((item) => item.id === currentClip.trackId);
+      const sequence = track
+        ? state.timelineSequences.find((item) => item.id === track.sequenceId) ?? null
+        : null;
+      if (!track || !sequence || track.locked) {
+        return null;
+      }
+
+      const splitAtMs = snapTimelineValue(
+        splitMs,
+        sequence.fps,
+        collectSnapAnchors(track.id, state.timelineClips, clipId, sequence),
+        true,
+      );
+      const relativeSplitMs = splitAtMs - currentClip.startMs;
+      if (
+        relativeSplitMs <= MIN_TIMELINE_CLIP_DURATION_MS ||
+        currentClip.durationMs - relativeSplitMs <= MIN_TIMELINE_CLIP_DURATION_MS
+      ) {
+        return null;
+      }
+
+      const now = new Date().toISOString();
+      const trailingClipId = crypto.randomUUID();
+
+      set((currentState) => {
+        const updatedLeadingClip: TimelineClip = {
+          ...currentClip,
+          durationMs: relativeSplitMs,
+          sourceOutMs: currentClip.sourceInMs + relativeSplitMs,
+          transitionOut: null,
+          updatedAt: now,
+        };
+        const trailingClip: TimelineClip = {
+          ...currentClip,
+          id: trailingClipId,
+          startMs: splitAtMs,
+          durationMs: currentClip.durationMs - relativeSplitMs,
+          sourceInMs: currentClip.sourceInMs + relativeSplitMs,
+          sourceOutMs: currentClip.sourceOutMs,
+          transitionIn: null,
+          generationBindingId: null,
+          createdAt: now,
+          updatedAt: now,
+        };
+
+        const nextClips = sortClipsByStart(
+          currentState.timelineClips
+            .map((clip) => (clip.id === clipId ? updatedLeadingClip : clip))
+            .concat(trailingClip),
+        );
+        const nextTracks = syncTrackClipIds(
+          currentState.timelineTracks.map((item) =>
+            item.id === currentClip.trackId && !item.clipIds.includes(trailingClipId)
+              ? { ...item, clipIds: [...item.clipIds, trailingClipId] }
+              : item,
+          ),
+          nextClips,
+        );
+        const nextProjects =
+          currentClip.sceneId === null
+            ? currentState.projects
+            : appendSceneClipId(currentState.projects, currentClip.sceneId, trailingClipId);
+
+        return {
+          projects: nextProjects,
+          timelineTracks: nextTracks,
+          timelineClips: nextClips,
+          activeTimelineClipId: trailingClipId,
+          timelineSequences: currentState.timelineSequences.map((item) =>
+            item.id === sequence.id
+              ? {
+                  ...item,
+                  durationMs: computeSequenceDuration(item.id, nextTracks, nextClips),
+                  updatedAt: now,
+                }
+              : item,
+          ),
+        };
+      });
+
+      return {
+        leftClipId: clipId,
+        rightClipId: trailingClipId,
+      };
+    },
+
+    duplicateTimelineClip: (clipId: string) => {
+      const state = get();
+      const currentClip = state.timelineClips.find((item) => item.id === clipId);
+      if (!currentClip) {
+        return null;
+      }
+
+      const track = state.timelineTracks.find((item) => item.id === currentClip.trackId);
+      const sequence = track
+        ? state.timelineSequences.find((item) => item.id === track.sequenceId) ?? null
+        : null;
+      if (!track || !sequence || track.locked) {
+        return null;
+      }
+
+      const now = new Date().toISOString();
+      const duplicate: TimelineClip = {
+        ...currentClip,
+        id: crypto.randomUUID(),
+        startMs: currentClip.startMs + currentClip.durationMs,
+        label: `${currentClip.label} Copy`,
+        transitionIn: null,
+        transitionOut: null,
+        generationBindingId: null,
+        createdAt: now,
+        updatedAt: now,
+      };
+
+      set((currentState) => {
+        let nextClips = [...currentState.timelineClips, duplicate];
+        nextClips = reflowTrackClips(track.id, nextClips, duplicate.id, duplicate.startMs);
+        const nextTracks = syncTrackClipIds(
+          currentState.timelineTracks.map((item) =>
+            item.id === track.id ? { ...item, clipIds: [...item.clipIds, duplicate.id] } : item,
+          ),
+          nextClips,
+        );
+        const nextProjects =
+          duplicate.sceneId === null
+            ? currentState.projects
+            : appendSceneClipId(currentState.projects, duplicate.sceneId, duplicate.id);
+
+        return {
+          projects: nextProjects,
+          timelineTracks: nextTracks,
+          timelineClips: nextClips,
+          activeTimelineClipId: duplicate.id,
+          timelineSequences: currentState.timelineSequences.map((item) =>
+            item.id === sequence.id
+              ? {
+                  ...item,
+                  durationMs: computeSequenceDuration(item.id, nextTracks, nextClips),
+                  updatedAt: now,
+                }
+              : item,
+          ),
+        };
+      });
+
+      return duplicate;
+    },
+
+    setTimelineClipTransition: (
+      clipId: string,
+      edge: TimelineTransitionEdge,
+      transition: TimelineTransition | null,
+    ) =>
+      set((state) => ({
+        timelineClips: state.timelineClips.map((clip) =>
+          clip.id === clipId
+            ? {
+                ...clip,
+                transitionIn: edge === 'in' ? transition : clip.transitionIn,
+                transitionOut: edge === 'out' ? transition : clip.transitionOut,
+                updatedAt: new Date().toISOString(),
+              }
+            : clip,
+        ),
+      })),
+
     deleteTimelineClip: (clipId: string) =>
       set((state) => {
         const clip = state.timelineClips.find((item) => item.id === clipId);
@@ -666,11 +1248,11 @@ export function createMediaTimelineActions(set: AppSet, get: AppGet) {
           return {};
         }
 
-        const nextTracks = state.timelineTracks.map((track) =>
+        const nextTracks = syncTrackClipIds(state.timelineTracks.map((track) =>
           track.id === clip.trackId
             ? { ...track, clipIds: track.clipIds.filter((id) => id !== clipId) }
             : track,
-        );
+        ), state.timelineClips.filter((item) => item.id !== clipId));
         const nextClips = state.timelineClips.filter((item) => item.id !== clipId);
         const nextBindings = clip.generationBindingId
           ? state.clipGenerationBindings.filter((binding) => binding.id !== clip.generationBindingId)
@@ -678,17 +1260,7 @@ export function createMediaTimelineActions(set: AppSet, get: AppGet) {
         const nextProjects =
           clip.sceneId === null
             ? state.projects
-            : state.projects.map((project) => ({
-                ...project,
-                scenes: project.scenes.map((scene) =>
-                  scene.id === clip.sceneId
-                    ? {
-                        ...scene,
-                        timelineClipIds: scene.timelineClipIds.filter((id) => id !== clipId),
-                      }
-                    : scene,
-                ),
-              }));
+            : removeSceneClipId(state.projects, clip.sceneId, clipId);
         const track = state.timelineTracks.find((item) => item.id === clip.trackId);
 
         return {
@@ -716,6 +1288,39 @@ export function createMediaTimelineActions(set: AppSet, get: AppGet) {
                 ),
         };
       }),
+
+    setTimelineSequencePlayRange: (sequenceId: string, range: TimelinePlayRange | null) =>
+      set((state) => ({
+        timelineSequences: state.timelineSequences.map((sequence) => {
+          if (sequence.id !== sequenceId) {
+            return sequence;
+          }
+
+          if (!range) {
+            return {
+              ...sequence,
+              playRange: null,
+              updatedAt: new Date().toISOString(),
+            };
+          }
+
+          const startMs = Math.max(0, Math.round(range.startMs));
+          const endMs = Math.max(
+            startMs + MIN_TIMELINE_CLIP_DURATION_MS,
+            Math.round(range.endMs),
+          );
+
+          return {
+            ...sequence,
+            durationMs: Math.max(sequence.durationMs, endMs),
+            playRange: {
+              startMs,
+              endMs,
+            },
+            updatedAt: new Date().toISOString(),
+          };
+        }),
+      })),
 
     upsertClipGenerationBinding: (binding: ClipGenerationBinding) =>
       set((state) => {

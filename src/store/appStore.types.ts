@@ -38,10 +38,15 @@ export type {
   PlayState,
   KeyframeInterpolation,
   Keyframe,
+  TimelinePlayRange,
   TimelineSequence,
   TimelineTrack,
   TimelineClip,
+  TimelineClipMoveOptions,
+  TimelineClipTrimOptions,
+  TimelineSplitResult,
   TimelineTransition,
+  TimelineTransitionEdge,
   ClipGenerationBinding,
 } from '@/types/timeline';
 
@@ -554,7 +559,17 @@ export interface AppState {
     clipId: string,
     updates: Partial<Omit<TimelineClip, 'id' | 'trackId' | 'createdAt'>>,
   ) => void;
+  moveTimelineClip: (clipId: string, updates: TimelineClipMoveOptions) => void;
+  trimTimelineClip: (clipId: string, updates: TimelineClipTrimOptions) => void;
+  splitTimelineClip: (clipId: string, splitMs: number) => TimelineSplitResult | null;
+  duplicateTimelineClip: (clipId: string) => TimelineClip | null;
+  setTimelineClipTransition: (
+    clipId: string,
+    edge: TimelineTransitionEdge,
+    transition: TimelineTransition | null,
+  ) => void;
   deleteTimelineClip: (clipId: string) => void;
+  setTimelineSequencePlayRange: (sequenceId: string, range: TimelinePlayRange | null) => void;
   upsertClipGenerationBinding: (binding: ClipGenerationBinding) => void;
 
   // Video generation
@@ -677,7 +692,9 @@ export interface AppState {
   timelinePlay: () => void;
   timelinePause: () => void;
   timelineStop: () => void;
+  toggleTimelinePlayback: () => void;
   seekTo: (time: number) => void;
+  seekBy: (deltaMs: number) => void;
   setTimelineFps: (fps: number) => void;
   setTimelineSpeed: (speed: number) => void;
   toggleTimelineLoop: () => void;

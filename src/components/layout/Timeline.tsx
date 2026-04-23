@@ -1,537 +1,155 @@
-import { memo, useState, useMemo, useEffect, useCallback, useRef } from 'react';
-import { cn } from '@/utils/cn';
-import { hexToRgba } from '@/utils/colorUtils';
-import { useAppStore } from '@/store/appStore';
-import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
-import { ScenePlaybackStrip } from '@/components/storyboard/ScenePlaybackStrip';
-import { StoryboardPlayback } from '@/components/timeline/StoryboardPlayback';
-import { AnimationTrackEditor } from '@/components/timeline/AnimationTrackEditor';
+import { memo, useCallback, useEffect, useMemo, useState } from 'react';
+import { motion } from 'framer-motion';
+import { useShallow } from 'zustand/react/shallow';
 import {
-  Play,
-  Pause,
-  SkipBack,
-  SkipForward,
-  Scissors,
-  Trash2,
-  Copy,
-  Layers,
-  ChevronUp,
   ChevronDown,
-  ImageIcon,
-  Film,
-  ZoomIn,
-  ZoomOut,
-  Lock,
-  Unlock,
+  ChevronUp,
+  Copy,
   Eye,
   EyeOff,
+  Film,
+  ImageIcon,
+  Layers,
+  Lock,
+  Pause,
+  Play,
+  Plus,
+  Scissors,
+  SkipBack,
+  SkipForward,
+  Trash2,
+  Unlock,
   Volume2,
   VolumeX,
+  ZoomIn,
+  ZoomOut,
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
 
-// ─── Types ──────────────────────────────────────────────────────────────────
+import { useAppStore } from '@/store/appStore';
+import { cn } from '@/utils/cn';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
+import { StoryboardPlayback } from '@/components/timeline/StoryboardPlayback';
+import { AnimationTrackEditor } from '@/components/timeline/AnimationTrackEditor';
+import { TimelineClipInspector } from '@/components/timeline/TimelineClipInspector';
+import type { MediaAsset } from '@/types/media';
+import type { TimelineClip, TimelinePlayRange, TimelineTrack } from '@/types/timeline';
 
-interface TimelineTrack {
-  id: string;
-  type: 'video' | 'image';
-  name: string;
-  duration: number;
-  startTime: number;
-  color: string;
-  thumbnail?: string;
-  muted?: boolean;
-  locked?: boolean;
-  visible?: boolean;
-}
-
-type TickType = 'major' | 'minor' | 'sub';
-
-// ─── Constants ───────────────────────────────────────────────────────────────
-
-const HEADER_WIDTH = 160;
-const RULER_HEIGHT = 28;
-const TRACK_HEIGHT = 44;
+const HEADER_WIDTH = 204;
+const RULER_HEIGHT = 32;
+const TRACK_HEIGHT = 68;
 const COLLAPSED_HEIGHT = 40;
-const EXPANDED_HEIGHT = 220;
-const MIN_ZOOM = 0.5;
+const EXPANDED_HEIGHT = 320;
+const MIN_ZOOM = 1;
 const MAX_ZOOM = 4;
-const ZOOM_STEP = 0.25;
+const ZOOM_STEP = 0.5;
+const DEFAULT_IMAGE_CLIP_DURATION_MS = 2000;
+const DEFAULT_VIDEO_CLIP_DURATION_MS = 5000;
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
+function formatTimecode(timeMs: number, fps = 24) {
+  const totalSeconds = Math.max(0, timeMs / 1000);
+  const hrs = Math.floor(totalSeconds / 3600);
+  const mins = Math.floor((totalSeconds % 3600) / 60);
+  const secs = Math.floor(totalSeconds % 60);
+  const frames = Math.floor((totalSeconds % 1) * fps);
 
-function formatTime(seconds: number): string {
-  const mins = Math.floor(seconds / 60);
-  const secs = Math.floor(seconds % 60);
-  const ms = Math.floor((seconds % 1) * 100);
-  return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}.${ms.toString().padStart(2, '0')}`;
-}
-
-function formatTimecode(seconds: number): string {
-  const hrs = Math.floor(seconds / 3600);
-  const mins = Math.floor((seconds % 3600) / 60);
-  const secs = Math.floor(seconds % 60);
-  const frames = Math.floor((seconds % 1) * 24);
   if (hrs > 0) {
-    return `${hrs}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}:${frames.toString().padStart(2, '0')}`;
+    return `${hrs}:${mins.toString().padStart(2, '0')}:${secs
+      .toString()
+      .padStart(2, '0')}:${frames.toString().padStart(2, '0')}`;
   }
-  return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}:${frames.toString().padStart(2, '0')}`;
+
+  return `${mins.toString().padStart(2, '0')}:${secs
+    .toString()
+    .padStart(2, '0')}:${frames.toString().padStart(2, '0')}`;
 }
 
-// ─── Sub-components ──────────────────────────────────────────────────────────
+function formatSecondsLabel(timeMs: number) {
+  return `${(timeMs / 1000).toFixed(timeMs % 1000 === 0 ? 0 : 1)}s`;
+}
 
-/** Professional time ruler with major (10s), minor (1s), and sub-ticks (0.5s) */
-const TimeRuler = memo(function TimeRuler({
-  totalDuration,
-  zoom,
-  onSeek,
-  playheadPercent,
-}: {
-  totalDuration: number;
-  zoom: number;
-  onSeek: (time: number) => void;
-  playheadPercent: number;
-}) {
-  const rulerRef = useRef<HTMLDivElement>(null);
+function getTrackKindForMediaAsset(asset: MediaAsset) {
+  return asset.type === 'video' ? 'video' : 'image';
+}
 
-  const handleRulerClick = useCallback(
-    (e: React.MouseEvent<HTMLDivElement>) => {
-      if (!rulerRef.current) return;
-      const rect = rulerRef.current.getBoundingClientRect();
-      const x = e.clientX - rect.left;
-      const percent = Math.max(0, Math.min(1, x / rect.width));
-      onSeek(percent * totalDuration);
-    },
-    [onSeek, totalDuration]
-  );
+function getClipDurationForAsset(asset: MediaAsset) {
+  return asset.durationMs ?? (asset.type === 'video' ? DEFAULT_VIDEO_CLIP_DURATION_MS : DEFAULT_IMAGE_CLIP_DURATION_MS);
+}
 
-  // Calculate ticks based on zoom level
-  const ticks = useMemo(() => {
-    const result: { time: number; type: TickType; label?: string }[] = [];
-    const effectiveDuration = totalDuration;
+function buildTimelineTicks(totalDurationMs: number, zoom: number) {
+  const stepMs =
+    zoom >= 3 ? 250 : zoom >= 2 ? 500 : zoom >= 1.5 ? 1000 : 2000;
+  const ticks: Array<{ timeMs: number; major: boolean; label: string | null }> = [];
 
-    // Determine tick intervals based on zoom
-    let majorInterval = 10;
-    let minorInterval = 1;
-    let subInterval = 0.5;
+  for (let timeMs = 0; timeMs <= totalDurationMs; timeMs += stepMs) {
+    const major = timeMs % (stepMs * 2) === 0;
+    ticks.push({
+      timeMs,
+      major,
+      label: major ? formatSecondsLabel(timeMs) : null,
+    });
+  }
 
-    if (zoom >= 3) {
-      majorInterval = 1;
-      minorInterval = 0.5;
-      subInterval = 0.1;
-    } else if (zoom >= 2) {
-      majorInterval = 5;
-      minorInterval = 1;
-      subInterval = 0.5;
-    } else if (zoom >= 1) {
-      majorInterval = 10;
-      minorInterval = 1;
-      subInterval = 0.5;
-    } else {
-      majorInterval = 20;
-      minorInterval = 5;
-      subInterval = 1;
-    }
+  return ticks;
+}
 
-    // Generate sub-ticks
-    for (let t = 0; t <= effectiveDuration; t += subInterval) {
-      const isMajor = Math.abs(t % majorInterval) < 0.001;
-      const isMinor = !isMajor && Math.abs(t % minorInterval) < 0.001;
-
-      if (isMajor) {
-        result.push({
-          time: t,
-          type: 'major',
-          label: t >= majorInterval || t === 0 ? formatTime(t) : undefined,
-        });
-      } else if (isMinor) {
-        result.push({ time: t, type: 'minor' });
-      } else {
-        result.push({ time: t, type: 'sub' });
-      }
-    }
-
-    return result;
-  }, [totalDuration, zoom]);
-
-  return (
-    <div
-      ref={rulerRef}
-      className="relative h-[28px] bg-canvas border-b border-border cursor-crosshair select-none overflow-hidden"
-      onClick={handleRulerClick}
-      role="slider"
-      aria-label="Time ruler"
-      aria-valuemin={0}
-      aria-valuemax={totalDuration}
-      aria-valuenow={0}
-      tabIndex={0}
-    >
-      {/* Tick marks */}
-      {ticks.map((tick, i) => {
-        const left = `${(tick.time / totalDuration) * 100}%`;
-        return (
-          <div
-            key={`${tick.time}-${i}`}
-            className="absolute top-0 h-full"
-            style={{ left }}
-          >
-            {/* Tick line */}
-            <div
-              className={cn('absolute bottom-0 left-0', {
-                'w-px h-[14px] bg-text-muted/40': tick.type === 'major',
-                'w-px h-[9px] bg-text-muted/20': tick.type === 'minor',
-                'w-px h-[5px] bg-text-muted/10': tick.type === 'sub',
-              })}
-            />
-            {/* Label for major ticks */}
-            {tick.type === 'major' && tick.label && (
-              <span className="absolute top-1 left-1 font-mono text-micro text-text-muted whitespace-nowrap pointer-events-none">
-                {tick.label}
-              </span>
-            )}
-          </div>
-        );
-      })}
-
-      {/* Playhead marker on ruler */}
-      <div
-        className="absolute top-0 z-30 pointer-events-none"
-        style={{ left: `${playheadPercent}%` }}
-      >
-        {/* Triangle marker at top of ruler */}
-        <div
-          className="absolute -top-0.5 -translate-x-1/2 w-0 h-0"
-          style={{
-            borderLeft: '5px solid transparent',
-            borderRight: '5px solid transparent',
-            borderTop: `6px solid var(--color-accent-primary)`,
-          }}
-        />
-        {/* Thin line extending down through ruler */}
-        <div className="absolute top-0 -translate-x-1/2 w-px h-full bg-accent-primary" />
-      </div>
-    </div>
-  );
-});
-
-/** Track header with icon, name, duration, and toggle controls */
-const TrackHeader = memo(function TrackHeader({
-  track,
-  isSelected,
-  onSelect,
-}: {
-  track: TimelineTrack;
-  isSelected: boolean;
-  onSelect: () => void;
-}) {
-  const [isMuted, setIsMuted] = useState(false);
-  const [isLocked, setIsLocked] = useState(false);
-  const [isVisible, setIsVisible] = useState(true);
-  const TypeIcon = track.type === 'video' ? Film : ImageIcon;
-
-  return (
-    <div
-      onClick={onSelect}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          onSelect();
-        }
-      }}
-      role="option"
-      aria-selected={isSelected}
-      tabIndex={0}
-      className={cn(
-        'h-[44px] flex items-center gap-1.5 px-2 border-b border-border cursor-pointer transition-all group',
-        isSelected
-          ? 'bg-accent-primary-muted'
-          : 'bg-surface hover:bg-elevated/50'
-      )}
-    >
-      {/* Type icon */}
-      <div
-        className={cn(
-          'flex-shrink-0 w-5 h-5 rounded flex items-center justify-center',
-          isSelected ? 'bg-accent-primary-muted border border-accent-primary-border' : 'bg-elevated'
-        )}
-      >
-        <TypeIcon
-          className={cn(
-            'w-3 h-3',
-            isSelected ? 'text-accent-primary' : 'text-text-muted'
-          )}
-        />
-      </div>
-
-      {/* Track name */}
-      <div className="flex-1 min-w-0">
-        <span
-          className={cn(
-            'font-display text-xs truncate block leading-tight',
-            isSelected ? 'text-text-primary font-medium' : 'text-text-body'
-          )}
-        >
-          {track.name}
-        </span>
-        <span className="font-mono text-micro text-text-muted">
-          {track.duration.toFixed(1)}s
-        </span>
-      </div>
-
-      {/* Mute toggle (video only) */}
-      {track.type === 'video' && (
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            setIsMuted(!isMuted);
-          }}
-          className={cn(
-            'p-0.5 min-w-[44px] min-h-[44px] rounded transition-all opacity-0 group-hover:opacity-100 focus:opacity-100 focus-visible:opacity-100',
-            isMuted ? 'text-status-error opacity-100' : 'text-text-muted hover:text-text-body'
-          )}
-          aria-label={isMuted ? 'Unmute track' : 'Mute track'}
-          title={isMuted ? 'Unmute' : 'Mute'}
-        >
-          {isMuted ? <VolumeX className="w-3 h-3" /> : <Volume2 className="w-3 h-3" />}
-        </button>
-      )}
-
-      {/* Visibility toggle */}
-      <button
-        onClick={(e) => {
-          e.stopPropagation();
-          setIsVisible(!isVisible);
-        }}
-        className={cn(
-          'p-0.5 min-w-[44px] min-h-[44px] rounded transition-all opacity-0 group-hover:opacity-100 focus:opacity-100 focus-visible:opacity-100',
-          !isVisible ? 'text-status-error opacity-100' : 'text-text-muted hover:text-text-body'
-        )}
-        aria-label={isVisible ? 'Hide track' : 'Show track'}
-        title={isVisible ? 'Hide' : 'Show'}
-      >
-        {isVisible ? <Eye className="w-3 h-3" /> : <EyeOff className="w-3 h-3" />}
-      </button>
-
-      {/* Lock toggle */}
-      <button
-        onClick={(e) => {
-          e.stopPropagation();
-          setIsLocked(!isLocked);
-        }}
-        className={cn(
-          'p-0.5 min-w-[44px] min-h-[44px] rounded transition-all opacity-0 group-hover:opacity-100 focus:opacity-100 focus-visible:opacity-100',
-          isLocked ? 'text-status-warning opacity-100' : 'text-text-muted hover:text-text-body'
-        )}
-        aria-label={isLocked ? 'Unlock track' : 'Lock track'}
-        title={isLocked ? 'Unlock' : 'Lock'}
-      >
-        {isLocked ? <Lock className="w-3 h-3" /> : <Unlock className="w-3 h-3" />}
-      </button>
-    </div>
-  );
-});
-
-/** Single clip block on the timeline */
-const ClipBlock = memo(function ClipBlock({
-  track,
-  totalDuration,
-  isSelected,
-  index,
-}: {
-  track: TimelineTrack;
-  totalDuration: number;
-  isSelected: boolean;
-  index: number;
-}) {
-  const [isHovered, setIsHovered] = useState(false);
-  const leftPct = (track.startTime / totalDuration) * 100;
-  const widthPct = (track.duration / totalDuration) * 100;
-
-  // Color mapping based on track type
-  const baseColor =
-    track.type === 'video'
-      ? 'var(--color-category-youtube)'
-      : 'var(--color-category-art)';
-
-  return (
-    <motion.div
-      initial={{ scaleX: 0, opacity: 0 }}
-      animate={{ scaleX: 1, opacity: 1 }}
-      transition={{ duration: 0.3, delay: index * 0.06, ease: [0.25, 0.46, 0.45, 0.94] }}
-      style={{ left: `${leftPct}%`, width: `${widthPct}%`, transformOrigin: 'left center' }}
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
-      className={cn(
-        'absolute h-[34px] top-[5px] rounded-md flex items-center overflow-hidden transition-shadow-all cursor-pointer',
-        isSelected
-          ? 'ring-1 z-10'
-          : 'hover:brightness-110'
-      )}
-    >
-      {/* Background gradient fill */}
-      <div
-        className="absolute inset-0 rounded-md"
-        style={{
-          background: isSelected
-            ? `linear-gradient(135deg, ${hexToRgba(baseColor, 0.28)}, ${hexToRgba(baseColor, 0.12)})`
-            : `linear-gradient(135deg, ${hexToRgba(baseColor, 0.15)}, ${hexToRgba(baseColor, 0.06)})`,
-          border: `1px solid ${isSelected ? hexToRgba(baseColor, 0.6) : hexToRgba(baseColor, 0.2)}`,
-        }}
-      />
-
-      {/* Hover shimmer */}
-      {isHovered && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          className="absolute inset-0 rounded-md pointer-events-none"
-          style={{
-            background: `linear-gradient(90deg, transparent 0%, ${hexToRgba(baseColor, 0.08)} 50%, transparent 100%)`,
-          }}
-        />
-      )}
-
-      {/* Selection ring color */}
-      {isSelected && (
-        <div
-          className="absolute inset-0 rounded-md pointer-events-none"
-          style={{
-            boxShadow: `0 0 8px ${hexToRgba(baseColor, 0.35)}, 0 0 2px ${hexToRgba(baseColor, 0.5)}`,
-          }}
-        />
-      )}
-
-      {/* Clip label */}
-      <span
-        className={cn(
-          'font-display text-xs truncate relative z-10 px-2',
-          isSelected ? 'text-text-primary font-medium' : 'text-text-body'
-        )}
-      >
-        {track.name}
-      </span>
-
-      {/* Thumbnail preview on hover */}
-      {isHovered && track.thumbnail && (
-        <motion.div
-          initial={{ opacity: 0, y: 4 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: 4 }}
-          transition={{ duration: 0.15 }}
-          className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-50 pointer-events-none"
-        >
-          <div className="rounded-md overflow-hidden shadow-lg" style={{ boxShadow: 'var(--shadow-lg)' }}>
-            <img
-              src={track.thumbnail}
-              alt={`${track.name} preview`}
-              className="w-32 h-20 object-cover"
-              loading="lazy"
-            />
-          </div>
-          <div
-            className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 rotate-45"
-            style={{ backgroundColor: 'var(--color-surface)' }}
-          />
-        </motion.div>
-      )}
-
-      {/* Audio waveform decoration (video tracks only) */}
-      {track.type === 'video' && (
-        <div className="absolute inset-0 overflow-hidden rounded-md pointer-events-none opacity-20">
-          <svg
-            className="absolute bottom-0 left-0 w-full h-3"
-            viewBox="0 0 100 12"
-            preserveAspectRatio="none"
-          >
-            {Array.from({ length: 20 }).map((_, i) => {
-              const h = Math.max(2, Math.random() * 10);
-              return (
-                <rect
-                  key={i}
-                  x={i * 5}
-                  y={12 - h}
-                  width="3"
-                  height={h}
-                  rx="1"
-                  fill="currentColor"
-                  className="text-text-body"
-                />
-              );
-            })}
-          </svg>
-        </div>
-      )}
-    </motion.div>
-  );
-});
-
-/** Transport controls - play/pause, skip, time display */
 const TransportControls = memo(function TransportControls({
   isPlaying,
+  currentTime,
+  totalDurationMs,
+  fps,
   onTogglePlay,
   onSkipToStart,
   onSkipToEnd,
-  currentTime,
-  totalDuration,
 }: {
   isPlaying: boolean;
+  currentTime: number;
+  totalDurationMs: number;
+  fps: number;
   onTogglePlay: () => void;
   onSkipToStart: () => void;
   onSkipToEnd: () => void;
-  currentTime: number;
-  totalDuration: number;
 }) {
   return (
     <div className="flex items-center gap-1.5">
       <button
+        type="button"
         onClick={onSkipToStart}
-        className="p-1.5 rounded-md text-text-body hover:text-text-primary hover:bg-surface transition-all active:scale-95"
+        className="rounded-md p-1.5 text-text-body transition hover:bg-surface hover:text-text-primary"
         aria-label="Skip to beginning"
-        title="Skip to start (Home)"
+        title="Skip to beginning"
       >
-        <SkipBack className="w-3.5 h-3.5" />
+        <SkipBack className="h-3.5 w-3.5" />
       </button>
       <button
+        type="button"
         onClick={onTogglePlay}
         className={cn(
-          'p-2 rounded-lg transition-all active:scale-95',
+          'rounded-lg p-2 transition',
           isPlaying
             ? 'bg-accent-primary text-void shadow-accent-subtle'
-            : 'bg-accent-primary-muted text-accent-primary border border-accent-primary-border hover:bg-accent-primary-muted'
+            : 'border border-accent-primary-border bg-accent-primary-muted text-accent-primary',
         )}
         aria-label={isPlaying ? 'Pause' : 'Play'}
-        aria-pressed={isPlaying}
-        title={isPlaying ? 'Pause (Space)' : 'Play (Space)'}
       >
-        {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+        {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
       </button>
       <button
+        type="button"
         onClick={onSkipToEnd}
-        className="p-1.5 rounded-md text-text-body hover:text-text-primary hover:bg-surface transition-all active:scale-95"
+        className="rounded-md p-1.5 text-text-body transition hover:bg-surface hover:text-text-primary"
         aria-label="Skip to end"
-        title="Skip to end (End)"
+        title="Skip to end"
       >
-        <SkipForward className="w-3.5 h-3.5" />
+        <SkipForward className="h-3.5 w-3.5" />
       </button>
-
-      <div className="w-px h-5 bg-border mx-1" />
-
-      {/* Timecode display */}
-      <div className="flex items-center gap-1" aria-live="polite">
-        <span className="font-mono text-xs text-text-primary tabular-nums">
-          {formatTimecode(currentTime)}
-        </span>
-        <span className="font-mono text-xs text-text-muted">/</span>
-        <span className="font-mono text-xs text-text-muted tabular-nums">
-          {formatTimecode(totalDuration)}
-        </span>
-      </div>
+      <div className="mx-1 h-5 w-px bg-border" />
+      <span className="font-mono text-xs text-text-primary">{formatTimecode(currentTime, fps)}</span>
+      <span className="font-mono text-xs text-text-muted">/</span>
+      <span className="font-mono text-xs text-text-muted">{formatTimecode(totalDurationMs, fps)}</span>
     </div>
   );
 });
 
-/** Zoom slider control */
 const ZoomControls = memo(function ZoomControls({
   zoom,
   onZoomChange,
@@ -542,321 +160,781 @@ const ZoomControls = memo(function ZoomControls({
   return (
     <div className="flex items-center gap-1.5">
       <button
+        type="button"
         onClick={() => onZoomChange(Math.max(MIN_ZOOM, zoom - ZOOM_STEP))}
         disabled={zoom <= MIN_ZOOM}
-        className={cn(
-          'p-1 rounded transition-all',
-          zoom <= MIN_ZOOM
-            ? 'text-text-muted/40 cursor-not-allowed'
-            : 'text-text-body hover:text-text-primary hover:bg-surface active:scale-95'
-        )}
+        className="rounded p-1 text-text-body transition disabled:cursor-not-allowed disabled:text-text-muted/40 hover:bg-surface hover:text-text-primary"
         aria-label="Zoom out"
-        title="Zoom out"
       >
-        <ZoomOut className="w-3.5 h-3.5" />
+        <ZoomOut className="h-3.5 w-3.5" />
       </button>
-
-      {/* Custom range slider */}
-      <div className="relative w-20 h-4 flex items-center">
-        <input
-          type="range"
-          min={MIN_ZOOM}
-          max={MAX_ZOOM}
-          step={ZOOM_STEP}
-          value={zoom}
-          onChange={(e) => onZoomChange(Number(e.target.value))}
-          className="w-full h-1 appearance-none rounded-full cursor-pointer"
-          style={{
-            background: `linear-gradient(to right, var(--color-accent-primary) 0%, var(--color-accent-primary) ${((zoom - MIN_ZOOM) / (MAX_ZOOM - MIN_ZOOM)) * 100}%, var(--color-void) ${((zoom - MIN_ZOOM) / (MAX_ZOOM - MIN_ZOOM)) * 100}%, var(--color-void) 100%)`,
-          }}
-          aria-label="Timeline zoom level"
-          title={`Zoom: ${Math.round(zoom * 100)}%`}
-        />
-      </div>
-
+      <input
+        aria-label="Timeline zoom level"
+        type="range"
+        min={MIN_ZOOM}
+        max={MAX_ZOOM}
+        step={ZOOM_STEP}
+        value={zoom}
+        onChange={(event) => onZoomChange(Number(event.target.value))}
+        className="h-1 w-24 cursor-pointer appearance-none rounded-full bg-void"
+      />
       <button
+        type="button"
         onClick={() => onZoomChange(Math.min(MAX_ZOOM, zoom + ZOOM_STEP))}
         disabled={zoom >= MAX_ZOOM}
-        className={cn(
-          'p-1 rounded transition-all',
-          zoom >= MAX_ZOOM
-            ? 'text-text-muted/40 cursor-not-allowed'
-            : 'text-text-body hover:text-text-primary hover:bg-surface active:scale-95'
-        )}
+        className="rounded p-1 text-text-body transition disabled:cursor-not-allowed disabled:text-text-muted/40 hover:bg-surface hover:text-text-primary"
         aria-label="Zoom in"
-        title="Zoom in"
       >
-        <ZoomIn className="w-3.5 h-3.5" />
+        <ZoomIn className="h-3.5 w-3.5" />
       </button>
-
-      <span className="font-mono text-micro text-text-muted w-8 text-right tabular-nums">
-        {Math.round(zoom * 100)}%
-      </span>
+      <span className="w-10 text-right font-mono text-xs text-text-muted">{Math.round(zoom * 100)}%</span>
     </div>
   );
 });
 
-// ─── Main Component ──────────────────────────────────────────────────────────
+const TimeRuler = memo(function TimeRuler({
+  totalDurationMs,
+  currentTime,
+  playRange,
+  zoom,
+  onSeek,
+}: {
+  totalDurationMs: number;
+  currentTime: number;
+  playRange: TimelinePlayRange | null;
+  zoom: number;
+  onSeek: (timeMs: number) => void;
+}) {
+  const ticks = useMemo(() => buildTimelineTicks(totalDurationMs, zoom), [totalDurationMs, zoom]);
+
+  return (
+    <div
+      className="relative border-b border-border bg-canvas"
+      style={{ height: RULER_HEIGHT }}
+      onClick={(event) => {
+        const rect = event.currentTarget.getBoundingClientRect();
+        const ratio = Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width));
+        onSeek(Math.round(ratio * totalDurationMs));
+      }}
+      role="slider"
+      aria-label="Time ruler"
+      aria-valuemin={0}
+      aria-valuemax={totalDurationMs}
+      aria-valuenow={currentTime}
+    >
+      {playRange ? (
+        <div
+          className="absolute inset-y-0 rounded-sm bg-accent-primary/10"
+          style={{
+            left: `${(playRange.startMs / totalDurationMs) * 100}%`,
+            width: `${((playRange.endMs - playRange.startMs) / totalDurationMs) * 100}%`,
+          }}
+        />
+      ) : null}
+
+      {ticks.map((tick) => (
+        <div
+          key={tick.timeMs}
+          className="absolute inset-y-0"
+          style={{ left: `${(tick.timeMs / totalDurationMs) * 100}%` }}
+        >
+          <div
+            className={cn(
+              'absolute bottom-0 left-0 w-px',
+              tick.major ? 'h-4 bg-text-muted/40' : 'h-2.5 bg-text-muted/20',
+            )}
+          />
+          {tick.label ? (
+            <span className="absolute left-1 top-1 whitespace-nowrap font-mono text-[11px] text-text-muted">
+              {tick.label}
+            </span>
+          ) : null}
+        </div>
+      ))}
+
+      <div
+        className="absolute inset-y-0 z-20 w-px bg-accent-primary"
+        style={{ left: `${(currentTime / totalDurationMs) * 100}%` }}
+      >
+        <div className="absolute -left-1 -top-0.5 h-2 w-2 rounded-full bg-accent-primary shadow-accent-subtle" />
+      </div>
+    </div>
+  );
+});
+
+const TrackHeader = memo(function TrackHeader({
+  track,
+  clipCount,
+  isSelected,
+  onSelect,
+  onToggleMute,
+  onToggleHidden,
+  onToggleLocked,
+}: {
+  track: TimelineTrack;
+  clipCount: number;
+  isSelected: boolean;
+  onSelect: () => void;
+  onToggleMute: () => void;
+  onToggleHidden: () => void;
+  onToggleLocked: () => void;
+}) {
+  const TrackIcon = track.kind === 'video' ? Film : ImageIcon;
+
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={onSelect}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          onSelect();
+        }
+      }}
+      className={cn(
+        'flex h-[68px] w-full items-center gap-2 border-b border-border px-3 text-left transition',
+        isSelected ? 'bg-accent-primary-muted' : 'bg-surface hover:bg-elevated/70',
+      )}
+      aria-pressed={isSelected}
+    >
+      <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-canvas">
+        <TrackIcon className="h-4 w-4 text-text-muted" />
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="truncate font-display text-sm text-text-primary">{track.name}</p>
+        <p className="mt-1 text-[11px] uppercase tracking-[0.12em] text-text-muted">
+          {track.kind} track - {clipCount} clip{clipCount === 1 ? '' : 's'}
+        </p>
+      </div>
+      <div className="flex items-center gap-1">
+        {track.kind === 'video' ? (
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              onToggleMute();
+            }}
+            className="rounded p-1 text-text-muted transition hover:bg-canvas hover:text-text-primary"
+            aria-label={track.muted ? 'Unmute track' : 'Mute track'}
+          >
+            {track.muted ? <VolumeX className="h-3.5 w-3.5" /> : <Volume2 className="h-3.5 w-3.5" />}
+          </button>
+        ) : null}
+        <button
+          type="button"
+          onClick={(event) => {
+            event.stopPropagation();
+            onToggleHidden();
+          }}
+          className="rounded p-1 text-text-muted transition hover:bg-canvas hover:text-text-primary"
+          aria-label={track.hidden ? 'Show track' : 'Hide track'}
+        >
+          {track.hidden ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+        </button>
+        <button
+          type="button"
+          onClick={(event) => {
+            event.stopPropagation();
+            onToggleLocked();
+          }}
+          className="rounded p-1 text-text-muted transition hover:bg-canvas hover:text-text-primary"
+          aria-label={track.locked ? 'Unlock track' : 'Lock track'}
+        >
+          {track.locked ? <Lock className="h-3.5 w-3.5" /> : <Unlock className="h-3.5 w-3.5" />}
+        </button>
+      </div>
+    </div>
+  );
+});
+
+const TimelineClipBlock = memo(function TimelineClipBlock({
+  clip,
+  mediaAsset,
+  totalDurationMs,
+  selected,
+  onSelect,
+}: {
+  clip: TimelineClip;
+  mediaAsset: MediaAsset | null;
+  totalDurationMs: number;
+  selected: boolean;
+  onSelect: () => void;
+}) {
+  const leftPct = (clip.startMs / totalDurationMs) * 100;
+  const widthPct = Math.max(2, (clip.durationMs / totalDurationMs) * 100);
+  const baseColor = mediaAsset?.type === 'video' ? 'var(--color-category-youtube)' : 'var(--color-category-art)';
+  const backgroundImage = mediaAsset?.posterUrl || mediaAsset?.thumbnailUrl || mediaAsset?.previewUrl || null;
+
+  return (
+    <button
+      type="button"
+      className={cn(
+        'absolute top-2 h-[52px] overflow-hidden rounded-xl border text-left transition',
+        selected
+          ? 'z-10 border-accent-primary shadow-accent-subtle'
+          : 'border-border hover:border-accent-primary/40 hover:shadow-lg',
+      )}
+      style={{
+        left: `${leftPct}%`,
+        width: `${widthPct}%`,
+        minWidth: '84px',
+        background: selected
+          ? `linear-gradient(135deg, color-mix(in srgb, ${baseColor} 24%, transparent), rgba(20,20,24,0.92))`
+          : `linear-gradient(135deg, color-mix(in srgb, ${baseColor} 12%, transparent), rgba(20,20,24,0.88))`,
+      }}
+      onClick={(event) => {
+        event.stopPropagation();
+        onSelect();
+      }}
+      aria-label={`Timeline clip ${clip.label}`}
+      data-testid={`timeline-clip-${clip.id}`}
+    >
+      {backgroundImage ? (
+        <div
+          className="absolute inset-0 opacity-30"
+          style={{
+            backgroundImage: `url("${backgroundImage}")`,
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+          }}
+        />
+      ) : null}
+
+      {clip.transitionIn ? (
+        <div
+          className="absolute inset-y-0 left-0"
+          style={{
+            width: `${Math.min(24, (clip.transitionIn.durationMs / Math.max(clip.durationMs, 1)) * 100)}%`,
+            background: 'linear-gradient(90deg, rgba(255,255,255,0.18), transparent)',
+          }}
+        />
+      ) : null}
+      {clip.transitionOut ? (
+        <div
+          className="absolute inset-y-0 right-0"
+          style={{
+            width: `${Math.min(24, (clip.transitionOut.durationMs / Math.max(clip.durationMs, 1)) * 100)}%`,
+            background: 'linear-gradient(270deg, rgba(255,255,255,0.18), transparent)',
+          }}
+        />
+      ) : null}
+
+      <div className="relative flex h-full flex-col justify-between p-3">
+        <div className="flex items-center justify-between gap-2">
+          <span className="truncate font-display text-sm text-text-primary">{clip.label}</span>
+          <span className="rounded-full bg-canvas/80 px-2 py-0.5 text-[10px] uppercase tracking-[0.14em] text-text-muted">
+            {mediaAsset?.type ?? 'clip'}
+          </span>
+        </div>
+        <div className="flex items-center justify-between gap-2 text-[11px] text-text-muted">
+          <span className="truncate">
+            {clip.transitionIn ? clip.transitionIn.type : 'cut'} / {clip.transitionOut ? clip.transitionOut.type : 'cut'}
+          </span>
+          <span className="font-mono">{formatSecondsLabel(clip.durationMs)}</span>
+        </div>
+      </div>
+    </button>
+  );
+});
 
 export const Timeline = memo(function Timeline() {
-  const completedJobs = useAppStore((s) => s.completedJobs);
-  const projects = useAppStore((s) => s.projects);
-  const activeProjectId = useAppStore((s) => s.activeProjectId);
-  const activeSceneId = useAppStore((s) => s.activeSceneId);
-  const setActiveScene = useAppStore((s) => s.setActiveScene);
-  const deleteCompletedJob = useAppStore((s) => s.deleteCompletedJob);
-  const timelineMode = useAppStore((s) => s.timelineMode);
-  const setTimelineMode = useAppStore((s) => s.setTimelineMode);
-  const onionSkinEnabled = useAppStore((s) => s.onionSkinEnabled);
-  const setOnionSkinEnabled = useAppStore((s) => s.setOnionSkinEnabled);
-  const keyframes = useAppStore((s) => s.keyframes);
-  const activeKeyframeId = useAppStore((s) => s.activeKeyframeId);
-  const setActiveKeyframeId = useAppStore((s) => s.setActiveKeyframeId);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [currentTime, setCurrentTime] = useState(0);
+  const {
+    projects,
+    activeProjectId,
+    activeSceneId,
+    setActiveScene,
+    mediaAssets,
+    timelineSequences,
+    timelineTracks,
+    timelineClips,
+    activeTimelineSequenceId,
+    activeTimelineClipId,
+    setActiveTimelineSequence,
+    setActiveTimelineClip,
+    ensureTimelineSequenceForProject,
+    createTimelineTrack,
+    createTimelineClip,
+    updateTimelineTrack,
+    moveTimelineClip,
+    splitTimelineClip,
+    duplicateTimelineClip,
+    deleteTimelineClip,
+    setTimelineSequencePlayRange,
+    timelineMode,
+    setTimelineMode,
+    playState,
+    currentTime,
+    onionSkinEnabled,
+    setOnionSkinEnabled,
+    timelinePause,
+    toggleTimelinePlayback,
+    seekTo,
+    seekBy,
+  } = useAppStore(
+    useShallow((state) => ({
+      projects: state.projects,
+      activeProjectId: state.activeProjectId,
+      activeSceneId: state.activeSceneId,
+      setActiveScene: state.setActiveScene,
+      mediaAssets: state.mediaAssets,
+      timelineSequences: state.timelineSequences,
+      timelineTracks: state.timelineTracks,
+      timelineClips: state.timelineClips,
+      activeTimelineSequenceId: state.activeTimelineSequenceId,
+      activeTimelineClipId: state.activeTimelineClipId,
+      setActiveTimelineSequence: state.setActiveTimelineSequence,
+      setActiveTimelineClip: state.setActiveTimelineClip,
+      ensureTimelineSequenceForProject: state.ensureTimelineSequenceForProject,
+      createTimelineTrack: state.createTimelineTrack,
+      createTimelineClip: state.createTimelineClip,
+      updateTimelineTrack: state.updateTimelineTrack,
+      moveTimelineClip: state.moveTimelineClip,
+      splitTimelineClip: state.splitTimelineClip,
+      duplicateTimelineClip: state.duplicateTimelineClip,
+      deleteTimelineClip: state.deleteTimelineClip,
+      setTimelineSequencePlayRange: state.setTimelineSequencePlayRange,
+      timelineMode: state.timelineMode,
+      setTimelineMode: state.setTimelineMode,
+      playState: state.playState,
+      currentTime: state.currentTime,
+      onionSkinEnabled: state.onionSkinEnabled,
+      setOnionSkinEnabled: state.setOnionSkinEnabled,
+      timelinePause: state.timelinePause,
+      toggleTimelinePlayback: state.toggleTimelinePlayback,
+      seekTo: state.seekTo,
+      seekBy: state.seekBy,
+    })),
+  );
+
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [zoom, setZoom] = useState(1.5);
   const [selectedTrackId, setSelectedTrackId] = useState<string | null>(null);
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
-  const [zoom, setZoom] = useState(1);
+  const [insertMediaId, setInsertMediaId] = useState('');
 
-  // Derive storyboard scenes from active project
-  const activeProject = projects.find((p) => p.id === activeProjectId);
+  const activeProject = projects.find((project) => project.id === activeProjectId) ?? null;
   const storyboardScenes = activeProject?.scenes ?? [];
 
-  // Build tracks from completed jobs
-  const tracks: TimelineTrack[] = useMemo(() => {
-    let offset = 0;
-    return completedJobs
-      .filter((job) => job.status === 'completed')
-      .map((job, index) => {
-        const isVideo = job.type === 'video';
-        const duration = isVideo ? (job.params?.duration || 5) : 1;
-        const track: TimelineTrack = {
-          id: job.id,
-          type: isVideo ? 'video' : 'image',
-          name: isVideo ? `Video ${index + 1}` : `Image ${index + 1}`,
-          duration,
-          startTime: offset,
-          color: isVideo ? 'var(--color-category-youtube)' : 'var(--color-category-art)',
-          thumbnail: job.result?.images?.[0] || job.result?.video,
-        };
-        offset += duration;
-        return track;
-      });
-  }, [completedJobs]);
-
-  const totalDuration = Math.max(
-    tracks.reduce((sum, t) => Math.max(sum, t.startTime + t.duration), 0),
-    10
-  );
-  const progress = (currentTime / totalDuration) * 100;
-
-  // Playback animation loop
   useEffect(() => {
-    if (!isPlaying) return;
-    let rafId: number;
-    let lastTime = performance.now();
+    if (!activeProjectId) {
+      return;
+    }
 
-    const animate = (now: number) => {
-      const delta = (now - lastTime) / 1000;
-      lastTime = now;
-      setCurrentTime((t) => {
-        const next = t + delta;
-        if (next >= totalDuration) {
-          setIsPlaying(false);
-          return totalDuration;
-        }
-        return next;
+    const project = projects.find((item) => item.id === activeProjectId) ?? null;
+    const preferredSequenceId = activeTimelineSequenceId ?? project?.timelineSequenceId ?? null;
+    if (preferredSequenceId) {
+      setActiveTimelineSequence(preferredSequenceId);
+      return;
+    }
+
+    const sequence = ensureTimelineSequenceForProject(activeProjectId);
+    if (sequence) {
+      setActiveTimelineSequence(sequence.id);
+    }
+  }, [
+    activeProjectId,
+    activeTimelineSequenceId,
+    ensureTimelineSequenceForProject,
+    projects,
+    setActiveTimelineSequence,
+  ]);
+
+  const activeSequence =
+    (activeTimelineSequenceId
+      ? timelineSequences.find((sequence) => sequence.id === activeTimelineSequenceId)
+      : null) ??
+    (activeProject?.timelineSequenceId
+      ? timelineSequences.find((sequence) => sequence.id === activeProject.timelineSequenceId)
+      : null) ??
+    null;
+
+  const sequenceTracks = useMemo(
+    () =>
+      activeSequence
+        ? timelineTracks
+            .filter((track) => track.sequenceId === activeSequence.id)
+            .sort((left, right) => left.orderIndex - right.orderIndex)
+        : [],
+    [activeSequence, timelineTracks],
+  );
+  const clipsByTrackId = useMemo(() => {
+    const map = new Map<string, TimelineClip[]>();
+
+    for (const clip of timelineClips) {
+      if (!sequenceTracks.some((track) => track.id === clip.trackId)) {
+        continue;
+      }
+
+      const current = map.get(clip.trackId) ?? [];
+      current.push(clip);
+      map.set(clip.trackId, current);
+    }
+
+    for (const [trackId, clips] of map.entries()) {
+      map.set(
+        trackId,
+        [...clips].sort((left, right) => left.startMs - right.startMs),
+      );
+    }
+
+    return map;
+  }, [sequenceTracks, timelineClips]);
+  const clipLookup = useMemo(() => new Map(timelineClips.map((clip) => [clip.id, clip])), [timelineClips]);
+  const mediaLookup = useMemo(() => new Map(mediaAssets.map((asset) => [asset.id, asset])), [mediaAssets]);
+  const activeClip = activeTimelineClipId ? clipLookup.get(activeTimelineClipId) ?? null : null;
+
+  useEffect(() => {
+    if (!mediaAssets.length) {
+      setInsertMediaId('');
+      return;
+    }
+
+    if (!insertMediaId || !mediaAssets.some((asset) => asset.id === insertMediaId)) {
+      setInsertMediaId(mediaAssets[0].id);
+    }
+  }, [insertMediaId, mediaAssets]);
+
+  useEffect(() => {
+    if (activeClip?.trackId) {
+      setSelectedTrackId(activeClip.trackId);
+    }
+  }, [activeClip?.trackId]);
+
+  const selectedMediaAsset = mediaAssets.find((asset) => asset.id === insertMediaId) ?? mediaAssets[0] ?? null;
+  const totalDurationMs = Math.max(activeSequence?.durationMs ?? 0, activeSequence?.playRange?.endMs ?? 0, 10000);
+  const progress = totalDurationMs > 0 ? (currentTime / totalDurationMs) * 100 : 0;
+  const selectedTrack = sequenceTracks.find((track) => track.id === (activeClip?.trackId ?? selectedTrackId)) ?? null;
+
+  const ensureCompatibleTrack = useCallback(
+    (asset: MediaAsset) => {
+      if (!activeSequence) {
+        return null;
+      }
+
+      const targetKind = getTrackKindForMediaAsset(asset);
+      const existing =
+        sequenceTracks.find((track) => !track.locked && track.kind === targetKind) ??
+        (targetKind === 'image'
+          ? sequenceTracks.find((track) => !track.locked && track.kind === 'overlay')
+          : null);
+
+      if (existing) {
+        return existing;
+      }
+
+      return createTimelineTrack(activeSequence.id, {
+        kind: targetKind,
+        name: targetKind === 'video' ? `Video ${sequenceTracks.length + 1}` : `Image ${sequenceTracks.length + 1}`,
       });
-      rafId = requestAnimationFrame(animate);
+    },
+    [activeSequence, createTimelineTrack, sequenceTracks],
+  );
+
+  const insertClip = useCallback(
+    (asset: MediaAsset, startMs: number, trackId?: string) => {
+      if (!activeSequence) {
+        return;
+      }
+
+      const compatibleTrack =
+        (trackId
+          ? sequenceTracks.find(
+              (track) =>
+                track.id === trackId &&
+                !track.locked &&
+                (track.kind === getTrackKindForMediaAsset(asset) ||
+                  (asset.type === 'image' && track.kind === 'overlay')),
+            ) ?? null
+          : null) ??
+        ensureCompatibleTrack(asset);
+
+      if (!compatibleTrack) {
+        return;
+      }
+
+      const clip = createTimelineClip({
+        trackId: compatibleTrack.id,
+        mediaAssetId: asset.id,
+        sceneId: activeSceneId ?? null,
+        startMs,
+        durationMs: getClipDurationForAsset(asset),
+        label: asset.name,
+        posterUrl: asset.posterUrl ?? asset.thumbnailUrl ?? asset.previewUrl,
+      });
+
+      if (clip) {
+        setActiveTimelineClip(clip.id);
+      }
+    },
+    [activeSceneId, activeSequence, createTimelineClip, ensureCompatibleTrack, sequenceTracks, setActiveTimelineClip],
+  );
+
+  const handleAddTrack = useCallback(() => {
+    if (!activeSequence) {
+      return;
+    }
+
+    const targetKind = selectedMediaAsset ? getTrackKindForMediaAsset(selectedMediaAsset) : 'video';
+    createTimelineTrack(activeSequence.id, {
+      kind: targetKind,
+      name: targetKind === 'video' ? `Video ${sequenceTracks.length + 1}` : `Image ${sequenceTracks.length + 1}`,
+    });
+  }, [activeSequence, createTimelineTrack, selectedMediaAsset, sequenceTracks.length]);
+
+  const handleAddClip = useCallback(() => {
+    if (!selectedMediaAsset) {
+      return;
+    }
+
+    insertClip(selectedMediaAsset, activeSequence?.durationMs ?? 0, selectedTrack?.id);
+  }, [activeSequence?.durationMs, insertClip, selectedMediaAsset, selectedTrack?.id]);
+
+  const handleTrackInsert = useCallback(
+    (event: React.MouseEvent<HTMLDivElement>, track: TimelineTrack) => {
+      if (!selectedMediaAsset || track.locked) {
+        return;
+      }
+
+      const rect = event.currentTarget.getBoundingClientRect();
+      const ratio = Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width));
+      insertClip(selectedMediaAsset, Math.round(ratio * totalDurationMs), track.id);
+    },
+    [insertClip, selectedMediaAsset, totalDurationMs],
+  );
+
+  const handleSkipToStart = useCallback(() => {
+    seekTo(activeSequence?.playRange?.startMs ?? 0);
+    timelinePause();
+  }, [activeSequence?.playRange?.startMs, seekTo, timelinePause]);
+
+  const handleSkipToEnd = useCallback(() => {
+    seekTo(activeSequence?.playRange?.endMs ?? totalDurationMs);
+    timelinePause();
+  }, [activeSequence?.playRange?.endMs, seekTo, timelinePause, totalDurationMs]);
+
+  useEffect(() => {
+    if (playState !== 'playing') {
+      return;
+    }
+
+    let frameId = 0;
+    let lastTick = performance.now();
+
+    const tick = (now: number) => {
+      const state = useAppStore.getState();
+      const liveSequence = state.activeTimelineSequenceId
+        ? state.timelineSequences.find((sequence) => sequence.id === state.activeTimelineSequenceId) ?? null
+        : null;
+      const rangeStart = liveSequence?.playRange?.startMs ?? 0;
+      const rangeEnd = liveSequence?.playRange?.endMs ?? Math.max(liveSequence?.durationMs ?? 0, totalDurationMs);
+      const deltaMs = (now - lastTick) * state.timelineSpeed;
+      lastTick = now;
+      const nextTime = state.currentTime + deltaMs;
+
+      if (nextTime >= rangeEnd) {
+        if (state.timelineLoop) {
+          state.seekTo(rangeStart);
+          frameId = requestAnimationFrame(tick);
+          return;
+        }
+
+        state.seekTo(rangeEnd);
+        state.timelinePause();
+        return;
+      }
+
+      state.seekTo(nextTime);
+      frameId = requestAnimationFrame(tick);
     };
 
-    rafId = requestAnimationFrame(animate);
-    return () => cancelAnimationFrame(rafId);
-  }, [isPlaying, totalDuration]);
+    frameId = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frameId);
+  }, [playState, totalDurationMs]);
 
-  // Global keyboard shortcuts
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (
+        event.target instanceof HTMLInputElement ||
+        event.target instanceof HTMLTextAreaElement ||
+        event.target instanceof HTMLSelectElement
+      ) {
+        return;
+      }
 
-      switch (e.key) {
-        case ' ':
-          if (!e.ctrlKey && !e.metaKey) {
-            e.preventDefault();
-            setIsPlaying((p) => !p);
-          }
-          break;
-        case 'Home':
-          if (!e.ctrlKey && !e.metaKey) {
-            e.preventDefault();
-            setCurrentTime(0);
-          }
-          break;
-        case 'End':
-          if (!e.ctrlKey && !e.metaKey) {
-            e.preventDefault();
-            setCurrentTime(totalDuration);
-          }
-          break;
-        case 'ArrowLeft':
-          if (!e.ctrlKey && !e.metaKey) {
-            e.preventDefault();
-            const step = e.shiftKey ? 1 : 5;
-            setCurrentTime((t) => Math.max(0, t - step));
-          }
-          break;
-        case 'ArrowRight':
-          if (!e.ctrlKey && !e.metaKey) {
-            e.preventDefault();
-            const step = e.shiftKey ? 1 : 5;
-            setCurrentTime((t) => Math.min(totalDuration, t + step));
-          }
-          break;
+      if (event.key === ' ') {
+        event.preventDefault();
+        toggleTimelinePlayback();
+        return;
+      }
+
+      if (event.key === 'Home') {
+        event.preventDefault();
+        seekTo(activeSequence?.playRange?.startMs ?? 0);
+        return;
+      }
+
+      if (event.key === 'End') {
+        event.preventDefault();
+        seekTo(activeSequence?.playRange?.endMs ?? totalDurationMs);
+        return;
+      }
+
+      if (event.key === 'ArrowLeft') {
+        event.preventDefault();
+        if (event.altKey && activeClip && activeSequence) {
+          moveTimelineClip(activeClip.id, {
+            startMs: activeClip.startMs - Math.round(1000 / Math.max(activeSequence.fps, 1)),
+          });
+          return;
+        }
+
+        seekBy(event.shiftKey ? -1000 : -250);
+        return;
+      }
+
+      if (event.key === 'ArrowRight') {
+        event.preventDefault();
+        if (event.altKey && activeClip && activeSequence) {
+          moveTimelineClip(activeClip.id, {
+            startMs: activeClip.startMs + Math.round(1000 / Math.max(activeSequence.fps, 1)),
+          });
+          return;
+        }
+
+        seekBy(event.shiftKey ? 1000 : 250);
+        return;
+      }
+
+      if (event.key.toLowerCase() === 's' && activeClip) {
+        event.preventDefault();
+        splitTimelineClip(activeClip.id, currentTime);
+        return;
+      }
+
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'd' && activeClip) {
+        event.preventDefault();
+        duplicateTimelineClip(activeClip.id);
+        return;
+      }
+
+      if ((event.key === 'Delete' || event.key === 'Backspace') && activeClip) {
+        event.preventDefault();
+        setDeleteTargetId(activeClip.id);
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [totalDuration]);
-
-  const handleDeleteTrack = () => {
-    if (!deleteTargetId) return;
-    deleteCompletedJob(deleteTargetId);
-    if (selectedTrackId === deleteTargetId) {
-      setSelectedTrackId(null);
-    }
-    setDeleteTargetId(null);
-  };
-
-  const handleSeek = useCallback((time: number) => {
-    setCurrentTime(Math.max(0, time));
-  }, []);
-
-  const handleSkipToStart = useCallback(() => {
-    setCurrentTime(0);
-    setIsPlaying(false);
-  }, []);
-
-  const handleSkipToEnd = useCallback(() => {
-    setCurrentTime(totalDuration);
-    setIsPlaying(false);
-  }, [totalDuration]);
-
-  // ─── Collapsed View ──────────────────────────────────────────────────────
+  }, [
+    activeClip,
+    activeSequence,
+    currentTime,
+    duplicateTimelineClip,
+    moveTimelineClip,
+    seekBy,
+    seekTo,
+    splitTimelineClip,
+    toggleTimelinePlayback,
+    totalDurationMs,
+  ]);
 
   if (isCollapsed) {
     return (
       <motion.div
         initial={{ height: EXPANDED_HEIGHT }}
         animate={{ height: COLLAPSED_HEIGHT }}
-        transition={{ duration: 0.25, ease: [0.25, 0.46, 0.45, 0.94] }}
-        className="bg-elevated border-t border-border flex items-center px-4 gap-3 overflow-hidden"
+        transition={{ duration: 0.2 }}
+        className="flex items-center gap-3 overflow-hidden border-t border-border bg-elevated px-4"
       >
         <button
+          type="button"
           onClick={() => setIsCollapsed(false)}
-          className="p-1 rounded text-text-muted hover:text-text-primary transition-all"
-          title="Expand Timeline"
+          className="rounded p-1 text-text-muted transition hover:text-text-primary"
           aria-label="Expand timeline"
         >
-          <ChevronUp className="w-3.5 h-3.5" />
+          <ChevronUp className="h-3.5 w-3.5" />
         </button>
-
-        <div className="w-px h-4 bg-border" />
-
+        <div className="h-4 w-px bg-border" />
         <button
-          onClick={() => setIsPlaying(!isPlaying)}
+          type="button"
+          onClick={toggleTimelinePlayback}
           className={cn(
-            'p-1.5 rounded-lg transition-all',
-            isPlaying
+            'rounded-lg p-1.5 transition',
+            playState === 'playing'
               ? 'bg-accent-primary text-void shadow-accent-subtle'
-              : 'bg-accent-primary-muted text-accent-primary border border-accent-primary-border'
+              : 'border border-accent-primary-border bg-accent-primary-muted text-accent-primary',
           )}
-          aria-label={isPlaying ? 'Pause' : 'Play'}
-          aria-pressed={isPlaying}
+          aria-label={playState === 'playing' ? 'Pause' : 'Play'}
         >
-          {isPlaying ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
+          {playState === 'playing' ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
         </button>
-
-        <span className="font-mono text-xs text-text-primary tabular-nums">
-          {formatTimecode(currentTime)}
+        <span className="font-mono text-xs text-text-primary">
+          {formatTimecode(currentTime, activeSequence?.fps ?? 24)}
         </span>
-        <span className="font-mono text-micro text-text-muted">/</span>
-        <span className="font-mono text-xs text-text-muted tabular-nums">
-          {formatTimecode(totalDuration)}
+        <span className="font-mono text-xs text-text-muted">/</span>
+        <span className="font-mono text-xs text-text-muted">
+          {formatTimecode(totalDurationMs, activeSequence?.fps ?? 24)}
         </span>
-
-        {/* Mini progress bar */}
         <div
-          className="flex-1 h-1.5 bg-void rounded-full overflow-hidden mx-2 cursor-pointer"
+          className="mx-2 h-1.5 flex-1 overflow-hidden rounded-full bg-void"
           role="progressbar"
-          aria-valuenow={Math.round(progress)}
+          aria-label="Timeline progress"
           aria-valuemin={0}
           aria-valuemax={100}
-          aria-label="Timeline progress"
-          onClick={(e) => {
-            const rect = e.currentTarget.getBoundingClientRect();
-            const pct = (e.clientX - rect.left) / rect.width;
-            setCurrentTime(pct * totalDuration);
-          }}
+          aria-valuenow={Math.round(progress)}
         >
-          <motion.div
+          <div
             className="h-full rounded-full"
             style={{
               width: `${progress}%`,
-              background: 'linear-gradient(90deg, var(--color-gradient-progress-start), var(--color-gradient-progress-end))',
+              background:
+                'linear-gradient(90deg, var(--color-gradient-progress-start), var(--color-gradient-progress-end))',
             }}
-            transition={{ duration: 0.1 }}
           />
         </div>
-
-        <div className="flex items-center gap-1">
-          <Layers className="w-3 h-3 text-text-muted" />
-          <span className="font-mono text-micro text-text-muted">{tracks.length}</span>
+        <div className="flex items-center gap-1 text-text-muted">
+          <Layers className="h-3 w-3" />
+          <span className="font-mono text-[11px]">{sequenceTracks.length}</span>
         </div>
       </motion.div>
     );
   }
 
-  // ─── Expanded View ─────────────────────────────────────────────────────────
-
   return (
     <motion.div
       initial={{ height: COLLAPSED_HEIGHT }}
       animate={{ height: EXPANDED_HEIGHT }}
-      transition={{ duration: 0.25, ease: [0.25, 0.46, 0.45, 0.94] }}
-      className="bg-surface border-t border-border flex flex-col overflow-hidden"
+      transition={{ duration: 0.2 }}
+      className="flex flex-col overflow-hidden border-t border-border bg-surface"
     >
-      {/* ─── Toolbar ──────────────────────────────────────────────────────── */}
-      <div className="h-9 border-b border-border flex items-center justify-between px-3 bg-elevated/80 backdrop-blur-sm flex-shrink-0">
+      <div className="flex h-10 items-center justify-between border-b border-border bg-elevated/80 px-3 backdrop-blur-sm">
         <div className="flex items-center gap-2">
           <TransportControls
-            isPlaying={isPlaying}
-            onTogglePlay={() => setIsPlaying((p) => !p)}
+            isPlaying={playState === 'playing'}
+            currentTime={currentTime}
+            totalDurationMs={totalDurationMs}
+            fps={activeSequence?.fps ?? 24}
+            onTogglePlay={toggleTimelinePlayback}
             onSkipToStart={handleSkipToStart}
             onSkipToEnd={handleSkipToEnd}
-            currentTime={currentTime}
-            totalDuration={totalDuration}
           />
 
-          <div className="w-px h-5 bg-border mx-1" />
+          <div className="mx-1 h-5 w-px bg-border" />
 
-          {/* Timeline mode switcher */}
-          <div className="flex items-center gap-0.5 bg-void rounded-md p-0.5">
+          <div className="flex items-center gap-0.5 rounded-md bg-void p-0.5">
             {(['storyboard', 'animation', 'canvas'] as const).map((mode) => {
-              const isActive = timelineMode === mode;
+              const active = timelineMode === mode;
               return (
                 <button
                   key={mode}
+                  type="button"
                   onClick={() => setTimelineMode(mode)}
                   className={cn(
-                    'px-2 py-0.5 rounded text-xs font-display capitalize transition-all',
-                    isActive
-                      ? 'bg-surface text-accent-primary shadow-sm'
-                      : 'text-text-muted hover:text-text-body'
+                    'rounded px-2 py-1 text-xs font-display capitalize transition',
+                    active ? 'bg-surface text-accent-primary shadow-sm' : 'text-text-muted hover:text-text-body',
                   )}
                   aria-label={`${mode} mode`}
-                  data-active={isActive}
                 >
                   {mode}
                 </button>
@@ -864,302 +942,311 @@ export const Timeline = memo(function Timeline() {
             })}
           </div>
 
-          <div className="w-px h-5 bg-border mx-1" />
+          {timelineMode === 'canvas' ? (
+            <>
+              <div className="mx-1 h-5 w-px bg-border" />
 
-          {/* Track actions */}
-          <button
-            className={cn(
-              'p-1.5 rounded-md transition-all',
-              selectedTrackId
-                ? 'text-text-body hover:text-text-primary hover:bg-surface active:scale-95'
-                : 'text-text-muted/40 cursor-not-allowed'
-            )}
-            disabled={!selectedTrackId}
-            aria-label="Split track"
-            title="Split at playhead (S)"
-          >
-            <Scissors className="w-3.5 h-3.5" />
-          </button>
-          <button
-            className={cn(
-              'p-1.5 rounded-md transition-all',
-              selectedTrackId
-                ? 'text-text-body hover:text-text-primary hover:bg-surface active:scale-95'
-                : 'text-text-muted/40 cursor-not-allowed'
-            )}
-            disabled={!selectedTrackId}
-            aria-label="Duplicate track"
-            title="Duplicate (Ctrl+D)"
-          >
-            <Copy className="w-3.5 h-3.5" />
-          </button>
-          <button
-            onClick={() => setDeleteTargetId(selectedTrackId)}
-            className={cn(
-              'p-1.5 rounded-md transition-all',
-              selectedTrackId
-                ? 'text-text-body hover:text-status-error hover:bg-status-error-muted active:scale-95'
-                : 'text-text-muted/40 cursor-not-allowed'
-            )}
-            disabled={!selectedTrackId}
-            aria-label="Delete track"
-            title="Delete (Del)"
-          >
-            <Trash2 className="w-3.5 h-3.5" />
-          </button>
+              <button
+                type="button"
+                onClick={handleAddTrack}
+                className="inline-flex items-center gap-1 rounded-md border border-border bg-surface px-2.5 py-1.5 text-xs text-text-primary transition hover:bg-canvas"
+                aria-label="Add track"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                Add Track
+              </button>
 
-          <div className="w-px h-5 bg-border mx-1" />
+              <select
+                aria-label="Media asset for timeline"
+                className="h-8 rounded-md border border-border bg-surface px-2 text-xs text-text-primary"
+                value={selectedMediaAsset?.id ?? ''}
+                onChange={(event) => setInsertMediaId(event.target.value)}
+              >
+                {mediaAssets.length === 0 ? <option value="">No media</option> : null}
+                {mediaAssets.map((asset) => (
+                  <option key={asset.id} value={asset.id}>
+                    {asset.name}
+                  </option>
+                ))}
+              </select>
 
-          <div className="flex items-center gap-1.5">
-            <Layers className="w-3.5 h-3.5 text-text-muted" />
-            <span className="font-mono text-xs text-text-muted">
-              {tracks.length} {tracks.length === 1 ? 'track' : 'tracks'}
-            </span>
-          </div>
+              <button
+                type="button"
+                onClick={handleAddClip}
+                disabled={!selectedMediaAsset}
+                className="inline-flex items-center gap-1 rounded-md border border-border bg-surface px-2.5 py-1.5 text-xs text-text-primary transition disabled:cursor-not-allowed disabled:text-text-muted hover:bg-canvas"
+                aria-label="Add clip to timeline"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                Add Clip
+              </button>
+
+              <div className="mx-1 h-5 w-px bg-border" />
+
+              <button
+                type="button"
+                onClick={() => activeClip && splitTimelineClip(activeClip.id, currentTime)}
+                disabled={!activeClip}
+                className="rounded-md p-1.5 text-text-body transition disabled:cursor-not-allowed disabled:text-text-muted/40 hover:bg-surface hover:text-text-primary"
+                aria-label="Split clip"
+                title="Split clip"
+              >
+                <Scissors className="h-3.5 w-3.5" />
+              </button>
+              <button
+                type="button"
+                onClick={() => activeClip && duplicateTimelineClip(activeClip.id)}
+                disabled={!activeClip}
+                className="rounded-md p-1.5 text-text-body transition disabled:cursor-not-allowed disabled:text-text-muted/40 hover:bg-surface hover:text-text-primary"
+                aria-label="Duplicate clip"
+                title="Duplicate clip"
+              >
+                <Copy className="h-3.5 w-3.5" />
+              </button>
+              <button
+                type="button"
+                onClick={() => activeClip && setDeleteTargetId(activeClip.id)}
+                disabled={!activeClip}
+                className="rounded-md p-1.5 text-text-body transition disabled:cursor-not-allowed disabled:text-text-muted/40 hover:bg-status-error-muted hover:text-status-error"
+                aria-label="Delete clip"
+                title="Delete clip"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </button>
+
+              <div className="mx-1 h-5 w-px bg-border" />
+
+              <button
+                type="button"
+                onClick={() =>
+                  activeSequence &&
+                  setTimelineSequencePlayRange(activeSequence.id, {
+                    startMs: useAppStore.getState().currentTime,
+                    endMs: activeSequence.playRange?.endMs ?? totalDurationMs,
+                  })
+                }
+                disabled={!activeSequence}
+                className="rounded-md border border-border bg-surface px-2 py-1 text-xs text-text-primary transition disabled:cursor-not-allowed disabled:text-text-muted hover:bg-canvas"
+                aria-label="Mark range in"
+              >
+                Mark In
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  activeSequence &&
+                  setTimelineSequencePlayRange(activeSequence.id, {
+                    startMs: activeSequence.playRange?.startMs ?? 0,
+                    endMs: useAppStore.getState().currentTime,
+                  })
+                }
+                disabled={!activeSequence}
+                className="rounded-md border border-border bg-surface px-2 py-1 text-xs text-text-primary transition disabled:cursor-not-allowed disabled:text-text-muted hover:bg-canvas"
+                aria-label="Mark range out"
+              >
+                Mark Out
+              </button>
+              <button
+                type="button"
+                onClick={() => activeSequence && setTimelineSequencePlayRange(activeSequence.id, null)}
+                disabled={!activeSequence?.playRange}
+                className="rounded-md border border-border bg-surface px-2 py-1 text-xs text-text-primary transition disabled:cursor-not-allowed disabled:text-text-muted hover:bg-canvas"
+                aria-label="Clear play range"
+              >
+                Clear Range
+              </button>
+            </>
+          ) : null}
         </div>
 
         <div className="flex items-center gap-2">
           <ZoomControls zoom={zoom} onZoomChange={setZoom} />
-
-          <div className="w-px h-5 bg-border mx-1" />
-
-          {/* Onion skin toggle */}
+          <div className="mx-1 h-5 w-px bg-border" />
           <button
+            type="button"
             onClick={() => setOnionSkinEnabled(!onionSkinEnabled)}
             className={cn(
-              'p-1.5 rounded-md transition-all',
-              onionSkinEnabled
-                ? 'text-accent-primary bg-accent-primary-muted'
-                : 'text-text-body hover:text-text-primary hover:bg-surface'
+              'rounded-md p-1.5 transition',
+              onionSkinEnabled ? 'bg-accent-primary-muted text-accent-primary' : 'text-text-body hover:bg-surface hover:text-text-primary',
             )}
             aria-label="Toggle onion skin"
             aria-pressed={onionSkinEnabled}
-            title="Onion skin (O)"
           >
-            <Layers className="w-3.5 h-3.5" />
+            <Layers className="h-3.5 w-3.5" />
           </button>
-
-          <div className="w-px h-5 bg-border mx-1" />
-
           <button
+            type="button"
             onClick={() => setIsCollapsed(true)}
-            className="p-1.5 rounded-md text-text-body hover:text-text-primary hover:bg-surface transition-all"
-            title="Collapse Timeline (Ctrl+T)"
+            className="rounded-md p-1.5 text-text-body transition hover:bg-surface hover:text-text-primary"
             aria-label="Collapse timeline"
           >
-            <ChevronDown className="w-3.5 h-3.5" />
+            <ChevronDown className="h-3.5 w-3.5" />
           </button>
         </div>
       </div>
 
-      {/* ─── Timeline Body ────────────────────────────────────────────────── */}
       {timelineMode === 'storyboard' ? (
         <StoryboardPlayback className="flex-1" />
       ) : timelineMode === 'animation' ? (
         <AnimationTrackEditor className="flex-1" />
       ) : (
-      <div className="flex-1 flex min-h-0 overflow-hidden">
-        {/* ─── Track Headers (fixed left column) ────────────────────────── */}
-        <div
-          className="flex-shrink-0 overflow-y-auto border-r border-border bg-canvas"
-          style={{ width: HEADER_WIDTH }}
-        >
-          {/* Ruler header spacer */}
-          <div className="h-[28px] border-b border-border flex items-center justify-center px-2">
-            <span className="font-mono text-micro text-text-muted">TIME</span>
+        <div className="flex min-h-0 flex-1">
+          <div
+            className="flex-shrink-0 overflow-y-auto border-r border-border bg-canvas"
+            style={{ width: HEADER_WIDTH }}
+          >
+            <div
+              className="flex items-center justify-center border-b border-border text-[11px] uppercase tracking-[0.16em] text-text-muted"
+              style={{ height: RULER_HEIGHT }}
+            >
+              Timeline
+            </div>
+            {sequenceTracks.map((track) => (
+              <TrackHeader
+                key={track.id}
+                track={track}
+                clipCount={clipsByTrackId.get(track.id)?.length ?? 0}
+                isSelected={(activeClip?.trackId ?? selectedTrackId) === track.id}
+                onSelect={() => {
+                  setSelectedTrackId(track.id);
+                  setActiveTimelineClip(clipsByTrackId.get(track.id)?.[0]?.id ?? null);
+                }}
+                onToggleMute={() => updateTimelineTrack(track.id, { muted: !track.muted })}
+                onToggleHidden={() => updateTimelineTrack(track.id, { hidden: !track.hidden })}
+                onToggleLocked={() => updateTimelineTrack(track.id, { locked: !track.locked })}
+              />
+            ))}
+            {sequenceTracks.length === 0 ? (
+              <div className="flex h-[68px] items-center justify-center border-b border-border text-[11px] text-text-muted">
+                No tracks yet
+              </div>
+            ) : null}
           </div>
 
-          {/* Storyboard scene header */}
-          {storyboardScenes.length > 0 && (
-            <div className="h-[36px] border-b border-border flex items-center px-2">
-              <Film className="w-3 h-3 text-text-muted mr-1.5" />
-              <span className="font-display text-xs text-text-body">Scenes</span>
-            </div>
-          )}
-
-          {/* Track headers */}
-          {tracks.map((track) => (
-            <TrackHeader
-              key={track.id}
-              track={track}
-              isSelected={selectedTrackId === track.id}
-              onSelect={() =>
-                setSelectedTrackId(selectedTrackId === track.id ? null : track.id)
-              }
-            />
-          ))}
-
-          {/* Empty state header row */}
-          {tracks.length === 0 && !storyboardScenes.length && (
-            <div className="h-[44px] flex items-center justify-center border-b border-border">
-              <span className="font-mono text-micro text-text-muted">No tracks</span>
-            </div>
-          )}
-        </div>
-
-        {/* ─── Scrollable Timeline Area ──────────────────────────────────── */}
-        <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-          <div className="relative flex-1 overflow-auto">
-            {/* ─── Ruler ────────────────────────────────────────────────── */}
-            <TimeRuler
-              totalDuration={totalDuration}
-              zoom={zoom}
-              onSeek={handleSeek}
-              playheadPercent={progress}
-            />
-
-            {/* ─── Storyboard Scene Playback Strip ──────────────────────── */}
-            {storyboardScenes.length > 0 && (
-              <div className="h-[36px] border-b border-border relative bg-elevated/30">
-                {/* Scene strip - uses existing ScenePlaybackStrip but in a horizontal layout */}
-                <div className="flex h-full items-center gap-0.5 overflow-x-auto px-1">
-                  {storyboardScenes
-                    .sort((a, b) => a.orderIndex - b.orderIndex)
-                    .map((scene) => {
-                      const sceneStart = (scene.orderIndex / storyboardScenes.length) * totalDuration;
-                      const sceneDuration = (scene.metadata?.duration || 2000) / 1000;
-                      const isActive = scene.id === activeSceneId;
-                      const sceneWidth = (sceneDuration / totalDuration) * 100;
-                      const sceneLeft = (sceneStart / totalDuration) * 100;
-
-                      return (
-                        <button
-                          key={scene.id}
-                          onClick={() => setActiveScene(scene.id)}
-                          className={cn(
-                            'absolute h-[28px] top-[4px] rounded flex items-center justify-center px-2 transition-all cursor-pointer overflow-hidden',
-                            isActive
-                              ? 'ring-1 z-10'
-                              : 'hover:brightness-125'
-                          )}
-                          style={{
-                            left: `${sceneLeft}%`,
-                            width: `${Math.max(sceneWidth, 2)}%`,
-                            background: isActive
-                              ? 'linear-gradient(135deg, rgba(230, 57, 70, 0.2), rgba(230, 57, 70, 0.08))'
-                              : 'linear-gradient(135deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.02))',
-                            border: `1px solid ${isActive ? 'var(--color-accent-primary)' : 'var(--color-border)'}`,
-                            boxShadow: isActive ? '0 0 6px var(--color-accent-primary-glow)' : 'none',
-                          }}
-                          aria-label={`Scene: ${scene.name}`}
-                          aria-pressed={isActive}
-                        >
-                          {scene.thumbnail && (
-                            <img
-                              src={scene.thumbnail}
-                              alt=""
-                              className="absolute inset-0 w-full h-full object-cover opacity-30 pointer-events-none"
-                              loading="lazy"
-                            />
-                          )}
-                          <span className={cn(
-                            'font-display text-micro truncate relative z-10',
-                            isActive ? 'text-accent-primary font-medium' : 'text-text-muted'
-                          )}>
-                            {scene.name}
-                          </span>
-                        </button>
-                      );
-                    })}
-                </div>
-              </div>
-            )}
-
-            {/* ─── Tracks Area ─────────────────────────────────────────── */}
-            <div className="relative" role="listbox" aria-label="Timeline tracks">
-              {/* Playhead line spanning all tracks */}
-              <motion.div
-                className="absolute top-0 bottom-0 w-px bg-accent-primary z-30 pointer-events-none"
-                style={{ left: `${progress}%` }}
-                role="presentation"
+          <div className="min-w-0 flex-1 overflow-hidden">
+            <div className="h-full overflow-auto">
+              <div
+                className="min-h-full"
+                style={{
+                  width: `${Math.max(100, zoom * 100)}%`,
+                  minWidth: '900px',
+                }}
               >
-                {/* Playhead dot at each track intersection */}
-                <div className="absolute -top-0.5 -left-1 w-2 h-2 rounded-full bg-accent-primary shadow-accent-subtle" />
-              </motion.div>
+                <TimeRuler
+                  totalDurationMs={totalDurationMs}
+                  currentTime={currentTime}
+                  playRange={activeSequence?.playRange ?? null}
+                  zoom={zoom}
+                  onSeek={seekTo}
+                />
 
-              {tracks.length === 0 && !storyboardScenes.length ? (
-                /* Empty State */
-                <div className="h-24 flex items-center justify-center">
-                  <div className="text-center">
-                    <Layers className="w-8 h-8 text-text-muted mx-auto mb-2 opacity-30" />
-                    <p className="font-display text-sm text-text-muted">
-                      No content yet
-                    </p>
-                    <p className="font-display text-xs text-text-muted mt-0.5">
-                      Generate images or videos to populate the timeline
-                    </p>
+                {storyboardScenes.length > 0 ? (
+                  <div className="relative flex h-10 items-center gap-2 border-b border-border bg-elevated/30 px-2">
+                    {storyboardScenes
+                      .slice()
+                      .sort((left, right) => left.orderIndex - right.orderIndex)
+                      .map((scene, index) => {
+                        const width = 100 / storyboardScenes.length;
+                        return (
+                          <button
+                            key={scene.id}
+                            type="button"
+                            onClick={() => setActiveScene(scene.id)}
+                            className={cn(
+                              'absolute top-1 h-8 overflow-hidden rounded-lg border px-2 text-left transition',
+                              activeSceneId === scene.id
+                                ? 'border-accent-primary bg-accent-primary-muted text-accent-primary'
+                                : 'border-border bg-surface/80 text-text-muted hover:text-text-primary',
+                            )}
+                            style={{
+                              left: `${index * width}%`,
+                              width: `${Math.max(width - 0.6, 6)}%`,
+                            }}
+                            aria-label={`Scene: ${scene.name}`}
+                          >
+                            <span className="truncate text-[11px]">{scene.name}</span>
+                          </button>
+                        );
+                      })}
                   </div>
-                </div>
-              ) : (
-                tracks.map((track, index) => {
-                  const isSelected = selectedTrackId === track.id;
+                ) : null}
 
-                  return (
-                    <div
-                      key={track.id}
-                      onClick={() =>
-                        setSelectedTrackId(isSelected ? null : track.id)
-                      }
-                      role="option"
-                      aria-selected={isSelected}
-                      className={cn(
-                        'border-b border-border flex items-center transition-all cursor-pointer group',
-                        isSelected ? 'bg-accent-primary-muted' : 'hover:bg-elevated/20'
-                      )}
-                      style={{ height: TRACK_HEIGHT }}
-                    >
-                      {/* Clip block */}
-                      <div className="flex-1 relative h-full px-1">
-                        <ClipBlock
-                          track={track}
-                          totalDuration={totalDuration}
-                          isSelected={isSelected}
-                          index={index}
-                        />
+                <div role="listbox" aria-label="Timeline tracks" className="relative">
+                  <div
+                    className="pointer-events-none absolute inset-y-0 z-20 w-px bg-accent-primary"
+                    style={{ left: `${(currentTime / totalDurationMs) * 100}%` }}
+                  />
 
-                        {/* Keyframe markers on this track */}
-                        {keyframes
-                          .filter((kf) => kf.entityId === track.id)
-                          .map((kf) => {
-                            const kfLeft = (kf.time / 1000 / totalDuration) * 100;
-                            const isActive = activeKeyframeId === kf.id;
-                            return (
-                              <button
-                                key={kf.id}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setActiveKeyframeId(isActive ? null : kf.id);
-                                }}
-                                className={cn(
-                                  'absolute z-10 w-2.5 h-2.5 rotate-45 transition-all cursor-pointer',
-                                  isActive
-                                    ? 'bg-accent-primary ring-2 ring-accent-primary/50 ring-offset-1 ring-offset-surface'
-                                    : 'bg-text-body/60 hover:bg-text-body'
-                                )}
-                                style={{ left: `${kfLeft}%`, top: '50%', marginTop: '-5px' }}
-                                aria-label={`Keyframe at ${(kf.time / 1000).toFixed(1)}s`}
-                                title={`${kf.interpolation} at ${(kf.time / 1000).toFixed(1)}s`}
-                              />
-                            );
-                          })}
+                  {sequenceTracks.length === 0 ? (
+                    <div className="flex h-28 items-center justify-center border-b border-border">
+                      <div className="text-center">
+                        <Layers className="mx-auto h-8 w-8 text-text-muted/40" />
+                        <p className="mt-2 font-display text-sm text-text-primary">No tracks yet</p>
+                        <p className="mt-1 text-xs text-text-muted">
+                          Add a track, then drop imported or generated media into the timeline.
+                        </p>
                       </div>
                     </div>
-                  );
-                })
-              )}
+                  ) : (
+                    sequenceTracks.map((track) => {
+                      const clips = clipsByTrackId.get(track.id) ?? [];
+
+                      return (
+                        <div
+                          key={track.id}
+                          className={cn(
+                            'relative border-b border-border',
+                            track.hidden ? 'bg-canvas/40' : 'bg-canvas/70',
+                          )}
+                          style={{ height: TRACK_HEIGHT }}
+                          onDoubleClick={(event) => handleTrackInsert(event, track)}
+                        >
+                          {track.hidden ? (
+                            <div className="flex h-full items-center justify-center text-[11px] uppercase tracking-[0.14em] text-text-muted">
+                              Hidden track
+                            </div>
+                          ) : (
+                            <div className="relative h-full px-2">
+                              {clips.map((clip) => (
+                                <TimelineClipBlock
+                                  key={clip.id}
+                                  clip={clip}
+                                  mediaAsset={mediaLookup.get(clip.mediaAssetId) ?? null}
+                                  totalDurationMs={totalDurationMs}
+                                  selected={activeTimelineClipId === clip.id}
+                                  onSelect={() => {
+                                    setSelectedTrackId(track.id);
+                                    setActiveTimelineClip(clip.id);
+                                  }}
+                                />
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
             </div>
           </div>
+
+          <TimelineClipInspector className="flex-shrink-0" />
         </div>
-      </div>
       )}
 
       <ConfirmDialog
         open={deleteTargetId !== null}
-        title="Delete Track"
-        message="Are you sure you want to delete this track? This cannot be undone."
-        confirmLabel="Delete"
+        title="Delete Clip"
+        message="Delete the selected clip from the timeline? This keeps the media asset but removes the clip edit."
+        confirmLabel="Delete Clip"
         variant="danger"
-        onConfirm={handleDeleteTrack}
+        onConfirm={() => {
+          if (deleteTargetId) {
+            deleteTimelineClip(deleteTargetId);
+          }
+          setDeleteTargetId(null);
+        }}
         onCancel={() => setDeleteTargetId(null)}
       />
     </motion.div>

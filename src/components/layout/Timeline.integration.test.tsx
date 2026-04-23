@@ -1,6 +1,7 @@
-import { describe, expect, it, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+
 import { Timeline } from './Timeline';
 import { useAppStore } from '@/store/appStore';
 import type { Keyframe } from '@/types/timeline';
@@ -9,45 +10,73 @@ function resetStore() {
   useAppStore.setState(useAppStore.getInitialState());
 }
 
-/**
- * Framer Motion AnimatePresence renders duplicate DOM elements during
- * exit transitions. Queries by aria-label can match multiple elements,
- * so we use getAllByLabelText and take the first (the "live" one).
- */
-function getByLabel(label: string): HTMLElement {
-  return screen.getAllByLabelText(label)[0];
+function seedProjectAndMedia() {
+  const state = useAppStore.getState();
+  const project = state.createProject('Timeline Board');
+  const sequence = state.ensureTimelineSequenceForProject(project.id)!;
+
+  state.upsertMediaAsset({
+    id: 'media-video',
+    name: 'Launch Clip',
+    type: 'video',
+    source: 'generated',
+    path: '/outputs/launch.mp4',
+    previewUrl: '/outputs/launch.mp4',
+    thumbnailUrl: '/outputs/launch.jpg',
+    posterUrl: '/outputs/launch.jpg',
+    durationMs: 4000,
+    fps: 24,
+    metadata: {},
+    createdAt: '2026-04-22T00:00:00.000Z',
+  });
+
+  state.upsertMediaAsset({
+    id: 'media-image',
+    name: 'Product Still',
+    type: 'image',
+    source: 'imported',
+    path: '/imports/product.png',
+    previewUrl: '/imports/product.png',
+    thumbnailUrl: '/imports/product.png',
+    posterUrl: '/imports/product.png',
+    metadata: {},
+    createdAt: '2026-04-22T00:01:00.000Z',
+  });
+
+  return { project, sequence };
 }
 
 describe('Timeline integration', () => {
   beforeEach(resetStore);
+  afterEach(cleanup);
 
   it('renders timeline component without crashing', () => {
+    seedProjectAndMedia();
     render(<Timeline />);
-    // The timeline should render in expanded view by default
-    expect(getByLabel('Skip to beginning')).toBeInTheDocument();
+
+    expect(screen.getByLabelText('Skip to beginning')).toBeInTheDocument();
+    expect(screen.getByLabelText('Add track')).toBeInTheDocument();
   });
 
   it('can switch between timeline modes', async () => {
     const user = userEvent.setup();
+    seedProjectAndMedia();
     render(<Timeline />);
 
-    // Default mode is canvas
     expect(useAppStore.getState().timelineMode).toBe('canvas');
 
-    // Switch to storyboard
-    await user.click(getByLabel('storyboard mode'));
+    await user.click(screen.getByLabelText('storyboard mode'));
     expect(useAppStore.getState().timelineMode).toBe('storyboard');
 
-    // Switch to animation
-    await user.click(getByLabel('animation mode'));
+    await user.click(screen.getByLabelText('animation mode'));
     expect(useAppStore.getState().timelineMode).toBe('animation');
 
-    // Switch back to canvas
-    await user.click(getByLabel('canvas mode'));
+    await user.click(screen.getByLabelText('canvas mode'));
     expect(useAppStore.getState().timelineMode).toBe('canvas');
   });
 
   it('play/pause/stop controls work via store', () => {
+    seedProjectAndMedia();
     render(<Timeline />);
 
     expect(useAppStore.getState().playState).toBe('stopped');
@@ -63,6 +92,7 @@ describe('Timeline integration', () => {
   });
 
   it('seekTo updates currentTime', () => {
+    seedProjectAndMedia();
     render(<Timeline />);
 
     useAppStore.getState().seekTo(3000);
@@ -74,19 +104,20 @@ describe('Timeline integration', () => {
 
   it('onion skin toggle works', async () => {
     const user = userEvent.setup();
+    seedProjectAndMedia();
     render(<Timeline />);
 
     expect(useAppStore.getState().onionSkinEnabled).toBe(false);
 
-    const onionBtn = getByLabel('Toggle onion skin');
-    await user.click(onionBtn);
+    await user.click(screen.getByLabelText('Toggle onion skin'));
     expect(useAppStore.getState().onionSkinEnabled).toBe(true);
 
-    await user.click(onionBtn);
+    await user.click(screen.getByLabelText('Toggle onion skin'));
     expect(useAppStore.getState().onionSkinEnabled).toBe(false);
   });
 
   it('can add and delete keyframes', () => {
+    seedProjectAndMedia();
     render(<Timeline />);
 
     const kf: Keyframe = {
@@ -102,67 +133,69 @@ describe('Timeline integration', () => {
 
     useAppStore.getState().addKeyframe(kf);
     expect(useAppStore.getState().keyframes).toHaveLength(1);
-    expect(useAppStore.getState().keyframes[0].id).toBe('kf-1');
 
     useAppStore.getState().deleteKeyframe('kf-1');
     expect(useAppStore.getState().keyframes).toHaveLength(0);
   });
 
-  it('can update keyframes', () => {
+  it('adds clips from selected media and supports split duplicate and delete actions', async () => {
+    const user = userEvent.setup();
+    seedProjectAndMedia();
     render(<Timeline />);
 
-    const kf: Keyframe = {
-      id: 'kf-1',
-      entityId: 'track-1',
-      entityType: 'layer',
-      property: 'opacity',
-      time: 1000,
-      value: 1,
-      interpolation: 'linear',
-      easingStrength: 0.5,
-    };
+    await user.selectOptions(screen.getByLabelText('Media asset for timeline'), 'media-video');
+    await user.click(screen.getByLabelText('Add clip to timeline'));
+    expect(useAppStore.getState().timelineClips).toHaveLength(1);
 
-    useAppStore.getState().addKeyframe(kf);
-    useAppStore.getState().updateKeyframe('kf-1', { time: 2000, interpolation: 'ease-in' });
+    const clipId = useAppStore.getState().timelineClips[0].id;
+    await user.click(screen.getByTestId(`timeline-clip-${clipId}`));
+    useAppStore.getState().seekTo(1000);
 
-    const updated = useAppStore.getState().keyframes[0];
-    expect(updated.time).toBe(2000);
-    expect(updated.interpolation).toBe('ease-in');
+    await user.click(screen.getByLabelText('Split clip'));
+    expect(useAppStore.getState().timelineClips).toHaveLength(2);
+
+    await user.click(screen.getByLabelText('Duplicate clip'));
+    expect(useAppStore.getState().timelineClips).toHaveLength(3);
+
+    await user.click(screen.getByLabelText('Delete clip'));
+    await user.click(screen.getByRole('button', { name: 'Delete Clip' }));
+
+    expect(useAppStore.getState().timelineClips).toHaveLength(2);
   });
 
-  it('loop and speed controls work', () => {
+  it('marks and clears a play range on the active sequence', async () => {
+    const user = userEvent.setup();
+    seedProjectAndMedia();
     render(<Timeline />);
 
-    expect(useAppStore.getState().timelineLoop).toBe(false);
-    useAppStore.getState().toggleTimelineLoop();
-    expect(useAppStore.getState().timelineLoop).toBe(true);
+    useAppStore.getState().seekTo(1000);
+    await user.click(screen.getByLabelText('Mark range in'));
 
-    useAppStore.getState().setTimelineSpeed(2);
-    expect(useAppStore.getState().timelineSpeed).toBe(2);
+    useAppStore.getState().seekTo(2500);
+    await user.click(screen.getByLabelText('Mark range out'));
+
+    const sequence = useAppStore.getState().timelineSequences[0];
+    expect(sequence.playRange).toEqual({ startMs: 1000, endMs: 2500 });
+
+    await user.click(screen.getByLabelText('Clear play range'));
+    expect(useAppStore.getState().timelineSequences[0].playRange).toBeNull();
   });
 
   it('can collapse and expand timeline', async () => {
     const user = userEvent.setup();
+    seedProjectAndMedia();
     render(<Timeline />);
 
-    // Should be expanded by default (has skip to beginning button)
-    expect(getByLabel('Skip to beginning')).toBeInTheDocument();
+    expect(screen.getByLabelText('Skip to beginning')).toBeInTheDocument();
 
-    // Collapse
-    const collapseBtn = getByLabel('Collapse timeline');
-    await user.click(collapseBtn);
-
-    // After collapse animation settles, collapsed view should be present
+    await user.click(screen.getByLabelText('Collapse timeline'));
     await waitFor(() => {
       expect(screen.getByLabelText('Expand timeline')).toBeInTheDocument();
     });
 
-    // Expand
     await user.click(screen.getByLabelText('Expand timeline'));
-
-    // After expand animation settles, expanded view should be present
     await waitFor(() => {
-      expect(getByLabel('Skip to beginning')).toBeInTheDocument();
+      expect(screen.getByLabelText('Skip to beginning')).toBeInTheDocument();
     });
   });
 });

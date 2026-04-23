@@ -211,7 +211,7 @@ export const useAppStore = create<AppState>()(
       ...mediaTimelineInitialState,
       ...createMediaTimelineActions(set, get),
       ...timelineInitialState,
-      ...createTimelineActions(set),
+      ...createTimelineActions(set, get),
       ...pipelineInitialState,
       ...createPipelineActions(set),
     }),
