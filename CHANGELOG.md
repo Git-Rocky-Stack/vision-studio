@@ -2,6 +2,18 @@
 
 All notable changes to Vision Studio will be documented in this file.
 
+## [2.4.0] - 2026-04-23
+
+### Added
+- Real timeline playback preview driven by the shared sequence composition resolver
+- Silent local MP4 export pipeline with backend encoding and progress tracking
+- Timeline export dialog with active-range summary, success/failure state, and open/reveal actions
+- First-class video review and edit round-trip improvements across timeline, viewer, canvas, and clip inspector
+
+### Changed
+- Timeline editing now behaves like a real clip workflow with playback, range-aware transport, and export entry points in the shell
+- Exported files can now be opened or revealed directly even when saved outside managed output roots
+
 ## [2.3.0] - 2026-04-21
 
 ### Added
@@ -31,4 +43,3 @@ All notable changes to Vision Studio will be documented in this file.
 ### Added
 - Initial dockview layout foundation
 - Three-panel layout architecture
-
