@@ -377,6 +377,27 @@ describe('appStore', () => {
       expect(useAppStore.getState().activeJobs).toHaveLength(0);
       expect(useAppStore.getState().completedJobs).toHaveLength(0);
     });
+
+    it('does not mirror timeline-native jobs into the iteration tree', () => {
+      useAppStore.getState().addJob({
+        ...makeJob('timeline-job-1', 'processing'),
+        type: 'video',
+        params: {
+          source: 'timeline',
+          prompt: 'timeline variant',
+        },
+      });
+
+      useAppStore.getState().updateJob('timeline-job-1', {
+        status: 'completed',
+        result: {
+          video: '/outputs/timeline-job-1/shot.mp4',
+        },
+      });
+
+      expect(useAppStore.getState().completedJobs).toHaveLength(1);
+      expect(useAppStore.getState().iterationNodes.size).toBe(0);
+    });
   });
 
   // ── Prompt history ────────────────────────────────────────────────────

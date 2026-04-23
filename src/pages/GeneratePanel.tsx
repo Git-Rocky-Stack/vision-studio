@@ -18,6 +18,7 @@ import {
   clearResolvedGenerationError,
   SVD_REFERENCE_ERROR,
 } from '@/features/generate/validation';
+import { runTimelineClipGeneration } from '@/features/timeline/runTimelineClipGeneration';
 import type { ControlNetConfig, LoRAConfig } from '@/types/generation';
 import type { GenerateCollapsibleSectionId } from '@/store/layoutPreferences';
 import type { MediaAsset, ReferenceSet } from '@/types/media';
@@ -239,8 +240,14 @@ export function GeneratePanel() {
     projects,
     activeProjectId,
     activeSceneId,
+    activeTimelineSequenceId,
+    activeTimelineClipId,
     referenceSets,
     mediaAssets,
+    timelineSequences,
+    timelineTracks,
+    timelineClips,
+    clipGenerationBindings,
     addToPromptHistory,
     favoritePrompts,
     toggleFavoritePrompt,
@@ -259,8 +266,14 @@ export function GeneratePanel() {
     projects: s.projects,
     activeProjectId: s.activeProjectId,
     activeSceneId: s.activeSceneId,
+    activeTimelineSequenceId: s.activeTimelineSequenceId,
+    activeTimelineClipId: s.activeTimelineClipId,
     referenceSets: s.referenceSets,
     mediaAssets: s.mediaAssets,
+    timelineSequences: s.timelineSequences,
+    timelineTracks: s.timelineTracks,
+    timelineClips: s.timelineClips,
+    clipGenerationBindings: s.clipGenerationBindings,
     addToPromptHistory: s.addToPromptHistory,
     favoritePrompts: s.favoritePrompts,
     toggleFavoritePrompt: s.toggleFavoritePrompt,
@@ -338,6 +351,49 @@ export function GeneratePanel() {
     () => activeProject?.scenes.find((scene) => scene.id === activeSceneId) ?? null,
     [activeProject, activeSceneId],
   );
+  const activeTimelineClip = useMemo(
+    () => timelineClips.find((clip) => clip.id === activeTimelineClipId) ?? null,
+    [activeTimelineClipId, timelineClips],
+  );
+  const activeTimelineTrack = useMemo(
+    () =>
+      activeTimelineClip
+        ? timelineTracks.find((track) => track.id === activeTimelineClip.trackId) ?? null
+        : null,
+    [activeTimelineClip, timelineTracks],
+  );
+  const activeTimelineSequence = useMemo(
+    () =>
+      activeTimelineTrack
+        ? timelineSequences.find((sequence) => sequence.id === activeTimelineTrack.sequenceId) ?? null
+        : activeTimelineSequenceId
+          ? timelineSequences.find((sequence) => sequence.id === activeTimelineSequenceId) ?? null
+          : null,
+    [activeTimelineSequenceId, activeTimelineTrack, timelineSequences],
+  );
+  const activeTimelineBinding = useMemo(
+    () =>
+      activeTimelineClip?.generationBindingId
+        ? clipGenerationBindings.find((binding) => binding.id === activeTimelineClip.generationBindingId) ?? null
+        : null,
+    [activeTimelineClip, clipGenerationBindings],
+  );
+  const activeTimelineMediaAsset = useMemo(
+    () =>
+      activeTimelineClip
+        ? mediaAssets.find((asset) => asset.id === activeTimelineClip.mediaAssetId) ?? null
+        : null,
+    [activeTimelineClip, mediaAssets],
+  );
+  const activeTimelineBindingSourceMedia = useMemo(() => {
+    const sourceMediaAssetId = activeTimelineBinding?.settings.sourceMediaAssetId;
+    if (typeof sourceMediaAssetId !== 'string') {
+      return null;
+    }
+
+    return mediaAssets.find((asset) => asset.id === sourceMediaAssetId) ?? null;
+  }, [activeTimelineBinding, mediaAssets]);
+  const isTimelineTargetActive = Boolean(activeTimelineSequence);
   const adhocReferenceSet = useMemo(
     () => findScopedReferenceSet(referenceSets, 'adhoc', activeProjectId, activeSceneId, null),
     [activeProjectId, activeSceneId, referenceSets],
@@ -376,6 +432,18 @@ export function GeneratePanel() {
       sceneReferenceSet,
     ],
   );
+  const selectedTimelineSourceImage = activeTimelineMediaAsset?.type === 'image'
+    ? activeTimelineMediaAsset.path
+    : activeTimelineBindingSourceMedia?.type === 'image'
+      ? activeTimelineBindingSourceMedia.path
+      : null;
+  const selectedTimelineSourceLabel = activeTimelineMediaAsset?.type === 'image'
+    ? activeTimelineMediaAsset.name
+    : activeTimelineBindingSourceMedia?.type === 'image'
+      ? activeTimelineBindingSourceMedia.name
+      : null;
+  const motionReferenceImage = selectedTimelineSourceImage ?? primaryReferenceImage;
+  const motionReferenceLabel = selectedTimelineSourceLabel ?? primaryReferenceLabel;
 
   useEffect(() => {
     if (currentProject?.template) {
@@ -424,12 +492,12 @@ export function GeneratePanel() {
     const nextErrorMessage = clearResolvedGenerationError(genStatus.errorMessage, {
       generationType: imageConfig.generationType,
       videoModel: imageConfig.videoModel,
-      referenceImage: primaryReferenceImage,
+      referenceImage: motionReferenceImage,
     });
     if (nextErrorMessage !== genStatus.errorMessage) {
       updateGenStatus({ errorMessage: nextErrorMessage, status: 'idle' });
     }
-  }, [genStatus.errorMessage, genStatus.status, imageConfig.generationType, imageConfig.videoModel, primaryReferenceImage]);
+  }, [genStatus.errorMessage, genStatus.status, imageConfig.generationType, imageConfig.videoModel, motionReferenceImage]);
 
   const handleGenerate = async () => {
     if (!imageConfig.prompt.trim()) return;
@@ -463,6 +531,42 @@ export function GeneratePanel() {
     });
 
     try {
+      if (isTimelineTargetActive && activeTimelineSequence) {
+        const result = await runTimelineClipGeneration({
+          operation: 'generate',
+          clipId: activeTimelineClip?.id ?? undefined,
+          sequenceId: activeTimelineSequence.id,
+          input: {
+            prompt: imageConfig.prompt.trim(),
+            negativePrompt: imageConfig.negativePrompt.trim(),
+            generationType: imageConfig.generationType,
+            model: currentModel,
+            width: dimensions.width,
+            height: dimensions.height,
+            steps: advancedGeneration.steps,
+            cfgScale: advancedGeneration.cfgScale,
+            scheduler: advancedGeneration.scheduler,
+            seed: advancedGeneration.seed,
+            ...(imageConfig.generationType === 'video'
+              ? {
+                  duration: advancedGeneration.duration,
+                  fps: advancedGeneration.fps,
+                }
+              : {}),
+          },
+          onStatusChange: updateGenStatus,
+        });
+
+        updateGenStatus({
+          status: result.cancelled ? 'idle' : 'success',
+          progress: result.cancelled ? genStatus.progress : 100,
+          isGenerating: false,
+          activeJobId: null,
+        });
+        isGeneratingRef.current = false;
+        return;
+      }
+
       const appSettings = await window.electron.settings.get();
       const userDataPath = await window.electron.app.getPath('userData');
       const outputRoot = resolveOutputRoot(appSettings.defaultOutputPath, userDataPath);
@@ -506,13 +610,13 @@ export function GeneratePanel() {
           throw new Error(result.error || 'Generation failed');
         }
       } else {
-        if (imageConfig.videoModel === 'svd' && !primaryReferenceImage) {
+        if (imageConfig.videoModel === 'svd' && !motionReferenceImage) {
           throw new Error(SVD_REFERENCE_ERROR);
         }
 
         const result = await window.electron.generation.generateVideo({
           prompt: imageConfig.prompt.trim(),
-          image_path: primaryReferenceImage ?? undefined,
+          image_path: motionReferenceImage ?? undefined,
           width: dimensions.width,
           height: dimensions.height,
           duration: advancedGeneration.duration,
@@ -726,28 +830,47 @@ export function GeneratePanel() {
   );
 
   const referenceSummary = totalReferenceItems > 0
-    ? `${totalReferenceItems} reference image${totalReferenceItems === 1 ? '' : 's'} across ${activeReferenceSetCount} set${activeReferenceSetCount === 1 ? '' : 's'}${primaryReferenceLabel ? `, primary ${primaryReferenceLabel}` : ''}`
-    : videoModelRequiresReference
-      ? 'Reference image required for Stable Video Diffusion'
-      : 'No reference media attached';
+    ? `${totalReferenceItems} reference image${totalReferenceItems === 1 ? '' : 's'} across ${activeReferenceSetCount} set${activeReferenceSetCount === 1 ? '' : 's'}${motionReferenceLabel ? `, primary ${motionReferenceLabel}` : ''}`
+    : selectedTimelineSourceImage
+      ? `Timeline source ready${selectedTimelineSourceLabel ? `: ${selectedTimelineSourceLabel}` : ''}`
+      : videoModelRequiresReference
+        ? 'Reference image required for Stable Video Diffusion'
+        : 'No reference media attached';
   const controlLayersSummary = `${refConfig.controlNetConfig.enabled ? 'ControlNet on' : 'ControlNet off'}, ${refConfig.loraConfigs.length} LoRA${refConfig.loraConfigs.length === 1 ? '' : 's'}`;
   const advancedSummary = imageConfig.generationType === 'image'
     ? `${advancedGeneration.steps} steps, CFG ${advancedGeneration.cfgScale}, ${advancedGeneration.scheduler}`
     : `${advancedGeneration.duration}s duration, ${advancedGeneration.fps} fps`;
+  const timelineTargetSummary = activeTimelineClip
+    ? `${activeTimelineClip.label} on ${activeTimelineTrack?.name ?? 'timeline'}${activeTimelineBinding ? ', AI-bound clip' : ', new variant target'}`
+    : activeTimelineSequence
+      ? `Append to ${activeTimelineSequence.name}`
+      : null;
   const footerWarning = !systemInfo.backendConnected
     ? 'Backend offline. Start it from Settings before generating.'
-    : videoModelRequiresReference && !primaryReferenceImage
+    : videoModelRequiresReference && !motionReferenceImage
       ? 'Stable Video Diffusion requires a reference image.'
       : null;
   const footerStatusLabel = genStatus.isGenerating
     ? `Generating ${imageConfig.generationType}`
-    : `Ready to generate ${imageConfig.generationType}`;
+    : activeTimelineClip
+      ? `Ready to generate a timeline ${imageConfig.generationType} variant`
+      : activeTimelineSequence
+        ? `Ready to generate ${imageConfig.generationType} to the timeline`
+        : `Ready to generate ${imageConfig.generationType}`;
   const footerMeta = `${currentModel} / ${dimensions.width} x ${dimensions.height}`;
   const footerSupportMeta = [
     `${isGpuAvailable ? 'GPU' : 'CPU'} mode`,
     `~${estimatedDuration}`,
     genStatus.isGenerating ? `Step ${Math.max(genStatus.step, 1)}/${advancedGeneration.steps}` : null,
   ].filter(Boolean).join(' / ');
+  const generateActionLabel = activeTimelineClip
+    ? 'Generate Clip Variant'
+    : activeTimelineSequence
+      ? 'Generate To Timeline'
+      : `Generate ${imageConfig.generationType === 'image' ? 'Image' : 'Video'}`;
+  const successMessage = activeTimelineSequence
+    ? 'Generation completed and the result is attached to the timeline.'
+    : 'Generation completed. Review the result in the gallery or assets panel.';
 
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-panel" data-testid="generate-panel">
@@ -952,13 +1075,13 @@ export function GeneratePanel() {
               </div>
             ) : (
               <div className="rounded-lg border border-border bg-elevated px-3 py-3 text-sm text-text-body">
-                {primaryReferenceImage
-                  ? `Primary motion reference ready${primaryReferenceLabel ? `: ${primaryReferenceLabel}` : ''}.`
+                {motionReferenceImage
+                  ? `Primary motion reference ready${motionReferenceLabel ? `: ${motionReferenceLabel}` : ''}.`
                   : 'Attach at least one reference image when you need shot continuity or motion steering.'}
               </div>
             )}
 
-            {videoModelRequiresReference && !primaryReferenceImage && (
+            {videoModelRequiresReference && !motionReferenceImage && (
               <div className="rounded-lg border border-status-warning-border bg-status-warning-muted px-3 py-2 text-xs text-status-warning">
                 Stable Video Diffusion requires a reference image before launch.
               </div>
@@ -1076,7 +1199,7 @@ export function GeneratePanel() {
           >
             <Check className="mt-0.5 h-4 w-4 flex-shrink-0 text-status-success" />
             <p className="text-xs text-status-success">
-              Generation completed. Review the result in the gallery or assets panel.
+              {successMessage}
             </p>
           </motion.div>
         )}
@@ -1097,6 +1220,11 @@ export function GeneratePanel() {
             </span>
           </div>
           <p className="mt-2 type-caption text-text-body">{footerSupportMeta}</p>
+          {timelineTargetSummary ? (
+            <p data-testid="generate-target-summary" className="mt-2 text-xs text-text-body">
+              Target: {timelineTargetSummary}
+            </p>
+          ) : null}
           {footerWarning && (
             <p data-testid="generate-preflight-warning" className="mt-2 text-xs text-status-warning">
               {footerWarning}
@@ -1172,7 +1300,7 @@ export function GeneratePanel() {
               )}
             >
               <Wand2 className="h-4.5 w-4.5" />
-              Generate {imageConfig.generationType === 'image' ? 'Image' : 'Video'}
+              {generateActionLabel}
             </motion.button>
           )}
         </AnimatePresence>

@@ -61,8 +61,8 @@ export function createGenerationActions(set: AppSet, _get: AppGet) {
         updatedJob.status === 'failed' ||
         updatedJob.status === 'cancelled';
 
-      // When a job completes, add it to the iteration tree
-      if (updatedJob.status === 'completed') {
+      // Timeline-native jobs stay attached to clips instead of polluting the iteration tree.
+      if (updatedJob.status === 'completed' && updatedJob.params.source !== 'timeline') {
         const thumbnail = (updatedJob.result?.images?.[0]) ?? '';
         const parentId = null; // Root iteration for now; can be wired to re-roll parent later
         state.addIteration({ job: updatedJob, parentId, thumbnail });

@@ -246,18 +246,18 @@ function buildWorkflowExecutionContext(state: AppState) {
   };
 }
 
-function resolveOutputRoot(defaultOutputPath: string, userDataPath: string) {
+export function resolveOutputRoot(defaultOutputPath: string, userDataPath: string) {
   return (defaultOutputPath || `${userDataPath.replace(/\\/g, '/')}/outputs`).replace(/\\/g, '/');
 }
 
-function getOutputAssetId(status: JobStatus) {
+export function getOutputAssetId(status: JobStatus) {
   const outputPath =
     status.type === 'video' ? status.result?.video : status.result?.images?.[0];
 
   return outputPath ? `${status.job_id}::${outputPath}` : null;
 }
 
-function buildCompletionSummary(status: JobStatus) {
+export function buildCompletionSummary(status: JobStatus) {
   const imageCount = status.result?.images?.length ?? 0;
   if (imageCount > 0) {
     return `Generated ${imageCount} image${imageCount === 1 ? '' : 's'}`;
@@ -270,7 +270,7 @@ function buildCompletionSummary(status: JobStatus) {
   return 'Workflow completed successfully.';
 }
 
-function delay(ms: number) {
+export function delay(ms: number) {
   return new Promise((resolve) => {
     setTimeout(resolve, ms);
   });

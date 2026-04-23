@@ -373,6 +373,21 @@ function updateSequenceDurations(sequences: TimelineSequence[], tracks: Timeline
   }));
 }
 
+function pruneBindingVariantIds(
+  bindings: ClipGenerationBinding[],
+  removedClipIds: Set<string>,
+  removedBindingIds?: Set<string>,
+) {
+  return bindings
+    .filter((binding) => !(removedBindingIds?.has(binding.id) ?? false))
+    .map((binding) => ({
+      ...binding,
+      variantIds: Array.from(
+        new Set(binding.variantIds.filter((variantId) => !removedClipIds.has(variantId))),
+      ),
+    }));
+}
+
 function computeSequenceDuration(
   sequenceId: string,
   tracks: TimelineTrack[],
@@ -706,8 +721,10 @@ export function createMediaTimelineActions(set: AppSet, get: AppGet) {
             .map((clip) => clip.generationBindingId)
             .filter((bindingId): bindingId is string => Boolean(bindingId)),
         );
-        const nextBindings = state.clipGenerationBindings.filter(
-          (binding) => !removedBindingIds.has(binding.id),
+        const nextBindings = pruneBindingVariantIds(
+          state.clipGenerationBindings,
+          removedClipIds,
+          removedBindingIds,
         );
 
         return {
@@ -1254,9 +1271,11 @@ export function createMediaTimelineActions(set: AppSet, get: AppGet) {
             : track,
         ), state.timelineClips.filter((item) => item.id !== clipId));
         const nextClips = state.timelineClips.filter((item) => item.id !== clipId);
-        const nextBindings = clip.generationBindingId
-          ? state.clipGenerationBindings.filter((binding) => binding.id !== clip.generationBindingId)
-          : state.clipGenerationBindings;
+        const nextBindings = pruneBindingVariantIds(
+          state.clipGenerationBindings,
+          new Set([clipId]),
+          clip.generationBindingId ? new Set([clip.generationBindingId]) : undefined,
+        );
         const nextProjects =
           clip.sceneId === null
             ? state.projects
@@ -1324,21 +1343,25 @@ export function createMediaTimelineActions(set: AppSet, get: AppGet) {
 
     upsertClipGenerationBinding: (binding: ClipGenerationBinding) =>
       set((state) => {
+        const normalizedBinding = {
+          ...binding,
+          variantIds: Array.from(new Set(binding.variantIds.filter((variantId) => variantId !== binding.clipId))),
+        };
         const existingIndex = state.clipGenerationBindings.findIndex(
-          (item) => item.id === binding.id,
+          (item) => item.id === normalizedBinding.id,
         );
         const nextBindings =
           existingIndex === -1
-            ? [...state.clipGenerationBindings, binding]
+            ? [...state.clipGenerationBindings, normalizedBinding]
             : state.clipGenerationBindings.map((item) =>
-                item.id === binding.id ? binding : item,
+                item.id === normalizedBinding.id ? normalizedBinding : item,
               );
 
         return {
           clipGenerationBindings: nextBindings,
           timelineClips: state.timelineClips.map((clip) =>
-            clip.id === binding.clipId
-              ? { ...clip, generationBindingId: binding.id, updatedAt: new Date().toISOString() }
+            clip.id === normalizedBinding.clipId
+              ? { ...clip, generationBindingId: normalizedBinding.id, updatedAt: new Date().toISOString() }
               : clip,
           ),
         };

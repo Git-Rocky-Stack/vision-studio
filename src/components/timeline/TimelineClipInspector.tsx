@@ -1,15 +1,19 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import {
+  Clapperboard,
   Copy,
   MoveHorizontal,
+  RefreshCcw,
   Scissors,
+  Sparkles,
   Trash2,
 } from 'lucide-react';
 
 import { useAppStore } from '@/store/appStore';
 import { cn } from '@/utils/cn';
 import type { TimelineTransitionType } from '@/types/timeline';
+import { runTimelineClipGeneration } from '@/features/timeline/runTimelineClipGeneration';
 
 const TRANSITION_OPTIONS: Array<{ value: TimelineTransitionType; label: string }> = [
   { value: 'cut', label: 'Cut' },
@@ -45,6 +49,7 @@ export function TimelineClipInspector({ className }: TimelineClipInspectorProps)
     timelineTracks,
     timelineSequences,
     mediaAssets,
+    clipGenerationBindings,
     currentTime,
     moveTimelineClip,
     trimTimelineClip,
@@ -61,6 +66,7 @@ export function TimelineClipInspector({ className }: TimelineClipInspectorProps)
       timelineTracks: state.timelineTracks,
       timelineSequences: state.timelineSequences,
       mediaAssets: state.mediaAssets,
+      clipGenerationBindings: state.clipGenerationBindings,
       currentTime: state.currentTime,
       moveTimelineClip: state.moveTimelineClip,
       trimTimelineClip: state.trimTimelineClip,
@@ -86,6 +92,9 @@ export function TimelineClipInspector({ className }: TimelineClipInspectorProps)
   const mediaAsset = clip
     ? mediaAssets.find((item) => item.id === clip.mediaAssetId) ?? null
     : null;
+  const generationBinding = clip?.generationBindingId
+    ? clipGenerationBindings.find((item) => item.id === clip.generationBindingId) ?? null
+    : null;
   const sequenceTracks = useMemo(
     () =>
       sequence
@@ -95,6 +104,7 @@ export function TimelineClipInspector({ className }: TimelineClipInspectorProps)
         : [],
     [sequence, timelineTracks],
   );
+  const [aiActionError, setAiActionError] = useState<string | null>(null);
 
   if (!clip || !track || !sequence) {
     return (
@@ -114,6 +124,34 @@ export function TimelineClipInspector({ className }: TimelineClipInspectorProps)
   }
 
   const frameStepMs = Math.max(1, Math.round(1000 / Math.max(1, sequence.fps)));
+  const isAiBusy =
+    generationBinding?.lastRunSummary?.status === 'queued' ||
+    generationBinding?.lastRunSummary?.status === 'running';
+  const lastRunLabel =
+    generationBinding?.lastRunSummary?.status === 'complete'
+      ? 'Last run complete'
+      : generationBinding?.lastRunSummary?.status === 'failed'
+        ? 'Last run failed'
+        : generationBinding?.lastRunSummary?.status === 'running'
+          ? 'Generation running'
+          : generationBinding?.lastRunSummary?.status === 'queued'
+            ? 'Queued for generation'
+            : 'No AI binding yet';
+  const canExtendShot = generationBinding?.generationType === 'video';
+
+  const handleAiAction = async (operation: 'regenerate' | 'variant' | 'extend') => {
+    setAiActionError(null);
+
+    try {
+      await runTimelineClipGeneration({
+        operation,
+        clipId: clip.id,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Timeline AI action failed.';
+      setAiActionError(message);
+    }
+  };
 
   return (
     <aside
@@ -361,6 +399,78 @@ export function TimelineClipInspector({ className }: TimelineClipInspectorProps)
               />
             </div>
           </div>
+        </div>
+
+        <div className="mt-4 rounded-xl border border-border bg-canvas p-3" data-testid="timeline-ai-actions">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-xs text-text-muted">AI Clip Actions</p>
+              <p className="mt-1 text-sm text-text-primary">{lastRunLabel}</p>
+            </div>
+            {generationBinding ? (
+              <span className="rounded-full border border-border bg-surface px-2 py-1 text-[11px] uppercase tracking-[0.12em] text-text-muted">
+                {generationBinding.generationType}
+              </span>
+            ) : null}
+          </div>
+
+          {generationBinding ? (
+            <>
+              <div className="mt-3 rounded-lg border border-border bg-surface px-3 py-3">
+                <p className="text-[11px] uppercase tracking-[0.12em] text-text-muted">Binding</p>
+                <p className="mt-2 text-sm text-text-primary">{generationBinding.model}</p>
+                <p className="mt-1 text-xs text-text-muted">
+                  {generationBinding.prompt.slice(0, 120) || 'No prompt recorded.'}
+                </p>
+                <p className="mt-2 text-[11px] text-text-muted">
+                  {generationBinding.referenceSetIds.length} reference set
+                  {generationBinding.referenceSetIds.length === 1 ? '' : 's'} / {generationBinding.variantIds.length}{' '}
+                  variant{generationBinding.variantIds.length === 1 ? '' : 's'}
+                </p>
+              </div>
+
+              <div className="mt-3 grid grid-cols-1 gap-2">
+                <button
+                  type="button"
+                  data-testid="timeline-ai-regenerate"
+                  disabled={isAiBusy}
+                  className="inline-flex items-center justify-center gap-2 rounded-lg border border-border bg-surface px-3 py-2 text-xs text-text-primary transition hover:bg-elevated disabled:cursor-not-allowed disabled:opacity-50"
+                  onClick={() => void handleAiAction('regenerate')}
+                >
+                  <RefreshCcw className="h-3.5 w-3.5" />
+                  Regenerate In Place
+                </button>
+                <button
+                  type="button"
+                  data-testid="timeline-ai-variant"
+                  disabled={isAiBusy}
+                  className="inline-flex items-center justify-center gap-2 rounded-lg border border-border bg-surface px-3 py-2 text-xs text-text-primary transition hover:bg-elevated disabled:cursor-not-allowed disabled:opacity-50"
+                  onClick={() => void handleAiAction('variant')}
+                >
+                  <Sparkles className="h-3.5 w-3.5" />
+                  Create Variant
+                </button>
+                <button
+                  type="button"
+                  data-testid="timeline-ai-extend"
+                  disabled={!canExtendShot || isAiBusy}
+                  className="inline-flex items-center justify-center gap-2 rounded-lg border border-border bg-surface px-3 py-2 text-xs text-text-primary transition hover:bg-elevated disabled:cursor-not-allowed disabled:opacity-50"
+                  onClick={() => void handleAiAction('extend')}
+                >
+                  <Clapperboard className="h-3.5 w-3.5" />
+                  Extend Shot
+                </button>
+              </div>
+
+              {aiActionError ? (
+                <p className="mt-3 text-xs text-status-error">{aiActionError}</p>
+              ) : null}
+            </>
+          ) : (
+            <p className="mt-3 text-xs text-text-muted">
+              Generate from the main panel to create an AI-bound clip, then use regenerate, variant, and extend actions here.
+            </p>
+          )}
         </div>
 
         <div className="mt-4 grid grid-cols-2 gap-2">

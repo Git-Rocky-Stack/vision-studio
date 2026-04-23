@@ -90,8 +90,13 @@ vi.mock('@/utils/animation', () => ({
   }),
 }));
 
+vi.mock('@/features/timeline/runTimelineClipGeneration', () => ({
+  runTimelineClipGeneration: vi.fn(),
+}));
+
 import { useAppStore } from '@/store/appStore';
 import { computeDimensions } from '@/types/resolution';
+import { runTimelineClipGeneration } from '@/features/timeline/runTimelineClipGeneration';
 
 import { GeneratePanel } from './GeneratePanel';
 
@@ -156,8 +161,45 @@ function seedDurableReferenceImage() {
   }));
 }
 
+function seedTimelineTargetClip() {
+  const state = useAppStore.getState();
+  const project = state.createProject('Timeline Board');
+  const sequence = state.ensureTimelineSequenceForProject(project.id)!;
+  const track = useAppStore.getState().timelineTracks.find((item) => item.sequenceId === sequence.id)!;
+
+  state.upsertMediaAsset({
+    id: 'timeline-source-image',
+    legacyAssetId: null,
+    jobId: null,
+    name: 'Storyboard Frame',
+    type: 'image',
+    source: 'generated',
+    path: 'C:/vision-studio-output/frames/shot.png',
+    previewUrl: 'file:///C:/vision-studio-output/frames/shot.png',
+    thumbnailUrl: 'file:///C:/vision-studio-output/frames/shot.png',
+    posterUrl: null,
+    width: 1024,
+    height: 576,
+    metadata: {},
+    createdAt: '2026-04-22T00:00:00.000Z',
+  });
+
+  const clip = state.createTimelineClip({
+    trackId: track.id,
+    mediaAssetId: 'timeline-source-image',
+    startMs: 0,
+    durationMs: 2000,
+    label: 'Opening Shot',
+  });
+
+  state.setActiveTimelineClip(clip?.id ?? null);
+}
+
 describe('GeneratePanel', () => {
-  beforeEach(resetStore);
+  beforeEach(() => {
+    resetStore();
+    vi.mocked(runTimelineClipGeneration).mockReset();
+  });
 
   afterEach(cleanup);
 
@@ -237,5 +279,49 @@ describe('GeneratePanel', () => {
     expect(screen.getByTestId('generate-preflight-summary')).toHaveTextContent('svd');
     expect(screen.queryByTestId('generate-preflight-warning')).not.toBeInTheDocument();
     expect(screen.getByText(/Primary motion reference ready: Hero reference\./)).toBeInTheDocument();
+  });
+
+  it('uses the selected timeline image clip as the motion source for SVD', () => {
+    seedTimelineTargetClip();
+    render(<GeneratePanel />);
+
+    fireEvent.click(screen.getByRole('button', { name: /^Video$/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Use SVD' }));
+
+    expect(screen.getByTestId('generate-target-summary')).toHaveTextContent('Opening Shot');
+    expect(screen.queryByTestId('generate-preflight-warning')).not.toBeInTheDocument();
+    expect(screen.getByText(/Primary motion reference ready: Storyboard Frame\./)).toBeInTheDocument();
+  });
+
+  it('routes generation through the timeline runner when a timeline target is selected', async () => {
+    seedTimelineTargetClip();
+    vi.mocked(runTimelineClipGeneration).mockResolvedValue({
+      cancelled: false,
+      clipId: 'clip-variant-1',
+      outputAssetId: 'job-1::/outputs/variant.png',
+      bindingId: 'binding-1',
+    });
+
+    render(<GeneratePanel />);
+
+    fireEvent.change(screen.getByTestId('mock-prompt-input'), {
+      target: { value: 'hero frame variant' },
+    });
+    expect(screen.getByTestId('generate-button')).toHaveTextContent('Generate Clip Variant');
+    fireEvent.click(screen.getByTestId('generate-button'));
+
+    await waitFor(() => {
+      expect(runTimelineClipGeneration).toHaveBeenCalledWith(
+        expect.objectContaining({
+          operation: 'generate',
+          clipId: expect.any(String),
+          sequenceId: expect.any(String),
+          input: expect.objectContaining({
+            prompt: 'hero frame variant',
+            generationType: 'image',
+          }),
+        }),
+      );
+    });
   });
 });
