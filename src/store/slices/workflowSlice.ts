@@ -183,11 +183,12 @@ export function createWorkflowActions(set: AppSet, get: AppGet) {
             createdAt: run.createdAt ?? new Date().toISOString(),
             ...(run.outputAssetId ? { outputAssetId: run.outputAssetId } : {}),
           };
+          const existingRuns = workflow.runHistory.filter((entry) => entry.id !== storedRun.id);
 
           return {
             ...workflow,
             runOutputSummary: storedRun.summary,
-            runHistory: [storedRun, ...workflow.runHistory].slice(0, 10),
+            runHistory: [storedRun, ...existingRuns].slice(0, 10),
           };
         }),
       })),
