@@ -1,14 +1,15 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useAppStore } from '@/store/appStore';
 import { SceneCard } from '@/components/storyboard/SceneCard';
 import { CharacterLibrary } from '@/components/storyboard/CharacterLibrary';
 import { CharacterAssignmentChip } from '@/components/storyboard/CharacterAssignmentChip';
 import { TransitionIndicator } from '@/components/storyboard/TransitionIndicator';
+import { ScriptImportDialog } from '@/components/storyboard/ScriptImportDialog';
+import { ImportDraftReview } from '@/components/storyboard/ImportDraftReview';
 import { ReferenceMediaPanel } from '@/components/reference/ReferenceMediaPanel';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { Button } from '@/components/ui/Button';
-import { cn } from '@/utils/cn';
 import {
   DndContext,
   closestCenter,
@@ -23,8 +24,8 @@ import {
   sortableKeyboardCoordinates,
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
-import { Film, Plus, Copy, Trash2 } from 'lucide-react';
-import type { Scene } from '@/types/project';
+import { Film, FileText, Plus, Trash2 } from 'lucide-react';
+import type { ImportDraft, Scene } from '@/types/project';
 
 export function StoryboardPanel() {
   const {
@@ -39,6 +40,12 @@ export function StoryboardPanel() {
     createProject,
     setActiveProject,
     removeCharacterFromScene,
+    storyboardImportDrafts,
+    activeStoryboardImportDraftId,
+    createStoryboardImportDraftFromText,
+    upsertStoryboardImportDraft,
+    deleteStoryboardImportDraft,
+    setActiveStoryboardImportDraft,
   } = useAppStore(useShallow(s => ({
     projects: s.projects,
     activeProjectId: s.activeProjectId,
@@ -51,18 +58,36 @@ export function StoryboardPanel() {
     createProject: s.createProject,
     setActiveProject: s.setActiveProject,
     removeCharacterFromScene: s.removeCharacterFromScene,
+    storyboardImportDrafts: s.storyboardImportDrafts,
+    activeStoryboardImportDraftId: s.activeStoryboardImportDraftId,
+    createStoryboardImportDraftFromText: s.createStoryboardImportDraftFromText,
+    upsertStoryboardImportDraft: s.upsertStoryboardImportDraft,
+    deleteStoryboardImportDraft: s.deleteStoryboardImportDraft,
+    setActiveStoryboardImportDraft: s.setActiveStoryboardImportDraft,
   })));
 
   const [deleteTarget, setDeleteTarget] = useState<Scene | null>(null);
-  const [contextMenuScene, setContextMenuScene] = useState<Scene | null>(null);
+  const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
+  const [isImportReviewOpen, setIsImportReviewOpen] = useState(false);
 
   const activeProject = projects.find((p) => p.id === activeProjectId) ?? null;
   const activeScene = activeProject?.scenes.find((scene) => scene.id === activeSceneId) ?? null;
+  const activeImportDraft = useMemo(
+    () =>
+      storyboardImportDrafts.find((draft) => draft.id === activeStoryboardImportDraftId) ?? null,
+    [activeStoryboardImportDraftId, storyboardImportDrafts],
+  );
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
+
+  useEffect(() => {
+    if (activeImportDraft) {
+      setIsImportReviewOpen(true);
+    }
+  }, [activeImportDraft?.id]);
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
@@ -103,7 +128,6 @@ export function StoryboardPanel() {
     if (!activeProject) return;
     const duplicated = duplicateScene(activeProject.id, scene.id);
     setActiveScene(duplicated.id);
-    setContextMenuScene(null);
   };
 
   const handleDeleteScene = () => {
@@ -132,6 +156,53 @@ export function StoryboardPanel() {
     useAppStore.getState().updateScene(activeProject.id, fromSceneId, {
       transitions: { ...scene.transitions, type: nextType },
     });
+  };
+
+  const persistImportDraft = (draft: ImportDraft, status: ImportDraft['status']) => {
+    upsertStoryboardImportDraft({
+      ...draft,
+      status,
+      updatedAt: new Date().toISOString(),
+    });
+  };
+
+  const handleGenerateImportDraft = async ({
+    title,
+    sourceText,
+  }: {
+    title?: string;
+    sourceText: string;
+  }) => {
+    if (!activeProject) {
+      return;
+    }
+
+    const draft = createStoryboardImportDraftFromText(activeProject.id, sourceText, { title });
+    if (!draft) {
+      return;
+    }
+
+    setActiveStoryboardImportDraft(draft.id);
+    setIsImportDialogOpen(false);
+    setIsImportReviewOpen(true);
+  };
+
+  const handleImportDraftChange = (draft: ImportDraft) => {
+    persistImportDraft(draft, draft.status === 'approved' ? 'reviewing' : draft.status);
+  };
+
+  const handleApproveImportDraft = (draft: ImportDraft) => {
+    persistImportDraft(draft, 'approved');
+    setIsImportReviewOpen(false);
+  };
+
+  const handleDiscardImportDraft = () => {
+    if (!activeImportDraft) {
+      return;
+    }
+
+    deleteStoryboardImportDraft(activeImportDraft.id);
+    setIsImportReviewOpen(false);
   };
 
   if (!activeProject) {
@@ -171,11 +242,65 @@ export function StoryboardPanel() {
             {sortedScenes.length} scene{sortedScenes.length !== 1 ? 's' : ''}
           </span>
         </div>
-        <Button variant="primary" size="sm" onClick={handleAddScene}>
-          <Plus className="w-4 h-4" aria-hidden="true" />
-          Add Scene
-        </Button>
+        <div className="flex items-center gap-2">
+          {activeImportDraft ? (
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => setIsImportReviewOpen(true)}
+            >
+              <FileText className="w-4 h-4" aria-hidden="true" />
+              {activeImportDraft.status === 'approved' ? 'Review Draft' : 'Resume Review'}
+            </Button>
+          ) : null}
+          <Button variant="secondary" size="sm" onClick={() => setIsImportDialogOpen(true)}>
+            <FileText className="w-4 h-4" aria-hidden="true" />
+            Import Script
+          </Button>
+          <Button variant="primary" size="sm" onClick={handleAddScene}>
+            <Plus className="w-4 h-4" aria-hidden="true" />
+            Add Scene
+          </Button>
+        </div>
       </div>
+
+      {activeImportDraft && !isImportReviewOpen ? (
+        <div className="border-b border-border bg-panel/50 px-4 py-3">
+          <div className="flex flex-col gap-3 rounded-2xl border border-border bg-surface/70 px-4 py-4 md:flex-row md:items-center md:justify-between">
+            <div>
+              <p className="type-caption text-text-muted">
+                {activeImportDraft.status === 'approved' ? 'Draft Ready' : 'Draft In Review'}
+              </p>
+              <h3 className="mt-1 type-section text-text-primary">{activeImportDraft.title}</h3>
+              <p className="mt-1 text-sm text-text-body">
+                {activeImportDraft.sceneDrafts.filter((scene) => scene.accepted).length} accepted scenes and{' '}
+                {activeImportDraft.elementDrafts.filter((candidate) => candidate.accepted).length} accepted elements are staged for review.
+              </p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <Button variant="secondary" size="sm" onClick={() => setIsImportReviewOpen(true)}>
+                Review Draft
+              </Button>
+              <Button variant="danger" size="sm" onClick={handleDiscardImportDraft}>
+                <Trash2 className="w-4 h-4" aria-hidden="true" />
+                Discard Draft
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {activeImportDraft && isImportReviewOpen ? (
+        <ImportDraftReview
+          draft={activeImportDraft}
+          existingElements={activeProject.elements ?? []}
+          onChange={handleImportDraftChange}
+          onApprove={handleApproveImportDraft}
+          onClose={() => setIsImportReviewOpen(false)}
+          onDiscard={handleDiscardImportDraft}
+        />
+      ) : null}
 
       {/* Scene list */}
       {sortedScenes.length === 0 ? (
@@ -302,6 +427,13 @@ export function StoryboardPanel() {
         confirmLabel="Delete"
         confirmVariant="destructive"
         icon={<Trash2 className="w-5 h-5" aria-hidden="true" />}
+      />
+
+      <ScriptImportDialog
+        open={isImportDialogOpen}
+        projectName={activeProject.name}
+        onClose={() => setIsImportDialogOpen(false)}
+        onGenerate={handleGenerateImportDraft}
       />
     </div>
   );
