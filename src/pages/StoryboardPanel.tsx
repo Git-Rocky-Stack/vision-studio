@@ -3,6 +3,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { useAppStore } from '@/store/appStore';
 import { SceneCard } from '@/components/storyboard/SceneCard';
 import { CharacterLibrary } from '@/components/storyboard/CharacterLibrary';
+import { ElementLibrary } from '@/components/storyboard/ElementLibrary';
 import { CharacterAssignmentChip } from '@/components/storyboard/CharacterAssignmentChip';
 import { TransitionIndicator } from '@/components/storyboard/TransitionIndicator';
 import { ScriptImportDialog } from '@/components/storyboard/ScriptImportDialog';
@@ -25,7 +26,7 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { Film, FileText, Plus, Trash2 } from 'lucide-react';
-import type { ImportDraft, Scene } from '@/types/project';
+import type { ElementType, ImportDraft, Scene } from '@/types/project';
 
 export function StoryboardPanel() {
   const {
@@ -79,6 +80,60 @@ export function StoryboardPanel() {
       storyboardImportDrafts.find((draft) => draft.id === activeStoryboardImportDraftId) ?? null,
     [activeStoryboardImportDraftId, storyboardImportDrafts],
   );
+  const sceneElementChips = useMemo(() => {
+    if (!activeProject) {
+      return new Map<
+        string,
+        Array<{
+          id: string;
+          name: string;
+          type: ElementType;
+          color: string;
+          sceneCount: number;
+        }>
+      >();
+    }
+
+    const elements = activeProject.elements ?? [];
+    const sceneCountByElementId = new Map(
+      elements.map((element) => [
+        element.id,
+        activeProject.scenes.filter((scene) => scene.elementIds?.includes(element.id)).length,
+      ]),
+    );
+
+    return new Map(
+      activeProject.scenes.map((scene) => [
+        scene.id,
+        (scene.elementIds ?? [])
+          .map((elementId) => {
+            const element = elements.find((item) => item.id === elementId);
+            if (!element) {
+              return null;
+            }
+
+            return {
+              id: element.id,
+              name: element.name,
+              type: element.type,
+              color: element.color,
+              sceneCount: sceneCountByElementId.get(element.id) ?? 0,
+            };
+          })
+          .filter(
+            (
+              element,
+            ): element is {
+              id: string;
+              name: string;
+              type: ElementType;
+              color: string;
+              sceneCount: number;
+            } => Boolean(element),
+          ),
+      ]),
+    );
+  }, [activeProject]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
@@ -354,6 +409,7 @@ export function StoryboardPanel() {
                     <div key={scene.id}>
                       <SceneCard
                         scene={scene}
+                        linkedElements={sceneElementChips.get(scene.id) ?? []}
                         isSelected={scene.id === activeSceneId}
                         onClick={() => setActiveScene(scene.id === activeSceneId ? null : scene.id)}
                         onDelete={() => setDeleteTarget(scene)}
@@ -426,6 +482,8 @@ export function StoryboardPanel() {
           )}
         </div>
       </div>
+
+      <ElementLibrary projectId={activeProject.id} />
 
       {/* Character Library */}
       <CharacterLibrary projectId={activeProject.id} />

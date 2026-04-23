@@ -15,10 +15,19 @@ import {
 import { motion } from 'framer-motion';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import type { Scene, SceneStatus } from '@/types/project';
+import type { ElementType, Scene, SceneStatus } from '@/types/project';
+
+interface SceneElementChip {
+  id: string;
+  name: string;
+  type: ElementType;
+  color: string;
+  sceneCount: number;
+}
 
 interface SceneCardProps {
   scene: Scene;
+  linkedElements?: SceneElementChip[];
   isSelected: boolean;
   onClick: () => void;
   onDelete?: () => void;
@@ -71,8 +80,23 @@ function formatDuration(ms: number): string {
   return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
 }
 
+function elementTypeClass(type: ElementType) {
+  switch (type) {
+    case 'character':
+      return 'border-status-success/30 bg-status-success-muted/40 text-status-success';
+    case 'location':
+      return 'border-accent-primary/30 bg-accent-primary-muted/30 text-accent-primary';
+    case 'style':
+      return 'border-status-warning-border bg-status-warning-muted text-status-warning';
+    case 'object':
+    default:
+      return 'border-border bg-surface text-text-body';
+  }
+}
+
 export const SceneCard = memo(function SceneCard({
   scene,
+  linkedElements = [],
   isSelected,
   onClick,
   onDelete,
@@ -102,6 +126,9 @@ export const SceneCard = memo(function SceneCard({
   const sceneNumber = String(scene.orderIndex + 1).padStart(2, '0');
   const status = STATUS_CONFIG[scene.status];
   const StatusIcon = status.icon;
+  const visibleElements = linkedElements.slice(0, 3);
+  const hiddenElementCount = Math.max(0, linkedElements.length - visibleElements.length);
+  const shotBeatCount = scene.shotBeats?.length ?? 0;
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' || e.key === ' ') {
@@ -185,23 +212,61 @@ export const SceneCard = memo(function SceneCard({
             </h3>
           </div>
 
+          {visibleElements.length > 0 ? (
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {visibleElements.map((element) => (
+                <span
+                  key={element.id}
+                  className={cn(
+                    'inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 type-caption',
+                    elementTypeClass(element.type),
+                  )}
+                >
+                  <span
+                    className="h-2 w-2 rounded-full"
+                    style={{ backgroundColor: element.color }}
+                    aria-hidden="true"
+                  />
+                  <span className="truncate">{element.name}</span>
+                  {element.sceneCount > 1 ? (
+                    <span className="rounded-full border border-current/20 px-1.5 py-0.5 text-text-body">
+                      {element.sceneCount} scenes
+                    </span>
+                  ) : null}
+                </span>
+              ))}
+              {hiddenElementCount > 0 ? (
+                <span className="inline-flex items-center rounded-full border border-border bg-surface px-2 py-0.5 type-caption text-text-body">
+                  +{hiddenElementCount} more
+                </span>
+              ) : null}
+            </div>
+          ) : null}
+
           <div className="flex items-center justify-between gap-2 mt-1">
             {/* Status badge */}
-            <span
-              className={cn(
-                'inline-flex items-center gap-1 px-2 py-0.5 rounded-full type-ui',
-                status.className
-              )}
-            >
-              <StatusIcon
+            <div className="flex items-center gap-2">
+              <span
                 className={cn(
-                  'w-3 h-3',
-                  scene.status === 'generating' && 'animate-spin'
+                  'inline-flex items-center gap-1 px-2 py-0.5 rounded-full type-ui',
+                  status.className
                 )}
-                aria-hidden="true"
-              />
-              {status.label}
-            </span>
+              >
+                <StatusIcon
+                  className={cn(
+                    'w-3 h-3',
+                    scene.status === 'generating' && 'animate-spin'
+                  )}
+                  aria-hidden="true"
+                />
+                {status.label}
+              </span>
+              {shotBeatCount > 0 ? (
+                <span className="type-caption text-text-body">
+                  {shotBeatCount} beat{shotBeatCount !== 1 ? 's' : ''}
+                </span>
+              ) : null}
+            </div>
 
             {/* Duration */}
             <span className="type-caption">

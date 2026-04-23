@@ -4,7 +4,6 @@ import { useShallow } from 'zustand/react/shallow';
 import { CharacterRefCard } from '@/components/storyboard/CharacterRefCard';
 import { Button } from '@/components/ui/Button';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
-import { cn } from '@/utils/cn';
 import { Users, Plus, Trash2 } from 'lucide-react';
 import type { CharacterRef, LockedFeature } from '@/types/project';
 
@@ -24,6 +23,8 @@ export function CharacterLibrary({ projectId }: CharacterLibraryProps) {
   if (!project) return null;
 
   const characters = project.characters;
+  const importedCharacterElementCount =
+    project.elements?.filter((element) => element.type === 'character').length ?? 0;
 
   // Count how many scenes reference each character
   const getSceneCount = useCallback(
@@ -73,6 +74,15 @@ export function CharacterLibrary({ projectId }: CharacterLibraryProps) {
           <Plus className="w-3.5 h-3.5" aria-hidden="true" />
         </Button>
       </div>
+
+      {importedCharacterElementCount > 0 ? (
+        <div className="px-4 pb-2">
+          <p className="type-caption text-text-body">
+            Imported character Elements now live above. Manual character refs stay available here for
+            legacy consistency passes.
+          </p>
+        </div>
+      ) : null}
 
       {/* Character list */}
       <div className="px-3 pb-3 space-y-1.5 max-h-[240px] overflow-y-auto">

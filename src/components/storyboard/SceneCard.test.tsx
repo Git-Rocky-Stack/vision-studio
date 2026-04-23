@@ -110,6 +110,43 @@ describe('SceneCard', () => {
       const placeholder = screen.getByTestId('scene-card-placeholder');
       expect(placeholder).toBeInTheDocument();
     });
+
+    it('renders linked element chips and beat counts when provided', () => {
+      render(
+        <SceneCard
+          scene={{
+            ...mockScene,
+            shotBeats: [
+              {
+                id: 'beat-1',
+                summary: 'Captain Nova scans the console.',
+                promptSeed: 'Captain Nova scans the console.',
+                notes: '',
+                orderIndex: 0,
+                durationMs: null,
+                elementIds: ['element-1'],
+                metadata: {},
+              },
+            ],
+          }}
+          linkedElements={[
+            {
+              id: 'element-1',
+              name: 'Captain Nova',
+              type: 'character',
+              color: '#e63946',
+              sceneCount: 2,
+            },
+          ]}
+          isSelected={false}
+          onClick={vi.fn()}
+        />,
+      );
+
+      expect(screen.getByText('Captain Nova')).toBeInTheDocument();
+      expect(screen.getByText('2 scenes')).toBeInTheDocument();
+      expect(screen.getByText('1 beat')).toBeInTheDocument();
+    });
   });
 
   describe('status badges', () => {
