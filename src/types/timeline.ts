@@ -163,3 +163,67 @@ export interface ClipGenerationBinding {
   variantIds: string[];
   lastRunSummary: ClipGenerationRunSummary | null;
 }
+
+// ---------------------------------------------------------------------------
+// Timeline composition resolver
+// ---------------------------------------------------------------------------
+
+export type TimelineCompositionIssueCode =
+  | 'play-range-clamped'
+  | 'no-active-clip'
+  | 'multiple-active-tracks'
+  | 'missing-media-asset'
+  | 'unsupported-track-kind'
+  | 'unsupported-transition'
+  | 'transition-target-missing';
+
+export interface TimelineCompositionIssue {
+  code: TimelineCompositionIssueCode;
+  message: string;
+  clipId?: string | null;
+  trackId?: string | null;
+  transitionType?: TimelineTransitionType | null;
+}
+
+export interface TimelineResolvedPlayRange {
+  startMs: number;
+  endMs: number;
+  durationMs: number;
+}
+
+export interface TimelineCompositionLayer {
+  clipId: string;
+  mediaAssetId: string;
+  trackId: string;
+  mediaType: 'image' | 'video';
+  sourcePath: string;
+  posterUrl: string | null;
+  opacity: number;
+  heldFrame: boolean;
+  sourceTimeMs: number;
+  clipOffsetMs: number;
+}
+
+export type TimelineCompositionTransitionKind = 'cut' | 'fade' | 'dissolve' | 'unsupported';
+
+export interface TimelineCompositionTransition {
+  kind: TimelineCompositionTransitionKind;
+  edge: 'none' | 'in' | 'out';
+  progress: number;
+  durationMs: number;
+  type: TimelineTransitionType | null;
+  fromClipId: string | null;
+  toClipId: string | null;
+}
+
+export interface TimelineCompositionFrame {
+  requestedTimeMs: number;
+  resolvedTimeMs: number;
+  inPlayRange: boolean;
+  playRange: TimelineResolvedPlayRange;
+  activeTrackId: string | null;
+  primaryClipId: string | null;
+  layers: TimelineCompositionLayer[];
+  transition: TimelineCompositionTransition;
+  issues: TimelineCompositionIssue[];
+}
