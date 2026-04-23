@@ -3,6 +3,14 @@ import { createJSONStorage, persist, type StateStorage } from 'zustand/middlewar
 import type { AppState } from './appStore.types';
 import type { ProjectTemplate } from '@/types/template';
 import {
+  DEFAULT_CANVAS_CONTROL_LAYER_MASK,
+  DEFAULT_REGION_MASK,
+  type CanvasControlLayer,
+  type Project,
+  type RegionMask,
+  type Scene,
+} from '@/types/project';
+import {
   LEFT_DOCK_MAX_WIDTH,
   LEFT_DOCK_MIN_WIDTH,
   RIGHT_DOCK_MAX_WIDTH,
@@ -70,6 +78,116 @@ function createMemoryStorage(): StateStorage {
 }
 
 const nodeTestStorage = createMemoryStorage();
+
+function normalizeRegionMask(mask: Partial<RegionMask> | undefined): RegionMask {
+  const source = mask ?? DEFAULT_REGION_MASK;
+
+  return {
+    type: source.type ?? DEFAULT_REGION_MASK.type,
+    points: Array.isArray(source.points)
+      ? source.points.map((point) => ({
+          x: typeof point?.x === 'number' ? point.x : 0,
+          y: typeof point?.y === 'number' ? point.y : 0,
+        }))
+      : [],
+    bounds: {
+      x: typeof source.bounds?.x === 'number' ? source.bounds.x : DEFAULT_REGION_MASK.bounds.x,
+      y: typeof source.bounds?.y === 'number' ? source.bounds.y : DEFAULT_REGION_MASK.bounds.y,
+      width:
+        typeof source.bounds?.width === 'number'
+          ? source.bounds.width
+          : DEFAULT_REGION_MASK.bounds.width,
+      height:
+        typeof source.bounds?.height === 'number'
+          ? source.bounds.height
+          : DEFAULT_REGION_MASK.bounds.height,
+    },
+    featherRadius:
+      typeof source.featherRadius === 'number'
+        ? source.featherRadius
+        : DEFAULT_REGION_MASK.featherRadius,
+    blendEdges:
+      typeof source.blendEdges === 'boolean'
+        ? source.blendEdges
+        : DEFAULT_REGION_MASK.blendEdges,
+  };
+}
+
+function normalizeCanvasControlLayer(
+  layer: Partial<CanvasControlLayer> | undefined,
+  sceneId: string,
+): CanvasControlLayer | null {
+  if (!layer || typeof layer.id !== 'string' || layer.id.length === 0) {
+    return null;
+  }
+
+  return {
+    id: layer.id,
+    sceneId,
+    name: typeof layer.name === 'string' && layer.name.length > 0 ? layer.name : 'Control Layer',
+    type:
+      layer.type === 'reference-image' || layer.type === 'inpaint-mask' || layer.type === 'controlnet'
+        ? layer.type
+        : 'controlnet',
+    mask: normalizeRegionMask(layer.mask ?? DEFAULT_CANVAS_CONTROL_LAYER_MASK),
+    visible: typeof layer.visible === 'boolean' ? layer.visible : true,
+    opacity: typeof layer.opacity === 'number' ? layer.opacity : 1,
+    previewTint:
+      typeof layer.previewTint === 'string' && layer.previewTint.length > 0
+        ? layer.previewTint
+        : '#d1d5db',
+    sourceMediaAssetId:
+      typeof layer.sourceMediaAssetId === 'string' ? layer.sourceMediaAssetId : undefined,
+    sourcePath: typeof layer.sourcePath === 'string' ? layer.sourcePath : undefined,
+    referenceSetId: typeof layer.referenceSetId === 'string' ? layer.referenceSetId : undefined,
+    preprocessor: typeof layer.preprocessor === 'string' ? layer.preprocessor : undefined,
+    weight: typeof layer.weight === 'number' ? layer.weight : undefined,
+    startStep: typeof layer.startStep === 'number' ? layer.startStep : undefined,
+    endStep: typeof layer.endStep === 'number' ? layer.endStep : undefined,
+    controlMode: typeof layer.controlMode === 'string' ? layer.controlMode : undefined,
+    prompt: typeof layer.prompt === 'string' ? layer.prompt : undefined,
+    negativePrompt:
+      typeof layer.negativePrompt === 'string' ? layer.negativePrompt : undefined,
+    metadata:
+      layer.metadata && typeof layer.metadata === 'object'
+        ? { ...(layer.metadata as Record<string, unknown>) }
+        : {},
+  };
+}
+
+function normalizeScene(scene: Scene): Scene {
+  const canvasControlLayers = Array.isArray(scene.canvasControlLayers)
+    ? scene.canvasControlLayers
+        .map((layer) => normalizeCanvasControlLayer(layer, scene.id))
+        .filter((layer): layer is CanvasControlLayer => Boolean(layer))
+    : [];
+
+  const activeCanvasControlLayerId =
+    typeof scene.activeCanvasControlLayerId === 'string' &&
+    canvasControlLayers.some((layer) => layer.id === scene.activeCanvasControlLayerId)
+      ? scene.activeCanvasControlLayerId
+      : (canvasControlLayers[0]?.id ?? null);
+
+  return {
+    ...scene,
+    referenceSetIds: Array.isArray(scene.referenceSetIds) ? scene.referenceSetIds : [],
+    timelineClipIds: Array.isArray(scene.timelineClipIds) ? scene.timelineClipIds : [],
+    canvasControlLayers,
+    activeCanvasControlLayerId,
+  };
+}
+
+function normalizeProjects(projects: Project[] | undefined): Project[] {
+  if (!Array.isArray(projects)) {
+    return [];
+  }
+
+  return projects.map((project) => ({
+    ...project,
+    referenceSetIds: Array.isArray(project.referenceSetIds) ? project.referenceSetIds : [],
+    scenes: Array.isArray(project.scenes) ? project.scenes.map((scene) => normalizeScene(scene)) : [],
+  }));
+}
 
 function getPersistStorage(): StateStorage {
   try {
@@ -268,6 +386,11 @@ export const useAppStore = create<AppState>()(
         return {
           ...currentState,
           ...(persisted as Partial<AppState>),
+          projects: normalizeProjects(
+            Array.isArray((persisted as Partial<AppState>).projects)
+              ? ((persisted as Partial<AppState>).projects as Project[])
+              : currentState.projects,
+          ),
         };
       },
       partialize: (state) => ({

@@ -64,6 +64,8 @@ export interface Scene {
   generationConfig: GenerationConfig;
   referenceImages: ReferenceImage[];
   referenceSetIds?: string[];
+  canvasControlLayers: CanvasControlLayer[];
+  activeCanvasControlLayerId: string | null;
   timelineClipIds: string[];
   frames: Frame[];
   regionLocks: RegionLock[];
@@ -138,6 +140,30 @@ export interface RegionMask {
   blendEdges: boolean;     // default true
 }
 
+export type CanvasControlLayerType = 'controlnet' | 'reference-image' | 'inpaint-mask';
+
+export interface CanvasControlLayer {
+  id: string;
+  sceneId: string;
+  name: string;
+  type: CanvasControlLayerType;
+  mask: RegionMask;
+  visible: boolean;
+  opacity: number;
+  previewTint: string;
+  sourceMediaAssetId?: string;
+  sourcePath?: string;
+  referenceSetId?: string;
+  preprocessor?: string;
+  weight?: number;
+  startStep?: number;
+  endStep?: number;
+  controlMode?: string;
+  prompt?: string;
+  negativePrompt?: string;
+  metadata: Record<string, unknown>;
+}
+
 export interface RegionLock {
   id: string;
   sceneId: string;
@@ -210,6 +236,11 @@ export const DEFAULT_REGION_MASK: RegionMask = {
   bounds: { x: 0, y: 0, width: 100, height: 100 },
   featherRadius: 2,
   blendEdges: true,
+};
+
+export const DEFAULT_CANVAS_CONTROL_LAYER_MASK: RegionMask = {
+  ...DEFAULT_REGION_MASK,
+  bounds: { ...DEFAULT_REGION_MASK.bounds },
 };
 
 // Re-exported for convenience - already imported above

@@ -77,6 +77,7 @@ import type {
   Scene,
   CharacterRef,
   RegionLock,
+  CanvasControlLayer,
   SceneStatus,
   GenerationConfig,
   MaskType,
@@ -672,6 +673,19 @@ export interface AppState {
   createRegionLock: (sceneId: string, frameId: string, config: Partial<RegionLock>) => RegionLock;
   updateRegionLock: (sceneId: string, lockId: string, updates: Partial<RegionLock>) => void;
   deleteRegionLock: (sceneId: string, lockId: string) => void;
+  createCanvasControlLayer: (
+    sceneId: string,
+    config?: Partial<Omit<CanvasControlLayer, 'id' | 'sceneId'>>,
+  ) => CanvasControlLayer | null;
+  updateCanvasControlLayer: (
+    sceneId: string,
+    layerId: string,
+    updates: Partial<Omit<CanvasControlLayer, 'id' | 'sceneId'>>,
+  ) => void;
+  deleteCanvasControlLayer: (sceneId: string, layerId: string) => void;
+  duplicateCanvasControlLayer: (sceneId: string, layerId: string) => CanvasControlLayer | null;
+  reorderCanvasControlLayers: (sceneId: string, layerIds: string[]) => void;
+  setActiveCanvasControlLayerId: (sceneId: string, layerId: string | null) => void;
 
   // Region mode state
   setRegionMode: (mode: boolean) => void;

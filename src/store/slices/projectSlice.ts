@@ -1,6 +1,152 @@
-import type { Project, Scene, CharacterRef, RegionLock, SceneStatus, GenerationConfig, MaskType } from '@/types/project';
-import { DEFAULT_GENERATION_CONFIG, DEFAULT_SCENE_TRANSITION, DEFAULT_SCENE_METADATA } from '@/types/project';
+import type {
+  Project,
+  Scene,
+  CharacterRef,
+  RegionLock,
+  SceneStatus,
+  GenerationConfig,
+  MaskType,
+  RegionMask,
+  CanvasControlLayer,
+  CanvasControlLayerType,
+} from '@/types/project';
+import {
+  DEFAULT_GENERATION_CONFIG,
+  DEFAULT_SCENE_TRANSITION,
+  DEFAULT_SCENE_METADATA,
+  DEFAULT_REGION_MASK,
+  DEFAULT_CANVAS_CONTROL_LAYER_MASK,
+} from '@/types/project';
 import type { AppSet, AppGet, AppState } from '../appStore.types';
+
+function cloneRegionMask(mask?: RegionMask): RegionMask {
+  const source = mask ?? DEFAULT_REGION_MASK;
+
+  return {
+    ...source,
+    points: source.points.map((point) => ({ ...point })),
+    bounds: { ...source.bounds },
+  };
+}
+
+function defaultCanvasControlLayerName(type: CanvasControlLayerType, orderIndex: number) {
+  switch (type) {
+    case 'reference-image':
+      return `Reference Layer ${orderIndex}`;
+    case 'inpaint-mask':
+      return `Inpaint Mask ${orderIndex}`;
+    case 'controlnet':
+    default:
+      return `Control Layer ${orderIndex}`;
+  }
+}
+
+function buildCanvasControlLayer(
+  sceneId: string,
+  orderIndex: number,
+  config?: Partial<Omit<CanvasControlLayer, 'id' | 'sceneId'>>,
+): CanvasControlLayer {
+  const type = config?.type ?? 'controlnet';
+
+  return {
+    id: crypto.randomUUID(),
+    sceneId,
+    name: config?.name ?? defaultCanvasControlLayerName(type, orderIndex),
+    type,
+    mask: cloneRegionMask(config?.mask ?? DEFAULT_CANVAS_CONTROL_LAYER_MASK),
+    visible: config?.visible ?? true,
+    opacity: config?.opacity ?? 1,
+    previewTint: config?.previewTint ?? '#d1d5db',
+    sourceMediaAssetId: config?.sourceMediaAssetId,
+    sourcePath: config?.sourcePath,
+    referenceSetId: config?.referenceSetId,
+    preprocessor: config?.preprocessor,
+    weight: config?.weight,
+    startStep: config?.startStep,
+    endStep: config?.endStep,
+    controlMode: config?.controlMode,
+    prompt: config?.prompt,
+    negativePrompt: config?.negativePrompt,
+    metadata: { ...(config?.metadata ?? {}) },
+  };
+}
+
+function cloneCanvasControlLayersForScene(
+  layers: CanvasControlLayer[] | undefined,
+  sceneId: string,
+) {
+  const idMap = new Map<string, string>();
+  const clonedLayers = (layers ?? []).map((layer, index) => {
+    const clonedLayer = buildCanvasControlLayer(sceneId, index + 1, {
+      ...layer,
+      mask: cloneRegionMask(layer.mask),
+      metadata: { ...layer.metadata },
+    });
+    idMap.set(layer.id, clonedLayer.id);
+    return clonedLayer;
+  });
+
+  return {
+    layers: clonedLayers,
+    idMap,
+  };
+}
+
+function buildScene(config: Partial<Scene> | undefined, now: string): Scene {
+  const sceneId = crypto.randomUUID();
+  const { layers: canvasControlLayers, idMap } = cloneCanvasControlLayersForScene(
+    config?.canvasControlLayers,
+    sceneId,
+  );
+  const requestedActiveLayerId = config?.activeCanvasControlLayerId ?? null;
+
+  return {
+    id: sceneId,
+    orderIndex: 0,
+    name: config?.name ?? 'Untitled Scene',
+    prompt: config?.prompt ?? '',
+    negativePrompt: config?.negativePrompt ?? '',
+    generationConfig: config?.generationConfig ?? { ...DEFAULT_GENERATION_CONFIG },
+    referenceImages: config?.referenceImages ?? [],
+    referenceSetIds: config?.referenceSetIds ?? [],
+    canvasControlLayers,
+    activeCanvasControlLayerId:
+      requestedActiveLayerId !== null
+        ? (idMap.get(requestedActiveLayerId) ?? canvasControlLayers[0]?.id ?? null)
+        : (canvasControlLayers[0]?.id ?? null),
+    timelineClipIds: config?.timelineClipIds ?? [],
+    frames: [],
+    regionLocks: [],
+    transitions: config?.transitions ?? { ...DEFAULT_SCENE_TRANSITION },
+    camera: [],
+    metadata: { ...DEFAULT_SCENE_METADATA, created: now, modified: now },
+    status: config?.status ?? 'draft',
+    characterRefs: config?.characterRefs ?? [],
+    thumbnail: config?.thumbnail,
+  };
+}
+
+function updateSceneInProjects(
+  projects: Project[],
+  sceneId: string,
+  updater: (scene: Scene) => Scene,
+): Project[] {
+  return projects.map((project) => {
+    let sceneUpdated = false;
+    const nextScenes = project.scenes.map((scene) => {
+      if (scene.id !== sceneId) {
+        return scene;
+      }
+
+      sceneUpdated = true;
+      return updater(scene);
+    });
+
+    return sceneUpdated
+      ? { ...project, scenes: nextScenes, modified: new Date().toISOString() }
+      : project;
+  });
+}
 
 export const projectInitialState = {
   currentProject: null as AppState['currentProject'],
@@ -51,25 +197,7 @@ export function createProjectActions(set: AppSet, _get: AppGet) {
     })),
     addScene: (projectId: string, config?: Partial<Scene>): Scene => {
       const now = new Date().toISOString();
-      const scene: Scene = {
-        id: crypto.randomUUID(),
-        orderIndex: 0,
-        name: config?.name ?? 'Untitled Scene',
-        prompt: config?.prompt ?? '',
-        negativePrompt: config?.negativePrompt ?? '',
-        generationConfig: config?.generationConfig ?? { ...DEFAULT_GENERATION_CONFIG },
-        referenceImages: config?.referenceImages ?? [],
-        referenceSetIds: config?.referenceSetIds ?? [],
-        timelineClipIds: config?.timelineClipIds ?? [],
-        frames: [],
-        regionLocks: [],
-        transitions: config?.transitions ?? { ...DEFAULT_SCENE_TRANSITION },
-        camera: [],
-        metadata: { ...DEFAULT_SCENE_METADATA, created: now, modified: now },
-        status: config?.status ?? 'draft',
-        characterRefs: [],
-        thumbnail: config?.thumbnail,
-      };
+      const scene = buildScene(config, now);
       set((state) => ({
         projects: state.projects.map((p) => {
           if (p.id !== projectId) return p;
@@ -108,25 +236,25 @@ export function createProjectActions(set: AppSet, _get: AppGet) {
       if (!scene) return undefined;
 
       const now = new Date().toISOString();
-      const dup: Scene = {
-        ...scene,
-        id: crypto.randomUUID(),
-        name: `${scene.name} (copy)`,
-        orderIndex: project.scenes.length,
-        metadata: { ...scene.metadata, created: now, modified: now },
-        timelineClipIds: [],
-        frames: [],
-        regionLocks: [],
-        status: 'draft',
-      };
+      const dup = buildScene(
+        {
+          ...scene,
+          name: `${scene.name} (copy)`,
+          timelineClipIds: [],
+          status: 'draft',
+          thumbnail: scene.thumbnail,
+        },
+        now,
+      );
+      const storedDup = { ...dup, orderIndex: project.scenes.length };
 
       set((s) => ({
         projects: s.projects.map((p) => {
           if (p.id !== projectId) return p;
-          return { ...p, scenes: [...p.scenes, dup], modified: now };
+          return { ...p, scenes: [...p.scenes, storedDup], modified: now };
         }),
       }));
-      return dup;
+      return storedDup;
     },
     setActiveScene: (id: string | null) => set({ activeSceneId: id }),
     updateScene: (projectId: string, sceneId: string, updates: Partial<Scene>) => set((state) => ({
@@ -199,7 +327,7 @@ export function createProjectActions(set: AppSet, _get: AppGet) {
         sceneId,
         frameId,
         name: config.name ?? 'Region',
-        mask: config.mask ?? { type: 'rectangle', points: [], bounds: { x: 0, y: 0, width: 100, height: 100 }, featherRadius: 2, blendEdges: true },
+        mask: cloneRegionMask(config.mask),
         targetLayers: config.targetLayers ?? [],
         protectedLayers: config.protectedLayers ?? [],
         generationConfig: config.generationConfig ?? {},
@@ -234,6 +362,132 @@ export function createProjectActions(set: AppSet, _get: AppGet) {
         }),
       })),
     })),
+    createCanvasControlLayer: (sceneId: string, config?: Partial<Omit<CanvasControlLayer, 'id' | 'sceneId'>>) => {
+      const state = _get();
+      const scene = state.projects.flatMap((project) => project.scenes).find((item) => item.id === sceneId);
+      if (!scene) {
+        return null;
+      }
+
+      const layer = buildCanvasControlLayer(sceneId, scene.canvasControlLayers.length + 1, config);
+      set((currentState) => ({
+        projects: updateSceneInProjects(currentState.projects, sceneId, (currentScene) => ({
+          ...currentScene,
+          canvasControlLayers: [...currentScene.canvasControlLayers, layer],
+          activeCanvasControlLayerId: layer.id,
+          metadata: { ...currentScene.metadata, modified: new Date().toISOString() },
+        })),
+      }));
+
+      return layer;
+    },
+    updateCanvasControlLayer: (
+      sceneId: string,
+      layerId: string,
+      updates: Partial<Omit<CanvasControlLayer, 'id' | 'sceneId'>>,
+    ) => set((state) => ({
+      projects: updateSceneInProjects(state.projects, sceneId, (scene) => ({
+        ...scene,
+        canvasControlLayers: scene.canvasControlLayers.map((layer) =>
+          layer.id === layerId
+            ? {
+                ...layer,
+                ...updates,
+                mask: updates.mask ? cloneRegionMask(updates.mask) : layer.mask,
+                metadata: updates.metadata ? { ...updates.metadata } : layer.metadata,
+              }
+            : layer,
+        ),
+        metadata: { ...scene.metadata, modified: new Date().toISOString() },
+      })),
+    })),
+    deleteCanvasControlLayer: (sceneId: string, layerId: string) =>
+      set((state) => ({
+        projects: updateSceneInProjects(state.projects, sceneId, (scene) => {
+          const layerIndex = scene.canvasControlLayers.findIndex((layer) => layer.id === layerId);
+          if (layerIndex === -1) {
+            return scene;
+          }
+
+          const nextLayers = scene.canvasControlLayers.filter((layer) => layer.id !== layerId);
+          const fallbackLayer =
+            nextLayers[layerIndex] ?? nextLayers[layerIndex - 1] ?? null;
+
+          return {
+            ...scene,
+            canvasControlLayers: nextLayers,
+            activeCanvasControlLayerId:
+              scene.activeCanvasControlLayerId === layerId
+                ? fallbackLayer?.id ?? null
+                : scene.activeCanvasControlLayerId,
+            metadata: { ...scene.metadata, modified: new Date().toISOString() },
+          };
+        }),
+      })),
+    duplicateCanvasControlLayer: (sceneId: string, layerId: string) => {
+      const state = _get();
+      const scene = state.projects.flatMap((project) => project.scenes).find((item) => item.id === sceneId);
+      const sourceLayer = scene?.canvasControlLayers.find((layer) => layer.id === layerId);
+      if (!scene || !sourceLayer) {
+        return null;
+      }
+
+      const duplicate = buildCanvasControlLayer(sceneId, scene.canvasControlLayers.length + 1, {
+        ...sourceLayer,
+        name: `${sourceLayer.name} Copy`,
+        mask: cloneRegionMask(sourceLayer.mask),
+        metadata: { ...sourceLayer.metadata },
+      });
+
+      set((currentState) => ({
+        projects: updateSceneInProjects(currentState.projects, sceneId, (currentScene) => ({
+          ...currentScene,
+          canvasControlLayers: [...currentScene.canvasControlLayers, duplicate],
+          activeCanvasControlLayerId: duplicate.id,
+          metadata: { ...currentScene.metadata, modified: new Date().toISOString() },
+        })),
+      }));
+
+      return duplicate;
+    },
+    reorderCanvasControlLayers: (sceneId: string, layerIds: string[]) =>
+      set((state) => ({
+        projects: updateSceneInProjects(state.projects, sceneId, (scene) => {
+          const layerMap = new Map(scene.canvasControlLayers.map((layer) => [layer.id, layer]));
+          const orderedLayers = layerIds
+            .map((layerId) => layerMap.get(layerId))
+            .filter((layer): layer is CanvasControlLayer => Boolean(layer));
+          const remainingLayers = scene.canvasControlLayers.filter((layer) => !layerIds.includes(layer.id));
+
+          return {
+            ...scene,
+            canvasControlLayers: [...orderedLayers, ...remainingLayers],
+            activeCanvasControlLayerId:
+              scene.activeCanvasControlLayerId &&
+              [...orderedLayers, ...remainingLayers].some((layer) => layer.id === scene.activeCanvasControlLayerId)
+                ? scene.activeCanvasControlLayerId
+                : ([...orderedLayers, ...remainingLayers][0]?.id ?? null),
+            metadata: { ...scene.metadata, modified: new Date().toISOString() },
+          };
+        }),
+      })),
+    setActiveCanvasControlLayerId: (sceneId: string, layerId: string | null) =>
+      set((state) => ({
+        projects: updateSceneInProjects(state.projects, sceneId, (scene) => {
+          if (
+            layerId !== null &&
+            !scene.canvasControlLayers.some((layer) => layer.id === layerId)
+          ) {
+            return scene;
+          }
+
+          return {
+            ...scene,
+            activeCanvasControlLayerId: layerId,
+            metadata: { ...scene.metadata, modified: new Date().toISOString() },
+          };
+        }),
+      })),
     setRegionMode: (mode: boolean) => set((state) => ({
       regionMode: mode,
       activeRegionId: mode ? state.activeRegionId : null,

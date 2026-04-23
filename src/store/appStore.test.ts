@@ -557,6 +557,71 @@ describe('appStore', () => {
         });
       }
     });
+
+    it('normalizes persisted scenes that predate canvas control layers', () => {
+      const merge = (useAppStore as any).persist?.getOptions?.()?.merge;
+      expect(typeof merge).toBe('function');
+
+      const currentState = useAppStore.getInitialState();
+      const merged = merge(
+        {
+          projects: [
+            {
+              id: 'project-1',
+              name: 'Legacy Project',
+              created: '2026-04-23T00:00:00.000Z',
+              modified: '2026-04-23T00:00:00.000Z',
+              dimensions: { width: 1024, height: 1024 },
+              fps: 24,
+              timelineSequenceId: null,
+              referenceSetIds: [],
+              characters: [],
+              scenes: [
+                {
+                  id: 'scene-1',
+                  orderIndex: 0,
+                  name: 'Legacy Scene',
+                  prompt: '',
+                  negativePrompt: '',
+                  generationConfig: {
+                    model: 'stable-diffusion-xl',
+                    steps: 25,
+                    cfgScale: 7.5,
+                    scheduler: 'euler_a',
+                    seed: -1,
+                    width: 1024,
+                    height: 1024,
+                    clipSkip: 1,
+                    lora: [],
+                    controlNet: [],
+                  },
+                  referenceImages: [],
+                  timelineClipIds: [],
+                  frames: [],
+                  regionLocks: [],
+                  transitions: { type: 'cut', duration: 0 },
+                  camera: [],
+                  metadata: {
+                    created: '2026-04-23T00:00:00.000Z',
+                    modified: '2026-04-23T00:00:00.000Z',
+                    duration: 0,
+                    fps: 24,
+                    notes: '',
+                  },
+                  status: 'draft',
+                  characterRefs: [],
+                },
+              ],
+              metadata: {},
+            },
+          ],
+        },
+        currentState,
+      );
+
+      expect(merged.projects[0].scenes[0].canvasControlLayers).toEqual([]);
+      expect(merged.projects[0].scenes[0].activeCanvasControlLayerId).toBeNull();
+    });
   });
 
   // ── Advanced generation ───────────────────────────────────────────────
@@ -599,6 +664,8 @@ describe('appStore', () => {
 
       expect(scene.timelineClipIds).toEqual([]);
       expect(scene.referenceSetIds).toEqual([]);
+      expect(scene.canvasControlLayers).toEqual([]);
+      expect(scene.activeCanvasControlLayerId).toBeNull();
     });
 
     it('syncs scene reference adapters when a scoped reference set is attached', () => {
@@ -635,6 +702,122 @@ describe('appStore', () => {
           referenceSetId: referenceSet.id,
         }),
       ]);
+    });
+  });
+
+  describe('canvas control layers', () => {
+    function seedScene() {
+      const state = useAppStore.getState();
+      const project = state.createProject('Canvas controls');
+      const scene = state.addScene(project.id, { name: 'Shot 1' });
+
+      return { projectId: project.id, sceneId: scene.id };
+    }
+
+    function getStoredScene(projectId: string, sceneId: string) {
+      return useAppStore
+        .getState()
+        .projects.find((project) => project.id === projectId)
+        ?.scenes.find((scene) => scene.id === sceneId);
+    }
+
+    it('creates and selects a canvas control layer', () => {
+      const { projectId, sceneId } = seedScene();
+
+      const layer = useAppStore.getState().createCanvasControlLayer(sceneId, {
+        type: 'controlnet',
+        name: 'Pose guide',
+        opacity: 0.65,
+      });
+
+      const storedScene = getStoredScene(projectId, sceneId);
+      expect(layer).not.toBeNull();
+      expect(storedScene?.canvasControlLayers).toHaveLength(1);
+      expect(storedScene?.canvasControlLayers[0]).toEqual(
+        expect.objectContaining({
+          id: layer?.id,
+          sceneId,
+          name: 'Pose guide',
+          type: 'controlnet',
+          opacity: 0.65,
+          visible: true,
+        }),
+      );
+      expect(storedScene?.activeCanvasControlLayerId).toBe(layer?.id);
+    });
+
+    it('updates, duplicates, reorders, and deletes canvas control layers', () => {
+      const { projectId, sceneId } = seedScene();
+      const first = useAppStore.getState().createCanvasControlLayer(sceneId, {
+        type: 'controlnet',
+        name: 'First',
+      })!;
+      const second = useAppStore.getState().createCanvasControlLayer(sceneId, {
+        type: 'reference-image',
+        name: 'Second',
+      })!;
+
+      useAppStore.getState().updateCanvasControlLayer(sceneId, first.id, {
+        opacity: 0.4,
+        sourcePath: 'C:/vision-studio-output/refs/pose.png',
+      });
+
+      let storedScene = getStoredScene(projectId, sceneId);
+      expect(storedScene?.canvasControlLayers.find((layer) => layer.id === first.id)).toEqual(
+        expect.objectContaining({
+          opacity: 0.4,
+          sourcePath: 'C:/vision-studio-output/refs/pose.png',
+        }),
+      );
+
+      const duplicate = useAppStore.getState().duplicateCanvasControlLayer(sceneId, first.id);
+      storedScene = getStoredScene(projectId, sceneId);
+      expect(duplicate).not.toBeNull();
+      expect(duplicate?.id).not.toBe(first.id);
+      expect(duplicate?.sceneId).toBe(sceneId);
+      expect(storedScene?.activeCanvasControlLayerId).toBe(duplicate?.id);
+
+      useAppStore.getState().reorderCanvasControlLayers(sceneId, [
+        second.id,
+        duplicate!.id,
+        first.id,
+      ]);
+
+      storedScene = getStoredScene(projectId, sceneId);
+      expect(storedScene?.canvasControlLayers.map((layer) => layer.id)).toEqual([
+        second.id,
+        duplicate!.id,
+        first.id,
+      ]);
+
+      useAppStore.getState().deleteCanvasControlLayer(sceneId, duplicate!.id);
+
+      storedScene = getStoredScene(projectId, sceneId);
+      expect(storedScene?.canvasControlLayers.map((layer) => layer.id)).toEqual([
+        second.id,
+        first.id,
+      ]);
+      expect(storedScene?.activeCanvasControlLayerId).toBe(first.id);
+    });
+
+    it('duplicates scenes with remapped canvas control layer ids', () => {
+      const { projectId, sceneId } = seedScene();
+      const layer = useAppStore.getState().createCanvasControlLayer(sceneId, {
+        type: 'controlnet',
+        name: 'Pose guide',
+      })!;
+
+      useAppStore.getState().setActiveCanvasControlLayerId(sceneId, layer.id);
+      const duplicatedScene = useAppStore.getState().duplicateScene(projectId, sceneId);
+
+      expect(duplicatedScene).toBeDefined();
+      expect(duplicatedScene?.id).not.toBe(sceneId);
+      expect(duplicatedScene?.canvasControlLayers).toHaveLength(1);
+      expect(duplicatedScene?.canvasControlLayers[0].id).not.toBe(layer.id);
+      expect(duplicatedScene?.canvasControlLayers[0].sceneId).toBe(duplicatedScene?.id);
+      expect(duplicatedScene?.activeCanvasControlLayerId).toBe(
+        duplicatedScene?.canvasControlLayers[0].id,
+      );
     });
   });
 
