@@ -10,6 +10,7 @@ import type {
   ReferenceSlotType,
 } from '@/types/media';
 import type { ReferenceImage } from '@/types/project';
+import { planStoryboardTimelineDerivation } from '@/features/timeline/deriveStoryboardTimeline';
 import type {
   ClipGenerationBinding,
   TimelineBeatMarker,
@@ -265,6 +266,21 @@ function normalizeTimelineBeatMarkers(
   return markers
     .map((marker) => normalizeTimelineBeatMarker(marker))
     .filter((marker): marker is TimelineBeatMarker => Boolean(marker));
+}
+
+function getTrackKindForMediaAsset(asset: MediaAsset): Extract<TimelineTrack['kind'], 'image' | 'video'> {
+  return asset.type === 'video' ? 'video' : 'image';
+}
+
+function isEqualStringSet(left: string[], right: string[]) {
+  if (left.length !== right.length) {
+    return false;
+  }
+
+  const leftSorted = [...new Set(left)].sort();
+  const rightSorted = [...new Set(right)].sort();
+
+  return leftSorted.every((value, index) => value === rightSorted[index]);
 }
 
 function sortClipsByStart(clips: TimelineClip[]) {
@@ -1471,6 +1487,150 @@ export function createMediaTimelineActions(set: AppSet, get: AppGet) {
           };
         }),
       })),
+
+    deriveStoryboardTimeline: (projectId: string, options?: { sceneIds?: string[] }) => {
+      const ensuredSequence = get().ensureTimelineSequenceForProject(projectId);
+      if (!ensuredSequence) {
+        return null;
+      }
+
+      const initialState = get();
+      const plan = planStoryboardTimelineDerivation({
+        state: initialState,
+        projectId,
+        sequenceId: ensuredSequence.id,
+        sceneIds: options?.sceneIds,
+      });
+      if (!plan || plan.scenePlans.length === 0) {
+        return null;
+      }
+
+      for (const mediaAsset of plan.mediaAssetsToUpsert) {
+        get().upsertMediaAsset(mediaAsset);
+      }
+
+      const ensuredSceneClipIds = new Map<string, Set<string>>();
+      const rememberSceneClipId = (sceneId: string, clipId: string) => {
+        if (!ensuredSceneClipIds.has(sceneId)) {
+          ensuredSceneClipIds.set(sceneId, new Set());
+        }
+        ensuredSceneClipIds.get(sceneId)?.add(clipId);
+      };
+
+      const getCompatibleTrack = (sequenceId: string, mediaAsset: MediaAsset) => {
+        const liveState = get();
+        const sequenceTracks = liveState.timelineTracks
+          .filter((track) => track.sequenceId === sequenceId)
+          .sort((left, right) => left.orderIndex - right.orderIndex);
+        const targetKind = getTrackKindForMediaAsset(mediaAsset);
+        const existing =
+          sequenceTracks.find((track) => !track.locked && track.kind === targetKind) ??
+          (targetKind === 'image'
+            ? sequenceTracks.find((track) => !track.locked && track.kind === 'overlay')
+            : null);
+
+        if (existing) {
+          return existing;
+        }
+
+        return get().createTimelineTrack(sequenceId, {
+          kind: targetKind,
+          name: targetKind === 'video' ? `Video ${sequenceTracks.length + 1}` : `Image ${sequenceTracks.length + 1}`,
+        });
+      };
+
+      const result = {
+        projectId,
+        sequenceId: ensuredSequence.id,
+        sceneIds: plan.scenePlans.map((scenePlan) => scenePlan.sceneId),
+        clipIds: [] as string[],
+        added: 0,
+        updated: 0,
+        skipped: 0,
+        placeholders: 0,
+      };
+
+      for (const scenePlan of plan.scenePlans) {
+        if (scenePlan.placeholder) {
+          result.placeholders += 1;
+        }
+
+        if (scenePlan.action === 'skip') {
+          result.skipped += 1;
+          if (scenePlan.existingClipId) {
+            result.clipIds.push(scenePlan.existingClipId);
+            rememberSceneClipId(scenePlan.sceneId, scenePlan.existingClipId);
+          }
+          continue;
+        }
+
+        if (scenePlan.action === 'update' && scenePlan.existingClipId && scenePlan.updates) {
+          get().updateTimelineClip(scenePlan.existingClipId, scenePlan.updates);
+          result.updated += 1;
+          result.clipIds.push(scenePlan.existingClipId);
+          rememberSceneClipId(scenePlan.sceneId, scenePlan.existingClipId);
+          continue;
+        }
+
+        const liveState = get();
+        const sequence =
+          liveState.timelineSequences.find((item) => item.id === ensuredSequence.id) ?? ensuredSequence;
+        const mediaAsset =
+          liveState.mediaAssets.find((asset) => asset.id === scenePlan.mediaAsset.id) ?? scenePlan.mediaAsset;
+        const targetTrack = getCompatibleTrack(ensuredSequence.id, mediaAsset);
+        if (!targetTrack) {
+          result.skipped += 1;
+          continue;
+        }
+
+        const createdClip = get().createTimelineClip({
+          trackId: targetTrack.id,
+          mediaAssetId: mediaAsset.id,
+          sceneId: scenePlan.sceneId,
+          startMs: sequence.durationMs,
+          durationMs: scenePlan.durationMs,
+          label: scenePlan.label,
+          posterUrl: scenePlan.posterUrl,
+          referenceSetIds: scenePlan.referenceSetIds,
+          storyboardDerived: true,
+          storyboardBeatMarkers: scenePlan.storyboardBeatMarkers,
+          storyboardDerivedAt: new Date().toISOString(),
+        });
+
+        if (!createdClip) {
+          result.skipped += 1;
+          continue;
+        }
+
+        result.added += 1;
+        result.clipIds.push(createdClip.id);
+        rememberSceneClipId(scenePlan.sceneId, createdClip.id);
+      }
+
+      if (ensuredSceneClipIds.size > 0) {
+        set((state) => {
+          let nextProjects = state.projects;
+
+          for (const [sceneId, clipIds] of ensuredSceneClipIds.entries()) {
+            const scene = nextProjects.flatMap((project) => project.scenes).find((item) => item.id === sceneId);
+            if (!scene) {
+              continue;
+            }
+
+            const nextClipIds = Array.from(new Set([...(scene.timelineClipIds ?? []), ...clipIds]));
+            if (!isEqualStringSet(nextClipIds, scene.timelineClipIds ?? [])) {
+              nextProjects = updateSceneClipIds(nextProjects, sceneId, nextClipIds);
+            }
+          }
+
+          return {
+            projects: nextProjects,
+          };
+        });
+      }
+
+      return result;
+    },
 
     upsertClipGenerationBinding: (binding: ClipGenerationBinding) =>
       set((state) => {

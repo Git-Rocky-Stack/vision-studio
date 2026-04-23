@@ -1372,6 +1372,155 @@ We only get one pass at this.
     });
   });
 
+  describe('storyboard timeline derivation', () => {
+    it('derives scene clips once per scene and preserves beat markers and references', () => {
+      const state = useAppStore.getState();
+      const project = state.createProject('Storyboard Timeline');
+      const firstScene = state.addScene(project.id, {
+        name: 'Scene 1',
+        referenceSetIds: ['scene-ref'],
+        elementIds: ['element-1'],
+        shotBeats: [
+          {
+            id: 'beat-1',
+            summary: 'Wide reveal',
+            promptSeed: 'wide reveal',
+            notes: '',
+            orderIndex: 0,
+            durationMs: 1000,
+            elementIds: ['element-1'],
+            metadata: {},
+          },
+        ],
+        thumbnail: 'http://localhost:8000/outputs/scenes/scene-1.png',
+      });
+      const secondScene = state.addScene(project.id, {
+        name: 'Scene 2',
+        shotBeats: [],
+      });
+
+      useAppStore.setState((current) => ({
+        projects: current.projects.map((item) =>
+          item.id !== project.id
+            ? item
+            : {
+                ...item,
+                elements: [
+                  {
+                    id: 'element-1',
+                    projectId: project.id,
+                    type: 'character',
+                    name: 'Captain Nova',
+                    aliases: [],
+                    description: '',
+                    tags: [],
+                    continuityNotes: '',
+                    referenceSetIds: ['element-ref'],
+                    heroMediaAssetId: null,
+                    status: 'approved',
+                    color: '#ffffff',
+                    metadata: {},
+                  },
+                ],
+              },
+        ),
+        assetLibrary: [
+          {
+            id: 'asset-scene-1',
+            jobId: 'job-scene-1',
+            name: 'Scene 1 Output',
+            type: 'image',
+            path: 'C:/vision-studio-output/scenes/scene-1.png',
+            previewUrl: 'http://localhost:8000/outputs/scenes/scene-1.png',
+            thumbnail: 'http://localhost:8000/outputs/scenes/scene-1.png',
+            createdAt: '2026-04-23T00:00:00.000Z',
+            prompt: 'scene 1',
+            negativePrompt: '',
+            favorite: false,
+            params: {
+              source: 'generated',
+            },
+          },
+        ],
+      }) as any);
+
+      const result = useAppStore.getState().deriveStoryboardTimeline(project.id);
+
+      expect(result).not.toBeNull();
+      expect(result).toMatchObject({
+        added: 2,
+        updated: 0,
+        skipped: 0,
+        placeholders: 1,
+      });
+
+      const nextState = useAppStore.getState();
+      const sequenceId = nextState.projects.find((item) => item.id === project.id)?.timelineSequenceId;
+      expect(sequenceId).not.toBeNull();
+      expect(nextState.timelineClips).toHaveLength(2);
+
+      const derivedSceneOneClip = nextState.timelineClips.find((clip) => clip.sceneId === firstScene.id);
+      const derivedSceneTwoClip = nextState.timelineClips.find((clip) => clip.sceneId === secondScene.id);
+      expect(derivedSceneOneClip?.storyboardDerived).toBe(true);
+      expect(derivedSceneOneClip?.storyboardBeatMarkers).toHaveLength(1);
+      expect(derivedSceneOneClip?.referenceSetIds).toEqual(['scene-ref', 'element-ref']);
+      expect(derivedSceneTwoClip?.storyboardDerived).toBe(true);
+
+      const updatedProject = nextState.projects.find((item) => item.id === project.id);
+      expect(updatedProject?.scenes.find((scene) => scene.id === firstScene.id)?.timelineClipIds).toContain(
+        derivedSceneOneClip?.id ?? '',
+      );
+      expect(updatedProject?.scenes.find((scene) => scene.id === secondScene.id)?.timelineClipIds).toContain(
+        derivedSceneTwoClip?.id ?? '',
+      );
+
+      const placeholderAsset = nextState.mediaAssets.find((asset) => asset.id === derivedSceneTwoClip?.mediaAssetId);
+      expect(placeholderAsset?.metadata.storyboardPlaceholder).toBe(true);
+    });
+
+    it('reuses the existing derived clip on rerun instead of duplicating the scene', () => {
+      const state = useAppStore.getState();
+      const project = state.createProject('Storyboard Rerun');
+      state.addScene(project.id, {
+        name: 'Scene 1',
+        thumbnail: 'http://localhost:8000/outputs/scenes/scene-1.png',
+      });
+
+      useAppStore.setState({
+        assetLibrary: [
+          {
+            id: 'asset-scene-1',
+            jobId: 'job-scene-1',
+            name: 'Scene 1 Output',
+            type: 'image',
+            path: 'C:/vision-studio-output/scenes/scene-1.png',
+            previewUrl: 'http://localhost:8000/outputs/scenes/scene-1.png',
+            thumbnail: 'http://localhost:8000/outputs/scenes/scene-1.png',
+            createdAt: '2026-04-23T00:00:00.000Z',
+            prompt: 'scene 1',
+            negativePrompt: '',
+            favorite: false,
+            params: {
+              source: 'generated',
+            },
+          },
+        ],
+      } as any);
+
+      const firstResult = useAppStore.getState().deriveStoryboardTimeline(project.id);
+      const firstClipCount = useAppStore.getState().timelineClips.length;
+      const secondResult = useAppStore.getState().deriveStoryboardTimeline(project.id);
+
+      expect(firstResult?.added).toBe(1);
+      expect(secondResult).toMatchObject({
+        added: 0,
+        updated: 0,
+        skipped: 1,
+      });
+      expect(useAppStore.getState().timelineClips).toHaveLength(firstClipCount);
+    });
+  });
+
   describe('timeline playback transport', () => {
     function seedTimelinePlayback() {
       const state = useAppStore.getState();

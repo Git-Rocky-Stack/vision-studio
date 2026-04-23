@@ -223,6 +223,17 @@ export interface LayoutPreferences {
   collapsedGenerateSections: GenerateCollapsibleSectionId[];
 }
 
+export interface StoryboardTimelineDerivationResult {
+  projectId: string;
+  sequenceId: string;
+  sceneIds: string[];
+  clipIds: string[];
+  added: number;
+  updated: number;
+  skipped: number;
+  placeholders: number;
+}
+
 // ---------------------------------------------------------------------------
 // AppState - the central type for the entire store
 // ---------------------------------------------------------------------------
@@ -586,6 +597,12 @@ export interface AppState {
   deleteTimelineClip: (clipId: string) => void;
   setTimelineSequencePlayRange: (sequenceId: string, range: TimelinePlayRange | null) => void;
   upsertClipGenerationBinding: (binding: ClipGenerationBinding) => void;
+  deriveStoryboardTimeline: (
+    projectId: string,
+    options?: {
+      sceneIds?: string[];
+    },
+  ) => StoryboardTimelineDerivationResult | null;
 
   // Video generation
   setGenerationMode: (mode: GenerationMode) => void;
