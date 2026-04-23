@@ -55,3 +55,90 @@ export interface KeyframeStoreState {
   keyframes: Keyframe[];
   activeKeyframeId: string | null;
 }
+
+// ---------------------------------------------------------------------------
+// Timeline authoring domain
+// ---------------------------------------------------------------------------
+
+export type TimelineTrackKind = 'video' | 'image' | 'audio' | 'overlay';
+
+export type TimelineTransitionType =
+  | 'cut'
+  | 'fade'
+  | 'dissolve'
+  | 'wipe-left'
+  | 'wipe-right'
+  | 'zoom';
+
+export interface TimelineTransition {
+  type: TimelineTransitionType;
+  durationMs: number;
+}
+
+export interface TimelinePlayRange {
+  startMs: number;
+  endMs: number;
+}
+
+export interface TimelineSequence {
+  id: string;
+  projectId: string;
+  name: string;
+  trackIds: string[];
+  durationMs: number;
+  fps: number;
+  playRange: TimelinePlayRange | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface TimelineTrack {
+  id: string;
+  sequenceId: string;
+  kind: TimelineTrackKind;
+  name: string;
+  clipIds: string[];
+  orderIndex: number;
+  locked: boolean;
+  muted: boolean;
+  hidden: boolean;
+}
+
+export interface TimelineClip {
+  id: string;
+  trackId: string;
+  mediaAssetId: string;
+  sceneId: string | null;
+  startMs: number;
+  durationMs: number;
+  sourceInMs: number;
+  sourceOutMs: number;
+  transitionIn: TimelineTransition | null;
+  transitionOut: TimelineTransition | null;
+  label: string;
+  posterUrl: string | null;
+  referenceSetIds: string[];
+  generationBindingId: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ClipGenerationRunSummary {
+  status: 'idle' | 'queued' | 'running' | 'complete' | 'failed';
+  outputMediaAssetId: string | null;
+  completedAt: string | null;
+  errorMessage: string | null;
+}
+
+export interface ClipGenerationBinding {
+  id: string;
+  clipId: string;
+  prompt: string;
+  negativePrompt: string;
+  model: string;
+  generationType: 'image' | 'video';
+  settings: Record<string, unknown>;
+  referenceSetIds: string[];
+  variantIds: string[];
+  lastRunSummary: ClipGenerationRunSummary | null;
+}

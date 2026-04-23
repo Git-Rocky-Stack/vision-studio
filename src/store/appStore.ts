@@ -23,6 +23,7 @@ import { promptStudioInitialState, createPromptStudioActions } from './slices/pr
 import { generationPreviewInitialState, createGenerationPreviewActions } from './slices/generationPreviewSlice';
 import { iterationInitialState, createIterationActions } from './slices/iterationSlice';
 import { collectionsInitialState, createCollectionsActions } from './slices/collectionsSlice';
+import { mediaTimelineInitialState, createMediaTimelineActions } from './slices/mediaTimelineSlice';
 import { timelineInitialState, createTimelineActions } from './slices/timelineSlice';
 import { pipelineInitialState, createPipelineActions } from './slices/pipelineSlice';
 
@@ -207,6 +208,8 @@ export const useAppStore = create<AppState>()(
       ...createIterationActions(set, get),
       ...collectionsInitialState,
       ...createCollectionsActions(set, get),
+      ...mediaTimelineInitialState,
+      ...createMediaTimelineActions(set, get),
       ...timelineInitialState,
       ...createTimelineActions(set),
       ...pipelineInitialState,
@@ -300,6 +303,14 @@ export const useAppStore = create<AppState>()(
         availableTags: state.availableTags,
         taggingMode: state.taggingMode,
         assetMetadata: Array.from(state.assetMetadata.entries()),
+        mediaAssets: state.mediaAssets,
+        referenceSets: state.referenceSets,
+        timelineSequences: state.timelineSequences,
+        timelineTracks: state.timelineTracks,
+        timelineClips: state.timelineClips,
+        clipGenerationBindings: state.clipGenerationBindings,
+        activeTimelineSequenceId: state.activeTimelineSequenceId,
+        activeTimelineClipId: state.activeTimelineClipId,
       }),
     }
   )

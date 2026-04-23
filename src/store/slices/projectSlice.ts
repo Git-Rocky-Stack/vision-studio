@@ -29,6 +29,7 @@ export function createProjectActions(set: AppSet, _get: AppGet) {
         modified: now,
         dimensions: dimensions ?? { width: 1920, height: 1080 },
         fps: 24,
+        timelineSequenceId: null,
         characters: [],
         scenes: [],
         metadata: {},
@@ -42,7 +43,7 @@ export function createProjectActions(set: AppSet, _get: AppGet) {
       activeSceneId: state.activeProjectId === id ? null : state.activeSceneId,
     })),
     setActiveProject: (id: string | null) => set({ activeProjectId: id, activeSceneId: null }),
-    updateProject: (id: string, updates: Partial<Pick<Project, 'name' | 'dimensions' | 'fps' | 'metadata'>>) => set((state) => ({
+    updateProject: (id: string, updates: Partial<Pick<Project, 'name' | 'dimensions' | 'fps' | 'metadata' | 'timelineSequenceId'>>) => set((state) => ({
       projects: state.projects.map((p) =>
         p.id === id ? { ...p, ...updates, modified: new Date().toISOString() } : p
       ),
@@ -57,6 +58,7 @@ export function createProjectActions(set: AppSet, _get: AppGet) {
         negativePrompt: config?.negativePrompt ?? '',
         generationConfig: config?.generationConfig ?? { ...DEFAULT_GENERATION_CONFIG },
         referenceImages: config?.referenceImages ?? [],
+        timelineClipIds: config?.timelineClipIds ?? [],
         frames: [],
         regionLocks: [],
         transitions: config?.transitions ?? { ...DEFAULT_SCENE_TRANSITION },
@@ -110,6 +112,7 @@ export function createProjectActions(set: AppSet, _get: AppGet) {
         name: `${scene.name} (copy)`,
         orderIndex: project.scenes.length,
         metadata: { ...scene.metadata, created: now, modified: now },
+        timelineClipIds: [],
         frames: [],
         regionLocks: [],
         status: 'draft',
@@ -258,6 +261,7 @@ export function createProjectActions(set: AppSet, _get: AppGet) {
         prompt: scene.prompt,
         negativePrompt: scene.negativePrompt,
         generationConfig: scene.generationConfig,
+        timelineClipIds: [],
         thumbnail: scene.thumbnail,
       });
       state.deleteScene(sourceProject.id, sceneId);

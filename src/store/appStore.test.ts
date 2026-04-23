@@ -516,6 +516,12 @@ describe('appStore', () => {
         expect(persisted).toHaveProperty('layoutPreferences');
         expect(persisted).toHaveProperty('promptHistory');
         expect(persisted).toHaveProperty('assetLibrary');
+        expect(persisted).toHaveProperty('mediaAssets');
+        expect(persisted).toHaveProperty('referenceSets');
+        expect(persisted).toHaveProperty('timelineSequences');
+        expect(persisted).toHaveProperty('timelineTracks');
+        expect(persisted).toHaveProperty('timelineClips');
+        expect(persisted).toHaveProperty('clipGenerationBindings');
         expect(persisted).not.toHaveProperty('activeJobs');
         expect(persisted).not.toHaveProperty('completedJobs');
         expect(persisted).not.toHaveProperty('editHistory');
@@ -546,6 +552,12 @@ describe('appStore', () => {
   });
 
   describe('addScene', () => {
+    it('creates projects with no attached timeline sequence by default', () => {
+      const project = useAppStore.getState().createProject('Timeline target');
+
+      expect(project.timelineSequenceId).toBeNull();
+    });
+
     it('honors an explicit initial scene status', () => {
       const project = useAppStore.getState().createProject('Migration target');
 
@@ -557,6 +569,13 @@ describe('appStore', () => {
       const storedProject = useAppStore.getState().projects.find((item) => item.id === project.id);
       expect(scene.status).toBe('complete');
       expect(storedProject?.scenes[0].status).toBe('complete');
+    });
+
+    it('creates scenes with an empty timeline clip adapter list', () => {
+      const project = useAppStore.getState().createProject('Timeline target');
+      const scene = useAppStore.getState().addScene(project.id, { name: 'Scene 1' });
+
+      expect(scene.timelineClipIds).toEqual([]);
     });
   });
 

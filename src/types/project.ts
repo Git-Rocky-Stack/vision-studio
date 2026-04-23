@@ -37,6 +37,7 @@ export interface Project {
   modified: string;        // ISO 8601
   dimensions: { width: number; height: number };
   fps: number;            // default 24
+  timelineSequenceId: string | null;
   characters: CharacterRef[];
   scenes: Scene[];
   metadata: Record<string, unknown>;
@@ -61,6 +62,7 @@ export interface Scene {
   negativePrompt: string;
   generationConfig: GenerationConfig;
   referenceImages: ReferenceImage[];
+  timelineClipIds: string[];
   frames: Frame[];
   regionLocks: RegionLock[];
   transitions: SceneTransition;
@@ -156,6 +158,8 @@ export interface ReferenceImage {
   path: string;           // file path or data URL
   type: 'face' | 'body' | 'style' | 'pose' | 'composition';
   label?: string;
+  mediaAssetId?: string;
+  referenceSetId?: string;
 }
 
 // ─── Camera Keyframe ────────────────────────────────────────────────────────

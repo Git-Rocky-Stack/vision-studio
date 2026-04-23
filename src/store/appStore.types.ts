@@ -33,7 +33,26 @@ export type { ModelInfo, ModelStatus } from '@/types/model';
 
 export type { AspectRatio, ResolutionTier } from '@/types/resolution';
 
-export type { TimelineMode, PlayState, KeyframeInterpolation, Keyframe } from '@/types/timeline';
+export type {
+  TimelineMode,
+  PlayState,
+  KeyframeInterpolation,
+  Keyframe,
+  TimelineSequence,
+  TimelineTrack,
+  TimelineClip,
+  TimelineTransition,
+  ClipGenerationBinding,
+} from '@/types/timeline';
+
+export type {
+  MediaAsset,
+  MediaAssetType,
+  MediaAssetSource,
+  ReferenceSet,
+  ReferenceSetItem,
+  ReferenceSlotType,
+} from '@/types/media';
 
 export type {
   PipelineStepType,
@@ -107,7 +126,22 @@ import type { Collection, AssetTag, AssetMetadata, TaggingMode, SmartQuery } fro
 
 import type { PromptTemplate, CompositionLayerState } from '@/types/promptStudio';
 
-import type { TimelineMode, PlayState, Keyframe } from '@/types/timeline';
+import type {
+  TimelineMode,
+  PlayState,
+  Keyframe,
+  TimelineSequence,
+  TimelineTrack,
+  TimelineClip,
+  TimelineTransition,
+  ClipGenerationBinding,
+} from '@/types/timeline';
+
+import type {
+  MediaAsset,
+  ReferenceSet,
+  ReferenceSetItem,
+} from '@/types/media';
 
 import type { PipelineDefinition, PipelineExecution } from '@/types/pipeline';
 import type { GenerateCollapsibleSectionId, ReviewDensity } from './layoutPreferences';
@@ -271,6 +305,16 @@ export interface AppState {
 
   // ─── Assets ──────────────────────────────────────────────────────────────
   assetLibrary: AssetRecord[];
+
+  // ─── Media Timeline Domain ───────────────────────────────────────────────
+  mediaAssets: MediaAsset[];
+  referenceSets: ReferenceSet[];
+  timelineSequences: TimelineSequence[];
+  timelineTracks: TimelineTrack[];
+  timelineClips: TimelineClip[];
+  clipGenerationBindings: ClipGenerationBinding[];
+  activeTimelineSequenceId: string | null;
+  activeTimelineClipId: string | null;
 
   // ─── Edit Mode ──────────────────────────────────────────────────────────
   activeEditTool: EditTool;
@@ -451,6 +495,67 @@ export interface AppState {
     },
   ) => void;
   removeBatchResults: (ids: string[]) => void;
+
+  // Media timeline domain
+  setActiveTimelineSequence: (id: string | null) => void;
+  setActiveTimelineClip: (id: string | null) => void;
+  upsertMediaAsset: (asset: MediaAsset) => void;
+  removeMediaAsset: (assetId: string) => void;
+  createReferenceSet: (params: {
+    name: string;
+    scope: ReferenceSet['scope'];
+    projectId?: string | null;
+    sceneId?: string | null;
+    clipId?: string | null;
+    items?: ReferenceSetItem[];
+    notes?: string;
+    tags?: string[];
+  }) => ReferenceSet;
+  updateReferenceSet: (
+    id: string,
+    updates: Partial<Omit<ReferenceSet, 'id' | 'createdAt'>>,
+  ) => void;
+  deleteReferenceSet: (id: string) => void;
+  ensureTimelineSequenceForProject: (
+    projectId: string,
+    params?: { name?: string; fps?: number },
+  ) => TimelineSequence | null;
+  createTimelineTrack: (
+    sequenceId: string,
+    params?: {
+      kind?: TimelineTrack['kind'];
+      name?: string;
+      locked?: boolean;
+      muted?: boolean;
+      hidden?: boolean;
+    },
+  ) => TimelineTrack | null;
+  updateTimelineTrack: (
+    trackId: string,
+    updates: Partial<Omit<TimelineTrack, 'id' | 'sequenceId'>>,
+  ) => void;
+  deleteTimelineTrack: (trackId: string) => void;
+  createTimelineClip: (params: {
+    trackId: string;
+    mediaAssetId: string;
+    sceneId?: string | null;
+    startMs: number;
+    durationMs: number;
+    sourceInMs?: number;
+    sourceOutMs?: number;
+    transitionIn?: TimelineTransition | null;
+    transitionOut?: TimelineTransition | null;
+    label?: string;
+    posterUrl?: string | null;
+    referenceSetIds?: string[];
+    generationBindingId?: string | null;
+  }) => TimelineClip | null;
+  updateTimelineClip: (
+    clipId: string,
+    updates: Partial<Omit<TimelineClip, 'id' | 'trackId' | 'createdAt'>>,
+  ) => void;
+  deleteTimelineClip: (clipId: string) => void;
+  upsertClipGenerationBinding: (binding: ClipGenerationBinding) => void;
 
   // Video generation
   setGenerationMode: (mode: GenerationMode) => void;
