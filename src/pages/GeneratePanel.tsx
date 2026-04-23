@@ -18,8 +18,9 @@ import {
   clearResolvedGenerationError,
   SVD_REFERENCE_ERROR,
 } from '@/features/generate/validation';
+import { resolveCanvasControlLayers } from '@/features/generation/resolveCanvasControlLayers';
 import { runTimelineClipGeneration } from '@/features/timeline/runTimelineClipGeneration';
-import type { ControlNetConfig, LoRAConfig } from '@/types/generation';
+import type { ControlNetConfig, ImageGenerationRequestPayload, LoRAConfig } from '@/types/generation';
 import type { GenerateCollapsibleSectionId } from '@/store/layoutPreferences';
 import type { MediaAsset, ReferenceSet } from '@/types/media';
 import {
@@ -237,6 +238,7 @@ export function GeneratePanel() {
     syncAssetsFromJobStatus,
     systemInfo,
     currentProject,
+    currentImageAssetPath,
     projects,
     activeProjectId,
     activeSceneId,
@@ -263,6 +265,7 @@ export function GeneratePanel() {
     syncAssetsFromJobStatus: s.syncAssetsFromJobStatus,
     systemInfo: s.systemInfo,
     currentProject: s.currentProject,
+    currentImageAssetPath: s.currentImageAssetPath,
     projects: s.projects,
     activeProjectId: s.activeProjectId,
     activeSceneId: s.activeSceneId,
@@ -350,6 +353,17 @@ export function GeneratePanel() {
   const activeScene = useMemo(
     () => activeProject?.scenes.find((scene) => scene.id === activeSceneId) ?? null,
     [activeProject, activeSceneId],
+  );
+  const resolvedCanvasControlLayers = useMemo(
+    () =>
+      resolveCanvasControlLayers({
+        scene: activeScene,
+        mediaAssets,
+        referenceSets,
+        generationType: imageConfig.generationType,
+        baseImagePath: currentImageAssetPath,
+      }),
+    [activeScene, currentImageAssetPath, imageConfig.generationType, mediaAssets, referenceSets],
   );
   const activeTimelineClip = useMemo(
     () => timelineClips.find((clip) => clip.id === activeTimelineClipId) ?? null,
@@ -572,7 +586,11 @@ export function GeneratePanel() {
       const outputRoot = resolveOutputRoot(appSettings.defaultOutputPath, userDataPath);
 
       if (imageConfig.generationType === 'image') {
-        const result = await window.electron.generation.generateImage({
+        if (resolvedCanvasControlLayers.errors.length > 0) {
+          throw new Error(resolvedCanvasControlLayers.errors[0]);
+        }
+
+        const imageRequest: ImageGenerationRequestPayload = {
           prompt: imageConfig.prompt.trim(),
           negative_prompt: imageConfig.negativePrompt.trim(),
           width: dimensions.width,
@@ -582,7 +600,22 @@ export function GeneratePanel() {
           seed: advancedGeneration.seed === -1 ? undefined : advancedGeneration.seed,
           model: imageConfig.model,
           scheduler: advancedGeneration.scheduler,
-        });
+          ...(resolvedCanvasControlLayers.controlnet.length > 0
+            ? { controlnet: resolvedCanvasControlLayers.controlnet }
+            : {}),
+          ...(resolvedCanvasControlLayers.referenceImages.length > 0
+            ? { reference_images: resolvedCanvasControlLayers.referenceImages }
+            : {}),
+          ...(resolvedCanvasControlLayers.inpaint
+            ? {
+                image_path: resolvedCanvasControlLayers.inpaint.image_path,
+                mask: resolvedCanvasControlLayers.inpaint.mask,
+                inpaint: resolvedCanvasControlLayers.inpaint,
+              }
+            : {}),
+        };
+
+        const result = await window.electron.generation.generateImage(imageRequest);
 
         if (result.success && result.jobId) {
           updateGenStatus({ activeJobId: result.jobId });
@@ -592,15 +625,8 @@ export function GeneratePanel() {
             status: 'pending',
             progress: 0,
             params: {
-              prompt: imageConfig.prompt.trim(),
-              negative_prompt: imageConfig.negativePrompt.trim(),
-              width: dimensions.width,
-              height: dimensions.height,
-              steps: advancedGeneration.steps,
-              cfg_scale: advancedGeneration.cfgScale,
+              ...imageRequest,
               seed: advancedGeneration.seed,
-              model: imageConfig.model,
-              scheduler: advancedGeneration.scheduler,
               output_root: outputRoot,
             },
             createdAt: new Date(),
@@ -836,7 +862,9 @@ export function GeneratePanel() {
       : videoModelRequiresReference
         ? 'Reference image required for Stable Video Diffusion'
         : 'No reference media attached';
-  const controlLayersSummary = `${refConfig.controlNetConfig.enabled ? 'ControlNet on' : 'ControlNet off'}, ${refConfig.loraConfigs.length} LoRA${refConfig.loraConfigs.length === 1 ? '' : 's'}`;
+  const controlLayersSummary = resolvedCanvasControlLayers.visibleLayerCount > 0
+    ? `${resolvedCanvasControlLayers.visibleLayerCount} canvas layer${resolvedCanvasControlLayers.visibleLayerCount === 1 ? '' : 's'}, ${resolvedCanvasControlLayers.controlnet.length} ControlNet, ${resolvedCanvasControlLayers.referenceImages.length} reference${resolvedCanvasControlLayers.referenceImages.length === 1 ? '' : 's'}${resolvedCanvasControlLayers.inpaint ? ', inpaint ready' : ''}${resolvedCanvasControlLayers.errors.length > 0 ? ', action needed' : ''}, ${refConfig.loraConfigs.length} LoRA${refConfig.loraConfigs.length === 1 ? '' : 's'}`
+    : `${refConfig.controlNetConfig.enabled ? 'ControlNet on' : 'ControlNet off'}, ${refConfig.loraConfigs.length} LoRA${refConfig.loraConfigs.length === 1 ? '' : 's'}`;
   const advancedSummary = imageConfig.generationType === 'image'
     ? `${advancedGeneration.steps} steps, CFG ${advancedGeneration.cfgScale}, ${advancedGeneration.scheduler}`
     : `${advancedGeneration.duration}s duration, ${advancedGeneration.fps} fps`;
@@ -847,6 +875,8 @@ export function GeneratePanel() {
       : null;
   const footerWarning = !systemInfo.backendConnected
     ? 'Backend offline. Start it from Settings before generating.'
+    : imageConfig.generationType === 'image' && resolvedCanvasControlLayers.errors.length > 0
+      ? resolvedCanvasControlLayers.errors[0]
     : videoModelRequiresReference && !motionReferenceImage
       ? 'Stable Video Diffusion requires a reference image.'
       : null;

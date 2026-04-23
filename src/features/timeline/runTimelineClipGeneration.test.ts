@@ -151,13 +151,111 @@ describe('runTimelineClipGeneration', () => {
     expect(continuationClip.startMs).toBeGreaterThanOrEqual(clip.startMs + clip.durationMs);
     expect(sourceBinding.variantIds).toContain(continuationClip.id);
   });
+
+  it('resolves visible canvas control layers into image timeline generation requests', async () => {
+    const { sequence, clip, scene } = seedImageTimelineClip();
+    const state = useAppStore.getState();
+
+    state.createCanvasControlLayer(scene.id, {
+      name: 'Pose Guide',
+      type: 'controlnet',
+      sourceMediaAssetId: 'media-source-image',
+      preprocessor: 'openpose',
+      mask: {
+        type: 'rectangle',
+        points: [
+          { x: 20, y: 30 },
+          { x: 180, y: 30 },
+          { x: 180, y: 180 },
+          { x: 20, y: 180 },
+        ],
+        bounds: { x: 20, y: 30, width: 160, height: 150 },
+        featherRadius: 2,
+        blendEdges: true,
+      },
+    });
+    state.createCanvasControlLayer(scene.id, {
+      name: 'Repair Mask',
+      type: 'inpaint-mask',
+      prompt: 'repair the jacket seam',
+      mask: {
+        type: 'rectangle',
+        points: [
+          { x: 260, y: 120 },
+          { x: 380, y: 120 },
+          { x: 380, y: 280 },
+          { x: 260, y: 280 },
+        ],
+        bounds: { x: 260, y: 120, width: 120, height: 160 },
+        featherRadius: 2,
+        blendEdges: true,
+      },
+    });
+
+    const electron = makeElectronGenerationMock({
+      submitImage: { success: true, jobId: 'timeline-image-job-1' },
+      statuses: [
+        {
+          job_id: 'timeline-image-job-1',
+          status: 'completed',
+          type: 'image',
+          created_at: '2026-04-23T08:30:00.000Z',
+          completed_at: '2026-04-23T08:30:03.000Z',
+          progress: 100,
+          result: {
+            images: ['/outputs/timeline-image-job-1/frame.png'],
+          },
+        },
+      ],
+    });
+
+    await runTimelineClipGeneration({
+      operation: 'generate',
+      clipId: clip.id,
+      sequenceId: sequence.id,
+      input: {
+        prompt: 'hero portrait cleanup',
+        negativePrompt: 'artifacting',
+        generationType: 'image',
+        model: 'flux-dev',
+        width: 1280,
+        height: 720,
+        steps: 25,
+        cfgScale: 7.5,
+        scheduler: 'Euler a',
+        seed: 9,
+      },
+      electron,
+      pollIntervalMs: 0,
+    });
+
+    expect(electron.generation.generateImage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        controlnet: [
+          expect.objectContaining({
+            layer_name: 'Pose Guide',
+            source_path: 'C:/vision-studio-output/source/frame.png',
+            preprocessor: 'openpose',
+          }),
+        ],
+        image_path: 'C:/vision-studio-output/source/frame.png',
+        inpaint: expect.objectContaining({
+          layer_name: 'Repair Mask',
+        }),
+      }),
+    );
+  });
 });
 
 function seedImageTimelineClip() {
   const state = useAppStore.getState();
   const project = state.createProject('Timeline Variant');
+  const scene = state.addScene(project.id, { name: 'Timeline Shot' });
   const sequence = state.ensureTimelineSequenceForProject(project.id)!;
   const track = useAppStore.getState().timelineTracks.find((item) => item.sequenceId === sequence.id)!;
+
+  state.setActiveProject(project.id);
+  state.setActiveScene(scene.id);
 
   state.upsertMediaAsset({
     id: 'media-source-image',
@@ -179,12 +277,13 @@ function seedImageTimelineClip() {
   const clip = state.createTimelineClip({
     trackId: track.id,
     mediaAssetId: 'media-source-image',
+    sceneId: scene.id,
     startMs: 0,
     durationMs: 2000,
     label: 'Opening Frame',
   })!;
 
-  return { project, sequence, track, clip };
+  return { project, scene, sequence, track, clip };
 }
 
 function seedAiBoundVideoClip() {

@@ -1,3 +1,5 @@
+import type { BoundingBox, MaskType, Point } from './project';
+
 export interface PromptHistoryEntry {
   id: string;
   prompt: string;
@@ -69,12 +71,64 @@ export interface ControlNetConfig {
   endStep: number;
 }
 
+export interface GenerationMaskPayload {
+  type: MaskType;
+  points: Point[];
+  bounds: BoundingBox;
+}
+
+export interface GenerationControlNetLayerPayload {
+  layer_id: string;
+  layer_name: string;
+  source_path: string;
+  preprocessor: ControlNetConfig['preprocessor'] | string;
+  strength: number;
+  start_step: number;
+  end_step: number;
+  mask: GenerationMaskPayload;
+  prompt?: string;
+  negative_prompt?: string;
+}
+
+export interface GenerationReferenceImageLayerPayload {
+  layer_id: string;
+  layer_name: string;
+  source_path: string;
+  mask: GenerationMaskPayload;
+}
+
+export interface GenerationInpaintPayload {
+  layer_id: string;
+  layer_name: string;
+  image_path: string;
+  mask: GenerationMaskPayload;
+  prompt?: string;
+  negative_prompt?: string;
+}
+
 export type GenerationMode = 'image' | 'video';
 
 export interface VideoFrameInput {
   id: string;
   imageData: string;   // data URL or file path
   label: string;       // 'Start Frame' | 'End Frame'
+}
+
+export interface ImageGenerationRequestPayload {
+  prompt: string;
+  negative_prompt?: string;
+  width: number;
+  height: number;
+  steps: number;
+  cfg_scale: number;
+  seed?: number;
+  model?: string;
+  scheduler?: string;
+  controlnet?: GenerationControlNetLayerPayload[];
+  reference_images?: GenerationReferenceImageLayerPayload[];
+  image_path?: string;
+  mask?: GenerationMaskPayload;
+  inpaint?: GenerationInpaintPayload;
 }
 
 export const BUILT_IN_STYLE_PRESETS: StylePreset[] = [

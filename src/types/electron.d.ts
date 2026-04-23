@@ -2,17 +2,9 @@
  * Type definitions for Electron API exposed via contextBridge
  */
 
-export interface GenerationParams {
-  prompt: string;
-  negative_prompt?: string;
-  width: number;
-  height: number;
-  steps: number;
-  cfg_scale: number;
-  seed?: number;
-  model?: string;
-  scheduler?: string;
-}
+import type { ImageGenerationRequestPayload } from './generation';
+
+export type GenerationParams = ImageGenerationRequestPayload;
 
 export interface VideoGenerationParams {
   prompt: string;

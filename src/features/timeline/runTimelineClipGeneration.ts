@@ -5,10 +5,11 @@ import type { AppState } from '@/store/appStore.types';
 import type { AssetRecord, AssetJobStatus } from '@/types/assets';
 import type { JobStatus } from '@/types/electron';
 import type { MediaAsset, ReferenceSet } from '@/types/media';
-import type { PromptHistoryEntry } from '@/types/generation';
+import type { ImageGenerationRequestPayload, PromptHistoryEntry } from '@/types/generation';
 import type { ClipGenerationBinding, TimelineClip, TimelineSequence, TimelineTrack } from '@/types/timeline';
 import { computeDimensions } from '@/types/resolution';
 import { SVD_REFERENCE_ERROR } from '@/features/generate/validation';
+import { resolveCanvasControlLayers } from '@/features/generation/resolveCanvasControlLayers';
 import {
   buildCompletionSummary,
   delay,
@@ -32,17 +33,7 @@ interface TimelineGenerationElectronApi {
     }>;
   };
   generation: {
-    generateImage: (params: {
-      prompt: string;
-      negative_prompt?: string;
-      width: number;
-      height: number;
-      steps: number;
-      cfg_scale: number;
-      seed?: number;
-      model?: string;
-      scheduler?: string;
-    }) => Promise<{ success: boolean; jobId?: string; error?: string }>;
+    generateImage: (params: ImageGenerationRequestPayload) => Promise<{ success: boolean; jobId?: string; error?: string }>;
     generateVideo: (params: {
       prompt: string;
       image_path?: string;
@@ -169,6 +160,12 @@ export async function runTimelineClipGeneration({
     binding: existingBinding,
     input,
   });
+  const targetProject = state.projects.find((item) => item.id === targetSequence.projectId) ?? null;
+  const targetScene = targetClip?.sceneId
+    ? targetProject?.scenes.find((item) => item.id === targetClip.sceneId) ?? null
+    : state.activeSceneId
+      ? targetProject?.scenes.find((item) => item.id === state.activeSceneId) ?? null
+      : null;
 
   if (!resolved.prompt.trim()) {
     throw new Error('Enter a prompt before generating into the timeline.');
@@ -191,6 +188,21 @@ export async function runTimelineClipGeneration({
 
   if (resolved.generationType === 'video' && resolved.model === 'svd' && !sourceImagePath) {
     throw new Error(SVD_REFERENCE_ERROR);
+  }
+
+  const canvasControlLayers =
+    resolved.generationType === 'image'
+      ? resolveCanvasControlLayers({
+          scene: targetScene,
+          mediaAssets: state.mediaAssets,
+          referenceSets: state.referenceSets,
+          generationType: 'image',
+          baseImagePath: resolveImageGenerationBasePath(state, targetClip, existingBinding),
+        })
+      : null;
+
+  if (canvasControlLayers?.errors.length) {
+    throw new Error(canvasControlLayers.errors[0]);
   }
 
   const nextBindingBase =
@@ -252,6 +264,19 @@ export async function runTimelineClipGeneration({
           seed: resolved.seed === -1 ? undefined : resolved.seed,
           model: resolved.model,
           scheduler: resolved.scheduler,
+          ...(canvasControlLayers?.controlnet.length
+            ? { controlnet: canvasControlLayers.controlnet }
+            : {}),
+          ...(canvasControlLayers?.referenceImages.length
+            ? { reference_images: canvasControlLayers.referenceImages }
+            : {}),
+          ...(canvasControlLayers?.inpaint
+            ? {
+                image_path: canvasControlLayers.inpaint.image_path,
+                mask: canvasControlLayers.inpaint.mask,
+                inpaint: canvasControlLayers.inpaint,
+              }
+            : {}),
         };
 
   const submitResult =
@@ -735,6 +760,26 @@ function resolveVideoSourcePath({
   }
 
   return resolvePrimaryReferencePath(state.referenceSets, state.mediaAssets, referenceSetIds, 'video');
+}
+
+function resolveImageGenerationBasePath(
+  state: AppState,
+  clip: TimelineClip | null,
+  binding: ClipGenerationBinding | null,
+) {
+  const directClipAsset = clip
+    ? state.mediaAssets.find((asset) => asset.id === clip.mediaAssetId && asset.type === 'image') ?? null
+    : null;
+  if (directClipAsset) {
+    return directClipAsset.path;
+  }
+
+  const sourceMediaAssetId = getStringSetting(binding, 'sourceMediaAssetId');
+  if (!sourceMediaAssetId) {
+    return null;
+  }
+
+  return state.mediaAssets.find((asset) => asset.id === sourceMediaAssetId && asset.type === 'image')?.path ?? null;
 }
 
 function resolvePrimaryReferencePath(

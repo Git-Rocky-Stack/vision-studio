@@ -161,6 +161,38 @@ function seedDurableReferenceImage() {
   }));
 }
 
+function installElectronGenerationMock() {
+  window.electron = {
+    app: {
+      getPath: vi.fn().mockResolvedValue('C:/Users/User/AppData/Roaming/VisionStudio'),
+    },
+    settings: {
+      get: vi.fn().mockResolvedValue({
+        defaultOutputPath: '',
+      }),
+    },
+    generation: {
+      generateImage: vi.fn().mockResolvedValue({ success: true, jobId: 'job-generate-image-1' }),
+      generateVideo: vi.fn().mockResolvedValue({ success: true, jobId: 'job-generate-video-1' }),
+      getStatus: vi.fn().mockResolvedValue({
+        job_id: 'job-generate-image-1',
+        status: 'completed',
+        type: 'image',
+        created_at: '2026-04-23T00:00:00.000Z',
+        completed_at: '2026-04-23T00:00:03.000Z',
+        progress: 100,
+        result: {
+          images: ['/outputs/job-generate-image-1/frame.png'],
+        },
+      }),
+      cancel: vi.fn().mockResolvedValue({ success: true }),
+    },
+    notifications: {
+      notify: vi.fn().mockResolvedValue({ success: true }),
+    },
+  } as unknown as typeof window.electron;
+}
+
 function seedTimelineTargetClip() {
   const state = useAppStore.getState();
   const project = state.createProject('Timeline Board');
@@ -195,9 +227,121 @@ function seedTimelineTargetClip() {
   state.setActiveTimelineClip(clip?.id ?? null);
 }
 
+function seedCanvasControlLayerScene(options?: { invalidControlnet?: boolean }) {
+  const state = useAppStore.getState();
+  const project = state.createProject('Canvas Controls');
+  const scene = state.addScene(project.id, { name: 'Canvas Shot' });
+
+  state.setActiveProject(project.id);
+  state.setActiveScene(scene.id);
+  useAppStore.setState({
+    currentImageAssetPath: 'C:/vision-studio-output/current/canvas-base.png',
+  });
+
+  state.upsertMediaAsset({
+    id: 'canvas-controlnet-source',
+    legacyAssetId: null,
+    jobId: null,
+    name: 'Pose Map',
+    type: 'image',
+    source: 'imported',
+    path: 'C:/vision-studio-inputs/pose-map.png',
+    previewUrl: 'file:///C:/vision-studio-inputs/pose-map.png',
+    thumbnailUrl: 'file:///C:/vision-studio-inputs/pose-map.png',
+    posterUrl: null,
+    width: 1024,
+    height: 1024,
+    metadata: {},
+    createdAt: '2026-04-23T00:00:00.000Z',
+  });
+
+  useAppStore.setState((current) => ({
+    referenceSets: [
+      ...current.referenceSets,
+      {
+        id: 'canvas-reference-set',
+        name: 'Canvas Reference',
+        scope: 'scene',
+        projectId: project.id,
+        sceneId: scene.id,
+        clipId: null,
+        items: [
+          {
+            id: 'canvas-reference-item',
+            slot: 'composition',
+            mediaAssetId: 'canvas-controlnet-source',
+            path: 'C:/vision-studio-inputs/reference-style.png',
+            label: 'Reference style',
+            orderIndex: 0,
+          },
+        ],
+        notes: '',
+        tags: [],
+        createdAt: '2026-04-23T00:00:00.000Z',
+        updatedAt: '2026-04-23T00:00:00.000Z',
+      },
+    ],
+  }));
+
+  const latestState = useAppStore.getState();
+  latestState.createCanvasControlLayer(scene.id, {
+    name: 'Pose Guide',
+    type: 'controlnet',
+    sourceMediaAssetId: options?.invalidControlnet ? undefined : 'canvas-controlnet-source',
+    preprocessor: 'openpose',
+    mask: {
+      type: 'rectangle',
+      points: [
+        { x: 32, y: 48 },
+        { x: 256, y: 48 },
+        { x: 256, y: 224 },
+        { x: 32, y: 224 },
+      ],
+      bounds: { x: 32, y: 48, width: 224, height: 176 },
+      featherRadius: 2,
+      blendEdges: true,
+    },
+  });
+  latestState.createCanvasControlLayer(scene.id, {
+    name: 'Reference Area',
+    type: 'reference-image',
+    referenceSetId: 'canvas-reference-set',
+    mask: {
+      type: 'rectangle',
+      points: [
+        { x: 320, y: 64 },
+        { x: 512, y: 64 },
+        { x: 512, y: 240 },
+        { x: 320, y: 240 },
+      ],
+      bounds: { x: 320, y: 64, width: 192, height: 176 },
+      featherRadius: 2,
+      blendEdges: true,
+    },
+  });
+  latestState.createCanvasControlLayer(scene.id, {
+    name: 'Fill Mask',
+    type: 'inpaint-mask',
+    prompt: 'repair the missing sleeve',
+    mask: {
+      type: 'rectangle',
+      points: [
+        { x: 540, y: 120 },
+        { x: 680, y: 120 },
+        { x: 680, y: 280 },
+        { x: 540, y: 280 },
+      ],
+      bounds: { x: 540, y: 120, width: 140, height: 160 },
+      featherRadius: 2,
+      blendEdges: true,
+    },
+  });
+}
+
 describe('GeneratePanel', () => {
   beforeEach(() => {
     resetStore();
+    installElectronGenerationMock();
     vi.mocked(runTimelineClipGeneration).mockReset();
   });
 
@@ -322,6 +466,61 @@ describe('GeneratePanel', () => {
           }),
         }),
       );
+    });
+  });
+
+  it('resolves visible canvas control layers into the image generation payload', async () => {
+    seedCanvasControlLayerScene();
+    render(<GeneratePanel />);
+
+    fireEvent.change(screen.getByTestId('mock-prompt-input'), {
+      target: { value: 'cinematic portrait pass' },
+    });
+    fireEvent.click(screen.getByTestId('generate-button'));
+
+    await waitFor(() => {
+      expect(window.electron.generation.generateImage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          prompt: 'cinematic portrait pass',
+          controlnet: [
+            expect.objectContaining({
+              layer_name: 'Pose Guide',
+              source_path: 'C:/vision-studio-inputs/pose-map.png',
+              preprocessor: 'openpose',
+            }),
+          ],
+          reference_images: [
+            expect.objectContaining({
+              layer_name: 'Reference Area',
+              source_path: 'C:/vision-studio-inputs/reference-style.png',
+            }),
+          ],
+          image_path: 'C:/vision-studio-output/current/canvas-base.png',
+          inpaint: expect.objectContaining({
+            layer_name: 'Fill Mask',
+          }),
+        }),
+      );
+    });
+  });
+
+  it('blocks generation when a visible canvas control layer is invalid', async () => {
+    seedCanvasControlLayerScene({ invalidControlnet: true });
+    render(<GeneratePanel />);
+
+    fireEvent.change(screen.getByTestId('mock-prompt-input'), {
+      target: { value: 'broken control layer run' },
+    });
+
+    expect(screen.getByTestId('generate-preflight-warning')).toHaveTextContent(
+      'Pose Guide needs a source image or reference target.',
+    );
+
+    fireEvent.click(screen.getByTestId('generate-button'));
+
+    await waitFor(() => {
+      expect(window.electron.generation.generateImage).not.toHaveBeenCalled();
+      expect(screen.getByText('Pose Guide needs a source image or reference target.')).toBeInTheDocument();
     });
   });
 });
