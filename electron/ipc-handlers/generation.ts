@@ -171,6 +171,24 @@ ipcMain.handle('generation:extract-video-frame', async (_event, params) => {
   }
 });
 
+ipcMain.handle('generation:export-timeline-sequence', async (_event, params) => {
+  try {
+    const response = await requestBackend(() =>
+      axios.post(`${BACKEND_URL}/api/timeline/export`, params, { headers: backendAuthHeaders() })
+    );
+    return {
+      success: true,
+      jobId: response.data.job_id,
+    };
+  } catch (error: any) {
+    console.error('Timeline export error:', error);
+    return {
+      success: false,
+      error: toSafeRendererError(error, 'Timeline export failed')
+    };
+  }
+});
+
 // Batch generation
 ipcMain.handle('generation:batch', async (_event, params) => {
   try {

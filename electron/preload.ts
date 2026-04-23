@@ -86,6 +86,22 @@ export interface ElectronAPI {
       model?: string;
       seed?: number;
     }) => Promise<{ success: boolean; jobId?: string; error?: string }>;
+    exportTimelineSequence: (params: {
+      sequence_name: string;
+      width: number;
+      height: number;
+      fps: number;
+      output_path: string;
+      frames: Array<{
+        time_ms: number;
+        layers: Array<{
+          source_path: string;
+          media_type: 'image' | 'video';
+          source_time_ms: number;
+          opacity: number;
+        }>;
+      }>;
+    }) => Promise<{ success: boolean; jobId?: string; error?: string }>;
     batch: (params: {
       prompts: string[];
       negative_prompt?: string;
@@ -185,6 +201,7 @@ const electronAPI: ElectronAPI = {
   generation: {
     generateImage: (params) => ipcRenderer.invoke('generation:generate-image', params),
     generateVideo: (params) => ipcRenderer.invoke('generation:generate-video', params),
+    exportTimelineSequence: (params) => ipcRenderer.invoke('generation:export-timeline-sequence', params),
     batch: (params) => ipcRenderer.invoke('generation:batch', params),
     enhancePrompt: (params) => ipcRenderer.invoke('generation:enhance-prompt', params),
     cropImage: (params) => ipcRenderer.invoke('generation:crop-image', params),

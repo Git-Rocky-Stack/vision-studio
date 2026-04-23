@@ -5,7 +5,7 @@ FastAPI server for AI image and video generation
 
 import builtins
 import sys
-from typing import Any, Optional
+from typing import Any, Callable, Optional
 
 # --- Safe print must be installed BEFORE any other imports, because some
 # modules (e.g. direct_generator) print Unicode at import time and Windows
@@ -43,6 +43,7 @@ from typing import Dict, List
 from contextlib import asynccontextmanager
 
 import imageio.v2 as imageio
+import numpy as np
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, BackgroundTasks, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -377,6 +378,27 @@ class VideoFrameExtractRequest(BaseModel):
     time_ms: int = Field(default=0, ge=0)
 
 
+class TimelineExportLayerRequest(BaseModel):
+    source_path: str
+    media_type: str = Field(pattern="^(image|video)$")
+    source_time_ms: int = Field(default=0, ge=0)
+    opacity: float = Field(default=1.0, ge=0.0, le=1.0)
+
+
+class TimelineExportFrameRequest(BaseModel):
+    time_ms: int = Field(default=0, ge=0)
+    layers: List[TimelineExportLayerRequest] = Field(default_factory=list)
+
+
+class TimelineExportRequest(BaseModel):
+    sequence_name: str = Field(default="Timeline Export")
+    width: int = Field(default=1920, ge=64, le=4096)
+    height: int = Field(default=1080, ge=64, le=4096)
+    fps: int = Field(default=24, ge=1, le=60)
+    output_path: str
+    frames: List[TimelineExportFrameRequest] = Field(min_length=1, max_length=24000)
+
+
 class ModelInfo(BaseModel):
     id: str
     name: str
@@ -526,6 +548,162 @@ def extract_video_frame_file(source_path: str, output_path: str, time_ms: int = 
         reader.close()
 
 
+def normalize_local_path(file_path: str) -> str:
+    return str(Path(file_path).expanduser()).replace("\\", "/")
+
+
+def resolve_backend_media_path(source_path: str) -> str:
+    normalized_path = source_path.replace("\\", "/")
+
+    if normalized_path.startswith("/outputs/"):
+        relative_path = normalized_path.replace("/outputs/", "", 1)
+        return normalize_local_path(os.path.join(OUTPUT_DIR, relative_path))
+
+    if normalized_path.startswith("file:///"):
+        return normalize_local_path(normalized_path.replace("file:///", "", 1))
+
+    return normalize_local_path(normalized_path)
+
+
+def fit_media_to_canvas(source_image: Image.Image, width: int, height: int, opacity: float) -> Image.Image:
+    canvas = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+    image = source_image.convert("RGBA")
+    image.thumbnail((width, height), Image.Resampling.LANCZOS)
+
+    if opacity < 1.0:
+        alpha = image.getchannel("A")
+        alpha = alpha.point(lambda value: int(round(value * opacity)))
+        image.putalpha(alpha)
+
+    offset_x = max(0, (width - image.width) // 2)
+    offset_y = max(0, (height - image.height) // 2)
+    canvas.alpha_composite(image, (offset_x, offset_y))
+    return canvas
+
+
+def extract_video_frame_image(source_path: str, time_ms: int = 0) -> Image.Image:
+    reader = imageio.get_reader(source_path)
+
+    try:
+        metadata = reader.get_meta_data() or {}
+        fps_value = metadata.get("fps")
+        fps = float(fps_value) if isinstance(fps_value, (int, float)) and fps_value > 0 else None
+        frame_index = max(0, round((time_ms / 1000.0) * fps)) if fps else 0
+
+        frame_count_value = metadata.get("nframes")
+        if isinstance(frame_count_value, int) and frame_count_value > 0:
+            frame_index = min(frame_index, frame_count_value - 1)
+
+        try:
+            frame = reader.get_data(frame_index)
+        except Exception:
+            fallback_index = (
+                max(0, frame_count_value - 1)
+                if isinstance(frame_count_value, int) and frame_count_value > 0
+                else 0
+            )
+            frame = reader.get_data(fallback_index)
+
+        return Image.fromarray(frame).convert("RGBA")
+    finally:
+        reader.close()
+
+
+def render_timeline_export_frame(
+    frame_request: TimelineExportFrameRequest,
+    width: int,
+    height: int,
+    image_cache: Optional[Dict[str, Image.Image]] = None,
+) -> Image.Image:
+    canvas = Image.new("RGBA", (width, height), (0, 0, 0, 255))
+    reusable_image_cache = image_cache if image_cache is not None else {}
+
+    for layer in frame_request.layers:
+        source_path = resolve_backend_media_path(layer.source_path)
+        if not os.path.exists(source_path):
+            raise FileNotFoundError(f"Missing media source: {source_path}")
+
+        if layer.media_type == "image":
+            cached_image = reusable_image_cache.get(source_path)
+            if cached_image is None:
+                with Image.open(source_path) as opened_image:
+                    cached_image = opened_image.convert("RGBA")
+                reusable_image_cache[source_path] = cached_image
+            source_image = cached_image.copy()
+        else:
+            source_image = extract_video_frame_image(source_path, time_ms=layer.source_time_ms)
+
+        canvas.alpha_composite(
+            fit_media_to_canvas(source_image, width, height, layer.opacity),
+        )
+
+    return canvas.convert("RGB")
+
+
+def export_timeline_video_file(
+    export_request: TimelineExportRequest,
+    progress_callback: Optional[Callable[[float], None]] = None,
+) -> Dict[str, Any]:
+    output_path = normalize_local_path(export_request.output_path)
+    output_dir = os.path.dirname(output_path) or OUTPUT_DIR
+    os.makedirs(output_dir, exist_ok=True)
+
+    frame_count = len(export_request.frames)
+    writer = imageio.get_writer(output_path, fps=export_request.fps)
+    image_cache: Dict[str, Image.Image] = {}
+
+    try:
+        for index, frame_request in enumerate(export_request.frames):
+            frame_image = render_timeline_export_frame(
+                frame_request,
+                export_request.width,
+                export_request.height,
+                image_cache=image_cache,
+            )
+            writer.append_data(np.asarray(frame_image))
+
+            if progress_callback:
+                progress_callback(5.0 + ((index + 1) / max(frame_count, 1)) * 90.0)
+    finally:
+        writer.close()
+
+    return {
+        "video": output_path,
+        "output_path": output_path,
+        "fps": export_request.fps,
+        "duration": frame_count / export_request.fps,
+        "frames": frame_count,
+        "width": export_request.width,
+        "height": export_request.height,
+        "sequence_name": export_request.sequence_name,
+    }
+
+
+def process_timeline_export(job_id: str, export_request: TimelineExportRequest):
+    """Render and encode a resolved timeline frame stream into a silent MP4."""
+    try:
+        job_manager.update_job(job_id, status=JobStatus.PROCESSING, progress=0.0)
+        result = export_timeline_video_file(
+            export_request,
+            progress_callback=lambda progress: job_manager.update_job(job_id, progress=progress),
+        )
+        job_manager.update_job(
+            job_id,
+            status=JobStatus.COMPLETED,
+            progress=100.0,
+            result=result,
+            completed_at=datetime.now(),
+        )
+    except Exception as e:
+        logger.error(f"Timeline export failed: {e}", exc_info=True)
+        job_manager.update_job(
+            job_id,
+            status=JobStatus.FAILED,
+            error=str(e),
+            completed_at=datetime.now(),
+        )
+
+
 @app.post("/api/images/crop", response_model=Dict[str, Any], tags=["Images"])
 @limiter.limit("30/minute")
 async def crop_image(request: Request, edit_request: ImageEditRequest):
@@ -623,6 +801,49 @@ async def extract_video_frame(request: Request, extract_request: VideoFrameExtra
     )
     result["image"] = relative_path
     return result
+
+
+@app.post("/api/timeline/export", response_model=JobResponse, tags=["Timeline"])
+@limiter.limit("5/minute")
+async def export_timeline(
+    request: Request,
+    export_request: TimelineExportRequest,
+    background_tasks: BackgroundTasks,
+):
+    """
+    Start a silent MP4 export for a resolved timeline frame stream.
+
+    The renderer resolves playback frames locally, then submits the ordered frame
+    stream here for deterministic MP4 encoding through the backend.
+    """
+    job_id = str(uuid.uuid4())
+    normalized_output_path = normalize_local_path(export_request.output_path)
+    output_dir = os.path.dirname(normalized_output_path) or OUTPUT_DIR
+
+    job = GenerationJob(
+        id=job_id,
+        type="video",
+        status=JobStatus.PENDING,
+        params={
+            "source": "timeline-export",
+            "output_path": normalized_output_path,
+            "sequence_name": export_request.sequence_name,
+            "width": export_request.width,
+            "height": export_request.height,
+            "fps": export_request.fps,
+            "frame_count": len(export_request.frames),
+        },
+        output_dir=output_dir,
+    )
+
+    job_manager.add_job(job)
+    background_tasks.add_task(process_timeline_export, job_id, export_request)
+
+    return JobResponse(
+        job_id=job_id,
+        status="pending",
+        message="Timeline export started",
+    )
 
 
 # ============= Image Generation =============

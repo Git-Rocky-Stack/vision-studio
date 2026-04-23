@@ -26,6 +26,27 @@ export interface VideoGenerationParams {
   seed?: number;
 }
 
+export interface TimelineExportLayerParams {
+  source_path: string;
+  media_type: 'image' | 'video';
+  source_time_ms: number;
+  opacity: number;
+}
+
+export interface TimelineExportFrameParams {
+  time_ms: number;
+  layers: TimelineExportLayerParams[];
+}
+
+export interface TimelineExportParams {
+  sequence_name: string;
+  width: number;
+  height: number;
+  fps: number;
+  output_path: string;
+  frames: TimelineExportFrameParams[];
+}
+
 export interface BatchParams {
   prompts: string[];
   negative_prompt?: string;
@@ -148,6 +169,7 @@ export interface ElectronAPI {
   generation: {
     generateImage: (params: GenerationParams) => Promise<JobResponse>;
     generateVideo: (params: VideoGenerationParams) => Promise<JobResponse>;
+    exportTimelineSequence: (params: TimelineExportParams) => Promise<JobResponse>;
     batch: (params: BatchParams) => Promise<JobResponse>;
     enhancePrompt: (params: {
       prompt: string;
