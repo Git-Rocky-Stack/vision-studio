@@ -12,6 +12,22 @@ vi.mock('@/components/canvas/CanvasContextMenu', () => ({
   ),
 }));
 
+function stubBoundingRect(el: Element | null, width = 1024, height = 1024) {
+  if (!el) return;
+  (el as HTMLElement).getBoundingClientRect = () =>
+    ({
+      left: 0,
+      top: 0,
+      right: width,
+      bottom: height,
+      width,
+      height,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    }) as DOMRect;
+}
+
 describe('Canvas', () => {
   beforeEach(() => {
     useAppStore.setState(useAppStore.getInitialState(), true);
@@ -82,6 +98,68 @@ describe('Canvas', () => {
 
     expect(screen.getByTestId('canvas-control-layer-rail')).toBeInTheDocument();
     expect(screen.getByText('Canvas Control Layers')).toBeInTheDocument();
+  });
+
+  it('routes mask drawing to the active canvas control layer when no region is selected', async () => {
+    const state = useAppStore.getState();
+    const project = state.createProject('Canvas controls');
+    const scene = state.addScene(project.id, { name: 'Shot 1' });
+    const layer = state.createCanvasControlLayer(scene.id, { name: 'Guide layer' });
+
+    state.setActiveProject(project.id);
+    state.setActiveScene(scene.id);
+    state.setRegionMode(true);
+    state.setActiveMaskTool('rectangle');
+
+    render(<Canvas />);
+
+    const surface = await screen.findByTestId('region-mask-drawer');
+    stubBoundingRect(surface);
+
+    fireEvent.pointerDown(surface, { clientX: 120, clientY: 140, button: 0, pointerId: 1 });
+    fireEvent.pointerMove(surface, { clientX: 420, clientY: 460, pointerId: 1 });
+    fireEvent.pointerUp(surface, { clientX: 420, clientY: 460, pointerId: 1 });
+
+    const updatedScene = useAppStore
+      .getState()
+      .projects.find((item) => item.id === project.id)
+      ?.scenes.find((item) => item.id === scene.id);
+    const updatedLayer = updatedScene?.canvasControlLayers.find((item) => item.id === layer?.id);
+
+    expect(updatedLayer?.mask.bounds).toEqual({ x: 120, y: 140, width: 300, height: 320 });
+  });
+
+  it('shows the active control layer mask in select mode', async () => {
+    const state = useAppStore.getState();
+    const project = state.createProject('Canvas controls');
+    const scene = state.addScene(project.id, { name: 'Shot 1' });
+    const layer = state.createCanvasControlLayer(scene.id, {
+      name: 'Guide layer',
+      mask: {
+        type: 'rectangle',
+        points: [
+          { x: 50, y: 50 },
+          { x: 200, y: 50 },
+          { x: 200, y: 220 },
+          { x: 50, y: 220 },
+        ],
+        bounds: { x: 50, y: 50, width: 150, height: 170 },
+        featherRadius: 2,
+        blendEdges: true,
+      },
+    });
+
+    state.setActiveProject(project.id);
+    state.setActiveScene(scene.id);
+    state.setRegionMode(true);
+    state.setActiveMaskTool('select');
+
+    render(<Canvas />);
+
+    const surface = await screen.findByTestId('region-mask-drawer');
+
+    expect(surface).toHaveAttribute('data-active-region', layer?.id);
+    expect(surface).toHaveStyle({ pointerEvents: 'none' });
   });
 
   it('extracts a selected video source into an editable frame', async () => {

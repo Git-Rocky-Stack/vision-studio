@@ -1,14 +1,20 @@
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
-import type { RegionLock, BoundingBox, Point, MaskType } from '@/types/project';
+import type { BoundingBox, Point, MaskType, RegionMask } from '@/types/project';
 
 export type MaskTool = MaskType | 'select';
 
+type MaskTarget = {
+  id: string;
+  mask: RegionMask;
+};
+
 interface RegionMaskDrawerProps {
-  activeRegion: RegionLock;
+  activeRegion: MaskTarget;
   canvasWidth: number;
   canvasHeight: number;
   tool: MaskTool;
   brushSize: number;
+  showExistingMaskWhenSelect?: boolean;
   onMaskCommit: (update: {
     type: MaskType;
     points: Point[];
@@ -64,6 +70,7 @@ export const RegionMaskDrawer = memo(function RegionMaskDrawer({
   canvasHeight,
   tool,
   brushSize,
+  showExistingMaskWhenSelect = false,
   onMaskCommit,
 }: RegionMaskDrawerProps) {
   const [draft, setDraft] = useState<Draft | null>(null);
@@ -232,8 +239,57 @@ export const RegionMaskDrawer = memo(function RegionMaskDrawer({
     return null;
   })();
 
-  // 'select' tool: render nothing - parent uses pointer-events on overlay to select regions.
-  if (tool === 'select') return null;
+  const existingMask = (() => {
+    const { mask } = activeRegion;
+
+    if (mask.type === 'rectangle') {
+      const { x, y, width, height } = mask.bounds;
+      if (width <= 0 && height <= 0) {
+        return null;
+      }
+
+      return (
+        <rect
+          x={x}
+          y={y}
+          width={width}
+          height={height}
+          fill="rgba(239, 68, 68, 0.12)"
+          stroke="rgba(239, 68, 68, 0.9)"
+          strokeWidth={2}
+        />
+      );
+    }
+
+    if (mask.points.length >= 2) {
+      const command = mask.points
+        .map((point, index) => `${index === 0 ? 'M' : 'L'}${point.x.toFixed(1)} ${point.y.toFixed(1)}`)
+        .join(' ');
+      const closedCommand = mask.type === 'polygon' ? `${command} Z` : command;
+      const isEraseMask = mask.type === 'erase';
+
+      return (
+        <path
+          d={closedCommand}
+          fill={
+            mask.type === 'polygon'
+              ? 'rgba(239, 68, 68, 0.10)'
+              : 'none'
+          }
+          stroke={isEraseMask ? 'rgba(56, 189, 248, 0.9)' : 'rgba(239, 68, 68, 0.9)'}
+          strokeWidth={mask.type === 'brush' || mask.type === 'erase' ? Math.max(6, brushSize * 0.6) : 2}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeDasharray={isEraseMask ? '8 6' : undefined}
+        />
+      );
+    }
+
+    return null;
+  })();
+
+  // 'select' tool: by default render nothing - parent uses pointer-events on overlay to select regions.
+  if (tool === 'select' && !showExistingMaskWhenSelect) return null;
 
   const cursor = tool === 'erase' ? 'cell' : 'crosshair';
 
@@ -244,11 +300,15 @@ export const RegionMaskDrawer = memo(function RegionMaskDrawer({
       data-active-region={activeRegion.id}
       data-active-tool={tool}
       className="absolute inset-0"
-      style={{ cursor, touchAction: 'none' }}
-      onPointerDown={handlePointerDown}
-      onPointerMove={handlePointerMove}
-      onPointerUp={handlePointerUp}
-      onPointerCancel={handlePointerCancel}
+      style={{
+        cursor: tool === 'select' ? 'default' : cursor,
+        touchAction: 'none',
+        pointerEvents: tool === 'select' ? 'none' : 'auto',
+      }}
+      onPointerDown={tool === 'select' ? undefined : handlePointerDown}
+      onPointerMove={tool === 'select' ? undefined : handlePointerMove}
+      onPointerUp={tool === 'select' ? undefined : handlePointerUp}
+      onPointerCancel={tool === 'select' ? undefined : handlePointerCancel}
     >
       <svg
         className="absolute inset-0 pointer-events-none"
@@ -257,6 +317,7 @@ export const RegionMaskDrawer = memo(function RegionMaskDrawer({
         viewBox={`0 0 ${canvasWidth} ${canvasHeight}`}
         preserveAspectRatio="none"
       >
+        {existingMask}
         {preview}
       </svg>
     </div>

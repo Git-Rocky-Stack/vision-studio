@@ -58,6 +58,23 @@ describe('RegionMaskDrawer', () => {
     expect(queryByTestId('region-mask-drawer')).toBeNull();
   });
 
+  it('renders the stored mask in select mode when explicitly requested', () => {
+    const { getByTestId } = render(
+      <RegionMaskDrawer
+        activeRegion={mockRegion}
+        canvasWidth={CANVAS_W}
+        canvasHeight={CANVAS_H}
+        tool="select"
+        brushSize={20}
+        showExistingMaskWhenSelect
+        onMaskCommit={vi.fn()}
+      />
+    );
+
+    expect(getByTestId('region-mask-drawer')).toBeTruthy();
+    expect(getByTestId('region-mask-drawer').style.pointerEvents).toBe('none');
+  });
+
   it('renders interactive surface for rectangle/brush/polygon tools', () => {
     const { getByTestId, rerender } = render(
       <RegionMaskDrawer

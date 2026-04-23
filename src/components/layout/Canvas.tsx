@@ -42,6 +42,7 @@ export const Canvas = memo(function Canvas() {
     setActiveTab,
     setCenterView,
     updateRegionLock,
+    updateCanvasControlLayer,
     projects,
     activeProjectId,
     activeSceneId,
@@ -66,6 +67,7 @@ export const Canvas = memo(function Canvas() {
     setActiveTab: s.setActiveTab,
     setCenterView: s.setCenterView,
     updateRegionLock: s.updateRegionLock,
+    updateCanvasControlLayer: s.updateCanvasControlLayer,
     projects: s.projects,
     activeProjectId: s.activeProjectId,
     activeSceneId: s.activeSceneId,
@@ -74,18 +76,27 @@ export const Canvas = memo(function Canvas() {
     timelineClips: s.timelineClips,
   })));
 
-  // Derive region locks from the active scene
-  const regionLocks = useMemo(() => {
-    if (!activeProjectId || !activeSceneId) return [];
+  const activeScene = useMemo(() => {
+    if (!activeProjectId || !activeSceneId) return null;
     const project = projects.find((p) => p.id === activeProjectId);
-    const scene = project?.scenes.find((s) => s.id === activeSceneId);
-    return scene?.regionLocks ?? [];
+    return project?.scenes.find((s) => s.id === activeSceneId) ?? null;
   }, [projects, activeProjectId, activeSceneId]);
+  // Derive region locks from the active scene
+  const regionLocks = useMemo(() => activeScene?.regionLocks ?? [], [activeScene]);
+  const activeCanvasControlLayer = useMemo(
+    () =>
+      activeScene?.canvasControlLayers.find(
+        (layer) => layer.id === activeScene.activeCanvasControlLayerId,
+      ) ?? null,
+    [activeScene],
+  );
 
   const activeRegion = useMemo(
     () => regionLocks.find((r) => r.id === activeRegionId) ?? null,
     [regionLocks, activeRegionId]
   );
+  const showExistingControlLayerMask =
+    !activeRegion && Boolean(activeCanvasControlLayer?.mask.points.length);
 
   const handleRegionClick = useCallback((regionId: string) => {
     setActiveRegionId(regionId);
@@ -93,17 +104,32 @@ export const Canvas = memo(function Canvas() {
 
   const handleMaskCommit = useCallback(
     (update: Parameters<Parameters<typeof RegionMaskDrawer>[0]['onMaskCommit']>[0]) => {
-      if (!activeSceneId || !activeRegion) return;
-      updateRegionLock(activeSceneId, activeRegion.id, {
-        mask: {
-          ...activeRegion.mask,
-          type: update.type,
-          points: update.points,
-          bounds: update.bounds,
-        },
-      });
+      if (!activeSceneId) return;
+
+      if (activeRegion) {
+        updateRegionLock(activeSceneId, activeRegion.id, {
+          mask: {
+            ...activeRegion.mask,
+            type: update.type,
+            points: update.points,
+            bounds: update.bounds,
+          },
+        });
+        return;
+      }
+
+      if (activeCanvasControlLayer) {
+        updateCanvasControlLayer(activeSceneId, activeCanvasControlLayer.id, {
+          mask: {
+            ...activeCanvasControlLayer.mask,
+            type: update.type,
+            points: update.points,
+            bounds: update.bounds,
+          },
+        });
+      }
     },
-    [activeSceneId, activeRegion, updateRegionLock]
+    [activeSceneId, activeRegion, activeCanvasControlLayer, updateRegionLock, updateCanvasControlLayer]
   );
   const [zoom, setZoom] = useState(100);
   const [showGrid, setShowGrid] = useState(false);
@@ -710,14 +736,15 @@ export const Canvas = memo(function Canvas() {
               />
             )}
 
-            {/* Region Mask Drawer - active when region mode is on, a region is selected, and a drawing tool is chosen */}
-            {regionMode && activeRegion && activeMaskTool !== 'select' && (
+            {/* Region Mask Drawer - region locks take precedence, otherwise the active control layer owns the mask surface */}
+            {regionMode && (activeRegion || activeCanvasControlLayer) && (
               <RegionMaskDrawer
-                activeRegion={activeRegion}
+                activeRegion={activeRegion ?? activeCanvasControlLayer!}
                 canvasWidth={imageSize.width}
                 canvasHeight={imageSize.height}
                 tool={activeMaskTool}
                 brushSize={maskBrushSize}
+                showExistingMaskWhenSelect={showExistingControlLayerMask}
                 onMaskCommit={handleMaskCommit}
               />
             )}

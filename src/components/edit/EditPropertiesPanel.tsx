@@ -8,6 +8,7 @@ import { CropControls } from './CropControls';
 import { TextControls } from './TextControls';
 import { AIToolsPanel } from './AIToolsPanel';
 import { RegionLockProperties } from './RegionLockProperties';
+import { CanvasControlLayerProperties } from '@/components/canvas/CanvasControlLayerProperties';
 import { buildCropBox, getCropDimensions } from '@/features/edit/crop';
 import {
   promoteFrameToClip,
@@ -15,6 +16,7 @@ import {
 } from '@/features/media/frameExtraction';
 import type { ImageAdjustments } from '@/types/editor';
 import type { ReferenceSlotType } from '@/types/media';
+import type { CanvasControlLayer } from '@/types/project';
 import {
   Sun,
   Sparkles,
@@ -28,11 +30,15 @@ import {
   SplitSquareHorizontal,
   History,
   Lock,
+  Layers3,
+  GitBranch,
+  Image as ImageIcon,
+  PaintBucket,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { isLikelyVideoPath } from '@/components/ui/MediaPreview';
 
-type PropertiesTab = 'adjustments' | 'filters' | 'crop' | 'text' | 'ai' | 'region';
+type PropertiesTab = 'adjustments' | 'filters' | 'crop' | 'text' | 'ai' | 'control' | 'region';
 
 const ADJUSTMENT_GROUPS: {
   title: string;
@@ -93,6 +99,7 @@ export function EditPropertiesPanel() {
     activeTab: navTab,
     regionMode,
     activeRegionId,
+    activeMaskTool,
     projects,
     activeProjectId,
     activeSceneId,
@@ -103,6 +110,10 @@ export function EditPropertiesPanel() {
     setActiveRegionId,
     setActiveMaskTool,
     setRegionMode,
+    setActiveCanvasControlLayerId,
+    updateCanvasControlLayer,
+    deleteCanvasControlLayer,
+    createCanvasControlLayer,
   } = useAppStore(
     useShallow((s) => ({
       imageAdjustments: s.imageAdjustments,
@@ -116,6 +127,7 @@ export function EditPropertiesPanel() {
       activeTab: s.activeTab,
       regionMode: s.regionMode,
       activeRegionId: s.activeRegionId,
+      activeMaskTool: s.activeMaskTool,
       projects: s.projects,
       activeProjectId: s.activeProjectId,
       activeSceneId: s.activeSceneId,
@@ -126,6 +138,10 @@ export function EditPropertiesPanel() {
       setActiveRegionId: s.setActiveRegionId,
       setActiveMaskTool: s.setActiveMaskTool,
       setRegionMode: s.setRegionMode,
+      setActiveCanvasControlLayerId: s.setActiveCanvasControlLayerId,
+      updateCanvasControlLayer: s.updateCanvasControlLayer,
+      deleteCanvasControlLayer: s.deleteCanvasControlLayer,
+      createCanvasControlLayer: s.createCanvasControlLayer,
     }))
   );
 
@@ -141,24 +157,46 @@ export function EditPropertiesPanel() {
     const scene = project?.scenes.find((s) => s.id === activeSceneId);
     return scene?.regionLocks.find((l) => l.id === activeRegionId) ?? null;
   })();
+  const activeScene = (() => {
+    if (!activeProjectId || !activeSceneId) return null;
+    const project = projects.find((p) => p.id === activeProjectId);
+    return project?.scenes.find((s) => s.id === activeSceneId) ?? null;
+  })();
+  const activeCanvasControlLayer = (() => {
+    if (!activeScene?.activeCanvasControlLayerId) {
+      return null;
+    }
+
+    return (
+      activeScene.canvasControlLayers.find(
+        (layer) => layer.id === activeScene.activeCanvasControlLayerId,
+      ) ?? null
+    );
+  })();
 
   // Auto-switch to region tab when region mode is active and a region is selected
   useEffect(() => {
     if (regionMode && activeRegionId && activeTab !== 'region') {
       setActiveTab('region');
     }
-  }, [regionMode, activeRegionId]);
+  }, [regionMode, activeRegionId, activeTab]);
+
+  useEffect(() => {
+    if (activeCanvasControlLayer && !activeRegionId && activeTab !== 'control') {
+      setActiveTab('control');
+    }
+  }, [activeCanvasControlLayer, activeRegionId, activeTab]);
 
   // Sync regionMode with the region tab: entering the tab enables region mode,
   // leaving it disables region mode. This gives users a single, discoverable
   // entry point to region-lock features.
   useEffect(() => {
-    if (activeTab === 'region' && !regionMode) {
+    if ((activeTab === 'region' || activeTab === 'control') && !regionMode) {
       setRegionMode(true);
-    } else if (activeTab !== 'region' && regionMode) {
+    } else if (activeTab !== 'region' && activeTab !== 'control' && regionMode) {
       setRegionMode(false);
     }
-  }, [activeTab]);
+  }, [activeTab, regionMode, setRegionMode]);
 
   // Filter state
   const [selectedFilters, setSelectedFilters] = useState<string[]>([]);
@@ -221,8 +259,22 @@ export function EditPropertiesPanel() {
     { id: 'crop', label: 'Crop', icon: Crop },
     { id: 'text', label: 'Text', icon: Type },
     { id: 'ai', label: 'AI Tools', icon: Wand2 },
+    { id: 'control', label: 'Control', icon: Layers3 },
     { id: 'region', label: 'Region', icon: Lock },
   ];
+
+  const handleCreateCanvasControlLayer = (type: CanvasControlLayer['type']) => {
+    if (!activeSceneId) {
+      return;
+    }
+
+    setActiveRegionId(null);
+    const layer = createCanvasControlLayer(activeSceneId, { type });
+    if (layer) {
+      setActiveCanvasControlLayerId(activeSceneId, layer.id);
+      setActiveMaskTool('rectangle');
+    }
+  };
 
   const undoCount = editHistory.length;
   const isVideoSource = isLikelyVideoPath(currentImageAssetPath ?? currentImage);
@@ -591,6 +643,67 @@ export function EditPropertiesPanel() {
               className="p-4"
             >
               <AIToolsPanel />
+            </motion.div>
+          )}
+
+          {/* Canvas Control Layer Tab */}
+          {activeTab === 'control' && (
+            <motion.div
+              key="control"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="p-4"
+            >
+              {activeCanvasControlLayer && activeSceneId ? (
+                <CanvasControlLayerProperties
+                  layer={activeCanvasControlLayer}
+                  activeMaskTool={activeMaskTool}
+                  onMaskToolChange={setActiveMaskTool}
+                  onUpdate={(updates) =>
+                    updateCanvasControlLayer(activeSceneId, activeCanvasControlLayer.id, updates)
+                  }
+                  onDelete={() => deleteCanvasControlLayer(activeSceneId, activeCanvasControlLayer.id)}
+                />
+              ) : (
+                <div className="flex flex-col items-center justify-center py-12 text-center">
+                  <Layers3 className="mb-3 h-8 w-8 text-text-muted opacity-40" />
+                  <p className="type-caption">No control layer selected</p>
+                  <p className="mt-1 mb-4 type-caption">
+                    Create or select a canvas control layer, then draw its mask on the canvas.
+                  </p>
+                  <div className="grid w-full max-w-xs grid-cols-1 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handleCreateCanvasControlLayer('controlnet')}
+                      disabled={!activeSceneId}
+                      className="inline-flex items-center justify-center gap-2 rounded-lg bg-red-primary px-4 py-2 text-white type-ui transition-colors hover:bg-red-highlight disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      <GitBranch className="h-4 w-4" />
+                      Add ControlNet Layer
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleCreateCanvasControlLayer('reference-image')}
+                      disabled={!activeSceneId}
+                      className="inline-flex items-center justify-center gap-2 rounded-lg border border-border bg-surface px-4 py-2 text-text-primary type-ui transition-colors hover:bg-elevated disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      <ImageIcon className="h-4 w-4" />
+                      Add Reference Layer
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleCreateCanvasControlLayer('inpaint-mask')}
+                      disabled={!activeSceneId}
+                      className="inline-flex items-center justify-center gap-2 rounded-lg border border-border bg-surface px-4 py-2 text-text-primary type-ui transition-colors hover:bg-elevated disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      <PaintBucket className="h-4 w-4" />
+                      Add Inpaint Mask
+                    </button>
+                  </div>
+                  {!activeSceneId && <p className="mt-3 type-caption">Select a scene first</p>}
+                </div>
+              )}
             </motion.div>
           )}
 

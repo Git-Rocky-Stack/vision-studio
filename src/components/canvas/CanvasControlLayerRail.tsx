@@ -79,12 +79,14 @@ function LayerRow({
 }) {
   const {
     setActiveCanvasControlLayerId,
+    setActiveRegionId,
     updateCanvasControlLayer,
     duplicateCanvasControlLayer,
     deleteCanvasControlLayer,
   } = useAppStore(
     useShallow((state) => ({
       setActiveCanvasControlLayerId: state.setActiveCanvasControlLayerId,
+      setActiveRegionId: state.setActiveRegionId,
       updateCanvasControlLayer: state.updateCanvasControlLayer,
       duplicateCanvasControlLayer: state.duplicateCanvasControlLayer,
       deleteCanvasControlLayer: state.deleteCanvasControlLayer,
@@ -103,7 +105,10 @@ function LayerRow({
     >
       <button
         type="button"
-        onClick={() => setActiveCanvasControlLayerId(sceneId, layer.id)}
+        onClick={() => {
+          setActiveRegionId(null);
+          setActiveCanvasControlLayerId(sceneId, layer.id);
+        }}
         className={cn(
           'flex w-full items-start gap-3 rounded-xl px-3 py-2.5 text-left transition-colors',
           isActive ? 'text-text-primary' : 'text-text-body hover:bg-elevated/70 hover:text-text-primary',
@@ -146,6 +151,7 @@ function LayerRow({
           type="button"
           onClick={(event) => {
             event.stopPropagation();
+            setActiveRegionId(null);
             duplicateCanvasControlLayer(sceneId, layer.id);
           }}
           className="rounded-md p-1.5 text-text-body transition-colors hover:bg-elevated hover:text-text-primary"
@@ -174,12 +180,19 @@ function LayerRow({
 export const CanvasControlLayerRail = memo(function CanvasControlLayerRail({
   className,
 }: CanvasControlLayerRailProps) {
-  const { projects, activeProjectId, activeSceneId, createCanvasControlLayer } = useAppStore(
+  const {
+    projects,
+    activeProjectId,
+    activeSceneId,
+    createCanvasControlLayer,
+    setActiveRegionId,
+  } = useAppStore(
     useShallow((state) => ({
       projects: state.projects,
       activeProjectId: state.activeProjectId,
       activeSceneId: state.activeSceneId,
       createCanvasControlLayer: state.createCanvasControlLayer,
+      setActiveRegionId: state.setActiveRegionId,
     })),
   );
 
@@ -220,7 +233,10 @@ export const CanvasControlLayerRail = memo(function CanvasControlLayerRail({
           <button
             key={type}
             type="button"
-            onClick={() => createCanvasControlLayer(scene.id, { type })}
+            onClick={() => {
+              setActiveRegionId(null);
+              createCanvasControlLayer(scene.id, { type });
+            }}
             className="inline-flex flex-col items-center justify-center gap-1 rounded-xl border border-border bg-canvas px-2 py-2 text-center text-text-body transition-all hover:border-border-hover hover:bg-elevated hover:text-text-primary"
             aria-label={label}
             title={label}
