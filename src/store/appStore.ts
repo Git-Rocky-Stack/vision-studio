@@ -16,6 +16,10 @@ import {
   type SceneShotBeat,
   type Scene,
 } from '@/types/project';
+import type {
+  TimelineBeatMarker,
+  TimelineClip,
+} from '@/types/timeline';
 import {
   LEFT_DOCK_MAX_WIDTH,
   LEFT_DOCK_MIN_WIDTH,
@@ -225,6 +229,114 @@ function normalizeSceneShotBeat(shotBeat: Partial<SceneShotBeat> | undefined): S
         ? { ...(shotBeat.metadata as Record<string, unknown>) }
         : {},
   };
+}
+
+function normalizeTimelineBeatMarker(
+  marker: Partial<TimelineBeatMarker> | undefined,
+): TimelineBeatMarker | null {
+  if (!marker || typeof marker.id !== 'string' || marker.id.length === 0) {
+    return null;
+  }
+
+  return {
+    id: marker.id,
+    sourceBeatId:
+      typeof marker.sourceBeatId === 'string' && marker.sourceBeatId.length > 0
+        ? marker.sourceBeatId
+        : marker.id,
+    label: typeof marker.label === 'string' ? marker.label : '',
+    promptSeed: typeof marker.promptSeed === 'string' ? marker.promptSeed : '',
+    notes: typeof marker.notes === 'string' ? marker.notes : '',
+    relativeStartMs:
+      typeof marker.relativeStartMs === 'number' && Number.isFinite(marker.relativeStartMs)
+        ? Math.max(0, Math.round(marker.relativeStartMs))
+        : 0,
+    durationMs:
+      typeof marker.durationMs === 'number' && Number.isFinite(marker.durationMs)
+        ? Math.max(0, Math.round(marker.durationMs))
+        : null,
+    elementIds: Array.isArray(marker.elementIds)
+      ? marker.elementIds.filter((value): value is string => typeof value === 'string')
+      : [],
+  };
+}
+
+function normalizeTimelineClip(clip: Partial<TimelineClip> | undefined): TimelineClip | null {
+  if (
+    !clip ||
+    typeof clip.id !== 'string' ||
+    clip.id.length === 0 ||
+    typeof clip.trackId !== 'string' ||
+    clip.trackId.length === 0 ||
+    typeof clip.mediaAssetId !== 'string' ||
+    clip.mediaAssetId.length === 0
+  ) {
+    return null;
+  }
+
+  const storyboardBeatMarkers = Array.isArray(clip.storyboardBeatMarkers)
+    ? clip.storyboardBeatMarkers
+        .map((marker) => normalizeTimelineBeatMarker(marker))
+        .filter((marker): marker is TimelineBeatMarker => Boolean(marker))
+    : [];
+  const storyboardDerived =
+    typeof clip.storyboardDerived === 'boolean'
+      ? (clip.storyboardDerived || storyboardBeatMarkers.length > 0)
+      : storyboardBeatMarkers.length > 0;
+
+  return {
+    id: clip.id,
+    trackId: clip.trackId,
+    mediaAssetId: clip.mediaAssetId,
+    sceneId: typeof clip.sceneId === 'string' ? clip.sceneId : null,
+    startMs:
+      typeof clip.startMs === 'number' && Number.isFinite(clip.startMs)
+        ? Math.max(0, Math.round(clip.startMs))
+        : 0,
+    durationMs:
+      typeof clip.durationMs === 'number' && Number.isFinite(clip.durationMs)
+        ? Math.max(0, Math.round(clip.durationMs))
+        : 0,
+    sourceInMs:
+      typeof clip.sourceInMs === 'number' && Number.isFinite(clip.sourceInMs)
+        ? Math.max(0, Math.round(clip.sourceInMs))
+        : 0,
+    sourceOutMs:
+      typeof clip.sourceOutMs === 'number' && Number.isFinite(clip.sourceOutMs)
+        ? Math.max(0, Math.round(clip.sourceOutMs))
+        : 0,
+    transitionIn: clip.transitionIn ?? null,
+    transitionOut: clip.transitionOut ?? null,
+    label: typeof clip.label === 'string' ? clip.label : 'Timeline Clip',
+    posterUrl: typeof clip.posterUrl === 'string' ? clip.posterUrl : null,
+    referenceSetIds: Array.isArray(clip.referenceSetIds)
+      ? clip.referenceSetIds.filter((value): value is string => typeof value === 'string')
+      : [],
+    generationBindingId:
+      typeof clip.generationBindingId === 'string' ? clip.generationBindingId : null,
+    storyboardDerived,
+    storyboardBeatMarkers,
+    storyboardDerivedAt:
+      storyboardDerived
+        ? (
+            typeof clip.storyboardDerivedAt === 'string'
+              ? clip.storyboardDerivedAt
+              : (typeof clip.updatedAt === 'string' ? clip.updatedAt : null)
+          )
+        : null,
+    createdAt: typeof clip.createdAt === 'string' ? clip.createdAt : '',
+    updatedAt: typeof clip.updatedAt === 'string' ? clip.updatedAt : '',
+  };
+}
+
+function normalizeTimelineClips(timelineClips: TimelineClip[] | undefined): TimelineClip[] {
+  if (!Array.isArray(timelineClips)) {
+    return [];
+  }
+
+  return timelineClips
+    .map((clip) => normalizeTimelineClip(clip))
+    .filter((clip): clip is TimelineClip => Boolean(clip));
 }
 
 function normalizeImportDraftIssue(
@@ -631,6 +743,11 @@ export const useAppStore = create<AppState>()(
             Array.isArray((persisted as Partial<AppState>).storyboardImportDrafts)
               ? ((persisted as Partial<AppState>).storyboardImportDrafts as ImportDraft[])
               : currentState.storyboardImportDrafts,
+          ),
+          timelineClips: normalizeTimelineClips(
+            Array.isArray((persisted as Partial<AppState>).timelineClips)
+              ? ((persisted as Partial<AppState>).timelineClips as TimelineClip[])
+              : currentState.timelineClips,
           ),
           activeStoryboardImportDraftId:
             typeof (persisted as Partial<AppState>).activeStoryboardImportDraftId === 'string' &&

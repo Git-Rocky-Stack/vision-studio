@@ -38,6 +38,7 @@ export type {
   PlayState,
   KeyframeInterpolation,
   Keyframe,
+  TimelineBeatMarker,
   TimelinePlayRange,
   TimelineSequence,
   TimelineTrack,
@@ -137,6 +138,7 @@ import type {
   TimelineMode,
   PlayState,
   Keyframe,
+  TimelineBeatMarker,
   TimelineSequence,
   TimelineTrack,
   TimelineClip,
@@ -564,6 +566,9 @@ export interface AppState {
     posterUrl?: string | null;
     referenceSetIds?: string[];
     generationBindingId?: string | null;
+    storyboardDerived?: boolean;
+    storyboardBeatMarkers?: TimelineBeatMarker[];
+    storyboardDerivedAt?: string | null;
   }) => TimelineClip | null;
   updateTimelineClip: (
     clipId: string,

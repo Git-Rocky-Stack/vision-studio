@@ -12,6 +12,7 @@ import type {
 import type { ReferenceImage } from '@/types/project';
 import type {
   ClipGenerationBinding,
+  TimelineBeatMarker,
   TimelineClip,
   TimelineClipMoveOptions,
   TimelineClipTrimOptions,
@@ -210,6 +211,9 @@ interface CreateTimelineClipParams {
   posterUrl?: string | null;
   referenceSetIds?: string[];
   generationBindingId?: string | null;
+  storyboardDerived?: boolean;
+  storyboardBeatMarkers?: TimelineBeatMarker[];
+  storyboardDerivedAt?: string | null;
 }
 
 const DEFAULT_IMAGE_CLIP_DURATION_MS = 2000;
@@ -219,6 +223,48 @@ const SNAP_TOLERANCE_MS = 120;
 
 function clamp(value: number, min: number, max: number) {
   return Math.max(min, Math.min(max, value));
+}
+
+function normalizeTimelineBeatMarker(
+  marker: Partial<TimelineBeatMarker> | undefined,
+): TimelineBeatMarker | null {
+  if (!marker || typeof marker.id !== 'string' || marker.id.length === 0) {
+    return null;
+  }
+
+  return {
+    id: marker.id,
+    sourceBeatId:
+      typeof marker.sourceBeatId === 'string' && marker.sourceBeatId.length > 0
+        ? marker.sourceBeatId
+        : marker.id,
+    label: typeof marker.label === 'string' ? marker.label : '',
+    promptSeed: typeof marker.promptSeed === 'string' ? marker.promptSeed : '',
+    notes: typeof marker.notes === 'string' ? marker.notes : '',
+    relativeStartMs:
+      typeof marker.relativeStartMs === 'number' && Number.isFinite(marker.relativeStartMs)
+        ? Math.max(0, Math.round(marker.relativeStartMs))
+        : 0,
+    durationMs:
+      typeof marker.durationMs === 'number' && Number.isFinite(marker.durationMs)
+        ? Math.max(0, Math.round(marker.durationMs))
+        : null,
+    elementIds: Array.isArray(marker.elementIds)
+      ? marker.elementIds.filter((value): value is string => typeof value === 'string')
+      : [],
+  };
+}
+
+function normalizeTimelineBeatMarkers(
+  markers: TimelineBeatMarker[] | Partial<TimelineBeatMarker>[] | undefined,
+): TimelineBeatMarker[] {
+  if (!Array.isArray(markers)) {
+    return [];
+  }
+
+  return markers
+    .map((marker) => normalizeTimelineBeatMarker(marker))
+    .filter((marker): marker is TimelineBeatMarker => Boolean(marker));
 }
 
 function sortClipsByStart(clips: TimelineClip[]) {
@@ -802,6 +848,15 @@ export function createMediaTimelineActions(set: AppSet, get: AppGet) {
 
       const now = new Date().toISOString();
       const mediaAsset = state.mediaAssets.find((item) => item.id === params.mediaAssetId);
+      const storyboardBeatMarkers = normalizeTimelineBeatMarkers(params.storyboardBeatMarkers);
+      const storyboardDerived =
+        typeof params.storyboardDerived === 'boolean'
+          ? (params.storyboardDerived || storyboardBeatMarkers.length > 0)
+          : storyboardBeatMarkers.length > 0;
+      const storyboardDerivedAt =
+        storyboardDerived
+          ? (params.storyboardDerivedAt ?? now)
+          : null;
       const fallbackDuration =
         mediaAsset?.type === 'video' ? DEFAULT_VIDEO_CLIP_DURATION_MS : DEFAULT_IMAGE_CLIP_DURATION_MS;
       const sourceInMs = Math.max(0, params.sourceInMs ?? 0);
@@ -825,6 +880,9 @@ export function createMediaTimelineActions(set: AppSet, get: AppGet) {
             posterUrl: params.posterUrl ?? null,
             referenceSetIds: params.referenceSetIds ?? [],
             generationBindingId: params.generationBindingId ?? null,
+            storyboardDerived,
+            storyboardBeatMarkers,
+            storyboardDerivedAt,
             createdAt: now,
             updatedAt: now,
           })
@@ -851,6 +909,9 @@ export function createMediaTimelineActions(set: AppSet, get: AppGet) {
         posterUrl: params.posterUrl ?? mediaAsset?.posterUrl ?? null,
         referenceSetIds: params.referenceSetIds ?? [],
         generationBindingId: params.generationBindingId ?? null,
+        storyboardDerived,
+        storyboardBeatMarkers,
+        storyboardDerivedAt,
         createdAt: now,
         updatedAt: now,
       };
@@ -901,8 +962,34 @@ export function createMediaTimelineActions(set: AppSet, get: AppGet) {
         const nextClip = {
           ...currentClip,
           ...updates,
+          storyboardBeatMarkers:
+            Array.isArray(updates.storyboardBeatMarkers)
+              ? normalizeTimelineBeatMarkers(updates.storyboardBeatMarkers)
+              : currentClip.storyboardBeatMarkers,
+          storyboardDerived:
+            typeof updates.storyboardDerived === 'boolean'
+              ? (
+                  updates.storyboardDerived ||
+                  (Array.isArray(updates.storyboardBeatMarkers)
+                    ? normalizeTimelineBeatMarkers(updates.storyboardBeatMarkers).length > 0
+                    : currentClip.storyboardBeatMarkers.length > 0)
+                )
+              : (
+                  currentClip.storyboardDerived ||
+                  (Array.isArray(updates.storyboardBeatMarkers)
+                    ? normalizeTimelineBeatMarkers(updates.storyboardBeatMarkers).length > 0
+                    : currentClip.storyboardBeatMarkers.length > 0)
+                ),
+          storyboardDerivedAt: null,
           updatedAt: new Date().toISOString(),
         };
+        nextClip.storyboardDerivedAt = nextClip.storyboardDerived
+          ? (
+              typeof updates.storyboardDerivedAt === 'string'
+                ? updates.storyboardDerivedAt
+                : (currentClip.storyboardDerivedAt ?? nextClip.updatedAt)
+            )
+          : null;
         const nextClips = state.timelineClips.map((clip) =>
           clip.id === clipId ? nextClip : clip,
         );

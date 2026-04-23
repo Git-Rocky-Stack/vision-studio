@@ -700,6 +700,43 @@ describe('appStore', () => {
       expect(merged.storyboardImportDrafts[0].sceneDrafts[0].shotBeats).toHaveLength(1);
       expect(merged.activeStoryboardImportDraftId).toBe('draft-1');
     });
+
+    it('normalizes persisted timeline clips that predate storyboard derivation metadata', () => {
+      const merge = (useAppStore as any).persist?.getOptions?.()?.merge;
+      expect(typeof merge).toBe('function');
+
+      const currentState = useAppStore.getInitialState();
+      const merged = merge(
+        {
+          timelineClips: [
+            {
+              id: 'clip-1',
+              trackId: 'track-1',
+              mediaAssetId: 'media-1',
+              sceneId: 'scene-1',
+              startMs: 0,
+              durationMs: 2000,
+              sourceInMs: 0,
+              sourceOutMs: 2000,
+              transitionIn: null,
+              transitionOut: null,
+              label: 'Legacy Clip',
+              posterUrl: null,
+              referenceSetIds: [],
+              generationBindingId: null,
+              createdAt: '2026-04-23T00:00:00.000Z',
+              updatedAt: '2026-04-23T00:00:00.000Z',
+            },
+          ],
+        },
+        currentState,
+      );
+
+      expect(merged.timelineClips).toHaveLength(1);
+      expect(merged.timelineClips[0].storyboardDerived).toBe(false);
+      expect(merged.timelineClips[0].storyboardBeatMarkers).toEqual([]);
+      expect(merged.timelineClips[0].storyboardDerivedAt).toBeNull();
+    });
   });
 
   // ── Advanced generation ───────────────────────────────────────────────

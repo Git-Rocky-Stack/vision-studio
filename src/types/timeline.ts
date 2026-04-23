@@ -106,6 +106,17 @@ export interface TimelineTrack {
   hidden: boolean;
 }
 
+export interface TimelineBeatMarker {
+  id: string;
+  sourceBeatId: string;
+  label: string;
+  promptSeed: string;
+  notes: string;
+  relativeStartMs: number;
+  durationMs: number | null;
+  elementIds: string[];
+}
+
 export interface TimelineClip {
   id: string;
   trackId: string;
@@ -121,6 +132,9 @@ export interface TimelineClip {
   posterUrl: string | null;
   referenceSetIds: string[];
   generationBindingId: string | null;
+  storyboardDerived: boolean;
+  storyboardBeatMarkers: TimelineBeatMarker[];
+  storyboardDerivedAt: string | null;
   createdAt: string;
   updatedAt: string;
 }
