@@ -1,8 +1,26 @@
 import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useAppStore } from '@/store/appStore';
+import type { WorkflowExecutionValidationResult } from '@/types/workflow';
+
+const { validateWorkflowExecutionMock, runWorkflowExecutionMock } = vi.hoisted(() => ({
+  validateWorkflowExecutionMock: vi.fn<
+    [unknown, unknown],
+    WorkflowExecutionValidationResult
+  >(),
+  runWorkflowExecutionMock: vi.fn(),
+}));
+
+vi.mock('@/features/workflow/validateWorkflowExecution', () => ({
+  validateWorkflowExecution: validateWorkflowExecutionMock,
+}));
+
+vi.mock('@/features/workflow/runWorkflowExecution', () => ({
+  runWorkflowExecution: runWorkflowExecutionMock,
+}));
+
 import { WorkflowWorkbench } from './WorkflowWorkbench';
 
 const legacyPrimarySelector = [
@@ -18,6 +36,41 @@ const legacyPrimarySelector = [
 describe('WorkflowWorkbench', () => {
   beforeEach(() => {
     useAppStore.setState(useAppStore.getInitialState(), true);
+    useAppStore.setState((state) => ({
+      ...state,
+      systemInfo: {
+        ...state.systemInfo,
+        backendConnected: true,
+      },
+      generationDraft: {
+        generationType: 'image',
+        prompt: 'workflow prompt from draft',
+        negativePrompt: 'workflow negative',
+        width: 1024,
+        height: 1024,
+        steps: 25,
+        cfgScale: 7.5,
+        model: 'flux-dev',
+        scheduler: 'Euler a',
+        seed: 42,
+      },
+    }));
+    validateWorkflowExecutionMock.mockReset();
+    validateWorkflowExecutionMock.mockReturnValue({
+      issues: [],
+      summary: {
+        prompt: 'workflow prompt from draft',
+        negativePrompt: 'workflow negative',
+        model: 'flux-dev.safetensors',
+        width: 1024,
+        height: 1024,
+        steps: 25,
+        cfgScale: 7.5,
+        seed: 1,
+      },
+    });
+    runWorkflowExecutionMock.mockReset();
+    runWorkflowExecutionMock.mockResolvedValue(undefined);
   });
 
   afterEach(cleanup);
@@ -27,7 +80,7 @@ describe('WorkflowWorkbench', () => {
 
     expect(screen.getByRole('heading', { name: 'Workflow' })).toBeInTheDocument();
     expect(screen.getAllByText('Image generation baseline').length).toBeGreaterThanOrEqual(1);
-    expect(screen.getByText('Draft')).toBeInTheDocument();
+    expect(screen.getAllByText('Draft').length).toBeGreaterThanOrEqual(1);
     expect(screen.queryByText('Node workflows are coming to this workbench.')).not.toBeInTheDocument();
   });
 
@@ -125,7 +178,41 @@ describe('WorkflowWorkbench', () => {
   it('uses Carbon Pro accent tokens instead of legacy primary red chrome', () => {
     const { container } = render(<WorkflowWorkbench />);
 
-    expect(screen.getByText('Draft')).toHaveClass('border-accent-primary-border');
+    expect(screen.getAllByText('Draft')[0]).toHaveClass('border-accent-primary-border');
     expect(container.querySelector(legacyPrimarySelector)).not.toBeInTheDocument();
+  });
+
+  it('shows validation issues after clicking Validate', async () => {
+    const user = userEvent.setup();
+    validateWorkflowExecutionMock.mockReturnValueOnce({
+      issues: [{ severity: 'error', code: 'missing-prompt', message: 'Prompt is required.' }],
+      summary: null,
+    });
+
+    render(<WorkflowWorkbench />);
+    await user.click(screen.getByRole('button', { name: 'Validate' }));
+
+    expect(screen.getByRole('alert')).toHaveTextContent('Prompt is required.');
+  });
+
+  it('disables Run Workflow while the active workflow has blocking errors', () => {
+    useAppStore.getState().setWorkflowRuntimeState('image-generation-baseline', {
+      issues: [{ severity: 'error', code: 'missing-prompt', message: 'Prompt is required.' }],
+    });
+
+    render(<WorkflowWorkbench />);
+
+    expect(screen.getByRole('button', { name: 'Run Workflow' })).toBeDisabled();
+  });
+
+  it('invokes the runner when Run Workflow is clicked', async () => {
+    const user = userEvent.setup();
+
+    render(<WorkflowWorkbench />);
+    await user.click(screen.getByRole('button', { name: 'Run Workflow' }));
+
+    expect(runWorkflowExecutionMock).toHaveBeenCalledWith(
+      expect.objectContaining({ workflowId: 'image-generation-baseline' })
+    );
   });
 });

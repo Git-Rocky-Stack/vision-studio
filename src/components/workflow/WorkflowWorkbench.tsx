@@ -1,7 +1,10 @@
 import { useEffect, useState } from 'react';
+import { AlertCircle, Loader2, Play, ShieldCheck } from 'lucide-react';
 
 import { exportWorkflowGraphToComfyPrompt } from '@/features/workflow/comfyExport';
 import { createWorkflowNodeFromClassType } from '@/features/workflow/nodeDefaults';
+import { runWorkflowExecution } from '@/features/workflow/runWorkflowExecution';
+import { validateWorkflowExecution } from '@/features/workflow/validateWorkflowExecution';
 import { useShallow } from 'zustand/react/shallow';
 import { useAppStore } from '@/store/appStore';
 import { cn } from '@/utils/cn';
@@ -18,6 +21,14 @@ export function WorkflowWorkbench() {
     connectWorkflowNodes,
     deleteWorkflowNode,
     deleteWorkflowEdge,
+    workflowRuntimeById,
+    setWorkflowRuntimeState,
+    systemInfo,
+    generationDraft,
+    availableModels,
+    projects,
+    activeProjectId,
+    activeSceneId,
   } = useAppStore(
     useShallow((s) => ({
       workflowRecords: s.workflowRecords,
@@ -28,12 +39,31 @@ export function WorkflowWorkbench() {
       connectWorkflowNodes: s.connectWorkflowNodes,
       deleteWorkflowNode: s.deleteWorkflowNode,
       deleteWorkflowEdge: s.deleteWorkflowEdge,
+      workflowRuntimeById: s.workflowRuntimeById,
+      setWorkflowRuntimeState: s.setWorkflowRuntimeState,
+      systemInfo: s.systemInfo,
+      generationDraft: s.generationDraft,
+      availableModels: s.availableModels,
+      projects: s.projects,
+      activeProjectId: s.activeProjectId,
+      activeSceneId: s.activeSceneId,
     }))
   );
   const [exportedJson, setExportedJson] = useState<string | null>(null);
   const [exportError, setExportError] = useState<string | null>(null);
   const activeWorkflow =
     workflowRecords.find((workflow) => workflow.id === activeWorkflowId) ?? workflowRecords[0];
+  const activeScene = getActiveScene(projects, activeProjectId, activeSceneId);
+  const runtime = workflowRuntimeById[activeWorkflow.id] ?? {
+    issues: [],
+    activeJobId: null,
+    lastRunId: null,
+    lastFailureMessage: null,
+    lastResolvedRequest: null,
+  };
+  const hasBlockingIssues = runtime.issues.some((issue) => issue.severity === 'error');
+  const isRunning = activeWorkflow.status === 'running' || Boolean(runtime.activeJobId);
+  const showRunOutputRail = activeWorkflow.runHistory.length > 0 || isRunning;
 
   useEffect(() => {
     setExportedJson(null);
@@ -48,6 +78,25 @@ export function WorkflowWorkbench() {
       setExportedJson(null);
       setExportError(error instanceof Error ? error.message : 'Unable to export graph.');
     }
+  }
+
+  function handleValidate() {
+    const result = validateWorkflowExecution(activeWorkflow, {
+      activeScenePrompt: activeScene?.prompt ?? null,
+      activeSceneNegativePrompt: activeScene?.negativePrompt ?? null,
+      generationDraft,
+      availableModels,
+    });
+
+    setWorkflowRuntimeState(activeWorkflow.id, {
+      issues: result.issues,
+      lastResolvedRequest: result.summary,
+      lastFailureMessage: null,
+    });
+  }
+
+  async function handleRunWorkflow() {
+    await runWorkflowExecution({ workflowId: activeWorkflow.id });
   }
 
   return (
@@ -113,6 +162,47 @@ export function WorkflowWorkbench() {
               ))}
             </div>
           </div>
+
+          <div>
+            <p className="type-ui text-text-muted">Execution</p>
+            {runtime.lastResolvedRequest ? (
+              <div className="mt-2 rounded-md border border-border bg-elevated px-3 py-3">
+                <p className="type-ui text-text-primary">{runtime.lastResolvedRequest.model}</p>
+                <p className="mt-1 type-caption">
+                  {runtime.lastResolvedRequest.width} x {runtime.lastResolvedRequest.height}, {runtime.lastResolvedRequest.steps} steps, CFG {runtime.lastResolvedRequest.cfgScale}
+                </p>
+                <p className="mt-2 line-clamp-2 type-caption text-text-body">
+                  {runtime.lastResolvedRequest.prompt}
+                </p>
+              </div>
+            ) : (
+              <p className="mt-2 type-caption">Validate the workflow to preview the execution request.</p>
+            )}
+          </div>
+
+          {(runtime.issues.length > 0 || runtime.lastFailureMessage) && (
+            <div
+              role="alert"
+              className="rounded-md border border-error/40 bg-error/10 px-3 py-3 text-error"
+            >
+              {runtime.lastFailureMessage ? (
+                <div className="flex items-start gap-2">
+                  <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                  <p className="type-caption">{runtime.lastFailureMessage}</p>
+                </div>
+              ) : null}
+              {runtime.issues.length > 0 ? (
+                <ul className={cn('space-y-2', runtime.lastFailureMessage ? 'mt-3' : '')}>
+                  {runtime.issues.map((issue) => (
+                    <li key={`${issue.code}-${issue.nodeId ?? 'global'}-${issue.message}`} className="flex items-start gap-2">
+                      <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                      <p className="type-caption">{issue.message}</p>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+            </div>
+          )}
         </div>
       </aside>
 
@@ -122,13 +212,36 @@ export function WorkflowWorkbench() {
             <p className="type-caption">Graph Editor</p>
             <h3 className="mt-1 type-section">ComfyUI prompt graph</h3>
           </div>
-          <button
-            type="button"
-            onClick={handleExportComfyJson}
-            className="rounded-md border border-border bg-elevated px-3 py-1.5 type-ui text-text-body transition-all hover:border-border-hover hover:text-text-primary"
-          >
-            Export ComfyUI JSON
-          </button>
+          <div className="flex items-center gap-2">
+            <span className="rounded-md border border-border bg-elevated px-2.5 py-1 type-ui text-text-body">
+              {isRunning ? 'Workflow running' : formatLabel(activeWorkflow.status)}
+            </span>
+            <button
+              type="button"
+              onClick={handleValidate}
+              disabled={isRunning}
+              className="inline-flex items-center gap-2 rounded-md border border-border bg-elevated px-3 py-1.5 type-ui text-text-body transition-all hover:border-border-hover hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <ShieldCheck className="h-4 w-4" />
+              Validate
+            </button>
+            <button
+              type="button"
+              onClick={handleRunWorkflow}
+              disabled={hasBlockingIssues || isRunning || !systemInfo.backendConnected}
+              className="inline-flex items-center gap-2 rounded-md border border-accent-primary-border bg-accent-primary-muted px-3 py-1.5 type-ui text-accent-primary transition-all hover:border-accent-primary disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {isRunning ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
+              {isRunning ? 'Running workflow...' : 'Run Workflow'}
+            </button>
+            <button
+              type="button"
+              onClick={handleExportComfyJson}
+              className="rounded-md border border-border bg-elevated px-3 py-1.5 type-ui text-text-body transition-all hover:border-border-hover hover:text-text-primary"
+            >
+              Export ComfyUI JSON
+            </button>
+          </div>
         </div>
 
         <WorkflowGraphEditor
@@ -200,27 +313,46 @@ export function WorkflowWorkbench() {
           <div
             className={cn(
               'min-h-0 flex-1',
-              activeWorkflow.runHistory.length > 0
+              showRunOutputRail
                 ? 'overflow-auto p-3'
                 : 'flex items-center justify-center px-4 text-center'
             )}
           >
-            {activeWorkflow.runHistory.length > 0 ? (
-              <ul aria-label="Workflow run history" className="flex flex-col gap-2">
-                {activeWorkflow.runHistory.map((run) => (
-                  <li key={run.id} className="rounded-md border border-border bg-elevated px-3 py-2">
+            {showRunOutputRail ? (
+              <div className="flex flex-col gap-2">
+                {isRunning ? (
+                  <div className="rounded-md border border-accent-primary-border bg-accent-primary-muted px-3 py-2">
                     <div className="flex items-start justify-between gap-3">
-                      <p className="min-w-0 type-ui text-text-primary">{run.summary}</p>
-                      <span className="shrink-0 rounded-md border border-border bg-surface px-2 py-1 type-ui text-text-body">
-                        {formatLabel(run.status)}
+                      <p className="min-w-0 type-ui text-accent-primary">
+                        Workflow run in progress
+                      </p>
+                      <span className="shrink-0 rounded-md border border-accent-primary-border bg-surface px-2 py-1 type-ui text-accent-primary">
+                        Running
                       </span>
                     </div>
-                    <time dateTime={run.createdAt} className="mt-2 block type-caption">
-                      {formatTimestamp(run.createdAt)}
-                    </time>
-                  </li>
-                ))}
-              </ul>
+                    {runtime.activeJobId ? (
+                      <p className="mt-2 type-caption text-text-body">Job {runtime.activeJobId}</p>
+                    ) : null}
+                  </div>
+                ) : null}
+                {activeWorkflow.runHistory.length > 0 ? (
+                  <ul aria-label="Workflow run history" className="flex flex-col gap-2">
+                    {activeWorkflow.runHistory.map((run) => (
+                      <li key={run.id} className="rounded-md border border-border bg-elevated px-3 py-2">
+                        <div className="flex items-start justify-between gap-3">
+                          <p className="min-w-0 type-ui text-text-primary">{run.summary}</p>
+                          <span className="shrink-0 rounded-md border border-border bg-surface px-2 py-1 type-ui text-text-body">
+                            {formatLabel(run.status)}
+                          </span>
+                        </div>
+                        <time dateTime={run.createdAt} className="mt-2 block type-caption">
+                          {formatTimestamp(run.createdAt)}
+                        </time>
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+              </div>
             ) : (
               <p className="type-caption">No run output yet.</p>
             )}
@@ -229,4 +361,13 @@ export function WorkflowWorkbench() {
       </aside>
     </div>
   );
+}
+
+function getActiveScene(
+  projects: ReturnType<typeof useAppStore.getState>['projects'],
+  activeProjectId: string | null,
+  activeSceneId: string | null
+) {
+  const activeProject = projects.find((project) => project.id === activeProjectId);
+  return activeProject?.scenes.find((scene) => scene.id === activeSceneId) ?? null;
 }
