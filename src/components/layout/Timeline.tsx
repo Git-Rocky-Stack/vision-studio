@@ -3,6 +3,8 @@ import { motion } from 'framer-motion';
 import { useShallow } from 'zustand/react/shallow';
 import {
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   ChevronUp,
   Copy,
   Eye,
@@ -17,6 +19,7 @@ import {
   Scissors,
   SkipBack,
   SkipForward,
+  Square,
   Trash2,
   Unlock,
   Volume2,
@@ -98,6 +101,9 @@ const TransportControls = memo(function TransportControls({
   totalDurationMs,
   fps,
   onTogglePlay,
+  onStop,
+  onStepBackward,
+  onStepForward,
   onSkipToStart,
   onSkipToEnd,
 }: {
@@ -106,6 +112,9 @@ const TransportControls = memo(function TransportControls({
   totalDurationMs: number;
   fps: number;
   onTogglePlay: () => void;
+  onStop: () => void;
+  onStepBackward: () => void;
+  onStepForward: () => void;
   onSkipToStart: () => void;
   onSkipToEnd: () => void;
 }) {
@@ -122,6 +131,15 @@ const TransportControls = memo(function TransportControls({
       </button>
       <button
         type="button"
+        onClick={onStepBackward}
+        className="rounded-md p-1.5 text-text-body transition hover:bg-surface hover:text-text-primary"
+        aria-label="Step backward one frame"
+        title="Step backward one frame"
+      >
+        <ChevronLeft className="h-3.5 w-3.5" />
+      </button>
+      <button
+        type="button"
         onClick={onTogglePlay}
         className={cn(
           'rounded-lg p-2 transition',
@@ -132,6 +150,24 @@ const TransportControls = memo(function TransportControls({
         aria-label={isPlaying ? 'Pause' : 'Play'}
       >
         {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+      </button>
+      <button
+        type="button"
+        onClick={onStop}
+        className="rounded-md p-1.5 text-text-body transition hover:bg-surface hover:text-text-primary"
+        aria-label="Stop playback"
+        title="Stop playback"
+      >
+        <Square className="h-3.5 w-3.5" />
+      </button>
+      <button
+        type="button"
+        onClick={onStepForward}
+        className="rounded-md p-1.5 text-text-body transition hover:bg-surface hover:text-text-primary"
+        aria-label="Step forward one frame"
+        title="Step forward one frame"
+      >
+        <ChevronRight className="h-3.5 w-3.5" />
       </button>
       <button
         type="button"
@@ -467,6 +503,7 @@ export const Timeline = memo(function Timeline() {
     currentTime,
     onionSkinEnabled,
     setOnionSkinEnabled,
+    timelineStop,
     timelinePause,
     toggleTimelinePlayback,
     seekTo,
@@ -500,6 +537,7 @@ export const Timeline = memo(function Timeline() {
       currentTime: state.currentTime,
       onionSkinEnabled: state.onionSkinEnabled,
       setOnionSkinEnabled: state.setOnionSkinEnabled,
+      timelineStop: state.timelineStop,
       timelinePause: state.timelinePause,
       toggleTimelinePlayback: state.toggleTimelinePlayback,
       seekTo: state.seekTo,
@@ -604,6 +642,7 @@ export const Timeline = memo(function Timeline() {
   const selectedMediaAsset = mediaAssets.find((asset) => asset.id === insertMediaId) ?? mediaAssets[0] ?? null;
   const totalDurationMs = Math.max(activeSequence?.durationMs ?? 0, activeSequence?.playRange?.endMs ?? 0, 10000);
   const progress = totalDurationMs > 0 ? (currentTime / totalDurationMs) * 100 : 0;
+  const frameStepMs = Math.max(1, Math.round(1000 / Math.max(activeSequence?.fps ?? 24, 1)));
   const selectedTrack = sequenceTracks.find((track) => track.id === (activeClip?.trackId ?? selectedTrackId)) ?? null;
 
   const ensureCompatibleTrack = useCallback(
@@ -712,45 +751,14 @@ export const Timeline = memo(function Timeline() {
     seekTo(activeSequence?.playRange?.endMs ?? totalDurationMs);
     timelinePause();
   }, [activeSequence?.playRange?.endMs, seekTo, timelinePause, totalDurationMs]);
-
-  useEffect(() => {
-    if (playState !== 'playing') {
-      return;
-    }
-
-    let frameId = 0;
-    let lastTick = performance.now();
-
-    const tick = (now: number) => {
-      const state = useAppStore.getState();
-      const liveSequence = state.activeTimelineSequenceId
-        ? state.timelineSequences.find((sequence) => sequence.id === state.activeTimelineSequenceId) ?? null
-        : null;
-      const rangeStart = liveSequence?.playRange?.startMs ?? 0;
-      const rangeEnd = liveSequence?.playRange?.endMs ?? Math.max(liveSequence?.durationMs ?? 0, totalDurationMs);
-      const deltaMs = (now - lastTick) * state.timelineSpeed;
-      lastTick = now;
-      const nextTime = state.currentTime + deltaMs;
-
-      if (nextTime >= rangeEnd) {
-        if (state.timelineLoop) {
-          state.seekTo(rangeStart);
-          frameId = requestAnimationFrame(tick);
-          return;
-        }
-
-        state.seekTo(rangeEnd);
-        state.timelinePause();
-        return;
-      }
-
-      state.seekTo(nextTime);
-      frameId = requestAnimationFrame(tick);
-    };
-
-    frameId = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(frameId);
-  }, [playState, totalDurationMs]);
+  const handleStepBackward = useCallback(() => {
+    seekBy(-frameStepMs);
+    timelinePause();
+  }, [frameStepMs, seekBy, timelinePause]);
+  const handleStepForward = useCallback(() => {
+    seekBy(frameStepMs);
+    timelinePause();
+  }, [frameStepMs, seekBy, timelinePause]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -916,6 +924,9 @@ export const Timeline = memo(function Timeline() {
             totalDurationMs={totalDurationMs}
             fps={activeSequence?.fps ?? 24}
             onTogglePlay={toggleTimelinePlayback}
+            onStop={timelineStop}
+            onStepBackward={handleStepBackward}
+            onStepForward={handleStepForward}
             onSkipToStart={handleSkipToStart}
             onSkipToEnd={handleSkipToEnd}
           />

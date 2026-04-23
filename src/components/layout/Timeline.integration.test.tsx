@@ -198,4 +198,42 @@ describe('Timeline integration', () => {
       expect(screen.getByLabelText('Skip to beginning')).toBeInTheDocument();
     });
   });
+
+  it('supports frame stepping and stop transport controls', async () => {
+    const user = userEvent.setup();
+    seedProjectAndMedia();
+    render(<Timeline />);
+
+    useAppStore.getState().seekTo(1000);
+    await user.click(screen.getByLabelText('Step forward one frame'));
+    expect(useAppStore.getState().currentTime).toBeGreaterThan(1000);
+
+    await user.click(screen.getByLabelText('Step backward one frame'));
+    expect(useAppStore.getState().currentTime).toBe(1000);
+
+    await user.click(screen.getByLabelText('Play'));
+    expect(useAppStore.getState().playState).toBe('playing');
+
+    await user.click(screen.getByLabelText('Stop playback'));
+    expect(useAppStore.getState().playState).toBe('stopped');
+    expect(useAppStore.getState().currentTime).toBe(0);
+  });
+
+  it('uses the active play range for skip to start and skip to end', async () => {
+    const user = userEvent.setup();
+    const { sequence } = seedProjectAndMedia();
+    useAppStore.getState().setTimelineSequencePlayRange(sequence.id, {
+      startMs: 500,
+      endMs: 1500,
+    });
+
+    render(<Timeline />);
+
+    useAppStore.getState().seekTo(1000);
+    await user.click(screen.getByLabelText('Skip to end'));
+    expect(useAppStore.getState().currentTime).toBe(1500);
+
+    await user.click(screen.getByLabelText('Skip to beginning'));
+    expect(useAppStore.getState().currentTime).toBe(500);
+  });
 });

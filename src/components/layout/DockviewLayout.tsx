@@ -3,6 +3,7 @@ import { useAppStore } from '@/store/appStore';
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
 import { NavBar } from '@/components/layout/NavBar';
 import { Canvas } from '@/components/layout/Canvas';
+import { Timeline } from '@/components/layout/Timeline';
 import { WorkbenchViewer } from '@/components/layout/WorkbenchViewer';
 import { WorkflowWorkbench } from '@/components/workflow/WorkflowWorkbench';
 import { DockviewSettingsPanel } from '@/components/layout/DockviewSettingsPanel';
@@ -13,6 +14,7 @@ import { AssetsPanel } from '@/pages/AssetsPanel';
 import { SettingsPanel } from '@/pages/SettingsPanel';
 import { CollectionsPage } from '@/pages/CollectionsPage';
 import { CompositionPreview } from '@/components/studio/CompositionPreview';
+import { TimelinePlaybackPreview } from '@/components/timeline/TimelinePlaybackPreview';
 import { IterationViewSelector } from '@/components/iteration/IterationViewSelector';
 import { IterationWorkspacePanel } from '@/components/iteration/IterationWorkspacePanel';
 import { getLayoutPreset } from '@/components/layout/layoutPresets';
@@ -154,6 +156,7 @@ export const DockviewLayout = memo(function DockviewLayout() {
 
   const isCanvasTab = activeTab === 'canvas';
   const isStudioMode = activeTab === 'generate' && activeSubMode === 'studio';
+  const showTimelineWorkspace = activeTab === 'generate' && centerView === 'canvas' && !isStudioMode;
   const showIterationView = activeTab === 'generate' || activeTab === 'canvas';
   const usesTripleRightDock = !isCanvasTab && showIterationView;
   const usesDualRightDock = !isCanvasTab && !showIterationView;
@@ -417,7 +420,18 @@ export const DockviewLayout = memo(function DockviewLayout() {
             className="min-h-0 flex-1 overflow-hidden"
           >
             <ErrorBoundary fallbackLabel="Center view error">
-              {isStudioMode ? <CompositionPreview /> : <CenterContent centerView={centerView} />}
+              {isStudioMode ? (
+                <CompositionPreview />
+              ) : showTimelineWorkspace ? (
+                <div className="flex h-full min-h-0 flex-col">
+                  <div className="min-h-0 flex-1 overflow-hidden">
+                    <TimelinePlaybackPreview className="h-full" />
+                  </div>
+                  <Timeline />
+                </div>
+              ) : (
+                <CenterContent centerView={centerView} />
+              )}
             </ErrorBoundary>
           </section>
         </main>

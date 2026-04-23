@@ -763,6 +763,49 @@ describe('appStore', () => {
     });
   });
 
+  describe('timeline playback transport', () => {
+    function seedTimelinePlayback() {
+      const state = useAppStore.getState();
+      const project = state.createProject('Playback Timeline');
+      const sequence = state.ensureTimelineSequenceForProject(project.id, { fps: 12 })!;
+      state.setActiveTimelineSequence(sequence.id);
+
+      return { sequence };
+    }
+
+    it('restarts playback from the active play-range start when play begins at the end', () => {
+      const { sequence } = seedTimelinePlayback();
+
+      useAppStore.getState().setTimelineSequencePlayRange(sequence.id, {
+        startMs: 800,
+        endMs: 1800,
+      });
+      useAppStore.getState().seekTo(1800);
+      useAppStore.getState().timelinePlay();
+
+      expect(useAppStore.getState().playState).toBe('playing');
+      expect(useAppStore.getState().currentTime).toBe(800);
+    });
+
+    it('resets stop to the play-range start and toggle play also restarts from range end', () => {
+      const { sequence } = seedTimelinePlayback();
+
+      useAppStore.getState().setTimelineSequencePlayRange(sequence.id, {
+        startMs: 400,
+        endMs: 1200,
+      });
+      useAppStore.getState().seekTo(900);
+      useAppStore.getState().timelineStop();
+      expect(useAppStore.getState().currentTime).toBe(400);
+
+      useAppStore.getState().seekTo(1200);
+      useAppStore.getState().toggleTimelinePlayback();
+
+      expect(useAppStore.getState().playState).toBe('playing');
+      expect(useAppStore.getState().currentTime).toBe(400);
+    });
+  });
+
   // ── Navigation refactor ──────────────────────────────────────────────────
 
   describe('navigation refactor', () => {

@@ -19,6 +19,10 @@ export const timelineInitialState = {
   activeKeyframeId: null as string | null,
 };
 
+function shouldRestartPlayback(currentTime: number, maxTime: number) {
+  return Number.isFinite(maxTime) && currentTime >= maxTime;
+}
+
 function resolveTimelineBounds(get: AppGet) {
   const state = get();
   const activeSequence = state.activeTimelineSequenceId
@@ -57,7 +61,10 @@ export function createTimelineActions(set: AppSet, get: AppGet) {
     setTimelineMode: (mode: TimelineMode) => set({ timelineMode: mode }),
     timelinePlay: () =>
       set((state) => {
-        const nextTime = clampTimelineTime(get, state.currentTime);
+        const { minTime, maxTime } = resolveTimelineBounds(get);
+        const nextTime = shouldRestartPlayback(state.currentTime, maxTime)
+          ? minTime
+          : clampTimelineTime(get, state.currentTime);
         return {
           playState: 'playing',
           currentTime: nextTime,
@@ -69,10 +76,19 @@ export function createTimelineActions(set: AppSet, get: AppGet) {
       set({ playState: 'stopped', currentTime: resetTime });
     },
     toggleTimelinePlayback: () =>
-      set((state) => ({
-        playState: state.playState === 'playing' ? 'paused' : 'playing',
-        currentTime: clampTimelineTime(get, state.currentTime),
-      })),
+      set((state) => {
+        const nextPlayState = state.playState === 'playing' ? 'paused' : 'playing';
+        const { minTime, maxTime } = resolveTimelineBounds(get);
+        const nextTime =
+          nextPlayState === 'playing' && shouldRestartPlayback(state.currentTime, maxTime)
+            ? minTime
+            : clampTimelineTime(get, state.currentTime);
+
+        return {
+          playState: nextPlayState,
+          currentTime: nextTime,
+        };
+      }),
     seekTo: (time: number) => set({ currentTime: clampTimelineTime(get, time) }),
     seekBy: (deltaMs: number) =>
       set((state) => ({
