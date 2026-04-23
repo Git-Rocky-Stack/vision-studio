@@ -106,6 +106,10 @@ export interface ElectronAPI {
       flip_horizontal?: boolean;
       flip_vertical?: boolean;
     }) => Promise<any>;
+    extractVideoFrame: (params: {
+      source_path: string;
+      time_ms?: number;
+    }) => Promise<any>;
     upscaleImage: (params: {
       source_path: string;
       scale_factor?: number;
@@ -184,6 +188,7 @@ const electronAPI: ElectronAPI = {
     batch: (params) => ipcRenderer.invoke('generation:batch', params),
     enhancePrompt: (params) => ipcRenderer.invoke('generation:enhance-prompt', params),
     cropImage: (params) => ipcRenderer.invoke('generation:crop-image', params),
+    extractVideoFrame: (params) => ipcRenderer.invoke('generation:extract-video-frame', params),
     upscaleImage: (params) => ipcRenderer.invoke('generation:upscale-image', params),
     getStatus: (jobId: string) => ipcRenderer.invoke('generation:get-status', jobId),
     cancel: (jobId: string) => ipcRenderer.invoke('generation:cancel', jobId),

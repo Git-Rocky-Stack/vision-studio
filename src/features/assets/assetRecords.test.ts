@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  createMediaAssetFromAssetRecord,
   createImportedAssetRecords,
   createMediaAssetFromImportedFile,
   upsertAssetsFromJobStatus,
@@ -194,6 +195,48 @@ describe('upsertAssetsFromJobStatus', () => {
     expect(mediaAsset.metadata).toMatchObject({
       originalPath: 'C:/Users/User/Videos/clip.mp4',
       referenceReady: true,
+    });
+  });
+
+  it('creates a reusable media asset from an image asset record', () => {
+    const mediaAsset = createMediaAssetFromAssetRecord({
+      id: 'derived::C:/vision-studio-output/frames/shot-01.png',
+      jobId: 'derived::C:/vision-studio-output/frames/shot-01.png',
+      name: 'Shot 01 frame',
+      type: 'image',
+      path: 'C:/vision-studio-output/frames/shot-01.png',
+      previewUrl: 'http://localhost:8000/outputs/frame-01.png',
+      thumbnail: 'http://localhost:8000/outputs/frame-01.png',
+      createdAt: '2026-04-23T09:00:00.000Z',
+      prompt: 'hero close-up',
+      negativePrompt: '',
+      model: 'ltx-video',
+      width: 1280,
+      height: 720,
+      favorite: false,
+      params: {
+        source: 'derived',
+        reference_ready: true,
+        extracted_from_video: 'C:/vision-studio-output/clips/hero.mp4',
+      },
+    });
+
+    expect(mediaAsset).toMatchObject({
+      id: 'media::asset::derived::C:/vision-studio-output/frames/shot-01.png',
+      legacyAssetId: 'derived::C:/vision-studio-output/frames/shot-01.png',
+      source: 'derived',
+      type: 'image',
+      path: 'C:/vision-studio-output/frames/shot-01.png',
+      previewUrl: 'http://localhost:8000/outputs/frame-01.png',
+      thumbnailUrl: 'http://localhost:8000/outputs/frame-01.png',
+      posterUrl: 'http://localhost:8000/outputs/frame-01.png',
+    });
+    expect(mediaAsset.metadata).toMatchObject({
+      fromAssetLibrary: true,
+      prompt: 'hero close-up',
+      model: 'ltx-video',
+      referenceReady: true,
+      extracted_from_video: 'C:/vision-studio-output/clips/hero.mp4',
     });
   });
 });

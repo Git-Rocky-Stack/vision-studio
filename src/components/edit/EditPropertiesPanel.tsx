@@ -9,7 +9,12 @@ import { TextControls } from './TextControls';
 import { AIToolsPanel } from './AIToolsPanel';
 import { RegionLockProperties } from './RegionLockProperties';
 import { buildCropBox, getCropDimensions } from '@/features/edit/crop';
+import {
+  promoteFrameToClip,
+  promoteFrameToReference,
+} from '@/features/media/frameExtraction';
 import type { ImageAdjustments } from '@/types/editor';
+import type { ReferenceSlotType } from '@/types/media';
 import {
   Sun,
   Sparkles,
@@ -25,6 +30,7 @@ import {
   Lock,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { isLikelyVideoPath } from '@/components/ui/MediaPreview';
 
 type PropertiesTab = 'adjustments' | 'filters' | 'crop' | 'text' | 'ai' | 'region';
 
@@ -90,6 +96,7 @@ export function EditPropertiesPanel() {
     projects,
     activeProjectId,
     activeSceneId,
+    activeTimelineClipId,
     updateRegionLock,
     deleteRegionLock,
     createRegionLock,
@@ -112,6 +119,7 @@ export function EditPropertiesPanel() {
       projects: s.projects,
       activeProjectId: s.activeProjectId,
       activeSceneId: s.activeSceneId,
+      activeTimelineClipId: s.activeTimelineClipId,
       updateRegionLock: s.updateRegionLock,
       deleteRegionLock: s.deleteRegionLock,
       createRegionLock: s.createRegionLock,
@@ -123,6 +131,8 @@ export function EditPropertiesPanel() {
 
   const [activeTab, setActiveTab] = useState<PropertiesTab>('adjustments');
   const [expandedGroups, setExpandedGroups] = useState<string[]>(['Light', 'Color']);
+  const [promotionSlot, setPromotionSlot] = useState<ReferenceSlotType>('composition');
+  const [promotionStatus, setPromotionStatus] = useState<string | null>(null);
 
   // Find the active region lock
   const activeRegionLock = (() => {
@@ -181,6 +191,10 @@ export function EditPropertiesPanel() {
     image.src = currentImage;
   }, [currentImage]);
 
+  useEffect(() => {
+    setPromotionStatus(null);
+  }, [currentImageAssetPath, activeTimelineClipId, activeSceneId, activeProjectId]);
+
   const toggleGroup = (title: string) => {
     setExpandedGroups((prev) =>
       prev.includes(title) ? prev.filter((g) => g !== title) : [...prev, title]
@@ -211,6 +225,7 @@ export function EditPropertiesPanel() {
   ];
 
   const undoCount = editHistory.length;
+  const isVideoSource = isLikelyVideoPath(currentImageAssetPath ?? currentImage);
   const computedCropBox = imageSize
     ? buildCropBox(cropAspect, imageSize.width, imageSize.height, customWidth, customHeight)
     : null;
@@ -219,7 +234,7 @@ export function EditPropertiesPanel() {
     : null;
 
   const handleApplyCrop = async () => {
-    if (!currentImageAssetPath) {
+    if (!currentImageAssetPath || isVideoSource) {
       return;
     }
 
@@ -249,6 +264,49 @@ export function EditPropertiesPanel() {
       result.output_path
     );
     setActiveTab('adjustments');
+  };
+
+  const handlePromoteReference = () => {
+    if (!currentImageAssetPath || isVideoSource) {
+      return;
+    }
+
+    try {
+      promoteFrameToReference({
+        assetPath: currentImageAssetPath,
+        slot: promotionSlot,
+        projectId: activeProjectId,
+        sceneId: activeSceneId,
+        clipId: activeTimelineClipId,
+      });
+      setPromotionStatus(
+        activeTimelineClipId
+          ? 'Frame added to the selected clip reference set.'
+          : activeSceneId
+            ? 'Frame added to the current scene reference set.'
+            : activeProjectId
+              ? 'Frame added to the current project reference set.'
+              : 'Frame added to the working reference set.',
+      );
+    } catch (error) {
+      setPromotionStatus(error instanceof Error ? error.message : 'Reference promotion failed.');
+    }
+  };
+
+  const handlePromoteClipPoster = () => {
+    if (!currentImageAssetPath || isVideoSource || !activeTimelineClipId) {
+      return;
+    }
+
+    try {
+      promoteFrameToClip({
+        assetPath: currentImageAssetPath,
+        clipId: activeTimelineClipId,
+      });
+      setPromotionStatus('Selected clip poster updated. Future clip variants now inherit this frame.');
+    } catch (error) {
+      setPromotionStatus(error instanceof Error ? error.message : 'Clip poster update failed.');
+    }
   };
 
   return (
@@ -327,6 +385,76 @@ export function EditPropertiesPanel() {
             );
           })}
         </div>
+      </div>
+
+      <div className="border-b border-border bg-elevated/70 px-3 py-3">
+        {isVideoSource ? (
+          <div className="space-y-1">
+            <p className="type-ui text-text-primary">Frame-first editing</p>
+            <p className="type-caption text-text-body">
+              A video source is selected. Extract a frame from Viewer, Canvas, or Composition Preview before using still-image edit tools.
+            </p>
+          </div>
+        ) : currentImageAssetPath ? (
+          <div className="space-y-3">
+            <div className="space-y-1">
+              <p className="type-ui text-text-primary">Round-trip this frame</p>
+              <p className="type-caption text-text-body">
+                Derived edits are already saved into Assets. Promote the current frame into references or the selected clip workflow.
+              </p>
+            </div>
+            <div className="grid gap-2 md:grid-cols-[minmax(0,132px),minmax(0,1fr)]">
+              <label className="space-y-1">
+                <span className="type-caption text-text-muted">Reference slot</span>
+                <select
+                  value={promotionSlot}
+                  onChange={(event) => setPromotionSlot(event.target.value as ReferenceSlotType)}
+                  className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-text-primary"
+                >
+                  <option value="style">Style</option>
+                  <option value="composition">Composition</option>
+                  <option value="character">Character</option>
+                  <option value="pose">Pose</option>
+                  <option value="motion">Motion</option>
+                </select>
+              </label>
+              <div className="flex flex-wrap items-end gap-2">
+                <button
+                  type="button"
+                  onClick={handlePromoteReference}
+                  className="inline-flex items-center rounded-md border border-accent-primary-border bg-accent-primary-muted px-3 py-2 type-ui text-accent-primary transition-all hover:bg-elevated"
+                >
+                  {activeTimelineClipId
+                    ? 'Add as clip reference'
+                    : activeSceneId
+                      ? 'Add as scene reference'
+                      : activeProjectId
+                        ? 'Add as project reference'
+                        : 'Add as working reference'}
+                </button>
+                {activeTimelineClipId ? (
+                  <button
+                    type="button"
+                    onClick={handlePromoteClipPoster}
+                    className="inline-flex items-center rounded-md border border-border px-3 py-2 type-ui text-text-body transition-all hover:border-border-hover hover:bg-surface hover:text-text-primary"
+                  >
+                    Set selected clip poster
+                  </button>
+                ) : null}
+              </div>
+            </div>
+            {promotionStatus ? (
+              <p className="type-caption text-text-primary">{promotionStatus}</p>
+            ) : null}
+          </div>
+        ) : (
+          <div className="space-y-1">
+            <p className="type-ui text-text-primary">Round-trip will appear here</p>
+            <p className="type-caption text-text-body">
+              Load or extract a still frame to promote it into Assets, references, and timeline clip workflows.
+            </p>
+          </div>
+        )}
       </div>
 
       {/* Tab Content */}

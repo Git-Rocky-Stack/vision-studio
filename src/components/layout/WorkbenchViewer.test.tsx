@@ -1,5 +1,5 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useAppStore } from '@/store/appStore';
 
@@ -7,6 +7,16 @@ import { WorkbenchViewer } from './WorkbenchViewer';
 
 function resetStore() {
   useAppStore.setState(useAppStore.getInitialState());
+}
+
+const extractVideoFrameMock = vi.fn();
+
+function installElectronMock() {
+  window.electron = {
+    generation: {
+      extractVideoFrame: extractVideoFrameMock,
+    },
+  } as unknown as typeof window.electron;
 }
 
 function seedVideoAsset() {
@@ -37,7 +47,11 @@ function seedVideoAsset() {
 }
 
 describe('WorkbenchViewer', () => {
-  beforeEach(resetStore);
+  beforeEach(() => {
+    resetStore();
+    extractVideoFrameMock.mockReset();
+    installElectronMock();
+  });
 
   afterEach(cleanup);
 
@@ -48,19 +62,37 @@ describe('WorkbenchViewer', () => {
 
     expect(screen.getByText('Video review is live')).toBeInTheDocument();
     expect(screen.getByTestId('viewer-active-preview').querySelector('video')).not.toBeNull();
-    expect(screen.getByRole('button', { name: 'Open in Canvas' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Extract to Edit' })).toBeInTheDocument();
   });
 
-  it('routes video assets into Canvas with the poster and asset path', () => {
+  it('extracts a managed frame from video assets into Canvas editing', async () => {
     seedVideoAsset();
+    extractVideoFrameMock.mockResolvedValue({
+      image: '/outputs/frame-010/launch-frame.png',
+      output_path: 'C:/vision-studio-output/frame-010/launch-frame.png',
+      width: 1280,
+      height: 720,
+      time_ms: 0,
+      frame_index: 0,
+    });
 
     render(<WorkbenchViewer />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Open in Canvas' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Extract to Edit' }));
 
-    const state = useAppStore.getState();
-    expect(state.activeTab).toBe('canvas');
-    expect(state.currentImage).toBe('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg"></svg>');
-    expect(state.currentImageAssetPath).toBe('C:/vision-studio-output/clips/launch.mp4');
+    await waitFor(() => {
+      expect(useAppStore.getState().currentImageAssetPath).toBe(
+        'C:/vision-studio-output/frame-010/launch-frame.png',
+      );
+    });
+
+    expect(extractVideoFrameMock).toHaveBeenCalledWith({
+      source_path: 'C:/vision-studio-output/clips/launch.mp4',
+      time_ms: 0,
+    });
+    expect(useAppStore.getState().activeTab).toBe('canvas');
+    expect(useAppStore.getState().currentImage).toBe(
+      'http://localhost:8000/outputs/frame-010/launch-frame.png',
+    );
   });
 });

@@ -1,10 +1,11 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Columns2,
   GitBranch,
   GitCompare,
   Grid3X3,
   ImageIcon,
+  ImagePlus,
   Layers,
   Pencil,
   Plus,
@@ -19,6 +20,7 @@ import { MediaPreview } from '@/components/ui/MediaPreview';
 import type { GenerationDraft } from '@/types/generation';
 import { DEFAULT_GENERATION_CONFIG } from '@/types/project';
 import { cn } from '@/utils/cn';
+import { extractFrameToEdit } from '@/features/media/frameExtraction';
 import { ReviewDensityToggle } from './ReviewDensityToggle';
 
 type CompareMode = Exclude<AppState['comparisonMode'], 'off'>;
@@ -57,11 +59,14 @@ export function WorkbenchViewer() {
     assetLibrary,
     activeProjectId,
     activeViewerItemId,
+    activeTimelineClipId,
     batchResults,
     comparisonImages,
     comparisonMode,
     layoutPreferences,
+    mediaAssets,
     projects,
+    timelineClips,
     addScene,
     setActiveViewerItemId,
     setActiveScene,
@@ -77,11 +82,14 @@ export function WorkbenchViewer() {
     assetLibrary: s.assetLibrary,
     activeProjectId: s.activeProjectId,
     activeViewerItemId: s.activeViewerItemId,
+    activeTimelineClipId: s.activeTimelineClipId,
     batchResults: s.batchResults,
     comparisonImages: s.comparisonImages,
     comparisonMode: s.comparisonMode,
     layoutPreferences: s.layoutPreferences,
+    mediaAssets: s.mediaAssets,
     projects: s.projects,
+    timelineClips: s.timelineClips,
     addScene: s.addScene,
     setActiveViewerItemId: s.setActiveViewerItemId,
     setActiveScene: s.setActiveScene,
@@ -94,6 +102,9 @@ export function WorkbenchViewer() {
     setCenterView: s.setCenterView,
     setReviewDensity: s.setReviewDensity,
   })));
+  const activePreviewRef = useRef<HTMLDivElement>(null);
+  const [isExtractingFrame, setIsExtractingFrame] = useState(false);
+  const [frameStatus, setFrameStatus] = useState<string | null>(null);
 
   const items = useMemo<ViewerItem[]>(() => {
     const assets = assetLibrary.map((asset) => ({
@@ -181,8 +192,27 @@ export function WorkbenchViewer() {
   const showCompareReview = pinnedItems.length >= 2;
   const reviewDensity = layoutPreferences.reviewDensity;
   const isCompact = reviewDensity === 'compact';
+  const activeTimelineClip = useMemo(
+    () => timelineClips.find((clip) => clip.id === activeTimelineClipId) ?? null,
+    [activeTimelineClipId, timelineClips],
+  );
+  const activeTimelineClipMediaPath = useMemo(() => {
+    if (!activeTimelineClip) {
+      return null;
+    }
+
+    return (
+      mediaAssets.find((asset) => asset.id === activeTimelineClip.mediaAssetId)?.path?.replace(/\\/g, '/') ??
+      null
+    );
+  }, [activeTimelineClip, mediaAssets]);
   const compareModeLabel =
     compareModes.find((item) => item.id === comparisonMode)?.label ?? 'Side by Side';
+
+  useEffect(() => {
+    setFrameStatus(null);
+    setIsExtractingFrame(false);
+  }, [activeItem?.id]);
 
   const updateComparisonImages = (nextImages: string[]) => {
     setComparisonImages(nextImages);
@@ -196,15 +226,62 @@ export function WorkbenchViewer() {
     }
   };
 
-  const sendToEdit = () => {
+  const resolveExtractionTimeMs = () => {
+    const activeVideo = activePreviewRef.current?.querySelector('video');
+    if (activeVideo && Number.isFinite(activeVideo.currentTime) && activeVideo.currentTime > 0) {
+      return Math.round(activeVideo.currentTime * 1000);
+    }
+
+    if (
+      activeItem?.assetPath &&
+      activeTimelineClip &&
+      activeTimelineClipMediaPath &&
+      activeTimelineClipMediaPath === activeItem.assetPath.replace(/\\/g, '/')
+    ) {
+      return activeTimelineClip.sourceInMs;
+    }
+
+    return 0;
+  };
+
+  const sendToEdit = async () => {
     if (!activeItem) return;
 
+    if (activeItem.generationType === 'video') {
+      const sourcePath = activeItem.assetPath ?? activeItem.imagePath;
+      if (!sourcePath) {
+        setFrameStatus('The selected video does not have a managed source path yet.');
+        return;
+      }
+
+      setIsExtractingFrame(true);
+      setFrameStatus(null);
+
+      try {
+        const extracted = await extractFrameToEdit({
+          sourcePath,
+          timeMs: resolveExtractionTimeMs(),
+          prompt: activeItem.prompt === 'No prompt saved' ? '' : activeItem.prompt,
+          negativePrompt: activeItem.negativePrompt,
+          model: activeItem.model ?? undefined,
+        });
+        setFrameStatus(
+          `Frame extracted at ${(extracted.timeMs / 1000).toFixed(1)}s and opened in Canvas.`,
+        );
+      } catch (error) {
+        setFrameStatus(error instanceof Error ? error.message : 'Video frame extraction failed.');
+      } finally {
+        setIsExtractingFrame(false);
+      }
+
+      return;
+    }
+
     setCurrentImage(
-      activeItem.generationType === 'video'
-        ? activeItem.posterPath ?? null
-        : activeItem.imagePath,
+      activeItem.imagePath,
       activeItem.assetPath,
     );
+    setCenterView('canvas');
     setActiveTab('canvas');
   };
 
@@ -280,7 +357,7 @@ export function WorkbenchViewer() {
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-void">
-      <div className="flex min-h-0 flex-1 items-center justify-center p-4">
+      <div ref={activePreviewRef} className="flex min-h-0 flex-1 items-center justify-center p-4">
         {showCompareReview ? (
           <CompareReview
             density={reviewDensity}
@@ -359,11 +436,20 @@ export function WorkbenchViewer() {
               </button>
               <button
                 type="button"
-                onClick={sendToEdit}
+                onClick={() => void sendToEdit()}
+                disabled={isExtractingFrame}
                 className="inline-flex items-center gap-2 rounded-md border border-accent-primary-border bg-accent-primary-muted px-3 py-2 type-ui text-accent-primary transition-all hover:bg-elevated"
               >
-                <Pencil className="h-3.5 w-3.5" />
-                {activeItem.generationType === 'video' ? 'Open in Canvas' : 'Send to Edit'}
+                {activeItem.generationType === 'video' ? (
+                  <ImagePlus className="h-3.5 w-3.5" />
+                ) : (
+                  <Pencil className="h-3.5 w-3.5" />
+                )}
+                {activeItem.generationType === 'video'
+                  ? isExtractingFrame
+                    ? 'Extracting...'
+                    : 'Extract to Edit'
+                  : 'Send to Edit'}
               </button>
             </div>
           </div>
@@ -372,8 +458,11 @@ export function WorkbenchViewer() {
             <div className="mt-3 rounded-lg border border-border bg-elevated px-3 py-2">
               <p className="type-ui text-text-primary">Video review is live</p>
               <p className="mt-1 type-caption text-text-body">
-                Playback controls are active above. Canvas stays frame-based and will pick up frame extraction in the next slice.
+                Playback controls are active above. Extract the current frame into Canvas and it will land in Assets as a reusable still.
               </p>
+              {frameStatus ? (
+                <p className="mt-2 type-caption text-text-primary">{frameStatus}</p>
+              ) : null}
             </div>
           ) : null}
 

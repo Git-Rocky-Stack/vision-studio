@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useAppStore } from '@/store/appStore';
@@ -15,6 +15,18 @@ vi.mock('@/components/canvas/CanvasContextMenu', () => ({
 describe('Canvas', () => {
   beforeEach(() => {
     useAppStore.setState(useAppStore.getInitialState(), true);
+    window.electron = {
+      generation: {
+        extractVideoFrame: vi.fn().mockResolvedValue({
+          image: '/outputs/frame-020/canvas-frame.png',
+          output_path: 'C:/vision-studio-output/frame-020/canvas-frame.png',
+          width: 1280,
+          height: 720,
+          time_ms: 0,
+          frame_index: 0,
+        }),
+      },
+    } as unknown as typeof window.electron;
   });
 
   afterEach(cleanup);
@@ -50,5 +62,26 @@ describe('Canvas', () => {
     render(<Canvas />);
 
     expect(screen.getByTestId('iteration-canvas-overlay')).toBeInTheDocument();
+  });
+
+  it('extracts a selected video source into an editable frame', async () => {
+    useAppStore.setState({
+      currentImage: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg"></svg>',
+      currentImageAssetPath: 'C:/vision-studio-output/clips/source.mp4',
+    });
+
+    render(<Canvas />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Extract frame' }));
+
+    await waitFor(() => {
+      expect(useAppStore.getState().currentImageAssetPath).toBe(
+        'C:/vision-studio-output/frame-020/canvas-frame.png',
+      );
+    });
+
+    expect(useAppStore.getState().currentImage).toBe(
+      'http://localhost:8000/outputs/frame-020/canvas-frame.png',
+    );
   });
 });

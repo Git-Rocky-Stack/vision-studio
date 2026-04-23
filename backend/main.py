@@ -42,10 +42,12 @@ from pathlib import Path
 from typing import Dict, List
 from contextlib import asynccontextmanager
 
+import imageio.v2 as imageio
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, BackgroundTasks, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
+from PIL import Image
 from pydantic import BaseModel, Field
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
@@ -370,6 +372,11 @@ class ImageUpscaleRequest(BaseModel):
     scale_factor: int = Field(default=2, ge=2, le=4)
 
 
+class VideoFrameExtractRequest(BaseModel):
+    source_path: str
+    time_ms: int = Field(default=0, ge=0)
+
+
 class ModelInfo(BaseModel):
     id: str
     name: str
@@ -481,6 +488,44 @@ def model_to_dict(model: BaseModel) -> Dict[str, Any]:
     return model.dict()
 
 
+def extract_video_frame_file(source_path: str, output_path: str, time_ms: int = 0) -> Dict[str, Any]:
+    reader = imageio.get_reader(source_path)
+
+    try:
+        metadata = reader.get_meta_data() or {}
+        fps_value = metadata.get("fps")
+        fps = float(fps_value) if isinstance(fps_value, (int, float)) and fps_value > 0 else None
+        frame_index = max(0, round((time_ms / 1000.0) * fps)) if fps else 0
+
+        frame_count_value = metadata.get("nframes")
+        if isinstance(frame_count_value, int) and frame_count_value > 0:
+            frame_index = min(frame_index, frame_count_value - 1)
+
+        try:
+            frame = reader.get_data(frame_index)
+        except Exception:
+            fallback_index = (
+                max(0, frame_count_value - 1)
+                if isinstance(frame_count_value, int) and frame_count_value > 0
+                else 0
+            )
+            frame = reader.get_data(fallback_index)
+            frame_index = fallback_index
+
+        image = Image.fromarray(frame)
+        image.save(output_path, "PNG")
+
+        return {
+            "output_path": output_path,
+            "width": image.width,
+            "height": image.height,
+            "time_ms": int(round((frame_index / fps) * 1000)) if fps else int(time_ms),
+            "frame_index": int(frame_index),
+        }
+    finally:
+        reader.close()
+
+
 @app.post("/api/images/crop", response_model=Dict[str, Any], tags=["Images"])
 @limiter.limit("30/minute")
 async def crop_image(request: Request, edit_request: ImageEditRequest):
@@ -544,6 +589,37 @@ async def upscale_image(request: Request, upscale_request: ImageUpscaleRequest):
         upscale_request.source_path,
         output_path,
         scale_factor=upscale_request.scale_factor,
+    )
+    result["image"] = relative_path
+    return result
+
+
+@app.post("/api/videos/extract-frame", response_model=Dict[str, Any], tags=["Videos"])
+@limiter.limit("30/minute")
+async def extract_video_frame(request: Request, extract_request: VideoFrameExtractRequest):
+    """
+    Extract a still frame from a managed or imported video file.
+
+    ### Request Body
+    - `source_path`: Absolute path to source video (required)
+    - `time_ms`: Desired frame time in milliseconds (default: 0)
+
+    ### Response
+    - `image`: Relative URL path to the extracted frame
+    - `output_path`: Absolute managed output path to the extracted frame
+    - `width`: Extracted frame width in pixels
+    - `height`: Extracted frame height in pixels
+    - `time_ms`: Resolved extraction time in milliseconds
+    - `frame_index`: Resolved frame index
+    """
+    if not os.path.exists(extract_request.source_path):
+        raise HTTPException(status_code=404, detail="Source video not found")
+
+    output_path, relative_path = create_derived_output_path(extract_request.source_path, "frame")
+    result = extract_video_frame_file(
+        extract_request.source_path,
+        output_path,
+        time_ms=extract_request.time_ms,
     )
     result["image"] = relative_path
     return result

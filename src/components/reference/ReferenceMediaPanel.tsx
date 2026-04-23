@@ -9,10 +9,10 @@ import {
 
 import { Button } from '@/components/ui/Button';
 import { ImageWithFallback } from '@/components/ui/ImageWithFallback';
+import { createMediaAssetFromAssetRecord } from '@/features/assets/assetRecords';
 import { useAppStore } from '@/store/appStore';
 import type { AssetRecord } from '@/types/assets';
 import type {
-  MediaAsset,
   ReferenceSet,
   ReferenceSlotType,
 } from '@/types/media';
@@ -55,36 +55,6 @@ interface ResolvedReferenceItem {
   label: string;
   previewUrl: string;
   path: string;
-}
-
-function normalizeMediaSource(source: unknown): MediaAsset['source'] {
-  return source === 'imported' || source === 'derived' ? source : 'generated';
-}
-
-function createMediaAssetFromAssetRecord(asset: AssetRecord): MediaAsset {
-  return {
-    id: `media::asset::${asset.id}`,
-    legacyAssetId: asset.id,
-    jobId: asset.jobId,
-    name: asset.name || 'Reference image',
-    type: asset.type,
-    source: normalizeMediaSource(asset.params.source),
-    path: asset.path,
-    previewUrl: asset.previewUrl || asset.path,
-    thumbnailUrl: asset.thumbnail || asset.previewUrl || asset.path,
-    posterUrl: asset.type === 'image' ? asset.thumbnail || asset.previewUrl || asset.path : null,
-    width: asset.width,
-    height: asset.height,
-    durationMs: typeof asset.duration === 'number' ? asset.duration * 1000 : undefined,
-    fps: asset.fps,
-    metadata: {
-      fromAssetLibrary: true,
-      prompt: asset.prompt,
-      model: asset.model,
-      referenceReady: true,
-    },
-    createdAt: asset.createdAt,
-  };
 }
 
 function findScopedReferenceSet(

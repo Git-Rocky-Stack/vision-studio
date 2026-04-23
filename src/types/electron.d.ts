@@ -160,6 +160,10 @@ export interface ElectronAPI {
       flip_horizontal?: boolean;
       flip_vertical?: boolean;
     }) => Promise<any>;
+    extractVideoFrame: (params: {
+      source_path: string;
+      time_ms?: number;
+    }) => Promise<any>;
     upscaleImage: (params: {
       source_path: string;
       scale_factor?: number;

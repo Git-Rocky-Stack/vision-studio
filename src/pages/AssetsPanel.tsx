@@ -10,12 +10,14 @@ import {
   createImportedAssetRecords,
   createMediaAssetFromImportedFile,
 } from '@/features/assets/assetRecords';
+import { extractFrameToEdit } from '@/features/media/frameExtraction';
 import { MediaPreview } from '@/components/ui/MediaPreview';
 import {
   Search,
   Grid,
   List,
   FolderPlus,
+  ImagePlus,
   Trash2,
   Download,
   Star,
@@ -77,6 +79,7 @@ export function AssetsPanel() {
   const [selectedAssets, setSelectedAssets] = useState<Set<string>>(new Set());
   const [deleteTarget, setDeleteTarget] = useState<AssetRecord | null>(null);
   const [isImporting, setIsImporting] = useState(false);
+  const [extractingAssetId, setExtractingAssetId] = useState<string | null>(null);
 
   const filteredAssets = useMemo(() => {
     return assetLibrary.filter((asset) => {
@@ -152,6 +155,25 @@ export function AssetsPanel() {
       }
     } finally {
       setIsImporting(false);
+    }
+  };
+
+  const handleExtractFrame = async (asset: AssetRecord) => {
+    if (asset.type !== 'video' || extractingAssetId === asset.id) {
+      return;
+    }
+
+    setExtractingAssetId(asset.id);
+
+    try {
+      await extractFrameToEdit({
+        sourcePath: asset.path,
+        prompt: asset.prompt,
+        negativePrompt: asset.negativePrompt,
+        model: asset.model,
+      });
+    } finally {
+      setExtractingAssetId((current) => (current === asset.id ? null : current));
     }
   };
 
@@ -443,6 +465,19 @@ export function AssetsPanel() {
                         >
                           <ExternalLink className="w-3.5 h-3.5" />
                         </button>
+                        {asset.type === 'video' ? (
+                          <button
+                            aria-label="Extract frame to edit"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              void handleExtractFrame(asset);
+                            }}
+                            disabled={extractingAssetId === asset.id}
+                            className="p-2 rounded bg-surface/80 text-text-body hover:text-text-primary hover:bg-surface transition-all focus-visible:opacity-100 disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            <ImagePlus className="w-3.5 h-3.5" />
+                          </button>
+                        ) : null}
                         <button
                           aria-label="Export asset"
                           onClick={(e) => {

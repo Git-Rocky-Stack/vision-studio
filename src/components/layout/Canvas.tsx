@@ -20,6 +20,7 @@ import { GenerationQueue } from '@/components/canvas/GenerationQueue';
 import { CanvasContextMenu } from '@/components/canvas/CanvasContextMenu';
 import { IterationCanvasOverlay } from '@/components/iteration/IterationCanvasOverlay';
 import { MediaPreview, isLikelyVideoPath } from '@/components/ui/MediaPreview';
+import { extractFrameToEdit } from '@/features/media/frameExtraction';
 
 export const Canvas = memo(function Canvas() {
   const {
@@ -43,6 +44,9 @@ export const Canvas = memo(function Canvas() {
     projects,
     activeProjectId,
     activeSceneId,
+    activeTimelineClipId,
+    mediaAssets,
+    timelineClips,
   } = useAppStore(useShallow(s => ({
     activeJobs: s.activeJobs,
     currentImage: s.currentImage,
@@ -64,6 +68,9 @@ export const Canvas = memo(function Canvas() {
     projects: s.projects,
     activeProjectId: s.activeProjectId,
     activeSceneId: s.activeSceneId,
+    activeTimelineClipId: s.activeTimelineClipId,
+    mediaAssets: s.mediaAssets,
+    timelineClips: s.timelineClips,
   })));
 
   // Derive region locks from the active scene
@@ -104,8 +111,11 @@ export const Canvas = memo(function Canvas() {
   const [imageSize, setImageSize] = useState({ width: 1024, height: 1024 });
   const [imageError, setImageError] = useState(false);
   const [isImageLoading, setIsImageLoading] = useState(false);
+  const [isExtractingFrame, setIsExtractingFrame] = useState(false);
+  const [frameStatus, setFrameStatus] = useState<string | null>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const videoPreviewRef = useRef<HTMLDivElement>(null);
   const isDraggingRef = useRef(false);
   const panRef = useRef({ x: 0, y: 0 });
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
@@ -131,6 +141,20 @@ export const Canvas = memo(function Canvas() {
   );
   const showIterationOverlay = iterationView === 'overlay';
   const isVideoSource = isLikelyVideoPath(currentImageAssetPath ?? currentImage);
+  const activeTimelineClip = useMemo(
+    () => timelineClips.find((clip) => clip.id === activeTimelineClipId) ?? null,
+    [activeTimelineClipId, timelineClips],
+  );
+  const activeTimelineClipMediaPath = useMemo(() => {
+    if (!activeTimelineClip) {
+      return null;
+    }
+
+    return (
+      mediaAssets.find((asset) => asset.id === activeTimelineClip.mediaAssetId)?.path?.replace(/\\/g, '/') ??
+      null
+    );
+  }, [activeTimelineClip, mediaAssets]);
   const hasRenderableImage = Boolean(currentImage && !imageError && !isVideoSource);
   const displayedArtboardSize = hasRenderableImage ? imageSize : { width: 760, height: 460 };
 
@@ -149,6 +173,46 @@ export const Canvas = memo(function Canvas() {
   const openStoryboard = () => {
     setActiveTab('story');
     setActiveSubMode('storyboard');
+  };
+  const handleExtractFrame = async () => {
+    const sourcePath = currentImageAssetPath ?? currentImage;
+    if (!sourcePath) {
+      setFrameStatus('No managed video source is selected.');
+      return;
+    }
+
+    const currentPreviewTimeMs = (() => {
+      const previewVideo = videoPreviewRef.current?.querySelector('video');
+      if (previewVideo && Number.isFinite(previewVideo.currentTime) && previewVideo.currentTime > 0) {
+        return Math.round(previewVideo.currentTime * 1000);
+      }
+
+      if (
+        activeTimelineClip &&
+        activeTimelineClipMediaPath &&
+        currentImageAssetPath &&
+        activeTimelineClipMediaPath === currentImageAssetPath.replace(/\\/g, '/')
+      ) {
+        return activeTimelineClip.sourceInMs;
+      }
+
+      return 0;
+    })();
+
+    setIsExtractingFrame(true);
+    setFrameStatus(null);
+
+    try {
+      const extracted = await extractFrameToEdit({
+        sourcePath,
+        timeMs: currentPreviewTimeMs,
+      });
+      setFrameStatus(`Frame extracted at ${(extracted.timeMs / 1000).toFixed(1)}s.`);
+    } catch (error) {
+      setFrameStatus(error instanceof Error ? error.message : 'Video frame extraction failed.');
+    } finally {
+      setIsExtractingFrame(false);
+    }
   };
 
   // Detect image dimensions when currentImage changes
@@ -453,7 +517,10 @@ export const Canvas = memo(function Canvas() {
                   animate={{ opacity: 1, y: 0 }}
                   className="w-full max-w-lg rounded-2xl border border-border bg-[linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.01))] px-6 py-6 text-center shadow-cinematic"
                 >
-                  <div className="mx-auto mb-4 aspect-video w-full max-w-sm overflow-hidden rounded-xl border border-border bg-void">
+                  <div
+                    ref={videoPreviewRef}
+                    className="mx-auto mb-4 aspect-video w-full max-w-sm overflow-hidden rounded-xl border border-border bg-void"
+                  >
                     <MediaPreview
                       kind="video"
                       src={currentImageAssetPath ?? currentImage}
@@ -470,10 +537,21 @@ export const Canvas = memo(function Canvas() {
                       Video selected
                     </h3>
                     <p className="text-sm text-text-body">
-                      Canvas editing still works on frames. Review playback in Viewer now, then extract or send a frame into edit in the next slice.
+                      Canvas editing stays frame-based. Extract the current playback frame to continue editing, reference it, or send it back to the timeline.
                     </p>
+                    {frameStatus ? (
+                      <p className="text-xs text-text-primary">{frameStatus}</p>
+                    ) : null}
                   </div>
                   <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => void handleExtractFrame()}
+                      disabled={isExtractingFrame}
+                      className="inline-flex items-center rounded-md border border-accent-primary-border bg-accent-primary-muted px-3 py-2 type-ui text-accent-primary transition-all hover:bg-elevated disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {isExtractingFrame ? 'Extracting...' : 'Extract frame'}
+                    </button>
                     <button
                       type="button"
                       onClick={openViewer}

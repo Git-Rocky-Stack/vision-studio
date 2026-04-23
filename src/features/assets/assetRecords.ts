@@ -200,6 +200,37 @@ export function createMediaAssetFromImportedFile(importedFile: ImportedAssetFile
   };
 }
 
+function normalizeMediaSource(source: unknown): MediaAsset['source'] {
+  return source === 'imported' || source === 'derived' ? source : 'generated';
+}
+
+export function createMediaAssetFromAssetRecord(asset: AssetRecord): MediaAsset {
+  return {
+    id: `media::asset::${asset.id}`,
+    legacyAssetId: asset.id,
+    jobId: asset.jobId,
+    name: asset.name || 'Derived image',
+    type: asset.type,
+    source: normalizeMediaSource(asset.params.source),
+    path: asset.path,
+    previewUrl: asset.previewUrl || asset.path,
+    thumbnailUrl: asset.thumbnail || asset.previewUrl || asset.path,
+    posterUrl: asset.type === 'image' ? asset.thumbnail || asset.previewUrl || asset.path : null,
+    width: asset.width,
+    height: asset.height,
+    durationMs: typeof asset.duration === 'number' ? asset.duration * 1000 : undefined,
+    fps: asset.fps,
+    metadata: {
+      fromAssetLibrary: true,
+      prompt: asset.prompt,
+      model: asset.model,
+      referenceReady: asset.params.reference_ready !== false,
+      ...asset.params,
+    },
+    createdAt: asset.createdAt,
+  };
+}
+
 export function upsertAssetsFromJobStatus(
   currentAssets: AssetRecord[],
   jobStatus: AssetJobStatus

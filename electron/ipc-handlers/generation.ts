@@ -157,6 +157,20 @@ ipcMain.handle('generation:upscale-image', async (_event, params) => {
   }
 });
 
+ipcMain.handle('generation:extract-video-frame', async (_event, params) => {
+  try {
+    const response = await requestBackend(() =>
+      axios.post(`${BACKEND_URL}/api/videos/extract-frame`, params, { headers: backendAuthHeaders() })
+    );
+    return response.data;
+  } catch (error: any) {
+    return {
+      success: false,
+      error: toSafeRendererError(error, 'Video frame extraction failed'),
+    };
+  }
+});
+
 // Batch generation
 ipcMain.handle('generation:batch', async (_event, params) => {
   try {
