@@ -1,7 +1,48 @@
 import type { AppSet, AppGet } from '../appStore.types';
-import type { IterationNode, IterationBranch, IterationView, ComparisonMode as IterationComparisonMode } from '@/types/iteration';
+import type {
+  ComparisonIds,
+  IterationNode,
+  IterationBranch,
+  IterationView,
+  ComparisonMode as IterationComparisonMode,
+} from '@/types/iteration';
 import type { GenerationJob } from '@/store/appStore.types';
 import { computeSettingsDiff } from '@/utils/iterationTreeUtils';
+
+function normalizeComparisonIds(ids: ComparisonIds, nodes: Map<string, IterationNode>): ComparisonIds {
+  if (!ids) {
+    return null;
+  }
+
+  const uniqueIds = ids.filter((id, index, values) => values.indexOf(id) === index && nodes.has(id));
+  if (uniqueIds.length === 0) {
+    return null;
+  }
+  if (uniqueIds.length === 1) {
+    return [uniqueIds[0]];
+  }
+  return [uniqueIds[0], uniqueIds[1]];
+}
+
+function getNextComparisonIds(current: ComparisonIds, id: string): ComparisonIds {
+  if (!current) {
+    return [id];
+  }
+
+  if (current.includes(id)) {
+    const remaining = current.filter((entry) => entry !== id);
+    if (remaining.length === 0) {
+      return null;
+    }
+    return [remaining[0]];
+  }
+
+  if (current.length === 1) {
+    return [current[0], id];
+  }
+
+  return [current[1], id];
+}
 
 export const iterationInitialState = {
   iterationNodes: new Map<string, IterationNode>(),
@@ -9,7 +50,7 @@ export const iterationInitialState = {
   activeIterationId: null as string | null,
   iterationView: 'panel' as IterationView,
   iterationComparisonMode: 'side-by-side' as IterationComparisonMode,
-  comparisonIds: null as [string, string] | null,
+  comparisonIds: null as ComparisonIds,
 };
 
 export function createIterationActions(set: AppSet, get: AppGet) {
@@ -105,7 +146,25 @@ export function createIterationActions(set: AppSet, get: AppGet) {
     setActiveIteration: (id: string | null) => set({ activeIterationId: id }),
     setIterationView: (view: IterationView) => set({ iterationView: view }),
     setIterationComparisonMode: (mode: IterationComparisonMode) => set({ iterationComparisonMode: mode }),
-    setComparisonIds: (ids: [string, string] | null) => set({ comparisonIds: ids }),
+    setComparisonIds: (ids: ComparisonIds) =>
+      set((state) => ({
+        comparisonIds: normalizeComparisonIds(ids, state.iterationNodes),
+      })),
+    toggleIterationComparison: (id: string) =>
+      set((state) => ({
+        comparisonIds: normalizeComparisonIds(
+          getNextComparisonIds(state.comparisonIds, id),
+          state.iterationNodes,
+        ),
+      })),
+    swapIterationComparison: () =>
+      set((state) => ({
+        comparisonIds:
+          state.comparisonIds && state.comparisonIds.length === 2
+            ? [state.comparisonIds[1], state.comparisonIds[0]]
+            : state.comparisonIds,
+      })),
+    clearIterationComparison: () => set({ comparisonIds: null }),
 
     deleteIterationBranch: (branchId: string) => {
       const branches = get().iterationBranches.filter(b => b.id !== branchId);
@@ -122,7 +181,11 @@ export function createIterationActions(set: AppSet, get: AppGet) {
           newNodes.set(nodeId, { ...node, childrenIds: cleaned });
         }
       }
-      set({ iterationBranches: branches, iterationNodes: newNodes });
+      set((state) => ({
+        iterationBranches: branches,
+        iterationNodes: newNodes,
+        comparisonIds: normalizeComparisonIds(state.comparisonIds, newNodes),
+      }));
     },
   };
 }

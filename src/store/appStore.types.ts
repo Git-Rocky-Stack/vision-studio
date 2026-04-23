@@ -90,7 +90,13 @@ import type { AspectRatio, ResolutionTier } from '@/types/resolution';
 
 import type { ActiveTab, ActiveSubMode, CenterView } from '@/types/navigation';
 
-import type { IterationNode, IterationBranch, IterationView, ComparisonMode as IterationComparisonMode } from '@/types/iteration';
+import type {
+  IterationNode,
+  IterationBranch,
+  IterationView,
+  ComparisonMode as IterationComparisonMode,
+  ComparisonIds,
+} from '@/types/iteration';
 import type { Collection, AssetTag, AssetMetadata, TaggingMode, SmartQuery } from '@/types/collections';
 
 import type { PromptTemplate, CompositionLayerState } from '@/types/promptStudio';
@@ -302,7 +308,7 @@ export interface AppState {
   activeIterationId: string | null;
   iterationView: IterationView;
   iterationComparisonMode: IterationComparisonMode;
-  comparisonIds: [string, string] | null;
+  comparisonIds: ComparisonIds;
 
   // ─── Collections ──────────────────────────────────────────────────────────
   collections: Collection[];
@@ -467,7 +473,10 @@ export interface AppState {
   setActiveIteration: (id: string | null) => void;
   setIterationView: (view: IterationView) => void;
   setIterationComparisonMode: (mode: IterationComparisonMode) => void;
-  setComparisonIds: (ids: [string, string] | null) => void;
+  setComparisonIds: (ids: ComparisonIds) => void;
+  toggleIterationComparison: (id: string) => void;
+  swapIterationComparison: () => void;
+  clearIterationComparison: () => void;
   deleteIterationBranch: (branchId: string) => void;
 
   // Collections

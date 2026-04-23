@@ -151,6 +151,7 @@ function SettingsContent({
 export const DockviewSettingsPanel = memo(function DockviewSettingsPanel() {
   const activeTab = useAppStore((s) => s.activeTab);
   const activeSubMode = useAppStore((s) => s.activeSubMode);
+  const iterationView = useAppStore((s) => s.iterationView);
   const setActiveSubMode = useAppStore((s) => s.setActiveSubMode);
 
   const iterationBranches = useAppStore((s) => s.iterationBranches);
@@ -188,7 +189,9 @@ export const DockviewSettingsPanel = memo(function DockviewSettingsPanel() {
       </div>
 
       {/* Iteration timeline for generate/canvas */}
-      {(activeTab === 'generate' || activeTab === 'canvas') && iterationBranches.length > 0 && (
+      {(activeTab === 'generate' || activeTab === 'canvas') &&
+        iterationBranches.length > 0 &&
+        iterationView !== 'timeline' && (
         <div className="flex-shrink-0 border-t border-border">
           <IterationTimeline className="h-16" />
         </div>

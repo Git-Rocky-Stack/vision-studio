@@ -43,4 +43,12 @@ describe('Canvas', () => {
 
     expect(useAppStore.getState().centerView).toBe('viewer');
   });
+
+  it('mounts the iteration canvas overlay in overlay mode', () => {
+    useAppStore.setState({ iterationView: 'overlay' });
+
+    render(<Canvas />);
+
+    expect(screen.getByTestId('iteration-canvas-overlay')).toBeInTheDocument();
+  });
 });

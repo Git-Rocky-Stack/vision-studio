@@ -1,5 +1,6 @@
-import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, cleanup, fireEvent } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { useAppStore } from '@/store/appStore';
 import { IterationTreePanel } from './IterationTreePanel';
 
@@ -30,5 +31,16 @@ describe('IterationTreePanel', () => {
     render(<IterationTreePanel />);
     // Should have branch tabs visible
     expect(screen.getByText('Branch 1')).toBeInTheDocument();
+  });
+
+  it('adds the active node to comparison from node detail', async () => {
+    const user = userEvent.setup();
+    const job = { id: 'iter-1', type: 'image' as const, status: 'completed' as const, progress: 100, params: { prompt: 'test prompt' }, createdAt: new Date() };
+    useAppStore.getState().addIteration({ job, parentId: null, thumbnail: '' });
+
+    render(<IterationTreePanel />);
+    await user.click(screen.getByRole('button', { name: 'Compare this iteration' }));
+
+    expect(useAppStore.getState().comparisonIds).toEqual(['iter-1']);
   });
 });

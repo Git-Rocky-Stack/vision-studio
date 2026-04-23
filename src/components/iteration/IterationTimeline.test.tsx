@@ -87,4 +87,16 @@ describe('IterationTimeline', () => {
     expect(screen.getByTestId('iteration-timeline-summary')).toHaveTextContent('Step 1/2');
     expect(screen.getByTestId('iteration-timeline-node-iter-1')).toHaveAttribute('aria-current', 'step');
   });
+
+  it('toggles comparison from timeline items and marks compared nodes', async () => {
+    const user = userEvent.setup();
+    seedIterationPath();
+
+    render(<IterationTimeline />);
+
+    await user.click(screen.getByRole('button', { name: 'Compare iteration step 1' }));
+
+    expect(useAppStore.getState().comparisonIds).toEqual(['iter-1']);
+    expect(screen.getByTestId('iteration-timeline-node-iter-1')).toHaveAttribute('data-compare-selected', 'true');
+  });
 });

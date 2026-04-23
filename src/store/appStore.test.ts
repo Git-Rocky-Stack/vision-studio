@@ -786,6 +786,52 @@ describe('appStore', () => {
       expect(useAppStore.getState().iterationComparisonMode).toBe('grid');
     });
 
+    it('toggles comparison ids as an ordered set', () => {
+      const job1 = makeIterationJob('iter-1');
+      const job2 = makeIterationJob('iter-2');
+      useAppStore.getState().addIteration({ job: job1, parentId: null, thumbnail: 'thumb1' });
+      useAppStore.getState().addIteration({ job: job2, parentId: null, thumbnail: 'thumb2' });
+
+      useAppStore.getState().toggleIterationComparison('iter-1');
+      expect(useAppStore.getState().comparisonIds).toEqual(['iter-1']);
+
+      useAppStore.getState().toggleIterationComparison('iter-2');
+      expect(useAppStore.getState().comparisonIds).toEqual(['iter-1', 'iter-2']);
+
+      useAppStore.getState().toggleIterationComparison('iter-1');
+      expect(useAppStore.getState().comparisonIds).toEqual(['iter-2']);
+    });
+
+    it('replaces the oldest comparison id when selecting a third node', () => {
+      const job1 = makeIterationJob('iter-1');
+      const job2 = makeIterationJob('iter-2');
+      const job3 = makeIterationJob('iter-3');
+      useAppStore.getState().addIteration({ job: job1, parentId: null, thumbnail: 'thumb1' });
+      useAppStore.getState().addIteration({ job: job2, parentId: null, thumbnail: 'thumb2' });
+      useAppStore.getState().addIteration({ job: job3, parentId: null, thumbnail: 'thumb3' });
+
+      useAppStore.getState().toggleIterationComparison('iter-1');
+      useAppStore.getState().toggleIterationComparison('iter-2');
+      useAppStore.getState().toggleIterationComparison('iter-3');
+
+      expect(useAppStore.getState().comparisonIds).toEqual(['iter-2', 'iter-3']);
+    });
+
+    it('swaps and clears comparison ids', () => {
+      const job1 = makeIterationJob('iter-1');
+      const job2 = makeIterationJob('iter-2');
+      useAppStore.getState().addIteration({ job: job1, parentId: null, thumbnail: 'thumb1' });
+      useAppStore.getState().addIteration({ job: job2, parentId: null, thumbnail: 'thumb2' });
+
+      useAppStore.getState().toggleIterationComparison('iter-1');
+      useAppStore.getState().toggleIterationComparison('iter-2');
+      useAppStore.getState().swapIterationComparison();
+      expect(useAppStore.getState().comparisonIds).toEqual(['iter-2', 'iter-1']);
+
+      useAppStore.getState().clearIterationComparison();
+      expect(useAppStore.getState().comparisonIds).toBeNull();
+    });
+
     it('cleans up dangling childrenIds when deleting a branch', () => {
       const job1 = makeIterationJob('iter-1');
       useAppStore.getState().addIteration({ job: job1, parentId: null, thumbnail: 'thumb1' });
@@ -808,6 +854,27 @@ describe('appStore', () => {
       expect(useAppStore.getState().iterationNodes.get('iter-1')?.childrenIds).not.toContain('iter-3');
       // iter-2 should still be referenced
       expect(useAppStore.getState().iterationNodes.get('iter-1')?.childrenIds).toContain('iter-2');
+    });
+
+    it('prunes deleted branch ids from comparison state', () => {
+      const job1 = makeIterationJob('iter-1');
+      useAppStore.getState().addIteration({ job: job1, parentId: null, thumbnail: 'thumb1' });
+      const branch1Id = useAppStore.getState().iterationBranches[0].id;
+      const job2 = makeIterationJob('iter-2');
+      useAppStore.getState().addIteration({ job: job2, parentId: 'iter-1', thumbnail: 'thumb2', branchId: branch1Id });
+      const job3 = makeIterationJob('iter-3');
+      useAppStore.getState().forkIteration({ job: job3, parentId: 'iter-1', thumbnail: 'thumb3' });
+
+      useAppStore.getState().toggleIterationComparison('iter-2');
+      useAppStore.getState().toggleIterationComparison('iter-3');
+      expect(useAppStore.getState().comparisonIds).toEqual(['iter-2', 'iter-3']);
+
+      const forkedBranchId = useAppStore.getState().iterationBranches.find((branch) => branch.id !== branch1Id)?.id;
+      if (forkedBranchId) {
+        useAppStore.getState().deleteIterationBranch(forkedBranchId);
+      }
+
+      expect(useAppStore.getState().comparisonIds).toEqual(['iter-2']);
     });
   });
 

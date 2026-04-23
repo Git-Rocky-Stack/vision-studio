@@ -40,3 +40,4 @@ export interface IterationTree {
 
 export type IterationView = 'panel' | 'timeline' | 'overlay';
 export type ComparisonMode = 'side-by-side' | 'slider' | 'grid';
+export type ComparisonIds = [string] | [string, string] | null;

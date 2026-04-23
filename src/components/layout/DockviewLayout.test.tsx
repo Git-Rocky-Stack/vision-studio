@@ -1,4 +1,4 @@
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -142,6 +142,51 @@ describe('DockviewLayout', () => {
     expect(screen.getByTestId('right-dock')).toBeInTheDocument();
   });
 
+  it('renders the expanded iteration timeline when timeline mode is selected', () => {
+    useAppStore.setState({
+      activeTab: 'generate',
+      centerView: 'canvas',
+      iterationView: 'timeline',
+      iterationBranches: [
+        {
+          id: 'branch-1',
+          name: 'Branch 1',
+          rootNodeId: 'iter-1',
+          activeNodeId: 'iter-1',
+          createdAt: Date.now(),
+        },
+      ],
+      iterationNodes: new Map([
+        [
+          'iter-1',
+          {
+            id: 'iter-1',
+            parentId: null,
+            branchId: 'branch-1',
+            childrenIds: [],
+            generationJob: {
+              id: 'iter-1',
+              type: 'image',
+              status: 'completed',
+              progress: 100,
+              params: {},
+              createdAt: new Date(),
+            },
+            thumbnail: '',
+            settingsDiff: null,
+            createdAt: Date.now(),
+            isPinned: false,
+            note: '',
+          },
+        ],
+      ]),
+      activeIterationId: 'iter-1',
+    });
+    render(<DockviewLayout />);
+
+    expect(screen.getByLabelText('Expanded iteration timeline')).toBeInTheDocument();
+  });
+
   it('renders shell splitter handles for docked layouts', () => {
     useAppStore.setState({ activeTab: 'generate' });
     render(<DockviewLayout />);
@@ -254,6 +299,20 @@ describe('DockviewLayout', () => {
     await user.click(viewerTab);
 
     expect(useAppStore.getState().centerView).toBe('viewer');
+  });
+
+  it('promotes canvas when overlay mode is selected away from canvas', async () => {
+    useAppStore.setState({
+      activeTab: 'generate',
+      centerView: 'viewer',
+      iterationView: 'overlay',
+    });
+
+    render(<DockviewLayout />);
+
+    await waitFor(() => {
+      expect(useAppStore.getState().centerView).toBe('canvas');
+    });
   });
 
   it('supports keyboard resizing for the left dock splitter', async () => {

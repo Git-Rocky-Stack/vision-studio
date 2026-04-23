@@ -18,12 +18,14 @@ import { RegionMaskDrawer } from '@/components/edit/RegionMaskDrawer';
 import { GenerationProgress } from '@/components/canvas/GenerationProgress';
 import { GenerationQueue } from '@/components/canvas/GenerationQueue';
 import { CanvasContextMenu } from '@/components/canvas/CanvasContextMenu';
+import { IterationCanvasOverlay } from '@/components/iteration/IterationCanvasOverlay';
 
 export const Canvas = memo(function Canvas() {
   const {
     activeJobs,
     currentImage,
     regionMode,
+    iterationView,
     activeRegionId,
     activeMaskTool,
     maskBrushSize,
@@ -43,6 +45,7 @@ export const Canvas = memo(function Canvas() {
     activeJobs: s.activeJobs,
     currentImage: s.currentImage,
     regionMode: s.regionMode,
+    iterationView: s.iterationView,
     activeRegionId: s.activeRegionId,
     activeMaskTool: s.activeMaskTool,
     maskBrushSize: s.maskBrushSize,
@@ -123,6 +126,7 @@ export const Canvas = memo(function Canvas() {
   const isGenerating = activeJobs.some(
     (j) => j.status === 'pending' || j.status === 'processing'
   );
+  const showIterationOverlay = iterationView === 'overlay';
   const hasRenderableImage = Boolean(currentImage && !imageError);
   const displayedArtboardSize = hasRenderableImage ? imageSize : { width: 760, height: 460 };
 
@@ -511,6 +515,12 @@ export const Canvas = memo(function Canvas() {
 
             {/* Canvas Border Overlay */}
             <div className="absolute inset-0 pointer-events-none border border-dashed border-border rounded-sm" />
+
+            {showIterationOverlay && (
+              <div className="absolute inset-0 z-[1]" data-testid="iteration-canvas-overlay">
+                <IterationCanvasOverlay className="h-full w-full bg-transparent" />
+              </div>
+            )}
 
             {/* Region Lock Overlay - visible when region mode is active */}
             {regionMode && (

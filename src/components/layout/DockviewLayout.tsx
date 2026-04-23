@@ -1,4 +1,4 @@
-import { memo, useCallback, useRef } from 'react';
+import { memo, useCallback, useEffect, useRef } from 'react';
 import { useAppStore } from '@/store/appStore';
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
 import { NavBar } from '@/components/layout/NavBar';
@@ -14,7 +14,7 @@ import { SettingsPanel } from '@/pages/SettingsPanel';
 import { CollectionsPage } from '@/pages/CollectionsPage';
 import { CompositionPreview } from '@/components/studio/CompositionPreview';
 import { IterationViewSelector } from '@/components/iteration/IterationViewSelector';
-import { IterationTreePanel } from '@/components/iteration/IterationTreePanel';
+import { IterationWorkspacePanel } from '@/components/iteration/IterationWorkspacePanel';
 import { getLayoutPreset } from '@/components/layout/layoutPresets';
 import { cn } from '@/utils/cn';
 import type { CenterView } from '@/types/navigation';
@@ -143,6 +143,7 @@ export const DockviewLayout = memo(function DockviewLayout() {
   const activeTab = useAppStore((s) => s.activeTab);
   const centerView = useAppStore((s) => s.centerView);
   const activeSubMode = useAppStore((s) => s.activeSubMode);
+  const iterationView = useAppStore((s) => s.iterationView);
   const layoutPreferences = useAppStore((s) => s.layoutPreferences);
   const setCenterView = useAppStore((s) => s.setCenterView);
   const setLeftDockWidth = useAppStore((s) => s.setLeftDockWidth);
@@ -160,6 +161,12 @@ export const DockviewLayout = memo(function DockviewLayout() {
   const preset = getLayoutPreset(activeTab);
   const workspaceRef = useRef<HTMLDivElement>(null);
   const rightDockStackRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (showIterationView && iterationView === 'overlay' && centerView !== 'canvas') {
+      setCenterView('canvas');
+    }
+  }, [centerView, iterationView, setCenterView, showIterationView]);
 
   const handleCenterTabClick = useCallback(
     (view: CenterView) => {
@@ -583,7 +590,7 @@ export const DockviewLayout = memo(function DockviewLayout() {
                       dataTestId="splitter-right-dock-triple-1"
                     />
                     <div className="flex min-h-0 flex-col overflow-hidden">
-                      <IterationTreePanel />
+                      <IterationWorkspacePanel />
                     </div>
                   </>
                 )}

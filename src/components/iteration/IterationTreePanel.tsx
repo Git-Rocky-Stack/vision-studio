@@ -1,9 +1,9 @@
 import { memo, useMemo } from 'react';
-import { GitBranch, Pin } from 'lucide-react';
+import { GitBranch } from 'lucide-react';
 import { cn } from '@/utils/cn';
 import { useAppStore } from '@/store/appStore';
+import { IterationInspectorPanel } from './IterationInspectorPanel';
 import { IterationNode } from './IterationNode';
-import { IterationNodeDetail } from './IterationNodeDetail';
 import { IterationViewSelector } from './IterationViewSelector';
 import { buildTree } from '@/utils/iterationTreeUtils';
 
@@ -15,9 +15,9 @@ export const IterationTreePanel = memo(function IterationTreePanel({ className }
   const iterationNodes = useAppStore((s) => s.iterationNodes);
   const iterationBranches = useAppStore((s) => s.iterationBranches);
   const activeIterationId = useAppStore((s) => s.activeIterationId);
+  const comparisonIds = useAppStore((s) => s.comparisonIds);
   const setActiveIteration = useAppStore((s) => s.setActiveIteration);
   const pinIteration = useAppStore((s) => s.pinIteration);
-  const deleteIterationBranch = useAppStore((s) => s.deleteIterationBranch);
 
   const tree = useMemo(
     () => buildTree(iterationNodes, iterationBranches),
@@ -90,9 +90,9 @@ export const IterationTreePanel = memo(function IterationTreePanel({ className }
       </div>
 
       {/* Detail panel */}
-      {activeNode && (
+      {(activeNode || comparisonIds) && (
         <div className="scroll-shadow-y border-t border-border max-h-[40%] overflow-y-auto">
-          <IterationNodeDetail node={activeNode} />
+          <IterationInspectorPanel />
         </div>
       )}
     </div>

@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { GitBranch, Pin } from 'lucide-react';
+import { GitBranch, GitCompare, Pin } from 'lucide-react';
 import { cn } from '@/utils/cn';
 import { useAppStore } from '@/store/appStore';
 
@@ -15,7 +15,9 @@ export const IterationTimeline = memo(function IterationTimeline({ className }: 
   const iterationNodes = useAppStore((s) => s.iterationNodes);
   const iterationBranches = useAppStore((s) => s.iterationBranches);
   const activeIterationId = useAppStore((s) => s.activeIterationId);
+  const comparisonIds = useAppStore((s) => s.comparisonIds);
   const setActiveIteration = useAppStore((s) => s.setActiveIteration);
+  const toggleIterationComparison = useAppStore((s) => s.toggleIterationComparison);
 
   const viewportRef = useRef<HTMLDivElement>(null);
   const nodeRefs = useRef(new Map<string, HTMLButtonElement>());
@@ -201,6 +203,7 @@ export const IterationTimeline = memo(function IterationTimeline({ className }: 
           <div className="flex min-w-max items-center gap-1.5">
             {timelineNodes.map((node, index) => {
               const isActive = activeNodeId === node.id;
+              const isCompared = comparisonIds?.includes(node.id) ?? false;
               const diffCount = node.settingsDiff ? Object.keys(node.settingsDiff).length : 0;
 
               return (
@@ -212,65 +215,87 @@ export const IterationTimeline = memo(function IterationTimeline({ className }: 
                     </div>
                   )}
 
-                  <button
-                    ref={(element) => {
-                      if (element) {
-                        nodeRefs.current.set(node.id, element);
-                      } else {
-                        nodeRefs.current.delete(node.id);
-                      }
-                    }}
-                    type="button"
-                    data-testid={`iteration-timeline-node-${node.id}`}
-                    aria-current={isActive ? 'step' : undefined}
-                    aria-label={`Iteration step ${index + 1} of ${timelineNodes.length}${node.isPinned ? ', pinned' : ''}`}
-                    title={node.generationJob.params?.prompt?.slice(0, 80) || node.id}
-                    onClick={() => setActiveIteration(node.id)}
-                    onFocus={() => {
-                      if (!isActive) {
-                        setActiveIteration(node.id);
-                      }
-                    }}
-                    onKeyDown={(event) => handleTimelineKeyDown(event, index)}
-                    className={cn(
-                      'group relative h-9 w-9 flex-shrink-0 overflow-hidden rounded-md border transition-all duration-150',
-                      'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary/40',
-                      isActive
-                        ? 'border-accent-primary bg-elevated shadow-accent-subtle -translate-y-px'
-                        : 'border-border bg-surface hover:border-border-hover hover:bg-elevated/70 hover:-translate-y-px',
-                    )}
-                  >
-                    {node.thumbnail ? (
-                      <img src={node.thumbnail} alt="" className="h-full w-full object-cover" />
-                    ) : (
-                      <div className="flex h-full w-full items-center justify-center bg-void type-badge text-text-muted">
-                        {index + 1}
-                      </div>
-                    )}
-
-                    <div className="pointer-events-none absolute inset-x-0 bottom-0 h-4 bg-gradient-to-t from-void/85 via-void/20 to-transparent" />
-
-                    <span
+                  <div className="relative flex-shrink-0">
+                    <button
+                      ref={(element) => {
+                        if (element) {
+                          nodeRefs.current.set(node.id, element);
+                        } else {
+                          nodeRefs.current.delete(node.id);
+                        }
+                      }}
+                      type="button"
+                      data-testid={`iteration-timeline-node-${node.id}`}
+                      data-compare-selected={isCompared ? 'true' : 'false'}
+                      aria-current={isActive ? 'step' : undefined}
+                      aria-label={`Iteration step ${index + 1} of ${timelineNodes.length}${node.isPinned ? ', pinned' : ''}`}
+                      title={node.generationJob.params?.prompt?.slice(0, 80) || node.id}
+                      onClick={() => setActiveIteration(node.id)}
+                      onFocus={() => {
+                        if (!isActive) {
+                          setActiveIteration(node.id);
+                        }
+                      }}
+                      onKeyDown={(event) => handleTimelineKeyDown(event, index)}
                       className={cn(
-                        'pointer-events-none absolute left-1 top-1 rounded-sm px-1 py-0.5 type-badge',
-                        isActive ? 'bg-accent-primary text-void' : 'bg-void/80 text-text-body',
+                        'group relative h-9 w-9 overflow-hidden rounded-md border transition-all duration-150',
+                        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary/40',
+                        isActive
+                          ? 'border-accent-primary bg-elevated shadow-accent-subtle -translate-y-px'
+                          : isCompared
+                            ? 'border-accent-primary-border bg-accent-primary-muted'
+                            : 'border-border bg-surface hover:border-border-hover hover:bg-elevated/70 hover:-translate-y-px',
                       )}
                     >
-                      {index + 1}
-                    </span>
+                      {node.thumbnail ? (
+                        <img src={node.thumbnail} alt="" className="h-full w-full object-cover" />
+                      ) : (
+                        <div className="flex h-full w-full items-center justify-center bg-void type-badge text-text-muted">
+                          {index + 1}
+                        </div>
+                      )}
 
-                    {node.isPinned && (
-                      <span className="pointer-events-none absolute right-1 top-1 rounded-sm border border-border bg-void/85 p-0.5 text-text-body">
-                        <Pin className="h-2.5 w-2.5" />
-                      </span>
-                    )}
+                      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-4 bg-gradient-to-t from-void/85 via-void/20 to-transparent" />
 
-                    {diffCount > 0 && (
-                      <span className="pointer-events-none absolute bottom-1 right-1 rounded-sm border border-border bg-void/85 px-1 py-0.5 type-badge text-text-muted">
-                        {diffCount}
+                      <span
+                        className={cn(
+                          'pointer-events-none absolute left-1 top-1 rounded-sm px-1 py-0.5 type-badge',
+                          isActive ? 'bg-accent-primary text-void' : 'bg-void/80 text-text-body',
+                        )}
+                      >
+                        {index + 1}
                       </span>
-                    )}
-                  </button>
+
+                      {node.isPinned && (
+                        <span className="pointer-events-none absolute right-1 top-1 rounded-sm border border-border bg-void/85 p-0.5 text-text-body">
+                          <Pin className="h-2.5 w-2.5" />
+                        </span>
+                      )}
+
+                      {diffCount > 0 && (
+                        <span className="pointer-events-none absolute bottom-1 right-1 rounded-sm border border-border bg-void/85 px-1 py-0.5 type-badge text-text-muted">
+                          {diffCount}
+                        </span>
+                      )}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        toggleIterationComparison(node.id);
+                      }}
+                      className={cn(
+                        'absolute -bottom-1 -right-1 rounded-full border bg-surface p-1 transition-colors',
+                        isCompared
+                          ? 'border-accent-primary-border text-accent-primary'
+                          : 'border-border text-text-muted hover:text-text-primary',
+                      )}
+                      aria-label={isCompared ? 'Remove from comparison' : `Compare iteration step ${index + 1}`}
+                    >
+                      <GitCompare className="h-3 w-3" />
+                    </button>
+                  </div>
                 </div>
               );
             })}

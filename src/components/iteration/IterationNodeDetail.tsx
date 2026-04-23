@@ -1,5 +1,5 @@
 import { memo } from 'react';
-import { Pin, MessageSquare, Repeat2, GitBranch } from 'lucide-react';
+import { GitBranch, GitCompare, Pin, Repeat2 } from 'lucide-react';
 import { cn } from '@/utils/cn';
 import { useAppStore } from '@/store/appStore';
 import { SettingsDiffPanel } from './SettingsDiffPanel';
@@ -17,6 +17,9 @@ export const IterationNodeDetail = memo(function IterationNodeDetail({
   const pinIteration = useAppStore((s) => s.pinIteration);
   const setIterationNote = useAppStore((s) => s.setIterationNote);
   const forkIteration = useAppStore((s) => s.forkIteration);
+  const comparisonIds = useAppStore((s) => s.comparisonIds);
+  const toggleIterationComparison = useAppStore((s) => s.toggleIterationComparison);
+  const isCompared = comparisonIds?.includes(node.id) ?? false;
 
   return (
     <div className={cn('flex flex-col gap-3 p-3', className)}>
@@ -54,6 +57,20 @@ export const IterationNodeDetail = memo(function IterationNodeDetail({
 
       {/* Actions */}
       <div className="flex gap-2">
+        <button
+          type="button"
+          onClick={() => toggleIterationComparison(node.id)}
+          className={cn(
+            'flex items-center gap-1.5 rounded-md px-2 py-1 type-body-sm transition-colors',
+            isCompared
+              ? 'bg-accent-primary-muted text-accent-primary'
+              : 'text-text-muted hover:bg-elevated hover:text-text-primary',
+          )}
+          aria-label={isCompared ? 'Remove from comparison' : 'Compare this iteration'}
+        >
+          <GitCompare className="w-3.5 h-3.5" />
+          {isCompared ? 'Compared' : 'Compare'}
+        </button>
         <button
           type="button"
           onClick={() => forkIteration({ job: node.generationJob, parentId: node.id, thumbnail: node.thumbnail })}
