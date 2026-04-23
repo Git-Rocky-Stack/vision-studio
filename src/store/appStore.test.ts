@@ -318,6 +318,22 @@ describe('appStore', () => {
         true
       );
     });
+
+    it('tracks transient workflow runtime state outside persisted workflow records', () => {
+      const state = useAppStore.getState();
+
+      state.setWorkflowRuntimeState('image-generation-baseline', {
+        issues: [{ severity: 'error', code: 'missing-prompt', message: 'Prompt is required.' }],
+        activeJobId: 'job-1',
+      });
+
+      expect(useAppStore.getState().workflowRuntimeById['image-generation-baseline']?.activeJobId).toBe(
+        'job-1'
+      );
+
+      const persisted = (useAppStore as any).persist?.getOptions?.()?.partialize?.(useAppStore.getState());
+      expect(persisted).not.toHaveProperty('workflowRuntimeById');
+    });
   });
 
   // ── Job management ────────────────────────────────────────────────────

@@ -20,6 +20,63 @@ export interface WorkflowRunRecord {
 export type WorkflowRunInput = Omit<WorkflowRunRecord, 'id' | 'createdAt'> &
   Partial<Pick<WorkflowRunRecord, 'id' | 'createdAt'>>;
 
+export interface WorkflowExecutionIssue {
+  severity: 'error' | 'warning';
+  code:
+    | 'invalid-graph'
+    | 'unsupported-node'
+    | 'missing-sampler'
+    | 'multiple-samplers'
+    | 'missing-prompt'
+    | 'missing-model'
+    | 'invalid-sampler-value'
+    | 'backend-unavailable';
+  message: string;
+  nodeId?: string;
+}
+
+export interface WorkflowExecutionSummary {
+  prompt: string;
+  negativePrompt: string;
+  model: string;
+  width: number;
+  height: number;
+  steps: number;
+  cfgScale: number;
+  seed?: number;
+}
+
+export interface WorkflowRuntimeState {
+  issues: WorkflowExecutionIssue[];
+  activeJobId: string | null;
+  lastRunId: string | null;
+  lastFailureMessage: string | null;
+  lastResolvedRequest: WorkflowExecutionSummary | null;
+}
+
+export interface WorkflowExecutionContext {
+  activeScenePrompt: string | null;
+  activeSceneNegativePrompt: string | null;
+  generationDraft: {
+    prompt: string;
+    negativePrompt: string;
+    model: string;
+    width: number;
+    height: number;
+    steps: number;
+    cfgScale: number;
+    scheduler: string;
+    seed: number;
+    generationType: 'image' | 'video';
+  } | null;
+  availableModels: Array<{ id?: string; name?: string }>;
+}
+
+export interface WorkflowExecutionValidationResult {
+  issues: WorkflowExecutionIssue[];
+  summary: WorkflowExecutionSummary | null;
+}
+
 export interface WorkflowGraph {
   nodes: Record<string, WorkflowGraphNode>;
   edges: WorkflowGraphEdge[];

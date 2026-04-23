@@ -1,5 +1,6 @@
 import type { AppSet, AppGet } from '../appStore.types';
 import type {
+  WorkflowRuntimeState,
   WorkflowStepRecord,
   WorkflowGraph,
   WorkflowGraphNode,
@@ -78,6 +79,16 @@ function cloneWorkflow(workflow: WorkflowRecord): WorkflowRecord {
   return structuredClone(workflow);
 }
 
+function createDefaultWorkflowRuntimeState(): WorkflowRuntimeState {
+  return {
+    issues: [],
+    activeJobId: null,
+    lastRunId: null,
+    lastFailureMessage: null,
+    lastResolvedRequest: null,
+  };
+}
+
 function createWorkflowEdgeId(edge: Omit<WorkflowGraphEdge, 'id'>): string {
   return `edge-${crypto.randomUUID()}`;
 }
@@ -99,6 +110,7 @@ function createDraftWorkflow(name: string): WorkflowRecord {
 export const workflowInitialState = {
   workflowRecords: DEFAULT_WORKFLOWS.map(cloneWorkflow),
   activeWorkflowId: DEFAULT_WORKFLOWS[0].id,
+  workflowRuntimeById: {} as Record<string, WorkflowRuntimeState>,
 };
 
 export function createWorkflowActions(set: AppSet, get: AppGet) {
@@ -118,6 +130,46 @@ export function createWorkflowActions(set: AppSet, get: AppGet) {
       }));
       return workflow;
     },
+
+    setWorkflowStatus: (workflowId: string, status: WorkflowRecord['status']) =>
+      set((state) => ({
+        workflowRecords: state.workflowRecords.map((workflow) =>
+          workflow.id === workflowId ? { ...workflow, status } : workflow
+        ),
+      })),
+
+    setWorkflowRuntimeState: (workflowId: string, patch: Partial<WorkflowRuntimeState>) =>
+      set((state) => ({
+        workflowRuntimeById: {
+          ...state.workflowRuntimeById,
+          [workflowId]: {
+            ...(state.workflowRuntimeById[workflowId] ?? createDefaultWorkflowRuntimeState()),
+            ...patch,
+            issues: patch.issues ?? state.workflowRuntimeById[workflowId]?.issues ?? [],
+            activeJobId:
+              patch.activeJobId ?? state.workflowRuntimeById[workflowId]?.activeJobId ?? null,
+            lastRunId: patch.lastRunId ?? state.workflowRuntimeById[workflowId]?.lastRunId ?? null,
+            lastFailureMessage:
+              patch.lastFailureMessage ??
+              state.workflowRuntimeById[workflowId]?.lastFailureMessage ??
+              null,
+            lastResolvedRequest:
+              patch.lastResolvedRequest ??
+              state.workflowRuntimeById[workflowId]?.lastResolvedRequest ??
+              null,
+          },
+        },
+      })),
+
+    resetWorkflowRuntimeState: (workflowId: string) =>
+      set((state) => {
+        if (!(workflowId in state.workflowRuntimeById)) {
+          return { workflowRuntimeById: state.workflowRuntimeById };
+        }
+
+        const { [workflowId]: _removedRuntime, ...rest } = state.workflowRuntimeById;
+        return { workflowRuntimeById: rest };
+      }),
 
     recordWorkflowRun: (workflowId: string, run: WorkflowRunInput) =>
       set((state) => ({

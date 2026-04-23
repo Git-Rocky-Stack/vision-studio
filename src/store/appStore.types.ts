@@ -15,6 +15,11 @@ export type {
   WorkflowStepRecord,
   WorkflowRunRecord,
   WorkflowRunInput,
+  WorkflowExecutionIssue,
+  WorkflowExecutionSummary,
+  WorkflowRuntimeState,
+  WorkflowExecutionContext,
+  WorkflowExecutionValidationResult,
   WorkflowGraph,
   WorkflowGraphNode,
   WorkflowGraphInput,
@@ -77,6 +82,7 @@ import type {
 
 import type {
   WorkflowRunInput,
+  WorkflowRuntimeState,
   WorkflowGraphNode,
   WorkflowGraphEdge,
   WorkflowGraph,
@@ -198,6 +204,7 @@ export interface AppState {
   // ─── Workflow ────────────────────────────────────────────────────────────
   workflowRecords: WorkflowRecord[];
   activeWorkflowId: string;
+  workflowRuntimeById: Record<string, WorkflowRuntimeState>;
 
   // ─── Recent Projects (file-system level, not storyboard) ────────────────
   currentProject: RecentProject | null;
@@ -362,6 +369,9 @@ export interface AppState {
   // Workflow
   setActiveWorkflow: (workflowId: string) => void;
   createWorkflow: (name: string) => WorkflowRecord;
+  setWorkflowStatus: (workflowId: string, status: WorkflowRecord['status']) => void;
+  setWorkflowRuntimeState: (workflowId: string, patch: Partial<WorkflowRuntimeState>) => void;
+  resetWorkflowRuntimeState: (workflowId: string) => void;
   recordWorkflowRun: (workflowId: string, run: WorkflowRunInput) => void;
   addWorkflowNode: (
     workflowId: string,
