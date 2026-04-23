@@ -1,6 +1,7 @@
 import type {
   Project,
   Scene,
+  Element,
   CharacterRef,
   ImportDraft,
   ImportDraftElementCandidate,
@@ -76,6 +77,83 @@ function cloneImportDraft(draft: ImportDraft): ImportDraft {
     elementDrafts: draft.elementDrafts.map((candidate) => cloneImportDraftElementCandidate(candidate)),
     issues: draft.issues.map((issue) => cloneImportDraftIssue(issue)),
     metadata: { ...draft.metadata },
+  };
+}
+
+function canonicalizeElementName(value: string) {
+  return value
+    .toLowerCase()
+    .replace(/^[^a-z0-9]+|[^a-z0-9]+$/g, '')
+    .replace(/\b(the|a|an)\b/g, ' ')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function mergeUniqueStrings(...groups: (string[] | undefined)[]) {
+  return Array.from(
+    new Set(
+      groups.flatMap((group) => group ?? []).filter((value): value is string => value.length > 0),
+    ),
+  );
+}
+
+function buildCommittedSceneNotes(sceneDraft: ImportDraftScene) {
+  return [sceneDraft.summary.trim(), sceneDraft.notes.trim()].filter(Boolean).join('\n\n');
+}
+
+function buildElementFromImportCandidate(
+  projectId: string,
+  candidate: ImportDraftElementCandidate,
+  draftId: string,
+): Element {
+  return {
+    id: crypto.randomUUID(),
+    projectId,
+    type: candidate.type,
+    name: candidate.name,
+    aliases: [...candidate.aliases],
+    description: candidate.description,
+    tags: [...candidate.tags],
+    continuityNotes: candidate.continuityNotes,
+    referenceSetIds: [...candidate.referenceSetIds],
+    heroMediaAssetId: candidate.heroMediaAssetId ?? null,
+    status: 'approved' as const,
+    color: candidate.color,
+    metadata: {
+      ...candidate.metadata,
+      source: 'script-import',
+      sourceDraftId: draftId,
+      sourceCandidateId: candidate.id,
+    },
+  };
+}
+
+function mergeImportCandidateIntoElement(
+  element: Element,
+  candidate: ImportDraftElementCandidate,
+  draftId: string,
+): Element {
+  return {
+    ...element,
+    aliases: mergeUniqueStrings(
+      element.aliases,
+      candidate.aliases,
+      element.name !== candidate.name ? [candidate.name] : [],
+    ),
+    description: element.description || candidate.description,
+    tags: mergeUniqueStrings(element.tags, candidate.tags),
+    continuityNotes: element.continuityNotes || candidate.continuityNotes,
+    referenceSetIds: mergeUniqueStrings(element.referenceSetIds, candidate.referenceSetIds),
+    heroMediaAssetId: element.heroMediaAssetId ?? candidate.heroMediaAssetId ?? null,
+    status: 'approved' as const,
+    metadata: {
+      ...element.metadata,
+      ...candidate.metadata,
+      source: 'script-import',
+      sourceDraftId: draftId,
+      sourceCandidateId: candidate.id,
+    },
   };
 }
 
@@ -169,7 +247,12 @@ function buildScene(config: Partial<Scene> | undefined, now: string): Scene {
     regionLocks: [],
     transitions: config?.transitions ?? { ...DEFAULT_SCENE_TRANSITION },
     camera: [],
-    metadata: { ...DEFAULT_SCENE_METADATA, created: now, modified: now },
+    metadata: {
+      ...DEFAULT_SCENE_METADATA,
+      ...(config?.metadata ?? {}),
+      created: now,
+      modified: now,
+    },
     status: config?.status ?? 'draft',
     characterRefs: config?.characterRefs ?? [],
     elementIds: config?.elementIds ? [...config.elementIds] : [],
@@ -298,6 +381,163 @@ export function createProjectActions(set: AppSet, _get: AppGet) {
       });
 
       return _get().upsertStoryboardImportDraft(draft);
+    },
+    commitStoryboardImportDraft: (draftId: string) => {
+      let commitResult:
+        | {
+            projectId: string;
+            sceneIds: string[];
+            elementIds: string[];
+          }
+        | null = null;
+
+      set((state) => {
+        const draft = state.storyboardImportDrafts.find((item) => item.id === draftId);
+        if (!draft) {
+          return {};
+        }
+
+        const project = state.projects.find((item) => item.id === draft.projectId);
+        if (!project) {
+          return {};
+        }
+
+        const acceptedSceneDrafts = draft.sceneDrafts
+          .filter((sceneDraft) => sceneDraft.accepted)
+          .sort((left, right) => left.orderIndex - right.orderIndex);
+        if (acceptedSceneDrafts.length === 0) {
+          return {};
+        }
+
+        const now = new Date().toISOString();
+        const nextElements = (project.elements ?? []).map((element) => ({
+          ...element,
+          aliases: [...element.aliases],
+          tags: [...element.tags],
+          referenceSetIds: [...element.referenceSetIds],
+          metadata: { ...element.metadata },
+        }));
+        const elementIndexById = new Map(nextElements.map((element, index) => [element.id, index]));
+        const elementIndexByKey = new Map(
+          nextElements.flatMap((element) => {
+            const names = [element.name, ...element.aliases]
+              .map((name) => canonicalizeElementName(name))
+              .filter(Boolean);
+
+            return names.map((name) => [`${element.type}:${name}`, element.id] as const);
+          }),
+        );
+        const committedElementIdByCandidateId = new Map<string, string>();
+
+        for (const candidate of draft.elementDrafts.filter((item) => item.accepted)) {
+          const canonicalName = canonicalizeElementName(candidate.name);
+          const fallbackTargetId = canonicalName
+            ? elementIndexByKey.get(`${candidate.type}:${canonicalName}`) ?? null
+            : null;
+          const targetElementId =
+            candidate.mergeTargetElementId && elementIndexById.has(candidate.mergeTargetElementId)
+              ? candidate.mergeTargetElementId
+              : fallbackTargetId;
+
+          if (targetElementId) {
+            const targetIndex = elementIndexById.get(targetElementId);
+            if (targetIndex !== undefined) {
+              const mergedElement = mergeImportCandidateIntoElement(
+                nextElements[targetIndex],
+                candidate,
+                draft.id,
+              );
+              nextElements[targetIndex] = mergedElement;
+              committedElementIdByCandidateId.set(candidate.id, mergedElement.id);
+              elementIndexByKey.set(`${mergedElement.type}:${canonicalName}`, mergedElement.id);
+              continue;
+            }
+          }
+
+          const createdElement = buildElementFromImportCandidate(project.id, candidate, draft.id);
+          nextElements.push(createdElement);
+          elementIndexById.set(createdElement.id, nextElements.length - 1);
+          if (canonicalName) {
+            elementIndexByKey.set(`${createdElement.type}:${canonicalName}`, createdElement.id);
+          }
+          committedElementIdByCandidateId.set(candidate.id, createdElement.id);
+        }
+
+        const committedScenes = acceptedSceneDrafts.map((sceneDraft, index) => {
+          const scene = buildScene(
+            {
+              name: sceneDraft.name,
+              prompt: sceneDraft.promptSeed || sceneDraft.summary,
+              negativePrompt: '',
+              elementIds: Array.from(
+                new Set(
+                  sceneDraft.elementCandidateIds.flatMap((candidateId) => {
+                    const committedElementId = committedElementIdByCandidateId.get(candidateId);
+                    return committedElementId ? [committedElementId] : [];
+                  }),
+                ),
+              ),
+              shotBeats: sceneDraft.shotBeats.map((shotBeat) => ({
+                ...shotBeat,
+                elementIds: Array.from(
+                  new Set(
+                    shotBeat.elementIds.flatMap((candidateId) => {
+                      const committedElementId = committedElementIdByCandidateId.get(candidateId);
+                      return committedElementId ? [committedElementId] : [];
+                    }),
+                  ),
+                ),
+                metadata: { ...shotBeat.metadata },
+              })),
+              metadata: {
+                fps: project.fps,
+                duration: 0,
+                notes: buildCommittedSceneNotes(sceneDraft),
+              },
+              status: 'draft',
+            },
+            now,
+          );
+
+          return {
+            ...scene,
+            orderIndex: project.scenes.length + index,
+          };
+        });
+
+        const nextProjects = state.projects.map((item) =>
+          item.id !== project.id
+            ? item
+            : {
+                ...item,
+                elements: nextElements,
+                scenes: [...item.scenes, ...committedScenes],
+                modified: now,
+              },
+        );
+        const nextStoryboardImportDrafts = state.storyboardImportDrafts.filter(
+          (item) => item.id !== draft.id,
+        );
+
+        commitResult = {
+          projectId: project.id,
+          sceneIds: committedScenes.map((scene) => scene.id),
+          elementIds: Array.from(new Set(committedElementIdByCandidateId.values())),
+        };
+
+        return {
+          projects: nextProjects,
+          activeProjectId: project.id,
+          activeSceneId: committedScenes[0]?.id ?? state.activeSceneId,
+          storyboardImportDrafts: nextStoryboardImportDrafts,
+          activeStoryboardImportDraftId:
+            state.activeStoryboardImportDraftId === draft.id
+              ? (nextStoryboardImportDrafts[0]?.id ?? null)
+              : state.activeStoryboardImportDraftId,
+        };
+      });
+
+      return commitResult;
     },
     deleteStoryboardImportDraft: (id: string) =>
       set((state) => {

@@ -43,6 +43,7 @@ export function StoryboardPanel() {
     storyboardImportDrafts,
     activeStoryboardImportDraftId,
     createStoryboardImportDraftFromText,
+    commitStoryboardImportDraft,
     upsertStoryboardImportDraft,
     deleteStoryboardImportDraft,
     setActiveStoryboardImportDraft,
@@ -61,6 +62,7 @@ export function StoryboardPanel() {
     storyboardImportDrafts: s.storyboardImportDrafts,
     activeStoryboardImportDraftId: s.activeStoryboardImportDraftId,
     createStoryboardImportDraftFromText: s.createStoryboardImportDraftFromText,
+    commitStoryboardImportDraft: s.commitStoryboardImportDraft,
     upsertStoryboardImportDraft: s.upsertStoryboardImportDraft,
     deleteStoryboardImportDraft: s.deleteStoryboardImportDraft,
     setActiveStoryboardImportDraft: s.setActiveStoryboardImportDraft,
@@ -193,6 +195,16 @@ export function StoryboardPanel() {
 
   const handleApproveImportDraft = (draft: ImportDraft) => {
     persistImportDraft(draft, 'approved');
+    commitStoryboardImportDraft(draft.id);
+    setIsImportReviewOpen(false);
+  };
+
+  const handleCommitDraftFromBanner = () => {
+    if (!activeImportDraft) {
+      return;
+    }
+
+    commitStoryboardImportDraft(activeImportDraft.id);
     setIsImportReviewOpen(false);
   };
 
@@ -279,8 +291,13 @@ export function StoryboardPanel() {
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
+              {activeImportDraft.status === 'approved' ? (
+                <Button variant="primary" size="sm" onClick={handleCommitDraftFromBanner}>
+                  Commit Draft
+                </Button>
+              ) : null}
               <Button variant="secondary" size="sm" onClick={() => setIsImportReviewOpen(true)}>
-                Review Draft
+                {activeImportDraft.status === 'approved' ? 'Review Approved Draft' : 'Review Draft'}
               </Button>
               <Button variant="danger" size="sm" onClick={handleDiscardImportDraft}>
                 <Trash2 className="w-4 h-4" aria-hidden="true" />

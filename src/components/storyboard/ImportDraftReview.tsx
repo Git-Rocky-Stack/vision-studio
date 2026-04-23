@@ -134,7 +134,7 @@ export function ImportDraftReview({
                   : 'border-accent-primary/30 bg-accent-primary-muted/30 text-accent-primary',
               )}
             >
-              {draft.status === 'approved' ? 'Ready' : 'Reviewing'}
+              {draft.status === 'approved' ? 'Approved' : 'Reviewing'}
             </span>
           </div>
           <h3 className="mt-3 type-section text-text-primary">{draft.title || 'Import Draft'}</h3>
@@ -158,7 +158,7 @@ export function ImportDraftReview({
             disabled={!canApprove}
           >
             <CheckCircle2 className="h-4 w-4" />
-            Mark Ready
+            Commit to Storyboard
           </Button>
         </div>
       </div>

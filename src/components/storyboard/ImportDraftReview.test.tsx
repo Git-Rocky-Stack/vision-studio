@@ -162,7 +162,11 @@ describe('ImportDraftReview', () => {
       />,
     );
 
-    await user.click(within(screen.getByTestId('import-draft-review')).getByRole('button', { name: /mark ready/i }));
+    await user.click(
+      within(screen.getByTestId('import-draft-review')).getByRole('button', {
+        name: /commit to storyboard/i,
+      }),
+    );
     expect(onApprove).toHaveBeenCalledWith(expect.objectContaining({ status: 'approved' }));
 
     rerender(
@@ -186,6 +190,10 @@ describe('ImportDraftReview', () => {
       />,
     );
 
-    expect(within(screen.getByTestId('import-draft-review')).getByRole('button', { name: /mark ready/i })).toBeDisabled();
+    expect(
+      within(screen.getByTestId('import-draft-review')).getByRole('button', {
+        name: /commit to storyboard/i,
+      }),
+    ).toBeDisabled();
   });
 });

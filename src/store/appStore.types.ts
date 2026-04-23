@@ -663,6 +663,13 @@ export interface AppState {
       title?: string;
     },
   ) => ImportDraft | null;
+  commitStoryboardImportDraft: (
+    draftId: string,
+  ) => {
+    projectId: string;
+    sceneIds: string[];
+    elementIds: string[];
+  } | null;
   deleteStoryboardImportDraft: (id: string) => void;
   setActiveStoryboardImportDraft: (id: string | null) => void;
 

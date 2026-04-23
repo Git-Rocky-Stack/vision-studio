@@ -964,6 +964,165 @@ We only get one pass at this.
       expect(useAppStore.getState().activeStoryboardImportDraftId).toBe(draft?.id ?? null);
     });
 
+    it('commits approved storyboard import drafts into appended scenes and project elements', () => {
+      const project = useAppStore.getState().createProject('Draft target');
+      const existingScene = useAppStore.getState().addScene(project.id, {
+        name: 'Existing Scene',
+        prompt: 'legacy prompt',
+      });
+
+      useAppStore.setState((state) => ({
+        projects: state.projects.map((item) =>
+          item.id !== project.id
+            ? item
+            : {
+                ...item,
+                elements: [
+                  {
+                    id: 'element-existing-character',
+                    projectId: project.id,
+                    type: 'character',
+                    name: 'Captain Nova',
+                    aliases: [],
+                    description: '',
+                    tags: ['lead'],
+                    continuityNotes: '',
+                    referenceSetIds: [],
+                    heroMediaAssetId: null,
+                    status: 'approved',
+                    color: '#e63946',
+                    metadata: {},
+                  },
+                ],
+              },
+        ),
+      }));
+
+      useAppStore.getState().upsertStoryboardImportDraft({
+        id: 'draft-commit-1',
+        projectId: project.id,
+        title: 'Control Room Import',
+        sourceText: 'INT. CONTROL ROOM - NIGHT',
+        status: 'approved',
+        createdAt: '2026-04-23T00:00:00.000Z',
+        updatedAt: '2026-04-23T00:00:00.000Z',
+        metadata: {},
+        issues: [],
+        elementDrafts: [
+          {
+            id: 'candidate-character-1',
+            type: 'character',
+            name: 'Captain Nova',
+            aliases: ['Nova'],
+            description: 'Lead pilot.',
+            tags: ['captain'],
+            continuityNotes: 'Always wears the flight jacket.',
+            referenceSetIds: [],
+            heroMediaAssetId: null,
+            color: '#e63946',
+            mergeTargetElementId: 'element-existing-character',
+            accepted: true,
+            metadata: {},
+          },
+          {
+            id: 'candidate-location-1',
+            type: 'location',
+            name: 'Control Room',
+            aliases: [],
+            description: 'Command deck at night.',
+            tags: ['interior'],
+            continuityNotes: '',
+            referenceSetIds: [],
+            heroMediaAssetId: null,
+            color: '#4f46e5',
+            mergeTargetElementId: null,
+            accepted: true,
+            metadata: {},
+          },
+          {
+            id: 'candidate-object-1',
+            type: 'object',
+            name: 'Abandoned Prop',
+            aliases: [],
+            description: '',
+            tags: [],
+            continuityNotes: '',
+            referenceSetIds: [],
+            heroMediaAssetId: null,
+            color: '#64748b',
+            mergeTargetElementId: null,
+            accepted: false,
+            metadata: {},
+          },
+        ],
+        sceneDrafts: [
+          {
+            id: 'scene-draft-1',
+            name: 'Control Room',
+            summary: 'A tense opening in the command deck.',
+            promptSeed: 'Captain Nova in the control room at night',
+            notes: 'Keep the skyline monitors alive in the background.',
+            orderIndex: 0,
+            elementCandidateIds: [
+              'candidate-character-1',
+              'candidate-location-1',
+              'candidate-object-1',
+            ],
+            shotBeats: [
+              {
+                id: 'beat-1',
+                summary: 'Captain Nova scans the console.',
+                promptSeed: 'Captain Nova scans the glowing control console.',
+                notes: 'Push in slowly.',
+                orderIndex: 0,
+                durationMs: null,
+                elementIds: ['candidate-character-1', 'candidate-location-1'],
+                metadata: { camera: 'push-in' },
+              },
+            ],
+            accepted: true,
+            metadata: {},
+          },
+        ],
+      });
+
+      const commitResult = useAppStore.getState().commitStoryboardImportDraft('draft-commit-1');
+
+      expect(commitResult).not.toBeNull();
+      expect(commitResult?.projectId).toBe(project.id);
+      expect(commitResult?.sceneIds).toHaveLength(1);
+
+      const committedState = useAppStore.getState();
+      const committedProject = committedState.projects.find((item) => item.id === project.id);
+      expect(committedProject?.scenes).toHaveLength(2);
+      expect(committedProject?.scenes[0].id).toBe(existingScene.id);
+
+      const importedScene = committedProject?.scenes.find((scene) => scene.id === commitResult?.sceneIds[0]);
+      expect(importedScene?.name).toBe('Control Room');
+      expect(importedScene?.orderIndex).toBe(1);
+      expect(importedScene?.prompt).toBe('Captain Nova in the control room at night');
+      expect(importedScene?.metadata.notes).toContain('A tense opening in the command deck.');
+      expect(importedScene?.metadata.notes).toContain(
+        'Keep the skyline monitors alive in the background.',
+      );
+      expect(importedScene?.elementIds).toHaveLength(2);
+      expect(importedScene?.shotBeats[0].elementIds).toEqual(importedScene?.elementIds);
+      expect(importedScene?.shotBeats[0].metadata).toEqual({ camera: 'push-in' });
+
+      expect(committedProject?.elements).toHaveLength(2);
+      const mergedCharacter = committedProject?.elements?.find(
+        (element) => element.id === 'element-existing-character',
+      );
+      expect(mergedCharacter?.aliases).toContain('Nova');
+      expect(mergedCharacter?.tags).toContain('captain');
+      expect(committedProject?.elements?.some((element) => element.name === 'Control Room')).toBe(true);
+
+      expect(committedState.storyboardImportDrafts).toEqual([]);
+      expect(committedState.activeStoryboardImportDraftId).toBeNull();
+      expect(committedState.activeProjectId).toBe(project.id);
+      expect(committedState.activeSceneId).toBe(importedScene?.id ?? null);
+    });
+
     it('removes project-scoped storyboard import drafts when deleting a project', () => {
       const project = useAppStore.getState().createProject('Draft target');
 
