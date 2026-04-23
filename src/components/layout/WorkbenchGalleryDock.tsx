@@ -3,7 +3,7 @@ import { ImageIcon } from 'lucide-react';
 
 import { useAppStore } from '@/store/appStore';
 import { useShallow } from 'zustand/react/shallow';
-import { ImageWithFallback } from '@/components/ui/ImageWithFallback';
+import { MediaPreview } from '@/components/ui/MediaPreview';
 import { cn } from '@/utils/cn';
 import { ReviewDensityToggle } from './ReviewDensityToggle';
 
@@ -11,7 +11,9 @@ interface GalleryItem {
   id: string;
   label: string;
   prompt: string;
-  thumbnail: string;
+  mediaPath: string;
+  posterPath: string | null;
+  generationType: 'image' | 'video';
   createdAt: number;
   source: string;
 }
@@ -47,7 +49,9 @@ export function WorkbenchGalleryDock() {
       id: `asset-${asset.id}`,
       label: asset.name || 'Generated asset',
       prompt: asset.prompt || 'No prompt saved',
-      thumbnail: asset.thumbnail || asset.previewUrl || asset.path,
+      mediaPath: asset.type === 'video' ? asset.path : asset.previewUrl || asset.path,
+      posterPath: asset.thumbnail || asset.previewUrl || asset.path,
+      generationType: asset.type,
       createdAt: new Date(asset.createdAt).getTime(),
       source: asset.type === 'video' ? 'Video asset' : 'Image asset',
     }));
@@ -56,13 +60,15 @@ export function WorkbenchGalleryDock() {
       id: `batch-${result.id}`,
       label: 'Batch result',
       prompt: result.prompt,
-      thumbnail: result.imagePath,
+      mediaPath: result.imagePath,
+      posterPath: result.imagePath,
+      generationType: 'image' as const,
       createdAt: new Date(result.createdAt).getTime(),
       source: result.isFavorite ? 'Favorite batch' : 'Batch result',
     }));
 
     return [...assetItems, ...batchItems]
-      .filter((item) => item.thumbnail)
+      .filter((item) => item.mediaPath)
       .sort((a, b) => b.createdAt - a.createdAt)
       .slice(0, isCompact ? 36 : 24);
   }, [assetLibrary, batchResults, isCompact]);
@@ -137,11 +143,15 @@ export function WorkbenchGalleryDock() {
                 )}
               >
                 <div className="aspect-square bg-void">
-                  <ImageWithFallback
-                    src={item.thumbnail}
+                  <MediaPreview
+                    kind={item.generationType}
+                    src={item.mediaPath}
+                    poster={item.posterPath}
                     alt={item.label}
-                    className="h-full w-full object-cover"
+                    className="h-full w-full"
+                    mediaClassName="h-full w-full object-cover"
                     fallbackClassName="h-full w-full"
+                    showPlayBadge={item.generationType === 'video'}
                   />
                 </div>
                 <div className={cn('space-y-1', isCompact ? 'p-2' : 'p-3')}>

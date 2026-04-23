@@ -15,7 +15,7 @@ import {
 
 import { useAppStore, type AppState } from '@/store/appStore';
 import { useShallow } from 'zustand/react/shallow';
-import { ImageWithFallback } from '@/components/ui/ImageWithFallback';
+import { MediaPreview } from '@/components/ui/MediaPreview';
 import type { GenerationDraft } from '@/types/generation';
 import { DEFAULT_GENERATION_CONFIG } from '@/types/project';
 import { cn } from '@/utils/cn';
@@ -35,6 +35,7 @@ interface ViewerItem {
   label: string;
   source: string;
   imagePath: string;
+  posterPath: string | null;
   assetPath: string | null;
   thumbnail: string;
   prompt: string;
@@ -99,7 +100,8 @@ export function WorkbenchViewer() {
       id: `asset-${asset.id}`,
       label: asset.name || 'Generated asset',
       source: asset.type === 'video' ? 'Video asset' : 'Image asset',
-      imagePath: asset.previewUrl || asset.path,
+      imagePath: asset.type === 'video' ? asset.path : asset.previewUrl || asset.path,
+      posterPath: asset.thumbnail || asset.previewUrl || asset.path,
       assetPath: asset.path,
       thumbnail: asset.thumbnail || asset.previewUrl || asset.path,
       prompt: asset.prompt || 'No prompt saved',
@@ -121,6 +123,7 @@ export function WorkbenchViewer() {
       label: 'Batch result',
       source: result.isFavorite ? 'Favorite batch' : 'Batch result',
       imagePath: result.imagePath,
+      posterPath: result.imagePath,
       assetPath: result.assetPath ?? null,
       thumbnail: result.imagePath,
       prompt: result.prompt,
@@ -157,6 +160,7 @@ export function WorkbenchViewer() {
         label: `Pinned output ${index + 1}`,
         source: 'Pinned output',
         imagePath,
+        posterPath: imagePath,
         assetPath: null,
         thumbnail: imagePath,
         prompt: 'Pinned output',
@@ -195,7 +199,12 @@ export function WorkbenchViewer() {
   const sendToEdit = () => {
     if (!activeItem) return;
 
-    setCurrentImage(activeItem.imagePath, activeItem.assetPath);
+    setCurrentImage(
+      activeItem.generationType === 'video'
+        ? activeItem.posterPath ?? null
+        : activeItem.imagePath,
+      activeItem.assetPath,
+    );
     setActiveTab('canvas');
   };
 
@@ -215,7 +224,7 @@ export function WorkbenchViewer() {
       prompt: activeItem.prompt === 'No prompt saved' ? '' : activeItem.prompt,
       negativePrompt: activeItem.negativePrompt,
       generationConfig: toSceneGenerationConfig(activeItem),
-      thumbnail: activeItem.imagePath,
+      thumbnail: activeItem.posterPath ?? activeItem.imagePath,
       status: 'complete',
     });
     setSceneStatus(activeProject.id, scene.id, 'complete');
@@ -247,7 +256,7 @@ export function WorkbenchViewer() {
         <ImageIcon className="h-9 w-9 text-text-muted opacity-40" />
         <h2 className="mt-4 type-title">Outputs will appear here.</h2>
         <p className="mt-2 max-w-sm text-sm text-text-body">
-          Generate or import an image to review it beside Canvas and Workflow.
+          Generate or import an image or video to review it beside Canvas and Workflow.
         </p>
         <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
           <button
@@ -282,11 +291,17 @@ export function WorkbenchViewer() {
             onRemove={removeCompareImage}
           />
         ) : (
-          <ImageWithFallback
+          <MediaPreview
+            kind={activeItem.generationType}
             src={activeItem.imagePath}
+            poster={activeItem.posterPath}
             alt={activeItem.label}
-            className="max-h-full max-w-full object-contain"
+            className="h-full w-full"
+            mediaClassName="max-h-full max-w-full object-contain"
             fallbackClassName="h-full w-full"
+            showControls={activeItem.generationType === 'video'}
+            showPlayBadge={activeItem.generationType === 'video'}
+            testId="viewer-active-preview"
           />
         )}
       </div>
@@ -302,6 +317,11 @@ export function WorkbenchViewer() {
                 <span className="rounded border border-border px-2 py-0.5 type-caption">
                   {activeItem.source}
                 </span>
+                {activeItem.generationType === 'video' ? (
+                  <span className="rounded border border-border px-2 py-0.5 type-caption">
+                    Motion
+                  </span>
+                ) : null}
               </div>
               <p className="mt-2 line-clamp-2 text-sm text-text-body">{activeItem.prompt}</p>
             </div>
@@ -343,10 +363,19 @@ export function WorkbenchViewer() {
                 className="inline-flex items-center gap-2 rounded-md border border-accent-primary-border bg-accent-primary-muted px-3 py-2 type-ui text-accent-primary transition-all hover:bg-elevated"
               >
                 <Pencil className="h-3.5 w-3.5" />
-                Send to Edit
+                {activeItem.generationType === 'video' ? 'Open in Canvas' : 'Send to Edit'}
               </button>
             </div>
           </div>
+
+          {activeItem.generationType === 'video' ? (
+            <div className="mt-3 rounded-lg border border-border bg-elevated px-3 py-2">
+              <p className="type-ui text-text-primary">Video review is live</p>
+              <p className="mt-1 type-caption text-text-body">
+                Playback controls are active above. Canvas stays frame-based and will pick up frame extraction in the next slice.
+              </p>
+            </div>
+          ) : null}
 
           {comparisonImages.length > 0 ? (
             <div
@@ -377,7 +406,10 @@ export function WorkbenchViewer() {
           <dl className="mt-3 grid grid-cols-2 gap-3 text-xs sm:grid-cols-4">
             <Metadata label="Model" value={activeItem.model ?? 'Unknown'} />
             <Metadata label="Seed" value={activeItem.seed === null ? 'Random' : String(activeItem.seed)} />
-            <Metadata label="Runtime" value={activeItem.runtime ?? 'Recorded'} />
+            <Metadata
+              label={activeItem.generationType === 'video' ? 'Playback' : 'Runtime'}
+              value={activeItem.runtime ?? (activeItem.generationType === 'video' ? 'Video ready' : 'Recorded')}
+            />
             <Metadata label="Compare" value={`${comparisonImages.length} pinned`} />
           </dl>
         </section>
@@ -418,11 +450,15 @@ export function WorkbenchViewer() {
                       : 'border-border hover:border-border-hover'
                   )}
                 >
-                  <ImageWithFallback
-                    src={item.thumbnail}
+                  <MediaPreview
+                    kind={item.generationType}
+                    src={item.imagePath}
+                    poster={item.posterPath}
                     alt=""
-                    className="h-full w-full object-cover"
+                    className="h-full w-full"
+                    mediaClassName="h-full w-full object-cover"
                     fallbackClassName="h-full w-full"
+                    showPlayBadge={item.generationType === 'video'}
                   />
                 </button>
               );
@@ -504,21 +540,29 @@ function CompareReview({
 
       {mode === 'slider' && firstItem && secondItem && (
         <div className="relative min-h-0 flex-1 overflow-hidden bg-void">
-          <ImageWithFallback
+          <MediaPreview
+            kind={secondItem.generationType}
             src={secondItem.imagePath}
+            poster={secondItem.posterPath}
             alt={`Slider after ${secondItem.label}`}
-            className="h-full w-full object-contain"
+            className="h-full w-full"
+            mediaClassName="h-full w-full object-contain"
             fallbackClassName="absolute inset-0 h-full w-full"
+            showPlayBadge={secondItem.generationType === 'video'}
           />
           <div
             className="absolute inset-0 overflow-hidden"
             style={{ clipPath: `inset(0 ${100 - sliderPosition}% 0 0)` }}
           >
-            <ImageWithFallback
+            <MediaPreview
+              kind={firstItem.generationType}
               src={firstItem.imagePath}
+              poster={firstItem.posterPath}
               alt={`Slider before ${firstItem.label}`}
-              className="h-full w-full object-contain"
+              className="h-full w-full"
+              mediaClassName="h-full w-full object-contain"
               fallbackClassName="h-full w-full"
+              showPlayBadge={firstItem.generationType === 'video'}
             />
           </div>
           <CompareLabel item={firstItem} className="absolute left-3 top-3" />
@@ -541,19 +585,28 @@ function CompareReview({
 
       {mode === 'onion' && firstItem && secondItem && (
         <div className="relative min-h-0 flex-1 overflow-hidden bg-void">
-          <ImageWithFallback
+          <MediaPreview
+            kind={firstItem.generationType}
             src={firstItem.imagePath}
+            poster={firstItem.posterPath}
             alt={`Onion base ${firstItem.label}`}
-            className="h-full w-full object-contain"
+            className="h-full w-full"
+            mediaClassName="h-full w-full object-contain"
             fallbackClassName="absolute inset-0 h-full w-full"
+            showPlayBadge={firstItem.generationType === 'video'}
           />
-          <ImageWithFallback
-            src={secondItem.imagePath}
-            alt={`Onion overlay ${secondItem.label}`}
-            className="h-full w-full object-contain"
-            fallbackClassName="absolute inset-0 h-full w-full"
-            style={{ opacity: onionOpacity / 100 }}
-          />
+          <div className="absolute inset-0" style={{ opacity: onionOpacity / 100 }}>
+            <MediaPreview
+              kind={secondItem.generationType}
+              src={secondItem.imagePath}
+              poster={secondItem.posterPath}
+              alt={`Onion overlay ${secondItem.label}`}
+              className="h-full w-full"
+              mediaClassName="h-full w-full object-contain"
+              fallbackClassName="absolute inset-0 h-full w-full"
+              showPlayBadge={secondItem.generationType === 'video'}
+            />
+          </div>
           <CompareLabel item={firstItem} className="absolute left-3 top-3" />
           <CompareLabel item={secondItem} className="absolute right-3 top-3" />
           <label className="absolute bottom-4 left-1/2 flex w-72 max-w-[calc(100%-2rem)] -translate-x-1/2 items-center gap-3 rounded-md border border-border bg-void/80 px-3 py-2 backdrop-blur-sm">
@@ -585,11 +638,15 @@ function CompareReview({
               key={`${item.id}-${index}`}
               className="relative min-h-[220px] overflow-hidden rounded-md border border-border bg-void"
             >
-              <ImageWithFallback
+              <MediaPreview
+                kind={item.generationType}
                 src={item.imagePath}
+                poster={item.posterPath}
                 alt={`Grid compare ${item.label}`}
-                className="h-full w-full object-contain"
+                className="h-full w-full"
+                mediaClassName="h-full w-full object-contain"
                 fallbackClassName="h-full w-full"
+                showPlayBadge={item.generationType === 'video'}
               />
               <CompareLabel item={item} className="absolute left-3 right-3 top-3" />
             </li>
@@ -668,11 +725,15 @@ function SideBySideCompare({
     >
       {items.map((item, index) => (
         <article key={`${item.id}-${index}`} className="relative min-h-0 overflow-hidden rounded-md border border-border bg-void">
-          <ImageWithFallback
+          <MediaPreview
+            kind={item.generationType}
             src={item.imagePath}
+            poster={item.posterPath}
             alt={`Compare ${item.label}`}
-            className="h-full w-full object-contain"
+            className="h-full w-full"
+            mediaClassName="h-full w-full object-contain"
             fallbackClassName="h-full w-full"
+            showPlayBadge={item.generationType === 'video'}
           />
           <div className="absolute left-3 right-3 top-3 flex items-start justify-between gap-2">
             <CompareLabel item={item} />

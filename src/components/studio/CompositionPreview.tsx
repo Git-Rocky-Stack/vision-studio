@@ -8,6 +8,7 @@ import { ControlNetVisualization } from '@/components/studio/ControlNetVisualiza
 import { RegionMaskPreview } from '@/components/studio/RegionMaskPreview';
 import { ProgressivePreview } from '@/components/studio/ProgressivePreview';
 import { ImagePlus } from 'lucide-react';
+import { MediaPreview, isLikelyVideoPath } from '@/components/ui/MediaPreview';
 
 /** Default zoom level for the composition canvas. */
 const DEFAULT_ZOOM = 1;
@@ -22,6 +23,7 @@ export const CompositionPreview = memo(function CompositionPreview() {
   const compositionLayers = useAppStore((s) => s.compositionLayers);
   const isPreviewActive = useAppStore((s) => s.isPreviewActive);
   const currentImage = useAppStore((s) => s.currentImage);
+  const currentImageAssetPath = useAppStore((s) => s.currentImageAssetPath);
 
   const [zoom, setZoom] = useState(DEFAULT_ZOOM);
 
@@ -48,7 +50,8 @@ export const CompositionPreview = memo(function CompositionPreview() {
     );
   }
 
-  const hasReferenceImage = Boolean(currentImage);
+  const hasReferenceImage = Boolean(currentImage || currentImageAssetPath);
+  const isVideoSource = isLikelyVideoPath(currentImageAssetPath ?? currentImage);
 
   return (
     <div className={cn('flex h-full w-full flex-col overflow-hidden bg-void')}>
@@ -69,7 +72,7 @@ export const CompositionPreview = memo(function CompositionPreview() {
             'flex h-full w-full items-center justify-center p-4',
           )}
         >
-          {hasReferenceImage ? (
+          {hasReferenceImage && !isVideoSource ? (
             <div
               className={cn('relative overflow-hidden rounded-sm')}
               style={{ transform: `scale(${zoom})`, transformOrigin: 'center center' }}
@@ -101,6 +104,29 @@ export const CompositionPreview = memo(function CompositionPreview() {
                 visible={compositionLayers.aspectFrame.visible}
                 opacity={compositionLayers.aspectFrame.opacity}
               />
+            </div>
+          ) : hasReferenceImage && isVideoSource ? (
+            <div className="flex w-full max-w-2xl flex-col items-center gap-4 rounded-2xl border border-border bg-surface/50 px-6 py-6 text-center">
+              <div className="aspect-video w-full overflow-hidden rounded-xl border border-border bg-void">
+                <MediaPreview
+                  kind="video"
+                  src={currentImageAssetPath ?? currentImage}
+                  poster={currentImage}
+                  alt="Composition video source"
+                  className="h-full w-full"
+                  mediaClassName="h-full w-full object-contain"
+                  fallbackClassName="h-full w-full"
+                  showPlayBadge
+                />
+              </div>
+              <div className="space-y-2">
+                <p className={cn('text-sm font-medium text-text-primary')}>
+                  Video source loaded
+                </p>
+                <p className={cn('text-sm text-text-muted')}>
+                  Composition overlays still apply to frames and still references. Review playback now and extract a frame before using overlay guides.
+                </p>
+              </div>
             </div>
           ) : (
             <div

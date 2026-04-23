@@ -19,11 +19,13 @@ import { GenerationProgress } from '@/components/canvas/GenerationProgress';
 import { GenerationQueue } from '@/components/canvas/GenerationQueue';
 import { CanvasContextMenu } from '@/components/canvas/CanvasContextMenu';
 import { IterationCanvasOverlay } from '@/components/iteration/IterationCanvasOverlay';
+import { MediaPreview, isLikelyVideoPath } from '@/components/ui/MediaPreview';
 
 export const Canvas = memo(function Canvas() {
   const {
     activeJobs,
     currentImage,
+    currentImageAssetPath,
     regionMode,
     iterationView,
     activeRegionId,
@@ -44,6 +46,7 @@ export const Canvas = memo(function Canvas() {
   } = useAppStore(useShallow(s => ({
     activeJobs: s.activeJobs,
     currentImage: s.currentImage,
+    currentImageAssetPath: s.currentImageAssetPath,
     regionMode: s.regionMode,
     iterationView: s.iterationView,
     activeRegionId: s.activeRegionId,
@@ -127,7 +130,8 @@ export const Canvas = memo(function Canvas() {
     (j) => j.status === 'pending' || j.status === 'processing'
   );
   const showIterationOverlay = iterationView === 'overlay';
-  const hasRenderableImage = Boolean(currentImage && !imageError);
+  const isVideoSource = isLikelyVideoPath(currentImageAssetPath ?? currentImage);
+  const hasRenderableImage = Boolean(currentImage && !imageError && !isVideoSource);
   const displayedArtboardSize = hasRenderableImage ? imageSize : { width: 760, height: 460 };
 
   const handleZoomIn = () => setZoom(Math.min(zoom + 10, 200));
@@ -149,7 +153,7 @@ export const Canvas = memo(function Canvas() {
 
   // Detect image dimensions when currentImage changes
   useEffect(() => {
-    if (!currentImage) {
+    if (!currentImage || isVideoSource) {
       setImageSize({ width: 1024, height: 1024 });
       setImageError(false);
       setIsImageLoading(false);
@@ -173,7 +177,7 @@ export const Canvas = memo(function Canvas() {
     };
     img.src = currentImage;
     return () => { cancelled = true; };
-  }, [currentImage]);
+  }, [currentImage, isVideoSource]);
 
   // Handle scroll wheel zoom
   useEffect(() => {
@@ -402,7 +406,9 @@ export const Canvas = memo(function Canvas() {
         )}
       >
         <div className="sr-only" aria-live="polite">
-          {currentImage
+          {isVideoSource
+            ? `Canvas has a video source selected. Open Viewer for playback or extract a frame before editing. Zoom ${zoom} percent.`
+            : currentImage
             ? `Canvas image loaded at ${imageSize.width} by ${imageSize.height} pixels. Zoom ${zoom} percent.`
             : `Empty image canvas. Zoom ${zoom} percent.`}
         </div>
@@ -440,7 +446,52 @@ export const Canvas = memo(function Canvas() {
             style={{ width: displayedArtboardSize.width, height: displayedArtboardSize.height }}
           >
             {/* Current Image or Placeholder */}
-            {currentImage && !imageError ? (
+            {isVideoSource ? (
+              <div className="absolute inset-0 flex items-center justify-center p-6 text-text-body">
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="w-full max-w-lg rounded-2xl border border-border bg-[linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.01))] px-6 py-6 text-center shadow-cinematic"
+                >
+                  <div className="mx-auto mb-4 aspect-video w-full max-w-sm overflow-hidden rounded-xl border border-border bg-void">
+                    <MediaPreview
+                      kind="video"
+                      src={currentImageAssetPath ?? currentImage}
+                      poster={currentImage}
+                      alt="Selected video source"
+                      className="h-full w-full"
+                      mediaClassName="h-full w-full object-contain"
+                      fallbackClassName="h-full w-full"
+                      showPlayBadge
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <h3 className="font-display text-xl font-semibold text-text-primary">
+                      Video selected
+                    </h3>
+                    <p className="text-sm text-text-body">
+                      Canvas editing still works on frames. Review playback in Viewer now, then extract or send a frame into edit in the next slice.
+                    </p>
+                  </div>
+                  <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+                    <button
+                      type="button"
+                      onClick={openViewer}
+                      className="inline-flex items-center rounded-md border border-accent-primary-border bg-accent-primary-muted px-3 py-2 type-ui text-accent-primary transition-all hover:bg-elevated"
+                    >
+                      Return to Viewer
+                    </button>
+                    <button
+                      type="button"
+                      onClick={openStoryboard}
+                      className="inline-flex items-center rounded-md border border-border px-3 py-2 type-ui text-text-body transition-all hover:border-border-hover hover:bg-elevated hover:text-text-primary"
+                    >
+                      Open Storyboard
+                    </button>
+                  </div>
+                </motion.div>
+              </div>
+            ) : currentImage && !imageError ? (
               <>
                 {isImageLoading && (
                   <div className="absolute inset-0 flex items-center justify-center bg-surface/50">
@@ -562,7 +613,9 @@ export const Canvas = memo(function Canvas() {
       <div className="absolute bottom-4 left-4 z-10">
         <div className="px-3 py-1.5 glass glass-border rounded-md">
           <span className="font-mono text-xs text-text-body">
-            {imageSize.width} x {imageSize.height}px, Artboard 1
+            {isVideoSource
+              ? 'Video source selected, frame editing pending'
+              : `${imageSize.width} x ${imageSize.height}px, Artboard 1`}
           </span>
         </div>
       </div>

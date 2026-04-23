@@ -10,14 +10,11 @@ import {
   createImportedAssetRecords,
   createMediaAssetFromImportedFile,
 } from '@/features/assets/assetRecords';
-import { ImageWithFallback } from '@/components/ui/ImageWithFallback';
-import { SkeletonCard } from '@/components/ui/Skeleton';
+import { MediaPreview } from '@/components/ui/MediaPreview';
 import {
   Search,
   Grid,
   List,
-  Image as ImageIcon,
-  Film,
   FolderPlus,
   Trash2,
   Download,
@@ -26,7 +23,6 @@ import {
   X,
   ExternalLink,
   RefreshCw,
-  Play,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 
@@ -34,6 +30,22 @@ type ViewMode = 'grid' | 'list';
 type AssetType = 'all' | 'image' | 'video';
 
 function formatAssetMeta(asset: AssetRecord) {
+  if (asset.type === 'video') {
+    const parts = [];
+
+    if (typeof asset.duration === 'number' && Number.isFinite(asset.duration)) {
+      parts.push(`${asset.duration.toFixed(asset.duration >= 10 ? 0 : 1)}s`);
+    }
+
+    if (typeof asset.fps === 'number' && Number.isFinite(asset.fps)) {
+      parts.push(`${asset.fps} fps`);
+    }
+
+    if (parts.length > 0) {
+      return parts.join(' / ');
+    }
+  }
+
   if (asset.width && asset.height) {
     return `${asset.width}x${asset.height}`;
   }
@@ -42,12 +54,21 @@ function formatAssetMeta(asset: AssetRecord) {
 }
 
 export function AssetsPanel() {
-  const { assetLibrary, deleteAssetRecord, toggleAssetFavorite, upsertMediaAsset } = useAppStore(
+  const {
+    assetLibrary,
+    deleteAssetRecord,
+    toggleAssetFavorite,
+    upsertMediaAsset,
+    setActiveViewerItemId,
+    setCenterView,
+  } = useAppStore(
     useShallow((s) => ({
       assetLibrary: s.assetLibrary,
       deleteAssetRecord: s.deleteAssetRecord,
       toggleAssetFavorite: s.toggleAssetFavorite,
       upsertMediaAsset: s.upsertMediaAsset,
+      setActiveViewerItemId: s.setActiveViewerItemId,
+      setCenterView: s.setCenterView,
     }))
   );
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
@@ -100,7 +121,8 @@ export function AssetsPanel() {
   };
 
   const handlePreview = async (asset: AssetRecord) => {
-    await window.electron.app.openPath(asset.path);
+    setActiveViewerItemId(`asset-${asset.id}`);
+    setCenterView('viewer');
   };
 
   const handleImport = async () => {
@@ -353,29 +375,17 @@ export function AssetsPanel() {
                           viewMode === 'grid' ? 'absolute inset-0' : 'w-12 h-12 rounded overflow-hidden'
                         )}
                       >
-                        {asset.type === 'image' ? (
-                          <ImageWithFallback
-                            src={asset.thumbnail || asset.previewUrl}
-                            alt={asset.name}
-                            className="w-full h-full object-cover"
-                            fallbackClassName="w-full h-full"
-                            loading="lazy"
-                          />
-                        ) : (
-                          <div className="relative">
-                            <Film
-                              className={cn(
-                                'text-text-muted',
-                                viewMode === 'grid' ? 'w-12 h-12' : 'w-6 h-6'
-                              )}
-                            />
-                            {viewMode === 'grid' && (
-                              <div className="absolute inset-0 flex items-center justify-center">
-                                <Play className="w-6 h-6 text-text-primary fill-text-primary" />
-                              </div>
-                            )}
-                          </div>
-                        )}
+                        <MediaPreview
+                          kind={asset.type}
+                          src={asset.type === 'video' ? asset.path : asset.previewUrl || asset.path}
+                          poster={asset.thumbnail || asset.previewUrl || asset.path}
+                          alt={asset.name}
+                          className="h-full w-full"
+                          mediaClassName="w-full h-full object-cover"
+                          fallbackClassName="w-full h-full"
+                          showPlayBadge={asset.type === 'video'}
+                          testId={`asset-preview-${asset.id}`}
+                        />
                       </div>
 
                       <div
