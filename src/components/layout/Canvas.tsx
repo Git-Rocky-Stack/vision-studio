@@ -215,6 +215,32 @@ export const Canvas = memo(function Canvas() {
     }
   };
 
+  const handleOpenVideoSource = async () => {
+    const sourcePath = currentImageAssetPath ?? currentImage;
+    if (!sourcePath) {
+      setFrameStatus('No local video file is selected.');
+      return;
+    }
+
+    const result = await window.electron.app.openPath(sourcePath);
+    if (!result.success) {
+      setFrameStatus(result.error || 'Could not open the selected video file.');
+    }
+  };
+
+  const handleRevealVideoSource = async () => {
+    const sourcePath = currentImageAssetPath ?? currentImage;
+    if (!sourcePath) {
+      setFrameStatus('No local video file is selected.');
+      return;
+    }
+
+    const result = await window.electron.assets.reveal(sourcePath);
+    if (!result.success) {
+      setFrameStatus(result.error || 'Could not reveal the selected video file.');
+    }
+  };
+
   // Detect image dimensions when currentImage changes
   useEffect(() => {
     if (!currentImage || isVideoSource) {
@@ -551,6 +577,20 @@ export const Canvas = memo(function Canvas() {
                       className="inline-flex items-center rounded-md border border-accent-primary-border bg-accent-primary-muted px-3 py-2 type-ui text-accent-primary transition-all hover:bg-elevated disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       {isExtractingFrame ? 'Extracting...' : 'Extract frame'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void handleOpenVideoSource()}
+                      className="inline-flex items-center rounded-md border border-border px-3 py-2 type-ui text-text-body transition-all hover:border-border-hover hover:bg-elevated hover:text-text-primary"
+                    >
+                      Open file
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void handleRevealVideoSource()}
+                      className="inline-flex items-center rounded-md border border-border px-3 py-2 type-ui text-text-body transition-all hover:border-border-hover hover:bg-elevated hover:text-text-primary"
+                    >
+                      Show in folder
                     </button>
                     <button
                       type="button"

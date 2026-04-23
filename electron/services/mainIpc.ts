@@ -69,6 +69,14 @@ function resolveImportedMediaType(filePath: string): 'image' | 'video' | null {
   return null;
 }
 
+function resolveShellPath(filePath: string, outputRoots: OutputRootServiceLike) {
+  try {
+    return outputRoots.resolveManagedAssetPath(filePath);
+  } catch {
+    return path.resolve(filePath);
+  }
+}
+
 export function registerMainIpcHandlers({
   app,
   ipcMain,
@@ -92,7 +100,7 @@ export function registerMainIpcHandlers({
   });
 
   ipcMain.handle('app:open-path', async (_event, filePath: string) => {
-    const error = await shell.openPath(outputRoots.resolveManagedAssetPath(filePath));
+    const error = await shell.openPath(resolveShellPath(filePath, outputRoots));
     return error ? { success: false, error } : { success: true };
   });
 
@@ -292,7 +300,7 @@ export function registerMainIpcHandlers({
 
   ipcMain.handle('assets:reveal', async (_event, sourcePath: string) => {
     try {
-      shell.showItemInFolder(outputRoots.resolveManagedAssetPath(sourcePath));
+      shell.showItemInFolder(resolveShellPath(sourcePath, outputRoots));
       return { success: true };
     } catch (error: any) {
       return { success: false, error: error.message };

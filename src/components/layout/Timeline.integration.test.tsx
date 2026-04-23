@@ -181,6 +181,17 @@ describe('Timeline integration', () => {
     expect(useAppStore.getState().timelineSequences[0].playRange).toBeNull();
   });
 
+  it('opens the timeline export dialog from the transport controls', async () => {
+    const user = userEvent.setup();
+    seedProjectAndMedia();
+    render(<Timeline />);
+
+    await user.click(screen.getByLabelText('Export timeline as MP4'));
+
+    expect(screen.getByTestId('timeline-export-dialog')).toBeInTheDocument();
+    expect(screen.getByText('Timeline Export')).toBeInTheDocument();
+  });
+
   it('can collapse and expand timeline', async () => {
     const user = userEvent.setup();
     seedProjectAndMedia();

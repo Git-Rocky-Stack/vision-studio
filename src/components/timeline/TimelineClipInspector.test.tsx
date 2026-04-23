@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
@@ -91,5 +91,23 @@ describe('TimelineClipInspector', () => {
 
     await user.click(screen.getByTestId('timeline-inspector-duplicate'));
     expect(useAppStore.getState().timelineClips).toHaveLength(3);
+  });
+
+  it('exposes a sequence export action for the active clip context', async () => {
+    const user = userEvent.setup();
+    const onOpenExportDialog = vi.fn();
+    seedTimelineFixture();
+
+    render(
+      <TimelineClipInspector
+        onOpenExportDialog={onOpenExportDialog}
+        exportScopeLabel="Active Range"
+      />,
+    );
+
+    expect(screen.getByText('Active Range')).toBeInTheDocument();
+
+    await user.click(screen.getByTestId('timeline-inspector-export'));
+    expect(onOpenExportDialog).toHaveBeenCalledTimes(1);
   });
 });

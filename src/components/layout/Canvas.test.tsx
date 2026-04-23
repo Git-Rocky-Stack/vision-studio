@@ -16,6 +16,12 @@ describe('Canvas', () => {
   beforeEach(() => {
     useAppStore.setState(useAppStore.getInitialState(), true);
     window.electron = {
+      app: {
+        openPath: vi.fn().mockResolvedValue({ success: true }),
+      },
+      assets: {
+        reveal: vi.fn().mockResolvedValue({ success: true }),
+      },
       generation: {
         extractVideoFrame: vi.fn().mockResolvedValue({
           image: '/outputs/frame-020/canvas-frame.png',
@@ -83,5 +89,22 @@ describe('Canvas', () => {
     expect(useAppStore.getState().currentImage).toBe(
       'http://localhost:8000/outputs/frame-020/canvas-frame.png',
     );
+  });
+
+  it('exposes local file actions for selected video sources', async () => {
+    useAppStore.setState({
+      currentImage: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg"></svg>',
+      currentImageAssetPath: 'D:/Exports/timeline-render.mp4',
+    });
+
+    render(<Canvas />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open file' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Show in folder' }));
+
+    await waitFor(() => {
+      expect(window.electron.app.openPath).toHaveBeenCalledWith('D:/Exports/timeline-render.mp4');
+      expect(window.electron.assets.reveal).toHaveBeenCalledWith('D:/Exports/timeline-render.mp4');
+    });
   });
 });

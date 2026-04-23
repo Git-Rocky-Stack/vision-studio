@@ -39,9 +39,17 @@ function parseSeconds(value: string, fallbackMs: number) {
 
 interface TimelineClipInspectorProps {
   className?: string;
+  onOpenExportDialog?: () => void;
+  exportDisabled?: boolean;
+  exportScopeLabel?: string;
 }
 
-export function TimelineClipInspector({ className }: TimelineClipInspectorProps) {
+export function TimelineClipInspector({
+  className,
+  onOpenExportDialog,
+  exportDisabled = false,
+  exportScopeLabel = 'Full Sequence',
+}: TimelineClipInspectorProps) {
   const {
     activeTimelineClipId,
     activeTimelineSequenceId,
@@ -471,6 +479,33 @@ export function TimelineClipInspector({ className }: TimelineClipInspectorProps)
               Generate from the main panel to create an AI-bound clip, then use regenerate, variant, and extend actions here.
             </p>
           )}
+        </div>
+
+        <div className="mt-4 rounded-xl border border-border bg-canvas p-3" data-testid="timeline-export-actions">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-xs text-text-muted">Sequence Export</p>
+              <p className="mt-1 text-sm text-text-primary">{exportScopeLabel}</p>
+            </div>
+            <span className="rounded-full border border-border bg-surface px-2 py-1 text-[11px] uppercase tracking-[0.12em] text-text-muted">
+              MP4
+            </span>
+          </div>
+          <p className="mt-3 text-xs leading-5 text-text-muted">
+            {sequence.playRange
+              ? 'The current in/out range will render exactly as previewed in the timeline playback surface.'
+              : 'The full active sequence will render exactly as previewed in the timeline playback surface.'}
+          </p>
+          <button
+            type="button"
+            data-testid="timeline-inspector-export"
+            disabled={exportDisabled}
+            className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-lg border border-border bg-surface px-3 py-2 text-xs text-text-primary transition hover:bg-elevated disabled:cursor-not-allowed disabled:opacity-50"
+            onClick={onOpenExportDialog}
+          >
+            <Clapperboard className="h-3.5 w-3.5" />
+            Export MP4
+          </button>
         </div>
 
         <div className="mt-4 grid grid-cols-2 gap-2">

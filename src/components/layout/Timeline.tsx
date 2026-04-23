@@ -13,6 +13,7 @@ import {
   ImageIcon,
   Layers,
   Lock,
+  Download,
   Pause,
   Play,
   Plus,
@@ -34,6 +35,7 @@ import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { StoryboardPlayback } from '@/components/timeline/StoryboardPlayback';
 import { AnimationTrackEditor } from '@/components/timeline/AnimationTrackEditor';
 import { TimelineClipInspector } from '@/components/timeline/TimelineClipInspector';
+import { TimelineExportDialog } from '@/components/timeline/TimelineExportDialog';
 import type { MediaAsset } from '@/types/media';
 import type { TimelineClip, TimelinePlayRange, TimelineTrack } from '@/types/timeline';
 
@@ -550,6 +552,7 @@ export const Timeline = memo(function Timeline() {
   const [selectedTrackId, setSelectedTrackId] = useState<string | null>(null);
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
   const [insertMediaId, setInsertMediaId] = useState('');
+  const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
 
   const activeProject = projects.find((project) => project.id === activeProjectId) ?? null;
   const storyboardScenes = activeProject?.scenes ?? [];
@@ -1066,6 +1069,20 @@ export const Timeline = memo(function Timeline() {
               >
                 Clear Range
               </button>
+
+              <div className="mx-1 h-5 w-px bg-border" />
+
+              <button
+                type="button"
+                onClick={() => setIsExportDialogOpen(true)}
+                disabled={!activeSequence}
+                className="inline-flex items-center gap-1 rounded-md border border-border bg-surface px-2.5 py-1.5 text-xs text-text-primary transition disabled:cursor-not-allowed disabled:text-text-muted hover:bg-canvas"
+                aria-label="Export timeline as MP4"
+                data-testid="timeline-open-export"
+              >
+                <Download className="h-3.5 w-3.5" />
+                Export MP4
+              </button>
             </>
           ) : null}
         </div>
@@ -1242,9 +1259,20 @@ export const Timeline = memo(function Timeline() {
             </div>
           </div>
 
-          <TimelineClipInspector className="flex-shrink-0" />
+          <TimelineClipInspector
+            className="flex-shrink-0"
+            onOpenExportDialog={() => setIsExportDialogOpen(true)}
+            exportDisabled={!activeSequence}
+            exportScopeLabel={activeSequence?.playRange ? 'Active Range' : 'Full Sequence'}
+          />
         </div>
       )}
+
+      <TimelineExportDialog
+        open={isExportDialogOpen}
+        sequenceId={activeSequence?.id ?? null}
+        onClose={() => setIsExportDialogOpen(false)}
+      />
 
       <ConfirmDialog
         open={deleteTargetId !== null}
