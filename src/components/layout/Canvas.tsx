@@ -17,6 +17,7 @@ import { RegionLockOverlay } from '@/components/edit/RegionLockOverlay';
 import { RegionMaskDrawer } from '@/components/edit/RegionMaskDrawer';
 import { GenerationProgress } from '@/components/canvas/GenerationProgress';
 import { GenerationQueue } from '@/components/canvas/GenerationQueue';
+import { CanvasControlLayerRail } from '@/components/canvas/CanvasControlLayerRail';
 import { CanvasContextMenu } from '@/components/canvas/CanvasContextMenu';
 import { IterationCanvasOverlay } from '@/components/iteration/IterationCanvasOverlay';
 import { MediaPreview, isLikelyVideoPath } from '@/components/ui/MediaPreview';
@@ -480,6 +481,13 @@ export const Canvas = memo(function Canvas() {
           </button>
         </div>
       </div>
+
+      <CanvasControlLayerRail
+        className={cn(
+          'absolute top-4 z-10',
+          regionMode ? 'left-20' : 'left-4',
+        )}
+      />
 
       {/* Canvas Container */}
       <div

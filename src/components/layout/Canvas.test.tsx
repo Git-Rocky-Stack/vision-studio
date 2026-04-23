@@ -70,6 +70,20 @@ describe('Canvas', () => {
     expect(screen.getByTestId('iteration-canvas-overlay')).toBeInTheDocument();
   });
 
+  it('shows the canvas control layer rail when a scene is active', () => {
+    const state = useAppStore.getState();
+    const project = state.createProject('Canvas controls');
+    const scene = state.addScene(project.id, { name: 'Shot 1' });
+
+    state.setActiveProject(project.id);
+    state.setActiveScene(scene.id);
+
+    render(<Canvas />);
+
+    expect(screen.getByTestId('canvas-control-layer-rail')).toBeInTheDocument();
+    expect(screen.getByText('Canvas Control Layers')).toBeInTheDocument();
+  });
+
   it('extracts a selected video source into an editable frame', async () => {
     useAppStore.setState({
       currentImage: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg"></svg>',

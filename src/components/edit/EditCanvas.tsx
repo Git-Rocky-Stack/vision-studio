@@ -2,7 +2,9 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { Stage, Layer, Rect, Image as KonvaImage, Line, Text, Transformer } from 'react-konva';
 import { useAppStore } from '@/store/appStore';
 import { useShallow } from 'zustand/react/shallow';
+import { cn } from '@/utils/cn';
 import { RegionLockToolbar } from '@/components/edit/RegionLockToolbar';
+import { CanvasControlLayerRail } from '@/components/canvas/CanvasControlLayerRail';
 import type { RegionTool } from '@/components/edit/RegionLockToolbar';
 import type Konva from 'konva';
 
@@ -248,6 +250,13 @@ export function EditCanvas() {
           onInvertToggle={toggleMaskInverted}
         />
       )}
+
+      <CanvasControlLayerRail
+        className={cn(
+          'absolute top-4 z-10',
+          regionMode ? 'left-20' : 'left-4',
+        )}
+      />
 
       <div style={{ filter: cssFilter || undefined }}>
         <Stage
