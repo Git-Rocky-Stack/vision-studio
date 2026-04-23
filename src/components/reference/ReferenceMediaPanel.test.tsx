@@ -145,4 +145,79 @@ describe('ReferenceMediaPanel', () => {
     expect(storedReferenceSet?.items).toEqual([]);
     expect(storedScene?.referenceImages).toEqual([]);
   });
+
+  it('links a scoped reference set to an approved element', () => {
+    const project = useAppStore.getState().createProject('Launch Board');
+    const scene = useAppStore.getState().addScene(project.id, { name: 'Scene 1' });
+
+    useAppStore.setState((state) => ({
+      projects: state.projects.map((item) =>
+        item.id !== project.id
+          ? item
+          : {
+              ...item,
+              elements: [
+                {
+                  id: 'element-character-1',
+                  projectId: project.id,
+                  type: 'character',
+                  name: 'Captain Nova',
+                  aliases: [],
+                  description: '',
+                  tags: [],
+                  continuityNotes: '',
+                  referenceSetIds: [],
+                  heroMediaAssetId: null,
+                  status: 'approved',
+                  color: '#e63946',
+                  metadata: {},
+                },
+              ],
+            },
+      ),
+      referenceSets: [
+        {
+          id: 'reference-set-1',
+          name: 'Scene References',
+          scope: 'scene',
+          projectId: project.id,
+          sceneId: scene.id,
+          clipId: null,
+          items: [
+            {
+              id: 'reference-item-1',
+              slot: 'character',
+              path: 'C:/vision-studio-output/refs/hero-still.png',
+              label: 'Hero still',
+              orderIndex: 0,
+            },
+          ],
+          notes: '',
+          tags: [],
+          createdAt: '2026-04-23T00:00:00.000Z',
+          updatedAt: '2026-04-23T00:00:00.000Z',
+        },
+      ],
+    }));
+
+    render(
+      <ReferenceMediaPanel
+        testId="scene-reference-panel"
+        title="Scene References"
+        description="Attach references."
+        scope="scene"
+        projectId={project.id}
+        sceneId={scene.id}
+      />,
+    );
+
+    fireEvent.change(screen.getByTestId('scene-reference-panel-element-select'), {
+      target: { value: 'element-character-1' },
+    });
+    fireEvent.click(screen.getByTestId('scene-reference-panel-link-element-button'));
+
+    const storedProject = useAppStore.getState().projects.find((item) => item.id === project.id);
+    expect(storedProject?.elements?.[0]?.referenceSetIds).toEqual(['reference-set-1']);
+    expect(screen.getByLabelText('Unlink Captain Nova')).toBeInTheDocument();
+  });
 });

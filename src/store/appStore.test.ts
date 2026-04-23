@@ -784,6 +784,69 @@ describe('appStore', () => {
         }),
       ]);
     });
+
+    it('links project elements to reference sets and prunes stale links when the set is deleted', () => {
+      const project = useAppStore.getState().createProject('Reference target');
+      const scene = useAppStore.getState().addScene(project.id, {
+        name: 'Scene 1',
+        elementIds: ['element-character-1'],
+      });
+
+      useAppStore.setState((state) => ({
+        projects: state.projects.map((item) =>
+          item.id !== project.id
+            ? item
+            : {
+                ...item,
+                elements: [
+                  {
+                    id: 'element-character-1',
+                    projectId: project.id,
+                    type: 'character',
+                    name: 'Captain Nova',
+                    aliases: [],
+                    description: '',
+                    tags: [],
+                    continuityNotes: '',
+                    referenceSetIds: [],
+                    heroMediaAssetId: null,
+                    status: 'approved',
+                    color: '#e63946',
+                    metadata: {},
+                  },
+                ],
+              },
+        ),
+      }));
+
+      const referenceSet = useAppStore.getState().createReferenceSet({
+        name: 'Scene refs',
+        scope: 'scene',
+        projectId: project.id,
+        sceneId: scene.id,
+        items: [
+          {
+            id: 'shot-ref-1',
+            slot: 'character',
+            path: 'C:/vision-studio-output/refs/character.png',
+            label: 'Captain Nova turn',
+            orderIndex: 0,
+          },
+        ],
+      });
+
+      useAppStore
+        .getState()
+        .setElementReferenceSetLink(project.id, 'element-character-1', referenceSet.id, true);
+
+      let storedProject = useAppStore.getState().projects.find((item) => item.id === project.id);
+      expect(storedProject?.elements?.[0]?.referenceSetIds).toContain(referenceSet.id);
+
+      useAppStore.getState().deleteReferenceSet(referenceSet.id);
+
+      storedProject = useAppStore.getState().projects.find((item) => item.id === project.id);
+      expect(storedProject?.elements?.[0]?.referenceSetIds).toEqual([]);
+    });
   });
 
   describe('canvas control layers', () => {

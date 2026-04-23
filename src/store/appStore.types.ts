@@ -525,6 +525,12 @@ export interface AppState {
     updates: Partial<Omit<ReferenceSet, 'id' | 'createdAt'>>,
   ) => void;
   deleteReferenceSet: (id: string) => void;
+  setElementReferenceSetLink: (
+    projectId: string,
+    elementId: string,
+    referenceSetId: string,
+    linked: boolean,
+  ) => void;
   ensureTimelineSequenceForProject: (
     projectId: string,
     params?: { name?: string; fps?: number },

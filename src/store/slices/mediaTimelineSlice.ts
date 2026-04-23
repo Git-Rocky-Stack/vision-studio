@@ -114,6 +114,12 @@ function syncProjectsWithReferenceAdapters(
     referenceSetIds: (project.referenceSetIds ?? []).filter((referenceSetId) =>
       validReferenceSetIds.has(referenceSetId),
     ),
+    elements: (project.elements ?? []).map((element) => ({
+      ...element,
+      referenceSetIds: element.referenceSetIds.filter((referenceSetId) =>
+        validReferenceSetIds.has(referenceSetId),
+      ),
+    })),
     scenes: project.scenes.map((scene) => {
       const nextReferenceSetIds = (scene.referenceSetIds ?? []).filter((referenceSetId) =>
         validReferenceSetIds.has(referenceSetId),
@@ -579,6 +585,44 @@ export function createMediaTimelineActions(set: AppSet, get: AppGet) {
             ...binding,
             referenceSetIds: binding.referenceSetIds.filter((referenceSetId) => referenceSetId !== id),
           })),
+        };
+      }),
+
+    setElementReferenceSetLink: (
+      projectId: string,
+      elementId: string,
+      referenceSetId: string,
+      linked: boolean,
+    ) =>
+      set((state) => {
+        const referenceSet = state.referenceSets.find((item) => item.id === referenceSetId);
+        if (
+          !referenceSet ||
+          !projectId ||
+          referenceSet.projectId !== projectId ||
+          !['project', 'scene'].includes(referenceSet.scope)
+        ) {
+          return {};
+        }
+
+        return {
+          projects: state.projects.map((project) =>
+            project.id !== projectId
+              ? project
+              : {
+                  ...project,
+                  elements: (project.elements ?? []).map((element) =>
+                    element.id !== elementId
+                      ? element
+                      : {
+                          ...element,
+                          referenceSetIds: linked
+                            ? Array.from(new Set([...element.referenceSetIds, referenceSetId]))
+                            : element.referenceSetIds.filter((item) => item !== referenceSetId),
+                        },
+                  ),
+                },
+          ),
         };
       }),
 

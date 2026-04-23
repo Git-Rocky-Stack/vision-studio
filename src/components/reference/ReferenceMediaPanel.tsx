@@ -5,6 +5,7 @@ import {
   Layers3,
   Plus,
   Trash2,
+  Unlink,
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/Button';
@@ -16,6 +17,7 @@ import type {
   ReferenceSet,
   ReferenceSlotType,
 } from '@/types/media';
+import type { Element } from '@/types/project';
 import { cn } from '@/utils/cn';
 
 const REFERENCE_SLOT_OPTIONS: { id: ReferenceSlotType; label: string; description: string }[] = [
@@ -57,6 +59,20 @@ interface ResolvedReferenceItem {
   path: string;
 }
 
+function elementTypeLabel(type: Element['type']) {
+  switch (type) {
+    case 'character':
+      return 'Character';
+    case 'location':
+      return 'Location';
+    case 'style':
+      return 'Style';
+    case 'object':
+    default:
+      return 'Object';
+  }
+}
+
 function findScopedReferenceSet(
   referenceSets: ReferenceSet[],
   scope: ReferenceSet['scope'],
@@ -88,20 +104,24 @@ export function ReferenceMediaPanel({
   className,
 }: ReferenceMediaPanelProps) {
   const {
+    projects,
     assetLibrary,
     mediaAssets,
     referenceSets,
     createReferenceSet,
     updateReferenceSet,
     deleteReferenceSet,
+    setElementReferenceSetLink,
     upsertMediaAsset,
   } = useAppStore(useShallow((state) => ({
+    projects: state.projects,
     assetLibrary: state.assetLibrary,
     mediaAssets: state.mediaAssets,
     referenceSets: state.referenceSets,
     createReferenceSet: state.createReferenceSet,
     updateReferenceSet: state.updateReferenceSet,
     deleteReferenceSet: state.deleteReferenceSet,
+    setElementReferenceSetLink: state.setElementReferenceSetLink,
     upsertMediaAsset: state.upsertMediaAsset,
   })));
 
@@ -115,6 +135,13 @@ export function ReferenceMediaPanel({
 
   const [selectedSlot, setSelectedSlot] = useState<ReferenceSlotType>(slotOptions[0]?.id ?? 'style');
   const [selectedCandidateId, setSelectedCandidateId] = useState('');
+  const [selectedElementId, setSelectedElementId] = useState('');
+
+  const project = useMemo(
+    () => projects.find((item) => item.id === projectId) ?? null,
+    [projectId, projects],
+  );
+  const projectElements = project?.elements ?? [];
 
   const referenceSet = useMemo(
     () => findScopedReferenceSet(referenceSets, scope, projectId, sceneId, clipId),
@@ -213,6 +240,22 @@ export function ReferenceMediaPanel({
       })
       .filter((item): item is ResolvedReferenceItem => Boolean(item));
   }, [mediaAssets, referenceSet]);
+  const linkedElements = useMemo(
+    () =>
+      referenceSet
+        ? projectElements.filter((element) => element.referenceSetIds.includes(referenceSet.id))
+        : [],
+    [projectElements, referenceSet],
+  );
+  const availableElements = useMemo(
+    () =>
+      referenceSet
+        ? projectElements.filter((element) => !element.referenceSetIds.includes(referenceSet.id))
+        : projectElements,
+    [projectElements, referenceSet],
+  );
+  const canLinkElements =
+    Boolean(projectId) && (scope === 'project' || scope === 'scene') && projectElements.length > 0;
 
   const handleAddReference = () => {
     const candidate =
@@ -285,6 +328,23 @@ export function ReferenceMediaPanel({
       }));
 
     updateReferenceSet(referenceSet.id, { items: nextItems });
+  };
+
+  const handleLinkElement = () => {
+    if (!referenceSet || !projectId || !selectedElementId) {
+      return;
+    }
+
+    setElementReferenceSetLink(projectId, selectedElementId, referenceSet.id, true);
+    setSelectedElementId('');
+  };
+
+  const handleUnlinkElement = (elementId: string) => {
+    if (!referenceSet || !projectId) {
+      return;
+    }
+
+    setElementReferenceSetLink(projectId, elementId, referenceSet.id, false);
   };
 
   return (
@@ -419,6 +479,95 @@ export function ReferenceMediaPanel({
             </span>
           </div>
         </div>
+
+        {canLinkElements ? (
+          <div className="rounded-lg border border-border bg-surface p-3">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p className="type-ui text-text-primary">Linked Elements</p>
+                <p className="mt-1 type-caption text-text-body">
+                  Keep reference media and Elements separate, but connect this reference set to the
+                  continuity objects that should reuse it.
+                </p>
+              </div>
+              <span className="rounded-full border border-border bg-elevated px-2 py-0.5 type-caption text-text-body">
+                {linkedElements.length} linked
+              </span>
+            </div>
+
+            {referenceSet && linkedElements.length > 0 ? (
+              <div className="mt-3 flex flex-wrap gap-2">
+                {linkedElements.map((element) => (
+                  <span
+                    key={`${referenceSet.id}-${element.id}`}
+                    className="inline-flex items-center gap-2 rounded-full border border-border bg-elevated px-3 py-1 type-caption text-text-body"
+                  >
+                    <span
+                      className="h-2 w-2 rounded-full"
+                      style={{ backgroundColor: element.color }}
+                      aria-hidden="true"
+                    />
+                    <span>{element.name}</span>
+                    <span className="rounded-full border border-border bg-surface px-1.5 py-0.5">
+                      {elementTypeLabel(element.type)}
+                    </span>
+                    <button
+                      type="button"
+                      aria-label={`Unlink ${element.name}`}
+                      onClick={() => handleUnlinkElement(element.id)}
+                      className="rounded-full border border-border p-1 text-text-body transition-all hover:border-border-hover hover:bg-surface hover:text-text-primary"
+                    >
+                      <Unlink className="h-3 w-3" aria-hidden="true" />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <p className="mt-3 type-caption text-text-body">
+                {referenceSet
+                  ? 'No Elements linked yet.'
+                  : 'Add a reference to this set before linking it to Elements.'}
+              </p>
+            )}
+
+            <div className="mt-3 grid gap-3 md:grid-cols-[minmax(0,1fr),auto]">
+              <label className="space-y-1.5">
+                <span className="type-caption text-text-muted">Attach to Element</span>
+                <select
+                  data-testid={`${testId}-element-select`}
+                  value={selectedElementId}
+                  onChange={(event) => setSelectedElementId(event.target.value)}
+                  className="w-full rounded-md border border-border bg-elevated px-3 py-2 text-sm text-text-primary"
+                >
+                  <option value="">
+                    {availableElements.length > 0
+                      ? 'Choose an Element'
+                      : 'All Elements already linked'}
+                  </option>
+                  {availableElements.map((element) => (
+                    <option key={element.id} value={element.id}>
+                      {element.name} ({elementTypeLabel(element.type)})
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <div className="flex items-end">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="secondary"
+                  disabled={!referenceSet || !selectedElementId}
+                  data-testid={`${testId}-link-element-button`}
+                  onClick={handleLinkElement}
+                  className="w-full md:w-auto"
+                >
+                  Link Element
+                </Button>
+              </div>
+            </div>
+          </div>
+        ) : null}
       </div>
     </section>
   );
