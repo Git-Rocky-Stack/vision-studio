@@ -22,6 +22,7 @@ import {
   DEFAULT_CANVAS_CONTROL_LAYER_MASK,
 } from '@/types/project';
 import type { AppSet, AppGet, AppState } from '../appStore.types';
+import { parseScriptImport } from '@/features/storyboard/parseScriptImport';
 
 function cloneRegionMask(mask?: RegionMask): RegionMask {
   const source = mask ?? DEFAULT_REGION_MASK;
@@ -275,6 +276,28 @@ export function createProjectActions(set: AppSet, _get: AppGet) {
       }));
 
       return nextDraft;
+    },
+    createStoryboardImportDraftFromText: (
+      projectId: string,
+      sourceText: string,
+      options?: {
+        title?: string;
+      },
+    ) => {
+      const state = _get();
+      const project = state.projects.find((item) => item.id === projectId);
+      if (!project) {
+        return null;
+      }
+
+      const draft = parseScriptImport({
+        projectId,
+        sourceText,
+        title: options?.title,
+        existingElements: project.elements ?? [],
+      });
+
+      return _get().upsertStoryboardImportDraft(draft);
     },
     deleteStoryboardImportDraft: (id: string) =>
       set((state) => {

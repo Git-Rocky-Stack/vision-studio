@@ -939,6 +939,31 @@ describe('appStore', () => {
       expect(useAppStore.getState().activeStoryboardImportDraftId).toBeNull();
     });
 
+    it('creates a storyboard import draft from raw text using the active project context', () => {
+      const project = useAppStore.getState().createProject('Draft target');
+
+      const draft = useAppStore.getState().createStoryboardImportDraftFromText(
+        project.id,
+        `
+INT. CONTROL ROOM - NIGHT
+- Captain Nova scans the console.
+
+CAPTAIN NOVA
+We only get one pass at this.
+        `,
+        {
+          title: 'Control Room Import',
+        },
+      );
+
+      expect(draft).not.toBeNull();
+      expect(draft?.title).toBe('Control Room Import');
+      expect(draft?.projectId).toBe(project.id);
+      expect(draft?.sceneDrafts).toHaveLength(1);
+      expect(draft?.elementDrafts.some((candidate) => candidate.name === 'Captain Nova')).toBe(true);
+      expect(useAppStore.getState().activeStoryboardImportDraftId).toBe(draft?.id ?? null);
+    });
+
     it('removes project-scoped storyboard import drafts when deleting a project', () => {
       const project = useAppStore.getState().createProject('Draft target');
 

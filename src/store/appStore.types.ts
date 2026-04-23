@@ -656,6 +656,13 @@ export interface AppState {
     updates: Partial<Pick<Project, 'name' | 'dimensions' | 'fps' | 'metadata' | 'timelineSequenceId' | 'referenceSetIds'>>,
   ) => void;
   upsertStoryboardImportDraft: (draft: ImportDraft) => ImportDraft;
+  createStoryboardImportDraftFromText: (
+    projectId: string,
+    sourceText: string,
+    options?: {
+      title?: string;
+    },
+  ) => ImportDraft | null;
   deleteStoryboardImportDraft: (id: string) => void;
   setActiveStoryboardImportDraft: (id: string | null) => void;
 
