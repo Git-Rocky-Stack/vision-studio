@@ -6,6 +6,7 @@ import type {
   WorkflowRecord,
 } from '@/types/workflow';
 import { validateWorkflowGraphForComfyExport } from './comfyExport';
+import { resolveWorkflowGenerationRequest } from './resolveWorkflowGenerationRequest';
 
 const SUPPORTED_WORKFLOW_NODE_TYPES = new Set([
   'CLIPTextEncode',
@@ -17,7 +18,7 @@ const SUPPORTED_WORKFLOW_NODE_TYPES = new Set([
 
 export function validateWorkflowExecution(
   workflow: WorkflowRecord,
-  _context: WorkflowExecutionContext
+  context: WorkflowExecutionContext
 ): WorkflowExecutionValidationResult {
   const issues: WorkflowExecutionIssue[] = [];
 
@@ -83,13 +84,30 @@ export function validateWorkflowExecution(
     }
   }
 
+  const resolution = resolveWorkflowGenerationRequest(workflow, context);
+  issues.push(...resolution.issues);
+
   return {
-    issues,
-    summary: null,
+    issues: dedupeIssues(issues),
+    summary: resolution.issues.some((issue) => issue.severity === 'error')
+      ? null
+      : resolution.summary,
   };
 }
 
 function hasConnectedInput(node: WorkflowGraphNode, inputName: string) {
   const input = node.inputs[inputName];
   return input?.kind === 'link' && Boolean(input.nodeId);
+}
+
+function dedupeIssues(issues: WorkflowExecutionIssue[]) {
+  const seen = new Set<string>();
+  return issues.filter((issue) => {
+    const key = `${issue.code}:${issue.nodeId ?? ''}:${issue.message}`;
+    if (seen.has(key)) {
+      return false;
+    }
+    seen.add(key);
+    return true;
+  });
 }

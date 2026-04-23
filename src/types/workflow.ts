@@ -46,6 +46,17 @@ export interface WorkflowExecutionSummary {
   seed?: number;
 }
 
+export interface WorkflowGenerationRequest {
+  prompt: string;
+  negative_prompt: string;
+  model: string;
+  width: number;
+  height: number;
+  steps: number;
+  cfg_scale: number;
+  seed?: number;
+}
+
 export interface WorkflowRuntimeState {
   issues: WorkflowExecutionIssue[];
   activeJobId: string | null;
