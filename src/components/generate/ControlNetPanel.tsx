@@ -56,7 +56,7 @@ export function ControlNetPanel({ config, onChange }: ControlNetPanelProps) {
         }}
         className="flex items-center gap-2 w-full px-3 py-3 cursor-pointer group"
       >
-        <Network className="w-3.5 h-3.5 text-red-primary" />
+        <Network className="w-3.5 h-3.5 text-text-muted transition-colors group-hover:text-text-body" />
         <span className="text-label text-text-primary">ControlNet</span>
         <div className="flex-1" />
 

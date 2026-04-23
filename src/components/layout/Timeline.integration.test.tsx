@@ -210,6 +210,27 @@ describe('Timeline integration', () => {
     });
   });
 
+  it('can collapse the track list and clip inspector to free timeline width', async () => {
+    const user = userEvent.setup();
+    seedProjectAndMedia();
+    render(<Timeline />);
+
+    expect(screen.getByTestId('timeline-track-sidebar')).toBeInTheDocument();
+    expect(screen.getByTestId('timeline-clip-inspector-empty')).toBeInTheDocument();
+
+    await user.click(screen.getByLabelText('Collapse track list'));
+    expect(screen.queryByTestId('timeline-track-sidebar')).not.toBeInTheDocument();
+
+    await user.click(screen.getByLabelText('Collapse clip inspector'));
+    expect(screen.queryByTestId('timeline-clip-inspector-empty')).not.toBeInTheDocument();
+
+    await user.click(screen.getByLabelText('Expand track list'));
+    expect(screen.getByTestId('timeline-track-sidebar')).toBeInTheDocument();
+
+    await user.click(screen.getByLabelText('Expand clip inspector'));
+    expect(screen.getByTestId('timeline-clip-inspector-empty')).toBeInTheDocument();
+  });
+
   it('supports frame stepping and stop transport controls', async () => {
     const user = userEvent.setup();
     seedProjectAndMedia();

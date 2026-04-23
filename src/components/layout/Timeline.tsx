@@ -49,6 +49,10 @@ const MAX_ZOOM = 4;
 const ZOOM_STEP = 0.5;
 const DEFAULT_IMAGE_CLIP_DURATION_MS = 2000;
 const DEFAULT_VIDEO_CLIP_DURATION_MS = 5000;
+const TIMELINE_ACTION_BUTTON_CLASS =
+  'inline-flex flex-none items-center gap-1 whitespace-nowrap rounded-md border border-border bg-surface px-2 py-1 text-[11px] font-display text-text-primary transition hover:bg-canvas disabled:cursor-not-allowed disabled:text-text-muted disabled:opacity-60';
+const TIMELINE_ACTION_SELECT_CLASS =
+  'h-7 flex-none rounded-md border border-border bg-surface px-2 text-[11px] font-display text-text-primary';
 
 function formatTimecode(timeMs: number, fps = 24) {
   const totalSeconds = Math.max(0, timeMs / 1000);
@@ -553,6 +557,8 @@ export const Timeline = memo(function Timeline() {
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
   const [insertMediaId, setInsertMediaId] = useState('');
   const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
+  const [isTrackSidebarCollapsed, setIsTrackSidebarCollapsed] = useState(false);
+  const [isInspectorCollapsed, setIsInspectorCollapsed] = useState(false);
 
   const activeProject = projects.find((project) => project.id === activeProjectId) ?? null;
   const storyboardScenes = activeProject?.scenes ?? [];
@@ -919,8 +925,8 @@ export const Timeline = memo(function Timeline() {
       transition={{ duration: 0.2 }}
       className="flex flex-col overflow-hidden border-t border-border bg-surface"
     >
-      <div className="flex h-10 items-center justify-between border-b border-border bg-elevated/80 px-3 backdrop-blur-sm">
-        <div className="flex items-center gap-2">
+      <div className="flex h-10 items-center justify-between gap-3 border-b border-border bg-elevated/80 px-3 backdrop-blur-sm">
+        <div className="flex min-w-0 flex-1 items-center gap-2 overflow-x-auto overflow-y-hidden">
           <TransportControls
             isPlaying={playState === 'playing'}
             currentTime={currentTime}
@@ -963,7 +969,7 @@ export const Timeline = memo(function Timeline() {
               <button
                 type="button"
                 onClick={handleAddTrack}
-                className="inline-flex items-center gap-1 rounded-md border border-border bg-surface px-2.5 py-1.5 text-xs text-text-primary transition hover:bg-canvas"
+                className={TIMELINE_ACTION_BUTTON_CLASS}
                 aria-label="Add track"
               >
                 <Plus className="h-3.5 w-3.5" />
@@ -972,7 +978,7 @@ export const Timeline = memo(function Timeline() {
 
               <select
                 aria-label="Media asset for timeline"
-                className="h-8 rounded-md border border-border bg-surface px-2 text-xs text-text-primary"
+                className={TIMELINE_ACTION_SELECT_CLASS}
                 value={selectedMediaAsset?.id ?? ''}
                 onChange={(event) => setInsertMediaId(event.target.value)}
               >
@@ -988,7 +994,7 @@ export const Timeline = memo(function Timeline() {
                 type="button"
                 onClick={handleAddClip}
                 disabled={!selectedMediaAsset}
-                className="inline-flex items-center gap-1 rounded-md border border-border bg-surface px-2.5 py-1.5 text-xs text-text-primary transition disabled:cursor-not-allowed disabled:text-text-muted hover:bg-canvas"
+                className={TIMELINE_ACTION_BUTTON_CLASS}
                 aria-label="Add clip to timeline"
               >
                 <Plus className="h-3.5 w-3.5" />
@@ -1040,7 +1046,7 @@ export const Timeline = memo(function Timeline() {
                   })
                 }
                 disabled={!activeSequence}
-                className="rounded-md border border-border bg-surface px-2 py-1 text-xs text-text-primary transition disabled:cursor-not-allowed disabled:text-text-muted hover:bg-canvas"
+                className={TIMELINE_ACTION_BUTTON_CLASS}
                 aria-label="Mark range in"
               >
                 Mark In
@@ -1055,7 +1061,7 @@ export const Timeline = memo(function Timeline() {
                   })
                 }
                 disabled={!activeSequence}
-                className="rounded-md border border-border bg-surface px-2 py-1 text-xs text-text-primary transition disabled:cursor-not-allowed disabled:text-text-muted hover:bg-canvas"
+                className={TIMELINE_ACTION_BUTTON_CLASS}
                 aria-label="Mark range out"
               >
                 Mark Out
@@ -1064,7 +1070,7 @@ export const Timeline = memo(function Timeline() {
                 type="button"
                 onClick={() => activeSequence && setTimelineSequencePlayRange(activeSequence.id, null)}
                 disabled={!activeSequence?.playRange}
-                className="rounded-md border border-border bg-surface px-2 py-1 text-xs text-text-primary transition disabled:cursor-not-allowed disabled:text-text-muted hover:bg-canvas"
+                className={TIMELINE_ACTION_BUTTON_CLASS}
                 aria-label="Clear play range"
               >
                 Clear Range
@@ -1076,7 +1082,7 @@ export const Timeline = memo(function Timeline() {
                 type="button"
                 onClick={() => setIsExportDialogOpen(true)}
                 disabled={!activeSequence}
-                className="inline-flex items-center gap-1 rounded-md border border-border bg-surface px-2.5 py-1.5 text-xs text-text-primary transition disabled:cursor-not-allowed disabled:text-text-muted hover:bg-canvas"
+                className={TIMELINE_ACTION_BUTTON_CLASS}
                 aria-label="Export timeline as MP4"
                 data-testid="timeline-open-export"
               >
@@ -1087,8 +1093,39 @@ export const Timeline = memo(function Timeline() {
           ) : null}
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-none items-center gap-2">
           <ZoomControls zoom={zoom} onZoomChange={setZoom} />
+          {timelineMode === 'canvas' ? (
+            <>
+              <div className="mx-1 h-5 w-px bg-border" />
+              <button
+                type="button"
+                onClick={() => setIsTrackSidebarCollapsed((collapsed) => !collapsed)}
+                className="rounded-md p-1.5 text-text-body transition hover:bg-surface hover:text-text-primary"
+                aria-label={isTrackSidebarCollapsed ? 'Expand track list' : 'Collapse track list'}
+                title={isTrackSidebarCollapsed ? 'Expand track list' : 'Collapse track list'}
+              >
+                {isTrackSidebarCollapsed ? (
+                  <ChevronRight className="h-3.5 w-3.5" />
+                ) : (
+                  <ChevronLeft className="h-3.5 w-3.5" />
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsInspectorCollapsed((collapsed) => !collapsed)}
+                className="rounded-md p-1.5 text-text-body transition hover:bg-surface hover:text-text-primary"
+                aria-label={isInspectorCollapsed ? 'Expand clip inspector' : 'Collapse clip inspector'}
+                title={isInspectorCollapsed ? 'Expand clip inspector' : 'Collapse clip inspector'}
+              >
+                {isInspectorCollapsed ? (
+                  <ChevronLeft className="h-3.5 w-3.5" />
+                ) : (
+                  <ChevronRight className="h-3.5 w-3.5" />
+                )}
+              </button>
+            </>
+          ) : null}
           <div className="mx-1 h-5 w-px bg-border" />
           <button
             type="button"
@@ -1119,37 +1156,40 @@ export const Timeline = memo(function Timeline() {
         <AnimationTrackEditor className="flex-1" />
       ) : (
         <div className="flex min-h-0 flex-1">
-          <div
-            className="flex-shrink-0 overflow-y-auto border-r border-border bg-canvas"
-            style={{ width: HEADER_WIDTH }}
-          >
+          {isTrackSidebarCollapsed ? null : (
             <div
-              className="flex items-center justify-center border-b border-border text-[11px] uppercase tracking-[0.16em] text-text-muted"
-              style={{ height: RULER_HEIGHT }}
+              className="flex-shrink-0 overflow-y-auto border-r border-border bg-canvas"
+              style={{ width: HEADER_WIDTH }}
+              data-testid="timeline-track-sidebar"
             >
-              Timeline
-            </div>
-            {sequenceTracks.map((track) => (
-              <TrackHeader
-                key={track.id}
-                track={track}
-                clipCount={clipsByTrackId.get(track.id)?.length ?? 0}
-                isSelected={(activeClip?.trackId ?? selectedTrackId) === track.id}
-                onSelect={() => {
-                  setSelectedTrackId(track.id);
-                  setActiveTimelineClip(clipsByTrackId.get(track.id)?.[0]?.id ?? null);
-                }}
-                onToggleMute={() => updateTimelineTrack(track.id, { muted: !track.muted })}
-                onToggleHidden={() => updateTimelineTrack(track.id, { hidden: !track.hidden })}
-                onToggleLocked={() => updateTimelineTrack(track.id, { locked: !track.locked })}
-              />
-            ))}
-            {sequenceTracks.length === 0 ? (
-              <div className="flex h-[68px] items-center justify-center border-b border-border text-[11px] text-text-muted">
-                No tracks yet
+              <div
+                className="flex items-center justify-center border-b border-border text-[11px] uppercase tracking-[0.16em] text-text-muted"
+                style={{ height: RULER_HEIGHT }}
+              >
+                Timeline
               </div>
-            ) : null}
-          </div>
+              {sequenceTracks.map((track) => (
+                <TrackHeader
+                  key={track.id}
+                  track={track}
+                  clipCount={clipsByTrackId.get(track.id)?.length ?? 0}
+                  isSelected={(activeClip?.trackId ?? selectedTrackId) === track.id}
+                  onSelect={() => {
+                    setSelectedTrackId(track.id);
+                    setActiveTimelineClip(clipsByTrackId.get(track.id)?.[0]?.id ?? null);
+                  }}
+                  onToggleMute={() => updateTimelineTrack(track.id, { muted: !track.muted })}
+                  onToggleHidden={() => updateTimelineTrack(track.id, { hidden: !track.hidden })}
+                  onToggleLocked={() => updateTimelineTrack(track.id, { locked: !track.locked })}
+                />
+              ))}
+              {sequenceTracks.length === 0 ? (
+                <div className="flex h-[68px] items-center justify-center border-b border-border text-[11px] text-text-muted">
+                  No tracks yet
+                </div>
+              ) : null}
+            </div>
+          )}
 
           <div className="min-w-0 flex-1 overflow-hidden">
             <div className="h-full overflow-auto">
@@ -1259,12 +1299,14 @@ export const Timeline = memo(function Timeline() {
             </div>
           </div>
 
-          <TimelineClipInspector
-            className="flex-shrink-0"
-            onOpenExportDialog={() => setIsExportDialogOpen(true)}
-            exportDisabled={!activeSequence}
-            exportScopeLabel={activeSequence?.playRange ? 'Active Range' : 'Full Sequence'}
-          />
+          {isInspectorCollapsed ? null : (
+            <TimelineClipInspector
+              className="flex-shrink-0"
+              onOpenExportDialog={() => setIsExportDialogOpen(true)}
+              exportDisabled={!activeSequence}
+              exportScopeLabel={activeSequence?.playRange ? 'Active Range' : 'Full Sequence'}
+            />
+          )}
         </div>
       )}
 
