@@ -52,6 +52,23 @@ type MainIpcOptions = {
   logger?: Pick<Console, 'warn'>;
 };
 
+const IMAGE_IMPORT_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.webp']);
+const VIDEO_IMPORT_EXTENSIONS = new Set(['.mp4', '.webm', '.mov', '.m4v', '.avi', '.gif']);
+
+function resolveImportedMediaType(filePath: string): 'image' | 'video' | null {
+  const extension = path.extname(filePath).toLowerCase();
+
+  if (IMAGE_IMPORT_EXTENSIONS.has(extension)) {
+    return 'image';
+  }
+
+  if (VIDEO_IMPORT_EXTENSIONS.has(extension)) {
+    return 'video';
+  }
+
+  return null;
+}
+
 export function registerMainIpcHandlers({
   app,
   ipcMain,
@@ -84,6 +101,19 @@ export function registerMainIpcHandlers({
       properties: ['openDirectory'],
     });
     return result.filePaths[0] || null;
+  });
+
+  ipcMain.handle('dialog:select-media-files', async () => {
+    const result = await dialog.showOpenDialog(getMainWindow()!, {
+      properties: ['openFile', 'multiSelections'],
+      filters: [
+        { name: 'Media Files', extensions: ['png', 'jpg', 'jpeg', 'webp', 'mp4', 'webm', 'mov', 'm4v', 'avi', 'gif'] },
+        { name: 'Image Files', extensions: ['png', 'jpg', 'jpeg', 'webp'] },
+        { name: 'Video Files', extensions: ['mp4', 'webm', 'mov', 'm4v', 'avi', 'gif'] },
+      ],
+    });
+
+    return result.filePaths.map((filePath) => filePath.replace(/\\/g, '/'));
   });
 
   ipcMain.handle('dialog:save-file', async (_event, options: { defaultPath?: string; filters?: Electron.FileFilter[] }) => {
@@ -162,6 +192,59 @@ export function registerMainIpcHandlers({
       await fs.promises.mkdir(path.dirname(resolvedDest), { recursive: true });
       await fs.promises.copyFile(resolvedSource, resolvedDest);
       return { success: true, destinationPath: resolvedDest };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  });
+
+  ipcMain.handle('assets:import-files', async (_event, sourcePaths: string[]) => {
+    try {
+      const appSettings = outputRoots.getAppSettings();
+      const outputRoot = resolveOutputPath(appSettings, app.getPath('userData'));
+      const importsDir = path.join(outputRoot, 'imports');
+      await fs.promises.mkdir(importsDir, { recursive: true });
+      outputRoots.rememberOutputRoot(outputRoot);
+
+      const usedNames = new Set<string>();
+      const importedAt = new Date().toISOString();
+      const files: Array<{
+        originalPath: string;
+        importedPath: string;
+        name: string;
+        type: 'image' | 'video';
+        importedAt: string;
+      }> = [];
+
+      for (const sourcePath of sourcePaths) {
+        const normalizedSource = sourcePath.replace(/\\/g, '/');
+        const resolvedType = resolveImportedMediaType(normalizedSource);
+        if (!resolvedType) {
+          continue;
+        }
+
+        const parsed = path.parse(normalizedSource);
+        let candidateName = parsed.base;
+        let counter = 1;
+
+        while (usedNames.has(candidateName) || fs.existsSync(path.join(importsDir, candidateName))) {
+          candidateName = `${parsed.name}-${counter}${parsed.ext}`;
+          counter += 1;
+        }
+
+        usedNames.add(candidateName);
+        const importedPath = path.join(importsDir, candidateName);
+        await fs.promises.copyFile(normalizedSource, importedPath);
+
+        files.push({
+          originalPath: normalizedSource,
+          importedPath: importedPath.replace(/\\/g, '/'),
+          name: path.parse(candidateName).name,
+          type: resolvedType,
+          importedAt,
+        });
+      }
+
+      return { success: true, files };
     } catch (error: any) {
       return { success: false, error: error.message };
     }

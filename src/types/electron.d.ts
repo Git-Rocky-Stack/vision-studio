@@ -43,6 +43,14 @@ export interface JobResponse {
   error?: string;
 }
 
+export interface ImportedAssetFile {
+  originalPath: string;
+  importedPath: string;
+  name: string;
+  type: 'image' | 'video';
+  importedAt: string;
+}
+
 export interface JobStatus {
   job_id: string;
   status: 'pending' | 'processing' | 'completed' | 'failed' | 'cancelled';
@@ -89,6 +97,7 @@ export interface ElectronAPI {
   };
   dialog: {
     selectFolder: () => Promise<string | null>;
+    selectMediaFiles: () => Promise<string[]>;
     saveFile: (options: { defaultPath?: string; filters?: any[] }) => Promise<string | null>;
   };
   store: {
@@ -129,6 +138,7 @@ export interface ElectronAPI {
     }>;
   };
   assets: {
+    importFiles: (sourcePaths: string[]) => Promise<{ success: boolean; files?: ImportedAssetFile[]; error?: string }>;
     export: (sourcePath: string, destinationPath: string) => Promise<{ success: boolean; destinationPath?: string; error?: string }>;
     exportMany: (sourcePaths: string[], destinationDir: string) => Promise<{ success: boolean; exportedCount?: number; error?: string }>;
     delete: (sourcePath: string) => Promise<{ success: boolean; error?: string }>;

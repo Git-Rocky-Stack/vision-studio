@@ -10,6 +10,7 @@ export interface ElectronAPI {
   };
   dialog: {
     selectFolder: () => Promise<string | null>;
+    selectMediaFiles: () => Promise<string[]>;
     saveFile: (options: { defaultPath?: string; filters?: any[] }) => Promise<string | null>;
   };
   store: {
@@ -50,6 +51,13 @@ export interface ElectronAPI {
     }>;
   };
   assets: {
+    importFiles: (sourcePaths: string[]) => Promise<{ success: boolean; files?: Array<{
+      originalPath: string;
+      importedPath: string;
+      name: string;
+      type: 'image' | 'video';
+      importedAt: string;
+    }>; error?: string }>;
     export: (sourcePath: string, destinationPath: string) => Promise<{ success: boolean; destinationPath?: string; error?: string }>;
     exportMany: (sourcePaths: string[], destinationDir: string) => Promise<{ success: boolean; exportedCount?: number; error?: string }>;
     delete: (sourcePath: string) => Promise<{ success: boolean; error?: string }>;
@@ -149,6 +157,7 @@ const electronAPI: ElectronAPI = {
   },
   dialog: {
     selectFolder: () => ipcRenderer.invoke('dialog:select-folder'),
+    selectMediaFiles: () => ipcRenderer.invoke('dialog:select-media-files'),
     saveFile: (options) => ipcRenderer.invoke('dialog:save-file', options),
   },
   store: {
@@ -162,6 +171,7 @@ const electronAPI: ElectronAPI = {
     reset: () => ipcRenderer.invoke('settings:reset'),
   },
   assets: {
+    importFiles: (sourcePaths) => ipcRenderer.invoke('assets:import-files', sourcePaths),
     export: (sourcePath, destinationPath) => ipcRenderer.invoke('assets:export', sourcePath, destinationPath),
     exportMany: (sourcePaths, destinationDir) => ipcRenderer.invoke('assets:export-many', sourcePaths, destinationDir),
     delete: (sourcePath) => ipcRenderer.invoke('assets:delete', sourcePath),

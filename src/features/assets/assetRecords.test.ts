@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { upsertAssetsFromJobStatus } from './assetRecords';
+import {
+  createImportedAssetRecords,
+  createMediaAssetFromImportedFile,
+  upsertAssetsFromJobStatus,
+} from './assetRecords';
 
 describe('upsertAssetsFromJobStatus', () => {
   it('creates a persistent image asset record from a completed job', () => {
@@ -128,6 +132,68 @@ describe('upsertAssetsFromJobStatus', () => {
     expect(assets[0]).toMatchObject({
       path: 'D:/VisionStudio/Outputs/job-image-2/image_001.png',
       previewUrl: 'http://localhost:8000/outputs/job-image-2/image_001.png',
+    });
+  });
+
+  it('creates managed imported asset records for local image and video files', () => {
+    const assets = createImportedAssetRecords([], [
+      {
+        originalPath: 'C:/Users/User/Pictures/hero.png',
+        importedPath: 'C:/vision-studio-output/imports/hero.png',
+        name: 'hero',
+        type: 'image',
+        importedAt: '2026-04-22T12:00:00.000Z',
+      },
+      {
+        originalPath: 'C:/Users/User/Videos/clip.mp4',
+        importedPath: 'C:/vision-studio-output/imports/clip.mp4',
+        name: 'clip',
+        type: 'video',
+        importedAt: '2026-04-22T12:01:00.000Z',
+      },
+    ]);
+
+    expect(assets).toHaveLength(2);
+    expect(assets[0]).toMatchObject({
+      id: 'import::C:/vision-studio-output/imports/clip.mp4',
+      type: 'video',
+      path: 'C:/vision-studio-output/imports/clip.mp4',
+    });
+    expect(assets[0].previewUrl).toContain('data:image/svg+xml');
+    expect(assets[0].params).toMatchObject({
+      source: 'imported',
+      original_path: 'C:/Users/User/Videos/clip.mp4',
+      reference_ready: true,
+    });
+    expect(assets[1]).toMatchObject({
+      id: 'import::C:/vision-studio-output/imports/hero.png',
+      type: 'image',
+      path: 'C:/vision-studio-output/imports/hero.png',
+      previewUrl: 'file:///C:/vision-studio-output/imports/hero.png',
+    });
+  });
+
+  it('creates an imported media asset with adapter-friendly links', () => {
+    const mediaAsset = createMediaAssetFromImportedFile({
+      originalPath: 'C:/Users/User/Videos/clip.mp4',
+      importedPath: 'C:/vision-studio-output/imports/clip.mp4',
+      name: 'clip',
+      type: 'video',
+      importedAt: '2026-04-22T12:01:00.000Z',
+    });
+
+    expect(mediaAsset).toMatchObject({
+      id: 'media::C:/vision-studio-output/imports/clip.mp4',
+      legacyAssetId: 'import::C:/vision-studio-output/imports/clip.mp4',
+      source: 'imported',
+      type: 'video',
+      path: 'C:/vision-studio-output/imports/clip.mp4',
+      previewUrl: 'file:///C:/vision-studio-output/imports/clip.mp4',
+    });
+    expect(mediaAsset.thumbnailUrl).toContain('data:image/svg+xml');
+    expect(mediaAsset.metadata).toMatchObject({
+      originalPath: 'C:/Users/User/Videos/clip.mp4',
+      referenceReady: true,
     });
   });
 });

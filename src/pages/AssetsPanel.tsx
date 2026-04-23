@@ -6,6 +6,10 @@ import { Button } from '@/components/ui/Button';
 import { useShallow } from 'zustand/react/shallow';
 import { useAppStore } from '@/store/appStore';
 import type { AssetRecord } from '@/types/assets';
+import {
+  createImportedAssetRecords,
+  createMediaAssetFromImportedFile,
+} from '@/features/assets/assetRecords';
 import { ImageWithFallback } from '@/components/ui/ImageWithFallback';
 import { SkeletonCard } from '@/components/ui/Skeleton';
 import {
@@ -38,11 +42,12 @@ function formatAssetMeta(asset: AssetRecord) {
 }
 
 export function AssetsPanel() {
-  const { assetLibrary, deleteAssetRecord, toggleAssetFavorite } = useAppStore(
+  const { assetLibrary, deleteAssetRecord, toggleAssetFavorite, upsertMediaAsset } = useAppStore(
     useShallow((s) => ({
       assetLibrary: s.assetLibrary,
       deleteAssetRecord: s.deleteAssetRecord,
       toggleAssetFavorite: s.toggleAssetFavorite,
+      upsertMediaAsset: s.upsertMediaAsset,
     }))
   );
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
@@ -50,6 +55,7 @@ export function AssetsPanel() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedAssets, setSelectedAssets] = useState<Set<string>>(new Set());
   const [deleteTarget, setDeleteTarget] = useState<AssetRecord | null>(null);
+  const [isImporting, setIsImporting] = useState(false);
 
   const filteredAssets = useMemo(() => {
     return assetLibrary.filter((asset) => {
@@ -95,6 +101,36 @@ export function AssetsPanel() {
 
   const handlePreview = async (asset: AssetRecord) => {
     await window.electron.app.openPath(asset.path);
+  };
+
+  const handleImport = async () => {
+    if (isImporting) {
+      return;
+    }
+
+    setIsImporting(true);
+
+    try {
+      const sourcePaths = await window.electron.dialog.selectMediaFiles();
+      if (sourcePaths.length === 0) {
+        return;
+      }
+
+      const result = await window.electron.assets.importFiles(sourcePaths);
+      if (!result.success || !result.files?.length) {
+        return;
+      }
+
+      useAppStore.setState((state) => ({
+        assetLibrary: createImportedAssetRecords(state.assetLibrary, result.files ?? []),
+      }));
+
+      for (const importedFile of result.files) {
+        upsertMediaAsset(createMediaAssetFromImportedFile(importedFile));
+      }
+    } finally {
+      setIsImporting(false);
+    }
   };
 
   const handleExport = async (asset: AssetRecord) => {
@@ -186,21 +222,32 @@ export function AssetsPanel() {
         </div>
 
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-1 bg-elevated rounded-lg p-1">
-            {(['all', 'image', 'video'] as AssetType[]).map((type) => (
-              <button
-                key={type}
-                onClick={() => setFilter(type)}
-                className={cn(
-                  'px-3 py-1 rounded text-sm font-display font-medium transition-all capitalize',
-                  filter === type
-                    ? 'bg-surface text-text-primary'
-                    : 'text-text-body hover:text-text-primary'
-                )}
-              >
-                {type}
-              </button>
-            ))}
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1 bg-elevated rounded-lg p-1">
+              {(['all', 'image', 'video'] as AssetType[]).map((type) => (
+                <button
+                  key={type}
+                  onClick={() => setFilter(type)}
+                  className={cn(
+                    'px-3 py-1 rounded text-sm font-display font-medium transition-all capitalize',
+                    filter === type
+                      ? 'bg-surface text-text-primary'
+                      : 'text-text-body hover:text-text-primary'
+                  )}
+                >
+                  {type}
+                </button>
+              ))}
+            </div>
+            <Button
+              variant="secondary"
+              size="sm"
+              icon={FolderPlus}
+              onClick={handleImport}
+              disabled={isImporting}
+            >
+              {isImporting ? 'Importing...' : 'Import'}
+            </Button>
           </div>
 
           <div className="flex items-center gap-1">
@@ -262,6 +309,11 @@ export function AssetsPanel() {
             <p className="text-xs text-text-muted mt-1">
               Generate some content to see it here
             </p>
+            <div className="mt-4">
+              <Button variant="secondary" size="sm" icon={FolderPlus} onClick={handleImport}>
+                Import media
+              </Button>
+            </div>
           </div>
         ) : (
           <div style={{ height: `${rowVirtualizer.getTotalSize()}px`, position: 'relative' }}>

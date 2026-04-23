@@ -1,10 +1,93 @@
 import type { AssetJobStatus, AssetRecord, DerivedAssetResult } from '@/types/assets';
+import type { ImportedAssetFile } from '@/types/electron';
+import type { MediaAsset } from '@/types/media';
 
 const BACKEND_ASSET_BASE_URL = 'http://localhost:8000';
+const LOCAL_VIDEO_PLACEHOLDER_LABEL = 'Video';
 
-export function toPreviewUrl(assetPath: string) {
+function toNormalizedPath(assetPath: string) {
+  return assetPath.replace(/\\/g, '/');
+}
+
+function toFileUrl(assetPath: string) {
+  const normalizedPath = toNormalizedPath(assetPath);
+
+  if (/^file:\/\//.test(normalizedPath)) {
+    return normalizedPath;
+  }
+
+  const encodedPath = encodeURI(normalizedPath)
+    .replace(/#/g, '%23')
+    .replace(/\?/g, '%3F');
+
+  if (/^[A-Za-z]:\//.test(normalizedPath)) {
+    return `file:///${encodedPath}`;
+  }
+
+  if (normalizedPath.startsWith('/')) {
+    return `file://${encodedPath}`;
+  }
+
+  return normalizedPath;
+}
+
+function splitFileName(assetPath: string) {
+  const normalizedPath = toNormalizedPath(assetPath);
+  const fileName = normalizedPath.split('/').pop() ?? normalizedPath;
+  const dotIndex = fileName.lastIndexOf('.');
+
+  if (dotIndex <= 0) {
+    return { fileName, stem: fileName, extension: '' };
+  }
+
+  return {
+    fileName,
+    stem: fileName.slice(0, dotIndex),
+    extension: fileName.slice(dotIndex).toLowerCase(),
+  };
+}
+
+function buildVideoPlaceholderPreview(label: string = LOCAL_VIDEO_PLACEHOLDER_LABEL) {
+  const safeLabel = label.slice(0, 28);
+  const svg = `
+    <svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+      <defs>
+        <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="#151821" />
+          <stop offset="100%" stop-color="#202736" />
+        </linearGradient>
+      </defs>
+      <rect width="512" height="512" rx="40" fill="url(#bg)" />
+      <rect x="72" y="128" width="368" height="224" rx="24" fill="#0f1218" stroke="#485267" stroke-width="8" />
+      <polygon points="232,184 232,296 320,240" fill="#f5f7fb" opacity="0.95" />
+      <text x="256" y="404" fill="#f5f7fb" font-size="32" font-family="Segoe UI, Arial, sans-serif" text-anchor="middle">VIDEO</text>
+      <text x="256" y="442" fill="#a5b0c5" font-size="20" font-family="Segoe UI, Arial, sans-serif" text-anchor="middle">${safeLabel}</text>
+    </svg>
+  `.trim();
+
+  return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
+}
+
+export function toPreviewUrl(
+  assetPath: string,
+  options?: { type?: AssetRecord['type']; label?: string },
+) {
+  const type = options?.type ?? 'image';
+
+  if (type === 'video') {
+    return buildVideoPlaceholderPreview(options?.label);
+  }
+
   if (/^https?:\/\//.test(assetPath)) {
     return assetPath;
+  }
+
+  if (assetPath.startsWith('/outputs/')) {
+    return `${BACKEND_ASSET_BASE_URL}${assetPath}`;
+  }
+
+  if (/^[A-Za-z]:[\\/]/.test(assetPath) || assetPath.startsWith('/')) {
+    return toFileUrl(assetPath);
   }
 
   return assetPath.startsWith('/')
@@ -36,6 +119,85 @@ export function resolveStoredAssetPath(assetPath: string, params: Record<string,
 function buildAssetName(type: AssetRecord['type'], jobId: string, index: number) {
   const prefix = type === 'image' ? 'Image' : 'Video';
   return `${prefix} ${jobId.slice(0, 8)}${index > 0 ? `-${index + 1}` : ''}`;
+}
+
+export function createImportedAssetRecords(
+  currentAssets: AssetRecord[],
+  importedFiles: ImportedAssetFile[],
+): AssetRecord[] {
+  const existingById = new Map(currentAssets.map((asset) => [asset.id, asset]));
+
+  importedFiles.forEach((importedFile) => {
+    const normalizedPath = toNormalizedPath(importedFile.importedPath);
+    const assetId = `import::${normalizedPath}`;
+    const previous = existingById.get(assetId);
+    const { stem } = splitFileName(importedFile.name || importedFile.importedPath);
+    const previewUrl = toPreviewUrl(normalizedPath, {
+      type: importedFile.type,
+      label: stem,
+    });
+
+    existingById.set(assetId, {
+      id: assetId,
+      jobId: assetId,
+      name: stem || (importedFile.type === 'image' ? 'Imported image' : 'Imported video'),
+      type: importedFile.type,
+      path: normalizedPath,
+      previewUrl,
+      thumbnail: previewUrl,
+      createdAt: previous?.createdAt ?? importedFile.importedAt,
+      prompt: previous?.prompt ?? '',
+      negativePrompt: previous?.negativePrompt ?? '',
+      model: previous?.model,
+      width: previous?.width,
+      height: previous?.height,
+      fps: previous?.fps,
+      duration: previous?.duration,
+      seed: previous?.seed,
+      favorite: previous?.favorite ?? false,
+      params: {
+        ...(previous?.params ?? {}),
+        source: 'imported',
+        original_path: toNormalizedPath(importedFile.originalPath),
+        reference_ready: true,
+      },
+    });
+  });
+
+  return Array.from(existingById.values()).sort(
+    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+  );
+}
+
+export function createMediaAssetFromImportedFile(importedFile: ImportedAssetFile): MediaAsset {
+  const normalizedPath = toNormalizedPath(importedFile.importedPath);
+  const { stem } = splitFileName(importedFile.name || importedFile.importedPath);
+  const previewUrl =
+    importedFile.type === 'image'
+      ? toPreviewUrl(normalizedPath)
+      : toFileUrl(normalizedPath);
+  const posterUrl =
+    importedFile.type === 'video'
+      ? buildVideoPlaceholderPreview(stem)
+      : null;
+
+  return {
+    id: `media::${normalizedPath}`,
+    legacyAssetId: `import::${normalizedPath}`,
+    jobId: null,
+    name: stem || (importedFile.type === 'image' ? 'Imported image' : 'Imported video'),
+    type: importedFile.type,
+    source: 'imported',
+    path: normalizedPath,
+    previewUrl,
+    thumbnailUrl: posterUrl ?? previewUrl,
+    posterUrl,
+    metadata: {
+      originalPath: toNormalizedPath(importedFile.originalPath),
+      referenceReady: true,
+    },
+    createdAt: importedFile.importedAt,
+  };
 }
 
 export function upsertAssetsFromJobStatus(
@@ -85,9 +247,16 @@ export function upsertAssetsFromJobStatus(
       name: buildAssetName(jobStatus.type, jobStatus.job_id, index),
       type: jobStatus.type,
       path: resolveStoredAssetPath(outputPath, params),
-      previewUrl: toPreviewUrl(outputPath),
+      previewUrl: toPreviewUrl(outputPath, {
+        type: jobStatus.type,
+        label: buildAssetName(jobStatus.type, jobStatus.job_id, index),
+      }),
       thumbnail:
-        jobStatus.type === 'image' ? toPreviewUrl(outputPath) : previous?.thumbnail ?? '',
+        previous?.thumbnail ??
+        toPreviewUrl(outputPath, {
+          type: jobStatus.type,
+          label: buildAssetName(jobStatus.type, jobStatus.job_id, index),
+        }),
       createdAt: previous?.createdAt ?? jobStatus.created_at,
       prompt: typeof params.prompt === 'string' ? params.prompt : '',
       negativePrompt:
@@ -105,6 +274,8 @@ export function upsertAssetsFromJobStatus(
       favorite: previous?.favorite ?? false,
       params: {
         ...params,
+        source: 'generated',
+        reference_ready: jobStatus.type === 'image',
         width,
         height,
         fps,
@@ -140,8 +311,8 @@ export function createDerivedAssetRecord(
     name: `Derived ${assetId.slice(-8)}`,
     type: 'image',
     path: result.output_path.replace(/\\/g, '/'),
-    previewUrl: toPreviewUrl(result.image),
-    thumbnail: toPreviewUrl(result.image),
+    previewUrl: toPreviewUrl(result.image, { type: 'image' }),
+    thumbnail: toPreviewUrl(result.image, { type: 'image' }),
     createdAt,
     prompt: context.prompt,
     negativePrompt: context.negativePrompt ?? '',
@@ -152,6 +323,8 @@ export function createDerivedAssetRecord(
     favorite: previous?.favorite ?? false,
     params: {
       ...(context.params ?? {}),
+      source: 'derived',
+      reference_ready: true,
       width: result.width,
       height: result.height,
     },
