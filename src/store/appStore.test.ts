@@ -708,6 +708,19 @@ describe('appStore', () => {
       const currentState = useAppStore.getInitialState();
       const merged = merge(
         {
+          timelineTracks: [
+            {
+              id: 'track-1',
+              sequenceId: 'sequence-1',
+              kind: 'audio',
+              name: 'Legacy Audio',
+              clipIds: ['clip-1'],
+              orderIndex: 0,
+              locked: false,
+              muted: false,
+              hidden: false,
+            },
+          ],
           timelineClips: [
             {
               id: 'clip-1',
@@ -720,6 +733,9 @@ describe('appStore', () => {
               sourceOutMs: 2000,
               transitionIn: null,
               transitionOut: null,
+              gain: undefined,
+              fadeInMs: undefined,
+              fadeOutMs: undefined,
               label: 'Legacy Clip',
               posterUrl: null,
               referenceSetIds: [],
@@ -732,7 +748,12 @@ describe('appStore', () => {
         currentState,
       );
 
+      expect(merged.timelineTracks).toHaveLength(1);
+      expect(merged.timelineTracks[0].solo).toBe(false);
       expect(merged.timelineClips).toHaveLength(1);
+      expect(merged.timelineClips[0].gain).toBe(1);
+      expect(merged.timelineClips[0].fadeInMs).toBe(0);
+      expect(merged.timelineClips[0].fadeOutMs).toBe(0);
       expect(merged.timelineClips[0].storyboardDerived).toBe(false);
       expect(merged.timelineClips[0].storyboardBeatMarkers).toEqual([]);
       expect(merged.timelineClips[0].storyboardDerivedAt).toBeNull();

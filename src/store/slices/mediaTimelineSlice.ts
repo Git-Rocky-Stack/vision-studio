@@ -195,6 +195,7 @@ interface CreateTimelineTrackParams {
   name?: string;
   locked?: boolean;
   muted?: boolean;
+  solo?: boolean;
   hidden?: boolean;
 }
 
@@ -208,6 +209,9 @@ interface CreateTimelineClipParams {
   sourceOutMs?: number;
   transitionIn?: TimelineTransition | null;
   transitionOut?: TimelineTransition | null;
+  gain?: number;
+  fadeInMs?: number;
+  fadeOutMs?: number;
   label?: string;
   posterUrl?: string | null;
   referenceSetIds?: string[];
@@ -219,6 +223,7 @@ interface CreateTimelineClipParams {
 
 const DEFAULT_IMAGE_CLIP_DURATION_MS = 2000;
 const DEFAULT_VIDEO_CLIP_DURATION_MS = 5000;
+const DEFAULT_AUDIO_CLIP_DURATION_MS = 5000;
 const MIN_TIMELINE_CLIP_DURATION_MS = 120;
 const SNAP_TOLERANCE_MS = 120;
 
@@ -268,8 +273,16 @@ function normalizeTimelineBeatMarkers(
     .filter((marker): marker is TimelineBeatMarker => Boolean(marker));
 }
 
-function getTrackKindForMediaAsset(asset: MediaAsset): Extract<TimelineTrack['kind'], 'image' | 'video'> {
-  return asset.type === 'video' ? 'video' : 'image';
+function getTrackKindForMediaAsset(asset: MediaAsset): Extract<TimelineTrack['kind'], 'image' | 'video' | 'audio'> {
+  if (asset.type === 'video') {
+    return 'video';
+  }
+
+  if (asset.type === 'audio') {
+    return 'audio';
+  }
+
+  return 'image';
 }
 
 function isEqualStringSet(left: string[], right: string[]) {
@@ -710,6 +723,7 @@ export function createMediaTimelineActions(set: AppSet, get: AppGet) {
         orderIndex: 0,
         locked: false,
         muted: false,
+        solo: false,
         hidden: false,
       };
 
@@ -743,6 +757,7 @@ export function createMediaTimelineActions(set: AppSet, get: AppGet) {
         orderIndex: state.timelineTracks.filter((item) => item.sequenceId === sequenceId).length,
         locked: params?.locked ?? false,
         muted: params?.muted ?? false,
+        solo: params?.solo ?? false,
         hidden: params?.hidden ?? false,
       };
 
@@ -854,7 +869,11 @@ export function createMediaTimelineActions(set: AppSet, get: AppGet) {
           ? (params.storyboardDerivedAt ?? now)
           : null;
       const fallbackDuration =
-        mediaAsset?.type === 'video' ? DEFAULT_VIDEO_CLIP_DURATION_MS : DEFAULT_IMAGE_CLIP_DURATION_MS;
+        mediaAsset?.type === 'video'
+          ? DEFAULT_VIDEO_CLIP_DURATION_MS
+          : mediaAsset?.type === 'audio'
+            ? DEFAULT_AUDIO_CLIP_DURATION_MS
+            : DEFAULT_IMAGE_CLIP_DURATION_MS;
       const sourceInMs = Math.max(0, params.sourceInMs ?? 0);
       const requestedDurationMs = Math.max(
         MIN_TIMELINE_CLIP_DURATION_MS,
@@ -872,6 +891,9 @@ export function createMediaTimelineActions(set: AppSet, get: AppGet) {
             sourceOutMs: sourceInMs + requestedDurationMs,
             transitionIn: null,
             transitionOut: null,
+            gain: typeof params.gain === 'number' && Number.isFinite(params.gain) ? params.gain : 1,
+            fadeInMs: typeof params.fadeInMs === 'number' && Number.isFinite(params.fadeInMs) ? params.fadeInMs : 0,
+            fadeOutMs: typeof params.fadeOutMs === 'number' && Number.isFinite(params.fadeOutMs) ? params.fadeOutMs : 0,
             label: params.label ?? 'Timeline Clip',
             posterUrl: params.posterUrl ?? null,
             referenceSetIds: params.referenceSetIds ?? [],
@@ -901,6 +923,18 @@ export function createMediaTimelineActions(set: AppSet, get: AppGet) {
         sourceOutMs,
         transitionIn: params.transitionIn ?? null,
         transitionOut: params.transitionOut ?? null,
+        gain:
+          typeof params.gain === 'number' && Number.isFinite(params.gain)
+            ? clamp(params.gain, 0, 2)
+            : 1,
+        fadeInMs:
+          typeof params.fadeInMs === 'number' && Number.isFinite(params.fadeInMs)
+            ? Math.max(0, Math.round(params.fadeInMs))
+            : 0,
+        fadeOutMs:
+          typeof params.fadeOutMs === 'number' && Number.isFinite(params.fadeOutMs)
+            ? Math.max(0, Math.round(params.fadeOutMs))
+            : 0,
         label: params.label ?? 'Timeline Clip',
         posterUrl: params.posterUrl ?? mediaAsset?.posterUrl ?? null,
         referenceSetIds: params.referenceSetIds ?? [],
@@ -958,6 +992,18 @@ export function createMediaTimelineActions(set: AppSet, get: AppGet) {
         const nextClip = {
           ...currentClip,
           ...updates,
+          gain:
+            typeof updates.gain === 'number' && Number.isFinite(updates.gain)
+              ? clamp(updates.gain, 0, 2)
+              : currentClip.gain,
+          fadeInMs:
+            typeof updates.fadeInMs === 'number' && Number.isFinite(updates.fadeInMs)
+              ? Math.max(0, Math.round(updates.fadeInMs))
+              : currentClip.fadeInMs,
+          fadeOutMs:
+            typeof updates.fadeOutMs === 'number' && Number.isFinite(updates.fadeOutMs)
+              ? Math.max(0, Math.round(updates.fadeOutMs))
+              : currentClip.fadeOutMs,
           storyboardBeatMarkers:
             Array.isArray(updates.storyboardBeatMarkers)
               ? normalizeTimelineBeatMarkers(updates.storyboardBeatMarkers)

@@ -45,6 +45,21 @@ function seedProjectAndMedia() {
     createdAt: '2026-04-22T00:01:00.000Z',
   });
 
+  state.upsertMediaAsset({
+    id: 'media-audio',
+    name: 'Music Bed',
+    type: 'audio',
+    source: 'imported',
+    path: '/imports/music-bed.wav',
+    previewUrl: 'file:///imports/music-bed.wav',
+    thumbnailUrl: 'data:image/svg+xml;base64,audio',
+    posterUrl: null,
+    durationMs: 6000,
+    waveformSummary: [0.2, 0.55, 0.72, 0.48, 0.64, 0.38, 0.81, 0.57],
+    metadata: {},
+    createdAt: '2026-04-22T00:02:00.000Z',
+  });
+
   return { project, sequence };
 }
 
@@ -320,5 +335,28 @@ describe('Timeline integration', () => {
 
     await user.click(screen.getByLabelText('Skip to beginning'));
     expect(useAppStore.getState().currentTime).toBe(500);
+  });
+
+  it('adds audio clips onto audio tracks and supports solo state', async () => {
+    const user = userEvent.setup();
+    seedProjectAndMedia();
+    render(<Timeline />);
+
+    await user.selectOptions(screen.getByLabelText('Media asset for timeline'), 'media-audio');
+    await user.click(screen.getByLabelText('Add clip to timeline'));
+
+    const audioTrack = useAppStore.getState().timelineTracks.find((track) => track.kind === 'audio');
+    const audioClip = useAppStore.getState().timelineClips.find((clip) => clip.mediaAssetId === 'media-audio');
+
+    expect(audioTrack).toBeTruthy();
+    expect(audioClip?.trackId).toBe(audioTrack?.id);
+    expect(audioClip?.durationMs).toBe(6000);
+    expect(screen.getByTestId(`timeline-clip-${audioClip!.id}`)).toHaveTextContent('Gain 100% / Fade 0s');
+
+    await user.click(screen.getByLabelText('Solo track'));
+    expect(useAppStore.getState().timelineTracks.find((track) => track.id === audioTrack?.id)?.solo).toBe(true);
+
+    await user.click(screen.getByLabelText('Disable solo track'));
+    expect(useAppStore.getState().timelineTracks.find((track) => track.id === audioTrack?.id)?.solo).toBe(false);
   });
 });

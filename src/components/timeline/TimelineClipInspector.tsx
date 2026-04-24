@@ -8,6 +8,7 @@ import {
   Scissors,
   Sparkles,
   Trash2,
+  Volume2,
 } from 'lucide-react';
 
 import { useAppStore } from '@/store/appStore';
@@ -65,6 +66,7 @@ export function TimelineClipInspector({
     mediaAssets,
     clipGenerationBindings,
     currentTime,
+    seekTo,
     moveTimelineClip,
     trimTimelineClip,
     splitTimelineClip,
@@ -83,6 +85,7 @@ export function TimelineClipInspector({
       mediaAssets: state.mediaAssets,
       clipGenerationBindings: state.clipGenerationBindings,
       currentTime: state.currentTime,
+      seekTo: state.seekTo,
       moveTimelineClip: state.moveTimelineClip,
       trimTimelineClip: state.trimTimelineClip,
       splitTimelineClip: state.splitTimelineClip,
@@ -154,6 +157,7 @@ export function TimelineClipInspector({
   }
 
   const frameStepMs = Math.max(1, Math.round(1000 / Math.max(1, sequence.fps)));
+  const isAudioClip = mediaAsset?.type === 'audio' || track.kind === 'audio';
   const isAiBusy =
     generationBinding?.lastRunSummary?.status === 'queued' ||
     generationBinding?.lastRunSummary?.status === 'running';
@@ -379,191 +383,279 @@ export function TimelineClipInspector({
           </p>
         </div>
 
-        <div className="mt-4 rounded-xl border border-border bg-canvas p-3">
-          <p className="text-xs text-text-muted">Transitions</p>
-          <div className="mt-3 grid grid-cols-2 gap-3">
-            <div>
+        {isAudioClip ? (
+          <div className="mt-4 rounded-xl border border-border bg-canvas p-3" data-testid="timeline-audio-controls">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-xs text-text-muted">Audio Clip</p>
+                <p className="mt-1 text-sm text-text-primary">Gain, fades, and edit boundaries</p>
+              </div>
+              <span className="rounded-full border border-border bg-surface px-2 py-1 text-[11px] uppercase tracking-[0.12em] text-text-muted">
+                <span className="inline-flex items-center gap-1">
+                  <Volume2 className="h-3 w-3" />
+                  Audio
+                </span>
+              </span>
+            </div>
+
+            <div className="mt-3 grid grid-cols-2 gap-3">
               <label className="block text-[11px] text-text-muted">
-                In Type
-                <select
-                  id="timeline-transition-in-type"
-                  data-testid="timeline-transition-in-type-select"
+                Gain
+                <input
+                  data-testid="timeline-audio-gain-input"
+                  type="number"
+                  min={0}
+                  max={200}
+                  step={5}
                   className="mt-1 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text-primary"
-                  value={clip.transitionIn?.type ?? ''}
+                  value={Math.round(clip.gain * 100)}
+                  onChange={(event) =>
+                    updateTimelineClip(clip.id, {
+                      gain: Number.parseFloat(event.target.value || '100') / 100,
+                    })
+                  }
+                />
+              </label>
+              <label className="block text-[11px] text-text-muted">
+                Fade In
+                <input
+                  data-testid="timeline-audio-fade-in-input"
+                  type="number"
+                  min={0}
+                  step={50}
+                  className="mt-1 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text-primary"
+                  value={clip.fadeInMs}
+                  onChange={(event) =>
+                    updateTimelineClip(clip.id, {
+                      fadeInMs: Number.parseInt(event.target.value || '0', 10),
+                    })
+                  }
+                />
+              </label>
+              <label className="block text-[11px] text-text-muted">
+                Fade Out
+                <input
+                  data-testid="timeline-audio-fade-out-input"
+                  type="number"
+                  min={0}
+                  step={50}
+                  className="mt-1 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text-primary"
+                  value={clip.fadeOutMs}
+                  onChange={(event) =>
+                    updateTimelineClip(clip.id, {
+                      fadeOutMs: Number.parseInt(event.target.value || '0', 10),
+                    })
+                  }
+                />
+              </label>
+            </div>
+
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                className="rounded-lg border border-border bg-surface px-3 py-2 text-xs text-text-primary transition hover:bg-elevated"
+                onClick={() => seekTo(clip.startMs)}
+              >
+                Playhead To In
+              </button>
+              <button
+                type="button"
+                className="rounded-lg border border-border bg-surface px-3 py-2 text-xs text-text-primary transition hover:bg-elevated"
+                onClick={() => seekTo(clip.startMs + clip.durationMs)}
+              >
+                Playhead To Out
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="mt-4 rounded-xl border border-border bg-canvas p-3">
+            <p className="text-xs text-text-muted">Transitions</p>
+            <div className="mt-3 grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-[11px] text-text-muted">
+                  In Type
+                  <select
+                    id="timeline-transition-in-type"
+                    data-testid="timeline-transition-in-type-select"
+                    className="mt-1 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text-primary"
+                    value={clip.transitionIn?.type ?? ''}
+                    onChange={(event) =>
+                      setTimelineClipTransition(
+                        clip.id,
+                        'in',
+                        event.target.value
+                          ? {
+                              type: event.target.value as TimelineTransitionType,
+                              durationMs: clip.transitionIn?.durationMs ?? 300,
+                            }
+                          : null,
+                      )
+                    }
+                  >
+                    <option value="">None</option>
+                    {TRANSITION_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <input
+                  id="timeline-transition-in-duration"
+                  aria-label="Transition in duration"
+                  data-testid="timeline-transition-in-duration-input"
+                  type="number"
+                  min={50}
+                  step={50}
+                  className="mt-2 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text-primary"
+                  value={clip.transitionIn?.durationMs ?? 300}
                   onChange={(event) =>
                     setTimelineClipTransition(
                       clip.id,
                       'in',
-                      event.target.value
+                      clip.transitionIn
                         ? {
-                            type: event.target.value as TimelineTransitionType,
-                            durationMs: clip.transitionIn?.durationMs ?? 300,
+                            ...clip.transitionIn,
+                            durationMs: Number.parseInt(event.target.value || '300', 10),
                           }
-                        : null,
+                        : {
+                            type: 'fade',
+                            durationMs: Number.parseInt(event.target.value || '300', 10),
+                          },
                     )
                   }
-                >
-                  <option value="">None</option>
-                  {TRANSITION_OPTIONS.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <input
-                id="timeline-transition-in-duration"
-                aria-label="Transition in duration"
-                data-testid="timeline-transition-in-duration-input"
-                type="number"
-                min={50}
-                step={50}
-                className="mt-2 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text-primary"
-                value={clip.transitionIn?.durationMs ?? 300}
-                onChange={(event) =>
-                  setTimelineClipTransition(
-                    clip.id,
-                    'in',
-                    clip.transitionIn
-                      ? {
-                          ...clip.transitionIn,
-                          durationMs: Number.parseInt(event.target.value || '300', 10),
-                        }
-                      : {
-                          type: 'fade',
-                          durationMs: Number.parseInt(event.target.value || '300', 10),
-                        },
-                  )
-                }
-              />
-            </div>
-            <div>
-              <label className="block text-[11px] text-text-muted">
-                Out Type
-                <select
-                  id="timeline-transition-out-type"
-                  className="mt-1 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text-primary"
-                  value={clip.transitionOut?.type ?? ''}
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] text-text-muted">
+                  Out Type
+                  <select
+                    id="timeline-transition-out-type"
+                    className="mt-1 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text-primary"
+                    value={clip.transitionOut?.type ?? ''}
+                    onChange={(event) =>
+                      setTimelineClipTransition(
+                        clip.id,
+                        'out',
+                        event.target.value
+                          ? {
+                              type: event.target.value as TimelineTransitionType,
+                              durationMs: clip.transitionOut?.durationMs ?? 300,
+                            }
+                          : null,
+                      )
+                    }
+                  >
+                    <option value="">None</option>
+                    {TRANSITION_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <input
+                  id="timeline-transition-out-duration"
+                  aria-label="Transition out duration"
+                  type="number"
+                  min={50}
+                  step={50}
+                  className="mt-2 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text-primary"
+                  value={clip.transitionOut?.durationMs ?? 300}
                   onChange={(event) =>
                     setTimelineClipTransition(
                       clip.id,
                       'out',
-                      event.target.value
+                      clip.transitionOut
                         ? {
-                            type: event.target.value as TimelineTransitionType,
-                            durationMs: clip.transitionOut?.durationMs ?? 300,
+                            ...clip.transitionOut,
+                            durationMs: Number.parseInt(event.target.value || '300', 10),
                           }
-                        : null,
+                        : {
+                            type: 'fade',
+                            durationMs: Number.parseInt(event.target.value || '300', 10),
+                          },
                     )
                   }
-                >
-                  <option value="">None</option>
-                  {TRANSITION_OPTIONS.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <input
-                id="timeline-transition-out-duration"
-                aria-label="Transition out duration"
-                type="number"
-                min={50}
-                step={50}
-                className="mt-2 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text-primary"
-                value={clip.transitionOut?.durationMs ?? 300}
-                onChange={(event) =>
-                  setTimelineClipTransition(
-                    clip.id,
-                    'out',
-                    clip.transitionOut
-                      ? {
-                          ...clip.transitionOut,
-                          durationMs: Number.parseInt(event.target.value || '300', 10),
-                        }
-                      : {
-                          type: 'fade',
-                          durationMs: Number.parseInt(event.target.value || '300', 10),
-                        },
-                  )
-                }
-              />
+                />
+              </div>
             </div>
           </div>
-        </div>
+        )}
 
-        <div className="mt-4 rounded-xl border border-border bg-canvas p-3" data-testid="timeline-ai-actions">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <p className="text-xs text-text-muted">AI Clip Actions</p>
-              <p className="mt-1 text-sm text-text-primary">{lastRunLabel}</p>
-            </div>
-            {generationBinding ? (
-              <span className="rounded-full border border-border bg-surface px-2 py-1 text-[11px] uppercase tracking-[0.12em] text-text-muted">
-                {generationBinding.generationType}
-              </span>
-            ) : null}
-          </div>
-
-          {generationBinding ? (
-            <>
-              <div className="mt-3 rounded-lg border border-border bg-surface px-3 py-3">
-                <p className="text-[11px] uppercase tracking-[0.12em] text-text-muted">Binding</p>
-                <p className="mt-2 text-sm text-text-primary">{generationBinding.model}</p>
-                <p className="mt-1 text-xs text-text-muted">
-                  {generationBinding.prompt.slice(0, 120) || 'No prompt recorded.'}
-                </p>
-                <p className="mt-2 text-[11px] text-text-muted">
-                  {generationBinding.referenceSetIds.length} reference set
-                  {generationBinding.referenceSetIds.length === 1 ? '' : 's'} / {generationBinding.variantIds.length}{' '}
-                  variant{generationBinding.variantIds.length === 1 ? '' : 's'}
-                </p>
+        {!isAudioClip ? (
+          <div className="mt-4 rounded-xl border border-border bg-canvas p-3" data-testid="timeline-ai-actions">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-xs text-text-muted">AI Clip Actions</p>
+                <p className="mt-1 text-sm text-text-primary">{lastRunLabel}</p>
               </div>
-
-              <div className="mt-3 grid grid-cols-1 gap-2">
-                <button
-                  type="button"
-                  data-testid="timeline-ai-regenerate"
-                  disabled={isAiBusy}
-                  className="inline-flex items-center justify-center gap-2 rounded-lg border border-border bg-surface px-3 py-2 text-xs text-text-primary transition hover:bg-elevated disabled:cursor-not-allowed disabled:opacity-50"
-                  onClick={() => void handleAiAction('regenerate')}
-                >
-                  <RefreshCcw className="h-3.5 w-3.5" />
-                  Regenerate In Place
-                </button>
-                <button
-                  type="button"
-                  data-testid="timeline-ai-variant"
-                  disabled={isAiBusy}
-                  className="inline-flex items-center justify-center gap-2 rounded-lg border border-border bg-surface px-3 py-2 text-xs text-text-primary transition hover:bg-elevated disabled:cursor-not-allowed disabled:opacity-50"
-                  onClick={() => void handleAiAction('variant')}
-                >
-                  <Sparkles className="h-3.5 w-3.5" />
-                  Create Variant
-                </button>
-                <button
-                  type="button"
-                  data-testid="timeline-ai-extend"
-                  disabled={!canExtendShot || isAiBusy}
-                  className="inline-flex items-center justify-center gap-2 rounded-lg border border-border bg-surface px-3 py-2 text-xs text-text-primary transition hover:bg-elevated disabled:cursor-not-allowed disabled:opacity-50"
-                  onClick={() => void handleAiAction('extend')}
-                >
-                  <Clapperboard className="h-3.5 w-3.5" />
-                  Extend Shot
-                </button>
-              </div>
-
-              {aiActionError ? (
-                <p className="mt-3 text-xs text-status-error">{aiActionError}</p>
+              {generationBinding ? (
+                <span className="rounded-full border border-border bg-surface px-2 py-1 text-[11px] uppercase tracking-[0.12em] text-text-muted">
+                  {generationBinding.generationType}
+                </span>
               ) : null}
-            </>
-          ) : (
-            <p className="mt-3 text-xs text-text-muted">
-              Generate from the main panel to create an AI-bound clip, then use regenerate, variant, and extend actions here.
-            </p>
-          )}
-        </div>
+            </div>
+
+            {generationBinding ? (
+              <>
+                <div className="mt-3 rounded-lg border border-border bg-surface px-3 py-3">
+                  <p className="text-[11px] uppercase tracking-[0.12em] text-text-muted">Binding</p>
+                  <p className="mt-2 text-sm text-text-primary">{generationBinding.model}</p>
+                  <p className="mt-1 text-xs text-text-muted">
+                    {generationBinding.prompt.slice(0, 120) || 'No prompt recorded.'}
+                  </p>
+                  <p className="mt-2 text-[11px] text-text-muted">
+                    {generationBinding.referenceSetIds.length} reference set
+                    {generationBinding.referenceSetIds.length === 1 ? '' : 's'} / {generationBinding.variantIds.length}{' '}
+                    variant{generationBinding.variantIds.length === 1 ? '' : 's'}
+                  </p>
+                </div>
+
+                <div className="mt-3 grid grid-cols-1 gap-2">
+                  <button
+                    type="button"
+                    data-testid="timeline-ai-regenerate"
+                    disabled={isAiBusy}
+                    className="inline-flex items-center justify-center gap-2 rounded-lg border border-border bg-surface px-3 py-2 text-xs text-text-primary transition hover:bg-elevated disabled:cursor-not-allowed disabled:opacity-50"
+                    onClick={() => void handleAiAction('regenerate')}
+                  >
+                    <RefreshCcw className="h-3.5 w-3.5" />
+                    Regenerate In Place
+                  </button>
+                  <button
+                    type="button"
+                    data-testid="timeline-ai-variant"
+                    disabled={isAiBusy}
+                    className="inline-flex items-center justify-center gap-2 rounded-lg border border-border bg-surface px-3 py-2 text-xs text-text-primary transition hover:bg-elevated disabled:cursor-not-allowed disabled:opacity-50"
+                    onClick={() => void handleAiAction('variant')}
+                  >
+                    <Sparkles className="h-3.5 w-3.5" />
+                    Create Variant
+                  </button>
+                  <button
+                    type="button"
+                    data-testid="timeline-ai-extend"
+                    disabled={!canExtendShot || isAiBusy}
+                    className="inline-flex items-center justify-center gap-2 rounded-lg border border-border bg-surface px-3 py-2 text-xs text-text-primary transition hover:bg-elevated disabled:cursor-not-allowed disabled:opacity-50"
+                    onClick={() => void handleAiAction('extend')}
+                  >
+                    <Clapperboard className="h-3.5 w-3.5" />
+                    Extend Shot
+                  </button>
+                </div>
+
+                {aiActionError ? (
+                  <p className="mt-3 text-xs text-status-error">{aiActionError}</p>
+                ) : null}
+              </>
+            ) : (
+              <p className="mt-3 text-xs text-text-muted">
+                Generate from the main panel to create an AI-bound clip, then use regenerate, variant, and extend actions here.
+              </p>
+            )}
+          </div>
+        ) : null}
 
         <div className="mt-4 rounded-xl border border-border bg-canvas p-3" data-testid="timeline-export-actions">
           <div className="flex items-start justify-between gap-3">

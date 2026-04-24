@@ -307,6 +307,18 @@ function normalizeTimelineClip(clip: Partial<TimelineClip> | undefined): Timelin
         : 0,
     transitionIn: clip.transitionIn ?? null,
     transitionOut: clip.transitionOut ?? null,
+    gain:
+      typeof clip.gain === 'number' && Number.isFinite(clip.gain)
+        ? Math.max(0, Math.min(2, clip.gain))
+        : 1,
+    fadeInMs:
+      typeof clip.fadeInMs === 'number' && Number.isFinite(clip.fadeInMs)
+        ? Math.max(0, Math.round(clip.fadeInMs))
+        : 0,
+    fadeOutMs:
+      typeof clip.fadeOutMs === 'number' && Number.isFinite(clip.fadeOutMs)
+        ? Math.max(0, Math.round(clip.fadeOutMs))
+        : 0,
     label: typeof clip.label === 'string' ? clip.label : 'Timeline Clip',
     posterUrl: typeof clip.posterUrl === 'string' ? clip.posterUrl : null,
     referenceSetIds: Array.isArray(clip.referenceSetIds)
@@ -327,6 +339,49 @@ function normalizeTimelineClip(clip: Partial<TimelineClip> | undefined): Timelin
     createdAt: typeof clip.createdAt === 'string' ? clip.createdAt : '',
     updatedAt: typeof clip.updatedAt === 'string' ? clip.updatedAt : '',
   };
+}
+
+function normalizeTimelineTrack(track: Partial<TimelineTrack> | undefined): TimelineTrack | null {
+  if (
+    !track ||
+    typeof track.id !== 'string' ||
+    track.id.length === 0 ||
+    typeof track.sequenceId !== 'string' ||
+    track.sequenceId.length === 0
+  ) {
+    return null;
+  }
+
+  return {
+    id: track.id,
+    sequenceId: track.sequenceId,
+    kind:
+      track.kind === 'video' || track.kind === 'image' || track.kind === 'audio' || track.kind === 'overlay'
+        ? track.kind
+        : 'video',
+    name: typeof track.name === 'string' && track.name.length > 0 ? track.name : 'Timeline Track',
+    clipIds: Array.isArray(track.clipIds)
+      ? track.clipIds.filter((value): value is string => typeof value === 'string')
+      : [],
+    orderIndex:
+      typeof track.orderIndex === 'number' && Number.isFinite(track.orderIndex)
+        ? Math.max(0, Math.round(track.orderIndex))
+        : 0,
+    locked: track.locked === true,
+    muted: track.muted === true,
+    solo: track.solo === true,
+    hidden: track.hidden === true,
+  };
+}
+
+function normalizeTimelineTracks(timelineTracks: TimelineTrack[] | undefined): TimelineTrack[] {
+  if (!Array.isArray(timelineTracks)) {
+    return [];
+  }
+
+  return timelineTracks
+    .map((track) => normalizeTimelineTrack(track))
+    .filter((track): track is TimelineTrack => Boolean(track));
 }
 
 function normalizeTimelineClips(timelineClips: TimelineClip[] | undefined): TimelineClip[] {
@@ -748,6 +803,11 @@ export const useAppStore = create<AppState>()(
             Array.isArray((persisted as Partial<AppState>).timelineClips)
               ? ((persisted as Partial<AppState>).timelineClips as TimelineClip[])
               : currentState.timelineClips,
+          ),
+          timelineTracks: normalizeTimelineTracks(
+            Array.isArray((persisted as Partial<AppState>).timelineTracks)
+              ? ((persisted as Partial<AppState>).timelineTracks as TimelineTrack[])
+              : currentState.timelineTracks,
           ),
           activeStoryboardImportDraftId:
             typeof (persisted as Partial<AppState>).activeStoryboardImportDraftId === 'string' &&

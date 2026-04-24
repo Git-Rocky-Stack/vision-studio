@@ -2,6 +2,7 @@ import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useShallow } from 'zustand/react/shallow';
 import {
+  AudioLines,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
@@ -49,6 +50,7 @@ const MAX_ZOOM = 4;
 const ZOOM_STEP = 0.5;
 const DEFAULT_IMAGE_CLIP_DURATION_MS = 2000;
 const DEFAULT_VIDEO_CLIP_DURATION_MS = 5000;
+const DEFAULT_AUDIO_CLIP_DURATION_MS = 5000;
 const TIMELINE_ACTION_BUTTON_CLASS =
   'inline-flex flex-none items-center gap-1 whitespace-nowrap rounded-md border border-border bg-surface px-2 py-1 text-[11px] font-display text-text-primary transition hover:bg-canvas disabled:cursor-not-allowed disabled:text-text-muted disabled:opacity-60';
 const TIMELINE_ACTION_SELECT_CLASS =
@@ -77,11 +79,25 @@ function formatSecondsLabel(timeMs: number) {
 }
 
 function getTrackKindForMediaAsset(asset: MediaAsset) {
-  return asset.type === 'video' ? 'video' : 'image';
+  if (asset.type === 'video') {
+    return 'video';
+  }
+
+  if (asset.type === 'audio') {
+    return 'audio';
+  }
+
+  return 'image';
 }
 
 function getClipDurationForAsset(asset: MediaAsset) {
-  return asset.durationMs ?? (asset.type === 'video' ? DEFAULT_VIDEO_CLIP_DURATION_MS : DEFAULT_IMAGE_CLIP_DURATION_MS);
+  return asset.durationMs ?? (
+    asset.type === 'video'
+      ? DEFAULT_VIDEO_CLIP_DURATION_MS
+      : asset.type === 'audio'
+        ? DEFAULT_AUDIO_CLIP_DURATION_MS
+        : DEFAULT_IMAGE_CLIP_DURATION_MS
+  );
 }
 
 function isStoryboardPlaceholderAsset(asset: MediaAsset | null | undefined) {
@@ -314,6 +330,7 @@ const TrackHeader = memo(function TrackHeader({
   isSelected,
   onSelect,
   onToggleMute,
+  onToggleSolo,
   onToggleHidden,
   onToggleLocked,
 }: {
@@ -322,10 +339,11 @@ const TrackHeader = memo(function TrackHeader({
   isSelected: boolean;
   onSelect: () => void;
   onToggleMute: () => void;
+  onToggleSolo: () => void;
   onToggleHidden: () => void;
   onToggleLocked: () => void;
 }) {
-  const TrackIcon = track.kind === 'video' ? Film : ImageIcon;
+  const TrackIcon = track.kind === 'video' ? Film : track.kind === 'audio' ? AudioLines : ImageIcon;
 
   return (
     <div
@@ -354,7 +372,7 @@ const TrackHeader = memo(function TrackHeader({
         </p>
       </div>
       <div className="flex items-center gap-1">
-        {track.kind === 'video' ? (
+        {track.kind === 'video' || track.kind === 'audio' ? (
           <button
             type="button"
             onClick={(event) => {
@@ -365,6 +383,24 @@ const TrackHeader = memo(function TrackHeader({
             aria-label={track.muted ? 'Unmute track' : 'Mute track'}
           >
             {track.muted ? <VolumeX className="h-3.5 w-3.5" /> : <Volume2 className="h-3.5 w-3.5" />}
+          </button>
+        ) : null}
+        {track.kind === 'audio' ? (
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              onToggleSolo();
+            }}
+            className={cn(
+              'rounded px-1.5 py-1 text-[10px] font-display uppercase tracking-[0.12em] transition',
+              track.solo
+                ? 'bg-accent-primary-muted text-accent-primary'
+                : 'text-text-muted hover:bg-canvas hover:text-text-primary',
+            )}
+            aria-label={track.solo ? 'Disable solo track' : 'Solo track'}
+          >
+            S
           </button>
         ) : null}
         <button
@@ -414,10 +450,17 @@ const TimelineClipBlock = memo(function TimelineClipBlock({
   const leftPct = (clip.startMs / totalDurationMs) * 100;
   const widthPct = Math.max(2, (clip.durationMs / totalDurationMs) * 100);
   const baseColor = mediaAsset?.type === 'video' ? 'var(--color-category-youtube)' : 'var(--color-category-art)';
-  const backgroundImage = mediaAsset?.posterUrl || mediaAsset?.thumbnailUrl || mediaAsset?.previewUrl || null;
+  const backgroundImage =
+    mediaAsset?.type === 'audio'
+      ? null
+      : mediaAsset?.posterUrl || mediaAsset?.thumbnailUrl || mediaAsset?.previewUrl || null;
   const beatMarkers = clip.storyboardBeatMarkers
     .filter((marker) => marker.relativeStartMs >= 0 && marker.relativeStartMs <= clip.durationMs)
     .sort((left, right) => left.relativeStartMs - right.relativeStartMs);
+  const waveformBars = mediaAsset?.waveformSummary?.length
+    ? mediaAsset.waveformSummary
+    : [0.28, 0.52, 0.74, 0.43, 0.66, 0.34, 0.8, 0.58, 0.41, 0.7, 0.49, 0.61];
+  const audioGainLabel = `${Math.round(clip.gain * 100)}%`;
 
   return (
     <button
@@ -493,6 +536,17 @@ const TimelineClipBlock = memo(function TimelineClipBlock({
           })}
         </div>
       ) : null}
+      {mediaAsset?.type === 'audio' ? (
+        <div className="pointer-events-none absolute inset-x-3 top-3 bottom-5 flex items-end gap-1 opacity-80">
+          {waveformBars.map((value, index) => (
+            <span
+              key={`${clip.id}-wave-${index}`}
+              className="flex-1 rounded-full bg-text-primary/70"
+              style={{ height: `${Math.max(18, Math.min(100, value * 100))}%` }}
+            />
+          ))}
+        </div>
+      ) : null}
 
       <div className="relative flex h-full flex-col justify-between p-2.5">
         <div className="flex items-center justify-between gap-2">
@@ -517,7 +571,9 @@ const TimelineClipBlock = memo(function TimelineClipBlock({
           <span className="truncate">
             {clip.storyboardDerived
               ? (sceneName ?? 'Storyboard scene')
-              : `${clip.transitionIn ? clip.transitionIn.type : 'cut'} / ${clip.transitionOut ? clip.transitionOut.type : 'cut'}`}
+              : mediaAsset?.type === 'audio'
+                ? `Gain ${audioGainLabel} / Fade ${formatSecondsLabel(clip.fadeInMs)}`
+                : `${clip.transitionIn ? clip.transitionIn.type : 'cut'} / ${clip.transitionOut ? clip.transitionOut.type : 'cut'}`}
           </span>
           <span className="font-mono">{formatSecondsLabel(clip.durationMs)}</span>
         </div>
@@ -723,7 +779,12 @@ export const Timeline = memo(function Timeline() {
 
       return createTimelineTrack(activeSequence.id, {
         kind: targetKind,
-        name: targetKind === 'video' ? `Video ${sequenceTracks.length + 1}` : `Image ${sequenceTracks.length + 1}`,
+        name:
+          targetKind === 'video'
+            ? `Video ${sequenceTracks.length + 1}`
+            : targetKind === 'audio'
+              ? `Audio ${sequenceTracks.length + 1}`
+              : `Image ${sequenceTracks.length + 1}`,
       });
     },
     [activeSequence, createTimelineTrack, sequenceTracks],
@@ -776,7 +837,12 @@ export const Timeline = memo(function Timeline() {
     const targetKind = selectedMediaAsset ? getTrackKindForMediaAsset(selectedMediaAsset) : 'video';
     createTimelineTrack(activeSequence.id, {
       kind: targetKind,
-      name: targetKind === 'video' ? `Video ${sequenceTracks.length + 1}` : `Image ${sequenceTracks.length + 1}`,
+      name:
+        targetKind === 'video'
+          ? `Video ${sequenceTracks.length + 1}`
+          : targetKind === 'audio'
+            ? `Audio ${sequenceTracks.length + 1}`
+            : `Image ${sequenceTracks.length + 1}`,
     });
   }, [activeSequence, createTimelineTrack, selectedMediaAsset, sequenceTracks.length]);
 
@@ -1229,6 +1295,7 @@ export const Timeline = memo(function Timeline() {
                     setActiveTimelineClip(clipsByTrackId.get(track.id)?.[0]?.id ?? null);
                   }}
                   onToggleMute={() => updateTimelineTrack(track.id, { muted: !track.muted })}
+                  onToggleSolo={() => updateTimelineTrack(track.id, { solo: !track.solo })}
                   onToggleHidden={() => updateTimelineTrack(track.id, { hidden: !track.hidden })}
                   onToggleLocked={() => updateTimelineTrack(track.id, { locked: !track.locked })}
                 />

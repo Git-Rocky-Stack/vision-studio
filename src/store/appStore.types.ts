@@ -555,6 +555,7 @@ export interface AppState {
       name?: string;
       locked?: boolean;
       muted?: boolean;
+      solo?: boolean;
       hidden?: boolean;
     },
   ) => TimelineTrack | null;
@@ -573,6 +574,9 @@ export interface AppState {
     sourceOutMs?: number;
     transitionIn?: TimelineTransition | null;
     transitionOut?: TimelineTransition | null;
+    gain?: number;
+    fadeInMs?: number;
+    fadeOutMs?: number;
     label?: string;
     posterUrl?: string | null;
     referenceSetIds?: string[];

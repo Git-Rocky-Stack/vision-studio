@@ -98,6 +98,48 @@ function seedTimelineFixture() {
   return { sequence, clip, altTrack, scene };
 }
 
+function seedAudioTimelineFixture() {
+  const state = useAppStore.getState();
+  const project = state.createProject('Timeline Audio Inspector');
+  state.setActiveProject(project.id);
+  const sequence = state.ensureTimelineSequenceForProject(project.id)!;
+  state.setActiveTimelineSequence(sequence.id);
+  const audioTrack = state.createTimelineTrack(sequence.id, { kind: 'audio', name: 'Music Bed' })!;
+
+  state.upsertMediaAsset({
+    id: 'media-audio',
+    name: 'Ambient Bed',
+    type: 'audio',
+    source: 'imported',
+    path: '/imports/ambient.wav',
+    previewUrl: 'file:///imports/ambient.wav',
+    thumbnailUrl: 'data:image/svg+xml;base64,audio',
+    posterUrl: null,
+    durationMs: 5000,
+    waveformSummary: [0.22, 0.48, 0.76, 0.61, 0.37, 0.55, 0.69, 0.44],
+    metadata: {},
+    createdAt: '2026-04-24T00:00:00.000Z',
+  });
+
+  const clip = state.createTimelineClip({
+    trackId: audioTrack.id,
+    mediaAssetId: 'media-audio',
+    startMs: 500,
+    durationMs: 2500,
+    sourceInMs: 100,
+    sourceOutMs: 2600,
+    gain: 1,
+    fadeInMs: 0,
+    fadeOutMs: 0,
+    label: 'Ambient Bed Clip',
+  })!;
+
+  state.setActiveTimelineClip(clip.id);
+  state.seekTo(1400);
+
+  return { clip };
+}
+
 describe('TimelineClipInspector', () => {
   beforeEach(resetStore);
   afterEach(cleanup);
@@ -200,5 +242,32 @@ describe('TimelineClipInspector', () => {
 
     await user.click(screen.getByTestId('timeline-inspector-export'));
     expect(onOpenExportDialog).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows audio-specific controls and updates gain fades and playhead actions', async () => {
+    const user = userEvent.setup();
+    const { clip } = seedAudioTimelineFixture();
+
+    render(<TimelineClipInspector />);
+
+    expect(screen.getByTestId('timeline-audio-controls')).toBeInTheDocument();
+    expect(screen.queryByTestId('timeline-ai-actions')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('timeline-transition-in-type-select')).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByTestId('timeline-audio-gain-input'), { target: { value: '140' } });
+    fireEvent.change(screen.getByTestId('timeline-audio-fade-in-input'), { target: { value: '250' } });
+    fireEvent.change(screen.getByTestId('timeline-audio-fade-out-input'), { target: { value: '600' } });
+
+    let updatedClip = useAppStore.getState().timelineClips.find((item) => item.id === clip.id);
+    expect(updatedClip?.gain).toBe(1.4);
+    expect(updatedClip?.fadeInMs).toBe(250);
+    expect(updatedClip?.fadeOutMs).toBe(600);
+
+    await user.click(screen.getByRole('button', { name: 'Playhead To In' }));
+    expect(useAppStore.getState().currentTime).toBe(500);
+
+    await user.click(screen.getByRole('button', { name: 'Playhead To Out' }));
+    updatedClip = useAppStore.getState().timelineClips.find((item) => item.id === clip.id);
+    expect(useAppStore.getState().currentTime).toBe(updatedClip!.startMs + updatedClip!.durationMs);
   });
 });
