@@ -277,14 +277,24 @@ FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.`);
       log('  ✅ Created LICENSE.txt', 'green');
     }
     
-    // Check for icon
+    // Ensure the Windows icon is regenerated from the canonical PNG source when needed
+    const iconSourcePath = path.join(ROOT_DIR, 'icons', 'vision.png');
     const iconPath = path.join(BUILD_DIR, 'icon.ico');
-    if (!fs.existsSync(iconPath)) {
+    const createIconScript = path.join(ROOT_DIR, 'scripts', 'create-icon.ps1');
+    if (fs.existsSync(iconSourcePath)) {
+      const shouldRegenerate =
+        !fs.existsSync(iconPath) ||
+        fs.statSync(iconSourcePath).mtimeMs > fs.statSync(iconPath).mtimeMs;
+
+      if (shouldRegenerate) {
+        log('  Regenerating build/icon.ico from icons/vision.png...', 'cyan');
+        exec(`powershell -ExecutionPolicy Bypass -File "${createIconScript}" -SourcePath "${iconSourcePath}" -OutputPath "${iconPath}"`, { cwd: ROOT_DIR });
+      } else {
+        log('  ⏩ App icon already matches icons/vision.png', 'yellow');
+      }
+    } else if (!fs.existsSync(iconPath)) {
       log('  ⚠️  Icon not found at build/icon.ico', 'yellow');
-      log('  Create a 256x256 icon and save as build/icon.ico', 'yellow');
-      
-      // Create placeholder
-      log('  Creating placeholder icon (replace before distribution)...', 'cyan');
+      log('  Create a source icon at icons/vision.png or save an ICO at build/icon.ico', 'yellow');
     }
     
     log('  ✅ Resources prepared\n', 'green');
