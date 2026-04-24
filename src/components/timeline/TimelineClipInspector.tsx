@@ -12,6 +12,7 @@ import {
 
 import { useAppStore } from '@/store/appStore';
 import { cn } from '@/utils/cn';
+import type { MediaAsset } from '@/types/media';
 import type { TimelineTransitionType } from '@/types/timeline';
 import { runTimelineClipGeneration } from '@/features/timeline/runTimelineClipGeneration';
 
@@ -37,6 +38,10 @@ function parseSeconds(value: string, fallbackMs: number) {
   return Math.max(0, Math.round(parsed * 1000));
 }
 
+function isStoryboardPlaceholderAsset(asset: MediaAsset | null | undefined) {
+  return asset?.metadata?.storyboardPlaceholder === true;
+}
+
 interface TimelineClipInspectorProps {
   className?: string;
   onOpenExportDialog?: () => void;
@@ -53,6 +58,7 @@ export function TimelineClipInspector({
   const {
     activeTimelineClipId,
     activeTimelineSequenceId,
+    projects,
     timelineClips,
     timelineTracks,
     timelineSequences,
@@ -70,6 +76,7 @@ export function TimelineClipInspector({
     useShallow((state) => ({
       activeTimelineClipId: state.activeTimelineClipId,
       activeTimelineSequenceId: state.activeTimelineSequenceId,
+      projects: state.projects,
       timelineClips: state.timelineClips,
       timelineTracks: state.timelineTracks,
       timelineSequences: state.timelineSequences,
@@ -103,6 +110,21 @@ export function TimelineClipInspector({
   const generationBinding = clip?.generationBindingId
     ? clipGenerationBindings.find((item) => item.id === clip.generationBindingId) ?? null
     : null;
+  const project = useMemo(
+    () => (sequence ? projects.find((item) => item.id === sequence.projectId) ?? null : null),
+    [projects, sequence],
+  );
+  const sourceScene = useMemo(
+    () => (project && clip?.sceneId ? project.scenes.find((item) => item.id === clip.sceneId) ?? null : null),
+    [clip?.sceneId, project],
+  );
+  const storyboardBeatMarkers = useMemo(
+    () =>
+      [...(clip?.storyboardBeatMarkers ?? [])].sort(
+        (left, right) => left.relativeStartMs - right.relativeStartMs,
+      ),
+    [clip?.storyboardBeatMarkers],
+  );
   const sequenceTracks = useMemo(
     () =>
       sequence
@@ -135,6 +157,7 @@ export function TimelineClipInspector({
   const isAiBusy =
     generationBinding?.lastRunSummary?.status === 'queued' ||
     generationBinding?.lastRunSummary?.status === 'running';
+  const isStoryboardPlaceholder = isStoryboardPlaceholderAsset(mediaAsset);
   const lastRunLabel =
     generationBinding?.lastRunSummary?.status === 'complete'
       ? 'Last run complete'
@@ -178,6 +201,67 @@ export function TimelineClipInspector({
             {mediaAsset?.type ?? track.kind}
           </span>
         </div>
+
+        {clip.storyboardDerived ? (
+          <div
+            className="mt-4 rounded-xl border border-border bg-canvas p-3"
+            data-testid="timeline-inspector-storyboard-context"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-xs text-text-muted">Storyboard Context</p>
+                <p className="mt-1 text-sm text-text-primary">
+                  {sourceScene?.name ?? 'Derived storyboard scene'}
+                </p>
+              </div>
+              <span className="rounded-full border border-border bg-surface px-2 py-1 text-[11px] uppercase tracking-[0.12em] text-text-muted">
+                Derived
+              </span>
+            </div>
+
+            {isStoryboardPlaceholder ? (
+              <p
+                className="mt-3 rounded-lg border border-status-warning-border bg-status-warning-muted px-3 py-2 text-xs text-status-warning"
+                data-testid="timeline-inspector-placeholder"
+              >
+                This clip is still using storyboard placeholder media. Generate or attach a source asset to replace it.
+              </p>
+            ) : null}
+
+            {storyboardBeatMarkers.length > 0 ? (
+              <div className="mt-3 space-y-2">
+                {storyboardBeatMarkers.map((marker) => (
+                  <div
+                    key={marker.id}
+                    className="rounded-lg border border-border bg-surface px-3 py-2"
+                    data-testid={`timeline-inspector-beat-${marker.id}`}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm text-text-primary">{marker.label}</p>
+                        {marker.notes ? (
+                          <p className="mt-1 line-clamp-2 text-xs text-text-muted">{marker.notes}</p>
+                        ) : null}
+                      </div>
+                      <div className="text-right">
+                        <p className="font-mono text-xs text-text-primary">
+                          {formatSeconds(marker.relativeStartMs)}s
+                        </p>
+                        <p className="mt-1 text-[11px] text-text-muted">
+                          {marker.durationMs ? `${formatSeconds(marker.durationMs)}s beat` : 'Open beat'}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="mt-3 text-xs text-text-muted">
+                No preserved shot beats were attached to this storyboard-derived clip.
+              </p>
+            )}
+          </div>
+        ) : null}
 
         <div className="mt-4 space-y-3">
           <label htmlFor="timeline-clip-label" className="block text-xs text-text-muted">

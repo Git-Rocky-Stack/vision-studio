@@ -12,8 +12,35 @@ function resetStore() {
 function seedTimelineFixture() {
   const state = useAppStore.getState();
   const project = state.createProject('Timeline Inspector');
+  state.setActiveProject(project.id);
   const sequence = state.ensureTimelineSequenceForProject(project.id)!;
+  state.setActiveTimelineSequence(sequence.id);
   const altTrack = state.createTimelineTrack(sequence.id, { kind: 'video', name: 'Alt Track' })!;
+  const scene = state.addScene(project.id, {
+    name: 'Opening Scene',
+    shotBeats: [
+      {
+        id: 'beat-1',
+        orderIndex: 0,
+        summary: 'Wide establish',
+        promptSeed: 'wide city street',
+        notes: 'Begin with a slow push in.',
+        durationMs: 800,
+        elementIds: [],
+        metadata: {},
+      },
+      {
+        id: 'beat-2',
+        orderIndex: 1,
+        summary: 'Hero reveal',
+        promptSeed: 'hero enters frame',
+        notes: '',
+        durationMs: 1200,
+        elementIds: [],
+        metadata: {},
+      },
+    ],
+  });
 
   state.upsertMediaAsset({
     id: 'media-video',
@@ -34,16 +61,41 @@ function seedTimelineFixture() {
   const clip = state.createTimelineClip({
     trackId: primaryTrack.id,
     mediaAssetId: 'media-video',
+    sceneId: scene.id,
     startMs: 0,
     durationMs: 2000,
     label: 'Opening Shot',
     posterUrl: '/outputs/hero.jpg',
+    storyboardDerived: true,
+    storyboardDerivedAt: '2026-04-23T00:00:00.000Z',
+    storyboardBeatMarkers: [
+      {
+        id: 'marker-1',
+        sourceBeatId: 'beat-1',
+        label: 'Wide establish',
+        promptSeed: 'wide city street',
+        notes: 'Begin with a slow push in.',
+        relativeStartMs: 0,
+        durationMs: 800,
+        elementIds: [],
+      },
+      {
+        id: 'marker-2',
+        sourceBeatId: 'beat-2',
+        label: 'Hero reveal',
+        promptSeed: 'hero enters frame',
+        notes: '',
+        relativeStartMs: 800,
+        durationMs: 1200,
+        elementIds: [],
+      },
+    ],
   })!;
 
   state.setActiveTimelineClip(clip.id);
   state.seekTo(1000);
 
-  return { sequence, clip, altTrack };
+  return { sequence, clip, altTrack, scene };
 }
 
 describe('TimelineClipInspector', () => {
@@ -78,6 +130,45 @@ describe('TimelineClipInspector', () => {
 
     const updatedClip = useAppStore.getState().timelineClips.find((item) => item.id === clip.id);
     expect(updatedClip?.transitionIn).toEqual({ type: 'fade', durationMs: 600 });
+  });
+
+  it('surfaces storyboard scene context and preserved beat markers', () => {
+    seedTimelineFixture();
+
+    render(<TimelineClipInspector />);
+
+    expect(screen.getByTestId('timeline-inspector-storyboard-context')).toBeInTheDocument();
+    expect(screen.getByText('Opening Scene')).toBeInTheDocument();
+    expect(screen.getByTestId('timeline-inspector-beat-marker-1')).toBeInTheDocument();
+    expect(screen.getByTestId('timeline-inspector-beat-marker-2')).toBeInTheDocument();
+    expect(screen.getByText('Wide establish')).toBeInTheDocument();
+    expect(screen.getByText('Hero reveal')).toBeInTheDocument();
+  });
+
+  it('flags storyboard placeholder media in the inspector', () => {
+    const { clip, scene } = seedTimelineFixture();
+    const state = useAppStore.getState();
+
+    state.upsertMediaAsset({
+      id: 'media-placeholder',
+      name: 'Opening Placeholder',
+      type: 'image',
+      source: 'derived',
+      path: 'data:image/svg+xml,<svg/>',
+      previewUrl: 'data:image/svg+xml,<svg/>',
+      thumbnailUrl: 'data:image/svg+xml,<svg/>',
+      posterUrl: 'data:image/svg+xml,<svg/>',
+      metadata: {
+        storyboardPlaceholder: true,
+        sceneId: scene.id,
+      },
+      createdAt: '2026-04-23T00:05:00.000Z',
+    });
+    state.updateTimelineClip(clip.id, { mediaAssetId: 'media-placeholder' });
+
+    render(<TimelineClipInspector />);
+
+    expect(screen.getByTestId('timeline-inspector-placeholder')).toBeInTheDocument();
   });
 
   it('splits and duplicates the selected clip from inspector actions', async () => {

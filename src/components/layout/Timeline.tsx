@@ -84,6 +84,10 @@ function getClipDurationForAsset(asset: MediaAsset) {
   return asset.durationMs ?? (asset.type === 'video' ? DEFAULT_VIDEO_CLIP_DURATION_MS : DEFAULT_IMAGE_CLIP_DURATION_MS);
 }
 
+function isStoryboardPlaceholderAsset(asset: MediaAsset | null | undefined) {
+  return asset?.metadata?.storyboardPlaceholder === true;
+}
+
 function buildTimelineTicks(totalDurationMs: number, zoom: number) {
   const stepMs =
     zoom >= 3 ? 250 : zoom >= 2 ? 500 : zoom >= 1.5 ? 1000 : 2000;
@@ -393,12 +397,16 @@ const TrackHeader = memo(function TrackHeader({
 const TimelineClipBlock = memo(function TimelineClipBlock({
   clip,
   mediaAsset,
+  sceneName,
+  isPlaceholder,
   totalDurationMs,
   selected,
   onSelect,
 }: {
   clip: TimelineClip;
   mediaAsset: MediaAsset | null;
+  sceneName?: string | null;
+  isPlaceholder?: boolean;
   totalDurationMs: number;
   selected: boolean;
   onSelect: () => void;
@@ -407,6 +415,9 @@ const TimelineClipBlock = memo(function TimelineClipBlock({
   const widthPct = Math.max(2, (clip.durationMs / totalDurationMs) * 100);
   const baseColor = mediaAsset?.type === 'video' ? 'var(--color-category-youtube)' : 'var(--color-category-art)';
   const backgroundImage = mediaAsset?.posterUrl || mediaAsset?.thumbnailUrl || mediaAsset?.previewUrl || null;
+  const beatMarkers = clip.storyboardBeatMarkers
+    .filter((marker) => marker.relativeStartMs >= 0 && marker.relativeStartMs <= clip.durationMs)
+    .sort((left, right) => left.relativeStartMs - right.relativeStartMs);
 
   return (
     <button
@@ -462,16 +473,51 @@ const TimelineClipBlock = memo(function TimelineClipBlock({
         />
       ) : null}
 
-      <div className="relative flex h-full flex-col justify-between p-3">
+      {clip.storyboardDerived && beatMarkers.length > 0 ? (
+        <div className="pointer-events-none absolute inset-x-2 bottom-1 h-2">
+          {beatMarkers.map((marker) => {
+            const left = Math.max(
+              0,
+              Math.min(98, (marker.relativeStartMs / Math.max(clip.durationMs, 1)) * 100),
+            );
+
+            return (
+              <span
+                key={marker.id}
+                className="absolute bottom-0 h-2 w-px rounded-full bg-accent-primary/90 shadow-[0_0_0_1px_rgba(0,0,0,0.2)]"
+                style={{ left: `${left}%` }}
+                title={marker.label}
+                data-testid={`timeline-clip-beat-marker-${clip.id}-${marker.id}`}
+              />
+            );
+          })}
+        </div>
+      ) : null}
+
+      <div className="relative flex h-full flex-col justify-between p-2.5">
         <div className="flex items-center justify-between gap-2">
           <span className="truncate font-display text-sm text-text-primary">{clip.label}</span>
           <span className="rounded-full bg-canvas/80 px-2 py-0.5 text-[10px] uppercase tracking-[0.14em] text-text-muted">
             {mediaAsset?.type ?? 'clip'}
           </span>
         </div>
+        {clip.storyboardDerived ? (
+          <div className="flex min-w-0 items-center gap-1.5 text-[10px]">
+            <span className="rounded-full border border-border bg-canvas/80 px-1.5 py-0.5 uppercase tracking-[0.12em] text-text-muted">
+              Derived
+            </span>
+            {isPlaceholder ? (
+              <span className="rounded-full border border-status-warning-border bg-status-warning-muted px-1.5 py-0.5 uppercase tracking-[0.12em] text-status-warning">
+                Placeholder
+              </span>
+            ) : null}
+          </div>
+        ) : null}
         <div className="flex items-center justify-between gap-2 text-[11px] text-text-muted">
           <span className="truncate">
-            {clip.transitionIn ? clip.transitionIn.type : 'cut'} / {clip.transitionOut ? clip.transitionOut.type : 'cut'}
+            {clip.storyboardDerived
+              ? (sceneName ?? 'Storyboard scene')
+              : `${clip.transitionIn ? clip.transitionIn.type : 'cut'} / ${clip.transitionOut ? clip.transitionOut.type : 'cut'}`}
           </span>
           <span className="font-mono">{formatSecondsLabel(clip.durationMs)}</span>
         </div>
@@ -629,6 +675,10 @@ export const Timeline = memo(function Timeline() {
   }, [sequenceTracks, timelineClips]);
   const clipLookup = useMemo(() => new Map(timelineClips.map((clip) => [clip.id, clip])), [timelineClips]);
   const mediaLookup = useMemo(() => new Map(mediaAssets.map((asset) => [asset.id, asset])), [mediaAssets]);
+  const sceneLookup = useMemo(
+    () => new Map(storyboardScenes.map((scene) => [scene.id, scene])),
+    [storyboardScenes],
+  );
   const activeClip = activeTimelineClipId ? clipLookup.get(activeTimelineClipId) ?? null : null;
 
   useEffect(() => {
@@ -1275,19 +1325,26 @@ export const Timeline = memo(function Timeline() {
                             </div>
                           ) : (
                             <div className="relative h-full px-2">
-                              {clips.map((clip) => (
-                                <TimelineClipBlock
-                                  key={clip.id}
-                                  clip={clip}
-                                  mediaAsset={mediaLookup.get(clip.mediaAssetId) ?? null}
-                                  totalDurationMs={totalDurationMs}
-                                  selected={activeTimelineClipId === clip.id}
-                                  onSelect={() => {
-                                    setSelectedTrackId(track.id);
-                                    setActiveTimelineClip(clip.id);
-                                  }}
-                                />
-                              ))}
+                              {clips.map((clip) => {
+                                const mediaAsset = mediaLookup.get(clip.mediaAssetId) ?? null;
+                                const sourceScene = clip.sceneId ? sceneLookup.get(clip.sceneId) ?? null : null;
+
+                                return (
+                                  <TimelineClipBlock
+                                    key={clip.id}
+                                    clip={clip}
+                                    mediaAsset={mediaAsset}
+                                    sceneName={sourceScene?.name ?? null}
+                                    isPlaceholder={isStoryboardPlaceholderAsset(mediaAsset)}
+                                    totalDurationMs={totalDurationMs}
+                                    selected={activeTimelineClipId === clip.id}
+                                    onSelect={() => {
+                                      setSelectedTrackId(track.id);
+                                      setActiveTimelineClip(clip.id);
+                                    }}
+                                  />
+                                );
+                              })}
                             </div>
                           )}
                         </div>

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 import { Timeline } from './Timeline';
@@ -13,7 +13,9 @@ function resetStore() {
 function seedProjectAndMedia() {
   const state = useAppStore.getState();
   const project = state.createProject('Timeline Board');
+  state.setActiveProject(project.id);
   const sequence = state.ensureTimelineSequenceForProject(project.id)!;
+  state.setActiveTimelineSequence(sequence.id);
 
   state.upsertMediaAsset({
     id: 'media-video',
@@ -249,6 +251,57 @@ describe('Timeline integration', () => {
     await user.click(screen.getByLabelText('Stop playback'));
     expect(useAppStore.getState().playState).toBe('stopped');
     expect(useAppStore.getState().currentTime).toBe(0);
+  });
+
+  it('shows storyboard-derived scene context and beat markers on timeline clips', () => {
+    const { project, sequence } = seedProjectAndMedia();
+    const state = useAppStore.getState();
+    const scene = state.addScene(project.id, {
+      name: 'Launch Scene',
+      shotBeats: [
+        {
+          id: 'beat-1',
+          orderIndex: 0,
+          summary: 'Product reveal',
+          promptSeed: 'product reveal',
+          notes: 'Push in to the hero frame.',
+          durationMs: 1000,
+          elementIds: [],
+          metadata: {},
+        },
+      ],
+    });
+    const primaryTrack = state.timelineTracks.find((track) => track.sequenceId === sequence.id)!;
+    const clip = state.createTimelineClip({
+      trackId: primaryTrack.id,
+      mediaAssetId: 'media-video',
+      sceneId: scene.id,
+      startMs: 0,
+      durationMs: 2000,
+      label: 'Launch Scene Clip',
+      posterUrl: '/outputs/launch.jpg',
+      storyboardDerived: true,
+      storyboardDerivedAt: '2026-04-23T00:00:00.000Z',
+      storyboardBeatMarkers: [
+        {
+          id: 'marker-1',
+          sourceBeatId: 'beat-1',
+          label: 'Product reveal',
+          promptSeed: 'product reveal',
+          notes: 'Push in to the hero frame.',
+          relativeStartMs: 400,
+          durationMs: 1000,
+          elementIds: [],
+        },
+      ],
+    })!;
+
+    render(<Timeline />);
+
+    const clipElement = screen.getByTestId(`timeline-clip-${clip.id}`);
+    expect(within(clipElement).getByText('Derived')).toBeInTheDocument();
+    expect(within(clipElement).getByText('Launch Scene')).toBeInTheDocument();
+    expect(screen.getByTestId(`timeline-clip-beat-marker-${clip.id}-marker-1`)).toBeInTheDocument();
   });
 
   it('uses the active play range for skip to start and skip to end', async () => {
