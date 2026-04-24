@@ -30,6 +30,7 @@ function createTrack(overrides: Partial<TimelineTrack> = {}): TimelineTrack {
     orderIndex: 0,
     locked: false,
     muted: false,
+    solo: false,
     hidden: false,
     ...overrides,
   };
@@ -47,6 +48,9 @@ function createClip(overrides: Partial<TimelineClip> = {}): TimelineClip {
     sourceOutMs: 2000,
     transitionIn: null,
     transitionOut: null,
+    gain: 1,
+    fadeInMs: 0,
+    fadeOutMs: 0,
     label: 'Clip',
     posterUrl: null,
     referenceSetIds: [],
@@ -356,5 +360,145 @@ describe('resolveSequenceComposition', () => {
         transitionType: 'wipe-left',
       }),
     ]);
+  });
+
+  it('resolves audible audio layers with trim, gain, and fades applied', () => {
+    const sequence = createSequence({
+      trackIds: ['track-audio'],
+    });
+    const track = createTrack({
+      id: 'track-audio',
+      kind: 'audio',
+      name: 'Music Bed',
+      clipIds: ['clip-audio'],
+    });
+    const clip = createClip({
+      id: 'clip-audio',
+      trackId: 'track-audio',
+      mediaAssetId: 'media-audio',
+      startMs: 1000,
+      durationMs: 2000,
+      sourceInMs: 400,
+      sourceOutMs: 2400,
+      gain: 1.5,
+      fadeInMs: 1000,
+      fadeOutMs: 500,
+    });
+    const mediaAsset = createMediaAsset({
+      id: 'media-audio',
+      type: 'audio',
+      path: 'C:/vision-studio/imports/music.wav',
+      previewUrl: 'file:///C:/vision-studio/imports/music.wav',
+      thumbnailUrl: 'data:image/svg+xml;base64,audio',
+      posterUrl: null,
+      durationMs: 5000,
+    });
+
+    const result = resolveSequenceComposition({
+      sequence,
+      tracks: [track],
+      clips: [clip],
+      mediaAssets: [mediaAsset],
+      timeMs: 1250,
+    });
+
+    expect(result.layers).toEqual([]);
+    expect(result.audioLayers).toEqual([
+      expect.objectContaining({
+        clipId: 'clip-audio',
+        mediaAssetId: 'media-audio',
+        sourceTimeMs: 650,
+        clipOffsetMs: 250,
+        gain: 0.375,
+      }),
+    ]);
+    expect(result.issues).toEqual([]);
+  });
+
+  it('honors track mute and solo rules for audio playback', () => {
+    const sequence = createSequence({
+      trackIds: ['track-solo', 'track-muted', 'track-background'],
+    });
+    const soloTrack = createTrack({
+      id: 'track-solo',
+      kind: 'audio',
+      name: 'Solo Stem',
+      clipIds: ['clip-solo'],
+      orderIndex: 0,
+      solo: true,
+    });
+    const mutedTrack = createTrack({
+      id: 'track-muted',
+      kind: 'audio',
+      name: 'Muted Stem',
+      clipIds: ['clip-muted'],
+      orderIndex: 1,
+      muted: true,
+    });
+    const backgroundTrack = createTrack({
+      id: 'track-background',
+      kind: 'audio',
+      name: 'Background Stem',
+      clipIds: ['clip-background'],
+      orderIndex: 2,
+    });
+    const clips = [
+      createClip({
+        id: 'clip-solo',
+        trackId: 'track-solo',
+        mediaAssetId: 'media-solo',
+      }),
+      createClip({
+        id: 'clip-muted',
+        trackId: 'track-muted',
+        mediaAssetId: 'media-muted',
+      }),
+      createClip({
+        id: 'clip-background',
+        trackId: 'track-background',
+        mediaAssetId: 'media-background',
+      }),
+    ];
+    const mediaAssets = [
+      createMediaAsset({
+        id: 'media-solo',
+        type: 'audio',
+        path: 'C:/vision-studio/imports/solo.wav',
+        previewUrl: 'file:///C:/vision-studio/imports/solo.wav',
+        thumbnailUrl: 'data:image/svg+xml;base64,audio',
+        posterUrl: null,
+      }),
+      createMediaAsset({
+        id: 'media-muted',
+        type: 'audio',
+        path: 'C:/vision-studio/imports/muted.wav',
+        previewUrl: 'file:///C:/vision-studio/imports/muted.wav',
+        thumbnailUrl: 'data:image/svg+xml;base64,audio',
+        posterUrl: null,
+      }),
+      createMediaAsset({
+        id: 'media-background',
+        type: 'audio',
+        path: 'C:/vision-studio/imports/background.wav',
+        previewUrl: 'file:///C:/vision-studio/imports/background.wav',
+        thumbnailUrl: 'data:image/svg+xml;base64,audio',
+        posterUrl: null,
+      }),
+    ];
+
+    const result = resolveSequenceComposition({
+      sequence,
+      tracks: [soloTrack, mutedTrack, backgroundTrack],
+      clips,
+      mediaAssets,
+      timeMs: 1500,
+    });
+
+    expect(result.audioLayers).toHaveLength(1);
+    expect(result.audioLayers[0]).toMatchObject({
+      clipId: 'clip-solo',
+      mediaAssetId: 'media-solo',
+      gain: 1,
+    });
   });
 });

@@ -1,5 +1,5 @@
 import { memo, useEffect, useMemo, useRef } from 'react';
-import { AlertTriangle, Film, ImageIcon, Repeat, TimerReset } from 'lucide-react';
+import { AlertTriangle, AudioLines, Film, ImageIcon, Repeat, TimerReset } from 'lucide-react';
 import { useShallow } from 'zustand/react/shallow';
 
 import { resolveSequenceComposition, resolveTimelinePlayRange } from '@/features/timeline/sequenceComposition';
@@ -110,6 +110,20 @@ export const TimelinePlaybackPreview = memo(function TimelinePlaybackPreview({
   );
   const effectiveFps = activeSequence?.fps ?? 24;
   const videoRefs = useRef<Record<string, HTMLVideoElement | null>>({});
+  const audioRefs = useRef<Record<string, HTMLAudioElement | null>>({});
+  const sequenceAudioClips = useMemo(() => {
+    const mediaAssetById = new Map(mediaAssets.map((asset) => [asset.id, asset]));
+    return sequenceClips
+      .map((clip) => {
+        const mediaAsset = mediaAssetById.get(clip.mediaAssetId);
+        return mediaAsset?.type === 'audio' ? { clip, mediaAsset } : null;
+      })
+      .filter((entry): entry is { clip: typeof sequenceClips[number]; mediaAsset: typeof mediaAssets[number] } => Boolean(entry));
+  }, [mediaAssets, sequenceClips]);
+  const soloAudioTrackCount = useMemo(
+    () => sequenceTracks.filter((track) => track.kind === 'audio' && track.solo && !track.muted).length,
+    [sequenceTracks],
+  );
 
   useEffect(() => {
     if (!frame) {
@@ -136,6 +150,50 @@ export const TimelinePlaybackPreview = memo(function TimelinePlaybackPreview({
       }
     }
   }, [frame]);
+
+  useEffect(() => {
+    const activeAudioLayers = new Map((frame?.audioLayers ?? []).map((layer) => [layer.clipId, layer]));
+
+    for (const [clipId, element] of Object.entries(audioRefs.current)) {
+      if (!element) {
+        continue;
+      }
+
+      const layer = activeAudioLayers.get(clipId);
+      if (!layer) {
+        element.pause();
+        continue;
+      }
+
+      const nextTimeSeconds = layer.sourceTimeMs / 1000;
+      if (Math.abs(element.currentTime - nextTimeSeconds) > 0.05) {
+        try {
+          element.currentTime = nextTimeSeconds;
+        } catch {
+          // Ignore seek errors while metadata is still loading.
+        }
+      }
+
+      element.volume = Math.max(0, Math.min(1, layer.gain));
+      element.muted = layer.gain <= 0;
+
+      if (playState === 'playing') {
+        void element.play().catch(() => {
+          // Ignore autoplay rejections in the preview surface.
+        });
+      } else {
+        element.pause();
+      }
+    }
+  }, [frame, playState]);
+
+  useEffect(() => {
+    return () => {
+      for (const element of Object.values(audioRefs.current)) {
+        element?.pause();
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (playState !== 'playing' || !activeSequence) {
@@ -239,6 +297,17 @@ export const TimelinePlaybackPreview = memo(function TimelinePlaybackPreview({
             <Repeat className={cn('h-3 w-3', timelineLoop ? 'text-accent-primary' : 'text-text-muted')} />
             {timelineLoop ? 'Loop on' : 'Loop off'}
           </span>
+          {sequenceAudioClips.length > 0 ? (
+            <span className="inline-flex items-center gap-1 rounded-full border border-border bg-surface px-2 py-1">
+              <AudioLines className="h-3 w-3" />
+              {frame?.audioLayers.length ?? 0} audio
+            </span>
+          ) : null}
+          {soloAudioTrackCount > 0 ? (
+            <span className="rounded-full border border-border bg-surface px-2 py-1">
+              Solo {soloAudioTrackCount}
+            </span>
+          ) : null}
           {frame?.transition.kind !== 'cut' ? (
             <span className="rounded-full border border-border bg-surface px-2 py-1">
               {frame?.transition.kind} {Math.round((frame?.transition.progress ?? 0) * 100)}%
@@ -305,6 +374,21 @@ export const TimelinePlaybackPreview = memo(function TimelinePlaybackPreview({
               ))}
             </div>
           </>
+        ) : frame && frame.audioLayers.length > 0 ? (
+          <div className="flex h-full items-center justify-center px-6 py-10">
+            <div className="max-w-md space-y-3 text-center">
+              <div className="mx-auto inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-border bg-surface text-text-primary">
+                <AudioLines className="h-5 w-5" />
+              </div>
+              <div>
+                <p className="font-display text-lg text-text-primary">Audio-only playback</p>
+                <p className="mt-2 text-sm text-text-muted">
+                  The active playhead is resolving {frame.audioLayers.length} audible audio layer
+                  {frame.audioLayers.length === 1 ? '' : 's'} with no visible program frame.
+                </p>
+              </div>
+            </div>
+          </div>
         ) : (
           <div className="flex h-full items-center justify-center px-6 py-10">
             <div className="max-w-md space-y-2 text-center">
@@ -327,6 +411,24 @@ export const TimelinePlaybackPreview = memo(function TimelinePlaybackPreview({
             </div>
           </div>
         ) : null}
+
+        <div className="hidden" aria-hidden="true">
+          {sequenceAudioClips.map(({ clip, mediaAsset }) => {
+            const resolvedSource = resolveMediaSourceUrl(mediaAsset.path);
+
+            return (
+              <audio
+                key={clip.id}
+                ref={(element) => {
+                  audioRefs.current[clip.id] = element;
+                }}
+                src={resolvedSource ?? undefined}
+                preload="auto"
+                data-testid={`timeline-playback-audio-${clip.id}`}
+              />
+            );
+          })}
+        </div>
       </div>
     </div>
   );

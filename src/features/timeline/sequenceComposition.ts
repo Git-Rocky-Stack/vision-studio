@@ -1,5 +1,6 @@
 import type { MediaAsset } from '@/types/media';
 import type {
+  TimelineCompositionAudioLayer,
   TimelineClip,
   TimelineCompositionFrame,
   TimelineCompositionIssue,
@@ -21,6 +22,9 @@ interface ResolveSequenceCompositionOptions {
 
 const SUPPORTED_VISUAL_TRACK_KINDS = new Set<TimelineTrack['kind']>(['image', 'video']);
 const SUPPORTED_TRANSITION_TYPES = new Set<TimelineTransition['type']>(['cut', 'fade', 'dissolve']);
+
+type VisualMediaAsset = MediaAsset & { type: 'image' | 'video' };
+type AudioMediaAsset = MediaAsset & { type: 'audio' };
 
 function clamp(value: number, min: number, max: number) {
   return Math.max(min, Math.min(max, value));
@@ -63,6 +67,7 @@ function createFrame(
     activeTrackId: null,
     primaryClipId: null,
     layers: [],
+    audioLayers: [],
     transition: buildCutTransition(null),
     issues,
   };
@@ -99,9 +104,17 @@ function findClipIndex(clips: TimelineClip[], clipId: string) {
   return clips.findIndex((clip) => clip.id === clipId);
 }
 
+function isVisualMediaAsset(mediaAsset: MediaAsset | undefined): mediaAsset is VisualMediaAsset {
+  return mediaAsset?.type === 'image' || mediaAsset?.type === 'video';
+}
+
+function isAudioMediaAsset(mediaAsset: MediaAsset | undefined): mediaAsset is AudioMediaAsset {
+  return mediaAsset?.type === 'audio';
+}
+
 function buildLayer(
   clip: TimelineClip,
-  mediaAsset: MediaAsset,
+  mediaAsset: VisualMediaAsset,
   trackId: string,
   resolvedTimeMs: number,
   opacity: number,
@@ -125,6 +138,39 @@ function buildLayer(
     sourceTimeMs,
     clipOffsetMs,
   };
+}
+
+function buildAudioLayer(
+  clip: TimelineClip,
+  mediaAsset: AudioMediaAsset,
+  trackId: string,
+  resolvedTimeMs: number,
+  gain: number,
+): TimelineCompositionAudioLayer {
+  const clipOffsetMs = clamp(resolvedTimeMs - clip.startMs, 0, clip.durationMs);
+  const lastSourceTimeMs = Math.max(clip.sourceInMs, clip.sourceOutMs - 1);
+  const unclampedSourceTimeMs = clip.sourceInMs + clipOffsetMs;
+
+  return {
+    clipId: clip.id,
+    mediaAssetId: mediaAsset.id,
+    trackId,
+    sourcePath: mediaAsset.path,
+    sourceTimeMs: clamp(unclampedSourceTimeMs, clip.sourceInMs, lastSourceTimeMs),
+    clipOffsetMs,
+    gain: clamp(gain, 0, 2),
+  };
+}
+
+function resolveAudioLayerGain(clip: TimelineClip, resolvedTimeMs: number) {
+  const clipOffsetMs = clamp(resolvedTimeMs - clip.startMs, 0, clip.durationMs);
+  const fadeInFactor =
+    clip.fadeInMs > 0 ? clamp(clipOffsetMs / clip.fadeInMs, 0, 1) : 1;
+  const remainingMs = Math.max(0, clip.durationMs - clipOffsetMs);
+  const fadeOutFactor =
+    clip.fadeOutMs > 0 ? clamp(remainingMs / clip.fadeOutMs, 0, 1) : 1;
+
+  return clamp(clip.gain * fadeInFactor * fadeOutFactor, 0, 2);
 }
 
 function resolveTransitionProgress(
@@ -191,13 +237,67 @@ export function resolveSequenceComposition({
   );
   const mediaAssetById = new Map(mediaAssets.map((asset) => [asset.id, asset]));
   const allowInclusiveEnd = clampedTimeMs === playRange.endMs;
+  const frame = createFrame(timeMs, clampedTimeMs, playRange, inPlayRange, issues);
   const activeVisualTracks: Array<{
     track: TimelineTrack;
     clip: TimelineClip;
     orderedTrackClips: TimelineClip[];
   }> = [];
+  const audioSoloTrackIds = new Set(
+    orderedTracks.filter((track) => track.kind === 'audio' && track.solo).map((track) => track.id),
+  );
 
   for (const track of orderedTracks) {
+    if (track.kind !== 'audio') {
+      continue;
+    }
+
+    const orderedTrackClips = clipsByTrackId.get(track.id) ?? [];
+    const activeClip = findActiveClip(orderedTrackClips, clampedTimeMs, allowInclusiveEnd);
+    if (!activeClip || track.muted) {
+      continue;
+    }
+
+    if (audioSoloTrackIds.size > 0 && !track.solo) {
+      continue;
+    }
+
+    const mediaAsset = mediaAssetById.get(activeClip.mediaAssetId);
+    if (!mediaAsset) {
+      frame.issues.push(
+        buildIssue(
+          'missing-media-asset',
+          'The active audio clip is missing its backing media asset.',
+          { clipId: activeClip.id, trackId: track.id },
+        ),
+      );
+      continue;
+    }
+
+    if (!isAudioMediaAsset(mediaAsset)) {
+      frame.issues.push(
+        buildIssue(
+          'unsupported-track-kind',
+          `Track "${track.name}" is not backed by audio media.`,
+          { clipId: activeClip.id, trackId: track.id },
+        ),
+      );
+      continue;
+    }
+
+    const gain = resolveAudioLayerGain(activeClip, clampedTimeMs);
+    if (gain <= 0) {
+      continue;
+    }
+
+    frame.audioLayers.push(buildAudioLayer(activeClip, mediaAsset, track.id, clampedTimeMs, gain));
+  }
+
+  for (const track of orderedTracks) {
+    if (track.kind === 'audio') {
+      continue;
+    }
+
     const orderedTrackClips = clipsByTrackId.get(track.id) ?? [];
     const activeClip = findActiveClip(orderedTrackClips, clampedTimeMs, allowInclusiveEnd);
     if (!activeClip || track.hidden || track.muted) {
@@ -223,17 +323,19 @@ export function resolveSequenceComposition({
   }
 
   if (activeVisualTracks.length === 0) {
-    issues.push(
-      buildIssue(
-        'no-active-clip',
-        'No visible clip is active at the requested playhead time.',
-      ),
-    );
-    return createFrame(timeMs, clampedTimeMs, playRange, inPlayRange, issues);
+    if (frame.audioLayers.length === 0) {
+      frame.issues.push(
+        buildIssue(
+          'no-active-clip',
+          'No visible clip is active at the requested playhead time.',
+        ),
+      );
+    }
+    return frame;
   }
 
   if (activeVisualTracks.length > 1) {
-    issues.push(
+    frame.issues.push(
       buildIssue(
         'multiple-active-tracks',
         'Multiple visual tracks overlap at the current playhead time; using the top track for program output.',
@@ -247,7 +349,6 @@ export function resolveSequenceComposition({
 
   const [{ track, clip, orderedTrackClips }] = activeVisualTracks;
   const primaryMediaAsset = mediaAssetById.get(clip.mediaAssetId);
-  const frame = createFrame(timeMs, clampedTimeMs, playRange, inPlayRange, issues);
   frame.activeTrackId = track.id;
   frame.primaryClipId = clip.id;
   frame.transition = buildCutTransition(clip.id);
@@ -257,6 +358,17 @@ export function resolveSequenceComposition({
       buildIssue(
         'missing-media-asset',
         'The active clip is missing its backing media asset.',
+        { clipId: clip.id, trackId: track.id },
+      ),
+    );
+    return frame;
+  }
+
+  if (!isVisualMediaAsset(primaryMediaAsset)) {
+    frame.issues.push(
+      buildIssue(
+        'unsupported-track-kind',
+        `Track "${track.name}" is not backed by visual media.`,
         { clipId: clip.id, trackId: track.id },
       ),
     );
@@ -386,6 +498,26 @@ export function resolveSequenceComposition({
         buildIssue(
           'transition-target-missing',
           'The adjacent transition clip is missing its media asset.',
+          { clipId: relatedClip.id, trackId: track.id, transitionType: transition.type },
+        ),
+      );
+      return frame;
+    }
+
+    if (!isVisualMediaAsset(relatedMediaAsset)) {
+      frame.transition = {
+        kind: 'unsupported',
+        edge,
+        progress,
+        durationMs: transition.durationMs,
+        type: transition.type,
+        fromClipId: edge === 'in' ? relatedClip.id : clip.id,
+        toClipId: edge === 'in' ? clip.id : relatedClip.id,
+      };
+      frame.issues.push(
+        buildIssue(
+          'unsupported-track-kind',
+          'The adjacent transition clip is not backed by visual media.',
           { clipId: relatedClip.id, trackId: track.id, transitionType: transition.type },
         ),
       );

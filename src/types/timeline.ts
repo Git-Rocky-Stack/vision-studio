@@ -222,6 +222,16 @@ export interface TimelineCompositionLayer {
   clipOffsetMs: number;
 }
 
+export interface TimelineCompositionAudioLayer {
+  clipId: string;
+  mediaAssetId: string;
+  trackId: string;
+  sourcePath: string;
+  sourceTimeMs: number;
+  clipOffsetMs: number;
+  gain: number;
+}
+
 export type TimelineCompositionTransitionKind = 'cut' | 'fade' | 'dissolve' | 'unsupported';
 
 export interface TimelineCompositionTransition {
@@ -242,6 +252,7 @@ export interface TimelineCompositionFrame {
   activeTrackId: string | null;
   primaryClipId: string | null;
   layers: TimelineCompositionLayer[];
+  audioLayers: TimelineCompositionAudioLayer[];
   transition: TimelineCompositionTransition;
   issues: TimelineCompositionIssue[];
 }
