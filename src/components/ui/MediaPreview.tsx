@@ -1,10 +1,10 @@
 import { useMemo, useState } from 'react';
-import { AlertCircle, Film, Play } from 'lucide-react';
+import { AlertCircle, AudioLines, Film, Play } from 'lucide-react';
 
 import { cn } from '@/utils/cn';
 import { ImageWithFallback } from '@/components/ui/ImageWithFallback';
 
-export type MediaPreviewKind = 'image' | 'video';
+export type MediaPreviewKind = 'image' | 'video' | 'audio';
 
 export function isLikelyVideoPath(path: string | null | undefined) {
   if (!path) {
@@ -86,6 +86,32 @@ export function MediaPreview({
           className={cn('h-full w-full', mediaClassName)}
           fallbackClassName={fallbackClassName}
         />
+      </div>
+    );
+  }
+
+  if (kind === 'audio') {
+    return (
+      <div
+        data-testid={testId}
+        className={cn('relative overflow-hidden bg-void', className)}
+      >
+        <div
+          className={cn(
+            'flex h-full w-full flex-col items-center justify-center gap-2 bg-elevated text-text-muted',
+            fallbackClassName,
+          )}
+        >
+          <AudioLines className="h-6 w-6 text-text-primary/80" aria-hidden="true" />
+          <span className="type-caption">Audio</span>
+        </div>
+
+        <div className="pointer-events-none absolute left-2 top-2 rounded-full border border-border bg-void/75 px-2 py-0.5 type-caption text-text-body backdrop-blur-sm">
+          <span className="inline-flex items-center gap-1">
+            <AudioLines className="h-3 w-3" aria-hidden="true" />
+            Audio
+          </span>
+        </div>
       </div>
     );
   }

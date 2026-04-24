@@ -52,6 +52,7 @@ describe('AssetsPanel import', () => {
     selectMediaFilesMock.mockResolvedValue([
       'C:/Users/User/Pictures/hero.png',
       'C:/Users/User/Videos/clip.mp4',
+      'C:/Users/User/Music/score.wav',
     ]);
     importFilesMock.mockResolvedValue({
       success: true,
@@ -70,6 +71,13 @@ describe('AssetsPanel import', () => {
           type: 'video',
           importedAt: '2026-04-22T12:01:00.000Z',
         },
+        {
+          originalPath: 'C:/Users/User/Music/score.wav',
+          importedPath: 'C:/vision-studio-output/imports/score.wav',
+          name: 'score',
+          type: 'audio',
+          importedAt: '2026-04-22T12:02:00.000Z',
+        },
       ],
     });
 
@@ -79,18 +87,20 @@ describe('AssetsPanel import', () => {
     await user.click(screen.getByRole('button', { name: 'Import' }));
 
     await waitFor(() => {
-      expect(useAppStore.getState().assetLibrary).toHaveLength(2);
-      expect(useAppStore.getState().mediaAssets).toHaveLength(2);
+      expect(useAppStore.getState().assetLibrary).toHaveLength(3);
+      expect(useAppStore.getState().mediaAssets).toHaveLength(3);
     });
 
     expect(selectMediaFilesMock).toHaveBeenCalledTimes(1);
     expect(importFilesMock).toHaveBeenCalledWith([
       'C:/Users/User/Pictures/hero.png',
       'C:/Users/User/Videos/clip.mp4',
+      'C:/Users/User/Music/score.wav',
     ]);
 
     const state = useAppStore.getState();
     expect(state.assetLibrary.map((asset) => asset.id)).toEqual([
+      'import::C:/vision-studio-output/imports/score.wav',
       'import::C:/vision-studio-output/imports/clip.mp4',
       'import::C:/vision-studio-output/imports/hero.png',
     ]);
@@ -101,6 +111,7 @@ describe('AssetsPanel import', () => {
     expect(state.mediaAssets.map((asset) => asset.id)).toEqual([
       'media::C:/vision-studio-output/imports/hero.png',
       'media::C:/vision-studio-output/imports/clip.mp4',
+      'media::C:/vision-studio-output/imports/score.wav',
     ]);
   });
 });

@@ -60,7 +60,7 @@ export interface ImportedAssetFile {
   originalPath: string;
   importedPath: string;
   name: string;
-  type: 'image' | 'video';
+  type: 'image' | 'video' | 'audio';
   importedAt: string;
 }
 

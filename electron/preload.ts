@@ -55,7 +55,7 @@ export interface ElectronAPI {
       originalPath: string;
       importedPath: string;
       name: string;
-      type: 'image' | 'video';
+      type: 'image' | 'video' | 'audio';
       importedAt: string;
     }>; error?: string }>;
     export: (sourcePath: string, destinationPath: string) => Promise<{ success: boolean; destinationPath?: string; error?: string }>;

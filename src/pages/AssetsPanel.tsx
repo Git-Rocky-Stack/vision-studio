@@ -25,13 +25,22 @@ import {
   X,
   ExternalLink,
   RefreshCw,
+  AudioLines,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 type ViewMode = 'grid' | 'list';
-type AssetType = 'all' | 'image' | 'video';
+type AssetType = 'all' | 'image' | 'video' | 'audio';
 
 function formatAssetMeta(asset: AssetRecord) {
+  if (asset.type === 'audio') {
+    if (typeof asset.duration === 'number' && Number.isFinite(asset.duration)) {
+      return `${asset.duration.toFixed(asset.duration >= 10 ? 0 : 1)}s audio`;
+    }
+
+    return 'Audio';
+  }
+
   if (asset.type === 'video') {
     const parts = [];
 
@@ -124,6 +133,10 @@ export function AssetsPanel() {
   };
 
   const handlePreview = async (asset: AssetRecord) => {
+    if (asset.type === 'audio') {
+      return;
+    }
+
     setActiveViewerItemId(`asset-${asset.id}`);
     setCenterView('viewer');
   };
@@ -185,9 +198,13 @@ export function AssetsPanel() {
           ? [
               { name: 'Image Files', extensions: ['png', 'jpg', 'jpeg', 'webp'] },
             ]
-          : [
+          : asset.type === 'video'
+            ? [
               { name: 'Video Files', extensions: ['mp4', 'webm', 'gif'] },
-            ],
+              ]
+            : [
+                { name: 'Audio Files', extensions: ['wav', 'mp3', 'm4a', 'flac'] },
+              ],
     });
 
     if (!destinationPath) {
@@ -268,7 +285,7 @@ export function AssetsPanel() {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <div className="flex items-center gap-1 bg-elevated rounded-lg p-1">
-              {(['all', 'image', 'video'] as AssetType[]).map((type) => (
+              {(['all', 'image', 'video', 'audio'] as AssetType[]).map((type) => (
                 <button
                   key={type}
                   onClick={() => setFilter(type)}
@@ -399,7 +416,7 @@ export function AssetsPanel() {
                       >
                         <MediaPreview
                           kind={asset.type}
-                          src={asset.type === 'video' ? asset.path : asset.previewUrl || asset.path}
+                          src={asset.type === 'image' ? asset.previewUrl || asset.path : asset.path}
                           poster={asset.thumbnail || asset.previewUrl || asset.path}
                           alt={asset.name}
                           className="h-full w-full"
@@ -455,16 +472,25 @@ export function AssetsPanel() {
                         >
                           <Star className={cn('w-3.5 h-3.5', asset.favorite && 'fill-status-warning text-status-warning')} />
                         </button>
-                        <button
-                          aria-label="Open in viewer"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handlePreview(asset);
-                          }}
-                          className="p-2 rounded bg-surface/80 text-text-body hover:text-text-primary hover:bg-surface transition-all focus-visible:opacity-100"
-                        >
-                          <ExternalLink className="w-3.5 h-3.5" />
-                        </button>
+                        {asset.type !== 'audio' ? (
+                          <button
+                            aria-label="Open in viewer"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handlePreview(asset);
+                            }}
+                            className="p-2 rounded bg-surface/80 text-text-body hover:text-text-primary hover:bg-surface transition-all focus-visible:opacity-100"
+                          >
+                            <ExternalLink className="w-3.5 h-3.5" />
+                          </button>
+                        ) : (
+                          <div
+                            aria-label="Audio asset"
+                            className="p-2 rounded bg-surface/80 text-text-body"
+                          >
+                            <AudioLines className="w-3.5 h-3.5" />
+                          </div>
+                        )}
                         {asset.type === 'video' ? (
                           <button
                             aria-label="Extract frame to edit"

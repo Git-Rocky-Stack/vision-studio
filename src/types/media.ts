@@ -1,4 +1,4 @@
-export type MediaAssetType = 'image' | 'video';
+export type MediaAssetType = 'image' | 'video' | 'audio';
 
 export type MediaAssetSource = 'generated' | 'imported' | 'derived';
 
@@ -19,6 +19,7 @@ export interface MediaAsset {
   height?: number;
   durationMs?: number;
   fps?: number;
+  waveformSummary?: number[];
   metadata: Record<string, unknown>;
   createdAt: string;
 }

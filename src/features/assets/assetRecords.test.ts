@@ -152,25 +152,73 @@ describe('upsertAssetsFromJobStatus', () => {
         type: 'video',
         importedAt: '2026-04-22T12:01:00.000Z',
       },
+      {
+        originalPath: 'C:/Users/User/Music/score.wav',
+        importedPath: 'C:/vision-studio-output/imports/score.wav',
+        name: 'score',
+        type: 'audio',
+        importedAt: '2026-04-22T12:02:00.000Z',
+      },
     ]);
 
-    expect(assets).toHaveLength(2);
+    expect(assets).toHaveLength(3);
     expect(assets[0]).toMatchObject({
-      id: 'import::C:/vision-studio-output/imports/clip.mp4',
-      type: 'video',
-      path: 'C:/vision-studio-output/imports/clip.mp4',
+      id: 'import::C:/vision-studio-output/imports/score.wav',
+      type: 'audio',
+      path: 'C:/vision-studio-output/imports/score.wav',
     });
     expect(assets[0].previewUrl).toContain('data:image/svg+xml');
     expect(assets[0].params).toMatchObject({
       source: 'imported',
+      original_path: 'C:/Users/User/Music/score.wav',
+      reference_ready: true,
+    });
+    expect(assets[0]).toMatchObject({
+      id: 'import::C:/vision-studio-output/imports/score.wav',
+      type: 'audio',
+      path: 'C:/vision-studio-output/imports/score.wav',
+    });
+    expect(assets[1]).toMatchObject({
+      id: 'import::C:/vision-studio-output/imports/clip.mp4',
+      type: 'video',
+      path: 'C:/vision-studio-output/imports/clip.mp4',
+    });
+    expect(assets[1].previewUrl).toContain('data:image/svg+xml');
+    expect(assets[1].params).toMatchObject({
+      source: 'imported',
       original_path: 'C:/Users/User/Videos/clip.mp4',
       reference_ready: true,
     });
-    expect(assets[1]).toMatchObject({
+    expect(assets[2]).toMatchObject({
       id: 'import::C:/vision-studio-output/imports/hero.png',
       type: 'image',
       path: 'C:/vision-studio-output/imports/hero.png',
       previewUrl: 'file:///C:/vision-studio-output/imports/hero.png',
+    });
+  });
+
+  it('creates an imported audio media asset with managed preview metadata', () => {
+    const mediaAsset = createMediaAssetFromImportedFile({
+      originalPath: 'C:/Users/User/Music/score.wav',
+      importedPath: 'C:/vision-studio-output/imports/score.wav',
+      name: 'score',
+      type: 'audio',
+      importedAt: '2026-04-22T12:02:00.000Z',
+    });
+
+    expect(mediaAsset).toMatchObject({
+      id: 'media::C:/vision-studio-output/imports/score.wav',
+      legacyAssetId: 'import::C:/vision-studio-output/imports/score.wav',
+      source: 'imported',
+      type: 'audio',
+      path: 'C:/vision-studio-output/imports/score.wav',
+      previewUrl: 'file:///C:/vision-studio-output/imports/score.wav',
+      posterUrl: null,
+    });
+    expect(mediaAsset.thumbnailUrl).toContain('data:image/svg+xml');
+    expect(mediaAsset.metadata).toMatchObject({
+      originalPath: 'C:/Users/User/Music/score.wav',
+      referenceReady: true,
     });
   });
 

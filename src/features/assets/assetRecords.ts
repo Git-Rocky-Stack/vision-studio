@@ -4,6 +4,7 @@ import type { MediaAsset } from '@/types/media';
 
 const BACKEND_ASSET_BASE_URL = 'http://localhost:8000';
 const LOCAL_VIDEO_PLACEHOLDER_LABEL = 'Video';
+const LOCAL_AUDIO_PLACEHOLDER_LABEL = 'Audio';
 
 function toNormalizedPath(assetPath: string) {
   return assetPath.replace(/\\/g, '/');
@@ -68,6 +69,31 @@ function buildVideoPlaceholderPreview(label: string = LOCAL_VIDEO_PLACEHOLDER_LA
   return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
 }
 
+function buildAudioPlaceholderPreview(label: string = LOCAL_AUDIO_PLACEHOLDER_LABEL) {
+  const safeLabel = label.slice(0, 28);
+  const svg = `
+    <svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+      <defs>
+        <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="#151821" />
+          <stop offset="100%" stop-color="#1d2630" />
+        </linearGradient>
+      </defs>
+      <rect width="512" height="512" rx="40" fill="url(#bg)" />
+      <rect x="92" y="124" width="328" height="264" rx="28" fill="#0f1218" stroke="#485267" stroke-width="8" />
+      <rect x="148" y="192" width="22" height="128" rx="11" fill="#f5f7fb" opacity="0.95" />
+      <rect x="196" y="162" width="22" height="188" rx="11" fill="#f5f7fb" opacity="0.95" />
+      <rect x="244" y="210" width="22" height="92" rx="11" fill="#f5f7fb" opacity="0.95" />
+      <rect x="292" y="176" width="22" height="160" rx="11" fill="#f5f7fb" opacity="0.95" />
+      <rect x="340" y="200" width="22" height="112" rx="11" fill="#f5f7fb" opacity="0.95" />
+      <text x="256" y="430" fill="#f5f7fb" font-size="32" font-family="Segoe UI, Arial, sans-serif" text-anchor="middle">AUDIO</text>
+      <text x="256" y="466" fill="#a5b0c5" font-size="20" font-family="Segoe UI, Arial, sans-serif" text-anchor="middle">${safeLabel}</text>
+    </svg>
+  `.trim();
+
+  return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
+}
+
 export function toPreviewUrl(
   assetPath: string,
   options?: { type?: AssetRecord['type']; label?: string },
@@ -76,6 +102,10 @@ export function toPreviewUrl(
 
   if (type === 'video') {
     return buildVideoPlaceholderPreview(options?.label);
+  }
+
+  if (type === 'audio') {
+    return buildAudioPlaceholderPreview(options?.label);
   }
 
   if (/^https?:\/\//.test(assetPath)) {
@@ -117,7 +147,7 @@ export function resolveStoredAssetPath(assetPath: string, params: Record<string,
 }
 
 function buildAssetName(type: AssetRecord['type'], jobId: string, index: number) {
-  const prefix = type === 'image' ? 'Image' : 'Video';
+  const prefix = type === 'image' ? 'Image' : type === 'video' ? 'Video' : 'Audio';
   return `${prefix} ${jobId.slice(0, 8)}${index > 0 ? `-${index + 1}` : ''}`;
 }
 
@@ -140,7 +170,13 @@ export function createImportedAssetRecords(
     existingById.set(assetId, {
       id: assetId,
       jobId: assetId,
-      name: stem || (importedFile.type === 'image' ? 'Imported image' : 'Imported video'),
+      name:
+        stem ||
+        (importedFile.type === 'image'
+          ? 'Imported image'
+          : importedFile.type === 'video'
+            ? 'Imported video'
+            : 'Imported audio'),
       type: importedFile.type,
       path: normalizedPath,
       previewUrl,
@@ -172,25 +208,31 @@ export function createImportedAssetRecords(
 export function createMediaAssetFromImportedFile(importedFile: ImportedAssetFile): MediaAsset {
   const normalizedPath = toNormalizedPath(importedFile.importedPath);
   const { stem } = splitFileName(importedFile.name || importedFile.importedPath);
-  const previewUrl =
-    importedFile.type === 'image'
-      ? toPreviewUrl(normalizedPath)
-      : toFileUrl(normalizedPath);
-  const posterUrl =
+  const previewUrl = importedFile.type === 'image' ? toPreviewUrl(normalizedPath) : toFileUrl(normalizedPath);
+  const thumbnailUrl =
     importedFile.type === 'video'
       ? buildVideoPlaceholderPreview(stem)
-      : null;
+      : importedFile.type === 'audio'
+        ? buildAudioPlaceholderPreview(stem)
+        : previewUrl;
+  const posterUrl = importedFile.type === 'video' ? thumbnailUrl : null;
 
   return {
     id: `media::${normalizedPath}`,
     legacyAssetId: `import::${normalizedPath}`,
     jobId: null,
-    name: stem || (importedFile.type === 'image' ? 'Imported image' : 'Imported video'),
+    name:
+      stem ||
+      (importedFile.type === 'image'
+        ? 'Imported image'
+        : importedFile.type === 'video'
+          ? 'Imported video'
+          : 'Imported audio'),
     type: importedFile.type,
     source: 'imported',
     path: normalizedPath,
     previewUrl,
-    thumbnailUrl: posterUrl ?? previewUrl,
+    thumbnailUrl,
     posterUrl,
     metadata: {
       originalPath: toNormalizedPath(importedFile.originalPath),
@@ -215,7 +257,8 @@ export function createMediaAssetFromAssetRecord(asset: AssetRecord): MediaAsset 
     path: asset.path,
     previewUrl: asset.previewUrl || asset.path,
     thumbnailUrl: asset.thumbnail || asset.previewUrl || asset.path,
-    posterUrl: asset.type === 'image' ? asset.thumbnail || asset.previewUrl || asset.path : null,
+    posterUrl:
+      asset.type === 'image' ? asset.thumbnail || asset.previewUrl || asset.path : null,
     width: asset.width,
     height: asset.height,
     durationMs: typeof asset.duration === 'number' ? asset.duration * 1000 : undefined,

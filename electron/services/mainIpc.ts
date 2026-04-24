@@ -54,8 +54,9 @@ type MainIpcOptions = {
 
 const IMAGE_IMPORT_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.webp']);
 const VIDEO_IMPORT_EXTENSIONS = new Set(['.mp4', '.webm', '.mov', '.m4v', '.avi', '.gif']);
+const AUDIO_IMPORT_EXTENSIONS = new Set(['.wav', '.mp3', '.m4a', '.flac']);
 
-function resolveImportedMediaType(filePath: string): 'image' | 'video' | null {
+function resolveImportedMediaType(filePath: string): 'image' | 'video' | 'audio' | null {
   const extension = path.extname(filePath).toLowerCase();
 
   if (IMAGE_IMPORT_EXTENSIONS.has(extension)) {
@@ -64,6 +65,10 @@ function resolveImportedMediaType(filePath: string): 'image' | 'video' | null {
 
   if (VIDEO_IMPORT_EXTENSIONS.has(extension)) {
     return 'video';
+  }
+
+  if (AUDIO_IMPORT_EXTENSIONS.has(extension)) {
+    return 'audio';
   }
 
   return null;
@@ -115,9 +120,10 @@ export function registerMainIpcHandlers({
     const result = await dialog.showOpenDialog(getMainWindow()!, {
       properties: ['openFile', 'multiSelections'],
       filters: [
-        { name: 'Media Files', extensions: ['png', 'jpg', 'jpeg', 'webp', 'mp4', 'webm', 'mov', 'm4v', 'avi', 'gif'] },
+        { name: 'Media Files', extensions: ['png', 'jpg', 'jpeg', 'webp', 'mp4', 'webm', 'mov', 'm4v', 'avi', 'gif', 'wav', 'mp3', 'm4a', 'flac'] },
         { name: 'Image Files', extensions: ['png', 'jpg', 'jpeg', 'webp'] },
         { name: 'Video Files', extensions: ['mp4', 'webm', 'mov', 'm4v', 'avi', 'gif'] },
+        { name: 'Audio Files', extensions: ['wav', 'mp3', 'm4a', 'flac'] },
       ],
     });
 
@@ -219,7 +225,7 @@ export function registerMainIpcHandlers({
         originalPath: string;
         importedPath: string;
         name: string;
-        type: 'image' | 'video';
+        type: 'image' | 'video' | 'audio';
         importedAt: string;
       }> = [];
 

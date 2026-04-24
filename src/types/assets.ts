@@ -2,7 +2,7 @@ export interface AssetRecord {
   id: string;
   jobId: string;
   name: string;
-  type: 'image' | 'video';
+  type: 'image' | 'video' | 'audio';
   path: string;
   previewUrl: string;
   thumbnail: string;
