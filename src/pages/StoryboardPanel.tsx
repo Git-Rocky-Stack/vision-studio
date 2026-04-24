@@ -11,6 +11,7 @@ import { ImportDraftReview } from '@/components/storyboard/ImportDraftReview';
 import { ReferenceMediaPanel } from '@/components/reference/ReferenceMediaPanel';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { Button } from '@/components/ui/Button';
+import type { StoryboardTimelineDerivationResult } from '@/store/appStore.types';
 import {
   DndContext,
   closestCenter,
@@ -25,8 +26,17 @@ import {
   sortableKeyboardCoordinates,
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
-import { Film, FileText, Plus, Trash2 } from 'lucide-react';
+import { ArrowRight, CheckCircle2, Clapperboard, Film, FileText, Plus, Trash2 } from 'lucide-react';
 import type { ElementType, ImportDraft, Scene } from '@/types/project';
+
+interface TimelineBuildFeedback {
+  scope: 'project' | 'scene';
+  scopeLabel: string;
+  title: string;
+  summary: string;
+  tone: 'success' | 'warning';
+  sequenceId: string | null;
+}
 
 export function StoryboardPanel() {
   const {
@@ -48,6 +58,11 @@ export function StoryboardPanel() {
     upsertStoryboardImportDraft,
     deleteStoryboardImportDraft,
     setActiveStoryboardImportDraft,
+    deriveStoryboardTimeline,
+    setActiveTimelineSequence,
+    setActiveTab,
+    setActiveSubMode,
+    setCenterView,
   } = useAppStore(useShallow(s => ({
     projects: s.projects,
     activeProjectId: s.activeProjectId,
@@ -67,14 +82,21 @@ export function StoryboardPanel() {
     upsertStoryboardImportDraft: s.upsertStoryboardImportDraft,
     deleteStoryboardImportDraft: s.deleteStoryboardImportDraft,
     setActiveStoryboardImportDraft: s.setActiveStoryboardImportDraft,
+    deriveStoryboardTimeline: s.deriveStoryboardTimeline,
+    setActiveTimelineSequence: s.setActiveTimelineSequence,
+    setActiveTab: s.setActiveTab,
+    setActiveSubMode: s.setActiveSubMode,
+    setCenterView: s.setCenterView,
   })));
 
   const [deleteTarget, setDeleteTarget] = useState<Scene | null>(null);
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
   const [isImportReviewOpen, setIsImportReviewOpen] = useState(false);
+  const [timelineBuildFeedback, setTimelineBuildFeedback] = useState<TimelineBuildFeedback | null>(null);
 
   const activeProject = projects.find((p) => p.id === activeProjectId) ?? null;
   const activeScene = activeProject?.scenes.find((scene) => scene.id === activeSceneId) ?? null;
+  const sortedScenes = activeProject ? [...activeProject.scenes].sort((a, b) => a.orderIndex - b.orderIndex) : [];
   const activeImportDraft = useMemo(
     () =>
       storyboardImportDrafts.find((draft) => draft.id === activeStoryboardImportDraftId) ?? null,
@@ -145,6 +167,10 @@ export function StoryboardPanel() {
       setIsImportReviewOpen(true);
     }
   }, [activeImportDraft?.id]);
+
+  useEffect(() => {
+    setTimelineBuildFeedback(null);
+  }, [activeProjectId]);
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
@@ -272,6 +298,80 @@ export function StoryboardPanel() {
     setIsImportReviewOpen(false);
   };
 
+  const buildTimelineFeedback = (
+    scope: TimelineBuildFeedback['scope'],
+    scopeLabel: string,
+    result: StoryboardTimelineDerivationResult | null,
+  ): TimelineBuildFeedback => {
+    if (!result) {
+      return {
+        scope,
+        scopeLabel,
+        title: scope === 'scene' ? 'Scene not ready for timeline' : 'No storyboard scenes ready',
+        summary:
+          scope === 'scene'
+            ? 'This scene does not have any derivable storyboard output yet.'
+            : 'There were no storyboard scenes with derivable output or placeholder state to send.',
+        tone: 'warning',
+        sequenceId: null,
+      };
+    }
+
+    const unchanged = result.skipped;
+    const parts = [
+      `${result.added} added`,
+      `${result.updated} updated`,
+      `${unchanged} unchanged`,
+    ];
+
+    if (result.placeholders > 0) {
+      parts.push(`${result.placeholders} placeholder${result.placeholders === 1 ? '' : 's'}`);
+    }
+
+    const nothingChanged = result.added === 0 && result.updated === 0;
+
+    return {
+      scope,
+      scopeLabel,
+      title:
+        scope === 'scene'
+          ? (nothingChanged ? 'Scene already on timeline' : 'Scene sent to timeline')
+          : (nothingChanged ? 'Timeline already up to date' : 'Timeline updated'),
+      summary: parts.join(', '),
+      tone: result.placeholders > 0 ? 'warning' : 'success',
+      sequenceId: result.sequenceId,
+    };
+  };
+
+  const handleOpenTimeline = (sequenceId: string | null) => {
+    if (!sequenceId) {
+      return;
+    }
+
+    setActiveTimelineSequence(sequenceId);
+    setActiveTab('generate');
+    setActiveSubMode('generate');
+    setCenterView('canvas');
+  };
+
+  const handleBuildTimeline = (scope: TimelineBuildFeedback['scope'], scopeLabel: string, sceneIds?: string[]) => {
+    if (!activeProject) {
+      return;
+    }
+
+    const result = deriveStoryboardTimeline(
+      activeProject.id,
+      sceneIds && sceneIds.length > 0 ? { sceneIds } : undefined,
+    );
+    const feedback = buildTimelineFeedback(scope, scopeLabel, result);
+
+    if (result?.sequenceId) {
+      setActiveTimelineSequence(result.sequenceId);
+    }
+
+    setTimelineBuildFeedback(feedback);
+  };
+
   if (!activeProject) {
     return (
       <div className="flex flex-col items-center justify-center h-full text-center p-8">
@@ -292,8 +392,6 @@ export function StoryboardPanel() {
       </div>
     );
   }
-
-  const sortedScenes = [...activeProject.scenes].sort((a, b) => a.orderIndex - b.orderIndex);
 
   return (
     <div className="flex flex-col h-full bg-surface">
@@ -323,6 +421,15 @@ export function StoryboardPanel() {
           <Button variant="secondary" size="sm" onClick={() => setIsImportDialogOpen(true)}>
             <FileText className="w-4 h-4" aria-hidden="true" />
             Import Script
+          </Button>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => handleBuildTimeline('project', activeProject.name)}
+            disabled={sortedScenes.length === 0}
+          >
+            <Clapperboard className="w-4 h-4" aria-hidden="true" />
+            Build Timeline
           </Button>
           <Button variant="primary" size="sm" onClick={handleAddScene}>
             <Plus className="w-4 h-4" aria-hidden="true" />
@@ -357,6 +464,58 @@ export function StoryboardPanel() {
               <Button variant="danger" size="sm" onClick={handleDiscardImportDraft}>
                 <Trash2 className="w-4 h-4" aria-hidden="true" />
                 Discard Draft
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {timelineBuildFeedback ? (
+        <div className="border-b border-border bg-panel/40 px-4 py-3" role="status" aria-live="polite">
+          <div
+            data-testid="storyboard-timeline-feedback"
+            className={[
+              'flex flex-col gap-3 rounded-2xl border px-4 py-4 md:flex-row md:items-center md:justify-between',
+              timelineBuildFeedback.tone === 'success'
+                ? 'border-status-success-border bg-status-success-muted/40'
+                : 'border-status-warning-border bg-status-warning-muted/40',
+            ].join(' ')}
+          >
+            <div className="flex items-start gap-3">
+              <div
+                className={[
+                  'mt-0.5 flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full border',
+                  timelineBuildFeedback.tone === 'success'
+                    ? 'border-status-success-border bg-status-success-muted text-status-success'
+                    : 'border-status-warning-border bg-status-warning-muted text-status-warning',
+                ].join(' ')}
+              >
+                <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
+              </div>
+              <div>
+                <p className="type-caption text-text-muted">
+                  {timelineBuildFeedback.scope === 'scene' ? 'Send To Timeline' : 'Build Timeline'}
+                </p>
+                <h3 className="mt-1 type-section text-text-primary">{timelineBuildFeedback.title}</h3>
+                <p className="mt-1 text-sm text-text-body">
+                  {timelineBuildFeedback.scopeLabel}: {timelineBuildFeedback.summary}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              {timelineBuildFeedback.sequenceId ? (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => handleOpenTimeline(timelineBuildFeedback.sequenceId)}
+                >
+                  <ArrowRight className="w-4 h-4" aria-hidden="true" />
+                  Open Timeline
+                </Button>
+              ) : null}
+              <Button variant="secondary" size="sm" onClick={() => setTimelineBuildFeedback(null)}>
+                Dismiss
               </Button>
             </div>
           </div>
@@ -414,6 +573,7 @@ export function StoryboardPanel() {
                         onClick={() => setActiveScene(scene.id === activeSceneId ? null : scene.id)}
                         onDelete={() => setDeleteTarget(scene)}
                         onDuplicate={() => handleDuplicateScene(scene)}
+                        onSendToTimeline={() => handleBuildTimeline('scene', scene.name, [scene.id])}
                         onMoveUp={() => handleMoveScene(scene.id, -1)}
                         onMoveDown={() => handleMoveScene(scene.id, 1)}
                         canMoveUp={index > 0}

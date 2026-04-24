@@ -4,6 +4,7 @@ import {
   ImageOff,
   Trash2,
   Copy,
+  Clapperboard,
   CheckCircle2,
   Clock,
   AlertCircle,
@@ -32,6 +33,7 @@ interface SceneCardProps {
   onClick: () => void;
   onDelete?: () => void;
   onDuplicate?: () => void;
+  onSendToTimeline?: () => void;
   onMoveUp?: () => void;
   onMoveDown?: () => void;
   canMoveUp?: boolean;
@@ -101,6 +103,7 @@ export const SceneCard = memo(function SceneCard({
   onClick,
   onDelete,
   onDuplicate,
+  onSendToTimeline,
   onMoveUp,
   onMoveDown,
   canMoveUp = false,
@@ -321,6 +324,23 @@ export const SceneCard = memo(function SceneCard({
             )}
           >
             <ArrowDown className="w-3.5 h-3.5" aria-hidden="true" />
+          </button>
+        )}
+        {onSendToTimeline && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onSendToTimeline();
+            }}
+            aria-label="Send scene to timeline"
+            className={cn(
+              'p-1.5 min-w-[44px] min-h-[44px] rounded-lg transition-all duration-150',
+              'bg-elevated/90 backdrop-blur-sm text-text-muted hover:text-text-primary hover:bg-surface',
+              'focus:outline-none focus-visible:ring-2 focus-visible:ring-red-primary',
+              'border border-border'
+            )}
+          >
+            <Clapperboard className="w-3.5 h-3.5" aria-hidden="true" />
           </button>
         )}
         {onDuplicate && (

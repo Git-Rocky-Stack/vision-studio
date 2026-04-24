@@ -269,6 +269,40 @@ describe('SceneCard', () => {
       expect(onClick).not.toHaveBeenCalled();
     });
 
+    it('renders send-to-timeline button when callback is provided', () => {
+      render(
+        <SceneCard
+          scene={mockScene}
+          isSelected={false}
+          onClick={vi.fn()}
+          onSendToTimeline={vi.fn()}
+        />
+      );
+
+      expect(screen.getByRole('button', { name: /send scene to timeline/i })).toBeInTheDocument();
+    });
+
+    it('calls onSendToTimeline when the timeline action is clicked', async () => {
+      const onSendToTimeline = vi.fn();
+      const onClick = vi.fn();
+      const user = userEvent.setup();
+
+      render(
+        <SceneCard
+          scene={mockScene}
+          isSelected={false}
+          onClick={onClick}
+          onSendToTimeline={onSendToTimeline}
+        />
+      );
+
+      await user.hover(screen.getByTestId('scene-card'));
+      await user.click(screen.getByRole('button', { name: /send scene to timeline/i }));
+
+      expect(onSendToTimeline).toHaveBeenCalledTimes(1);
+      expect(onClick).not.toHaveBeenCalled();
+    });
+
     it('calls reorder callbacks from keyboard-accessible move buttons', async () => {
       const onMoveUp = vi.fn();
       const onMoveDown = vi.fn();

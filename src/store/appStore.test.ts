@@ -1519,6 +1519,76 @@ We only get one pass at this.
       });
       expect(useAppStore.getState().timelineClips).toHaveLength(firstClipCount);
     });
+
+    it('derives only the requested scene when sceneIds are provided', () => {
+      const state = useAppStore.getState();
+      const project = state.createProject('Storyboard Partial');
+      const firstScene = state.addScene(project.id, {
+        name: 'Scene 1',
+        thumbnail: 'http://localhost:8000/outputs/scenes/scene-1.png',
+      });
+      const secondScene = state.addScene(project.id, {
+        name: 'Scene 2',
+        thumbnail: 'http://localhost:8000/outputs/scenes/scene-2.png',
+      });
+
+      useAppStore.setState({
+        assetLibrary: [
+          {
+            id: 'asset-scene-1',
+            jobId: 'job-scene-1',
+            name: 'Scene 1 Output',
+            type: 'image',
+            path: 'C:/vision-studio-output/scenes/scene-1.png',
+            previewUrl: 'http://localhost:8000/outputs/scenes/scene-1.png',
+            thumbnail: 'http://localhost:8000/outputs/scenes/scene-1.png',
+            createdAt: '2026-04-23T00:00:00.000Z',
+            prompt: 'scene 1',
+            negativePrompt: '',
+            favorite: false,
+            params: {
+              source: 'generated',
+            },
+          },
+          {
+            id: 'asset-scene-2',
+            jobId: 'job-scene-2',
+            name: 'Scene 2 Output',
+            type: 'image',
+            path: 'C:/vision-studio-output/scenes/scene-2.png',
+            previewUrl: 'http://localhost:8000/outputs/scenes/scene-2.png',
+            thumbnail: 'http://localhost:8000/outputs/scenes/scene-2.png',
+            createdAt: '2026-04-23T00:00:00.000Z',
+            prompt: 'scene 2',
+            negativePrompt: '',
+            favorite: false,
+            params: {
+              source: 'generated',
+            },
+          },
+        ],
+      } as any);
+
+      const result = useAppStore.getState().deriveStoryboardTimeline(project.id, {
+        sceneIds: [firstScene.id],
+      });
+
+      expect(result).toMatchObject({
+        sceneIds: [firstScene.id],
+        added: 1,
+        updated: 0,
+        skipped: 0,
+        placeholders: 0,
+      });
+
+      const nextState = useAppStore.getState();
+      expect(nextState.timelineClips).toHaveLength(1);
+      expect(nextState.timelineClips[0]?.sceneId).toBe(firstScene.id);
+
+      const updatedProject = nextState.projects.find((item) => item.id === project.id);
+      expect(updatedProject?.scenes.find((scene) => scene.id === firstScene.id)?.timelineClipIds).toHaveLength(1);
+      expect(updatedProject?.scenes.find((scene) => scene.id === secondScene.id)?.timelineClipIds).toHaveLength(0);
+    });
   });
 
   describe('timeline playback transport', () => {
