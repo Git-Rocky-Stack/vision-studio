@@ -22,6 +22,7 @@ describe('exportTimelineSequence', () => {
       playRange: { startMs: 1000, endMs: 2000 },
       clipStartMs: 500,
       clipDurationMs: 2500,
+      includeAudio: true,
     });
 
     const request = buildTimelineExportRequest({
@@ -47,6 +48,19 @@ describe('exportTimelineSequence', () => {
         },
       ],
     });
+    expect(request.audio_layers).toEqual([
+      {
+        source_path: 'C:/vision-studio-output/source/bed.wav',
+        source_time_ms: 500,
+        timeline_offset_ms: 0,
+        duration_ms: 1000,
+        clip_offset_ms: 500,
+        clip_duration_ms: 2500,
+        gain: 0.8,
+        fade_in_ms: 300,
+        fade_out_ms: 400,
+      },
+    ]);
   });
 
   it('returns cancelled when the save dialog is dismissed', async () => {
@@ -165,6 +179,7 @@ function seedTimelineForExport(options?: {
   playRange?: { startMs: number; endMs: number };
   clipStartMs?: number;
   clipDurationMs?: number;
+  includeAudio?: boolean;
   transitionIn?: { type: 'cut' | 'fade' | 'dissolve' | 'wipe-left' | 'wipe-right' | 'zoom'; durationMs: number } | null;
 }) {
   const state = useAppStore.getState();
@@ -201,6 +216,37 @@ function seedTimelineForExport(options?: {
     label: 'Opening Frame',
     transitionIn: options?.transitionIn ?? null,
   })!;
+
+  if (options?.includeAudio) {
+    const audioTrack = state.createTimelineTrack(sequence.id, { kind: 'audio', name: 'Audio Bed' })!;
+    state.upsertMediaAsset({
+      id: 'media-export-audio',
+      legacyAssetId: null,
+      jobId: null,
+      name: 'Audio Bed',
+      type: 'audio',
+      source: 'imported',
+      path: 'C:/vision-studio-output/source/bed.wav',
+      previewUrl: 'file:///C:/vision-studio-output/source/bed.wav',
+      thumbnailUrl: 'data:image/svg+xml;base64,audio',
+      posterUrl: null,
+      durationMs: 5000,
+      metadata: {},
+      createdAt: '2026-04-23T12:00:10.000Z',
+    });
+    state.createTimelineClip({
+      trackId: audioTrack.id,
+      mediaAssetId: 'media-export-audio',
+      startMs: options?.clipStartMs ?? 0,
+      durationMs: options?.clipDurationMs ?? 2000,
+      sourceInMs: 0,
+      sourceOutMs: options?.clipDurationMs ?? 2000,
+      gain: 0.8,
+      fadeInMs: 300,
+      fadeOutMs: 400,
+      label: 'Audio Bed',
+    });
+  }
 
   if (options?.playRange) {
     state.setTimelineSequencePlayRange(sequence.id, options.playRange);

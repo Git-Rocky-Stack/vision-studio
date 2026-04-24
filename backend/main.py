@@ -35,6 +35,7 @@ import json
 import logging
 import os
 import shutil
+import subprocess
 import time
 import uuid
 from datetime import datetime
@@ -43,6 +44,7 @@ from typing import Dict, List
 from contextlib import asynccontextmanager
 
 import imageio.v2 as imageio
+import imageio_ffmpeg
 import numpy as np
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, BackgroundTasks, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
@@ -390,6 +392,18 @@ class TimelineExportFrameRequest(BaseModel):
     layers: List[TimelineExportLayerRequest] = Field(default_factory=list)
 
 
+class TimelineExportAudioLayerRequest(BaseModel):
+    source_path: str
+    source_time_ms: int = Field(default=0, ge=0)
+    timeline_offset_ms: int = Field(default=0, ge=0)
+    duration_ms: int = Field(default=1, ge=1)
+    clip_offset_ms: int = Field(default=0, ge=0)
+    clip_duration_ms: int = Field(default=1, ge=1)
+    gain: float = Field(default=1.0, ge=0.0, le=2.0)
+    fade_in_ms: int = Field(default=0, ge=0)
+    fade_out_ms: int = Field(default=0, ge=0)
+
+
 class TimelineExportRequest(BaseModel):
     sequence_name: str = Field(default="Timeline Export")
     width: int = Field(default=1920, ge=64, le=4096)
@@ -397,6 +411,7 @@ class TimelineExportRequest(BaseModel):
     fps: int = Field(default=24, ge=1, le=60)
     output_path: str
     frames: List[TimelineExportFrameRequest] = Field(min_length=1, max_length=24000)
+    audio_layers: List[TimelineExportAudioLayerRequest] = Field(default_factory=list)
 
 
 class ModelInfo(BaseModel):
@@ -642,9 +657,10 @@ def render_timeline_export_frame(
 
 def export_timeline_video_file(
     export_request: TimelineExportRequest,
+    output_path_override: Optional[str] = None,
     progress_callback: Optional[Callable[[float], None]] = None,
 ) -> Dict[str, Any]:
-    output_path = normalize_local_path(export_request.output_path)
+    output_path = normalize_local_path(output_path_override or export_request.output_path)
     output_dir = os.path.dirname(output_path) or OUTPUT_DIR
     os.makedirs(output_dir, exist_ok=True)
 
@@ -679,14 +695,122 @@ def export_timeline_video_file(
     }
 
 
+def build_timeline_audio_volume_expression(layer: TimelineExportAudioLayerRequest) -> str:
+    clip_time_expr = f"({layer.clip_offset_ms}+t*1000)"
+    terms = [f"{layer.gain:.6f}"]
+
+    if layer.fade_in_ms > 0 and layer.clip_offset_ms < layer.fade_in_ms:
+        terms.append(
+            f"if(lt({clip_time_expr}\\,{layer.fade_in_ms})\\,({clip_time_expr})/{layer.fade_in_ms}\\,1)"
+        )
+
+    if layer.fade_out_ms > 0:
+        remaining_expr = f"({layer.clip_duration_ms}-({clip_time_expr}))"
+        terms.append(
+            f"if(lt({remaining_expr}\\,{layer.fade_out_ms})\\,max(({remaining_expr})/{layer.fade_out_ms}\\,0)\\,1)"
+        )
+
+    return "*".join(terms)
+
+
+def mux_timeline_audio_file(
+    video_path: str,
+    output_path: str,
+    audio_layers: List[TimelineExportAudioLayerRequest],
+    export_duration_ms: int,
+):
+    ffmpeg_executable = imageio_ffmpeg.get_ffmpeg_exe()
+    command = [ffmpeg_executable, "-y", "-i", normalize_local_path(video_path)]
+    filter_parts: List[str] = []
+    audio_labels: List[str] = []
+
+    for index, layer in enumerate(audio_layers, start=1):
+        source_path = resolve_backend_media_path(layer.source_path)
+        if not os.path.exists(source_path):
+            raise FileNotFoundError(f"Missing audio source: {source_path}")
+
+        command.extend(["-i", source_path])
+        label = f"a{index - 1}"
+        audio_labels.append(f"[{label}]")
+        volume_expression = build_timeline_audio_volume_expression(layer)
+        start_seconds = layer.source_time_ms / 1000.0
+        duration_seconds = layer.duration_ms / 1000.0
+        delay_ms = max(0, int(layer.timeline_offset_ms))
+        filter_parts.append(
+            f"[{index}:a]"
+            f"atrim=start={start_seconds:.6f}:duration={duration_seconds:.6f},"
+            f"asetpts=PTS-STARTPTS,"
+            f"volume={volume_expression},"
+            f"adelay={delay_ms}"
+            f"[{label}]"
+        )
+
+    if len(audio_labels) == 1:
+        filter_parts.append(f"{audio_labels[0]}anull[aout]")
+    else:
+        filter_parts.append(f"{''.join(audio_labels)}amix=inputs={len(audio_labels)}:normalize=0:dropout_transition=0[aout]")
+
+    command.extend(
+        [
+            "-filter_complex",
+            ";".join(filter_parts),
+            "-map",
+            "0:v:0",
+            "-map",
+            "[aout]",
+            "-c:v",
+            "copy",
+            "-c:a",
+            "aac",
+            "-b:a",
+            "192k",
+            "-movflags",
+            "+faststart",
+            "-t",
+            f"{max(export_duration_ms, 1) / 1000.0:.6f}",
+            normalize_local_path(output_path),
+        ]
+    )
+
+    try:
+        subprocess.run(command, check=True, capture_output=True, text=True)
+    except subprocess.CalledProcessError as error:
+        stderr = (error.stderr or "").strip()
+        raise RuntimeError(stderr or "FFmpeg audio mux failed.") from error
+
+    return normalize_local_path(output_path)
+
+
 def process_timeline_export(job_id: str, export_request: TimelineExportRequest):
-    """Render and encode a resolved timeline frame stream into a silent MP4."""
+    """Render and encode a resolved timeline frame stream into an MP4."""
     try:
         job_manager.update_job(job_id, status=JobStatus.PROCESSING, progress=0.0)
+        output_path = normalize_local_path(export_request.output_path)
+        silent_video_path = (
+            output_path
+            if not export_request.audio_layers
+            else normalize_local_path(f"{Path(output_path).with_suffix('')}-silent.mp4")
+        )
         result = export_timeline_video_file(
             export_request,
+            output_path_override=silent_video_path,
             progress_callback=lambda progress: job_manager.update_job(job_id, progress=progress),
         )
+        if export_request.audio_layers:
+            job_manager.update_job(job_id, progress=96.0)
+            mux_timeline_audio_file(
+                video_path=silent_video_path,
+                output_path=output_path,
+                audio_layers=export_request.audio_layers,
+                export_duration_ms=max(1, round((len(export_request.frames) / export_request.fps) * 1000)),
+            )
+            result["video"] = output_path
+            result["output_path"] = output_path
+            result["audio_layers"] = len(export_request.audio_layers)
+            try:
+                os.remove(silent_video_path)
+            except OSError:
+                logger.warning("Could not remove temporary silent export: %s", silent_video_path)
         job_manager.update_job(
             job_id,
             status=JobStatus.COMPLETED,
@@ -811,10 +935,10 @@ async def export_timeline(
     background_tasks: BackgroundTasks,
 ):
     """
-    Start a silent MP4 export for a resolved timeline frame stream.
+    Start an MP4 export for a resolved timeline frame stream.
 
     The renderer resolves playback frames locally, then submits the ordered frame
-    stream here for deterministic MP4 encoding through the backend.
+    stream and resolved audio plan here for deterministic MP4 encoding through the backend.
     """
     job_id = str(uuid.uuid4())
     normalized_output_path = normalize_local_path(export_request.output_path)

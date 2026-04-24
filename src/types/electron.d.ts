@@ -25,6 +25,18 @@ export interface TimelineExportLayerParams {
   opacity: number;
 }
 
+export interface TimelineExportAudioLayerParams {
+  source_path: string;
+  source_time_ms: number;
+  timeline_offset_ms: number;
+  duration_ms: number;
+  clip_offset_ms: number;
+  clip_duration_ms: number;
+  gain: number;
+  fade_in_ms: number;
+  fade_out_ms: number;
+}
+
 export interface TimelineExportFrameParams {
   time_ms: number;
   layers: TimelineExportLayerParams[];
@@ -37,6 +49,7 @@ export interface TimelineExportParams {
   fps: number;
   output_path: string;
   frames: TimelineExportFrameParams[];
+  audio_layers: TimelineExportAudioLayerParams[];
 }
 
 export interface BatchParams {

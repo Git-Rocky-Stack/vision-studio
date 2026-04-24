@@ -101,6 +101,17 @@ export interface ElectronAPI {
           opacity: number;
         }>;
       }>;
+      audio_layers: Array<{
+        source_path: string;
+        source_time_ms: number;
+        timeline_offset_ms: number;
+        duration_ms: number;
+        clip_offset_ms: number;
+        clip_duration_ms: number;
+        gain: number;
+        fade_in_ms: number;
+        fade_out_ms: number;
+      }>;
     }) => Promise<{ success: boolean; jobId?: string; error?: string }>;
     batch: (params: {
       prompts: string[];

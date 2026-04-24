@@ -2,8 +2,8 @@ import type { StoreApi, UseBoundStore } from 'zustand';
 
 import { useAppStore } from '@/store/appStore';
 import type { AppState } from '@/store/appStore.types';
-import type { JobStatus, TimelineExportParams } from '@/types/electron';
-import type { TimelineCompositionIssue, TimelineCompositionIssueCode, TimelineSequence } from '@/types/timeline';
+import type { JobStatus, TimelineExportAudioLayerParams, TimelineExportParams } from '@/types/electron';
+import type { TimelineCompositionIssue, TimelineCompositionIssueCode, TimelineSequence, TimelineTrack } from '@/types/timeline';
 import { delay } from '@/features/workflow/runWorkflowExecution';
 
 import { resolveSequenceComposition, resolveTimelinePlayRange } from './sequenceComposition';
@@ -85,6 +85,13 @@ export function buildTimelineExportRequest({
   const fps = Math.max(1, Math.round(sequence.fps || project.fps || 24));
   const frameDurationMs = 1000 / fps;
   const frameCount = Math.max(1, Math.ceil(Math.max(playRange.durationMs, 1) / frameDurationMs));
+  const audioLayers = buildTimelineExportAudioLayers({
+    tracks: sequenceTracks,
+    clips: sequenceClips,
+    mediaAssets: state.mediaAssets,
+    playRangeStartMs: playRange.startMs,
+    playRangeEndMs: playRange.endMs,
+  });
 
   const frames = Array.from({ length: frameCount }, (_, frameIndex) => {
     const timeMs = playRange.startMs + frameIndex * frameDurationMs;
@@ -118,6 +125,7 @@ export function buildTimelineExportRequest({
     fps,
     output_path: ensureMp4Extension(normalizePath(outputPath)),
     frames,
+    audio_layers: audioLayers,
   };
 }
 
@@ -362,4 +370,66 @@ function sanitizeFilename(name: string) {
     .replace(/[. ]+$/g, '');
 
   return sanitized || 'timeline-export';
+}
+
+function buildTimelineExportAudioLayers({
+  tracks,
+  clips,
+  mediaAssets,
+  playRangeStartMs,
+  playRangeEndMs,
+}: {
+  tracks: TimelineTrack[];
+  clips: AppState['timelineClips'];
+  mediaAssets: AppState['mediaAssets'];
+  playRangeStartMs: number;
+  playRangeEndMs: number;
+}): TimelineExportAudioLayerParams[] {
+  const audioSoloTrackIds = new Set(
+    tracks.filter((track) => track.kind === 'audio' && track.solo && !track.muted).map((track) => track.id),
+  );
+  const mediaAssetById = new Map(mediaAssets.map((asset) => [asset.id, asset]));
+
+  return tracks
+    .filter((track) => track.kind === 'audio')
+    .flatMap((track) => {
+      if (track.muted) {
+        return [];
+      }
+
+      if (audioSoloTrackIds.size > 0 && !audioSoloTrackIds.has(track.id)) {
+        return [];
+      }
+
+      return clips
+        .filter((clip) => clip.trackId === track.id)
+        .map((clip) => {
+          const mediaAsset = mediaAssetById.get(clip.mediaAssetId);
+          if (mediaAsset?.type !== 'audio') {
+            return null;
+          }
+
+          const clipStartMs = clip.startMs;
+          const clipEndMs = clip.startMs + clip.durationMs;
+          const audibleStartMs = Math.max(clipStartMs, playRangeStartMs);
+          const audibleEndMs = Math.min(clipEndMs, playRangeEndMs);
+          if (audibleEndMs <= audibleStartMs) {
+            return null;
+          }
+
+          const clipOffsetMs = Math.max(0, audibleStartMs - clipStartMs);
+          return {
+            source_path: mediaAsset.path,
+            source_time_ms: Math.max(0, Math.round(clip.sourceInMs + clipOffsetMs)),
+            timeline_offset_ms: Math.max(0, Math.round(audibleStartMs - playRangeStartMs)),
+            duration_ms: Math.max(1, Math.round(audibleEndMs - audibleStartMs)),
+            clip_offset_ms: Math.round(clipOffsetMs),
+            clip_duration_ms: Math.max(1, Math.round(clip.durationMs)),
+            gain: clip.gain,
+            fade_in_ms: clip.fadeInMs,
+            fade_out_ms: clip.fadeOutMs,
+          } satisfies TimelineExportAudioLayerParams;
+        })
+        .filter((layer): layer is TimelineExportAudioLayerParams => Boolean(layer));
+    });
 }
