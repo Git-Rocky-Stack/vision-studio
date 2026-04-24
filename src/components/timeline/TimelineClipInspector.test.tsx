@@ -270,4 +270,53 @@ describe('TimelineClipInspector', () => {
     updatedClip = useAppStore.getState().timelineClips.find((item) => item.id === clip.id);
     expect(useAppStore.getState().currentTime).toBe(updatedClip!.startMs + updatedClip!.durationMs);
   });
+
+  it('shows selected retake range controls and candidate take shell', async () => {
+    const user = userEvent.setup();
+    const { clip } = seedTimelineFixture();
+    const state = useAppStore.getState();
+
+    const range = state.createTimelineClipRetakeRange(clip.id, {
+      startMs: 250,
+      endMs: 1100,
+    })!;
+    const take = state.createClipRetakeTake({
+      clipId: clip.id,
+      retakeRangeId: range.id,
+      mediaAssetId: 'media-video',
+      prompt: 'hero retake candidate',
+    })!;
+
+    render(<TimelineClipInspector />);
+
+    expect(screen.getByTestId('timeline-retake-controls')).toBeInTheDocument();
+    expect(screen.getByTestId(`timeline-retake-range-${range.id}`)).toBeInTheDocument();
+    expect(screen.getByTestId(`timeline-retake-take-${take.id}`)).toBeInTheDocument();
+    expect(screen.getByTestId('timeline-retake-candidates')).toHaveTextContent('1 candidate take');
+
+    fireEvent.change(screen.getByTestId('timeline-retake-start-input'), { target: { value: '0.4' } });
+    expect(
+      useAppStore.getState().timelineClips
+        .find((item) => item.id === clip.id)
+        ?.retakeRanges.find((item) => item.id === range.id)
+        ?.startMs,
+    ).toBe(400);
+
+    await user.click(screen.getByRole('button', { name: 'Playhead To Out' }));
+    expect(useAppStore.getState().currentTime).toBeGreaterThanOrEqual(clip.startMs + 1000);
+
+    await user.click(screen.getByTestId('timeline-retake-delete-range'));
+    expect(
+      useAppStore.getState().timelineClips.find((item) => item.id === clip.id)?.retakeRanges,
+    ).toEqual([]);
+  });
+
+  it('shows retake blocked messaging for non-video clips', () => {
+    seedAudioTimelineFixture();
+
+    render(<TimelineClipInspector />);
+
+    expect(screen.getByTestId('timeline-retake-blocked')).toBeInTheDocument();
+    expect(screen.getByTestId('timeline-retake-controls')).toHaveTextContent('Retakes are only available for video clips.');
+  });
 });

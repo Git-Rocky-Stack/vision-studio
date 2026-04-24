@@ -268,6 +268,32 @@ describe('Timeline integration', () => {
     expect(useAppStore.getState().currentTime).toBe(0);
   });
 
+  it('authors retake ranges from the toolbar on selected video clips', async () => {
+    const user = userEvent.setup();
+    seedProjectAndMedia();
+    render(<Timeline />);
+
+    await user.selectOptions(screen.getByLabelText('Media asset for timeline'), 'media-video');
+    await user.click(screen.getByLabelText('Add clip to timeline'));
+
+    const clip = useAppStore.getState().timelineClips[0];
+    await user.click(screen.getByTestId(`timeline-clip-${clip.id}`));
+
+    useAppStore.getState().seekTo(300);
+    await user.click(screen.getByLabelText('Mark Retake In'));
+    useAppStore.getState().seekTo(1100);
+    await user.click(screen.getByLabelText('Mark Retake Out'));
+
+    expect(screen.getByTestId('timeline-retake-toolbar-status')).toHaveTextContent('0.3s to 1.1s');
+    await user.click(screen.getByLabelText('Create Retake'));
+
+    const updatedClip = useAppStore.getState().timelineClips.find((item) => item.id === clip.id)!;
+    expect(updatedClip.retakeRanges).toHaveLength(1);
+    expect(useAppStore.getState().activeTimelineRetakeRangeId).toBe(updatedClip.retakeRanges[0].id);
+    expect(screen.getByTestId(`timeline-clip-retake-range-${clip.id}-${updatedClip.retakeRanges[0].id}`)).toBeInTheDocument();
+    expect(screen.getByTestId(`timeline-clip-retake-badge-${clip.id}`)).toHaveTextContent('1 retake');
+  });
+
   it('shows storyboard-derived scene context and beat markers on timeline clips', () => {
     const { project, sequence } = seedProjectAndMedia();
     const state = useAppStore.getState();

@@ -38,7 +38,12 @@ import { AnimationTrackEditor } from '@/components/timeline/AnimationTrackEditor
 import { TimelineClipInspector } from '@/components/timeline/TimelineClipInspector';
 import { TimelineExportDialog } from '@/components/timeline/TimelineExportDialog';
 import type { MediaAsset } from '@/types/media';
-import type { TimelineClip, TimelinePlayRange, TimelineTrack } from '@/types/timeline';
+import type {
+  TimelineClip,
+  TimelineClipRetakeRange,
+  TimelinePlayRange,
+  TimelineTrack,
+} from '@/types/timeline';
 
 const HEADER_WIDTH = 204;
 const RULER_HEIGHT = 32;
@@ -55,6 +60,12 @@ const TIMELINE_ACTION_BUTTON_CLASS =
   'inline-flex flex-none items-center gap-1 whitespace-nowrap rounded-md border border-border bg-surface px-2 py-1 text-[11px] font-display text-text-primary transition hover:bg-canvas disabled:cursor-not-allowed disabled:text-text-muted disabled:opacity-60';
 const TIMELINE_ACTION_SELECT_CLASS =
   'h-7 flex-none rounded-md border border-border bg-surface px-2 text-[11px] font-display text-text-primary';
+
+interface TimelineRetakeDraftRange {
+  clipId: string;
+  startMs: number | null;
+  endMs: number | null;
+}
 
 function formatTimecode(timeMs: number, fps = 24) {
   const totalSeconds = Math.max(0, timeMs / 1000);
@@ -76,6 +87,40 @@ function formatTimecode(timeMs: number, fps = 24) {
 
 function formatSecondsLabel(timeMs: number) {
   return `${(timeMs / 1000).toFixed(timeMs % 1000 === 0 ? 0 : 1)}s`;
+}
+
+function formatRetakeRangeLabel(startMs: number, endMs: number) {
+  return `${formatSecondsLabel(startMs)} to ${formatSecondsLabel(endMs)}`;
+}
+
+function clampClipRelativeTime(timeMs: number, clip: TimelineClip) {
+  return Math.max(0, Math.min(clip.durationMs, Math.round(timeMs - clip.startMs)));
+}
+
+function getRetakeRangeTone(status: TimelineClipRetakeRange['status']) {
+  switch (status) {
+    case 'accepted':
+      return {
+        badge: 'border-status-success-border bg-status-success-muted text-status-success',
+        overlay: 'border-status-success/70 bg-status-success/20',
+      };
+    case 'candidate':
+      return {
+        badge: 'border-accent-primary/40 bg-accent-primary-muted text-accent-primary',
+        overlay: 'border-accent-primary/70 bg-accent-primary/18',
+      };
+    case 'queued':
+    case 'rendering':
+      return {
+        badge: 'border-status-warning-border bg-status-warning-muted text-status-warning',
+        overlay: 'border-status-warning/70 bg-status-warning/18',
+      };
+    default:
+      return {
+        badge: 'border-border bg-canvas/80 text-text-muted',
+        overlay: 'border-border bg-canvas/70',
+      };
+  }
 }
 
 function getTrackKindForMediaAsset(asset: MediaAsset) {
@@ -437,6 +482,8 @@ const TimelineClipBlock = memo(function TimelineClipBlock({
   isPlaceholder,
   totalDurationMs,
   selected,
+  activeRetakeRangeId,
+  draftRetakeRange,
   onSelect,
 }: {
   clip: TimelineClip;
@@ -445,6 +492,8 @@ const TimelineClipBlock = memo(function TimelineClipBlock({
   isPlaceholder?: boolean;
   totalDurationMs: number;
   selected: boolean;
+  activeRetakeRangeId?: string | null;
+  draftRetakeRange?: Pick<TimelineRetakeDraftRange, 'startMs' | 'endMs'> | null;
   onSelect: () => void;
 }) {
   const leftPct = (clip.startMs / totalDurationMs) * 100;
@@ -461,6 +510,13 @@ const TimelineClipBlock = memo(function TimelineClipBlock({
     ? mediaAsset.waveformSummary
     : [0.28, 0.52, 0.74, 0.43, 0.66, 0.34, 0.8, 0.58, 0.41, 0.7, 0.49, 0.61];
   const audioGainLabel = `${Math.round(clip.gain * 100)}%`;
+  const retakeRanges = [...clip.retakeRanges].sort((left, right) => left.startMs - right.startMs);
+  const hasDraftRetakeRange =
+    draftRetakeRange?.startMs !== null &&
+    draftRetakeRange?.startMs !== undefined &&
+    draftRetakeRange?.endMs !== null &&
+    draftRetakeRange?.endMs !== undefined &&
+    draftRetakeRange.endMs > draftRetakeRange.startMs;
 
   return (
     <button
@@ -547,6 +603,50 @@ const TimelineClipBlock = memo(function TimelineClipBlock({
           ))}
         </div>
       ) : null}
+      {retakeRanges.length > 0 ? (
+        <div className="pointer-events-none absolute inset-x-2 top-8 h-3">
+          {retakeRanges.map((range) => {
+            const left = Math.max(0, Math.min(100, (range.startMs / Math.max(clip.durationMs, 1)) * 100));
+            const width = Math.max(
+              4,
+              Math.min(
+                100 - left,
+                ((range.endMs - range.startMs) / Math.max(clip.durationMs, 1)) * 100,
+              ),
+            );
+            const tone = getRetakeRangeTone(range.status);
+
+            return (
+              <span
+                key={range.id}
+                className={cn(
+                  'absolute inset-y-0 rounded-full border',
+                  tone.overlay,
+                  activeRetakeRangeId === range.id ? 'shadow-[0_0_0_1px_rgba(255,255,255,0.22)]' : '',
+                )}
+                style={{ left: `${left}%`, width: `${width}%` }}
+                title={`Retake ${formatRetakeRangeLabel(range.startMs, range.endMs)}`}
+                data-testid={`timeline-clip-retake-range-${clip.id}-${range.id}`}
+              />
+            );
+          })}
+        </div>
+      ) : null}
+      {hasDraftRetakeRange ? (
+        <span
+          className="pointer-events-none absolute top-8 h-3 rounded-full border border-dashed border-status-warning/80 bg-status-warning/20"
+          style={{
+            left: `${((draftRetakeRange!.startMs ?? 0) / Math.max(clip.durationMs, 1)) * 100}%`,
+            width: `${Math.max(
+              4,
+              (((draftRetakeRange!.endMs ?? 0) - (draftRetakeRange!.startMs ?? 0)) /
+                Math.max(clip.durationMs, 1)) *
+                100,
+            )}%`,
+          }}
+          data-testid={`timeline-clip-retake-draft-${clip.id}`}
+        />
+      ) : null}
 
       <div className="relative flex h-full flex-col justify-between p-2.5">
         <div className="flex items-center justify-between gap-2">
@@ -577,6 +677,23 @@ const TimelineClipBlock = memo(function TimelineClipBlock({
           </span>
           <span className="font-mono">{formatSecondsLabel(clip.durationMs)}</span>
         </div>
+        {retakeRanges.length > 0 || hasDraftRetakeRange ? (
+          <div className="mt-1 flex items-center gap-1.5 text-[10px]">
+            {retakeRanges.length > 0 ? (
+              <span
+                className="rounded-full border border-accent-primary/30 bg-accent-primary-muted px-1.5 py-0.5 uppercase tracking-[0.12em] text-accent-primary"
+                data-testid={`timeline-clip-retake-badge-${clip.id}`}
+              >
+                {retakeRanges.length} retake{retakeRanges.length === 1 ? '' : 's'}
+              </span>
+            ) : null}
+            {hasDraftRetakeRange ? (
+              <span className="rounded-full border border-status-warning-border bg-status-warning-muted px-1.5 py-0.5 uppercase tracking-[0.12em] text-status-warning">
+                Draft
+              </span>
+            ) : null}
+          </div>
+        ) : null}
       </div>
     </button>
   );
@@ -594,11 +711,14 @@ export const Timeline = memo(function Timeline() {
     timelineClips,
     activeTimelineSequenceId,
     activeTimelineClipId,
+    activeTimelineRetakeRangeId,
     setActiveTimelineSequence,
     setActiveTimelineClip,
+    setActiveTimelineRetakeRange,
     ensureTimelineSequenceForProject,
     createTimelineTrack,
     createTimelineClip,
+    createTimelineClipRetakeRange,
     updateTimelineTrack,
     moveTimelineClip,
     splitTimelineClip,
@@ -628,11 +748,14 @@ export const Timeline = memo(function Timeline() {
       timelineClips: state.timelineClips,
       activeTimelineSequenceId: state.activeTimelineSequenceId,
       activeTimelineClipId: state.activeTimelineClipId,
+      activeTimelineRetakeRangeId: state.activeTimelineRetakeRangeId,
       setActiveTimelineSequence: state.setActiveTimelineSequence,
       setActiveTimelineClip: state.setActiveTimelineClip,
+      setActiveTimelineRetakeRange: state.setActiveTimelineRetakeRange,
       ensureTimelineSequenceForProject: state.ensureTimelineSequenceForProject,
       createTimelineTrack: state.createTimelineTrack,
       createTimelineClip: state.createTimelineClip,
+      createTimelineClipRetakeRange: state.createTimelineClipRetakeRange,
       updateTimelineTrack: state.updateTimelineTrack,
       moveTimelineClip: state.moveTimelineClip,
       splitTimelineClip: state.splitTimelineClip,
@@ -659,6 +782,7 @@ export const Timeline = memo(function Timeline() {
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
   const [insertMediaId, setInsertMediaId] = useState('');
   const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
+  const [retakeDraftRange, setRetakeDraftRange] = useState<TimelineRetakeDraftRange | null>(null);
   const [isTrackSidebarCollapsed, setIsTrackSidebarCollapsed] = useState(false);
   const [isInspectorCollapsed, setIsInspectorCollapsed] = useState(false);
 
@@ -736,6 +860,27 @@ export const Timeline = memo(function Timeline() {
     [storyboardScenes],
   );
   const activeClip = activeTimelineClipId ? clipLookup.get(activeTimelineClipId) ?? null : null;
+  const activeClipMediaAsset = activeClip ? mediaLookup.get(activeClip.mediaAssetId) ?? null : null;
+  const activeClipDraftRange =
+    activeClip && retakeDraftRange?.clipId === activeClip.id ? retakeDraftRange : null;
+  const canAuthorRetake = activeClipMediaAsset?.type === 'video';
+  const clipLocalPlayheadMs = activeClip ? clampClipRelativeTime(currentTime, activeClip) : null;
+  const canCreateRetake =
+    canAuthorRetake &&
+    activeClipDraftRange?.startMs !== null &&
+    activeClipDraftRange?.startMs !== undefined &&
+    activeClipDraftRange?.endMs !== null &&
+    activeClipDraftRange?.endMs !== undefined &&
+    activeClipDraftRange.endMs > activeClipDraftRange.startMs;
+  const retakeToolbarMessage = !activeClip
+    ? 'Select a video clip to mark a retake range.'
+    : !canAuthorRetake
+      ? 'Retakes are only available on video clips.'
+      : canCreateRetake
+        ? formatRetakeRangeLabel(activeClipDraftRange!.startMs!, activeClipDraftRange!.endMs!)
+        : activeClipDraftRange?.startMs !== null || activeClipDraftRange?.endMs !== null
+          ? 'Mark the second retake boundary, then create the range.'
+          : 'Mark retake in and out on the selected clip.';
 
   useEffect(() => {
     if (!mediaAssets.length) {
@@ -753,6 +898,30 @@ export const Timeline = memo(function Timeline() {
       setSelectedTrackId(activeClip.trackId);
     }
   }, [activeClip?.trackId]);
+
+  useEffect(() => {
+    if (!retakeDraftRange) {
+      return;
+    }
+
+    if (!activeClip || retakeDraftRange.clipId !== activeClip.id || activeClipMediaAsset?.type !== 'video') {
+      setRetakeDraftRange((current) => {
+        if (!current) {
+          return current;
+        }
+
+        if (
+          !activeClip ||
+          current.clipId !== activeClip.id ||
+          activeClipMediaAsset?.type !== 'video'
+        ) {
+          return null;
+        }
+
+        return current;
+      });
+    }
+  }, [activeClip, activeClipMediaAsset?.type, retakeDraftRange]);
 
   const selectedMediaAsset = mediaAssets.find((asset) => asset.id === insertMediaId) ?? mediaAssets[0] ?? null;
   const totalDurationMs = Math.max(activeSequence?.durationMs ?? 0, activeSequence?.playRange?.endMs ?? 0, 10000);
@@ -853,6 +1022,61 @@ export const Timeline = memo(function Timeline() {
 
     insertClip(selectedMediaAsset, activeSequence?.durationMs ?? 0, selectedTrack?.id);
   }, [activeSequence?.durationMs, insertClip, selectedMediaAsset, selectedTrack?.id]);
+
+  const handleMarkRetakeBoundary = useCallback(
+    (edge: 'startMs' | 'endMs') => {
+      if (!activeClip || !canAuthorRetake || clipLocalPlayheadMs === null) {
+        return;
+      }
+
+      setRetakeDraftRange((current) => {
+        const next =
+          current?.clipId === activeClip.id
+            ? { ...current }
+            : {
+                clipId: activeClip.id,
+                startMs: null,
+                endMs: null,
+              };
+
+        next[edge] = clipLocalPlayheadMs;
+        return next;
+      });
+    },
+    [activeClip, canAuthorRetake, clipLocalPlayheadMs],
+  );
+
+  const handleCreateRetake = useCallback(() => {
+    if (!activeClip || !canCreateRetake || !activeClipDraftRange) {
+      return;
+    }
+
+    const nextRange = createTimelineClipRetakeRange(activeClip.id, {
+      startMs: activeClipDraftRange.startMs!,
+      endMs: activeClipDraftRange.endMs!,
+    });
+
+    if (nextRange) {
+      setRetakeDraftRange(null);
+      setActiveTimelineRetakeRange(nextRange.id);
+    }
+  }, [
+    activeClip,
+    activeClipDraftRange,
+    canCreateRetake,
+    createTimelineClipRetakeRange,
+    setActiveTimelineRetakeRange,
+  ]);
+
+  const handleClearRetakeDraft = useCallback(() => {
+    setRetakeDraftRange((current) => {
+      if (!activeClip || !current || current.clipId !== activeClip.id) {
+        return null;
+      }
+
+      return null;
+    });
+  }, [activeClip]);
 
   const handleTrackInsert = useCallback(
     (event: React.MouseEvent<HTMLDivElement>, track: TimelineTrack) => {
@@ -1154,6 +1378,56 @@ export const Timeline = memo(function Timeline() {
 
               <button
                 type="button"
+                onClick={() => handleMarkRetakeBoundary('startMs')}
+                disabled={!canAuthorRetake}
+                className={TIMELINE_ACTION_BUTTON_CLASS}
+                aria-label="Mark Retake In"
+              >
+                Retake In
+              </button>
+              <button
+                type="button"
+                onClick={() => handleMarkRetakeBoundary('endMs')}
+                disabled={!canAuthorRetake}
+                className={TIMELINE_ACTION_BUTTON_CLASS}
+                aria-label="Mark Retake Out"
+              >
+                Retake Out
+              </button>
+              <button
+                type="button"
+                onClick={handleCreateRetake}
+                disabled={!canCreateRetake}
+                className={TIMELINE_ACTION_BUTTON_CLASS}
+                aria-label="Create Retake"
+              >
+                Create Retake
+              </button>
+              <button
+                type="button"
+                onClick={handleClearRetakeDraft}
+                disabled={!activeClipDraftRange}
+                className={TIMELINE_ACTION_BUTTON_CLASS}
+                aria-label="Clear Retake Range"
+              >
+                Clear Range
+              </button>
+              <span
+                className={cn(
+                  'whitespace-nowrap rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.12em]',
+                  canAuthorRetake
+                    ? 'border-accent-primary/25 bg-accent-primary-muted text-accent-primary'
+                    : 'border-border bg-canvas/70 text-text-muted',
+                )}
+                data-testid="timeline-retake-toolbar-status"
+              >
+                {retakeToolbarMessage}
+              </span>
+
+              <div className="mx-1 h-5 w-px bg-border" />
+
+              <button
+                type="button"
                 onClick={() =>
                   activeSequence &&
                   setTimelineSequencePlayRange(activeSequence.id, {
@@ -1405,6 +1679,10 @@ export const Timeline = memo(function Timeline() {
                                     isPlaceholder={isStoryboardPlaceholderAsset(mediaAsset)}
                                     totalDurationMs={totalDurationMs}
                                     selected={activeTimelineClipId === clip.id}
+                                    activeRetakeRangeId={activeTimelineRetakeRangeId}
+                                    draftRetakeRange={
+                                      retakeDraftRange?.clipId === clip.id ? retakeDraftRange : null
+                                    }
                                     onSelect={() => {
                                       setSelectedTrackId(track.id);
                                       setActiveTimelineClip(clip.id);

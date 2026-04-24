@@ -14,7 +14,7 @@ import {
 import { useAppStore } from '@/store/appStore';
 import { cn } from '@/utils/cn';
 import type { MediaAsset } from '@/types/media';
-import type { TimelineTransitionType } from '@/types/timeline';
+import type { TimelineClipRetakeRange, TimelineTransitionType } from '@/types/timeline';
 import { runTimelineClipGeneration } from '@/features/timeline/runTimelineClipGeneration';
 
 const TRANSITION_OPTIONS: Array<{ value: TimelineTransitionType; label: string }> = [
@@ -43,6 +43,24 @@ function isStoryboardPlaceholderAsset(asset: MediaAsset | null | undefined) {
   return asset?.metadata?.storyboardPlaceholder === true;
 }
 
+function formatRetakeRangeLabel(startMs: number, endMs: number) {
+  return `${formatSeconds(startMs)}s to ${formatSeconds(endMs)}s`;
+}
+
+function getRetakeStatusClasses(status: TimelineClipRetakeRange['status']) {
+  switch (status) {
+    case 'accepted':
+      return 'border-status-success-border bg-status-success-muted text-status-success';
+    case 'candidate':
+      return 'border-accent-primary/30 bg-accent-primary-muted text-accent-primary';
+    case 'queued':
+    case 'rendering':
+      return 'border-status-warning-border bg-status-warning-muted text-status-warning';
+    default:
+      return 'border-border bg-surface text-text-muted';
+  }
+}
+
 interface TimelineClipInspectorProps {
   className?: string;
   onOpenExportDialog?: () => void;
@@ -59,38 +77,52 @@ export function TimelineClipInspector({
   const {
     activeTimelineClipId,
     activeTimelineSequenceId,
+    activeTimelineRetakeRangeId,
+    activeTimelineRetakeTakeId,
     projects,
     timelineClips,
     timelineTracks,
     timelineSequences,
     mediaAssets,
+    clipRetakeTakes,
     clipGenerationBindings,
     currentTime,
     seekTo,
+    setActiveTimelineRetakeRange,
+    setActiveTimelineRetakeTake,
     moveTimelineClip,
     trimTimelineClip,
     splitTimelineClip,
     duplicateTimelineClip,
     deleteTimelineClip,
+    updateTimelineClipRetakeRange,
+    deleteTimelineClipRetakeRange,
     updateTimelineClip,
     setTimelineClipTransition,
   } = useAppStore(
     useShallow((state) => ({
       activeTimelineClipId: state.activeTimelineClipId,
       activeTimelineSequenceId: state.activeTimelineSequenceId,
+      activeTimelineRetakeRangeId: state.activeTimelineRetakeRangeId,
+      activeTimelineRetakeTakeId: state.activeTimelineRetakeTakeId,
       projects: state.projects,
       timelineClips: state.timelineClips,
       timelineTracks: state.timelineTracks,
       timelineSequences: state.timelineSequences,
       mediaAssets: state.mediaAssets,
+      clipRetakeTakes: state.clipRetakeTakes,
       clipGenerationBindings: state.clipGenerationBindings,
       currentTime: state.currentTime,
       seekTo: state.seekTo,
+      setActiveTimelineRetakeRange: state.setActiveTimelineRetakeRange,
+      setActiveTimelineRetakeTake: state.setActiveTimelineRetakeTake,
       moveTimelineClip: state.moveTimelineClip,
       trimTimelineClip: state.trimTimelineClip,
       splitTimelineClip: state.splitTimelineClip,
       duplicateTimelineClip: state.duplicateTimelineClip,
       deleteTimelineClip: state.deleteTimelineClip,
+      updateTimelineClipRetakeRange: state.updateTimelineClipRetakeRange,
+      deleteTimelineClipRetakeRange: state.deleteTimelineClipRetakeRange,
       updateTimelineClip: state.updateTimelineClip,
       setTimelineClipTransition: state.setTimelineClipTransition,
     })),
@@ -137,6 +169,37 @@ export function TimelineClipInspector({
         : [],
     [sequence, timelineTracks],
   );
+  const retakeRanges = useMemo(
+    () => [...(clip?.retakeRanges ?? [])].sort((left, right) => left.startMs - right.startMs),
+    [clip?.retakeRanges],
+  );
+  const selectedRetakeRange = useMemo(
+    () =>
+      retakeRanges.find((item) => item.id === activeTimelineRetakeRangeId) ??
+      retakeRanges[0] ??
+      null,
+    [activeTimelineRetakeRangeId, retakeRanges],
+  );
+  const retakeTakesForClip = useMemo(
+    () => (clip ? clipRetakeTakes.filter((item) => item.clipId === clip.id) : []),
+    [clip, clipRetakeTakes],
+  );
+  const selectedRetakeTakes = useMemo(
+    () =>
+      selectedRetakeRange
+        ? retakeTakesForClip
+            .filter((item) => item.retakeRangeId === selectedRetakeRange.id)
+            .sort((left, right) => right.createdAt.localeCompare(left.createdAt))
+        : [],
+    [retakeTakesForClip, selectedRetakeRange],
+  );
+  const selectedRetakeTake = useMemo(
+    () =>
+      selectedRetakeTakes.find((item) => item.id === activeTimelineRetakeTakeId) ??
+      selectedRetakeTakes[0] ??
+      null,
+    [activeTimelineRetakeTakeId, selectedRetakeTakes],
+  );
   const [aiActionError, setAiActionError] = useState<string | null>(null);
 
   if (!clip || !track || !sequence) {
@@ -158,6 +221,8 @@ export function TimelineClipInspector({
 
   const frameStepMs = Math.max(1, Math.round(1000 / Math.max(1, sequence.fps)));
   const isAudioClip = mediaAsset?.type === 'audio' || track.kind === 'audio';
+  const isVideoClip = mediaAsset?.type === 'video';
+  const retakePlayheadMs = Math.max(0, Math.min(clip.durationMs, currentTime - clip.startMs));
   const isAiBusy =
     generationBinding?.lastRunSummary?.status === 'queued' ||
     generationBinding?.lastRunSummary?.status === 'running';
@@ -173,6 +238,28 @@ export function TimelineClipInspector({
             ? 'Queued for generation'
             : 'No AI binding yet';
   const canExtendShot = generationBinding?.generationType === 'video';
+  const retakeStatusMessage = !isVideoClip
+    ? 'Retakes are only available for video clips.'
+    : selectedRetakeRange
+      ? `Range ${formatRetakeRangeLabel(selectedRetakeRange.startMs, selectedRetakeRange.endMs)}`
+      : 'No retake range selected yet. Use the timeline toolbar to mark retake in and out.';
+
+  const handleRetakeRangeTimeChange = (
+    edge: 'startMs' | 'endMs',
+    value: string,
+  ) => {
+    if (!selectedRetakeRange) {
+      return;
+    }
+
+    const parsedValue = parseSeconds(
+      value,
+      edge === 'startMs' ? selectedRetakeRange.startMs : selectedRetakeRange.endMs,
+    );
+    updateTimelineClipRetakeRange(clip.id, selectedRetakeRange.id, {
+      [edge]: parsedValue,
+    });
+  };
 
   const handleAiAction = async (operation: 'regenerate' | 'variant' | 'extend') => {
     setAiActionError(null);
@@ -582,6 +669,212 @@ export function TimelineClipInspector({
             </div>
           </div>
         )}
+
+        <div className="mt-4 rounded-xl border border-border bg-canvas p-3" data-testid="timeline-retake-controls">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-xs text-text-muted">Retake Ranges</p>
+              <p className="mt-1 text-sm text-text-primary">{retakeStatusMessage}</p>
+            </div>
+            <span
+              className={cn(
+                'rounded-full border px-2 py-1 text-[11px] uppercase tracking-[0.12em]',
+                isVideoClip
+                  ? 'border-accent-primary/30 bg-accent-primary-muted text-accent-primary'
+                  : 'border-border bg-surface text-text-muted',
+              )}
+            >
+              {isVideoClip ? `${retakeRanges.length} range${retakeRanges.length === 1 ? '' : 's'}` : 'Blocked'}
+            </span>
+          </div>
+
+          {!isVideoClip ? (
+            <p
+              className="mt-3 rounded-lg border border-border bg-surface px-3 py-3 text-xs text-text-muted"
+              data-testid="timeline-retake-blocked"
+            >
+              Select a generated or imported video clip to author a retake range.
+            </p>
+          ) : (
+            <>
+              {retakeRanges.length > 0 ? (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {retakeRanges.map((range) => (
+                    <button
+                      key={range.id}
+                      type="button"
+                      data-testid={`timeline-retake-range-${range.id}`}
+                      onClick={() => {
+                        setActiveTimelineRetakeRange(range.id);
+                        const preferredTakeId = range.acceptedTakeId ?? range.candidateTakeIds[0] ?? null;
+                        setActiveTimelineRetakeTake(preferredTakeId);
+                      }}
+                      className={cn(
+                        'rounded-full border px-3 py-1.5 text-[11px] uppercase tracking-[0.12em] transition',
+                        getRetakeStatusClasses(range.status),
+                        selectedRetakeRange?.id === range.id ? 'shadow-[0_0_0_1px_rgba(255,255,255,0.16)]' : '',
+                      )}
+                    >
+                      {formatRetakeRangeLabel(range.startMs, range.endMs)}
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <p
+                  className="mt-3 rounded-lg border border-border bg-surface px-3 py-3 text-xs text-text-muted"
+                  data-testid="timeline-retake-empty"
+                >
+                  No retake ranges yet. Use <span className="text-text-primary">Retake In</span> and{' '}
+                  <span className="text-text-primary">Retake Out</span> in the timeline toolbar, then create the range.
+                </p>
+              )}
+
+              {selectedRetakeRange ? (
+                <div
+                  className="mt-3 rounded-lg border border-border bg-surface px-3 py-3"
+                  data-testid="timeline-retake-range-editor"
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-[11px] uppercase tracking-[0.12em] text-text-muted">Selected Range</p>
+                      <p className="mt-1 text-sm text-text-primary">
+                        {formatRetakeRangeLabel(selectedRetakeRange.startMs, selectedRetakeRange.endMs)}
+                      </p>
+                    </div>
+                    <span
+                      className={cn(
+                        'rounded-full border px-2 py-1 text-[11px] uppercase tracking-[0.12em]',
+                        getRetakeStatusClasses(selectedRetakeRange.status),
+                      )}
+                    >
+                      {selectedRetakeRange.status}
+                    </span>
+                  </div>
+
+                  <div className="mt-3 grid grid-cols-2 gap-3">
+                    <label className="block text-[11px] text-text-muted">
+                      Retake In
+                      <input
+                        data-testid="timeline-retake-start-input"
+                        type="number"
+                        min={0}
+                        step="0.1"
+                        className="mt-1 w-full rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary"
+                        value={formatSeconds(selectedRetakeRange.startMs)}
+                        onChange={(event) => handleRetakeRangeTimeChange('startMs', event.target.value)}
+                      />
+                    </label>
+                    <label className="block text-[11px] text-text-muted">
+                      Retake Out
+                      <input
+                        data-testid="timeline-retake-end-input"
+                        type="number"
+                        min={0}
+                        step="0.1"
+                        className="mt-1 w-full rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary"
+                        value={formatSeconds(selectedRetakeRange.endMs)}
+                        onChange={(event) => handleRetakeRangeTimeChange('endMs', event.target.value)}
+                      />
+                    </label>
+                  </div>
+
+                  <div className="mt-3 grid grid-cols-3 gap-2">
+                    <button
+                      type="button"
+                      className="rounded-lg border border-border bg-canvas px-3 py-2 text-xs text-text-primary transition hover:bg-elevated"
+                      onClick={() => seekTo(clip.startMs + selectedRetakeRange.startMs)}
+                    >
+                      Playhead To In
+                    </button>
+                    <button
+                      type="button"
+                      className="rounded-lg border border-border bg-canvas px-3 py-2 text-xs text-text-primary transition hover:bg-elevated"
+                      onClick={() => seekTo(clip.startMs + selectedRetakeRange.endMs)}
+                    >
+                      Playhead To Out
+                    </button>
+                    <button
+                      type="button"
+                      data-testid="timeline-retake-delete-range"
+                      className="rounded-lg border border-status-error/30 bg-status-error-muted px-3 py-2 text-xs text-status-error transition hover:bg-status-error-muted/80"
+                      onClick={() => deleteTimelineClipRetakeRange(clip.id, selectedRetakeRange.id)}
+                    >
+                      Clear Range
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+
+              <div className="mt-3 rounded-lg border border-border bg-surface px-3 py-3" data-testid="timeline-retake-candidates">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-[11px] uppercase tracking-[0.12em] text-text-muted">Candidate Takes</p>
+                    <p className="mt-1 text-sm text-text-primary">
+                      {selectedRetakeRange ? `${selectedRetakeTakes.length} candidate take${selectedRetakeTakes.length === 1 ? '' : 's'}` : 'Select a range'}
+                    </p>
+                  </div>
+                  <span className="font-mono text-xs text-text-muted">
+                    {selectedRetakeRange ? formatSeconds(retakePlayheadMs) : '--'}
+                  </span>
+                </div>
+
+                {selectedRetakeRange ? (
+                  selectedRetakeTakes.length > 0 ? (
+                    <div className="mt-3 space-y-2">
+                      {selectedRetakeTakes.map((take) => (
+                        <button
+                          key={take.id}
+                          type="button"
+                          data-testid={`timeline-retake-take-${take.id}`}
+                          onClick={() => setActiveTimelineRetakeTake(take.id)}
+                          className={cn(
+                            'w-full rounded-lg border px-3 py-2 text-left transition',
+                            selectedRetakeTake?.id === take.id
+                              ? 'border-accent-primary bg-accent-primary-muted/50'
+                              : 'border-border bg-canvas hover:bg-elevated',
+                          )}
+                        >
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="min-w-0">
+                              <p className="truncate text-sm text-text-primary">
+                                {take.mediaAssetId ? `Take ${take.mediaAssetId}` : 'Pending retake take'}
+                              </p>
+                              <p className="mt-1 text-xs text-text-muted">
+                                {take.prompt ? take.prompt.slice(0, 96) : 'No prompt override yet.'}
+                              </p>
+                            </div>
+                            <span
+                              className={cn(
+                                'rounded-full border px-2 py-1 text-[11px] uppercase tracking-[0.12em]',
+                                take.status === 'accepted'
+                                  ? 'border-status-success-border bg-status-success-muted text-status-success'
+                                  : take.status === 'candidate'
+                                    ? 'border-accent-primary/30 bg-accent-primary-muted text-accent-primary'
+                                    : take.status === 'queued' || take.status === 'rendering'
+                                      ? 'border-status-warning-border bg-status-warning-muted text-status-warning'
+                                      : 'border-border bg-surface text-text-muted',
+                              )}
+                            >
+                              {take.status}
+                            </span>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="mt-3 text-xs text-text-muted">
+                      No candidate retakes yet. Use <span className="text-text-primary">Create Retake</span> in the timeline toolbar after marking a range.
+                    </p>
+                  )
+                ) : (
+                  <p className="mt-3 text-xs text-text-muted">
+                    Select a retake range to review future candidates and approval state.
+                  </p>
+                )}
+              </div>
+            </>
+          )}
+        </div>
 
         {!isAudioClip ? (
           <div className="mt-4 rounded-xl border border-border bg-canvas p-3" data-testid="timeline-ai-actions">
