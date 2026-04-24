@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { Stage, Layer, Rect, Image as KonvaImage, Line, Text, Transformer } from 'react-konva';
+import { Stage, Layer, Rect, Image as KonvaImage, Line, Transformer } from 'react-konva';
 import { useAppStore } from '@/store/appStore';
 import { useShallow } from 'zustand/react/shallow';
 import { cn } from '@/utils/cn';
@@ -18,28 +18,24 @@ export function EditCanvas() {
     editLayers,
     regionMode,
     activeMaskTool,
-    activeRegionId,
     maskBrushSize,
     maskInverted,
     setActiveMaskTool,
-    setActiveRegionId,
     setMaskBrushSize,
     toggleMaskInverted,
   } = useAppStore(useShallow((s) => ({
     currentImage: s.currentImage,
-    activeEditTool: s.activeEditTool,
-    imageAdjustments: s.imageAdjustments,
-    editLayers: s.editLayers,
-    regionMode: s.regionMode,
-    activeMaskTool: s.activeMaskTool,
-    activeRegionId: s.activeRegionId,
-    maskBrushSize: s.maskBrushSize,
-    maskInverted: s.maskInverted,
-    setActiveMaskTool: s.setActiveMaskTool,
-    setActiveRegionId: s.setActiveRegionId,
-    setMaskBrushSize: s.setMaskBrushSize,
-    toggleMaskInverted: s.toggleMaskInverted,
-  })));
+      activeEditTool: s.activeEditTool,
+      imageAdjustments: s.imageAdjustments,
+      editLayers: s.editLayers,
+      regionMode: s.regionMode,
+      activeMaskTool: s.activeMaskTool,
+      maskBrushSize: s.maskBrushSize,
+      maskInverted: s.maskInverted,
+      setActiveMaskTool: s.setActiveMaskTool,
+      setMaskBrushSize: s.setMaskBrushSize,
+      toggleMaskInverted: s.toggleMaskInverted,
+    })));
 
   const containerRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<Konva.Stage>(null);
@@ -151,7 +147,7 @@ export function EditCanvas() {
 
   // Drawing handlers - use ref for in-progress line to avoid array copy on every mouse move
   const handleMouseDown = useCallback(
-    (e: Konva.KonvaEventObject<MouseEvent>) => {
+    (_event: Konva.KonvaEventObject<MouseEvent>) => {
       if (activeEditTool !== 'brush' && activeEditTool !== 'eraser') return;
       setIsDrawing(true);
       const pos = stageRef.current?.getPointerPosition();
@@ -165,7 +161,7 @@ export function EditCanvas() {
   );
 
   const handleMouseMove = useCallback(
-    (e: Konva.KonvaEventObject<MouseEvent>) => {
+    (_event: Konva.KonvaEventObject<MouseEvent>) => {
       if (!isDrawing || !currentLineRef.current) return;
       const pos = stageRef.current?.getPointerPosition();
       if (!pos) return;

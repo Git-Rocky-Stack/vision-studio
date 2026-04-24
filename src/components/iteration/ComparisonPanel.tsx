@@ -29,6 +29,13 @@ export const ComparisonPanel = memo(function ComparisonPanel({
   const right = iterationNodes.get(rightId);
   const sliderRef = useRef<HTMLDivElement>(null);
   const [sliderPos, setSliderPos] = useState(50);
+  const settingsDiff = useMemo(
+    () =>
+      left && right
+        ? computeSettingsDiff(left.generationJob.params, right.generationJob.params)
+        : null,
+    [left, right],
+  );
 
   if (!left || !right) return null;
 
@@ -40,10 +47,6 @@ export const ComparisonPanel = memo(function ComparisonPanel({
   const leftBranch = iterationBranches.find((branch) => branch.id === left.branchId);
   const rightBranch = iterationBranches.find((branch) => branch.id === right.branchId);
   const isCrossBranch = left.branchId !== right.branchId;
-  const settingsDiff = useMemo(
-    () => computeSettingsDiff(left.generationJob.params, right.generationJob.params),
-    [left.generationJob.params, right.generationJob.params],
-  );
 
   const handleSliderMove = (e: React.MouseEvent<HTMLDivElement>) => {
     if (!sliderRef.current) return;

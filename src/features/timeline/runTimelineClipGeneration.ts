@@ -11,7 +11,6 @@ import { computeDimensions } from '@/types/resolution';
 import { SVD_REFERENCE_ERROR } from '@/features/generate/validation';
 import { resolveCanvasControlLayers } from '@/features/generation/resolveCanvasControlLayers';
 import {
-  buildCompletionSummary,
   delay,
   getOutputAssetId,
   resolveOutputRoot,

@@ -100,7 +100,6 @@ describe('CharacterRefCard', () => {
       );
       // Color indicator div should exist with the character's color
       const card = screen.getByTestId('character-ref-card');
-      const colorBar = card.querySelector('[style*="background-color: rgb(230, 57, 70)"], [style*="background-color: #e63946"]');
       // The color bar exists (inline style)
       expect(card.querySelector('.w-1')).toBeInTheDocument();
     });

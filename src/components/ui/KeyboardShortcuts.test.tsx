@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, it, expect, vi } from 'vitest';
 import { KeyboardShortcuts } from './KeyboardShortcuts';
@@ -132,7 +132,6 @@ describe('KeyboardShortcuts', () => {
     });
 
     it('focus restored to trigger element on close', async () => {
-      const user = userEvent.setup();
       const onClose = vi.fn();
 
       // Create a trigger button that would have focus before modal opens

@@ -347,8 +347,16 @@ function normalizePath(path: string) {
 }
 
 function sanitizeFilename(name: string) {
-  const sanitized = name
-    .replace(/[<>:"/\\|?*\u0000-\u001F]/g, '-')
+  const sanitized = Array.from(name)
+    .map((character) => {
+      const code = character.charCodeAt(0);
+      if (code >= 0 && code <= 31) {
+        return '-';
+      }
+
+      return /[<>:"/\\|?*]/.test(character) ? '-' : character;
+    })
+    .join('')
     .replace(/\s+/g, ' ')
     .trim()
     .replace(/[. ]+$/g, '');

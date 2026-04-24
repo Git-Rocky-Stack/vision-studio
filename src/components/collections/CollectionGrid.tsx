@@ -4,8 +4,6 @@ import { ImageWithFallback } from '@/components/ui/ImageWithFallback';
 import { TagBadge } from './TagBadge';
 import { cn } from '@/utils/cn';
 import { useAppStore } from '@/store/appStore';
-import type { AssetMetadata } from '@/types/collections';
-
 interface CollectionGridProps {
   assetIds: string[];
   onAssetClick?: (assetId: string) => void;

@@ -3,7 +3,7 @@ import { render, screen, cleanup } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { RegionLockOverlay } from './RegionLockOverlay';
 import type { RegionLock } from '@/types/project';
-import { DEFAULT_REGION_MASK, DEFAULT_GENERATION_CONFIG } from '@/types/project';
+import { DEFAULT_REGION_MASK } from '@/types/project';
 
 const mockRegion: RegionLock = {
   id: 'region-1',

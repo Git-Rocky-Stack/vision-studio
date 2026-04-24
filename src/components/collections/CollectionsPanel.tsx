@@ -1,11 +1,10 @@
 import { memo, useState } from 'react';
-import { Search, Plus, FolderOpen, Sparkles } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { Search, Plus, FolderOpen } from 'lucide-react';
+import { AnimatePresence } from 'framer-motion';
 import { cn } from '@/utils/cn';
 import { Button } from '@/components/ui/Button';
 import { useAppStore } from '@/store/appStore';
 import { CollectionCard } from './CollectionCard';
-import type { Collection } from '@/types/collections';
 
 type CollectionFilter = 'all' | 'smart' | 'manual';
 
@@ -16,7 +15,6 @@ interface CollectionsPanelProps {
 export const CollectionsPanel = memo(function CollectionsPanel({ className }: CollectionsPanelProps) {
   const collections = useAppStore((s) => s.collections);
   const createCollection = useAppStore((s) => s.createCollection);
-  const createSmartCollection = useAppStore((s) => s.createSmartCollection);
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<CollectionFilter>('all');
 

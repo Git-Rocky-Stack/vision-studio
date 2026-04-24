@@ -2,7 +2,7 @@ import { memo, useMemo } from 'react';
 import { ArrowLeftRight } from 'lucide-react';
 import { useAppStore } from '@/store/appStore';
 import { cn } from '@/utils/cn';
-import { ASPECT_RATIOS, computeDimensions, type AspectRatio, type ResolutionTier } from '@/types/resolution';
+import { ASPECT_RATIOS, computeDimensions, type ResolutionTier } from '@/types/resolution';
 
 const TIERS: { id: ResolutionTier; label: string; px: number }[] = [
   { id: 'standard', label: 'Standard', px: 512 },

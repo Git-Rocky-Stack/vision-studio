@@ -159,7 +159,6 @@ export const DockviewLayout = memo(function DockviewLayout() {
   const showTimelineWorkspace = activeTab === 'generate' && centerView === 'canvas' && !isStudioMode;
   const showIterationView = activeTab === 'generate' || activeTab === 'canvas';
   const usesTripleRightDock = !isCanvasTab && showIterationView;
-  const usesDualRightDock = !isCanvasTab && !showIterationView;
 
   const preset = getLayoutPreset(activeTab);
   const workspaceRef = useRef<HTMLDivElement>(null);

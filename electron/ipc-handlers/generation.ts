@@ -12,10 +12,6 @@ let mainWindow: BrowserWindow | null = null;
 let wsReconnectAttempts = 0;
 const WS_BASE_DELAY = 1000; // 1s initial delay, doubles each attempt up to 30s
 
-function isConnectionRefused(error: any) {
-  return typeof error?.message === 'string' && error.message.includes('ECONNREFUSED');
-}
-
 function isBackendDownError(error: any) {
   const msg = typeof error?.message === 'string' ? error.message : '';
   return msg.includes('ECONNREFUSED') || error?.code === 'ECONNREFUSED';

@@ -1,12 +1,11 @@
 import { memo, useState, useMemo } from 'react';
-import { Search, Plus, Sparkles, FolderOpen, Layers } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { Search, Plus, FolderOpen, Layers } from 'lucide-react';
+import { AnimatePresence } from 'framer-motion';
 import { cn } from '@/utils/cn';
 import { Button } from '@/components/ui/Button';
 import { useAppStore } from '@/store/appStore';
 import { CollectionCard } from '@/components/collections/CollectionCard';
 import { AnalyzeButton } from '@/components/collections/AnalyzeButton';
-import type { Collection } from '@/types/collections';
 
 type CategoryFilter = 'all' | 'smart' | 'manual' | 'tagged' | 'untagged';
 

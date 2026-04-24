@@ -40,7 +40,7 @@ export async function waitForBackendReady({
 }: WaitForBackendReadyOptions = {}) {
   const deadline = Date.now() + timeoutMs;
 
-  do {
+  while (Date.now() <= deadline) {
     for (const origin of origins) {
       if (await probeOrigin(fetchImpl, origin, requestTimeoutMs)) {
         return { ready: true, origin };
@@ -52,7 +52,7 @@ export async function waitForBackendReady({
     }
 
     await new Promise((resolve) => setTimeout(resolve, intervalMs));
-  } while (true);
+  }
 
   return { ready: false, origin: null };
 }

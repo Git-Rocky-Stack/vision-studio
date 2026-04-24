@@ -7,7 +7,6 @@ import {
   Clock,
   Search,
   Heart,
-  Trash2,
   X,
   ArrowUpRight,
   Sparkles,

@@ -1,6 +1,6 @@
 import { memo, useState } from 'react';
 import { cn } from '@/utils/cn';
-import { User, Trash2, GripVertical, Lock, Unlock } from 'lucide-react';
+import { User, Trash2, Lock, Unlock } from 'lucide-react';
 import { motion } from 'framer-motion';
 import type { CharacterRef, LockedFeature } from '@/types/project';
 

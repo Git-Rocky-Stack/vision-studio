@@ -10,8 +10,8 @@ import type {
 import { mergeElementDrafts } from './mergeElementDrafts';
 
 const SCREENPLAY_HEADING_RE =
-  /^(?:(?:scene)\s+\d+\s*[:.\-]\s*)?(?:(?:int|ext|int\/ext|ext\/int|i\/e|est)\.?\s+.+)$/i;
-const SCENE_OUTLINE_RE = /^scene\s+\d+(?:\s*[:.\-]\s*|\s+)(.+)$/i;
+  /^(?:(?:scene)\s+\d+\s*[:.-]\s*)?(?:(?:int|ext|int\/ext|ext\/int|i\/e|est)\.?\s+.+)$/i;
+const SCENE_OUTLINE_RE = /^scene\s+\d+(?:\s*[:.-]\s*|\s+)(.+)$/i;
 const BULLET_RE = /^\s*(?:[-*\u2022]|\d+[.)])\s+(.*\S)\s*$/;
 const CHARACTER_CUE_RE = /^[A-Z][A-Z0-9'(). -]{1,30}$/;
 const STYLE_KEYWORDS = [
@@ -176,7 +176,7 @@ function segmentScript(sourceText: string) {
 
 function cleanSceneHeading(heading: string) {
   return heading
-    .replace(/^scene\s+\d+\s*[:.\-]\s*/i, '')
+    .replace(/^scene\s+\d+\s*[:.-]\s*/i, '')
     .replace(/^(int|ext|int\/ext|ext\/int|i\/e|est)\.?\s*/i, '')
     .trim();
 }

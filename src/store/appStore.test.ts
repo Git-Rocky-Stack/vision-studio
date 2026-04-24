@@ -1295,7 +1295,7 @@ We only get one pass at this.
       useAppStore.getState().moveTimelineClip(clipA.id, { startMs: 800 });
       let state = useAppStore.getState();
       let movedA = state.timelineClips.find((clip) => clip.id === clipA.id)!;
-      let movedB = state.timelineClips.find((clip) => clip.id === clipB.id)!;
+      const movedB = state.timelineClips.find((clip) => clip.id === clipB.id)!;
       expect(movedB.startMs).toBeGreaterThanOrEqual(movedA.startMs + movedA.durationMs);
 
       useAppStore.getState().moveTimelineClip(clipA.id, { trackId: altTrack.id, startMs: 500 });

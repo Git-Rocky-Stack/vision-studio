@@ -14,7 +14,6 @@ import {
   Instagram,
   ShoppingBag,
   Palette,
-  Check,
   ArrowRight,
   Plus,
   Search,
@@ -27,13 +26,6 @@ import {
   Trash2,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-
-const categoryIcons: Record<string, React.ElementType> = {
-  youtube: Youtube,
-  social: Instagram,
-  marketing: ShoppingBag,
-  art: Palette,
-};
 
 const categoryLabels: Record<string, string> = {
   youtube: 'YouTube',

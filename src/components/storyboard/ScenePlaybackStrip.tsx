@@ -1,6 +1,5 @@
 import { memo, useState, useCallback, useRef, useEffect } from 'react';
 import { cn } from '@/utils/cn';
-import { useAppStore } from '@/store/appStore';
 import { TransitionIndicator } from '@/components/storyboard/TransitionIndicator';
 import { ImageOff, Play, Pause, SkipBack, SkipForward } from 'lucide-react';
 import type { Scene } from '@/types/project';

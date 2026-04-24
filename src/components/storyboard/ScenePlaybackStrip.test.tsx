@@ -122,7 +122,6 @@ describe('ScenePlaybackStrip', () => {
     });
 
     it('toggles play/pause button state', async () => {
-      const user = userEvent.setup();
       render(<ScenePlaybackStrip {...defaultProps} />);
       const playBtn = screen.getByLabelText(/play/i);
       expect(playBtn).toHaveAttribute('aria-pressed', 'false');

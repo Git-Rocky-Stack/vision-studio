@@ -48,9 +48,9 @@ export function ResultsGrid({
     }))
   );
 
-  const [viewModeLocal, setViewModeLocal] = useState<ViewMode>('grid');
-  const [sortByLocal, setSortByLocal] = useState<SortBy>('created');
-  const [filterByLocal, setFilterByLocal] = useState<FilterBy>('all');
+  const [viewModeLocal] = useState<ViewMode>('grid');
+  const [sortByLocal] = useState<SortBy>('created');
+  const [filterByLocal] = useState<FilterBy>('all');
 
   const viewMode = viewModeProp ?? viewModeLocal;
   const sortBy = sortByProp ?? sortByLocal;
@@ -120,10 +120,6 @@ export function ResultsGrid({
     },
     [lastSelectedId, sortedResults]
   );
-
-  const selectAll = () => {
-    setSelectedIds(new Set(sortedResults.map((r) => r.id)));
-  };
 
   const deselectAll = () => {
     setSelectedIds(new Set());

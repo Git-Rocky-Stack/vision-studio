@@ -19,7 +19,6 @@ import {
   ArrowDown,
   ArrowLeft,
   ArrowRight,
-  Layers,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 

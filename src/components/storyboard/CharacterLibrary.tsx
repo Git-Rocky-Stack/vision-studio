@@ -12,26 +12,30 @@ interface CharacterLibraryProps {
 }
 
 export function CharacterLibrary({ projectId }: CharacterLibraryProps) {
-  const { projects, deleteCharacter, updateCharacter } = useAppStore(
-    useShallow((s) => ({ projects: s.projects, deleteCharacter: s.deleteCharacter, updateCharacter: s.updateCharacter }))
+  const { projects, addCharacter, deleteCharacter, updateCharacter } = useAppStore(
+    useShallow((s) => ({
+      projects: s.projects,
+      addCharacter: s.addCharacter,
+      deleteCharacter: s.deleteCharacter,
+      updateCharacter: s.updateCharacter,
+    }))
   );
 
   const [deleteTarget, setDeleteTarget] = useState<CharacterRef | null>(null);
-  const [isAdding, setIsAdding] = useState(false);
-
   const project = projects.find((p) => p.id === projectId);
+
+  // Count how many scenes reference each character
+  const getSceneCount = useCallback(
+    (charId: string) =>
+      project?.scenes.filter((s) => s.characterRefs.includes(charId)).length ?? 0,
+    [project?.scenes]
+  );
+
   if (!project) return null;
 
   const characters = project.characters;
   const importedCharacterElementCount =
     project.elements?.filter((element) => element.type === 'character').length ?? 0;
-
-  // Count how many scenes reference each character
-  const getSceneCount = useCallback(
-    (charId: string) =>
-      project.scenes.filter((s) => s.characterRefs.includes(charId)).length,
-    [project.scenes]
-  );
 
   const handleToggleFeature = (charId: string, feature: LockedFeature) => {
     const char = characters.find((c) => c.id === charId);
@@ -52,7 +56,16 @@ export function CharacterLibrary({ projectId }: CharacterLibraryProps) {
   };
 
   const handleAddCharacter = () => {
-    setIsAdding(true);
+    addCharacter(projectId, {
+      name: `Character ${characters.length + 1}`,
+      description: '',
+      faceImages: [],
+      bodyImages: [],
+      styleImages: [],
+      lockedFeatures: [],
+      consistencyStrength: 0.85,
+      color: '#e63946',
+    });
   };
 
   return (

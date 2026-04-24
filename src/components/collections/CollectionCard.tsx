@@ -1,6 +1,6 @@
 import { memo, useState } from 'react';
 import { motion } from 'framer-motion';
-import { FolderOpen, Star, Trash2, MoreHorizontal } from 'lucide-react';
+import { FolderOpen, Trash2 } from 'lucide-react';
 import { cn } from '@/utils/cn';
 import { useAppStore } from '@/store/appStore';
 import type { Collection } from '@/types/collections';

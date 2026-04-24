@@ -405,7 +405,7 @@ function resolveSceneMediaAsset(
 
   return {
     mediaAsset: existingDerivedAsset ?? createPlaceholderMediaAsset(scene),
-    upsertMediaAsset: !Boolean(existingDerivedAsset),
+    upsertMediaAsset: !existingDerivedAsset,
     placeholder: true,
   };
 }

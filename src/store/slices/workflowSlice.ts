@@ -5,7 +5,6 @@ import type {
   WorkflowGraph,
   WorkflowGraphNode,
   WorkflowGraphEdge,
-  WorkflowGraphInput,
   WorkflowRecord,
   WorkflowRunRecord,
   WorkflowRunInput,
@@ -71,10 +70,6 @@ export const DEFAULT_WORKFLOWS: WorkflowRecord[] = [
   },
 ];
 
-function cloneWorkflowGraph(graph: WorkflowGraph): WorkflowGraph {
-  return structuredClone(graph);
-}
-
 function cloneWorkflow(workflow: WorkflowRecord): WorkflowRecord {
   return structuredClone(workflow);
 }
@@ -89,7 +84,7 @@ function createDefaultWorkflowRuntimeState(): WorkflowRuntimeState {
   };
 }
 
-function createWorkflowEdgeId(edge: Omit<WorkflowGraphEdge, 'id'>): string {
+function createWorkflowEdgeId(_edge: Omit<WorkflowGraphEdge, 'id'>): string {
   return `edge-${crypto.randomUUID()}`;
 }
 

@@ -293,19 +293,6 @@ function sortClipsByStart(clips: TimelineClip[]) {
   });
 }
 
-function listTrackClips(trackId: string, clips: TimelineClip[]) {
-  return sortClipsByStart(clips.filter((clip) => clip.trackId === trackId));
-}
-
-function findSequenceForTrack(trackId: string, tracks: TimelineTrack[], sequences: TimelineSequence[]) {
-  const track = tracks.find((item) => item.id === trackId);
-  if (!track) {
-    return null;
-  }
-
-  return sequences.find((sequence) => sequence.id === track.sequenceId) ?? null;
-}
-
 function resolveMediaAssetDuration(mediaAsset: MediaAsset | undefined, clip: TimelineClip) {
   if (typeof mediaAsset?.durationMs === 'number' && Number.isFinite(mediaAsset.durationMs)) {
     return mediaAsset.durationMs;
@@ -432,13 +419,6 @@ function reflowTrackClips(
   }
 
   return clips.map((clip) => nextById.get(clip.id) ?? byId.get(clip.id) ?? clip);
-}
-
-function updateSequenceDurations(sequences: TimelineSequence[], tracks: TimelineTrack[], clips: TimelineClip[]) {
-  return sequences.map((sequence) => ({
-    ...sequence,
-    durationMs: computeSequenceDuration(sequence.id, tracks, clips),
-  }));
 }
 
 function pruneBindingVariantIds(

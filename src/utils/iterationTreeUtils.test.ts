@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildTree, getPath, getSiblings, computeSettingsDiff } from './iterationTreeUtils';
+import { buildTree, computeSettingsDiff } from './iterationTreeUtils';
 import type { IterationNode, IterationBranch } from '@/types/iteration';
 
 const makeNode = (id: string, parentId: string | null, branchId: string, children: string[] = []): IterationNode => ({

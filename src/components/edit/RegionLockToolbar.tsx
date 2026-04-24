@@ -6,8 +6,6 @@ import {
   Paintbrush,
   Eraser,
   ArrowDownUp,
-  Plus,
-  Minus,
 } from 'lucide-react';
 import type { MaskType } from '@/types/project';
 

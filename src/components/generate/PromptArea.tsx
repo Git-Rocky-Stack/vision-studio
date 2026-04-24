@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { cn } from '@/utils/cn';
 import { Textarea } from '@/components/ui/Textarea';
 import { PromptToolbar } from './PromptToolbar';
-import { Sparkles, ChevronDown } from 'lucide-react';
+import { ChevronDown } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 
 interface PromptAreaProps {

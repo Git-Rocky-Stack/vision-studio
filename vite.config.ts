@@ -89,6 +89,9 @@ export default defineConfig({
   },
   build: {
     outDir: 'dist',
+    // The renderer already uses vendor chunk splitting; the remaining app chunk is
+    // expected to stay above Vite's default 500 kB warning threshold for now.
+    chunkSizeWarningLimit: 800,
     rollupOptions: {
       output: {
         manualChunks: splitRendererVendorChunk,

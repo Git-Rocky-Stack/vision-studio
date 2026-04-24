@@ -17,7 +17,6 @@ import {
   Check,
   RefreshCw,
   HardDrive,
-  Monitor,
   AlertTriangle,
   Play,
   Tag,

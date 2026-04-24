@@ -4,7 +4,6 @@ import { cn } from '@/utils/cn';
 import { FrameFilmstrip, type FrameItem } from './FrameFilmstrip';
 import { KeyframeDiamond } from './KeyframeDiamond';
 import { Film } from 'lucide-react';
-import type { Keyframe } from '@/types/timeline';
 
 // ---------------------------------------------------------------------------
 // AnimationTrackEditor - Layer-based keyframe animation editor
@@ -30,7 +29,6 @@ export const AnimationTrackEditor = memo(function AnimationTrackEditor({
   const keyframes = useAppStore((s) => s.keyframes);
   const activeKeyframeId = useAppStore((s) => s.activeKeyframeId);
   const setActiveKeyframeId = useAppStore((s) => s.setActiveKeyframeId);
-  const deleteKeyframe = useAppStore((s) => s.deleteKeyframe);
   const currentTime = useAppStore((s) => s.currentTime);
   const seekTo = useAppStore((s) => s.seekTo);
 

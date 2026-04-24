@@ -115,7 +115,7 @@ export const IterationTimeline = memo(function IterationTimeline({ className }: 
   }, []);
 
   const handleTimelineKeyDown = useCallback((event: React.KeyboardEvent<HTMLButtonElement>, index: number) => {
-    let nextIndex = index;
+    let nextIndex: number;
 
     switch (event.key) {
       case 'ArrowLeft':

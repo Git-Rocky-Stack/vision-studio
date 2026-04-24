@@ -18,7 +18,6 @@ export const StoryboardPlayback = memo(function StoryboardPlayback({
   // ── Store selectors ────────────────────────────────────────────────────
   const projects = useAppStore((s) => s.projects);
   const activeProjectId = useAppStore((s) => s.activeProjectId);
-  const activeSceneId = useAppStore((s) => s.activeSceneId);
   const setActiveScene = useAppStore((s) => s.setActiveScene);
   const playState = useAppStore((s) => s.playState);
   const currentTime = useAppStore((s) => s.currentTime);
@@ -36,17 +35,6 @@ export const StoryboardPlayback = memo(function StoryboardPlayback({
   const scenes = useMemo(
     () => (activeProject?.scenes ?? []).sort((a, b) => a.orderIndex - b.orderIndex),
     [activeProject?.scenes]
-  );
-
-  const totalDuration = useMemo(
-    () => scenes.reduce((sum, s) => sum + (s.metadata?.duration || 2000), 0),
-    [scenes]
-  );
-
-  // Index of the currently active (selected) scene
-  const activeSceneIndex = useMemo(
-    () => scenes.findIndex((s) => s.id === activeSceneId),
-    [scenes, activeSceneId]
   );
 
   // Index of the scene the playhead is currently over

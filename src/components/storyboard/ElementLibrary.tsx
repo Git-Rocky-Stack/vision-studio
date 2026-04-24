@@ -11,7 +11,7 @@ import {
 
 import { Button } from '@/components/ui/Button';
 import { useAppStore } from '@/store/appStore';
-import type { Element, ElementType, Scene } from '@/types/project';
+import type { ElementType, Scene } from '@/types/project';
 import { cn } from '@/utils/cn';
 
 interface ElementLibraryProps {

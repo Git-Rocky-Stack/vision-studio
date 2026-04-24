@@ -63,7 +63,7 @@ export const NavBar = memo(function NavBar() {
   const handleTabKeyDown = (event: React.KeyboardEvent<HTMLButtonElement>, tab: NavBarTabDef) => {
     const currentIndex = navBarTabs.findIndex((item) => item.id === tab.id);
     const lastIndex = navBarTabs.length - 1;
-    let nextIndex: number | null = null;
+    let nextIndex: number;
 
     switch (event.key) {
       case 'ArrowDown':

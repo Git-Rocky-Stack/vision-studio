@@ -50,7 +50,7 @@ describe('TimelineExportDialog', () => {
   it('renders the active play range summary and starts an export', async () => {
     const user = userEvent.setup();
     const { sequence } = seedTimelineSequence();
-    vi.mocked(exportTimelineSequence).mockImplementation(async ({ onStatusChange, sequenceId }) => {
+    vi.mocked(exportTimelineSequence).mockImplementation(async ({ onStatusChange }) => {
       onStatusChange?.({
         status: 'exporting',
         isExporting: true,

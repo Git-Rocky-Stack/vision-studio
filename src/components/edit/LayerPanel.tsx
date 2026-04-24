@@ -52,7 +52,7 @@ function SortableLayerRow({
   onSelect,
   onToggleVisibility,
   onToggleLock,
-  onOpacityChange,
+  onOpacityChange: _onOpacityChange,
   onBlendModeChange,
   onRename,
   onMoveUp,

@@ -1,5 +1,4 @@
 import { useEffect, useCallback, useRef } from 'react';
-import { cn } from '@/utils/cn';
 import { Button } from '@/components/ui/Button';
 import { useAppStore } from '@/store/appStore';
 import { useShallow } from 'zustand/react/shallow';

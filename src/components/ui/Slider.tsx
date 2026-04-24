@@ -73,7 +73,7 @@ export function Slider({
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
-      let newValue: number | null = null;
+      let newValue: number;
       const bigStep = (max - min) / 10;
 
       switch (e.key) {
@@ -101,7 +101,7 @@ export function Slider({
           return;
       }
       e.preventDefault();
-      if (newValue !== null) onChange(newValue);
+      onChange(newValue);
     },
     [value, min, max, step, onChange, clampAndStep]
   );

@@ -49,16 +49,6 @@ export const CompositionPreview = memo(function CompositionPreview() {
     // and stream step images via the generationPreviewSlice
     useAppStore.getState().setPreviewActive(true);
   }, []);
-
-  // When preview is active (generation in progress), show the progressive preview
-  if (isPreviewActive) {
-    return (
-      <div className={cn('flex h-full w-full items-center justify-center bg-void')}>
-        <ProgressivePreview />
-      </div>
-    );
-  }
-
   const hasReferenceImage = Boolean(currentImage || currentImageAssetPath);
   const isVideoSource = isLikelyVideoPath(currentImageAssetPath ?? currentImage);
   const handleExtractFrame = useCallback(async () => {
@@ -89,6 +79,15 @@ export const CompositionPreview = memo(function CompositionPreview() {
       setIsExtractingFrame(false);
     }
   }, [currentImage, currentImageAssetPath]);
+
+  // When preview is active (generation in progress), show the progressive preview
+  if (isPreviewActive) {
+    return (
+      <div className={cn('flex h-full w-full items-center justify-center bg-void')}>
+        <ProgressivePreview />
+      </div>
+    );
+  }
 
   return (
     <div className={cn('flex h-full w-full flex-col overflow-hidden bg-void')}>

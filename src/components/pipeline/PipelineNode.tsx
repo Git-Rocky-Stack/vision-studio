@@ -50,13 +50,13 @@ export const PipelineNode = memo(function PipelineNode({
   isLast,
   onSelect,
   onToggle,
-  onRemove,
-  className,
+      onRemove,
+      className,
 }: PipelineNodeProps) {
   const Icon = TYPE_ICONS[step.type] ?? Settings2;
 
   return (
-    <div className="flex items-center gap-0 shrink-0">
+    <div className={cn('flex items-center gap-0 shrink-0', className)}>
       {/* Input port */}
       {!isFirst && (
         <div className="w-4 h-0.5 bg-border" />
