@@ -38,6 +38,10 @@ export type {
   PlayState,
   KeyframeInterpolation,
   Keyframe,
+  TimelineClipRetakeRangeStatus,
+  TimelineClipRetakeRange,
+  ClipRetakeTakeStatus,
+  ClipRetakeTake,
   TimelineBeatMarker,
   TimelinePlayRange,
   TimelineSequence,
@@ -138,6 +142,8 @@ import type {
   TimelineMode,
   PlayState,
   Keyframe,
+  TimelineClipRetakeRange,
+  ClipRetakeTake,
   TimelineBeatMarker,
   TimelineSequence,
   TimelineTrack,
@@ -334,9 +340,12 @@ export interface AppState {
   timelineSequences: TimelineSequence[];
   timelineTracks: TimelineTrack[];
   timelineClips: TimelineClip[];
+  clipRetakeTakes: ClipRetakeTake[];
   clipGenerationBindings: ClipGenerationBinding[];
   activeTimelineSequenceId: string | null;
   activeTimelineClipId: string | null;
+  activeTimelineRetakeRangeId: string | null;
+  activeTimelineRetakeTakeId: string | null;
 
   // ─── Edit Mode ──────────────────────────────────────────────────────────
   activeEditTool: EditTool;
@@ -521,6 +530,8 @@ export interface AppState {
   // Media timeline domain
   setActiveTimelineSequence: (id: string | null) => void;
   setActiveTimelineClip: (id: string | null) => void;
+  setActiveTimelineRetakeRange: (id: string | null) => void;
+  setActiveTimelineRetakeTake: (id: string | null) => void;
   upsertMediaAsset: (asset: MediaAsset) => void;
   removeMediaAsset: (assetId: string) => void;
   createReferenceSet: (params: {
@@ -584,6 +595,7 @@ export interface AppState {
     storyboardDerived?: boolean;
     storyboardBeatMarkers?: TimelineBeatMarker[];
     storyboardDerivedAt?: string | null;
+    retakeRanges?: TimelineClipRetakeRange[];
   }) => TimelineClip | null;
   updateTimelineClip: (
     clipId: string,
@@ -599,6 +611,36 @@ export interface AppState {
     transition: TimelineTransition | null,
   ) => void;
   deleteTimelineClip: (clipId: string) => void;
+  createTimelineClipRetakeRange: (
+    clipId: string,
+    params: {
+      startMs: number;
+      endMs: number;
+    },
+  ) => TimelineClipRetakeRange | null;
+  updateTimelineClipRetakeRange: (
+    clipId: string,
+    rangeId: string,
+    updates: Partial<Omit<TimelineClipRetakeRange, 'id' | 'clipId' | 'createdAt'>>,
+  ) => void;
+  deleteTimelineClipRetakeRange: (clipId: string, rangeId: string) => void;
+  createClipRetakeTake: (params: {
+    clipId: string;
+    retakeRangeId: string;
+    mediaAssetId?: string | null;
+    prompt?: string;
+    negativePrompt?: string;
+    model?: string;
+    settings?: Record<string, unknown>;
+    referenceSetIds?: string[];
+  }) => ClipRetakeTake | null;
+  updateClipRetakeTake: (
+    takeId: string,
+    updates: Partial<Omit<ClipRetakeTake, 'id' | 'clipId' | 'retakeRangeId' | 'createdAt'>>,
+  ) => void;
+  deleteClipRetakeTake: (takeId: string) => void;
+  acceptClipRetakeTake: (takeId: string) => void;
+  rejectClipRetakeTake: (takeId: string) => void;
   setTimelineSequencePlayRange: (sequenceId: string, range: TimelinePlayRange | null) => void;
   upsertClipGenerationBinding: (binding: ClipGenerationBinding) => void;
   deriveStoryboardTimeline: (

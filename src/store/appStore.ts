@@ -17,8 +17,13 @@ import {
   type Scene,
 } from '@/types/project';
 import type {
+  ClipRetakeTake,
   TimelineBeatMarker,
   TimelineClip,
+  TimelineClipRetakeRange,
+  TimelineClipRetakeRangeStatus,
+  ClipRetakeTakeStatus,
+  TimelineTrack,
 } from '@/types/timeline';
 import {
   LEFT_DOCK_MAX_WIDTH,
@@ -72,6 +77,8 @@ export type { ModelInfo, ModelStatus } from '@/types/model';
 
 // Re-exports: constants now owned by slices
 export { DEFAULT_WORKFLOWS } from './slices/workflowSlice';
+
+const MIN_TIMELINE_RETAKE_RANGE_DURATION_MS = 120;
 
 function createMemoryStorage(): StateStorage {
   const storage = new Map<string, string>();
@@ -261,6 +268,254 @@ function normalizeTimelineBeatMarker(
   };
 }
 
+function normalizeTimelineClipRetakeRangeStatus(
+  status: unknown,
+): TimelineClipRetakeRangeStatus {
+  switch (status) {
+    case 'queued':
+    case 'rendering':
+    case 'candidate':
+    case 'accepted':
+      return status;
+    default:
+      return 'draft';
+  }
+}
+
+function normalizeClipRetakeTakeStatus(status: unknown): ClipRetakeTakeStatus {
+  switch (status) {
+    case 'queued':
+    case 'rendering':
+    case 'candidate':
+    case 'accepted':
+    case 'rejected':
+    case 'failed':
+      return status;
+    default:
+      return 'draft';
+  }
+}
+
+function normalizeTimelineClipRetakeBounds(
+  startMs: number,
+  endMs: number,
+  clipDurationMs: number,
+) {
+  const maxDuration = Math.max(0, Math.round(clipDurationMs));
+  if (maxDuration <= MIN_TIMELINE_RETAKE_RANGE_DURATION_MS) {
+    return {
+      startMs: 0,
+      endMs: maxDuration,
+    };
+  }
+
+  const clampedStart = Math.max(
+    0,
+    Math.min(Math.round(startMs), maxDuration - MIN_TIMELINE_RETAKE_RANGE_DURATION_MS),
+  );
+  const clampedEnd = Math.max(
+    clampedStart + MIN_TIMELINE_RETAKE_RANGE_DURATION_MS,
+    Math.min(Math.round(endMs), maxDuration),
+  );
+
+  return {
+    startMs: clampedStart,
+    endMs: Math.min(maxDuration, clampedEnd),
+  };
+}
+
+function normalizeTimelineClipRetakeRange(
+  range: Partial<TimelineClipRetakeRange> | undefined,
+  clipId: string,
+  clipDurationMs: number,
+): TimelineClipRetakeRange | null {
+  if (!range || typeof range.id !== 'string' || range.id.length === 0) {
+    return null;
+  }
+
+  const requestedStartMs =
+    typeof range.startMs === 'number' && Number.isFinite(range.startMs)
+      ? range.startMs
+      : 0;
+  const requestedEndMs =
+    typeof range.endMs === 'number' && Number.isFinite(range.endMs)
+      ? range.endMs
+      : requestedStartMs + MIN_TIMELINE_RETAKE_RANGE_DURATION_MS;
+  const bounds = normalizeTimelineClipRetakeBounds(
+    requestedStartMs,
+    requestedEndMs,
+    clipDurationMs,
+  );
+
+  return {
+    id: range.id,
+    clipId,
+    startMs: bounds.startMs,
+    endMs: bounds.endMs,
+    status: normalizeTimelineClipRetakeRangeStatus(range.status),
+    acceptedTakeId:
+      typeof range.acceptedTakeId === 'string' && range.acceptedTakeId.length > 0
+        ? range.acceptedTakeId
+        : null,
+    candidateTakeIds: Array.isArray(range.candidateTakeIds)
+      ? Array.from(
+          new Set(
+            range.candidateTakeIds.filter((value): value is string => typeof value === 'string'),
+          ),
+        )
+      : [],
+    createdAt: typeof range.createdAt === 'string' ? range.createdAt : '',
+    updatedAt: typeof range.updatedAt === 'string' ? range.updatedAt : '',
+  };
+}
+
+function normalizeClipRetakeTake(
+  take: Partial<ClipRetakeTake> | undefined,
+): ClipRetakeTake | null {
+  if (
+    !take ||
+    typeof take.id !== 'string' ||
+    take.id.length === 0 ||
+    typeof take.clipId !== 'string' ||
+    take.clipId.length === 0 ||
+    typeof take.retakeRangeId !== 'string' ||
+    take.retakeRangeId.length === 0
+  ) {
+    return null;
+  }
+
+  return {
+    id: take.id,
+    clipId: take.clipId,
+    retakeRangeId: take.retakeRangeId,
+    mediaAssetId:
+      typeof take.mediaAssetId === 'string' && take.mediaAssetId.length > 0
+        ? take.mediaAssetId
+        : null,
+    prompt: typeof take.prompt === 'string' ? take.prompt : '',
+    negativePrompt: typeof take.negativePrompt === 'string' ? take.negativePrompt : '',
+    model: typeof take.model === 'string' ? take.model : '',
+    settings:
+      take.settings && typeof take.settings === 'object'
+        ? { ...(take.settings as Record<string, unknown>) }
+        : {},
+    referenceSetIds: Array.isArray(take.referenceSetIds)
+      ? Array.from(
+          new Set(
+            take.referenceSetIds.filter((value): value is string => typeof value === 'string'),
+          ),
+        )
+      : [],
+    status: normalizeClipRetakeTakeStatus(take.status),
+    createdAt: typeof take.createdAt === 'string' ? take.createdAt : '',
+    updatedAt: typeof take.updatedAt === 'string' ? take.updatedAt : '',
+  };
+}
+
+function normalizeClipRetakeTakes(
+  clipRetakeTakes: ClipRetakeTake[] | undefined,
+): ClipRetakeTake[] {
+  if (!Array.isArray(clipRetakeTakes)) {
+    return [];
+  }
+
+  return clipRetakeTakes
+    .map((take) => normalizeClipRetakeTake(take))
+    .filter((take): take is ClipRetakeTake => Boolean(take));
+}
+
+function resolveTimelineClipRetakeRangeStatus(
+  takes: ClipRetakeTake[],
+  acceptedTakeId: string | null,
+): TimelineClipRetakeRangeStatus {
+  if (acceptedTakeId) {
+    return 'accepted';
+  }
+
+  if (takes.some((take) => take.status === 'rendering')) {
+    return 'rendering';
+  }
+
+  if (takes.some((take) => take.status === 'queued')) {
+    return 'queued';
+  }
+
+  if (takes.some((take) => take.status === 'candidate')) {
+    return 'candidate';
+  }
+
+  return 'draft';
+}
+
+function reconcileTimelineClipRetakes(
+  timelineClips: TimelineClip[],
+  clipRetakeTakes: ClipRetakeTake[],
+): {
+  timelineClips: TimelineClip[];
+  clipRetakeTakes: ClipRetakeTake[];
+} {
+  const rangeLookup = new Map<string, { clipId: string }>();
+  for (const clip of timelineClips) {
+    for (const range of clip.retakeRanges) {
+      rangeLookup.set(range.id, { clipId: clip.id });
+    }
+  }
+
+  const validTakes = clipRetakeTakes.filter((take) => {
+    const range = rangeLookup.get(take.retakeRangeId);
+    return range?.clipId === take.clipId;
+  });
+  const takesByRangeId = new Map<string, ClipRetakeTake[]>();
+
+  for (const take of validTakes) {
+    const current = takesByRangeId.get(take.retakeRangeId) ?? [];
+    current.push(take);
+    takesByRangeId.set(take.retakeRangeId, current);
+  }
+
+  const acceptedTakeIds = new Set<string>();
+  const nextTimelineClips = timelineClips.map((clip) => ({
+    ...clip,
+    retakeRanges: clip.retakeRanges.map((range) => {
+      const rangeTakes = takesByRangeId.get(range.id) ?? [];
+      const candidateTakeIds = Array.from(new Set(rangeTakes.map((take) => take.id)));
+      let acceptedTakeId =
+        range.acceptedTakeId && candidateTakeIds.includes(range.acceptedTakeId)
+          ? range.acceptedTakeId
+          : null;
+
+      if (!acceptedTakeId) {
+        acceptedTakeId =
+          rangeTakes.find((take) => take.status === 'accepted')?.id ?? null;
+      }
+
+      if (acceptedTakeId) {
+        acceptedTakeIds.add(acceptedTakeId);
+      }
+
+      return {
+        ...range,
+        acceptedTakeId,
+        candidateTakeIds,
+        status: resolveTimelineClipRetakeRangeStatus(rangeTakes, acceptedTakeId),
+      };
+    }),
+  }));
+
+  const nextClipRetakeTakes = validTakes.map((take) =>
+    acceptedTakeIds.has(take.id)
+      ? { ...take, status: 'accepted' as const }
+      : take.status === 'accepted'
+        ? { ...take, status: 'candidate' as const }
+        : take,
+  );
+
+  return {
+    timelineClips: nextTimelineClips,
+    clipRetakeTakes: nextClipRetakeTakes,
+  };
+}
+
 function normalizeTimelineClip(clip: Partial<TimelineClip> | undefined): TimelineClip | null {
   if (
     !clip ||
@@ -279,6 +534,10 @@ function normalizeTimelineClip(clip: Partial<TimelineClip> | undefined): Timelin
         .map((marker) => normalizeTimelineBeatMarker(marker))
         .filter((marker): marker is TimelineBeatMarker => Boolean(marker))
     : [];
+  const durationMs =
+    typeof clip.durationMs === 'number' && Number.isFinite(clip.durationMs)
+      ? Math.max(0, Math.round(clip.durationMs))
+      : 0;
   const storyboardDerived =
     typeof clip.storyboardDerived === 'boolean'
       ? (clip.storyboardDerived || storyboardBeatMarkers.length > 0)
@@ -293,10 +552,7 @@ function normalizeTimelineClip(clip: Partial<TimelineClip> | undefined): Timelin
       typeof clip.startMs === 'number' && Number.isFinite(clip.startMs)
         ? Math.max(0, Math.round(clip.startMs))
         : 0,
-    durationMs:
-      typeof clip.durationMs === 'number' && Number.isFinite(clip.durationMs)
-        ? Math.max(0, Math.round(clip.durationMs))
-        : 0,
+    durationMs,
     sourceInMs:
       typeof clip.sourceInMs === 'number' && Number.isFinite(clip.sourceInMs)
         ? Math.max(0, Math.round(clip.sourceInMs))
@@ -326,6 +582,11 @@ function normalizeTimelineClip(clip: Partial<TimelineClip> | undefined): Timelin
       : [],
     generationBindingId:
       typeof clip.generationBindingId === 'string' ? clip.generationBindingId : null,
+    retakeRanges: Array.isArray(clip.retakeRanges)
+      ? clip.retakeRanges
+          .map((range) => normalizeTimelineClipRetakeRange(range, clip.id, durationMs))
+          .filter((range): range is TimelineClipRetakeRange => Boolean(range))
+      : [],
     storyboardDerived,
     storyboardBeatMarkers,
     storyboardDerivedAt:
@@ -786,6 +1047,29 @@ export const useAppStore = create<AppState>()(
             ),
           };
         }
+        const normalizedTimelineClips = normalizeTimelineClips(
+          Array.isArray((persisted as Partial<AppState>).timelineClips)
+            ? ((persisted as Partial<AppState>).timelineClips as TimelineClip[])
+            : currentState.timelineClips,
+        );
+        const normalizedClipRetakeTakes = normalizeClipRetakeTakes(
+          Array.isArray((persisted as Partial<AppState>).clipRetakeTakes)
+            ? ((persisted as Partial<AppState>).clipRetakeTakes as ClipRetakeTake[])
+            : currentState.clipRetakeTakes,
+        );
+        const reconciledTimelineRetakes = reconcileTimelineClipRetakes(
+          normalizedTimelineClips,
+          normalizedClipRetakeTakes,
+        );
+        const validRetakeRangeIds = new Set(
+          reconciledTimelineRetakes.timelineClips.flatMap((clip) =>
+            clip.retakeRanges.map((range) => range.id),
+          ),
+        );
+        const validRetakeTakeIds = new Set(
+          reconciledTimelineRetakes.clipRetakeTakes.map((take) => take.id),
+        );
+
         return {
           ...currentState,
           ...(persisted as Partial<AppState>),
@@ -799,16 +1083,13 @@ export const useAppStore = create<AppState>()(
               ? ((persisted as Partial<AppState>).storyboardImportDrafts as ImportDraft[])
               : currentState.storyboardImportDrafts,
           ),
-          timelineClips: normalizeTimelineClips(
-            Array.isArray((persisted as Partial<AppState>).timelineClips)
-              ? ((persisted as Partial<AppState>).timelineClips as TimelineClip[])
-              : currentState.timelineClips,
-          ),
+          timelineClips: reconciledTimelineRetakes.timelineClips,
           timelineTracks: normalizeTimelineTracks(
             Array.isArray((persisted as Partial<AppState>).timelineTracks)
               ? ((persisted as Partial<AppState>).timelineTracks as TimelineTrack[])
               : currentState.timelineTracks,
           ),
+          clipRetakeTakes: reconciledTimelineRetakes.clipRetakeTakes,
           activeStoryboardImportDraftId:
             typeof (persisted as Partial<AppState>).activeStoryboardImportDraftId === 'string' &&
             normalizeStoryboardImportDrafts(
@@ -820,6 +1101,20 @@ export const useAppStore = create<AppState>()(
                 draft.id === (persisted as Partial<AppState>).activeStoryboardImportDraftId,
             )
               ? ((persisted as Partial<AppState>).activeStoryboardImportDraftId as string)
+              : null,
+          activeTimelineRetakeRangeId:
+            typeof (persisted as Partial<AppState>).activeTimelineRetakeRangeId === 'string' &&
+            validRetakeRangeIds.has(
+              (persisted as Partial<AppState>).activeTimelineRetakeRangeId as string,
+            )
+              ? ((persisted as Partial<AppState>).activeTimelineRetakeRangeId as string)
+              : null,
+          activeTimelineRetakeTakeId:
+            typeof (persisted as Partial<AppState>).activeTimelineRetakeTakeId === 'string' &&
+            validRetakeTakeIds.has(
+              (persisted as Partial<AppState>).activeTimelineRetakeTakeId as string,
+            )
+              ? ((persisted as Partial<AppState>).activeTimelineRetakeTakeId as string)
               : null,
         };
       },
@@ -863,9 +1158,12 @@ export const useAppStore = create<AppState>()(
         timelineSequences: state.timelineSequences,
         timelineTracks: state.timelineTracks,
         timelineClips: state.timelineClips,
+        clipRetakeTakes: state.clipRetakeTakes,
         clipGenerationBindings: state.clipGenerationBindings,
         activeTimelineSequenceId: state.activeTimelineSequenceId,
         activeTimelineClipId: state.activeTimelineClipId,
+        activeTimelineRetakeRangeId: state.activeTimelineRetakeRangeId,
+        activeTimelineRetakeTakeId: state.activeTimelineRetakeTakeId,
       }),
     }
   )

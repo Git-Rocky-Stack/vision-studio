@@ -118,6 +118,49 @@ export interface TimelineBeatMarker {
   elementIds: string[];
 }
 
+export type TimelineClipRetakeRangeStatus =
+  | 'draft'
+  | 'queued'
+  | 'rendering'
+  | 'candidate'
+  | 'accepted';
+
+export interface TimelineClipRetakeRange {
+  id: string;
+  clipId: string;
+  startMs: number;
+  endMs: number;
+  status: TimelineClipRetakeRangeStatus;
+  acceptedTakeId: string | null;
+  candidateTakeIds: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type ClipRetakeTakeStatus =
+  | 'draft'
+  | 'queued'
+  | 'rendering'
+  | 'candidate'
+  | 'accepted'
+  | 'rejected'
+  | 'failed';
+
+export interface ClipRetakeTake {
+  id: string;
+  clipId: string;
+  retakeRangeId: string;
+  mediaAssetId: string | null;
+  prompt: string;
+  negativePrompt: string;
+  model: string;
+  settings: Record<string, unknown>;
+  referenceSetIds: string[];
+  status: ClipRetakeTakeStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface TimelineClip {
   id: string;
   trackId: string;
@@ -136,6 +179,7 @@ export interface TimelineClip {
   posterUrl: string | null;
   referenceSetIds: string[];
   generationBindingId: string | null;
+  retakeRanges: TimelineClipRetakeRange[];
   storyboardDerived: boolean;
   storyboardBeatMarkers: TimelineBeatMarker[];
   storyboardDerivedAt: string | null;

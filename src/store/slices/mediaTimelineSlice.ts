@@ -12,9 +12,11 @@ import type {
 import type { ReferenceImage } from '@/types/project';
 import { planStoryboardTimelineDerivation } from '@/features/timeline/deriveStoryboardTimeline';
 import type {
+  ClipRetakeTake,
   ClipGenerationBinding,
   TimelineBeatMarker,
   TimelineClip,
+  TimelineClipRetakeRange,
   TimelineClipMoveOptions,
   TimelineClipTrimOptions,
   TimelineSequence,
@@ -31,9 +33,12 @@ export const mediaTimelineInitialState = {
   timelineSequences: [] as TimelineSequence[],
   timelineTracks: [] as TimelineTrack[],
   timelineClips: [] as TimelineClip[],
+  clipRetakeTakes: [] as ClipRetakeTake[],
   clipGenerationBindings: [] as ClipGenerationBinding[],
   activeTimelineSequenceId: null as string | null,
   activeTimelineClipId: null as string | null,
+  activeTimelineRetakeRangeId: null as string | null,
+  activeTimelineRetakeTakeId: null as string | null,
 };
 
 interface CreateReferenceSetParams {
@@ -219,12 +224,14 @@ interface CreateTimelineClipParams {
   storyboardDerived?: boolean;
   storyboardBeatMarkers?: TimelineBeatMarker[];
   storyboardDerivedAt?: string | null;
+  retakeRanges?: TimelineClipRetakeRange[];
 }
 
 const DEFAULT_IMAGE_CLIP_DURATION_MS = 2000;
 const DEFAULT_VIDEO_CLIP_DURATION_MS = 5000;
 const DEFAULT_AUDIO_CLIP_DURATION_MS = 5000;
 const MIN_TIMELINE_CLIP_DURATION_MS = 120;
+const MIN_TIMELINE_RETAKE_RANGE_DURATION_MS = 120;
 const SNAP_TOLERANCE_MS = 120;
 
 function clamp(value: number, min: number, max: number) {
@@ -271,6 +278,213 @@ function normalizeTimelineBeatMarkers(
   return markers
     .map((marker) => normalizeTimelineBeatMarker(marker))
     .filter((marker): marker is TimelineBeatMarker => Boolean(marker));
+}
+
+function normalizeTimelineClipRetakeRangeBounds(
+  startMs: number,
+  endMs: number,
+  clipDurationMs: number,
+) {
+  const maxDuration = Math.max(0, Math.round(clipDurationMs));
+  if (maxDuration <= MIN_TIMELINE_RETAKE_RANGE_DURATION_MS) {
+    return {
+      startMs: 0,
+      endMs: maxDuration,
+    };
+  }
+
+  const clampedStart = Math.max(
+    0,
+    Math.min(Math.round(startMs), maxDuration - MIN_TIMELINE_RETAKE_RANGE_DURATION_MS),
+  );
+  const clampedEnd = Math.max(
+    clampedStart + MIN_TIMELINE_RETAKE_RANGE_DURATION_MS,
+    Math.min(Math.round(endMs), maxDuration),
+  );
+
+  return {
+    startMs: clampedStart,
+    endMs: Math.min(maxDuration, clampedEnd),
+  };
+}
+
+function normalizeTimelineClipRetakeRange(
+  range: Partial<TimelineClipRetakeRange> | undefined,
+  clipId: string,
+  clipDurationMs: number,
+): TimelineClipRetakeRange | null {
+  if (!range || typeof range.id !== 'string' || range.id.length === 0) {
+    return null;
+  }
+
+  const requestedStartMs =
+    typeof range.startMs === 'number' && Number.isFinite(range.startMs)
+      ? range.startMs
+      : 0;
+  const requestedEndMs =
+    typeof range.endMs === 'number' && Number.isFinite(range.endMs)
+      ? range.endMs
+      : requestedStartMs + MIN_TIMELINE_RETAKE_RANGE_DURATION_MS;
+  const bounds = normalizeTimelineClipRetakeRangeBounds(
+    requestedStartMs,
+    requestedEndMs,
+    clipDurationMs,
+  );
+
+  return {
+    id: range.id,
+    clipId,
+    startMs: bounds.startMs,
+    endMs: bounds.endMs,
+    status:
+      range.status === 'queued' ||
+      range.status === 'rendering' ||
+      range.status === 'candidate' ||
+      range.status === 'accepted'
+        ? range.status
+        : 'draft',
+    acceptedTakeId:
+      typeof range.acceptedTakeId === 'string' && range.acceptedTakeId.length > 0
+        ? range.acceptedTakeId
+        : null,
+    candidateTakeIds: Array.isArray(range.candidateTakeIds)
+      ? Array.from(
+          new Set(
+            range.candidateTakeIds.filter((value): value is string => typeof value === 'string'),
+          ),
+        )
+      : [],
+    createdAt: typeof range.createdAt === 'string' ? range.createdAt : '',
+    updatedAt: typeof range.updatedAt === 'string' ? range.updatedAt : '',
+  };
+}
+
+function normalizeTimelineClipRetakeRanges(
+  ranges: TimelineClipRetakeRange[] | Partial<TimelineClipRetakeRange>[] | undefined,
+  clipId: string,
+  clipDurationMs: number,
+): TimelineClipRetakeRange[] {
+  if (!Array.isArray(ranges)) {
+    return [];
+  }
+
+  return ranges
+    .map((range) => normalizeTimelineClipRetakeRange(range, clipId, clipDurationMs))
+    .filter((range): range is TimelineClipRetakeRange => Boolean(range));
+}
+
+function normalizeClipRetakeTake(
+  take: Partial<ClipRetakeTake> | undefined,
+): ClipRetakeTake | null {
+  if (
+    !take ||
+    typeof take.id !== 'string' ||
+    take.id.length === 0 ||
+    typeof take.clipId !== 'string' ||
+    take.clipId.length === 0 ||
+    typeof take.retakeRangeId !== 'string' ||
+    take.retakeRangeId.length === 0
+  ) {
+    return null;
+  }
+
+  return {
+    id: take.id,
+    clipId: take.clipId,
+    retakeRangeId: take.retakeRangeId,
+    mediaAssetId:
+      typeof take.mediaAssetId === 'string' && take.mediaAssetId.length > 0
+        ? take.mediaAssetId
+        : null,
+    prompt: typeof take.prompt === 'string' ? take.prompt : '',
+    negativePrompt: typeof take.negativePrompt === 'string' ? take.negativePrompt : '',
+    model: typeof take.model === 'string' ? take.model : '',
+    settings:
+      take.settings && typeof take.settings === 'object'
+        ? { ...(take.settings as Record<string, unknown>) }
+        : {},
+    referenceSetIds: Array.isArray(take.referenceSetIds)
+      ? Array.from(
+          new Set(
+            take.referenceSetIds.filter((value): value is string => typeof value === 'string'),
+          ),
+        )
+      : [],
+    status:
+      take.status === 'queued' ||
+      take.status === 'rendering' ||
+      take.status === 'candidate' ||
+      take.status === 'accepted' ||
+      take.status === 'rejected' ||
+      take.status === 'failed'
+        ? take.status
+        : 'draft',
+    createdAt: typeof take.createdAt === 'string' ? take.createdAt : '',
+    updatedAt: typeof take.updatedAt === 'string' ? take.updatedAt : '',
+  };
+}
+
+function resolveRetakeRangeStatus(
+  takes: ClipRetakeTake[],
+  acceptedTakeId: string | null,
+): TimelineClipRetakeRange['status'] {
+  if (acceptedTakeId) {
+    return 'accepted';
+  }
+
+  if (takes.some((take) => take.status === 'rendering')) {
+    return 'rendering';
+  }
+
+  if (takes.some((take) => take.status === 'queued')) {
+    return 'queued';
+  }
+
+  if (takes.some((take) => take.status === 'candidate')) {
+    return 'candidate';
+  }
+
+  return 'draft';
+}
+
+function syncClipRetakeRanges(
+  clip: TimelineClip,
+  clipRetakeTakes: ClipRetakeTake[],
+): TimelineClipRetakeRange[] {
+  const normalizedRanges = normalizeTimelineClipRetakeRanges(
+    clip.retakeRanges,
+    clip.id,
+    clip.durationMs,
+  );
+  const takeIdsForClip = new Set(normalizedRanges.map((range) => range.id));
+
+  return normalizedRanges.map((range) => {
+    const rangeTakes = clipRetakeTakes.filter(
+      (take) => take.clipId === clip.id && take.retakeRangeId === range.id && takeIdsForClip.has(range.id),
+    );
+    const candidateTakeIds = Array.from(new Set(rangeTakes.map((take) => take.id)));
+    const acceptedTakeId =
+      range.acceptedTakeId && candidateTakeIds.includes(range.acceptedTakeId)
+        ? range.acceptedTakeId
+        : (rangeTakes.find((take) => take.status === 'accepted')?.id ?? null);
+
+    return {
+      ...range,
+      acceptedTakeId,
+      candidateTakeIds,
+      status: resolveRetakeRangeStatus(rangeTakes, acceptedTakeId),
+    };
+  });
+}
+
+function syncTimelineClipsRetakeRanges(
+  clips: TimelineClip[],
+  clipRetakeTakes: ClipRetakeTake[],
+): TimelineClip[] {
+  return clips.map((clip) => ({
+    ...clip,
+    retakeRanges: syncClipRetakeRanges(clip, clipRetakeTakes),
+  }));
 }
 
 function getTrackKindForMediaAsset(asset: MediaAsset): Extract<TimelineTrack['kind'], 'image' | 'video' | 'audio'> {
@@ -521,7 +735,83 @@ export function createMediaTimelineActions(set: AppSet, get: AppGet) {
   return {
     setActiveTimelineSequence: (id: string | null) => set({ activeTimelineSequenceId: id }),
 
-    setActiveTimelineClip: (id: string | null) => set({ activeTimelineClipId: id }),
+    setActiveTimelineClip: (id: string | null) =>
+      set((state) => {
+        const nextClip = id
+          ? state.timelineClips.find((clip) => clip.id === id) ?? null
+          : null;
+
+        return {
+          activeTimelineClipId: nextClip?.id ?? null,
+          activeTimelineRetakeRangeId:
+            nextClip && state.activeTimelineRetakeRangeId
+              ? (
+                  nextClip.retakeRanges.some((range) => range.id === state.activeTimelineRetakeRangeId)
+                    ? state.activeTimelineRetakeRangeId
+                    : null
+                )
+              : null,
+          activeTimelineRetakeTakeId:
+            nextClip && state.activeTimelineRetakeTakeId
+              ? (
+                  state.clipRetakeTakes.some(
+                    (take) =>
+                      take.id === state.activeTimelineRetakeTakeId && take.clipId === nextClip.id,
+                  )
+                    ? state.activeTimelineRetakeTakeId
+                    : null
+                )
+              : null,
+        };
+      }),
+
+    setActiveTimelineRetakeRange: (id: string | null) =>
+      set((state) => {
+        const clip =
+          state.activeTimelineClipId === null
+            ? null
+            : state.timelineClips.find((item) => item.id === state.activeTimelineClipId) ?? null;
+        const range =
+          id && clip
+            ? clip.retakeRanges.find((item) => item.id === id) ?? null
+            : null;
+
+        return {
+          activeTimelineRetakeRangeId: range?.id ?? null,
+          activeTimelineRetakeTakeId:
+            range && state.activeTimelineRetakeTakeId
+              ? (
+                  state.clipRetakeTakes.some(
+                    (take) =>
+                      take.id === state.activeTimelineRetakeTakeId &&
+                      take.retakeRangeId === range.id,
+                  )
+                    ? state.activeTimelineRetakeTakeId
+                    : null
+                )
+              : null,
+        };
+      }),
+
+    setActiveTimelineRetakeTake: (id: string | null) =>
+      set((state) => {
+        const take =
+          id === null ? null : state.clipRetakeTakes.find((item) => item.id === id) ?? null;
+        const clip =
+          take === null
+            ? null
+            : state.timelineClips.find((item) => item.id === take.clipId) ?? null;
+        const range =
+          clip === null
+            ? null
+            : clip.retakeRanges.find((item) => item.id === take?.retakeRangeId) ?? null;
+
+        return {
+          activeTimelineClipId: clip?.id ?? state.activeTimelineClipId,
+          activeTimelineRetakeRangeId: range?.id ?? null,
+          activeTimelineRetakeTakeId: take?.id ?? null,
+        };
+      }),
 
     upsertMediaAsset: (asset: MediaAsset) =>
       set((state) => {
@@ -817,6 +1107,9 @@ export function createMediaTimelineActions(set: AppSet, get: AppGet) {
               : item,
           );
         const nextClips = state.timelineClips.filter((clip) => !removedClipIds.has(clip.id));
+        const nextClipRetakeTakes = state.clipRetakeTakes.filter(
+          (take) => !removedClipIds.has(take.clipId),
+        );
         const removedBindingIds = new Set(
           removedClips
             .map((clip) => clip.generationBindingId)
@@ -832,6 +1125,7 @@ export function createMediaTimelineActions(set: AppSet, get: AppGet) {
           projects: nextProjects,
           timelineTracks: nextTracks,
           timelineClips: nextClips,
+          clipRetakeTakes: nextClipRetakeTakes,
           clipGenerationBindings: nextBindings,
           timelineSequences: state.timelineSequences.map((sequence) =>
             sequence.id === track.sequenceId
@@ -847,6 +1141,21 @@ export function createMediaTimelineActions(set: AppSet, get: AppGet) {
             state.activeTimelineClipId && removedClipIds.has(state.activeTimelineClipId)
               ? null
               : state.activeTimelineClipId,
+          activeTimelineRetakeRangeId:
+            state.activeTimelineRetakeRangeId &&
+            removedClips.some((clip) =>
+              clip.retakeRanges.some((range) => range.id === state.activeTimelineRetakeRangeId),
+            )
+              ? null
+              : state.activeTimelineRetakeRangeId,
+          activeTimelineRetakeTakeId:
+            state.activeTimelineRetakeTakeId &&
+            state.clipRetakeTakes.some(
+              (take) =>
+                take.id === state.activeTimelineRetakeTakeId && removedClipIds.has(take.clipId),
+            )
+              ? null
+              : state.activeTimelineRetakeTakeId,
         };
       }),
 
@@ -898,6 +1207,7 @@ export function createMediaTimelineActions(set: AppSet, get: AppGet) {
             posterUrl: params.posterUrl ?? null,
             referenceSetIds: params.referenceSetIds ?? [],
             generationBindingId: params.generationBindingId ?? null,
+            retakeRanges: [],
             storyboardDerived,
             storyboardBeatMarkers,
             storyboardDerivedAt,
@@ -939,15 +1249,25 @@ export function createMediaTimelineActions(set: AppSet, get: AppGet) {
         posterUrl: params.posterUrl ?? mediaAsset?.posterUrl ?? null,
         referenceSetIds: params.referenceSetIds ?? [],
         generationBindingId: params.generationBindingId ?? null,
+        retakeRanges: normalizeTimelineClipRetakeRanges(
+          params.retakeRanges,
+          'preview',
+          sourceOutMs - sourceInMs,
+        ),
         storyboardDerived,
         storyboardBeatMarkers,
         storyboardDerivedAt,
         createdAt: now,
         updatedAt: now,
       };
+      clip.retakeRanges = clip.retakeRanges.map((range) => ({
+        ...range,
+        clipId: clip.id,
+      }));
 
       set((currentState) => {
         let nextClips = [...currentState.timelineClips, clip];
+        nextClips = syncTimelineClipsRetakeRanges(nextClips, currentState.clipRetakeTakes);
         nextClips = reflowTrackClips(track.id, nextClips, clip.id, clip.startMs);
         const nextTracks = syncTrackClipIds(
           currentState.timelineTracks.map((item) =>
@@ -966,6 +1286,8 @@ export function createMediaTimelineActions(set: AppSet, get: AppGet) {
           projects: nextProjects,
           timelineTracks: nextTracks,
           timelineClips: nextClips,
+          activeTimelineRetakeRangeId: null,
+          activeTimelineRetakeTakeId: null,
           activeTimelineClipId: clip.id,
           timelineSequences: currentState.timelineSequences.map((sequence) =>
             sequence.id === track.sequenceId
@@ -988,6 +1310,10 @@ export function createMediaTimelineActions(set: AppSet, get: AppGet) {
         if (!currentClip) {
           return {};
         }
+        const nextDurationMs =
+          typeof updates.durationMs === 'number' && Number.isFinite(updates.durationMs)
+            ? Math.max(0, Math.round(updates.durationMs))
+            : currentClip.durationMs;
 
         const nextClip = {
           ...currentClip,
@@ -1004,6 +1330,14 @@ export function createMediaTimelineActions(set: AppSet, get: AppGet) {
             typeof updates.fadeOutMs === 'number' && Number.isFinite(updates.fadeOutMs)
               ? Math.max(0, Math.round(updates.fadeOutMs))
               : currentClip.fadeOutMs,
+          retakeRanges:
+            Array.isArray(updates.retakeRanges)
+              ? normalizeTimelineClipRetakeRanges(updates.retakeRanges, currentClip.id, nextDurationMs)
+              : normalizeTimelineClipRetakeRanges(
+                  currentClip.retakeRanges,
+                  currentClip.id,
+                  nextDurationMs,
+                ),
           storyboardBeatMarkers:
             Array.isArray(updates.storyboardBeatMarkers)
               ? normalizeTimelineBeatMarkers(updates.storyboardBeatMarkers)
@@ -1032,9 +1366,9 @@ export function createMediaTimelineActions(set: AppSet, get: AppGet) {
                 : (currentClip.storyboardDerivedAt ?? nextClip.updatedAt)
             )
           : null;
-        const nextClips = state.timelineClips.map((clip) =>
+        const nextClips = syncTimelineClipsRetakeRanges(state.timelineClips.map((clip) =>
           clip.id === clipId ? nextClip : clip,
-        );
+        ), state.clipRetakeTakes);
         const track = state.timelineTracks.find((item) => item.id === currentClip.trackId);
 
         let nextProjects = state.projects;
@@ -1072,6 +1406,18 @@ export function createMediaTimelineActions(set: AppSet, get: AppGet) {
           projects: nextProjects,
           timelineTracks: nextTracks,
           timelineClips: nextClips,
+          activeTimelineRetakeRangeId:
+            state.activeTimelineRetakeRangeId &&
+            nextClips
+              .find((clip) => clip.id === clipId)
+              ?.retakeRanges.some((range) => range.id === state.activeTimelineRetakeRangeId)
+              ? state.activeTimelineRetakeRangeId
+              : null,
+          activeTimelineRetakeTakeId:
+            state.activeTimelineRetakeTakeId &&
+            state.clipRetakeTakes.some((take) => take.id === state.activeTimelineRetakeTakeId)
+              ? state.activeTimelineRetakeTakeId
+              : null,
           timelineSequences:
             track === undefined
               ? state.timelineSequences
@@ -1235,10 +1581,16 @@ export function createMediaTimelineActions(set: AppSet, get: AppGet) {
           durationMs: sourceOutMs - sourceInMs,
           sourceInMs,
           sourceOutMs,
+          retakeRanges: normalizeTimelineClipRetakeRanges(
+            currentClip.retakeRanges,
+            currentClip.id,
+            sourceOutMs - sourceInMs,
+          ),
           updatedAt: now,
         };
 
         let nextClips = state.timelineClips.map((clip) => (clip.id === clipId ? trimmedClip : clip));
+        nextClips = syncTimelineClipsRetakeRanges(nextClips, state.clipRetakeTakes);
         nextClips = reflowTrackClips(track.id, nextClips, clipId, trimmedClip.startMs);
         const nextTracks = syncTrackClipIds(state.timelineTracks, nextClips);
 
@@ -1290,11 +1642,15 @@ export function createMediaTimelineActions(set: AppSet, get: AppGet) {
       const trailingClipId = crypto.randomUUID();
 
       set((currentState) => {
+        const nextClipRetakeTakes = currentState.clipRetakeTakes.filter(
+          (take) => take.clipId !== currentClip.id,
+        );
         const updatedLeadingClip: TimelineClip = {
           ...currentClip,
           durationMs: relativeSplitMs,
           sourceOutMs: currentClip.sourceInMs + relativeSplitMs,
           transitionOut: null,
+          retakeRanges: [],
           updatedAt: now,
         };
         const trailingClip: TimelineClip = {
@@ -1306,15 +1662,16 @@ export function createMediaTimelineActions(set: AppSet, get: AppGet) {
           sourceOutMs: currentClip.sourceOutMs,
           transitionIn: null,
           generationBindingId: null,
+          retakeRanges: [],
           createdAt: now,
           updatedAt: now,
         };
 
-        const nextClips = sortClipsByStart(
+        const nextClips = syncTimelineClipsRetakeRanges(sortClipsByStart(
           currentState.timelineClips
             .map((clip) => (clip.id === clipId ? updatedLeadingClip : clip))
             .concat(trailingClip),
-        );
+        ), nextClipRetakeTakes);
         const nextTracks = syncTrackClipIds(
           currentState.timelineTracks.map((item) =>
             item.id === currentClip.trackId && !item.clipIds.includes(trailingClipId)
@@ -1332,7 +1689,10 @@ export function createMediaTimelineActions(set: AppSet, get: AppGet) {
           projects: nextProjects,
           timelineTracks: nextTracks,
           timelineClips: nextClips,
+          clipRetakeTakes: nextClipRetakeTakes,
           activeTimelineClipId: trailingClipId,
+          activeTimelineRetakeRangeId: null,
+          activeTimelineRetakeTakeId: null,
           timelineSequences: currentState.timelineSequences.map((item) =>
             item.id === sequence.id
               ? {
@@ -1375,12 +1735,14 @@ export function createMediaTimelineActions(set: AppSet, get: AppGet) {
         transitionIn: null,
         transitionOut: null,
         generationBindingId: null,
+        retakeRanges: [],
         createdAt: now,
         updatedAt: now,
       };
 
       set((currentState) => {
         let nextClips = [...currentState.timelineClips, duplicate];
+        nextClips = syncTimelineClipsRetakeRanges(nextClips, currentState.clipRetakeTakes);
         nextClips = reflowTrackClips(track.id, nextClips, duplicate.id, duplicate.startMs);
         const nextTracks = syncTrackClipIds(
           currentState.timelineTracks.map((item) =>
@@ -1398,6 +1760,8 @@ export function createMediaTimelineActions(set: AppSet, get: AppGet) {
           timelineTracks: nextTracks,
           timelineClips: nextClips,
           activeTimelineClipId: duplicate.id,
+          activeTimelineRetakeRangeId: null,
+          activeTimelineRetakeTakeId: null,
           timelineSequences: currentState.timelineSequences.map((item) =>
             item.id === sequence.id
               ? {
@@ -1444,6 +1808,7 @@ export function createMediaTimelineActions(set: AppSet, get: AppGet) {
             : track,
         ), state.timelineClips.filter((item) => item.id !== clipId));
         const nextClips = state.timelineClips.filter((item) => item.id !== clipId);
+        const nextClipRetakeTakes = state.clipRetakeTakes.filter((take) => take.clipId !== clipId);
         const nextBindings = pruneBindingVariantIds(
           state.clipGenerationBindings,
           new Set([clipId]),
@@ -1459,9 +1824,22 @@ export function createMediaTimelineActions(set: AppSet, get: AppGet) {
           projects: nextProjects,
           timelineTracks: nextTracks,
           timelineClips: nextClips,
+          clipRetakeTakes: nextClipRetakeTakes,
           clipGenerationBindings: nextBindings,
           activeTimelineClipId:
             state.activeTimelineClipId === clipId ? null : state.activeTimelineClipId,
+          activeTimelineRetakeRangeId:
+            state.activeTimelineRetakeRangeId &&
+            clip.retakeRanges.some((range) => range.id === state.activeTimelineRetakeRangeId)
+              ? null
+              : state.activeTimelineRetakeRangeId,
+          activeTimelineRetakeTakeId:
+            state.activeTimelineRetakeTakeId &&
+            state.clipRetakeTakes.some(
+              (take) => take.id === state.activeTimelineRetakeTakeId && take.clipId === clipId,
+            )
+              ? null
+              : state.activeTimelineRetakeTakeId,
           timelineSequences:
             track === undefined
               ? state.timelineSequences
@@ -1478,6 +1856,347 @@ export function createMediaTimelineActions(set: AppSet, get: AppGet) {
                       }
                     : sequence,
                 ),
+        };
+      }),
+
+    createTimelineClipRetakeRange: (clipId: string, params: { startMs: number; endMs: number }) => {
+      const state = get();
+      const clip = state.timelineClips.find((item) => item.id === clipId);
+      const track = clip
+        ? state.timelineTracks.find((item) => item.id === clip.trackId) ?? null
+        : null;
+      if (!clip || !track || track.kind !== 'video') {
+        return null;
+      }
+
+      const now = new Date().toISOString();
+      const range = normalizeTimelineClipRetakeRange(
+        {
+          id: crypto.randomUUID(),
+          clipId,
+          startMs: params.startMs,
+          endMs: params.endMs,
+          status: 'draft',
+          acceptedTakeId: null,
+          candidateTakeIds: [],
+          createdAt: now,
+          updatedAt: now,
+        },
+        clipId,
+        clip.durationMs,
+      );
+      if (!range) {
+        return null;
+      }
+
+      set((currentState) => {
+        const nextClips = syncTimelineClipsRetakeRanges(
+          currentState.timelineClips.map((item) =>
+            item.id === clipId
+              ? {
+                  ...item,
+                  retakeRanges: [...item.retakeRanges, range],
+                  updatedAt: now,
+                }
+              : item,
+          ),
+          currentState.clipRetakeTakes,
+        );
+
+        return {
+          timelineClips: nextClips,
+          activeTimelineClipId: clipId,
+          activeTimelineRetakeRangeId: range.id,
+          activeTimelineRetakeTakeId: null,
+        };
+      });
+
+      return range;
+    },
+
+    updateTimelineClipRetakeRange: (
+      clipId: string,
+      rangeId: string,
+      updates: Partial<Omit<TimelineClipRetakeRange, 'id' | 'clipId' | 'createdAt'>>,
+    ) =>
+      set((state) => {
+        const clip = state.timelineClips.find((item) => item.id === clipId);
+        const existingRange = clip?.retakeRanges.find((item) => item.id === rangeId) ?? null;
+        if (!clip || !existingRange) {
+          return {};
+        }
+
+        const nextRange = normalizeTimelineClipRetakeRange(
+          {
+            ...existingRange,
+            ...updates,
+            updatedAt: new Date().toISOString(),
+          },
+          clipId,
+          clip.durationMs,
+        );
+        if (!nextRange) {
+          return {};
+        }
+
+        return {
+          timelineClips: syncTimelineClipsRetakeRanges(
+            state.timelineClips.map((item) =>
+              item.id === clipId
+                ? {
+                    ...item,
+                    retakeRanges: item.retakeRanges.map((range) =>
+                      range.id === rangeId ? nextRange : range,
+                    ),
+                    updatedAt: nextRange.updatedAt,
+                  }
+                : item,
+            ),
+            state.clipRetakeTakes,
+          ),
+        };
+      }),
+
+    deleteTimelineClipRetakeRange: (clipId: string, rangeId: string) =>
+      set((state) => {
+        const clip = state.timelineClips.find((item) => item.id === clipId);
+        if (!clip || !clip.retakeRanges.some((range) => range.id === rangeId)) {
+          return {};
+        }
+
+        const nextClipRetakeTakes = state.clipRetakeTakes.filter(
+          (take) => !(take.clipId === clipId && take.retakeRangeId === rangeId),
+        );
+        const nextClips = syncTimelineClipsRetakeRanges(
+          state.timelineClips.map((item) =>
+            item.id === clipId
+              ? {
+                  ...item,
+                  retakeRanges: item.retakeRanges.filter((range) => range.id !== rangeId),
+                  updatedAt: new Date().toISOString(),
+                }
+              : item,
+          ),
+          nextClipRetakeTakes,
+        );
+
+        return {
+          timelineClips: nextClips,
+          clipRetakeTakes: nextClipRetakeTakes,
+          activeTimelineRetakeRangeId:
+            state.activeTimelineRetakeRangeId === rangeId ? null : state.activeTimelineRetakeRangeId,
+          activeTimelineRetakeTakeId:
+            state.activeTimelineRetakeTakeId &&
+            state.clipRetakeTakes.some(
+              (take) =>
+                take.id === state.activeTimelineRetakeTakeId &&
+                take.clipId === clipId &&
+                take.retakeRangeId === rangeId,
+            )
+              ? null
+              : state.activeTimelineRetakeTakeId,
+        };
+      }),
+
+    createClipRetakeTake: (params: {
+      clipId: string;
+      retakeRangeId: string;
+      mediaAssetId?: string | null;
+      prompt?: string;
+      negativePrompt?: string;
+      model?: string;
+      settings?: Record<string, unknown>;
+      referenceSetIds?: string[];
+    }) => {
+      const state = get();
+      const clip = state.timelineClips.find((item) => item.id === params.clipId);
+      const range = clip?.retakeRanges.find((item) => item.id === params.retakeRangeId) ?? null;
+      if (!clip || !range) {
+        return null;
+      }
+
+      const now = new Date().toISOString();
+      const take = normalizeClipRetakeTake({
+        id: crypto.randomUUID(),
+        clipId: params.clipId,
+        retakeRangeId: params.retakeRangeId,
+        mediaAssetId: params.mediaAssetId ?? null,
+        prompt: params.prompt ?? '',
+        negativePrompt: params.negativePrompt ?? '',
+        model: params.model ?? '',
+        settings: params.settings ?? {},
+        referenceSetIds: params.referenceSetIds ?? [],
+        status: 'candidate',
+        createdAt: now,
+        updatedAt: now,
+      });
+      if (!take) {
+        return null;
+      }
+
+      set((currentState) => {
+        const nextClipRetakeTakes = [...currentState.clipRetakeTakes, take];
+        const nextClips = syncTimelineClipsRetakeRanges(currentState.timelineClips, nextClipRetakeTakes);
+
+        return {
+          timelineClips: nextClips,
+          clipRetakeTakes: nextClipRetakeTakes,
+          activeTimelineClipId: take.clipId,
+          activeTimelineRetakeRangeId: take.retakeRangeId,
+          activeTimelineRetakeTakeId: take.id,
+        };
+      });
+
+      return take;
+    },
+
+    updateClipRetakeTake: (
+      takeId: string,
+      updates: Partial<Omit<ClipRetakeTake, 'id' | 'clipId' | 'retakeRangeId' | 'createdAt'>>,
+    ) =>
+      set((state) => {
+        const currentTake = state.clipRetakeTakes.find((item) => item.id === takeId);
+        if (!currentTake) {
+          return {};
+        }
+
+        const nextTake = normalizeClipRetakeTake({
+          ...currentTake,
+          ...updates,
+          status: updates.status === 'accepted' ? 'candidate' : updates.status,
+          updatedAt: new Date().toISOString(),
+        });
+        if (!nextTake) {
+          return {};
+        }
+
+        const nextClipRetakeTakes = state.clipRetakeTakes.map((item) =>
+          item.id === takeId ? nextTake : item,
+        );
+
+        return {
+          clipRetakeTakes: nextClipRetakeTakes,
+          timelineClips: syncTimelineClipsRetakeRanges(state.timelineClips, nextClipRetakeTakes),
+        };
+      }),
+
+    deleteClipRetakeTake: (takeId: string) =>
+      set((state) => {
+        const take = state.clipRetakeTakes.find((item) => item.id === takeId);
+        if (!take) {
+          return {};
+        }
+
+        const nextClipRetakeTakes = state.clipRetakeTakes.filter((item) => item.id !== takeId);
+        const nextClips = syncTimelineClipsRetakeRanges(state.timelineClips, nextClipRetakeTakes);
+
+        return {
+          clipRetakeTakes: nextClipRetakeTakes,
+          timelineClips: nextClips,
+          activeTimelineRetakeTakeId:
+            state.activeTimelineRetakeTakeId === takeId ? null : state.activeTimelineRetakeTakeId,
+        };
+      }),
+
+    acceptClipRetakeTake: (takeId: string) =>
+      set((state) => {
+        const take = state.clipRetakeTakes.find((item) => item.id === takeId);
+        if (!take) {
+          return {};
+        }
+
+        const nextClipRetakeTakes = state.clipRetakeTakes.map((item) => {
+          if (item.retakeRangeId !== take.retakeRangeId) {
+            return item;
+          }
+
+          if (item.id === takeId) {
+            return {
+              ...item,
+              status: 'accepted',
+              updatedAt: new Date().toISOString(),
+            };
+          }
+
+          return item.status === 'accepted'
+            ? {
+                ...item,
+                status: 'candidate',
+                updatedAt: new Date().toISOString(),
+              }
+            : item;
+        });
+        const nextClips = syncTimelineClipsRetakeRanges(
+          state.timelineClips.map((clip) =>
+            clip.id !== take.clipId
+              ? clip
+              : {
+                  ...clip,
+                  retakeRanges: clip.retakeRanges.map((range) =>
+                    range.id === take.retakeRangeId
+                      ? {
+                          ...range,
+                          acceptedTakeId: take.id,
+                          updatedAt: new Date().toISOString(),
+                        }
+                      : range,
+                  ),
+                },
+          ),
+          nextClipRetakeTakes,
+        );
+
+        return {
+          clipRetakeTakes: nextClipRetakeTakes,
+          timelineClips: nextClips,
+          activeTimelineClipId: take.clipId,
+          activeTimelineRetakeRangeId: take.retakeRangeId,
+          activeTimelineRetakeTakeId: take.id,
+        };
+      }),
+
+    rejectClipRetakeTake: (takeId: string) =>
+      set((state) => {
+        const take = state.clipRetakeTakes.find((item) => item.id === takeId);
+        if (!take) {
+          return {};
+        }
+
+        const now = new Date().toISOString();
+        const nextClipRetakeTakes = state.clipRetakeTakes.map((item) =>
+          item.id === takeId
+            ? {
+                ...item,
+                status: 'rejected',
+                updatedAt: now,
+              }
+            : item,
+        );
+        const nextClips = syncTimelineClipsRetakeRanges(
+          state.timelineClips.map((clip) =>
+            clip.id !== take.clipId
+              ? clip
+              : {
+                  ...clip,
+                  retakeRanges: clip.retakeRanges.map((range) =>
+                    range.id === take.retakeRangeId && range.acceptedTakeId === take.id
+                      ? {
+                          ...range,
+                          acceptedTakeId: null,
+                          updatedAt: now,
+                        }
+                      : range,
+                  ),
+                },
+          ),
+          nextClipRetakeTakes,
+        );
+
+        return {
+          clipRetakeTakes: nextClipRetakeTakes,
+          timelineClips: nextClips,
+          activeTimelineRetakeTakeId:
+            state.activeTimelineRetakeTakeId === takeId ? null : state.activeTimelineRetakeTakeId,
         };
       }),
 

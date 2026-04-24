@@ -543,6 +543,7 @@ describe('appStore', () => {
         expect(persisted).toHaveProperty('timelineSequences');
         expect(persisted).toHaveProperty('timelineTracks');
         expect(persisted).toHaveProperty('timelineClips');
+        expect(persisted).toHaveProperty('clipRetakeTakes');
         expect(persisted).toHaveProperty('clipGenerationBindings');
         expect(persisted).not.toHaveProperty('activeJobs');
         expect(persisted).not.toHaveProperty('completedJobs');
@@ -754,9 +755,13 @@ describe('appStore', () => {
       expect(merged.timelineClips[0].gain).toBe(1);
       expect(merged.timelineClips[0].fadeInMs).toBe(0);
       expect(merged.timelineClips[0].fadeOutMs).toBe(0);
+      expect(merged.timelineClips[0].retakeRanges).toEqual([]);
       expect(merged.timelineClips[0].storyboardDerived).toBe(false);
       expect(merged.timelineClips[0].storyboardBeatMarkers).toEqual([]);
       expect(merged.timelineClips[0].storyboardDerivedAt).toBeNull();
+      expect(merged.clipRetakeTakes).toEqual([]);
+      expect(merged.activeTimelineRetakeRangeId).toBeNull();
+      expect(merged.activeTimelineRetakeTakeId).toBeNull();
     });
   });
 
@@ -1390,6 +1395,64 @@ We only get one pass at this.
       useAppStore.getState().deleteTimelineClip(duplicate!.id);
       expect(useAppStore.getState().timelineClips).toHaveLength(2);
       expect(useAppStore.getState().activeTimelineClipId).not.toBe(duplicate!.id);
+    });
+
+    it('manages clip-local retake ranges and take approval state', () => {
+      const { clipA } = seedTimelineClips();
+      const state = useAppStore.getState();
+
+      const range = state.createTimelineClipRetakeRange(clipA.id, {
+        startMs: 100,
+        endMs: 700,
+      });
+      expect(range).not.toBeNull();
+      expect(useAppStore.getState().activeTimelineRetakeRangeId).toBe(range?.id ?? null);
+
+      const takeA = useAppStore.getState().createClipRetakeTake({
+        clipId: clipA.id,
+        retakeRangeId: range!.id,
+        mediaAssetId: 'timeline-media',
+        prompt: 'retake alt',
+      });
+      const takeB = useAppStore.getState().createClipRetakeTake({
+        clipId: clipA.id,
+        retakeRangeId: range!.id,
+        mediaAssetId: 'timeline-media',
+        prompt: 'retake alt 2',
+      });
+
+      expect(takeA).not.toBeNull();
+      expect(takeB).not.toBeNull();
+      expect(useAppStore.getState().clipRetakeTakes).toHaveLength(2);
+
+      useAppStore.getState().acceptClipRetakeTake(takeA!.id);
+
+      let nextState = useAppStore.getState();
+      let nextClip = nextState.timelineClips.find((clip) => clip.id === clipA.id)!;
+      let nextRange = nextClip.retakeRanges.find((item) => item.id === range!.id)!;
+
+      expect(nextRange.acceptedTakeId).toBe(takeA!.id);
+      expect(nextRange.status).toBe('accepted');
+      expect(nextState.clipRetakeTakes.find((take) => take.id === takeA!.id)?.status).toBe('accepted');
+
+      useAppStore.getState().rejectClipRetakeTake(takeA!.id);
+
+      nextState = useAppStore.getState();
+      nextClip = nextState.timelineClips.find((clip) => clip.id === clipA.id)!;
+      nextRange = nextClip.retakeRanges.find((item) => item.id === range!.id)!;
+
+      expect(nextRange.acceptedTakeId).toBeNull();
+      expect(nextState.clipRetakeTakes.find((take) => take.id === takeA!.id)?.status).toBe('rejected');
+      expect(nextRange.candidateTakeIds).toEqual(expect.arrayContaining([takeA!.id, takeB!.id]));
+
+      useAppStore.getState().deleteTimelineClipRetakeRange(clipA.id, range!.id);
+
+      nextState = useAppStore.getState();
+      nextClip = nextState.timelineClips.find((clip) => clip.id === clipA.id)!;
+      expect(nextClip.retakeRanges).toEqual([]);
+      expect(nextState.clipRetakeTakes).toEqual([]);
+      expect(nextState.activeTimelineRetakeRangeId).toBeNull();
+      expect(nextState.activeTimelineRetakeTakeId).toBeNull();
     });
   });
 
