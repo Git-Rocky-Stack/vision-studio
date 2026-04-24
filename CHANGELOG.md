@@ -2,6 +2,17 @@
 
 All notable changes to Vision Studio will be documented in this file.
 
+## [2.5.0] - 2026-04-23
+
+### Added
+- Canvas-native control layers with reusable inspector, rail, mask editing, and generation/timeline payload resolution
+- Script-to-storyboard import pipeline with parsed drafts, review flow, merged Elements, and scene-linked continuity metadata
+- Storyboard-to-timeline derivation that creates or reuses project sequences, derives one clip per approved scene, and preserves beat markers and reference context
+
+### Changed
+- Timeline side columns can now be collapsed to reveal the full strip, and timeline action button typography now matches the rest of the shell
+- ControlNet panel icon styling now uses the same neutral chrome treatment as the rest of the app
+
 ## [2.4.0] - 2026-04-23
 
 ### Added
