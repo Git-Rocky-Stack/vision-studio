@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useAppStore } from '@/store/appStore';
 import { cn } from '@/utils/cn';
@@ -8,7 +8,10 @@ import { ResultsGrid } from '@/components/batch/ResultsGrid';
 import { ImagePreviewModal } from '@/components/shared/ImagePreviewModal';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import type { ViewMode, SortBy, FilterBy } from '@/components/batch/ResultsGrid';
+import type { UserAccountSummary } from '@/types/electron';
 import {
+  AlertCircle,
+  Cloud,
   Layers,
   Plus,
   Trash2,
@@ -36,6 +39,11 @@ interface BatchPrompt {
   status: 'pending' | 'generating' | 'completed' | 'failed';
   result?: string;
   seed?: number;
+}
+
+interface BatchNoticeState {
+  tone: 'error' | 'info';
+  message: string;
 }
 
 const BACKEND_ASSET_BASE_URL = 'http://localhost:8000';
@@ -129,6 +137,8 @@ export function BatchPromptQueue() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [activeAccount, setActiveAccount] = useState<UserAccountSummary | null>(null);
+  const [batchNotice, setBatchNotice] = useState<BatchNoticeState | null>(null);
 
   // Generation settings
   const [width, setWidth] = useState(1024);
@@ -136,6 +146,23 @@ export function BatchPromptQueue() {
   const [steps, setSteps] = useState(25);
   const [cfgScale, setCfgScale] = useState(7.5);
   const [model, setModel] = useState('flux-dev');
+
+  const syncActiveAccount = useCallback(async () => {
+    const snapshot = await window.electron.accounts.list();
+    const nextActiveAccount =
+      snapshot.accounts.find((account) => account.id === snapshot.activeAccountId) ??
+      snapshot.accounts[0] ??
+      null;
+    setActiveAccount(nextActiveAccount);
+    return nextActiveAccount;
+  }, []);
+
+  useEffect(() => {
+    void syncActiveAccount();
+  }, [syncActiveAccount]);
+
+  const openRouterImageEnabled = activeAccount?.preferences.imageGenerationProvider === 'openrouter';
+  const openRouterImageModel = activeAccount?.preferences.openRouterImageModel.trim() ?? '';
 
   const addPrompt = () => {
     setPrompts([
@@ -179,14 +206,46 @@ export function BatchPromptQueue() {
     const validPrompts = prompts.filter((p) => p.prompt.trim());
     if (validPrompts.length === 0) return;
 
-    // Guard: backend must be connected to generate
-    if (!systemInfo.backendConnected) {
-      setPrompts(prompts.map((p) =>
-        p.prompt.trim() ? { ...p, status: 'failed' } : p
-      ));
+    const latestActiveAccount = await syncActiveAccount();
+    const useOpenRouterImage =
+      latestActiveAccount?.preferences.imageGenerationProvider === 'openrouter';
+    const resolvedOpenRouterImageModel =
+      latestActiveAccount?.preferences.openRouterImageModel.trim() ?? '';
+
+    if (useOpenRouterImage && !latestActiveAccount?.openRouter.apiKeyStored) {
+      setBatchNotice({
+        tone: 'error',
+        message: 'OpenRouter is selected for still images, but no API key is stored for the active account.',
+      });
       return;
     }
 
+    if (useOpenRouterImage && !resolvedOpenRouterImageModel) {
+      setBatchNotice({
+        tone: 'error',
+        message: 'Select an OpenRouter still-image model in Settings before starting a hosted batch.',
+      });
+      return;
+    }
+
+    if (!systemInfo.backendConnected && !useOpenRouterImage) {
+      setBatchNotice({
+        tone: 'error',
+        message: 'The AI backend is not running. Start the backend or switch the active account to OpenRouter for hosted still-image batches.',
+      });
+      return;
+    }
+
+    const submittedModel = useOpenRouterImage ? resolvedOpenRouterImageModel : model;
+
+    setBatchNotice(
+      useOpenRouterImage
+        ? {
+            tone: 'info',
+            message: `Batch is routing through OpenRouter for ${latestActiveAccount?.name ?? 'the active account'}.`,
+          }
+        : null
+    );
     setIsGenerating(true);
     setPrompts(prompts.map((p) => (p.prompt.trim() ? { ...p, status: 'pending' } : p)));
 
@@ -213,7 +272,7 @@ export function BatchPromptQueue() {
         height,
         steps,
         cfg_scale: cfgScale,
-        model,
+        model: submittedModel,
       });
 
       if (result.success && result.jobIds) {
@@ -225,10 +284,21 @@ export function BatchPromptQueue() {
           return p;
         });
         setPrompts(promptsWithJobIds);
-        pollBatchProgress(batchId, result.jobIds, promptsWithJobIds, outputRoot);
+        pollBatchProgress(batchId, result.jobIds, promptsWithJobIds, outputRoot, submittedModel);
+        return;
       }
+
+      setBatchNotice({
+        tone: 'error',
+        message: result.error || 'Batch generation failed.',
+      });
+      setIsGenerating(false);
     } catch (error) {
       console.error('Batch generation failed:', error);
+      setBatchNotice({
+        tone: 'error',
+        message: error instanceof Error ? error.message : 'Batch generation failed.',
+      });
       setIsGenerating(false);
     }
   };
@@ -237,7 +307,8 @@ export function BatchPromptQueue() {
     batchId: string,
     jobIds: string[],
     startingPrompts: BatchPrompt[],
-    outputRoot: string
+    outputRoot: string,
+    submittedModel: string,
   ) => {
     const checkInterval = setInterval(async () => {
       batchPollRef.current = checkInterval;
@@ -261,7 +332,7 @@ export function BatchPromptQueue() {
                   height,
                   steps,
                   cfg_scale: cfgScale,
-                  model,
+                  model: submittedModel,
                   output_root: outputRoot,
                 },
               });
@@ -284,7 +355,7 @@ export function BatchPromptQueue() {
                   height,
                   steps,
                   cfgScale,
-                  model,
+                  model: submittedModel,
                   negativePrompt: '',
                   resolution: `${width} x ${height}`,
                 },
@@ -293,6 +364,12 @@ export function BatchPromptQueue() {
               });
             } else if (status.status === 'failed') {
               updatedPrompts[promptIndex].status = 'failed';
+              if (status.error) {
+                setBatchNotice({
+                  tone: 'error',
+                  message: status.error,
+                });
+              }
             } else {
               allCompleted = false;
             }
@@ -314,6 +391,10 @@ export function BatchPromptQueue() {
 
   const handleCancel = () => {
     setIsGenerating(false);
+    setBatchNotice({
+      tone: 'info',
+      message: 'Batch cancellation requested.',
+    });
     prompts.forEach((p) => {
       if (p.status === 'generating') {
         window.electron.generation.cancel(p.id);
@@ -324,7 +405,14 @@ export function BatchPromptQueue() {
   const handleExport = () => {
     const data = {
       prompts: prompts.map((p) => p.prompt).filter(Boolean),
-      settings: { width, height, steps, cfgScale, model },
+      settings: {
+        provider: openRouterImageEnabled ? 'openrouter' : 'local',
+        width,
+        height,
+        steps,
+        cfgScale,
+        model: openRouterImageEnabled ? openRouterImageModel : model,
+      },
       createdAt: new Date().toISOString(),
     };
 
@@ -474,6 +562,49 @@ export function BatchPromptQueue() {
           Generate multiple images at once with different prompts
         </p>
       </div>
+
+      {(openRouterImageEnabled || batchNotice) && (
+        <div className="space-y-3 border-b border-border px-4 py-3">
+          {openRouterImageEnabled && (
+            <div className="rounded-lg border border-accent-primary-border bg-accent-primary-muted/40 px-4 py-3">
+              <div className="flex items-start gap-3">
+                <div className="mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-md border border-accent-primary-border bg-surface text-accent-primary">
+                  <Cloud className="h-4 w-4" aria-hidden="true" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-sm font-display font-medium text-text-primary">
+                    OpenRouter Batch Route
+                  </p>
+                  <p className="mt-1 text-xs text-text-body">
+                    Account: {activeAccount?.name ?? 'No active account'}.
+                    {' '}Model: {openRouterImageModel || 'Not set in Settings'}.
+                  </p>
+                  <p className="mt-1 text-xs text-text-muted">
+                    Hosted still-image batches can run even when the local backend is offline.
+                    Local-only controls like steps and CFG stay disabled while this route is active.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {batchNotice && (
+            <div
+              className={cn(
+                'rounded-md border px-3 py-2 text-xs',
+                batchNotice.tone === 'error'
+                  ? 'border-status-error-border bg-status-error-muted text-status-error'
+                  : 'border-border bg-elevated text-text-body',
+              )}
+            >
+              <div className="flex items-start gap-2">
+                <AlertCircle className="mt-0.5 h-3.5 w-3.5 flex-shrink-0" aria-hidden="true" />
+                <span>{batchNotice.message}</span>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Progress Bar */}
       {isGenerating && (
@@ -658,39 +789,76 @@ export function BatchPromptQueue() {
                   </div>
                 </div>
 
-                <Slider
-                  label="Steps"
-                  value={steps}
-                  min={10}
-                  max={50}
-                  onChange={setSteps}
-                />
+                <div className="space-y-2">
+                  <div>
+                    <label className="text-label text-text-body mb-1 block">
+                      Model Router
+                    </label>
+                    <p className="text-xs text-text-muted">
+                      {openRouterImageEnabled
+                        ? 'This batch will use the active account\'s hosted OpenRouter still-image model.'
+                        : 'Use the local still-image stack for this batch.'}
+                    </p>
+                  </div>
 
-                <Slider
-                  label="CFG Scale"
-                  value={cfgScale}
-                  min={1}
-                  max={20}
-                  step={0.5}
-                  onChange={setCfgScale}
-                />
+                  {openRouterImageEnabled ? (
+                    <div className="rounded-lg border border-accent-primary-border bg-accent-primary-muted/40 px-4 py-3">
+                      <div className="flex items-start gap-3">
+                        <div className="mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-md border border-accent-primary-border bg-surface text-accent-primary">
+                          <Cloud className="h-4 w-4" aria-hidden="true" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-sm font-display font-medium text-text-primary">
+                            OpenRouter Hosted Model
+                          </p>
+                          <p className="mt-1 text-xs text-text-body">
+                            {openRouterImageModel || 'Select an OpenRouter still-image model in Settings.'}
+                          </p>
+                          <p className="mt-1 text-xs text-text-muted">
+                            Switch the active account&apos;s still-image provider back to Local in
+                            Settings to pick a backend model and use local sampling controls here.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      <Slider
+                        label="Steps"
+                        value={steps}
+                        min={10}
+                        max={50}
+                        onChange={setSteps}
+                      />
 
-                <div>
-                  <label className="text-label text-text-body mb-1 block">
-                    Model
-                  </label>
-                  <select
-                    value={model}
-                    onChange={(e) => setModel(e.target.value)}
-                    className="w-full bg-elevated border border-border rounded-lg px-3 py-2 text-sm text-text-primary font-display"
-                  >
-                    <option value="flux-dev">FLUX.1 [dev]</option>
-                    <option value="sd3.5-large">Stable Diffusion 3.5 Large</option>
-                    <option value="flux-fill">FLUX.1 Fill [dev]</option>
-                    <option value="sd3.5-medium">Stable Diffusion 3.5 Medium</option>
-                    <option value="flux-schnell">FLUX.1 [schnell]</option>
-                    <option value="sd-1-5">Stable Diffusion 1.5</option>
-                  </select>
+                      <Slider
+                        label="CFG Scale"
+                        value={cfgScale}
+                        min={1}
+                        max={20}
+                        step={0.5}
+                        onChange={setCfgScale}
+                      />
+
+                      <div>
+                        <label className="text-label text-text-body mb-1 block">
+                          Model
+                        </label>
+                        <select
+                          value={model}
+                          onChange={(e) => setModel(e.target.value)}
+                          className="w-full bg-elevated border border-border rounded-lg px-3 py-2 text-sm text-text-primary font-display"
+                        >
+                          <option value="flux-dev">FLUX.1 [dev]</option>
+                          <option value="sd3.5-large">Stable Diffusion 3.5 Large</option>
+                          <option value="flux-fill">FLUX.1 Fill [dev]</option>
+                          <option value="sd3.5-medium">Stable Diffusion 3.5 Medium</option>
+                          <option value="flux-schnell">FLUX.1 [schnell]</option>
+                          <option value="sd-1-5">Stable Diffusion 1.5</option>
+                        </select>
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
             </motion.div>

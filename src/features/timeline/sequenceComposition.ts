@@ -1,5 +1,6 @@
 import type { MediaAsset } from '@/types/media';
 import type {
+  ClipRetakeTake,
   TimelineCompositionAudioLayer,
   TimelineClip,
   TimelineCompositionFrame,
@@ -16,6 +17,7 @@ interface ResolveSequenceCompositionOptions {
   sequence: TimelineSequence;
   tracks: TimelineTrack[];
   clips: TimelineClip[];
+  clipRetakeTakes?: ClipRetakeTake[];
   mediaAssets: MediaAsset[];
   timeMs: number;
 }
@@ -118,13 +120,26 @@ function buildLayer(
   trackId: string,
   resolvedTimeMs: number,
   opacity: number,
+  retakeContext?: {
+    rangeId: string;
+    takeId: string;
+    sourceTimeMs: number;
+  } | null,
 ): TimelineCompositionLayer {
   const clipOffsetMs = clamp(resolvedTimeMs - clip.startMs, 0, clip.durationMs);
   const lastSourceTimeMs = Math.max(clip.sourceInMs, clip.sourceOutMs - 1);
   const unclampedSourceTimeMs = clip.sourceInMs + clipOffsetMs;
+  const maxRetakeSourceTimeMs =
+    typeof mediaAsset.durationMs === 'number' && Number.isFinite(mediaAsset.durationMs)
+      ? Math.max(0, Math.round(mediaAsset.durationMs) - 1)
+      : null;
   const sourceTimeMs = mediaAsset.type === 'image'
     ? clip.sourceInMs
-    : clamp(unclampedSourceTimeMs, clip.sourceInMs, lastSourceTimeMs);
+    : (retakeContext
+        ? maxRetakeSourceTimeMs === null
+          ? Math.max(0, Math.round(retakeContext.sourceTimeMs))
+          : clamp(Math.round(retakeContext.sourceTimeMs), 0, maxRetakeSourceTimeMs)
+        : clamp(unclampedSourceTimeMs, clip.sourceInMs, lastSourceTimeMs));
 
   return {
     clipId: clip.id,
@@ -133,11 +148,118 @@ function buildLayer(
     mediaType: mediaAsset.type,
     sourcePath: mediaAsset.path,
     posterUrl: clip.posterUrl ?? mediaAsset.posterUrl ?? null,
+    retakeRangeId: retakeContext?.rangeId ?? null,
+    retakeTakeId: retakeContext?.takeId ?? null,
     opacity: clamp(opacity, 0, 1),
     heldFrame: mediaAsset.type === 'image',
     sourceTimeMs,
     clipOffsetMs,
   };
+}
+
+function resolveAcceptedRetakeLayer(
+  clip: TimelineClip,
+  track: TimelineTrack,
+  baseMediaAsset: VisualMediaAsset,
+  mediaAssetById: Map<string, MediaAsset>,
+  retakeTakesById: Map<string, ClipRetakeTake>,
+  resolvedTimeMs: number,
+  issues: TimelineCompositionIssue[],
+): {
+  mediaAsset: VisualMediaAsset;
+  retakeContext: { rangeId: string; takeId: string; sourceTimeMs: number } | null;
+} | null {
+  const clipOffsetMs = clamp(resolvedTimeMs - clip.startMs, 0, clip.durationMs);
+  const activeRange = clip.retakeRanges.find(
+    (range) =>
+      range.acceptedTakeId &&
+      clipOffsetMs >= range.startMs &&
+      clipOffsetMs < range.endMs,
+  );
+
+  if (!activeRange?.acceptedTakeId) {
+    return {
+      mediaAsset: baseMediaAsset,
+      retakeContext: null,
+    };
+  }
+
+  const acceptedTake = retakeTakesById.get(activeRange.acceptedTakeId);
+  if (!acceptedTake?.mediaAssetId) {
+    issues.push(
+      buildIssue(
+        'missing-retake-media',
+        'The accepted retake is missing its candidate media.',
+        {
+          clipId: clip.id,
+          trackId: track.id,
+          retakeRangeId: activeRange.id,
+          retakeTakeId: activeRange.acceptedTakeId,
+        },
+      ),
+    );
+    return null;
+  }
+
+  const retakeMediaAsset = mediaAssetById.get(acceptedTake.mediaAssetId);
+  if (!isVisualMediaAsset(retakeMediaAsset)) {
+    issues.push(
+      buildIssue(
+        'missing-retake-media',
+        'The accepted retake candidate media is missing or not visual media.',
+        {
+          clipId: clip.id,
+          trackId: track.id,
+          retakeRangeId: activeRange.id,
+          retakeTakeId: acceptedTake.id,
+        },
+      ),
+    );
+    return null;
+  }
+
+  return {
+    mediaAsset: retakeMediaAsset,
+    retakeContext: {
+      rangeId: activeRange.id,
+      takeId: acceptedTake.id,
+      sourceTimeMs: clipOffsetMs - activeRange.startMs,
+    },
+  };
+}
+
+function buildResolvedVisualLayer(
+  clip: TimelineClip,
+  baseMediaAsset: VisualMediaAsset,
+  track: TimelineTrack,
+  mediaAssetById: Map<string, MediaAsset>,
+  retakeTakesById: Map<string, ClipRetakeTake>,
+  resolvedTimeMs: number,
+  opacity: number,
+  issues: TimelineCompositionIssue[],
+): TimelineCompositionLayer | null {
+  const resolvedRetake = resolveAcceptedRetakeLayer(
+    clip,
+    track,
+    baseMediaAsset,
+    mediaAssetById,
+    retakeTakesById,
+    resolvedTimeMs,
+    issues,
+  );
+
+  if (!resolvedRetake) {
+    return null;
+  }
+
+  return buildLayer(
+    clip,
+    resolvedRetake.mediaAsset,
+    track.id,
+    resolvedTimeMs,
+    opacity,
+    resolvedRetake.retakeContext,
+  );
 }
 
 function buildAudioLayer(
@@ -208,6 +330,7 @@ export function resolveSequenceComposition({
   sequence,
   tracks,
   clips,
+  clipRetakeTakes = [],
   mediaAssets,
   timeMs,
 }: ResolveSequenceCompositionOptions): TimelineCompositionFrame {
@@ -236,6 +359,7 @@ export function resolveSequenceComposition({
     ]),
   );
   const mediaAssetById = new Map(mediaAssets.map((asset) => [asset.id, asset]));
+  const retakeTakesById = new Map(clipRetakeTakes.map((take) => [take.id, take]));
   const allowInclusiveEnd = clampedTimeMs === playRange.endMs;
   const frame = createFrame(timeMs, clampedTimeMs, playRange, inPlayRange, issues);
   const activeVisualTracks: Array<{
@@ -375,7 +499,21 @@ export function resolveSequenceComposition({
     return frame;
   }
 
-  frame.layers = [buildLayer(clip, primaryMediaAsset, track.id, clampedTimeMs, 1)];
+  const primaryLayer = buildResolvedVisualLayer(
+    clip,
+    primaryMediaAsset,
+    track,
+    mediaAssetById,
+    retakeTakesById,
+    clampedTimeMs,
+    1,
+    frame.issues,
+  );
+  if (!primaryLayer) {
+    return frame;
+  }
+
+  frame.layers = [primaryLayer];
   const clipIndex = findClipIndex(orderedTrackClips, clip.id);
   const previousClip = clipIndex > 0 ? orderedTrackClips[clipIndex - 1] ?? null : null;
   const nextClip = clipIndex >= 0 ? orderedTrackClips[clipIndex + 1] ?? null : null;
@@ -452,14 +590,17 @@ export function resolveSequenceComposition({
         toClipId: edge === 'in' ? clip.id : null,
       };
       frame.layers = [
-        buildLayer(
+        buildResolvedVisualLayer(
           clip,
           primaryMediaAsset,
-          track.id,
+          track,
+          mediaAssetById,
+          retakeTakesById,
           clampedTimeMs,
           edge === 'in' ? progress : 1 - progress,
+          frame.issues,
         ),
-      ];
+      ].filter((layer): layer is TimelineCompositionLayer => Boolean(layer));
       return frame;
     }
 
@@ -536,13 +677,13 @@ export function resolveSequenceComposition({
     frame.layers =
       edge === 'in'
         ? [
-            buildLayer(relatedClip, relatedMediaAsset, track.id, clampedTimeMs, 1 - progress),
-            buildLayer(clip, primaryMediaAsset, track.id, clampedTimeMs, progress),
-          ]
+            buildResolvedVisualLayer(relatedClip, relatedMediaAsset, track, mediaAssetById, retakeTakesById, clampedTimeMs, 1 - progress, frame.issues),
+            buildResolvedVisualLayer(clip, primaryMediaAsset, track, mediaAssetById, retakeTakesById, clampedTimeMs, progress, frame.issues),
+          ].filter((layer): layer is TimelineCompositionLayer => Boolean(layer))
         : [
-            buildLayer(clip, primaryMediaAsset, track.id, clampedTimeMs, 1 - progress),
-            buildLayer(relatedClip, relatedMediaAsset, track.id, clampedTimeMs, progress),
-          ];
+            buildResolvedVisualLayer(clip, primaryMediaAsset, track, mediaAssetById, retakeTakesById, clampedTimeMs, 1 - progress, frame.issues),
+            buildResolvedVisualLayer(relatedClip, relatedMediaAsset, track, mediaAssetById, retakeTakesById, clampedTimeMs, progress, frame.issues),
+          ].filter((layer): layer is TimelineCompositionLayer => Boolean(layer));
     return frame;
   }
 

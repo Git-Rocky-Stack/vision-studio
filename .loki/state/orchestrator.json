@@ -1,9 +1,0 @@
-{
-  "currentPhase": "DEVELOPMENT",
-  "tasksCompleted": 119,
-  "tasksFailed": 0,
-  "sessionStarted": "2026-04-14T00:25:00.000Z",
-  "lastCommit": "pending-eraser",
-  "lastTag": "v2.2.0",
-  "pendingChanges": ["feat(edit): implement eraser tool for region masks"]
-}

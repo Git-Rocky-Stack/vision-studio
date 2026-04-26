@@ -2200,6 +2200,52 @@ export function createMediaTimelineActions(set: AppSet, get: AppGet) {
         };
       }),
 
+    revertClipRetakeRange: (clipId: string, rangeId: string) =>
+      set((state) => {
+        const clip = state.timelineClips.find((item) => item.id === clipId);
+        const range = clip?.retakeRanges.find((item) => item.id === rangeId) ?? null;
+        if (!clip || !range) {
+          return {};
+        }
+
+        const now = new Date().toISOString();
+        const nextClipRetakeTakes = state.clipRetakeTakes.map((take) =>
+          take.clipId === clipId && take.retakeRangeId === rangeId && take.status === 'accepted'
+            ? {
+                ...take,
+                status: 'candidate' as const,
+                updatedAt: now,
+              }
+            : take,
+        );
+        const nextClips = syncTimelineClipsRetakeRanges(
+          state.timelineClips.map((item) =>
+            item.id === clipId
+              ? {
+                  ...item,
+                  retakeRanges: item.retakeRanges.map((retakeRange) =>
+                    retakeRange.id === rangeId
+                      ? {
+                          ...retakeRange,
+                          acceptedTakeId: null,
+                          updatedAt: now,
+                        }
+                      : retakeRange,
+                  ),
+                }
+              : item,
+          ),
+          nextClipRetakeTakes,
+        );
+
+        return {
+          clipRetakeTakes: nextClipRetakeTakes,
+          timelineClips: nextClips,
+          activeTimelineClipId: clipId,
+          activeTimelineRetakeRangeId: rangeId,
+        };
+      }),
+
     setTimelineSequencePlayRange: (sequenceId: string, range: TimelinePlayRange | null) =>
       set((state) => ({
         timelineSequences: state.timelineSequences.map((sequence) => {

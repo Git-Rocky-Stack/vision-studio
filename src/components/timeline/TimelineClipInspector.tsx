@@ -47,6 +47,10 @@ function formatRetakeRangeLabel(startMs: number, endMs: number) {
   return `${formatSeconds(startMs)}s to ${formatSeconds(endMs)}s`;
 }
 
+function sortRetakeTakesByCreatedAt<T extends { createdAt: string }>(takes: T[]) {
+  return [...takes].sort((left, right) => right.createdAt.localeCompare(left.createdAt));
+}
+
 function getRetakeStatusClasses(status: TimelineClipRetakeRange['status']) {
   switch (status) {
     case 'accepted':
@@ -90,6 +94,9 @@ export function TimelineClipInspector({
     seekTo,
     setActiveTimelineRetakeRange,
     setActiveTimelineRetakeTake,
+    acceptClipRetakeTake,
+    rejectClipRetakeTake,
+    revertClipRetakeRange,
     moveTimelineClip,
     trimTimelineClip,
     splitTimelineClip,
@@ -116,6 +123,9 @@ export function TimelineClipInspector({
       seekTo: state.seekTo,
       setActiveTimelineRetakeRange: state.setActiveTimelineRetakeRange,
       setActiveTimelineRetakeTake: state.setActiveTimelineRetakeTake,
+      acceptClipRetakeTake: state.acceptClipRetakeTake,
+      rejectClipRetakeTake: state.rejectClipRetakeTake,
+      revertClipRetakeRange: state.revertClipRetakeRange,
       moveTimelineClip: state.moveTimelineClip,
       trimTimelineClip: state.trimTimelineClip,
       splitTimelineClip: state.splitTimelineClip,
@@ -187,9 +197,9 @@ export function TimelineClipInspector({
   const selectedRetakeTakes = useMemo(
     () =>
       selectedRetakeRange
-        ? retakeTakesForClip
-            .filter((item) => item.retakeRangeId === selectedRetakeRange.id)
-            .sort((left, right) => right.createdAt.localeCompare(left.createdAt))
+        ? sortRetakeTakesByCreatedAt(
+            retakeTakesForClip.filter((item) => item.retakeRangeId === selectedRetakeRange.id),
+          )
         : [],
     [retakeTakesForClip, selectedRetakeRange],
   );
@@ -226,6 +236,15 @@ export function TimelineClipInspector({
   const isAiBusy =
     generationBinding?.lastRunSummary?.status === 'queued' ||
     generationBinding?.lastRunSummary?.status === 'running';
+  const isRetakeBusy = selectedRetakeTakes.some(
+    (take) => take.status === 'queued' || take.status === 'rendering',
+  );
+  const canGenerateRetake =
+    isVideoClip &&
+    Boolean(selectedRetakeRange) &&
+    generationBinding?.generationType === 'video' &&
+    !isAiBusy &&
+    !isRetakeBusy;
   const isStoryboardPlaceholder = isStoryboardPlaceholderAsset(mediaAsset);
   const lastRunLabel =
     generationBinding?.lastRunSummary?.status === 'complete'
@@ -261,13 +280,19 @@ export function TimelineClipInspector({
     });
   };
 
-  const handleAiAction = async (operation: 'regenerate' | 'variant' | 'extend') => {
+  const handleAiAction = async (operation: 'regenerate' | 'variant' | 'extend' | 'retake') => {
     setAiActionError(null);
+
+    if (operation === 'retake' && !selectedRetakeRange) {
+      setAiActionError('Select a retake range before generating a candidate.');
+      return;
+    }
 
     try {
       await runTimelineClipGeneration({
         operation,
         clipId: clip.id,
+        retakeRangeId: operation === 'retake' ? selectedRetakeRange?.id : undefined,
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Timeline AI action failed.';
@@ -706,7 +731,12 @@ export function TimelineClipInspector({
                       data-testid={`timeline-retake-range-${range.id}`}
                       onClick={() => {
                         setActiveTimelineRetakeRange(range.id);
-                        const preferredTakeId = range.acceptedTakeId ?? range.candidateTakeIds[0] ?? null;
+                        const preferredTakeId =
+                          range.acceptedTakeId ??
+                          sortRetakeTakesByCreatedAt(
+                            retakeTakesForClip.filter((item) => item.retakeRangeId === range.id),
+                          ).find((item) => item.status !== 'rejected')?.id ??
+                          null;
                         setActiveTimelineRetakeTake(preferredTakeId);
                       }}
                       className={cn(
@@ -817,6 +847,16 @@ export function TimelineClipInspector({
                     {selectedRetakeRange ? formatSeconds(retakePlayheadMs) : '--'}
                   </span>
                 </div>
+                <button
+                  type="button"
+                  data-testid="timeline-retake-generate"
+                  disabled={!canGenerateRetake}
+                  className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-lg border border-border bg-canvas px-3 py-2 text-xs text-text-primary transition hover:bg-elevated disabled:cursor-not-allowed disabled:opacity-50"
+                  onClick={() => void handleAiAction('retake')}
+                >
+                  <Sparkles className="h-3.5 w-3.5" />
+                  Generate Retake
+                </button>
 
                 {selectedRetakeRange ? (
                   selectedRetakeTakes.length > 0 ? (
@@ -860,10 +900,41 @@ export function TimelineClipInspector({
                           </div>
                         </button>
                       ))}
+                      {selectedRetakeTake ? (
+                        <div className="grid grid-cols-3 gap-2">
+                          <button
+                            type="button"
+                            data-testid="timeline-retake-inspector-accept"
+                            disabled={!selectedRetakeTake.mediaAssetId || selectedRetakeTake.status === 'accepted'}
+                            className="rounded-lg border border-status-success-border bg-status-success-muted px-2 py-2 text-xs text-status-success transition hover:bg-status-success-muted/80 disabled:cursor-not-allowed disabled:opacity-50"
+                            onClick={() => acceptClipRetakeTake(selectedRetakeTake.id)}
+                          >
+                            Accept
+                          </button>
+                          <button
+                            type="button"
+                            data-testid="timeline-retake-inspector-reject"
+                            disabled={selectedRetakeTake.status === 'rejected'}
+                            className="rounded-lg border border-status-error-border bg-status-error-muted px-2 py-2 text-xs text-status-error transition hover:bg-status-error-muted/80 disabled:cursor-not-allowed disabled:opacity-50"
+                            onClick={() => rejectClipRetakeTake(selectedRetakeTake.id)}
+                          >
+                            Reject
+                          </button>
+                          <button
+                            type="button"
+                            data-testid="timeline-retake-inspector-revert"
+                            disabled={!selectedRetakeRange.acceptedTakeId}
+                            className="rounded-lg border border-border bg-canvas px-2 py-2 text-xs text-text-primary transition hover:bg-elevated disabled:cursor-not-allowed disabled:opacity-50"
+                            onClick={() => revertClipRetakeRange(clip.id, selectedRetakeRange.id)}
+                          >
+                            Revert
+                          </button>
+                        </div>
+                      ) : null}
                     </div>
                   ) : (
                     <p className="mt-3 text-xs text-text-muted">
-                      No candidate retakes yet. Use <span className="text-text-primary">Create Retake</span> in the timeline toolbar after marking a range.
+                      No candidate retakes yet. Use <span className="text-text-primary">Generate Retake</span> once the range is selected.
                     </p>
                   )
                 ) : (

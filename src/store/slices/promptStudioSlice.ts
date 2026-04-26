@@ -1,5 +1,6 @@
 import type { PromptTemplate, CompositionLayerState } from '@/types/promptStudio';
 import { BUILT_IN_PROMPT_TEMPLATES } from '@/data/builtInTemplates';
+import { computeDimensions } from '@/types/resolution';
 import type { AppSet, AppGet } from '../appStore.types';
 
 export const promptStudioInitialState = {
@@ -74,6 +75,12 @@ export function createPromptStudioActions(set: AppSet, _get: AppGet) {
             ? `${draft.negativePrompt} ${template.negativePrompt}`.trim()
             : template.negativePrompt
           : draft?.negativePrompt ?? '';
+      const dimensions = computeDimensions(
+        state.aspectRatio,
+        state.resolutionTier,
+        state.customWidth,
+        state.customHeight,
+      );
 
       set((state) => ({
         promptTemplates: state.promptTemplates.map((t) =>
@@ -81,7 +88,18 @@ export function createPromptStudioActions(set: AppSet, _get: AppGet) {
         ),
         generationDraft: draft
           ? { ...draft, prompt: updatedPrompt, negativePrompt: updatedNegative }
-          : { generationType: 'image', prompt: updatedPrompt, negativePrompt: updatedNegative, width: 1024, height: 1024 },
+          : {
+              generationType: 'image',
+              prompt: updatedPrompt,
+              negativePrompt: updatedNegative,
+              width: dimensions.width,
+              height: dimensions.height,
+              steps: state.advancedGeneration.steps,
+              cfgScale: state.advancedGeneration.cfgScale,
+              model: 'flux-dev',
+              scheduler: state.advancedGeneration.scheduler,
+              seed: state.advancedGeneration.seed,
+            },
       }));
     },
   };

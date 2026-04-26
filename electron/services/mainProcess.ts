@@ -19,7 +19,12 @@ import { createFirstRunService } from './firstRun';
 import { createMainWindowService } from './mainWindow';
 import { registerMainIpcHandlers } from './mainIpc';
 import { registerContentSecurityPolicy } from './contentSecurityPolicy';
-import { setupGenerationHandlers } from '../ipc-handlers/generation';
+import {
+  configureGenerationHandlerServices,
+  setupGenerationHandlers,
+} from '../ipc-handlers/generation';
+import { createUserAccountsService, DEFAULT_USER_ACCOUNTS_STATE } from './userAccounts';
+import { createOpenRouterService } from './openRouter';
 
 type BrowserWindowConstructor = new (options: BrowserWindowConstructorOptions) => BrowserWindow;
 
@@ -64,6 +69,7 @@ export function createMainProcessServices({
         firstRun: true,
         modelsDownloaded: [],
         managedOutputRoots: [],
+        userAccounts: DEFAULT_USER_ACCOUNTS_STATE,
       },
     },
   });
@@ -80,6 +86,14 @@ export function createMainProcessServices({
     getMainWindow: () => mainWindow.getWindow(),
     logger,
   });
+
+  const userAccounts = createUserAccountsService({
+    store,
+    safeStorage,
+    logger,
+  });
+
+  const openRouter = createOpenRouterService();
 
   const mainWindow = createMainWindowService({
     BrowserWindow,
@@ -103,6 +117,12 @@ export function createMainProcessServices({
     logger,
   });
 
+  configureGenerationHandlerServices({
+    userAccounts,
+    openRouter,
+    outputRoots,
+  });
+
   function registerIpc() {
     registerMainIpcHandlers({
       app,
@@ -113,6 +133,8 @@ export function createMainProcessServices({
       store,
       outputRoots,
       backend,
+      userAccounts,
+      openRouter,
       getMainWindow: () => mainWindow.getWindow(),
       logger,
     });

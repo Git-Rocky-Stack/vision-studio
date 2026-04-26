@@ -43,6 +43,36 @@ function mockElectron() {
         ...patch,
       })),
     },
+    accounts: {
+      list: vi.fn().mockResolvedValue({
+        activeAccountId: 'account-primary',
+        accounts: [
+          {
+            id: 'account-primary',
+            name: 'Primary',
+            createdAt: '2026-04-24T00:00:00.000Z',
+            updatedAt: '2026-04-24T00:00:00.000Z',
+            preferences: {
+              promptEnhancementProvider: 'local',
+              openRouterModel: '',
+              imageGenerationProvider: 'local',
+              openRouterImageModel: '',
+            },
+            openRouter: {
+              apiKeyStored: false,
+              keyLabel: null,
+              lastValidatedAt: null,
+            },
+          },
+        ],
+      }),
+    },
+    openrouter: {
+      getKeyInfo: vi.fn().mockResolvedValue({ success: false }),
+      listModels: vi.fn().mockResolvedValue({ success: true, models: [] }),
+      listImageModels: vi.fn().mockResolvedValue({ success: true, models: [] }),
+      testConnection: vi.fn().mockResolvedValue({ success: false }),
+    },
     dialog: {
       selectFolder: vi.fn().mockResolvedValue(null),
       saveFile: vi.fn().mockResolvedValue(null),

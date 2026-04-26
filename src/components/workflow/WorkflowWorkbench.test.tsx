@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useAppStore } from '@/store/appStore';
+import type { ElectronAPI } from '@/types/electron';
 import type { WorkflowExecutionValidationResult } from '@/types/workflow';
 
 const { validateWorkflowExecutionMock, runWorkflowExecutionMock } = vi.hoisted(() => ({
@@ -71,9 +72,38 @@ describe('WorkflowWorkbench', () => {
     });
     runWorkflowExecutionMock.mockReset();
     runWorkflowExecutionMock.mockResolvedValue(undefined);
+    window.electron = {
+      accounts: {
+        list: vi.fn().mockResolvedValue({
+          activeAccountId: 'account-primary',
+          accounts: [
+            {
+              id: 'account-primary',
+              name: 'Primary',
+              createdAt: '2026-04-24T00:00:00.000Z',
+              updatedAt: '2026-04-24T00:00:00.000Z',
+              preferences: {
+                promptEnhancementProvider: 'local',
+                openRouterModel: '',
+                imageGenerationProvider: 'local',
+                openRouterImageModel: '',
+              },
+              openRouter: {
+                apiKeyStored: false,
+                keyLabel: null,
+                lastValidatedAt: null,
+              },
+            },
+          ],
+        }),
+      },
+    } as unknown as ElectronAPI;
   });
 
-  afterEach(cleanup);
+  afterEach(() => {
+    cleanup();
+    Reflect.deleteProperty(window, 'electron');
+  });
 
   it('renders workflow metadata instead of placeholder copy', () => {
     render(<WorkflowWorkbench />);
@@ -203,6 +233,42 @@ describe('WorkflowWorkbench', () => {
     render(<WorkflowWorkbench />);
 
     expect(screen.getByRole('button', { name: 'Run Workflow' })).toBeDisabled();
+  });
+
+  it('allows workflow runs when OpenRouter still-image routing is configured and the backend is offline', async () => {
+    useAppStore.setState((state) => ({
+      systemInfo: {
+        ...state.systemInfo,
+        backendConnected: false,
+      },
+    }));
+    window.electron.accounts.list = vi.fn().mockResolvedValue({
+      activeAccountId: 'account-primary',
+      accounts: [
+        {
+          id: 'account-primary',
+          name: 'Primary',
+          createdAt: '2026-04-24T00:00:00.000Z',
+          updatedAt: '2026-04-24T00:00:00.000Z',
+          preferences: {
+            promptEnhancementProvider: 'local',
+            openRouterModel: '',
+            imageGenerationProvider: 'openrouter',
+            openRouterImageModel: 'google/gemini-2.5-flash-image',
+          },
+          openRouter: {
+            apiKeyStored: true,
+            keyLabel: 'Primary Key',
+            lastValidatedAt: '2026-04-24T00:00:00.000Z',
+          },
+        },
+      ],
+    });
+
+    render(<WorkflowWorkbench />);
+
+    expect(await screen.findByText('OpenRouter Still Image Route')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Run Workflow' })).not.toBeDisabled();
   });
 
   it('invokes the runner when Run Workflow is clicked', async () => {

@@ -28,12 +28,19 @@ class PromptServiceTests(unittest.TestCase):
         self.assertTrue(all("city skyline at dusk" in item.lower() for item in result["variations"]))
 
     def test_responses_match_prompt_enhancement_schema(self):
-        for mode in ["clarify", "cinematic", "concise", "variations"]:
+        for mode in ["clarify", "cinematic", "concise", "expand", "variations"]:
             with self.subTest(mode=mode):
                 result = enhance_prompt("city skyline at dusk", mode=mode)
 
                 self.assertEqual(set(result), {"mode", "prompt", "variations"})
                 self.assertIs(enforce_json_schema(result, PROMPT_ENHANCEMENT_SCHEMA), result)
+
+    def test_expand_mode_adds_richer_detail(self):
+        result = enhance_prompt("city skyline at dusk", mode="expand")
+
+        self.assertEqual(result["mode"], "expand")
+        self.assertIn("city skyline at dusk", result["prompt"].lower())
+        self.assertGreater(len(result["prompt"]), len("city skyline at dusk"))
 
     def test_unknown_mode_raises_value_error(self):
         with self.assertRaises(ValueError):

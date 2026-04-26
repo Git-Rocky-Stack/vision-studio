@@ -4,6 +4,7 @@ import { useShallow } from 'zustand/react/shallow';
 
 import { resolveSequenceComposition, resolveTimelinePlayRange } from '@/features/timeline/sequenceComposition';
 import { resolveMediaSourceUrl } from '@/components/ui/MediaPreview';
+import { TimelineRetakeCompare } from '@/components/timeline/TimelineRetakeCompare';
 import { useAppStore } from '@/store/appStore';
 import { cn } from '@/utils/cn';
 
@@ -41,6 +42,7 @@ export const TimelinePlaybackPreview = memo(function TimelinePlaybackPreview({
     activeTimelineSequenceId,
     currentTime,
     mediaAssets,
+    clipRetakeTakes,
     playState,
     projects,
     setActiveTimelineClip,
@@ -54,6 +56,7 @@ export const TimelinePlaybackPreview = memo(function TimelinePlaybackPreview({
       activeTimelineSequenceId: state.activeTimelineSequenceId,
       currentTime: state.currentTime,
       mediaAssets: state.mediaAssets,
+      clipRetakeTakes: state.clipRetakeTakes,
       playState: state.playState,
       projects: state.projects,
       setActiveTimelineClip: state.setActiveTimelineClip,
@@ -98,11 +101,12 @@ export const TimelinePlaybackPreview = memo(function TimelinePlaybackPreview({
             sequence: activeSequence,
             tracks: sequenceTracks,
             clips: sequenceClips,
+            clipRetakeTakes,
             mediaAssets,
             timeMs: currentTime,
           })
         : null,
-    [activeSequence, currentTime, mediaAssets, sequenceClips, sequenceTracks],
+    [activeSequence, clipRetakeTakes, currentTime, mediaAssets, sequenceClips, sequenceTracks],
   );
   const playRange = useMemo(
     () => (activeSequence ? resolveTimelinePlayRange(activeSequence) : null),
@@ -411,6 +415,8 @@ export const TimelinePlaybackPreview = memo(function TimelinePlaybackPreview({
             </div>
           </div>
         ) : null}
+
+        <TimelineRetakeCompare />
 
         <div className="hidden" aria-hidden="true">
           {sequenceAudioClips.map(({ clip, mediaAsset }) => {

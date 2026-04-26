@@ -30,7 +30,8 @@ export interface WorkflowExecutionIssue {
     | 'missing-prompt'
     | 'missing-model'
     | 'invalid-sampler-value'
-    | 'backend-unavailable';
+    | 'backend-unavailable'
+    | 'provider-config';
   message: string;
   nodeId?: string;
 }

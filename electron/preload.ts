@@ -1,5 +1,48 @@
 import { contextBridge, ipcRenderer } from 'electron';
 
+type AccountPreferences = {
+  promptEnhancementProvider: 'local' | 'openrouter';
+  openRouterModel: string;
+  imageGenerationProvider: 'local' | 'openrouter';
+  openRouterImageModel: string;
+};
+
+type AccountSummary = {
+  id: string;
+  name: string;
+  createdAt: string;
+  updatedAt: string;
+  preferences: AccountPreferences;
+  openRouter: {
+    apiKeyStored: boolean;
+    keyLabel: string | null;
+    lastValidatedAt: string | null;
+  };
+};
+
+type AccountsSnapshot = {
+  activeAccountId: string | null;
+  accounts: AccountSummary[];
+};
+
+type OpenRouterModelListResult = Promise<{
+  success: boolean;
+  error?: string;
+  models: Array<{
+    id: string;
+    name: string;
+    description: string;
+    contextLength: number | null;
+    outputModalities: string[];
+    supportedParameters: string[];
+    pricing: {
+      prompt: string;
+      completion: string;
+      image: string;
+    };
+  }>;
+}>;
+
 // Type definitions for the exposed API
 export interface ElectronAPI {
   app: {
@@ -49,6 +92,64 @@ export interface ElectronAPI {
       notifyOnModelDownloads: boolean;
       pythonPath?: string;
     }>;
+  };
+  accounts: {
+    list: () => Promise<AccountsSnapshot>;
+    create: (payload?: { name?: string }) => Promise<AccountsSnapshot>;
+    update: (
+      accountId: string,
+      patch: {
+        name?: string;
+        promptEnhancementProvider?: 'local' | 'openrouter';
+        openRouterModel?: string;
+        imageGenerationProvider?: 'local' | 'openrouter';
+        openRouterImageModel?: string;
+      }
+    ) => Promise<AccountsSnapshot>;
+    delete: (accountId: string) => Promise<AccountsSnapshot>;
+    setActive: (accountId: string) => Promise<AccountsSnapshot>;
+    setOpenRouterApiKey: (payload: { accountId: string; apiKey: string }) => Promise<AccountsSnapshot>;
+    clearOpenRouterApiKey: (accountId: string) => Promise<AccountsSnapshot>;
+  };
+  openrouter: {
+    testConnection: (accountId?: string) => Promise<{
+      success: boolean;
+      error?: string;
+      keyInfo?: {
+        label: string | null;
+        limit: number | null;
+        limitRemaining: number | null;
+        usage: number | null;
+        usageDaily: number | null;
+        usageWeekly: number | null;
+        usageMonthly: number | null;
+        byokUsage: number | null;
+        includeByokInLimit: boolean | null;
+        isFreeTier: boolean | null;
+        expiresAt: string | null;
+      };
+      accounts?: AccountsSnapshot;
+    }>;
+    getKeyInfo: (accountId?: string) => Promise<{
+      success: boolean;
+      error?: string;
+      keyInfo?: {
+        label: string | null;
+        limit: number | null;
+        limitRemaining: number | null;
+        usage: number | null;
+        usageDaily: number | null;
+        usageWeekly: number | null;
+        usageMonthly: number | null;
+        byokUsage: number | null;
+        includeByokInLimit: boolean | null;
+        isFreeTier: boolean | null;
+        expiresAt: string | null;
+      };
+      accounts?: AccountsSnapshot;
+    }>;
+    listModels: (accountId?: string) => OpenRouterModelListResult;
+    listImageModels: (accountId?: string) => OpenRouterModelListResult;
   };
   assets: {
     importFiles: (sourcePaths: string[]) => Promise<{ success: boolean; files?: Array<{
@@ -126,6 +227,16 @@ export interface ElectronAPI {
       prompt: string;
       mode?: string;
     }) => Promise<{ success?: boolean; error?: string; mode?: string; prompt?: string; variations?: string[] }>;
+    suggestNegativePrompt: (params: {
+      prompt: string;
+      negativePrompt?: string;
+    }) => Promise<{
+      success?: boolean;
+      error?: string;
+      negativePrompt?: string;
+      suggestions?: string[];
+      source?: 'openrouter' | 'heuristic';
+    }>;
     cropImage: (params: {
       source_path: string;
       crop_box?: { left: number; top: number; width: number; height: number };
@@ -201,6 +312,21 @@ const electronAPI: ElectronAPI = {
     update: (patch) => ipcRenderer.invoke('settings:update', patch),
     reset: () => ipcRenderer.invoke('settings:reset'),
   },
+  accounts: {
+    list: () => ipcRenderer.invoke('accounts:list'),
+    create: (payload) => ipcRenderer.invoke('accounts:create', payload),
+    update: (accountId, patch) => ipcRenderer.invoke('accounts:update', accountId, patch),
+    delete: (accountId) => ipcRenderer.invoke('accounts:delete', accountId),
+    setActive: (accountId) => ipcRenderer.invoke('accounts:set-active', accountId),
+    setOpenRouterApiKey: (payload) => ipcRenderer.invoke('accounts:set-openrouter-api-key', payload),
+    clearOpenRouterApiKey: (accountId) => ipcRenderer.invoke('accounts:clear-openrouter-api-key', accountId),
+  },
+  openrouter: {
+    testConnection: (accountId) => ipcRenderer.invoke('openrouter:test-connection', accountId),
+    getKeyInfo: (accountId) => ipcRenderer.invoke('openrouter:get-key-info', accountId),
+    listModels: (accountId) => ipcRenderer.invoke('openrouter:list-models', accountId),
+    listImageModels: (accountId) => ipcRenderer.invoke('openrouter:list-image-models', accountId),
+  },
   assets: {
     importFiles: (sourcePaths) => ipcRenderer.invoke('assets:import-files', sourcePaths),
     export: (sourcePath, destinationPath) => ipcRenderer.invoke('assets:export', sourcePath, destinationPath),
@@ -215,6 +341,7 @@ const electronAPI: ElectronAPI = {
     exportTimelineSequence: (params) => ipcRenderer.invoke('generation:export-timeline-sequence', params),
     batch: (params) => ipcRenderer.invoke('generation:batch', params),
     enhancePrompt: (params) => ipcRenderer.invoke('generation:enhance-prompt', params),
+    suggestNegativePrompt: (params) => ipcRenderer.invoke('generation:suggest-negative-prompt', params),
     cropImage: (params) => ipcRenderer.invoke('generation:crop-image', params),
     extractVideoFrame: (params) => ipcRenderer.invoke('generation:extract-video-frame', params),
     upscaleImage: (params) => ipcRenderer.invoke('generation:upscale-image', params),

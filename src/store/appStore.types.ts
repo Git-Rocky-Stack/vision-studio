@@ -641,6 +641,7 @@ export interface AppState {
   deleteClipRetakeTake: (takeId: string) => void;
   acceptClipRetakeTake: (takeId: string) => void;
   rejectClipRetakeTake: (takeId: string) => void;
+  revertClipRetakeRange: (clipId: string, rangeId: string) => void;
   setTimelineSequencePlayRange: (sequenceId: string, range: TimelinePlayRange | null) => void;
   upsertClipGenerationBinding: (binding: ClipGenerationBinding) => void;
   deriveStoryboardTimeline: (

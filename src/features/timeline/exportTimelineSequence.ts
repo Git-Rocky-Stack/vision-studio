@@ -12,6 +12,7 @@ type TimelineStore = UseBoundStore<StoreApi<AppState>>;
 
 const BLOCKING_EXPORT_ISSUES = new Set<TimelineCompositionIssueCode>([
   'missing-media-asset',
+  'missing-retake-media',
   'unsupported-track-kind',
   'unsupported-transition',
   'transition-target-missing',
@@ -99,6 +100,7 @@ export function buildTimelineExportRequest({
       sequence,
       tracks: sequenceTracks,
       clips: sequenceClips,
+      clipRetakeTakes: state.clipRetakeTakes,
       mediaAssets: state.mediaAssets,
       timeMs,
     });

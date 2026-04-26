@@ -486,16 +486,17 @@ async def enhance_prompt_endpoint(request: Request, prompt_request: PromptEnhanc
 
     ## Enhancement Modes:
     - **clarify**: Add detail and structure while preserving the original subject
+    - **cinematic**: Lean into film language, dramatic lighting, and atmosphere
+    - **concise**: Condense to the most important visual elements
     - **variations**: Generate multiple alternative phrasings (returns array)
     - **expand**: Add more descriptive elements and context
-    - **shorten**: Condense to essential elements only
 
     ### Request Body
     - `prompt`: The prompt to enhance (required)
     - `mode`: Enhancement mode (default: "clarify")
 
     ### Response
-    Enhanced prompt string, or array of variations if mode="variations"
+    Structured JSON with `mode`, `prompt`, and `variations`
 
     ### Example
     ```json

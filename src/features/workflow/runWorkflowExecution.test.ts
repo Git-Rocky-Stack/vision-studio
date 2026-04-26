@@ -83,12 +83,56 @@ describe('runWorkflowExecution', () => {
     expect(runtime?.lastFailureMessage).toBe('Backend offline');
     expect(useAppStore.getState().workflowRecords[0].runHistory[0]?.status).toBe('failed');
   });
+
+  it('allows hosted still-image workflow execution when the backend is offline', async () => {
+    useAppStore.setState((state) => ({
+      systemInfo: {
+        ...state.systemInfo,
+        backendConnected: false,
+      },
+    }));
+
+    const electron = makeElectronGenerationMock({
+      openRouterImageEnabled: true,
+      submit: { success: true, jobId: 'job-openrouter-1' },
+      statuses: [
+        {
+          job_id: 'job-openrouter-1',
+          status: 'completed',
+          type: 'image',
+          created_at: '2026-04-24T20:00:00.000Z',
+          completed_at: '2026-04-24T20:00:05.000Z',
+          progress: 100,
+          result: {
+            images: ['/outputs/job-openrouter-1/image-1.png'],
+          },
+        },
+      ],
+    });
+
+    await runWorkflowExecution({
+      workflowId: 'image-generation-baseline',
+      electron,
+      store: useAppStore,
+      pollIntervalMs: 0,
+    });
+
+    expect(electron.generation.generateImage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        model: 'google/gemini-2.5-flash-image',
+      }),
+    );
+    expect(useAppStore.getState().workflowRecords[0].runHistory[0]).toMatchObject({
+      status: 'complete',
+    });
+  });
 });
 
 function makeElectronGenerationMock(options: {
   submit?: { success: boolean; jobId?: string; error?: string };
   submitError?: Error;
   statuses?: Array<Record<string, unknown>>;
+  openRouterImageEnabled?: boolean;
 }) {
   const statuses = [...(options.statuses ?? [])];
   const notify = vi.fn().mockResolvedValue({ success: true });
@@ -106,6 +150,30 @@ function makeElectronGenerationMock(options: {
         notifyOnGenerationComplete: true,
         notifyOnGenerationFailed: true,
         notifyOnModelDownloads: true,
+      }),
+    },
+    accounts: {
+      list: vi.fn().mockResolvedValue({
+        activeAccountId: 'account-primary',
+        accounts: [
+          {
+            id: 'account-primary',
+            name: 'Primary',
+            createdAt: '2026-04-24T00:00:00.000Z',
+            updatedAt: '2026-04-24T00:00:00.000Z',
+            preferences: {
+              promptEnhancementProvider: 'local',
+              openRouterModel: '',
+              imageGenerationProvider: options.openRouterImageEnabled ? 'openrouter' : 'local',
+              openRouterImageModel: options.openRouterImageEnabled ? 'google/gemini-2.5-flash-image' : '',
+            },
+            openRouter: {
+              apiKeyStored: options.openRouterImageEnabled ?? false,
+              keyLabel: options.openRouterImageEnabled ? 'Primary Key' : null,
+              lastValidatedAt: options.openRouterImageEnabled ? '2026-04-24T00:00:00.000Z' : null,
+            },
+          },
+        ],
       }),
     },
     generation: {

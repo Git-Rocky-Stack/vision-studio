@@ -19,15 +19,18 @@ import {
   SVD_REFERENCE_ERROR,
 } from '@/features/generate/validation';
 import { resolveCanvasControlLayers } from '@/features/generation/resolveCanvasControlLayers';
+import { getActiveUserAccount } from '@/features/accounts/providerRouting';
 import { runTimelineClipGeneration } from '@/features/timeline/runTimelineClipGeneration';
 import type { ControlNetConfig, ImageGenerationRequestPayload, LoRAConfig } from '@/types/generation';
 import type { GenerateCollapsibleSectionId } from '@/store/layoutPreferences';
+import type { UserAccountSummary } from '@/types/electron';
 import type { MediaAsset, ReferenceSet } from '@/types/media';
 import {
   AlertCircle,
   Check,
   ChevronDown,
   Clapperboard,
+  Cloud,
   Clock,
   Film,
   Frame,
@@ -294,6 +297,7 @@ export function GeneratePanel() {
   const isGeneratingRef = useRef(false);
 
   const [showHistory, setShowHistory] = useState(false);
+  const [activeAccount, setActiveAccount] = useState<UserAccountSummary | null>(null);
   const [genStatus, setGenStatus] = useState({
     isGenerating: false,
     progress: 0,
@@ -474,6 +478,24 @@ export function GeneratePanel() {
     }
   }, [currentProject, updateAdvancedGeneration]);
 
+  const syncActiveAccount = useCallback(async () => {
+    if (!window.electron?.accounts?.list) {
+      setActiveAccount(null);
+      return null;
+    }
+
+    const snapshot = await window.electron.accounts.list();
+    const nextActiveAccount = getActiveUserAccount(snapshot);
+    setActiveAccount(nextActiveAccount);
+    return nextActiveAccount;
+  }, []);
+
+  useEffect(() => {
+    void syncActiveAccount().catch(() => {
+      setActiveAccount(null);
+    });
+  }, [syncActiveAccount]);
+
   useEffect(() => {
     if (!generationDraft) {
       return;
@@ -518,7 +540,58 @@ export function GeneratePanel() {
     if (isGeneratingRef.current) return;
     isGeneratingRef.current = true;
 
-    if (!systemInfo.backendConnected) {
+    const latestActiveAccount =
+      imageConfig.generationType === 'image' ? await syncActiveAccount() : activeAccount;
+    const useOpenRouterImage =
+      imageConfig.generationType === 'image' &&
+      latestActiveAccount?.preferences.imageGenerationProvider === 'openrouter';
+    const openRouterImageModel = latestActiveAccount?.preferences.openRouterImageModel.trim() ?? '';
+    const requestedModelId =
+      imageConfig.generationType === 'image'
+        ? useOpenRouterImage
+          ? openRouterImageModel
+          : imageConfig.model
+        : imageConfig.videoModel;
+    const openRouterUnsupportedInputs =
+      imageConfig.generationType === 'image' &&
+      (resolvedCanvasControlLayers.visibleLayerCount > 0 ||
+        resolvedCanvasControlLayers.controlnet.length > 0 ||
+        resolvedCanvasControlLayers.referenceImages.length > 0 ||
+        Boolean(resolvedCanvasControlLayers.inpaint) ||
+        resolvedCanvasControlLayers.errors.length > 0);
+
+    if (useOpenRouterImage && !latestActiveAccount?.openRouter.apiKeyStored) {
+      updateGenStatus({
+        status: 'error',
+        errorMessage: 'OpenRouter is selected for still images, but no API key is stored for the active account.',
+        isGenerating: false,
+      });
+      isGeneratingRef.current = false;
+      return;
+    }
+
+    if (useOpenRouterImage && !openRouterImageModel) {
+      updateGenStatus({
+        status: 'error',
+        errorMessage: 'Select an OpenRouter still-image model in Settings before generating.',
+        isGenerating: false,
+      });
+      isGeneratingRef.current = false;
+      return;
+    }
+
+    if (useOpenRouterImage && openRouterUnsupportedInputs) {
+      updateGenStatus({
+        status: 'error',
+        errorMessage:
+          'OpenRouter still-image routing currently supports prompt-only generations. Switch the active account back to Local for ControlNet, inpaint, or reference-image passes.',
+        isGenerating: false,
+      });
+      isGeneratingRef.current = false;
+      return;
+    }
+
+    if (!systemInfo.backendConnected && !useOpenRouterImage) {
       updateGenStatus({
         status: 'error',
         errorMessage: 'The AI backend is not running. Please restart the app or start the backend from Settings.',
@@ -541,7 +614,7 @@ export function GeneratePanel() {
       prompt: imageConfig.prompt.trim(),
       negativePrompt: imageConfig.negativePrompt.trim(),
       timestamp: new Date(),
-      model: imageConfig.generationType === 'image' ? imageConfig.model : imageConfig.videoModel,
+      model: requestedModelId,
     });
 
     try {
@@ -554,7 +627,7 @@ export function GeneratePanel() {
             prompt: imageConfig.prompt.trim(),
             negativePrompt: imageConfig.negativePrompt.trim(),
             generationType: imageConfig.generationType,
-            model: currentModel,
+            model: requestedModelId,
             width: dimensions.width,
             height: dimensions.height,
             steps: advancedGeneration.steps,
@@ -598,7 +671,7 @@ export function GeneratePanel() {
           steps: advancedGeneration.steps,
           cfg_scale: advancedGeneration.cfgScale,
           seed: advancedGeneration.seed === -1 ? undefined : advancedGeneration.seed,
-          model: imageConfig.model,
+          model: useOpenRouterImage ? openRouterImageModel : imageConfig.model,
           scheduler: advancedGeneration.scheduler,
           ...(resolvedCanvasControlLayers.controlnet.length > 0
             ? { controlnet: resolvedCanvasControlLayers.controlnet }
@@ -815,6 +888,14 @@ export function GeneratePanel() {
       mode: 'clarify',
     });
 
+    if (result.error) {
+      updateGenStatus({
+        status: 'error',
+        errorMessage: result.error,
+      });
+      return;
+    }
+
     if (result.prompt) {
       updateImageConfig({ prompt: result.prompt });
     } else if (result.variations?.length) {
@@ -838,9 +919,34 @@ export function GeneratePanel() {
 
   const isGpuAvailable = systemInfo.gpuAvailable;
   const isFavorited = favoritePrompts.includes(imageConfig.prompt.trim());
-  const currentModel = imageConfig.generationType === 'image' ? imageConfig.model : imageConfig.videoModel;
+  const openRouterImageEnabled =
+    imageConfig.generationType === 'image' &&
+    activeAccount?.preferences.imageGenerationProvider === 'openrouter';
+  const openRouterImageModel = activeAccount?.preferences.openRouterImageModel.trim() ?? '';
+  const openRouterImageWarning = openRouterImageEnabled
+    ? !activeAccount?.openRouter.apiKeyStored
+      ? 'OpenRouter is selected for still images, but no API key is stored for the active account.'
+      : !openRouterImageModel
+        ? 'Select an OpenRouter still-image model in Settings before generating.'
+        : resolvedCanvasControlLayers.visibleLayerCount > 0 ||
+            resolvedCanvasControlLayers.controlnet.length > 0 ||
+            resolvedCanvasControlLayers.referenceImages.length > 0 ||
+            Boolean(resolvedCanvasControlLayers.inpaint) ||
+            resolvedCanvasControlLayers.errors.length > 0
+          ? 'OpenRouter still-image routing currently supports prompt-only generations. Switch the active account back to Local for ControlNet, inpaint, or reference-image passes.'
+          : null
+    : null;
+  const currentModel = imageConfig.generationType === 'image'
+    ? openRouterImageEnabled
+      ? openRouterImageModel || 'OpenRouter model not set'
+      : imageConfig.model
+    : imageConfig.videoModel;
   const videoModelRequiresReference = imageConfig.generationType === 'video' && imageConfig.videoModel === 'svd';
-  const estimatedDuration = imageConfig.generationType === 'image' ? '15-30s' : '2-5min';
+  const estimatedDuration = imageConfig.generationType === 'image'
+    ? openRouterImageEnabled
+      ? '30-90s'
+      : '15-30s'
+    : '2-5min';
   const collapsedGenerateSections = layoutPreferences.collapsedGenerateSections;
 
   const isGenerateSectionCollapsed = useCallback(
@@ -874,24 +980,32 @@ export function GeneratePanel() {
       ? `Append to ${activeTimelineSequence.name}`
       : null;
   const footerWarning = !systemInfo.backendConnected
-    ? 'Backend offline. Start it from Settings before generating.'
-    : imageConfig.generationType === 'image' && resolvedCanvasControlLayers.errors.length > 0
-      ? resolvedCanvasControlLayers.errors[0]
-    : videoModelRequiresReference && !motionReferenceImage
-      ? 'Stable Video Diffusion requires a reference image.'
-      : null;
+    ? openRouterImageEnabled
+      ? openRouterImageWarning
+      : 'Backend offline. Start it from Settings before generating.'
+    : openRouterImageEnabled
+      ? openRouterImageWarning
+      : imageConfig.generationType === 'image' && resolvedCanvasControlLayers.errors.length > 0
+        ? resolvedCanvasControlLayers.errors[0]
+        : videoModelRequiresReference && !motionReferenceImage
+          ? 'Stable Video Diffusion requires a reference image.'
+          : null;
   const footerStatusLabel = genStatus.isGenerating
     ? `Generating ${imageConfig.generationType}`
     : activeTimelineClip
       ? `Ready to generate a timeline ${imageConfig.generationType} variant`
       : activeTimelineSequence
         ? `Ready to generate ${imageConfig.generationType} to the timeline`
+        : openRouterImageEnabled
+          ? 'Ready to generate image with OpenRouter'
         : `Ready to generate ${imageConfig.generationType}`;
   const footerMeta = `${currentModel} / ${dimensions.width} x ${dimensions.height}`;
   const footerSupportMeta = [
-    `${isGpuAvailable ? 'GPU' : 'CPU'} mode`,
+    openRouterImageEnabled ? 'OpenRouter BYOK' : `${isGpuAvailable ? 'GPU' : 'CPU'} mode`,
     `~${estimatedDuration}`,
-    genStatus.isGenerating ? `Step ${Math.max(genStatus.step, 1)}/${advancedGeneration.steps}` : null,
+    genStatus.isGenerating && !openRouterImageEnabled
+      ? `Step ${Math.max(genStatus.step, 1)}/${advancedGeneration.steps}`
+      : null,
   ].filter(Boolean).join(' / ');
   const generateActionLabel = activeTimelineClip
     ? 'Generate Clip Variant'
@@ -1006,17 +1120,42 @@ export function GeneratePanel() {
               <div>
                 <label className="text-label text-text-body">Model Router</label>
                 <p className="mt-1 text-xs text-text-muted">
-                  Pick the capability, runtime, and hardware profile for this generation.
+                  {openRouterImageEnabled
+                    ? 'The active account is routing still images through OpenRouter. Local advanced canvas controls stay on the Local provider.'
+                    : 'Pick the capability, runtime, and hardware profile for this generation.'}
                 </p>
               </div>
-              <ModelSelector
-                value={currentModel}
-                onChange={(id) => {
-                  if (imageConfig.generationType === 'image') updateImageConfig({ model: id });
-                  else updateImageConfig({ videoModel: id });
-                }}
-                generationType={imageConfig.generationType}
-              />
+              {openRouterImageEnabled ? (
+                <div className="rounded-lg border border-accent-primary-border bg-accent-primary-muted/40 px-4 py-4">
+                  <div className="flex items-start gap-3">
+                    <div className="mt-0.5 flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg border border-accent-primary-border bg-surface text-accent-primary">
+                      <Cloud className="h-4 w-4" />
+                    </div>
+                    <div className="min-w-0 space-y-2">
+                      <div>
+                        <p className="type-section text-text-primary">OpenRouter Still Image Route</p>
+                        <p className="mt-1 text-xs text-text-body">
+                          Account: {activeAccount?.name ?? 'No active account'}.
+                          {' '}Model: {openRouterImageModel || 'Not set in Settings'}.
+                        </p>
+                      </div>
+                      <p className="text-xs text-text-muted">
+                        Prompt, negative prompt, aspect ratio, and seed flow through OpenRouter.
+                        ControlNet, inpaint, and canvas-guided passes remain local-only for now.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <ModelSelector
+                  value={currentModel}
+                  onChange={(id) => {
+                    if (imageConfig.generationType === 'image') updateImageConfig({ model: id });
+                    else updateImageConfig({ videoModel: id });
+                  }}
+                  generationType={imageConfig.generationType}
+                />
+              )}
             </div>
           </div>
         </GenerateSectionCard>

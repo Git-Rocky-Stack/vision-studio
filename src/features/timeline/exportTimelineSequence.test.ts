@@ -63,6 +63,135 @@ describe('exportTimelineSequence', () => {
     ]);
   });
 
+  it('uses accepted retake media in exported frames for the approved range', () => {
+    const { sequence, clip } = seedTimelineForExport({
+      fps: 10,
+      playRange: { startMs: 1000, endMs: 1400 },
+      clipStartMs: 0,
+      clipDurationMs: 3000,
+    });
+    const state = useAppStore.getState();
+
+    state.upsertMediaAsset({
+      id: 'media-export-video',
+      legacyAssetId: null,
+      jobId: null,
+      name: 'Original Video',
+      type: 'video',
+      source: 'generated',
+      path: 'C:/vision-studio-output/source/original.mp4',
+      previewUrl: 'file:///C:/vision-studio-output/source/original.mp4',
+      thumbnailUrl: 'file:///C:/vision-studio-output/source/original.jpg',
+      posterUrl: 'file:///C:/vision-studio-output/source/original.jpg',
+      durationMs: 3000,
+      fps: 10,
+      metadata: {},
+      createdAt: '2026-04-24T00:00:00.000Z',
+    });
+    state.upsertMediaAsset({
+      id: 'media-export-retake',
+      legacyAssetId: null,
+      jobId: null,
+      name: 'Retake Video',
+      type: 'video',
+      source: 'generated',
+      path: 'C:/vision-studio-output/source/retake.mp4',
+      previewUrl: 'file:///C:/vision-studio-output/source/retake.mp4',
+      thumbnailUrl: 'file:///C:/vision-studio-output/source/retake.jpg',
+      posterUrl: 'file:///C:/vision-studio-output/source/retake.jpg',
+      durationMs: 1000,
+      fps: 10,
+      metadata: {},
+      createdAt: '2026-04-24T00:00:10.000Z',
+    });
+    state.updateTimelineClip(clip.id, {
+      mediaAssetId: 'media-export-video',
+      sourceInMs: 0,
+      sourceOutMs: 3000,
+    });
+    const range = state.createTimelineClipRetakeRange(clip.id, {
+      startMs: 1000,
+      endMs: 2000,
+    })!;
+    const take = state.createClipRetakeTake({
+      clipId: clip.id,
+      retakeRangeId: range.id,
+      mediaAssetId: 'media-export-retake',
+      prompt: 'clean hand motion',
+    })!;
+    state.acceptClipRetakeTake(take.id);
+
+    const request = buildTimelineExportRequest({
+      state: useAppStore.getState(),
+      sequenceId: sequence.id,
+      outputPath: 'D:/Exports/retake-cut.mp4',
+    });
+
+    expect(request.frames[0].layers[0]).toEqual({
+      source_path: 'C:/vision-studio-output/source/retake.mp4',
+      media_type: 'video',
+      source_time_ms: 0,
+      opacity: 1,
+    });
+    expect(request.frames[1].layers[0]).toEqual(
+      expect.objectContaining({
+        source_path: 'C:/vision-studio-output/source/retake.mp4',
+        source_time_ms: 100,
+      }),
+    );
+  });
+
+  it('blocks export when an accepted retake candidate media file is missing', () => {
+    const { sequence, clip } = seedTimelineForExport({
+      fps: 10,
+      playRange: { startMs: 1000, endMs: 1400 },
+      clipStartMs: 0,
+      clipDurationMs: 3000,
+    });
+    const state = useAppStore.getState();
+
+    state.upsertMediaAsset({
+      id: 'media-export-video',
+      legacyAssetId: null,
+      jobId: null,
+      name: 'Original Video',
+      type: 'video',
+      source: 'generated',
+      path: 'C:/vision-studio-output/source/original.mp4',
+      previewUrl: 'file:///C:/vision-studio-output/source/original.mp4',
+      thumbnailUrl: 'file:///C:/vision-studio-output/source/original.jpg',
+      posterUrl: 'file:///C:/vision-studio-output/source/original.jpg',
+      durationMs: 3000,
+      fps: 10,
+      metadata: {},
+      createdAt: '2026-04-24T00:00:00.000Z',
+    });
+    state.updateTimelineClip(clip.id, {
+      mediaAssetId: 'media-export-video',
+      sourceInMs: 0,
+      sourceOutMs: 3000,
+    });
+    const range = state.createTimelineClipRetakeRange(clip.id, {
+      startMs: 1000,
+      endMs: 2000,
+    })!;
+    const take = state.createClipRetakeTake({
+      clipId: clip.id,
+      retakeRangeId: range.id,
+      mediaAssetId: 'missing-retake-media',
+      prompt: 'clean hand motion',
+    })!;
+    state.acceptClipRetakeTake(take.id);
+
+    expect(() =>
+      buildTimelineExportRequest({
+        state: useAppStore.getState(),
+        sequenceId: sequence.id,
+        outputPath: 'D:/Exports/retake-cut.mp4',
+      }),
+    ).toThrow('accepted retake candidate media is missing');
+  });
+
   it('returns cancelled when the save dialog is dismissed', async () => {
     const { sequence } = seedTimelineForExport({
       sequenceName: 'Launch / Cut 01',

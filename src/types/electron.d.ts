@@ -114,6 +114,57 @@ export interface ModelInfo {
   progress?: number;
 }
 
+export interface UserAccountSummary {
+  id: string;
+  name: string;
+  createdAt: string;
+  updatedAt: string;
+  preferences: {
+    promptEnhancementProvider: 'local' | 'openrouter';
+    openRouterModel: string;
+    imageGenerationProvider: 'local' | 'openrouter';
+    openRouterImageModel: string;
+  };
+  openRouter: {
+    apiKeyStored: boolean;
+    keyLabel: string | null;
+    lastValidatedAt: string | null;
+  };
+}
+
+export interface UserAccountsSnapshot {
+  activeAccountId: string | null;
+  accounts: UserAccountSummary[];
+}
+
+export interface OpenRouterKeyInfo {
+  label: string | null;
+  limit: number | null;
+  limitRemaining: number | null;
+  usage: number | null;
+  usageDaily: number | null;
+  usageWeekly: number | null;
+  usageMonthly: number | null;
+  byokUsage: number | null;
+  includeByokInLimit: boolean | null;
+  isFreeTier: boolean | null;
+  expiresAt: string | null;
+}
+
+export interface OpenRouterModelSummary {
+  id: string;
+  name: string;
+  description: string;
+  contextLength: number | null;
+  outputModalities: string[];
+  supportedParameters: string[];
+  pricing: {
+    prompt: string;
+    completion: string;
+    image: string;
+  };
+}
+
 export interface ElectronAPI {
   app: {
     getVersion: () => Promise<string>;
@@ -163,6 +214,48 @@ export interface ElectronAPI {
       pythonPath?: string;
     }>;
   };
+  accounts: {
+    list: () => Promise<UserAccountsSnapshot>;
+    create: (payload?: { name?: string }) => Promise<UserAccountsSnapshot>;
+    update: (
+      accountId: string,
+      patch: {
+        name?: string;
+        promptEnhancementProvider?: 'local' | 'openrouter';
+        openRouterModel?: string;
+        imageGenerationProvider?: 'local' | 'openrouter';
+        openRouterImageModel?: string;
+      }
+    ) => Promise<UserAccountsSnapshot>;
+    delete: (accountId: string) => Promise<UserAccountsSnapshot>;
+    setActive: (accountId: string) => Promise<UserAccountsSnapshot>;
+    setOpenRouterApiKey: (payload: { accountId: string; apiKey: string }) => Promise<UserAccountsSnapshot>;
+    clearOpenRouterApiKey: (accountId: string) => Promise<UserAccountsSnapshot>;
+  };
+  openrouter: {
+    testConnection: (accountId?: string) => Promise<{
+      success: boolean;
+      error?: string;
+      keyInfo?: OpenRouterKeyInfo;
+      accounts?: UserAccountsSnapshot;
+    }>;
+    getKeyInfo: (accountId?: string) => Promise<{
+      success: boolean;
+      error?: string;
+      keyInfo?: OpenRouterKeyInfo;
+      accounts?: UserAccountsSnapshot;
+    }>;
+    listModels: (accountId?: string) => Promise<{
+      success: boolean;
+      error?: string;
+      models: OpenRouterModelSummary[];
+    }>;
+    listImageModels: (accountId?: string) => Promise<{
+      success: boolean;
+      error?: string;
+      models: OpenRouterModelSummary[];
+    }>;
+  };
   assets: {
     importFiles: (sourcePaths: string[]) => Promise<{ success: boolean; files?: ImportedAssetFile[]; error?: string }>;
     export: (sourcePath: string, destinationPath: string) => Promise<{ success: boolean; destinationPath?: string; error?: string }>;
@@ -180,6 +273,16 @@ export interface ElectronAPI {
       prompt: string;
       mode?: string;
     }) => Promise<{ success?: boolean; error?: string; mode?: string; prompt?: string; variations?: string[] }>;
+    suggestNegativePrompt: (params: {
+      prompt: string;
+      negativePrompt?: string;
+    }) => Promise<{
+      success?: boolean;
+      error?: string;
+      negativePrompt?: string;
+      suggestions?: string[];
+      source?: 'openrouter' | 'heuristic';
+    }>;
     cropImage: (params: {
       source_path: string;
       crop_box?: { left: number; top: number; width: number; height: number };

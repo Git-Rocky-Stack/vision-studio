@@ -7,6 +7,12 @@ import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { useAppStore } from '@/store/appStore';
 import { UserGuidePage } from '@/pages/UserGuidePage';
 import type { ModelInfo } from '@/types/model';
+import type {
+  OpenRouterKeyInfo,
+  OpenRouterModelSummary,
+  UserAccountSummary,
+  UserAccountsSnapshot,
+} from '@/types/electron';
 import {
   Settings,
   Folder,
@@ -21,6 +27,11 @@ import {
   Play,
   Tag,
   HelpCircle,
+  Cloud,
+  Key,
+  Trash2,
+  UserPlus,
+  Users,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -43,6 +54,11 @@ interface SettingsState {
   pythonPath?: string;
 }
 
+interface ConnectionBannerState {
+  tone: 'success' | 'error' | 'info';
+  message: string;
+}
+
 const sections: SettingsSection[] = [
   { id: 'general', label: 'General', icon: Settings },
   { id: 'ai', label: 'AI & Models', icon: Cpu },
@@ -61,6 +77,39 @@ const defaultSettingsState: SettingsState = {
   notifyOnModelDownloads: true,
 };
 
+const defaultAccountsSnapshot: UserAccountsSnapshot = {
+  activeAccountId: null,
+  accounts: [],
+};
+
+function formatOpenRouterCurrency(value: number | null) {
+  if (value === null || !Number.isFinite(value)) {
+    return 'Unavailable';
+  }
+
+  return new Intl.NumberFormat(undefined, {
+    style: 'currency',
+    currency: 'USD',
+    maximumFractionDigits: 2,
+  }).format(value);
+}
+
+function formatOpenRouterLimit(limitRemaining: number | null, limit: number | null) {
+  if (limitRemaining === null && limit === null) {
+    return 'Unlimited';
+  }
+
+  if (limitRemaining !== null && limit !== null) {
+    return `${formatOpenRouterCurrency(limitRemaining)} / ${formatOpenRouterCurrency(limit)}`;
+  }
+
+  if (limitRemaining !== null) {
+    return formatOpenRouterCurrency(limitRemaining);
+  }
+
+  return formatOpenRouterCurrency(limit);
+}
+
 export function SettingsPanel() {
   const {
     assetLibrary,
@@ -72,7 +121,7 @@ export function SettingsPanel() {
     setSystemInfo,
     taggingMode,
     setTaggingMode,
-  } = useAppStore(useShallow(s => ({
+  } = useAppStore(useShallow((s) => ({
     assetLibrary: s.assetLibrary,
     systemInfo: s.systemInfo,
     availableModels: s.availableModels,
@@ -85,14 +134,42 @@ export function SettingsPanel() {
   })));
   const [activeTab, setActiveTab] = useState<SettingsTab>('general');
   const [settings, setSettings] = useState<SettingsState>(defaultSettingsState);
+  const [accountsSnapshot, setAccountsSnapshot] = useState<UserAccountsSnapshot>(defaultAccountsSnapshot);
+  const [accountNameDraft, setAccountNameDraft] = useState('');
+  const [openRouterApiKeyInput, setOpenRouterApiKeyInput] = useState('');
+  const [openRouterKeyInfo, setOpenRouterKeyInfo] = useState<OpenRouterKeyInfo | null>(null);
+  const [openRouterModels, setOpenRouterModels] = useState<OpenRouterModelSummary[]>([]);
+  const [openRouterImageModels, setOpenRouterImageModels] = useState<OpenRouterModelSummary[]>([]);
+  const [openRouterBanner, setOpenRouterBanner] = useState<ConnectionBannerState | null>(null);
   const [activeModelId, setActiveModelId] = useState<string | null>(null);
   const [showClearCacheConfirm, setShowClearCacheConfirm] = useState(false);
   const [deleteModelTarget, setDeleteModelTarget] = useState<string | null>(null);
+  const [deleteAccountTarget, setDeleteAccountTarget] = useState<string | null>(null);
+  const [isSavingOpenRouterKey, setIsSavingOpenRouterKey] = useState(false);
+  const [isVerifyingOpenRouter, setIsVerifyingOpenRouter] = useState(false);
+  const [isLoadingOpenRouterKeyInfo, setIsLoadingOpenRouterKeyInfo] = useState(false);
+  const [isLoadingOpenRouterModels, setIsLoadingOpenRouterModels] = useState(false);
+  const [isLoadingOpenRouterImageModels, setIsLoadingOpenRouterImageModels] = useState(false);
   const modelStatusIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  const activeAccount = useMemo<UserAccountSummary | null>(() => {
+    if (accountsSnapshot.accounts.length === 0) {
+      return null;
+    }
+
+    return (
+      accountsSnapshot.accounts.find((account) => account.id === accountsSnapshot.activeAccountId) ??
+      accountsSnapshot.accounts[0]
+    );
+  }, [accountsSnapshot]);
+
   useEffect(() => {
-    const loadSettings = async () => {
-      const loadedSettings = await window.electron.settings.get();
+    const loadInitialState = async () => {
+      const [loadedSettings, loadedAccounts] = await Promise.all([
+        window.electron.settings.get(),
+        window.electron.accounts.list(),
+      ]);
+
       setSettings({
         theme: loadedSettings.theme,
         autoSave: loadedSettings.autoSave,
@@ -103,9 +180,10 @@ export function SettingsPanel() {
         notifyOnModelDownloads: loadedSettings.notifyOnModelDownloads,
         pythonPath: loadedSettings.pythonPath,
       });
+      setAccountsSnapshot(loadedAccounts);
     };
 
-    loadSettings();
+    void loadInitialState();
 
     return () => {
       if (modelStatusIntervalRef.current) {
@@ -113,6 +191,37 @@ export function SettingsPanel() {
       }
     };
   }, []);
+
+  useEffect(() => {
+    setAccountNameDraft(activeAccount?.name ?? '');
+    setOpenRouterApiKeyInput('');
+    setOpenRouterBanner(null);
+    setOpenRouterKeyInfo(null);
+
+    if (!activeAccount?.openRouter.apiKeyStored) {
+      setIsLoadingOpenRouterKeyInfo(false);
+      setOpenRouterModels([]);
+      setOpenRouterImageModels([]);
+      return;
+    }
+
+    const syncOpenRouterModels = async () => {
+      setIsLoadingOpenRouterModels(true);
+      setIsLoadingOpenRouterImageModels(true);
+      const [textModelsResult, imageModelsResult] = await Promise.all([
+        window.electron.openrouter.listModels(activeAccount.id),
+        window.electron.openrouter.listImageModels(activeAccount.id),
+      ]);
+      setIsLoadingOpenRouterModels(false);
+      setIsLoadingOpenRouterImageModels(false);
+
+      setOpenRouterModels(textModelsResult.success ? textModelsResult.models : []);
+      setOpenRouterImageModels(imageModelsResult.success ? imageModelsResult.models : []);
+    };
+
+    void loadOpenRouterKeyInfo(activeAccount.id, true);
+    void syncOpenRouterModels();
+  }, [activeAccount?.id, activeAccount?.openRouter.apiKeyStored]);
 
   const assetSummary = useMemo(() => {
     return `${assetLibrary.length} tracked asset${assetLibrary.length === 1 ? '' : 's'}`;
@@ -133,7 +242,7 @@ export function SettingsPanel() {
     window.dispatchEvent(
       new CustomEvent('vision-studio:theme-changed', {
         detail: { theme: next.theme },
-      })
+      }),
     );
   };
 
@@ -216,6 +325,232 @@ export function SettingsPanel() {
     setDeleteModelTarget(null);
   };
 
+  const loadOpenRouterModels = async (accountId: string, silentError = false) => {
+    setIsLoadingOpenRouterModels(true);
+    const result = await window.electron.openrouter.listModels(accountId);
+    setIsLoadingOpenRouterModels(false);
+
+    if (result.success) {
+      setOpenRouterModels(result.models);
+      return result.models;
+    }
+
+    setOpenRouterModels([]);
+    if (!silentError) {
+      setOpenRouterBanner({
+        tone: 'error',
+        message: result.error || 'Could not load the OpenRouter model catalog.',
+      });
+    }
+    return [];
+  };
+
+  const loadOpenRouterImageModels = async (accountId: string, silentError = false) => {
+    setIsLoadingOpenRouterImageModels(true);
+    const result = await window.electron.openrouter.listImageModels(accountId);
+    setIsLoadingOpenRouterImageModels(false);
+
+    if (result.success) {
+      setOpenRouterImageModels(result.models);
+      return result.models;
+    }
+
+    setOpenRouterImageModels([]);
+    if (!silentError) {
+      setOpenRouterBanner({
+        tone: 'error',
+        message: result.error || 'Could not load the OpenRouter image model catalog.',
+      });
+    }
+    return [];
+  };
+
+  async function loadOpenRouterKeyInfo(accountId: string, silentError = false) {
+    setIsLoadingOpenRouterKeyInfo(true);
+    const result = await window.electron.openrouter.getKeyInfo(accountId);
+    setIsLoadingOpenRouterKeyInfo(false);
+
+    if (result.success) {
+      if (result.accounts) {
+        setAccountsSnapshot(result.accounts);
+      }
+      setOpenRouterKeyInfo(result.keyInfo ?? null);
+      return result.keyInfo ?? null;
+    }
+
+    setOpenRouterKeyInfo(null);
+    if (!silentError) {
+      setOpenRouterBanner({
+        tone: 'error',
+        message: result.error || 'Could not load OpenRouter key information.',
+      });
+    }
+    return null;
+  }
+
+  const handleAccountNameCommit = async () => {
+    if (!activeAccount) {
+      return;
+    }
+
+    const normalized = accountNameDraft.trim();
+    if (!normalized || normalized === activeAccount.name) {
+      setAccountNameDraft(activeAccount.name);
+      return;
+    }
+
+    const nextSnapshot = await window.electron.accounts.update(activeAccount.id, {
+      name: normalized,
+    });
+    setAccountsSnapshot(nextSnapshot);
+  };
+
+  const handleCreateAccount = async () => {
+    const nextSnapshot = await window.electron.accounts.create();
+    setAccountsSnapshot(nextSnapshot);
+    setOpenRouterBanner({
+      tone: 'info',
+      message: 'Created a new local account profile.',
+    });
+  };
+
+  const handleSetActiveAccount = async (accountId: string) => {
+    const nextSnapshot = await window.electron.accounts.setActive(accountId);
+    setAccountsSnapshot(nextSnapshot);
+  };
+
+  const handleUpdateActiveAccount = async (
+    patch: {
+      name?: string;
+      promptEnhancementProvider?: 'local' | 'openrouter';
+      openRouterModel?: string;
+      imageGenerationProvider?: 'local' | 'openrouter';
+      openRouterImageModel?: string;
+    },
+  ) => {
+    if (!activeAccount) {
+      return;
+    }
+
+    const nextSnapshot = await window.electron.accounts.update(activeAccount.id, patch);
+    setAccountsSnapshot(nextSnapshot);
+  };
+
+  const handleVerifyOpenRouter = async (accountId?: string) => {
+    const resolvedAccountId = accountId ?? activeAccount?.id;
+    if (!resolvedAccountId) {
+      return;
+    }
+
+    setIsVerifyingOpenRouter(true);
+    const result = await window.electron.openrouter.testConnection(resolvedAccountId);
+    setIsVerifyingOpenRouter(false);
+
+    if (!result.success) {
+      setOpenRouterBanner({
+        tone: 'error',
+        message: result.error || 'OpenRouter connection failed.',
+      });
+      return;
+    }
+
+    if (result.accounts) {
+      setAccountsSnapshot(result.accounts);
+    }
+    setOpenRouterKeyInfo(result.keyInfo ?? null);
+    setOpenRouterBanner({
+      tone: 'success',
+      message: result.keyInfo?.label
+        ? `Connected to OpenRouter with ${result.keyInfo.label}.`
+        : 'Connected to OpenRouter successfully.',
+    });
+    await loadOpenRouterModels(resolvedAccountId, true);
+    await loadOpenRouterImageModels(resolvedAccountId, true);
+  };
+
+  const handleSaveOpenRouterKey = async () => {
+    if (!activeAccount) {
+      return;
+    }
+
+    const normalizedKey = openRouterApiKeyInput.trim();
+    if (!normalizedKey) {
+      setOpenRouterBanner({
+        tone: 'error',
+        message: 'Enter an OpenRouter API key before saving.',
+      });
+      return;
+    }
+
+    setIsSavingOpenRouterKey(true);
+    try {
+      const nextSnapshot = await window.electron.accounts.setOpenRouterApiKey({
+        accountId: activeAccount.id,
+        apiKey: normalizedKey,
+      });
+      setAccountsSnapshot(nextSnapshot);
+      setOpenRouterApiKeyInput('');
+      setOpenRouterBanner({
+        tone: 'info',
+        message: 'OpenRouter key stored securely. Verifying access now.',
+      });
+      await handleVerifyOpenRouter(activeAccount.id);
+    } catch (error) {
+      setOpenRouterBanner({
+        tone: 'error',
+        message: error instanceof Error ? error.message : 'Could not save the OpenRouter key.',
+      });
+    } finally {
+      setIsSavingOpenRouterKey(false);
+    }
+  };
+
+  const handleClearOpenRouterKey = async () => {
+    if (!activeAccount) {
+      return;
+    }
+
+    const nextSnapshot = await window.electron.accounts.clearOpenRouterApiKey(activeAccount.id);
+    setAccountsSnapshot(nextSnapshot);
+    setOpenRouterKeyInfo(null);
+    setOpenRouterModels([]);
+    setOpenRouterImageModels([]);
+    setOpenRouterApiKeyInput('');
+    setOpenRouterBanner({
+      tone: 'info',
+      message: 'Removed the stored OpenRouter key for this account.',
+    });
+  };
+
+  const confirmDeleteAccount = async () => {
+    if (!deleteAccountTarget) {
+      return;
+    }
+
+    const nextSnapshot = await window.electron.accounts.delete(deleteAccountTarget);
+    setAccountsSnapshot(nextSnapshot);
+    setDeleteAccountTarget(null);
+    setOpenRouterBanner({
+      tone: 'info',
+      message: 'Removed the selected account profile.',
+    });
+  };
+
+  const openRouterStatusLabel = useMemo(() => {
+    if (!activeAccount?.openRouter.apiKeyStored) {
+      return 'No OpenRouter key stored for this account yet.';
+    }
+
+    const pieces = ['Key stored securely'];
+    if (activeAccount.openRouter.keyLabel) {
+      pieces.push(activeAccount.openRouter.keyLabel);
+    }
+    if (activeAccount.openRouter.lastValidatedAt) {
+      pieces.push(`verified ${new Date(activeAccount.openRouter.lastValidatedAt).toLocaleString()}`);
+    }
+    return pieces.join(' / ');
+  }, [activeAccount]);
+
   return (
     <div className="h-full flex bg-surface" data-testid="settings-panel">
       <h1 className="sr-only">Settings</h1>
@@ -232,14 +567,12 @@ export function SettingsPanel() {
                   'w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-all text-left',
                   activeTab === section.id
                     ? 'bg-accent-primary-muted text-accent-primary border border-accent-primary-border'
-                    : 'text-text-body hover:text-text-primary hover:bg-surface'
+                    : 'text-text-body hover:text-text-primary hover:bg-surface',
                 )}
               >
                 <Icon className="w-4 h-4" />
                 <span className="text-sm font-display font-medium">{section.label}</span>
-                {activeTab === section.id && (
-                  <ChevronRight className="w-4 h-4 ml-auto" />
-                )}
+                {activeTab === section.id && <ChevronRight className="w-4 h-4 ml-auto" />}
               </button>
             );
           })}
@@ -273,7 +606,10 @@ export function SettingsPanel() {
                 </div>
 
                 <div className="space-y-3">
-                  <label htmlFor="output-path-input" className="text-label text-text-body flex items-center gap-2">
+                  <label
+                    htmlFor="output-path-input"
+                    className="text-label text-text-body flex items-center gap-2"
+                  >
                     <Folder className="w-4 h-4" />
                     Default Output Location
                   </label>
@@ -290,7 +626,8 @@ export function SettingsPanel() {
                     </Button>
                   </div>
                   <p className="text-xs text-text-muted">
-                    Changing the output folder automatically restarts the backend so new generations write to the new location.
+                    Changing the output folder automatically restarts the backend so new generations
+                    write to the new location.
                   </p>
                 </div>
 
@@ -310,13 +647,17 @@ export function SettingsPanel() {
                     onClick={() => persistSettings({ autoSave: !settings.autoSave })}
                     className={cn(
                       'w-9 h-5 rounded-full transition-colors relative flex-shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary focus-visible:ring-offset-2 focus-visible:ring-offset-void',
-                      settings.autoSave ? 'bg-accent-primary' : 'bg-surface border border-border'
+                      settings.autoSave
+                        ? 'bg-accent-primary'
+                        : 'bg-surface border border-border',
                     )}
                   >
-                    <span className={cn(
-                      'absolute top-0.5 w-4 h-4 rounded-full bg-text-primary transition-transform',
-                      settings.autoSave ? 'translate-x-4' : 'translate-x-0.5'
-                    )} />
+                    <span
+                      className={cn(
+                        'absolute top-0.5 w-4 h-4 rounded-full bg-text-primary transition-transform',
+                        settings.autoSave ? 'translate-x-4' : 'translate-x-0.5',
+                      )}
+                    />
                   </button>
                 </div>
 
@@ -338,13 +679,17 @@ export function SettingsPanel() {
                     }
                     className={cn(
                       'w-9 h-5 rounded-full transition-colors relative flex-shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary focus-visible:ring-offset-2 focus-visible:ring-offset-void',
-                      settings.backendAutostart ? 'bg-accent-primary' : 'bg-surface border border-border'
+                      settings.backendAutostart
+                        ? 'bg-accent-primary'
+                        : 'bg-surface border border-border',
                     )}
                   >
-                    <span className={cn(
-                      'absolute top-0.5 w-4 h-4 rounded-full bg-text-primary transition-transform',
-                      settings.backendAutostart ? 'translate-x-4' : 'translate-x-0.5'
-                    )} />
+                    <span
+                      className={cn(
+                        'absolute top-0.5 w-4 h-4 rounded-full bg-text-primary transition-transform',
+                        settings.backendAutostart ? 'translate-x-4' : 'translate-x-0.5',
+                      )}
+                    />
                   </button>
                 </div>
 
@@ -392,7 +737,7 @@ export function SettingsPanel() {
                     AI & Models
                   </h2>
                   <p className="text-sm text-text-body">
-                    Configure AI generation settings and hardware
+                    Configure AI generation settings, local accounts, and optional OpenRouter BYOK.
                   </p>
                 </div>
 
@@ -401,13 +746,17 @@ export function SettingsPanel() {
                     <div
                       className={cn(
                         'w-10 h-10 rounded-lg flex items-center justify-center',
-                        systemInfo.gpuAvailable ? 'bg-status-success-muted' : 'bg-status-warning-muted'
+                        systemInfo.gpuAvailable
+                          ? 'bg-status-success-muted'
+                          : 'bg-status-warning-muted',
                       )}
                     >
                       <Check
                         className={cn(
                           'w-5 h-5',
-                          systemInfo.gpuAvailable ? 'text-status-success' : 'text-status-warning'
+                          systemInfo.gpuAvailable
+                            ? 'text-status-success'
+                            : 'text-status-warning',
                         )}
                       />
                     </div>
@@ -416,8 +765,7 @@ export function SettingsPanel() {
                         {systemInfo.gpuName || 'GPU not detected'}
                       </h4>
                       <p className="text-xs font-mono text-text-body">
-                        {systemInfo.gpuVram || 'CPU mode'}, {' '}
-                        {systemInfo.cudaVersion || 'No CUDA'}
+                        {systemInfo.gpuVram || 'CPU mode'}, {systemInfo.cudaVersion || 'No CUDA'}
                       </p>
                     </div>
                   </div>
@@ -432,7 +780,8 @@ export function SettingsPanel() {
                           AI Backend Offline
                         </h4>
                         <p className="text-xs text-text-body mt-1">
-                          The Python backend is not running. Image generation and AI features are disabled.
+                          The Python backend is not running. Image generation and AI features are
+                          disabled.
                         </p>
                         <Button
                           variant="ghost"
@@ -442,7 +791,6 @@ export function SettingsPanel() {
                           onClick={async () => {
                             const result = await window.electron.backend.start();
                             if (result.success) {
-                              // Re-fetch system info after a short delay for backend to initialize
                               setTimeout(async () => {
                                 const [info, backendStatus] = await Promise.all([
                                   window.electron.system.getInfo(),
@@ -474,6 +822,421 @@ export function SettingsPanel() {
 
                 <div className="space-y-4">
                   <h3 className="text-label text-text-body flex items-center gap-2">
+                    <Users className="w-4 h-4" />
+                    User Accounts & BYOK
+                  </h3>
+                  <p className="text-xs text-text-body">
+                    Keep separate local creator profiles, each with its own OpenRouter key and
+                    prompt-enhancement model. Keys stay in the main process and are encrypted with
+                    OS secure storage before they are saved.
+                  </p>
+
+                  <div className="rounded-lg border border-border bg-elevated p-4 space-y-4">
+                    <div className="flex flex-col gap-3 md:flex-row md:items-end">
+                      <label className="flex-1 space-y-1">
+                        <span className="text-xs text-text-muted">Active account</span>
+                        <select
+                          aria-label="Active user account"
+                          value={activeAccount?.id ?? ''}
+                          onChange={(event) => void handleSetActiveAccount(event.target.value)}
+                          className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text-primary"
+                        >
+                          {accountsSnapshot.accounts.map((account) => (
+                            <option key={account.id} value={account.id}>
+                              {account.name}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <div className="flex gap-2">
+                        <Button variant="secondary" size="sm" icon={UserPlus} onClick={handleCreateAccount}>
+                          New Account
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          icon={Trash2}
+                          disabled={!activeAccount}
+                          onClick={() => setDeleteAccountTarget(activeAccount?.id ?? null)}
+                        >
+                          Remove
+                        </Button>
+                      </div>
+                    </div>
+
+                    {activeAccount && (
+                      <>
+                        <div className="space-y-1">
+                          <label htmlFor="account-name-input" className="text-xs text-text-muted">
+                            Account name
+                          </label>
+                          <input
+                            id="account-name-input"
+                            type="text"
+                            value={accountNameDraft}
+                            onChange={(event) => setAccountNameDraft(event.target.value)}
+                            onBlur={() => void handleAccountNameCommit()}
+                            onKeyDown={(event) => {
+                              if (event.key === 'Enter') {
+                                event.preventDefault();
+                                void handleAccountNameCommit();
+                              }
+                            }}
+                            className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text-primary"
+                          />
+                        </div>
+
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-2">
+                            <Cloud className="w-4 h-4 text-text-muted" />
+                            <h4 className="text-sm font-display font-medium text-text-primary">
+                              Prompt Enhancement Provider
+                            </h4>
+                          </div>
+                          <p className="text-xs text-text-body">
+                            This controls the prompt-enhancement tools for the active account.
+                          </p>
+                          <div className="grid grid-cols-2 gap-2">
+                            {([
+                              {
+                                value: 'local' as const,
+                                label: 'Local',
+                                description: 'Use built-in prompt heuristics with no external key.',
+                              },
+                              {
+                                value: 'openrouter' as const,
+                                label: 'OpenRouter',
+                                description: 'Use the active account\'s OpenRouter key and model.',
+                              },
+                            ]).map((provider) => (
+                              <button
+                                key={provider.value}
+                                type="button"
+                                onClick={() =>
+                                  void handleUpdateActiveAccount({
+                                    promptEnhancementProvider: provider.value,
+                                  })
+                                }
+                                className={cn(
+                                  'rounded-lg border px-3 py-3 text-left transition-all',
+                                  activeAccount.preferences.promptEnhancementProvider ===
+                                    provider.value
+                                    ? 'border-accent-primary-border bg-accent-primary-muted'
+                                    : 'border-border bg-surface hover:border-border-hover',
+                                )}
+                              >
+                                <div className="text-sm font-display font-medium text-text-primary">
+                                  {provider.label}
+                                </div>
+                                <p className="mt-1 text-xs text-text-muted">
+                                  {provider.description}
+                                </p>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-2">
+                            <Cloud className="w-4 h-4 text-text-muted" />
+                            <h4 className="text-sm font-display font-medium text-text-primary">
+                              Still Image Provider
+                            </h4>
+                          </div>
+                          <p className="text-xs text-text-body">
+                            Route still-image generations through the local backend or the active
+                            account&apos;s OpenRouter BYOK model. Video remains local-only in this slice.
+                          </p>
+                          <div className="grid grid-cols-2 gap-2">
+                            {([
+                              {
+                                value: 'local' as const,
+                                label: 'Local',
+                                description: 'Use the installed local image stack and advanced canvas controls.',
+                              },
+                              {
+                                value: 'openrouter' as const,
+                                label: 'OpenRouter',
+                                description: 'Use the active account\'s hosted still-image model.',
+                              },
+                            ]).map((provider) => (
+                              <button
+                                key={provider.value}
+                                type="button"
+                                onClick={() =>
+                                  void handleUpdateActiveAccount({
+                                    imageGenerationProvider: provider.value,
+                                  })
+                                }
+                                className={cn(
+                                  'rounded-lg border px-3 py-3 text-left transition-all',
+                                  activeAccount.preferences.imageGenerationProvider === provider.value
+                                    ? 'border-accent-primary-border bg-accent-primary-muted'
+                                    : 'border-border bg-surface hover:border-border-hover',
+                                )}
+                              >
+                                <div className="text-sm font-display font-medium text-text-primary">
+                                  {provider.label}
+                                </div>
+                                <p className="mt-1 text-xs text-text-muted">
+                                  {provider.description}
+                                </p>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div className="space-y-4 rounded-lg border border-border bg-surface p-4">
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-2 text-sm font-display font-medium text-text-primary">
+                              <Key className="w-4 h-4" />
+                              OpenRouter API Key
+                            </div>
+                            <p className="text-xs text-text-body">
+                              Save one encrypted OpenRouter key per local account to enable BYOK
+                              prompt enhancement and hosted still-image generation.
+                            </p>
+                          </div>
+
+                          <div className="flex flex-col gap-3 md:flex-row">
+                            <input
+                              type="password"
+                              value={openRouterApiKeyInput}
+                              onChange={(event) => setOpenRouterApiKeyInput(event.target.value)}
+                              placeholder={
+                                activeAccount.openRouter.apiKeyStored
+                                  ? 'Stored securely. Paste a new key to replace it.'
+                                  : 'Paste your OpenRouter API key'
+                              }
+                              className="flex-1 rounded-lg border border-border bg-elevated px-3 py-2 text-sm text-text-primary"
+                            />
+                            <div className="flex gap-2">
+                              <Button
+                                variant="secondary"
+                                size="sm"
+                                onClick={handleSaveOpenRouterKey}
+                                disabled={isSavingOpenRouterKey}
+                              >
+                                {isSavingOpenRouterKey ? 'Saving...' : 'Save Key'}
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => void handleVerifyOpenRouter()}
+                                disabled={!activeAccount.openRouter.apiKeyStored || isVerifyingOpenRouter}
+                              >
+                                {isVerifyingOpenRouter ? 'Verifying...' : 'Verify'}
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={handleClearOpenRouterKey}
+                                disabled={!activeAccount.openRouter.apiKeyStored}
+                              >
+                                Clear
+                              </Button>
+                            </div>
+                          </div>
+
+                          <p className="text-xs font-mono text-text-muted">{openRouterStatusLabel}</p>
+
+                          {openRouterBanner && (
+                            <div
+                              className={cn(
+                                'rounded-md border px-3 py-2 text-xs',
+                                openRouterBanner.tone === 'success' &&
+                                  'border-status-success-border bg-status-success-muted text-status-success',
+                                openRouterBanner.tone === 'error' &&
+                                  'border-status-error-border bg-status-error-muted text-status-error',
+                                openRouterBanner.tone === 'info' &&
+                                  'border-border bg-elevated text-text-body',
+                              )}
+                            >
+                              {openRouterBanner.message}
+                            </div>
+                          )}
+
+                          {activeAccount.openRouter.apiKeyStored && (
+                            <div className="space-y-3 rounded-md border border-border bg-elevated p-3">
+                              <div className="flex items-center justify-between gap-3">
+                                <div>
+                                  <p className="text-sm font-display font-medium text-text-primary">
+                                    Key Usage
+                                  </p>
+                                  <p className="text-xs text-text-muted">
+                                    Live credit and usage data from the current OpenRouter key.
+                                  </p>
+                                </div>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="px-2"
+                                  onClick={() => {
+                                    if (activeAccount) {
+                                      void loadOpenRouterKeyInfo(activeAccount.id);
+                                    }
+                                  }}
+                                  disabled={!activeAccount.openRouter.apiKeyStored || isLoadingOpenRouterKeyInfo}
+                                >
+                                  {isLoadingOpenRouterKeyInfo ? 'Refreshing...' : 'Refresh Usage'}
+                                </Button>
+                              </div>
+
+                              {openRouterKeyInfo ? (
+                                <div className="grid grid-cols-2 gap-2">
+                                  <div className="rounded-md border border-border bg-surface px-3 py-2">
+                                    <p className="text-[11px] uppercase tracking-[0.14em] text-text-muted">
+                                      Credit Remaining
+                                    </p>
+                                    <p className="mt-1 text-sm font-display font-medium text-text-primary">
+                                      {formatOpenRouterLimit(
+                                        openRouterKeyInfo.limitRemaining,
+                                        openRouterKeyInfo.limit,
+                                      )}
+                                    </p>
+                                  </div>
+                                  <div className="rounded-md border border-border bg-surface px-3 py-2">
+                                    <p className="text-[11px] uppercase tracking-[0.14em] text-text-muted">
+                                      Total Usage
+                                    </p>
+                                    <p className="mt-1 text-sm font-display font-medium text-text-primary">
+                                      {formatOpenRouterCurrency(openRouterKeyInfo.usage)}
+                                    </p>
+                                  </div>
+                                  <div className="rounded-md border border-border bg-surface px-3 py-2">
+                                    <p className="text-[11px] uppercase tracking-[0.14em] text-text-muted">
+                                      BYOK Usage
+                                    </p>
+                                    <p className="mt-1 text-sm font-display font-medium text-text-primary">
+                                      {formatOpenRouterCurrency(openRouterKeyInfo.byokUsage)}
+                                    </p>
+                                  </div>
+                                  <div className="rounded-md border border-border bg-surface px-3 py-2">
+                                    <p className="text-[11px] uppercase tracking-[0.14em] text-text-muted">
+                                      Tier & Expiry
+                                    </p>
+                                    <p className="mt-1 text-sm font-display font-medium text-text-primary">
+                                      {openRouterKeyInfo.isFreeTier ? 'Free tier' : 'Standard'}
+                                    </p>
+                                    <p className="mt-1 text-xs text-text-muted">
+                                      {openRouterKeyInfo.expiresAt
+                                        ? `Expires ${new Date(openRouterKeyInfo.expiresAt).toLocaleDateString()}`
+                                        : 'No expiration reported'}
+                                    </p>
+                                  </div>
+                                </div>
+                              ) : (
+                                <p className="text-xs text-text-muted">
+                                  Verify or refresh this account to load current OpenRouter credit
+                                  and usage data.
+                                </p>
+                              )}
+                            </div>
+                          )}
+
+                          <div className="space-y-1">
+                            <div className="flex items-center justify-between gap-2">
+                              <label
+                                htmlFor="openrouter-model-select"
+                                className="text-xs text-text-muted"
+                              >
+                                Prompt model
+                              </label>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="px-2"
+                                onClick={() => {
+                                  if (activeAccount) {
+                                    void loadOpenRouterModels(activeAccount.id);
+                                  }
+                                }}
+                                disabled={
+                                  !activeAccount.openRouter.apiKeyStored || isLoadingOpenRouterModels
+                                }
+                              >
+                                {isLoadingOpenRouterModels ? 'Refreshing...' : 'Refresh'}
+                              </Button>
+                            </div>
+                            <select
+                              id="openrouter-model-select"
+                              value={activeAccount.preferences.openRouterModel}
+                              onChange={(event) =>
+                                void handleUpdateActiveAccount({
+                                  openRouterModel: event.target.value,
+                                })
+                              }
+                              disabled={!activeAccount.openRouter.apiKeyStored}
+                              className="w-full rounded-lg border border-border bg-elevated px-3 py-2 text-sm text-text-primary"
+                            >
+                              <option value="">Use the OpenRouter account default</option>
+                              {openRouterModels.map((model) => (
+                                <option key={model.id} value={model.id}>
+                                  {model.name} ({model.id})
+                                </option>
+                              ))}
+                            </select>
+                            <p className="text-xs text-text-muted">
+                              The prompt catalog is filtered to text-capable models that advertise
+                              JSON response formatting support.
+                            </p>
+                          </div>
+
+                          <div className="space-y-1">
+                            <div className="flex items-center justify-between gap-2">
+                              <label
+                                htmlFor="openrouter-image-model-select"
+                                className="text-xs text-text-muted"
+                              >
+                                Still image model
+                              </label>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="px-2"
+                                onClick={() => {
+                                  if (activeAccount) {
+                                    void loadOpenRouterImageModels(activeAccount.id);
+                                  }
+                                }}
+                                disabled={
+                                  !activeAccount.openRouter.apiKeyStored || isLoadingOpenRouterImageModels
+                                }
+                              >
+                                {isLoadingOpenRouterImageModels ? 'Refreshing...' : 'Refresh'}
+                              </Button>
+                            </div>
+                            <select
+                              id="openrouter-image-model-select"
+                              value={activeAccount.preferences.openRouterImageModel}
+                              onChange={(event) =>
+                                void handleUpdateActiveAccount({
+                                  openRouterImageModel: event.target.value,
+                                })
+                              }
+                              disabled={!activeAccount.openRouter.apiKeyStored}
+                              className="w-full rounded-lg border border-border bg-elevated px-3 py-2 text-sm text-text-primary"
+                            >
+                              <option value="">Select an OpenRouter still-image model</option>
+                              {openRouterImageModels.map((model) => (
+                                <option key={model.id} value={model.id}>
+                                  {model.name} ({model.id})
+                                </option>
+                              ))}
+                            </select>
+                            <p className="text-xs text-text-muted">
+                              The still-image catalog is filtered to models that advertise image
+                              output through OpenRouter.
+                            </p>
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <h3 className="text-label text-text-body flex items-center gap-2">
                     <Tag className="w-4 h-4" />
                     AI Tagging Mode
                   </h3>
@@ -481,10 +1244,26 @@ export function SettingsPanel() {
                     Control when AI analyzes generated assets to create smart collection tags.
                   </p>
                   {([
-                    { value: 'on-generation' as const, label: 'On Generation', desc: 'Analyze each asset immediately after generation' },
-                    { value: 'background-batch' as const, label: 'Background Batch', desc: 'Analyze assets in batches during idle time' },
-                    { value: 'on-demand' as const, label: 'On Demand', desc: 'Only analyze when you manually trigger it' },
-                    { value: 'off' as const, label: 'Off', desc: 'Disable automatic AI tagging entirely' },
+                    {
+                      value: 'on-generation' as const,
+                      label: 'On Generation',
+                      desc: 'Analyze each asset immediately after generation',
+                    },
+                    {
+                      value: 'background-batch' as const,
+                      label: 'Background Batch',
+                      desc: 'Analyze assets in batches during idle time',
+                    },
+                    {
+                      value: 'on-demand' as const,
+                      label: 'On Demand',
+                      desc: 'Only analyze when you manually trigger it',
+                    },
+                    {
+                      value: 'off' as const,
+                      label: 'Off',
+                      desc: 'Disable automatic AI tagging entirely',
+                    },
                   ]).map((mode) => (
                     <label key={mode.value} className="flex items-start gap-3 py-2 cursor-pointer">
                       <input
@@ -495,7 +1274,9 @@ export function SettingsPanel() {
                         className="mt-1 accent-accent-primary"
                       />
                       <div>
-                        <span className="text-sm font-display font-medium text-text-primary">{mode.label}</span>
+                        <span className="text-sm font-display font-medium text-text-primary">
+                          {mode.label}
+                        </span>
                         <p className="text-xs text-text-muted">{mode.desc}</p>
                       </div>
                     </label>
@@ -528,7 +1309,9 @@ export function SettingsPanel() {
                           <span
                             className={cn(
                               'text-xs font-display flex items-center gap-1',
-                              model.status === 'ready' ? 'text-status-success' : 'text-text-body'
+                              model.status === 'ready'
+                                ? 'text-status-success'
+                                : 'text-text-body',
                             )}
                           >
                             <Check className="w-3 h-3" />
@@ -583,7 +1366,7 @@ export function SettingsPanel() {
                           'p-4 rounded-lg border transition-all text-center capitalize',
                           settings.theme === themeOption
                             ? 'border-accent-primary-border bg-accent-primary-muted'
-                            : 'border-border bg-elevated hover:border-border-hover'
+                            : 'border-border bg-elevated hover:border-border-hover',
                         )}
                       >
                         <div
@@ -592,7 +1375,7 @@ export function SettingsPanel() {
                             themeOption === 'dark' && 'bg-void border border-border',
                             themeOption === 'light' && 'bg-white border border-gray-200',
                             themeOption === 'system' &&
-                              'bg-gradient-to-br from-void to-white border border-gray-300'
+                              'bg-gradient-to-br from-void to-white border border-gray-300',
                           )}
                         />
                         <span
@@ -600,7 +1383,7 @@ export function SettingsPanel() {
                             'text-sm font-display',
                             settings.theme === themeOption
                               ? 'text-accent-primary'
-                              : 'text-text-body'
+                              : 'text-text-body',
                           )}
                         >
                           {themeOption}
@@ -644,13 +1427,19 @@ export function SettingsPanel() {
                       }
                       className={cn(
                         'w-9 h-5 rounded-full transition-colors relative flex-shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary focus-visible:ring-offset-2 focus-visible:ring-offset-void',
-                        settings.notifyOnGenerationComplete ? 'bg-accent-primary' : 'bg-surface border border-border'
+                        settings.notifyOnGenerationComplete
+                          ? 'bg-accent-primary'
+                          : 'bg-surface border border-border',
                       )}
                     >
-                      <span className={cn(
-                        'absolute top-0.5 w-4 h-4 rounded-full bg-text-primary transition-transform',
-                        settings.notifyOnGenerationComplete ? 'translate-x-4' : 'translate-x-0.5'
-                      )} />
+                      <span
+                        className={cn(
+                          'absolute top-0.5 w-4 h-4 rounded-full bg-text-primary transition-transform',
+                          settings.notifyOnGenerationComplete
+                            ? 'translate-x-4'
+                            : 'translate-x-0.5',
+                        )}
+                      />
                     </button>
                   </div>
 
@@ -674,13 +1463,19 @@ export function SettingsPanel() {
                       }
                       className={cn(
                         'w-9 h-5 rounded-full transition-colors relative flex-shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary focus-visible:ring-offset-2 focus-visible:ring-offset-void',
-                        settings.notifyOnGenerationFailed ? 'bg-accent-primary' : 'bg-surface border border-border'
+                        settings.notifyOnGenerationFailed
+                          ? 'bg-accent-primary'
+                          : 'bg-surface border border-border',
                       )}
                     >
-                      <span className={cn(
-                        'absolute top-0.5 w-4 h-4 rounded-full bg-text-primary transition-transform',
-                        settings.notifyOnGenerationFailed ? 'translate-x-4' : 'translate-x-0.5'
-                      )} />
+                      <span
+                        className={cn(
+                          'absolute top-0.5 w-4 h-4 rounded-full bg-text-primary transition-transform',
+                          settings.notifyOnGenerationFailed
+                            ? 'translate-x-4'
+                            : 'translate-x-0.5',
+                        )}
+                      />
                     </button>
                   </div>
 
@@ -704,13 +1499,19 @@ export function SettingsPanel() {
                       }
                       className={cn(
                         'w-9 h-5 rounded-full transition-colors relative flex-shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary focus-visible:ring-offset-2 focus-visible:ring-offset-void',
-                        settings.notifyOnModelDownloads ? 'bg-accent-primary' : 'bg-surface border border-border'
+                        settings.notifyOnModelDownloads
+                          ? 'bg-accent-primary'
+                          : 'bg-surface border border-border',
                       )}
                     >
-                      <span className={cn(
-                        'absolute top-0.5 w-4 h-4 rounded-full bg-text-primary transition-transform',
-                        settings.notifyOnModelDownloads ? 'translate-x-4' : 'translate-x-0.5'
-                      )} />
+                      <span
+                        className={cn(
+                          'absolute top-0.5 w-4 h-4 rounded-full bg-text-primary transition-transform',
+                          settings.notifyOnModelDownloads
+                            ? 'translate-x-4'
+                            : 'translate-x-0.5',
+                        )}
+                      />
                     </button>
                   </div>
                 </div>
@@ -734,11 +1535,24 @@ export function SettingsPanel() {
       <ConfirmDialog
         open={deleteModelTarget !== null}
         title="Remove Model"
-        message={`Are you sure you want to remove this model? You can re-download it later.`}
+        message="Are you sure you want to remove this model? You can re-download it later."
         confirmLabel="Remove"
         variant="danger"
-        onConfirm={() => { if (deleteModelTarget) confirmDeleteModel(deleteModelTarget); }}
+        onConfirm={() => {
+          if (deleteModelTarget) {
+            void confirmDeleteModel(deleteModelTarget);
+          }
+        }}
         onCancel={() => setDeleteModelTarget(null)}
+      />
+      <ConfirmDialog
+        open={deleteAccountTarget !== null}
+        title="Remove Account"
+        message="This removes the local account profile and its stored OpenRouter key. Continue?"
+        confirmLabel="Remove"
+        variant="danger"
+        onConfirm={() => void confirmDeleteAccount()}
+        onCancel={() => setDeleteAccountTarget(null)}
       />
     </div>
   );

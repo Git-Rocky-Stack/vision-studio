@@ -152,6 +152,83 @@ describe('runTimelineClipGeneration', () => {
     expect(sourceBinding.variantIds).toContain(continuationClip.id);
   });
 
+  it('generates a candidate retake take for the selected clip range without replacing the clip', async () => {
+    const { clip } = seedAiBoundVideoClip();
+    const range = useAppStore.getState().createTimelineClipRetakeRange(clip.id, {
+      startMs: 500,
+      endMs: 1750,
+    })!;
+    const electron = makeElectronGenerationMock({
+      submitVideo: { success: true, jobId: 'timeline-retake-job-1' },
+      statuses: [
+        {
+          job_id: 'timeline-retake-job-1',
+          status: 'processing',
+          type: 'video',
+          created_at: '2026-04-23T08:25:00.000Z',
+          progress: 35,
+        },
+        {
+          job_id: 'timeline-retake-job-1',
+          status: 'completed',
+          type: 'video',
+          created_at: '2026-04-23T08:25:00.000Z',
+          completed_at: '2026-04-23T08:25:05.000Z',
+          progress: 100,
+          result: {
+            video: '/outputs/timeline-retake-job-1/retake.mp4',
+            duration: 1.25,
+          },
+        },
+      ],
+    });
+
+    const result = await runTimelineClipGeneration({
+      operation: 'retake',
+      clipId: clip.id,
+      retakeRangeId: range.id,
+      input: {
+        prompt: 'make the hand motion cleaner',
+      },
+      electron,
+      pollIntervalMs: 0,
+    });
+
+    const state = useAppStore.getState();
+    const unchangedClip = state.timelineClips.find((item) => item.id === clip.id)!;
+    const take = state.clipRetakeTakes.find((item) => item.id === result.retakeTakeId)!;
+    const takeMediaAsset = state.mediaAssets.find((asset) => asset.id === take.mediaAssetId)!;
+    const updatedRange = unchangedClip.retakeRanges.find((item) => item.id === range.id)!;
+
+    expect(electron.generation.generateVideo).toHaveBeenCalledWith(
+      expect.objectContaining({
+        prompt: 'make the hand motion cleaner',
+        image_path: 'C:/vision-studio-output/source/frame.png',
+        duration: 1.25,
+      }),
+    );
+    expect(result.cancelled).toBe(false);
+    expect(result.clipId).toBe(clip.id);
+    expect(state.timelineClips).toHaveLength(2);
+    expect(unchangedClip.mediaAssetId).toBe('media-generated-video');
+    expect(take.status).toBe('candidate');
+    expect(take.prompt).toBe('make the hand motion cleaner');
+    expect(take.model).toBe('svd');
+    expect(take.settings).toEqual(
+      expect.objectContaining({
+        sourceClipId: clip.id,
+        operation: 'retake',
+        retakeRangeStartMs: 500,
+        retakeRangeEndMs: 1750,
+        retakeRangeDurationMs: 1250,
+        jobId: 'timeline-retake-job-1',
+      }),
+    );
+    expect(takeMediaAsset.type).toBe('video');
+    expect(updatedRange.candidateTakeIds).toContain(take.id);
+    expect(updatedRange.status).toBe('candidate');
+  });
+
   it('resolves visible canvas control layers into image timeline generation requests', async () => {
     const { sequence, clip, scene } = seedImageTimelineClip();
     const state = useAppStore.getState();
@@ -242,6 +319,60 @@ describe('runTimelineClipGeneration', () => {
         inpaint: expect.objectContaining({
           layer_name: 'Repair Mask',
         }),
+      }),
+    );
+  });
+
+  it('allows hosted still-image timeline generations while the backend is offline', async () => {
+    useAppStore.setState((state) => ({
+      systemInfo: {
+        ...state.systemInfo,
+        backendConnected: false,
+      },
+    }));
+
+    const { sequence, clip } = seedImageTimelineClip();
+    const electron = makeElectronGenerationMock({
+      openRouterImageEnabled: true,
+      submitImage: { success: true, jobId: 'timeline-image-job-openrouter' },
+      statuses: [
+        {
+          job_id: 'timeline-image-job-openrouter',
+          status: 'completed',
+          type: 'image',
+          created_at: '2026-04-24T08:30:00.000Z',
+          completed_at: '2026-04-24T08:30:03.000Z',
+          progress: 100,
+          result: {
+            images: ['/outputs/timeline-image-job-openrouter/frame.png'],
+          },
+        },
+      ],
+    });
+
+    await runTimelineClipGeneration({
+      operation: 'generate',
+      clipId: clip.id,
+      sequenceId: sequence.id,
+      input: {
+        prompt: 'hero portrait cleanup',
+        negativePrompt: 'artifacting',
+        generationType: 'image',
+        model: 'flux-dev',
+        width: 1280,
+        height: 720,
+        steps: 25,
+        cfgScale: 7.5,
+        scheduler: 'Euler a',
+        seed: 9,
+      },
+      electron,
+      pollIntervalMs: 0,
+    });
+
+    expect(electron.generation.generateImage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        model: 'google/gemini-2.5-flash-image',
       }),
     );
   });
@@ -356,6 +487,7 @@ function makeElectronGenerationMock(options: {
   submitImage?: { success: boolean; jobId?: string; error?: string };
   submitVideo?: { success: boolean; jobId?: string; error?: string };
   statuses?: Array<Record<string, unknown>>;
+  openRouterImageEnabled?: boolean;
 }) {
   const statuses = [...(options.statuses ?? [])];
 
@@ -366,6 +498,30 @@ function makeElectronGenerationMock(options: {
     settings: {
       get: vi.fn().mockResolvedValue({
         defaultOutputPath: '',
+      }),
+    },
+    accounts: {
+      list: vi.fn().mockResolvedValue({
+        activeAccountId: 'account-primary',
+        accounts: [
+          {
+            id: 'account-primary',
+            name: 'Primary',
+            createdAt: '2026-04-24T00:00:00.000Z',
+            updatedAt: '2026-04-24T00:00:00.000Z',
+            preferences: {
+              promptEnhancementProvider: 'local',
+              openRouterModel: '',
+              imageGenerationProvider: options.openRouterImageEnabled ? 'openrouter' : 'local',
+              openRouterImageModel: options.openRouterImageEnabled ? 'google/gemini-2.5-flash-image' : '',
+            },
+            openRouter: {
+              apiKeyStored: options.openRouterImageEnabled ?? false,
+              keyLabel: options.openRouterImageEnabled ? 'Primary Key' : null,
+              lastValidatedAt: options.openRouterImageEnabled ? '2026-04-24T00:00:00.000Z' : null,
+            },
+          },
+        ],
       }),
     },
     generation: {

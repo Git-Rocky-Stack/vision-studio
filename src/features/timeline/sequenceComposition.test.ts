@@ -55,6 +55,7 @@ function createClip(overrides: Partial<TimelineClip> = {}): TimelineClip {
     posterUrl: null,
     referenceSetIds: [],
     generationBindingId: null,
+    retakeRanges: [],
     storyboardDerived: false,
     storyboardBeatMarkers: [],
     storyboardDerivedAt: null,
@@ -168,6 +169,249 @@ describe('resolveSequenceComposition', () => {
       clipOffsetMs: 750,
       sourceTimeMs: 1150,
     });
+  });
+
+  it('resolves accepted retake media for only the approved clip range', () => {
+    const sequence = createSequence();
+    const track = createTrack({
+      kind: 'video',
+    });
+    const clip = createClip({
+      durationMs: 4000,
+      sourceOutMs: 4000,
+      retakeRanges: [
+        {
+          id: 'retake-range-1',
+          clipId: 'clip-1',
+          startMs: 500,
+          endMs: 1750,
+          status: 'accepted',
+          acceptedTakeId: 'take-1',
+          candidateTakeIds: ['take-1'],
+          createdAt: '2026-04-24T00:00:00.000Z',
+          updatedAt: '2026-04-24T00:00:00.000Z',
+        },
+      ],
+    });
+    const originalMedia = createMediaAsset({
+      type: 'video',
+      path: 'C:/vision-studio/outputs/original.mp4',
+      previewUrl: 'file:///C:/vision-studio/outputs/original.mp4',
+      thumbnailUrl: 'file:///C:/vision-studio/outputs/original.jpg',
+      posterUrl: 'file:///C:/vision-studio/outputs/original.jpg',
+      durationMs: 4000,
+    });
+    const retakeMedia = createMediaAsset({
+      id: 'media-retake',
+      type: 'video',
+      path: 'C:/vision-studio/outputs/retake.mp4',
+      previewUrl: 'file:///C:/vision-studio/outputs/retake.mp4',
+      thumbnailUrl: 'file:///C:/vision-studio/outputs/retake.jpg',
+      posterUrl: 'file:///C:/vision-studio/outputs/retake.jpg',
+      durationMs: 1250,
+    });
+
+    const retakeFrame = resolveSequenceComposition({
+      sequence,
+      tracks: [track],
+      clips: [clip],
+      clipRetakeTakes: [
+        {
+          id: 'take-1',
+          clipId: 'clip-1',
+          retakeRangeId: 'retake-range-1',
+          mediaAssetId: 'media-retake',
+          prompt: 'cleaner hand motion',
+          negativePrompt: '',
+          model: 'svd',
+          settings: {},
+          referenceSetIds: [],
+          status: 'accepted',
+          createdAt: '2026-04-24T00:01:00.000Z',
+          updatedAt: '2026-04-24T00:01:00.000Z',
+        },
+      ],
+      mediaAssets: [originalMedia, retakeMedia],
+      timeMs: 1750,
+    });
+    const originalFrame = resolveSequenceComposition({
+      sequence,
+      tracks: [track],
+      clips: [clip],
+      clipRetakeTakes: [
+        {
+          id: 'take-1',
+          clipId: 'clip-1',
+          retakeRangeId: 'retake-range-1',
+          mediaAssetId: 'media-retake',
+          prompt: 'cleaner hand motion',
+          negativePrompt: '',
+          model: 'svd',
+          settings: {},
+          referenceSetIds: [],
+          status: 'accepted',
+          createdAt: '2026-04-24T00:01:00.000Z',
+          updatedAt: '2026-04-24T00:01:00.000Z',
+        },
+      ],
+      mediaAssets: [originalMedia, retakeMedia],
+      timeMs: 2900,
+    });
+
+    expect(retakeFrame.layers[0]).toMatchObject({
+      clipId: 'clip-1',
+      mediaAssetId: 'media-retake',
+      sourcePath: 'C:/vision-studio/outputs/retake.mp4',
+      sourceTimeMs: 250,
+      clipOffsetMs: 750,
+      retakeRangeId: 'retake-range-1',
+      retakeTakeId: 'take-1',
+    });
+    expect(retakeFrame.issues).toEqual([]);
+    expect(originalFrame.layers[0]).toMatchObject({
+      mediaAssetId: 'media-1',
+      sourcePath: 'C:/vision-studio/outputs/original.mp4',
+      sourceTimeMs: 1900,
+      retakeRangeId: null,
+      retakeTakeId: null,
+    });
+  });
+
+  it('fails explicitly when an accepted retake media asset is missing', () => {
+    const sequence = createSequence();
+    const track = createTrack({
+      kind: 'video',
+    });
+    const clip = createClip({
+      durationMs: 4000,
+      sourceOutMs: 4000,
+      retakeRanges: [
+        {
+          id: 'retake-range-1',
+          clipId: 'clip-1',
+          startMs: 500,
+          endMs: 1750,
+          status: 'accepted',
+          acceptedTakeId: 'take-1',
+          candidateTakeIds: ['take-1'],
+          createdAt: '2026-04-24T00:00:00.000Z',
+          updatedAt: '2026-04-24T00:00:00.000Z',
+        },
+      ],
+    });
+
+    const result = resolveSequenceComposition({
+      sequence,
+      tracks: [track],
+      clips: [clip],
+      clipRetakeTakes: [
+        {
+          id: 'take-1',
+          clipId: 'clip-1',
+          retakeRangeId: 'retake-range-1',
+          mediaAssetId: 'missing-retake-media',
+          prompt: 'cleaner hand motion',
+          negativePrompt: '',
+          model: 'svd',
+          settings: {},
+          referenceSetIds: [],
+          status: 'accepted',
+          createdAt: '2026-04-24T00:01:00.000Z',
+          updatedAt: '2026-04-24T00:01:00.000Z',
+        },
+      ],
+      mediaAssets: [
+        createMediaAsset({
+          type: 'video',
+          path: 'C:/vision-studio/outputs/original.mp4',
+          previewUrl: 'file:///C:/vision-studio/outputs/original.mp4',
+        }),
+      ],
+      timeMs: 1750,
+    });
+
+    expect(result.layers).toEqual([]);
+    expect(result.issues).toEqual([
+      expect.objectContaining({
+        code: 'missing-retake-media',
+        clipId: 'clip-1',
+        retakeRangeId: 'retake-range-1',
+        retakeTakeId: 'take-1',
+      }),
+    ]);
+  });
+
+  it('clamps accepted retake playback to the candidate media duration', () => {
+    const sequence = createSequence();
+    const track = createTrack({
+      kind: 'video',
+    });
+    const clip = createClip({
+      durationMs: 4000,
+      sourceOutMs: 4000,
+      retakeRanges: [
+        {
+          id: 'retake-range-1',
+          clipId: 'clip-1',
+          startMs: 500,
+          endMs: 1750,
+          status: 'accepted',
+          acceptedTakeId: 'take-1',
+          candidateTakeIds: ['take-1'],
+          createdAt: '2026-04-24T00:00:00.000Z',
+          updatedAt: '2026-04-24T00:00:00.000Z',
+        },
+      ],
+    });
+    const originalMedia = createMediaAsset({
+      type: 'video',
+      path: 'C:/vision-studio/outputs/original.mp4',
+      previewUrl: 'file:///C:/vision-studio/outputs/original.mp4',
+      thumbnailUrl: 'file:///C:/vision-studio/outputs/original.jpg',
+      posterUrl: 'file:///C:/vision-studio/outputs/original.jpg',
+      durationMs: 4000,
+    });
+    const shortRetakeMedia = createMediaAsset({
+      id: 'media-retake-short',
+      type: 'video',
+      path: 'C:/vision-studio/outputs/retake-short.mp4',
+      previewUrl: 'file:///C:/vision-studio/outputs/retake-short.mp4',
+      thumbnailUrl: 'file:///C:/vision-studio/outputs/retake-short.jpg',
+      posterUrl: 'file:///C:/vision-studio/outputs/retake-short.jpg',
+      durationMs: 900,
+    });
+
+    const result = resolveSequenceComposition({
+      sequence,
+      tracks: [track],
+      clips: [clip],
+      clipRetakeTakes: [
+        {
+          id: 'take-1',
+          clipId: 'clip-1',
+          retakeRangeId: 'retake-range-1',
+          mediaAssetId: 'media-retake-short',
+          prompt: 'cleaner hand motion',
+          negativePrompt: '',
+          model: 'svd',
+          settings: {},
+          referenceSetIds: [],
+          status: 'accepted',
+          createdAt: '2026-04-24T00:01:00.000Z',
+          updatedAt: '2026-04-24T00:01:00.000Z',
+        },
+      ],
+      mediaAssets: [originalMedia, shortRetakeMedia],
+      timeMs: 2450,
+    });
+
+    expect(result.layers[0]).toMatchObject({
+      mediaAssetId: 'media-retake-short',
+      sourceTimeMs: 899,
+      retakeRangeId: 'retake-range-1',
+      retakeTakeId: 'take-1',
+    });
+    expect(result.issues).toEqual([]);
   });
 
   it('honors play range boundaries and flags clamping', () => {

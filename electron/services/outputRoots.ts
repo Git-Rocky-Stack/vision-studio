@@ -6,6 +6,7 @@ import {
   resolveOutputPath,
   type AppSettings,
 } from './settings';
+import type { UserAccountsState } from './userAccounts';
 
 export interface StoreSchema {
   recentProjects: string[];
@@ -13,6 +14,7 @@ export interface StoreSchema {
   firstRun: boolean;
   modelsDownloaded: string[];
   managedOutputRoots: string[];
+  userAccounts: UserAccountsState;
 }
 
 export const DEFAULT_SETTINGS: Required<Omit<AppSettings, 'pythonPath'>> = {

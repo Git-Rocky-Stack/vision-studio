@@ -12,7 +12,7 @@ PROMPT_ENHANCEMENT_SCHEMA = {
     "required": ["mode", "prompt", "variations"],
     "additionalProperties": False,
     "properties": {
-        "mode": {"type": "string", "enum": ["clarify", "cinematic", "concise", "variations"]},
+        "mode": {"type": "string", "enum": ["clarify", "cinematic", "concise", "expand", "variations"]},
         "prompt": {"type": "string"},
         "variations": {"type": "array", "items": {"type": "string"}},
     },
@@ -47,6 +47,13 @@ def _concise_prompt(prompt: str) -> str:
     return prompt
 
 
+def _expand_prompt(prompt: str) -> str:
+    return (
+        f"{prompt}, layered environmental detail, refined textures, nuanced depth cues, "
+        "cohesive color relationships, polished finishing detail"
+    )
+
+
 def _build_variations(prompt: str) -> List[str]:
     modifiers = [
         "cinematic lighting, dynamic perspective",
@@ -78,6 +85,9 @@ def enhance_prompt(prompt: str, mode: str = "clarify") -> Dict[str, object]:
 
     if normalized_mode == "concise":
         return _structured_response(normalized_mode, _concise_prompt(normalized), [])
+
+    if normalized_mode == "expand":
+        return _structured_response(normalized_mode, _expand_prompt(normalized), [])
 
     if normalized_mode == "variations":
         variations = _build_variations(normalized)

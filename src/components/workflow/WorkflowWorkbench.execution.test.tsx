@@ -130,6 +130,30 @@ function installElectronMock(statuses: JobStatus[]) {
         notifyOnModelDownloads: true,
       }),
     },
+    accounts: {
+      list: vi.fn().mockResolvedValue({
+        activeAccountId: 'account-primary',
+        accounts: [
+          {
+            id: 'account-primary',
+            name: 'Primary',
+            createdAt: '2026-04-24T00:00:00.000Z',
+            updatedAt: '2026-04-24T00:00:00.000Z',
+            preferences: {
+              promptEnhancementProvider: 'local',
+              openRouterModel: '',
+              imageGenerationProvider: 'local',
+              openRouterImageModel: '',
+            },
+            openRouter: {
+              apiKeyStored: false,
+              keyLabel: null,
+              lastValidatedAt: null,
+            },
+          },
+        ],
+      }),
+    },
     generation: {
       generateImage: generateImageMock,
       getStatus: getStatusMock,

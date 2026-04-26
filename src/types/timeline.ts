@@ -235,6 +235,7 @@ export type TimelineCompositionIssueCode =
   | 'no-active-clip'
   | 'multiple-active-tracks'
   | 'missing-media-asset'
+  | 'missing-retake-media'
   | 'unsupported-track-kind'
   | 'unsupported-transition'
   | 'transition-target-missing';
@@ -244,6 +245,8 @@ export interface TimelineCompositionIssue {
   message: string;
   clipId?: string | null;
   trackId?: string | null;
+  retakeRangeId?: string | null;
+  retakeTakeId?: string | null;
   transitionType?: TimelineTransitionType | null;
 }
 
@@ -260,6 +263,8 @@ export interface TimelineCompositionLayer {
   mediaType: 'image' | 'video';
   sourcePath: string;
   posterUrl: string | null;
+  retakeRangeId?: string | null;
+  retakeTakeId?: string | null;
   opacity: number;
   heldFrame: boolean;
   sourceTimeMs: number;

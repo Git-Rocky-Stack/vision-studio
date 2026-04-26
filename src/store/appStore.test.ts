@@ -1445,6 +1445,17 @@ We only get one pass at this.
       expect(nextState.clipRetakeTakes.find((take) => take.id === takeA!.id)?.status).toBe('rejected');
       expect(nextRange.candidateTakeIds).toEqual(expect.arrayContaining([takeA!.id, takeB!.id]));
 
+      useAppStore.getState().acceptClipRetakeTake(takeB!.id);
+      useAppStore.getState().revertClipRetakeRange(clipA.id, range!.id);
+
+      nextState = useAppStore.getState();
+      nextClip = nextState.timelineClips.find((clip) => clip.id === clipA.id)!;
+      nextRange = nextClip.retakeRanges.find((item) => item.id === range!.id)!;
+
+      expect(nextRange.acceptedTakeId).toBeNull();
+      expect(nextRange.status).toBe('candidate');
+      expect(nextState.clipRetakeTakes.find((take) => take.id === takeB!.id)?.status).toBe('candidate');
+
       useAppStore.getState().deleteTimelineClipRetakeRange(clipA.id, range!.id);
 
       nextState = useAppStore.getState();

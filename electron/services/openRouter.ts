@@ -1,0 +1,549 @@
+import axios from 'axios';
+
+type AxiosLike = Pick<typeof axios, 'get' | 'post'>;
+
+export type PromptEnhancementMode = 'clarify' | 'cinematic' | 'concise' | 'expand' | 'variations';
+
+export interface OpenRouterKeyInfo {
+  label: string | null;
+  limit: number | null;
+  limitRemaining: number | null;
+  usage: number | null;
+  usageDaily: number | null;
+  usageWeekly: number | null;
+  usageMonthly: number | null;
+  byokUsage: number | null;
+  includeByokInLimit: boolean | null;
+  isFreeTier: boolean | null;
+  expiresAt: string | null;
+}
+
+export interface OpenRouterModelSummary {
+  id: string;
+  name: string;
+  description: string;
+  contextLength: number | null;
+  outputModalities: string[];
+  supportedParameters: string[];
+  pricing: {
+    prompt: string;
+    completion: string;
+    image: string;
+  };
+}
+
+export interface OpenRouterPromptEnhancementResult {
+  mode: PromptEnhancementMode;
+  prompt: string;
+  variations: string[];
+}
+
+export interface OpenRouterNegativePromptSuggestionResult {
+  negativePrompt: string;
+  suggestions: string[];
+}
+
+export interface OpenRouterImageResult {
+  dataUrl: string;
+  mimeType: string;
+}
+
+export interface OpenRouterImageGenerationResult {
+  responseId: string | null;
+  model: string | null;
+  content: string;
+  images: OpenRouterImageResult[];
+}
+
+type CreateOpenRouterServiceOptions = {
+  axiosInstance?: AxiosLike;
+  baseUrl?: string;
+  appReferer?: string;
+  appTitle?: string;
+};
+
+const DEFAULT_BASE_URL = 'https://openrouter.ai/api/v1';
+const DEFAULT_REFERER = 'https://visionstudio.app';
+const DEFAULT_TITLE = 'Vision Studio';
+
+function asNumber(value: unknown) {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value;
+  }
+
+  if (typeof value === 'string' && value.trim()) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+
+  return null;
+}
+
+function toOpenRouterError(error: unknown, fallbackMessage: string) {
+  const providerMessage = (error as any)?.response?.data?.error?.message;
+  if (typeof providerMessage === 'string' && providerMessage.trim()) {
+    return providerMessage;
+  }
+
+  const directMessage = (error as any)?.message;
+  if (typeof directMessage === 'string' && directMessage.trim()) {
+    return directMessage;
+  }
+
+  return fallbackMessage;
+}
+
+function createOpenRouterError(error: unknown, fallbackMessage: string) {
+  return new Error(toOpenRouterError(error, fallbackMessage), { cause: error });
+}
+
+function extractMessageContent(content: unknown) {
+  if (typeof content === 'string') {
+    return content;
+  }
+
+  if (Array.isArray(content)) {
+    return content
+      .flatMap((part) => {
+        if (typeof part === 'string') {
+          return [part];
+        }
+
+        if (
+          typeof part === 'object' &&
+          part !== null &&
+          'type' in part &&
+          (part as { type?: unknown }).type === 'text' &&
+          'text' in part &&
+          typeof (part as { text?: unknown }).text === 'string'
+        ) {
+          return [(part as { text: string }).text];
+        }
+
+        return [];
+      })
+      .join('');
+  }
+
+  return '';
+}
+
+function normalizePromptEnhancementResult(
+  payload: unknown,
+  mode: PromptEnhancementMode,
+): OpenRouterPromptEnhancementResult {
+  if (typeof payload !== 'object' || payload === null) {
+    throw new Error('OpenRouter returned an invalid prompt enhancement payload.');
+  }
+
+  const data = payload as {
+    prompt?: unknown;
+    variations?: unknown;
+    mode?: unknown;
+  };
+
+  const prompt = typeof data.prompt === 'string' ? data.prompt.trim() : '';
+  const variations = Array.isArray(data.variations)
+    ? data.variations.filter((entry): entry is string => typeof entry === 'string').map((entry) => entry.trim()).filter(Boolean)
+    : [];
+
+  if (!prompt) {
+    throw new Error('OpenRouter returned an empty prompt enhancement.');
+  }
+
+  return {
+    mode:
+      data.mode === 'clarify' ||
+      data.mode === 'cinematic' ||
+      data.mode === 'concise' ||
+      data.mode === 'expand' ||
+      data.mode === 'variations'
+        ? data.mode
+        : mode,
+    prompt,
+    variations,
+  };
+}
+
+function normalizeNegativePromptSuggestionResult(
+  payload: unknown,
+): OpenRouterNegativePromptSuggestionResult {
+  if (typeof payload !== 'object' || payload === null) {
+    throw new Error('OpenRouter returned an invalid negative prompt payload.');
+  }
+
+  const data = payload as {
+    negativePrompt?: unknown;
+    suggestions?: unknown;
+  };
+
+  const negativePrompt =
+    typeof data.negativePrompt === 'string'
+      ? data.negativePrompt.trim()
+      : typeof (data as { negative_prompt?: unknown }).negative_prompt === 'string'
+        ? ((data as { negative_prompt: string }).negative_prompt).trim()
+        : '';
+  const suggestions = Array.isArray(data.suggestions)
+    ? data.suggestions
+        .filter((entry): entry is string => typeof entry === 'string')
+        .map((entry) => entry.trim())
+        .filter(Boolean)
+    : [];
+
+  if (!negativePrompt) {
+    throw new Error('OpenRouter returned an empty negative prompt suggestion.');
+  }
+
+  return {
+    negativePrompt,
+    suggestions,
+  };
+}
+
+function normalizeModelSummary(model: any): OpenRouterModelSummary | null {
+  if (typeof model?.id !== 'string' || typeof model?.name !== 'string') {
+    return null;
+  }
+
+  return {
+    id: model.id,
+    name: model.name,
+    description: typeof model.description === 'string' ? model.description : '',
+    contextLength: asNumber(model.context_length),
+    outputModalities: Array.isArray(model.architecture?.output_modalities)
+      ? model.architecture.output_modalities.filter((entry: unknown): entry is string => typeof entry === 'string')
+      : [],
+    supportedParameters: Array.isArray(model.supported_parameters)
+      ? model.supported_parameters.filter((entry: unknown): entry is string => typeof entry === 'string')
+      : [],
+    pricing: {
+      prompt: typeof model.pricing?.prompt === 'string' ? model.pricing.prompt : '0',
+      completion: typeof model.pricing?.completion === 'string' ? model.pricing.completion : '0',
+      image: typeof model.pricing?.image === 'string' ? model.pricing.image : '0',
+    },
+  };
+}
+
+const SUPPORTED_IMAGE_ASPECT_RATIOS = [
+  { label: '1:1', ratio: 1 },
+  { label: '2:3', ratio: 2 / 3 },
+  { label: '3:2', ratio: 3 / 2 },
+  { label: '3:4', ratio: 3 / 4 },
+  { label: '4:3', ratio: 4 / 3 },
+  { label: '4:5', ratio: 4 / 5 },
+  { label: '5:4', ratio: 5 / 4 },
+  { label: '9:16', ratio: 9 / 16 },
+  { label: '16:9', ratio: 16 / 9 },
+  { label: '21:9', ratio: 21 / 9 },
+] as const;
+
+function toAspectRatio(width: number, height: number) {
+  if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
+    return null;
+  }
+
+  const targetRatio = width / height;
+  const nearest = SUPPORTED_IMAGE_ASPECT_RATIOS.reduce(
+    (best, candidate) => {
+      const distance = Math.abs(candidate.ratio - targetRatio);
+      return distance < best.distance ? { label: candidate.label, distance } : best;
+    },
+    { label: null as string | null, distance: Number.POSITIVE_INFINITY },
+  );
+  const tolerance = targetRatio * 0.04;
+
+  return nearest.label && nearest.distance <= tolerance ? nearest.label : null;
+}
+
+function extractImageDataUrl(image: unknown) {
+  const dataUrl =
+    typeof (image as { image_url?: { url?: unknown } })?.image_url?.url === 'string'
+      ? (image as { image_url: { url: string } }).image_url.url
+      : typeof (image as { imageUrl?: { url?: unknown } })?.imageUrl?.url === 'string'
+        ? (image as { imageUrl: { url: string } }).imageUrl.url
+        : null;
+
+  if (!dataUrl || !dataUrl.startsWith('data:image/')) {
+    return null;
+  }
+
+  const mimeTypeMatch = /^data:([^;]+);base64,/.exec(dataUrl);
+  return {
+    dataUrl,
+    mimeType: mimeTypeMatch?.[1] ?? 'image/png',
+  };
+}
+
+function buildHeaders(apiKey: string, appReferer: string, appTitle: string) {
+  return {
+    Authorization: `Bearer ${apiKey}`,
+    'Content-Type': 'application/json',
+    'HTTP-Referer': appReferer,
+    'X-OpenRouter-Title': appTitle,
+  };
+}
+
+export function createOpenRouterService({
+  axiosInstance = axios,
+  baseUrl = DEFAULT_BASE_URL,
+  appReferer = DEFAULT_REFERER,
+  appTitle = DEFAULT_TITLE,
+}: CreateOpenRouterServiceOptions = {}) {
+  async function listModels(
+    apiKey: string,
+    params?: Record<string, string>,
+  ): Promise<OpenRouterModelSummary[]> {
+    const response = await axiosInstance.get(`${baseUrl}/models`, {
+      headers: buildHeaders(apiKey, appReferer, appTitle),
+      params,
+    });
+
+    const rawModels = Array.isArray(response.data?.data) ? response.data.data : [];
+    return rawModels
+      .map((model: any): OpenRouterModelSummary | null => normalizeModelSummary(model))
+      .filter((model): model is OpenRouterModelSummary => Boolean(model))
+      .sort((left, right) => left.name.localeCompare(right.name));
+  }
+
+  async function getKeyInfo(apiKey: string): Promise<OpenRouterKeyInfo> {
+    try {
+      const response = await axiosInstance.get(`${baseUrl}/key`, {
+        headers: buildHeaders(apiKey, appReferer, appTitle),
+      });
+      const data = response.data?.data ?? {};
+
+      return {
+        label: typeof data.label === 'string' ? data.label : null,
+        limit: asNumber(data.limit),
+        limitRemaining: asNumber(data.limit_remaining),
+        usage: asNumber(data.usage),
+        usageDaily: asNumber(data.usage_daily),
+        usageWeekly: asNumber(data.usage_weekly),
+        usageMonthly: asNumber(data.usage_monthly),
+        byokUsage: asNumber(data.byok_usage),
+        includeByokInLimit:
+          typeof data.include_byok_in_limit === 'boolean' ? data.include_byok_in_limit : null,
+        isFreeTier: typeof data.is_free_tier === 'boolean' ? data.is_free_tier : null,
+        expiresAt: typeof data.expires_at === 'string' ? data.expires_at : null,
+      };
+    } catch (error) {
+      throw createOpenRouterError(error, 'OpenRouter connection failed.');
+    }
+  }
+
+  async function listTextModels(apiKey: string): Promise<OpenRouterModelSummary[]> {
+    try {
+      return await listModels(apiKey, {
+        output_modalities: 'text',
+        supported_parameters: 'response_format',
+      });
+    } catch (error) {
+      throw createOpenRouterError(error, 'Could not load OpenRouter models.');
+    }
+  }
+
+  async function listImageModels(apiKey: string): Promise<OpenRouterModelSummary[]> {
+    try {
+      return await listModels(apiKey, {
+        output_modalities: 'image',
+      });
+    } catch (error) {
+      throw createOpenRouterError(error, 'Could not load OpenRouter image models.');
+    }
+  }
+
+  async function enhancePrompt({
+    apiKey,
+    prompt,
+    mode,
+    model,
+  }: {
+    apiKey: string;
+    prompt: string;
+    mode: PromptEnhancementMode;
+    model?: string;
+  }): Promise<OpenRouterPromptEnhancementResult> {
+    const normalizedPrompt = prompt.trim();
+    if (!normalizedPrompt) {
+      throw new Error('Prompt cannot be empty.');
+    }
+
+    try {
+      const response = await axiosInstance.post(
+        `${baseUrl}/chat/completions`,
+        {
+          ...(model?.trim() ? { model: model.trim() } : {}),
+          temperature: 0.3,
+          response_format: { type: 'json_object' },
+          plugins: [{ id: 'response-healing' }],
+          messages: [
+            {
+              role: 'system',
+              content:
+                'You improve prompts for image and video generation. Return valid JSON only with keys mode, prompt, and variations. Keep the user intent and important constraints intact. clarify should tighten structure and fidelity. cinematic should lean into film language. concise should keep only the most important details. expand should add richer descriptive detail without changing subject. variations should keep prompt as a cleaned base prompt and return 4 strong alternatives in variations. For every non-variations mode, return an enhanced prompt and an empty variations array.',
+            },
+            {
+              role: 'user',
+              content: JSON.stringify({
+                mode,
+                prompt: normalizedPrompt,
+              }),
+            },
+          ],
+        },
+        {
+          headers: buildHeaders(apiKey, appReferer, appTitle),
+        },
+      );
+
+      const content = extractMessageContent(response.data?.choices?.[0]?.message?.content);
+      const parsed = JSON.parse(content);
+      return normalizePromptEnhancementResult(parsed, mode);
+    } catch (error) {
+      throw createOpenRouterError(error, 'OpenRouter prompt enhancement failed.');
+    }
+  }
+
+  async function suggestNegativePrompt({
+    apiKey,
+    prompt,
+    negativePrompt,
+    model,
+  }: {
+    apiKey: string;
+    prompt: string;
+    negativePrompt?: string;
+    model?: string;
+  }): Promise<OpenRouterNegativePromptSuggestionResult> {
+    const normalizedPrompt = prompt.trim();
+    const normalizedNegativePrompt = negativePrompt?.trim() ?? '';
+    if (!normalizedPrompt) {
+      throw new Error('Prompt cannot be empty.');
+    }
+
+    try {
+      const response = await axiosInstance.post(
+        `${baseUrl}/chat/completions`,
+        {
+          ...(model?.trim() ? { model: model.trim() } : {}),
+          temperature: 0.2,
+          response_format: { type: 'json_object' },
+          plugins: [{ id: 'response-healing' }],
+          messages: [
+            {
+              role: 'system',
+              content:
+                'You write concise negative prompts for image and video generation. Return valid JSON only with keys negativePrompt and suggestions. Preserve helpful existing negative terms, remove duplicates, and add artifact-prevention terms that fit the user prompt. suggestions must be a short array of phrases that are included in negativePrompt.',
+            },
+            {
+              role: 'user',
+              content: JSON.stringify({
+                prompt: normalizedPrompt,
+                negativePrompt: normalizedNegativePrompt,
+              }),
+            },
+          ],
+        },
+        {
+          headers: buildHeaders(apiKey, appReferer, appTitle),
+        },
+      );
+
+      const content = extractMessageContent(response.data?.choices?.[0]?.message?.content);
+      const parsed = JSON.parse(content);
+      return normalizeNegativePromptSuggestionResult(parsed);
+    } catch (error) {
+      throw createOpenRouterError(error, 'OpenRouter negative prompt suggestion failed.');
+    }
+  }
+
+  async function generateImage({
+    apiKey,
+    model,
+    prompt,
+    negativePrompt,
+    width,
+    height,
+    seed,
+    signal,
+  }: {
+    apiKey: string;
+    model: string;
+    prompt: string;
+    negativePrompt?: string;
+    width: number;
+    height: number;
+    seed?: number;
+    signal?: AbortSignal;
+  }): Promise<OpenRouterImageGenerationResult> {
+    const normalizedPrompt = prompt.trim();
+    const normalizedModel = model.trim();
+    if (!normalizedPrompt) {
+      throw new Error('Prompt cannot be empty.');
+    }
+    if (!normalizedModel) {
+      throw new Error('OpenRouter image model is required.');
+    }
+
+    try {
+      const imageModels = await listImageModels(apiKey);
+      const selectedModel = imageModels.find((candidate) => candidate.id === normalizedModel);
+      const aspectRatio = toAspectRatio(width, height);
+      const modalities = selectedModel?.outputModalities.includes('text')
+        ? ['image', 'text']
+        : ['image'];
+
+      const response = await axiosInstance.post(
+        `${baseUrl}/chat/completions`,
+        {
+          model: normalizedModel,
+          modalities,
+          stream: false,
+          ...(typeof seed === 'number' ? { seed } : {}),
+          ...(aspectRatio ? { image_config: { aspect_ratio: aspectRatio } } : {}),
+          messages: [
+            {
+              role: 'user',
+              content: negativePrompt?.trim()
+                ? `Generate an image.\nPrompt: ${normalizedPrompt}\nNegative prompt: ${negativePrompt.trim()}`
+                : normalizedPrompt,
+            },
+          ],
+        },
+        {
+          headers: buildHeaders(apiKey, appReferer, appTitle),
+          signal,
+        },
+      );
+
+      const message = response.data?.choices?.[0]?.message ?? {};
+      const images = Array.isArray(message.images)
+        ? message.images
+            .map((image: unknown) => extractImageDataUrl(image))
+            .filter((image): image is OpenRouterImageResult => Boolean(image))
+        : [];
+
+      if (images.length === 0) {
+        throw new Error('OpenRouter did not return any images.');
+      }
+
+      return {
+        responseId: typeof response.data?.id === 'string' ? response.data.id : null,
+        model: typeof response.data?.model === 'string' ? response.data.model : normalizedModel,
+        content: extractMessageContent(message.content),
+        images,
+      };
+    } catch (error) {
+      throw createOpenRouterError(error, 'OpenRouter image generation failed.');
+    }
+  }
+
+  return {
+    getKeyInfo,
+    listTextModels,
+    listImageModels,
+    enhancePrompt,
+    suggestNegativePrompt,
+    generateImage,
+  };
+}

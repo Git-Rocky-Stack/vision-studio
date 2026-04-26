@@ -3,13 +3,14 @@ import type { StoreApi, UseBoundStore } from 'zustand';
 import { useAppStore } from '@/store/appStore';
 import type { AppState } from '@/store/appStore.types';
 import type { AssetRecord, AssetJobStatus } from '@/types/assets';
-import type { JobStatus } from '@/types/electron';
+import type { JobStatus, UserAccountsSnapshot } from '@/types/electron';
 import type { MediaAsset, ReferenceSet } from '@/types/media';
 import type { ImageGenerationRequestPayload, PromptHistoryEntry } from '@/types/generation';
 import type { ClipGenerationBinding, TimelineClip, TimelineSequence, TimelineTrack } from '@/types/timeline';
 import { computeDimensions } from '@/types/resolution';
 import { SVD_REFERENCE_ERROR } from '@/features/generate/validation';
 import { resolveCanvasControlLayers } from '@/features/generation/resolveCanvasControlLayers';
+import { getActiveUserAccount, resolveStillImageRoute } from '@/features/accounts/providerRouting';
 import {
   delay,
   getOutputAssetId,
@@ -20,7 +21,7 @@ import { resolveStoredAssetPath, toPreviewUrl } from '@/features/assets/assetRec
 type TimelineStore = UseBoundStore<StoreApi<AppState>>;
 
 type GenerationType = 'image' | 'video';
-type TimelineGenerationOperation = 'generate' | 'regenerate' | 'variant' | 'extend';
+type TimelineGenerationOperation = 'generate' | 'regenerate' | 'variant' | 'extend' | 'retake';
 
 interface TimelineGenerationElectronApi {
   app: {
@@ -30,6 +31,9 @@ interface TimelineGenerationElectronApi {
     get: () => Promise<{
       defaultOutputPath: string;
     }>;
+  };
+  accounts: {
+    list: () => Promise<UserAccountsSnapshot>;
   };
   generation: {
     generateImage: (params: ImageGenerationRequestPayload) => Promise<{ success: boolean; jobId?: string; error?: string }>;
@@ -84,6 +88,7 @@ interface RunTimelineClipGenerationOptions {
   operation?: TimelineGenerationOperation;
   clipId?: string;
   sequenceId?: string;
+  retakeRangeId?: string;
   input?: TimelineGenerationInput;
   store?: TimelineStore;
   electron?: TimelineGenerationElectronApi;
@@ -113,12 +118,14 @@ interface TimelineGenerationRunResult {
   clipId: string | null;
   outputAssetId: string | null;
   bindingId: string | null;
+  retakeTakeId: string | null;
 }
 
 export async function runTimelineClipGeneration({
   operation = 'generate',
   clipId,
   sequenceId,
+  retakeRangeId,
   input,
   store = useAppStore,
   electron = window.electron,
@@ -135,21 +142,45 @@ export async function runTimelineClipGeneration({
   if (!targetSequence) {
     throw new Error('Select a timeline sequence before generating into the editor.');
   }
-
-  if (!state.systemInfo.backendConnected) {
-    throw new Error('The AI backend is not running.');
-  }
+  const accountSnapshot = await electron.accounts.list().catch(() => null);
+  const stillImageRoute = resolveStillImageRoute(getActiveUserAccount(accountSnapshot));
 
   const existingBinding = targetClip?.generationBindingId
     ? state.clipGenerationBindings.find((binding) => binding.id === targetClip.generationBindingId) ?? null
     : null;
 
-  if ((operation === 'regenerate' || operation === 'variant' || operation === 'extend') && !targetClip) {
+  if (
+    (operation === 'regenerate' || operation === 'variant' || operation === 'extend' || operation === 'retake') &&
+    !targetClip
+  ) {
     throw new Error('Select a timeline clip before using clip generation actions.');
   }
 
-  if ((operation === 'regenerate' || operation === 'variant' || operation === 'extend') && !existingBinding) {
+  if (
+    (operation === 'regenerate' || operation === 'variant' || operation === 'extend' || operation === 'retake') &&
+    !existingBinding
+  ) {
     throw new Error('This clip is not AI-bound yet. Create a generated variant from Generate first.');
+  }
+
+  const targetClipMediaAsset = targetClip
+    ? state.mediaAssets.find((asset) => asset.id === targetClip.mediaAssetId) ?? null
+    : null;
+  const targetRetakeRangeId =
+    operation === 'retake'
+      ? retakeRangeId ?? state.activeTimelineRetakeRangeId
+      : null;
+  const targetRetakeRange =
+    operation === 'retake' && targetClip && targetRetakeRangeId
+      ? targetClip.retakeRanges.find((range) => range.id === targetRetakeRangeId) ?? null
+      : null;
+
+  if (operation === 'retake' && targetClipMediaAsset?.type !== 'video') {
+    throw new Error('Retake generation is only available for video clips.');
+  }
+
+  if (operation === 'retake' && !targetRetakeRange) {
+    throw new Error('Select a retake range before generating a candidate take.');
   }
 
   const resolved = resolveGenerationInput({
@@ -159,6 +190,23 @@ export async function runTimelineClipGeneration({
     binding: existingBinding,
     input,
   });
+  const effectiveResolved: ResolvedTimelineGenerationInput =
+    operation === 'retake' && targetRetakeRange
+      ? {
+          ...resolved,
+          generationType: 'video',
+          duration: Math.max(0.12, (targetRetakeRange.endMs - targetRetakeRange.startMs) / 1000),
+        }
+      : resolved;
+  const providerResolved =
+    effectiveResolved.generationType === 'image' &&
+    stillImageRoute.provider === 'openrouter' &&
+    stillImageRoute.model
+      ? {
+          ...effectiveResolved,
+          model: stillImageRoute.model,
+        }
+      : effectiveResolved;
   const targetProject = state.projects.find((item) => item.id === targetSequence.projectId) ?? null;
   const targetScene = targetClip?.sceneId
     ? targetProject?.scenes.find((item) => item.id === targetClip.sceneId) ?? null
@@ -166,31 +214,42 @@ export async function runTimelineClipGeneration({
       ? targetProject?.scenes.find((item) => item.id === state.activeSceneId) ?? null
       : null;
 
-  if (!resolved.prompt.trim()) {
+  if (
+    !state.systemInfo.backendConnected &&
+    (providerResolved.generationType !== 'image' || stillImageRoute.provider !== 'openrouter')
+  ) {
+    throw new Error('The AI backend is not running.');
+  }
+
+  if (providerResolved.generationType === 'image' && stillImageRoute.provider === 'openrouter' && stillImageRoute.error) {
+    throw new Error(stillImageRoute.error);
+  }
+
+  if (!providerResolved.prompt.trim()) {
     throw new Error('Enter a prompt before generating into the timeline.');
   }
 
-  if (operation === 'extend' && resolved.generationType !== 'video') {
+  if (operation === 'extend' && providerResolved.generationType !== 'video') {
     throw new Error('Extend Shot is only available for motion clips.');
   }
 
   const sourceImagePath =
-    resolved.generationType === 'video'
+    providerResolved.generationType === 'video'
       ? resolveVideoSourcePath({
           state,
           clip: targetClip,
           binding: existingBinding,
-          sourceMediaAssetId: resolved.sourceMediaAssetId,
-          referenceSetIds: resolved.referenceSetIds,
+          sourceMediaAssetId: providerResolved.sourceMediaAssetId,
+          referenceSetIds: providerResolved.referenceSetIds,
         })
       : null;
 
-  if (resolved.generationType === 'video' && resolved.model === 'svd' && !sourceImagePath) {
+  if (providerResolved.generationType === 'video' && providerResolved.model === 'svd' && !sourceImagePath) {
     throw new Error(SVD_REFERENCE_ERROR);
   }
 
   const canvasControlLayers =
-    resolved.generationType === 'image'
+    providerResolved.generationType === 'image'
       ? resolveCanvasControlLayers({
           scene: targetScene,
           mediaAssets: state.mediaAssets,
@@ -208,12 +267,12 @@ export async function runTimelineClipGeneration({
     operation === 'regenerate' && targetClip && existingBinding
       ? {
           ...existingBinding,
-          prompt: resolved.prompt,
-          negativePrompt: resolved.negativePrompt,
-          model: resolved.model,
-          generationType: resolved.generationType,
-          settings: buildBindingSettings(resolved, operation, targetClip.id),
-          referenceSetIds: resolved.referenceSetIds,
+          prompt: providerResolved.prompt,
+          negativePrompt: providerResolved.negativePrompt,
+          model: providerResolved.model,
+          generationType: providerResolved.generationType,
+          settings: buildBindingSettings(providerResolved, operation, targetClip.id),
+          referenceSetIds: providerResolved.referenceSetIds,
           lastRunSummary: {
             status: 'queued' as const,
             outputMediaAssetId: existingBinding.lastRunSummary?.outputMediaAssetId ?? null,
@@ -229,10 +288,10 @@ export async function runTimelineClipGeneration({
 
   const promptHistoryEntry: PromptHistoryEntry = {
     id: crypto.randomUUID(),
-    prompt: resolved.prompt,
-    negativePrompt: resolved.negativePrompt,
+    prompt: providerResolved.prompt,
+    negativePrompt: providerResolved.negativePrompt,
     timestamp: new Date(),
-    model: resolved.model,
+    model: providerResolved.model,
   };
   state.addToPromptHistory(promptHistoryEntry);
 
@@ -241,28 +300,28 @@ export async function runTimelineClipGeneration({
   const outputRoot = resolveOutputRoot(appSettings.defaultOutputPath, userDataPath);
 
   const submitPayload =
-    resolved.generationType === 'video'
+    providerResolved.generationType === 'video'
       ? {
-          prompt: resolved.prompt,
+          prompt: providerResolved.prompt,
           image_path: sourceImagePath ?? undefined,
-          width: resolved.width,
-          height: resolved.height,
-          duration: resolved.duration,
-          fps: resolved.fps,
-          steps: resolved.steps,
-          model: resolved.model,
-          seed: resolved.seed === -1 ? undefined : resolved.seed,
+          width: providerResolved.width,
+          height: providerResolved.height,
+          duration: providerResolved.duration,
+          fps: providerResolved.fps,
+          steps: providerResolved.steps,
+          model: providerResolved.model,
+          seed: providerResolved.seed === -1 ? undefined : providerResolved.seed,
         }
       : {
-          prompt: resolved.prompt,
-          negative_prompt: resolved.negativePrompt,
-          width: resolved.width,
-          height: resolved.height,
-          steps: resolved.steps,
-          cfg_scale: resolved.cfgScale,
-          seed: resolved.seed === -1 ? undefined : resolved.seed,
-          model: resolved.model,
-          scheduler: resolved.scheduler,
+          prompt: providerResolved.prompt,
+          negative_prompt: providerResolved.negativePrompt,
+          width: providerResolved.width,
+          height: providerResolved.height,
+          steps: providerResolved.steps,
+          cfg_scale: providerResolved.cfgScale,
+          seed: providerResolved.seed === -1 ? undefined : providerResolved.seed,
+          model: providerResolved.model,
+          scheduler: providerResolved.scheduler,
           ...(canvasControlLayers?.controlnet.length
             ? { controlnet: canvasControlLayers.controlnet }
             : {}),
@@ -279,7 +338,7 @@ export async function runTimelineClipGeneration({
         };
 
   const submitResult =
-    resolved.generationType === 'video'
+    providerResolved.generationType === 'video'
       ? await electron.generation.generateVideo(submitPayload)
       : await electron.generation.generateImage(submitPayload);
 
@@ -300,6 +359,34 @@ export async function runTimelineClipGeneration({
   }
 
   const jobId = submitResult.jobId;
+  let retakeTakeId: string | null = null;
+
+  if (operation === 'retake' && targetClip && targetRetakeRange) {
+    const retakeTake = state.createClipRetakeTake({
+      clipId: targetClip.id,
+      retakeRangeId: targetRetakeRange.id,
+      mediaAssetId: null,
+      prompt: providerResolved.prompt,
+      negativePrompt: providerResolved.negativePrompt,
+      model: providerResolved.model,
+      settings: {
+        ...buildBindingSettings(providerResolved, operation, targetClip.id),
+        jobId,
+        retakeRangeStartMs: targetRetakeRange.startMs,
+        retakeRangeEndMs: targetRetakeRange.endMs,
+        retakeRangeDurationMs: targetRetakeRange.endMs - targetRetakeRange.startMs,
+      },
+      referenceSetIds: providerResolved.referenceSetIds,
+    });
+
+    if (!retakeTake) {
+      throw new Error('The retake job started, but Vision Studio could not create a candidate take record.');
+    }
+
+    retakeTakeId = retakeTake.id;
+    state.updateClipRetakeTake(retakeTake.id, { status: 'queued' });
+  }
+
   const jobParams = {
     ...submitPayload,
     output_root: outputRoot,
@@ -307,11 +394,13 @@ export async function runTimelineClipGeneration({
     timelineOperation: operation,
     timelineSequenceId: targetSequence.id,
     timelineClipId: targetClip?.id ?? null,
+    timelineRetakeRangeId: targetRetakeRange?.id ?? null,
+    timelineRetakeTakeId: retakeTakeId,
   };
 
   state.addJob({
     id: jobId,
-    type: resolved.generationType,
+    type: providerResolved.generationType,
     status: 'pending',
     progress: 0,
     params: jobParams,
@@ -380,6 +469,10 @@ export async function runTimelineClipGeneration({
       });
     }
 
+    if (retakeTakeId) {
+      state.updateClipRetakeTake(retakeTakeId, { status: 'rendering' });
+    }
+
     if (pollIntervalMs > 0) {
       await delay(pollIntervalMs);
     }
@@ -397,6 +490,9 @@ export async function runTimelineClipGeneration({
           errorMessage: timeoutMessage,
         },
       });
+    }
+    if (retakeTakeId) {
+      state.updateClipRetakeTake(retakeTakeId, { status: 'failed' });
     }
     throw new Error(timeoutMessage);
   }
@@ -418,6 +514,9 @@ export async function runTimelineClipGeneration({
         },
       });
     }
+    if (retakeTakeId) {
+      state.updateClipRetakeTake(retakeTakeId, { status: 'failed' });
+    }
     onStatusChange?.({
       isGenerating: false,
       status: 'idle',
@@ -429,6 +528,7 @@ export async function runTimelineClipGeneration({
       clipId: targetClip?.id ?? null,
       outputAssetId: null,
       bindingId: nextBindingBase?.id ?? null,
+      retakeTakeId,
     };
   }
 
@@ -450,6 +550,9 @@ export async function runTimelineClipGeneration({
           errorMessage: failureMessage,
         },
       });
+    }
+    if (retakeTakeId) {
+      state.updateClipRetakeTake(retakeTakeId, { status: 'failed' });
     }
     await electron.notifications.notify('generation_failed', {
       title: 'Timeline Generation Failed',
@@ -487,37 +590,58 @@ export async function runTimelineClipGeneration({
   }
 
   const outputMediaAssetId = outputMediaAsset?.id ?? null;
-  const targetTrackForOutput = ensureTargetTrack(store, targetSequence.id, resolved.generationType);
+  const targetTrackForOutput =
+    operation === 'retake'
+      ? null
+      : ensureTargetTrack(store, targetSequence.id, providerResolved.generationType);
   const durationMs = resolveClipDurationMs({
     mediaAsset: outputMediaAsset,
-    generationType: resolved.generationType,
+    generationType: providerResolved.generationType,
     existingClip: targetClip,
-    resolved,
+    resolved: providerResolved,
   });
 
   let resultingClipId = targetClip?.id ?? null;
   let resultingBindingId = nextBindingBase?.id ?? null;
 
-  if (operation === 'regenerate' && targetClip && outputMediaAsset) {
+  if (operation === 'retake' && targetClip && targetRetakeRange && retakeTakeId && outputMediaAsset) {
+    state.updateClipRetakeTake(retakeTakeId, {
+      mediaAssetId: outputMediaAsset.id,
+      prompt: providerResolved.prompt,
+      negativePrompt: providerResolved.negativePrompt,
+      model: providerResolved.model,
+      status: 'candidate',
+      settings: {
+        ...buildBindingSettings(providerResolved, operation, targetClip.id),
+        jobId,
+        retakeRangeStartMs: targetRetakeRange.startMs,
+        retakeRangeEndMs: targetRetakeRange.endMs,
+        retakeRangeDurationMs: targetRetakeRange.endMs - targetRetakeRange.startMs,
+      },
+      referenceSetIds: providerResolved.referenceSetIds,
+    });
+    resultingClipId = targetClip.id;
+    resultingBindingId = existingBinding?.id ?? null;
+  } else if (operation === 'regenerate' && targetClip && outputMediaAsset) {
     state.updateTimelineClip(targetClip.id, {
       mediaAssetId: outputMediaAsset.id,
       durationMs,
       sourceInMs: 0,
       sourceOutMs: durationMs,
       posterUrl: outputMediaAsset.posterUrl,
-      referenceSetIds: resolved.referenceSetIds,
+      referenceSetIds: providerResolved.referenceSetIds,
       label: targetClip.label,
     });
 
     const binding: ClipGenerationBinding = {
       ...(store.getState().clipGenerationBindings.find((binding) => binding.id === nextBindingBase!.id) ??
         nextBindingBase!),
-      prompt: resolved.prompt,
-      negativePrompt: resolved.negativePrompt,
-      model: resolved.model,
-      generationType: resolved.generationType,
-      settings: buildBindingSettings(resolved, operation, targetClip.id),
-      referenceSetIds: resolved.referenceSetIds,
+      prompt: providerResolved.prompt,
+      negativePrompt: providerResolved.negativePrompt,
+      model: providerResolved.model,
+      generationType: providerResolved.generationType,
+      settings: buildBindingSettings(providerResolved, operation, targetClip.id),
+      referenceSetIds: providerResolved.referenceSetIds,
       lastRunSummary: {
         status: 'complete',
         outputMediaAssetId,
@@ -542,9 +666,9 @@ export async function runTimelineClipGeneration({
       durationMs,
       sourceInMs: 0,
       sourceOutMs: durationMs,
-      label: buildGeneratedClipLabel(operation, resolved.prompt, targetClip, resolved.generationType),
+      label: buildGeneratedClipLabel(operation, providerResolved.prompt, targetClip, providerResolved.generationType),
       posterUrl: outputMediaAsset.posterUrl,
-      referenceSetIds: resolved.referenceSetIds,
+      referenceSetIds: providerResolved.referenceSetIds,
     });
 
     if (!createdClip) {
@@ -555,12 +679,12 @@ export async function runTimelineClipGeneration({
     const binding: ClipGenerationBinding = {
       id: bindingId,
       clipId: createdClip.id,
-      prompt: resolved.prompt,
-      negativePrompt: resolved.negativePrompt,
-      model: resolved.model,
-      generationType: resolved.generationType,
-      settings: buildBindingSettings(resolved, operation, targetClip?.id ?? null),
-      referenceSetIds: resolved.referenceSetIds,
+      prompt: providerResolved.prompt,
+      negativePrompt: providerResolved.negativePrompt,
+      model: providerResolved.model,
+      generationType: providerResolved.generationType,
+      settings: buildBindingSettings(providerResolved, operation, targetClip?.id ?? null),
+      referenceSetIds: providerResolved.referenceSetIds,
       variantIds: [],
       lastRunSummary: {
         status: 'complete',
@@ -587,8 +711,8 @@ export async function runTimelineClipGeneration({
   }
 
   await electron.notifications.notify('generation_complete', {
-    title: 'Timeline Clip Ready',
-    body: resolved.prompt.slice(0, 120) || 'Timeline generation completed successfully.',
+    title: operation === 'retake' ? 'Retake Candidate Ready' : 'Timeline Clip Ready',
+    body: providerResolved.prompt.slice(0, 120) || 'Timeline generation completed successfully.',
   });
 
   return {
@@ -596,6 +720,7 @@ export async function runTimelineClipGeneration({
     clipId: resultingClipId,
     outputAssetId,
     bindingId: resultingBindingId,
+    retakeTakeId,
   };
 }
 

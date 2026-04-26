@@ -5,9 +5,11 @@ vi.mock('@/components/generate/PromptArea', () => ({
   PromptArea: ({
     prompt,
     onPromptChange,
+    onEnhance,
   }: {
     prompt: string;
     onPromptChange: (value: string) => void;
+    onEnhance: () => void;
   }) => (
     <div>
       <label htmlFor="mock-prompt-input">Prompt</label>
@@ -17,6 +19,9 @@ vi.mock('@/components/generate/PromptArea', () => ({
         value={prompt}
         onChange={(event) => onPromptChange(event.target.value)}
       />
+      <button type="button" onClick={onEnhance}>
+        Enhance Prompt
+      </button>
     </div>
   ),
 }));
@@ -171,9 +176,38 @@ function installElectronGenerationMock() {
         defaultOutputPath: '',
       }),
     },
+    accounts: {
+      list: vi.fn().mockResolvedValue({
+        activeAccountId: 'account-primary',
+        accounts: [
+          {
+            id: 'account-primary',
+            name: 'Primary',
+            createdAt: '2026-04-24T00:00:00.000Z',
+            updatedAt: '2026-04-24T00:00:00.000Z',
+            preferences: {
+              promptEnhancementProvider: 'local',
+              openRouterModel: '',
+              imageGenerationProvider: 'local',
+              openRouterImageModel: '',
+            },
+            openRouter: {
+              apiKeyStored: false,
+              keyLabel: null,
+              lastValidatedAt: null,
+            },
+          },
+        ],
+      }),
+    },
     generation: {
       generateImage: vi.fn().mockResolvedValue({ success: true, jobId: 'job-generate-image-1' }),
       generateVideo: vi.fn().mockResolvedValue({ success: true, jobId: 'job-generate-video-1' }),
+      enhancePrompt: vi.fn().mockResolvedValue({
+        success: true,
+        prompt: 'enhanced prompt from service',
+        variations: [],
+      }),
       getStatus: vi.fn().mockResolvedValue({
         job_id: 'job-generate-image-1',
         status: 'completed',
@@ -522,5 +556,75 @@ describe('GeneratePanel', () => {
       expect(window.electron.generation.generateImage).not.toHaveBeenCalled();
       expect(screen.getByText('Pose Guide needs a source image or reference target.')).toBeInTheDocument();
     });
+  });
+
+  it('surfaces prompt enhancement errors instead of failing silently', async () => {
+    window.electron.generation.enhancePrompt = vi.fn().mockResolvedValue({
+      success: false,
+      error: 'OpenRouter key is invalid.',
+    });
+
+    render(<GeneratePanel />);
+
+    fireEvent.change(screen.getByTestId('mock-prompt-input'), {
+      target: { value: 'hero close-up' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Enhance Prompt' }));
+
+    await waitFor(() => {
+      expect(window.electron.generation.enhancePrompt).toHaveBeenCalledWith({
+        prompt: 'hero close-up',
+        mode: 'clarify',
+      });
+      expect(screen.getByText('OpenRouter key is invalid.')).toBeInTheDocument();
+    });
+  });
+
+  it('allows still-image generation through OpenRouter when the local backend is offline', async () => {
+    useAppStore.setState((state) => ({
+      systemInfo: {
+        ...state.systemInfo,
+        backendConnected: false,
+      },
+    }));
+    window.electron.accounts.list = vi.fn().mockResolvedValue({
+      activeAccountId: 'account-primary',
+      accounts: [
+        {
+          id: 'account-primary',
+          name: 'Primary',
+          createdAt: '2026-04-24T00:00:00.000Z',
+          updatedAt: '2026-04-24T00:00:00.000Z',
+          preferences: {
+            promptEnhancementProvider: 'local',
+            openRouterModel: '',
+            imageGenerationProvider: 'openrouter',
+            openRouterImageModel: 'google/gemini-2.5-flash-image',
+          },
+          openRouter: {
+            apiKeyStored: true,
+            keyLabel: 'Primary Key',
+            lastValidatedAt: '2026-04-24T00:00:00.000Z',
+          },
+        },
+      ],
+    });
+
+    render(<GeneratePanel />);
+
+    fireEvent.change(screen.getByTestId('mock-prompt-input'), {
+      target: { value: 'hero close-up in warm window light' },
+    });
+    fireEvent.click(screen.getByTestId('generate-button'));
+
+    await waitFor(() => {
+      expect(window.electron.generation.generateImage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          prompt: 'hero close-up in warm window light',
+          model: 'google/gemini-2.5-flash-image',
+        }),
+      );
+    });
+    expect(await screen.findByText('OpenRouter Still Image Route')).toBeInTheDocument();
   });
 });

@@ -2,7 +2,9 @@ import type { StoreApi, UseBoundStore } from 'zustand';
 
 import type { AppState } from '@/store/appStore.types';
 import { useAppStore } from '@/store/appStore';
-import type { JobStatus, GenerationParams } from '@/types/electron';
+import type { JobStatus, GenerationParams, UserAccountsSnapshot } from '@/types/electron';
+import { getActiveUserAccount, resolveStillImageRoute } from '@/features/accounts/providerRouting';
+import type { WorkflowExecutionIssue, WorkflowExecutionSummary, WorkflowGenerationRequest } from '@/types/workflow';
 import { resolveWorkflowGenerationRequest } from './resolveWorkflowGenerationRequest';
 import { validateWorkflowExecution } from './validateWorkflowExecution';
 
@@ -16,6 +18,9 @@ interface WorkflowExecutionElectronApi {
     get: () => Promise<{
       defaultOutputPath: string;
     }>;
+  };
+  accounts: {
+    list: () => Promise<UserAccountsSnapshot>;
   };
   generation: {
     generateImage: (params: GenerationParams) => Promise<{ success: boolean; jobId?: string; error?: string }>;
@@ -48,36 +53,42 @@ export async function runWorkflowExecution({
     return;
   }
 
+  const accountSnapshot = await electron.accounts.list().catch(() => null);
+  const stillImageRoute = resolveStillImageRoute(getActiveUserAccount(accountSnapshot));
+
   const context = buildWorkflowExecutionContext(state);
   const validation = validateWorkflowExecution(workflow, context);
-
-  if (!state.systemInfo.backendConnected) {
-    validation.issues = [
-      ...validation.issues,
-      {
-        severity: 'error',
-        code: 'backend-unavailable',
-        message: 'The AI backend is not running.',
-      },
-    ];
-  }
+  const routedValidation = applyWorkflowExecutionRoute({
+    issues: validation.issues,
+    summary: validation.summary,
+    stillImageRoute,
+    backendConnected: state.systemInfo.backendConnected,
+  });
 
   state.setWorkflowRuntimeState(workflowId, {
-    issues: validation.issues,
-    lastResolvedRequest: validation.summary,
+    issues: routedValidation.issues,
+    lastResolvedRequest: routedValidation.summary,
     lastFailureMessage: null,
   });
 
-  if (validation.issues.some((issue) => issue.severity === 'error') || !validation.summary) {
+  if (routedValidation.issues.some((issue) => issue.severity === 'error') || !routedValidation.summary) {
     state.setWorkflowStatus(workflowId, 'ready');
     return;
   }
 
   const resolution = resolveWorkflowGenerationRequest(workflow, context);
-  if (!resolution.request || resolution.issues.some((issue) => issue.severity === 'error')) {
+  const routedResolution = applyWorkflowExecutionRoute({
+    issues: resolution.issues,
+    request: resolution.request,
+    summary: resolution.summary,
+    stillImageRoute,
+    backendConnected: state.systemInfo.backendConnected,
+  });
+
+  if (!routedResolution.request || routedResolution.issues.some((issue) => issue.severity === 'error')) {
     state.setWorkflowRuntimeState(workflowId, {
-      issues: resolution.issues,
-      lastResolvedRequest: resolution.summary,
+      issues: routedResolution.issues,
+      lastResolvedRequest: routedResolution.summary,
     });
     state.setWorkflowStatus(workflowId, 'ready');
     return;
@@ -89,7 +100,7 @@ export async function runWorkflowExecution({
     activeJobId: null,
     lastRunId: runId,
     lastFailureMessage: null,
-    lastResolvedRequest: resolution.summary,
+    lastResolvedRequest: routedResolution.summary,
   });
   state.recordWorkflowRun(workflowId, {
     id: runId,
@@ -104,7 +115,7 @@ export async function runWorkflowExecution({
     const scheduler = context.generationDraft?.scheduler ?? state.advancedGeneration.scheduler;
 
     const submitResult = await electron.generation.generateImage({
-      ...resolution.request,
+      ...routedResolution.request,
       ...(scheduler ? { scheduler } : {}),
     });
 
@@ -119,7 +130,7 @@ export async function runWorkflowExecution({
       status: 'pending',
       progress: 0,
       params: {
-        ...resolution.request,
+        ...routedResolution.request,
         ...(scheduler ? { scheduler } : {}),
         output_root: outputRoot,
         workflowId,
@@ -185,7 +196,7 @@ export async function runWorkflowExecution({
 
       await electron.notifications.notify('generation_complete', {
         title: 'Workflow Ready',
-        body: resolution.summary.prompt.slice(0, 120) || 'Workflow completed successfully.',
+        body: routedResolution.summary?.prompt.slice(0, 120) || 'Workflow completed successfully.',
       });
 
       state.recordWorkflowRun(workflowId, {
@@ -274,4 +285,69 @@ export function delay(ms: number) {
   return new Promise((resolve) => {
     setTimeout(resolve, ms);
   });
+}
+
+function applyWorkflowExecutionRoute({
+  issues,
+  request,
+  summary,
+  stillImageRoute,
+  backendConnected,
+}: {
+  issues: WorkflowExecutionIssue[];
+  request?: WorkflowGenerationRequest | null;
+  summary?: WorkflowExecutionSummary | null;
+  stillImageRoute: ReturnType<typeof resolveStillImageRoute>;
+  backendConnected: boolean;
+}) {
+  let nextIssues = [...issues];
+  let nextRequest = request ?? null;
+  let nextSummary = summary ?? null;
+
+  if (!backendConnected && stillImageRoute.provider !== 'openrouter') {
+    nextIssues = appendWorkflowIssue(nextIssues, {
+      severity: 'error',
+      code: 'backend-unavailable',
+      message: 'The AI backend is not running.',
+    });
+  }
+
+  if (stillImageRoute.provider === 'openrouter') {
+    if (stillImageRoute.error) {
+      nextIssues = appendWorkflowIssue(nextIssues, {
+        severity: 'error',
+        code: 'provider-config',
+        message: stillImageRoute.error,
+      });
+    } else if (stillImageRoute.model) {
+      if (nextRequest) {
+        nextRequest = {
+          ...nextRequest,
+          model: stillImageRoute.model,
+        };
+      }
+      if (nextSummary) {
+        nextSummary = {
+          ...nextSummary,
+          model: stillImageRoute.model,
+        };
+      }
+    }
+  }
+
+  return {
+    issues: nextIssues,
+    request: nextRequest,
+    summary: nextSummary,
+  };
+}
+
+function appendWorkflowIssue(issues: WorkflowExecutionIssue[], issue: WorkflowExecutionIssue) {
+  const exists = issues.some(
+    (entry) =>
+      entry.code === issue.code &&
+      entry.message === issue.message &&
+      entry.nodeId === issue.nodeId,
+  );
+  return exists ? issues : [...issues, issue];
 }

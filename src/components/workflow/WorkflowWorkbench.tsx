@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react';
 import { AlertCircle, Loader2, Play, ShieldCheck } from 'lucide-react';
 
+import type { UserAccountSummary } from '@/types/electron';
+import type { WorkflowExecutionIssue, WorkflowExecutionSummary } from '@/types/workflow';
+import { getActiveUserAccount, resolveStillImageRoute } from '@/features/accounts/providerRouting';
 import { exportWorkflowGraphToComfyPrompt } from '@/features/workflow/comfyExport';
 import { createWorkflowNodeFromClassType } from '@/features/workflow/nodeDefaults';
 import { runWorkflowExecution } from '@/features/workflow/runWorkflowExecution';
@@ -51,6 +54,7 @@ export function WorkflowWorkbench() {
   );
   const [exportedJson, setExportedJson] = useState<string | null>(null);
   const [exportError, setExportError] = useState<string | null>(null);
+  const [activeAccount, setActiveAccount] = useState<UserAccountSummary | null>(null);
   const activeWorkflow =
     workflowRecords.find((workflow) => workflow.id === activeWorkflowId) ?? workflowRecords[0];
   const activeScene = getActiveScene(projects, activeProjectId, activeSceneId);
@@ -64,11 +68,35 @@ export function WorkflowWorkbench() {
   const hasBlockingIssues = runtime.issues.some((issue) => issue.severity === 'error');
   const isRunning = activeWorkflow.status === 'running' || Boolean(runtime.activeJobId);
   const showRunOutputRail = activeWorkflow.runHistory.length > 0 || isRunning;
+  const stillImageRoute = resolveStillImageRoute(activeAccount);
+  const workflowCanRunWithoutBackend =
+    stillImageRoute.provider === 'openrouter' && stillImageRoute.configured;
 
   useEffect(() => {
     setExportedJson(null);
     setExportError(null);
   }, [activeWorkflow.id]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    void window.electron.accounts
+      .list()
+      .then((snapshot) => {
+        if (!cancelled) {
+          setActiveAccount(getActiveUserAccount(snapshot));
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setActiveAccount(null);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   function handleExportComfyJson() {
     try {
@@ -80,17 +108,23 @@ export function WorkflowWorkbench() {
     }
   }
 
-  function handleValidate() {
+  async function handleValidate() {
+    const snapshot = await window.electron.accounts.list().catch(() => null);
+    const nextActiveAccount = getActiveUserAccount(snapshot);
+    setActiveAccount(nextActiveAccount);
+    const nextStillImageRoute = resolveStillImageRoute(nextActiveAccount);
     const result = validateWorkflowExecution(activeWorkflow, {
       activeScenePrompt: activeScene?.prompt ?? null,
       activeSceneNegativePrompt: activeScene?.negativePrompt ?? null,
       generationDraft,
       availableModels,
     });
+    const nextIssues = applyWorkflowExecutionValidationRoute(result.issues, nextStillImageRoute, systemInfo.backendConnected);
+    const nextSummary = applyWorkflowExecutionSummaryRoute(result.summary, nextStillImageRoute);
 
     setWorkflowRuntimeState(activeWorkflow.id, {
-      issues: result.issues,
-      lastResolvedRequest: result.summary,
+      issues: nextIssues,
+      lastResolvedRequest: nextSummary,
       lastFailureMessage: null,
     });
   }
@@ -165,6 +199,21 @@ export function WorkflowWorkbench() {
 
           <div>
             <p className="type-ui text-text-muted">Execution</p>
+            <div className="mt-2 rounded-md border border-border bg-elevated px-3 py-3">
+              <p className="type-ui text-text-primary">{stillImageRoute.providerLabel}</p>
+              <p className="mt-1 type-caption text-text-body">
+                {stillImageRoute.provider === 'openrouter'
+                  ? `Account ${activeAccount?.name ?? 'No active account'} / Model ${stillImageRoute.model || 'Not set in Settings'}`
+                  : 'Workflow still-image runs use the local backend and installed checkpoints.'}
+              </p>
+              {!systemInfo.backendConnected ? (
+                <p className="mt-2 type-caption text-text-muted">
+                  {workflowCanRunWithoutBackend
+                    ? 'Local backend is offline, but OpenRouter-hosted still-image runs remain available.'
+                    : 'Local backend is offline. Workflow runs stay blocked until it comes back.'}
+                </p>
+              ) : null}
+            </div>
             {runtime.lastResolvedRequest ? (
               <div className="mt-2 rounded-md border border-border bg-elevated px-3 py-3">
                 <p className="type-ui text-text-primary">{runtime.lastResolvedRequest.model}</p>
@@ -228,7 +277,12 @@ export function WorkflowWorkbench() {
             <button
               type="button"
               onClick={handleRunWorkflow}
-              disabled={hasBlockingIssues || isRunning || !systemInfo.backendConnected}
+              disabled={
+                hasBlockingIssues ||
+                isRunning ||
+                (!systemInfo.backendConnected && !workflowCanRunWithoutBackend) ||
+                Boolean(stillImageRoute.error)
+              }
               className="inline-flex items-center gap-2 rounded-md border border-accent-primary-border bg-accent-primary-muted px-3 py-1.5 type-ui text-accent-primary transition-all hover:border-accent-primary disabled:cursor-not-allowed disabled:opacity-50"
             >
               {isRunning ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
@@ -370,4 +424,58 @@ function getActiveScene(
 ) {
   const activeProject = projects.find((project) => project.id === activeProjectId);
   return activeProject?.scenes.find((scene) => scene.id === activeSceneId) ?? null;
+}
+
+function applyWorkflowExecutionValidationRoute(
+  issues: WorkflowExecutionIssue[],
+  stillImageRoute: ReturnType<typeof resolveStillImageRoute>,
+  backendConnected: boolean,
+) {
+  let nextIssues = [...issues];
+
+  if (!backendConnected && stillImageRoute.provider !== 'openrouter') {
+    nextIssues = appendWorkflowIssue(nextIssues, {
+      severity: 'error',
+      code: 'backend-unavailable',
+      message: 'The AI backend is not running.',
+    });
+  }
+
+  if (stillImageRoute.provider === 'openrouter' && stillImageRoute.error) {
+    nextIssues = appendWorkflowIssue(nextIssues, {
+      severity: 'error',
+      code: 'provider-config',
+      message: stillImageRoute.error,
+    });
+  }
+
+  return nextIssues;
+}
+
+function applyWorkflowExecutionSummaryRoute(
+  summary: WorkflowExecutionSummary | null,
+  stillImageRoute: ReturnType<typeof resolveStillImageRoute>,
+) {
+  if (!summary) {
+    return null;
+  }
+
+  if (stillImageRoute.provider === 'openrouter' && stillImageRoute.model) {
+    return {
+      ...summary,
+      model: stillImageRoute.model,
+    };
+  }
+
+  return summary;
+}
+
+function appendWorkflowIssue(issues: WorkflowExecutionIssue[], issue: WorkflowExecutionIssue) {
+  const exists = issues.some(
+    (entry) =>
+      entry.code === issue.code &&
+      entry.message === issue.message &&
+      entry.nodeId === issue.nodeId,
+  );
+  return exists ? issues : [...issues, issue];
 }

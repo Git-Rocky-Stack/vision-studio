@@ -305,10 +305,75 @@ describe('TimelineClipInspector', () => {
     await user.click(screen.getByRole('button', { name: 'Playhead To Out' }));
     expect(useAppStore.getState().currentTime).toBeGreaterThanOrEqual(clip.startMs + 1000);
 
+    await user.click(screen.getByTestId('timeline-retake-inspector-accept'));
+    expect(useAppStore.getState().clipRetakeTakes.find((item) => item.id === take.id)?.status).toBe('accepted');
+
+    await user.click(screen.getByTestId('timeline-retake-inspector-revert'));
+    expect(useAppStore.getState().clipRetakeTakes.find((item) => item.id === take.id)?.status).toBe('candidate');
+
+    await user.click(screen.getByTestId('timeline-retake-inspector-reject'));
+    expect(useAppStore.getState().clipRetakeTakes.find((item) => item.id === take.id)?.status).toBe('rejected');
+
     await user.click(screen.getByTestId('timeline-retake-delete-range'));
     expect(
       useAppStore.getState().timelineClips.find((item) => item.id === clip.id)?.retakeRanges,
     ).toEqual([]);
+  });
+
+  it('selects the newest candidate take when a retake range is chosen', async () => {
+    const user = userEvent.setup();
+    const { clip } = seedTimelineFixture();
+    const state = useAppStore.getState();
+
+    state.upsertMediaAsset({
+      id: 'media-video-retake-2',
+      name: 'Hero Shot Retake 2',
+      type: 'video',
+      source: 'generated',
+      path: '/outputs/hero-retake-2.mp4',
+      previewUrl: '/outputs/hero-retake-2.mp4',
+      thumbnailUrl: '/outputs/hero-retake-2.jpg',
+      posterUrl: '/outputs/hero-retake-2.jpg',
+      durationMs: 4000,
+      fps: 24,
+      metadata: {},
+      createdAt: '2026-04-24T00:00:00.000Z',
+    });
+
+    const range = state.createTimelineClipRetakeRange(clip.id, {
+      startMs: 250,
+      endMs: 1100,
+    })!;
+    const firstTake = state.createClipRetakeTake({
+      clipId: clip.id,
+      retakeRangeId: range.id,
+      mediaAssetId: 'media-video',
+      prompt: 'first pass',
+    })!;
+    const secondTake = state.createClipRetakeTake({
+      clipId: clip.id,
+      retakeRangeId: range.id,
+      mediaAssetId: 'media-video-retake-2',
+      prompt: 'second pass',
+    })!;
+
+    useAppStore.setState((current) => ({
+      clipRetakeTakes: current.clipRetakeTakes.map((take) =>
+        take.id === firstTake.id
+          ? { ...take, createdAt: '2026-04-24T00:01:00.000Z' }
+          : take.id === secondTake.id
+            ? { ...take, createdAt: '2026-04-24T00:02:00.000Z' }
+            : take,
+      ),
+      activeTimelineRetakeRangeId: null,
+      activeTimelineRetakeTakeId: null,
+    }));
+
+    render(<TimelineClipInspector />);
+
+    await user.click(screen.getByTestId(`timeline-retake-range-${range.id}`));
+
+    expect(useAppStore.getState().activeTimelineRetakeTakeId).toBe(secondTake.id);
   });
 
   it('shows retake blocked messaging for non-video clips', () => {

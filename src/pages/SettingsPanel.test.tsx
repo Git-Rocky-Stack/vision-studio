@@ -1,0 +1,184 @@
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { useAppStore } from '@/store/appStore';
+
+import { SettingsPanel } from './SettingsPanel';
+
+function installElectronMock() {
+  useAppStore.setState({
+    ...useAppStore.getInitialState(),
+    systemInfo: {
+      ...useAppStore.getInitialState().systemInfo,
+      backendConnected: true,
+    },
+  });
+
+  window.electron = {
+    settings: {
+      get: vi.fn().mockResolvedValue({
+        theme: 'dark',
+        autoSave: true,
+        defaultOutputPath: '',
+        backendAutostart: true,
+        notifyOnGenerationComplete: true,
+        notifyOnGenerationFailed: true,
+        notifyOnModelDownloads: true,
+        pythonPath: '',
+      }),
+      update: vi.fn().mockResolvedValue({
+        theme: 'dark',
+        autoSave: true,
+        defaultOutputPath: '',
+        backendAutostart: true,
+        notifyOnGenerationComplete: true,
+        notifyOnGenerationFailed: true,
+        notifyOnModelDownloads: true,
+        pythonPath: '',
+      }),
+    },
+    accounts: {
+      list: vi.fn().mockResolvedValue({
+        activeAccountId: 'account-primary',
+        accounts: [
+          {
+            id: 'account-primary',
+            name: 'Primary',
+            createdAt: '2026-04-24T00:00:00.000Z',
+            updatedAt: '2026-04-24T00:00:00.000Z',
+            preferences: {
+              promptEnhancementProvider: 'openrouter',
+              openRouterModel: 'openai/gpt-4o-mini',
+              imageGenerationProvider: 'openrouter',
+              openRouterImageModel: 'google/gemini-2.5-flash-image',
+            },
+            openRouter: {
+              apiKeyStored: true,
+              keyLabel: 'Primary Key',
+              lastValidatedAt: '2026-04-24T00:00:00.000Z',
+            },
+          },
+        ],
+      }),
+      update: vi.fn().mockImplementation(async () => ({
+        activeAccountId: 'account-primary',
+        accounts: [
+          {
+            id: 'account-primary',
+            name: 'Primary',
+            createdAt: '2026-04-24T00:00:00.000Z',
+            updatedAt: '2026-04-24T00:00:00.000Z',
+            preferences: {
+              promptEnhancementProvider: 'openrouter',
+              openRouterModel: 'openai/gpt-4o-mini',
+              imageGenerationProvider: 'openrouter',
+              openRouterImageModel: 'google/gemini-2.5-flash-image',
+            },
+            openRouter: {
+              apiKeyStored: true,
+              keyLabel: 'Primary Key',
+              lastValidatedAt: '2026-04-24T00:00:00.000Z',
+            },
+          },
+        ],
+      })),
+      create: vi.fn(),
+      delete: vi.fn(),
+      setActive: vi.fn(),
+      setOpenRouterApiKey: vi.fn(),
+      clearOpenRouterApiKey: vi.fn(),
+    },
+    openrouter: {
+      getKeyInfo: vi.fn().mockResolvedValue({
+        success: true,
+        keyInfo: {
+          label: 'Primary Key',
+          limit: 25,
+          limitRemaining: 18.5,
+          usage: 6.5,
+          usageDaily: 1.2,
+          usageWeekly: 3.1,
+          usageMonthly: 6.5,
+          byokUsage: 0.4,
+          includeByokInLimit: false,
+          isFreeTier: false,
+          expiresAt: '2027-12-31T23:59:59Z',
+        },
+      }),
+      listModels: vi.fn().mockResolvedValue({ success: true, models: [] }),
+      listImageModels: vi.fn().mockResolvedValue({ success: true, models: [] }),
+      testConnection: vi.fn().mockResolvedValue({
+        success: true,
+        keyInfo: {
+          label: 'Primary Key',
+          limit: 25,
+          limitRemaining: 18.5,
+          usage: 6.5,
+          usageDaily: 1.2,
+          usageWeekly: 3.1,
+          usageMonthly: 6.5,
+          byokUsage: 0.4,
+          includeByokInLimit: false,
+          isFreeTier: false,
+          expiresAt: '2027-12-31T23:59:59Z',
+        },
+      }),
+    },
+    dialog: {
+      selectFolder: vi.fn().mockResolvedValue(null),
+      saveFile: vi.fn().mockResolvedValue(null),
+    },
+    app: {
+      getPath: vi.fn().mockResolvedValue('C:/Users/User/AppData/Roaming/VisionStudio'),
+    },
+    assets: {
+      clearCache: vi.fn().mockResolvedValue({ success: true }),
+    },
+    backend: {
+      start: vi.fn().mockResolvedValue({ success: true }),
+      getStatus: vi.fn().mockResolvedValue({ running: true, bundled: true }),
+    },
+    system: {
+      getInfo: vi.fn().mockResolvedValue({
+        gpu_available: true,
+        gpu_name: 'NVIDIA RTX',
+        gpu_vram: '12 GB',
+        cuda_version: '12.4',
+        comfyui_connected: true,
+        models_count: 3,
+        backendConnected: true,
+      }),
+    },
+    models: {
+      list: vi.fn().mockResolvedValue([]),
+      download: vi.fn().mockResolvedValue({ success: true }),
+      getStatus: vi.fn().mockResolvedValue(null),
+      delete: vi.fn().mockResolvedValue({ success: true }),
+    },
+    notifications: {
+      notify: vi.fn().mockResolvedValue({ success: true }),
+    },
+  } as unknown as typeof window.electron;
+}
+
+describe('SettingsPanel', () => {
+  beforeEach(() => {
+    installElectronMock();
+  });
+
+  afterEach(cleanup);
+
+  it('shows live OpenRouter key usage data for the active account', async () => {
+    render(<SettingsPanel />);
+
+    fireEvent.click(screen.getByRole('button', { name: /AI & Models/i }));
+
+    expect(await screen.findByText('Key Usage')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText('Credit Remaining')).toBeInTheDocument();
+      expect(screen.getByText('$18.50 / $25.00')).toBeInTheDocument();
+      expect(screen.getByText('$6.50')).toBeInTheDocument();
+      expect(screen.getByText('$0.40')).toBeInTheDocument();
+    });
+  });
+});

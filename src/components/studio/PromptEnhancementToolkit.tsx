@@ -6,9 +6,11 @@ interface PromptEnhancementToolkitProps {
   onEnhance: () => void;
   onExpand: () => void;
   onNegativeSuggest: () => void;
-  onStyleTransfer: (modifier: string) => void;
+  onStyleTransfer: () => void;
   isEnhancing?: boolean;
   isExpanding?: boolean;
+  isNegativeSuggesting?: boolean;
+  isStyleTransferActive?: boolean;
 }
 
 interface ToolButtonConfig {
@@ -18,6 +20,7 @@ interface ToolButtonConfig {
   onClick: () => void;
   isLoading: boolean;
   description: string;
+  isActive?: boolean;
 }
 
 /**
@@ -33,6 +36,8 @@ export const PromptEnhancementToolkit = memo(
     onStyleTransfer,
     isEnhancing = false,
     isExpanding = false,
+    isNegativeSuggesting = false,
+    isStyleTransferActive = false,
   }: PromptEnhancementToolkitProps) {
     const tools: ToolButtonConfig[] = [
       {
@@ -47,9 +52,10 @@ export const PromptEnhancementToolkit = memo(
         id: 'style-transfer',
         label: 'Style Transfer',
         icon: Sparkles,
-        onClick: () => onStyleTransfer(''),
+        onClick: onStyleTransfer,
         isLoading: false,
         description: 'Apply artistic style modifiers to prompt',
+        isActive: isStyleTransferActive,
       },
       {
         id: 'expand',
@@ -64,7 +70,7 @@ export const PromptEnhancementToolkit = memo(
         label: 'Negative Suggest',
         icon: Shuffle,
         onClick: onNegativeSuggest,
-        isLoading: false,
+        isLoading: isNegativeSuggesting,
         description: 'Generate smart negative prompt suggestions',
       },
     ];
@@ -85,6 +91,8 @@ export const PromptEnhancementToolkit = memo(
                 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary/30',
                 tool.isLoading
                   ? 'cursor-wait border-border bg-elevated/50 text-text-muted/50'
+                  : tool.isActive
+                    ? 'border-accent-primary-border bg-accent-primary-muted/50 text-accent-primary'
                   : 'border-border bg-surface text-text-muted hover:border-border-hover hover:bg-elevated hover:text-text-primary active:bg-void',
               )}
             >

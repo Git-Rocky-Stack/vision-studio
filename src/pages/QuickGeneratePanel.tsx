@@ -4,7 +4,8 @@ import { useAppStore } from '@/store/appStore';
 import { Button } from '@/components/ui/Button';
 import { ModelSelector } from '@/components/generate/ModelSelector';
 import { cn } from '@/utils/cn';
-import { Wand2, Loader2, CheckCircle2, AlertCircle, X } from 'lucide-react';
+import type { UserAccountSummary } from '@/types/electron';
+import { Wand2, Loader2, CheckCircle2, AlertCircle, Cloud, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const ASPECT_RATIOS = [
@@ -44,12 +45,23 @@ export function QuickGeneratePanel() {
   const [negativePrompt, setNegativePrompt] = useState('');
   const [selectedModel, setSelectedModel] = useState('flux-dev');
   const [selectedRatio, setSelectedRatio] = useState(ASPECT_RATIOS[0]);
+  const [activeAccount, setActiveAccount] = useState<UserAccountSummary | null>(null);
   const [genStatus, setGenStatus] = useState<GenStatus>({
     isGenerating: false,
     progress: 0,
     status: 'idle',
     errorMessage: '',
   });
+
+  const syncActiveAccount = useCallback(async () => {
+    const snapshot = await window.electron.accounts.list();
+    const nextActiveAccount =
+      snapshot.accounts.find((account) => account.id === snapshot.activeAccountId) ??
+      snapshot.accounts[0] ??
+      null;
+    setActiveAccount(nextActiveAccount);
+    return nextActiveAccount;
+  }, []);
 
   const pollJobStatus = useCallback(
     async (jobId: string) => {
@@ -152,6 +164,10 @@ export function QuickGeneratePanel() {
 
   // Cleanup on unmount
   useEffect(() => {
+    void syncActiveAccount();
+  }, [syncActiveAccount]);
+
+  useEffect(() => {
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
       if (unwatchRef.current) unwatchRef.current();
@@ -164,8 +180,34 @@ export function QuickGeneratePanel() {
     if (isGeneratingRef.current) return;
     isGeneratingRef.current = true;
 
-    // Guard: backend must be connected to generate
-    if (!systemInfo.backendConnected) {
+    const latestActiveAccount = await syncActiveAccount();
+    const useOpenRouterImage =
+      latestActiveAccount?.preferences.imageGenerationProvider === 'openrouter';
+    const openRouterImageModel = latestActiveAccount?.preferences.openRouterImageModel.trim() ?? '';
+
+    if (useOpenRouterImage && !latestActiveAccount?.openRouter.apiKeyStored) {
+      setGenStatus({
+        isGenerating: false,
+        progress: 0,
+        status: 'error',
+        errorMessage: 'OpenRouter is selected for still images, but no API key is stored for the active account.',
+      });
+      isGeneratingRef.current = false;
+      return;
+    }
+
+    if (useOpenRouterImage && !openRouterImageModel) {
+      setGenStatus({
+        isGenerating: false,
+        progress: 0,
+        status: 'error',
+        errorMessage: 'Select an OpenRouter still-image model in Settings before generating.',
+      });
+      isGeneratingRef.current = false;
+      return;
+    }
+
+    if (!systemInfo.backendConnected && !useOpenRouterImage) {
       setGenStatus({
         isGenerating: false,
         progress: 0,
@@ -191,7 +233,7 @@ export function QuickGeneratePanel() {
         steps: advancedGeneration.steps,
         cfg_scale: advancedGeneration.cfgScale,
         seed: advancedGeneration.seed === -1 ? undefined : advancedGeneration.seed,
-        model: selectedModel,
+        model: useOpenRouterImage ? openRouterImageModel : selectedModel,
         scheduler: advancedGeneration.scheduler,
       });
 
@@ -209,7 +251,7 @@ export function QuickGeneratePanel() {
             steps: advancedGeneration.steps,
             cfg_scale: advancedGeneration.cfgScale,
             seed: advancedGeneration.seed,
-            model: selectedModel,
+            model: useOpenRouterImage ? openRouterImageModel : selectedModel,
             scheduler: advancedGeneration.scheduler,
             output_root: outputRoot,
           },
@@ -237,6 +279,9 @@ export function QuickGeneratePanel() {
     setNegativePrompt('');
     setGenStatus({ isGenerating: false, progress: 0, status: 'idle', errorMessage: '' });
   };
+
+  const openRouterImageEnabled = activeAccount?.preferences.imageGenerationProvider === 'openrouter';
+  const openRouterImageModel = activeAccount?.preferences.openRouterImageModel.trim() ?? '';
 
   return (
     <div className="flex flex-col h-full bg-panel">
@@ -309,14 +354,38 @@ export function QuickGeneratePanel() {
                 Model Router
               </label>
               <p className="mt-1 text-xs text-text-muted">
-                Route this quick image through a model profile.
+                {openRouterImageEnabled
+                  ? 'The active account is routing still images through OpenRouter.'
+                  : 'Route this quick image through a model profile.'}
               </p>
             </div>
-            <ModelSelector
-              value={selectedModel}
-              onChange={setSelectedModel}
-              generationType="image"
-            />
+            {openRouterImageEnabled ? (
+              <div className="rounded-lg border border-accent-primary-border bg-accent-primary-muted/40 px-4 py-3">
+                <div className="flex items-start gap-3">
+                  <div className="mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-md border border-accent-primary-border bg-surface text-accent-primary">
+                    <Cloud className="h-4 w-4" aria-hidden="true" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="type-section text-text-primary">
+                      OpenRouter Still Image Route
+                    </p>
+                    <p className="mt-1 text-xs text-text-body">
+                      Account: {activeAccount?.name ?? 'No active account'}.
+                      {' '}Model: {openRouterImageModel || 'Not set in Settings'}.
+                    </p>
+                    <p className="mt-1 text-xs text-text-muted">
+                      Quick Generate uses the account&apos;s hosted still-image model until you switch the account back to Local.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <ModelSelector
+                value={selectedModel}
+                onChange={setSelectedModel}
+                generationType="image"
+              />
+            )}
           </div>
 
           {/* Aspect ratio */}

@@ -13,6 +13,16 @@ import {
   type AppSettings,
 } from './settings';
 import { DEFAULT_SETTINGS, type StoreSchema } from './outputRoots';
+import type {
+  OpenRouterKeyInfo,
+  OpenRouterModelSummary,
+} from './openRouter';
+import type {
+  ImageGenerationProvider,
+  PromptEnhancementProvider,
+  UserAccountRecord,
+  UserAccountsSnapshot,
+} from './userAccounts';
 
 type StoreLike = {
   get: <K extends keyof StoreSchema>(key: K) => StoreSchema[K];
@@ -37,6 +47,37 @@ type OutputRootServiceLike = {
   resolveManagedAssetPath: (assetPath: string) => string;
 };
 
+type UserAccountsServiceLike = {
+  listAccounts: () => UserAccountsSnapshot;
+  createAccount: (name?: string) => UserAccountsSnapshot;
+  updateAccount: (
+    accountId: string,
+    patch: {
+      name?: string;
+      promptEnhancementProvider?: PromptEnhancementProvider;
+      openRouterModel?: string;
+      imageGenerationProvider?: ImageGenerationProvider;
+      openRouterImageModel?: string;
+    }
+  ) => UserAccountsSnapshot;
+  deleteAccount: (accountId: string) => UserAccountsSnapshot;
+  setActiveAccount: (accountId: string) => UserAccountsSnapshot;
+  getAccount: (accountId: string | null | undefined) => UserAccountRecord | null;
+  setOpenRouterApiKey: (accountId: string, apiKey: string) => UserAccountsSnapshot;
+  clearOpenRouterApiKey: (accountId: string) => UserAccountsSnapshot;
+  getOpenRouterApiKey: (accountId?: string | null) => string | null;
+  markOpenRouterVerified: (
+    accountId: string,
+    details: { label?: string | null }
+  ) => UserAccountsSnapshot;
+};
+
+type OpenRouterServiceLike = {
+  getKeyInfo: (apiKey: string) => Promise<OpenRouterKeyInfo>;
+  listTextModels: (apiKey: string) => Promise<OpenRouterModelSummary[]>;
+  listImageModels: (apiKey: string) => Promise<OpenRouterModelSummary[]>;
+};
+
 type MainIpcOptions = {
   app: Pick<App, 'getVersion' | 'getPath'>;
   ipcMain: Pick<IpcMain, 'handle'>;
@@ -48,6 +89,8 @@ type MainIpcOptions = {
   store: StoreLike;
   outputRoots: OutputRootServiceLike;
   backend: BackendServiceLike;
+  userAccounts: UserAccountsServiceLike;
+  openRouter: OpenRouterServiceLike;
   getMainWindow: () => Electron.BrowserWindow | null;
   logger?: Pick<Console, 'warn'>;
 };
@@ -91,6 +134,8 @@ export function registerMainIpcHandlers({
   store,
   outputRoots,
   backend,
+  userAccounts,
+  openRouter,
   getMainWindow,
   logger = console,
 }: MainIpcOptions) {
@@ -194,6 +239,184 @@ export function registerMainIpcHandlers({
     }
 
     return outputRoots.getAppSettings();
+  });
+
+  ipcMain.handle('accounts:list', () => userAccounts.listAccounts());
+
+  ipcMain.handle('accounts:create', (_event, payload?: { name?: string }) => {
+    return userAccounts.createAccount(payload?.name);
+  });
+
+  ipcMain.handle(
+    'accounts:update',
+    (
+      _event,
+      accountId: string,
+      patch: {
+        name?: string;
+        promptEnhancementProvider?: PromptEnhancementProvider;
+        openRouterModel?: string;
+        imageGenerationProvider?: ImageGenerationProvider;
+        openRouterImageModel?: string;
+      },
+    ) => userAccounts.updateAccount(accountId, patch),
+  );
+
+  ipcMain.handle('accounts:delete', (_event, accountId: string) => {
+    return userAccounts.deleteAccount(accountId);
+  });
+
+  ipcMain.handle('accounts:set-active', (_event, accountId: string) => {
+    return userAccounts.setActiveAccount(accountId);
+  });
+
+  ipcMain.handle(
+    'accounts:set-openrouter-api-key',
+    (_event, payload: { accountId: string; apiKey: string }) => {
+      return userAccounts.setOpenRouterApiKey(payload.accountId, payload.apiKey);
+    },
+  );
+
+  ipcMain.handle('accounts:clear-openrouter-api-key', (_event, accountId: string) => {
+    return userAccounts.clearOpenRouterApiKey(accountId);
+  });
+
+  ipcMain.handle('openrouter:test-connection', async (_event, accountId?: string) => {
+    const account = userAccounts.getAccount(accountId);
+    if (!account) {
+      return {
+        success: false,
+        error: 'No active account is available.',
+      };
+    }
+
+    const apiKey = userAccounts.getOpenRouterApiKey(account.id);
+    if (!apiKey) {
+      return {
+        success: false,
+        error: 'No OpenRouter API key is stored for this account.',
+      };
+    }
+
+    try {
+      const keyInfo = await openRouter.getKeyInfo(apiKey);
+      const accounts = userAccounts.markOpenRouterVerified(account.id, {
+        label: keyInfo.label,
+      });
+      return {
+        success: true,
+        keyInfo,
+        accounts,
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'OpenRouter connection failed.',
+      };
+    }
+  });
+
+  ipcMain.handle('openrouter:get-key-info', async (_event, accountId?: string) => {
+    const account = userAccounts.getAccount(accountId);
+    if (!account) {
+      return {
+        success: false,
+        error: 'No active account is available.',
+      };
+    }
+
+    const apiKey = userAccounts.getOpenRouterApiKey(account.id);
+    if (!apiKey) {
+      return {
+        success: false,
+        error: 'No OpenRouter API key is stored for this account.',
+      };
+    }
+
+    try {
+      const keyInfo = await openRouter.getKeyInfo(apiKey);
+      const accounts = userAccounts.markOpenRouterVerified(account.id, {
+        label: keyInfo.label,
+      });
+      return {
+        success: true,
+        keyInfo,
+        accounts,
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Could not load OpenRouter key information.',
+      };
+    }
+  });
+
+  ipcMain.handle('openrouter:list-models', async (_event, accountId?: string) => {
+    const account = userAccounts.getAccount(accountId);
+    if (!account) {
+      return {
+        success: false,
+        error: 'No active account is available.',
+        models: [],
+      };
+    }
+
+    const apiKey = userAccounts.getOpenRouterApiKey(account.id);
+    if (!apiKey) {
+      return {
+        success: false,
+        error: 'No OpenRouter API key is stored for this account.',
+        models: [],
+      };
+    }
+
+    try {
+      const models = await openRouter.listTextModels(apiKey);
+      return {
+        success: true,
+        models,
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Could not load OpenRouter models.',
+        models: [],
+      };
+    }
+  });
+
+  ipcMain.handle('openrouter:list-image-models', async (_event, accountId?: string) => {
+    const account = userAccounts.getAccount(accountId);
+    if (!account) {
+      return {
+        success: false,
+        error: 'No active account is available.',
+        models: [],
+      };
+    }
+
+    const apiKey = userAccounts.getOpenRouterApiKey(account.id);
+    if (!apiKey) {
+      return {
+        success: false,
+        error: 'No OpenRouter API key is stored for this account.',
+        models: [],
+      };
+    }
+
+    try {
+      const models = await openRouter.listImageModels(apiKey);
+      return {
+        success: true,
+        models,
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Could not load OpenRouter image models.',
+        models: [],
+      };
+    }
   });
 
   ipcMain.handle('assets:export', async (_event, sourcePath: string, destinationPath: string) => {
