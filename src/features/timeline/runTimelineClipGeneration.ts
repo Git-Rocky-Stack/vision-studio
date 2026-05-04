@@ -428,8 +428,12 @@ export async function runTimelineClipGeneration({
     activeJobId: jobId,
   });
 
+  const isHostedImageRoute =
+    providerResolved.generationType === 'image' && stillImageRoute.provider === 'openrouter';
+  const maxPollAttempts = isHostedImageRoute ? 240 : 120;
+
   let finalStatus: JobStatus | null = null;
-  for (let attempt = 0; attempt < 120; attempt += 1) {
+  for (let attempt = 0; attempt < maxPollAttempts; attempt += 1) {
     const nextStatus = await electron.generation.getStatus(jobId);
     if (!nextStatus) {
       throw new Error('Timeline generation returned no job status.');

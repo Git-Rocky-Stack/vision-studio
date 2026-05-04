@@ -9,10 +9,12 @@ import { toSafeRendererError } from '../services/security';
 import type { createOpenRouterService } from '../services/openRouter';
 import type { createOutputRootService } from '../services/outputRoots';
 import type { createUserAccountsService } from '../services/userAccounts';
+import { submitBatch } from './submitBatch';
 
 const BACKEND_URL = 'http://127.0.0.1:8000';
 const WS_URL = 'ws://127.0.0.1:8000/ws';
 const OPENROUTER_JOB_PREFIX = 'openrouter-image';
+const BATCH_SUBMISSION_CONCURRENCY = 4;
 
 let ws: WebSocket | null = null;
 let mainWindow: BrowserWindow | null = null;
@@ -696,6 +698,8 @@ ipcMain.handle('generation:batch', async (_event, params) => {
     };
   }
 
+  const { prompts: _prompts, ...baseParams } = params ?? {};
+
   const activeAccount = userAccountsService?.getActiveAccount();
   if (activeAccount?.preferences.imageGenerationProvider === 'openrouter') {
     if (hasUnsupportedOpenRouterImageInputs(params)) {
@@ -722,7 +726,6 @@ ipcMain.handle('generation:batch', async (_event, params) => {
       };
     }
 
-    const { prompts: _prompts, ...baseParams } = params ?? {};
     const jobIds = prompts.map((prompt) => {
       const jobId = `${OPENROUTER_JOB_PREFIX}-${crypto.randomUUID()}`;
       const jobParams = {
@@ -752,21 +755,23 @@ ipcMain.handle('generation:batch', async (_event, params) => {
   }
 
   try {
-    const jobIds: string[] = [];
-
-    for (const prompt of prompts) {
-      const response = await requestBackend(() =>
-        axios.post(
-          `${BACKEND_URL}/api/generate/image`,
-          {
-            ...baseParams,
-            prompt,
-          },
-          { headers: backendAuthHeaders() },
-        ),
-      );
-      jobIds.push(response.data.job_id);
-    }
+    const jobIds = await submitBatch(
+      prompts,
+      async (prompt: string) => {
+        const response = await requestBackend(() =>
+          axios.post(
+            `${BACKEND_URL}/api/generate/image`,
+            {
+              ...baseParams,
+              prompt,
+            },
+            { headers: backendAuthHeaders() },
+          ),
+        );
+        return response.data.job_id as string;
+      },
+      { concurrency: BATCH_SUBMISSION_CONCURRENCY },
+    );
 
     return {
       success: true,

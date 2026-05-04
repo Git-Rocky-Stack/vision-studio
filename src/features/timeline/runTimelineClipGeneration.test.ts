@@ -323,6 +323,64 @@ describe('runTimelineClipGeneration', () => {
     );
   });
 
+  it('polls beyond 120 attempts when on the OpenRouter still-image route', async () => {
+    useAppStore.setState((state) => ({
+      systemInfo: {
+        ...state.systemInfo,
+        backendConnected: false,
+      },
+    }));
+
+    const { sequence, clip } = seedImageTimelineClip();
+
+    const processingStatuses: Array<Record<string, unknown>> = Array.from({ length: 130 }, () => ({
+      job_id: 'timeline-image-job-openrouter-slow',
+      status: 'processing',
+      type: 'image',
+      created_at: '2026-04-24T08:30:00.000Z',
+      progress: 50,
+    }));
+    const completedStatus: Record<string, unknown> = {
+      job_id: 'timeline-image-job-openrouter-slow',
+      status: 'completed',
+      type: 'image',
+      created_at: '2026-04-24T08:30:00.000Z',
+      completed_at: '2026-04-24T08:32:30.000Z',
+      progress: 100,
+      result: {
+        images: ['/outputs/timeline-image-job-openrouter-slow/frame.png'],
+      },
+    };
+
+    const electron = makeElectronGenerationMock({
+      openRouterImageEnabled: true,
+      submitImage: { success: true, jobId: 'timeline-image-job-openrouter-slow' },
+      statuses: [...processingStatuses, completedStatus],
+    });
+
+    const result = await runTimelineClipGeneration({
+      operation: 'generate',
+      clipId: clip.id,
+      sequenceId: sequence.id,
+      input: {
+        prompt: 'slow hosted render',
+        generationType: 'image',
+        model: 'flux-dev',
+        width: 1024,
+        height: 1024,
+        steps: 25,
+        cfgScale: 7.5,
+        scheduler: 'Euler a',
+        seed: 11,
+      },
+      electron,
+      pollIntervalMs: 0,
+    });
+
+    expect(result.cancelled).toBe(false);
+    expect(electron.generation.getStatus).toHaveBeenCalledTimes(131);
+  });
+
   it('allows hosted still-image timeline generations while the backend is offline', async () => {
     useAppStore.setState((state) => ({
       systemInfo: {

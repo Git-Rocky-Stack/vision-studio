@@ -140,8 +140,10 @@ export async function runWorkflowExecution({
     });
     state.setWorkflowRuntimeState(workflowId, { activeJobId: jobId });
 
+    const maxPollAttempts = stillImageRoute.provider === 'openrouter' ? 240 : 120;
+
     let finalStatus: JobStatus | null = null;
-    for (let attempt = 0; attempt < 120; attempt += 1) {
+    for (let attempt = 0; attempt < maxPollAttempts; attempt += 1) {
       const nextStatus = await electron.generation.getStatus(jobId);
       if (!nextStatus) {
         throw new Error('Workflow execution returned no job status.');

@@ -126,6 +126,52 @@ describe('runWorkflowExecution', () => {
       status: 'complete',
     });
   });
+
+  it('polls beyond 120 attempts when on the OpenRouter still-image route', async () => {
+    useAppStore.setState((state) => ({
+      systemInfo: {
+        ...state.systemInfo,
+        backendConnected: false,
+      },
+    }));
+
+    const processingStatuses: Array<Record<string, unknown>> = Array.from({ length: 130 }, () => ({
+      job_id: 'job-openrouter-slow',
+      status: 'processing',
+      type: 'image',
+      created_at: '2026-04-24T20:00:00.000Z',
+      progress: 40,
+    }));
+    const completedStatus: Record<string, unknown> = {
+      job_id: 'job-openrouter-slow',
+      status: 'completed',
+      type: 'image',
+      created_at: '2026-04-24T20:00:00.000Z',
+      completed_at: '2026-04-24T20:02:30.000Z',
+      progress: 100,
+      result: {
+        images: ['/outputs/job-openrouter-slow/image-1.png'],
+      },
+    };
+
+    const electron = makeElectronGenerationMock({
+      openRouterImageEnabled: true,
+      submit: { success: true, jobId: 'job-openrouter-slow' },
+      statuses: [...processingStatuses, completedStatus],
+    });
+
+    await runWorkflowExecution({
+      workflowId: 'image-generation-baseline',
+      electron,
+      store: useAppStore,
+      pollIntervalMs: 0,
+    });
+
+    expect(electron.generation.getStatus).toHaveBeenCalledTimes(131);
+    expect(useAppStore.getState().workflowRecords[0].runHistory[0]).toMatchObject({
+      status: 'complete',
+    });
+  });
 });
 
 function makeElectronGenerationMock(options: {
