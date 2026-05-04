@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { z, type ZodError } from 'zod';
 
 type AxiosLike = Pick<typeof axios, 'get' | 'post'>;
 
@@ -32,15 +33,24 @@ export interface OpenRouterModelSummary {
   };
 }
 
+export interface OpenRouterUsage {
+  promptTokens: number | null;
+  completionTokens: number | null;
+  totalTokens: number | null;
+  cost: number | null;
+}
+
 export interface OpenRouterPromptEnhancementResult {
   mode: PromptEnhancementMode;
   prompt: string;
   variations: string[];
+  usage: OpenRouterUsage | null;
 }
 
 export interface OpenRouterNegativePromptSuggestionResult {
   negativePrompt: string;
   suggestions: string[];
+  usage: OpenRouterUsage | null;
 }
 
 export interface OpenRouterImageResult {
@@ -53,6 +63,7 @@ export interface OpenRouterImageGenerationResult {
   model: string | null;
   content: string;
   images: OpenRouterImageResult[];
+  usage: OpenRouterUsage | null;
 }
 
 type CreateOpenRouterServiceOptions = {
@@ -88,9 +99,13 @@ const DEFAULT_TITLE = 'Vision Studio';
  * Hoisted as a module constant so the byte-identical prefix can be cached
  * by OpenRouter / Anthropic when sent with `cache_control: { type: 'ephemeral' }`.
  * Update with care — any byte change invalidates the cache for all users.
+ *
+ * Includes few-shot exemplars for cinematic and concise modes (the two
+ * highest-variance modes per audit) so the model has anchored examples of
+ * the desired transformation style before seeing the live request.
  */
 export const PROMPT_ENHANCEMENT_SYSTEM_PROMPT =
-  'You improve prompts for image and video generation. Return valid JSON only with keys mode, prompt, and variations. Keep the user intent and important constraints intact. clarify should tighten structure and fidelity. cinematic should lean into film language. concise should keep only the most important details. expand should add richer descriptive detail without changing subject. variations should keep prompt as a cleaned base prompt and return 4 strong alternatives in variations. For every non-variations mode, return an enhanced prompt and an empty variations array.';
+  'You improve prompts for image and video generation. Return valid JSON only with keys mode, prompt, and variations. Keep the user intent and important constraints intact. clarify should tighten structure and fidelity. cinematic should lean into film language. concise should keep only the most important details. expand should add richer descriptive detail without changing subject. variations should keep prompt as a cleaned base prompt and return 4 strong alternatives in variations. For every non-variations mode, return an enhanced prompt and an empty variations array.\n\nExamples:\n\nMode: cinematic\nInput: a city at night\nOutput: {"mode":"cinematic","prompt":"city skyline at night, neon-lit streets, anamorphic lens flare, shallow depth of field, color-graded teal and orange, 35mm film grain","variations":[]}\n\nMode: concise\nInput: a beautiful flowing waterfall in the forest with mist and lush green plants surrounding it on all sides\nOutput: {"mode":"concise","prompt":"forest waterfall, mist, lush greenery","variations":[]}';
 
 /**
  * Hoisted for the same prompt-caching reason as PROMPT_ENHANCEMENT_SYSTEM_PROMPT.
@@ -111,9 +126,39 @@ function buildCachedSystemMessage(text: string) {
   };
 }
 
+/**
+ * Wrap user-message text in OpenRouter's multipart `content` array form.
+ * Mirrors the system-message shape so all messages we send share the same
+ * structure — and leaves room to append `image_url` parts in the future
+ * (e.g., reference-image guided enhance / negative suggestion / image gen)
+ * without restructuring the call sites.
+ */
+function buildUserTextMessage(text: string) {
+  return {
+    role: 'user' as const,
+    content: [{ type: 'text' as const, text }],
+  };
+}
+
 const METADATA_TIMEOUT_MS = 10_000;
 const TEXT_COMPLETION_TIMEOUT_MS = 30_000;
 const IMAGE_GENERATION_TIMEOUT_MS = 120_000;
+
+/**
+ * Maximum per-field character count for user-supplied prompts. Generous
+ * upper bound that comfortably exceeds any realistic human-authored prompt
+ * while still catching paste-the-entire-novel mistakes before we burn an
+ * OpenRouter call on them.
+ */
+export const MAX_PROMPT_CHARS = 8000;
+
+function assertPromptLength(value: string, fieldName: string) {
+  if (value.length > MAX_PROMPT_CHARS) {
+    throw new Error(
+      `${fieldName} is too long (${value.length} chars). Maximum is ${MAX_PROMPT_CHARS}.`,
+    );
+  }
+}
 
 function isTimeoutError(error: unknown) {
   const code = (error as { code?: unknown })?.code;
@@ -239,6 +284,25 @@ function asNumber(value: unknown) {
   return null;
 }
 
+function extractUsage(payload: unknown): OpenRouterUsage | null {
+  const usage = (payload as { usage?: unknown })?.usage;
+  if (typeof usage !== 'object' || usage === null) {
+    return null;
+  }
+  const data = usage as {
+    prompt_tokens?: unknown;
+    completion_tokens?: unknown;
+    total_tokens?: unknown;
+    cost?: unknown;
+  };
+  return {
+    promptTokens: asNumber(data.prompt_tokens),
+    completionTokens: asNumber(data.completion_tokens),
+    totalTokens: asNumber(data.total_tokens),
+    cost: asNumber(data.cost),
+  };
+}
+
 function toOpenRouterError(error: unknown, fallbackMessage: string) {
   if (isTimeoutError(error)) {
     return `${fallbackMessage} (request timed out)`;
@@ -292,71 +356,85 @@ function extractMessageContent(content: unknown) {
   return '';
 }
 
-function normalizePromptEnhancementResult(
+/**
+ * Zod schemas validating LLM-generated JSON payloads. We use `.passthrough()`
+ * so additional/unknown keys don't fail the parse — LLMs sometimes add chatter
+ * we want to ignore — but required fields and array element types are enforced
+ * strictly (catches model misbehavior immediately rather than silently coercing).
+ */
+const promptEnhancementContentSchema = z
+  .object({
+    prompt: z.string(),
+    mode: z
+      .enum(['clarify', 'cinematic', 'concise', 'expand', 'variations'])
+      .optional(),
+    variations: z.array(z.string()).optional(),
+  })
+  .passthrough();
+
+const negativePromptContentSchema = z
+  .object({
+    negativePrompt: z.string().optional(),
+    negative_prompt: z.string().optional(),
+    suggestions: z.array(z.string()).optional(),
+  })
+  .passthrough();
+
+function formatZodError(error: ZodError, prefix: string) {
+  const first = error.issues[0];
+  if (!first) {
+    return prefix;
+  }
+  const path = first.path.length > 0 ? first.path.join('.') : 'root';
+  return `${prefix} at '${path}': ${first.message}`;
+}
+
+function parsePromptEnhancementContent(
   payload: unknown,
-  mode: PromptEnhancementMode,
-): OpenRouterPromptEnhancementResult {
-  if (typeof payload !== 'object' || payload === null) {
-    throw new Error('OpenRouter returned an invalid prompt enhancement payload.');
+  fallbackMode: PromptEnhancementMode,
+): Omit<OpenRouterPromptEnhancementResult, 'usage'> {
+  const result = promptEnhancementContentSchema.safeParse(payload);
+  if (!result.success) {
+    throw new Error(
+      formatZodError(result.error, 'Invalid OpenRouter prompt enhancement payload'),
+      { cause: result.error },
+    );
   }
 
-  const data = payload as {
-    prompt?: unknown;
-    variations?: unknown;
-    mode?: unknown;
-  };
-
-  const prompt = typeof data.prompt === 'string' ? data.prompt.trim() : '';
-  const variations = Array.isArray(data.variations)
-    ? data.variations.filter((entry): entry is string => typeof entry === 'string').map((entry) => entry.trim()).filter(Boolean)
-    : [];
-
+  const prompt = result.data.prompt.trim();
   if (!prompt) {
     throw new Error('OpenRouter returned an empty prompt enhancement.');
   }
+  const variations = (result.data.variations ?? [])
+    .map((entry) => entry.trim())
+    .filter(Boolean);
 
   return {
-    mode:
-      data.mode === 'clarify' ||
-      data.mode === 'cinematic' ||
-      data.mode === 'concise' ||
-      data.mode === 'expand' ||
-      data.mode === 'variations'
-        ? data.mode
-        : mode,
+    mode: result.data.mode ?? fallbackMode,
     prompt,
     variations,
   };
 }
 
-function normalizeNegativePromptSuggestionResult(
+function parseNegativePromptContent(
   payload: unknown,
-): OpenRouterNegativePromptSuggestionResult {
-  if (typeof payload !== 'object' || payload === null) {
-    throw new Error('OpenRouter returned an invalid negative prompt payload.');
+): Omit<OpenRouterNegativePromptSuggestionResult, 'usage'> {
+  const result = negativePromptContentSchema.safeParse(payload);
+  if (!result.success) {
+    throw new Error(
+      formatZodError(result.error, 'Invalid OpenRouter negative prompt payload'),
+      { cause: result.error },
+    );
   }
 
-  const data = payload as {
-    negativePrompt?: unknown;
-    suggestions?: unknown;
-  };
-
-  const negativePrompt =
-    typeof data.negativePrompt === 'string'
-      ? data.negativePrompt.trim()
-      : typeof (data as { negative_prompt?: unknown }).negative_prompt === 'string'
-        ? ((data as { negative_prompt: string }).negative_prompt).trim()
-        : '';
-  const suggestions = Array.isArray(data.suggestions)
-    ? data.suggestions
-        .filter((entry): entry is string => typeof entry === 'string')
-        .map((entry) => entry.trim())
-        .filter(Boolean)
-    : [];
-
+  const negativePrompt = (result.data.negativePrompt ?? result.data.negative_prompt ?? '').trim();
   if (!negativePrompt) {
     throw new Error('OpenRouter returned an empty negative prompt suggestion.');
   }
+
+  const suggestions = (result.data.suggestions ?? [])
+    .map((entry) => entry.trim())
+    .filter(Boolean);
 
   return {
     negativePrompt,
@@ -582,9 +660,11 @@ export function createOpenRouterService({
     if (!normalizedPrompt) {
       throw new Error('Prompt cannot be empty.');
     }
+    assertPromptLength(normalizedPrompt, 'Prompt');
 
+    let response: Awaited<ReturnType<typeof axiosInstance.post>>;
     try {
-      const response = await withRetry(
+      response = await withRetry(
         () =>
           axiosInstance.post(
             `${baseUrl}/chat/completions`,
@@ -595,13 +675,7 @@ export function createOpenRouterService({
               plugins: [{ id: 'response-healing' }],
               messages: [
                 buildCachedSystemMessage(PROMPT_ENHANCEMENT_SYSTEM_PROMPT),
-                {
-                  role: 'user',
-                  content: JSON.stringify({
-                    mode,
-                    prompt: normalizedPrompt,
-                  }),
-                },
+                buildUserTextMessage(JSON.stringify({ mode, prompt: normalizedPrompt })),
               ],
             },
             {
@@ -612,12 +686,32 @@ export function createOpenRouterService({
           ),
         signal,
       );
-
-      const content = extractMessageContent(response.data?.choices?.[0]?.message?.content);
-      const parsed = JSON.parse(content);
-      return normalizePromptEnhancementResult(parsed, mode);
     } catch (error) {
       throw createOpenRouterError(error, 'OpenRouter prompt enhancement failed.');
+    }
+
+    const content = extractMessageContent(response.data?.choices?.[0]?.message?.content);
+    const usage = extractUsage(response.data);
+    try {
+      const parsed = JSON.parse(content);
+      return {
+        ...parsePromptEnhancementContent(parsed, mode),
+        usage,
+      };
+    } catch (parseError) {
+      // API call succeeded, but the LLM ignored response_format or returned a
+      // shape we don't recognize. Fall back to the user's original prompt so
+      // the workflow keeps moving — surface usage so cost is still tracked.
+      console.warn(
+        '[openRouter] enhancePrompt: parse failed, returning original prompt unchanged',
+        parseError instanceof Error ? parseError.message : parseError,
+      );
+      return {
+        mode,
+        prompt: normalizedPrompt,
+        variations: [],
+        usage,
+      };
     }
   }
 
@@ -639,6 +733,8 @@ export function createOpenRouterService({
     if (!normalizedPrompt) {
       throw new Error('Prompt cannot be empty.');
     }
+    assertPromptLength(normalizedPrompt, 'Prompt');
+    assertPromptLength(normalizedNegativePrompt, 'Negative prompt');
 
     try {
       const response = await withRetry(
@@ -652,13 +748,12 @@ export function createOpenRouterService({
               plugins: [{ id: 'response-healing' }],
               messages: [
                 buildCachedSystemMessage(NEGATIVE_PROMPT_SYSTEM_PROMPT),
-                {
-                  role: 'user',
-                  content: JSON.stringify({
+                buildUserTextMessage(
+                  JSON.stringify({
                     prompt: normalizedPrompt,
                     negativePrompt: normalizedNegativePrompt,
                   }),
-                },
+                ),
               ],
             },
             {
@@ -672,7 +767,10 @@ export function createOpenRouterService({
 
       const content = extractMessageContent(response.data?.choices?.[0]?.message?.content);
       const parsed = JSON.parse(content);
-      return normalizeNegativePromptSuggestionResult(parsed);
+      return {
+        ...parseNegativePromptContent(parsed),
+        usage: extractUsage(response.data),
+      };
     } catch (error) {
       throw createOpenRouterError(error, 'OpenRouter negative prompt suggestion failed.');
     }
@@ -699,12 +797,15 @@ export function createOpenRouterService({
   }): Promise<OpenRouterImageGenerationResult> {
     const normalizedPrompt = prompt.trim();
     const normalizedModel = model.trim();
+    const normalizedNegativePrompt = negativePrompt?.trim() ?? '';
     if (!normalizedPrompt) {
       throw new Error('Prompt cannot be empty.');
     }
     if (!normalizedModel) {
       throw new Error('OpenRouter image model is required.');
     }
+    assertPromptLength(normalizedPrompt, 'Prompt');
+    assertPromptLength(normalizedNegativePrompt, 'Negative prompt');
 
     try {
       const imageModels = await listImageModels(apiKey);
@@ -725,12 +826,11 @@ export function createOpenRouterService({
               ...(typeof seed === 'number' ? { seed } : {}),
               ...(aspectRatio ? { image_config: { aspect_ratio: aspectRatio } } : {}),
               messages: [
-                {
-                  role: 'user',
-                  content: negativePrompt?.trim()
-                    ? `Generate an image.\nPrompt: ${normalizedPrompt}\nNegative prompt: ${negativePrompt.trim()}`
+                buildUserTextMessage(
+                  normalizedNegativePrompt
+                    ? `Generate an image.\nPrompt: ${normalizedPrompt}\nNegative prompt: ${normalizedNegativePrompt}`
                     : normalizedPrompt,
-                },
+                ),
               ],
             },
             {
@@ -758,6 +858,7 @@ export function createOpenRouterService({
         model: typeof response.data?.model === 'string' ? response.data.model : normalizedModel,
         content: extractMessageContent(message.content),
         images,
+        usage: extractUsage(response.data),
       };
     } catch (error) {
       throw createOpenRouterError(error, 'OpenRouter image generation failed.');
