@@ -10,6 +10,8 @@ import type { createOpenRouterService } from '../services/openRouter';
 import type { createOutputRootService } from '../services/outputRoots';
 import type { createUserAccountsService } from '../services/userAccounts';
 import { submitBatch } from './submitBatch';
+import { toOpenRouterRendererMessage } from './openRouterError';
+import { deleteOrphanedFiles } from './orphanFileCleanup';
 
 const BACKEND_URL = 'http://127.0.0.1:8000';
 const WS_URL = 'ws://127.0.0.1:8000/ws';
@@ -141,7 +143,7 @@ function resolveOpenRouterFailureMessage(error: unknown) {
     return 'OpenRouter image generation was cancelled.';
   }
 
-  return error instanceof Error ? error.message : 'OpenRouter image generation failed.';
+  return toOpenRouterRendererMessage(error, 'OpenRouter image generation failed.');
 }
 
 function hasUnsupportedOpenRouterImageInputs(params: any) {
@@ -364,6 +366,11 @@ async function runOpenRouterImageJob(jobId: string, params: any) {
 
     const jobAfterWrite = getOpenRouterJob(jobId);
     if (!jobAfterWrite || jobAfterWrite.status === 'cancelled') {
+      // The user cancelled after the files had already landed on disk but
+      // before we could mark the job complete. Delete the orphans so we do
+      // not accumulate cancelled-job output in the user's outputs/openrouter
+      // directory across sessions.
+      await deleteOrphanedFiles(imagePaths, console);
       return;
     }
 
@@ -558,7 +565,7 @@ ipcMain.handle('generation:enhance-prompt', async (_event, params) => {
     } catch (error: any) {
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Prompt enhancement failed',
+        error: toOpenRouterRendererMessage(error, 'Prompt enhancement failed'),
       };
     }
   }
@@ -603,7 +610,7 @@ ipcMain.handle('generation:suggest-negative-prompt', async (_event, params) => {
     } catch (error: any) {
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Negative prompt suggestion failed',
+        error: toOpenRouterRendererMessage(error, 'Negative prompt suggestion failed'),
       };
     }
   }
