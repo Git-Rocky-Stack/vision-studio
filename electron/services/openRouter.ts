@@ -358,19 +358,45 @@ function extractUsage(payload: unknown): OpenRouterUsage | null {
   };
 }
 
+/**
+ * Loose schema describing the surface area of an axios-style error we care
+ * about for user-facing message extraction. Everything is optional so the
+ * schema accepts any thrown value -- the value of using zod here is the
+ * typed access path, not strict validation.
+ */
+const axiosErrorShape = z.object({
+  message: z.string().optional(),
+  response: z
+    .object({
+      data: z
+        .object({
+          error: z
+            .object({ message: z.string().optional() })
+            .passthrough()
+            .optional(),
+        })
+        .passthrough()
+        .optional(),
+    })
+    .passthrough()
+    .optional(),
+});
+
 function toOpenRouterError(error: unknown, fallbackMessage: string) {
   if (isTimeoutError(error)) {
     return `${fallbackMessage} (request timed out)`;
   }
 
-  const providerMessage = (error as any)?.response?.data?.error?.message;
-  if (typeof providerMessage === 'string' && providerMessage.trim()) {
-    return providerMessage;
-  }
-
-  const directMessage = (error as any)?.message;
-  if (typeof directMessage === 'string' && directMessage.trim()) {
-    return directMessage;
+  const parsed = axiosErrorShape.safeParse(error);
+  if (parsed.success) {
+    const providerMessage = parsed.data.response?.data?.error?.message?.trim();
+    if (providerMessage) {
+      return providerMessage;
+    }
+    const directMessage = parsed.data.message?.trim();
+    if (directMessage) {
+      return directMessage;
+    }
   }
 
   return fallbackMessage;

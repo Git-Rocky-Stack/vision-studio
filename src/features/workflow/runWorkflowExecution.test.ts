@@ -172,6 +172,67 @@ describe('runWorkflowExecution', () => {
       status: 'complete',
     });
   });
+
+  it('bails before submitting any HTTP call when the signal is pre-aborted', async () => {
+    const electron = makeElectronGenerationMock({
+      submit: { success: true, jobId: 'never-submitted' },
+      statuses: [],
+    });
+    const controller = new AbortController();
+    controller.abort();
+
+    await runWorkflowExecution({
+      workflowId: 'image-generation-baseline',
+      electron,
+      store: useAppStore,
+      pollIntervalMs: 0,
+      signal: controller.signal,
+    });
+
+    expect(electron.generation.generateImage).not.toHaveBeenCalled();
+    expect(electron.generation.getStatus).not.toHaveBeenCalled();
+    const runtime = useAppStore.getState().workflowRuntimeById['image-generation-baseline'];
+    expect(runtime?.lastFailureMessage).toMatch(/cancel|abort/i);
+  });
+
+  it('stops polling when the signal aborts mid-flight', async () => {
+    const processingStatuses: Array<Record<string, unknown>> = Array.from({ length: 200 }, () => ({
+      job_id: 'job-aborted',
+      status: 'processing',
+      type: 'image',
+      created_at: '2026-04-24T20:00:00.000Z',
+      progress: 40,
+    }));
+
+    const controller = new AbortController();
+    let getStatusCalls = 0;
+    const electron = makeElectronGenerationMock({
+      submit: { success: true, jobId: 'job-aborted' },
+      statuses: processingStatuses,
+    });
+    // Override getStatus to abort after the third call
+    const baseGetStatus = electron.generation.getStatus;
+    electron.generation.getStatus = vi.fn().mockImplementation(async (jobId: string) => {
+      getStatusCalls += 1;
+      if (getStatusCalls === 3) {
+        controller.abort();
+      }
+      return baseGetStatus(jobId);
+    });
+
+    await runWorkflowExecution({
+      workflowId: 'image-generation-baseline',
+      electron,
+      store: useAppStore,
+      pollIntervalMs: 0,
+      signal: controller.signal,
+    });
+
+    // Should stop within a poll iteration of the abort - well below 200
+    expect(electron.generation.getStatus.mock.calls.length).toBeLessThan(10);
+    const runtime = useAppStore.getState().workflowRuntimeById['image-generation-baseline'];
+    expect(runtime?.lastFailureMessage).toMatch(/cancel|abort/i);
+  });
 });
 
 function makeElectronGenerationMock(options: {

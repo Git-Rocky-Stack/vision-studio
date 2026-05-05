@@ -434,6 +434,94 @@ describe('runTimelineClipGeneration', () => {
       }),
     );
   });
+
+  it('bails before submitting any HTTP call when the signal is pre-aborted', async () => {
+    const { sequence, clip } = seedImageTimelineClip();
+    const electron = makeElectronGenerationMock({
+      submitImage: { success: true, jobId: 'never-submitted' },
+      statuses: [],
+    });
+    const controller = new AbortController();
+    controller.abort();
+
+    const result = await runTimelineClipGeneration({
+      operation: 'generate',
+      clipId: clip.id,
+      sequenceId: sequence.id,
+      input: {
+        prompt: 'pre-aborted',
+        generationType: 'image',
+        model: 'flux-dev',
+        width: 1024,
+        height: 1024,
+        steps: 25,
+        cfgScale: 7.5,
+        scheduler: 'Euler a',
+        seed: 11,
+      },
+      electron,
+      pollIntervalMs: 0,
+      signal: controller.signal,
+    });
+
+    expect(electron.generation.generateImage).not.toHaveBeenCalled();
+    expect(electron.generation.getStatus).not.toHaveBeenCalled();
+    expect(result.cancelled).toBe(true);
+  });
+
+  it('stops polling when the signal aborts mid-flight', async () => {
+    const { sequence, clip } = seedImageTimelineClip();
+    const processingStatuses: Array<Record<string, unknown>> = Array.from({ length: 200 }, () => ({
+      job_id: 'timeline-aborted',
+      status: 'processing',
+      type: 'image',
+      created_at: '2026-04-24T08:30:00.000Z',
+      progress: 50,
+    }));
+
+    const controller = new AbortController();
+    let getStatusCalls = 0;
+    const electron = makeElectronGenerationMock({
+      submitImage: { success: true, jobId: 'timeline-aborted' },
+      statuses: processingStatuses,
+    });
+    const baseGetStatus = electron.generation.getStatus;
+    electron.generation.getStatus = vi.fn().mockImplementation(async (jobId: string) => {
+      getStatusCalls += 1;
+      if (getStatusCalls === 3) {
+        controller.abort();
+      }
+      return baseGetStatus(jobId);
+    });
+
+    const result = await runTimelineClipGeneration({
+      operation: 'generate',
+      clipId: clip.id,
+      sequenceId: sequence.id,
+      input: {
+        prompt: 'mid-flight abort',
+        generationType: 'image',
+        model: 'flux-dev',
+        width: 1024,
+        height: 1024,
+        steps: 25,
+        cfgScale: 7.5,
+        scheduler: 'Euler a',
+        seed: 11,
+      },
+      electron,
+      pollIntervalMs: 0,
+      signal: controller.signal,
+    }).catch((error) => {
+      // signal-abort path may either throw or return cancelled - accept either,
+      // and assert via call count rather than result shape
+      expect(error).toBeInstanceOf(Error);
+      return { cancelled: true } as const;
+    });
+
+    expect(electron.generation.getStatus.mock.calls.length).toBeLessThan(10);
+    expect(result.cancelled).toBe(true);
+  });
 });
 
 function seedImageTimelineClip() {

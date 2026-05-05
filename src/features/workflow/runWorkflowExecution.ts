@@ -39,6 +39,12 @@ interface RunWorkflowExecutionOptions {
   electron?: WorkflowExecutionElectronApi;
   store?: WorkflowStore;
   pollIntervalMs?: number;
+  /**
+   * Optional AbortSignal. When fired, polling stops promptly and the run is
+   * recorded as a failure with a cancellation message. Pre-aborted signals
+   * bail before any HTTP submission.
+   */
+  signal?: AbortSignal;
 }
 
 export async function runWorkflowExecution({
@@ -46,10 +52,21 @@ export async function runWorkflowExecution({
   electron = window.electron,
   store = useAppStore,
   pollIntervalMs = 500,
+  signal,
 }: RunWorkflowExecutionOptions) {
   const state = store.getState();
   const workflow = state.workflowRecords.find((entry) => entry.id === workflowId);
   if (!workflow) {
+    return;
+  }
+
+  // Pre-aborted signal: skip everything and record the cancellation so the
+  // workflow runtime reflects the user's intent immediately.
+  if (signal?.aborted) {
+    state.setWorkflowRuntimeState(workflowId, {
+      activeJobId: null,
+      lastFailureMessage: 'Workflow execution was cancelled.',
+    });
     return;
   }
 
@@ -144,6 +161,9 @@ export async function runWorkflowExecution({
 
     let finalStatus: JobStatus | null = null;
     for (let attempt = 0; attempt < maxPollAttempts; attempt += 1) {
+      if (signal?.aborted) {
+        throw new Error('Workflow execution was cancelled.');
+      }
       const nextStatus = await electron.generation.getStatus(jobId);
       if (!nextStatus) {
         throw new Error('Workflow execution returned no job status.');
@@ -160,7 +180,7 @@ export async function runWorkflowExecution({
       });
 
       if (pollIntervalMs > 0) {
-        await delay(pollIntervalMs);
+        await delay(pollIntervalMs, signal);
       }
     }
 
@@ -283,9 +303,21 @@ export function buildCompletionSummary(status: JobStatus) {
   return 'Workflow completed successfully.';
 }
 
-export function delay(ms: number) {
-  return new Promise((resolve) => {
-    setTimeout(resolve, ms);
+export function delay(ms: number, signal?: AbortSignal) {
+  return new Promise<void>((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(new Error('delay aborted'));
+      return;
+    }
+    const timer = setTimeout(() => {
+      signal?.removeEventListener('abort', onAbort);
+      resolve();
+    }, ms);
+    const onAbort = () => {
+      clearTimeout(timer);
+      reject(new Error('delay aborted'));
+    };
+    signal?.addEventListener('abort', onAbort, { once: true });
   });
 }
 

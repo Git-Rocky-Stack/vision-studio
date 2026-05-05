@@ -94,6 +94,12 @@ interface RunTimelineClipGenerationOptions {
   electron?: TimelineGenerationElectronApi;
   pollIntervalMs?: number;
   onStatusChange?: (patch: TimelineGenerationStatusPatch) => void;
+  /**
+   * Optional AbortSignal. Pre-aborted signals bail before any HTTP submission
+   * and return cancelled. Mid-poll aborts mark job/binding cancelled and
+   * return cancelled within one polling cycle of the abort.
+   */
+  signal?: AbortSignal;
 }
 
 interface ResolvedTimelineGenerationInput {
@@ -131,7 +137,19 @@ export async function runTimelineClipGeneration({
   electron = window.electron,
   pollIntervalMs = 500,
   onStatusChange,
+  signal,
 }: RunTimelineClipGenerationOptions): Promise<TimelineGenerationRunResult> {
+  // Pre-aborted signal: bail before any HTTP work or state mutation.
+  if (signal?.aborted) {
+    return {
+      cancelled: true,
+      clipId: clipId ?? null,
+      outputAssetId: null,
+      bindingId: null,
+      retakeTakeId: null,
+    };
+  }
+
   const state = store.getState();
   const targetClip = resolveTargetClip(state, clipId);
   const targetTrack = targetClip
@@ -433,7 +451,12 @@ export async function runTimelineClipGeneration({
   const maxPollAttempts = isHostedImageRoute ? 240 : 120;
 
   let finalStatus: JobStatus | null = null;
+  let signalAborted = false;
   for (let attempt = 0; attempt < maxPollAttempts; attempt += 1) {
+    if (signal?.aborted) {
+      signalAborted = true;
+      break;
+    }
     const nextStatus = await electron.generation.getStatus(jobId);
     if (!nextStatus) {
       throw new Error('Timeline generation returned no job status.');
@@ -478,8 +501,47 @@ export async function runTimelineClipGeneration({
     }
 
     if (pollIntervalMs > 0) {
-      await delay(pollIntervalMs);
+      try {
+        await delay(pollIntervalMs, signal);
+      } catch {
+        signalAborted = true;
+        break;
+      }
     }
+  }
+
+  if (signalAborted) {
+    state.updateJob(jobId, {
+      status: 'cancelled',
+      progress: 0,
+      completedAt: new Date(),
+    });
+    if (nextBindingBase) {
+      state.upsertClipGenerationBinding({
+        ...store.getState().clipGenerationBindings.find((binding) => binding.id === nextBindingBase.id)!,
+        lastRunSummary: {
+          status: 'failed',
+          outputMediaAssetId: null,
+          completedAt: new Date().toISOString(),
+          errorMessage: 'Timeline generation was cancelled.',
+        },
+      });
+    }
+    if (retakeTakeId) {
+      state.updateClipRetakeTake(retakeTakeId, { status: 'failed' });
+    }
+    onStatusChange?.({
+      isGenerating: false,
+      status: 'idle',
+      activeJobId: null,
+    });
+    return {
+      cancelled: true,
+      clipId: targetClip?.id ?? null,
+      outputAssetId: null,
+      bindingId: nextBindingBase?.id ?? null,
+      retakeTakeId,
+    };
   }
 
   if (!finalStatus) {
