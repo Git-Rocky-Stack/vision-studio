@@ -175,8 +175,16 @@ export async function runWorkflowExecution({
         break;
       }
 
+      // Defensive enum guard: a future-version backend could return a status
+      // outside the JobStatus union. Coerce anything other than the two
+      // expected non-terminal values to 'processing' so the store never holds
+      // an unknown literal that downstream code does not handle.
+      const safeStatus: 'pending' | 'processing' =
+        nextStatus.status === 'pending' || nextStatus.status === 'processing'
+          ? nextStatus.status
+          : 'processing';
       state.updateJob(jobId, {
-        status: nextStatus.status,
+        status: safeStatus,
         progress: nextStatus.progress ?? 0,
       });
 
@@ -217,10 +225,14 @@ export async function runWorkflowExecution({
         state.setCenterView('viewer');
       }
 
-      await electron.notifications.notify('generation_complete', {
-        title: 'Workflow Ready',
-        body: routedResolution.summary?.prompt.slice(0, 120) || 'Workflow completed successfully.',
-      });
+      // Swallow notify errors so a failing toast layer cannot turn a
+      // successful run into a thrown rejection at the end of the function.
+      await electron.notifications
+        .notify('generation_complete', {
+          title: 'Workflow Ready',
+          body: routedResolution.summary?.prompt.slice(0, 120) || 'Workflow completed successfully.',
+        })
+        .catch(() => undefined);
 
       state.recordWorkflowRun(workflowId, {
         id: runId,
@@ -267,10 +279,14 @@ export async function runWorkflowExecution({
       lastFailureMessage: message,
     });
 
-    await electron.notifications.notify('generation_failed', {
-      title: 'Workflow Failed',
-      body: message,
-    });
+    // Swallow notify errors so a failing toast layer cannot replace the
+    // real failureMessage on its way out of this function.
+    await electron.notifications
+      .notify('generation_failed', {
+        title: 'Workflow Failed',
+        body: message,
+      })
+      .catch(() => undefined);
   }
 }
 

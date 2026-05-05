@@ -269,6 +269,80 @@ describe('runWorkflowExecution', () => {
     expect(electron.generation.cancel).toHaveBeenCalledWith('job-cancel-mid');
   });
 
+  it('does not let a notify throw shadow the original failure message', async () => {
+    const electron = makeElectronGenerationMock({
+      submitError: new Error('Backend offline'),
+    });
+    // Notification service throws (e.g., toast layer down, perms denied).
+    electron.notifications.notify = vi.fn().mockRejectedValue(new Error('notify exploded'));
+
+    // Should resolve cleanly (no thrown 'notify exploded'), and the runtime
+    // state should hold the ORIGINAL failure -- not the notify error.
+    await expect(
+      runWorkflowExecution({
+        workflowId: 'image-generation-baseline',
+        electron,
+        store: useAppStore,
+        pollIntervalMs: 0,
+      }),
+    ).resolves.toBeUndefined();
+
+    const runtime = useAppStore.getState().workflowRuntimeById['image-generation-baseline'];
+    expect(runtime?.lastFailureMessage).toBe('Backend offline');
+  });
+
+  it('drops unknown statuses from getStatus rather than writing them to the store', async () => {
+    // A future-version backend returning a status outside the JobStatus enum
+    // must not corrupt the store. Runner should keep going and reach the
+    // real terminal status without ever writing 'paused' to the job record.
+    const electron = makeElectronGenerationMock({
+      submit: { success: true, jobId: 'job-unknown-status' },
+      statuses: [
+        {
+          job_id: 'job-unknown-status',
+          status: 'paused' as unknown as 'processing',
+          type: 'image',
+          created_at: '2026-04-24T20:00:00.000Z',
+          progress: 33,
+        },
+        {
+          job_id: 'job-unknown-status',
+          status: 'completed',
+          type: 'image',
+          created_at: '2026-04-24T20:00:00.000Z',
+          completed_at: '2026-04-24T20:00:05.000Z',
+          progress: 100,
+          result: {
+            images: ['/outputs/job-unknown-status/image-1.png'],
+          },
+        },
+      ],
+    });
+    // Capture every status the store held during the run so we can assert
+    // 'paused' never appeared on its way to the terminal state.
+    const seenStatuses = new Set<string>();
+    const baseGetStatus = electron.generation.getStatus;
+    electron.generation.getStatus = vi.fn().mockImplementation(async (jobId: string) => {
+      const before = useAppStore.getState().activeJobs.find((entry) => entry.id === jobId);
+      if (before) seenStatuses.add(before.status);
+      const next = await baseGetStatus(jobId);
+      const after = useAppStore.getState().activeJobs.find((entry) => entry.id === jobId);
+      if (after) seenStatuses.add(after.status);
+      return next;
+    });
+
+    await runWorkflowExecution({
+      workflowId: 'image-generation-baseline',
+      electron,
+      store: useAppStore,
+      pollIntervalMs: 0,
+    });
+
+    expect(seenStatuses.has('paused')).toBe(false);
+    const job = useAppStore.getState().completedJobs.find((entry) => entry.id === 'job-unknown-status');
+    expect(job?.status).toBe('completed');
+  });
+
   it('does NOT call cancel when signal is pre-aborted (no jobId yet)', async () => {
     const electron = makeElectronGenerationMock({
       submit: { success: true, jobId: 'never-submitted' },

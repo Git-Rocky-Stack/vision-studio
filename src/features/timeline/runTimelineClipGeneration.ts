@@ -472,8 +472,16 @@ export async function runTimelineClipGeneration({
       break;
     }
 
+    // Defensive enum guard: a future-version backend could return a status
+    // outside the JobStatus union. Coerce anything other than the two
+    // expected non-terminal values to 'processing' so the store never holds
+    // an unknown literal that downstream code does not handle.
+    const safeStatus: 'pending' | 'processing' =
+      nextStatus.status === 'pending' || nextStatus.status === 'processing'
+        ? nextStatus.status
+        : 'processing';
     state.updateJob(jobId, {
-      status: nextStatus.status,
+      status: safeStatus,
       progress: nextStatus.progress ?? 0,
     });
     const stepValue = (nextStatus as JobStatus & { step?: number }).step;
@@ -486,8 +494,7 @@ export async function runTimelineClipGeneration({
     });
 
     if (nextBindingBase) {
-      state.upsertClipGenerationBinding({
-        ...store.getState().clipGenerationBindings.find((binding) => binding.id === nextBindingBase.id)!,
+      patchBindingIfPresent(store, nextBindingBase.id, {
         lastRunSummary: {
           status: 'running',
           outputMediaAssetId: null,
@@ -522,8 +529,7 @@ export async function runTimelineClipGeneration({
       completedAt: new Date(),
     });
     if (nextBindingBase) {
-      state.upsertClipGenerationBinding({
-        ...store.getState().clipGenerationBindings.find((binding) => binding.id === nextBindingBase.id)!,
+      patchBindingIfPresent(store, nextBindingBase.id, {
         lastRunSummary: {
           status: 'failed',
           outputMediaAssetId: null,
@@ -552,8 +558,7 @@ export async function runTimelineClipGeneration({
   if (!finalStatus) {
     const timeoutMessage = 'Timeline generation timed out while waiting for the job to finish.';
     if (nextBindingBase) {
-      state.upsertClipGenerationBinding({
-        ...store.getState().clipGenerationBindings.find((binding) => binding.id === nextBindingBase.id)!,
+      patchBindingIfPresent(store, nextBindingBase.id, {
         lastRunSummary: {
           status: 'failed',
           outputMediaAssetId: null,
@@ -575,8 +580,7 @@ export async function runTimelineClipGeneration({
       completedAt: finalStatus.completed_at ? new Date(finalStatus.completed_at) : new Date(),
     });
     if (nextBindingBase) {
-      state.upsertClipGenerationBinding({
-        ...store.getState().clipGenerationBindings.find((binding) => binding.id === nextBindingBase.id)!,
+      patchBindingIfPresent(store, nextBindingBase.id, {
         lastRunSummary: {
           status: 'failed',
           outputMediaAssetId: null,
@@ -612,8 +616,7 @@ export async function runTimelineClipGeneration({
       completedAt: finalStatus.completed_at ? new Date(finalStatus.completed_at) : new Date(),
     });
     if (nextBindingBase) {
-      state.upsertClipGenerationBinding({
-        ...store.getState().clipGenerationBindings.find((binding) => binding.id === nextBindingBase.id)!,
+      patchBindingIfPresent(store, nextBindingBase.id, {
         lastRunSummary: {
           status: 'failed',
           outputMediaAssetId: null,
@@ -625,10 +628,14 @@ export async function runTimelineClipGeneration({
     if (retakeTakeId) {
       state.updateClipRetakeTake(retakeTakeId, { status: 'failed' });
     }
-    await electron.notifications.notify('generation_failed', {
-      title: 'Timeline Generation Failed',
-      body: failureMessage,
-    });
+    // Swallow notify errors so a failing toast layer cannot replace the
+    // real failureMessage in the rejection that bubbles out below.
+    await electron.notifications
+      .notify('generation_failed', {
+        title: 'Timeline Generation Failed',
+        body: failureMessage,
+      })
+      .catch(() => undefined);
     throw new Error(failureMessage);
   }
 
@@ -781,10 +788,14 @@ export async function runTimelineClipGeneration({
     state.setActiveViewerItemId(outputAssetId);
   }
 
-  await electron.notifications.notify('generation_complete', {
-    title: operation === 'retake' ? 'Retake Candidate Ready' : 'Timeline Clip Ready',
-    body: providerResolved.prompt.slice(0, 120) || 'Timeline generation completed successfully.',
-  });
+  // Swallow notify errors so a failing toast layer cannot turn a
+  // successful run into a thrown rejection at the end of the function.
+  await electron.notifications
+    .notify('generation_complete', {
+      title: operation === 'retake' ? 'Retake Candidate Ready' : 'Timeline Clip Ready',
+      body: providerResolved.prompt.slice(0, 120) || 'Timeline generation completed successfully.',
+    })
+    .catch(() => undefined);
 
   return {
     cancelled: false,
@@ -1166,6 +1177,25 @@ function toDurationMs(duration: number | undefined) {
   }
 
   return duration > 120 ? Math.round(duration) : Math.round(duration * 1000);
+}
+
+/**
+ * Apply a partial update to a binding only if it is still present in the
+ * store. A parallel mutation -- typically the user deleting the parent
+ * clip mid-poll -- can prune a binding while a generation is in flight.
+ * No-op in that case so the runner does not crash trying to upsert into
+ * a removed record.
+ */
+function patchBindingIfPresent(
+  store: TimelineStore,
+  bindingId: string,
+  patch: Partial<ClipGenerationBinding>,
+) {
+  const current = store.getState().clipGenerationBindings.find((binding) => binding.id === bindingId);
+  if (!current) {
+    return;
+  }
+  store.getState().upsertClipGenerationBinding({ ...current, ...patch });
 }
 
 function getNumberSetting(binding: ClipGenerationBinding | null, key: string) {

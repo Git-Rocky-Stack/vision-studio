@@ -571,6 +571,166 @@ describe('runTimelineClipGeneration', () => {
     expect(electron.generation.cancel).toHaveBeenCalledWith('timeline-cancel-mid');
   });
 
+  it('does not let a notify throw shadow the original generation failure', async () => {
+    const { sequence, clip } = seedImageTimelineClip();
+    const electron = makeElectronGenerationMock({
+      submitImage: { success: true, jobId: 'timeline-notify-shadow' },
+      statuses: [
+        {
+          job_id: 'timeline-notify-shadow',
+          status: 'failed',
+          type: 'image',
+          created_at: '2026-04-24T08:30:00.000Z',
+          completed_at: '2026-04-24T08:30:01.000Z',
+          progress: 0,
+          error: 'Underlying model rejected the prompt.',
+        },
+      ],
+    });
+    // Notification service throws (e.g., toast layer down, perms denied).
+    electron.notifications.notify = vi.fn().mockRejectedValue(new Error('notify exploded'));
+
+    // The runner must surface the ORIGINAL generation error, not 'notify exploded'.
+    await expect(
+      runTimelineClipGeneration({
+        operation: 'generate',
+        clipId: clip.id,
+        sequenceId: sequence.id,
+        input: {
+          prompt: 'force a backend failure',
+          generationType: 'image',
+          model: 'flux-dev',
+          width: 1024,
+          height: 1024,
+          steps: 25,
+          cfgScale: 7.5,
+          scheduler: 'Euler a',
+          seed: 11,
+        },
+        electron,
+        pollIntervalMs: 0,
+      }),
+    ).rejects.toThrow('Underlying model rejected the prompt.');
+  });
+
+  it('drops unknown statuses from getStatus rather than writing them to the store', async () => {
+    // A future-version backend returning a status outside the JobStatus enum
+    // must not corrupt the store. Runner should keep going and reach the
+    // real terminal status without ever writing 'paused' to the job record.
+    const { sequence, clip } = seedImageTimelineClip();
+    const electron = makeElectronGenerationMock({
+      submitImage: { success: true, jobId: 'timeline-unknown-status' },
+      statuses: [
+        {
+          job_id: 'timeline-unknown-status',
+          status: 'paused' as unknown as 'processing',
+          type: 'image',
+          created_at: '2026-04-24T08:30:00.000Z',
+          progress: 50,
+        },
+        {
+          job_id: 'timeline-unknown-status',
+          status: 'completed',
+          type: 'image',
+          created_at: '2026-04-24T08:30:00.000Z',
+          completed_at: '2026-04-24T08:30:05.000Z',
+          progress: 100,
+          result: {
+            images: ['/outputs/timeline-unknown-status/image-1.png'],
+          },
+        },
+      ],
+    });
+    const seenStatuses = new Set<string>();
+    const baseGetStatus = electron.generation.getStatus;
+    electron.generation.getStatus = vi.fn().mockImplementation(async (jobId: string) => {
+      const before = useAppStore.getState().activeJobs.find((entry) => entry.id === jobId);
+      if (before) seenStatuses.add(before.status);
+      const next = await baseGetStatus(jobId);
+      const after = useAppStore.getState().activeJobs.find((entry) => entry.id === jobId);
+      if (after) seenStatuses.add(after.status);
+      return next;
+    });
+
+    await runTimelineClipGeneration({
+      operation: 'generate',
+      clipId: clip.id,
+      sequenceId: sequence.id,
+      input: {
+        prompt: 'unknown status from backend',
+        generationType: 'image',
+        model: 'flux-dev',
+        width: 1024,
+        height: 1024,
+        steps: 25,
+        cfgScale: 7.5,
+        scheduler: 'Euler a',
+        seed: 11,
+      },
+      electron,
+      pollIntervalMs: 0,
+    });
+
+    expect(seenStatuses.has('paused')).toBe(false);
+  });
+
+  it('does not crash when the parent clip (and its binding) is deleted mid-poll', async () => {
+    // Background: a parallel mutation -- typically the user deleting the
+    // clip from the timeline -- prunes the binding from the store while a
+    // regenerate is in flight. The runner used to look the binding back up
+    // with a non-null assertion (find(...)!), spread the resulting
+    // undefined into upsertClipGenerationBinding, and crash inside the
+    // upsert when it tried to read .variantIds. Now the runner must
+    // gracefully no-op the upsert and finish without throwing.
+    const { clip } = seedAiBoundVideoClip();
+    const electron = makeElectronGenerationMock({
+      submitVideo: { success: true, jobId: 'timeline-binding-pruned' },
+      statuses: [
+        {
+          job_id: 'timeline-binding-pruned',
+          status: 'processing',
+          type: 'video',
+          created_at: '2026-04-23T08:10:00.000Z',
+          progress: 30,
+        },
+        {
+          job_id: 'timeline-binding-pruned',
+          status: 'completed',
+          type: 'video',
+          created_at: '2026-04-23T08:10:00.000Z',
+          completed_at: '2026-04-23T08:10:05.000Z',
+          progress: 100,
+          result: {
+            video: '/outputs/timeline-binding-pruned/refreshed.mp4',
+            duration: 5,
+          },
+        },
+      ],
+    });
+
+    let getStatusCalls = 0;
+    const baseGetStatus = electron.generation.getStatus;
+    electron.generation.getStatus = vi.fn().mockImplementation(async (jobId: string) => {
+      getStatusCalls += 1;
+      // After the first non-terminal poll, the user deletes the clip.
+      // Binding gets pruned from store. Subsequent runner upserts must
+      // not crash.
+      if (getStatusCalls === 1) {
+        useAppStore.getState().deleteTimelineClip(clip.id);
+      }
+      return baseGetStatus(jobId);
+    });
+
+    await expect(
+      runTimelineClipGeneration({
+        operation: 'regenerate',
+        clipId: clip.id,
+        electron,
+        pollIntervalMs: 0,
+      }),
+    ).resolves.toBeDefined();
+  });
+
   it('does NOT call cancel when signal is pre-aborted (no jobId yet)', async () => {
     const { sequence, clip } = seedImageTimelineClip();
     const electron = makeElectronGenerationMock({
