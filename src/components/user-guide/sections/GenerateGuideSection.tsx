@@ -1,5 +1,6 @@
 import { GuideCallout } from '../GuideCallout';
 import { GuideList } from '../GuideList';
+import { GuideStepList } from '../GuideStepList';
 import { UserGuideSection } from '../UserGuideSection';
 
 export function GenerateGuideSection() {
@@ -22,26 +23,132 @@ export function GenerateGuideSection() {
             results can land directly in the edit instead of staying detached from the story flow.
           </span>,
           <span>
-            Completed jobs still route back through Viewer and the asset library, so hosted and
-            local stills stay reviewable in the same workspace flow.
+            Completed jobs route back through Viewer and the asset library, so hosted and local
+            stills stay reviewable in the same workspace flow.
           </span>,
         ]}
       />
 
-      <GuideCallout title="Prompt Studio">
+      <GuideStepList
+        steps={[
+          {
+            title: 'Write or paste your prompt',
+            description:
+              'Use the prompt area at the top of Generate. Press Tab to jump into the negative prompt field, or use the Random button in the toolbar to seed a starter idea when you want a blank-canvas warm-up.',
+          },
+          {
+            title: 'Pick a model and aspect ratio',
+            description:
+              'Select an installed image or video model from the Model picker, then set the aspect ratio. Aspect ratio drives width and height together, so the picker keeps proportions correct without manual math.',
+          },
+          {
+            title: 'Tune Advanced Settings if you need to',
+            description:
+              'Open Advanced Generation Settings to override steps, CFG scale, scheduler, and seed. The defaults (25 steps, CFG 7.5, Euler scheduler, random seed) are tuned to be a good starting point for most models.',
+          },
+          {
+            title: 'Add references, ControlNet, or LoRA when the run needs them',
+            description:
+              'Use Reference Media for composition or character continuity, ControlNet for structural guidance, and LoRA Mixer for style fine-tunes. These advanced inputs require the Local still-image route -- see the routing callout below.',
+          },
+          {
+            title: 'Generate and review',
+            description:
+              'Click Generate. Track progress in the active jobs list and in the live progress overlay. When the job lands, the result opens in Viewer and is added to the asset library automatically.',
+          },
+        ]}
+      />
+
+      <GuideCallout title="Quick Generate vs Generate" tone="info">
         <GuideList
           items={[
             <span>
-              <strong>AI Enhance</strong> and <strong>Expand</strong> now operate on the shared
+              <strong>Quick Generate</strong> is the fast still-image draft surface -- minimal
+              controls, immediate results, ideal for exploring ideas before committing to a full
+              setup.
+            </span>,
+            <span>
+              <strong>Generate</strong> is the full panel -- references, ControlNet, LoRA, advanced
+              settings, video controls, and timeline-aware targeting.
+            </span>,
+            <span>
+              Both share the same draft, the same active account routing, and the same asset
+              destinations. Switching between them never loses prompt state.
+            </span>,
+          ]}
+        />
+      </GuideCallout>
+
+      <GuideCallout title="Understanding the Controls" tone="info">
+        <GuideList
+          items={[
+            <span>
+              <strong>Model</strong> drives both quality and capability. FLUX models excel at
+              photorealism and prompt adherence; SD 3.5 is a balanced workhorse; SD 1.5 is fastest
+              and most permissive about VRAM. Video models (LTX, SVD, AnimateDiff) appear when
+              Generation Type is set to Video.
+            </span>,
+            <span>
+              <strong>Steps</strong> trade speed for refinement. Most modern models converge by
+              step 20-30; pushing past 50 rarely improves still results and burns time.
+            </span>,
+            <span>
+              <strong>CFG Scale</strong> controls how strictly the model follows your prompt.
+              Lower (3-5) gives the model creative latitude; higher (8-12) forces literal
+              adherence and can introduce artifacts above 12.
+            </span>,
+            <span>
+              <strong>Scheduler</strong> selects the sampler. Euler and DPM++ are reliable
+              defaults; experiment per model to find your taste.
+            </span>,
+            <span>
+              <strong>Seed</strong> at <code>-1</code> is random. Lock a seed when you want to
+              re-roll a variation while keeping the composition close to the previous result.
+            </span>,
+          ]}
+        />
+      </GuideCallout>
+
+      <GuideCallout title="Prompt Studio" tone="info">
+        <GuideList
+          items={[
+            <span>
+              <strong>AI Enhance</strong> and <strong>Expand</strong> operate on the shared
               generation draft instead of a disconnected local editor.
             </span>,
             <span>
               <strong>Negative Suggest</strong> uses OpenRouter when the active account selects the
-              hosted prompt route, with a local fallback when OpenRouter is not selected.
+              hosted prompt route, with a built-in heuristic fallback (covering portrait, photo,
+              text, product, landscape, and anime cues) when OpenRouter is not selected.
             </span>,
             <span>
               <strong>Style Transfer</strong> applies real preset modifiers to the draft prompt,
               so the generated result reflects the selected style chips immediately.
+            </span>,
+            <span>
+              Prompt history is capped to the most recent 50 prompts and stays local to the
+              renderer. Star a prompt from the history list to keep it pinned across sessions.
+            </span>,
+          ]}
+        />
+      </GuideCallout>
+
+      <GuideCallout title="Batch Generation" tone="info">
+        <GuideList
+          items={[
+            <span>
+              Paste or type one prompt per line. Empty lines are ignored. Each prompt becomes a
+              separate job using the shared aspect, model, and advanced settings.
+            </span>,
+            <span>
+              Active jobs queue up under one batch. Completed results bulk into the batch
+              workspace where you can preview, multi-select, bulk export, or bulk delete without
+              context-switching back to Assets.
+            </span>,
+            <span>
+              The batch UI preserves prompt order so you can spot which prompt produced which
+              result. Failed prompts stay in the batch with a retry control instead of disappearing
+              silently.
             </span>,
           ]}
         />
@@ -52,23 +159,40 @@ export function GenerateGuideSection() {
           items={[
             <span>
               When the active account uses OpenRouter for still images, Generate, Quick Generate,
-              and Batch route prompt, negative prompt, aspect ratio, and seed through the configured
-              hosted still-image model.
+              and Batch route prompt, negative prompt, aspect ratio, and seed through the
+              configured hosted still-image model.
             </span>,
             <span>
-              Hosted still-image runs can continue even while the local backend is offline, as long
-              as the active account has a verified key and a still-image model selected.
+              Hosted still-image runs can continue even while the local backend is offline, as
+              long as the active account has a verified key and a still-image model selected.
+            </span>,
+            <span>
+              Hosted results are written into <code>output/openrouter/YYYY-MM-DD/</code> under
+              your managed output root, then synced into Assets -- there is no separate hosted
+              gallery to chase.
             </span>,
           ]}
         />
       </GuideCallout>
 
       <GuideCallout title="Switch Back To Local When You Need Advanced Image Controls" tone="warning">
-        <p>
-          ControlNet, inpaint, canvas-guided layers, and reference-image passes remain on the local
-          image path. If those controls matter for the current run, switch the active account&apos;s
-          still-image provider back to Local in Settings before launching.
-        </p>
+        <GuideList
+          items={[
+            <span>
+              ControlNet, inpaint, canvas-guided layers, and reference-image passes remain on the
+              local image path.
+            </span>,
+            <span>
+              <strong>Video generation is always local</strong> regardless of provider routing.
+              OpenRouter has no video equivalent today.
+            </span>,
+            <span>
+              If those controls matter for the current run, switch the active account&apos;s
+              still-image provider back to Local in Settings before launching, or switch to a
+              different account that is already configured for Local.
+            </span>,
+          ]}
+        />
       </GuideCallout>
     </UserGuideSection>
   );
