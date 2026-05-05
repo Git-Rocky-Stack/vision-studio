@@ -1,0 +1,798 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Vision Studio API",
+    "description": "Local-first AI image and video generation backend for the Vision Studio Electron desktop app. The runtime backend exposes a richer, fully introspectable spec at http://127.0.0.1:8000/api/openapi.json — this file is a hand-curated, human-friendly snapshot suitable for diffing in PRs.",
+    "version": "0.1.0",
+    "contact": {
+      "name": "Vision Studio Team",
+      "email": "hello@visionstudio.app"
+    },
+    "license": { "name": "MIT" }
+  },
+  "servers": [
+    { "url": "http://127.0.0.1:8000", "description": "Local backend (loopback only)" }
+  ],
+  "security": [{ "BackendToken": [] }],
+  "tags": [
+    { "name": "Health" },
+    { "name": "System" },
+    { "name": "Prompts" },
+    { "name": "Generation" },
+    { "name": "Jobs" },
+    { "name": "Models" },
+    { "name": "Images" },
+    { "name": "Videos" },
+    { "name": "Timeline" },
+    { "name": "ControlNet" },
+    { "name": "LoRA" },
+    { "name": "Edit" },
+    { "name": "Batch" }
+  ],
+  "paths": {
+    "/": {
+      "get": {
+        "tags": ["Health"],
+        "summary": "Liveness ping",
+        "operationId": "root",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": { "type": "object", "properties": { "message": { "type": "string" }, "version": { "type": "string" } } },
+                "example": { "message": "Vision Studio API", "version": "0.1.0" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/health": {
+      "get": {
+        "tags": ["System"],
+        "summary": "Backend readiness + generator availability",
+        "operationId": "health",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/HealthResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/system/info": {
+      "get": {
+        "tags": ["System"],
+        "summary": "GPU + system info",
+        "operationId": "getSystemInfo",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SystemInfo" } } }
+          }
+        }
+      }
+    },
+    "/api/prompts/enhance": {
+      "post": {
+        "tags": ["Prompts"],
+        "summary": "Enhance a prompt",
+        "operationId": "enhancePrompt",
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PromptEnhancementRequest" } } }
+        },
+        "responses": {
+          "200": {
+            "description": "Enhanced prompt",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "mode": { "type": "string" },
+                    "prompt": { "type": "string" },
+                    "variations": { "type": "array", "items": { "type": "string" } }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/generate/image": {
+      "post": {
+        "tags": ["Generation"],
+        "summary": "Start an image generation job (async)",
+        "operationId": "generateImage",
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ImageGenerationRequest" } } }
+        },
+        "responses": {
+          "200": { "description": "Job accepted", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/JobResponse" } } } },
+          "429": { "$ref": "#/components/responses/RateLimited" }
+        }
+      }
+    },
+    "/api/generate/video": {
+      "post": {
+        "tags": ["Generation"],
+        "summary": "Start a video generation job (async)",
+        "operationId": "generateVideo",
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/VideoGenerationRequest" } } }
+        },
+        "responses": {
+          "200": { "description": "Job accepted", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/JobResponse" } } } },
+          "429": { "$ref": "#/components/responses/RateLimited" }
+        }
+      }
+    },
+    "/api/jobs": {
+      "get": {
+        "tags": ["Jobs"],
+        "summary": "List recent jobs",
+        "operationId": "listJobs",
+        "parameters": [
+          { "in": "query", "name": "status", "schema": { "$ref": "#/components/schemas/JobStatus" } },
+          { "in": "query", "name": "limit", "schema": { "type": "integer", "minimum": 1, "maximum": 100, "default": 50 } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Job summaries",
+            "content": { "application/json": { "schema": { "type": "object", "properties": { "jobs": { "type": "array", "items": { "$ref": "#/components/schemas/JobSummary" } } } } } }
+          }
+        }
+      }
+    },
+    "/api/jobs/{job_id}": {
+      "get": {
+        "tags": ["Jobs"],
+        "summary": "Get job status + result",
+        "operationId": "getJobStatus",
+        "parameters": [{ "in": "path", "name": "job_id", "required": true, "schema": { "type": "string" } }],
+        "responses": {
+          "200": { "description": "Job status", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/JobStatusResponse" } } } },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/api/jobs/{job_id}/cancel": {
+      "post": {
+        "tags": ["Jobs"],
+        "summary": "Cancel a pending or running job",
+        "operationId": "cancelJob",
+        "parameters": [{ "in": "path", "name": "job_id", "required": true, "schema": { "type": "string" } }],
+        "responses": {
+          "200": { "description": "Cancellation result", "content": { "application/json": { "schema": { "type": "object", "properties": { "message": { "type": "string" } } } } } },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/api/models": {
+      "get": {
+        "tags": ["Models"],
+        "summary": "List available models",
+        "operationId": "listModels",
+        "responses": {
+          "200": { "description": "Model list", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/ModelInfo" } } } } }
+        }
+      }
+    },
+    "/api/models/{model_id}/download": {
+      "post": {
+        "tags": ["Models"],
+        "summary": "Queue a model download",
+        "operationId": "downloadModel",
+        "parameters": [{ "in": "path", "name": "model_id", "required": true, "schema": { "type": "string" } }],
+        "responses": {
+          "200": { "description": "Download queued", "content": { "application/json": { "schema": { "type": "object", "properties": { "success": { "type": "boolean" }, "message": { "type": "string" } } } } } }
+        }
+      }
+    },
+    "/api/models/{model_id}/status": {
+      "get": {
+        "tags": ["Models"],
+        "summary": "Get model download status",
+        "operationId": "getModelStatus",
+        "parameters": [{ "in": "path", "name": "model_id", "required": true, "schema": { "type": "string" } }],
+        "responses": {
+          "200": { "description": "Model status", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ModelStatus" } } } }
+        }
+      }
+    },
+    "/api/models/{model_id}": {
+      "delete": {
+        "tags": ["Models"],
+        "summary": "Delete an installed model",
+        "operationId": "deleteModel",
+        "parameters": [{ "in": "path", "name": "model_id", "required": true, "schema": { "type": "string" } }],
+        "responses": {
+          "200": { "description": "Deleted", "content": { "application/json": { "schema": { "type": "object", "properties": { "success": { "type": "boolean" } } } } } },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/api/images/crop": {
+      "post": {
+        "tags": ["Images"],
+        "summary": "Crop / rotate / flip an image",
+        "operationId": "cropImage",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ImageEditRequest" } } } },
+        "responses": {
+          "200": { "description": "Derived image", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/DerivedImageResponse" } } } },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/api/images/upscale": {
+      "post": {
+        "tags": ["Images"],
+        "summary": "Upscale an image",
+        "operationId": "upscaleImage",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ImageUpscaleRequest" } } } },
+        "responses": {
+          "200": { "description": "Derived image", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/DerivedImageResponse" } } } },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/api/videos/extract-frame": {
+      "post": {
+        "tags": ["Videos"],
+        "summary": "Extract a still frame from a video",
+        "operationId": "extractVideoFrame",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/VideoFrameExtractRequest" } } } },
+        "responses": {
+          "200": {
+            "description": "Frame extracted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "#/components/schemas/DerivedImageResponse" },
+                    { "type": "object", "properties": { "time_ms": { "type": "integer" }, "frame_index": { "type": "integer" } } }
+                  ]
+                }
+              }
+            }
+          },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/api/timeline/export": {
+      "post": {
+        "tags": ["Timeline"],
+        "summary": "Export a resolved timeline frame stream to MP4 (async)",
+        "operationId": "exportTimeline",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/TimelineExportRequest" } } } },
+        "responses": {
+          "200": { "description": "Job accepted", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/JobResponse" } } } },
+          "429": { "$ref": "#/components/responses/RateLimited" }
+        }
+      }
+    },
+    "/api/v1/controlnet/generate": {
+      "post": {
+        "tags": ["ControlNet"],
+        "summary": "Generate image with ControlNet conditioning",
+        "operationId": "generateControlNet",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ControlNetRequest" } } } },
+        "responses": {
+          "200": { "description": "Generated images", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ControlNetResponse" } } } },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "429": { "$ref": "#/components/responses/RateLimited" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      }
+    },
+    "/api/v1/controlnet/unload": {
+      "post": {
+        "tags": ["ControlNet"],
+        "summary": "Unload the ControlNet model from VRAM",
+        "operationId": "unloadControlNet",
+        "responses": {
+          "200": { "description": "Unloaded", "content": { "application/json": { "schema": { "type": "object", "properties": { "success": { "type": "boolean" }, "message": { "type": "string" } } } } } }
+        }
+      }
+    },
+    "/api/v1/controlnet/models": {
+      "get": {
+        "tags": ["ControlNet"],
+        "summary": "List supported ControlNet modes",
+        "operationId": "listControlNetModes",
+        "responses": {
+          "200": {
+            "description": "Modes",
+            "content": { "application/json": { "schema": { "type": "array", "items": { "type": "object", "properties": { "id": { "type": "string" }, "name": { "type": "string" }, "description": { "type": "string" } } } } } }
+          }
+        }
+      }
+    },
+    "/api/v1/lora/generate": {
+      "post": {
+        "tags": ["LoRA"],
+        "summary": "Generate image with a LoRA mixer",
+        "operationId": "generateLoRA",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/LoRARequest" } } } },
+        "responses": {
+          "200": { "description": "Generated images", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/LoRAResponse" } } } },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "429": { "$ref": "#/components/responses/RateLimited" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      }
+    },
+    "/api/v1/lora/unload": {
+      "post": {
+        "tags": ["LoRA"],
+        "summary": "Unload the LoRA from VRAM",
+        "operationId": "unloadLoRA",
+        "responses": { "200": { "description": "Unloaded", "content": { "application/json": { "schema": { "type": "object", "properties": { "success": { "type": "boolean" }, "message": { "type": "string" } } } } } } }
+      }
+    },
+    "/api/v1/edit/remove-background": {
+      "post": {
+        "tags": ["Edit"],
+        "summary": "Remove the background of an image",
+        "operationId": "removeBackground",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/BackgroundRemoveRequest" } } } },
+        "responses": {
+          "200": { "description": "Image with alpha", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/BackgroundRemoveResponse" } } } },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "429": { "$ref": "#/components/responses/RateLimited" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      }
+    },
+    "/api/v1/edit/upscale": {
+      "post": {
+        "tags": ["Edit"],
+        "summary": "Real-ESRGAN super-resolution",
+        "operationId": "editUpscale",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/UpscaleRequest" } } } },
+        "responses": {
+          "200": { "description": "Upscaled image", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/UpscaleResponse" } } } },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "429": { "$ref": "#/components/responses/RateLimited" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      }
+    },
+    "/api/v1/edit/restore-faces": {
+      "post": {
+        "tags": ["Edit"],
+        "summary": "GFPGAN face restoration",
+        "operationId": "restoreFaces",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/FaceRestoreRequest" } } } },
+        "responses": {
+          "200": { "description": "Restored image", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/FaceRestoreResponse" } } } },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "429": { "$ref": "#/components/responses/RateLimited" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      }
+    },
+    "/api/v1/edit/models": {
+      "get": {
+        "tags": ["Edit"],
+        "summary": "List edit-tool models and load state",
+        "operationId": "listEditModels",
+        "responses": { "200": { "description": "Models", "content": { "application/json": { "schema": { "type": "object" } } } } }
+      }
+    },
+    "/api/v1/batch/export-zip": {
+      "post": {
+        "tags": ["Batch"],
+        "summary": "Export multiple images as a ZIP archive",
+        "operationId": "batchExportZip",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/BatchExportRequest" } } } },
+        "responses": {
+          "200": { "description": "ZIP", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/BatchExportResponse" } } } },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "429": { "$ref": "#/components/responses/RateLimited" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "BackendToken": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "x-vision-studio-token",
+        "description": "Per-launch token minted by the Electron Main process. Required when VISION_STUDIO_BACKEND_AUTH_TOKEN is set on the backend (always set in production builds)."
+      }
+    },
+    "schemas": {
+      "JobStatus": {
+        "type": "string",
+        "enum": ["pending", "processing", "completed", "failed", "cancelled"]
+      },
+      "JobResponse": {
+        "type": "object",
+        "required": ["job_id", "status", "message"],
+        "properties": {
+          "job_id": { "type": "string" },
+          "status": { "type": "string", "example": "pending" },
+          "message": { "type": "string" }
+        }
+      },
+      "JobSummary": {
+        "type": "object",
+        "properties": {
+          "job_id": { "type": "string" },
+          "status": { "$ref": "#/components/schemas/JobStatus" },
+          "type": { "type": "string", "enum": ["image", "video"] },
+          "progress": { "type": "number", "minimum": 0, "maximum": 100 },
+          "created_at": { "type": "string", "format": "date-time" }
+        }
+      },
+      "JobStatusResponse": {
+        "type": "object",
+        "required": ["job_id", "status", "progress", "type", "created_at"],
+        "properties": {
+          "job_id": { "type": "string" },
+          "status": { "$ref": "#/components/schemas/JobStatus" },
+          "progress": { "type": "number", "minimum": 0, "maximum": 100 },
+          "type": { "type": "string", "enum": ["image", "video"] },
+          "created_at": { "type": "string", "format": "date-time" },
+          "completed_at": { "type": "string", "format": "date-time", "nullable": true },
+          "result": { "type": "object", "additionalProperties": true, "nullable": true },
+          "error": { "type": "string", "nullable": true }
+        }
+      },
+      "HealthResponse": {
+        "type": "object",
+        "properties": {
+          "status": { "type": "string", "example": "ok" },
+          "comfyui_connected": { "type": "boolean" },
+          "direct_generator_available": { "type": "boolean" },
+          "direct_video_generator_available": { "type": "boolean" },
+          "generation_available": { "type": "boolean" }
+        }
+      },
+      "SystemInfo": {
+        "type": "object",
+        "required": ["gpu_available", "comfyui_connected", "models_count"],
+        "properties": {
+          "gpu_available": { "type": "boolean" },
+          "gpu_name": { "type": "string", "nullable": true },
+          "gpu_vram": { "type": "string", "nullable": true, "example": "24.0 GB" },
+          "cuda_version": { "type": "string", "nullable": true, "example": "12.1" },
+          "comfyui_connected": { "type": "boolean" },
+          "models_count": { "type": "integer" }
+        }
+      },
+      "ModelInfo": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "example": "flux-dev" },
+          "name": { "type": "string", "example": "FLUX.1 [dev]" },
+          "type": { "type": "string", "enum": ["image", "video", "lora", "controlnet"] },
+          "size": { "type": "string", "example": "12.0 GB" },
+          "status": { "type": "string", "enum": ["installed", "available", "downloading"] },
+          "description": { "type": "string" }
+        }
+      },
+      "ModelStatus": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "status": { "type": "string", "enum": ["pending", "downloading", "completed", "failed"] },
+          "progress": { "type": "number", "minimum": 0, "maximum": 100 },
+          "downloaded_bytes": { "type": "integer" },
+          "total_bytes": { "type": "integer" },
+          "error": { "type": "string", "nullable": true }
+        }
+      },
+      "PromptEnhancementRequest": {
+        "type": "object",
+        "required": ["prompt"],
+        "properties": {
+          "prompt": { "type": "string" },
+          "mode": { "type": "string", "enum": ["clarify", "cinematic", "concise", "variations", "expand"], "default": "clarify" }
+        }
+      },
+      "ImageGenerationRequest": {
+        "type": "object",
+        "required": ["prompt"],
+        "properties": {
+          "prompt": { "type": "string" },
+          "negative_prompt": { "type": "string", "default": "" },
+          "width": { "type": "integer", "minimum": 256, "maximum": 2048, "default": 1024 },
+          "height": { "type": "integer", "minimum": 256, "maximum": 2048, "default": 1024 },
+          "steps": { "type": "integer", "minimum": 1, "maximum": 100, "default": 25 },
+          "cfg_scale": { "type": "number", "minimum": 1, "maximum": 30, "default": 7.5 },
+          "seed": { "type": "integer", "default": -1, "description": "-1 for random" },
+          "model": { "type": "string", "default": "flux-dev", "enum": ["flux-dev", "flux-schnell", "flux-fill", "sd3.5-large", "sd3.5-medium", "sd-1.5"] },
+          "scheduler": { "type": "string", "default": "euler" }
+        }
+      },
+      "VideoGenerationRequest": {
+        "type": "object",
+        "required": ["prompt"],
+        "properties": {
+          "prompt": { "type": "string" },
+          "image_path": { "type": "string", "nullable": true, "description": "Optional input image for image-to-video" },
+          "width": { "type": "integer", "minimum": 256, "maximum": 1920, "default": 1024 },
+          "height": { "type": "integer", "minimum": 256, "maximum": 1080, "default": 576 },
+          "fps": { "type": "integer", "minimum": 12, "maximum": 60, "default": 24 },
+          "duration": { "type": "integer", "minimum": 1, "maximum": 10, "default": 5 },
+          "steps": { "type": "integer", "minimum": 1, "maximum": 100, "default": 25 },
+          "model": { "type": "string", "default": "ltx-video", "enum": ["ltx-video", "svd", "animate-diff"] },
+          "seed": { "type": "integer", "default": -1 }
+        }
+      },
+      "CropBox": {
+        "type": "object",
+        "required": ["left", "top", "width", "height"],
+        "properties": {
+          "left": { "type": "integer" },
+          "top": { "type": "integer" },
+          "width": { "type": "integer" },
+          "height": { "type": "integer" }
+        }
+      },
+      "ImageEditRequest": {
+        "type": "object",
+        "required": ["source_path"],
+        "properties": {
+          "source_path": { "type": "string" },
+          "crop_box": { "$ref": "#/components/schemas/CropBox", "nullable": true },
+          "rotation": { "type": "integer", "default": 0 },
+          "flip_horizontal": { "type": "boolean", "default": false },
+          "flip_vertical": { "type": "boolean", "default": false }
+        }
+      },
+      "ImageUpscaleRequest": {
+        "type": "object",
+        "required": ["source_path"],
+        "properties": {
+          "source_path": { "type": "string" },
+          "scale_factor": { "type": "integer", "minimum": 2, "maximum": 4, "default": 2 }
+        }
+      },
+      "VideoFrameExtractRequest": {
+        "type": "object",
+        "required": ["source_path"],
+        "properties": {
+          "source_path": { "type": "string" },
+          "time_ms": { "type": "integer", "minimum": 0, "default": 0 }
+        }
+      },
+      "DerivedImageResponse": {
+        "type": "object",
+        "properties": {
+          "image": { "type": "string", "description": "Server-relative URL for the derived image" },
+          "output_path": { "type": "string", "description": "Absolute filesystem path on the backend host" },
+          "width": { "type": "integer" },
+          "height": { "type": "integer" }
+        }
+      },
+      "TimelineExportLayer": {
+        "type": "object",
+        "required": ["source_path", "media_type"],
+        "properties": {
+          "source_path": { "type": "string" },
+          "media_type": { "type": "string", "enum": ["image", "video"] },
+          "source_time_ms": { "type": "integer", "minimum": 0, "default": 0 },
+          "opacity": { "type": "number", "minimum": 0, "maximum": 1, "default": 1 }
+        }
+      },
+      "TimelineExportFrame": {
+        "type": "object",
+        "properties": {
+          "time_ms": { "type": "integer", "minimum": 0, "default": 0 },
+          "layers": { "type": "array", "items": { "$ref": "#/components/schemas/TimelineExportLayer" } }
+        }
+      },
+      "TimelineExportAudioLayer": {
+        "type": "object",
+        "required": ["source_path"],
+        "properties": {
+          "source_path": { "type": "string" },
+          "source_time_ms": { "type": "integer", "minimum": 0, "default": 0 },
+          "timeline_offset_ms": { "type": "integer", "minimum": 0, "default": 0 },
+          "duration_ms": { "type": "integer", "minimum": 1, "default": 1 },
+          "clip_offset_ms": { "type": "integer", "minimum": 0, "default": 0 },
+          "clip_duration_ms": { "type": "integer", "minimum": 1, "default": 1 },
+          "gain": { "type": "number", "minimum": 0, "maximum": 2, "default": 1 },
+          "fade_in_ms": { "type": "integer", "minimum": 0, "default": 0 },
+          "fade_out_ms": { "type": "integer", "minimum": 0, "default": 0 }
+        }
+      },
+      "TimelineExportRequest": {
+        "type": "object",
+        "required": ["output_path", "frames"],
+        "properties": {
+          "sequence_name": { "type": "string", "default": "Timeline Export" },
+          "width": { "type": "integer", "minimum": 64, "maximum": 4096, "default": 1920 },
+          "height": { "type": "integer", "minimum": 64, "maximum": 4096, "default": 1080 },
+          "fps": { "type": "integer", "minimum": 1, "maximum": 60, "default": 24 },
+          "output_path": { "type": "string" },
+          "frames": { "type": "array", "minItems": 1, "maxItems": 24000, "items": { "$ref": "#/components/schemas/TimelineExportFrame" } },
+          "audio_layers": { "type": "array", "items": { "$ref": "#/components/schemas/TimelineExportAudioLayer" } }
+        }
+      },
+      "ControlNetRequest": {
+        "type": "object",
+        "required": ["prompt", "init_image", "control_image", "model"],
+        "properties": {
+          "prompt": { "type": "string", "minLength": 1, "maxLength": 2000 },
+          "init_image": { "type": "string", "description": "Base64 or data: URL" },
+          "control_image": { "type": "string", "description": "Base64 or data: URL" },
+          "model": { "type": "string", "enum": ["canny", "depth", "normal", "openpose", "segmentation", "mlsd", "lineart", "softedge"] },
+          "conditioning_scale": { "type": "number", "minimum": 0, "maximum": 2, "default": 1 },
+          "guidance_start": { "type": "number", "minimum": 0, "maximum": 1, "default": 0 },
+          "guidance_end": { "type": "number", "minimum": 0, "maximum": 1, "default": 1 },
+          "steps": { "type": "integer", "minimum": 1, "maximum": 150, "default": 25 },
+          "guidance_scale": { "type": "number", "minimum": 1, "maximum": 30, "default": 7.5 },
+          "width": { "type": "integer", "minimum": 64, "maximum": 2048, "default": 512 },
+          "height": { "type": "integer", "minimum": 64, "maximum": 2048, "default": 512 },
+          "seed": { "type": "integer", "default": -1 },
+          "num_images": { "type": "integer", "minimum": 1, "maximum": 8, "default": 1 },
+          "negative_prompt": { "type": "string", "default": "" }
+        }
+      },
+      "ControlNetResponse": {
+        "type": "object",
+        "required": ["images", "seed", "processing_time_ms", "model_used"],
+        "properties": {
+          "success": { "type": "boolean", "default": true },
+          "images": { "type": "array", "items": { "type": "string" } },
+          "seed": { "type": "integer" },
+          "processing_time_ms": { "type": "number" },
+          "model_used": { "type": "string" },
+          "warning": { "type": "string", "nullable": true }
+        }
+      },
+      "LoRARequest": {
+        "type": "object",
+        "required": ["base_model", "lora_path", "prompt"],
+        "properties": {
+          "base_model": { "type": "string" },
+          "lora_path": { "type": "string" },
+          "lora_scale": { "type": "number", "minimum": 0, "maximum": 2, "default": 0.8 },
+          "prompt": { "type": "string", "minLength": 1, "maxLength": 2000 },
+          "negative_prompt": { "type": "string", "maxLength": 2000, "default": "" },
+          "num_inference_steps": { "type": "integer", "minimum": 1, "maximum": 150, "default": 30 },
+          "guidance_scale": { "type": "number", "minimum": 1, "maximum": 30, "default": 7.5 },
+          "width": { "type": "integer", "minimum": 64, "maximum": 2048, "default": 512 },
+          "height": { "type": "integer", "minimum": 64, "maximum": 2048, "default": 512 },
+          "seed": { "type": "integer", "minimum": 0, "nullable": true },
+          "num_images": { "type": "integer", "minimum": 1, "maximum": 8, "default": 1 }
+        }
+      },
+      "LoRAResponse": {
+        "type": "object",
+        "required": ["images", "seed", "processing_time_ms", "lora_applied", "lora_scale"],
+        "properties": {
+          "success": { "type": "boolean", "default": true },
+          "images": { "type": "array", "items": { "type": "string" } },
+          "seed": { "type": "integer" },
+          "processing_time_ms": { "type": "number" },
+          "lora_applied": { "type": "string" },
+          "lora_scale": { "type": "number" }
+        }
+      },
+      "BackgroundRemoveRequest": {
+        "type": "object",
+        "required": ["image"],
+        "properties": {
+          "image": { "type": "string" },
+          "alpha_matting": { "type": "boolean", "default": false },
+          "alpha_matting_foreground_threshold": { "type": "integer", "minimum": 0, "maximum": 255, "default": 240 },
+          "alpha_matting_background_threshold": { "type": "integer", "minimum": 0, "maximum": 255, "default": 10 }
+        }
+      },
+      "BackgroundRemoveResponse": {
+        "type": "object",
+        "required": ["image", "processing_time_ms"],
+        "properties": {
+          "success": { "type": "boolean", "default": true },
+          "image": { "type": "string" },
+          "processing_time_ms": { "type": "number" }
+        }
+      },
+      "UpscaleRequest": {
+        "type": "object",
+        "required": ["image"],
+        "properties": {
+          "image": { "type": "string" },
+          "scale": { "type": "integer", "enum": [2, 4, 8], "default": 4 },
+          "face_enhance": { "type": "boolean", "default": false }
+        }
+      },
+      "UpscaleResponse": {
+        "type": "object",
+        "required": ["image", "original_size", "new_size", "processing_time_ms"],
+        "properties": {
+          "success": { "type": "boolean", "default": true },
+          "image": { "type": "string" },
+          "original_size": { "type": "array", "items": { "type": "integer" }, "minItems": 2, "maxItems": 2 },
+          "new_size": { "type": "array", "items": { "type": "integer" }, "minItems": 2, "maxItems": 2 },
+          "processing_time_ms": { "type": "number" }
+        }
+      },
+      "FaceRestoreRequest": {
+        "type": "object",
+        "required": ["image"],
+        "properties": {
+          "image": { "type": "string" },
+          "fidelity": { "type": "number", "minimum": 0, "maximum": 1, "default": 0.5 }
+        }
+      },
+      "FaceRestoreResponse": {
+        "type": "object",
+        "required": ["image", "faces_detected", "processing_time_ms"],
+        "properties": {
+          "success": { "type": "boolean", "default": true },
+          "image": { "type": "string" },
+          "faces_detected": { "type": "integer" },
+          "processing_time_ms": { "type": "number" }
+        }
+      },
+      "BatchExportRequest": {
+        "type": "object",
+        "required": ["image_ids"],
+        "properties": {
+          "image_ids": { "type": "array", "minItems": 1, "items": { "type": "string" } },
+          "format": { "type": "string", "enum": ["png", "jpg", "webp"], "default": "png" },
+          "quality": { "type": "integer", "minimum": 1, "maximum": 100, "default": 95 },
+          "resize": { "type": "object", "nullable": true, "properties": { "width": { "type": "integer" }, "height": { "type": "integer" } } }
+        }
+      },
+      "BatchExportResponse": {
+        "type": "object",
+        "required": ["zip_file", "file_count", "total_size_bytes", "processing_time_ms"],
+        "properties": {
+          "success": { "type": "boolean", "default": true },
+          "zip_file": { "type": "string", "description": "Base64-encoded ZIP" },
+          "file_count": { "type": "integer" },
+          "total_size_bytes": { "type": "integer" },
+          "processing_time_ms": { "type": "number" }
+        }
+      },
+      "Error": {
+        "type": "object",
+        "properties": {
+          "detail": {
+            "oneOf": [
+              { "type": "string" },
+              { "type": "object", "properties": { "error": { "type": "string" }, "error_code": { "type": "string" } } }
+            ]
+          }
+        }
+      }
+    },
+    "responses": {
+      "BadRequest": { "description": "Invalid input", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+      "NotFound": { "description": "Resource not found", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+      "RateLimited": {
+        "description": "Rate limit exceeded",
+        "headers": {
+          "Retry-After": { "schema": { "type": "string" } },
+          "X-RateLimit-Limit": { "schema": { "type": "string" } },
+          "X-RateLimit-Reset": { "schema": { "type": "string" } }
+        },
+        "content": { "application/json": { "schema": { "type": "object", "properties": { "success": { "type": "boolean" }, "error": { "type": "string" }, "error_code": { "type": "string" }, "retry_after": { "type": "string" } } } } }
+      },
+      "InternalError": { "description": "Internal server error", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+    }
+  }
+}

@@ -1,0 +1,866 @@
+# Vision Studio — API Reference
+
+> Companion docs: [`ARCHITECTURE.md`](./ARCHITECTURE.md), [`DATABASE_SCHEMA.md`](./DATABASE_SCHEMA.md), machine-readable [`api/openapi.json`](./api/openapi.json).
+> Live, interactive Swagger UI is exposed by the running backend at `http://127.0.0.1:8000/api/docs` (ReDoc at `/api/redoc`, raw JSON at `/api/openapi.json`).
+
+This document describes **three** API surfaces, in the order you typically encounter them:
+
+1. **Electron IPC** — what the renderer calls. Every channel is typed by `ElectronAPI` in `electron/preload.ts`.
+2. **Backend REST + WebSocket** — what the Main process calls (and what the IPC handlers proxy to). This is the source of truth for everything the AI subsystem can do.
+3. **OpenRouter integration (BYO)** — how to plug in OpenRouter for prompt enhancement and still-image generation.
+
+Conventions used throughout:
+
+- **Auth** — backend HTTP/WS requests must carry `x-vision-studio-token: <token>` if `VISION_STUDIO_BACKEND_AUTH_TOKEN` is set in the backend env. The token is per-launch and is passed by the Main process automatically; manual callers (curl, Postman) need to set it themselves. Exempt paths: `/`, `/api/health`, `/api/docs`, `/api/redoc`, `/api/openapi.json`, `/outputs/*`. WebSocket exposes the token via `?token=…`.
+- **Rate limits** — see the per-endpoint annotations. All limits are per-IP and enforced by `slowapi`.
+- **Errors** — backend errors have shape `{ "detail": { "error": "...", "error_code": "..." } }` for routers under `/api/v1/*`, and `{ "detail": "..." }` for the legacy top-level endpoints. IPC handlers return `{ success: false, error: "..." }` with the renderer-safe message stripped of paths/stacks by `toSafeRendererError`.
+- **Time** — all timestamps are ISO 8601 UTC.
+- **Paths** — `/outputs/...` is a server-relative URL served by `StaticFiles` (HTTP) AND a renderer-friendly relative path (used directly in `<img src>` against the backend). Absolute filesystem paths are used only inside Pydantic request bodies for ops that need the original on disk.
+
+---
+
+## Part 1 — Electron IPC (`window.electron.*`)
+
+The renderer never talks to the backend directly. It calls `window.electron.<namespace>.<method>(args)` which is exposed by `electron/preload.ts` via `contextBridge.exposeInMainWorld('electron', electronAPI)`.
+
+Every IPC method below corresponds to one `ipcMain.handle('<channel>', ...)` registration in `electron/services/mainIpc.ts` or `electron/ipc-handlers/generation.ts`. The push channels (`generation:progress`, `backend:status`) use `ipcRenderer.on(...)` — `onProgress(cb)` and `onStatusChange(cb)` return an unsubscribe function.
+
+### 1.1 `electron.app`
+
+| Method | IPC channel | Returns | Notes |
+|--------|-------------|---------|-------|
+| `getVersion()` | `app:get-version` | `Promise<string>` | `app.getVersion()` |
+| `openExternal(url)` | `app:open-external` | `Promise<void>` | URL must pass `isSafeExternalUrl` (http(s)/mailto). Unsafe URLs are silently logged and dropped. |
+| `getPath(name)` | `app:get-path` | `Promise<string>` | `name` ∈ `'userData' \| 'documents' \| 'downloads' \| 'pictures'` |
+| `openPath(filePath)` | `app:open-path` | `Promise<{ success, error? }>` | Resolves through `outputRoots.resolveManagedAssetPath` first; falls back to absolute resolution if that throws. |
+
+### 1.2 `electron.dialog`
+
+| Method | IPC channel | Returns | Notes |
+|--------|-------------|---------|-------|
+| `selectFolder()` | `dialog:select-folder` | `Promise<string \| null>` | OS folder picker |
+| `selectMediaFiles()` | `dialog:select-media-files` | `Promise<string[]>` | Multi-select; image/video/audio filters; paths normalized to forward slashes |
+| `saveFile(options)` | `dialog:save-file` | `Promise<string \| null>` | `options: { defaultPath?, filters? }` |
+
+### 1.3 `electron.store`
+
+Generic key/value over `electron-store`. Allowed keys are whitelisted by `isAllowedStoreKey`: `recentProjects`, `settings`, `firstRun`, `modelsDownloaded`, `managedOutputRoots`, `userAccounts`. Unknown keys are silently dropped (with a warning log).
+
+| Method | IPC channel | Returns |
+|--------|-------------|---------|
+| `get(key)` | `store:get` | `Promise<any>` |
+| `set(key, value)` | `store:set` | `Promise<void>` |
+| `reset()` | `store:reset` | `Promise<void>` (clears the entire store) |
+
+### 1.4 `electron.settings`
+
+Typed `AppSettings` over the `settings` store key. The Main process triggers a backend restart if `shouldRestartBackend(prev, next)` returns true (e.g. `pythonPath` or `defaultOutputPath` changes).
+
+```ts
+type AppSettings = {
+  theme: 'dark' | 'light' | 'system';
+  autoSave: boolean;
+  defaultOutputPath: string;
+  backendAutostart: boolean;
+  notifyOnGenerationComplete: boolean;
+  notifyOnGenerationFailed: boolean;
+  notifyOnModelDownloads: boolean;
+  pythonPath?: string;
+};
+```
+
+| Method | IPC channel | Returns |
+|--------|-------------|---------|
+| `get()` | `settings:get` | `Promise<AppSettings>` |
+| `update(patch)` | `settings:update` | `Promise<AppSettings>` (the merged result) |
+| `reset()` | `settings:reset` | `Promise<AppSettings>` (defaults) |
+
+### 1.5 `electron.accounts` & `electron.openrouter`
+
+Multi-account preferences (e.g. for routing image generation to OpenRouter or local). The active account drives provider routing in `ipc-handlers/generation.ts`. API keys are encrypted at rest via `safeStorage.encryptString` and never returned to the renderer.
+
+```ts
+type AccountPreferences = {
+  promptEnhancementProvider: 'local' | 'openrouter';
+  openRouterModel: string;
+  imageGenerationProvider: 'local' | 'openrouter';
+  openRouterImageModel: string;
+};
+```
+
+| Method | IPC channel | Notes |
+|--------|-------------|-------|
+| `accounts.list()` | `accounts:list` | Returns `{ activeAccountId, accounts[] }` |
+| `accounts.create(payload?)` | `accounts:create` | `payload?: { name? }` |
+| `accounts.update(accountId, patch)` | `accounts:update` | Partial of `AccountPreferences` + `name?` |
+| `accounts.delete(accountId)` | `accounts:delete` | |
+| `accounts.setActive(accountId)` | `accounts:set-active` | |
+| `accounts.setOpenRouterApiKey({ accountId, apiKey })` | `accounts:set-openrouter-api-key` | Encrypted via `safeStorage` |
+| `accounts.clearOpenRouterApiKey(accountId)` | `accounts:clear-openrouter-api-key` | |
+| `openrouter.testConnection(accountId?)` | `openrouter:test-connection` | Round-trips OpenRouter `GET /api/v1/key`; returns `keyInfo` summary |
+| `openrouter.getKeyInfo(accountId?)` | `openrouter:get-key-info` | Same call, no validation marker |
+| `openrouter.listModels(accountId?)` | `openrouter:list-models` | Text models for prompt enhancement |
+| `openrouter.listImageModels(accountId?)` | `openrouter:list-image-models` | Image-output models |
+
+### 1.6 `electron.assets`
+
+All asset I/O passes through path validation: reads via `outputRoots.resolveManagedAssetPath` (must be inside managed roots), writes via `resolveSafeExportDestination` (must be inside `home/desktop/documents/downloads/pictures/videos`).
+
+| Method | IPC channel | Returns | Notes |
+|--------|-------------|---------|-------|
+| `importFiles(sourcePaths)` | `assets:import-files` | `Promise<{ success, files?: ImportedFile[], error? }>` | Accepts `.png/.jpg/.jpeg/.webp/.mp4/.webm/.mov/.m4v/.avi/.gif/.wav/.mp3/.m4a/.flac`. Copies to `<outputRoot>/imports/<safeName>` with collision-safe renaming. |
+| `export(sourcePath, destinationPath)` | `assets:export` | `Promise<{ success, destinationPath?, error? }>` | Single-file copy with mkdir-p of parent. |
+| `exportMany(sourcePaths, destinationDir)` | `assets:export-many` | `Promise<{ success, exportedCount?, error? }>` | Collision-safe naming inside `destinationDir`. |
+| `delete(sourcePath)` | `assets:delete` | `Promise<{ success, error? }>` | `fs.rm(..., { force: true })` |
+| `reveal(sourcePath)` | `assets:reveal` | `Promise<{ success, error? }>` | `shell.showItemInFolder(...)` |
+| `clearCache()` | `assets:clear-cache` | `Promise<{ success, error? }>` | Wipes the internal output dir, recreates it empty |
+
+```ts
+type ImportedFile = {
+  originalPath: string;
+  importedPath: string;
+  name: string;
+  type: 'image' | 'video' | 'audio';
+  importedAt: string;            // ISO 8601 UTC
+};
+```
+
+### 1.7 `electron.generation`
+
+Generation IPC is the densest namespace. It is **provider-aware**: when the active account's `imageGenerationProvider === 'openrouter'`, `generateImage` and `batch` route to the OpenRouter fan-out in the Main process (writing results to `<outputRoot>/openrouter/YYYY-MM-DD/`). Otherwise they proxy to the Python backend over HTTP.
+
+| Method | IPC channel | Backend call (local path) | Notes |
+|--------|-------------|---------------------------|-------|
+| `generateImage(params)` | `generation:generate-image` | `POST /api/generate/image` | Returns `{ success, jobId? }`. Provider-aware. |
+| `generateVideo(params)` | `generation:generate-video` | `POST /api/generate/video` | Local backend only. |
+| `exportTimelineSequence(params)` | `generation:export-timeline-sequence` | `POST /api/timeline/export` | Returns `{ success, jobId? }`. |
+| `batch(params)` | `generation:batch` | Multiple `POST /api/generate/image` (one per prompt) | Provider-aware. Returns `{ success, jobIds? }`. |
+| `enhancePrompt(params)` | `generation:enhance-prompt` | `POST /api/prompts/enhance` OR OpenRouter | Returns `{ mode, prompt, variations[]? }`. |
+| `suggestNegativePrompt(params)` | `generation:suggest-negative-prompt` | OpenRouter OR built-in heuristic | Returns `{ negativePrompt, suggestions[], source: 'openrouter' \| 'heuristic' }`. |
+| `cropImage(params)` | `generation:crop-image` | `POST /api/images/crop` | |
+| `extractVideoFrame(params)` | `generation:extract-video-frame` | `POST /api/videos/extract-frame` | |
+| `upscaleImage(params)` | `generation:upscale-image` | `POST /api/images/upscale` | |
+| `getStatus(jobId)` | `generation:get-status` | `GET /api/jobs/{id}` (local) or local lookup (OpenRouter jobs are prefixed `openrouter-image-`) | |
+| `cancel(jobId)` | `generation:cancel` | `POST /api/jobs/{id}/cancel` (local) or AbortController (OpenRouter) | |
+| `listJobs(options?)` | `generation:list-jobs` | `GET /api/jobs?status=&limit=` merged with local OpenRouter jobs | |
+| `onProgress(cb)` | `generation:progress` (event) | Pushed by both the WebSocket relay AND the OpenRouter fan-out | Returns an unsubscribe function. |
+
+#### Image generation params (`generateImage` / `batch`)
+
+```ts
+type GenerateImageParams = {
+  prompt: string;
+  negative_prompt?: string;
+  width: number;                  // 256–2048
+  height: number;                 // 256–2048
+  steps: number;                  // 1–100
+  cfg_scale: number;              // 1–30
+  seed?: number;                  // -1 for random
+  model?: string;                 // 'flux-dev' default
+  // batch only:
+  prompts?: string[];             // for batch()
+};
+```
+
+OpenRouter image route additionally rejects ControlNet / inpaint inputs with a structured error.
+
+#### Video generation params
+
+```ts
+type GenerateVideoParams = {
+  prompt: string;
+  image_path?: string;            // optional; absolute managed path
+  width: number;                  // 256–1920
+  height: number;                 // 256–1080
+  duration: number;               // 1–10 seconds
+  fps: number;                    // 12–60
+  steps?: number;                 // 1–100
+  model?: string;                 // 'ltx-video' default
+  seed?: number;
+};
+```
+
+#### Timeline export params (resolved by the renderer)
+
+```ts
+type ExportTimelineParams = {
+  sequence_name: string;
+  width: number;                  // 64–4096
+  height: number;                 // 64–4096
+  fps: number;                    // 1–60
+  output_path: string;            // absolute MP4 path on disk
+  frames: Array<{
+    time_ms: number;
+    layers: Array<{
+      source_path: string;        // /outputs/... or absolute
+      media_type: 'image' | 'video';
+      source_time_ms: number;
+      opacity: number;            // 0..1
+    }>;
+  }>;
+  audio_layers: Array<{
+    source_path: string;
+    source_time_ms: number;
+    timeline_offset_ms: number;
+    duration_ms: number;
+    clip_offset_ms: number;
+    clip_duration_ms: number;
+    gain: number;                 // 0..2
+    fade_in_ms: number;
+    fade_out_ms: number;
+  }>;
+};
+```
+
+#### Progress event payload
+
+```ts
+type ProgressEvent = {
+  type: 'job_update';
+  job_id: string;
+  status: 'pending' | 'processing' | 'completed' | 'failed' | 'cancelled';
+  progress: number;               // 0..100
+};
+```
+
+### 1.8 `electron.system`
+
+| Method | IPC channel | Returns |
+|--------|-------------|---------|
+| `getInfo()` | `system:get-info` | `Promise<{ gpu_available, gpu_name?, gpu_vram?, cuda_version?, comfyui_connected, models_count, backendConnected? }>` |
+
+This is **enriched on the Main side** — it asks the backend for its `/api/system/info` AND inspects backend liveness, then merges. The renderer should treat `backendConnected` as "talking to the backend over HTTP works right now".
+
+### 1.9 `electron.models`
+
+| Method | IPC channel | Returns | Backend call |
+|--------|-------------|---------|--------------|
+| `list()` | `models:list` | `Promise<ModelInfo[]>` | `GET /api/models` |
+| `download(modelId)` | `models:download` | `Promise<{ success, message? }>` | `POST /api/models/{id}/download` |
+| `getStatus(modelId)` | `models:get-status` | `Promise<ModelStatus \| null>` | `GET /api/models/{id}/status` |
+| `delete(modelId)` | `models:delete` | `Promise<{ success, error? }>` | `DELETE /api/models/{id}` |
+
+### 1.10 `electron.notifications`
+
+```ts
+notify(
+  type: 'generation_complete' | 'generation_failed' | 'model_download',
+  payload: { title: string; body: string }
+): Promise<{ success: boolean; skipped?: boolean }>;
+```
+
+Each notification type is gated by the matching `notifyOn*` boolean in settings; if the user has disabled it, the call returns `{ success: true, skipped: true }` instead of showing.
+
+### 1.11 `electron.backend`
+
+| Method | IPC channel | Returns |
+|--------|-------------|---------|
+| `start()` | `backend:start` | `Promise<{ success, error? }>` |
+| `stop()` | `backend:stop` | `Promise<{ success: true }>` |
+| `getStatus()` | `backend:status` | `Promise<{ running, pid?, bundled? }>` |
+| `checkBundled()` | `backend:check-bundled` | `Promise<{ exists, path? }>` |
+| `onStatusChange(cb)` | `backend:status` (event) | unsubscribe function |
+
+---
+
+## Part 2 — Backend REST API
+
+Base URL: `http://127.0.0.1:8000` (Uvicorn binds `0.0.0.0:8000` but the Main process always uses loopback).
+
+### Tag index
+
+| Tag | Purpose |
+|-----|---------|
+| Health | Root + readiness |
+| System | Capability/system info |
+| Prompts | LLM prompt enhancement |
+| Generation | Image + video generation jobs |
+| Jobs | Job status, cancel, list |
+| Models | Model registry, download, delete |
+| Images | Crop/upscale primitives |
+| Videos | Frame extraction |
+| Timeline | Resolved timeline → MP4 export |
+| ControlNet | Conditioned image generation (8 modes) |
+| LoRA | LoRA-mixed image generation |
+| Edit | Background removal, super-resolution, face restore |
+| Batch | ZIP export |
+
+### 2.1 Health
+
+#### `GET /` — `tags=[Health]`, limit `60/min`
+
+Liveness ping. Returns `{ "message": "Vision Studio API", "version": "0.1.0" }`.
+
+#### `GET /api/health` — `tags=[System]`
+
+Returns generator availability. **Exempt from auth** so the Main process can poll readiness during startup.
+
+```json
+{
+  "status": "ok",
+  "comfyui_connected": false,
+  "direct_generator_available": true,
+  "direct_video_generator_available": true,
+  "generation_available": true
+}
+```
+
+### 2.2 System
+
+#### `GET /api/system/info` — `tags=[System]`, limit `60/min`
+
+GPU + model info.
+
+```json
+{
+  "gpu_available": true,
+  "gpu_name": "NVIDIA GeForce RTX 4090",
+  "gpu_vram": "24.0 GB",
+  "cuda_version": "12.1",
+  "comfyui_connected": false,
+  "models_count": 4
+}
+```
+
+### 2.3 Prompts
+
+#### `POST /api/prompts/enhance` — `tags=[Prompts]`, limit `60/min`
+
+```json
+{ "prompt": "a cat", "mode": "clarify" }
+```
+
+`mode` ∈ `clarify | cinematic | concise | variations | expand`. Response is mode-specific but always `{ mode, prompt, variations? }`.
+
+### 2.4 Generation
+
+#### `POST /api/generate/image` — `tags=[Generation]`, limit `10/min`
+
+Body — `ImageGenerationRequest`:
+
+| Field | Type | Default | Range / values |
+|-------|------|---------|----------------|
+| `prompt` | string | — (required) | non-empty |
+| `negative_prompt` | string | `""` | |
+| `width` | int | `1024` | 256–2048 |
+| `height` | int | `1024` | 256–2048 |
+| `steps` | int | `25` | 1–100 |
+| `cfg_scale` | float | `7.5` | 1–30 |
+| `seed` | int | `-1` | -1 = random |
+| `model` | string | `flux-dev` | `flux-dev`, `flux-schnell`, `flux-fill`, `sd3.5-large`, `sd3.5-medium`, `sd-1.5` |
+| `scheduler` | string | `euler` | sampler name accepted by ComfyUI / diffusers |
+
+Response — `JobResponse`:
+
+```json
+{ "job_id": "9a2…", "status": "pending", "message": "Image generation job started" }
+```
+
+The job runs asynchronously in `BackgroundTasks`. Poll via `GET /api/jobs/{id}` or subscribe via `/ws`.
+
+#### `POST /api/generate/video` — `tags=[Generation]`, limit `10/min`
+
+Body — `VideoGenerationRequest`:
+
+| Field | Type | Default | Range / values |
+|-------|------|---------|----------------|
+| `prompt` | string | — (required) | |
+| `image_path` | string \| null | `null` | optional input image (image-to-video) |
+| `width` | int | `1024` | 256–1920 |
+| `height` | int | `576` | 256–1080 |
+| `fps` | int | `24` | 12–60 |
+| `duration` | int | `5` | 1–10 seconds |
+| `steps` | int | `25` | 1–100 |
+| `model` | string | `ltx-video` | `ltx-video`, `svd`, `animate-diff` |
+| `seed` | int | `-1` | -1 = random |
+
+Returns `JobResponse`.
+
+### 2.5 Jobs
+
+#### `GET /api/jobs/{job_id}` — `tags=[Jobs]`, limit `60/min`
+
+Returns `JobStatusResponse`:
+
+```json
+{
+  "job_id": "9a2…",
+  "status": "processing",
+  "progress": 42.5,
+  "type": "image",
+  "created_at": "2026-05-03T18:21:14.318000Z",
+  "completed_at": null,
+  "result": null,
+  "error": null
+}
+```
+
+When `status === "completed"`, `result` is provider-specific:
+
+- Image: `{ "images": ["/outputs/<job_id>/image_001.png", …], "seed": 12345, "width": 1024, "height": 1024, "prompt": "...", "model": "flux-dev" }`
+- Video / timeline export: `{ "video": "/outputs/.../out.mp4", "output_path": "...", "fps": 24, "duration": 5.0, "frames": 120, "width": 1024, "height": 576, ... }`
+
+`404` if not found.
+
+#### `POST /api/jobs/{job_id}/cancel` — `tags=[Jobs]`, limit `30/min`
+
+Sets status to `cancelled` if the job is `pending` or `processing`. No-op message for terminal jobs. `404` if not found.
+
+#### `GET /api/jobs?status=&limit=` — `tags=[Jobs]`, limit `60/min`
+
+`status` ∈ `pending|processing|completed|failed|cancelled` (optional). `limit` 1–100 (default 50). Returns:
+
+```json
+{ "jobs": [{ "job_id": "...", "status": "...", "type": "...", "progress": 42.5, "created_at": "..." }] }
+```
+
+### 2.6 Models
+
+#### `GET /api/models` — `tags=[Models]`, limit `60/min`
+
+Returns `ModelInfo[]` from `ModelManager.scan_models()`:
+
+```json
+[
+  {
+    "id": "flux-dev",
+    "name": "FLUX.1 [dev]",
+    "type": "image",
+    "size": "12.0 GB",
+    "status": "installed",
+    "description": "High-quality text-to-image model"
+  }
+]
+```
+
+#### `POST /api/models/{model_id}/download` — `tags=[Models]`, limit `30/min`
+
+Queues an async download. Returns `{ "success": true, "message": "Started downloading flux-dev" }`.
+
+#### `GET /api/models/{model_id}/status` — `tags=[Models]`, limit `60/min`
+
+Returns `{ id, name, status, progress, downloaded_bytes, total_bytes, error? }`.
+
+#### `DELETE /api/models/{model_id}` — `tags=[Models]`, limit `30/min`
+
+Deletes locally installed weights. Returns `{ "success": true }`. `404` if not installed.
+
+### 2.7 Images
+
+#### `POST /api/images/crop` — `tags=[Images]`, limit `30/min`
+
+Body — `ImageEditRequest`:
+
+```json
+{
+  "source_path": "C:/users/.../outputs/<job>/image_001.png",
+  "crop_box": { "left": 0, "top": 0, "width": 1024, "height": 768 },
+  "rotation": 0,
+  "flip_horizontal": false,
+  "flip_vertical": false
+}
+```
+
+Response `{ "image": "/outputs/crop-<id>/image_001-crop.png", "width": 1024, "height": 768, ... }`. `404` if `source_path` doesn't exist.
+
+#### `POST /api/images/upscale` — `tags=[Images]`, limit `30/min`
+
+Body — `ImageUpscaleRequest`:
+
+```json
+{ "source_path": "...", "scale_factor": 2 }
+```
+
+`scale_factor` ∈ `2..4`. Response `{ "image": "/outputs/upscale-<id>/...", "width": 2048, "height": 2048 }`.
+
+### 2.8 Videos
+
+#### `POST /api/videos/extract-frame` — `tags=[Videos]`, limit `30/min`
+
+Body — `VideoFrameExtractRequest`:
+
+```json
+{ "source_path": "C:/.../my-video.mp4", "time_ms": 1500 }
+```
+
+Resolves to nearest frame; returns `{ "image": "/outputs/frame-<id>/<name>-frame.png", "output_path": "...", "width": 1920, "height": 1080, "time_ms": 1500, "frame_index": 36 }`. `404` if source missing.
+
+### 2.9 Timeline
+
+#### `POST /api/timeline/export` — `tags=[Timeline]`, limit `5/min`
+
+Submit a fully resolved frame stream + audio plan; backend renders MP4 and (optionally) muxes audio via ffmpeg. Returns `JobResponse`. See [`ARCHITECTURE.md` §5.4](./ARCHITECTURE.md#54-timeline-export) for the rendering algorithm.
+
+Body — `TimelineExportRequest`:
+
+```json
+{
+  "sequence_name": "My Sequence",
+  "width": 1920,
+  "height": 1080,
+  "fps": 24,
+  "output_path": "C:/users/me/Documents/export.mp4",
+  "frames": [
+    { "time_ms": 0, "layers": [
+      { "source_path": "/outputs/<job>/image_001.png", "media_type": "image", "source_time_ms": 0, "opacity": 1.0 }
+    ]}
+  ],
+  "audio_layers": [
+    {
+      "source_path": "C:/.../music.mp3",
+      "source_time_ms": 0,
+      "timeline_offset_ms": 0,
+      "duration_ms": 60000,
+      "clip_offset_ms": 0,
+      "clip_duration_ms": 60000,
+      "gain": 1.0,
+      "fade_in_ms": 500,
+      "fade_out_ms": 1000
+    }
+  ]
+}
+```
+
+Validation: `width/height` 64–4096; `fps` 1–60; `frames` length 1–24000; per-audio-layer `gain` 0–2.
+
+### 2.10 ControlNet — `/api/v1/controlnet`
+
+#### `POST /api/v1/controlnet/generate` — limit `10/min`
+
+Body — `ControlNetRequest` (full schema in `backend/schemas/controlnet.py`):
+
+| Field | Type | Default | Range |
+|-------|------|---------|-------|
+| `prompt` | string | required | 1–2000 chars |
+| `init_image` | string | required | base64 or `data:image/...;base64,...` |
+| `control_image` | string | required | base64 or data URL |
+| `model` | enum | required | `canny | depth | normal | openpose | segmentation | mlsd | lineart | softedge` |
+| `conditioning_scale` | float | `1.0` | 0–2 |
+| `guidance_start` | float | `0.0` | 0–1 |
+| `guidance_end` | float | `1.0` | 0–1 |
+| `steps` | int | `25` | 1–150 |
+| `guidance_scale` | float | `7.5` | 1–30 |
+| `width` | int | `512` | 64–2048 |
+| `height` | int | `512` | 64–2048 |
+| `seed` | int | `-1` | -1 = random |
+| `num_images` | int | `1` | 1–8 |
+| `negative_prompt` | string | `""` | |
+
+Response — `ControlNetResponse`:
+
+```json
+{
+  "success": true,
+  "images": ["data:image/png;base64,...", "..."],
+  "seed": 12345,
+  "processing_time_ms": 8421.3,
+  "model_used": "canny",
+  "warning": null
+}
+```
+
+Errors `400` invalid input, `500` service error, all with `{ detail: { error, error_code } }` shape.
+
+#### `POST /api/v1/controlnet/unload` — limit `60/min`
+
+Frees the loaded ControlNet model from VRAM. Returns `{ "success": true, "message": "..." }`.
+
+#### `GET /api/v1/controlnet/models`
+
+Returns a static list of supported control modes with friendly names and descriptions.
+
+### 2.11 LoRA — `/api/v1/lora`
+
+#### `POST /api/v1/lora/generate` — limit `10/min`
+
+| Field | Type | Default | Range |
+|-------|------|---------|-------|
+| `base_model` | string | required | model id or filesystem path |
+| `lora_path` | string | required | path to `.safetensors` / `.pt` |
+| `lora_scale` | float | `0.8` | 0–2 |
+| `prompt` | string | required | 1–2000 chars |
+| `negative_prompt` | string | `""` | max 2000 chars |
+| `num_inference_steps` | int | `30` | 1–150 |
+| `guidance_scale` | float | `7.5` | 1–30 |
+| `width` | int | `512` | 64–2048 |
+| `height` | int | `512` | 64–2048 |
+| `seed` | int? | `null` | optional |
+| `num_images` | int | `1` | 1–8 |
+
+Response — `LoRAResponse`:
+
+```json
+{
+  "success": true,
+  "images": ["data:image/png;base64,..."],
+  "seed": 12345,
+  "processing_time_ms": 7321.5,
+  "lora_applied": "path/to/style.safetensors",
+  "lora_scale": 0.8
+}
+```
+
+#### `POST /api/v1/lora/unload` — limit `60/min`
+
+Frees the loaded LoRA from VRAM.
+
+### 2.12 Edit — `/api/v1/edit`
+
+#### `POST /api/v1/edit/remove-background` — limit `30/min`
+
+Body — `BackgroundRemoveRequest`:
+
+```json
+{
+  "image": "data:image/png;base64,...",
+  "alpha_matting": false,
+  "alpha_matting_foreground_threshold": 240,
+  "alpha_matting_background_threshold": 10
+}
+```
+
+Response — `BackgroundRemoveResponse`: `{ success, image: "data:image/png;base64,...", processing_time_ms }`.
+
+#### `POST /api/v1/edit/upscale` — limit `30/min`
+
+Body — `UpscaleRequest`:
+
+```json
+{ "image": "data:image/png;base64,...", "scale": 4, "face_enhance": false }
+```
+
+`scale` ∈ `2 | 4 | 8`. Response includes `original_size: [w,h]` and `new_size: [w,h]`.
+
+#### `POST /api/v1/edit/restore-faces` — limit `30/min`
+
+Body — `FaceRestoreRequest`:
+
+```json
+{ "image": "data:image/png;base64,...", "fidelity": 0.5 }
+```
+
+`fidelity` ∈ `0..1` (higher = more faithful to original). Response includes `faces_detected`.
+
+#### `GET /api/v1/edit/models` — limit `60/min`
+
+Lists `rembg`, `realesrgan`, `gfpgan` with `name`, `description`, `loaded` (bool).
+
+### 2.13 Batch — `/api/v1/batch`
+
+#### `POST /api/v1/batch/export-zip` — limit `5/min`
+
+Body — `BatchExportRequest`:
+
+```json
+{
+  "image_ids": ["img-001", "img-002"],
+  "format": "jpg",
+  "quality": 85,
+  "resize": { "width": 1024, "height": 768 }
+}
+```
+
+`format` ∈ `png|jpg|webp`. `quality` 1–100. `resize` optional.
+
+Response — `BatchExportResponse`:
+
+```json
+{
+  "success": true,
+  "zip_file": "<base64>",
+  "file_count": 2,
+  "total_size_bytes": 458242,
+  "processing_time_ms": 124.7
+}
+```
+
+`404` if **all** image_ids are missing; partial misses are warned and skipped.
+
+### 2.14 Static `/outputs/*`
+
+Mounted via `StaticFiles(directory=OUTPUT_DIR)`. Authentication is **bypassed** (path is in `AUTH_EXEMPT_PATHS`) so the renderer can render images via `<img src="http://127.0.0.1:8000/outputs/<job>/image_001.png">` without proxying through IPC. This is safe because the backend is loopback-only and the renderer can only request paths it learned through API responses.
+
+---
+
+## Part 3 — WebSocket: `/ws`
+
+Single endpoint, used for real-time progress updates.
+
+### Connection
+
+```
+ws://127.0.0.1:8000/ws[?token=<token>]
+```
+
+`?token` is required when `VISION_STUDIO_BACKEND_AUTH_TOKEN` is set (the Main process passes it automatically). Mismatch → close with code `1008`.
+
+The Main process (`electron/ipc-handlers/generation.ts`) opens this connection on app start and reconnects with exponential backoff (1 s → 2 s → … capped at 30 s).
+
+### Server → client
+
+The server pushes one frame per active job every 500 ms while jobs are in `processing`:
+
+```json
+{
+  "type": "job_update",
+  "job_id": "9a2…",
+  "status": "processing",
+  "progress": 42.5
+}
+```
+
+Each frame is forwarded directly to the renderer over the `generation:progress` IPC event with the same shape.
+
+### Client → server
+
+Optional subscription messages — currently a no-op accepted shape:
+
+```json
+{ "action": "subscribe", "job_id": "9a2…" }
+```
+
+The server ignores these (it broadcasts everything). Reserved for future per-job filtering.
+
+---
+
+## Part 4 — OpenRouter integration
+
+When the active account's `imageGenerationProvider === 'openrouter'`, image jobs run **entirely in the Main process** without ever calling the Python backend. They:
+
+1. Use the `OpenRouterService` (`electron/services/openRouter.ts`) to call OpenRouter's REST API with the per-account `apiKey` (decrypted via `safeStorage`).
+2. Persist returned images as PNG/JPG/WebP/GIF (chosen from the response MIME type) under `<outputRoot>/openrouter/YYYY-MM-DD/<jobId>-<n>.<ext>`.
+3. Maintain their own job entries in an in-memory `Map` (`openRouterImageJobs`) — IDs are prefixed `openrouter-image-<uuid>` so `getStatus` and `cancel` can discriminate.
+4. Emit `generation:progress` events directly so the renderer's progress UI is identical regardless of provider.
+
+Limitations:
+
+- ControlNet, inpaint, mask, and reference-image inputs are **not** supported on the OpenRouter route — those requests return `{ success: false, error: "OpenRouter still-image routing currently supports prompt-only generations…" }`.
+- Cancel is best-effort via `AbortController`; if the upstream completed before the abort lands, the job lands as `completed`.
+- Prompt-enhancement and negative-prompt suggestion routes use the account's `openRouterModel` (typically a chat model), not the image model.
+
+Configuration is per-account; one account can route prompts to OpenRouter but generate locally, or vice-versa. See the `accounts:update` IPC for valid shapes.
+
+---
+
+## Part 5 — Examples
+
+### 5.1 Renderer: generate an image and watch progress
+
+```ts
+// In a React component
+const start = async () => {
+  const result = await window.electron.generation.generateImage({
+    prompt: 'a serene mountain landscape at sunset, golden hour lighting',
+    negative_prompt: 'blurry, low quality',
+    width: 1024,
+    height: 1024,
+    steps: 30,
+    cfg_scale: 7.5,
+    model: 'flux-dev',
+  });
+  if (!result.success || !result.jobId) throw new Error(result.error);
+  return result.jobId;
+};
+
+useEffect(() => {
+  const unsubscribe = window.electron.generation.onProgress((evt) => {
+    if (evt.job_id !== currentJobId) return;
+    setProgress(evt.progress);
+    if (evt.status === 'completed') {
+      window.electron.generation.getStatus(evt.job_id).then((full) => {
+        setImages(full.result.images);              // /outputs/... URLs
+      });
+    }
+  });
+  return unsubscribe;
+}, [currentJobId]);
+```
+
+### 5.2 cURL: drive the backend directly
+
+```bash
+TOKEN="$VISION_STUDIO_BACKEND_AUTH_TOKEN"
+
+# Start an image job
+curl -X POST http://127.0.0.1:8000/api/generate/image \
+  -H "Content-Type: application/json" \
+  -H "x-vision-studio-token: $TOKEN" \
+  -d '{"prompt":"a cyberpunk samurai under neon rain","width":1024,"height":1024,"steps":30}'
+
+# Poll status
+curl -H "x-vision-studio-token: $TOKEN" \
+  http://127.0.0.1:8000/api/jobs/9a2…
+
+# Cancel
+curl -X POST -H "x-vision-studio-token: $TOKEN" \
+  http://127.0.0.1:8000/api/jobs/9a2…/cancel
+```
+
+### 5.3 JavaScript: subscribe to the WebSocket
+
+```js
+const TOKEN = '...';                    // Main-process-minted token
+const ws = new WebSocket(`ws://127.0.0.1:8000/ws?token=${encodeURIComponent(TOKEN)}`);
+
+ws.onmessage = (event) => {
+  const msg = JSON.parse(event.data);
+  if (msg.type === 'job_update') {
+    console.log(`Job ${msg.job_id}: ${msg.status} ${msg.progress.toFixed(1)}%`);
+  }
+};
+
+ws.onclose = (evt) => {
+  // 1008 means the server rejected your token
+  console.warn('ws closed', evt.code);
+};
+```
+
+### 5.4 Python: invoke the ControlNet route
+
+```python
+import base64
+import httpx
+
+def encode(path):
+    with open(path, "rb") as f:
+        return "data:image/png;base64," + base64.b64encode(f.read()).decode("ascii")
+
+response = httpx.post(
+    "http://127.0.0.1:8000/api/v1/controlnet/generate",
+    headers={"x-vision-studio-token": TOKEN},
+    json={
+        "prompt": "a futuristic city skyline at sunset",
+        "init_image": encode("init.png"),
+        "control_image": encode("canny.png"),
+        "model": "canny",
+        "steps": 30,
+        "guidance_scale": 7.5,
+        "width": 768,
+        "height": 768,
+        "num_images": 2,
+    },
+    timeout=300,
+)
+data = response.json()
+for i, image in enumerate(data["images"]):
+    base64_payload = image.split(",", 1)[1]
+    open(f"out_{i}.png", "wb").write(base64.b64decode(base64_payload))
+```
+
+---
+
+## Part 6 — Status codes
+
+| Code | Meaning | When |
+|------|---------|------|
+| `200` | Success | Normal response |
+| `400` | Bad request | Pydantic validation failure or `INVALID_INPUT` from `/api/v1/*` |
+| `403` | Forbidden | Missing/invalid `x-vision-studio-token` |
+| `404` | Not found | Missing job, model, or source file |
+| `429` | Rate limited | Hit the per-IP rate limit; response includes `Retry-After` header and `{ "error": "Rate limit exceeded", "error_code": "RATE_LIMITED", "retry_after": "60" }` |
+| `500` | Server error | Generation/edit/service exception; `{ error, error_code }` body |
+| WS `1008` | Policy violation | Token mismatch on `/ws` |
+
+---
+
+_Last verified against the codebase on 2026-05-03. Canonical source: `backend/main.py`, `backend/api/{controlnet,lora,edit,batch}.py`, `electron/preload.ts`, `electron/ipc-handlers/generation.ts`, `electron/services/mainIpc.ts`._

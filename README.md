@@ -268,6 +268,25 @@ cd backend && python -m unittest discover -s tests -v
 | E2E | Playwright | 3 | 13 |
 | Backend | unittest | 7 | 35 (28 + 7 skipped) |
 
+## 📚 Documentation
+
+Full technical documentation lives in [`docs/`](docs/). Start with the index:
+
+| Doc | What it covers |
+|-----|----------------|
+| [`docs/INDEX.md`](docs/INDEX.md) | Documentation entry point — read this first |
+| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | Process model, source layout, data flows, persistence, security, build, release |
+| [`docs/API_ENDPOINTS.md`](docs/API_ENDPOINTS.md) | Electron IPC + backend REST + WebSocket + OpenRouter — every channel and endpoint |
+| [`docs/DATABASE_SCHEMA.md`](docs/DATABASE_SCHEMA.md) | SQLite schema, ER diagram, migration runner, how to add a migration |
+| [`docs/api/openapi.json`](docs/api/openapi.json) | Machine-readable OpenAPI 3.0 spec (paste into Swagger UI / Redoc) |
+| [`docs/diagrams/diagrams.md`](docs/diagrams/diagrams.md) | Standalone Mermaid diagram library for slides and presentations |
+
+The running backend also serves a live, fully introspectable spec at:
+
+- **Swagger UI** — `http://127.0.0.1:8000/api/docs`
+- **ReDoc** — `http://127.0.0.1:8000/api/redoc`
+- **Raw JSON** — `http://127.0.0.1:8000/api/openapi.json`
+
 ## 🤝 Contributing
 
 Contributions welcome! See [CONTRIBUTING.md](CONTRIBUTING.md)

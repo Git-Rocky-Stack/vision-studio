@@ -406,6 +406,7 @@ Mockups, examples, or references.
 ## Questions?
 
 - Check the [README](README.md) for general information
+- Read [`docs/INDEX.md`](docs/INDEX.md) to find the right technical document — start with [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the system overview, [`docs/API_ENDPOINTS.md`](docs/API_ENDPOINTS.md) for IPC + REST + WebSocket, and [`docs/DATABASE_SCHEMA.md`](docs/DATABASE_SCHEMA.md) for the SQLite schema
 - See [BUNDLING.md](BUNDLING.md) for Python bundling details
 - Review existing [issues](https://github.com/Git-Rocky-Stack/vision-studio/issues) for similar problems
 
