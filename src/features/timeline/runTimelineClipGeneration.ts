@@ -20,6 +20,16 @@ import { resolveStoredAssetPath, toPreviewUrl } from '@/features/assets/assetRec
 
 type TimelineStore = UseBoundStore<StoreApi<AppState>>;
 
+/**
+ * Poll budgets: max wall time before the runner gives up waiting on the
+ * job. Multiplied against pollIntervalMs (default 500ms) inside the poll
+ * loop, so the local-backend budget is ~60s and the OpenRouter budget is
+ * ~120s. OpenRouter gets the longer ceiling because hosted image generation
+ * has higher tail latency than the local CUDA path.
+ */
+const MAX_POLL_ATTEMPTS_LOCAL_BACKEND = 120;
+const MAX_POLL_ATTEMPTS_OPENROUTER = 240;
+
 type GenerationType = 'image' | 'video';
 type TimelineGenerationOperation = 'generate' | 'regenerate' | 'variant' | 'extend' | 'retake';
 
@@ -449,10 +459,15 @@ export async function runTimelineClipGeneration({
 
   const isHostedImageRoute =
     providerResolved.generationType === 'image' && stillImageRoute.provider === 'openrouter';
-  const maxPollAttempts = isHostedImageRoute ? 240 : 120;
+  const maxPollAttempts = isHostedImageRoute
+    ? MAX_POLL_ATTEMPTS_OPENROUTER
+    : MAX_POLL_ATTEMPTS_LOCAL_BACKEND;
 
   let finalStatus: JobStatus | null = null;
   let signalAborted = false;
+  // Capture the most recent non-terminal progress so the cancel branch
+  // can record how far the job actually got instead of falling back to 0.
+  let lastKnownProgress = 0;
   for (let attempt = 0; attempt < maxPollAttempts; attempt += 1) {
     if (signal?.aborted) {
       signalAborted = true;
@@ -480,9 +495,10 @@ export async function runTimelineClipGeneration({
       nextStatus.status === 'pending' || nextStatus.status === 'processing'
         ? nextStatus.status
         : 'processing';
+    lastKnownProgress = nextStatus.progress ?? lastKnownProgress;
     state.updateJob(jobId, {
       status: safeStatus,
-      progress: nextStatus.progress ?? 0,
+      progress: lastKnownProgress,
     });
     const stepValue = (nextStatus as JobStatus & { step?: number }).step;
     onStatusChange?.({
@@ -525,7 +541,7 @@ export async function runTimelineClipGeneration({
     await electron.generation.cancel(jobId).catch(() => undefined);
     state.updateJob(jobId, {
       status: 'cancelled',
-      progress: 0,
+      progress: lastKnownProgress,
       completedAt: new Date(),
     });
     if (nextBindingBase) {

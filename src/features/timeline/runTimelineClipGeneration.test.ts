@@ -731,6 +731,81 @@ describe('runTimelineClipGeneration', () => {
     ).resolves.toBeDefined();
   });
 
+  it('preserves the last known progress when the signal aborts mid-poll', async () => {
+    // We had real progress information from the last successful poll
+    // before the abort fired. Setting progress to 0 in the cancel branch
+    // misrepresents how far the cancelled job got -- a 73%-complete job
+    // should not show 0% in the post-cancel job record.
+    const { sequence, clip } = seedImageTimelineClip();
+    const processingStatuses: Array<Record<string, unknown>> = [
+      {
+        job_id: 'timeline-progress-preserved',
+        status: 'processing',
+        type: 'image',
+        created_at: '2026-04-24T08:30:00.000Z',
+        progress: 27,
+      },
+      {
+        job_id: 'timeline-progress-preserved',
+        status: 'processing',
+        type: 'image',
+        created_at: '2026-04-24T08:30:00.000Z',
+        progress: 73,
+      },
+      ...Array.from({ length: 10 }, () => ({
+        job_id: 'timeline-progress-preserved',
+        status: 'processing',
+        type: 'image',
+        created_at: '2026-04-24T08:30:00.000Z',
+        progress: 73,
+      })),
+    ];
+
+    const controller = new AbortController();
+    let getStatusCalls = 0;
+    const electron = makeElectronGenerationMock({
+      submitImage: { success: true, jobId: 'timeline-progress-preserved' },
+      statuses: processingStatuses,
+    });
+    const baseGetStatus = electron.generation.getStatus;
+    electron.generation.getStatus = vi.fn().mockImplementation(async (jobId: string) => {
+      getStatusCalls += 1;
+      const result = await baseGetStatus(jobId);
+      // Abort right after the second status (progress: 73) is consumed.
+      if (getStatusCalls === 2) {
+        // Defer abort to after the loop body has updated the store with 73.
+        setTimeout(() => controller.abort(), 0);
+      }
+      return result;
+    });
+
+    await runTimelineClipGeneration({
+      operation: 'generate',
+      clipId: clip.id,
+      sequenceId: sequence.id,
+      input: {
+        prompt: 'progress preservation',
+        generationType: 'image',
+        model: 'flux-dev',
+        width: 1024,
+        height: 1024,
+        steps: 25,
+        cfgScale: 7.5,
+        scheduler: 'Euler a',
+        seed: 11,
+      },
+      electron,
+      pollIntervalMs: 5,
+      signal: controller.signal,
+    }).catch(() => undefined);
+
+    const job = useAppStore.getState().completedJobs.find(
+      (entry) => entry.id === 'timeline-progress-preserved',
+    );
+    expect(job?.status).toBe('cancelled');
+    expect(job?.progress).toBe(73);
+  });
+
   it('does NOT call cancel when signal is pre-aborted (no jobId yet)', async () => {
     const { sequence, clip } = seedImageTimelineClip();
     const electron = makeElectronGenerationMock({

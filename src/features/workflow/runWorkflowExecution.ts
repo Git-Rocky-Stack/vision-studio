@@ -10,6 +10,16 @@ import { validateWorkflowExecution } from './validateWorkflowExecution';
 
 type WorkflowStore = UseBoundStore<StoreApi<AppState>>;
 
+/**
+ * Poll budgets: max wall time before the runner gives up waiting on the
+ * job. Multiplied against pollIntervalMs (default 500ms) inside the poll
+ * loop, so the local-backend budget is ~60s and the OpenRouter budget is
+ * ~120s. OpenRouter gets the longer ceiling because hosted image generation
+ * has higher tail latency than the local CUDA path.
+ */
+const MAX_POLL_ATTEMPTS_LOCAL_BACKEND = 120;
+const MAX_POLL_ATTEMPTS_OPENROUTER = 240;
+
 interface WorkflowExecutionElectronApi {
   app: {
     getPath: (name: 'userData') => Promise<string>;
@@ -158,7 +168,10 @@ export async function runWorkflowExecution({
     });
     state.setWorkflowRuntimeState(workflowId, { activeJobId: jobId });
 
-    const maxPollAttempts = stillImageRoute.provider === 'openrouter' ? 240 : 120;
+    const maxPollAttempts =
+      stillImageRoute.provider === 'openrouter'
+        ? MAX_POLL_ATTEMPTS_OPENROUTER
+        : MAX_POLL_ATTEMPTS_LOCAL_BACKEND;
 
     let finalStatus: JobStatus | null = null;
     for (let attempt = 0; attempt < maxPollAttempts; attempt += 1) {
