@@ -788,6 +788,499 @@ describe('createOpenRouterService', () => {
     });
   });
 
+  describe('usage logging', () => {
+    it('logs usage at info level after successful enhancePrompt', async () => {
+      const info = vi.fn();
+      const axiosInstance = {
+        get: vi.fn(),
+        post: vi.fn().mockResolvedValue({
+          data: {
+            choices: [
+              {
+                message: {
+                  content: JSON.stringify({ mode: 'clarify', prompt: 'enhanced', variations: [] }),
+                },
+              },
+            ],
+            usage: { prompt_tokens: 12, completion_tokens: 30, total_tokens: 42, cost: 0.0009 },
+          },
+        }),
+      };
+      const service = createOpenRouterService({
+        axiosInstance,
+        logger: { warn: vi.fn(), error: vi.fn(), info },
+      });
+      await service.enhancePrompt({ apiKey: 'sk-or-v1', prompt: 'cat', mode: 'clarify' });
+
+      expect(info).toHaveBeenCalledTimes(1);
+      const [message, payload] = info.mock.calls[0];
+      expect(message).toMatch(/enhancePrompt/);
+      expect(payload).toMatchObject({
+        promptTokens: 12,
+        completionTokens: 30,
+        totalTokens: 42,
+        cost: 0.0009,
+      });
+    });
+
+    it('logs usage at info level after successful suggestNegativePrompt', async () => {
+      const info = vi.fn();
+      const axiosInstance = {
+        get: vi.fn(),
+        post: vi.fn().mockResolvedValue({
+          data: {
+            choices: [
+              {
+                message: {
+                  content: JSON.stringify({
+                    negativePrompt: 'blurry',
+                    suggestions: ['blurry'],
+                  }),
+                },
+              },
+            ],
+            usage: { prompt_tokens: 8, completion_tokens: 4, total_tokens: 12, cost: 0.0001 },
+          },
+        }),
+      };
+      const service = createOpenRouterService({
+        axiosInstance,
+        logger: { warn: vi.fn(), error: vi.fn(), info },
+      });
+      await service.suggestNegativePrompt({ apiKey: 'sk-or-v1', prompt: 'a portrait' });
+
+      expect(info).toHaveBeenCalledTimes(1);
+      expect(info.mock.calls[0][0]).toMatch(/suggestNegativePrompt/);
+    });
+
+    it('logs usage at info level after successful generateImage', async () => {
+      const info = vi.fn();
+      const axiosInstance = {
+        get: vi.fn().mockResolvedValue({
+          data: {
+            data: [
+              {
+                id: 'google/gemini-2.5-flash-image',
+                name: 'Gemini Flash Image',
+                architecture: { output_modalities: ['image'] },
+                pricing: { prompt: '0', completion: '0', image: '0.0001' },
+              },
+            ],
+          },
+        }),
+        post: vi.fn().mockResolvedValue({
+          data: {
+            id: 'gen-1',
+            model: 'google/gemini-2.5-flash-image',
+            choices: [
+              {
+                message: {
+                  content: '',
+                  images: [{ image_url: { url: 'data:image/png;base64,AAAA' } }],
+                },
+              },
+            ],
+            usage: { prompt_tokens: 10, completion_tokens: 0, total_tokens: 10, cost: 0.0002 },
+          },
+        }),
+      };
+      const service = createOpenRouterService({
+        axiosInstance,
+        logger: { warn: vi.fn(), error: vi.fn(), info },
+      });
+      await service.generateImage({
+        apiKey: 'sk-or-v1',
+        model: 'google/gemini-2.5-flash-image',
+        prompt: 'a cat',
+        width: 1024,
+        height: 1024,
+      });
+
+      expect(info).toHaveBeenCalledTimes(1);
+      expect(info.mock.calls[0][0]).toMatch(/generateImage/);
+    });
+
+    it('skips usage logging when the response has no usage field', async () => {
+      const info = vi.fn();
+      const axiosInstance = {
+        get: vi.fn(),
+        post: vi.fn().mockResolvedValue({
+          data: {
+            choices: [
+              {
+                message: {
+                  content: JSON.stringify({ mode: 'clarify', prompt: 'enhanced', variations: [] }),
+                },
+              },
+            ],
+          },
+        }),
+      };
+      const service = createOpenRouterService({
+        axiosInstance,
+        logger: { warn: vi.fn(), error: vi.fn(), info },
+      });
+      await service.enhancePrompt({ apiKey: 'sk-or-v1', prompt: 'cat', mode: 'clarify' });
+
+      expect(info).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('structured logger injection', () => {
+    it('routes enhance parse-failure warnings through the injected logger (not console)', async () => {
+      const warn = vi.fn();
+      const axiosInstance = {
+        get: vi.fn(),
+        post: vi.fn().mockResolvedValue({
+          data: { choices: [{ message: { content: 'not valid json' } }] },
+        }),
+      };
+      const service = createOpenRouterService({
+        axiosInstance,
+        logger: { warn, error: vi.fn(), info: vi.fn() },
+      });
+      await service.enhancePrompt({ apiKey: 'sk-or-v1', prompt: 'cat', mode: 'clarify' });
+
+      expect(warn).toHaveBeenCalledTimes(1);
+      const [message, ...rest] = warn.mock.calls[0];
+      expect(message).toMatch(/enhancePrompt/);
+      expect(rest.length).toBeGreaterThan(0);
+    });
+
+    it('routes negative-prompt parse-failure warnings through the injected logger', async () => {
+      const warn = vi.fn();
+      const axiosInstance = {
+        get: vi.fn(),
+        post: vi.fn().mockResolvedValue({
+          data: { choices: [{ message: { content: 'not valid json' } }] },
+        }),
+      };
+      const service = createOpenRouterService({
+        axiosInstance,
+        logger: { warn, error: vi.fn(), info: vi.fn() },
+      });
+      await service.suggestNegativePrompt({ apiKey: 'sk-or-v1', prompt: 'a portrait' });
+
+      expect(warn).toHaveBeenCalledTimes(1);
+      expect(warn.mock.calls[0][0]).toMatch(/suggestNegativePrompt/);
+    });
+
+    it('falls back to console when no logger is provided (no breaking change)', async () => {
+      // Spy on console.warn to assert default behavior preserved
+      const consoleWarn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+      const axiosInstance = {
+        get: vi.fn(),
+        post: vi.fn().mockResolvedValue({
+          data: { choices: [{ message: { content: 'not valid json' } }] },
+        }),
+      };
+      const service = createOpenRouterService({ axiosInstance });
+      await service.enhancePrompt({ apiKey: 'sk-or-v1', prompt: 'cat', mode: 'clarify' });
+
+      expect(consoleWarn).toHaveBeenCalledTimes(1);
+      consoleWarn.mockRestore();
+    });
+  });
+
+  describe('suggestNegativePrompt parse-failure fallback', () => {
+    it('returns the original negativePrompt unchanged when the LLM returns non-JSON content', async () => {
+      const axiosInstance = {
+        get: vi.fn(),
+        post: vi.fn().mockResolvedValue({
+          data: {
+            choices: [{ message: { content: 'apologies, here is some prose instead of JSON' } }],
+            usage: { prompt_tokens: 10, completion_tokens: 8, total_tokens: 18, cost: 0.0001 },
+          },
+        }),
+      };
+      const service = createOpenRouterService({ axiosInstance });
+      const result = await service.suggestNegativePrompt({
+        apiKey: 'sk-or-v1',
+        prompt: 'a portrait',
+        negativePrompt: 'blurry, distorted',
+      });
+
+      expect(result.negativePrompt).toBe('blurry, distorted');
+      expect(result.suggestions).toEqual([]);
+      expect(result.usage).toEqual({
+        promptTokens: 10,
+        completionTokens: 8,
+        totalTokens: 18,
+        cost: 0.0001,
+      });
+    });
+
+    it('returns the original negativePrompt unchanged when JSON content fails schema validation', async () => {
+      const axiosInstance = {
+        get: vi.fn(),
+        post: vi.fn().mockResolvedValue({
+          data: {
+            choices: [
+              { message: { content: JSON.stringify({ wrong_key: 'value' }) } },
+            ],
+          },
+        }),
+      };
+      const service = createOpenRouterService({ axiosInstance });
+      const result = await service.suggestNegativePrompt({
+        apiKey: 'sk-or-v1',
+        prompt: 'a portrait',
+        negativePrompt: 'low quality',
+      });
+
+      expect(result.negativePrompt).toBe('low quality');
+      expect(result.suggestions).toEqual([]);
+    });
+
+    it('returns empty negativePrompt when no original was provided AND parse fails', async () => {
+      const axiosInstance = {
+        get: vi.fn(),
+        post: vi.fn().mockResolvedValue({
+          data: {
+            choices: [{ message: { content: 'not json' } }],
+          },
+        }),
+      };
+      const service = createOpenRouterService({ axiosInstance });
+      const result = await service.suggestNegativePrompt({
+        apiKey: 'sk-or-v1',
+        prompt: 'a portrait',
+      });
+
+      expect(result.negativePrompt).toBe('');
+      expect(result.suggestions).toEqual([]);
+    });
+
+    it('STILL throws on HTTP errors (parse fallback only applies when the API call itself succeeds)', async () => {
+      const axiosInstance = {
+        get: vi.fn(),
+        post: vi.fn().mockRejectedValue(
+          Object.assign(new Error('OpenRouter rejected: invalid key'), {
+            response: { status: 401, data: { error: { message: 'invalid key' } } },
+          }),
+        ),
+      };
+      const service = createOpenRouterService({ axiosInstance });
+
+      await expect(
+        service.suggestNegativePrompt({ apiKey: 'sk-or-v1', prompt: 'a portrait' }),
+      ).rejects.toThrow(/invalid key/i);
+    });
+  });
+
+  describe('per-API-key concurrency budget', () => {
+    it('caps concurrent enhancePrompt calls per key at the configured limit', async () => {
+      let inFlight = 0;
+      let observedMax = 0;
+      const axiosInstance = {
+        get: vi.fn(),
+        post: vi.fn().mockImplementation(async () => {
+          inFlight += 1;
+          observedMax = Math.max(observedMax, inFlight);
+          await new Promise((resolve) => setTimeout(resolve, 5));
+          inFlight -= 1;
+          return {
+            data: {
+              choices: [
+                {
+                  message: {
+                    content: JSON.stringify({ mode: 'clarify', prompt: 'ok', variations: [] }),
+                  },
+                },
+              ],
+            },
+          };
+        }),
+      };
+      const service = createOpenRouterService({ axiosInstance, maxConcurrentPerKey: 2 });
+      const calls = Array.from({ length: 6 }, () =>
+        service.enhancePrompt({ apiKey: 'sk-or-v1-A', prompt: 'cat', mode: 'clarify' }),
+      );
+      await Promise.all(calls);
+
+      expect(observedMax).toBeLessThanOrEqual(2);
+      expect(observedMax).toBeGreaterThan(1);
+      expect(axiosInstance.post).toHaveBeenCalledTimes(6);
+    });
+
+    it('treats different API keys as independent buckets', async () => {
+      const inFlightByKey = new Map<string, number>();
+      const observedMaxByKey = new Map<string, number>();
+      const axiosInstance = {
+        get: vi.fn(),
+        post: vi.fn().mockImplementation(async (_url, _body, config) => {
+          const auth = config.headers.Authorization as string;
+          const key = auth.replace('Bearer ', '');
+          inFlightByKey.set(key, (inFlightByKey.get(key) ?? 0) + 1);
+          observedMaxByKey.set(
+            key,
+            Math.max(observedMaxByKey.get(key) ?? 0, inFlightByKey.get(key) ?? 0),
+          );
+          await new Promise((resolve) => setTimeout(resolve, 5));
+          inFlightByKey.set(key, (inFlightByKey.get(key) ?? 0) - 1);
+          return {
+            data: {
+              choices: [
+                {
+                  message: {
+                    content: JSON.stringify({ mode: 'clarify', prompt: 'ok', variations: [] }),
+                  },
+                },
+              ],
+            },
+          };
+        }),
+      };
+      const service = createOpenRouterService({ axiosInstance, maxConcurrentPerKey: 2 });
+      const calls = [
+        ...Array.from({ length: 3 }, () =>
+          service.enhancePrompt({ apiKey: 'sk-or-v1-A', prompt: 'cat', mode: 'clarify' }),
+        ),
+        ...Array.from({ length: 3 }, () =>
+          service.enhancePrompt({ apiKey: 'sk-or-v1-B', prompt: 'cat', mode: 'clarify' }),
+        ),
+      ];
+      await Promise.all(calls);
+
+      expect(observedMaxByKey.get('sk-or-v1-A')).toBeLessThanOrEqual(2);
+      expect(observedMaxByKey.get('sk-or-v1-B')).toBeLessThanOrEqual(2);
+      // Both keys should have run concurrently — the max-per-key cap doesn't
+      // serialize across keys.
+    });
+
+    it('releases the slot even when a call rejects (no permanent leak)', async () => {
+      let inFlight = 0;
+      let observedMax = 0;
+      let callCount = 0;
+      const axiosInstance = {
+        get: vi.fn(),
+        post: vi.fn().mockImplementation(async () => {
+          inFlight += 1;
+          observedMax = Math.max(observedMax, inFlight);
+          callCount += 1;
+          await new Promise((resolve) => setTimeout(resolve, 3));
+          inFlight -= 1;
+          if (callCount <= 2) {
+            const error = new Error('forced');
+            (error as any).response = { status: 401, data: { error: { message: 'denied' } } };
+            throw error;
+          }
+          return {
+            data: {
+              choices: [
+                {
+                  message: {
+                    content: JSON.stringify({ mode: 'clarify', prompt: 'ok', variations: [] }),
+                  },
+                },
+              ],
+            },
+          };
+        }),
+      };
+      const service = createOpenRouterService({ axiosInstance, maxConcurrentPerKey: 1 });
+      const promises = Array.from({ length: 4 }, () =>
+        service.enhancePrompt({ apiKey: 'sk-or-v1-A', prompt: 'cat', mode: 'clarify' }).catch(() => null),
+      );
+      await Promise.all(promises);
+
+      expect(observedMax).toBe(1);
+      // All 4 attempts should have made it through (no deadlock from leaked slot).
+      expect(callCount).toBe(4);
+    });
+  });
+
+  describe('chat completion envelope validation', () => {
+    it('enhancePrompt throws when response.data is missing the choices array', async () => {
+      const axiosInstance = {
+        get: vi.fn(),
+        post: vi.fn().mockResolvedValue({ data: { id: 'gen-1', model: 'foo' } }),
+      };
+      const service = createOpenRouterService({ axiosInstance });
+
+      await expect(
+        service.enhancePrompt({ apiKey: 'sk-or-v1', prompt: 'cat', mode: 'clarify' }),
+      ).rejects.toThrow(/choices/i);
+    });
+
+    it('enhancePrompt throws when choices is an empty array', async () => {
+      const axiosInstance = {
+        get: vi.fn(),
+        post: vi.fn().mockResolvedValue({ data: { choices: [] } }),
+      };
+      const service = createOpenRouterService({ axiosInstance });
+
+      await expect(
+        service.enhancePrompt({ apiKey: 'sk-or-v1', prompt: 'cat', mode: 'clarify' }),
+      ).rejects.toThrow(/choices/i);
+    });
+
+    it('enhancePrompt throws when choices[0] is missing message', async () => {
+      const axiosInstance = {
+        get: vi.fn(),
+        post: vi.fn().mockResolvedValue({ data: { choices: [{ index: 0 }] } }),
+      };
+      const service = createOpenRouterService({ axiosInstance });
+
+      await expect(
+        service.enhancePrompt({ apiKey: 'sk-or-v1', prompt: 'cat', mode: 'clarify' }),
+      ).rejects.toThrow(/message/i);
+    });
+
+    it('suggestNegativePrompt throws on malformed envelope (no choices)', async () => {
+      const axiosInstance = {
+        get: vi.fn(),
+        post: vi.fn().mockResolvedValue({ data: { id: 'gen-2' } }),
+      };
+      const service = createOpenRouterService({ axiosInstance });
+
+      await expect(
+        service.suggestNegativePrompt({ apiKey: 'sk-or-v1', prompt: 'a portrait' }),
+      ).rejects.toThrow(/choices/i);
+    });
+
+    it('generateImage throws on malformed envelope (no choices)', async () => {
+      const axiosInstance = {
+        get: vi.fn().mockResolvedValue({
+          data: {
+            data: [
+              {
+                id: 'google/gemini-2.5-flash-image',
+                name: 'Gemini Flash Image',
+                architecture: { output_modalities: ['image'] },
+                pricing: { prompt: '0', completion: '0', image: '0.0001' },
+              },
+            ],
+          },
+        }),
+        post: vi.fn().mockResolvedValue({ data: { id: 'gen-3' } }),
+      };
+      const service = createOpenRouterService({ axiosInstance });
+
+      await expect(
+        service.generateImage({
+          apiKey: 'sk-or-v1',
+          model: 'google/gemini-2.5-flash-image',
+          prompt: 'a cat',
+          width: 1024,
+          height: 1024,
+        }),
+      ).rejects.toThrow(/choices/i);
+    });
+
+    it('error path identifies the offending field', async () => {
+      const axiosInstance = {
+        get: vi.fn(),
+        post: vi.fn().mockResolvedValue({ data: { choices: 'not-an-array' } }),
+      };
+      const service = createOpenRouterService({ axiosInstance });
+
+      await expect(
+        service.enhancePrompt({ apiKey: 'sk-or-v1', prompt: 'cat', mode: 'clarify' }),
+      ).rejects.toThrow(/choices/i);
+    });
+  });
+
   describe('enhancePrompt parse-failure fallback', () => {
     it('returns the original prompt unchanged when the LLM returns non-JSON content', async () => {
       const axiosInstance = {
@@ -1001,10 +1494,13 @@ describe('createOpenRouterService', () => {
   });
 
   describe('zod schema validation of LLM-generated payloads', () => {
-    // Note: enhancePrompt has a parse fallback (P2-B) that catches schema
-    // failures and returns the original prompt. Strict-throw assertions for
-    // schema enforcement live on suggestNegativePrompt below, which has no
-    // fallback and must surface schema errors loudly.
+    // Note: both enhancePrompt and suggestNegativePrompt have parse fallbacks
+    // (P2-B and P3-B respectively) that catch schema failures and return a
+    // safe default (original input). Strict-throw schema assertions are
+    // therefore covered by the dedicated parse-failure-fallback describe
+    // blocks above. Only forward-compat and snake_case-acceptance assertions
+    // belong here -- those characterize the schema's permissiveness, not
+    // its enforcement path.
 
     it('tolerates extra/unknown fields in prompt enhancement payload (forward compat)', async () => {
       const axiosInstance = {
@@ -1034,28 +1530,6 @@ describe('createOpenRouterService', () => {
         mode: 'clarify',
       });
       expect(result.prompt).toBe('enhanced');
-    });
-
-    it('throws a descriptive error when negative prompt payload has neither negativePrompt nor negative_prompt', async () => {
-      const axiosInstance = {
-        get: vi.fn(),
-        post: vi.fn().mockResolvedValue({
-          data: {
-            choices: [
-              {
-                message: {
-                  content: JSON.stringify({ suggestions: ['blurry'] }),
-                },
-              },
-            ],
-          },
-        }),
-      };
-      const service = createOpenRouterService({ axiosInstance });
-
-      await expect(
-        service.suggestNegativePrompt({ apiKey: 'sk-or-v1', prompt: 'cat' }),
-      ).rejects.toThrow(/negative/i);
     });
 
     it('accepts snake_case negative_prompt key (alongside camelCase)', async () => {

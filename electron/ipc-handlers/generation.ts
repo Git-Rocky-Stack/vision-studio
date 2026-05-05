@@ -378,6 +378,7 @@ async function runOpenRouterImageJob(jobId: string, params: any) {
         provider_response_id: response.responseId,
         provider_message: response.content || undefined,
         model: response.model ?? model,
+        usage: response.usage,
       },
       abortController: undefined,
     });

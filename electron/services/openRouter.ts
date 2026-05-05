@@ -3,6 +3,13 @@ import { z, type ZodError } from 'zod';
 
 type AxiosLike = Pick<typeof axios, 'get' | 'post'>;
 
+/**
+ * Minimal logger contract. Matches the lightweight pattern used by other
+ * electron/services (Pick<Console, ...>) so callers can pass an electron-log
+ * instance, a wrapped pino logger, or just bare `console` interchangeably.
+ */
+type Logger = Pick<Console, 'warn' | 'error' | 'info'>;
+
 export type PromptEnhancementMode = 'clarify' | 'cinematic' | 'concise' | 'expand' | 'variations';
 
 export interface OpenRouterKeyInfo {
@@ -85,6 +92,17 @@ type CreateOpenRouterServiceOptions = {
    * Pass 0 to disable caching.
    */
   modelCacheTtlMs?: number;
+  /**
+   * Maximum concurrent in-flight requests per API key. Caps self-inflicted 429s
+   * when the user fires many enhance/generate calls in rapid succession.
+   * Defaults to 4. Different keys are independent.
+   */
+  maxConcurrentPerKey?: number;
+  /**
+   * Logger for diagnostic output (parse-failure fallbacks, etc.). Defaults to
+   * `console`. Inject a structured logger in production for better filtering.
+   */
+  logger?: Logger;
   /**
    * Clock function for cache freshness checks. Tests can swap in a fake clock.
    */
@@ -173,6 +191,43 @@ const RETRYABLE_STATUS_CODES = new Set([429, 500, 502, 503, 504]);
 const DEFAULT_RETRY_BASE_DELAY_MS = 250;
 const DEFAULT_MAX_RETRY_ATTEMPTS = 3;
 const DEFAULT_MODEL_CACHE_TTL_MS = 5 * 60 * 1000;
+const DEFAULT_MAX_CONCURRENT_PER_KEY = 4;
+
+/**
+ * Per-key counting semaphore. `maxPerKey` total in-flight calls allowed
+ * per API key; calls beyond that wait FIFO for a slot to free.
+ *
+ * Different keys are isolated -- one user's burst doesn't starve another's
+ * call. Slots are released in `finally` so error paths don't leak.
+ */
+function createKeyConcurrencyLimit(maxPerKey: number) {
+  type KeyState = { active: number; waiters: Array<() => void> };
+  const states = new Map<string, KeyState>();
+
+  function getState(key: string): KeyState {
+    let state = states.get(key);
+    if (!state) {
+      state = { active: 0, waiters: [] };
+      states.set(key, state);
+    }
+    return state;
+  }
+
+  return async function run<T>(key: string, work: () => Promise<T>): Promise<T> {
+    const state = getState(key);
+    if (state.active >= maxPerKey) {
+      await new Promise<void>((resolve) => state.waiters.push(resolve));
+    }
+    state.active += 1;
+    try {
+      return await work();
+    } finally {
+      state.active -= 1;
+      const next = state.waiters.shift();
+      if (next) next();
+    }
+  };
+}
 
 function isAbortError(error: unknown) {
   const name = (error as { name?: unknown })?.name;
@@ -380,6 +435,46 @@ const negativePromptContentSchema = z
   })
   .passthrough();
 
+/**
+ * Outer chat-completion envelope. Validated once per call so any drift in
+ * OpenRouter's response shape (e.g., choices renamed, removed) surfaces as
+ * a structured error immediately instead of silently producing nulls
+ * downstream. Inner content shape is enforced separately by
+ * promptEnhancementContentSchema / negativePromptContentSchema.
+ */
+const chatCompletionEnvelopeSchema = z
+  .object({
+    id: z.string().optional(),
+    model: z.string().optional(),
+    choices: z
+      .array(
+        z
+          .object({
+            message: z
+              .object({
+                content: z.unknown().optional(),
+                images: z.array(z.unknown()).optional(),
+              })
+              .passthrough(),
+          })
+          .passthrough(),
+      )
+      .min(1, 'choices must contain at least one entry'),
+    usage: z.unknown().optional(),
+  })
+  .passthrough();
+
+function parseChatCompletionEnvelope(data: unknown) {
+  const result = chatCompletionEnvelopeSchema.safeParse(data);
+  if (!result.success) {
+    throw new Error(
+      formatZodError(result.error, 'Invalid OpenRouter chat completion response'),
+      { cause: result.error },
+    );
+  }
+  return result.data;
+}
+
 function formatZodError(error: ZodError, prefix: string) {
   const first = error.issues[0];
   if (!first) {
@@ -533,10 +628,13 @@ export function createOpenRouterService({
   retryBaseDelayMs = DEFAULT_RETRY_BASE_DELAY_MS,
   maxRetryAttempts = DEFAULT_MAX_RETRY_ATTEMPTS,
   modelCacheTtlMs = DEFAULT_MODEL_CACHE_TTL_MS,
+  maxConcurrentPerKey = DEFAULT_MAX_CONCURRENT_PER_KEY,
+  logger = console,
   now = Date.now,
 }: CreateOpenRouterServiceOptions = {}) {
   type ModelCacheEntry = { fetchedAt: number; models: OpenRouterModelSummary[] };
   const imageModelCache = new Map<string, ModelCacheEntry>();
+  const runWithKeyLimit = createKeyConcurrencyLimit(maxConcurrentPerKey);
 
   function getCachedImageModels(apiKey: string): OpenRouterModelSummary[] | null {
     if (modelCacheTtlMs <= 0) {
@@ -560,19 +658,30 @@ export function createOpenRouterService({
     imageModelCache.set(apiKey, { fetchedAt: now(), models });
   }
 
-  function withRetry<T>(operation: () => Promise<T>, signal?: AbortSignal) {
-    return retryOpenRouterCall(operation, {
-      maxAttempts: maxRetryAttempts,
-      baseDelayMs: retryBaseDelayMs,
-      signal,
-    });
+  function withRetry<T>(apiKey: string, operation: () => Promise<T>, signal?: AbortSignal) {
+    // Per-key semaphore wraps the entire retry sequence so a single logical
+    // call holds one slot for its full lifetime (initial attempt + backoffs).
+    return runWithKeyLimit(apiKey, () =>
+      retryOpenRouterCall(operation, {
+        maxAttempts: maxRetryAttempts,
+        baseDelayMs: retryBaseDelayMs,
+        signal,
+      }),
+    );
+  }
+
+  function logUsage(callerName: string, usage: OpenRouterUsage | null) {
+    if (!usage) {
+      return;
+    }
+    logger.info(`[openRouter] ${callerName} usage`, usage);
   }
 
   async function listModels(
     apiKey: string,
     params?: Record<string, string>,
   ): Promise<OpenRouterModelSummary[]> {
-    const response = await withRetry(() =>
+    const response = await withRetry(apiKey, () =>
       axiosInstance.get(`${baseUrl}/models`, {
         headers: buildHeaders(apiKey, appReferer, appTitle),
         params,
@@ -589,7 +698,7 @@ export function createOpenRouterService({
 
   async function getKeyInfo(apiKey: string): Promise<OpenRouterKeyInfo> {
     try {
-      const response = await withRetry(() =>
+      const response = await withRetry(apiKey, () =>
         axiosInstance.get(`${baseUrl}/key`, {
           headers: buildHeaders(apiKey, appReferer, appTitle),
           timeout: METADATA_TIMEOUT_MS,
@@ -665,6 +774,7 @@ export function createOpenRouterService({
     let response: Awaited<ReturnType<typeof axiosInstance.post>>;
     try {
       response = await withRetry(
+        apiKey,
         () =>
           axiosInstance.post(
             `${baseUrl}/chat/completions`,
@@ -690,8 +800,10 @@ export function createOpenRouterService({
       throw createOpenRouterError(error, 'OpenRouter prompt enhancement failed.');
     }
 
-    const content = extractMessageContent(response.data?.choices?.[0]?.message?.content);
+    const envelope = parseChatCompletionEnvelope(response.data);
+    const content = extractMessageContent(envelope.choices[0].message.content);
     const usage = extractUsage(response.data);
+    logUsage('enhancePrompt', usage);
     try {
       const parsed = JSON.parse(content);
       return {
@@ -702,7 +814,7 @@ export function createOpenRouterService({
       // API call succeeded, but the LLM ignored response_format or returned a
       // shape we don't recognize. Fall back to the user's original prompt so
       // the workflow keeps moving — surface usage so cost is still tracked.
-      console.warn(
+      logger.warn(
         '[openRouter] enhancePrompt: parse failed, returning original prompt unchanged',
         parseError instanceof Error ? parseError.message : parseError,
       );
@@ -736,8 +848,10 @@ export function createOpenRouterService({
     assertPromptLength(normalizedPrompt, 'Prompt');
     assertPromptLength(normalizedNegativePrompt, 'Negative prompt');
 
+    let response: Awaited<ReturnType<typeof axiosInstance.post>>;
     try {
-      const response = await withRetry(
+      response = await withRetry(
+        apiKey,
         () =>
           axiosInstance.post(
             `${baseUrl}/chat/completions`,
@@ -764,15 +878,34 @@ export function createOpenRouterService({
           ),
         signal,
       );
+    } catch (error) {
+      throw createOpenRouterError(error, 'OpenRouter negative prompt suggestion failed.');
+    }
 
-      const content = extractMessageContent(response.data?.choices?.[0]?.message?.content);
+    const envelope = parseChatCompletionEnvelope(response.data);
+    const content = extractMessageContent(envelope.choices[0].message.content);
+    const usage = extractUsage(response.data);
+    logUsage('suggestNegativePrompt', usage);
+    try {
       const parsed = JSON.parse(content);
       return {
         ...parseNegativePromptContent(parsed),
-        usage: extractUsage(response.data),
+        usage,
       };
-    } catch (error) {
-      throw createOpenRouterError(error, 'OpenRouter negative prompt suggestion failed.');
+    } catch (parseError) {
+      // API call succeeded, but the LLM produced something unparseable.
+      // Fall back to the user's input negativePrompt unchanged so the
+      // workflow keeps moving -- IPC handler can layer the local heuristic
+      // on top if it wants a smarter fallback than passthrough.
+      logger.warn(
+        '[openRouter] suggestNegativePrompt: parse failed, returning original negativePrompt',
+        parseError instanceof Error ? parseError.message : parseError,
+      );
+      return {
+        negativePrompt: normalizedNegativePrompt,
+        suggestions: [],
+        usage,
+      };
     }
   }
 
@@ -816,6 +949,7 @@ export function createOpenRouterService({
         : ['image'];
 
       const response = await withRetry(
+        apiKey,
         () =>
           axiosInstance.post(
             `${baseUrl}/chat/completions`,
@@ -842,7 +976,8 @@ export function createOpenRouterService({
         signal,
       );
 
-      const message = response.data?.choices?.[0]?.message ?? {};
+      const envelope = parseChatCompletionEnvelope(response.data);
+      const message = envelope.choices[0].message;
       const images = Array.isArray(message.images)
         ? message.images
             .map((image: unknown) => extractImageDataUrl(image))
@@ -853,12 +988,14 @@ export function createOpenRouterService({
         throw new Error('OpenRouter did not return any images.');
       }
 
+      const usage = extractUsage(response.data);
+      logUsage('generateImage', usage);
       return {
-        responseId: typeof response.data?.id === 'string' ? response.data.id : null,
-        model: typeof response.data?.model === 'string' ? response.data.model : normalizedModel,
+        responseId: envelope.id ?? null,
+        model: envelope.model ?? normalizedModel,
         content: extractMessageContent(message.content),
         images,
-        usage: extractUsage(response.data),
+        usage,
       };
     } catch (error) {
       throw createOpenRouterError(error, 'OpenRouter image generation failed.');

@@ -226,7 +226,19 @@ export interface ElectronAPI {
     enhancePrompt: (params: {
       prompt: string;
       mode?: string;
-    }) => Promise<{ success?: boolean; error?: string; mode?: string; prompt?: string; variations?: string[] }>;
+    }) => Promise<{
+      success?: boolean;
+      error?: string;
+      mode?: string;
+      prompt?: string;
+      variations?: string[];
+      usage?: {
+        promptTokens: number | null;
+        completionTokens: number | null;
+        totalTokens: number | null;
+        cost: number | null;
+      } | null;
+    }>;
     suggestNegativePrompt: (params: {
       prompt: string;
       negativePrompt?: string;
@@ -236,6 +248,12 @@ export interface ElectronAPI {
       negativePrompt?: string;
       suggestions?: string[];
       source?: 'openrouter' | 'heuristic';
+      usage?: {
+        promptTokens: number | null;
+        completionTokens: number | null;
+        totalTokens: number | null;
+        cost: number | null;
+      } | null;
     }>;
     cropImage: (params: {
       source_path: string;
