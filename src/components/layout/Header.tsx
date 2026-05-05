@@ -7,7 +7,7 @@ type HeaderStatusTone = 'success' | 'warning' | 'error' | 'accent';
 
 interface HeaderStatusPresentation {
   label: string;
-  detail: string;
+  detail?: string;
   tone: HeaderStatusTone;
   pulse: boolean;
   ariaLabel: string;
@@ -51,8 +51,7 @@ function getBackendStatusPresentation(params: {
       parts.push(formatCount(queuedCount, 'queued item'));
     }
     return {
-      label: 'Queue active',
-      detail: parts.join(', '),
+      label: `Queue active: ${parts.join(', ')}`,
       tone: 'accent',
       pulse: true,
       ariaLabel: 'Generation queue active',
@@ -61,8 +60,7 @@ function getBackendStatusPresentation(params: {
 
   if (downloadingCount > 0) {
     return {
-      label: 'Downloading models',
-      detail: `${formatCount(downloadingCount, 'download')} in progress`,
+      label: `Downloading ${formatCount(downloadingCount, 'model')}`,
       tone: 'warning',
       pulse: true,
       ariaLabel: 'Model downloads in progress',
@@ -71,8 +69,7 @@ function getBackendStatusPresentation(params: {
 
   if (systemInfo.backendConnected && systemInfo.modelsCount === 0) {
     return {
-      label: 'No models',
-      detail: 'Backend ready, nothing loaded',
+      label: 'Backend ready: no models',
       tone: 'warning',
       pulse: false,
       ariaLabel: 'Backend ready but no models are loaded',
@@ -81,8 +78,7 @@ function getBackendStatusPresentation(params: {
 
   if (systemInfo.backendConnected && systemInfo.gpuAvailable) {
     return {
-      label: 'GPU ready',
-      detail: `${formatCount(systemInfo.modelsCount, 'model')} online`,
+      label: `GPU ready: ${formatCount(systemInfo.modelsCount, 'model')} online`,
       tone: 'success',
       pulse: false,
       ariaLabel: 'GPU backend ready',
@@ -91,10 +87,9 @@ function getBackendStatusPresentation(params: {
 
   if (systemInfo.backendConnected) {
     return {
-      label: 'CPU mode',
-      detail: systemInfo.modelsCount > 0
-        ? `${formatCount(systemInfo.modelsCount, 'model')} online`
-        : 'Backend ready without GPU',
+      label: systemInfo.modelsCount > 0
+        ? `CPU mode: ${formatCount(systemInfo.modelsCount, 'model')} online`
+        : 'CPU mode: backend ready',
       tone: 'warning',
       pulse: false,
       ariaLabel: 'Backend ready in CPU mode',
@@ -103,8 +98,7 @@ function getBackendStatusPresentation(params: {
 
   if (systemInfo.backendRunning) {
     return {
-      label: 'Warming',
-      detail: systemInfo.bundledBackend ? 'Bundled backend starting' : 'Backend process starting',
+      label: systemInfo.bundledBackend ? 'Backend warming: bundled' : 'Backend warming',
       tone: 'warning',
       pulse: true,
       ariaLabel: 'Backend is warming up',
@@ -112,8 +106,7 @@ function getBackendStatusPresentation(params: {
   }
 
   return {
-    label: 'Not ready',
-    detail: 'Backend offline',
+    label: 'Backend offline',
     tone: 'error',
     pulse: true,
     ariaLabel: 'Backend not ready',
@@ -163,26 +156,19 @@ export const Header = memo(function Header() {
       <div className="app-region-no-drag relative z-10 ml-auto flex items-center gap-3" data-testid="header-right-actions">
         <div
           data-testid="header-backend-status"
-          className={`flex min-w-[176px] items-center gap-2 rounded-md border px-2.5 py-1.5 ${STATUS_TONE_CLASSES[backendStatus.tone]}`}
-          title={`${backendStatus.label}: ${backendStatus.detail}`}
+          className={`flex min-w-[176px] max-w-[260px] items-center gap-2 rounded-md border px-3 py-2 ${STATUS_TONE_CLASSES[backendStatus.tone]}`}
+          title={backendStatus.detail ? `${backendStatus.label}: ${backendStatus.detail}` : backendStatus.label}
         >
           <span
-            className={`h-1.5 w-1.5 rounded-full ${STATUS_DOT_CLASSES[backendStatus.tone]} ${backendStatus.pulse ? 'animate-pulse' : ''}`}
+            className={`h-2 w-2 flex-none rounded-full shadow-[0_0_8px_currentColor] ${STATUS_DOT_CLASSES[backendStatus.tone]} ${backendStatus.pulse ? 'animate-pulse' : ''}`}
             aria-label={backendStatus.ariaLabel}
           />
-          <div className="min-w-0 select-none">
-            <div className="truncate type-ui">
-              {backendStatus.label}
-            </div>
-            <div className="truncate type-badge opacity-80">
-              {backendStatus.detail}
-            </div>
-          </div>
+          <span className="min-w-0 truncate type-ui select-none">{backendStatus.label}</span>
         </div>
 
-        <div className="hidden items-center gap-2 rounded-md border border-border bg-elevated/80 px-2.5 py-1.5 sm:flex">
-          <img src={logoUrl} alt="Vision Studio" className="h-6 w-auto object-contain opacity-90" />
-          <span className="type-caption text-text-body">
+        <div className="hidden h-11 items-center gap-2 rounded-md border border-border bg-elevated/80 px-3 sm:flex">
+          <img src={logoUrl} alt="Vision Studio" className="h-9 w-auto object-contain opacity-95" />
+          <span className="type-caption text-text-body whitespace-nowrap">
             Vision Studio
           </span>
         </div>

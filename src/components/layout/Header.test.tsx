@@ -70,8 +70,7 @@ describe('Header', () => {
     expect(screen.getByTestId('app-header')).toHaveClass('app-region-drag', 'h-14', 'pr-36');
     expect(screen.getByTestId('header-right-actions')).toHaveClass('app-region-no-drag');
     expect(screen.getByLabelText('GPU backend ready')).toBeInTheDocument();
-    expect(screen.getByText('GPU ready')).toBeInTheDocument();
-    expect(screen.getByText('3 models online')).toBeInTheDocument();
+    expect(screen.getByText('GPU ready: 3 models online')).toBeInTheDocument();
   });
 
   it('surfaces warming state while the backend process is starting', () => {
@@ -86,8 +85,7 @@ describe('Header', () => {
     render(<Header />);
 
     expect(screen.getByLabelText('Backend is warming up')).toBeInTheDocument();
-    expect(screen.getByText('Warming')).toBeInTheDocument();
-    expect(screen.getByText('Bundled backend starting')).toBeInTheDocument();
+    expect(screen.getByText('Backend warming: bundled')).toBeInTheDocument();
   });
 
   it('shows queue activity ahead of steady ready state', () => {
@@ -106,8 +104,7 @@ describe('Header', () => {
     render(<Header />);
 
     expect(screen.getByLabelText('Generation queue active')).toBeInTheDocument();
-    expect(screen.getByText('Queue active')).toBeInTheDocument();
-    expect(screen.getByText('1 running job, 2 queued items')).toBeInTheDocument();
+    expect(screen.getByText('Queue active: 1 running job, 2 queued items')).toBeInTheDocument();
   });
 
   it('marks the backend as not ready when neither process nor health are available', () => {
@@ -116,7 +113,6 @@ describe('Header', () => {
     render(<Header />);
 
     expect(screen.getByLabelText('Backend not ready')).toBeInTheDocument();
-    expect(screen.getByText('Not ready')).toBeInTheDocument();
     expect(screen.getByText('Backend offline')).toBeInTheDocument();
   });
 });
