@@ -1021,13 +1021,15 @@ export function GeneratePanel() {
       <h1 className="sr-only">Generate</h1>
 
       <div className="border-b border-border bg-panel px-3 py-3">
-        <div className="rounded-xl border border-border bg-surface px-3 py-3 shadow-cinematic">
+        <div className="rounded-xl border border-border bg-surface px-3 py-2.5 shadow-cinematic">
           <div className="mb-2 flex items-center justify-between gap-2">
             <div>
               <p className="type-section text-text-primary">Workflow</p>
-              <p className="mt-1 type-caption">Choose the generation lane before you tune the rest of the pass.</p>
+              <p className="mt-1 type-caption text-text-muted">
+                Choose the generation lane before you tune the rest of the pass.
+              </p>
             </div>
-            <span className="rounded-full border border-border bg-elevated px-2 py-0.5 type-caption text-text-body">
+            <span className="rounded-full border border-border bg-elevated px-2 py-0.5 type-ui text-text-body">
               {imageConfig.generationType === 'image' ? 'Still' : 'Motion'}
             </span>
           </div>
@@ -1046,27 +1048,27 @@ export function GeneratePanel() {
               type="button"
               onClick={() => updateImageConfig({ generationType: 'image' })}
               className={cn(
-                'relative z-10 flex flex-1 items-center justify-center gap-2 rounded-md py-2 transition-colors',
+                'relative z-10 flex flex-1 items-center justify-center gap-1.5 rounded-md py-1.5 transition-colors',
                 imageConfig.generationType === 'image'
                   ? 'text-accent-primary'
                   : 'text-text-muted hover:text-text-body'
               )}
             >
-              <ImageIcon className="h-4 w-4" />
-              <span className="type-section">Image</span>
+              <ImageIcon className="h-3.5 w-3.5" />
+              <span className="text-xs font-semibold leading-none">Image</span>
             </button>
             <button
               type="button"
               onClick={() => updateImageConfig({ generationType: 'video' })}
               className={cn(
-                'relative z-10 flex flex-1 items-center justify-center gap-2 rounded-md py-2 transition-colors',
+                'relative z-10 flex flex-1 items-center justify-center gap-1.5 rounded-md py-1.5 transition-colors',
                 imageConfig.generationType === 'video'
                   ? 'text-accent-primary'
                   : 'text-text-muted hover:text-text-body'
               )}
             >
-              <Film className="h-4 w-4" />
-              <span className="type-section">Video</span>
+              <Film className="h-3.5 w-3.5" />
+              <span className="text-xs font-semibold leading-none">Video</span>
             </button>
           </div>
         </div>

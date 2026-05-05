@@ -554,7 +554,7 @@ export function SettingsPanel() {
   return (
     <div className="h-full flex bg-surface" data-testid="settings-panel">
       <h1 className="sr-only">Settings</h1>
-      <div className="w-56 border-r border-border bg-elevated p-3">
+      <div className="flex w-56 flex-col border-r border-border bg-elevated p-3">
         <nav className="space-y-1">
           {sections.map((section) => {
             const Icon = section.icon;
@@ -578,9 +578,9 @@ export function SettingsPanel() {
           })}
         </nav>
 
-        <div className="absolute bottom-4 left-4">
-          <p className="text-xs font-mono text-text-muted">{`Vision Studio v${packageJson.version}`}</p>
-          <p className="text-xs font-mono text-text-muted/60">Beta Release</p>
+        <div className="mt-auto border-t border-border pt-3">
+          <p className="truncate font-mono text-[11px] text-text-muted">{`Vision Studio v${packageJson.version}`}</p>
+          <p className="mt-1 font-mono text-[10px] text-text-muted/60">Beta Release</p>
         </div>
       </div>
 
