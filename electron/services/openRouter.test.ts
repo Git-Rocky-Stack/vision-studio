@@ -1831,4 +1831,100 @@ describe('createOpenRouterService', () => {
       expect(axiosInstance.get).not.toHaveBeenCalled();
     });
   });
+
+  describe('extractMessageContent join behavior', () => {
+    // Background: when a model returns its message.content as multiple
+    // text-parts (rather than a single string), the extractor must join them
+    // with a real boundary so adjacent paragraphs are not jammed together.
+    // The image generation path is the cleanest observable surface because
+    // its `content` field is human-readable commentary, not parsed JSON.
+
+    it('joins multi-part text content with \\n\\n on generateImage', async () => {
+      const axiosInstance = {
+        get: vi.fn().mockResolvedValue({
+          data: {
+            data: [
+              {
+                id: 'google/gemini-2.5-flash-image',
+                name: 'Gemini Flash Image',
+                architecture: { output_modalities: ['image'] },
+                pricing: { prompt: '0', completion: '0', image: '0.0001' },
+              },
+            ],
+          },
+        }),
+        post: vi.fn().mockResolvedValue({
+          data: {
+            id: 'gen-multipart',
+            model: 'google/gemini-2.5-flash-image',
+            choices: [
+              {
+                message: {
+                  content: [
+                    { type: 'text', text: 'First paragraph of model commentary.' },
+                    { type: 'text', text: 'Second paragraph with separate context.' },
+                  ],
+                  images: [{ image_url: { url: 'data:image/png;base64,AAAA' } }],
+                },
+              },
+            ],
+          },
+        }),
+      };
+      const service = createOpenRouterService({ axiosInstance });
+      const result = await service.generateImage({
+        apiKey: 'sk-or-v1',
+        model: 'google/gemini-2.5-flash-image',
+        prompt: 'a cat',
+        width: 1024,
+        height: 1024,
+      });
+
+      expect(result.content).toBe(
+        'First paragraph of model commentary.\n\nSecond paragraph with separate context.',
+      );
+    });
+
+    it('preserves single-part text content unchanged on generateImage', async () => {
+      const axiosInstance = {
+        get: vi.fn().mockResolvedValue({
+          data: {
+            data: [
+              {
+                id: 'google/gemini-2.5-flash-image',
+                name: 'Gemini Flash Image',
+                architecture: { output_modalities: ['image'] },
+                pricing: { prompt: '0', completion: '0', image: '0.0001' },
+              },
+            ],
+          },
+        }),
+        post: vi.fn().mockResolvedValue({
+          data: {
+            id: 'gen-singlepart',
+            model: 'google/gemini-2.5-flash-image',
+            choices: [
+              {
+                message: {
+                  content: [{ type: 'text', text: 'Only one part.' }],
+                  images: [{ image_url: { url: 'data:image/png;base64,AAAA' } }],
+                },
+              },
+            ],
+          },
+        }),
+      };
+      const service = createOpenRouterService({ axiosInstance });
+      const result = await service.generateImage({
+        apiKey: 'sk-or-v1',
+        model: 'google/gemini-2.5-flash-image',
+        prompt: 'a cat',
+        width: 1024,
+        height: 1024,
+      });
+
+      // Single-part should not gain a leading/trailing separator.
+      expect(result.content).toBe('Only one part.');
+    });
+  });
 });

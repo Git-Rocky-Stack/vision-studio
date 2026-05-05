@@ -522,6 +522,87 @@ describe('runTimelineClipGeneration', () => {
     expect(electron.generation.getStatus.mock.calls.length).toBeLessThan(10);
     expect(result.cancelled).toBe(true);
   });
+
+  it('calls electron.generation.cancel(jobId) when signal aborts mid-poll', async () => {
+    const { sequence, clip } = seedImageTimelineClip();
+    const processingStatuses: Array<Record<string, unknown>> = Array.from({ length: 200 }, () => ({
+      job_id: 'timeline-cancel-mid',
+      status: 'processing',
+      type: 'image',
+      created_at: '2026-04-24T08:30:00.000Z',
+      progress: 50,
+    }));
+
+    const controller = new AbortController();
+    let getStatusCalls = 0;
+    const electron = makeElectronGenerationMock({
+      submitImage: { success: true, jobId: 'timeline-cancel-mid' },
+      statuses: processingStatuses,
+    });
+    const baseGetStatus = electron.generation.getStatus;
+    electron.generation.getStatus = vi.fn().mockImplementation(async (jobId: string) => {
+      getStatusCalls += 1;
+      if (getStatusCalls === 2) {
+        controller.abort();
+      }
+      return baseGetStatus(jobId);
+    });
+
+    await runTimelineClipGeneration({
+      operation: 'generate',
+      clipId: clip.id,
+      sequenceId: sequence.id,
+      input: {
+        prompt: 'cancel mid flight',
+        generationType: 'image',
+        model: 'flux-dev',
+        width: 1024,
+        height: 1024,
+        steps: 25,
+        cfgScale: 7.5,
+        scheduler: 'Euler a',
+        seed: 11,
+      },
+      electron,
+      pollIntervalMs: 0,
+      signal: controller.signal,
+    }).catch(() => undefined);
+
+    expect(electron.generation.cancel).toHaveBeenCalledWith('timeline-cancel-mid');
+  });
+
+  it('does NOT call cancel when signal is pre-aborted (no jobId yet)', async () => {
+    const { sequence, clip } = seedImageTimelineClip();
+    const electron = makeElectronGenerationMock({
+      submitImage: { success: true, jobId: 'never-submitted' },
+      statuses: [],
+    });
+    const controller = new AbortController();
+    controller.abort();
+
+    await runTimelineClipGeneration({
+      operation: 'generate',
+      clipId: clip.id,
+      sequenceId: sequence.id,
+      input: {
+        prompt: 'pre-aborted',
+        generationType: 'image',
+        model: 'flux-dev',
+        width: 1024,
+        height: 1024,
+        steps: 25,
+        cfgScale: 7.5,
+        scheduler: 'Euler a',
+        seed: 11,
+      },
+      electron,
+      pollIntervalMs: 0,
+      signal: controller.signal,
+    });
+
+    // Pre-abort bails before submit, so we have no jobId to cancel.
+    expect(electron.generation.cancel).not.toHaveBeenCalled();
+  });
 });
 
 function seedImageTimelineClip() {
@@ -674,6 +755,7 @@ function makeElectronGenerationMock(options: {
       generateImage: vi.fn().mockResolvedValue(options.submitImage ?? { success: true, jobId: 'timeline-image-job' }),
       generateVideo: vi.fn().mockResolvedValue(options.submitVideo ?? { success: true, jobId: 'timeline-video-job' }),
       getStatus: vi.fn().mockImplementation(async () => statuses.shift()),
+      cancel: vi.fn().mockResolvedValue({ success: true }),
     },
     notifications: {
       notify: vi.fn().mockResolvedValue({ success: true }),

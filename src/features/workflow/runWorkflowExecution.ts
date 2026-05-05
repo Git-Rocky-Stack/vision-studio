@@ -25,6 +25,7 @@ interface WorkflowExecutionElectronApi {
   generation: {
     generateImage: (params: GenerationParams) => Promise<{ success: boolean; jobId?: string; error?: string }>;
     getStatus: (jobId: string) => Promise<JobStatus>;
+    cancel: (jobId: string) => Promise<{ success: boolean; error?: string }>;
   };
   notifications: {
     notify: (
@@ -243,6 +244,12 @@ export async function runWorkflowExecution({
     const message = error instanceof Error ? error.message : 'Workflow execution failed.';
     const activeJobId = store.getState().workflowRuntimeById[workflowId]?.activeJobId;
     if (activeJobId) {
+      // Tell the backend to stop work when the renderer aborted mid-poll;
+      // otherwise the job keeps running and consumes GPU until it completes
+      // on its own. Swallow cancel errors so the original failure surfaces.
+      if (signal?.aborted) {
+        await electron.generation.cancel(activeJobId).catch(() => undefined);
+      }
       state.updateJob(activeJobId, {
         status: 'failed',
         error: message,

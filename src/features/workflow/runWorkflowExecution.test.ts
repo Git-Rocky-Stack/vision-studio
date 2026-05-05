@@ -233,6 +233,61 @@ describe('runWorkflowExecution', () => {
     const runtime = useAppStore.getState().workflowRuntimeById['image-generation-baseline'];
     expect(runtime?.lastFailureMessage).toMatch(/cancel|abort/i);
   });
+
+  it('calls electron.generation.cancel(jobId) when signal aborts mid-poll', async () => {
+    const processingStatuses: Array<Record<string, unknown>> = Array.from({ length: 200 }, () => ({
+      job_id: 'job-cancel-mid',
+      status: 'processing',
+      type: 'image',
+      created_at: '2026-04-24T20:00:00.000Z',
+      progress: 40,
+    }));
+
+    const controller = new AbortController();
+    let getStatusCalls = 0;
+    const electron = makeElectronGenerationMock({
+      submit: { success: true, jobId: 'job-cancel-mid' },
+      statuses: processingStatuses,
+    });
+    const baseGetStatus = electron.generation.getStatus;
+    electron.generation.getStatus = vi.fn().mockImplementation(async (jobId: string) => {
+      getStatusCalls += 1;
+      if (getStatusCalls === 2) {
+        controller.abort();
+      }
+      return baseGetStatus(jobId);
+    });
+
+    await runWorkflowExecution({
+      workflowId: 'image-generation-baseline',
+      electron,
+      store: useAppStore,
+      pollIntervalMs: 0,
+      signal: controller.signal,
+    });
+
+    expect(electron.generation.cancel).toHaveBeenCalledWith('job-cancel-mid');
+  });
+
+  it('does NOT call cancel when signal is pre-aborted (no jobId yet)', async () => {
+    const electron = makeElectronGenerationMock({
+      submit: { success: true, jobId: 'never-submitted' },
+      statuses: [],
+    });
+    const controller = new AbortController();
+    controller.abort();
+
+    await runWorkflowExecution({
+      workflowId: 'image-generation-baseline',
+      electron,
+      store: useAppStore,
+      pollIntervalMs: 0,
+      signal: controller.signal,
+    });
+
+    // Pre-abort bails before submit, so we have no jobId to cancel.
+    expect(electron.generation.cancel).not.toHaveBeenCalled();
+  });
 });
 
 function makeElectronGenerationMock(options: {
@@ -288,6 +343,7 @@ function makeElectronGenerationMock(options: {
         ? vi.fn().mockRejectedValue(options.submitError)
         : vi.fn().mockResolvedValue(options.submit ?? { success: true, jobId: 'job-1' }),
       getStatus: vi.fn().mockImplementation(async () => statuses.shift()),
+      cancel: vi.fn().mockResolvedValue({ success: true }),
     },
     notifications: {
       notify,

@@ -412,6 +412,11 @@ function extractMessageContent(content: unknown) {
   }
 
   if (Array.isArray(content)) {
+    // Join parts with a paragraph break so multi-part commentary renders
+    // cleanly in the renderer instead of jamming words together. JSON-mode
+    // callers (enhancePrompt / suggestNegativePrompt) virtually always
+    // receive a single-part response, so the separator only matters for
+    // human-readable text such as image-generation commentary.
     return content
       .flatMap((part) => {
         if (typeof part === 'string') {
@@ -431,7 +436,7 @@ function extractMessageContent(content: unknown) {
 
         return [];
       })
-      .join('');
+      .join('\n\n');
   }
 
   return '';

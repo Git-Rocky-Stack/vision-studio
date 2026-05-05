@@ -49,6 +49,7 @@ interface TimelineGenerationElectronApi {
       seed?: number;
     }) => Promise<{ success: boolean; jobId?: string; error?: string }>;
     getStatus: (jobId: string) => Promise<JobStatus>;
+    cancel: (jobId: string) => Promise<{ success: boolean; error?: string }>;
   };
   notifications: {
     notify: (
@@ -511,6 +512,10 @@ export async function runTimelineClipGeneration({
   }
 
   if (signalAborted) {
+    // Tell the backend to stop work when the renderer aborted mid-poll;
+    // otherwise the job keeps running and consumes GPU until it completes
+    // on its own. Swallow cancel errors so the abort path stays clean.
+    await electron.generation.cancel(jobId).catch(() => undefined);
     state.updateJob(jobId, {
       status: 'cancelled',
       progress: 0,
