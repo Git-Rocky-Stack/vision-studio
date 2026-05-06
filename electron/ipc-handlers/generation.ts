@@ -12,6 +12,8 @@ import type { createUserAccountsService } from '../services/userAccounts';
 import { submitBatch } from './submitBatch';
 import { toOpenRouterRendererMessage } from './openRouterError';
 import { deleteOrphanedFiles } from './orphanFileCleanup';
+import { mergeJobsByCreatedAtDesc } from './jobListing';
+import { parseOpenRouterImageJobParams } from './openRouterImageJobParams';
 
 const BACKEND_URL = 'http://127.0.0.1:8000';
 const WS_URL = 'ws://127.0.0.1:8000/ws';
@@ -284,6 +286,21 @@ async function writeOpenRouterImageDataUrl({
 }
 
 async function runOpenRouterImageJob(jobId: string, params: any) {
+  // Validate the renderer-supplied params at the IPC boundary so a
+  // malformed request fails with a clean, actionable error instead of
+  // a cryptic JS error (e.g., "Cannot read properties of undefined").
+  const parsedParams = parseOpenRouterImageJobParams(params);
+  if (!parsedParams.ok) {
+    patchOpenRouterJob(jobId, {
+      status: 'failed',
+      progress: 100,
+      completed_at: new Date().toISOString(),
+      error: parsedParams.error,
+    });
+    return;
+  }
+  const validated = parsedParams.value;
+
   const activeAccount = userAccountsService?.getAccount(
     typeof params?.__openrouterAccountId === 'string' ? params.__openrouterAccountId : null,
   );
@@ -299,7 +316,7 @@ async function runOpenRouterImageJob(jobId: string, params: any) {
 
   const apiKey = userAccountsService?.getOpenRouterApiKey(activeAccount.id);
   const model =
-    (typeof params?.model === 'string' && params.model.trim()) ||
+    (validated.model && validated.model.trim()) ||
     activeAccount.preferences.openRouterImageModel.trim();
 
   if (!apiKey || !openRouterService || !outputRootService) {
@@ -333,11 +350,11 @@ async function runOpenRouterImageJob(jobId: string, params: any) {
     const response = await openRouterService.generateImage({
       apiKey,
       model,
-      prompt: params.prompt,
-      negativePrompt: params.negative_prompt,
-      width: params.width,
-      height: params.height,
-      seed: typeof params.seed === 'number' ? params.seed : undefined,
+      prompt: validated.prompt,
+      negativePrompt: validated.negative_prompt,
+      width: validated.width,
+      height: validated.height,
+      seed: validated.seed,
       signal: abortController.signal,
     });
 
@@ -380,7 +397,7 @@ async function runOpenRouterImageJob(jobId: string, params: any) {
       completed_at: new Date().toISOString(),
       result: {
         images: imagePaths,
-        seed: typeof params.seed === 'number' ? params.seed : undefined,
+        seed: validated.seed,
         provider: 'openrouter',
         provider_response_id: response.responseId,
         provider_message: response.content || undefined,
@@ -859,9 +876,7 @@ ipcMain.handle('generation:list-jobs', async (_event, options = {}) => {
   const { status, limit = 50 } = options as { status?: string; limit?: number };
   const localJobs = Array.from(openRouterImageJobs.values())
     .filter((job) => !status || job.status === status)
-    .map(({ abortController: _abortController, ...job }) => job)
-    .sort((left, right) => new Date(right.created_at).getTime() - new Date(left.created_at).getTime())
-    .slice(0, limit);
+    .map(({ abortController: _abortController, ...job }) => job);
 
   try {
     let url = `${BACKEND_URL}/api/jobs?limit=${limit}`;
@@ -873,12 +888,12 @@ ipcMain.handle('generation:list-jobs', async (_event, options = {}) => {
     const backendJobs = Array.isArray(response.data?.jobs) ? response.data.jobs : [];
     return {
       ...response.data,
-      jobs: [...localJobs, ...backendJobs].slice(0, limit),
+      jobs: mergeJobsByCreatedAtDesc(localJobs, backendJobs, limit),
     };
   } catch (error: any) {
     if (localJobs.length > 0) {
       return {
-        jobs: localJobs,
+        jobs: mergeJobsByCreatedAtDesc(localJobs, [], limit),
       };
     }
 
