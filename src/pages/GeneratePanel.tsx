@@ -21,6 +21,11 @@ import {
 import { resolveCanvasControlLayers } from '@/features/generation/resolveCanvasControlLayers';
 import { getActiveUserAccount } from '@/features/accounts/providerRouting';
 import { runTimelineClipGeneration } from '@/features/timeline/runTimelineClipGeneration';
+import {
+  makePollErrorBudget,
+  recordPollError,
+  recordPollSuccess,
+} from '@/features/generation/pollErrorBudget';
 import type { ControlNetConfig, ImageGenerationRequestPayload, LoRAConfig } from '@/types/generation';
 import type { GenerateCollapsibleSectionId } from '@/store/layoutPreferences';
 import type { UserAccountSummary } from '@/types/electron';
@@ -295,6 +300,11 @@ export function GeneratePanel() {
 
   const pollingTimeoutRef = useRef<ReturnType<typeof setTimeout>>(null);
   const isGeneratingRef = useRef(false);
+  // Cap consecutive getStatus failures so a persistent backend outage
+  // does not leave the renderer polling forever in a hidden setTimeout
+  // chain. Reset on every successful poll so a flapping connection stays
+  // recoverable. Cap of 5 = ~10s of consecutive errors at the 2s retry.
+  const pollErrorBudgetRef = useRef(makePollErrorBudget(5));
 
   const [showHistory, setShowHistory] = useState(false);
   const [activeAccount, setActiveAccount] = useState<UserAccountSummary | null>(null);
@@ -764,9 +774,11 @@ export function GeneratePanel() {
   };
 
   const pollJobStatus = useCallback(async (jobId: string) => {
+    pollErrorBudgetRef.current = makePollErrorBudget(5);
     const checkStatus = async () => {
       try {
         const status = await window.electron.generation.getStatus(jobId);
+        pollErrorBudgetRef.current = recordPollSuccess(pollErrorBudgetRef.current);
         if (status.status === 'completed') {
           const existingJob = useAppStore.getState().activeJobs.find((job) => job.id === jobId);
           const completedAt = status.completed_at
@@ -842,6 +854,21 @@ export function GeneratePanel() {
         }
       } catch (error) {
         console.error('Failed to get job status:', error);
+        const result = recordPollError(pollErrorBudgetRef.current);
+        pollErrorBudgetRef.current = result.budget;
+        if (result.exhausted) {
+          // Persistent backend outage. Stop polling, surface the error,
+          // and let the user retry by starting a new generation.
+          pollingTimeoutRef.current = null;
+          updateGenStatus({
+            status: 'error',
+            errorMessage: 'Lost connection to the AI backend while polling for job status. Please retry.',
+            isGenerating: false,
+            activeJobId: null,
+          });
+          isGeneratingRef.current = false;
+          return;
+        }
         pollingTimeoutRef.current = setTimeout(checkStatus, 2000);
       }
     };
