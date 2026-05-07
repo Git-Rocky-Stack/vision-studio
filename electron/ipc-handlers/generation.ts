@@ -1,6 +1,4 @@
 import crypto from 'node:crypto';
-import fs from 'node:fs';
-import path from 'node:path';
 import { ipcMain, BrowserWindow } from 'electron';
 import axios from 'axios';
 import WebSocket from 'ws';
@@ -11,13 +9,23 @@ import type { createOutputRootService } from '../services/outputRoots';
 import type { createUserAccountsService } from '../services/userAccounts';
 import { submitBatch } from './submitBatch';
 import { toOpenRouterRendererMessage } from './openRouterError';
-import { deleteOrphanedFiles } from './orphanFileCleanup';
 import { mergeJobsByCreatedAtDesc } from './jobListing';
-import { parseOpenRouterImageJobParams } from './openRouterImageJobParams';
+import { BACKEND_DOWN_MESSAGE as _BACKEND_DOWN_MESSAGE, requestBackend } from './backendRequest';
+import {
+  OPENROUTER_IMAGE_UNSUPPORTED_MESSAGE,
+  OPENROUTER_JOB_PREFIX,
+  hasUnsupportedOpenRouterImageInputs,
+  isOpenRouterJobId,
+  isTerminalJobStatus,
+} from './openRouterImageRouting';
+import { createOpenRouterImageJobStore } from './openRouterImageJobs';
+import { suggestNegativePromptFromHeuristics } from './negativePromptHeuristics';
+import { runOpenRouterImageJob } from './runOpenRouterImageJob';
+
+void _BACKEND_DOWN_MESSAGE; // Re-exported by callers via './backendRequest'.
 
 const BACKEND_URL = 'http://127.0.0.1:8000';
 const WS_URL = 'ws://127.0.0.1:8000/ws';
-const OPENROUTER_JOB_PREFIX = 'openrouter-image';
 const BATCH_SUBMISSION_CONCURRENCY = 4;
 
 let ws: WebSocket | null = null;
@@ -29,298 +37,17 @@ type UserAccountsService = ReturnType<typeof createUserAccountsService>;
 type OpenRouterService = ReturnType<typeof createOpenRouterService>;
 type OutputRootService = ReturnType<typeof createOutputRootService>;
 
-type OpenRouterImageJob = {
-  job_id: string;
-  status: 'pending' | 'processing' | 'completed' | 'failed' | 'cancelled';
-  progress: number;
-  type: 'image';
-  created_at: string;
-  completed_at?: string;
-  error?: string;
-  result?: {
-    images?: string[];
-    seed?: number;
-    provider?: 'openrouter';
-    provider_response_id?: string | null;
-    provider_message?: string;
-    model?: string | null;
-  };
-  params?: Record<string, unknown>;
-  abortController?: AbortController;
-};
-
 let userAccountsService: UserAccountsService | null = null;
 let openRouterService: OpenRouterService | null = null;
 let outputRootService: OutputRootService | null = null;
 
-const openRouterImageJobs = new Map<string, OpenRouterImageJob>();
+const openRouterImageJobStore = createOpenRouterImageJobStore({
+  emit: (channel, payload) => mainWindow?.webContents.send(channel, payload),
+});
 
-function isBackendDownError(error: any) {
-  const msg = typeof error?.message === 'string' ? error.message : '';
-  return msg.includes('ECONNREFUSED') || error?.code === 'ECONNREFUSED';
-}
-
-const BACKEND_DOWN_MESSAGE =
-  'The AI backend is not running. Please restart the app or start the backend manually from Settings.';
-
-async function requestBackend<T>(request: () => Promise<T>, attempts: number = 3, delayMs: number = 1000): Promise<T> {
-  let lastError: any;
-
-  for (let attempt = 1; attempt <= attempts; attempt += 1) {
-    try {
-      return await request();
-    } catch (error: any) {
-      lastError = error;
-      if (isBackendDownError(error)) {
-        const friendly = new Error(BACKEND_DOWN_MESSAGE);
-        (friendly as any).code = 'BACKEND_DOWN';
-        throw friendly;
-      }
-      if (attempt === attempts) {
-        throw error;
-      }
-
-      await new Promise((resolve) => setTimeout(resolve, delayMs));
-    }
-  }
-
-  throw lastError;
-}
-
-function isTerminalJobStatus(status: OpenRouterImageJob['status']) {
-  return status === 'completed' || status === 'failed' || status === 'cancelled';
-}
-
-function isOpenRouterJobId(jobId: string) {
-  return jobId.startsWith(`${OPENROUTER_JOB_PREFIX}-`);
-}
-
-function emitJobProgress(job: OpenRouterImageJob) {
-  mainWindow?.webContents.send('generation:progress', {
-    type: 'job_update',
-    job_id: job.job_id,
-    status: job.status,
-    progress: job.progress,
-  });
-}
-
-function getOpenRouterJob(jobId: string) {
-  return openRouterImageJobs.get(jobId) ?? null;
-}
-
-function getOpenRouterJobStatus(jobId: string) {
-  const job = getOpenRouterJob(jobId);
-  if (!job) {
-    return null;
-  }
-
-  const { abortController: _abortController, ...status } = job;
-  return status;
-}
-
-function setOpenRouterJob(job: OpenRouterImageJob) {
-  openRouterImageJobs.set(job.job_id, job);
-  emitJobProgress(job);
-  return job;
-}
-
-function patchOpenRouterJob(jobId: string, patch: Partial<OpenRouterImageJob>) {
-  const current = getOpenRouterJob(jobId);
-  if (!current) {
-    return null;
-  }
-
-  const nextJob: OpenRouterImageJob = {
-    ...current,
-    ...patch,
-    result: patch.result ? { ...current.result, ...patch.result } : current.result,
-  };
-  openRouterImageJobs.set(jobId, nextJob);
-  emitJobProgress(nextJob);
-  return nextJob;
-}
-
-function resolveOpenRouterFailureMessage(error: unknown) {
-  if ((error as { name?: string })?.name === 'AbortError') {
-    return 'OpenRouter image generation was cancelled.';
-  }
-
-  return toOpenRouterRendererMessage(error, 'OpenRouter image generation failed.');
-}
-
-function hasUnsupportedOpenRouterImageInputs(params: any) {
-  return Boolean(
-    params?.controlnet?.length ||
-      params?.reference_images?.length ||
-      params?.image_path ||
-      params?.mask ||
-      params?.inpaint,
-  );
-}
-
-function getOpenRouterImageUnsupportedMessage() {
-  return 'OpenRouter still-image routing currently supports prompt-only generations. Switch this account back to Local for ControlNet, inpaint, or reference-image passes.';
-}
-
-function splitPromptTerms(value: string) {
-  return value
-    .split(',')
-    .map((entry) => entry.trim())
-    .filter(Boolean);
-}
-
-function mergePromptTerms(existingTerms: string[], nextTerms: string[]) {
-  const normalized = new Set(existingTerms.map((term) => term.toLowerCase()));
-  const merged = [...existingTerms];
-
-  for (const term of nextTerms) {
-    const key = term.toLowerCase();
-    if (!normalized.has(key)) {
-      normalized.add(key);
-      merged.push(term);
-    }
-  }
-
-  return merged;
-}
-
-function suggestNegativePromptFromHeuristics({
-  prompt,
-  negativePrompt,
-}: {
-  prompt: string;
-  negativePrompt?: string;
-}) {
-  const normalizedPrompt = typeof prompt === 'string' ? prompt.trim() : '';
-  if (!normalizedPrompt) {
-    throw new Error('Prompt cannot be empty.');
-  }
-
-  const existingTerms = splitPromptTerms(negativePrompt ?? '');
-  const baseTerms = ['blurry', 'low quality', 'compression artifacts', 'distorted', 'overexposed'];
-  const keywordRules = [
-    {
-      test: /\b(portrait|face|person|character|fashion|selfie)\b/i,
-      terms: ['extra fingers', 'deformed hands', 'bad anatomy', 'cross-eye'],
-    },
-    {
-      test: /\b(photo|photograph|dslr|realistic|cinematic)\b/i,
-      terms: ['cgi', 'plastic skin', 'oversmoothed skin'],
-    },
-    {
-      test: /\b(text|logo|poster|typography|lettering|title)\b/i,
-      terms: ['illegible text', 'misspelled text', 'warped letters'],
-    },
-    {
-      test: /\b(product|packaging|device|bottle|mockup)\b/i,
-      terms: ['cropped product', 'duplicate objects', 'floating object'],
-    },
-    {
-      test: /\b(landscape|city|architecture|interior|building|room)\b/i,
-      terms: ['tilted horizon', 'warped perspective', 'cluttered background'],
-    },
-    {
-      test: /\b(anime|illustration|painting|watercolor|comic|sketch)\b/i,
-      terms: ['muddy colors', 'unfinished lines', 'off-model details'],
-    },
-  ];
-
-  const suggestedTerms = keywordRules.reduce<string[]>((terms, rule) => {
-    if (rule.test.test(normalizedPrompt)) {
-      return mergePromptTerms(terms, rule.terms);
-    }
-    return terms;
-  }, baseTerms);
-
-  const mergedTerms = mergePromptTerms(existingTerms, suggestedTerms);
-  const newSuggestions = mergedTerms.filter(
-    (term) => !existingTerms.some((existing) => existing.toLowerCase() === term.toLowerCase()),
-  );
-
-  return {
-    negativePrompt: mergedTerms.join(', '),
-    suggestions: newSuggestions,
-    source: 'heuristic' as const,
-  };
-}
-
-function toNormalizedFilePath(filePath: string) {
-  return filePath.replace(/\\/g, '/');
-}
-
-function extensionForMimeType(mimeType: string) {
-  const normalized = mimeType.toLowerCase();
-  if (normalized.includes('jpeg') || normalized.includes('jpg')) {
-    return 'jpg';
-  }
-  if (normalized.includes('webp')) {
-    return 'webp';
-  }
-  if (normalized.includes('gif')) {
-    return 'gif';
-  }
-  return 'png';
-}
-
-async function writeOpenRouterImageDataUrl({
-  dataUrl,
-  mimeType,
-  jobId,
-  index,
-  outputRoot,
-}: {
-  dataUrl: string;
-  mimeType: string;
-  jobId: string;
-  index: number;
-  outputRoot: string;
-}) {
-  const base64Payload = dataUrl.replace(/^data:[^;]+;base64,/, '');
-  const directory = path.join(outputRoot, 'openrouter', new Date().toISOString().slice(0, 10));
-  await fs.promises.mkdir(directory, { recursive: true });
-
-  const extension = extensionForMimeType(mimeType);
-  const filePath = path.join(directory, `${jobId}-${index + 1}.${extension}`);
-  await fs.promises.writeFile(filePath, Buffer.from(base64Payload, 'base64'));
-  return toNormalizedFilePath(filePath);
-}
-
-async function runOpenRouterImageJob(jobId: string, params: any) {
-  // Validate the renderer-supplied params at the IPC boundary so a
-  // malformed request fails with a clean, actionable error instead of
-  // a cryptic JS error (e.g., "Cannot read properties of undefined").
-  const parsedParams = parseOpenRouterImageJobParams(params);
-  if (!parsedParams.ok) {
-    patchOpenRouterJob(jobId, {
-      status: 'failed',
-      progress: 100,
-      completed_at: new Date().toISOString(),
-      error: parsedParams.error,
-    });
-    return;
-  }
-  const validated = parsedParams.value;
-
-  const activeAccount = userAccountsService?.getAccount(
-    typeof params?.__openrouterAccountId === 'string' ? params.__openrouterAccountId : null,
-  );
-  if (!activeAccount) {
-    patchOpenRouterJob(jobId, {
-      status: 'failed',
-      progress: 100,
-      completed_at: new Date().toISOString(),
-      error: 'No active OpenRouter image account is available.',
-    });
-    return;
-  }
-
-  const apiKey = userAccountsService?.getOpenRouterApiKey(activeAccount.id);
-  const model =
-    (validated.model && validated.model.trim()) ||
-    activeAccount.preferences.openRouterImageModel.trim();
-
-  if (!apiKey || !openRouterService || !outputRootService) {
-    patchOpenRouterJob(jobId, {
+function dispatchOpenRouterImageJob(jobId: string, params: Record<string, unknown>) {
+  if (!userAccountsService || !openRouterService || !outputRootService) {
+    openRouterImageJobStore.patch(jobId, {
       status: 'failed',
       progress: 100,
       completed_at: new Date().toISOString(),
@@ -328,98 +55,12 @@ async function runOpenRouterImageJob(jobId: string, params: any) {
     });
     return;
   }
-
-  if (!model) {
-    patchOpenRouterJob(jobId, {
-      status: 'failed',
-      progress: 100,
-      completed_at: new Date().toISOString(),
-      error: 'Select an OpenRouter image model for the active account before generating.',
-    });
-    return;
-  }
-
-  const abortController = new AbortController();
-  patchOpenRouterJob(jobId, {
-    status: 'processing',
-    progress: 12,
-    abortController,
+  void runOpenRouterImageJob(jobId, params, {
+    store: openRouterImageJobStore,
+    userAccounts: userAccountsService,
+    openRouter: openRouterService,
+    outputRoots: outputRootService,
   });
-
-  try {
-    const response = await openRouterService.generateImage({
-      apiKey,
-      model,
-      prompt: validated.prompt,
-      negativePrompt: validated.negative_prompt,
-      width: validated.width,
-      height: validated.height,
-      seed: validated.seed,
-      signal: abortController.signal,
-    });
-
-    const jobAfterResponse = getOpenRouterJob(jobId);
-    if (!jobAfterResponse || jobAfterResponse.status === 'cancelled') {
-      return;
-    }
-
-    patchOpenRouterJob(jobId, {
-      progress: 72,
-    });
-
-    const outputRoot = outputRootService.getResolvedOutputDirectory();
-    outputRootService.rememberOutputRoot(outputRoot);
-    const imagePaths = await Promise.all(
-      response.images.map((image, index) =>
-        writeOpenRouterImageDataUrl({
-          dataUrl: image.dataUrl,
-          mimeType: image.mimeType,
-          jobId,
-          index,
-          outputRoot,
-        }),
-      ),
-    );
-
-    const jobAfterWrite = getOpenRouterJob(jobId);
-    if (!jobAfterWrite || jobAfterWrite.status === 'cancelled') {
-      // The user cancelled after the files had already landed on disk but
-      // before we could mark the job complete. Delete the orphans so we do
-      // not accumulate cancelled-job output in the user's outputs/openrouter
-      // directory across sessions.
-      await deleteOrphanedFiles(imagePaths, console);
-      return;
-    }
-
-    patchOpenRouterJob(jobId, {
-      status: 'completed',
-      progress: 100,
-      completed_at: new Date().toISOString(),
-      result: {
-        images: imagePaths,
-        seed: validated.seed,
-        provider: 'openrouter',
-        provider_response_id: response.responseId,
-        provider_message: response.content || undefined,
-        model: response.model ?? model,
-        usage: response.usage,
-      },
-      abortController: undefined,
-    });
-  } catch (error) {
-    const currentJob = getOpenRouterJob(jobId);
-    if (currentJob?.status === 'cancelled') {
-      return;
-    }
-
-    patchOpenRouterJob(jobId, {
-      status: 'failed',
-      progress: 100,
-      completed_at: new Date().toISOString(),
-      error: resolveOpenRouterFailureMessage(error),
-      abortController: undefined,
-    });
-  }
 }
 
 export function setupGenerationHandlers(window: BrowserWindow) {
@@ -479,7 +120,7 @@ ipcMain.handle('generation:generate-image', async (_event, params) => {
     if (hasUnsupportedOpenRouterImageInputs(params)) {
       return {
         success: false,
-        error: getOpenRouterImageUnsupportedMessage(),
+        error: OPENROUTER_IMAGE_UNSUPPORTED_MESSAGE,
       };
     }
 
@@ -501,7 +142,7 @@ ipcMain.handle('generation:generate-image', async (_event, params) => {
     }
 
     const jobId = `${OPENROUTER_JOB_PREFIX}-${crypto.randomUUID()}`;
-    setOpenRouterJob({
+    openRouterImageJobStore.set({
       job_id: jobId,
       status: 'pending',
       progress: 0,
@@ -509,7 +150,7 @@ ipcMain.handle('generation:generate-image', async (_event, params) => {
       created_at: new Date().toISOString(),
       params,
     });
-    void runOpenRouterImageJob(jobId, {
+    dispatchOpenRouterImageJob(jobId, {
       ...params,
       model: requestedModel,
       __openrouterAccountId: activeAccount.id,
@@ -730,7 +371,7 @@ ipcMain.handle('generation:batch', async (_event, params) => {
     if (hasUnsupportedOpenRouterImageInputs(params)) {
       return {
         success: false,
-        error: getOpenRouterImageUnsupportedMessage(),
+        error: OPENROUTER_IMAGE_UNSUPPORTED_MESSAGE,
       };
     }
 
@@ -758,7 +399,7 @@ ipcMain.handle('generation:batch', async (_event, params) => {
         prompt,
         model: requestedModel,
       };
-      setOpenRouterJob({
+      openRouterImageJobStore.set({
         job_id: jobId,
         status: 'pending',
         progress: 0,
@@ -766,7 +407,7 @@ ipcMain.handle('generation:batch', async (_event, params) => {
         created_at: new Date().toISOString(),
         params: jobParams,
       });
-      void runOpenRouterImageJob(jobId, {
+      dispatchOpenRouterImageJob(jobId, {
         ...jobParams,
         __openrouterAccountId: activeAccount.id,
       });
@@ -813,7 +454,7 @@ ipcMain.handle('generation:batch', async (_event, params) => {
 
 ipcMain.handle('generation:get-status', async (_event, jobId: string) => {
   if (isOpenRouterJobId(jobId)) {
-    const status = getOpenRouterJobStatus(jobId);
+    const status = openRouterImageJobStore.getStatus(jobId);
     if (status) {
       return status;
     }
@@ -835,7 +476,7 @@ ipcMain.handle('generation:get-status', async (_event, jobId: string) => {
 
 ipcMain.handle('generation:cancel', async (_event, jobId: string) => {
   if (isOpenRouterJobId(jobId)) {
-    const currentJob = getOpenRouterJob(jobId);
+    const currentJob = openRouterImageJobStore.get(jobId);
     if (!currentJob) {
       return {
         success: false,
@@ -845,7 +486,7 @@ ipcMain.handle('generation:cancel', async (_event, jobId: string) => {
 
     if (!isTerminalJobStatus(currentJob.status)) {
       currentJob.abortController?.abort();
-      patchOpenRouterJob(jobId, {
+      openRouterImageJobStore.patch(jobId, {
         status: 'cancelled',
         progress: currentJob.progress,
         completed_at: new Date().toISOString(),
@@ -874,9 +515,9 @@ ipcMain.handle('generation:cancel', async (_event, jobId: string) => {
 
 ipcMain.handle('generation:list-jobs', async (_event, options = {}) => {
   const { status, limit = 50 } = options as { status?: string; limit?: number };
-  const localJobs = Array.from(openRouterImageJobs.values())
-    .filter((job) => !status || job.status === status)
-    .map(({ abortController: _abortController, ...job }) => job);
+  const localJobs = openRouterImageJobStore
+    .values()
+    .filter((job) => !status || job.status === status);
 
   try {
     let url = `${BACKEND_URL}/api/jobs?limit=${limit}`;
