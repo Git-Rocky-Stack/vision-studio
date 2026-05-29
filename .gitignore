@@ -13,6 +13,12 @@ dist-ssr
 dist-electron
 *.local
 
+# Environment / secrets (never commit real keys; templates are kept)
+.env
+.env.*
+!.env.example
+!**/.env.example
+
 # Build artifacts and release binaries
 release/
 backend/build/

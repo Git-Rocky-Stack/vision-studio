@@ -2,10 +2,10 @@
 
 [![PR Gate](https://github.com/Git-Rocky-Stack/vision-studio/actions/workflows/pr-gate.yml/badge.svg)](https://github.com/Git-Rocky-Stack/vision-studio/actions/workflows/pr-gate.yml)
 [![Release](https://github.com/Git-Rocky-Stack/vision-studio/actions/workflows/release.yml/badge.svg)](https://github.com/Git-Rocky-Stack/vision-studio/actions/workflows/release.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg)](#-system-requirements)
 
 A professional AI-powered desktop application for image and video generation. No cloud required - everything runs locally on your machine.
-
-![Vision Studio](screenshot.png)
 
 ## ✨ Features
 
