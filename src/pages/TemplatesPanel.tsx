@@ -204,13 +204,14 @@ export function TemplatesPanel() {
             <ArrowUpDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-text-muted pointer-events-none" />
           </div>
 
-          <div className="flex items-center bg-elevated rounded-lg p-0.5 border border-border">
+          <div className="recessed-well flex items-center rounded-lg p-0.5">
             <button
               onClick={() => setViewMode('cards')}
+              aria-pressed={viewMode === 'cards'}
               className={cn(
                 'p-2 rounded-md transition-all',
                 viewMode === 'cards'
-                  ? 'bg-accent-primary text-void'
+                  ? 'raised-control text-accent-primary'
                   : 'text-text-muted hover:text-text-primary'
               )}
             >
@@ -218,10 +219,11 @@ export function TemplatesPanel() {
             </button>
             <button
               onClick={() => setViewMode('compact')}
+              aria-pressed={viewMode === 'compact'}
               className={cn(
                 'p-2 rounded-md transition-all',
                 viewMode === 'compact'
-                  ? 'bg-accent-primary text-void'
+                  ? 'raised-control text-accent-primary'
                   : 'text-text-muted hover:text-text-primary'
               )}
             >

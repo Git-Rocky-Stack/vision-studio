@@ -51,6 +51,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
+import { ChromeButton, Lcd } from '@/components/hardware';
 import { useMotionConfig } from '@/utils/animation';
 
 type GenerationType = 'image' | 'video';
@@ -106,10 +107,10 @@ function GenerateSectionCard({
   return (
     <section
       data-testid={`generate-section-${sectionId}`}
-      className="rounded-xl border border-border bg-surface shadow-cinematic"
+      className="raised-panel"
     >
       <div className="flex items-start gap-3 px-4 py-3">
-        <div className="mt-0.5 flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg border border-border bg-elevated text-text-body">
+        <div className="raised-control mt-0.5 flex h-9 w-9 flex-shrink-0 items-center justify-center text-text-body">
           <Icon className="h-4 w-4" />
         </div>
 
@@ -117,7 +118,7 @@ function GenerateSectionCard({
           <div className="flex flex-wrap items-center gap-2">
             <h2 className="type-section">{title}</h2>
             {badge ? (
-              <span className="rounded-full border border-border bg-elevated px-2 py-0.5 type-caption text-text-body">
+              <span className="recessed-well rounded-full px-2 py-0.5 type-caption text-text-body">
                 {badge}
               </span>
             ) : null}
@@ -134,7 +135,7 @@ function GenerateSectionCard({
             aria-controls={`generate-section-body-${sectionId}`}
             data-testid={`toggle-generate-section-${sectionId}`}
             onClick={onToggle}
-            className="rounded-md border border-border bg-elevated p-2 text-text-body transition-all hover:border-border-hover hover:text-text-primary"
+            className="raised-control vx-knob p-2 text-text-body hover:text-text-primary"
           >
             <ChevronDown className={cn('h-4 w-4 transition-transform', collapsed ? '' : 'rotate-180')} />
           </button>
@@ -1048,7 +1049,7 @@ export function GeneratePanel() {
       <h1 className="sr-only">Generate</h1>
 
       <div className="border-b border-border bg-panel px-3 py-3">
-        <div className="rounded-xl border border-border bg-surface px-3 py-2.5 shadow-cinematic">
+        <div className="raised-panel px-3 py-2.5">
           <div className="mb-2 flex items-center justify-between gap-2">
             <div>
               <p className="type-section text-text-primary">Workflow</p>
@@ -1056,12 +1057,12 @@ export function GeneratePanel() {
                 Choose the generation lane before you tune the rest of the pass.
               </p>
             </div>
-            <span className="rounded-full border border-border bg-elevated px-2 py-0.5 type-ui text-text-body">
+            <Lcd color={imageConfig.generationType === 'image' ? 'jog' : 'time'} size="sm">
               {imageConfig.generationType === 'image' ? 'Still' : 'Motion'}
-            </span>
+            </Lcd>
           </div>
 
-          <div className="relative flex rounded-md border border-border bg-canvas p-1">
+          <div className="recessed-well relative flex p-1">
             <motion.div
               layoutId="modeGlow"
               className="absolute top-1 bottom-1 rounded-md border border-accent-primary-border bg-accent-primary-muted"
@@ -1480,26 +1481,19 @@ export function GeneratePanel() {
               </div>
             </motion.div>
           ) : (
-            <motion.button
+            <ChromeButton
               key="generate"
               type="button"
               data-testid="generate-button"
-              initial={reduced ? {} : { opacity: 0, scale: 0.98 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={reduced ? {} : { opacity: 0, scale: 0.98 }}
-              transition={transition}
               onClick={handleGenerate}
               disabled={!imageConfig.prompt.trim()}
-              className={cn(
-                'flex w-full items-center justify-center gap-2.5 rounded-md py-3.5 type-section transition-all',
-                imageConfig.prompt.trim()
-                  ? 'bg-accent-primary text-void shadow-accent hover:bg-accent-primary-hover active:scale-[0.995] active:bg-accent-primary-pressed hover:scale-[1.005]'
-                  : 'cursor-not-allowed bg-elevated text-text-muted opacity-40'
-              )}
+              variant="chrome"
+              className="w-full"
+              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, paddingTop: 14, paddingBottom: 14 }}
             >
               <Wand2 className="h-4.5 w-4.5" />
               {generateActionLabel}
-            </motion.button>
+            </ChromeButton>
           )}
         </AnimatePresence>
       </div>

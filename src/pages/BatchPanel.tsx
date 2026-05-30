@@ -31,6 +31,7 @@ import {
   Download,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { ChromeButton } from '@/components/hardware';
 import { resolveStoredAssetPath } from '@/features/assets/assetRecords';
 
 interface BatchPrompt {
@@ -553,7 +554,9 @@ export function BatchPromptQueue() {
       {/* Batch Generation Header */}
       <div className="p-4 border-b border-border">
         <div className="flex items-center gap-2 mb-1">
-          <Layers className="w-5 h-5 text-accent-primary" />
+          <div className="raised-control flex h-8 w-8 flex-shrink-0 items-center justify-center text-accent-primary">
+            <Layers className="w-4 h-4" />
+          </div>
           <h2 className="font-display text-lg font-semibold text-text-primary">
             Batch Generation
           </h2>
@@ -617,7 +620,7 @@ export function BatchPromptQueue() {
               {Math.round(progress)}%
             </span>
           </div>
-          <div className="h-1.5 bg-void rounded-full overflow-hidden border border-border">
+          <div className="recessed-well h-1.5 rounded-full overflow-hidden">
             <motion.div
               className="h-full rounded-full"
               role="progressbar"
@@ -877,15 +880,16 @@ export function BatchPromptQueue() {
             <Button variant="secondary" icon={FileJson} onClick={handleExport}>
               Export
             </Button>
-            <Button
-              variant="cinema"
-              icon={Play}
-              fullWidth
+            <ChromeButton
+              variant="chrome"
               onClick={handleStartBatch}
               disabled={!prompts.some((p) => p.prompt.trim())}
+              className="flex-1"
+              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
             >
+              <Play className="w-4 h-4" />
               Start Batch ({prompts.filter((p) => p.prompt.trim()).length})
-            </Button>
+            </ChromeButton>
           </>
         )}
       </div>
