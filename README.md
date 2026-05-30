@@ -1,4 +1,4 @@
-# Vision Studio
+# Vision Studio-X
 
 [![PR Gate](https://github.com/Git-Rocky-Stack/vision-studio/actions/workflows/pr-gate.yml/badge.svg)](https://github.com/Git-Rocky-Stack/vision-studio/actions/workflows/pr-gate.yml)
 [![Release](https://github.com/Git-Rocky-Stack/vision-studio/actions/workflows/release.yml/badge.svg)](https://github.com/Git-Rocky-Stack/vision-studio/actions/workflows/release.yml)
