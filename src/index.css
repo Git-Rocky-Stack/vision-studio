@@ -697,6 +697,7 @@ p, li, dd, blockquote {
 @media (prefers-reduced-motion: reduce) {
   .animate-pulse-glow,
   .animate-glow-pulse,
+  .btn-chrome-cinema,
   .animate-slide-in-left,
   .animate-fade-in,
   .animate-scale-in,
@@ -965,6 +966,35 @@ input[type="range"]::-webkit-slider-thumb:hover {
     0 1px 2px rgba(0,0,0,0.6),
     0 4px 12px rgba(0,0,0,0.5),
     0 0 24px rgba(230,230,230,0.18);
+}
+
+/* Cinema cap - the single hero CTA. A metal cap that breathes a chrome halo
+   while preserving its machined bevel (the bevel insets stay constant across
+   the cycle; only the outer glow pulses). Collapses under reduced motion. */
+@keyframes chrome-pulse {
+  0%, 100% {
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,0.9),
+      inset 0 -1px 0 rgba(0,0,0,0.3),
+      inset 0 -2px 0 rgba(0,0,0,0.15),
+      0 0 0 1px rgba(230,230,230,0.4),
+      0 1px 2px rgba(0,0,0,0.6),
+      0 4px 12px rgba(0,0,0,0.5),
+      0 0 16px rgba(230,230,230,0.16);
+  }
+  50% {
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,0.9),
+      inset 0 -1px 0 rgba(0,0,0,0.3),
+      inset 0 -2px 0 rgba(0,0,0,0.15),
+      0 0 0 1px rgba(230,230,230,0.55),
+      0 1px 2px rgba(0,0,0,0.6),
+      0 4px 12px rgba(0,0,0,0.5),
+      0 0 30px 3px rgba(230,230,230,0.4);
+  }
+}
+.btn-chrome-cinema {
+  animation: chrome-pulse 2.5s ease-in-out infinite;
 }
 
 /* Brushed-aluminum stripe - faceplate header material. */
