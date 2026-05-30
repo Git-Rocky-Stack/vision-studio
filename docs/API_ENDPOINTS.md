@@ -289,7 +289,7 @@ Base URL: `http://127.0.0.1:8000` (Uvicorn binds `0.0.0.0:8000` but the Main pro
 
 #### `GET /` — `tags=[Health]`, limit `60/min`
 
-Liveness ping. Returns `{ "message": "Vision Studio API", "version": "0.1.0" }`.
+Liveness ping. Returns `{ "message": "Vision Studio API", "version": "3.0.0" }`.
 
 #### `GET /api/health` — `tags=[System]`
 
