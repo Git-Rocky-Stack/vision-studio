@@ -1,7 +1,7 @@
 {
   "name": "vision-studio",
   "private": true,
-  "version": "2.5.0",
+  "version": "3.0.0",
   "type": "module",
   "main": "dist-electron/main.mjs",
   "description": "Professional AI Image & Video Generation",
@@ -9,7 +9,14 @@
     "name": "Vision Studio Team",
     "email": "hello@visionstudio.app"
   },
-  "homepage": "https://github.com/yourusername/vision-studio",
+  "homepage": "https://github.com/Git-Rocky-Stack/vision-studio",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Git-Rocky-Stack/vision-studio.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Git-Rocky-Stack/vision-studio/issues"
+  },
   "scripts": {
     "dev": "vite",
     "build": "vite build",

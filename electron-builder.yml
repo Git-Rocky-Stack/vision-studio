@@ -122,7 +122,7 @@ linux:
 # =============================================================================
 publish:
   provider: github
-  owner: yourusername
+  owner: Git-Rocky-Stack
   repo: vision-studio
   releaseType: release
   # Auto-update will only install signed builds

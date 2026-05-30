@@ -2,6 +2,20 @@
 
 All notable changes to Vision Studio will be documented in this file.
 
+## [3.0.0] - 2026-05-30
+
+First public release. Vision Studio-X is now open source under the MIT license,
+with the full source available at https://github.com/Git-Rocky-Stack/vision-studio.
+
+### Added
+- Public, MIT-licensed source release of the full application (Electron 33 + React 19 + Python FastAPI/PyTorch)
+
+### Changed
+- Renamed project to Vision Studio-X
+- Pointed repository, homepage, and installer metadata at the public GitHub repository
+
+This release includes every feature developed through 2.5.0 (detailed below).
+
 ## [2.5.0] - 2026-04-23
 
 ### Added

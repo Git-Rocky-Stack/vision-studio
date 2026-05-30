@@ -29,7 +29,7 @@ A professional AI-powered desktop application for image and video generation. No
 
 ```bash
 # Clone repository
-git clone https://github.com/yourusername/vision-studio.git
+git clone https://github.com/Git-Rocky-Stack/vision-studio.git
 cd vision-studio
 
 # Quick start (Windows)
@@ -293,7 +293,7 @@ Contributions welcome! See [CONTRIBUTING.md](CONTRIBUTING.md)
 
 ```bash
 # Fork and clone
-git clone https://github.com/yourusername/vision-studio.git
+git clone https://github.com/Git-Rocky-Stack/vision-studio.git
 
 # Create branch
 git checkout -b feature/amazing-feature

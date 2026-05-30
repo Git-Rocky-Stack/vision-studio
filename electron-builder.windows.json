@@ -42,7 +42,7 @@
   "compression": "store",
   "publish": {
     "provider": "github",
-    "owner": "yourusername",
+    "owner": "Git-Rocky-Stack",
     "repo": "vision-studio",
     "releaseType": "release"
   }
