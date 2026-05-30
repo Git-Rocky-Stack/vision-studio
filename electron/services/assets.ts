@@ -4,6 +4,23 @@ function normalizePath(value: string) {
   return value.replace(/\\/g, '/').replace(/\/$/, '');
 }
 
+// Windows drive-absolute path (e.g. "D:/Outputs", "C:\\Users"). Electron runs on
+// Windows so user output paths are routinely drive-absolute, but unit tests and
+// CI execute on Linux where Node's POSIX `path.isAbsolute` reports these as
+// relative. Detect them explicitly so path handling is identical on every host.
+const WINDOWS_DRIVE_ABSOLUTE = /^[A-Za-z]:[\\/]/;
+
+function isAbsolutePath(value: string) {
+  return path.isAbsolute(value) || WINDOWS_DRIVE_ABSOLUTE.test(value);
+}
+
+// Join a base directory with a relative segment using forward slashes, without
+// routing through `path.join` (whose separator and `..` semantics differ by
+// host OS). Output paths are always normalized to forward slashes anyway.
+function joinPath(baseDirectory: string, relativeSegment: string) {
+  return normalizePath(`${normalizePath(baseDirectory)}/${relativeSegment.replace(/^\/+/, '')}`);
+}
+
 export function resolveAssetPath(assetPath: string, outputDirectory: string) {
   if (!assetPath) {
     return normalizePath(outputDirectory);
@@ -11,15 +28,15 @@ export function resolveAssetPath(assetPath: string, outputDirectory: string) {
 
   if (assetPath.startsWith('/outputs/') || assetPath.startsWith('outputs/')) {
     const relativePath = assetPath.replace(/^\/?outputs\/+/, '');
-    return normalizePath(path.join(outputDirectory, relativePath));
+    return joinPath(outputDirectory, relativePath);
   }
 
-  if (path.isAbsolute(assetPath)) {
+  if (isAbsolutePath(assetPath)) {
     return normalizePath(assetPath);
   }
 
   const normalizedAssetPath = assetPath.replace(/^\/+/, '');
-  return normalizePath(path.join(outputDirectory, normalizedAssetPath));
+  return joinPath(outputDirectory, normalizedAssetPath);
 }
 
 export function isPathInsideRoots(filePath: string, allowedRoots: string[]) {
@@ -46,7 +63,7 @@ export function resolveAssetPathFromRoots(
   }
 
   if (
-    path.isAbsolute(assetPath) &&
+    isAbsolutePath(assetPath) &&
     !assetPath.startsWith('/outputs/') &&
     !assetPath.startsWith('outputs/')
   ) {
