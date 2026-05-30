@@ -40,6 +40,8 @@ output/
 scripts/Output/
 docs/code-quality-review-*.md
 docs/qa-testing-strategy*.md
+_artifacts/
+notes/
 
 # Editor directories and files
 .vscode/*

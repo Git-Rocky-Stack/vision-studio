@@ -19,17 +19,17 @@ if (!fs.existsSync(RELEASE_DIR)) {
 }
 
 // Create README for release
-const readmeContent = `# Vision Studio v0.1.0 - Windows Release
+const readmeContent = `# Vision Studio v3.0.0 - Windows Release
 
 ## 🚀 Quick Start
 
 ### Option 1: Installer (Recommended)
-1. Run \`Vision-Studio-Setup-0.1.0.exe\`
+1. Run \`Vision-Studio-Setup-3.0.0.exe\`
 2. Follow the installation wizard
 3. Launch from Start Menu or Desktop
 
 ### Option 2: Portable
-1. Run \`Vision-Studio-Portable-0.1.0.exe\`
+1. Run \`Vision-Studio-Portable-3.0.0.exe\`
 2. No installation required
 3. Can run from USB drive
 
@@ -95,7 +95,7 @@ MIT License - See LICENSE.txt for details
 - Built with Electron, React, and FastAPI
 
 ---
-Version: 0.1.0
+Version: 3.0.0
 Build Date: ${new Date().toISOString().split('T')[0]}
 `;
 

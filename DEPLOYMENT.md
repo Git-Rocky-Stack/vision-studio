@@ -177,7 +177,7 @@ chmod +x "Vision Studio.AppImage"
 ```yaml
 # snap/snapcraft.yaml
 name: vision-studio
-version: '0.1.0'
+version: '3.0.0'
 grade: stable
 confinement: strict
 parts:
@@ -200,7 +200,7 @@ command: vision-studio
 ```bash
 # PKGBUILD
 pkgname=vision-studio
-pkgver=0.1.0
+pkgver=3.0.0
 source=("$pkgname-$pkgver.AppImage")
 ```
 
@@ -210,8 +210,8 @@ source=("$pkgname-$pkgver.AppImage")
 
 ```bash
 # 1. Create tag
-git tag -a v0.1.0 -m "Release v0.1.0"
-git push origin v0.1.0
+git tag -a v3.0.0 -m "Release v3.0.0"
+git push origin v3.0.0
 
 # 2. GitHub Actions will build and upload
 # Or manually upload from release/ folder

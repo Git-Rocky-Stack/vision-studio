@@ -38,8 +38,8 @@ Your complete Windows installer build system is ready. Here's everything you nee
 - ✅ Creates portable version
 
 **Output:**
-- `release/Vision-Studio-Setup-0.1.0.exe` (4-6 GB)
-- `release/Vision-Studio-Portable-0.1.0.exe` (4-6 GB)
+- `release/Vision-Studio-Setup-3.0.0.exe` (4-6 GB)
+- `release/Vision-Studio-Portable-3.0.0.exe` (4-6 GB)
 
 ### Option 2: Frontend Only (Faster)
 
@@ -48,7 +48,7 @@ Your complete Windows installer build system is ready. Here's everything you nee
 ```
 
 **Output:**
-- `release/Vision-Studio-Setup-0.1.0.exe` (~150 MB)
+- `release/Vision-Studio-Setup-3.0.0.exe` (~150 MB)
 
 **Note:** Users need Python installed separately.
 
@@ -85,7 +85,7 @@ npm run create:icon
 Edit `package.json`:
 ```json
 {
-  "version": "0.1.0",
+  "version": "3.0.0",
   "build": {
     "win": {
       "publish": {
@@ -145,9 +145,9 @@ After build completes, you'll have:
 
 ```
 release/
-├── Vision-Studio-Setup-0.1.0.exe     # Main installer (4-6 GB)
-├── Vision-Studio-Portable-0.1.0.exe  # Portable version (4-6 GB)
-├── Vision-Studio-0.1.0-win.zip       # ZIP archive (4-6 GB)
+├── Vision-Studio-Setup-3.0.0.exe     # Main installer (4-6 GB)
+├── Vision-Studio-Portable-3.0.0.exe  # Portable version (4-6 GB)
+├── Vision-Studio-3.0.0-win.zip       # ZIP archive (4-6 GB)
 ├── win-unpacked/                      # Unpacked files
 ├── README.txt                         # User instructions
 ├── LICENSE.txt                        # MIT License
@@ -158,14 +158,14 @@ release/
 
 1. Go to your GitHub repository
 2. Click "Create a new release"
-3. Upload `Vision-Studio-Setup-0.1.0.exe`
+3. Upload `Vision-Studio-Setup-3.0.0.exe`
 4. Add release notes
 5. Publish
 
 ### Website Distribution
 
 ```html
-<a href="/download/Vision-Studio-Setup-0.1.0.exe" download>
+<a href="/download/Vision-Studio-Setup-3.0.0.exe" download>
   Download for Windows (4.5 GB)
 </a>
 ```
@@ -188,7 +188,7 @@ signtool sign /f certificate.pfx /p password `
   /tr http://timestamp.digicert.com `
   /td sha256 `
   /fd sha256 `
-  "release\Vision-Studio-Setup-0.1.0.exe"
+  "release\Vision-Studio-Setup-3.0.0.exe"
 ```
 
 ## 🐛 Troubleshooting

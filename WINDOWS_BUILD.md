@@ -32,8 +32,8 @@ npm run package:win
 ```
 
 **Output:**
-- `release/Vision-Studio-Setup-0.1.0.exe` (~150 MB)
-- `release/Vision-Studio-Portable-0.1.0.exe` (~150 MB)
+- `release/Vision-Studio-Setup-3.0.0.exe` (~150 MB)
+- `release/Vision-Studio-Portable-3.0.0.exe` (~150 MB)
 
 ⚠️ **Note:** This version requires Python to be installed separately.
 
@@ -51,8 +51,8 @@ npm run build:windows      # Package with Electron (~5 min)
 ```
 
 **Output:**
-- `release/Vision-Studio-Setup-0.1.0.exe` (~4-6 GB)
-- `release/Vision-Studio-Portable-0.1.0.exe` (~4-6 GB)
+- `release/Vision-Studio-Setup-3.0.0.exe` (~4-6 GB)
+- `release/Vision-Studio-Portable-3.0.0.exe` (~4-6 GB)
 
 ### Full Build Steps Explained
 
@@ -106,9 +106,9 @@ After successful build, you'll find these files in `release/`:
 
 | File | Size | Description |
 |------|------|-------------|
-| `Vision-Studio-Setup-0.1.0.exe` | 4-6 GB | Full installer with wizard |
-| `Vision-Studio-Portable-0.1.0.exe` | 4-6 GB | Standalone portable app |
-| `Vision-Studio-0.1.0-win.zip` | 4-6 GB | ZIP archive (unpacked) |
+| `Vision-Studio-Setup-3.0.0.exe` | 4-6 GB | Full installer with wizard |
+| `Vision-Studio-Portable-3.0.0.exe` | 4-6 GB | Standalone portable app |
+| `Vision-Studio-3.0.0-win.zip` | 4-6 GB | ZIP archive (unpacked) |
 | `win-unpacked/` | 4-6 GB | Unpacked files |
 
 ### Installer Features
@@ -180,7 +180,7 @@ signtool sign /f certificate.pfx /p password `
   /tr http://timestamp.digicert.com `
   /td sha256 `
   /fd sha256 `
-  "release\Vision-Studio-Setup-0.1.0.exe"
+  "release\Vision-Studio-Setup-3.0.0.exe"
 ```
 
 Or add to package.json:
@@ -274,14 +274,14 @@ npx electron-builder --config electron-builder.windows.json --win
 
 1. Create a new release on GitHub
 2. Upload the installer:
-   - `Vision-Studio-Setup-0.1.0.exe`
+   - `Vision-Studio-Setup-3.0.0.exe`
 3. Add release notes
 4. Publish
 
 ### Website Distribution
 
 ```html
-<a href="/download/Vision-Studio-Setup-0.1.0.exe" 
+<a href="/download/Vision-Studio-Setup-3.0.0.exe" 
    download>
    Download for Windows (4.5 GB)
 </a>

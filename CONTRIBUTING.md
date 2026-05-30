@@ -365,7 +365,7 @@ If applicable, add screenshots.
 - Node: [e.g., v20.10.0]
 - Python: [e.g., 3.11.5]
 - GPU: [e.g., RTX 4070]
-- App Version: [e.g., 0.1.0]
+- App Version: [e.g., 3.0.0]
 
 **Logs**
 ```
