@@ -1,6 +1,15 @@
 @import "tailwindcss";
 
 @theme {
+  /* ============================================================
+     IBM Plex type system - mirrors Vision Studio-X website.
+     Fonts are bundled locally in src/fonts.ts (no Google CDN).
+     Display ≥48px → Condensed - Body/headings → Sans - Data/labels → Mono
+     ============================================================ */
+  --font-cond: "IBM Plex Sans Condensed", "IBM Plex Sans", sans-serif;
+  --font-sans: "IBM Plex Sans", -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", "Berkeley Mono", "JetBrains Mono", ui-monospace, monospace;
+
   /* Carbon Pro Color Architecture */
   --color-void: #000000;
   --color-canvas: #050505;
@@ -141,14 +150,26 @@
   --z-tooltip: 60;
   --z-overlay: 9999;
 
-  /* Border radius scale */
-  --radius-sm: 0.375rem;
-  --radius-md: 0.5rem;
-  --radius-lg: 0.75rem;
-  --radius-xl: 1rem;
-  --radius-2xl: 1.5rem;
-  --radius-3xl: 2rem;
-  --radius-4xl: 2.5rem;
+  /* ============================================================
+     Border radius - machined-plate scale (mirrors Vision Studio-X).
+     Hardware reads sharp: cards 2px, controls 4px, overlays 8px,
+     pills fully round. The varied hierarchy is itself anti-slop -
+     never a uniform 16px. The legacy --radius-* names are re-pointed
+     to machined values so existing components sharpen automatically.
+     ============================================================ */
+  --radius-card: 2px;       /* faceplates, panels, cards */
+  --radius-control: 4px;    /* buttons, inputs, pads, switches */
+  --radius-overlay: 8px;    /* modals, dropdowns - the only soft surface */
+  --radius-pill: 9999px;    /* chips, LED dots, avatars */
+
+  /* Legacy scale re-pointed to machined values */
+  --radius-sm: 2px;
+  --radius-md: 4px;
+  --radius-lg: 6px;
+  --radius-xl: 8px;
+  --radius-2xl: 8px;
+  --radius-3xl: 10px;
+  --radius-4xl: 12px;
   --radius-full: 9999px;
 
   /* Container max-widths */
@@ -194,6 +215,74 @@
   --duration-slow: 300ms;
   --duration-slower: 500ms;
 
+  /* ============================================================
+     Hardware motion envelopes - mirrors Vision Studio-X website.
+     Mechanical, click-detent feel (Eaton rockers, Bourns encoders,
+     IEC 60268-17 VU ballistics, LED phosphor ramp). No floaty blobs.
+     ============================================================ */
+  --ease-click: cubic-bezier(0.45, 0.05, 0.55, 0.95);
+  --ease-snap: cubic-bezier(0.32, 0.72, 0, 1);
+  --ease-glide: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-settle: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-vu: cubic-bezier(0.2, 0.85, 0.15, 1);
+  --ease-led: cubic-bezier(0.2, 0.7, 0.3, 1);
+  --ease-decay: cubic-bezier(0.4, 0, 0.6, 0.4);
+  --ease-meter: cubic-bezier(0.4, 0, 0.2, 1);
+
+  --duration-click: 80ms;
+  --duration-snap: 120ms;
+  --duration-glide: 240ms;
+  --duration-settle: 380ms;
+  --duration-meter: 600ms;
+  --duration-vu-attack: 300ms;
+  --duration-vu-release: 300ms;
+  --duration-led-on: 80ms;
+  --duration-led-off: 240ms;
+
+  /* ============================================================
+     Vision Studio-X website vocabulary bridges.
+     The website renamed these exact app tokens to a hardware vocabulary
+     (chrome / carbon / silver / LED). We alias them here so hardware
+     primitives ported from the website work verbatim, while the canonical
+     app token names stay intact (carbon-pro-tokens.test.ts depends on them).
+     ============================================================ */
+  /* Carbon ramp */
+  --color-carbon-950: var(--color-canvas);
+  --color-carbon-900: var(--color-surface);
+  --color-carbon-850: var(--color-panel);
+  --color-carbon-800: var(--color-elevated);
+  --color-carbon-750: var(--color-panel-raised);
+  --color-carbon-700: #262626;
+  --color-anthracite: #3a3a3a;
+  --color-graphite: #5a5a5a;
+  /* Silver / platinum text ramp */
+  --color-platinum: var(--color-text-primary);
+  --color-silver-bright: #d1d1d1;
+  --color-silver-mute: var(--color-text-muted);
+  /* Chrome accent (brand) */
+  --color-chrome: var(--color-accent-primary);
+  --color-chrome-bright: var(--color-accent-primary-hover);
+  --color-chrome-pressed: var(--color-accent-primary-pressed);
+  --color-chrome-edge: var(--color-accent-primary-border);
+  --color-chrome-glow: var(--color-accent-primary-glow);
+  --color-chrome-soft: var(--color-accent-primary-muted);
+  /* Pioneer-DJ LED semantic palette */
+  --color-led-rec: var(--color-status-error);
+  --color-led-cue: var(--color-status-warning);
+  --color-led-play: var(--color-status-success);
+  --color-led-jog: var(--color-status-info);
+  --color-led-fx: var(--color-capability-edit);
+  --color-led-time: var(--color-capability-video);
+  /* Capability short-aliases (website uses --color-cap-*) */
+  --color-cap-image: var(--color-capability-image);
+  --color-cap-video: var(--color-capability-video);
+  --color-cap-edit: var(--color-capability-edit);
+  --color-cap-local: var(--color-capability-local);
+  --color-cap-cloud: var(--color-capability-cloud);
+  /* Hairlines */
+  --color-hairline: var(--color-border);
+  --color-hairline-strong: var(--color-border-hover);
+
   /* Backward-compatible aliases (old token names -> new values) */
   --color-black: var(--color-void);
   --color-charcoal: var(--color-surface);
@@ -206,30 +295,9 @@
   --color-white: var(--color-text-primary);
 }
 
-/* Font loading with swap for performance */
-@font-face {
-  font-family: 'DM Sans';
-  font-style: normal;
-  font-weight: 400 700;
-  font-display: swap;
-  src: local('DM Sans');
-}
-
-@font-face {
-  font-family: 'Instrument Sans';
-  font-style: normal;
-  font-weight: 400 700;
-  font-display: swap;
-  src: local('Instrument Sans');
-}
-
-@font-face {
-  font-family: 'JetBrains Mono';
-  font-style: normal;
-  font-weight: 400 700;
-  font-display: swap;
-  src: local('JetBrains Mono');
-}
+/* Fonts are bundled locally via @fontsource and imported in src/fonts.ts
+   (IBM Plex Sans Condensed / Sans / Mono). No runtime CDN - this is a
+   local-first desktop app. See DESIGN.md §Typography. */
 
 /* Global Styles */
 * {
@@ -319,8 +387,9 @@ body[data-theme='light'] {
 
 /* Typography utilities */
 :root {
-  --font-family-ui: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  --font-family-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
+  --font-family-ui: var(--font-sans);    /* IBM Plex Sans */
+  --font-family-cond: var(--font-cond);  /* IBM Plex Sans Condensed - display ≥48px */
+  --font-family-mono: var(--font-mono);  /* IBM Plex Mono */
 }
 
 .font-display {
@@ -628,6 +697,7 @@ p, li, dd, blockquote {
 @media (prefers-reduced-motion: reduce) {
   .animate-pulse-glow,
   .animate-glow-pulse,
+  .btn-chrome-cinema,
   .animate-slide-in-left,
   .animate-fade-in,
   .animate-scale-in,
@@ -772,4 +842,308 @@ input[type="range"]::-webkit-slider-thumb:hover {
   background: var(--color-accent-primary-hover);
   box-shadow: 0 0 10px var(--color-accent-primary-glow);
   transform: scale(1.15);
+}
+
+/* =========================================================================
+   ===== VISION STUDIO-X HARDWARE LANGUAGE =================================
+   Mirrors the Vision-Studio-X website (Carbon Pro Workshop). The app is the
+   instrument; the website is the showroom. Typography, depth, motion and the
+   hardware primitive vocabulary are shared. See DESIGN.md §Component Vocabulary.
+   ========================================================================= */
+
+/* ---- Typography discipline -------------------------------------------- */
+
+/* UI labels are ALWAYS mono UPPERCASE with +0.66px tracking. Sets its own
+   transform/tracking so it is immune to the global .uppercase/.tracking resets. */
+.mono-label {
+  font-family: var(--font-mono);
+  font-weight: var(--font-weight-medium);
+  font-size: 0.6875rem;      /* 11px */
+  line-height: 1.27;
+  text-transform: uppercase;
+  letter-spacing: 0.66px;
+}
+
+/* Inspector values, readouts, metadata, any LCD content. */
+.data-mono {
+  font-family: var(--font-mono);
+  font-weight: var(--font-weight-normal);
+  font-size: 0.75rem;        /* 12px */
+  line-height: 1.5;
+  letter-spacing: 0;
+}
+
+/* Condensed display - every type ≥48px. */
+.cond-display {
+  font-family: var(--font-cond);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: -1.5px;
+  line-height: 0.95;
+}
+.display-xl { font-family: var(--font-cond); font-weight: 600; font-size: 5.25rem; line-height: 1.05; letter-spacing: -2.5px; }
+.display-lg { font-family: var(--font-cond); font-weight: 500; font-size: 4rem;    line-height: 1.06; letter-spacing: -1.8px; }
+.display-md { font-family: var(--font-cond); font-weight: 500; font-size: 3rem;    line-height: 1.08; letter-spacing: -1px;   }
+
+/* ---- Four-layer raised-hardware depth system -------------------------- */
+
+/* Layer 1 - raised faceplate - sits proud of the chassis. */
+.raised-panel {
+  position: relative;
+  background:
+    radial-gradient(ellipse 80% 60% at 30% -10%, rgba(255,255,255,0.04) 0%, transparent 60%),
+    linear-gradient(180deg, #1C1C1C 0%, #151515 35%, #101010 70%, #0C0C0C 100%);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: var(--radius-card);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.10),
+    inset 0 -1px 0 rgba(0,0,0,0.7),
+    inset 1px 0 0 rgba(255,255,255,0.025),
+    inset -1px 0 0 rgba(0,0,0,0.4),
+    0 1px 0 rgba(0,0,0,0.9),
+    0 2px 4px rgba(0,0,0,0.7),
+    0 12px 28px rgba(0,0,0,0.55),
+    0 40px 80px rgba(0,0,0,0.4);
+}
+.raised-panel::before {
+  content: "";
+  position: absolute;
+  top: 2px; left: 24px; right: 24px;
+  height: 1px;
+  background: linear-gradient(90deg,
+    transparent 0%,
+    rgba(230,230,230,0.18) 20%,
+    rgba(230,230,230,0.32) 50%,
+    rgba(230,230,230,0.18) 80%,
+    transparent 100%);
+  pointer-events: none;
+}
+.raised-panel::after {
+  content: "";
+  position: absolute;
+  top: 0; right: 0;
+  width: 140px; height: 60px;
+  background: radial-gradient(ellipse at 80% 0%, rgba(255,255,255,0.05) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+/* Layer 2 - recessed well - carved INTO the faceplate. */
+.recessed-well {
+  background: linear-gradient(180deg, #080808 0%, #0a0a0a 100%);
+  border: 1px solid rgba(0,0,0,0.7);
+  border-radius: var(--radius-control);
+  box-shadow:
+    inset 0 2px 4px rgba(0,0,0,0.8),
+    inset 0 -1px 0 rgba(255,255,255,0.03),
+    inset 1px 0 2px rgba(0,0,0,0.5),
+    inset -1px 0 2px rgba(0,0,0,0.5);
+}
+
+/* Layer 3 - raised control - button cap / pad / fader cap, sits ON the well. */
+.raised-control {
+  background:
+    radial-gradient(ellipse 80% 50% at 50% 0%, rgba(255,255,255,0.06) 0%, transparent 60%),
+    linear-gradient(180deg, #1F1F1F 0%, #171717 60%, #121212 100%);
+  border: 1px solid rgba(255,255,255,0.04);
+  border-radius: var(--radius-control);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.10),
+    inset 0 -1px 0 rgba(0,0,0,0.6),
+    0 1px 2px rgba(0,0,0,0.8),
+    0 4px 8px rgba(0,0,0,0.5);
+}
+
+/* Chrome button - primary CTA. Polished metal cap, not a hue gradient. */
+.btn-chrome {
+  background: linear-gradient(180deg, #FFF 0%, #E6E6E6 50%, #C8C8C8 100%);
+  color: #000;
+  border: none;
+  border-radius: var(--radius-control);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.9),
+    inset 0 -1px 0 rgba(0,0,0,0.3),
+    inset 0 -2px 0 rgba(0,0,0,0.15),
+    0 0 0 1px rgba(230,230,230,0.4),
+    0 1px 2px rgba(0,0,0,0.6),
+    0 4px 12px rgba(0,0,0,0.5),
+    0 0 24px rgba(230,230,230,0.18);
+}
+
+/* Cinema cap - the single hero CTA. A metal cap that breathes a chrome halo
+   while preserving its machined bevel (the bevel insets stay constant across
+   the cycle; only the outer glow pulses). Collapses under reduced motion. */
+@keyframes chrome-pulse {
+  0%, 100% {
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,0.9),
+      inset 0 -1px 0 rgba(0,0,0,0.3),
+      inset 0 -2px 0 rgba(0,0,0,0.15),
+      0 0 0 1px rgba(230,230,230,0.4),
+      0 1px 2px rgba(0,0,0,0.6),
+      0 4px 12px rgba(0,0,0,0.5),
+      0 0 16px rgba(230,230,230,0.16);
+  }
+  50% {
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,0.9),
+      inset 0 -1px 0 rgba(0,0,0,0.3),
+      inset 0 -2px 0 rgba(0,0,0,0.15),
+      0 0 0 1px rgba(230,230,230,0.55),
+      0 1px 2px rgba(0,0,0,0.6),
+      0 4px 12px rgba(0,0,0,0.5),
+      0 0 30px 3px rgba(230,230,230,0.4);
+  }
+}
+.btn-chrome-cinema {
+  animation: chrome-pulse 2.5s ease-in-out infinite;
+}
+
+/* Brushed-aluminum stripe - faceplate header material. */
+.faceplate-stripe {
+  background:
+    repeating-linear-gradient(90deg,
+      rgba(255,255,255,0.015) 0px, rgba(255,255,255,0.015) 1px,
+      transparent 1px, transparent 3px),
+    linear-gradient(180deg, #242424 0%, #1A1A1A 55%, #141414 100%);
+  border-bottom: 1px solid rgba(0,0,0,0.6);
+  box-shadow: inset 0 -1px 0 rgba(255,255,255,0.04);
+}
+
+/* Hex socket cap bolt - stout machined chassis cue. */
+.hex-bolt {
+  position: absolute;
+  width: 20px; height: 20px;
+  background:
+    radial-gradient(circle at 50% 50%, transparent 62%, rgba(255,255,255,0.04) 68%, transparent 75%),
+    radial-gradient(circle at 28% 22%,
+      #a4a4a4 0%, #7c7c7c 12%, #525252 30%, #323232 55%, #181818 80%, #0a0a0a 100%);
+  clip-path: polygon(25% 0, 75% 0, 100% 50%, 75% 100%, 25% 100%, 0 50%);
+  filter:
+    drop-shadow(0 2px 3px rgba(0,0,0,0.95))
+    drop-shadow(0 1px 1px rgba(0,0,0,0.7))
+    drop-shadow(0 0 4px rgba(0,0,0,0.5));
+  pointer-events: none;
+}
+.hex-bolt::after {
+  content: "";
+  position: absolute;
+  inset: 23%;
+  background: radial-gradient(circle at 72% 78%, #1c1c1c 0%, #0a0a0a 35%, #000 100%);
+  clip-path: polygon(25% 0, 75% 0, 100% 50%, 75% 100%, 25% 100%, 0 50%);
+}
+.hex-bolt::before {
+  content: "";
+  position: absolute;
+  inset: -3px;
+  border-radius: 9999px;
+  background: radial-gradient(circle, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0.25) 40%, transparent 70%);
+  z-index: -1;
+}
+.hex-bolt.tl { top: 10px; left: 10px; }
+.hex-bolt.tr { top: 10px; right: 10px; }
+.hex-bolt.bl { bottom: 10px; left: 10px; }
+.hex-bolt.br { bottom: 10px; right: 10px; }
+
+/* LED - pinpoint indicator with real-instrument glow. Set `color` to the LED hue. */
+.led-glow { box-shadow: 0 0 8px currentColor; }
+
+/* Optional scanline overlay - opt-in "this is an instrument display" texture. */
+.instrument-scanline {
+  position: relative;
+}
+.instrument-scanline::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: repeating-linear-gradient(
+    0deg, transparent, transparent 2px,
+    rgba(255,255,255,0.012) 2px, rgba(255,255,255,0.012) 3px);
+  mix-blend-mode: overlay;
+}
+
+/* ---- Hardware keyframes ----------------------------------------------- */
+@keyframes pulse-led {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
+}
+@keyframes vu-live {
+  0%, 100% { opacity: 0.15; }
+  50% { opacity: 1; }
+}
+@keyframes jog-spin {
+  0% { transform: translateX(-50%) rotate(0deg); }
+  100% { transform: translateX(-50%) rotate(360deg); }
+}
+@keyframes jog-ring-pulse {
+  0%, 100% { box-shadow: 0 0 16px rgba(56,189,248,0.3), inset 0 0 16px rgba(56,189,248,0.1); }
+  50% { box-shadow: 0 0 24px rgba(56,189,248,0.5), inset 0 0 20px rgba(56,189,248,0.15); }
+}
+@keyframes ticker-scroll {
+  0% { transform: translateX(100%); }
+  100% { transform: translateX(-100%); }
+}
+@keyframes boot-row {
+  0% { opacity: 0; transform: translateX(-4px); }
+  100% { opacity: 1; transform: translateX(0); }
+}
+@keyframes boot-vu {
+  0% { height: 0; }
+  50% { height: 100%; }
+  100% { height: 60%; }
+}
+@keyframes boot-fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes boot-hide { to { opacity: 0; visibility: hidden; pointer-events: none; } }
+
+/* ---- Ported primitive interaction states (vx-*) ----------------------- */
+.vx-pad, .vx-mini-pad, .vx-template-pad, .vx-model-card {
+  transition:
+    transform var(--duration-snap) var(--ease-snap),
+    border-color var(--duration-snap) var(--ease-snap),
+    box-shadow var(--duration-snap) var(--ease-snap);
+  will-change: transform;
+}
+.vx-pad:hover, .vx-mini-pad:hover, .vx-template-pad:hover, .vx-model-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--color-chrome-edge);
+}
+.vx-pad:active, .vx-mini-pad:active, .vx-template-pad:active, .vx-model-card:active {
+  transform: translateY(0);
+  transition-duration: var(--duration-click);
+}
+.vx-knob { transition: transform var(--duration-snap) var(--ease-snap); }
+.vx-knob:hover { transform: translateY(-1px); }
+.vx-rocker { transition: transform var(--duration-click) var(--ease-click); cursor: pointer; }
+.vx-rocker:hover { transform: translateY(-1px); }
+.vx-switch { transition: transform var(--duration-click) var(--ease-click); }
+.vx-switch:hover { transform: translateY(-1px); }
+.vx-switch:active { transform: translateY(0); }
+.vx-btn-chrome:not(:disabled):hover {
+  background: linear-gradient(180deg, #FFF 0%, #F5F5F5 50%, #E0E0E0 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,1), inset 0 -1px 0 rgba(0,0,0,0.25),
+    inset 0 -2px 0 rgba(0,0,0,0.12), 0 0 0 1px rgba(255,255,255,0.55),
+    0 1px 2px rgba(0,0,0,0.6), 0 6px 16px rgba(0,0,0,0.5), 0 0 36px rgba(230,230,230,0.28);
+}
+.vx-btn-chrome:not(:disabled):active {
+  background: linear-gradient(180deg, #C8C8C8 0%, #B8B8B8 50%, #A0A0A0 100%);
+  transform: translateY(1px);
+  box-shadow:
+    inset 0 2px 4px rgba(0,0,0,0.3), inset 0 -1px 0 rgba(255,255,255,0.2),
+    0 0 0 1px rgba(184,184,184,0.5), 0 0 12px rgba(230,230,230,0.15);
+}
+.vx-faceplate { --mx: 70%; --my: 0%; position: relative; }
+.vx-faceplate::after {
+  background: radial-gradient(ellipse 360px 160px at var(--mx) var(--my),
+    rgba(255,255,255,0.07) 0%, rgba(255,255,255,0.025) 40%, transparent 72%);
+  transition: background 100ms linear;
+}
+@media (hover: none) {
+  .vx-faceplate::after {
+    background: radial-gradient(ellipse at 80% 0%, rgba(255,255,255,0.05) 0%, transparent 70%);
+  }
+}
+.vx-pad:focus-visible, .vx-mini-pad:focus-visible, .vx-template-pad:focus-visible,
+.vx-model-card:focus-visible, .vx-switch:focus-visible, .vx-btn:focus-visible {
+  outline: 2px solid var(--color-chrome);
+  outline-offset: 2px;
 }

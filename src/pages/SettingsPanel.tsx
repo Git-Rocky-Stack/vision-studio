@@ -619,7 +619,7 @@ export function SettingsPanel() {
                       type="text"
                       value={settings.defaultOutputPath || 'Using app data /outputs'}
                       readOnly
-                      className="flex-1 bg-elevated border border-border rounded-lg px-3 py-2 text-sm font-mono text-text-primary"
+                      className="recessed-well flex-1 px-3 py-2 text-sm font-mono text-text-primary"
                     />
                     <Button variant="secondary" size="sm" onClick={handleBrowseOutputPath}>
                       Browse
@@ -698,7 +698,7 @@ export function SettingsPanel() {
                     <HardDrive className="w-4 h-4" />
                     Storage Usage
                   </h3>
-                  <div className="bg-elevated rounded-lg p-4 border border-border">
+                  <div className="raised-panel p-4">
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-sm font-display text-text-primary">
                         Generated Assets
@@ -741,7 +741,7 @@ export function SettingsPanel() {
                   </p>
                 </div>
 
-                <div className="bg-elevated rounded-lg p-4 border border-border">
+                <div className="raised-panel p-4">
                   <div className="flex items-center gap-3">
                     <div
                       className={cn(
@@ -831,7 +831,7 @@ export function SettingsPanel() {
                     OS secure storage before they are saved.
                   </p>
 
-                  <div className="rounded-lg border border-border bg-elevated p-4 space-y-4">
+                  <div className="raised-panel p-4 space-y-4">
                     <div className="flex flex-col gap-3 md:flex-row md:items-end">
                       <label className="flex-1 space-y-1">
                         <span className="text-xs text-text-muted">Active account</span>
@@ -839,7 +839,7 @@ export function SettingsPanel() {
                           aria-label="Active user account"
                           value={activeAccount?.id ?? ''}
                           onChange={(event) => void handleSetActiveAccount(event.target.value)}
-                          className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text-primary"
+                          className="recessed-well w-full px-3 py-2 text-sm text-text-primary"
                         >
                           {accountsSnapshot.accounts.map((account) => (
                             <option key={account.id} value={account.id}>
@@ -882,7 +882,7 @@ export function SettingsPanel() {
                                 void handleAccountNameCommit();
                               }
                             }}
-                            className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text-primary"
+                            className="recessed-well w-full px-3 py-2 text-sm text-text-primary"
                           />
                         </div>
 
@@ -986,7 +986,7 @@ export function SettingsPanel() {
                           </div>
                         </div>
 
-                        <div className="space-y-4 rounded-lg border border-border bg-surface p-4">
+                        <div className="space-y-4 raised-panel p-4">
                           <div className="space-y-1">
                             <div className="flex items-center gap-2 text-sm font-display font-medium text-text-primary">
                               <Key className="w-4 h-4" />
@@ -1008,7 +1008,7 @@ export function SettingsPanel() {
                                   ? 'Stored securely. Paste a new key to replace it.'
                                   : 'Paste your OpenRouter API key'
                               }
-                              className="flex-1 rounded-lg border border-border bg-elevated px-3 py-2 text-sm text-text-primary"
+                              className="recessed-well flex-1 px-3 py-2 text-sm text-text-primary"
                             />
                             <div className="flex gap-2">
                               <Button
@@ -1057,7 +1057,7 @@ export function SettingsPanel() {
                           )}
 
                           {activeAccount.openRouter.apiKeyStored && (
-                            <div className="space-y-3 rounded-md border border-border bg-elevated p-3">
+                            <div className="space-y-3 raised-panel p-3">
                               <div className="flex items-center justify-between gap-3">
                                 <div>
                                   <p className="text-sm font-display font-medium text-text-primary">
@@ -1084,7 +1084,7 @@ export function SettingsPanel() {
 
                               {openRouterKeyInfo ? (
                                 <div className="grid grid-cols-2 gap-2">
-                                  <div className="rounded-md border border-border bg-surface px-3 py-2">
+                                  <div className="recessed-well px-3 py-2">
                                     <p className="text-[11px] uppercase tracking-[0.14em] text-text-muted">
                                       Credit Remaining
                                     </p>
@@ -1095,7 +1095,7 @@ export function SettingsPanel() {
                                       )}
                                     </p>
                                   </div>
-                                  <div className="rounded-md border border-border bg-surface px-3 py-2">
+                                  <div className="recessed-well px-3 py-2">
                                     <p className="text-[11px] uppercase tracking-[0.14em] text-text-muted">
                                       Total Usage
                                     </p>
@@ -1103,7 +1103,7 @@ export function SettingsPanel() {
                                       {formatOpenRouterCurrency(openRouterKeyInfo.usage)}
                                     </p>
                                   </div>
-                                  <div className="rounded-md border border-border bg-surface px-3 py-2">
+                                  <div className="recessed-well px-3 py-2">
                                     <p className="text-[11px] uppercase tracking-[0.14em] text-text-muted">
                                       BYOK Usage
                                     </p>
@@ -1111,7 +1111,7 @@ export function SettingsPanel() {
                                       {formatOpenRouterCurrency(openRouterKeyInfo.byokUsage)}
                                     </p>
                                   </div>
-                                  <div className="rounded-md border border-border bg-surface px-3 py-2">
+                                  <div className="recessed-well px-3 py-2">
                                     <p className="text-[11px] uppercase tracking-[0.14em] text-text-muted">
                                       Tier & Expiry
                                     </p>
@@ -1167,7 +1167,7 @@ export function SettingsPanel() {
                                 })
                               }
                               disabled={!activeAccount.openRouter.apiKeyStored}
-                              className="w-full rounded-lg border border-border bg-elevated px-3 py-2 text-sm text-text-primary"
+                              className="recessed-well w-full px-3 py-2 text-sm text-text-primary"
                             >
                               <option value="">Use the OpenRouter account default</option>
                               {openRouterModels.map((model) => (
@@ -1215,7 +1215,7 @@ export function SettingsPanel() {
                                 })
                               }
                               disabled={!activeAccount.openRouter.apiKeyStored}
-                              className="w-full rounded-lg border border-border bg-elevated px-3 py-2 text-sm text-text-primary"
+                              className="recessed-well w-full px-3 py-2 text-sm text-text-primary"
                             >
                               <option value="">Select an OpenRouter still-image model</option>
                               {openRouterImageModels.map((model) => (
@@ -1287,7 +1287,7 @@ export function SettingsPanel() {
                   <h3 className="text-label text-text-body">Installed Models</h3>
 
                   {availableModels.length === 0 ? (
-                    <div className="rounded-lg border border-border bg-elevated p-4 text-sm text-text-body">
+                    <div className="raised-panel p-4 text-sm text-text-body">
                       No models reported by the backend yet.
                     </div>
                   ) : (

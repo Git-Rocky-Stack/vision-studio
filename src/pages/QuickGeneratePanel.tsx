@@ -7,6 +7,7 @@ import { cn } from '@/utils/cn';
 import type { UserAccountSummary } from '@/types/electron';
 import { Wand2, Loader2, CheckCircle2, AlertCircle, Cloud, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { ChromeButton } from '@/components/hardware';
 
 const ASPECT_RATIOS = [
   { name: 'Square', width: 1024, height: 1024, icon: '1:1' },
@@ -319,7 +320,7 @@ export function QuickGeneratePanel() {
               placeholder="Describe what you want to generate..."
               rows={4}
               className={cn(
-                'w-full resize-none rounded-md bg-elevated border border-border',
+                'recessed-well w-full resize-none',
                 'px-3 py-2.5 text-sm text-text-primary placeholder:text-text-muted/50',
                 'focus:outline-none focus:ring-2 focus:ring-accent-primary/40 focus:border-accent-primary'
               )}
@@ -339,7 +340,7 @@ export function QuickGeneratePanel() {
               placeholder="What to avoid..."
               rows={2}
               className={cn(
-                'w-full resize-none rounded-md bg-elevated border border-border',
+                'recessed-well w-full resize-none',
                 'px-3 py-2.5 text-sm text-text-primary placeholder:text-text-muted/50',
                 'focus:outline-none focus:ring-2 focus:ring-accent-primary/40 focus:border-accent-primary'
               )}
@@ -350,7 +351,7 @@ export function QuickGeneratePanel() {
           {/* Model selector */}
           <div className="space-y-2">
             <div>
-              <label className="type-ui text-text-muted">
+              <label className="mono-label text-text-muted">
                 Model Router
               </label>
               <p className="mt-1 text-xs text-text-muted">
@@ -390,7 +391,7 @@ export function QuickGeneratePanel() {
 
           {/* Aspect ratio */}
           <div className="space-y-1.5">
-            <label className="type-ui text-text-muted">
+            <label className="mono-label text-text-muted">
               Aspect Ratio
             </label>
             <div className="grid grid-cols-4 gap-1.5">
@@ -399,12 +400,22 @@ export function QuickGeneratePanel() {
                   key={ratio.name}
                   onClick={() => setSelectedRatio(ratio)}
                   disabled={genStatus.isGenerating}
+                  aria-pressed={selectedRatio.name === ratio.name}
                   className={cn(
-                    'flex flex-col items-center justify-center gap-0.5 px-2 py-2 rounded-md border text-xs transition-all duration-150',
+                    'vx-pad raised-control flex flex-col items-center justify-center gap-0.5 px-2 py-2 text-xs',
                     selectedRatio.name === ratio.name
-                      ? 'bg-accent-primary-muted text-accent-primary border-accent-primary-border shadow-accent-subtle'
-                      : 'bg-elevated text-text-body border-border hover:border-border-hover hover:text-text-primary'
+                      ? 'text-accent-primary'
+                      : 'text-text-body hover:text-text-primary'
                   )}
+                  style={
+                    selectedRatio.name === ratio.name
+                      ? {
+                          borderColor: 'var(--color-chrome)',
+                          boxShadow:
+                            'inset 0 1px 0 rgba(255,255,255,0.12), 0 0 0 1px var(--color-chrome-edge), 0 4px 8px rgba(0,0,0,0.5)',
+                        }
+                      : undefined
+                  }
                 >
                   <span className="type-ui">{ratio.icon}</span>
                   <span className="type-caption">{ratio.name}</span>
@@ -472,12 +483,12 @@ export function QuickGeneratePanel() {
         >
           <X className="w-4 h-4" aria-hidden="true" />
         </Button>
-        <Button
-          variant="primary"
-          size="sm"
+        <ChromeButton
+          variant="chrome"
           onClick={handleGenerate}
           disabled={genStatus.isGenerating || !prompt.trim()}
           className="flex-1"
+          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
         >
           {genStatus.isGenerating ? (
             <>
@@ -490,7 +501,7 @@ export function QuickGeneratePanel() {
               Generate
             </>
           )}
-        </Button>
+        </ChromeButton>
       </div>
     </div>
   );

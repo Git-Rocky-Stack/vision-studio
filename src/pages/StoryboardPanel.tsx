@@ -376,7 +376,7 @@ export function StoryboardPanel() {
     return (
       <div className="flex flex-col items-center justify-center h-full text-center p-8">
         <h1 className="sr-only">Storyboard</h1>
-        <div className="w-16 h-16 rounded-2xl bg-elevated border border-border flex items-center justify-center mb-4">
+        <div className="w-16 h-16 recessed-well flex items-center justify-center mb-4">
           <Film className="w-8 h-8 text-text-muted" aria-hidden="true" />
         </div>
         <h2 className="mb-2 type-title">
@@ -536,7 +536,7 @@ export function StoryboardPanel() {
       {/* Scene list */}
       {sortedScenes.length === 0 ? (
         <div className="flex flex-col items-center justify-center flex-1 text-center p-8">
-          <div className="w-14 h-14 rounded-xl bg-elevated border border-border flex items-center justify-center mb-3">
+          <div className="w-14 h-14 recessed-well flex items-center justify-center mb-3">
             <Film className="w-6 h-6 text-text-muted" aria-hidden="true" />
           </div>
           <p className="mb-4 type-caption">

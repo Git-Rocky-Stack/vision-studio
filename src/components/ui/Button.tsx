@@ -25,11 +25,16 @@ export function Button({
   const baseStyles = 'inline-flex items-center justify-center font-display font-medium transition-all duration-200 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary focus-visible:ring-offset-2 focus-visible:ring-offset-void disabled:opacity-40 disabled:cursor-not-allowed';
 
   const variants = {
-    primary: 'bg-accent-primary text-void shadow-accent-subtle hover:bg-accent-primary-hover',
+    // Primary + cinema render as polished chrome metal caps - the website's
+    // signature CTA. bg-accent-primary/text-void stay as the base fill and
+    // label color beneath the metal gradient (and keep the variant contract);
+    // .btn-chrome paints the cap, .vx-btn-chrome drives the hover/press
+    // envelope, and .btn-chrome-cinema adds the hero breathing glow.
+    primary: 'btn-chrome vx-btn-chrome bg-accent-primary text-void',
     secondary: 'bg-elevated text-text-body border border-border hover:border-border-hover hover:bg-panel-raised hover:text-text-primary',
     ghost: 'text-text-body hover:text-text-primary hover:bg-elevated',
     danger: 'bg-red-primary/10 text-red-primary border border-red-primary/30 hover:bg-red-primary/20',
-    cinema: 'bg-accent-primary text-void shadow-accent animate-glow-pulse hover:bg-accent-primary-hover',
+    cinema: 'btn-chrome vx-btn-chrome btn-chrome-cinema bg-accent-primary text-void',
   };
 
   const sizes = {
@@ -38,10 +43,20 @@ export function Button({
     lg: 'px-6 py-3 text-base gap-2',
   };
 
+  // Chrome caps move on the CSS .vx-btn-chrome envelope (mechanical lift +
+  // press detent) instead of framer's spring scale, matching the website's
+  // hardware motion. Other variants keep the existing scale feedback.
+  const isChrome = variant === 'primary' || variant === 'cinema';
+  const motionProps = isChrome
+    ? {}
+    : {
+        whileHover: { scale: disabled ? 1 : 1.02 },
+        whileTap: { scale: disabled ? 1 : 0.98 },
+      };
+
   return (
     <motion.button
-      whileHover={{ scale: disabled ? 1 : 1.02 }}
-      whileTap={{ scale: disabled ? 1 : 0.98 }}
+      {...motionProps}
       className={cn(
         baseStyles,
         variants[variant],
