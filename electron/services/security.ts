@@ -21,6 +21,16 @@ const DANGEROUS_EXECUTABLE_NAMES = new Set([
 const SHELL_METACHARACTERS = /[;&|`$<>]/;
 const PYTHON_EXECUTABLE_NAME = /^(py|python(?:\d+(?:\.\d+)*)?)(?:\.exe)?$/i;
 
+// Electron ships on Windows, so command paths arrive with Windows separators
+// ("C:\\Python311\\python.exe"). Node's POSIX `path.basename` (used by the test
+// suite + CI on Linux) does not split on backslashes, so it would return the
+// whole string. Split on either separator to get the real executable name on
+// every host.
+function crossPlatformBasename(filePath: string) {
+  const segments = filePath.split(/[\\/]/);
+  return segments[segments.length - 1] || filePath;
+}
+
 function normalizeForCompare(filePath: string) {
   return path.resolve(filePath).replace(/\\/g, '/').replace(/\/$/, '').toLowerCase();
 }
@@ -46,7 +56,7 @@ export function isSafePythonCommand(command: string) {
     return false;
   }
 
-  const executableName = path.basename(trimmed).toLowerCase();
+  const executableName = crossPlatformBasename(trimmed).toLowerCase();
   if (DANGEROUS_EXECUTABLE_NAMES.has(executableName)) {
     return false;
   }
@@ -58,8 +68,17 @@ export function isAllowedStoreKey(key: string) {
   return ALLOWED_STORE_KEYS.has(key);
 }
 
+// A Windows drive-absolute path ("C:\\...", "D:/..."). On the Linux CI runner
+// Node's POSIX `path.isAbsolute` reports these as relative, so detect them
+// explicitly; otherwise legitimate Windows export targets would be rejected.
+const WINDOWS_DRIVE_ABSOLUTE = /^[A-Za-z]:[\\/]/;
+
+function isAbsoluteDestination(destinationPath: string) {
+  return path.isAbsolute(destinationPath) || WINDOWS_DRIVE_ABSOLUTE.test(destinationPath);
+}
+
 export function resolveSafeExportDestination(destinationPath: string, allowedRoots: string[]) {
-  if (!path.isAbsolute(destinationPath)) {
+  if (!isAbsoluteDestination(destinationPath)) {
     return null;
   }
 
