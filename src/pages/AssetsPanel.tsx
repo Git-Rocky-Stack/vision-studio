@@ -278,13 +278,13 @@ export function AssetsPanel() {
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search assets..."
-            className="w-full bg-elevated border border-border rounded-md pl-10 pr-4 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent-primary focus:ring-1 focus:ring-accent-primary/40 transition-all"
+            className="recessed-well w-full pl-10 pr-4 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent-primary focus:ring-1 focus:ring-accent-primary/40 transition-all"
           />
         </div>
 
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="flex items-center gap-1 bg-elevated rounded-lg p-1">
+            <div className="recessed-well flex items-center gap-1 p-1">
               {(['all', 'image', 'video', 'audio'] as AssetType[]).map((type) => (
                 <button
                   key={type}
@@ -292,7 +292,7 @@ export function AssetsPanel() {
                   className={cn(
                     'px-3 py-1 rounded text-sm font-display font-medium transition-all capitalize',
                     filter === type
-                      ? 'bg-surface text-text-primary'
+                      ? 'raised-control text-text-primary'
                       : 'text-text-body hover:text-text-primary'
                   )}
                 >
@@ -311,13 +311,15 @@ export function AssetsPanel() {
             </Button>
           </div>
 
-          <div className="flex items-center gap-1">
+          <div className="recessed-well flex items-center gap-1 p-1">
             <button
               onClick={() => setViewMode('grid')}
+              aria-label="Grid view"
+              aria-pressed={viewMode === 'grid'}
               className={cn(
                 'p-2 rounded-lg transition-all',
                 viewMode === 'grid'
-                  ? 'bg-elevated text-text-primary'
+                  ? 'raised-control text-text-primary'
                   : 'text-text-body hover:text-text-primary'
               )}
             >
@@ -325,10 +327,12 @@ export function AssetsPanel() {
             </button>
             <button
               onClick={() => setViewMode('list')}
+              aria-label="List view"
+              aria-pressed={viewMode === 'list'}
               className={cn(
                 'p-2 rounded-lg transition-all',
                 viewMode === 'list'
-                  ? 'bg-elevated text-text-primary'
+                  ? 'raised-control text-text-primary'
                   : 'text-text-body hover:text-text-primary'
               )}
             >
@@ -363,7 +367,7 @@ export function AssetsPanel() {
       <div ref={parentRef} className="flex-1 overflow-y-auto p-4">
         {filteredAssets.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center text-text-muted">
-            <div className="w-16 h-16 rounded-2xl bg-elevated border border-border flex items-center justify-center mb-4">
+            <div className="w-16 h-16 recessed-well flex items-center justify-center mb-4">
               <FolderPlus className="w-8 h-8" />
             </div>
             <p className="text-sm font-display">No assets yet</p>

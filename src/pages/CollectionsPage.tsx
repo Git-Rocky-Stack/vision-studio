@@ -63,7 +63,7 @@ export const CollectionsPage = memo(function CollectionsPage() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search collections..."
-            className="w-full rounded-md border border-border bg-surface pl-9 pr-3 py-2 type-body-sm text-text-primary placeholder:text-text-muted focus:border-accent-primary focus:outline-none focus:ring-1 focus:ring-accent-primary"
+            className="recessed-well w-full pl-9 pr-3 py-2 type-body-sm text-text-primary placeholder:text-text-muted focus:border-accent-primary focus:outline-none focus:ring-1 focus:ring-accent-primary"
             aria-label="Search collections"
           />
         </div>
