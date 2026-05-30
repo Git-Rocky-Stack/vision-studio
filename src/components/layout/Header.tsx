@@ -1,6 +1,8 @@
 import { memo } from 'react';
 import { useAppStore } from '@/store/appStore';
 import { ProjectDropdown } from './ProjectDropdown';
+import { Led } from '@/components/hardware';
+import type { LedColor } from '@/components/hardware';
 import logoUrl from '@/../public/s2.png';
 
 type HeaderStatusTone = 'success' | 'warning' | 'error' | 'accent';
@@ -13,18 +15,20 @@ interface HeaderStatusPresentation {
   ariaLabel: string;
 }
 
-const STATUS_TONE_CLASSES: Record<HeaderStatusTone, string> = {
-  success: 'border-status-success-border bg-status-success-muted text-status-success',
-  warning: 'border-status-warning-border bg-status-warning-muted text-status-warning',
-  error: 'border-status-error-border bg-status-error-muted text-status-error',
-  accent: 'border-accent-primary-border bg-accent-primary-muted text-accent-primary',
+// The backend-status pill is a carbon recessed-well instrument bay (see DESIGN.md
+// depth system); tone drives the phosphor text color and the LED indicator hue.
+const STATUS_TEXT_CLASSES: Record<HeaderStatusTone, string> = {
+  success: 'text-status-success',
+  warning: 'text-status-warning',
+  error: 'text-status-error',
+  accent: 'text-accent-primary',
 };
 
-const STATUS_DOT_CLASSES: Record<HeaderStatusTone, string> = {
-  success: 'bg-status-success',
-  warning: 'bg-status-warning',
-  error: 'bg-status-error',
-  accent: 'bg-accent-primary',
+const STATUS_LED: Record<HeaderStatusTone, LedColor> = {
+  success: 'play',
+  warning: 'cue',
+  error: 'rec',
+  accent: 'jog',
 };
 
 function formatCount(count: number, singular: string, plural = `${singular}s`) {
@@ -156,13 +160,12 @@ export const Header = memo(function Header() {
       <div className="app-region-no-drag relative z-10 ml-auto flex items-center gap-3" data-testid="header-right-actions">
         <div
           data-testid="header-backend-status"
-          className={`flex min-w-[176px] max-w-[260px] items-center gap-2 rounded-md border px-3 py-2 ${STATUS_TONE_CLASSES[backendStatus.tone]}`}
+          className={`recessed-well flex min-w-[176px] max-w-[260px] items-center gap-2 px-3 py-2 ${STATUS_TEXT_CLASSES[backendStatus.tone]}`}
           title={backendStatus.detail ? `${backendStatus.label}: ${backendStatus.detail}` : backendStatus.label}
         >
-          <span
-            className={`h-2 w-2 flex-none rounded-full shadow-[0_0_8px_currentColor] ${STATUS_DOT_CLASSES[backendStatus.tone]} ${backendStatus.pulse ? 'animate-pulse' : ''}`}
-            aria-label={backendStatus.ariaLabel}
-          />
+          {/* Decorative instrument LED; the a11y meaning lives on the sr-only status span. */}
+          <Led color={STATUS_LED[backendStatus.tone]} pulse={backendStatus.pulse} />
+          <span className="sr-only" role="status" aria-label={backendStatus.ariaLabel} />
           <span className="min-w-0 truncate type-ui select-none">{backendStatus.label}</span>
         </div>
 
