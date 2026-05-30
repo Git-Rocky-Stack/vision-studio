@@ -32,6 +32,9 @@ backend/venv/
 *.blockmap
 resources/VisionStudio-Backend.exe
 
+# Local runtime data (SQLite DB auto-created by backend migrations)
+backend/data/
+
 # Development artifacts
 output/
 scripts/Output/
@@ -60,3 +63,6 @@ worktrees/
 
 # Superpowers
 .superpowers/
+
+# Claude Code local config (never commit)
+.claude/
