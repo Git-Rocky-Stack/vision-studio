@@ -1,4 +1,4 @@
-# Vision Studio 🎨
+# Vision Studio
 
 [![PR Gate](https://github.com/Git-Rocky-Stack/vision-studio/actions/workflows/pr-gate.yml/badge.svg)](https://github.com/Git-Rocky-Stack/vision-studio/actions/workflows/pr-gate.yml)
 [![Release](https://github.com/Git-Rocky-Stack/vision-studio/actions/workflows/release.yml/badge.svg)](https://github.com/Git-Rocky-Stack/vision-studio/actions/workflows/release.yml)
@@ -7,16 +7,16 @@
 
 A professional AI-powered desktop application for image and video generation. No cloud required - everything runs locally on your machine.
 
-## ✨ Features
+## Features
 
-- **🎨 Image Generation** - FLUX.1, Stable Diffusion XL, SD 1.5
-- **🎬 Video Generation** - LTX Video, Stable Video Diffusion, AnimateDiff
-- **📦 Batch Processing** - Generate multiple images at once
-- **📋 Templates** - YouTube, TikTok, Instagram presets
-- **🖼️ Professional Editor** - Timeline, canvas, effects
-- **🔒 Privacy First** - Everything runs locally
+- **Image Generation** - FLUX.1, Stable Diffusion XL, SD 1.5
+- **Video Generation** - LTX Video, Stable Video Diffusion, AnimateDiff
+- **Batch Processing** - Generate multiple images at once
+- **Templates** - YouTube, TikTok, Instagram presets
+- **Professional Editor** - Timeline, canvas, effects
+- **Privacy First** - Everything runs locally
 
-## 🚀 Quick Start (End Users)
+## Quick Start (End Users)
 
 ### Option 1: Download Pre-built App (Easiest)
 
@@ -40,7 +40,7 @@ npm install
 npm run dev
 ```
 
-## 🛠️ Developer Setup
+## Developer Setup
 
 ### Prerequisites
 
@@ -95,11 +95,11 @@ COMFYUI_URL=http://127.0.0.1:8188
 ```
 3. Start ComfyUI, then run `npm run dev`
 
-## 📦 Bundling Python Backend
+## Bundling Python Backend
 
 We support multiple approaches for bundling the Python backend:
 
-### Full Bundle (PyInstaller) ⭐ Recommended
+### Full Bundle (PyInstaller) Recommended
 
 Everything included in one package:
 
@@ -127,7 +127,7 @@ npm run package
 
 See [BUNDLING.md](BUNDLING.md) for detailed documentation.
 
-## 📁 Project Structure
+## Project Structure
 
 ```
 vision-studio/
@@ -153,7 +153,7 @@ vision-studio/
 └── package.json
 ```
 
-## 🎨 Tech Stack
+## Tech Stack
 
 ### Frontend
 - **Electron 33** - Desktop shell
@@ -170,7 +170,7 @@ vision-studio/
 - **Diffusers** - HuggingFace pipelines
 - **WebSocket** - Real-time progress
 
-## 🖥️ System Requirements
+## System Requirements
 
 ### Minimum
 - Windows 10 / macOS 12 / Ubuntu 20.04
@@ -194,7 +194,7 @@ vision-studio/
 | GTX 1080 Ti | 11 GB | ⭐⭐ Fair |
 | CPU Only | - | ⭐ Slow |
 
-## 🔌 API
+## API
 
 The Python backend exposes a REST API on `http://localhost:8000`:
 
@@ -215,7 +215,7 @@ GET /api/jobs/{job_id}
 ws://localhost:8000/ws
 ```
 
-## 🔧 Troubleshooting
+## Troubleshooting
 
 ### "Backend not found"
 - Make sure Python backend is built: `npm run build:backend`
@@ -236,7 +236,7 @@ ws://localhost:8000/ws
 - Verify HuggingFace token in `.env` (for FLUX)
 - Try manual download
 
-## 🧪 Testing
+## Testing
 
 ```bash
 # Unit + component + integration tests (Vitest)
@@ -268,7 +268,7 @@ cd backend && python -m unittest discover -s tests -v
 | E2E | Playwright | 3 | 13 |
 | Backend | unittest | 7 | 35 (28 + 7 skipped) |
 
-## 📚 Documentation
+## Documentation
 
 Full technical documentation lives in [`docs/`](docs/). Start with the index:
 
@@ -287,7 +287,7 @@ The running backend also serves a live, fully introspectable spec at:
 - **ReDoc** — `http://127.0.0.1:8000/api/redoc`
 - **Raw JSON** — `http://127.0.0.1:8000/api/openapi.json`
 
-## 🤝 Contributing
+## Contributing
 
 Contributions welcome! See [CONTRIBUTING.md](CONTRIBUTING.md)
 
@@ -305,11 +305,11 @@ git push origin feature/amazing-feature
 # Open Pull Request
 ```
 
-## 📜 License
+## License
 
 MIT License - see [LICENSE](LICENSE)
 
-## 🙏 Acknowledgments
+## Acknowledgments
 
 - [Black Forest Labs](https://blackforestlabs.ai/) - FLUX models
 - [Stability AI](https://stability.ai/) - Stable Diffusion
@@ -318,6 +318,6 @@ MIT License - see [LICENSE](LICENSE)
 
 ---
 
-**Star ⭐ this repo if you find it useful!**
+**Star this repo if you find it useful!**
 
 Built with ❤️ for creators who want AI without the cloud.
