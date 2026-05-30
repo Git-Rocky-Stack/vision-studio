@@ -241,7 +241,7 @@ Enable auto-updates with electron-updater:
   "build": {
     "publish": {
       "provider": "github",
-      "owner": "yourusername",
+      "owner": "Git-Rocky-Stack",
       "repo": "vision-studio"
     }
   }

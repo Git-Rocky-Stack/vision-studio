@@ -80,7 +80,7 @@ To fix permanently: Right-click → Properties → Unblock
 
 ## 📞 Support
 
-- GitHub: https://github.com/yourusername/vision-studio
+- GitHub: https://github.com/Git-Rocky-Stack/vision-studio
 - Documentation: See README.md in the repository
 
 ## 📄 License
