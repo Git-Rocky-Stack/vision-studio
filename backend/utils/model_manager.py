@@ -3,6 +3,7 @@ Model Manager - Download and manage AI models
 """
 
 import asyncio
+import json
 import os
 import shutil
 import tempfile
@@ -39,146 +40,55 @@ class ModelInfo:
         return asdict(self)
 
 
-# Predefined models
-PREDEFINED_MODELS = {
-    # FLUX Models
-    "flux-dev": ModelInfo(
-        id="flux-dev",
-        name="FLUX.1 [dev]",
-        type="checkpoint",
-        source="huggingface",
-        repo_id="black-forest-labs/FLUX.1-dev",
-        filename="flux1-dev.safetensors",
-        size="23.8 GB",
-        description="State-of-the-art image generation model by Black Forest Labs"
-    ),
-    "flux-schnell": ModelInfo(
-        id="flux-schnell",
-        name="FLUX.1 [schnell]",
-        type="checkpoint",
-        source="huggingface",
-        repo_id="black-forest-labs/FLUX.1-schnell",
-        filename="flux1-schnell.safetensors",
-        size="23.8 GB",
-        description="Fast 4-step image generation model"
-    ),
-    "flux-fill": ModelInfo(
-        id="flux-fill",
-        name="FLUX.1 Fill [dev]",
-        type="checkpoint",
-        source="huggingface",
-        repo_id="black-forest-labs/FLUX.1-Fill-dev",
-        filename="flux1-fill-dev.safetensors",
-        size="23.8 GB",
-        description="Inpainting and outpainting model by Black Forest Labs"
-    ),
+# Path: backend/utils/model_manager.py -> backend/foundry/verified-catalog.json
+_CATALOG_PATH = Path(__file__).resolve().parents[1] / "foundry" / "verified-catalog.json"
 
-    # SD3.5 Models
-    "sd3.5-large": ModelInfo(
-        id="sd3.5-large",
-        name="Stable Diffusion 3.5 Large",
-        type="diffusers",
-        source="huggingface",
-        repo_id="stabilityai/stable-diffusion-3.5-large",
-        size="~16 GB",
-        description="Modern MM-DiT architecture with superior composition and typography"
-    ),
-    "sd3.5-medium": ModelInfo(
-        id="sd3.5-medium",
-        name="Stable Diffusion 3.5 Medium",
-        type="diffusers",
-        source="huggingface",
-        repo_id="stabilityai/stable-diffusion-3.5-medium",
-        size="~5.5 GB",
-        description="Strong prompt understanding and versatile output with low VRAM"
-    ),
-
-    # Legacy SDXL Models (kept for backwards compatibility)
-    "sdxl-base": ModelInfo(
-        id="sdxl-base",
-        name="Stable Diffusion XL Base",
-        type="checkpoint",
-        source="huggingface",
-        repo_id="stabilityai/stable-diffusion-xl-base-1.0",
-        filename="sd_xl_base_1.0.safetensors",
-        size="6.9 GB",
-        description="High-resolution image generation by Stability AI"
-    ),
-    "sdxl-refiner": ModelInfo(
-        id="sdxl-refiner",
-        name="Stable Diffusion XL Refiner",
-        type="checkpoint",
-        source="huggingface",
-        repo_id="stabilityai/stable-diffusion-xl-refiner-1.0",
-        filename="sd_xl_refiner_1.0.safetensors",
-        size="6.1 GB",
-        description="Detail refinement for SDXL by Stability AI"
-    ),
-    
-    # SD 1.5 Models
-    "sd-1-5": ModelInfo(
-        id="sd-1-5",
-        name="Stable Diffusion 1.5",
-        type="checkpoint",
-        source="huggingface",
-        repo_id="runwayml/stable-diffusion-v1-5",
-        filename="v1-5-pruned-emaonly.safetensors",
-        size="4.3 GB",
-        description="Original Stable Diffusion 1.5 by RunwayML"
-    ),
-    
-    # Video Models
-    "svd": ModelInfo(
-        id="svd",
-        name="Stable Video Diffusion",
-        type="diffusers",
-        source="huggingface",
-        repo_id="stabilityai/stable-video-diffusion-img2vid-xt",
-        size="9.6 GB",
-        description="Image-to-video generation by Stability AI"
-    ),
-    "ltx-video": ModelInfo(
-        id="ltx-video",
-        name="LTX Video",
-        type="diffusers",
-        source="huggingface",
-        repo_id="Lightricks/LTX-Video",
-        size="9.4 GB",
-        description="High-quality text-to-video model by Lightricks"
-    ),
-    "animatediff": ModelInfo(
-        id="animatediff",
-        name="AnimateDiff",
-        type="diffusers",
-        source="huggingface",
-        repo_id="runwayml/stable-diffusion-v1-5",
-        aux_repo_id="guoyww/animatediff-motion-adapter-v1-5-2",
-        size="1.6 GB",
-        description="Animation motion module for Stable Diffusion"
-    ),
-    
-    # VAE Models
-    "sdxl-vae": ModelInfo(
-        id="sdxl-vae",
-        name="SDXL VAE",
-        type="vae",
-        source="huggingface",
-        repo_id="madebyollin/sdxl-vae-fp16-fix",
-        filename="sdxl.vae.safetensors",
-        size="335 MB",
-        description="FP16 fixed VAE for SDXL"
-    ),
-    "sd-vae-ft-mse": ModelInfo(
-        id="sd-vae-ft-mse",
-        name="SD VAE FT MSE",
-        type="vae",
-        source="huggingface",
-        repo_id="stabilityai/sd-vae-ft-mse",
-        filename="diffusion_pytorch_model.safetensors",
-        size="335 MB",
-        description="Fine-tuned VAE with MSE loss"
-    )
+# Foundry artifact_type -> ModelManager's legacy type vocabulary.
+_ARTIFACT_TYPE_TO_LEGACY = {
+    "checkpoint": "checkpoint",
+    "diffusers-pipeline": "diffusers",
+    "motion-adapter": "diffusers",
+    "lora": "lora",
+    "vae": "vae",
+    "controlnet": "controlnet",
+    "embedding": "embedding",
 }
+
+# Single-file artifacts that download via hf_hub_download need a filename.
+_SINGLE_FILE_FILENAMES = {
+    "flux-dev": "flux1-dev.safetensors",
+    "flux-schnell": "flux1-schnell.safetensors",
+    "flux-fill": "flux1-fill-dev.safetensors",
+    "sdxl-base": "sd_xl_base_1.0.safetensors",
+    "sdxl-refiner": "sd_xl_refiner_1.0.safetensors",
+    "sd-1-5": "v1-5-pruned-emaonly.safetensors",
+    "sdxl-vae": "sdxl.vae.safetensors",
+    "sd-vae-ft-mse": "diffusion_pytorch_model.safetensors",
+}
+
+
+def _load_predefined_models() -> Dict[str, ModelInfo]:
+    with open(_CATALOG_PATH, "r", encoding="utf-8") as handle:
+        catalog = json.load(handle)
+
+    models: Dict[str, ModelInfo] = {}
+    for model_id, entry in catalog.items():
+        legacy_type = _ARTIFACT_TYPE_TO_LEGACY.get(entry["artifact_type"], "checkpoint")
+        models[model_id] = ModelInfo(
+            id=entry["id"],
+            name=entry["name"],
+            type=legacy_type,
+            source=entry["source"],
+            repo_id=entry.get("repo_id"),
+            aux_repo_id=entry.get("aux_repo_id"),
+            filename=_SINGLE_FILE_FILENAMES.get(model_id),
+            size=entry.get("size", "Unknown"),
+            description=entry.get("description", ""),
+        )
+    return models
+
+
+PREDEFINED_MODELS: Dict[str, ModelInfo] = _load_predefined_models()
 
 
 class ModelManager:
