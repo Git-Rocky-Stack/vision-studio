@@ -1,6 +1,10 @@
 import { cn } from '@/utils/cn';
 import { motion } from 'framer-motion';
 
+// Instrument UI labels are Mono UPPERCASE. Applied inline because the app's
+// global resets neutralize the Tailwind `uppercase` / `tracking-*` utilities.
+const LABEL_STYLE: React.CSSProperties = { textTransform: 'uppercase', letterSpacing: '0.5px' };
+
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: 'primary' | 'secondary' | 'ghost' | 'danger' | 'cinema';
   size?: 'sm' | 'md' | 'lg';
@@ -19,10 +23,11 @@ export function Button({
   isLoading,
   fullWidth,
   className,
+  style,
   disabled,
   ...props
 }: ButtonProps) {
-  const baseStyles = 'inline-flex items-center justify-center font-display font-medium transition-all duration-200 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary focus-visible:ring-offset-2 focus-visible:ring-offset-void disabled:opacity-40 disabled:cursor-not-allowed';
+  const baseStyles = 'inline-flex items-center justify-center font-mono font-medium transition-all duration-200 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary focus-visible:ring-offset-2 focus-visible:ring-offset-void disabled:opacity-40 disabled:cursor-not-allowed';
 
   const variants = {
     // Primary + cinema render as polished chrome metal caps - the website's
@@ -31,7 +36,7 @@ export function Button({
     // .btn-chrome paints the cap, .vx-btn-chrome drives the hover/press
     // envelope, and .btn-chrome-cinema adds the hero breathing glow.
     primary: 'btn-chrome vx-btn-chrome bg-accent-primary text-void',
-    secondary: 'bg-elevated text-text-body border border-border hover:border-border-hover hover:bg-panel-raised hover:text-text-primary',
+    secondary: 'raised-control vx-switch text-text-body hover:text-text-primary',
     ghost: 'text-text-body hover:text-text-primary hover:bg-elevated',
     danger: 'bg-red-primary/10 text-red-primary border border-red-primary/30 hover:bg-red-primary/20',
     cinema: 'btn-chrome vx-btn-chrome btn-chrome-cinema bg-accent-primary text-void',
@@ -64,6 +69,7 @@ export function Button({
         fullWidth && 'w-full',
         className
       )}
+      style={{ ...LABEL_STYLE, ...style }}
       disabled={disabled || isLoading}
       {...props}
     >

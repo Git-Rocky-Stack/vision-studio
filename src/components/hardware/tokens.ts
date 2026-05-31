@@ -30,9 +30,13 @@ export const CAP_VARS = {
 export type LedColor = keyof typeof LED_VARS;
 export type CapabilityColor = keyof typeof CAP_VARS;
 
-/** Resolve any LED or capability key to its CSS color variable. */
-export function resolveHardwareColor(color: LedColor | CapabilityColor): string {
-  return color in LED_VARS
-    ? LED_VARS[color as LedColor]
-    : CAP_VARS[color as CapabilityColor];
+/**
+ * Resolve an LED or capability key to its CSS color variable. Any other string
+ * (a raw CSS color or `var(--color-category-*)`) passes through unchanged, so
+ * category/feature hues can drive a pinpoint LED without leaving the LED idiom.
+ */
+export function resolveHardwareColor(color: LedColor | CapabilityColor | (string & {})): string {
+  if (color in LED_VARS) return LED_VARS[color as LedColor];
+  if (color in CAP_VARS) return CAP_VARS[color as CapabilityColor];
+  return color;
 }

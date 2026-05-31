@@ -3,6 +3,11 @@ import { useAppStore } from '@/store/appStore';
 import { useShallow } from 'zustand/react/shallow';
 import { cn } from '@/utils/cn';
 import { ChevronDown, FolderOpen, Plus } from 'lucide-react';
+import { Led } from '@/components/hardware';
+
+// Open-state trigger cap: chrome edge-ring + glow (DESIGN.md §depth system).
+const OPEN_RING_SHADOW =
+  'inset 0 1px 0 rgba(255,255,255,0.12), inset 0 -1px 0 rgba(0,0,0,0.6), 0 0 0 1px var(--color-chrome-edge), 0 0 10px rgba(230,230,230,0.18), 0 4px 8px rgba(0,0,0,0.5)';
 
 export const ProjectDropdown = memo(function ProjectDropdown() {
   const {
@@ -70,14 +75,13 @@ export const ProjectDropdown = memo(function ProjectDropdown() {
         aria-haspopup="listbox"
         aria-label="Select project"
         className={cn(
-          'flex items-center gap-2 px-3 py-1.5 rounded-md',
-          'bg-elevated border border-border',
-          'type-ui text-text-primary',
+          'flex items-center gap-2 px-3 py-1.5 rounded-md raised-control vx-switch',
+          'type-ui',
           'transition-all duration-200',
-          'hover:border-accent-primary-border hover:bg-surface',
           'focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary',
-          isOpen && 'border-accent-primary-border bg-accent-primary-muted'
+          isOpen ? 'text-accent-primary' : 'text-text-primary'
         )}
+        style={isOpen ? { boxShadow: OPEN_RING_SHADOW } : undefined}
       >
         <FolderOpen className="w-4 h-4 text-accent-primary" aria-hidden="true" />
         <span className="truncate max-w-[160px]">
@@ -99,10 +103,10 @@ export const ProjectDropdown = memo(function ProjectDropdown() {
           aria-label="Project list"
           className={cn(
             'absolute top-full left-0 mt-1 w-64 z-dropdown',
-            'bg-elevated border border-border rounded-md shadow-xl',
-            'overflow-hidden',
+            'raised-panel overflow-hidden',
             'animate-in fade-in slide-in-from-top-1 duration-150'
           )}
+          style={{ borderRadius: 'var(--radius-overlay)' }}
         >
           {/* Project list */}
           <div className="max-h-[240px] overflow-y-auto">
@@ -142,7 +146,7 @@ export const ProjectDropdown = memo(function ProjectDropdown() {
                     </div>
                   </div>
                   {project.id === activeProjectId && (
-                    <div className="w-2 h-2 rounded-full bg-accent-primary flex-shrink-0" aria-hidden="true" />
+                    <Led color="var(--color-accent-primary)" className="flex-shrink-0" />
                   )}
                 </button>
               ))

@@ -2,8 +2,11 @@ import type { CSSProperties } from 'react';
 import { resolveHardwareColor, type LedColor, type CapabilityColor } from './tokens';
 
 interface LedProps {
-  /** LED semantic (rec/cue/play/jog/fx/time) or capability (image/video/edit/local/cloud). */
-  color: LedColor | CapabilityColor;
+  /**
+   * LED semantic (rec/cue/play/jog/fx/time), capability
+   * (image/video/edit/local/cloud), or a raw CSS color/var for category hues.
+   */
+  color: LedColor | CapabilityColor | (string & {});
   /** Diameter in px. */
   size?: number;
   /** Breathing pulse animation (collapses under prefers-reduced-motion). */

@@ -1,6 +1,7 @@
 import { memo, useCallback } from 'react';
 import { useAppStore } from '@/store/appStore';
 import { cn } from '@/utils/cn';
+import { MonoLabel } from '@/components/hardware';
 import { GeneratePanel } from '@/pages/GeneratePanel';
 import { QuickGeneratePanel } from '@/pages/QuickGeneratePanel';
 import { BatchPanel } from '@/pages/BatchPanel';
@@ -59,7 +60,7 @@ interface SegmentedControlProps {
 function SegmentedControl({ options, value, onChange }: SegmentedControlProps) {
   return (
     <div
-      className="flex gap-0.5 rounded-md border border-border bg-surface p-0.5"
+      className="recessed-well flex gap-0.5 p-0.5"
       role="tablist"
       id="settings-segmented-control"
       aria-label="Settings sub-mode"
@@ -74,13 +75,13 @@ function SegmentedControl({ options, value, onChange }: SegmentedControlProps) {
             aria-selected={isActive}
             onClick={() => onChange(option.value)}
             className={cn(
-              'flex-1 rounded-sm px-2.5 py-1.5 text-center type-ui transition-colors',
+              'flex-1 rounded-md px-2.5 py-1.5 text-center transition-all',
               isActive
-                ? 'bg-elevated text-text-primary shadow-sm'
-                : 'text-text-body hover:bg-elevated hover:text-text-primary'
+                ? 'raised-control text-accent-primary'
+                : 'text-text-body hover:text-text-primary'
             )}
           >
-            {option.label}
+            <MonoLabel tone={isActive ? 'chrome' : 'silver'}>{option.label}</MonoLabel>
           </button>
         );
       })}

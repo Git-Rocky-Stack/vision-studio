@@ -5,6 +5,7 @@ import { useShallow } from 'zustand/react/shallow';
 import type { Project, Scene } from '@/types/project';
 import type { ReferenceSet } from '@/types/media';
 import { ImageWithFallback } from '@/components/ui/ImageWithFallback';
+import { Button } from '@/components/ui/Button';
 import { cn } from '@/utils/cn';
 
 const boardDateFormatter = new Intl.DateTimeFormat('en-US', {
@@ -67,27 +68,18 @@ export function WorkbenchBoardsDock() {
   if (projects.length === 0) {
     return (
       <div className="flex h-full items-center p-4">
-        <div className="w-full rounded-2xl border border-dashed border-border bg-[linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.01))] px-5 py-8 text-center shadow-cinematic">
-          <h3 className="type-section">Boards keep approved ideas together.</h3>
+        <div className="recessed-well w-full px-5 py-8 text-center">
+          <h3 className="type-section text-text-primary">Boards keep approved ideas together.</h3>
           <p className="mt-2 text-xs text-text-muted">
             Create a board, then pull in scenes from Generate and Viewer as you refine the story.
           </p>
           <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
-            <button
-              type="button"
-              onClick={handleCreateBoard}
-              className="inline-flex items-center gap-2 rounded-md border border-accent-primary-border bg-accent-primary-muted px-3 py-2 type-ui text-accent-primary transition-all hover:bg-elevated"
-            >
-              <Plus className="h-3.5 w-3.5" aria-hidden="true" />
+            <Button variant="primary" size="sm" icon={Plus} onClick={handleCreateBoard}>
               New Board
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab('generate')}
-              className="inline-flex items-center rounded-md border border-border px-3 py-2 type-ui text-text-body transition-all hover:border-border-hover hover:bg-elevated hover:text-text-primary"
-            >
+            </Button>
+            <Button variant="secondary" size="sm" onClick={() => setActiveTab('generate')}>
               Open Generate
-            </button>
+            </Button>
           </div>
         </div>
       </div>
@@ -103,30 +95,15 @@ export function WorkbenchBoardsDock() {
           </p>
         </div>
         <div className="flex items-center gap-1.5">
-          <button
-            type="button"
-            onClick={handleOpenStoryboard}
-            disabled={!activeProjectId}
-            className="inline-flex items-center rounded-md border border-border px-2.5 py-1.5 type-ui text-text-body transition-all hover:border-border-hover hover:bg-elevated hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-40"
-          >
+          <Button variant="secondary" size="sm" onClick={handleOpenStoryboard} disabled={!activeProjectId}>
             Open Storyboard
-          </button>
-          <button
-            type="button"
-            onClick={handleAddScene}
-            disabled={!activeProject}
-            className="inline-flex items-center rounded-md border border-border px-2.5 py-1.5 type-ui text-text-body transition-all hover:border-border-hover hover:bg-elevated hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-40"
-          >
+          </Button>
+          <Button variant="secondary" size="sm" onClick={handleAddScene} disabled={!activeProject}>
             Add Scene
-          </button>
-          <button
-            type="button"
-            onClick={handleCreateBoard}
-            className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 type-ui text-text-body transition-all hover:border-border-hover hover:bg-elevated hover:text-text-primary"
-          >
-            <Plus className="h-3.5 w-3.5" aria-hidden="true" />
+          </Button>
+          <Button variant="secondary" size="sm" icon={Plus} onClick={handleCreateBoard}>
             New Board
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -141,10 +118,10 @@ export function WorkbenchBoardsDock() {
                   type="button"
                   onClick={() => setActiveProject(project.id)}
                   className={cn(
-                    'rounded-md border px-3 py-2 text-left transition-all',
+                    'rounded-md px-3 py-2 text-left transition-all',
                     isActive
-                      ? 'border-accent-primary-border bg-accent-primary-muted'
-                      : 'border-transparent hover:border-border-hover hover:bg-elevated'
+                      ? 'raised-control text-text-primary'
+                      : 'border border-transparent hover:border-border-hover hover:bg-elevated'
                   )}
                 >
                   <span className="block truncate type-ui text-text-primary">
@@ -177,7 +154,7 @@ export function WorkbenchBoardsDock() {
                               className={cn(
                                 'flex min-w-0 items-center gap-2 rounded-md border px-2.5 py-1.5 text-left type-ui transition-all',
                                 isSceneActive
-                                  ? 'border-accent-primary-border bg-accent-primary-muted text-accent-primary'
+                                  ? 'border-accent-primary-border bg-elevated text-accent-primary'
                                   : 'border-transparent text-text-body hover:border-border-hover hover:bg-elevated hover:text-text-primary'
                               )}
                             >

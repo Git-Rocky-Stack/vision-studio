@@ -133,8 +133,11 @@ export function Slider({
         onPointerUp={handlePointerUp}
         onKeyDown={handleKeyDown}
       >
-        {/* Background track */}
-        <div className="absolute inset-x-0 h-1 rounded-full bg-void border border-border" />
+        {/* Background track - recessed rail */}
+        <div
+          className="absolute inset-x-0 h-1 rounded-full bg-void border border-border"
+          style={{ boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.85)' }}
+        />
 
         {/* Filled portion */}
         <div

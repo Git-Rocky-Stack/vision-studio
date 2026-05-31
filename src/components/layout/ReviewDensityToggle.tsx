@@ -1,5 +1,6 @@
 import type { ReviewDensity } from '@/store/layoutPreferences';
 import { cn } from '@/utils/cn';
+import { MonoLabel } from '@/components/hardware';
 
 const densityOptions: { id: ReviewDensity; label: string }[] = [
   { id: 'comfortable', label: 'Comfortable' },
@@ -19,7 +20,7 @@ export function ReviewDensityToggle({
     <div
       role="group"
       aria-label="Review density"
-      className="inline-flex rounded-md border border-border bg-elevated p-1"
+      className="recessed-well inline-flex gap-1 p-1"
     >
       {densityOptions.map((option) => {
         const isActive = density === option.id;
@@ -31,13 +32,13 @@ export function ReviewDensityToggle({
             aria-pressed={isActive}
             onClick={() => onChange(option.id)}
             className={cn(
-              'rounded px-2.5 py-1.5 type-ui transition-all',
+              'rounded-md px-2.5 py-1 transition-all',
               isActive
-                ? 'bg-accent-primary-muted text-accent-primary'
-                : 'text-text-body hover:bg-surface hover:text-text-primary',
+                ? 'raised-control text-accent-primary'
+                : 'text-text-body hover:text-text-primary',
             )}
           >
-            {option.label}
+            <MonoLabel tone={isActive ? 'chrome' : 'silver'}>{option.label}</MonoLabel>
           </button>
         );
       })}

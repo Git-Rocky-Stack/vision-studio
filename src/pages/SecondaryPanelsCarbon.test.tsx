@@ -155,8 +155,13 @@ describe('Carbon Pro secondary panels', () => {
   it('renders Templates idle controls with accent selection and no legacy primary red', () => {
     const { container } = render(<TemplatesPanel />);
 
-    expect(screen.getByPlaceholderText('Search templates...')).toHaveClass('focus:border-accent-primary');
-    expect(screen.getByRole('button', { name: /All Templates/i })).toHaveClass('bg-accent-primary-muted');
+    // Search now lives in a recessed slot with a chrome focus-within ring on the
+    // wrapper; the input itself is borderless. Assert it renders.
+    expect(screen.getByPlaceholderText('Search templates...')).toBeInTheDocument();
+    // The active category renders as a selected pad (chrome ring via aria-pressed),
+    // never a legacy red primary fill.
+    const allTemplates = screen.getByRole('button', { name: /All Templates/i });
+    expect(allTemplates).toHaveAttribute('aria-pressed', 'true');
     expect(container.querySelector(legacyPrimarySelector)).not.toBeInTheDocument();
   });
 

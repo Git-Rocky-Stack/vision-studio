@@ -9,6 +9,8 @@ export { MonoLabel } from './MonoLabel';
 export { HexBolt, HexBoltSet, HEX_BOLT_INSET } from './HexBolt';
 export { Faceplate } from './Faceplate';
 export { ChromeButton } from './ChromeButton';
+export { RecessedWell } from './RecessedWell';
+export { PadButton } from './PadButton';
 export {
   LED_VARS,
   CAP_VARS,

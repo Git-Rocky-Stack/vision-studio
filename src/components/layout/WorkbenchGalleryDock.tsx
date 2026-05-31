@@ -4,6 +4,7 @@ import { ImageIcon } from 'lucide-react';
 import { useAppStore } from '@/store/appStore';
 import { useShallow } from 'zustand/react/shallow';
 import { MediaPreview } from '@/components/ui/MediaPreview';
+import { Button } from '@/components/ui/Button';
 import { cn } from '@/utils/cn';
 import { ReviewDensityToggle } from './ReviewDensityToggle';
 
@@ -77,29 +78,24 @@ export function WorkbenchGalleryDock() {
     <div className="flex h-full min-h-0 flex-col bg-surface">
       {items.length === 0 ? (
         <div className="flex flex-1 items-center p-4">
-          <div className="w-full rounded-2xl border border-dashed border-border bg-[linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.01))] px-5 py-8 text-center shadow-cinematic">
-            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl border border-border bg-elevated text-text-muted">
+          <div className="recessed-well w-full px-5 py-8 text-center">
+            <div
+              className="raised-control mx-auto flex h-12 w-12 items-center justify-center text-text-muted"
+              style={{ borderRadius: 'var(--radius-control)' }}
+            >
               <ImageIcon className="h-5 w-5" />
             </div>
-            <p className="mt-4 type-section">Review captures will appear here.</p>
+            <p className="mt-4 type-section text-text-primary">Review captures will appear here.</p>
             <p className="mx-auto mt-2 max-w-60 text-xs text-text-muted">
               Generate a result or open Assets to start a tighter review loop.
             </p>
             <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
-              <button
-                type="button"
-                onClick={() => setActiveTab('generate')}
-                className="inline-flex items-center rounded-md border border-accent-primary-border bg-accent-primary-muted px-3 py-2 type-ui text-accent-primary transition-all hover:bg-elevated"
-              >
+              <Button variant="primary" size="sm" onClick={() => setActiveTab('generate')}>
                 Open Generate
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveTab('assets')}
-                className="inline-flex items-center rounded-md border border-border px-3 py-2 type-ui text-text-body transition-all hover:border-border-hover hover:bg-elevated hover:text-text-primary"
-              >
+              </Button>
+              <Button variant="secondary" size="sm" onClick={() => setActiveTab('assets')}>
                 Open Assets
-              </button>
+              </Button>
             </div>
           </div>
         </div>
@@ -135,8 +131,7 @@ export function WorkbenchGalleryDock() {
                   setCenterView('viewer');
                 }}
                 className={cn(
-                  'min-w-0 overflow-hidden border bg-elevated text-left transition-all',
-                  isCompact ? 'rounded-lg' : 'rounded-xl',
+                  'min-w-0 overflow-hidden rounded-sm border bg-elevated text-left transition-all',
                   activeViewerItemId === item.id
                     ? 'border-accent-primary-border ring-1 ring-accent-primary-border'
                     : 'border-border hover:border-border-hover',

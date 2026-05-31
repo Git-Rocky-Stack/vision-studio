@@ -3,13 +3,19 @@ import { useShallow } from 'zustand/react/shallow';
 import { useAppStore, PROJECT_TEMPLATES } from '@/store/appStore';
 import type { ProjectTemplate } from '@/types/template';
 import { cn } from '@/utils/cn';
-import { hexToRgba } from '@/utils/colorUtils';
-import { Button } from '@/components/ui/Button';
 import { TemplatePreviewModal } from '@/components/templates/TemplatePreviewModal';
 import { TemplateCreator } from '@/components/templates/TemplateCreator';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import {
-  Sparkles,
+  Faceplate,
+  RecessedWell,
+  PadButton,
+  MonoLabel,
+  Led,
+  Lcd,
+  ChromeButton,
+} from '@/components/hardware';
+import {
   Youtube,
   Instagram,
   ShoppingBag,
@@ -34,6 +40,7 @@ const categoryLabels: Record<string, string> = {
   art: 'Art & Creative',
 };
 
+/** Category accent hue (CSS var). Drives a pinpoint LED + selected ring only - never a fill. */
 const categoryColors: Record<string, string> = {
   youtube: 'var(--color-category-youtube)',
   social: 'var(--color-category-social)',
@@ -143,195 +150,175 @@ export function TemplatesPanel() {
   const CATEGORY_TABS: { id: string; label: string; icon?: React.ElementType }[] = [
     { id: 'all', label: 'All Templates' },
     { id: 'youtube', label: 'YouTube', icon: Youtube },
-    { id: 'social', label: 'Social Media', icon: Instagram },
+    { id: 'social', label: 'Social', icon: Instagram },
     { id: 'marketing', label: 'Marketing', icon: ShoppingBag },
     { id: 'art', label: 'Art & Creative', icon: Palette },
     { id: 'mine', label: 'My Templates', icon: User },
   ];
 
   return (
-    <div className="h-full flex flex-col bg-void" data-testid="templates-panel">
+    <div
+      className="h-full flex flex-col bg-void"
+      data-testid="templates-panel"
+      style={{ padding: 'var(--space-3)', gap: 'var(--space-3)' }}
+    >
       <h1 className="sr-only">Templates</h1>
-      {/* Top Bar */}
-      <div className="px-6 pt-6 pb-4 border-b border-border bg-surface/50">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <div className="flex items-center gap-2 mb-1">
-              <Sparkles className="w-5 h-5 text-accent-primary" />
-              <h2 className="font-display text-xl font-bold text-text-primary">
-                Project Templates
-              </h2>
-            </div>
-            <p className="text-sm text-text-body">
-              Jumpstart your creation with optimized presets
-            </p>
-          </div>
-          <Button
-            variant="cinema"
-            size="sm"
-            icon={Plus}
+
+      {/* ── Control deck faceplate ─────────────────────────────────── */}
+      <Faceplate
+        kicker="MOD - TEMPLATES - 01"
+        serial="S/N - VX-TPL-0001"
+        stateLed="play"
+        stateLabel="READY"
+        bodyPadding={16}
+        className="flex-shrink-0"
+      >
+        {/* Title row */}
+        <div className="flex items-center justify-between gap-3 mb-2">
+          <Lcd color="play" size="lg">{sortedTemplates.length} LOADED</Lcd>
+          <ChromeButton
             onClick={() => {
               setEditingTemplate(null);
               setShowCreator(true);
             }}
+            style={{ padding: '10px 18px', fontSize: 12 }}
           >
+            <Plus className="w-3.5 h-3.5" />
             Create Template
-          </Button>
+          </ChromeButton>
         </div>
+        <p className="text-sm text-text-body mb-4">
+          Jumpstart your creation with optimized presets
+        </p>
 
         {/* Search + Sort + View */}
         <div className="flex items-center gap-3 mb-4">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
+          <RecessedWell padding={0} className="flex-1 flex items-center focus-within:ring-1 focus-within:ring-accent-primary">
+            <Search className="ml-3 w-4 h-4 text-text-muted flex-shrink-0" />
             <input
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search templates..."
-              className="w-full bg-elevated border border-border rounded-md pl-10 pr-4 py-3 text-sm text-text-primary placeholder:text-text-muted focus:border-accent-primary focus:ring-1 focus:ring-accent-primary/40 transition-all"
+              className="w-full bg-transparent border-0 outline-none px-3 py-2.5 text-sm text-text-primary placeholder:text-text-muted font-mono"
             />
-          </div>
+          </RecessedWell>
 
           <div className="relative">
             <select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value as SortBy)}
-              className="appearance-none bg-elevated border border-border rounded-md pl-3 pr-8 py-3 text-xs font-display text-text-primary focus:border-accent-primary transition-all cursor-pointer"
+              className="raised-control appearance-none pl-3 pr-8 py-2.5 data-mono text-text-primary cursor-pointer"
+              style={{ borderRadius: 'var(--radius-control)' }}
+              aria-label="Sort templates"
             >
-              <option value="popular">Popular</option>
-              <option value="newest">Newest</option>
+              <option value="popular">POPULAR</option>
+              <option value="newest">NEWEST</option>
               <option value="alpha">A-Z</option>
             </select>
             <ArrowUpDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-text-muted pointer-events-none" />
           </div>
 
-          <div className="recessed-well flex items-center rounded-lg p-0.5">
-            <button
+          <RecessedWell padding={2} className="flex items-center gap-0.5">
+            <PadButton
+              size="sm"
+              selected={viewMode === 'cards'}
               onClick={() => setViewMode('cards')}
-              aria-pressed={viewMode === 'cards'}
-              className={cn(
-                'p-2 rounded-md transition-all',
-                viewMode === 'cards'
-                  ? 'raised-control text-accent-primary'
-                  : 'text-text-muted hover:text-text-primary'
-              )}
+              aria-label="Card view"
             >
               <Grid3X3 className="w-3.5 h-3.5" />
-            </button>
-            <button
+            </PadButton>
+            <PadButton
+              size="sm"
+              selected={viewMode === 'compact'}
               onClick={() => setViewMode('compact')}
-              aria-pressed={viewMode === 'compact'}
-              className={cn(
-                'p-2 rounded-md transition-all',
-                viewMode === 'compact'
-                  ? 'raised-control text-accent-primary'
-                  : 'text-text-muted hover:text-text-primary'
-              )}
+              aria-label="Compact view"
             >
               <List className="w-3.5 h-3.5" />
-            </button>
-          </div>
+            </PadButton>
+          </RecessedWell>
         </div>
 
-        {/* Category Tabs */}
+        {/* Category pad bank */}
         <div className="flex flex-wrap gap-2">
           {CATEGORY_TABS.map((tab) => {
             const Icon = tab.icon;
             const color = categoryColors[tab.id];
             const isActive = selectedCategory === tab.id;
-            const count =
-              tab.id === 'mine'
-                ? userTemplates.length
-                : undefined;
+            const count = tab.id === 'mine' ? userTemplates.length : undefined;
 
             return (
-              <button
+              <PadButton
                 key={tab.id}
+                selected={isActive}
+                accent={color}
+                led={isActive && color ? color : undefined}
                 onClick={() => setSelectedCategory(tab.id)}
                 aria-selected={isActive}
-                className={cn(
-                  'flex items-center gap-2 px-3 py-2 rounded-md text-sm font-display font-medium transition-all',
-                  isActive && !color && 'bg-accent-primary-muted text-accent-primary border border-accent-primary-border shadow-accent-subtle',
-                  isActive && color && 'text-text-primary',
-                  !isActive && 'bg-elevated text-text-body hover:text-text-primary hover:bg-surface'
-                )}
-                style={
-                  isActive && color
-                    ? {
-                        backgroundColor: hexToRgba(color, 0.09),
-                        color: color,
-                        boxShadow: `0 0 8px ${hexToRgba(color, 0.15)}`,
-                      }
-                    : undefined
-                }
               >
                 {Icon && <Icon className="w-3.5 h-3.5" />}
                 {tab.label}
                 {count !== undefined && count > 0 && (
-                  <span className="ml-1 px-1.5 py-0.5 rounded-full bg-void/30 text-micro font-mono">
-                    {count}
-                  </span>
+                  <span className="data-mono text-text-muted">{count}</span>
                 )}
-              </button>
+              </PadButton>
             );
           })}
         </div>
 
-        {/* Import button for My Templates */}
+        {/* Import for My Templates */}
         {selectedCategory === 'mine' && (
           <div className="mt-3">
             <button
               onClick={handleImportTemplate}
-              className="flex items-center gap-2 text-xs font-display text-text-body hover:text-accent-primary transition-all"
+              className="inline-flex items-center gap-2 mono-label text-text-body hover:text-accent-primary transition-colors"
             >
               <Upload className="w-3.5 h-3.5" />
               Import Template (.vst)
             </button>
           </div>
         )}
-      </div>
+      </Faceplate>
 
-      {/* Templates Grid */}
-      <div className="flex-1 overflow-y-auto p-6 scrollbar-hide">
+      {/* ── Template grid bay (recessed) ───────────────────────────── */}
+      <RecessedWell padding={16} className="flex-1 min-h-0 overflow-y-auto scrollbar-hide">
         {sortedTemplates.length === 0 ? (
-          /* Empty State */
-          <div className="flex flex-col items-center justify-center py-16 text-text-muted">
-            <Sparkles className="w-12 h-12 mb-4 opacity-20" />
-            <p className="font-display text-sm text-text-primary">
-              {selectedCategory === 'mine'
-                ? 'No custom templates yet'
-                : 'No templates found'}
-            </p>
-            <p className="text-xs text-text-muted mt-1 mb-4">
+          /* Empty state */
+          <div className="h-full flex flex-col items-center justify-center text-center gap-3 py-16">
+            <Led color="cue" size={10} pulse />
+            <MonoLabel tone="silver" style={{ fontSize: 13 }}>
+              {selectedCategory === 'mine' ? 'No custom templates yet' : 'No templates found'}
+            </MonoLabel>
+            <p className="text-xs text-text-muted max-w-xs">
               {selectedCategory === 'mine'
                 ? 'Create your first custom template to get started'
                 : 'Try a different search or category'}
             </p>
             {selectedCategory === 'mine' && (
-              <Button
-                variant="primary"
-                size="sm"
-                icon={Plus}
+              <ChromeButton
                 onClick={() => {
                   setEditingTemplate(null);
                   setShowCreator(true);
                 }}
+                style={{ padding: '10px 18px', fontSize: 12, marginTop: 8 }}
               >
+                <Plus className="w-3.5 h-3.5" />
                 Create Template
-              </Button>
+              </ChromeButton>
             )}
           </div>
         ) : viewMode === 'compact' ? (
-          /* Compact List View */
-          <div className="space-y-2">
+          /* Compact list view */
+          <div className="flex flex-col gap-2">
             {sortedTemplates.map((template, index) => {
-              const color = categoryColors[template.category] || 'var(--color-category-youtube)';
+              const color = categoryColors[template.category] || 'var(--color-accent-primary)';
               return (
                 <motion.div
                   key={template.id}
-                  initial={{ opacity: 0, y: 8 }}
+                  initial={{ opacity: 0, y: 6 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: index * 0.03 }}
-                  className="flex items-center gap-4 p-3 rounded-lg border border-border bg-elevated/50 hover:border-border-hover hover:bg-elevated transition-all cursor-pointer group"
+                  transition={{ delay: index * 0.02 }}
+                  className="raised-control vx-model-card flex items-center gap-4 px-3 py-2.5 cursor-pointer group"
+                  style={{ borderRadius: 'var(--radius-control)' }}
                   onPointerDown={() => setPreviewTemplate(template)}
                   role="article"
                   tabIndex={0}
@@ -342,101 +329,67 @@ export function TemplatesPanel() {
                     }
                   }}
                 >
-                  <div
-                    className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 text-lg"
-                    style={{
-                      background: `linear-gradient(135deg, ${hexToRgba(color, 0.08)}, ${hexToRgba(color, 0.02)})`,
-                      border: `1px solid ${hexToRgba(color, 0.13)}`,
-                    }}
-                  >
-                    {template.thumbnail}
-                  </div>
+                  <ThumbWell template={template} color={color} size={36} />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      <h3 className="font-display font-medium text-sm text-text-primary">
+                      <h3 className="font-display font-medium text-sm text-text-primary truncate">
                         {template.name}
                       </h3>
-                      <span
-                        className="px-1.5 py-0.5 rounded-full text-micro font-display font-medium uppercase tracking-wide"
-                        style={{
-                          backgroundColor: hexToRgba(color, 0.08),
-                          color: color,
-                        }}
-                      >
-                        {categoryLabels[template.category] || template.category}
+                      <span className="inline-flex items-center gap-1.5 flex-shrink-0">
+                        <Led color={color} size={6} />
+                        <MonoLabel tone="muted">
+                          {categoryLabels[template.category] || template.category}
+                        </MonoLabel>
                       </span>
-                      {template.isCustom && (
-                        <span className="px-1.5 py-0.5 rounded-full text-micro font-display font-medium uppercase tracking-wide bg-elevated text-text-muted">
-                          Custom
-                        </span>
-                      )}
+                      {template.isCustom && <MonoLabel tone="muted">Custom</MonoLabel>}
                     </div>
-                    <div className="flex items-center gap-2 mt-0.5">
-                      <span className="font-mono text-micro text-text-muted">
-                        {template.settings.width}x{template.settings.height}
-                      </span>
-                      <span className="font-mono text-micro text-text-muted">
-                        {template.settings.model}
-                      </span>
-                      <span className="font-mono text-micro text-text-muted">
-                        {template.settings.steps} steps
-                      </span>
+                    <div className="flex items-center gap-3 mt-1 data-mono text-text-muted">
+                      <span>{template.settings.width}x{template.settings.height}</span>
+                      <span>{template.settings.model}</span>
+                      <span>{template.settings.steps} steps</span>
                     </div>
                   </div>
-                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
                     {template.isCustom && (
                       <>
-                        <button
-                          onClick={(e) => { e.stopPropagation(); handleExportTemplate(template); }}
-                          className="p-2 rounded-lg text-text-muted hover:text-text-primary hover:bg-surface transition-all"
-                        >
+                        <IconButton title="Export" onClick={(e) => { e.stopPropagation(); handleExportTemplate(template); }}>
                           <Download className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          onClick={(e) => { e.stopPropagation(); setDeleteTargetId(template.id); }}
-                          className="p-2 rounded-md text-text-muted hover:text-status-error hover:bg-status-error-muted transition-all"
-                        >
+                        </IconButton>
+                        <IconButton title="Delete" danger onClick={(e) => { e.stopPropagation(); setDeleteTargetId(template.id); }}>
                           <Trash2 className="w-3.5 h-3.5" />
-                        </button>
+                        </IconButton>
                       </>
                     )}
-                    <Button
-                      variant="primary"
-                      size="sm"
-                      icon={ArrowRight}
-                      iconPosition="right"
+                    <ChromeButton
                       onClick={(e) => { e.stopPropagation(); handleUseTemplate(template); }}
+                      style={{ padding: '7px 12px', fontSize: 11 }}
                     >
                       Use
-                    </Button>
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </ChromeButton>
                   </div>
                 </motion.div>
               );
             })}
           </div>
         ) : (
-          /* Card Grid View */
-          <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
+          /* Card grid view - container-responsive columns (dock panes are narrow
+             regardless of viewport width, so viewport breakpoints are wrong here) */
+          <div
+            className="grid gap-4"
+            style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))' }}
+          >
             {sortedTemplates.map((template, index) => {
-              const color = categoryColors[template.category] || 'var(--color-category-youtube)';
+              const color = categoryColors[template.category] || 'var(--color-accent-primary)';
               const isHovered = hoveredTemplate === template.id;
               return (
                 <motion.div
                   key={template.id}
-                  initial={{ opacity: 0, y: 10 }}
+                  initial={{ opacity: 0, y: 8 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: index * 0.05 }}
-                  className={cn(
-                    'group relative p-5 rounded-md border transition-all cursor-pointer',
-                    isHovered
-                      ? 'border-border-hover bg-elevated'
-                      : 'border-border bg-elevated/50 hover:border-border-hover'
-                  )}
-                  style={
-                    isHovered
-                      ? { boxShadow: `0 0 20px ${color}10, 0 4px 12px rgba(0,0,0,0.3)` }
-                      : undefined
-                  }
+                  transition={{ delay: index * 0.04 }}
+                  className="raised-control vx-model-card group relative p-4 cursor-pointer"
+                  style={{ borderRadius: 'var(--radius-card)' }}
                   onMouseEnter={() => setHoveredTemplate(template.id)}
                   onMouseLeave={() => setHoveredTemplate(null)}
                   onPointerDown={() => setPreviewTemplate(template)}
@@ -449,123 +402,63 @@ export function TemplatesPanel() {
                     }
                   }}
                 >
-                  {/* Category color accent */}
-                  <div
-                    className="absolute top-0 left-5 right-5 h-px"
-                    style={{
-                      background: isHovered
-                        ? `linear-gradient(90deg, transparent, ${color}60, transparent)`
-                        : 'transparent',
-                    }}
-                  />
-
                   <div className="flex items-start gap-4">
-                    {/* Thumbnail */}
-                    <div
-                      className="w-14 h-14 rounded-xl flex items-center justify-center flex-shrink-0 text-2xl"
-                      style={{
-                        background: `linear-gradient(135deg, ${hexToRgba(color, 0.08)}, ${hexToRgba(color, 0.02)})`,
-                        border: `1px solid ${hexToRgba(color, 0.13)}`,
-                      }}
-                    >
-                      {template.thumbnail}
-                    </div>
-
-                    {/* Content */}
+                    <ThumbWell template={template} color={color} size={56} />
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <h3 className="font-display font-semibold text-text-primary">
-                          {template.name}
-                        </h3>
-                        <span
-                          className="px-2 py-0.5 rounded-full text-micro font-display font-medium uppercase tracking-wide"
-                          style={{
-                            backgroundColor: hexToRgba(color, 0.08),
-                            color: color,
-                          }}
-                        >
+                      <h3 className="font-display font-semibold text-text-primary truncate">
+                        {template.name}
+                      </h3>
+                      <span className="inline-flex items-center gap-1.5 mt-1">
+                        <Led color={color} size={6} />
+                        <MonoLabel tone="muted">
                           {categoryLabels[template.category] || template.category}
-                        </span>
-                      </div>
-
-                      <p className="text-sm text-text-body mb-3 line-clamp-2">
+                        </MonoLabel>
+                      </span>
+                      <p className="text-sm text-text-body mt-2 line-clamp-2">
                         {template.description}
                       </p>
-
-                      {/* Settings Preview */}
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="font-mono text-micro px-2 py-0.5 bg-surface rounded text-text-muted">
-                          {template.settings.width}x{template.settings.height}
-                        </span>
-                        <span className="font-mono text-micro px-2 py-0.5 bg-surface rounded text-text-muted">
-                          {template.settings.model}
-                        </span>
-                        <span className="font-mono text-micro px-2 py-0.5 bg-surface rounded text-text-muted">
-                          {template.settings.steps} steps
-                        </span>
-                      </div>
                     </div>
                   </div>
 
-                  {/* Actions (visible on hover) */}
+                  {/* Spec strip */}
+                  <RecessedWell padding={8} className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-1">
+                    <SpecCell label="DIMS" value={`${template.settings.width}x${template.settings.height}`} />
+                    <SpecCell label="MODEL" value={template.settings.model} />
+                    <SpecCell label="STEPS" value={String(template.settings.steps)} />
+                  </RecessedWell>
+
+                  {/* Actions */}
                   <div
                     className={cn(
-                      'mt-4 flex gap-2 transition-all',
+                      'mt-3 flex items-center gap-2 transition-opacity',
                       isHovered ? 'opacity-100' : 'opacity-0'
                     )}
                   >
                     {template.isCustom && (
-                      <div className="flex gap-1">
-                        <button
-                          onClick={(e) => { e.stopPropagation(); handleExportTemplate(template); }}
-                          className="p-2 rounded-lg text-text-muted hover:text-text-primary hover:bg-surface transition-all"
-                          title="Export"
-                        >
+                      <>
+                        <IconButton title="Export" onClick={(e) => { e.stopPropagation(); handleExportTemplate(template); }}>
                           <Download className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          onClick={(e) => { e.stopPropagation(); setDeleteTargetId(template.id); }}
-                          className="p-2 rounded-md text-text-muted hover:text-status-error hover:bg-status-error-muted transition-all"
-                          title="Delete"
-                        >
+                        </IconButton>
+                        <IconButton title="Delete" danger onClick={(e) => { e.stopPropagation(); setDeleteTargetId(template.id); }}>
                           <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
+                        </IconButton>
+                      </>
                     )}
                     <div className="flex-1" />
-                    <Button
-                      variant="primary"
-                      size="sm"
-                      icon={ArrowRight}
-                      iconPosition="right"
+                    <ChromeButton
                       onClick={(e) => { e.stopPropagation(); handleUseTemplate(template); }}
+                      style={{ padding: '8px 14px', fontSize: 11 }}
                     >
                       Use Template
-                    </Button>
-                  </div>
-
-                  {/* Aspect ratio ghost */}
-                  <div className="absolute top-5 right-5 opacity-5 pointer-events-none">
-                    <div
-                      className="border-2 border-text-primary rounded"
-                      style={{
-                        width:
-                          template.settings.width > template.settings.height
-                            ? '60px'
-                            : '36px',
-                        height:
-                          template.settings.width > template.settings.height
-                            ? '36px'
-                            : '60px',
-                      }}
-                    />
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </ChromeButton>
                   </div>
                 </motion.div>
               );
             })}
           </div>
         )}
-      </div>
+      </RecessedWell>
 
       {/* Modals */}
       <AnimatePresence>
@@ -608,5 +501,61 @@ export function TemplatesPanel() {
         onCancel={() => setDeleteTargetId(null)}
       />
     </div>
+  );
+}
+
+/** Recessed CRT thumbnail viewport: template short-code in mono + a category LED. */
+function ThumbWell({ template, color, size }: { template: ProjectTemplate; color: string; size: number }) {
+  return (
+    <RecessedWell
+      padding={0}
+      className="relative flex items-center justify-center flex-shrink-0"
+      style={{ width: size, height: size }}
+    >
+      <span
+        className="data-mono"
+        style={{ color: 'var(--color-silver)', fontSize: Math.max(10, size / 4.5) }}
+      >
+        {template.thumbnail}
+      </span>
+      <Led color={color} size={5} style={{ position: 'absolute', top: 4, right: 4 }} />
+    </RecessedWell>
+  );
+}
+
+/** A single MONO spec cell: label + value, label muted, value silver. */
+function SpecCell({ label, value }: { label: string; value: string }) {
+  return (
+    <span className="inline-flex items-baseline gap-1.5 min-w-0">
+      <MonoLabel tone="muted" style={{ fontSize: 9 }}>{label}</MonoLabel>
+      <span className="data-mono text-text-body truncate">{value}</span>
+    </span>
+  );
+}
+
+/** Small raised icon control for row/card actions. */
+function IconButton({
+  children,
+  title,
+  danger,
+  onClick,
+}: {
+  children: React.ReactNode;
+  title: string;
+  danger?: boolean;
+  onClick: (e: React.MouseEvent) => void;
+}) {
+  return (
+    <button
+      title={title}
+      onClick={onClick}
+      className={cn(
+        'raised-control vx-switch p-2 text-text-muted transition-colors',
+        danger ? 'hover:text-status-error' : 'hover:text-text-primary'
+      )}
+      style={{ borderRadius: 'var(--radius-control)' }}
+    >
+      {children}
+    </button>
   );
 }

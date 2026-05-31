@@ -18,8 +18,13 @@ import { TimelinePlaybackPreview } from '@/components/timeline/TimelinePlaybackP
 import { IterationViewSelector } from '@/components/iteration/IterationViewSelector';
 import { IterationWorkspacePanel } from '@/components/iteration/IterationWorkspacePanel';
 import { getLayoutPreset } from '@/components/layout/layoutPresets';
+import { MonoLabel } from '@/components/hardware';
 import { cn } from '@/utils/cn';
 import type { CenterView } from '@/types/navigation';
+
+// Selected deck-tab cap: chrome edge-ring + machined depth (DESIGN.md §depth system).
+const CENTER_TAB_ACTIVE_SHADOW =
+  'inset 0 1px 0 rgba(255,255,255,0.12), inset 0 -1px 0 rgba(0,0,0,0.6), 0 0 0 1px var(--color-chrome-edge), 0 3px 6px rgba(0,0,0,0.5)';
 import {
   LEFT_DOCK_DEFAULT_WIDTH,
   LEFT_DOCK_MAX_WIDTH,
@@ -391,13 +396,14 @@ export const DockviewLayout = memo(function DockviewLayout() {
                     data-testid={`center-tab-${tab.id}`}
                     onClick={() => handleCenterTabClick(tab.id)}
                     className={cn(
-                      'rounded-sm px-2.5 py-1.5 type-ui transition-colors',
+                      'rounded-md px-3 py-1.5 transition-all duration-150',
                       centerView === tab.id
-                        ? 'bg-elevated text-text-primary shadow-sm'
-                        : 'text-text-body hover:bg-elevated hover:text-text-primary',
+                        ? 'raised-control vx-pad text-accent-primary'
+                        : 'text-text-body hover:bg-elevated/60 hover:text-text-primary',
                     )}
+                    style={centerView === tab.id ? { boxShadow: CENTER_TAB_ACTIVE_SHADOW } : undefined}
                   >
-                    {tab.label}
+                    <MonoLabel>{tab.label}</MonoLabel>
                   </button>
                 ))}
               </div>
