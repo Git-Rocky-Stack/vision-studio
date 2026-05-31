@@ -31,7 +31,7 @@ import {
   Download,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChromeButton } from '@/components/hardware';
+import { ChromeButton, Led } from '@/components/hardware';
 import { resolveStoredAssetPath } from '@/features/assets/assetRecords';
 
 interface BatchPrompt {
@@ -470,7 +470,7 @@ export function BatchPromptQueue() {
         {/* View / Sort row */}
         <div className="flex items-center gap-2">
           {/* View mode toggle */}
-          <div className="flex items-center bg-elevated rounded-lg border border-border p-0.5">
+          <div className="recessed-well flex items-center p-0.5">
             {VIEW_MODE_OPTIONS.map((opt) => {
               const Icon = opt.icon;
               return (
@@ -497,7 +497,7 @@ export function BatchPromptQueue() {
             <select
               value={batchSortBy}
               onChange={(e) => setBatchSortBy(e.target.value as SortBy)}
-              className="bg-elevated border border-border rounded-md px-2 py-1 text-xs font-display text-text-primary focus:border-accent-primary focus:ring-1 focus:ring-accent-primary/40 transition-all"
+              className="bg-elevated border border-border rounded-md px-2 py-1 text-xs text-text-primary focus:border-accent-primary focus:ring-1 focus:ring-accent-primary/40 transition-all"
             >
               {SORT_OPTIONS.map((opt) => (
                 <option key={opt.value} value={opt.value}>
@@ -515,7 +515,7 @@ export function BatchPromptQueue() {
               key={opt.value}
               onClick={() => setBatchFilterBy(opt.value)}
               className={cn(
-                'px-2.5 py-1 rounded-lg text-xs font-display transition-all',
+                'px-2.5 py-1 rounded-md text-xs transition-all',
                 batchFilterBy === opt.value
                   ? 'bg-accent-primary-muted text-accent-primary border border-accent-primary-border'
                   : 'bg-elevated text-text-body border border-border hover:border-border-hover hover:text-text-primary'
@@ -528,14 +528,14 @@ export function BatchPromptQueue() {
 
         {/* Bulk actions */}
         <div className="flex items-center gap-2">
-          <span className="text-xs text-text-muted font-display">
+          <span className="text-xs text-text-muted">
             {batchResults.length} result{batchResults.length !== 1 ? 's' : ''}
           </span>
           <div className="flex-1" />
           <button
             onClick={handleBulkExportAll}
             disabled={batchResults.length === 0}
-            className="flex items-center gap-2 px-2.5 py-1 rounded-lg text-xs font-display text-text-body hover:text-text-primary hover:bg-elevated transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+            className="flex items-center gap-2 px-2.5 py-1 rounded-md text-xs text-text-body hover:text-text-primary hover:bg-elevated transition-all disabled:opacity-30 disabled:cursor-not-allowed"
           >
             <Download className="w-3.5 h-3.5" />
             Export All
@@ -543,7 +543,7 @@ export function BatchPromptQueue() {
           <button
             onClick={() => setShowDeleteConfirm(true)}
             disabled={batchResults.length === 0}
-            className="flex items-center gap-2 px-2.5 py-1 rounded-md text-xs font-display text-status-error hover:bg-status-error-muted transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+            className="flex items-center gap-2 px-2.5 py-1 rounded-md text-xs text-status-error hover:bg-status-error-muted transition-all disabled:opacity-30 disabled:cursor-not-allowed"
           >
             <Trash2 className="w-3.5 h-3.5" />
             Delete All
@@ -557,7 +557,7 @@ export function BatchPromptQueue() {
           <div className="raised-control flex h-8 w-8 flex-shrink-0 items-center justify-center text-accent-primary">
             <Layers className="w-4 h-4" />
           </div>
-          <h2 className="font-display text-lg font-semibold text-text-primary">
+          <h2 className="type-section text-text-primary">
             Batch Generation
           </h2>
         </div>
@@ -569,15 +569,16 @@ export function BatchPromptQueue() {
       {(openRouterImageEnabled || batchNotice) && (
         <div className="space-y-3 border-b border-border px-4 py-3">
           {openRouterImageEnabled && (
-            <div className="rounded-lg border border-accent-primary-border bg-accent-primary-muted/40 px-4 py-3">
+            <div className="recessed-well px-4 py-3">
               <div className="flex items-start gap-3">
-                <div className="mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-md border border-accent-primary-border bg-surface text-accent-primary">
+                <div className="raised-control mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center text-accent-primary">
                   <Cloud className="h-4 w-4" aria-hidden="true" />
                 </div>
                 <div className="min-w-0">
-                  <p className="text-sm font-display font-medium text-text-primary">
-                    OpenRouter Batch Route
-                  </p>
+                  <div className="flex items-center gap-2">
+                    <Led color="play" size={7} />
+                    <p className="type-section text-text-primary">OpenRouter Batch Route</p>
+                  </div>
                   <p className="mt-1 text-xs text-text-body">
                     Account: {activeAccount?.name ?? 'No active account'}.
                     {' '}Model: {openRouterImageModel || 'Not set in Settings'}.
@@ -613,10 +614,10 @@ export function BatchPromptQueue() {
       {isGenerating && (
         <div className="px-4 py-3 border-b border-border bg-elevated">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-sm text-text-body font-display" aria-live="polite">
+            <span className="text-sm text-text-body" aria-live="polite">
               Progress: {completedCount} / {prompts.length}
             </span>
-            <span className="font-mono text-sm text-accent-primary" aria-live="polite">
+            <span className="type-meta text-accent-primary" aria-live="polite">
               {Math.round(progress)}%
             </span>
           </div>
@@ -651,7 +652,7 @@ export function BatchPromptQueue() {
                 animate={{ opacity: 1, height: 'auto' }}
                 exit={{ opacity: 0, height: 0 }}
                 className={cn(
-                  'relative p-3 rounded-lg border transition-all',
+                  'relative p-3 rounded-md border transition-all',
                   prompt.status === 'generating' &&
                     'border-status-warning-border bg-status-warning-muted',
                   prompt.status === 'completed' &&
@@ -665,7 +666,7 @@ export function BatchPromptQueue() {
                   {/* Drag handle */}
                   <div className="flex flex-col items-center gap-1 pt-2">
                     <GripVertical className="w-3.5 h-3.5 text-text-muted cursor-grab" />
-                    <span className="font-mono text-micro text-text-muted">
+                    <span className="type-meta text-text-muted">
                       {index + 1}
                     </span>
                   </div>
@@ -678,7 +679,7 @@ export function BatchPromptQueue() {
                       placeholder="Enter prompt..."
                       disabled={isGenerating}
                       rows={2}
-                      className="w-full bg-surface border border-border rounded-md px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent-primary focus:ring-1 focus:ring-accent-primary/40 resize-none disabled:opacity-50"
+                      className="recessed-well w-full resize-none px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent-primary focus:ring-1 focus:ring-accent-primary/40 disabled:opacity-50"
                     />
                   </div>
 
@@ -736,13 +737,13 @@ export function BatchPromptQueue() {
           onClick={() => setShowSettings(!showSettings)}
           aria-expanded={showSettings}
           aria-controls="batch-settings-panel"
-          className="w-full flex items-center justify-between p-4 text-sm text-text-body hover:text-text-primary transition-all font-display"
+          className="w-full flex items-center justify-between p-4 text-sm text-text-body hover:text-text-primary transition-all"
         >
           <span className="flex items-center gap-2">
             <Sparkles className="w-4 h-4" />
             Generation Settings
           </span>
-          <span className="font-mono text-xs text-text-muted">
+          <span className="type-meta text-text-muted">
             {width}x{height} - {steps} steps
           </span>
         </button>
@@ -765,7 +766,7 @@ export function BatchPromptQueue() {
                     <select
                       value={width}
                       onChange={(e) => setWidth(Number(e.target.value))}
-                      className="w-full bg-elevated border border-border rounded-lg px-3 py-2 text-sm text-text-primary font-mono"
+                      className="w-full rounded-md border border-border bg-elevated px-3 py-2 text-sm text-text-primary"
                     >
                       <option value={512}>512px</option>
                       <option value={768}>768px</option>
@@ -781,7 +782,7 @@ export function BatchPromptQueue() {
                     <select
                       value={height}
                       onChange={(e) => setHeight(Number(e.target.value))}
-                      className="w-full bg-elevated border border-border rounded-lg px-3 py-2 text-sm text-text-primary font-mono"
+                      className="w-full rounded-md border border-border bg-elevated px-3 py-2 text-sm text-text-primary"
                     >
                       <option value={512}>512px</option>
                       <option value={768}>768px</option>
@@ -805,15 +806,16 @@ export function BatchPromptQueue() {
                   </div>
 
                   {openRouterImageEnabled ? (
-                    <div className="rounded-lg border border-accent-primary-border bg-accent-primary-muted/40 px-4 py-3">
+                    <div className="recessed-well px-4 py-3">
                       <div className="flex items-start gap-3">
-                        <div className="mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-md border border-accent-primary-border bg-surface text-accent-primary">
+                        <div className="raised-control mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center text-accent-primary">
                           <Cloud className="h-4 w-4" aria-hidden="true" />
                         </div>
                         <div className="min-w-0">
-                          <p className="text-sm font-display font-medium text-text-primary">
-                            OpenRouter Hosted Model
-                          </p>
+                          <div className="flex items-center gap-2">
+                            <Led color="play" size={7} />
+                            <p className="type-section text-text-primary">OpenRouter Hosted Model</p>
+                          </div>
                           <p className="mt-1 text-xs text-text-body">
                             {openRouterImageModel || 'Select an OpenRouter still-image model in Settings.'}
                           </p>
@@ -850,7 +852,7 @@ export function BatchPromptQueue() {
                         <select
                           value={model}
                           onChange={(e) => setModel(e.target.value)}
-                          className="w-full bg-elevated border border-border rounded-lg px-3 py-2 text-sm text-text-primary font-display"
+                          className="w-full rounded-md border border-border bg-elevated px-3 py-2 text-sm text-text-primary"
                         >
                           <option value="flux-dev">FLUX.1 [dev]</option>
                           <option value="sd3.5-large">Stable Diffusion 3.5 Large</option>
