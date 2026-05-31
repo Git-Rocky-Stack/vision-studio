@@ -78,23 +78,18 @@ export const ToolStrip = memo(function ToolStrip() {
                   aria-pressed={isActive}
                   aria-describedby={`tooltip-${tool.id}`}
                   className={cn(
-                    'w-10 h-10 flex items-center justify-center rounded-lg transition-all group relative',
+                    'w-10 h-10 flex items-center justify-center rounded-md transition-all group relative',
                     isActive
-                      ? 'bg-red-aura text-red-primary'
+                      ? 'bg-accent-primary-muted text-accent-primary'
                       : 'text-text-body hover:text-text-primary hover:bg-elevated'
                   )}
                 >
-                  <Icon
-                    className={cn(
-                      'w-4 h-4',
-                      isActive && 'drop-shadow-red-icon'
-                    )}
-                  />
+                  <Icon className="w-4 h-4" />
                   {/* Tooltip */}
-                  <div id={`tooltip-${tool.id}`} role="tooltip" className="absolute left-full ml-2 px-2.5 py-1.5 bg-elevated border border-border rounded-lg text-xs text-text-primary opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 pointer-events-none whitespace-nowrap z-50 shadow-cinematic font-display">
+                  <div id={`tooltip-${tool.id}`} role="tooltip" className="absolute left-full ml-2 px-2.5 py-1.5 bg-elevated border border-border rounded-md text-xs text-text-primary opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 pointer-events-none whitespace-nowrap z-50 shadow-cinematic">
                     {tool.label}
                     {tool.shortcut && (
-                      <span className="ml-2 text-text-muted font-mono">{tool.shortcut}</span>
+                      <span className="ml-2 text-text-muted data-mono">{tool.shortcut}</span>
                     )}
                   </div>
                 </button>

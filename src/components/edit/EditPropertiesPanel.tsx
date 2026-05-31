@@ -369,7 +369,7 @@ export function EditPropertiesPanel() {
           <button
             disabled={undoCount === 0}
             className={cn(
-              'relative p-2 rounded-lg transition-all',
+              'relative p-2 rounded-md transition-all',
               undoCount > 0
                 ? 'text-text-body hover:text-text-primary hover:bg-surface'
                 : 'text-text-muted/40 cursor-not-allowed'
@@ -379,14 +379,14 @@ export function EditPropertiesPanel() {
           >
             <Undo2 className="w-4 h-4" />
             {undoCount > 0 && (
-              <span className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-red-primary text-text-primary type-badge flex items-center justify-center">
+              <span className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-accent-primary text-void type-badge flex items-center justify-center">
                 {Math.min(undoCount, 99)}
               </span>
             )}
           </button>
           <button
             disabled
-            className="p-2 rounded-lg text-text-muted/40 cursor-not-allowed"
+            className="p-2 rounded-md text-text-muted/40 cursor-not-allowed"
             title="Redo"
             aria-label="Redo"
           >
@@ -396,13 +396,13 @@ export function EditPropertiesPanel() {
 
         <div className="flex items-center gap-1">
           <button
-            className="p-2 rounded-lg text-text-body hover:text-text-primary hover:bg-surface transition-all"
+            className="p-2 rounded-md text-text-body hover:text-text-primary hover:bg-surface transition-all"
             title="Before/After"
           >
             <SplitSquareHorizontal className="w-4 h-4" />
           </button>
           <button
-            className="p-2 rounded-lg text-text-body hover:text-text-primary hover:bg-surface transition-all"
+            className="p-2 rounded-md text-text-body hover:text-text-primary hover:bg-surface transition-all"
             title="History"
           >
             <History className="w-4 h-4" />
@@ -425,9 +425,9 @@ export function EditPropertiesPanel() {
                 aria-controls={`tabpanel-${tab.id}`}
                 onClick={() => setActiveTab(tab.id)}
                 className={cn(
-                  'flex-1 flex flex-col items-center gap-1 py-2 rounded-lg transition-all type-caption',
+                  'flex-1 flex flex-col items-center gap-1 py-2 rounded-md transition-all type-caption',
                   isActive
-                    ? 'bg-red-aura text-red-primary'
+                    ? 'bg-accent-primary-muted text-accent-primary'
                     : 'text-text-body hover:text-text-primary hover:bg-elevated'
                 )}
               >
@@ -531,7 +531,7 @@ export function EditPropertiesPanel() {
                       className="flex items-center gap-2 w-full text-left mb-3"
                       aria-expanded={isExpanded}
                     >
-                      <Icon className="w-3.5 h-3.5 text-red-primary" />
+                      <Icon className="w-3.5 h-3.5 text-accent-primary" />
                       <span className="text-label text-text-primary">{group.title}</span>
                     </button>
                     <AnimatePresence>
@@ -677,7 +677,7 @@ export function EditPropertiesPanel() {
                       type="button"
                       onClick={() => handleCreateCanvasControlLayer('controlnet')}
                       disabled={!activeSceneId}
-                      className="inline-flex items-center justify-center gap-2 rounded-lg bg-red-primary px-4 py-2 text-white type-ui transition-colors hover:bg-red-highlight disabled:cursor-not-allowed disabled:opacity-40"
+                      className="btn-chrome vx-btn-chrome inline-flex items-center justify-center gap-2 px-4 py-2 type-ui transition-colors disabled:cursor-not-allowed disabled:opacity-40"
                     >
                       <GitBranch className="h-4 w-4" />
                       Add ControlNet Layer
@@ -686,7 +686,7 @@ export function EditPropertiesPanel() {
                       type="button"
                       onClick={() => handleCreateCanvasControlLayer('reference-image')}
                       disabled={!activeSceneId}
-                      className="inline-flex items-center justify-center gap-2 rounded-lg border border-border bg-surface px-4 py-2 text-text-primary type-ui transition-colors hover:bg-elevated disabled:cursor-not-allowed disabled:opacity-40"
+                      className="inline-flex items-center justify-center gap-2 rounded-md border border-border bg-surface px-4 py-2 text-text-primary type-ui transition-colors hover:bg-elevated disabled:cursor-not-allowed disabled:opacity-40"
                     >
                       <ImageIcon className="h-4 w-4" />
                       Add Reference Layer
@@ -695,7 +695,7 @@ export function EditPropertiesPanel() {
                       type="button"
                       onClick={() => handleCreateCanvasControlLayer('inpaint-mask')}
                       disabled={!activeSceneId}
-                      className="inline-flex items-center justify-center gap-2 rounded-lg border border-border bg-surface px-4 py-2 text-text-primary type-ui transition-colors hover:bg-elevated disabled:cursor-not-allowed disabled:opacity-40"
+                      className="inline-flex items-center justify-center gap-2 rounded-md border border-border bg-surface px-4 py-2 text-text-primary type-ui transition-colors hover:bg-elevated disabled:cursor-not-allowed disabled:opacity-40"
                     >
                       <PaintBucket className="h-4 w-4" />
                       Add Inpaint Mask
@@ -757,7 +757,7 @@ export function EditPropertiesPanel() {
                       setActiveRegionId(lock.id);
                       setActiveMaskTool('rectangle');
                     }}
-                    className="px-4 py-2 rounded-lg bg-red-primary text-white type-ui hover:bg-red-highlight active:bg-red-pressed transition-colors disabled:opacity-40 disabled:cursor-not-allowed focus:outline-none focus-visible:ring-2 focus-visible:ring-red-primary"
+                    className="btn-chrome vx-btn-chrome px-4 py-2 type-ui transition-colors disabled:opacity-40 disabled:cursor-not-allowed focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary"
                   >
                     Create Region Lock
                   </button>
