@@ -66,6 +66,8 @@ from utils.prompt_service import enhance_prompt
 from api.controlnet import router as controlnet_router
 from db.migrate import run_migrations
 from middleware.rate_limit import limiter, rate_limit_exceeded_handler
+from foundry.registry import ModelRegistry
+from foundry.schemas import ModelRecordSchema
 
 # Initialize logging at module load time
 setup_logging(log_file=os.getenv("LOG_FILE"))
@@ -101,6 +103,8 @@ run_migrations(DATABASE_PATH)
 # Global instances
 job_manager = JobManager()
 model_manager = ModelManager(MODELS_DIR)
+_CATALOG_PATH = os.path.join(os.path.dirname(__file__), "foundry", "verified-catalog.json")
+model_registry = ModelRegistry(models_dir=MODELS_DIR, catalog_path=_CATALOG_PATH)
 comfy_client: Optional[ComfyUIClient] = None
 direct_generator: Optional[DirectGenerator] = None
 direct_video_generator: Optional[DirectVideoGenerator] = None
@@ -1400,37 +1404,21 @@ async def list_jobs(request: Request, status: Optional[str] = None, limit: int =
 
 # ============= Model Management =============
 
-@app.get("/api/models", response_model=List[ModelInfo], tags=["Models"])
+@app.get("/api/models", response_model=List[ModelRecordSchema], tags=["Models"])
 @limiter.limit("60/minute")
 async def list_models(request: Request):
-    """
-    List all available AI models.
+    """List every model in the Foundry registry as ModelRecords."""
+    return model_registry.list_records()
 
-    Returns a list of models that are installed or available for download.
 
-    ### Response Fields
-    - `id`: Unique model identifier (used in generation requests)
-    - `name`: Human-readable model name
-    - `type`: Model type (image, video, lora, controlnet)
-    - `size`: Model size in human-readable format (e.g., "5.2 GB")
-    - `status`: Installation status (installed, available, downloading)
-    - `description`: Model description and capabilities
-
-    ### Example Response
-    ```json
-    [
-      {
-        "id": "flux-dev",
-        "name": "FLUX.1 [dev]",
-        "type": "image",
-        "size": "12.0 GB",
-        "status": "installed",
-        "description": "High-quality text-to-image model"
-      }
-    ]
-    ```
-    """
-    return model_manager.get_model_list()
+@app.get("/api/models/{model_id}", response_model=ModelRecordSchema, tags=["Models"])
+@limiter.limit("60/minute")
+async def get_model_record(request: Request, model_id: str):
+    """Return a single ModelRecord by id (resolving legacy aliases), or 404."""
+    record = model_registry.get_record(model_id)
+    if record is None:
+        raise HTTPException(status_code=404, detail=f"Model '{model_id}' not found")
+    return record
 
 
 @app.post("/api/models/{model_id}/download", tags=["Models"])
