@@ -145,7 +145,7 @@ export function ModelSelector({ value, onChange, generationType }: ModelSelector
           className="w-full flex items-center gap-3 px-3 py-3 rounded-md border border-border bg-panel-raised text-left opacity-70"
         >
           <span className="font-mono text-micro text-text-muted">
-            No models installed — open the Foundry to add one
+            No models installed - open the Foundry to add one
           </span>
         </button>
       </div>

@@ -18,7 +18,7 @@ export interface ModelInfo {
 }
 
 /**
- * The Foundry's atomic unit. A superset of ModelInfo — a ModelRecord is
+ * The Foundry's atomic unit. A superset of ModelInfo - a ModelRecord is
  * always assignable where a ModelInfo is expected (M1 reuses ModelStatus).
  */
 export interface ModelRecord {
