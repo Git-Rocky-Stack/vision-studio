@@ -4,7 +4,7 @@
  *
  *   node scripts/smoke-shot.mjs <panel> <outPath>
  *
- * panel: generate | batch | templates | canvas | assets | settings
+ * panel: generate | batch | templates | storyboard | canvas | assets | settings
  * Not shipped / not imported by the app. Safe to delete.
  */
 import { _electron as electron } from '@playwright/test';
@@ -38,6 +38,20 @@ try {
   if (panel === 'templates') {
     await page.getByTestId('nav-story').click();
     await page.getByRole('tab', { name: 'Templates' }).click();
+  } else if (panel === 'storyboard') {
+    await page.getByTestId('nav-story').click();
+    await page.getByRole('tab', { name: 'Storyboard' }).click();
+    // Seed a project + scene so the populated board (header, scene list) renders;
+    // a fresh smoke profile otherwise shows only the "No Project Open" state.
+    const newProjectBtn = page.getByRole('button', { name: 'New Project' });
+    if (await newProjectBtn.count()) {
+      await newProjectBtn.first().click();
+      await page.waitForTimeout(300);
+      const addSceneBtn = page.getByRole('button', { name: 'Add Scene' });
+      if (await addSceneBtn.count()) {
+        await addSceneBtn.first().click();
+      }
+    }
   } else if (panel === 'batch') {
     await page.getByTestId('nav-generate').click();
     await page.getByRole('tab', { name: 'Batch' }).click();

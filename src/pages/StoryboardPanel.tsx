@@ -11,6 +11,7 @@ import { ImportDraftReview } from '@/components/storyboard/ImportDraftReview';
 import { ReferenceMediaPanel } from '@/components/reference/ReferenceMediaPanel';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { Button } from '@/components/ui/Button';
+import { Led } from '@/components/hardware';
 import type { StoryboardTimelineDerivationResult } from '@/store/appStore.types';
 import {
   DndContext,
@@ -399,8 +400,10 @@ export function StoryboardPanel() {
       {/* Header */}
       <div className="px-4 py-3 border-b border-border flex items-center justify-between flex-shrink-0">
         <div className="flex items-center gap-2">
-          <Film className="w-4 h-4 text-red-primary" aria-hidden="true" />
-          <h2 className="type-section">
+          <div className="raised-control flex h-8 w-8 flex-shrink-0 items-center justify-center text-accent-primary">
+            <Film className="w-4 h-4" aria-hidden="true" />
+          </div>
+          <h2 className="type-section text-text-primary">
             {activeProject.name}
           </h2>
           <span className="type-caption">
@@ -440,11 +443,14 @@ export function StoryboardPanel() {
 
       {activeImportDraft && !isImportReviewOpen ? (
         <div className="border-b border-border bg-panel/50 px-4 py-3">
-          <div className="flex flex-col gap-3 rounded-2xl border border-border bg-surface/70 px-4 py-4 md:flex-row md:items-center md:justify-between">
+          <div className="flex flex-col gap-3 rounded-md border border-border bg-surface/70 px-4 py-4 md:flex-row md:items-center md:justify-between">
             <div>
-              <p className="type-caption text-text-muted">
-                {activeImportDraft.status === 'approved' ? 'Draft Ready' : 'Draft In Review'}
-              </p>
+              <div className="flex items-center gap-2">
+                <Led color={activeImportDraft.status === 'approved' ? 'play' : 'cue'} size={7} />
+                <p className="type-caption text-text-muted">
+                  {activeImportDraft.status === 'approved' ? 'Draft Ready' : 'Draft In Review'}
+                </p>
+              </div>
               <h3 className="mt-1 type-section text-text-primary">{activeImportDraft.title}</h3>
               <p className="mt-1 text-sm text-text-body">
                 {activeImportDraft.sceneDrafts.filter((scene) => scene.accepted).length} accepted scenes and{' '}
@@ -475,7 +481,7 @@ export function StoryboardPanel() {
           <div
             data-testid="storyboard-timeline-feedback"
             className={[
-              'flex flex-col gap-3 rounded-2xl border px-4 py-4 md:flex-row md:items-center md:justify-between',
+              'flex flex-col gap-3 rounded-md border px-4 py-4 md:flex-row md:items-center md:justify-between',
               timelineBuildFeedback.tone === 'success'
                 ? 'border-status-success-border bg-status-success-muted/40'
                 : 'border-status-warning-border bg-status-warning-muted/40',
@@ -634,7 +640,7 @@ export function StoryboardPanel() {
               sceneId={activeScene.id}
             />
           ) : (
-            <div className="rounded-lg border border-dashed border-border px-4 py-4 text-center">
+            <div className="rounded-md border border-dashed border-border px-4 py-4 text-center">
               <p className="text-sm text-text-body">
                 Select a scene to attach shot-specific references.
               </p>
