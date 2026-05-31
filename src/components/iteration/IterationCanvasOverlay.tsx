@@ -75,25 +75,25 @@ export const IterationCanvasOverlay = memo(function IterationCanvasOverlay({ cla
       onWheel={handleWheel}
     >
       {/* Zoom controls */}
-      <div className="absolute top-2 right-2 z-10 flex gap-1">
+      <div className="absolute top-2 right-2 z-10 flex gap-1 raised-panel p-1">
         <button
           type="button"
           onClick={() => setScale((s) => Math.min(3, s * 1.2))}
-          className="rounded-md border border-border bg-surface px-2 py-1 type-micro text-text-muted hover:text-text-primary"
+          className="raised-control px-2 py-1 type-micro text-text-muted transition-colors hover:text-text-primary"
         >
           +
         </button>
         <button
           type="button"
           onClick={() => setScale((s) => Math.max(0.25, s / 1.2))}
-          className="rounded-md border border-border bg-surface px-2 py-1 type-micro text-text-muted hover:text-text-primary"
+          className="raised-control px-2 py-1 type-micro text-text-muted transition-colors hover:text-text-primary"
         >
           -
         </button>
         <button
           type="button"
           onClick={() => { setScale(1); setOffset({ x: 0, y: 0 }); }}
-          className="rounded-md border border-border bg-surface px-2 py-1 type-micro text-text-muted hover:text-text-primary"
+          className="raised-control px-2 py-1 type-micro text-text-muted transition-colors hover:text-text-primary"
         >
           Reset
         </button>
@@ -103,6 +103,12 @@ export const IterationCanvasOverlay = memo(function IterationCanvasOverlay({ cla
         className="w-full h-full"
         style={{ transform: `translate(${offset.x}px, ${offset.y}px) scale(${scale})`, transformOrigin: '0 0' }}
       >
+        <defs>
+          <clipPath id="iteration-node-thumb">
+            <rect x={2} y={2} width={76} height={36} rx={4} />
+          </clipPath>
+        </defs>
+
         {/* Connection lines */}
         {positions.map(({ node }) =>
           node.childrenIds.map((childId) => {
@@ -133,7 +139,7 @@ export const IterationCanvasOverlay = memo(function IterationCanvasOverlay({ cla
             <rect
               width={80}
               height={40}
-              rx={6}
+              rx={4}
               className={cn(
                 'transition-colors',
                 activeIterationId === node.id
@@ -143,9 +149,9 @@ export const IterationCanvasOverlay = memo(function IterationCanvasOverlay({ cla
               strokeWidth={1.5}
             />
             {node.thumbnail ? (
-              <image href={node.thumbnail} x={2} y={2} width={76} height={36} preserveAspectRatio="xMidYMid slice" clipPath="url(#rounded)" />
+              <image href={node.thumbnail} x={2} y={2} width={76} height={36} preserveAspectRatio="xMidYMid slice" clipPath="url(#iteration-node-thumb)" />
             ) : (
-              <text x={40} y={24} textAnchor="middle" className="fill-text-muted text-[8px]">
+              <text x={40} y={24} textAnchor="middle" fontSize={8} className="fill-text-muted">
                 {node.id.slice(0, 6)}
               </text>
             )}

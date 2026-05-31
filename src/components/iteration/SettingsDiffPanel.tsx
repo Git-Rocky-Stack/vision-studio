@@ -17,7 +17,7 @@ export const SettingsDiffPanel = memo(function SettingsDiffPanel({
   if (entries.length === 0) return null;
 
   return (
-    <div className={cn('rounded-md border border-border bg-void/50 p-2', className)}>
+    <div className={cn('recessed-well p-2', className)}>
       <h4 className="type-micro font-medium text-text-muted mb-1.5">Settings Changes</h4>
       <div className="space-y-1">
         {entries.map(([key, value]) => (
