@@ -16,136 +16,12 @@ import {
 } from 'lucide-react';
 
 import { cn } from '@/utils/cn';
-
-interface ModelOption {
-  id: string;
-  name: string;
-  capability: 'image' | 'video' | 'edit' | 'inpaint';
-  runtime: 'local' | 'comfyui' | 'cloud' | 'byom';
-  availability: 'ready' | 'install-required' | 'login-required' | 'import-required';
-  hardware: 'laptop' | 'creator' | 'workstation' | 'unknown';
-  quality: 'draft' | 'balanced' | 'pro' | 'experimental' | 'local';
-  vram: string;
-  description: string;
-  type: 'image' | 'video';
-}
-
-const IMAGE_MODELS: ModelOption[] = [
-  {
-    id: 'flux-dev',
-    name: 'FLUX.1 [dev]',
-    capability: 'image',
-    runtime: 'byom',
-    availability: 'import-required',
-    hardware: 'workstation',
-    quality: 'pro',
-    vram: '23.8 GB',
-    description: 'High-fidelity image generation with strong prompt adherence.',
-    type: 'image',
-  },
-  {
-    id: 'sd3.5-large',
-    name: 'Stable Diffusion 3.5 Large',
-    capability: 'image',
-    runtime: 'local',
-    availability: 'install-required',
-    hardware: 'workstation',
-    quality: 'pro',
-    vram: '~12 GB',
-    description: 'Modern composition and typography when local hardware can support it.',
-    type: 'image',
-  },
-  {
-    id: 'flux-fill',
-    name: 'FLUX.1 Fill [dev]',
-    capability: 'inpaint',
-    runtime: 'byom',
-    availability: 'import-required',
-    hardware: 'workstation',
-    quality: 'pro',
-    vram: '23.8 GB',
-    description: 'Inpainting and outpainting for precise region work.',
-    type: 'image',
-  },
-  {
-    id: 'sd3.5-medium',
-    name: 'Stable Diffusion 3.5 Medium',
-    capability: 'image',
-    runtime: 'local',
-    availability: 'install-required',
-    hardware: 'creator',
-    quality: 'balanced',
-    vram: '~6 GB',
-    description: 'Balanced quality and footprint for creator laptops.',
-    type: 'image',
-  },
-  {
-    id: 'flux-schnell',
-    name: 'FLUX.1 [schnell]',
-    capability: 'image',
-    runtime: 'byom',
-    availability: 'import-required',
-    hardware: 'workstation',
-    quality: 'draft',
-    vram: '23.8 GB',
-    description: 'Fast iteration model for prompt exploration.',
-    type: 'image',
-  },
-  {
-    id: 'sd-1-5',
-    name: 'Stable Diffusion 1.5',
-    capability: 'image',
-    runtime: 'local',
-    availability: 'install-required',
-    hardware: 'laptop',
-    quality: 'local',
-    vram: '4.0 GB',
-    description: 'Lightweight local baseline with broad LoRA and ControlNet support.',
-    type: 'image',
-  },
-];
-
-const VIDEO_MODELS: ModelOption[] = [
-  {
-    id: 'ltx-video',
-    name: 'LTX Video',
-    capability: 'video',
-    runtime: 'local',
-    availability: 'install-required',
-    hardware: 'creator',
-    quality: 'pro',
-    vram: '9.4 GB',
-    description: 'High quality video generation with temporal coherence.',
-    type: 'video',
-  },
-  {
-    id: 'animatediff',
-    name: 'AnimateDiff',
-    capability: 'video',
-    runtime: 'local',
-    availability: 'install-required',
-    hardware: 'creator',
-    quality: 'balanced',
-    vram: '8.0 GB',
-    description: 'Animate images into short clips with motion control.',
-    type: 'video',
-  },
-  {
-    id: 'svd',
-    name: 'Stable Video Diffusion',
-    capability: 'video',
-    runtime: 'local',
-    availability: 'install-required',
-    hardware: 'creator',
-    quality: 'balanced',
-    vram: '8.0 GB',
-    description: 'Image-to-video with camera motion. Requires a reference image.',
-    type: 'video',
-  },
-];
+import { useAppStore } from '@/store/appStore';
+import { selectModelsByCapability } from '@/store/slices/modelsSlice';
+import type { ModelRecord } from '@/types/model';
 
 const capabilityMeta: Record<
-  ModelOption['capability'],
+  ModelRecord['capability'],
   { label: string; icon: ElementType; className: string }
 > = {
   image: { label: 'Image', icon: ImageIcon, className: 'text-capability-image bg-capability-image/10 border-capability-image/20' },
@@ -155,7 +31,7 @@ const capabilityMeta: Record<
 };
 
 const runtimeMeta: Record<
-  ModelOption['runtime'],
+  ModelRecord['runtime'],
   { label: string; icon: ElementType; className: string }
 > = {
   local: { label: 'Local', icon: HardDrive, className: 'text-capability-local bg-capability-local/10 border-capability-local/20' },
@@ -164,21 +40,14 @@ const runtimeMeta: Record<
   byom: { label: 'BYOM', icon: Cpu, className: 'text-accent-primary bg-accent-primary-muted border-accent-primary-border' },
 };
 
-const availabilityLabel: Record<ModelOption['availability'], string> = {
-  ready: 'Ready',
-  'install-required': 'Install required',
-  'login-required': 'Login required',
-  'import-required': 'Import required',
-};
-
-const hardwareLabel: Record<ModelOption['hardware'], string> = {
+const hardwareLabel: Record<ModelRecord['hardware_class'], string> = {
   laptop: 'Laptop fit',
   creator: 'Creator laptop',
   workstation: 'Workstation',
   unknown: 'Hardware unknown',
 };
 
-const qualityLabel: Record<ModelOption['quality'], string> = {
+const qualityLabel: Record<ModelRecord['quality'], string> = {
   draft: 'Draft',
   balanced: 'Balanced',
   pro: 'Pro',
@@ -210,13 +79,7 @@ export function ModelSelector({ value, onChange, generationType }: ModelSelector
   const [isOpen, setIsOpen] = useState(false);
   const [dropdownStyle, setDropdownStyle] = useState<CSSProperties>({});
   const containerRef = useRef<HTMLDivElement>(null);
-
-  const models = generationType === 'image' ? IMAGE_MODELS : VIDEO_MODELS;
-  const selected = models.find((m) => m.id === value) || models[0];
-  const selectedCapability = capabilityMeta[selected.capability];
-  const selectedRuntime = runtimeMeta[selected.runtime];
-  const SelectedCapabilityIcon = selectedCapability.icon;
-  const SelectedRuntimeIcon = selectedRuntime.icon;
+  const availableModels = useAppStore((s) => s.availableModels);
 
   const positionDropdown = useCallback(() => {
     const trigger = containerRef.current;
@@ -269,6 +132,31 @@ export function ModelSelector({ value, onChange, generationType }: ModelSelector
     setIsOpen((open) => !open);
   };
 
+  const models = selectModelsByCapability(availableModels, generationType);
+  const selected = models.find((m) => m.id === value) ?? models[0] ?? null;
+
+  if (!selected) {
+    return (
+      <div ref={containerRef} className="relative">
+        <button
+          data-testid="model-selector-trigger"
+          type="button"
+          disabled
+          className="w-full flex items-center gap-3 px-3 py-3 rounded-md border border-border bg-panel-raised text-left opacity-70"
+        >
+          <span className="font-mono text-micro text-text-muted">
+            No models installed — open the Foundry to add one
+          </span>
+        </button>
+      </div>
+    );
+  }
+
+  const selectedCapability = capabilityMeta[selected.capability];
+  const selectedRuntime = runtimeMeta[selected.runtime];
+  const SelectedCapabilityIcon = selectedCapability.icon;
+  const SelectedRuntimeIcon = selectedRuntime.icon;
+
   return (
     <div ref={containerRef} className="relative">
       <button
@@ -303,7 +191,7 @@ export function ModelSelector({ value, onChange, generationType }: ModelSelector
             </Badge>
           </div>
           <p className="mt-1.5 font-mono text-micro text-text-muted">
-            {availabilityLabel[selected.availability]} / {hardwareLabel[selected.hardware]} / {selected.vram}
+            {selected.tier} / {hardwareLabel[selected.hardware_class]} / {selected.vram}
           </p>
         </div>
         <ChevronDown
@@ -355,7 +243,7 @@ export function ModelSelector({ value, onChange, generationType }: ModelSelector
                     )}
                   >
                     <div className="mt-0.5 flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md border border-border bg-canvas">
-                      {model.type === 'video' ? (
+                      {model.capability === 'video' ? (
                         <Video className="h-3.5 w-3.5 text-capability-video" />
                       ) : (
                         <ImageIcon className="h-3.5 w-3.5 text-capability-image" />
@@ -385,7 +273,7 @@ export function ModelSelector({ value, onChange, generationType }: ModelSelector
                           {qualityLabel[model.quality]}
                         </Badge>
                         <Badge className="border-border bg-canvas text-text-muted">
-                          {hardwareLabel[model.hardware]}
+                          {hardwareLabel[model.hardware_class]}
                         </Badge>
                       </div>
                     </div>

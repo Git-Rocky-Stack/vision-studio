@@ -6,7 +6,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { useAppStore } from '@/store/appStore';
 import { UserGuidePage } from '@/pages/UserGuidePage';
-import type { ModelInfo } from '@/types/model';
+import type { ModelRecord } from '@/types/model';
 import type {
   OpenRouterKeyInfo,
   OpenRouterModelSummary,
@@ -1291,7 +1291,7 @@ export function SettingsPanel() {
                       No models reported by the backend yet.
                     </div>
                   ) : (
-                    availableModels.map((model: ModelInfo) => (
+                    availableModels.map((model: ModelRecord) => (
                       <div
                         key={model.id}
                         className="flex items-center justify-between py-3 border-b border-border/50"
