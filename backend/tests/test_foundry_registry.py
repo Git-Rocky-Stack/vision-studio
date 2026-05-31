@@ -60,3 +60,39 @@ def test_status_reconciles_to_ready_when_present_on_disk():
 
     # A model with no files on disk stays not_found.
     assert registry.get_record("flux-dev")["status"] == "not_found"
+
+
+def test_unrelated_file_in_typed_subdir_does_not_mark_model_ready():
+    models_dir = tempfile.mkdtemp()
+    checkpoints = os.path.join(models_dir, "checkpoints")
+    os.makedirs(checkpoints, exist_ok=True)
+    with open(os.path.join(checkpoints, "some-other-model.safetensors"), "w", encoding="utf-8") as handle:
+        handle.write("stub")
+
+    registry = ModelRegistry(models_dir=models_dir, catalog_path=CATALOG_PATH)
+    # A stray unrelated checkpoint file must NOT mark different models ready.
+    assert registry.get_record("flux-dev")["status"] == "not_found"
+    assert registry.get_record("sdxl-base")["status"] == "not_found"
+
+
+def test_unrelated_file_in_diffusers_dir_does_not_mark_pipelines_ready():
+    models_dir = tempfile.mkdtemp()
+    diffusers = os.path.join(models_dir, "diffusers")
+    os.makedirs(diffusers, exist_ok=True)
+    with open(os.path.join(diffusers, "stray.txt"), "w", encoding="utf-8") as handle:
+        handle.write("stub")
+
+    registry = ModelRegistry(models_dir=models_dir, catalog_path=CATALOG_PATH)
+    assert registry.get_record("sd3.5-large")["status"] == "not_found"
+    assert registry.get_record("animatediff")["status"] == "not_found"
+
+
+def test_checkpoint_present_when_id_named_dir_is_populated():
+    models_dir = tempfile.mkdtemp()
+    target = os.path.join(models_dir, "checkpoints", "sdxl-base")
+    os.makedirs(target, exist_ok=True)
+    with open(os.path.join(target, "sdxl-base.safetensors"), "w", encoding="utf-8") as handle:
+        handle.write("stub")
+
+    registry = ModelRegistry(models_dir=models_dir, catalog_path=CATALOG_PATH)
+    assert registry.get_record("sdxl-base")["status"] == "ready"

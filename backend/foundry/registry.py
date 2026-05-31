@@ -39,10 +39,12 @@ class ModelRegistry:
     def _is_present(self, record: ModelRecord) -> bool:
         """True when the model's expected files exist in models_dir.
 
-        Diffusers pipelines / motion adapters live under diffusers/<id>/;
-        single-file artifacts live under their typed subdir. We treat a
-        non-empty expected location as 'ready' — full integrity verification
-        arrives with the acquisition engine (M2).
+        Detection is per-model and precise: diffusers pipelines / motion
+        adapters live under diffusers/<id>/; single-file artifacts are matched
+        by their typed subdir + id. A stray unrelated file in a typed subdir
+        must NOT mark a different model ready. Filename-aware indexing for flat
+        single-file artifacts arrives with the M3 indexer; until then a
+        single-file model whose id-named directory is absent stays not_found.
         """
         candidates = []
         if record.artifact_type in {"diffusers-pipeline", "motion-adapter"}:
@@ -50,7 +52,6 @@ class ModelRegistry:
         subdir = _ARTIFACT_SUBDIR.get(record.artifact_type)
         if subdir:
             candidates.append(os.path.join(self.models_dir, subdir, record.id))
-            candidates.append(os.path.join(self.models_dir, subdir))
         for path in candidates:
             if os.path.isdir(path) and os.listdir(path):
                 return True
