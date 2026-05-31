@@ -44,7 +44,7 @@ export const RegionLockToolbar = memo(function RegionLockToolbar({
       aria-label="Region mask tools"
     >
       {/* Tool buttons */}
-      <div className="flex flex-col gap-1 p-1.5 glass glass-border rounded-xl shadow-cinematic">
+      <div className="flex flex-col gap-1 p-1.5 raised-panel">
         {TOOLS.map((tool) => {
           const Icon = tool.icon;
           const isActive = activeTool === tool.id;
@@ -53,11 +53,11 @@ export const RegionLockToolbar = memo(function RegionLockToolbar({
               key={tool.id}
               onClick={() => onToolChange(tool.id)}
               className={cn(
-                'relative flex items-center justify-center w-9 h-9 rounded-lg',
+                'relative flex items-center justify-center w-9 h-9 rounded-md',
                 'transition-all duration-150',
-                'focus:outline-none focus-visible:ring-2 focus-visible:ring-red-primary',
+                'focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary',
                 isActive
-                  ? 'bg-red-primary text-white shadow-glow-red-subtle'
+                  ? 'bg-accent-primary-muted text-accent-primary'
                   : 'text-text-body hover:text-text-primary hover:bg-elevated'
               )}
               aria-label={`${tool.label} (${tool.shortcut})`}
@@ -76,11 +76,11 @@ export const RegionLockToolbar = memo(function RegionLockToolbar({
         <button
           onClick={onInvertToggle}
           className={cn(
-            'relative flex items-center justify-center w-9 h-9 rounded-lg',
+            'relative flex items-center justify-center w-9 h-9 rounded-md',
             'transition-all duration-150',
-            'focus:outline-none focus-visible:ring-2 focus-visible:ring-red-primary',
+            'focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary',
             isInverted
-              ? 'bg-red-primary text-white shadow-glow-red-subtle'
+              ? 'bg-accent-primary-muted text-accent-primary'
               : 'text-text-body hover:text-text-primary hover:bg-elevated'
           )}
           aria-label="Invert mask"
@@ -93,9 +93,9 @@ export const RegionLockToolbar = memo(function RegionLockToolbar({
 
       {/* Brush size slider (visible when brush or eraser is active) */}
       {(activeTool === 'brush' || activeTool === 'erase') && (
-        <div className="flex flex-col items-center gap-2 p-2 glass glass-border rounded-xl shadow-cinematic">
+        <div className="flex flex-col items-center gap-2 p-2 raised-panel">
           <div
-            className="rounded-full bg-red-primary"
+            className="rounded-full bg-accent-primary"
             style={{
               width: Math.max(4, Math.min(brushSize / 2, 24)),
               height: Math.max(4, Math.min(brushSize / 2, 24)),
@@ -108,7 +108,7 @@ export const RegionLockToolbar = memo(function RegionLockToolbar({
             max={100}
             value={brushSize}
             onChange={(e) => onBrushSizeChange(Number(e.target.value))}
-            className="w-24 accent-red-primary"
+            className="w-24 accent-[var(--color-accent-primary)]"
             aria-label="Brush size"
             title={`Brush size: ${brushSize}px`}
           />

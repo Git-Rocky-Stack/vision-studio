@@ -50,10 +50,10 @@ export const RegionLockProperties = memo(function RegionLockProperties({
         <button
           onClick={onDelete}
           className={cn(
-            'p-1.5 rounded-lg text-text-muted',
-            'hover:text-red-primary hover:bg-red-aura',
+            'p-1.5 rounded-md text-text-muted',
+            'hover:text-status-error hover:bg-status-error-muted',
             'transition-colors duration-150',
-            'focus:outline-none focus-visible:ring-2 focus-visible:ring-red-primary'
+            'focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary'
           )}
           aria-label="Delete region lock"
         >
@@ -71,9 +71,9 @@ export const RegionLockProperties = memo(function RegionLockProperties({
           value={name}
           onChange={(e) => onUpdate({ name: e.target.value })}
           className={cn(
-            'w-full px-3 py-2 rounded-lg bg-void border border-border',
+            'w-full px-3 py-2 rounded-md bg-void border border-border',
             'type-ui text-text-primary',
-            'focus:outline-none focus:border-red-primary focus:ring-1 focus:ring-red-primary',
+            'focus:outline-none focus:border-accent-primary focus:ring-1 focus:ring-accent-primary',
             'transition-colors duration-150',
             'placeholder:text-text-muted'
           )}
@@ -93,9 +93,9 @@ export const RegionLockProperties = memo(function RegionLockProperties({
             onChange={(e) => onUpdate({ prompt: e.target.value })}
             rows={3}
             className={cn(
-              'w-full px-3 py-2 rounded-lg bg-void border border-border',
+              'w-full px-3 py-2 rounded-md bg-void border border-border',
               'type-ui text-text-primary resize-y',
-              'focus:outline-none focus:border-red-primary focus:ring-1 focus:ring-red-primary',
+              'focus:outline-none focus:border-accent-primary focus:ring-1 focus:ring-accent-primary',
               'transition-colors duration-150',
               'placeholder:text-text-muted'
             )}
@@ -125,11 +125,11 @@ export const RegionLockProperties = memo(function RegionLockProperties({
                 key={tool.id}
                 onClick={() => onUpdate({ aiTool: tool.id })}
                 className={cn(
-                  'flex items-center gap-1.5 px-2.5 py-2 rounded-lg text-left',
+                  'flex items-center gap-1.5 px-2.5 py-2 rounded-md text-left',
                   'transition-all duration-150',
-                  'focus:outline-none focus-visible:ring-2 focus-visible:ring-red-primary',
+                  'focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary',
                   isActive
-                    ? 'bg-red-aura text-red-primary border border-red-primary/40'
+                    ? 'bg-accent-primary-muted text-accent-primary border border-accent-primary-border'
                     : 'bg-void text-text-body border border-border hover:border-border-hover hover:text-text-primary'
                 )}
                 aria-pressed={isActive}
@@ -159,7 +159,7 @@ export const RegionLockProperties = memo(function RegionLockProperties({
           max={100}
           value={Math.round(strength * 100)}
           onChange={(e) => onUpdate({ strength: Number(e.target.value) / 100 })}
-          className="w-full accent-red-primary"
+          className="w-full accent-[var(--color-accent-primary)]"
           aria-label="Generation strength"
         />
       </div>
@@ -184,7 +184,7 @@ export const RegionLockProperties = memo(function RegionLockProperties({
               mask: { ...mask, featherRadius: Number(e.target.value) },
             })
           }
-          className="w-full accent-red-primary"
+          className="w-full accent-[var(--color-accent-primary)]"
           aria-label="Feather radius"
         />
       </div>
@@ -203,8 +203,8 @@ export const RegionLockProperties = memo(function RegionLockProperties({
           }
           className={cn(
             'relative w-10 h-5 rounded-full transition-colors duration-200',
-            'focus:outline-none focus-visible:ring-2 focus-visible:ring-red-primary',
-            mask.blendEdges ? 'bg-red-primary' : 'bg-elevated border border-border'
+            'focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary',
+            mask.blendEdges ? 'bg-accent-primary' : 'bg-elevated border border-border'
           )}
           role="switch"
           aria-checked={mask.blendEdges}
@@ -213,7 +213,7 @@ export const RegionLockProperties = memo(function RegionLockProperties({
           <span
             className={cn(
               'absolute top-0.5 left-0.5 w-4 h-4 rounded-full transition-transform duration-200',
-              mask.blendEdges ? 'translate-x-5 bg-white' : 'bg-text-muted'
+              mask.blendEdges ? 'translate-x-5 bg-void' : 'bg-text-muted'
             )}
           />
         </button>
@@ -223,7 +223,7 @@ export const RegionLockProperties = memo(function RegionLockProperties({
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           {invertMask ? (
-            <Unlock className="w-4 h-4 text-red-primary" aria-hidden="true" />
+            <Unlock className="w-4 h-4 text-accent-primary" aria-hidden="true" />
           ) : (
             <Lock className="w-4 h-4 text-text-muted" aria-hidden="true" />
           )}
@@ -233,8 +233,8 @@ export const RegionLockProperties = memo(function RegionLockProperties({
           onClick={() => onUpdate({ invertMask: !invertMask })}
           className={cn(
             'relative w-10 h-5 rounded-full transition-colors duration-200',
-            'focus:outline-none focus-visible:ring-2 focus-visible:ring-red-primary',
-            invertMask ? 'bg-red-primary' : 'bg-elevated border border-border'
+            'focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary',
+            invertMask ? 'bg-accent-primary' : 'bg-elevated border border-border'
           )}
           role="switch"
           aria-checked={invertMask}
@@ -243,7 +243,7 @@ export const RegionLockProperties = memo(function RegionLockProperties({
           <span
             className={cn(
               'absolute top-0.5 left-0.5 w-4 h-4 rounded-full transition-transform duration-200',
-              invertMask ? 'translate-x-5 bg-white' : 'bg-text-muted'
+              invertMask ? 'translate-x-5 bg-void' : 'bg-text-muted'
             )}
           />
         </button>

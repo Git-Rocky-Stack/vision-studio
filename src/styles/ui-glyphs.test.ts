@@ -29,6 +29,7 @@ const shellTypographyFiles = [
   'src/components/edit/RegionLockOverlay.tsx',
   'src/components/edit/RegionLockProperties.tsx',
   'src/components/edit/RegionLockToolbar.tsx',
+  'src/components/edit/RegionMaskDrawer.tsx',
   'src/components/edit/TextControls.tsx',
   'src/components/storyboard/CharacterAssignmentChip.tsx',
   'src/components/storyboard/CharacterLibrary.tsx',
