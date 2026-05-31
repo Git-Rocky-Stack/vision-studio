@@ -89,7 +89,7 @@ export function AIToolsPanel() {
     <div className="space-y-3">
       {/* Header */}
       <div className="flex items-center gap-2">
-        <Wand2 className="w-3.5 h-3.5 text-red-primary" />
+        <Wand2 className="w-3.5 h-3.5 text-accent-primary" />
         <span className="text-label text-text-primary">AI Tools</span>
       </div>
 
@@ -103,7 +103,7 @@ export function AIToolsPanel() {
           <div
             key={tool.id}
             className={cn(
-              'rounded-lg border transition-all overflow-hidden',
+              'rounded-md border transition-all overflow-hidden',
               isExpanded
                 ? 'border-border-hover bg-elevated'
                 : 'border-border bg-elevated/50 hover:border-border-hover'
@@ -115,14 +115,14 @@ export function AIToolsPanel() {
               aria-expanded={isExpanded}
               className="w-full flex items-center gap-3 px-3 py-3 text-left"
             >
-              <div className="w-8 h-8 rounded-lg bg-red-aura flex items-center justify-center flex-shrink-0">
-                <Icon className="w-4 h-4 text-red-primary" />
+              <div className="raised-control flex h-8 w-8 flex-shrink-0 items-center justify-center text-accent-primary">
+                <Icon className="w-4 h-4" />
               </div>
               <div className="flex-1 min-w-0">
-                <h4 className="font-display text-sm font-medium text-text-primary">
+                <h4 className="type-section">
                   {tool.name}
                 </h4>
-                <p className="text-micro text-text-muted">{tool.description}</p>
+                <p className="type-caption">{tool.description}</p>
               </div>
               <ChevronDown
                 className={cn(
@@ -171,7 +171,7 @@ export function AIToolsPanel() {
                             value={bgReplacePrompt}
                             onChange={(e) => setBgReplacePrompt(e.target.value)}
                             placeholder="Describe new background..."
-                            className="w-full bg-surface border border-border rounded-lg px-3 py-2 text-xs text-text-primary placeholder:text-text-muted focus:border-red-primary transition-all"
+                            className="w-full bg-surface border border-border rounded-md px-3 py-2 text-xs text-text-primary placeholder:text-text-muted focus:border-accent-primary transition-all"
                           />
                         </div>
                       </>
@@ -188,10 +188,10 @@ export function AIToolsPanel() {
                                 key={factor}
                                 onClick={() => setUpscaleFactor(factor)}
                                 className={cn(
-                                  'flex-1 py-2 rounded-lg text-sm font-mono font-medium transition-all',
+                                  'flex-1 py-2 rounded-md border text-sm font-medium transition-all',
                                   upscaleFactor === factor
-                                    ? 'bg-red-primary text-text-primary'
-                                    : 'bg-surface text-text-body border border-border'
+                                    ? 'border-accent-primary-border bg-accent-primary-muted text-accent-primary'
+                                    : 'border-border bg-surface text-text-body'
                                 )}
                               >
                                 {factor}x
@@ -204,7 +204,7 @@ export function AIToolsPanel() {
                           <select
                             value={upscaleModel}
                             onChange={(e) => setUpscaleModel(e.target.value)}
-                            className="w-full appearance-none bg-elevated border border-border rounded-lg px-3 py-2 text-xs font-display text-text-primary focus:border-red-primary focus:ring-1 focus:ring-red-primary/40 transition-all"
+                            className="w-full appearance-none bg-elevated border border-border rounded-md px-3 py-2 text-xs text-text-primary focus:border-accent-primary focus:ring-1 focus:ring-accent-primary/40 transition-all"
                           >
                             <option value="general">General</option>
                             <option value="face">Face</option>
@@ -234,7 +234,7 @@ export function AIToolsPanel() {
                               key={style.id}
                               onClick={() => setStylePreset(style.id)}
                               className={cn(
-                                'py-2 rounded-lg text-xs font-display font-medium transition-all text-center',
+                                'py-2 rounded-md text-xs font-medium transition-all text-center',
                                 stylePreset === style.id
                                   ? 'text-text-primary'
                                   : 'bg-surface text-text-body border border-border'
@@ -278,14 +278,14 @@ export function AIToolsPanel() {
                     {/* Generative Fill */}
                     {tool.id === 'gen-fill' && (
                       <>
-                        <p className="text-xs text-text-muted font-display">
+                        <p className="text-xs text-text-muted">
                           Paint over the area you want to fill, then describe the content.
                         </p>
                         <input
                           value={genFillPrompt}
                           onChange={(e) => setGenFillPrompt(e.target.value)}
                           placeholder="Describe fill content..."
-                          className="w-full bg-surface border border-border rounded-lg px-3 py-2 text-xs text-text-primary placeholder:text-text-muted focus:border-red-primary transition-all"
+                          className="w-full bg-surface border border-border rounded-md px-3 py-2 text-xs text-text-primary placeholder:text-text-muted focus:border-accent-primary transition-all"
                         />
                         <Button
                           variant="primary"
@@ -313,7 +313,7 @@ export function AIToolsPanel() {
                           onChange={setFaceStrength}
                         />
                         <div className="flex items-center justify-between">
-                          <span className="font-display text-xs text-text-body">
+                          <span className="text-xs text-text-body">
                             Eye Enhancement
                           </span>
                           <Switch
@@ -346,7 +346,7 @@ export function AIToolsPanel() {
                     {/* Object Removal */}
                     {tool.id === 'object-removal' && (
                       <>
-                        <p className="text-xs text-text-muted font-display">
+                        <p className="text-xs text-text-muted">
                           Brush over the object you want to remove, then click Remove.
                         </p>
                         <Button
@@ -379,10 +379,10 @@ export function AIToolsPanel() {
                                 key={id}
                                 onClick={() => toggleDirection(id)}
                                 className={cn(
-                                  'flex flex-col items-center gap-1 py-2 rounded-lg text-micro font-display transition-all',
+                                  'flex flex-col items-center gap-1 py-2 rounded-md border text-xs transition-all',
                                   expandDirection.includes(id)
-                                    ? 'bg-red-primary text-text-primary'
-                                    : 'bg-surface text-text-body border border-border'
+                                    ? 'border-accent-primary-border bg-accent-primary-muted text-accent-primary'
+                                    : 'border-border bg-surface text-text-body'
                                 )}
                               >
                                 <DirIcon className="w-3.5 h-3.5" />
@@ -397,14 +397,14 @@ export function AIToolsPanel() {
                             type="number"
                             value={expandPixels}
                             onChange={(e) => setExpandPixels(Number(e.target.value))}
-                            className="w-full bg-surface border border-border rounded-lg px-3 py-2 text-xs font-mono text-text-primary focus:border-red-primary transition-all"
+                            className="w-full bg-surface border border-border rounded-md px-3 py-2 data-mono text-text-primary focus:border-accent-primary transition-all"
                           />
                         </div>
                         <input
                           value={expandPrompt}
                           onChange={(e) => setExpandPrompt(e.target.value)}
                           placeholder="Describe expanded area..."
-                          className="w-full bg-surface border border-border rounded-lg px-3 py-2 text-xs text-text-primary placeholder:text-text-muted focus:border-red-primary transition-all"
+                          className="w-full bg-surface border border-border rounded-md px-3 py-2 text-xs text-text-primary placeholder:text-text-muted focus:border-accent-primary transition-all"
                         />
                         <Button
                           variant="primary"

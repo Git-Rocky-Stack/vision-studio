@@ -94,7 +94,7 @@ export function TextControls() {
     <div className="space-y-4">
       {/* Header */}
       <div className="flex items-center gap-2">
-        <Type className="w-3.5 h-3.5 text-red-primary" />
+        <Type className="w-3.5 h-3.5 text-accent-primary" />
         <span className="text-label text-text-primary">Text</span>
       </div>
 
@@ -105,7 +105,7 @@ export function TextControls() {
           onClick={() => setShowFontDropdown(!showFontDropdown)}
           aria-expanded={showFontDropdown}
           aria-haspopup="listbox"
-          className="w-full flex items-center justify-between px-3 py-2 rounded-lg bg-elevated border border-border hover:border-border-hover transition-all text-left"
+          className="w-full flex items-center justify-between px-3 py-2 rounded-md bg-elevated border border-border hover:border-border-hover transition-all text-left"
         >
           <span className="text-sm text-text-primary" style={{ fontFamily }}>
             {fontFamily}
@@ -134,7 +134,7 @@ export function TextControls() {
                   className={cn(
                     'w-full px-3 py-2 text-left text-sm transition-all',
                     fontFamily === font
-                      ? 'bg-red-aura text-red-primary'
+                      ? 'bg-accent-primary-muted text-accent-primary'
                       : 'text-text-primary hover:bg-surface'
                   )}
                   style={{ fontFamily: font }}
@@ -155,7 +155,7 @@ export function TextControls() {
             <button
               onClick={() => setFontSize(Math.max(12, fontSize - 2))}
               aria-label="Decrease font size"
-              className="p-2 rounded bg-elevated border border-border text-text-body hover:text-text-primary transition-all text-xs font-mono"
+              className="p-2 rounded bg-elevated border border-border text-text-body hover:text-text-primary transition-all text-xs"
             >
               -
             </button>
@@ -163,12 +163,12 @@ export function TextControls() {
               type="number"
               value={fontSize}
               onChange={(e) => setFontSize(Math.max(12, Math.min(200, Number(e.target.value))))}
-              className="w-full bg-elevated border border-border rounded-lg px-2 py-2 text-sm font-mono text-text-primary text-center focus:border-red-primary transition-all"
+              className="w-full bg-elevated border border-border rounded-md px-2 py-2 data-mono text-text-primary text-center focus:border-accent-primary transition-all"
             />
             <button
               onClick={() => setFontSize(Math.min(200, fontSize + 2))}
               aria-label="Increase font size"
-              className="p-2 rounded bg-elevated border border-border text-text-body hover:text-text-primary transition-all text-xs font-mono"
+              className="p-2 rounded bg-elevated border border-border text-text-body hover:text-text-primary transition-all text-xs"
             >
               +
             </button>
@@ -179,7 +179,7 @@ export function TextControls() {
           <select
             value={fontWeight}
             onChange={(e) => setFontWeight(Number(e.target.value))}
-            className="w-full bg-elevated border border-border rounded-lg px-2 py-2 text-sm font-display text-text-primary focus:border-red-primary transition-all"
+            className="w-full bg-elevated border border-border rounded-md px-2 py-2 text-sm text-text-primary focus:border-accent-primary transition-all"
           >
             {FONT_WEIGHTS.map((w) => (
               <option key={w.value} value={w.value}>
@@ -195,10 +195,10 @@ export function TextControls() {
         <button
           onClick={() => setIsItalic(!isItalic)}
           className={cn(
-            'flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-display transition-all',
+            'flex-1 flex items-center justify-center gap-2 py-2 rounded-md border text-xs transition-all',
             isItalic
-              ? 'bg-red-primary text-text-primary'
-              : 'bg-elevated text-text-body border border-border hover:border-border-hover'
+              ? 'border-accent-primary-border bg-accent-primary-muted text-accent-primary'
+              : 'border-border bg-elevated text-text-body hover:border-border-hover'
           )}
         >
           <Italic className="w-3.5 h-3.5" />
@@ -207,10 +207,10 @@ export function TextControls() {
         <button
           onClick={() => setIsUnderline(!isUnderline)}
           className={cn(
-            'flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-xs font-display transition-all',
+            'flex-1 flex items-center justify-center gap-2 py-2 rounded-md border text-xs transition-all',
             isUnderline
-              ? 'bg-red-primary text-text-primary'
-              : 'bg-elevated text-text-body border border-border hover:border-border-hover'
+              ? 'border-accent-primary-border bg-accent-primary-muted text-accent-primary'
+              : 'border-border bg-elevated text-text-body hover:border-border-hover'
           )}
         >
           <Underline className="w-3.5 h-3.5" />
@@ -231,10 +231,10 @@ export function TextControls() {
               key={id}
               onClick={() => setTextAlign(id)}
               className={cn(
-                'flex-1 flex items-center justify-center py-2 rounded-lg transition-all',
+                'flex-1 flex items-center justify-center py-2 rounded-md border transition-all',
                 textAlign === id
-                  ? 'bg-red-primary text-text-primary'
-                  : 'bg-elevated text-text-body border border-border hover:border-border-hover'
+                  ? 'border-accent-primary-border bg-accent-primary-muted text-accent-primary'
+                  : 'border-border bg-elevated text-text-body hover:border-border-hover'
               )}
             >
               <Icon className="w-4 h-4" />

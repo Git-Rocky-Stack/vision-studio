@@ -50,13 +50,13 @@ export function ColorPicker({ value, onChange, recentColors }: ColorPickerProps)
         onClick={() => setIsOpen(!isOpen)}
         aria-expanded={isOpen}
         aria-haspopup="listbox"
-        className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-elevated border border-border hover:border-border-hover transition-all"
+        className="flex items-center gap-2 px-2.5 py-1.5 rounded-md bg-elevated border border-border hover:border-border-hover transition-all"
       >
         <div
           className="w-5 h-5 rounded border border-border"
           style={{ backgroundColor: value }}
         />
-        <span className="font-mono text-xs text-text-primary">{value}</span>
+        <span className="data-mono text-text-primary">{value}</span>
         <ChevronDown className="w-3 h-3 text-text-muted" />
       </button>
 
@@ -87,14 +87,14 @@ export function ColorPicker({ value, onChange, recentColors }: ColorPickerProps)
                     onChange(e.target.value);
                   }
                 }}
-                className="flex-1 bg-surface border border-border rounded-lg px-2 py-1 text-xs font-mono text-text-primary focus:border-red-primary transition-all"
+                className="flex-1 bg-surface border border-border rounded-md px-2 py-1 data-mono text-text-primary focus:border-accent-primary transition-all"
                 placeholder="#ffffff"
               />
             </div>
 
             {/* Preset colors */}
             <div>
-              <p className="text-micro font-display text-text-muted mb-2 uppercase tracking-wider">
+              <p className="mono-label text-text-muted mb-2">
                 Presets
               </p>
               <div className="grid grid-cols-6 gap-2">
@@ -108,7 +108,7 @@ export function ColorPicker({ value, onChange, recentColors }: ColorPickerProps)
                     className={cn(
                       'w-6 h-6 rounded border transition-all',
                       value === color
-                        ? 'border-red-primary ring-1 ring-red-primary/40 scale-110'
+                        ? 'border-accent-primary ring-1 ring-accent-primary/40 scale-110'
                         : 'border-border hover:scale-110'
                     )}
                     style={{ backgroundColor: color }}
@@ -120,7 +120,7 @@ export function ColorPicker({ value, onChange, recentColors }: ColorPickerProps)
             {/* Recent colors */}
             {recentColors.length > 0 && (
               <div>
-                <p className="text-micro font-display text-text-muted mb-2 uppercase tracking-wider">
+                <p className="mono-label text-text-muted mb-2">
                   Recent
                 </p>
                 <div className="flex gap-2">

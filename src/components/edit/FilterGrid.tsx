@@ -64,7 +64,7 @@ export function FilterGrid({
     <div className="space-y-4">
       {/* Header */}
       <div className="flex items-center gap-2">
-        <Sparkles className="w-3.5 h-3.5 text-red-primary" />
+        <Sparkles className="w-3.5 h-3.5 text-accent-primary" />
         <span className="text-label text-text-primary">Filters</span>
       </div>
 
@@ -76,10 +76,10 @@ export function FilterGrid({
             onClick={() => setActiveCategory(cat.id)}
             aria-pressed={activeCategory === cat.id}
             className={cn(
-              'px-2.5 py-1 rounded-full text-xs font-display font-medium transition-all',
+              'px-2.5 py-1 rounded-full border text-xs font-medium transition-all',
               activeCategory === cat.id
-                ? 'bg-red-primary text-text-primary'
-                : 'bg-elevated text-text-body hover:text-text-primary'
+                ? 'border-accent-primary-border bg-accent-primary-muted text-accent-primary'
+                : 'border-transparent bg-elevated text-text-body hover:text-text-primary'
             )}
           >
             {cat.label}
@@ -98,9 +98,9 @@ export function FilterGrid({
               aria-pressed={isSelected}
               aria-label={`Filter: ${filter.name}`}
               className={cn(
-                'rounded-lg border overflow-hidden transition-all text-left',
+                'rounded-md border overflow-hidden transition-all text-left',
                 isSelected
-                  ? 'border-red-primary glow-red-subtle'
+                  ? 'border-accent-primary shadow-accent-subtle'
                   : 'border-border hover:border-border-hover'
               )}
             >
@@ -119,10 +119,10 @@ export function FilterGrid({
                   <div className="w-full h-full bg-gradient-to-br from-surface to-elevated" />
                 )}
                 {isSelected && (
-                  <div className="absolute inset-0 bg-red-primary/10 flex items-center justify-center">
-                    <div className="w-5 h-5 rounded-full bg-red-primary flex items-center justify-center">
+                  <div className="absolute inset-0 bg-accent-primary/10 flex items-center justify-center">
+                    <div className="w-5 h-5 rounded-full bg-accent-primary flex items-center justify-center">
                       <svg
-                        className="w-3 h-3 text-text-primary"
+                        className="w-3 h-3 text-void"
                         fill="none"
                         viewBox="0 0 24 24"
                         stroke="currentColor"
@@ -141,8 +141,8 @@ export function FilterGrid({
               <div className="px-2 py-1.5">
                 <span
                   className={cn(
-                    'font-display text-xs font-medium',
-                    isSelected ? 'text-red-primary' : 'text-text-primary'
+                    'text-xs font-medium',
+                    isSelected ? 'text-accent-primary' : 'text-text-primary'
                   )}
                 >
                   {filter.name}
@@ -171,7 +171,7 @@ export function FilterGrid({
       <div className="flex items-center justify-between py-2 border-t border-border">
         <div className="flex items-center gap-2">
           <Layers className="w-3.5 h-3.5 text-text-muted" />
-          <span className="font-display text-xs text-text-body">Stack Filters</span>
+          <span className="text-xs text-text-body">Stack Filters</span>
         </div>
         <button
           role="switch"
@@ -180,13 +180,13 @@ export function FilterGrid({
           onClick={() => onStackModeChange(!stackMode)}
           className={cn(
             'w-9 h-5 rounded-full transition-all relative',
-            stackMode ? 'bg-red-primary' : 'bg-elevated border border-border'
+            stackMode ? 'bg-accent-primary' : 'bg-elevated border border-border'
           )}
         >
           <span
             className={cn(
-              'absolute top-0.5 w-4 h-4 rounded-full bg-text-primary transition-all',
-              stackMode ? 'left-[18px]' : 'left-0.5'
+              'absolute top-0.5 w-4 h-4 rounded-full transition-all',
+              stackMode ? 'left-[18px] bg-void' : 'left-0.5 bg-text-primary'
             )}
           />
         </button>
