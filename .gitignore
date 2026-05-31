@@ -68,3 +68,4 @@ worktrees/
 
 # Claude Code local config (never commit)
 .claude/
+website DESIGN.md
