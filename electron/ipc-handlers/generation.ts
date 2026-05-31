@@ -560,6 +560,18 @@ ipcMain.handle('models:list', async () => {
   }
 });
 
+ipcMain.handle('models:get', async (_event, modelId: string) => {
+  try {
+    const response = await requestBackend(() =>
+      axios.get(`${BACKEND_URL}/api/models/${modelId}`, { headers: backendAuthHeaders() }),
+    );
+    return response.data;
+  } catch (error) {
+    console.error('Failed to get model record:', error);
+    return null;
+  }
+});
+
 ipcMain.handle('models:download', async (_event, modelId: string) => {
   try {
     const response = await requestBackend(() =>
