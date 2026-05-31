@@ -87,9 +87,9 @@ export const CanvasControlLayerProperties = memo(function CanvasControlLayerProp
           type="button"
           onClick={onDelete}
           className={cn(
-            'rounded-lg p-1.5 text-text-muted transition-colors duration-150',
-            'hover:bg-red-aura hover:text-red-primary',
-            'focus:outline-none focus-visible:ring-2 focus-visible:ring-red-primary',
+            'rounded-md p-1.5 text-text-muted transition-colors duration-150',
+            'hover:bg-status-error-muted hover:text-status-error',
+            'focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary',
           )}
           aria-label="Delete control layer"
         >
@@ -102,14 +102,14 @@ export const CanvasControlLayerProperties = memo(function CanvasControlLayerProp
           'rounded-xl border px-3 py-3',
           isReady
             ? 'border-accent-primary-border bg-accent-primary-muted'
-            : 'border-red-primary/30 bg-red-aura/40',
+            : 'border-status-warning-border bg-status-warning-muted',
         )}
       >
         <div className="flex items-center gap-2">
           {isReady ? (
             <CheckCircle2 className="h-4 w-4 text-accent-primary" aria-hidden="true" />
           ) : (
-            <AlertTriangle className="h-4 w-4 text-red-primary" aria-hidden="true" />
+            <AlertTriangle className="h-4 w-4 text-status-warning" aria-hidden="true" />
           )}
           <p className="type-ui text-text-primary">
             {isReady ? 'Layer ready for generation' : 'Layer needs setup'}
@@ -138,9 +138,9 @@ export const CanvasControlLayerProperties = memo(function CanvasControlLayerProp
             value={layer.name}
             onChange={(event) => onUpdate({ name: event.target.value })}
             className={cn(
-              'w-full rounded-lg border border-border bg-void px-3 py-2',
+              'w-full rounded-md border border-border bg-void px-3 py-2',
               'type-ui text-text-primary placeholder:text-text-muted',
-              'transition-colors duration-150 focus:border-red-primary focus:outline-none focus:ring-1 focus:ring-red-primary',
+              'transition-colors duration-150 focus:border-accent-primary focus:outline-none focus:ring-1 focus:ring-accent-primary',
             )}
             placeholder="Layer name"
             aria-label="Control layer name"
@@ -159,10 +159,10 @@ export const CanvasControlLayerProperties = memo(function CanvasControlLayerProp
                   type="button"
                   onClick={() => onUpdate({ type: option.id })}
                   className={cn(
-                    'flex items-center justify-center gap-1.5 rounded-lg border px-2.5 py-2 text-center transition-all duration-150',
-                    'focus:outline-none focus-visible:ring-2 focus-visible:ring-red-primary',
+                    'flex items-center justify-center gap-1.5 rounded-md border px-2.5 py-2 text-center transition-all duration-150',
+                    'focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary',
                     isActive
-                      ? 'border-red-primary/40 bg-red-aura text-red-primary'
+                      ? 'border-accent-primary-border bg-accent-primary-muted text-accent-primary'
                       : 'border-border bg-void text-text-body hover:border-border-hover hover:text-text-primary',
                   )}
                   aria-pressed={isActive}
@@ -197,10 +197,10 @@ export const CanvasControlLayerProperties = memo(function CanvasControlLayerProp
                   type="button"
                   onClick={() => onMaskToolChange(tool.id)}
                   className={cn(
-                    'flex items-center justify-center rounded-lg border px-2 py-2 transition-all duration-150',
-                    'focus:outline-none focus-visible:ring-2 focus-visible:ring-red-primary',
+                    'flex items-center justify-center rounded-md border px-2 py-2 transition-all duration-150',
+                    'focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary',
                     isActive
-                      ? 'border-red-primary/40 bg-red-aura text-red-primary'
+                      ? 'border-accent-primary-border bg-accent-primary-muted text-accent-primary'
                       : 'border-border bg-void text-text-body hover:border-border-hover hover:text-text-primary',
                   )}
                   aria-label={`${tool.label} mask tool`}
@@ -221,9 +221,9 @@ export const CanvasControlLayerProperties = memo(function CanvasControlLayerProp
             value={layer.sourcePath ?? ''}
             onChange={(event) => onUpdate({ sourcePath: event.target.value || undefined })}
             className={cn(
-              'w-full rounded-lg border border-border bg-void px-3 py-2',
+              'w-full rounded-md border border-border bg-void px-3 py-2',
               'type-ui text-text-primary placeholder:text-text-muted',
-              'transition-colors duration-150 focus:border-red-primary focus:outline-none focus:ring-1 focus:ring-red-primary',
+              'transition-colors duration-150 focus:border-accent-primary focus:outline-none focus:ring-1 focus:ring-accent-primary',
             )}
             placeholder="C:/path/to/source.png"
             aria-label="Control layer source path"
@@ -239,9 +239,9 @@ export const CanvasControlLayerProperties = memo(function CanvasControlLayerProp
                 value={layer.preprocessor ?? ''}
                 onChange={(event) => onUpdate({ preprocessor: event.target.value || undefined })}
                 className={cn(
-                  'w-full rounded-lg border border-border bg-void px-3 py-2',
+                  'w-full rounded-md border border-border bg-void px-3 py-2',
                   'type-ui text-text-primary placeholder:text-text-muted',
-                  'transition-colors duration-150 focus:border-red-primary focus:outline-none focus:ring-1 focus:ring-red-primary',
+                  'transition-colors duration-150 focus:border-accent-primary focus:outline-none focus:ring-1 focus:ring-accent-primary',
                 )}
                 placeholder="e.g. canny"
                 aria-label="ControlNet preprocessor"
@@ -262,7 +262,7 @@ export const CanvasControlLayerProperties = memo(function CanvasControlLayerProp
                 step={0.05}
                 value={layer.weight ?? 1}
                 onChange={(event) => onUpdate({ weight: Number(event.target.value) })}
-                className="w-full accent-red-primary"
+                className="w-full accent-[var(--color-accent-primary)]"
                 aria-label="Control layer weight"
               />
             </label>
@@ -282,9 +282,9 @@ export const CanvasControlLayerProperties = memo(function CanvasControlLayerProp
                     })
                   }
                   className={cn(
-                    'w-full rounded-lg border border-border bg-void px-3 py-2',
+                    'w-full rounded-md border border-border bg-void px-3 py-2',
                     'type-ui text-text-primary placeholder:text-text-muted',
-                    'transition-colors duration-150 focus:border-red-primary focus:outline-none focus:ring-1 focus:ring-red-primary',
+                    'transition-colors duration-150 focus:border-accent-primary focus:outline-none focus:ring-1 focus:ring-accent-primary',
                   )}
                   placeholder="0"
                   aria-label="Control layer start step"
@@ -304,9 +304,9 @@ export const CanvasControlLayerProperties = memo(function CanvasControlLayerProp
                     })
                   }
                   className={cn(
-                    'w-full rounded-lg border border-border bg-void px-3 py-2',
+                    'w-full rounded-md border border-border bg-void px-3 py-2',
                     'type-ui text-text-primary placeholder:text-text-muted',
-                    'transition-colors duration-150 focus:border-red-primary focus:outline-none focus:ring-1 focus:ring-red-primary',
+                    'transition-colors duration-150 focus:border-accent-primary focus:outline-none focus:ring-1 focus:ring-accent-primary',
                   )}
                   placeholder="100"
                   aria-label="Control layer end step"
@@ -325,9 +325,9 @@ export const CanvasControlLayerProperties = memo(function CanvasControlLayerProp
                 onChange={(event) => onUpdate({ prompt: event.target.value || undefined })}
                 rows={3}
                 className={cn(
-                  'w-full rounded-lg border border-border bg-void px-3 py-2',
+                  'w-full rounded-md border border-border bg-void px-3 py-2',
                   'type-ui text-text-primary placeholder:text-text-muted resize-y',
-                  'transition-colors duration-150 focus:border-red-primary focus:outline-none focus:ring-1 focus:ring-red-primary',
+                  'transition-colors duration-150 focus:border-accent-primary focus:outline-none focus:ring-1 focus:ring-accent-primary',
                 )}
                 placeholder="Optional prompt override for this layer"
                 aria-label="Control layer prompt override"
@@ -343,9 +343,9 @@ export const CanvasControlLayerProperties = memo(function CanvasControlLayerProp
                 }
                 rows={2}
                 className={cn(
-                  'w-full rounded-lg border border-border bg-void px-3 py-2',
+                  'w-full rounded-md border border-border bg-void px-3 py-2',
                   'type-ui text-text-primary placeholder:text-text-muted resize-y',
-                  'transition-colors duration-150 focus:border-red-primary focus:outline-none focus:ring-1 focus:ring-red-primary',
+                  'transition-colors duration-150 focus:border-accent-primary focus:outline-none focus:ring-1 focus:ring-accent-primary',
                 )}
                 placeholder="Optional negative override"
                 aria-label="Control layer negative prompt override"
@@ -365,10 +365,10 @@ export const CanvasControlLayerProperties = memo(function CanvasControlLayerProp
             type="button"
             onClick={() => onUpdate({ visible: !layer.visible })}
             className={cn(
-              'relative flex h-9 min-w-20 items-center justify-center gap-1.5 rounded-lg px-3 transition-all duration-150',
-              'focus:outline-none focus-visible:ring-2 focus-visible:ring-red-primary',
+              'relative flex h-9 min-w-20 items-center justify-center gap-1.5 rounded-md px-3 transition-all duration-150',
+              'focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary',
               layer.visible
-                ? 'bg-red-aura text-red-primary'
+                ? 'bg-accent-primary-muted text-accent-primary'
                 : 'border border-border bg-surface text-text-body',
             )}
             aria-pressed={layer.visible}
@@ -391,7 +391,7 @@ export const CanvasControlLayerProperties = memo(function CanvasControlLayerProp
             max={100}
             value={Math.round(layer.opacity * 100)}
             onChange={(event) => onUpdate({ opacity: Number(event.target.value) / 100 })}
-            className="w-full accent-red-primary"
+            className="w-full accent-[var(--color-accent-primary)]"
             aria-label="Preview opacity"
           />
         </label>
@@ -403,7 +403,7 @@ export const CanvasControlLayerProperties = memo(function CanvasControlLayerProp
               type="color"
               value={layer.previewTint}
               onChange={(event) => onUpdate({ previewTint: event.target.value })}
-              className="h-10 w-12 rounded-lg border border-border bg-void p-1"
+              className="h-10 w-12 rounded-md border border-border bg-void p-1"
               aria-label="Preview tint color"
             />
             <input
@@ -411,9 +411,9 @@ export const CanvasControlLayerProperties = memo(function CanvasControlLayerProp
               value={layer.previewTint}
               onChange={(event) => onUpdate({ previewTint: event.target.value })}
               className={cn(
-                'w-full rounded-lg border border-border bg-void px-3 py-2',
+                'w-full rounded-md border border-border bg-void px-3 py-2',
                 'type-ui text-text-primary placeholder:text-text-muted',
-                'transition-colors duration-150 focus:border-red-primary focus:outline-none focus:ring-1 focus:ring-red-primary',
+                'transition-colors duration-150 focus:border-accent-primary focus:outline-none focus:ring-1 focus:ring-accent-primary',
               )}
               placeholder="#d1d5db"
               aria-label="Preview tint value"
