@@ -1,5 +1,4 @@
 import type { ProjectTemplate } from '@/types/template';
-import type { ModelInfo } from '@/types/model';
 import type { PromptHistoryEntry, StylePreset, GenerationQueueItem, BatchResult, GenerationDraft } from '@/types/generation';
 import { BUILT_IN_STYLE_PRESETS } from '@/types/generation';
 import type { AssetJobStatus, AssetRecord, DerivedAssetResult } from '@/types/assets';
@@ -18,7 +17,6 @@ export const generationInitialState = {
     backendRunning: false,
     bundledBackend: false,
   },
-  availableModels: [] as ModelInfo[],
   promptHistory: [] as PromptHistoryEntry[],
   favoritePrompts: [] as string[],
   customStylePresets: [] as StylePreset[],
@@ -90,7 +88,6 @@ export function createGenerationActions(set: AppSet, _get: AppGet) {
       completedJobs: state.completedJobs.filter((j) => j.id !== jobId),
     })),
     setSystemInfo: (info: AppState['systemInfo']) => set({ systemInfo: info }),
-    setAvailableModels: (models: ModelInfo[]) => set({ availableModels: models }),
     addBatchJob: (batchJob: BatchJob) => set((state) => ({
       batchJobs: [...state.batchJobs, batchJob],
     })),
