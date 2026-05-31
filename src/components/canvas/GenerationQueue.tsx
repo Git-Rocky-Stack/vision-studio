@@ -23,7 +23,7 @@ export const GenerationQueue = memo(function GenerationQueue() {
       exit={{ opacity: 0, y: 20 }}
       className="absolute bottom-4 left-1/2 -translate-x-1/2 z-10"
     >
-      <div className="flex items-center gap-2 px-3 py-2 glass glass-border rounded-md shadow-cinematic overflow-x-auto scrollbar-hide max-w-[500px]">
+      <div className="flex items-center gap-2 px-3 py-2 raised-panel overflow-x-auto scrollbar-hide max-w-[500px]">
         {completedItems.map((item, index) => (
           <div key={item.id} className="relative flex-shrink-0">
             <motion.button
