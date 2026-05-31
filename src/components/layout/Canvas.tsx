@@ -456,11 +456,11 @@ export const Canvas = memo(function Canvas() {
         isGenerating && 'ring-1 ring-accent-primary/20'
       )}
     >
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_42%,rgba(215,255,63,0.045),transparent_34%),linear-gradient(180deg,var(--color-void),var(--color-canvas))]" />
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_42%,rgba(230,230,230,0.04),transparent_34%),linear-gradient(180deg,var(--color-void),var(--color-canvas))]" />
 
       {/* Canvas Toolbar */}
       <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10">
-        <div className="flex items-center gap-1.5 px-2 py-1.5 glass glass-border rounded-md shadow-cinematic">
+        <div className="flex items-center gap-1.5 px-2 py-1.5 raised-panel">
           <button
             onClick={handleZoomOut}
             className="p-2 rounded-md text-text-body hover:text-text-primary hover:bg-elevated transition-all disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:text-text-body disabled:hover:bg-transparent"
@@ -469,7 +469,7 @@ export const Canvas = memo(function Canvas() {
           >
             <ZoomOut className="w-4 h-4" />
           </button>
-          <span className="font-mono text-xs text-text-primary w-14 text-center">
+          <span className="data-mono text-text-primary w-14 text-center">
             {zoom}%
           </span>
           <button
@@ -572,7 +572,7 @@ export const Canvas = memo(function Canvas() {
                 <motion.div
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className="w-full max-w-lg rounded-2xl border border-border bg-[linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.01))] px-6 py-6 text-center shadow-cinematic"
+                  className="w-full max-w-lg rounded-xl border border-border bg-[linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.01))] px-6 py-6 text-center shadow-cinematic"
                 >
                   <div
                     ref={videoPreviewRef}
@@ -590,7 +590,7 @@ export const Canvas = memo(function Canvas() {
                     />
                   </div>
                   <div className="space-y-2">
-                    <h3 className="font-display text-xl font-semibold text-text-primary">
+                    <h3 className="text-xl font-semibold text-text-primary">
                       Video selected
                     </h3>
                     <p className="text-sm text-text-body">
@@ -658,8 +658,8 @@ export const Canvas = memo(function Canvas() {
             ) : imageError ? (
               <div className="absolute inset-0 flex flex-col items-center justify-center text-text-body">
                 <div className="text-center space-y-2">
-                  <p className="font-display text-sm text-red-primary">Failed to load image</p>
-                  <p className="font-mono text-xs text-text-muted">The file may be corrupted or missing</p>
+                  <p className="text-sm text-status-error">Failed to load image</p>
+                  <p className="data-mono text-text-muted">The file may be corrupted or missing</p>
                 </div>
               </div>
             ) : (
@@ -667,13 +667,13 @@ export const Canvas = memo(function Canvas() {
                 <motion.div
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className="w-full max-w-md rounded-2xl border border-border bg-[linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.01))] px-8 py-10 text-center shadow-cinematic"
+                  className="w-full max-w-md rounded-xl border border-border bg-[linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.01))] px-8 py-10 text-center shadow-cinematic"
                 >
-                  <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl border border-accent-primary-border bg-accent-primary-muted shadow-accent-subtle">
+                  <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-xl border border-accent-primary-border bg-accent-primary-muted shadow-accent-subtle">
                     <Sparkles className="h-6 w-6 text-accent-primary" />
                   </div>
                   <div>
-                    <h3 className="font-display text-xl font-semibold text-text-primary">
+                    <h3 className="text-xl font-semibold text-text-primary">
                       Start with an image, scene, or prompt
                     </h3>
                     <p className="text-sm text-text-body mt-1">
@@ -703,7 +703,7 @@ export const Canvas = memo(function Canvas() {
                       Open Storyboard
                     </button>
                   </div>
-                  <div className="flex items-center gap-2 justify-center text-xs text-text-muted font-mono">
+                  <div className="flex items-center gap-2 justify-center text-xs text-text-muted">
                     <Hand className="w-3.5 h-3.5" />
                     <span>Shift + Drag to pan</span>
                     <span className="h-3 w-px bg-border" aria-hidden="true" />
@@ -761,8 +761,8 @@ export const Canvas = memo(function Canvas() {
 
       {/* Canvas Info */}
       <div className="absolute bottom-4 left-4 z-10">
-        <div className="px-3 py-1.5 glass glass-border rounded-md">
-          <span className="font-mono text-xs text-text-body">
+        <div className="recessed-well px-3 py-1.5">
+          <span className="data-mono text-text-body">
             {isVideoSource
               ? 'Video source selected, frame editing pending'
               : `${imageSize.width} x ${imageSize.height}px, Artboard 1`}

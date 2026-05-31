@@ -12,6 +12,7 @@ const decorativeGlyphPattern = new RegExp(
 const adHocShellTypographyPattern =
   /\b(?:font-display|font-mono|text-micro|tracking-\S+|uppercase|text-\[(?:\d|\.)[^\]]+\])/;
 const shellTypographyFiles = [
+  'src/components/layout/Canvas.tsx',
   'src/components/layout/Header.tsx',
   'src/components/layout/ProjectDropdown.tsx',
   'src/components/layout/WorkbenchBoardsDock.tsx',
@@ -27,6 +28,7 @@ const shellTypographyFiles = [
   'src/components/edit/AIToolsPanel.tsx',
   'src/components/edit/ColorPicker.tsx',
   'src/components/edit/CropControls.tsx',
+  'src/components/edit/EditCanvas.tsx',
   'src/components/edit/EditPropertiesPanel.tsx',
   'src/components/edit/FilterGrid.tsx',
   'src/components/edit/LayerPanel.tsx',

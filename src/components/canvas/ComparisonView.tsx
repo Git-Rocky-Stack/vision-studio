@@ -163,7 +163,7 @@ export const ComparisonView = memo(function ComparisonView() {
 
           {/* Divider line */}
           <div
-            className="absolute top-0 bottom-0 w-px bg-red-primary z-10"
+            className="absolute top-0 bottom-0 w-px bg-accent-primary z-10"
             style={{ left: `${sliderPosition}%` }}
           >
             {/* Handle */}
@@ -184,11 +184,11 @@ export const ComparisonView = memo(function ComparisonView() {
               aria-valuemax={100}
               aria-valuenow={Math.round(sliderPosition)}
               tabIndex={0}
-              className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-8 h-8 rounded-full bg-red-primary border-2 border-text-primary flex items-center justify-center cursor-ew-resize shadow-[0_0_12px_var(--color-red-glow)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-primary focus-visible:ring-offset-2"
+              className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-8 h-8 rounded-full bg-accent-primary border-2 border-text-primary flex items-center justify-center cursor-ew-resize shadow-[0_0_12px_var(--color-accent-primary-glow)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary focus-visible:ring-offset-2"
             >
               <div className="flex gap-1">
-                <div className="w-0.5 h-3 bg-text-primary rounded-full" />
-                <div className="w-0.5 h-3 bg-text-primary rounded-full" />
+                <div className="w-0.5 h-3 bg-void rounded-full" />
+                <div className="w-0.5 h-3 bg-void rounded-full" />
               </div>
             </button>
           </div>
@@ -223,7 +223,7 @@ export const ComparisonView = memo(function ComparisonView() {
           <ImageLabel label="B" className="right-3" />
 
           {/* Opacity slider */}
-          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 w-64 px-4 py-3 glass glass-border rounded-xl shadow-cinematic">
+          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 w-64 px-4 py-3 raised-panel">
             <Slider
               label="Overlay Opacity"
               value={onionOpacity}
@@ -244,10 +244,10 @@ export const ComparisonView = memo(function ComparisonView() {
               <button
                 key={item.id}
                 className={cn(
-                  'relative aspect-square rounded-lg border overflow-hidden transition-all',
+                  'relative aspect-square rounded-md border overflow-hidden transition-all',
                   (comparisonImages[0] === item.thumbnail ||
                     comparisonImages[1] === item.thumbnail)
-                    ? 'border-red-primary ring-1 ring-red-primary/40'
+                    ? 'border-accent-primary ring-1 ring-accent-primary/40'
                     : 'border-border hover:border-border-hover'
                 )}
               >

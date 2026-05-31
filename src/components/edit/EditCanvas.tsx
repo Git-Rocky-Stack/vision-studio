@@ -329,7 +329,7 @@ export function EditCanvas() {
                 stroke={
                   line.tool === 'eraser'
                     ? 'rgba(0,0,0,1)'
-                    : 'rgba(230, 57, 70, 0.5)'
+                    : 'rgba(230, 230, 230, 0.5)'
                 }
                 strokeWidth={line.tool === 'eraser' ? 20 : 10}
                 tension={0.5}
@@ -382,10 +382,10 @@ export function EditCanvas() {
       {!currentImage && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
           <div className="text-center">
-            <p className="font-display text-sm text-text-muted">
+            <p className="text-sm text-text-muted">
               Load an image to start editing
             </p>
-            <p className="font-mono text-xs text-text-muted mt-1">
+            <p className="text-xs text-text-muted mt-1">
               Generate an image or drag one onto the canvas
             </p>
           </div>
