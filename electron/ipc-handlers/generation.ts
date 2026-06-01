@@ -581,7 +581,7 @@ ipcMain.handle('models:download', async (_event, modelId: string) => {
     );
     return response.data;
   } catch (error: any) {
-    console.error('Download model error:', error);
+    console.error('Download model error:', error instanceof Error ? error.message : error);
     return {
       success: false,
       error: toSafeRendererError(error, 'Model download failed'),
@@ -598,7 +598,7 @@ ipcMain.handle('models:download:pause', async (_event, modelId: string) => {
     );
     return response.data;
   } catch (error: any) {
-    console.error('Pause download error:', error);
+    console.error('Pause download error:', error instanceof Error ? error.message : error);
     return { success: false, error: toSafeRendererError(error, 'Pause failed') };
   }
 });
@@ -612,7 +612,7 @@ ipcMain.handle('models:download:resume', async (_event, modelId: string) => {
     );
     return response.data;
   } catch (error: any) {
-    console.error('Resume download error:', error);
+    console.error('Resume download error:', error instanceof Error ? error.message : error);
     return { success: false, error: toSafeRendererError(error, 'Resume failed') };
   }
 });
@@ -626,7 +626,7 @@ ipcMain.handle('models:download:cancel', async (_event, modelId: string) => {
     );
     return response.data;
   } catch (error: any) {
-    console.error('Cancel download error:', error);
+    console.error('Cancel download error:', error instanceof Error ? error.message : error);
     return { success: false, error: toSafeRendererError(error, 'Cancel failed') };
   }
 });
@@ -638,7 +638,7 @@ ipcMain.handle('models:downloads:list', async () => {
     );
     return response.data;
   } catch (error: any) {
-    console.error('List downloads error:', error);
+    console.error('List downloads error:', error instanceof Error ? error.message : error);
     return [];
   }
 });
@@ -653,7 +653,7 @@ ipcMain.handle('models:downloads:subscribe', async () => {
     );
     return response.data;
   } catch (error: any) {
-    console.error('Subscribe downloads error:', error);
+    console.error('Subscribe downloads error:', error instanceof Error ? error.message : error);
     return [];
   }
 });
