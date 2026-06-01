@@ -24,7 +24,7 @@ class ModelRecord:
     revision: str = "main"      # pinned for reproducibility (Pillar 5)
     aux_repo_id: Optional[str] = None
 
-    # State (M1: reuse the existing 4-value status; richer union arrives in M2)
+    # State (M2: 8-value lifecycle status, single-sourced with the TS union)
     size: str = "Unknown"
     status: str = "not_found"   # ready | downloading | error | not_found | queued | verifying | paused | cancelled
 
