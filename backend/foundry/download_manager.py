@@ -110,6 +110,14 @@ class DownloadManager:
             event.set()  # sink.add raises DownloadCancelledError at next chunk
         return job
 
+    def resume(self, model_id: str, token: Optional[str] = None) -> DownloadJob:
+        """Re-enqueue a paused/errored job. hf auto-resumes from .incomplete."""
+        existing = self._jobs.get(model_id)
+        if existing is not None and existing.status in {"paused", "error", "cancelled"}:
+            # Clear the terminal/paused job so enqueue starts a fresh task.
+            self._jobs.pop(model_id, None)
+        return self.enqueue(model_id, token=token)
+
     def get_record_status(self, model_id: str) -> Optional[str]:
         """Live lifecycle status for the registry status_provider, or None.
 

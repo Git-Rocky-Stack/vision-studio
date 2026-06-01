@@ -231,6 +231,38 @@ class DownloadManagerPauseTests(unittest.IsolatedAsyncioTestCase):
         )
 
 
+class DownloadManagerResumeTests(unittest.IsolatedAsyncioTestCase):
+    async def test_resume_reinvokes_download_and_continues_from_offset(self):
+        models_dir = tempfile.mkdtemp()
+        manager = make_manager(models_dir=models_dir)
+        # Seed a paused job (as if Task 7 left it).
+        manager._jobs["flux-dev"] = DownloadJob(model_id="flux-dev", status="paused")
+        paths = [_path_info("flux1-dev.safetensors", 1000)]
+        observed_initial = {}
+
+        def fake_download(*, local_dir, filename, tqdm_class, **_):
+            os.makedirs(local_dir, exist_ok=True)
+            # hf auto-resumes: the bar is created with initial = bytes already
+            # in .incomplete. Emulate a 400-byte partial.
+            bar = tqdm_class(total=1000, initial=400)
+            observed_initial["n"] = bar.n
+            bar.update(600)
+            bar.close()
+            dest = os.path.join(local_dir, filename)
+            open(dest, "w").close()
+            return dest
+
+        with mock.patch.object(dm_module.huggingface_hub, "get_paths_info", return_value=paths), \
+             mock.patch("shutil.disk_usage", return_value=_disk(free=10 ** 12)), \
+             mock.patch.object(dm_module.huggingface_hub, "hf_hub_download", side_effect=fake_download):
+            job = manager.resume("flux-dev")
+            self.assertEqual(job.status, "queued")  # re-enqueued
+            await _drain(manager)
+
+        self.assertEqual(observed_initial["n"], 400)  # continued, not restarted
+        self.assertEqual(manager._jobs["flux-dev"].status, "ready")
+
+
 async def _drain(manager: DownloadManager):
     tasks = list(manager._tasks.values())
     if tasks:
