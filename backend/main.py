@@ -67,7 +67,8 @@ from api.controlnet import router as controlnet_router
 from db.migrate import run_migrations
 from middleware.rate_limit import limiter, rate_limit_exceeded_handler
 from foundry.registry import ModelRegistry
-from foundry.schemas import ModelRecordSchema
+from foundry.schemas import ModelRecordSchema, DownloadJobSchema
+from foundry.download_manager import DownloadManager
 
 # Initialize logging at module load time
 setup_logging(log_file=os.getenv("LOG_FILE"))
@@ -104,11 +105,29 @@ run_migrations(DATABASE_PATH)
 job_manager = JobManager()
 model_manager = ModelManager(MODELS_DIR)
 _CATALOG_PATH = os.path.join(os.path.dirname(__file__), "foundry", "verified-catalog.json")
+
+download_manager = DownloadManager(
+    registry=None,  # late-bound below once the registry exists
+    model_manager=model_manager,
+    models_dir=MODELS_DIR,
+)
+
+
+def _composed_status_provider(model_id: str):
+    """Manager-download lifecycle first, on-disk model_manager status second."""
+    live = download_manager.get_record_status(model_id)
+    if live:
+        return live
+    return model_manager.get_record_status(model_id)
+
+
 model_registry = ModelRegistry(
     models_dir=MODELS_DIR,
     catalog_path=_CATALOG_PATH,
-    status_provider=model_manager.get_record_status,
+    status_provider=_composed_status_provider,
 )
+# Late-bind the registry the manager needs for file resolution at run time.
+download_manager._registry = model_registry
 comfy_client: Optional[ComfyUIClient] = None
 direct_generator: Optional[DirectGenerator] = None
 direct_video_generator: Optional[DirectVideoGenerator] = None
@@ -1415,6 +1434,31 @@ async def list_models(request: Request):
     return model_registry.list_records()
 
 
+def _job_to_dict(job) -> dict:
+    """Serialize a DownloadJob without ever exposing a token (there is none)."""
+    return {
+        "model_id": job.model_id,
+        "status": job.status,
+        "progress": job.progress,
+        "speed": job.speed,
+        "eta": job.eta,
+        "total_bytes": job.total_bytes,
+        "error": job.error,
+        "gate_url": job.gate_url,
+    }
+
+
+@app.get("/api/models/downloads", response_model=List[DownloadJobSchema], tags=["Models"])
+@limiter.limit("60/minute")
+async def list_downloads(request: Request):
+    """Snapshot of every download job (queue + progress).
+
+    Declared BEFORE the dynamic /api/models/{model_id} route so the literal
+    'downloads' path is not captured as a model id.
+    """
+    return [_job_to_dict(job) for job in download_manager.list_jobs()]
+
+
 @app.get("/api/models/{model_id}", response_model=ModelRecordSchema, tags=["Models"])
 @limiter.limit("60/minute")
 async def get_model_record(request: Request, model_id: str):
@@ -1425,34 +1469,36 @@ async def get_model_record(request: Request, model_id: str):
     return record
 
 
-@app.post("/api/models/{model_id}/download", tags=["Models"])
+@app.post("/api/models/{model_id}/download", response_model=DownloadJobSchema, status_code=202, tags=["Models"])
 @limiter.limit("30/minute")
-async def download_model(request: Request, model_id: str, background_tasks: BackgroundTasks):
+async def enqueue_download(request: Request, model_id: str):
+    """Enqueue a model download. Returns the DownloadJob (202 Accepted).
+
+    The optional HF token arrives per-request in the X-HF-Token header from the
+    Electron main process (safeStorage). It is forwarded to the manager as a
+    local parameter and is NEVER persisted in Python and NEVER logged.
     """
-    Start downloading a model in the background.
+    if model_registry.get_record(model_id) is None:
+        raise HTTPException(status_code=404, detail=f"Model '{model_id}' not found")
+    token = request.headers.get("X-HF-Token")
+    job = download_manager.enqueue(model_id, token=token)
+    return _job_to_dict(job)
 
-    ### Path Parameters
-    - `model_id`: The unique model identifier (e.g., "flux-dev", "sd3.5-large", "flux-fill", "sd3.5-medium")
 
-    ### Behavior
-    Model downloads run asynchronously in the background. Use `GET /api/models/{model_id}/status`
-    to check download progress. Large models (10+ GB) may take several minutes depending on
-    internet connection speed.
-
-    ### Response
-    - `success`: Always true if download was queued
-    - `message`: Confirmation message
-
-    ### Errors
-    - `404`: Model ID not found in available models list
-
-    ### Example
-    ```
-    POST /api/models/flux-dev/download
-    ```
-    """
-    background_tasks.add_task(model_manager.download_model, model_id)
-    return {"success": True, "message": f"Started downloading {model_id}"}
+@app.post("/api/models/{model_id}/download/{action}", response_model=DownloadJobSchema, tags=["Models"])
+@limiter.limit("30/minute")
+async def control_download(request: Request, model_id: str, action: str):
+    """Pause, resume, or cancel an in-flight download."""
+    if action not in {"pause", "resume", "cancel"}:
+        raise HTTPException(status_code=404, detail=f"Unknown action '{action}'")
+    if action == "resume":
+        token = request.headers.get("X-HF-Token")
+        job = download_manager.resume(model_id, token=token)
+    else:
+        job = getattr(download_manager, action)(model_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail=f"No download job for '{model_id}'")
+    return _job_to_dict(job)
 
 
 @app.get("/api/models/{model_id}/status", tags=["Models"])

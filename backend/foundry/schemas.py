@@ -26,3 +26,18 @@ class ModelRecordSchema(BaseModel):
     description: str = ""
     license: Optional[str] = None
     gated: bool = False
+
+
+class DownloadJobSchema(BaseModel):
+    # model_config silences pydantic v2's "model_" protected-namespace warning;
+    # the API contract requires the field be named model_id.
+    model_config = {"protected_namespaces": ()}
+
+    model_id: str
+    status: str  # queued | downloading | paused | verifying | ready | error | cancelled
+    progress: float = 0.0
+    speed: float = 0.0
+    eta: Optional[float] = None
+    total_bytes: int = 0
+    error: Optional[str] = None
+    gate_url: Optional[str] = None
