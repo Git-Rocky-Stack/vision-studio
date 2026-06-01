@@ -307,6 +307,47 @@ class DownloadManagerCancelTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(manager.get_record_status("flux-dev"))
 
 
+class DownloadManagerIntegrityTests(unittest.IsolatedAsyncioTestCase):
+    async def test_size_consistency_oserror_leaves_error_and_no_ready(self):
+        models_dir = tempfile.mkdtemp()
+        manager = make_manager(models_dir=models_dir)
+        paths = [_path_info("flux1-dev.safetensors", 100)]
+
+        def fake_download(**_):
+            # Mirror the library's size-consistency backstop.
+            raise OSError("Consistency check failed: file should be of size 100")
+
+        with mock.patch.object(dm_module.huggingface_hub, "get_paths_info", return_value=paths), \
+             mock.patch("shutil.disk_usage", return_value=_disk(free=10 ** 12)), \
+             mock.patch.object(dm_module.huggingface_hub, "hf_hub_download", side_effect=fake_download):
+            manager.enqueue("flux-dev")
+            await _drain(manager)
+
+        job = manager._jobs["flux-dev"]
+        self.assertEqual(job.status, "error")
+        self.assertIn("integrity", job.error)
+        self.assertNotEqual(job.status, "ready")  # never a partial as ready
+
+
+class DownloadManagerGatedTests(unittest.IsolatedAsyncioTestCase):
+    async def test_http_401_surfaces_gate_url(self):
+        manager = make_manager()
+        paths = [_path_info("flux1-dev.safetensors", 100)]
+
+        def fake_download(**_):
+            raise _http_error(401)
+
+        with mock.patch.object(dm_module.huggingface_hub, "get_paths_info", return_value=paths), \
+             mock.patch("shutil.disk_usage", return_value=_disk(free=10 ** 12)), \
+             mock.patch.object(dm_module.huggingface_hub, "hf_hub_download", side_effect=fake_download):
+            manager.enqueue("flux-dev")
+            await _drain(manager)
+
+        job = manager._jobs["flux-dev"]
+        self.assertEqual(job.status, "error")
+        self.assertEqual(job.gate_url, "https://huggingface.co/black-forest-labs/FLUX.1-dev")
+
+
 async def _drain(manager: DownloadManager):
     tasks = list(manager._tasks.values())
     if tasks:
@@ -320,6 +361,16 @@ def _path_info(path: str, size: int):
 
 def _disk(free: int):
     return type("Usage", (), {"total": free * 2, "used": free, "free": free})()
+
+
+def _http_error(status_code: int) -> Exception:
+    class _Resp:
+        def __init__(self, code):
+            self.status_code = code
+
+    exc = Exception(f"HTTP {status_code}")
+    exc.response = _Resp(status_code)  # type: ignore[attr-defined]
+    return exc
 
 
 if __name__ == "__main__":
