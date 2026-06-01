@@ -564,14 +564,14 @@ export function SettingsPanel() {
                 onClick={() => setActiveTab(section.id)}
                 aria-current={activeTab === section.id ? 'page' : undefined}
                 className={cn(
-                  'w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-all text-left',
+                  'w-full flex items-center gap-3 px-3 py-2 rounded-md transition-all text-left',
                   activeTab === section.id
                     ? 'bg-accent-primary-muted text-accent-primary border border-accent-primary-border'
                     : 'text-text-body hover:text-text-primary hover:bg-surface',
                 )}
               >
                 <Icon className="w-4 h-4" />
-                <span className="text-sm font-display font-medium">{section.label}</span>
+                <span className="text-sm font-medium">{section.label}</span>
                 {activeTab === section.id && <ChevronRight className="w-4 h-4 ml-auto" />}
               </button>
             );
@@ -579,8 +579,8 @@ export function SettingsPanel() {
         </nav>
 
         <div className="mt-auto border-t border-border pt-3">
-          <p className="truncate font-mono text-[11px] text-text-muted">{`Vision Studio v${packageJson.version}`}</p>
-          <p className="mt-1 font-mono text-[10px] text-text-muted/60">Beta Release</p>
+          <p className="truncate data-mono text-text-muted">{`Vision Studio v${packageJson.version}`}</p>
+          <p className="mt-1 type-badge text-text-muted/60">Beta Release</p>
         </div>
       </div>
 
@@ -597,7 +597,7 @@ export function SettingsPanel() {
             {activeTab === 'general' && (
               <div className="space-y-8">
                 <div>
-                  <h2 className="font-display text-xl font-semibold text-text-primary mb-1">
+                  <h2 className="type-title text-text-primary mb-1">
                     General Settings
                   </h2>
                   <p className="text-sm text-text-body">
@@ -619,7 +619,7 @@ export function SettingsPanel() {
                       type="text"
                       value={settings.defaultOutputPath || 'Using app data /outputs'}
                       readOnly
-                      className="recessed-well flex-1 px-3 py-2 text-sm font-mono text-text-primary"
+                      className="recessed-well flex-1 px-3 py-2 data-mono text-text-primary"
                     />
                     <Button variant="secondary" size="sm" onClick={handleBrowseOutputPath}>
                       Browse
@@ -633,7 +633,7 @@ export function SettingsPanel() {
 
                 <div className="flex items-center justify-between py-3 border-b border-border">
                   <div>
-                    <h3 className="text-sm font-display font-medium text-text-primary">
+                    <h3 className="text-sm font-medium text-text-primary">
                       Auto Save
                     </h3>
                     <p className="text-xs text-text-body mt-0.5">
@@ -663,7 +663,7 @@ export function SettingsPanel() {
 
                 <div className="flex items-center justify-between py-3 border-b border-border">
                   <div>
-                    <h3 className="text-sm font-display font-medium text-text-primary">
+                    <h3 className="text-sm font-medium text-text-primary">
                       Backend Autostart
                     </h3>
                     <p className="text-xs text-text-body mt-0.5">
@@ -700,10 +700,10 @@ export function SettingsPanel() {
                   </h3>
                   <div className="raised-panel p-4">
                     <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm font-display text-text-primary">
+                      <span className="text-sm text-text-primary">
                         Generated Assets
                       </span>
-                      <span className="text-sm font-mono text-text-body">{assetSummary}</span>
+                      <span className="data-mono text-text-body">{assetSummary}</span>
                     </div>
                     <div className="h-2 bg-void rounded-full overflow-hidden border border-border">
                       <div
@@ -713,7 +713,7 @@ export function SettingsPanel() {
                         }}
                       />
                     </div>
-                    <p className="text-xs font-mono text-text-muted mt-2">
+                    <p className="data-mono text-text-muted mt-2">
                       App cache folder: internal `/outputs`. Custom output folders are preserved.
                     </p>
                     <Button
@@ -733,7 +733,7 @@ export function SettingsPanel() {
             {activeTab === 'ai' && (
               <div className="space-y-8">
                 <div>
-                  <h2 className="font-display text-xl font-semibold text-text-primary mb-1">
+                  <h2 className="type-title text-text-primary mb-1">
                     AI & Models
                   </h2>
                   <p className="text-sm text-text-body">
@@ -745,7 +745,7 @@ export function SettingsPanel() {
                   <div className="flex items-center gap-3">
                     <div
                       className={cn(
-                        'w-10 h-10 rounded-lg flex items-center justify-center',
+                        'w-10 h-10 rounded-md flex items-center justify-center',
                         systemInfo.gpuAvailable
                           ? 'bg-status-success-muted'
                           : 'bg-status-warning-muted',
@@ -761,10 +761,10 @@ export function SettingsPanel() {
                       />
                     </div>
                     <div>
-                      <h4 className="text-sm font-display font-medium text-text-primary">
+                      <h4 className="text-sm font-medium text-text-primary">
                         {systemInfo.gpuName || 'GPU not detected'}
                       </h4>
-                      <p className="text-xs font-mono text-text-body">
+                      <p className="data-mono text-text-body">
                         {systemInfo.gpuVram || 'CPU mode'}, {systemInfo.cudaVersion || 'No CUDA'}
                       </p>
                     </div>
@@ -776,7 +776,7 @@ export function SettingsPanel() {
                     <div className="flex items-start gap-3">
                       <AlertTriangle className="w-5 h-5 text-status-error mt-0.5 flex-shrink-0" />
                       <div>
-                        <h4 className="text-sm font-display font-medium text-status-error">
+                        <h4 className="text-sm font-medium text-status-error">
                           AI Backend Offline
                         </h4>
                         <p className="text-xs text-text-body mt-1">
@@ -889,7 +889,7 @@ export function SettingsPanel() {
                         <div className="space-y-2">
                           <div className="flex items-center gap-2">
                             <Cloud className="w-4 h-4 text-text-muted" />
-                            <h4 className="text-sm font-display font-medium text-text-primary">
+                            <h4 className="text-sm font-medium text-text-primary">
                               Prompt Enhancement Provider
                             </h4>
                           </div>
@@ -918,14 +918,14 @@ export function SettingsPanel() {
                                   })
                                 }
                                 className={cn(
-                                  'rounded-lg border px-3 py-3 text-left transition-all',
+                                  'rounded-md border px-3 py-3 text-left transition-all',
                                   activeAccount.preferences.promptEnhancementProvider ===
                                     provider.value
                                     ? 'border-accent-primary-border bg-accent-primary-muted'
                                     : 'border-border bg-surface hover:border-border-hover',
                                 )}
                               >
-                                <div className="text-sm font-display font-medium text-text-primary">
+                                <div className="text-sm font-medium text-text-primary">
                                   {provider.label}
                                 </div>
                                 <p className="mt-1 text-xs text-text-muted">
@@ -939,7 +939,7 @@ export function SettingsPanel() {
                         <div className="space-y-2">
                           <div className="flex items-center gap-2">
                             <Cloud className="w-4 h-4 text-text-muted" />
-                            <h4 className="text-sm font-display font-medium text-text-primary">
+                            <h4 className="text-sm font-medium text-text-primary">
                               Still Image Provider
                             </h4>
                           </div>
@@ -969,13 +969,13 @@ export function SettingsPanel() {
                                   })
                                 }
                                 className={cn(
-                                  'rounded-lg border px-3 py-3 text-left transition-all',
+                                  'rounded-md border px-3 py-3 text-left transition-all',
                                   activeAccount.preferences.imageGenerationProvider === provider.value
                                     ? 'border-accent-primary-border bg-accent-primary-muted'
                                     : 'border-border bg-surface hover:border-border-hover',
                                 )}
                               >
-                                <div className="text-sm font-display font-medium text-text-primary">
+                                <div className="text-sm font-medium text-text-primary">
                                   {provider.label}
                                 </div>
                                 <p className="mt-1 text-xs text-text-muted">
@@ -988,7 +988,7 @@ export function SettingsPanel() {
 
                         <div className="space-y-4 raised-panel p-4">
                           <div className="space-y-1">
-                            <div className="flex items-center gap-2 text-sm font-display font-medium text-text-primary">
+                            <div className="flex items-center gap-2 text-sm font-medium text-text-primary">
                               <Key className="w-4 h-4" />
                               OpenRouter API Key
                             </div>
@@ -1038,7 +1038,7 @@ export function SettingsPanel() {
                             </div>
                           </div>
 
-                          <p className="text-xs font-mono text-text-muted">{openRouterStatusLabel}</p>
+                          <p className="data-mono text-text-muted">{openRouterStatusLabel}</p>
 
                           {openRouterBanner && (
                             <div
@@ -1060,7 +1060,7 @@ export function SettingsPanel() {
                             <div className="space-y-3 raised-panel p-3">
                               <div className="flex items-center justify-between gap-3">
                                 <div>
-                                  <p className="text-sm font-display font-medium text-text-primary">
+                                  <p className="text-sm font-medium text-text-primary">
                                     Key Usage
                                   </p>
                                   <p className="text-xs text-text-muted">
@@ -1085,10 +1085,10 @@ export function SettingsPanel() {
                               {openRouterKeyInfo ? (
                                 <div className="grid grid-cols-2 gap-2">
                                   <div className="recessed-well px-3 py-2">
-                                    <p className="text-[11px] uppercase tracking-[0.14em] text-text-muted">
+                                    <p className="mono-label text-text-muted">
                                       Credit Remaining
                                     </p>
-                                    <p className="mt-1 text-sm font-display font-medium text-text-primary">
+                                    <p className="mt-1 text-sm font-medium text-text-primary">
                                       {formatOpenRouterLimit(
                                         openRouterKeyInfo.limitRemaining,
                                         openRouterKeyInfo.limit,
@@ -1096,26 +1096,26 @@ export function SettingsPanel() {
                                     </p>
                                   </div>
                                   <div className="recessed-well px-3 py-2">
-                                    <p className="text-[11px] uppercase tracking-[0.14em] text-text-muted">
+                                    <p className="mono-label text-text-muted">
                                       Total Usage
                                     </p>
-                                    <p className="mt-1 text-sm font-display font-medium text-text-primary">
+                                    <p className="mt-1 text-sm font-medium text-text-primary">
                                       {formatOpenRouterCurrency(openRouterKeyInfo.usage)}
                                     </p>
                                   </div>
                                   <div className="recessed-well px-3 py-2">
-                                    <p className="text-[11px] uppercase tracking-[0.14em] text-text-muted">
+                                    <p className="mono-label text-text-muted">
                                       BYOK Usage
                                     </p>
-                                    <p className="mt-1 text-sm font-display font-medium text-text-primary">
+                                    <p className="mt-1 text-sm font-medium text-text-primary">
                                       {formatOpenRouterCurrency(openRouterKeyInfo.byokUsage)}
                                     </p>
                                   </div>
                                   <div className="recessed-well px-3 py-2">
-                                    <p className="text-[11px] uppercase tracking-[0.14em] text-text-muted">
+                                    <p className="mono-label text-text-muted">
                                       Tier & Expiry
                                     </p>
-                                    <p className="mt-1 text-sm font-display font-medium text-text-primary">
+                                    <p className="mt-1 text-sm font-medium text-text-primary">
                                       {openRouterKeyInfo.isFreeTier ? 'Free tier' : 'Standard'}
                                     </p>
                                     <p className="mt-1 text-xs text-text-muted">
@@ -1274,7 +1274,7 @@ export function SettingsPanel() {
                         className="mt-1 accent-accent-primary"
                       />
                       <div>
-                        <span className="text-sm font-display font-medium text-text-primary">
+                        <span className="text-sm font-medium text-text-primary">
                           {mode.label}
                         </span>
                         <p className="text-xs text-text-muted">{mode.desc}</p>
@@ -1297,8 +1297,8 @@ export function SettingsPanel() {
                         className="flex items-center justify-between py-3 border-b border-border/50"
                       >
                         <div>
-                          <h4 className="text-sm font-display text-text-primary">{model.name}</h4>
-                          <p className="text-xs font-mono text-text-body">
+                          <h4 className="text-sm text-text-primary">{model.name}</h4>
+                          <p className="data-mono text-text-body">
                             {model.size}
                             {typeof model.progress === 'number' && model.status === 'downloading'
                               ? ` (${Math.round(model.progress)}%)`
@@ -1308,7 +1308,7 @@ export function SettingsPanel() {
                         <div className="flex items-center gap-2">
                           <span
                             className={cn(
-                              'text-xs font-display flex items-center gap-1',
+                              'text-xs flex items-center gap-1',
                               model.status === 'ready'
                                 ? 'text-status-success'
                                 : 'text-text-body',
@@ -1347,7 +1347,7 @@ export function SettingsPanel() {
             {activeTab === 'appearance' && (
               <div className="space-y-8">
                 <div>
-                  <h2 className="font-display text-xl font-semibold text-text-primary mb-1">
+                  <h2 className="type-title text-text-primary mb-1">
                     Appearance
                   </h2>
                   <p className="text-sm text-text-body">
@@ -1363,7 +1363,7 @@ export function SettingsPanel() {
                         key={themeOption}
                         onClick={() => persistSettings({ theme: themeOption })}
                         className={cn(
-                          'p-4 rounded-lg border transition-all text-center capitalize',
+                          'p-4 rounded-md border transition-all text-center capitalize',
                           settings.theme === themeOption
                             ? 'border-accent-primary-border bg-accent-primary-muted'
                             : 'border-border bg-elevated hover:border-border-hover',
@@ -1380,7 +1380,7 @@ export function SettingsPanel() {
                         />
                         <span
                           className={cn(
-                            'text-sm font-display',
+                            'text-sm',
                             settings.theme === themeOption
                               ? 'text-accent-primary'
                               : 'text-text-body',
@@ -1398,7 +1398,7 @@ export function SettingsPanel() {
             {activeTab === 'notifications' && (
               <div className="space-y-8">
                 <div>
-                  <h2 className="font-display text-xl font-semibold text-text-primary mb-1">
+                  <h2 className="type-title text-text-primary mb-1">
                     Notifications
                   </h2>
                   <p className="text-sm text-text-body">
@@ -1409,7 +1409,7 @@ export function SettingsPanel() {
                 <div className="space-y-4">
                   <div className="flex items-center justify-between py-3 border-b border-border">
                     <div>
-                      <h3 className="text-sm font-display font-medium text-text-primary">
+                      <h3 className="text-sm font-medium text-text-primary">
                         Generation Complete
                       </h3>
                       <p className="text-xs text-text-body mt-0.5">
@@ -1445,7 +1445,7 @@ export function SettingsPanel() {
 
                   <div className="flex items-center justify-between py-3 border-b border-border">
                     <div>
-                      <h3 className="text-sm font-display font-medium text-text-primary">
+                      <h3 className="text-sm font-medium text-text-primary">
                         Generation Failed
                       </h3>
                       <p className="text-xs text-text-body mt-0.5">
@@ -1481,7 +1481,7 @@ export function SettingsPanel() {
 
                   <div className="flex items-center justify-between py-3 border-b border-border">
                     <div>
-                      <h3 className="text-sm font-display font-medium text-text-primary">
+                      <h3 className="text-sm font-medium text-text-primary">
                         Model Downloads
                       </h3>
                       <p className="text-xs text-text-body mt-0.5">

@@ -63,8 +63,11 @@ const shellTypographyFiles = [
   'src/components/ui/ImageWithFallback.tsx',
   'src/components/ui/Slider.tsx',
   'src/components/ui/Tooltip.tsx',
+  'src/pages/AssetsPanel.tsx',
+  'src/pages/CollectionsPage.tsx',
   'src/pages/GeneratePanel.tsx',
   'src/pages/QuickGeneratePanel.tsx',
+  'src/pages/SettingsPanel.tsx',
   'src/pages/StoryboardPanel.tsx',
 ];
 
