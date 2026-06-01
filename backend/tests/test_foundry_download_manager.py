@@ -120,7 +120,6 @@ class DownloadManagerHappyPathTests(unittest.IsolatedAsyncioTestCase):
             return dest
 
         with mock.patch.object(dm_module.huggingface_hub, "get_paths_info", return_value=paths), \
-             mock.patch.object(dm_module.huggingface_hub, "disk_usage", create=True), \
              mock.patch("shutil.disk_usage", return_value=_disk(free=10 ** 12)), \
              mock.patch.object(dm_module.huggingface_hub, "hf_hub_download", side_effect=fake_download):
             manager.enqueue("flux-dev")

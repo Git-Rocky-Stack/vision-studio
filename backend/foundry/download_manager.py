@@ -257,8 +257,15 @@ class DownloadManager:
         """Force the plain-HTTP byte-exact path in precise mode; restore after.
 
         file_download.py reads constants.HF_HUB_DISABLE_XET at call time, so
-        mutating the module attribute around the call toggles per-download. The
-        prior value is always restored, even on exception.
+        mutating the module attribute around the call switches Xet off for that
+        download. The prior value is always restored, even on exception.
+
+        Caveat: HF_HUB_DISABLE_XET is a *process-global*, and _download_file runs
+        in a worker thread. This is safe here only because ``mode`` is uniform
+        per manager, so every concurrent download targets the same value and
+        restores the same original. True per-download isolation (a lock or a
+        thread-local override) is deferred to Task 11 (token discipline + toggle).
+        Default ``fast`` mode makes this a no-op.
         """
         if self.mode != "precise":
             yield
