@@ -90,8 +90,20 @@ size-consistency check, and atomic move. `hf_transfer` is moot (dead). Strictly 
 The spec budgeted for a dual-mode telemetry design (fast/coarse vs slow/byte-exact).
 **Not needed in 1.x.** Both the HTTP path and the accelerated Xet path drive the same
 `tqdm_class.update()` byte stream, so we get **speed and byte-exact progress at once**.
-M2 ships **one** telemetry path, not two. (Optional tuning knob `HF_XET_HIGH_PERFORMANCE`,
-default `False`, trades memory for throughput; not required and not part of M2 scope.)
+By default M2 needs only **one** telemetry path. **Decision (Rocky, 2026-06-01): retain
+an explicit fast/precise toggle as a hedge anyway** - and it maps onto a real,
+library-sanctioned dichotomy:
+- **Fast** (default): Xet on; optional `HF_XET_HIGH_PERFORMANCE` (default `False`) trades
+  memory for throughput.
+- **Precise**: `HF_HUB_DISABLE_XET` forces the plain HTTP path -> byte-exact per-chunk
+  progress + immediate mid-file cooperative cancel.
+
+Both knobs are documented (the `HF_HUB_ENABLE_HF_TRANSFER` deprecation notice itself
+points users to `HF_XET_HIGH_PERFORMANCE`). The toggle is applied **per-download** by
+setting `huggingface_hub.constants.HF_HUB_DISABLE_XET` (read at call time -
+`file_download.py:1851`, `utils/_runtime.py:159`) around the `hf_hub_download` call and
+restoring it after; the manager owns the mode (set once for the queue, not per-concurrent
+file with conflicting values).
 
 **One honest caveat - cancellation granularity:** mid-file cooperative cancel is
 cleanest on the **HTTP** path (we can abort inside the per-chunk `update()`); on the
@@ -132,8 +144,10 @@ layers on top of this, it does not duplicate it:
 
 1. **Drop `hf_transfer` / `HF_HUB_ENABLE_HF_TRANSFER=1` entirely.** Replace section 3.1
    "Fast transfers" with: rely on **`hf_xet`** (already a transitive dep of
-   `huggingface_hub` 1.x; pin `hf_xet` explicitly in `requirements.txt` for
-   reproducibility). No env toggle, no dual-mode.
+   `huggingface_hub` 1.x; pin `hf_xet` explicitly and bump the `huggingface-hub` floor to
+   `>=1.10.1` in `requirements.txt` - the stale `>=0.19.0` could resolve a 0.x that lacks
+   the 1.x APIs). Retain the documented fast/precise toggle
+   (`HF_HUB_DISABLE_XET` / `HF_XET_HIGH_PERFORMANCE`) per the 2026-06-01 decision.
 2. **Section 3.2 "True progress"** stands, mechanism now pinned: custom **silent
    `tqdm_class`** + `get_paths_info` totals. Remove the implication that byte-exact
    progress is a "precise fallback" - it is the single default path.
@@ -179,6 +193,9 @@ behind an env flag locally. CI runs Linux AND Windows -> all path logic via `pat
     OSes).
 13. **API contracts** - `POST /models/{id}/download`, `/download/pause|resume|cancel`,
     `GET /models/downloads` return the documented shapes; unknown id -> 404.
+14. **fast/precise toggle** - precise mode sets `huggingface_hub.constants.HF_HUB_DISABLE_XET`
+    truthy around the download (forcing the HTTP byte-exact path) and **restores the prior
+    value even on error**; fast mode leaves Xet enabled; mode is a manager-level setting.
 
 ## 9. Environment snapshot (for reproducibility)
 

@@ -27,7 +27,7 @@ aiofiles>=23.2.0
 httpx>=0.25.0
 
 # Model management
-huggingface-hub>=0.19.0
+huggingface-hub[hf_xet]>=1.10.1
 gdown>=4.7.0
 tqdm>=4.66.0
 
