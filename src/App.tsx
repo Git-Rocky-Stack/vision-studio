@@ -9,10 +9,10 @@ import { KeyboardShortcuts } from '@/components/ui/KeyboardShortcuts';
 import { applyThemeToDocument, type ThemePreference } from '@/features/theme/theme';
 
 function App() {
-  const { setSystemInfo, setAvailableModels, updateJob } = useAppStore(
+  const { setSystemInfo, loadModels, updateJob } = useAppStore(
     useShallow((s) => ({
       setSystemInfo: s.setSystemInfo,
-      setAvailableModels: s.setAvailableModels,
+      loadModels: s.loadModels,
       updateJob: s.updateJob,
     }))
   );
@@ -68,13 +68,7 @@ function App() {
 
     const fetchModels = async () => {
       if (!electron?.models?.list) return;
-
-      try {
-        const models = await electron.models.list();
-        setAvailableModels(models);
-      } catch (e) {
-        console.error('Failed to fetch models:', e);
-      }
+      await loadModels();
     };
 
     fetchSystemInfo();
@@ -90,7 +84,7 @@ function App() {
       clearInterval(interval);
       unsubscribeBackendStatus?.();
     };
-  }, [setSystemInfo, setAvailableModels]);
+  }, [setSystemInfo, loadModels]);
 
   useEffect(() => {
     const electron = getElectronApi();

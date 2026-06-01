@@ -373,6 +373,30 @@ describe('AssetJobStatus contract', () => {
   });
 });
 
+// ── ModelRecord / models endpoints contract ──────────────────────────────
+
+describe('ModelRecord contract', () => {
+  it('a record carries the canonical Foundry fields', () => {
+    const record = buildModelRecord({ id: 'flux-dev', capability: 'image', tier: 'verified' });
+    expect(record).toMatchObject({
+      id: 'flux-dev',
+      capability: 'image',
+      tier: 'verified',
+      base_architecture: expect.any(String),
+      runtime: expect.any(String),
+      status: expect.any(String),
+    });
+  });
+
+  it('maps a backend records array to the frontend list shape', () => {
+    const mapped = mapModelsListResponse([
+      buildModelRecord({ id: 'a' }),
+      buildModelRecord({ id: 'b', capability: 'video' }),
+    ]);
+    expect(mapped.map((m) => m.id)).toEqual(['a', 'b']);
+  });
+});
+
 // ── Helper implementations ───────────────────────────────────────────────
 // These mirror the logic in electron/ipc-handlers/generation.ts so we can
 // test the contract in isolation without requiring Electron.
@@ -498,4 +522,40 @@ async function requestBackendImpl<T>(
     }
   }
   throw lastError;
+}
+
+interface ModelRecordShape {
+  id: string;
+  name: string;
+  artifact_type: string;
+  capability: 'image' | 'video' | 'edit' | 'inpaint';
+  base_architecture: string;
+  source: string;
+  repo_id: string | null;
+  revision: string;
+  aux_repo_id: string | null;
+  size: string;
+  status: string;
+  tier: string;
+  quality: string;
+  runtime: string;
+  hardware_class: string;
+  vram: string;
+  description: string;
+  license: string | null;
+  gated: boolean;
+}
+
+function buildModelRecord(over: Partial<ModelRecordShape>): ModelRecordShape {
+  return {
+    id: 'model', name: 'Model', artifact_type: 'checkpoint', capability: 'image',
+    base_architecture: 'sdxl', source: 'huggingface', repo_id: 'org/x', revision: 'main',
+    aux_repo_id: null, size: '1 GB', status: 'not_found', tier: 'verified', quality: 'balanced',
+    runtime: 'local', hardware_class: 'creator', vram: '1 GB', description: '', license: null,
+    gated: false, ...over,
+  };
+}
+
+function mapModelsListResponse(records: ModelRecordShape[]): ModelRecordShape[] {
+  return records;
 }

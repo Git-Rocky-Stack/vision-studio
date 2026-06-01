@@ -288,6 +288,7 @@ export interface ElectronAPI {
   };
   models: {
     list: () => Promise<any[]>;
+    get: (modelId: string) => Promise<any>;
     download: (modelId: string) => Promise<{ success: boolean; message?: string }>;
     getStatus: (modelId: string) => Promise<any>;
     delete: (modelId: string) => Promise<{ success: boolean; error?: string }>;
@@ -377,6 +378,7 @@ const electronAPI: ElectronAPI = {
   },
   models: {
     list: () => ipcRenderer.invoke('models:list'),
+    get: (modelId: string) => ipcRenderer.invoke('models:get', modelId),
     download: (modelId: string) => ipcRenderer.invoke('models:download', modelId),
     getStatus: (modelId: string) => ipcRenderer.invoke('models:get-status', modelId),
     delete: (modelId: string) => ipcRenderer.invoke('models:delete', modelId),

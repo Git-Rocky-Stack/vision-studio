@@ -40,6 +40,7 @@ import {
 import { uiInitialState, createUIActions } from './slices/uiSlice';
 import { editInitialState, createEditActions } from './slices/editSlice';
 import { generationInitialState, createGenerationActions } from './slices/generationSlice';
+import { modelsInitialState, createModelsActions } from './slices/modelsSlice';
 import { projectInitialState, createProjectActions } from './slices/projectSlice';
 import { workflowInitialState, createWorkflowActions } from './slices/workflowSlice';
 import { promptStudioInitialState, createPromptStudioActions } from './slices/promptStudioSlice';
@@ -978,6 +979,8 @@ export const useAppStore = create<AppState>()(
       ...createEditActions(set, get),
       ...generationInitialState,
       ...createGenerationActions(set, get),
+      ...modelsInitialState,
+      ...createModelsActions(set, get),
       ...projectInitialState,
       ...createProjectActions(set, get),
       ...workflowInitialState,

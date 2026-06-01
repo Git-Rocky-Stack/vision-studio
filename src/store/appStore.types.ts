@@ -121,7 +121,7 @@ import type {
 } from '@/types/workflow';
 
 import type { ProjectTemplate } from '@/types/template';
-import type { ModelInfo } from '@/types/model';
+import type { ModelRecord } from '@/types/model';
 
 import type { AspectRatio, ResolutionTier } from '@/types/resolution';
 
@@ -312,7 +312,7 @@ export interface AppState {
   };
 
   // ─── Models ──────────────────────────────────────────────────────────────
-  availableModels: ModelInfo[];
+  availableModels: ModelRecord[];
 
   // ─── Prompt Intelligence ─────────────────────────────────────────────────
   promptHistory: PromptHistoryEntry[];
@@ -480,7 +480,8 @@ export interface AppState {
   removeJob: (jobId: string) => void;
   deleteCompletedJob: (jobId: string) => void;
   setSystemInfo: (info: AppState['systemInfo']) => void;
-  setAvailableModels: (models: ModelInfo[]) => void;
+  setAvailableModels: (models: ModelRecord[]) => void;
+  loadModels: () => Promise<void>;
   addBatchJob: (batchJob: BatchJob) => void;
   updateBatchJob: (batchId: string, updates: Partial<BatchJob>) => void;
 

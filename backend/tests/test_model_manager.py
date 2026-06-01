@@ -10,6 +10,9 @@ if str(BACKEND_ROOT) not in sys.path:
     sys.path.insert(0, str(BACKEND_ROOT))
 
 from utils.model_manager import ModelInfo, ModelManager  # type: ignore[import-not-found]
+from foundry.registry import ModelRegistry  # type: ignore[import-not-found]
+
+CATALOG_PATH = str(BACKEND_ROOT / "foundry" / "verified-catalog.json")
 
 
 class ModelManagerTests(unittest.IsolatedAsyncioTestCase):
@@ -54,6 +57,60 @@ class ModelManagerTests(unittest.IsolatedAsyncioTestCase):
         local_path = manager._get_local_path(model)
 
         self.assertTrue(local_path.endswith("diffusers/ltx-video") or local_path.endswith("diffusers\\ltx-video"))
+
+    async def test_embedding_artifacts_have_a_dedicated_subdir(self):
+        manager = ModelManager(tempfile.mkdtemp())
+        self.assertIn("embedding", manager.subdirs)
+        self.assertTrue(os.path.isdir(manager.subdirs["embedding"]))
+
+    async def test_get_record_status_is_none_before_scan(self):
+        manager = ModelManager(tempfile.mkdtemp())
+        self.assertIsNone(manager.get_record_status("flux-dev"))
+
+    async def test_get_record_status_maps_not_downloaded_to_not_found(self):
+        manager = ModelManager(tempfile.mkdtemp())
+        await manager.scan_models()
+        self.assertEqual(manager.get_record_status("flux-dev"), "not_found")
+
+    async def test_get_record_status_reports_ready_for_flat_single_file(self):
+        manager = ModelManager(tempfile.mkdtemp())
+        flat = os.path.join(manager.subdirs["checkpoint"], "flux1-dev.safetensors")
+        with open(flat, "w", encoding="utf-8") as handle:
+            handle.write("stub")
+        await manager.scan_models()
+        self.assertEqual(manager.get_record_status("flux-dev"), "ready")
+
+    async def test_registry_reports_flat_single_file_ready_via_manager(self):
+        # The regression, reproduced and fixed: a flat single-file artifact is
+        # reported ready by the registry only when it delegates to the manager.
+        models_dir = tempfile.mkdtemp()
+        manager = ModelManager(models_dir)
+        flat = os.path.join(manager.subdirs["checkpoint"], "flux1-dev.safetensors")
+        with open(flat, "w", encoding="utf-8") as handle:
+            handle.write("stub")
+        await manager.scan_models()
+
+        wired = ModelRegistry(
+            models_dir=models_dir,
+            catalog_path=CATALOG_PATH,
+            status_provider=manager.get_record_status,
+        )
+        self.assertEqual(wired.get_record("flux-dev")["status"], "ready")
+
+        bare = ModelRegistry(models_dir=models_dir, catalog_path=CATALOG_PATH)
+        self.assertEqual(bare.get_record("flux-dev")["status"], "not_found")
+
+    async def test_get_record_status_passes_through_error_state(self):
+        manager = ModelManager(tempfile.mkdtemp())
+        await manager.scan_models()
+        manager.available_models["flux-dev"].status = "error"
+        self.assertEqual(manager.get_record_status("flux-dev"), "error")
+
+    async def test_get_record_status_degrades_unknown_status_to_not_found(self):
+        manager = ModelManager(tempfile.mkdtemp())
+        await manager.scan_models()
+        manager.available_models["flux-dev"].status = "some-future-state"
+        self.assertEqual(manager.get_record_status("flux-dev"), "not_found")
 
 
 if __name__ == "__main__":
