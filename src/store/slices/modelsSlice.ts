@@ -6,7 +6,7 @@ export const modelsInitialState = {
   downloads: {} as Record<string, DownloadJob>,
 };
 
-export function createModelsActions(set: AppSet, get: AppGet) {
+export function createModelsActions(set: AppSet, _get: AppGet) {
   const mergeJob = (jobLike: DownloadJob | null | undefined) => {
     if (!jobLike || !jobLike.model_id) return;
     set((state) => ({
