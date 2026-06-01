@@ -4,7 +4,10 @@ Fallback when ComfyUI is not available
 """
 
 import os
-import torch
+try:
+    import torch
+except ImportError:  # torch is optional and absent in the lightweight CI/test env
+    torch = None
 from typing import Optional, Callable, Dict, Any
 from pathlib import Path
 from PIL import Image
