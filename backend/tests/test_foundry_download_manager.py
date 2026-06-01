@@ -154,6 +154,42 @@ class DownloadManagerHappyPathTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(any("hf_SECRET" in repr(v) for v in vars(manager).values()))
 
 
+class DownloadManagerDiskPreflightTests(unittest.IsolatedAsyncioTestCase):
+    async def test_over_budget_raises_before_any_download_call(self):
+        manager = make_manager()
+        paths = [_path_info("flux1-dev.safetensors", 10 ** 11)]  # ~100 GB
+        download = mock.MagicMock()
+
+        with mock.patch.object(dm_module.huggingface_hub, "get_paths_info", return_value=paths), \
+             mock.patch("shutil.disk_usage", return_value=_disk(free=1024)), \
+             mock.patch.object(dm_module.huggingface_hub, "hf_hub_download", download):
+            manager.enqueue("flux-dev")
+            await _drain(manager)
+
+        job = manager._jobs["flux-dev"]
+        self.assertEqual(job.status, "error")
+        self.assertIn("disk space", job.error.lower())
+        download.assert_not_called()  # refused up front, nothing downloaded
+
+    async def test_within_budget_proceeds(self):
+        models_dir = tempfile.mkdtemp()
+        manager = make_manager(models_dir=models_dir)
+        paths = [_path_info("flux1-dev.safetensors", 100)]
+
+        def fake_download(*, local_dir, filename, **_):
+            dest = os.path.join(local_dir, filename)
+            open(dest, "w").close()
+            return dest
+
+        with mock.patch.object(dm_module.huggingface_hub, "get_paths_info", return_value=paths), \
+             mock.patch("shutil.disk_usage", return_value=_disk(free=10 ** 12)), \
+             mock.patch.object(dm_module.huggingface_hub, "hf_hub_download", side_effect=fake_download):
+            manager.enqueue("flux-dev")
+            await _drain(manager)
+
+        self.assertEqual(manager._jobs["flux-dev"].status, "ready")
+
+
 async def _drain(manager: DownloadManager):
     tasks = list(manager._tasks.values())
     if tasks:
