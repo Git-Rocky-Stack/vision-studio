@@ -77,6 +77,11 @@ class DownloadManager:
         self._cancel_events: Dict[str, threading.Event] = {}
         self._intent: Dict[str, str] = {}  # model_id -> none | pause | cancel
         self._semaphore = asyncio.Semaphore(self._concurrency)
+        # Reference-counted guard for the precise-mode Xet global so concurrent
+        # downloads can't clobber each other's restore (see _xet_toggle).
+        self._xet_lock = threading.Lock()
+        self._xet_depth = 0
+        self._xet_saved = False
 
     # -- public API --------------------------------------------------------
     def enqueue(self, model_id: str, token: Optional[str] = None) -> DownloadJob:
@@ -296,24 +301,27 @@ class DownloadManager:
 
         file_download.py reads constants.HF_HUB_DISABLE_XET at call time, so
         mutating the module attribute around the call switches Xet off for that
-        download. The prior value is always restored, even on exception.
-
-        Caveat: HF_HUB_DISABLE_XET is a *process-global*, and _download_file runs
-        in a worker thread. This is safe here only because ``mode`` is uniform
-        per manager, so every concurrent download targets the same value and
-        restores the same original. True per-download isolation (a lock or a
-        thread-local override) is deferred to Task 11 (token discipline + toggle).
-        Default ``fast`` mode makes this a no-op.
+        download. HF_HUB_DISABLE_XET is a process-global and _download_file runs
+        in a worker thread, so concurrent precise downloads are reference-counted
+        under a lock: the FIRST entrant saves the true original and disables Xet,
+        and only the LAST to leave restores it. The prior value is always
+        restored, even on exception. Default ``fast`` mode is a no-op.
         """
         if self.mode != "precise":
             yield
             return
-        previous = huggingface_hub.constants.HF_HUB_DISABLE_XET
-        huggingface_hub.constants.HF_HUB_DISABLE_XET = True
+        with self._xet_lock:
+            if self._xet_depth == 0:
+                self._xet_saved = huggingface_hub.constants.HF_HUB_DISABLE_XET
+                huggingface_hub.constants.HF_HUB_DISABLE_XET = True
+            self._xet_depth += 1
         try:
             yield
         finally:
-            huggingface_hub.constants.HF_HUB_DISABLE_XET = previous
+            with self._xet_lock:
+                self._xet_depth -= 1
+                if self._xet_depth == 0:
+                    huggingface_hub.constants.HF_HUB_DISABLE_XET = self._xet_saved
 
     # -- lifecycle handlers (cancel/pause fleshed out in Tasks 6-8) --------
     def _handle_cancellation(self, model_id: str, target_dir: str) -> None:

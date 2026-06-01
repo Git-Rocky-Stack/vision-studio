@@ -348,6 +348,124 @@ class DownloadManagerGatedTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(job.gate_url, "https://huggingface.co/black-forest-labs/FLUX.1-dev")
 
 
+class DownloadManagerXetToggleTests(unittest.IsolatedAsyncioTestCase):
+    async def test_precise_mode_disables_xet_during_download_and_restores_after(self):
+        manager = make_manager(mode="precise")
+        paths = [_path_info("flux1-dev.safetensors", 10)]
+        seen = {}
+
+        def fake_download(*, local_dir, filename, **_):
+            seen["disabled_during"] = dm_module.huggingface_hub.constants.HF_HUB_DISABLE_XET
+            dest = os.path.join(local_dir, filename)
+            open(dest, "w").close()
+            return dest
+
+        with mock.patch.object(dm_module.huggingface_hub.constants, "HF_HUB_DISABLE_XET", False), \
+             mock.patch.object(dm_module.huggingface_hub, "get_paths_info", return_value=paths), \
+             mock.patch("shutil.disk_usage", return_value=_disk(free=10 ** 12)), \
+             mock.patch.object(dm_module.huggingface_hub, "hf_hub_download", side_effect=fake_download):
+            manager.enqueue("flux-dev")
+            await _drain(manager)
+            # Forced True during the call, restored to the prior False after.
+            self.assertTrue(seen["disabled_during"])
+            self.assertFalse(dm_module.huggingface_hub.constants.HF_HUB_DISABLE_XET)
+
+    async def test_precise_mode_restores_xet_even_on_error(self):
+        manager = make_manager(mode="precise")
+        paths = [_path_info("flux1-dev.safetensors", 10)]
+
+        def boom(**_):
+            raise OSError("Consistency check failed")
+
+        with mock.patch.object(dm_module.huggingface_hub.constants, "HF_HUB_DISABLE_XET", False), \
+             mock.patch.object(dm_module.huggingface_hub, "get_paths_info", return_value=paths), \
+             mock.patch("shutil.disk_usage", return_value=_disk(free=10 ** 12)), \
+             mock.patch.object(dm_module.huggingface_hub, "hf_hub_download", side_effect=boom):
+            manager.enqueue("flux-dev")
+            await _drain(manager)
+            self.assertFalse(dm_module.huggingface_hub.constants.HF_HUB_DISABLE_XET)
+
+    async def test_fast_mode_leaves_xet_untouched(self):
+        manager = make_manager(mode="fast")
+        paths = [_path_info("flux1-dev.safetensors", 10)]
+        seen = {}
+
+        def fake_download(*, local_dir, filename, **_):
+            seen["during"] = dm_module.huggingface_hub.constants.HF_HUB_DISABLE_XET
+            open(os.path.join(local_dir, filename), "w").close()
+            return os.path.join(local_dir, filename)
+
+        with mock.patch.object(dm_module.huggingface_hub.constants, "HF_HUB_DISABLE_XET", False), \
+             mock.patch.object(dm_module.huggingface_hub, "get_paths_info", return_value=paths), \
+             mock.patch("shutil.disk_usage", return_value=_disk(free=10 ** 12)), \
+             mock.patch.object(dm_module.huggingface_hub, "hf_hub_download", side_effect=fake_download):
+            manager.enqueue("flux-dev")
+            await _drain(manager)
+            self.assertFalse(seen["during"])  # Xet left enabled in fast mode
+
+    def test_concurrent_precise_toggles_restore_true_original(self):
+        # Reference-count invariant. Two overlapping precise toggles where the
+        # FIRST entrant EXITS BEFORE the second. The per-call (un-counted)
+        # version leaves the global disabled (True); the counted version must
+        # restore the true original (False). The interleaving is forced via
+        # events, so the RED/GREEN is deterministic, not timing-dependent.
+        manager = make_manager(mode="precise")
+        a_entered = threading.Event()
+        b_entered = threading.Event()
+        a_exited = threading.Event()
+        errors = []
+
+        def worker_a():
+            try:
+                with manager._xet_toggle():        # first: saves original, disables Xet
+                    a_entered.set()
+                    b_entered.wait(timeout=5)       # wait until B has also entered
+                # A exits FIRST, while B is still inside its toggle
+                a_exited.set()
+            except Exception as exc:                # pragma: no cover
+                errors.append(exc)
+
+        def worker_b():
+            try:
+                a_entered.wait(timeout=5)           # enter only AFTER A disabled Xet
+                with manager._xet_toggle():         # second, overlapping entrant
+                    b_entered.set()
+                    a_exited.wait(timeout=5)        # exit LAST, after A has exited
+            except Exception as exc:                # pragma: no cover
+                errors.append(exc)
+
+        with mock.patch.object(dm_module.huggingface_hub.constants, "HF_HUB_DISABLE_XET", False):
+            ta = threading.Thread(target=worker_a)
+            tb = threading.Thread(target=worker_b)
+            ta.start()
+            tb.start()
+            ta.join(timeout=10)
+            tb.join(timeout=10)
+            self.assertEqual(errors, [])
+            # Restored to the TRUE original (False), not left disabled (True).
+            self.assertFalse(dm_module.huggingface_hub.constants.HF_HUB_DISABLE_XET)
+
+
+class DownloadManagerTokenDisciplineTests(unittest.IsolatedAsyncioTestCase):
+    async def test_token_never_lands_on_job_or_in_list_jobs(self):
+        manager = make_manager()
+        paths = [_path_info("flux1-dev.safetensors", 10)]
+
+        def fake_download(*, local_dir, filename, **_):
+            open(os.path.join(local_dir, filename), "w").close()
+            return os.path.join(local_dir, filename)
+
+        with mock.patch.object(dm_module.huggingface_hub, "get_paths_info", return_value=paths), \
+             mock.patch("shutil.disk_usage", return_value=_disk(free=10 ** 12)), \
+             mock.patch.object(dm_module.huggingface_hub, "hf_hub_download", side_effect=fake_download):
+            manager.enqueue("flux-dev", token="hf_TOPSECRET")
+            await _drain(manager)
+
+        for job in manager.list_jobs():
+            self.assertFalse(hasattr(job, "token"))
+            self.assertNotIn("hf_TOPSECRET", repr(job))
+
+
 async def _drain(manager: DownloadManager):
     tasks = list(manager._tasks.values())
     if tasks:
