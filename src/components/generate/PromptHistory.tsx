@@ -104,11 +104,11 @@ export function PromptHistory({
           {/* Header */}
           <div className="flex items-center justify-between px-4 py-3 border-b border-border">
             <div className="flex items-center gap-2">
-              <Clock className="w-4 h-4 text-red-primary" />
+              <Clock className="w-4 h-4 text-accent-primary" />
               <span className="text-label text-text-primary">
                 Prompt History
               </span>
-              <span className="font-mono text-micro text-text-muted">
+              <span className="type-badge text-text-muted">
                 {promptHistory.length}
               </span>
             </div>
@@ -128,7 +128,7 @@ export function PromptHistory({
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search prompts..."
-                className="w-full bg-surface border border-border rounded-lg pl-8 pr-3 py-2 text-xs text-text-primary placeholder:text-text-muted focus:border-red-primary focus:ring-1 focus:ring-red-primary/40 focus:outline-none"
+                className="w-full bg-surface border border-border rounded-md pl-8 pr-3 py-2 text-xs text-text-primary placeholder:text-text-muted focus:border-accent-primary focus:ring-1 focus:ring-accent-primary/40 focus:outline-none"
                 autoFocus
               />
             </div>
@@ -137,9 +137,9 @@ export function PromptHistory({
                 onClick={() => setFilter('all')}
                 aria-pressed={filter === 'all'}
                 className={cn(
-                  'px-2.5 py-2 rounded-lg text-micro font-display transition-all',
+                  'px-2.5 py-2 rounded-md type-ui transition-all',
                   filter === 'all'
-                    ? 'bg-red-aura text-red-primary'
+                    ? 'bg-accent-primary-muted text-accent-primary'
                     : 'text-text-muted hover:text-text-primary hover:bg-surface'
                 )}
               >
@@ -149,9 +149,9 @@ export function PromptHistory({
                 onClick={() => setFilter('favorites')}
                 aria-pressed={filter === 'favorites'}
                 className={cn(
-                  'px-2.5 py-2 rounded-lg text-micro font-display flex items-center gap-1 transition-all',
+                  'px-2.5 py-2 rounded-md type-ui flex items-center gap-1 transition-all',
                   filter === 'favorites'
-                    ? 'bg-red-aura text-red-primary'
+                    ? 'bg-accent-primary-muted text-accent-primary'
                     : 'text-text-muted hover:text-text-primary hover:bg-surface'
                 )}
               >
@@ -166,12 +166,12 @@ export function PromptHistory({
             {filtered.length === 0 ? (
               <div className="py-10 text-center">
                 <Sparkles className="w-8 h-8 text-text-muted mx-auto mb-2 opacity-20" />
-                <p className="text-xs text-text-muted font-display">
+                <p className="text-xs text-text-muted">
                   {promptHistory.length === 0
                     ? 'No history yet'
                     : 'No matching prompts'}
                 </p>
-                <p className="text-micro text-text-muted mt-0.5">
+                <p className="text-xs text-text-muted mt-0.5">
                   {promptHistory.length === 0
                     ? 'Generate an image to build your history'
                     : 'Try a different search term'}
@@ -219,7 +219,7 @@ function PromptHistoryRow({
     >
       {/* Thumbnail */}
       {entry.result ? (
-        <div className="w-10 h-10 rounded-lg bg-surface border border-border flex-shrink-0 overflow-hidden">
+        <div className="w-10 h-10 rounded-md bg-surface border border-border flex-shrink-0 overflow-hidden">
           <ImageWithFallback
             src={entry.result}
             alt=""
@@ -229,7 +229,7 @@ function PromptHistoryRow({
           />
         </div>
       ) : (
-        <div className="w-10 h-10 rounded-lg bg-surface border border-border flex-shrink-0 flex items-center justify-center">
+        <div className="w-10 h-10 rounded-md bg-surface border border-border flex-shrink-0 flex items-center justify-center">
           <Sparkles className="w-4 h-4 text-text-muted/30" />
         </div>
       )}
@@ -237,19 +237,19 @@ function PromptHistoryRow({
       {/* Content - clickable area */}
       <button
         onClick={onSelect}
-        className="flex-1 min-w-0 text-left bg-transparent border-0 p-0 cursor-pointer hover:text-text-primary transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-red-primary rounded"
+        className="flex-1 min-w-0 text-left bg-transparent border-0 p-0 cursor-pointer hover:text-text-primary transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary rounded"
       >
-        <p className="text-xs text-text-primary font-display line-clamp-2 leading-relaxed">
+        <p className="text-xs text-text-primary line-clamp-2 leading-relaxed">
           {entry.prompt}
         </p>
         <div className="flex items-center gap-2 mt-1">
-          <span className="font-mono text-micro text-text-muted">
+          <span className="type-badge text-text-muted">
             {formatTimestamp(entry.timestamp)}
           </span>
           {entry.model && (
             <>
               <span className="h-3 w-px bg-border" aria-hidden="true" />
-              <span className="font-mono text-micro text-text-muted">
+              <span className="type-badge text-text-muted">
                 {entry.model}
               </span>
             </>
@@ -267,8 +267,8 @@ function PromptHistoryRow({
           className={cn(
             'p-1 rounded-md transition-all focus-visible:opacity-100',
             isFavorite
-              ? 'text-red-primary'
-              : 'text-text-muted hover:text-red-primary'
+              ? 'text-accent-primary'
+              : 'text-text-muted hover:text-accent-primary'
           )}
           title={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
           aria-label={isFavorite ? 'Remove from favorites' : 'Add to favorites'}

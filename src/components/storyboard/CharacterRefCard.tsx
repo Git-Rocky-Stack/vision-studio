@@ -55,10 +55,10 @@ export const CharacterRefCard = memo(function CharacterRefCard({
       animate={{ scale: isSelected ? 1.01 : 1 }}
       transition={{ duration: 0.15 }}
       className={cn(
-        'group flex items-center gap-3 p-2.5 rounded-lg border cursor-pointer select-none',
+        'group flex items-center gap-3 p-2.5 rounded-md border cursor-pointer select-none',
         'transition-all duration-200',
-        'bg-elevated border-border hover:border-red-primary/40',
-        isSelected && 'ring-2 ring-red-primary bg-red-aura/10 border-red-primary/60'
+        'bg-elevated border-border hover:border-accent-primary/40',
+        isSelected && 'ring-2 ring-accent-primary bg-accent-primary-muted/10 border-accent-primary/60'
       )}
     >
       {/* Color indicator */}
@@ -84,7 +84,7 @@ export const CharacterRefCard = memo(function CharacterRefCard({
 
         {/* Multi-image badge */}
         {character.faceImages.length > 1 && (
-          <span className="absolute -bottom-0.5 -right-0.5 px-1 rounded-full bg-red-primary type-ui text-text-primary font-bold leading-none">
+          <span className="absolute -bottom-0.5 -right-0.5 px-1 rounded-full bg-accent-primary type-ui text-void font-bold leading-none">
             {character.faceImages.length}
           </span>
         )}
@@ -107,7 +107,7 @@ export const CharacterRefCard = memo(function CharacterRefCard({
               aria-label={`Delete ${character.name}`}
               className={cn(
                 'p-1 rounded-md transition-all duration-150',
-                'text-text-muted hover:text-red-primary hover:bg-red-aura',
+                'text-text-muted hover:text-status-error hover:bg-status-error-muted',
                 'opacity-0 pointer-events-none',
                 (isHovered || isSelected) && 'opacity-100 pointer-events-auto'
               )}
@@ -134,7 +134,7 @@ export const CharacterRefCard = memo(function CharacterRefCard({
                   'inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded type-ui',
                   'transition-colors duration-150',
                   isLocked
-                    ? 'bg-red-aura text-red-primary border border-red-primary/30'
+                    ? 'bg-accent-primary-muted text-accent-primary border border-accent-primary-border'
                     : 'bg-surface text-text-muted border border-border hover:border-border-hover'
                 )}
               >

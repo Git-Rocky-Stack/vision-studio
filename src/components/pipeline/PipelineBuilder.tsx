@@ -103,7 +103,7 @@ export const PipelineBuilder = memo(function PipelineBuilder({
     <div className={cn('flex flex-col h-full', className)}>
       {/* Toolbar */}
       <div className="flex items-center gap-2 px-3 py-2 border-b border-border bg-surface/50">
-        <Workflow className="w-4 h-4 text-red-primary shrink-0" />
+        <Workflow className="w-4 h-4 text-accent-primary shrink-0" />
 
         {editingName ? (
           <input
@@ -130,7 +130,7 @@ export const PipelineBuilder = memo(function PipelineBuilder({
                 setNameValue(pipeline.name);
               }
             }}
-            className="flex-1 text-sm text-text-primary text-left truncate hover:text-red-primary transition-colors"
+            className="flex-1 text-sm text-text-primary text-left truncate hover:text-accent-primary transition-colors"
           >
             {pipeline.name}
           </button>
@@ -169,9 +169,9 @@ export const PipelineBuilder = memo(function PipelineBuilder({
             type="button"
             onClick={handleDelete}
             aria-label="Delete pipeline"
-            className="p-1.5 rounded hover:bg-red-primary/10 transition-colors"
+            className="p-1.5 rounded hover:bg-status-error-muted transition-colors"
           >
-            <Trash2 className="w-3.5 h-3.5 text-text-muted hover:text-red-primary" />
+            <Trash2 className="w-3.5 h-3.5 text-text-muted hover:text-status-error" />
           </button>
         )}
       </div>
@@ -234,7 +234,7 @@ export const PipelineBuilder = memo(function PipelineBuilder({
               type="button"
               onClick={() => setShowPalette(true)}
               aria-label="Add step"
-              className="flex items-center justify-center w-10 h-10 rounded-lg border border-dashed border-border hover:border-border-hover hover:bg-elevated transition-colors shrink-0 ml-2"
+              className="flex items-center justify-center w-10 h-10 rounded-md border border-dashed border-border hover:border-border-hover hover:bg-elevated transition-colors shrink-0 ml-2"
             >
               <Plus className="w-4 h-4 text-text-muted" />
             </button>

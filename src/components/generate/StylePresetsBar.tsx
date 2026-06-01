@@ -85,7 +85,7 @@ export function StylePresetsBar({ activePresets, onTogglePreset }: StylePresetsB
                         aria-label={`Style: ${preset.name}`}
                         aria-pressed={isActive}
                         className={cn(
-                          'flex-shrink-0 flex items-center gap-2 px-3 py-2 rounded-md border transition-all font-display text-xs',
+                          'flex-shrink-0 flex items-center gap-2 px-3 py-2 rounded-md border transition-all text-xs',
                           isActive
                             ? 'text-text-primary'
                             : 'bg-elevated border-border text-text-body hover:text-text-primary'

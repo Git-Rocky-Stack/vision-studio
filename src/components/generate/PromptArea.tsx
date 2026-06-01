@@ -40,7 +40,7 @@ export function PromptArea({
         <label htmlFor="prompt-input" className="text-label text-text-body">
           Prompt
         </label>
-        <span className="font-mono text-xs text-text-muted" aria-live="polite">{prompt.length}</span>
+        <span className="data-mono text-text-muted" aria-live="polite">{prompt.length}</span>
       </div>
 
       {/* Prompt textarea with focus glow wrapper */}

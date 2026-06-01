@@ -57,7 +57,7 @@ const STATUS_CONFIG: Record<
   generating: {
     label: 'generating',
     icon: Loader2,
-    className: 'bg-red-aura text-red-primary border border-red-pressed animate-pulse',
+    className: 'bg-accent-primary-muted text-accent-primary border border-accent-primary-border animate-pulse',
   },
   complete: {
     label: 'complete',
@@ -67,7 +67,7 @@ const STATUS_CONFIG: Record<
   error: {
     label: 'error',
     icon: AlertCircle,
-    className: 'bg-red-aura text-red-primary border border-red-pressed',
+    className: 'bg-status-error-muted text-status-error border border-status-error-border',
   },
 };
 
@@ -148,7 +148,7 @@ export const SceneCard = memo(function SceneCard({
         {...listeners}
         aria-label="Drag to reorder scene"
         className={cn(
-          'absolute left-1 top-1/2 -translate-y-1/2 z-20 p-1 min-w-[44px] min-h-[44px] rounded-lg',
+          'absolute left-1 top-1/2 -translate-y-1/2 z-20 p-1 min-w-[44px] min-h-[44px] rounded-md',
           'text-text-muted hover:text-text-primary hover:bg-elevated',
           'opacity-0 group-hover:opacity-100 focus:opacity-100 focus-visible:opacity-100',
           isDragging && 'opacity-100',
@@ -178,14 +178,14 @@ export const SceneCard = memo(function SceneCard({
         }}
         transition={{ duration: 0.15 }}
         className={cn(
-          'group flex gap-3 p-3 rounded-xl border cursor-pointer select-none',
+          'group flex gap-3 p-3 rounded-md border cursor-pointer select-none',
           'transition-all duration-200 min-h-[88px]',
-          'bg-elevated border-border hover:border-red-primary/40',
-          isSelected && 'ring-2 ring-red-primary bg-red-aura/10 border-red-primary/60 shadow-red-glow'
+          'bg-elevated border-border hover:border-accent-primary/40',
+          isSelected && 'ring-2 ring-accent-primary bg-accent-primary-muted/10 border-accent-primary/60 shadow-accent-subtle'
         )}
       >
         {/* Thumbnail */}
-        <div className="relative w-24 h-16 rounded-lg overflow-hidden flex-shrink-0 bg-void border border-border">
+        <div className="relative w-24 h-16 rounded-md overflow-hidden flex-shrink-0 bg-void border border-border">
           {scene.thumbnail ? (
             <img
               src={scene.thumbnail}
@@ -295,12 +295,12 @@ export const SceneCard = memo(function SceneCard({
             disabled={!canMoveUp}
             aria-label="Move scene up"
             className={cn(
-              'p-1.5 min-w-[44px] min-h-[44px] rounded-lg transition-all duration-150',
+              'p-1.5 min-w-[44px] min-h-[44px] rounded-md transition-all duration-150',
               'bg-elevated/90 backdrop-blur-sm border border-border',
               canMoveUp
                 ? 'text-text-muted hover:text-text-primary hover:bg-surface'
                 : 'text-text-muted/30 cursor-not-allowed',
-              'focus:outline-none focus-visible:ring-2 focus-visible:ring-red-primary'
+              'focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary'
             )}
           >
             <ArrowUp className="w-3.5 h-3.5" aria-hidden="true" />
@@ -315,12 +315,12 @@ export const SceneCard = memo(function SceneCard({
             disabled={!canMoveDown}
             aria-label="Move scene down"
             className={cn(
-              'p-1.5 min-w-[44px] min-h-[44px] rounded-lg transition-all duration-150',
+              'p-1.5 min-w-[44px] min-h-[44px] rounded-md transition-all duration-150',
               'bg-elevated/90 backdrop-blur-sm border border-border',
               canMoveDown
                 ? 'text-text-muted hover:text-text-primary hover:bg-surface'
                 : 'text-text-muted/30 cursor-not-allowed',
-              'focus:outline-none focus-visible:ring-2 focus-visible:ring-red-primary'
+              'focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary'
             )}
           >
             <ArrowDown className="w-3.5 h-3.5" aria-hidden="true" />
@@ -334,9 +334,9 @@ export const SceneCard = memo(function SceneCard({
             }}
             aria-label="Send scene to timeline"
             className={cn(
-              'p-1.5 min-w-[44px] min-h-[44px] rounded-lg transition-all duration-150',
+              'p-1.5 min-w-[44px] min-h-[44px] rounded-md transition-all duration-150',
               'bg-elevated/90 backdrop-blur-sm text-text-muted hover:text-text-primary hover:bg-surface',
-              'focus:outline-none focus-visible:ring-2 focus-visible:ring-red-primary',
+              'focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary',
               'border border-border'
             )}
           >
@@ -351,9 +351,9 @@ export const SceneCard = memo(function SceneCard({
             }}
             aria-label="Duplicate scene"
             className={cn(
-              'p-1.5 min-w-[44px] min-h-[44px] rounded-lg transition-all duration-150',
+              'p-1.5 min-w-[44px] min-h-[44px] rounded-md transition-all duration-150',
               'bg-elevated/90 backdrop-blur-sm text-text-muted hover:text-text-primary hover:bg-surface',
-              'focus:outline-none focus-visible:ring-2 focus-visible:ring-red-primary',
+              'focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary',
               'border border-border'
             )}
           >
@@ -368,9 +368,9 @@ export const SceneCard = memo(function SceneCard({
             }}
             aria-label="Delete scene"
             className={cn(
-              'p-1.5 min-w-[44px] min-h-[44px] rounded-lg transition-all duration-150',
-              'bg-elevated/90 backdrop-blur-sm text-text-muted hover:text-red-primary hover:bg-red-aura',
-              'focus:outline-none focus-visible:ring-2 focus-visible:ring-red-primary',
+              'p-1.5 min-w-[44px] min-h-[44px] rounded-md transition-all duration-150',
+              'bg-elevated/90 backdrop-blur-sm text-text-muted hover:text-status-error hover:bg-status-error-muted',
+              'focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary',
               'border border-border'
             )}
           >

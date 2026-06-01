@@ -55,7 +55,7 @@ export function AdvancedGenerationSettings() {
             <select
               value={advancedGeneration.scheduler}
               onChange={(e) => updateAdvancedGeneration({ scheduler: e.target.value })}
-              className="w-full bg-elevated border border-border rounded-md px-3 py-2 text-sm font-display text-text-primary focus:border-accent-primary focus:ring-1 focus:ring-accent-primary/40 transition-all"
+              className="w-full bg-elevated border border-border rounded-md px-3 py-2 text-sm text-text-primary focus:border-accent-primary focus:ring-1 focus:ring-accent-primary/40 transition-all"
             >
               {SCHEDULERS.map((scheduler) => (
                 <option key={scheduler} value={scheduler}>
@@ -74,8 +74,8 @@ export function AdvancedGenerationSettings() {
                   onClick={() => updateAdvancedGeneration({ clipSkip: value })}
                   className={
                     advancedGeneration.clipSkip === value
-                      ? 'flex-1 py-2 rounded-lg text-sm font-mono font-medium transition-all bg-accent-primary text-void shadow-accent-subtle'
-                      : 'flex-1 py-2 rounded-lg text-sm font-mono font-medium transition-all bg-elevated text-text-body border border-border hover:border-border-hover'
+                      ? 'flex-1 py-2 rounded-md data-mono font-medium transition-all bg-accent-primary text-void shadow-accent-subtle'
+                      : 'flex-1 py-2 rounded-md data-mono font-medium transition-all bg-elevated text-text-body border border-border hover:border-border-hover'
                   }
                 >
                   {value}
@@ -99,9 +99,9 @@ export function AdvancedGenerationSettings() {
               type="number"
               value={advancedGeneration.seed}
               onChange={(e) => updateAdvancedGeneration({ seed: Number(e.target.value) })}
-              className="w-full bg-elevated border border-border rounded-md px-3 py-2 text-text-primary font-mono text-sm focus:border-accent-primary focus:ring-1 focus:ring-accent-primary/40 transition-all"
+              className="w-full bg-elevated border border-border rounded-md px-3 py-2 data-mono text-text-primary focus:border-accent-primary focus:ring-1 focus:ring-accent-primary/40 transition-all"
             />
-            <p className="text-xs text-text-muted font-mono">
+            <p className="text-xs text-text-muted">
               Use -1 for random seed
             </p>
           </div>

@@ -30,7 +30,7 @@ export const CharacterAssignmentChip = memo(function CharacterAssignmentChip({
         'bg-elevated border border-border',
         'type-ui text-text-primary',
         'transition-colors duration-150',
-        'hover:border-red-primary/40'
+        'hover:border-accent-primary/40'
       )}
       data-testid="character-chip"
     >
@@ -52,7 +52,7 @@ export const CharacterAssignmentChip = memo(function CharacterAssignmentChip({
           {lockedFeatures.map((feature) => (
             <span
               key={feature}
-              className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-sm bg-red-aura type-ui text-red-primary font-bold"
+              className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-sm bg-accent-primary-muted type-ui text-accent-primary font-bold"
               title={feature.charAt(0).toUpperCase() + feature.slice(1)}
             >
               {FEATURE_ICONS[feature]}
@@ -71,7 +71,7 @@ export const CharacterAssignmentChip = memo(function CharacterAssignmentChip({
           aria-label={`Remove ${name}`}
           className={cn(
             'ml-0.5 p-0.5 rounded-sm',
-            'text-text-muted hover:text-red-primary hover:bg-red-aura',
+            'text-text-muted hover:text-status-error hover:bg-status-error-muted',
             'transition-colors duration-150'
           )}
         >

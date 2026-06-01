@@ -41,7 +41,7 @@ export function ControlNetPanel({ config, onChange }: ControlNetPanelProps) {
   };
 
   return (
-    <div className="rounded-lg border border-border bg-elevated/50 overflow-hidden">
+    <div className="rounded-md border border-border bg-elevated/50 overflow-hidden">
       {/* Toggle Header */}
       <div
         onPointerDown={() => setIsExpanded(!isExpanded)}
@@ -71,8 +71,8 @@ export function ControlNetPanel({ config, onChange }: ControlNetPanelProps) {
             if (!config.enabled) setIsExpanded(true);
           }}
           className={cn(
-            'w-9 h-5 rounded-full transition-all relative flex-shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-primary focus-visible:ring-offset-2 focus-visible:ring-offset-void',
-            config.enabled ? 'bg-red-primary' : 'bg-surface border border-border'
+            'w-9 h-5 rounded-full transition-all relative flex-shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary focus-visible:ring-offset-2 focus-visible:ring-offset-void',
+            config.enabled ? 'bg-accent-primary' : 'bg-surface border border-border'
           )}
         >
           <span
@@ -110,7 +110,7 @@ export function ControlNetPanel({ config, onChange }: ControlNetPanelProps) {
                   id="controlnet-preprocessor"
                   value={config.preprocessor}
                   onChange={(e) => update({ preprocessor: e.target.value as ControlNetConfig['preprocessor'] })}
-                  className="w-full bg-surface border border-border rounded-lg px-3 py-2 text-sm font-display text-text-primary focus:border-red-primary focus:ring-1 focus:ring-red-primary/40 transition-all"
+                  className="w-full bg-surface border border-border rounded-md px-3 py-2 text-sm text-text-primary focus:border-accent-primary focus:ring-1 focus:ring-accent-primary/40 transition-all"
                 >
                   {PREPROCESSORS.map((p) => (
                     <option key={p.id} value={p.id}>
@@ -126,7 +126,7 @@ export function ControlNetPanel({ config, onChange }: ControlNetPanelProps) {
                   Control Image
                 </label>
                 {config.referenceImage ? (
-                  <div className="relative w-16 h-16 rounded-lg overflow-hidden border border-border">
+                  <div className="relative w-16 h-16 rounded-md overflow-hidden border border-border">
                     <img
                       src={config.referenceImage}
                       alt="ControlNet reference image"
@@ -135,15 +135,15 @@ export function ControlNetPanel({ config, onChange }: ControlNetPanelProps) {
                     <button
                       onClick={() => update({ referenceImage: undefined })}
                       aria-label="Remove control image"
-                      className="absolute top-1 right-1 p-0.5 rounded bg-void/70 text-text-primary hover:bg-red-primary transition-all"
+                      className="absolute top-1 right-1 p-0.5 rounded bg-void/70 text-text-primary hover:bg-status-error transition-all"
                     >
                       <X className="w-3 h-3" />
                     </button>
                   </div>
                 ) : (
-                  <label className="flex items-center gap-2 py-3 px-3 rounded-lg border border-dashed border-border hover:border-border-hover cursor-pointer transition-all">
+                  <label className="flex items-center gap-2 py-3 px-3 rounded-md border border-dashed border-border hover:border-border-hover cursor-pointer transition-all">
                     <Upload className="w-4 h-4 text-text-muted" />
-                    <span className="text-sm font-display text-text-body">
+                    <span className="text-sm text-text-body">
                       Upload control image
                     </span>
                     <input

@@ -231,7 +231,7 @@ describe('CharacterRefCard', () => {
         />
       );
       const card = screen.getByTestId('character-ref-card');
-      expect(card).toHaveClass('ring-red-primary');
+      expect(card).toHaveClass('ring-accent-primary');
     });
 
     it('does not apply selected ring when isSelected is false', () => {
@@ -244,7 +244,7 @@ describe('CharacterRefCard', () => {
         />
       );
       const card = screen.getByTestId('character-ref-card');
-      expect(card).not.toHaveClass('ring-red-primary');
+      expect(card).not.toHaveClass('ring-accent-primary');
     });
   });
 

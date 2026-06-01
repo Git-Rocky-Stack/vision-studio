@@ -31,7 +31,7 @@ export const VideoControls = memo(function VideoControls({
   const [isExpanded, setIsExpanded] = useState(true);
 
   return (
-    <div className="rounded-lg border border-border bg-elevated/50 overflow-hidden">
+    <div className="rounded-md border border-border bg-elevated/50 overflow-hidden">
       <div
         onPointerDown={() => setIsExpanded(!isExpanded)}
         role="button"
@@ -45,7 +45,7 @@ export const VideoControls = memo(function VideoControls({
         }}
         className="flex items-center gap-2 w-full px-3 py-3 cursor-pointer"
       >
-        <Video className="w-3.5 h-3.5 text-red-primary" />
+        <Video className="w-3.5 h-3.5 text-accent-primary" />
         <span className="text-label text-text-primary">Video Settings</span>
         <div className="flex-1" />
         <ChevronDown

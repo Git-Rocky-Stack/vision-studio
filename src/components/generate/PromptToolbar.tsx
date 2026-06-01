@@ -32,7 +32,7 @@ function ToolbarButton({ icon: Icon, title, onClick, active, activeColor }: Tool
       className={cn(
         'w-7 h-7 flex items-center justify-center rounded-md transition-all',
         active
-          ? 'text-red-primary bg-red-aura'
+          ? 'text-accent-primary bg-accent-primary-muted'
           : 'text-text-muted hover:text-text-primary hover:bg-elevated'
       )}
       style={active && activeColor ? { color: activeColor } : undefined}
