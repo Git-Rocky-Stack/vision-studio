@@ -63,7 +63,7 @@ function Badge({
   className?: string;
 }) {
   return (
-    <span className={cn('inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 font-display text-micro font-medium', className)}>
+    <span className={cn('inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 type-badge', className)}>
       {children}
     </span>
   );
@@ -144,7 +144,7 @@ export function ModelSelector({ value, onChange, generationType }: ModelSelector
           disabled
           className="w-full flex items-center gap-3 px-3 py-3 rounded-md border border-border bg-panel-raised text-left opacity-70"
         >
-          <span className="font-mono text-micro text-text-muted">
+          <span className="type-meta text-text-muted">
             No models installed - open the Foundry to add one
           </span>
         </button>
@@ -176,7 +176,7 @@ export function ModelSelector({ value, onChange, generationType }: ModelSelector
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            <span className="font-display text-sm font-semibold text-text-primary truncate">
+            <span className="text-sm font-semibold text-text-primary truncate">
               {selected.name}
             </span>
           </div>
@@ -190,7 +190,7 @@ export function ModelSelector({ value, onChange, generationType }: ModelSelector
               {selectedRuntime.label}
             </Badge>
           </div>
-          <p className="mt-1.5 font-mono text-micro text-text-muted">
+          <p className="mt-1.5 type-meta text-text-muted">
             {selected.tier} / {hardwareLabel[selected.hardware_class]} / {selected.vram}
           </p>
         </div>
@@ -214,10 +214,10 @@ export function ModelSelector({ value, onChange, generationType }: ModelSelector
           >
             <div className="overflow-y-auto p-2" style={{ maxHeight: dropdownStyle.maxHeight }} role="listbox" aria-label="Select model">
               <div className="flex items-center justify-between px-2.5 py-1.5" role="presentation">
-                <p className="font-mono text-micro uppercase text-text-muted">
+                <p className="mono-label text-text-muted">
                   {generationType === 'image' ? 'Image routing' : 'Video routing'}
                 </p>
-                <p className="font-mono text-micro text-text-muted">
+                <p className="type-meta text-text-muted">
                   {models.length} profiles
                 </p>
               </div>
@@ -251,7 +251,7 @@ export function ModelSelector({ value, onChange, generationType }: ModelSelector
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-start justify-between gap-2">
-                        <span className="font-display text-sm font-medium text-text-primary">
+                        <span className="text-sm font-medium text-text-primary">
                           {model.name}
                         </span>
                         {isSelected && <Check className="mt-0.5 h-4 w-4 flex-shrink-0 text-accent-primary" />}

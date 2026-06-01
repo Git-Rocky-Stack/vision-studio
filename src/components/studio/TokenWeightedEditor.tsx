@@ -34,7 +34,7 @@ export const TokenWeightedEditor = memo(function TokenWeightedEditor({
     <div className="flex flex-col gap-1.5">
       {/* Label + token count */}
       <div className="flex items-center justify-between">
-        <label className="font-medium text-text-primary text-xs uppercase tracking-wider">
+        <label className="mono-label text-text-primary">
           {label}
         </label>
         <span
@@ -65,7 +65,7 @@ export const TokenWeightedEditor = memo(function TokenWeightedEditor({
           spellCheck={false}
           aria-label={label}
           className={cn(
-            'relative z-10 h-32 w-full resize-y rounded-lg border bg-transparent p-2 font-mono text-xs leading-relaxed',
+            'relative z-10 h-32 w-full resize-y rounded-md border bg-transparent p-2 font-mono text-xs leading-relaxed',
             'placeholder:text-text-muted/40',
             'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary/30 focus-visible:border-accent-primary-border',
             'transition-colors duration-normal',

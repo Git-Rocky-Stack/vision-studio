@@ -17,7 +17,7 @@ export const PipelinePreview = memo(function PipelinePreview({
 }: PipelinePreviewProps) {
   if (!execution) {
     return (
-      <div className={cn('flex flex-col items-center justify-center gap-2 p-6 rounded-lg border border-border bg-surface', className)}>
+      <div className={cn('flex flex-col items-center justify-center gap-2 p-6 rounded-md border border-border bg-surface', className)}>
         <Eye className="w-8 h-8 text-text-muted" />
         <p className="text-sm text-text-muted text-center">Run the pipeline to see previews</p>
       </div>
@@ -40,7 +40,7 @@ export const PipelinePreview = memo(function PipelinePreview({
             pending: 'bg-surface border-border',
             running: 'bg-warning/30 border-warning animate-pulse',
             complete: 'bg-success/30 border-success',
-            error: 'bg-red-primary/30 border-red-primary',
+            error: 'bg-status-error/30 border-status-error',
           };
           const color = colors[step.status];
 
@@ -53,7 +53,7 @@ export const PipelinePreview = memo(function PipelinePreview({
               className={cn(
                 'w-3 h-3 rounded-full border transition-all',
                 color,
-                isActive && 'ring-2 ring-red-primary/40 ring-offset-1 ring-offset-void'
+                isActive && 'ring-2 ring-accent-primary/40 ring-offset-1 ring-offset-void'
               )}
             />
           );
@@ -61,7 +61,7 @@ export const PipelinePreview = memo(function PipelinePreview({
       </div>
 
       {/* Preview image */}
-      <div className="relative rounded-lg border border-border bg-canvas overflow-hidden aspect-square">
+      <div className="relative rounded-md border border-border bg-canvas overflow-hidden aspect-square">
         {activeStep?.output ? (
           <ImageWithFallback
             src={activeStep.output}
@@ -90,7 +90,7 @@ export const PipelinePreview = memo(function PipelinePreview({
           {activeStep.status === 'running' && `Step ${stepIndex !== null ? stepIndex + 1 : ''} processing...`}
           {activeStep.status === 'pending' && `Step ${stepIndex !== null ? stepIndex + 1 : ''} pending`}
           {activeStep.status === 'error' && activeStep.error && (
-            <span className="text-red-primary">Error: {activeStep.error}</span>
+            <span className="text-status-error">Error: {activeStep.error}</span>
           )}
         </div>
       )}

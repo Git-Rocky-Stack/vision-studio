@@ -90,7 +90,7 @@ export const CompositionLayerBar = memo(function CompositionLayerBar({
   return (
     <div
       className={cn(
-        'flex items-center gap-1 rounded-lg border border-border bg-elevated/95 px-2 py-1.5',
+        'flex items-center gap-1 rounded-md border border-border bg-elevated/95 px-2 py-1.5',
         'backdrop-blur-sm shadow-lg',
       )}
     >
@@ -129,7 +129,7 @@ export const CompositionLayerBar = memo(function CompositionLayerBar({
 
       {/* Opacity slider for active layer */}
       <div className={cn('flex items-center gap-1.5')}>
-        <span className={cn('text-micro text-text-muted whitespace-nowrap')}>
+        <span className={cn('type-caption whitespace-nowrap')}>
           {firstVisibleLayer
             ? `${LAYER_CONFIG.find((c) => c.key === firstVisibleLayer)?.label ?? 'Layer'}`
             : 'No layer'}
@@ -144,7 +144,7 @@ export const CompositionLayerBar = memo(function CompositionLayerBar({
           disabled={!firstVisibleLayer}
           aria-label={`${firstVisibleLayer ? LAYER_CONFIG.find((c) => c.key === firstVisibleLayer)?.label ?? 'Layer' : 'Layer'} opacity`}
         />
-        <span className={cn('text-micro text-text-muted w-7 text-right tabular-nums')} aria-hidden="true">
+        <span className={cn('type-meta text-text-muted w-7 text-right tabular-nums')} aria-hidden="true">
           {opacityValue}%
         </span>
       </div>
@@ -169,7 +169,7 @@ export const CompositionLayerBar = memo(function CompositionLayerBar({
           <ZoomOut className={cn('h-3.5 w-3.5')} />
         </button>
 
-        <span className={cn('text-micro text-text-body w-10 text-center tabular-nums')} aria-hidden="true">
+        <span className={cn('type-meta text-text-body w-10 text-center tabular-nums')} aria-hidden="true">
           {Math.round(zoom * 100)}%
         </span>
 

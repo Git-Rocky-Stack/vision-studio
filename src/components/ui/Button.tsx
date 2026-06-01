@@ -38,7 +38,7 @@ export function Button({
     primary: 'btn-chrome vx-btn-chrome bg-accent-primary text-void',
     secondary: 'raised-control vx-switch text-text-body hover:text-text-primary',
     ghost: 'text-text-body hover:text-text-primary hover:bg-elevated',
-    danger: 'bg-red-primary/10 text-red-primary border border-red-primary/30 hover:bg-red-primary/20',
+    danger: 'bg-status-error/10 text-status-error border border-status-error/30 hover:bg-status-error/20',
     cinema: 'btn-chrome vx-btn-chrome btn-chrome-cinema bg-accent-primary text-void',
   };
 

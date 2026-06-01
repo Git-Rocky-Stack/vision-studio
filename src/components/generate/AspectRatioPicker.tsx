@@ -42,7 +42,7 @@ export const AspectRatioPicker = memo(function AspectRatioPicker() {
               title={opt.description}
               onClick={() => setAspectRatio(opt.id)}
               className={cn(
-                'flex flex-col items-center justify-center rounded-lg border py-2 px-1 transition-all',
+                'flex flex-col items-center justify-center rounded-md border py-2 px-1 transition-all',
                 isActive
                   ? 'border-accent-primary-border bg-accent-primary-muted text-accent-primary'
                   : 'border-border text-text-body hover:border-border-hover hover:bg-elevated hover:text-text-primary'
@@ -59,7 +59,7 @@ export const AspectRatioPicker = memo(function AspectRatioPicker() {
                   height: `${Math.min(24, 24 * (opt.ratio >= 1 ? 1 / opt.ratio : 1))}px`,
                 }}
               />
-              <span className="font-mono text-micro leading-none">{opt.label}</span>
+              <span className="type-badge leading-none">{opt.label}</span>
             </button>
           );
         })}
@@ -71,14 +71,14 @@ export const AspectRatioPicker = memo(function AspectRatioPicker() {
           data-active={aspectRatio === 'custom'}
           onClick={() => setAspectRatio('custom')}
           className={cn(
-            'flex flex-col items-center justify-center rounded-lg border py-2 px-1 transition-all',
+            'flex flex-col items-center justify-center rounded-md border py-2 px-1 transition-all',
             aspectRatio === 'custom'
               ? 'border-accent-primary-border bg-accent-primary-muted text-accent-primary'
               : 'border-border text-text-body hover:border-border-hover hover:bg-elevated hover:text-text-primary'
           )}
         >
           <ArrowLeftRight className="mb-1 h-3.5 w-3.5" aria-hidden="true" />
-          <span className="font-mono text-micro leading-none">Custom</span>
+          <span className="type-badge leading-none">Custom</span>
         </button>
       </div>
 
@@ -94,23 +94,23 @@ export const AspectRatioPicker = memo(function AspectRatioPicker() {
               data-active={isActive}
               onClick={() => setResolutionTier(tier.id)}
               className={cn(
-                'flex-1 rounded-lg border py-1.5 text-center transition-all',
+                'flex-1 rounded-md border py-1.5 text-center transition-all',
                 isActive
                   ? 'border-accent-primary-border bg-accent-primary-muted text-accent-primary'
                   : 'border-border text-text-body hover:border-border-hover hover:bg-elevated hover:text-text-primary'
               )}
             >
               <div className="type-ui font-medium">{tier.label}</div>
-              <div className="font-mono text-micro text-text-muted">{tier.px}px</div>
+              <div className="type-badge text-text-muted">{tier.px}px</div>
             </button>
           );
         })}
       </div>
 
       {/* Dimensions display */}
-      <div className="flex items-center justify-between rounded-lg bg-elevated/50 px-3 py-2 border border-border">
+      <div className="flex items-center justify-between rounded-md bg-elevated/50 px-3 py-2 border border-border">
         <span className="text-label text-text-body">Output</span>
-        <span className="font-mono type-ui text-text-primary">{dimensions.width} x {dimensions.height}</span>
+        <span className="data-mono text-text-primary">{dimensions.width} x {dimensions.height}</span>
       </div>
 
       {/* Custom inputs (visible only in custom mode) */}

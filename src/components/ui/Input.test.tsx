@@ -115,7 +115,7 @@ describe('Input', () => {
   it('displays error message when error prop provided', () => {
     render(<Input error="This field is required" />);
     expect(screen.getByText('This field is required')).toBeInTheDocument();
-    expect(screen.getByText('This field is required')).toHaveClass('text-red-primary');
+    expect(screen.getByText('This field is required')).toHaveClass('text-status-error');
   });
 
   it('displays helper text when helper prop provided', () => {
@@ -147,7 +147,7 @@ describe('Input', () => {
   it('applies error border styling when error prop provided', () => {
     render(<Input error="Invalid input" />);
     const input = screen.getByRole('textbox');
-    expect(input).toHaveClass('border-red-primary');
+    expect(input).toHaveClass('border-status-error');
   });
 
   it('maintains accessibility with aria attributes', () => {

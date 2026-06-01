@@ -10,6 +10,7 @@ import type { GenerationDraft, StylePreset } from '@/types/generation';
 import { BUILT_IN_STYLE_PRESETS } from '@/types/generation';
 import { computeDimensions } from '@/types/resolution';
 import { cn } from '@/utils/cn';
+import { Led } from '@/components/hardware';
 import { PromptEnhancementToolkit } from './PromptEnhancementToolkit';
 import { PromptTemplateLibrary } from './PromptTemplateLibrary';
 import { TokenWeightedEditor } from './TokenWeightedEditor';
@@ -46,7 +47,7 @@ function CollapsibleSection({
       <button
         type="button"
         onClick={() => setIsOpen((prev) => !prev)}
-        className="flex w-full items-center gap-1.5 py-1 text-xs font-medium uppercase tracking-wider text-text-muted transition-colors duration-normal hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary/30"
+        className="mono-label flex w-full items-center gap-1.5 py-1 text-text-muted transition-colors duration-normal hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary/30"
         aria-expanded={isOpen}
       >
         <ChevronDown
@@ -297,13 +298,16 @@ export const PromptStudioPanel = memo(function PromptStudioPanel() {
 
   return (
     <div className="flex h-full flex-col gap-4 overflow-y-auto p-3">
-      <div className="rounded-lg border border-border bg-elevated px-3 py-3">
+      <div className="recessed-well px-3 py-3">
         <div className="flex items-start gap-3">
-          <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border bg-surface text-text-body">
+          <div className="raised-control mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center text-text-body">
             <Cloud className="h-4 w-4" />
           </div>
           <div className="min-w-0">
-            <p className="type-section text-text-primary">{promptRoute.providerLabel}</p>
+            <div className="flex items-center gap-2">
+              <Led color={promptRoute.error ? 'cue' : 'play'} size={7} />
+              <p className="type-section text-text-primary">{promptRoute.providerLabel}</p>
+            </div>
             <p className="mt-1 type-caption text-text-body">
               {promptRoute.provider === 'openrouter'
                 ? `Account ${activeAccount?.name ?? 'No active account'} / Model ${promptRoute.model || 'OpenRouter default router'}`
@@ -320,7 +324,7 @@ export const PromptStudioPanel = memo(function PromptStudioPanel() {
         <div
           role="status"
           className={cn(
-            'rounded-lg border px-3 py-3 type-caption',
+            'rounded-md border px-3 py-3 type-caption',
             banner.tone === 'success' && 'border-status-success-border bg-status-success-muted text-status-success',
             banner.tone === 'error' && 'border-status-error-border bg-status-error-muted text-status-error',
             banner.tone === 'info' && 'border-border bg-elevated text-text-body',
@@ -364,7 +368,7 @@ export const PromptStudioPanel = memo(function PromptStudioPanel() {
           />
 
           {isStyleTransferOpen ? (
-            <div className="rounded-lg border border-border bg-elevated px-3 py-3">
+            <div className="recessed-well px-3 py-3">
               <p className="type-ui text-text-primary">Style Presets</p>
               <p className="mt-1 type-caption text-text-body">
                 Apply or remove built-in modifiers without leaving Prompt Studio.

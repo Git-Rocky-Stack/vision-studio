@@ -126,7 +126,7 @@ export const PipelineNodePalette = memo(function PipelineNodePalette({
                 className="flex items-center gap-2 w-full rounded-md px-2 py-2 text-left transition-colors hover:bg-elevated group"
               >
                 <div className="flex items-center justify-center w-7 h-7 rounded-md bg-surface group-hover:bg-elevated transition-colors">
-                  <Icon className="w-3.5 h-3.5 text-text-muted group-hover:text-red-primary transition-colors" />
+                  <Icon className="w-3.5 h-3.5 text-text-muted group-hover:text-accent-primary transition-colors" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="text-sm text-text-primary leading-tight">{st.label}</div>

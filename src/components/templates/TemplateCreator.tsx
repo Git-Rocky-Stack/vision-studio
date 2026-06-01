@@ -218,14 +218,14 @@ export function TemplateCreator({ onClose, editingTemplate }: TemplateCreatorPro
         <button
           onClick={onClose}
           aria-label="Close template creator"
-          className="absolute top-4 right-4 z-10 p-2 rounded-lg bg-elevated/80 text-text-muted hover:text-text-primary hover:bg-elevated transition-all"
+          className="absolute top-4 right-4 z-10 p-2 rounded-md bg-elevated/80 text-text-muted hover:text-text-primary hover:bg-elevated transition-all"
         >
           <X className="w-4 h-4" />
         </button>
 
         {/* Header */}
         <div className="p-6 pb-4 border-b border-border">
-          <h2 id={titleId} className="font-display text-lg font-bold text-text-primary">
+          <h2 id={titleId} className="text-lg font-bold text-text-primary">
             {editingTemplate ? 'Edit Template' : 'Create Template'}
           </h2>
           <p className="text-sm text-text-body mt-1">
@@ -244,7 +244,7 @@ export function TemplateCreator({ onClose, editingTemplate }: TemplateCreatorPro
                 <button
                   onClick={() => i < step && setStep(i)}
                   className={cn(
-                    'flex items-center gap-2 px-2 py-1 rounded-lg text-xs font-display font-medium transition-all',
+                    'flex items-center gap-2 px-2 py-1 rounded-md text-xs font-medium transition-all',
                     isActive && 'bg-accent-primary-muted text-accent-primary border border-accent-primary-border',
                     isComplete && 'text-text-primary cursor-pointer hover:bg-elevated',
                     !isActive && !isComplete && 'text-text-muted'
@@ -291,7 +291,7 @@ export function TemplateCreator({ onClose, editingTemplate }: TemplateCreatorPro
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     placeholder="e.g., My YouTube Thumbnail"
-                    className="w-full bg-elevated border border-border rounded-md px-4 py-3 text-sm text-text-primary placeholder:text-text-muted focus:border-accent-primary focus:ring-1 focus:ring-accent-primary/40 transition-all font-display"
+                    className="w-full bg-elevated border border-border rounded-md px-4 py-3 text-sm text-text-primary placeholder:text-text-muted focus:border-accent-primary focus:ring-1 focus:ring-accent-primary/40 transition-all"
                     autoFocus
                   />
                 </div>
@@ -306,7 +306,7 @@ export function TemplateCreator({ onClose, editingTemplate }: TemplateCreatorPro
                     onChange={(e) => setDescription(e.target.value)}
                     placeholder="What is this template for?"
                     rows={3}
-                    className="w-full bg-elevated border border-border rounded-md px-4 py-3 text-sm text-text-primary placeholder:text-text-muted focus:border-accent-primary focus:ring-1 focus:ring-accent-primary/40 resize-none transition-all font-display"
+                    className="w-full bg-elevated border border-border rounded-md px-4 py-3 text-sm text-text-primary placeholder:text-text-muted focus:border-accent-primary focus:ring-1 focus:ring-accent-primary/40 resize-none transition-all"
                   />
                 </div>
 
@@ -325,7 +325,7 @@ export function TemplateCreator({ onClose, editingTemplate }: TemplateCreatorPro
                           role="radio"
                           aria-checked={isSelected}
                           className={cn(
-                            'flex items-center gap-3 p-3 rounded-lg border transition-all text-left',
+                            'flex items-center gap-3 p-3 rounded-md border transition-all text-left',
                             isSelected
                               ? 'border-transparent'
                               : 'border-border bg-elevated hover:border-border-hover'
@@ -341,7 +341,7 @@ export function TemplateCreator({ onClose, editingTemplate }: TemplateCreatorPro
                           }
                         >
                           <Icon className="w-4 h-4 flex-shrink-0" />
-                          <span className="text-sm font-display font-medium">
+                          <span className="text-sm font-medium">
                             {cat.label}
                           </span>
                         </button>
@@ -380,16 +380,16 @@ export function TemplateCreator({ onClose, editingTemplate }: TemplateCreatorPro
                             setUseCustomDimensions(false);
                           }}
                           className={cn(
-                            'p-3 rounded-lg border text-center transition-all',
+                            'p-3 rounded-md border text-center transition-all',
                             isSelected
                               ? 'border-accent-primary-border bg-accent-primary-muted text-accent-primary'
                               : 'border-border bg-elevated text-text-body hover:border-border-hover'
                           )}
                         >
-                          <span className="text-xs font-display font-medium block">
+                          <span className="text-xs font-medium block">
                             {preset.label}
                           </span>
-                          <span className="font-mono text-micro text-text-muted mt-0.5 block">
+                          <span className="type-badge text-text-muted mt-0.5 block">
                             {preset.width}x{preset.height}
                           </span>
                         </button>
@@ -401,7 +401,7 @@ export function TemplateCreator({ onClose, editingTemplate }: TemplateCreatorPro
                 <div>
                   <button
                     onClick={() => setUseCustomDimensions(!useCustomDimensions)}
-                    className="text-xs font-display text-text-body hover:text-accent-primary transition-all"
+                    className="text-xs text-text-body hover:text-accent-primary transition-all"
                   >
                     {useCustomDimensions ? 'Use presets' : 'Custom dimensions'}
                   </button>
@@ -445,7 +445,7 @@ export function TemplateCreator({ onClose, editingTemplate }: TemplateCreatorPro
                 {/* Preview */}
                 <div className="flex items-center justify-center py-4">
                   <div
-                    className="border-2 border-border rounded-lg flex items-center justify-center"
+                    className="border-2 border-border rounded-md flex items-center justify-center"
                     style={{
                       width: width >= height ? '120px' : `${(width / height) * 120}px`,
                       height: height >= width ? '120px' : `${(height / width) * 120}px`,
@@ -480,7 +480,7 @@ export function TemplateCreator({ onClose, editingTemplate }: TemplateCreatorPro
                         role="radio"
                         aria-checked={model === m.id}
                         className={cn(
-                          'p-3 rounded-lg border text-left transition-all',
+                          'p-3 rounded-md border text-left transition-all',
                           model === m.id
                             ? 'border-accent-primary-border bg-accent-primary-muted'
                             : 'border-border bg-elevated hover:border-border-hover'
@@ -492,7 +492,7 @@ export function TemplateCreator({ onClose, editingTemplate }: TemplateCreatorPro
                             model === m.id ? 'text-accent-primary' : 'text-text-muted'
                           )} />
                           <span className={cn(
-                            'text-sm font-display font-medium',
+                            'text-sm font-medium',
                             model === m.id ? 'text-accent-primary' : 'text-text-primary'
                           )}>
                             {m.name}
@@ -541,10 +541,10 @@ export function TemplateCreator({ onClose, editingTemplate }: TemplateCreatorPro
                     onChange={(e) => setPrompt(e.target.value)}
                     placeholder="Describe the default generation style and content..."
                     rows={4}
-                    className="w-full bg-elevated border border-border rounded-md px-4 py-3 text-sm text-text-primary placeholder:text-text-muted focus:border-accent-primary focus:ring-1 focus:ring-accent-primary/40 resize-none transition-all font-display"
+                    className="w-full bg-elevated border border-border rounded-md px-4 py-3 text-sm text-text-primary placeholder:text-text-muted focus:border-accent-primary focus:ring-1 focus:ring-accent-primary/40 resize-none transition-all"
                     autoFocus
                   />
-                  <p className="text-micro text-text-muted mt-1 font-display">
+                  <p className="type-caption mt-1">
                     This prompt will be pre-filled when using the template
                   </p>
                 </div>
@@ -559,7 +559,7 @@ export function TemplateCreator({ onClose, editingTemplate }: TemplateCreatorPro
                     onChange={(e) => setNegativePrompt(e.target.value)}
                     placeholder="What to avoid in generation..."
                     rows={3}
-                    className="w-full bg-elevated border border-border rounded-md px-4 py-3 text-sm text-text-primary placeholder:text-text-muted focus:border-accent-primary focus:ring-1 focus:ring-accent-primary/40 resize-none transition-all font-display"
+                    className="w-full bg-elevated border border-border rounded-md px-4 py-3 text-sm text-text-primary placeholder:text-text-muted focus:border-accent-primary focus:ring-1 focus:ring-accent-primary/40 resize-none transition-all"
                   />
                 </div>
               </motion.div>

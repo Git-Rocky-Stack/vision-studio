@@ -332,7 +332,7 @@ export function TemplatesPanel() {
                   <ThumbWell template={template} color={color} size={36} />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      <h3 className="font-display font-medium text-sm text-text-primary truncate">
+                      <h3 className="font-medium text-sm text-text-primary truncate">
                         {template.name}
                       </h3>
                       <span className="inline-flex items-center gap-1.5 flex-shrink-0">
@@ -405,7 +405,7 @@ export function TemplatesPanel() {
                   <div className="flex items-start gap-4">
                     <ThumbWell template={template} color={color} size={56} />
                     <div className="flex-1 min-w-0">
-                      <h3 className="font-display font-semibold text-text-primary truncate">
+                      <h3 className="font-semibold text-text-primary truncate">
                         {template.name}
                       </h3>
                       <span className="inline-flex items-center gap-1.5 mt-1">

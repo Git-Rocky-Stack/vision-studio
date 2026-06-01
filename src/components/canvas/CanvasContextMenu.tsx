@@ -194,7 +194,7 @@ export function CanvasContextMenu({ x, y, onClose }: CanvasContextMenuProps) {
           if (match) match.focus();
         }
       }}
-      className="fixed z-50 min-w-[200px] py-1.5 bg-elevated border border-border rounded-lg shadow-cinematic"
+      className="fixed z-50 min-w-[200px] py-1.5 bg-elevated border border-border rounded-xl shadow-cinematic"
       style={{ left: x, top: y }}
     >
       {sections.map((section, sectionIdx) => (
@@ -217,11 +217,11 @@ export function CanvasContextMenu({ x, y, onClose }: CanvasContextMenuProps) {
                   'w-full flex items-center gap-3 px-3 py-2 text-left transition-all',
                   menuItem.disabled
                     ? 'text-text-muted cursor-not-allowed opacity-50'
-                    : 'text-text-primary hover:bg-red-aura hover:text-red-primary'
+                    : 'text-text-primary hover:bg-accent-primary-muted hover:text-accent-primary'
                 )}
               >
                 <Icon className="w-4 h-4 flex-shrink-0" />
-                <span className="font-display text-sm">{menuItem.label}</span>
+                <span className="text-sm">{menuItem.label}</span>
               </button>
             );
           })}

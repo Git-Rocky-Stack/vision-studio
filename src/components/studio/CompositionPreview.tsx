@@ -142,7 +142,7 @@ export const CompositionPreview = memo(function CompositionPreview() {
               />
             </div>
           ) : hasReferenceImage && isVideoSource ? (
-            <div className="flex w-full max-w-2xl flex-col items-center gap-4 rounded-2xl border border-border bg-surface/50 px-6 py-6 text-center">
+            <div className="flex w-full max-w-2xl flex-col items-center gap-4 rounded-xl border border-border bg-surface/50 px-6 py-6 text-center">
               <div
                 ref={(node) => {
                   videoPreviewRef.current = node;
@@ -181,7 +181,7 @@ export const CompositionPreview = memo(function CompositionPreview() {
           ) : (
             <div
               className={cn(
-                'flex flex-col items-center justify-center gap-3 rounded-lg',
+                'flex flex-col items-center justify-center gap-3 rounded-md',
                 'border-2 border-dashed border-border bg-surface/50',
                 'px-8 py-16 text-center',
               )}

@@ -87,7 +87,7 @@ export const PromptEnhancementToolkit = memo(
               disabled={tool.isLoading}
               title={tool.description}
               className={cn(
-                'flex flex-col items-center gap-1.5 rounded-lg border p-3 transition-all duration-normal',
+                'flex flex-col items-center gap-1.5 rounded-md border p-3 transition-all duration-normal',
                 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary/30',
                 tool.isLoading
                   ? 'cursor-wait border-border bg-elevated/50 text-text-muted/50'
@@ -102,7 +102,7 @@ export const PromptEnhancementToolkit = memo(
                   tool.isLoading && 'animate-pulse',
                 )}
               />
-              <span className="text-[10px] font-medium uppercase tracking-wider">
+              <span className="mono-label">
                 {tool.isLoading ? 'Working...' : tool.label}
               </span>
             </button>

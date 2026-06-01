@@ -185,7 +185,7 @@ export const IterationTimeline = memo(function IterationTimeline({ className }: 
           </div>
         </div>
 
-        <div className="hidden items-center gap-1 rounded-md border border-border bg-void/70 px-2 py-1 sm:flex">
+        <div className="hidden items-center gap-1 recessed-well px-2 py-1 sm:flex">
           <span className="type-badge text-text-body">
             {activeNode?.generationJob.type ?? 'image'}
           </span>

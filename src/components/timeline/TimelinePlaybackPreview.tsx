@@ -268,7 +268,7 @@ export const TimelinePlaybackPreview = memo(function TimelinePlaybackPreview({
         )}
       >
         <div className="max-w-md space-y-2 text-center">
-          <p className="font-display text-lg text-text-primary">Sequence preview unavailable</p>
+          <p className="text-lg text-text-primary">Sequence preview unavailable</p>
           <p className="text-sm text-text-muted">
             Create or select a project timeline to drive the center playback surface.
           </p>
@@ -286,13 +286,13 @@ export const TimelinePlaybackPreview = memo(function TimelinePlaybackPreview({
     >
       <div className="flex items-center justify-between gap-3 border-b border-border bg-elevated/75 px-4 py-2 backdrop-blur-sm">
         <div className="min-w-0">
-          <p className="truncate font-display text-sm text-text-primary">{activeSequence.name}</p>
-          <p className="mt-0.5 font-mono text-[11px] text-text-muted">
+          <p className="truncate text-sm text-text-primary">{activeSequence.name}</p>
+          <p className="mt-0.5 data-mono text-text-muted">
             {formatTimecode(frame?.resolvedTimeMs ?? currentTime, effectiveFps)} / {formatTimecode(playRange.endMs, effectiveFps)}
           </p>
         </div>
 
-        <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.12em] text-text-muted">
+        <div className="flex items-center gap-2 mono-label text-text-muted">
           <span className="inline-flex items-center gap-1 rounded-full border border-border bg-surface px-2 py-1">
             <TimerReset className="h-3 w-3" />
             {effectiveFps} fps
@@ -325,7 +325,7 @@ export const TimelinePlaybackPreview = memo(function TimelinePlaybackPreview({
           <>
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.08),transparent_55%)]" />
             <div className="flex h-full items-center justify-center px-6 py-5">
-              <div className="relative aspect-video h-full max-h-full w-full max-w-6xl overflow-hidden rounded-2xl border border-border bg-black shadow-cinematic">
+              <div className="relative aspect-video h-full max-h-full w-full max-w-6xl overflow-hidden rounded-xl border border-border bg-black shadow-cinematic">
                 {frame.layers.map((layer, index) => {
                   const resolvedSource = resolveMediaSourceUrl(layer.sourcePath);
                   const resolvedPoster = resolveMediaSourceUrl(layer.posterUrl);
@@ -370,7 +370,7 @@ export const TimelinePlaybackPreview = memo(function TimelinePlaybackPreview({
               {frame.layers.map((layer) => (
                 <span
                   key={layer.clipId}
-                  className="inline-flex items-center gap-1 rounded-full border border-border bg-void/80 px-2 py-1 text-[11px] uppercase tracking-[0.12em] text-text-body backdrop-blur-sm"
+                  className="inline-flex items-center gap-1 rounded-full border border-border bg-void/80 px-2 py-1 mono-label text-text-body backdrop-blur-sm"
                 >
                   {layer.mediaType === 'video' ? <Film className="h-3 w-3" /> : <ImageIcon className="h-3 w-3" />}
                   {layer.clipId}
@@ -381,11 +381,11 @@ export const TimelinePlaybackPreview = memo(function TimelinePlaybackPreview({
         ) : frame && frame.audioLayers.length > 0 ? (
           <div className="flex h-full items-center justify-center px-6 py-10">
             <div className="max-w-md space-y-3 text-center">
-              <div className="mx-auto inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-border bg-surface text-text-primary">
+              <div className="mx-auto inline-flex h-12 w-12 items-center justify-center rounded-xl border border-border bg-surface text-text-primary">
                 <AudioLines className="h-5 w-5" />
               </div>
               <div>
-                <p className="font-display text-lg text-text-primary">Audio-only playback</p>
+                <p className="text-lg text-text-primary">Audio-only playback</p>
                 <p className="mt-2 text-sm text-text-muted">
                   The active playhead is resolving {frame.audioLayers.length} audible audio layer
                   {frame.audioLayers.length === 1 ? '' : 's'} with no visible program frame.
@@ -396,7 +396,7 @@ export const TimelinePlaybackPreview = memo(function TimelinePlaybackPreview({
         ) : (
           <div className="flex h-full items-center justify-center px-6 py-10">
             <div className="max-w-md space-y-2 text-center">
-              <p className="font-display text-lg text-text-primary">No active program output</p>
+              <p className="text-lg text-text-primary">No active program output</p>
               <p className="text-sm text-text-muted">
                 Add clips to the active timeline and use the playhead to resolve the program frame.
               </p>
@@ -405,7 +405,7 @@ export const TimelinePlaybackPreview = memo(function TimelinePlaybackPreview({
         )}
 
         {primaryIssue ? (
-          <div className="absolute right-4 top-4 max-w-sm rounded-2xl border border-status-warning/40 bg-void/90 px-3 py-2 text-sm text-text-body shadow-cinematic backdrop-blur-sm">
+          <div className="absolute right-4 top-4 max-w-sm rounded-xl border border-status-warning/40 bg-void/90 px-3 py-2 text-sm text-text-body shadow-cinematic backdrop-blur-sm">
             <div className="flex items-start gap-2">
               <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0 text-status-warning" />
               <div>

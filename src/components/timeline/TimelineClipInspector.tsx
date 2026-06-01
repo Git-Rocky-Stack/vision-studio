@@ -221,7 +221,7 @@ export function TimelineClipInspector({
         )}
         data-testid="timeline-clip-inspector-empty"
       >
-        <p className="font-display text-sm text-text-primary">Clip Inspector</p>
+        <p className="text-sm text-text-primary">Clip Inspector</p>
         <p className="mt-2 text-sm text-text-muted">
           Select a clip to edit timing, transitions, and track placement.
         </p>
@@ -308,12 +308,12 @@ export function TimelineClipInspector({
       <div className="rounded-xl border border-border bg-surface p-4">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <p className="font-display text-base text-text-primary">Clip Inspector</p>
+            <p className="text-base text-text-primary">Clip Inspector</p>
             <p className="mt-1 text-xs text-text-muted">
               {mediaAsset?.name ?? clip.label} on {track.name}
             </p>
           </div>
-          <span className="rounded-full border border-border bg-elevated px-2 py-1 text-[11px] uppercase tracking-[0.12em] text-text-muted">
+          <span className="rounded-full border border-border bg-elevated px-2 py-1 mono-label text-text-muted">
             {mediaAsset?.type ?? track.kind}
           </span>
         </div>
@@ -330,14 +330,14 @@ export function TimelineClipInspector({
                   {sourceScene?.name ?? 'Derived storyboard scene'}
                 </p>
               </div>
-              <span className="rounded-full border border-border bg-surface px-2 py-1 text-[11px] uppercase tracking-[0.12em] text-text-muted">
+              <span className="rounded-full border border-border bg-surface px-2 py-1 mono-label text-text-muted">
                 Derived
               </span>
             </div>
 
             {isStoryboardPlaceholder ? (
               <p
-                className="mt-3 rounded-lg border border-status-warning-border bg-status-warning-muted px-3 py-2 text-xs text-status-warning"
+                className="mt-3 rounded-md border border-status-warning-border bg-status-warning-muted px-3 py-2 text-xs text-status-warning"
                 data-testid="timeline-inspector-placeholder"
               >
                 This clip is still using storyboard placeholder media. Generate or attach a source asset to replace it.
@@ -349,7 +349,7 @@ export function TimelineClipInspector({
                 {storyboardBeatMarkers.map((marker) => (
                   <div
                     key={marker.id}
-                    className="rounded-lg border border-border bg-surface px-3 py-2"
+                    className="rounded-md border border-border bg-surface px-3 py-2"
                     data-testid={`timeline-inspector-beat-${marker.id}`}
                   >
                     <div className="flex items-start justify-between gap-3">
@@ -360,10 +360,10 @@ export function TimelineClipInspector({
                         ) : null}
                       </div>
                       <div className="text-right">
-                        <p className="font-mono text-xs text-text-primary">
+                        <p className="data-mono text-text-primary">
                           {formatSeconds(marker.relativeStartMs)}s
                         </p>
-                        <p className="mt-1 text-[11px] text-text-muted">
+                        <p className="mt-1 text-xs text-text-muted">
                           {marker.durationMs ? `${formatSeconds(marker.durationMs)}s beat` : 'Open beat'}
                         </p>
                       </div>
@@ -385,7 +385,7 @@ export function TimelineClipInspector({
             <input
               id="timeline-clip-label"
               data-testid="timeline-clip-label-input"
-              className="mt-1 w-full rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary"
+              className="mt-1 w-full rounded-md border border-border bg-canvas px-3 py-2 text-sm text-text-primary"
               value={clip.label}
               onChange={(event) => updateTimelineClip(clip.id, { label: event.target.value })}
             />
@@ -396,7 +396,7 @@ export function TimelineClipInspector({
             <select
               id="timeline-clip-track"
               data-testid="timeline-clip-track-select"
-              className="mt-1 w-full rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary"
+              className="mt-1 w-full rounded-md border border-border bg-canvas px-3 py-2 text-sm text-text-primary"
               value={clip.trackId}
               onChange={(event) => moveTimelineClip(clip.id, { trackId: event.target.value })}
             >
@@ -418,7 +418,7 @@ export function TimelineClipInspector({
               type="number"
               min={0}
               step="0.1"
-              className="mt-1 w-full rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary"
+              className="mt-1 w-full rounded-md border border-border bg-canvas px-3 py-2 text-sm text-text-primary"
               value={formatSeconds(clip.startMs)}
               onChange={(event) =>
                 moveTimelineClip(clip.id, { startMs: parseSeconds(event.target.value, clip.startMs) })
@@ -433,7 +433,7 @@ export function TimelineClipInspector({
               type="number"
               min={0.1}
               step="0.1"
-              className="mt-1 w-full rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary"
+              className="mt-1 w-full rounded-md border border-border bg-canvas px-3 py-2 text-sm text-text-primary"
               value={formatSeconds(clip.durationMs)}
               onChange={(event) =>
                 trimTimelineClip(clip.id, {
@@ -447,21 +447,21 @@ export function TimelineClipInspector({
         <div className="mt-4 rounded-xl border border-border bg-canvas p-3">
           <div className="flex items-center justify-between">
             <span className="text-xs text-text-muted">Source Window</span>
-            <span className="font-mono text-xs text-text-primary">
+            <span className="data-mono text-text-primary">
               {formatSeconds(clip.sourceInMs)}s to {formatSeconds(clip.sourceOutMs)}s
             </span>
           </div>
           <div className="mt-3 grid grid-cols-2 gap-2">
             <button
               type="button"
-              className="rounded-lg border border-border bg-surface px-3 py-2 text-xs text-text-primary transition hover:bg-elevated"
+              className="rounded-md border border-border bg-surface px-3 py-2 text-xs text-text-primary transition hover:bg-elevated"
               onClick={() => trimTimelineClip(clip.id, { startMs: currentTime })}
             >
               Trim Start To Playhead
             </button>
             <button
               type="button"
-              className="rounded-lg border border-border bg-surface px-3 py-2 text-xs text-text-primary transition hover:bg-elevated"
+              className="rounded-md border border-border bg-surface px-3 py-2 text-xs text-text-primary transition hover:bg-elevated"
               onClick={() => trimTimelineClip(clip.id, { endMs: currentTime })}
             >
               Trim End To Playhead
@@ -472,25 +472,25 @@ export function TimelineClipInspector({
         <div className="mt-4 rounded-xl border border-border bg-canvas p-3">
           <div className="flex items-center justify-between">
             <span className="text-xs text-text-muted">Movement</span>
-            <span className="font-mono text-xs text-text-muted">{sequence.fps} fps snap</span>
+            <span className="data-mono text-text-muted">{sequence.fps} fps snap</span>
           </div>
           <div className="mt-3 flex gap-2">
             <button
               type="button"
-              className="flex-1 rounded-lg border border-border bg-surface px-3 py-2 text-xs text-text-primary transition hover:bg-elevated"
+              className="flex-1 rounded-md border border-border bg-surface px-3 py-2 text-xs text-text-primary transition hover:bg-elevated"
               onClick={() => moveTimelineClip(clip.id, { startMs: clip.startMs - frameStepMs })}
             >
               Earlier
             </button>
             <button
               type="button"
-              className="flex-1 rounded-lg border border-border bg-surface px-3 py-2 text-xs text-text-primary transition hover:bg-elevated"
+              className="flex-1 rounded-md border border-border bg-surface px-3 py-2 text-xs text-text-primary transition hover:bg-elevated"
               onClick={() => moveTimelineClip(clip.id, { startMs: clip.startMs + frameStepMs })}
             >
               Later
             </button>
           </div>
-          <p className="mt-2 text-[11px] text-text-muted">
+          <p className="mt-2 text-xs text-text-muted">
             Moves and trims stay ripple-safe and snap to nearby edit points.
           </p>
         </div>
@@ -502,7 +502,7 @@ export function TimelineClipInspector({
                 <p className="text-xs text-text-muted">Audio Clip</p>
                 <p className="mt-1 text-sm text-text-primary">Gain, fades, and edit boundaries</p>
               </div>
-              <span className="rounded-full border border-border bg-surface px-2 py-1 text-[11px] uppercase tracking-[0.12em] text-text-muted">
+              <span className="rounded-full border border-border bg-surface px-2 py-1 mono-label text-text-muted">
                 <span className="inline-flex items-center gap-1">
                   <Volume2 className="h-3 w-3" />
                   Audio
@@ -511,7 +511,7 @@ export function TimelineClipInspector({
             </div>
 
             <div className="mt-3 grid grid-cols-2 gap-3">
-              <label className="block text-[11px] text-text-muted">
+              <label className="block text-xs text-text-muted">
                 Gain
                 <input
                   data-testid="timeline-audio-gain-input"
@@ -519,7 +519,7 @@ export function TimelineClipInspector({
                   min={0}
                   max={200}
                   step={5}
-                  className="mt-1 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text-primary"
+                  className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-text-primary"
                   value={Math.round(clip.gain * 100)}
                   onChange={(event) =>
                     updateTimelineClip(clip.id, {
@@ -528,14 +528,14 @@ export function TimelineClipInspector({
                   }
                 />
               </label>
-              <label className="block text-[11px] text-text-muted">
+              <label className="block text-xs text-text-muted">
                 Fade In
                 <input
                   data-testid="timeline-audio-fade-in-input"
                   type="number"
                   min={0}
                   step={50}
-                  className="mt-1 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text-primary"
+                  className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-text-primary"
                   value={clip.fadeInMs}
                   onChange={(event) =>
                     updateTimelineClip(clip.id, {
@@ -544,14 +544,14 @@ export function TimelineClipInspector({
                   }
                 />
               </label>
-              <label className="block text-[11px] text-text-muted">
+              <label className="block text-xs text-text-muted">
                 Fade Out
                 <input
                   data-testid="timeline-audio-fade-out-input"
                   type="number"
                   min={0}
                   step={50}
-                  className="mt-1 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text-primary"
+                  className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-text-primary"
                   value={clip.fadeOutMs}
                   onChange={(event) =>
                     updateTimelineClip(clip.id, {
@@ -565,14 +565,14 @@ export function TimelineClipInspector({
             <div className="mt-3 grid grid-cols-2 gap-2">
               <button
                 type="button"
-                className="rounded-lg border border-border bg-surface px-3 py-2 text-xs text-text-primary transition hover:bg-elevated"
+                className="rounded-md border border-border bg-surface px-3 py-2 text-xs text-text-primary transition hover:bg-elevated"
                 onClick={() => seekTo(clip.startMs)}
               >
                 Playhead To In
               </button>
               <button
                 type="button"
-                className="rounded-lg border border-border bg-surface px-3 py-2 text-xs text-text-primary transition hover:bg-elevated"
+                className="rounded-md border border-border bg-surface px-3 py-2 text-xs text-text-primary transition hover:bg-elevated"
                 onClick={() => seekTo(clip.startMs + clip.durationMs)}
               >
                 Playhead To Out
@@ -584,12 +584,12 @@ export function TimelineClipInspector({
             <p className="text-xs text-text-muted">Transitions</p>
             <div className="mt-3 grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-[11px] text-text-muted">
+                <label className="block text-xs text-text-muted">
                   In Type
                   <select
                     id="timeline-transition-in-type"
                     data-testid="timeline-transition-in-type-select"
-                    className="mt-1 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text-primary"
+                    className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-text-primary"
                     value={clip.transitionIn?.type ?? ''}
                     onChange={(event) =>
                       setTimelineClipTransition(
@@ -619,7 +619,7 @@ export function TimelineClipInspector({
                   type="number"
                   min={50}
                   step={50}
-                  className="mt-2 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text-primary"
+                  className="mt-2 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-text-primary"
                   value={clip.transitionIn?.durationMs ?? 300}
                   onChange={(event) =>
                     setTimelineClipTransition(
@@ -639,11 +639,11 @@ export function TimelineClipInspector({
                 />
               </div>
               <div>
-                <label className="block text-[11px] text-text-muted">
+                <label className="block text-xs text-text-muted">
                   Out Type
                   <select
                     id="timeline-transition-out-type"
-                    className="mt-1 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text-primary"
+                    className="mt-1 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-text-primary"
                     value={clip.transitionOut?.type ?? ''}
                     onChange={(event) =>
                       setTimelineClipTransition(
@@ -672,7 +672,7 @@ export function TimelineClipInspector({
                   type="number"
                   min={50}
                   step={50}
-                  className="mt-2 w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text-primary"
+                  className="mt-2 w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-text-primary"
                   value={clip.transitionOut?.durationMs ?? 300}
                   onChange={(event) =>
                     setTimelineClipTransition(
@@ -703,7 +703,7 @@ export function TimelineClipInspector({
             </div>
             <span
               className={cn(
-                'rounded-full border px-2 py-1 text-[11px] uppercase tracking-[0.12em]',
+                'rounded-full border px-2 py-1 mono-label',
                 isVideoClip
                   ? 'border-accent-primary/30 bg-accent-primary-muted text-accent-primary'
                   : 'border-border bg-surface text-text-muted',
@@ -715,7 +715,7 @@ export function TimelineClipInspector({
 
           {!isVideoClip ? (
             <p
-              className="mt-3 rounded-lg border border-border bg-surface px-3 py-3 text-xs text-text-muted"
+              className="mt-3 rounded-md border border-border bg-surface px-3 py-3 text-xs text-text-muted"
               data-testid="timeline-retake-blocked"
             >
               Select a generated or imported video clip to author a retake range.
@@ -740,7 +740,7 @@ export function TimelineClipInspector({
                         setActiveTimelineRetakeTake(preferredTakeId);
                       }}
                       className={cn(
-                        'rounded-full border px-3 py-1.5 text-[11px] uppercase tracking-[0.12em] transition',
+                        'rounded-full border px-3 py-1.5 mono-label transition',
                         getRetakeStatusClasses(range.status),
                         selectedRetakeRange?.id === range.id ? 'shadow-[0_0_0_1px_rgba(255,255,255,0.16)]' : '',
                       )}
@@ -751,7 +751,7 @@ export function TimelineClipInspector({
                 </div>
               ) : (
                 <p
-                  className="mt-3 rounded-lg border border-border bg-surface px-3 py-3 text-xs text-text-muted"
+                  className="mt-3 rounded-md border border-border bg-surface px-3 py-3 text-xs text-text-muted"
                   data-testid="timeline-retake-empty"
                 >
                   No retake ranges yet. Use <span className="text-text-primary">Retake In</span> and{' '}
@@ -761,19 +761,19 @@ export function TimelineClipInspector({
 
               {selectedRetakeRange ? (
                 <div
-                  className="mt-3 rounded-lg border border-border bg-surface px-3 py-3"
+                  className="mt-3 rounded-md border border-border bg-surface px-3 py-3"
                   data-testid="timeline-retake-range-editor"
                 >
                   <div className="flex items-center justify-between gap-3">
                     <div>
-                      <p className="text-[11px] uppercase tracking-[0.12em] text-text-muted">Selected Range</p>
+                      <p className="mono-label text-text-muted">Selected Range</p>
                       <p className="mt-1 text-sm text-text-primary">
                         {formatRetakeRangeLabel(selectedRetakeRange.startMs, selectedRetakeRange.endMs)}
                       </p>
                     </div>
                     <span
                       className={cn(
-                        'rounded-full border px-2 py-1 text-[11px] uppercase tracking-[0.12em]',
+                        'rounded-full border px-2 py-1 mono-label',
                         getRetakeStatusClasses(selectedRetakeRange.status),
                       )}
                     >
@@ -782,26 +782,26 @@ export function TimelineClipInspector({
                   </div>
 
                   <div className="mt-3 grid grid-cols-2 gap-3">
-                    <label className="block text-[11px] text-text-muted">
+                    <label className="block text-xs text-text-muted">
                       Retake In
                       <input
                         data-testid="timeline-retake-start-input"
                         type="number"
                         min={0}
                         step="0.1"
-                        className="mt-1 w-full rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary"
+                        className="mt-1 w-full rounded-md border border-border bg-canvas px-3 py-2 text-sm text-text-primary"
                         value={formatSeconds(selectedRetakeRange.startMs)}
                         onChange={(event) => handleRetakeRangeTimeChange('startMs', event.target.value)}
                       />
                     </label>
-                    <label className="block text-[11px] text-text-muted">
+                    <label className="block text-xs text-text-muted">
                       Retake Out
                       <input
                         data-testid="timeline-retake-end-input"
                         type="number"
                         min={0}
                         step="0.1"
-                        className="mt-1 w-full rounded-lg border border-border bg-canvas px-3 py-2 text-sm text-text-primary"
+                        className="mt-1 w-full rounded-md border border-border bg-canvas px-3 py-2 text-sm text-text-primary"
                         value={formatSeconds(selectedRetakeRange.endMs)}
                         onChange={(event) => handleRetakeRangeTimeChange('endMs', event.target.value)}
                       />
@@ -811,14 +811,14 @@ export function TimelineClipInspector({
                   <div className="mt-3 grid grid-cols-3 gap-2">
                     <button
                       type="button"
-                      className="rounded-lg border border-border bg-canvas px-3 py-2 text-xs text-text-primary transition hover:bg-elevated"
+                      className="rounded-md border border-border bg-canvas px-3 py-2 text-xs text-text-primary transition hover:bg-elevated"
                       onClick={() => seekTo(clip.startMs + selectedRetakeRange.startMs)}
                     >
                       Playhead To In
                     </button>
                     <button
                       type="button"
-                      className="rounded-lg border border-border bg-canvas px-3 py-2 text-xs text-text-primary transition hover:bg-elevated"
+                      className="rounded-md border border-border bg-canvas px-3 py-2 text-xs text-text-primary transition hover:bg-elevated"
                       onClick={() => seekTo(clip.startMs + selectedRetakeRange.endMs)}
                     >
                       Playhead To Out
@@ -826,7 +826,7 @@ export function TimelineClipInspector({
                     <button
                       type="button"
                       data-testid="timeline-retake-delete-range"
-                      className="rounded-lg border border-status-error/30 bg-status-error-muted px-3 py-2 text-xs text-status-error transition hover:bg-status-error-muted/80"
+                      className="rounded-md border border-status-error/30 bg-status-error-muted px-3 py-2 text-xs text-status-error transition hover:bg-status-error-muted/80"
                       onClick={() => deleteTimelineClipRetakeRange(clip.id, selectedRetakeRange.id)}
                     >
                       Clear Range
@@ -835,15 +835,15 @@ export function TimelineClipInspector({
                 </div>
               ) : null}
 
-              <div className="mt-3 rounded-lg border border-border bg-surface px-3 py-3" data-testid="timeline-retake-candidates">
+              <div className="mt-3 rounded-md border border-border bg-surface px-3 py-3" data-testid="timeline-retake-candidates">
                 <div className="flex items-center justify-between gap-3">
                   <div>
-                    <p className="text-[11px] uppercase tracking-[0.12em] text-text-muted">Candidate Takes</p>
+                    <p className="mono-label text-text-muted">Candidate Takes</p>
                     <p className="mt-1 text-sm text-text-primary">
                       {selectedRetakeRange ? `${selectedRetakeTakes.length} candidate take${selectedRetakeTakes.length === 1 ? '' : 's'}` : 'Select a range'}
                     </p>
                   </div>
-                  <span className="font-mono text-xs text-text-muted">
+                  <span className="data-mono text-text-muted">
                     {selectedRetakeRange ? formatSeconds(retakePlayheadMs) : '--'}
                   </span>
                 </div>
@@ -851,7 +851,7 @@ export function TimelineClipInspector({
                   type="button"
                   data-testid="timeline-retake-generate"
                   disabled={!canGenerateRetake}
-                  className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-lg border border-border bg-canvas px-3 py-2 text-xs text-text-primary transition hover:bg-elevated disabled:cursor-not-allowed disabled:opacity-50"
+                  className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-md border border-border bg-canvas px-3 py-2 text-xs text-text-primary transition hover:bg-elevated disabled:cursor-not-allowed disabled:opacity-50"
                   onClick={() => void handleAiAction('retake')}
                 >
                   <Sparkles className="h-3.5 w-3.5" />
@@ -868,7 +868,7 @@ export function TimelineClipInspector({
                           data-testid={`timeline-retake-take-${take.id}`}
                           onClick={() => setActiveTimelineRetakeTake(take.id)}
                           className={cn(
-                            'w-full rounded-lg border px-3 py-2 text-left transition',
+                            'w-full rounded-md border px-3 py-2 text-left transition',
                             selectedRetakeTake?.id === take.id
                               ? 'border-accent-primary bg-accent-primary-muted/50'
                               : 'border-border bg-canvas hover:bg-elevated',
@@ -885,7 +885,7 @@ export function TimelineClipInspector({
                             </div>
                             <span
                               className={cn(
-                                'rounded-full border px-2 py-1 text-[11px] uppercase tracking-[0.12em]',
+                                'rounded-full border px-2 py-1 mono-label',
                                 take.status === 'accepted'
                                   ? 'border-status-success-border bg-status-success-muted text-status-success'
                                   : take.status === 'candidate'
@@ -906,7 +906,7 @@ export function TimelineClipInspector({
                             type="button"
                             data-testid="timeline-retake-inspector-accept"
                             disabled={!selectedRetakeTake.mediaAssetId || selectedRetakeTake.status === 'accepted'}
-                            className="rounded-lg border border-status-success-border bg-status-success-muted px-2 py-2 text-xs text-status-success transition hover:bg-status-success-muted/80 disabled:cursor-not-allowed disabled:opacity-50"
+                            className="rounded-md border border-status-success-border bg-status-success-muted px-2 py-2 text-xs text-status-success transition hover:bg-status-success-muted/80 disabled:cursor-not-allowed disabled:opacity-50"
                             onClick={() => acceptClipRetakeTake(selectedRetakeTake.id)}
                           >
                             Accept
@@ -915,7 +915,7 @@ export function TimelineClipInspector({
                             type="button"
                             data-testid="timeline-retake-inspector-reject"
                             disabled={selectedRetakeTake.status === 'rejected'}
-                            className="rounded-lg border border-status-error-border bg-status-error-muted px-2 py-2 text-xs text-status-error transition hover:bg-status-error-muted/80 disabled:cursor-not-allowed disabled:opacity-50"
+                            className="rounded-md border border-status-error-border bg-status-error-muted px-2 py-2 text-xs text-status-error transition hover:bg-status-error-muted/80 disabled:cursor-not-allowed disabled:opacity-50"
                             onClick={() => rejectClipRetakeTake(selectedRetakeTake.id)}
                           >
                             Reject
@@ -924,7 +924,7 @@ export function TimelineClipInspector({
                             type="button"
                             data-testid="timeline-retake-inspector-revert"
                             disabled={!selectedRetakeRange.acceptedTakeId}
-                            className="rounded-lg border border-border bg-canvas px-2 py-2 text-xs text-text-primary transition hover:bg-elevated disabled:cursor-not-allowed disabled:opacity-50"
+                            className="rounded-md border border-border bg-canvas px-2 py-2 text-xs text-text-primary transition hover:bg-elevated disabled:cursor-not-allowed disabled:opacity-50"
                             onClick={() => revertClipRetakeRange(clip.id, selectedRetakeRange.id)}
                           >
                             Revert
@@ -955,7 +955,7 @@ export function TimelineClipInspector({
                 <p className="mt-1 text-sm text-text-primary">{lastRunLabel}</p>
               </div>
               {generationBinding ? (
-                <span className="rounded-full border border-border bg-surface px-2 py-1 text-[11px] uppercase tracking-[0.12em] text-text-muted">
+                <span className="rounded-full border border-border bg-surface px-2 py-1 mono-label text-text-muted">
                   {generationBinding.generationType}
                 </span>
               ) : null}
@@ -963,13 +963,13 @@ export function TimelineClipInspector({
 
             {generationBinding ? (
               <>
-                <div className="mt-3 rounded-lg border border-border bg-surface px-3 py-3">
-                  <p className="text-[11px] uppercase tracking-[0.12em] text-text-muted">Binding</p>
+                <div className="mt-3 rounded-md border border-border bg-surface px-3 py-3">
+                  <p className="mono-label text-text-muted">Binding</p>
                   <p className="mt-2 text-sm text-text-primary">{generationBinding.model}</p>
                   <p className="mt-1 text-xs text-text-muted">
                     {generationBinding.prompt.slice(0, 120) || 'No prompt recorded.'}
                   </p>
-                  <p className="mt-2 text-[11px] text-text-muted">
+                  <p className="mt-2 text-xs text-text-muted">
                     {generationBinding.referenceSetIds.length} reference set
                     {generationBinding.referenceSetIds.length === 1 ? '' : 's'} / {generationBinding.variantIds.length}{' '}
                     variant{generationBinding.variantIds.length === 1 ? '' : 's'}
@@ -981,7 +981,7 @@ export function TimelineClipInspector({
                     type="button"
                     data-testid="timeline-ai-regenerate"
                     disabled={isAiBusy}
-                    className="inline-flex items-center justify-center gap-2 rounded-lg border border-border bg-surface px-3 py-2 text-xs text-text-primary transition hover:bg-elevated disabled:cursor-not-allowed disabled:opacity-50"
+                    className="inline-flex items-center justify-center gap-2 rounded-md border border-border bg-surface px-3 py-2 text-xs text-text-primary transition hover:bg-elevated disabled:cursor-not-allowed disabled:opacity-50"
                     onClick={() => void handleAiAction('regenerate')}
                   >
                     <RefreshCcw className="h-3.5 w-3.5" />
@@ -991,7 +991,7 @@ export function TimelineClipInspector({
                     type="button"
                     data-testid="timeline-ai-variant"
                     disabled={isAiBusy}
-                    className="inline-flex items-center justify-center gap-2 rounded-lg border border-border bg-surface px-3 py-2 text-xs text-text-primary transition hover:bg-elevated disabled:cursor-not-allowed disabled:opacity-50"
+                    className="inline-flex items-center justify-center gap-2 rounded-md border border-border bg-surface px-3 py-2 text-xs text-text-primary transition hover:bg-elevated disabled:cursor-not-allowed disabled:opacity-50"
                     onClick={() => void handleAiAction('variant')}
                   >
                     <Sparkles className="h-3.5 w-3.5" />
@@ -1001,7 +1001,7 @@ export function TimelineClipInspector({
                     type="button"
                     data-testid="timeline-ai-extend"
                     disabled={!canExtendShot || isAiBusy}
-                    className="inline-flex items-center justify-center gap-2 rounded-lg border border-border bg-surface px-3 py-2 text-xs text-text-primary transition hover:bg-elevated disabled:cursor-not-allowed disabled:opacity-50"
+                    className="inline-flex items-center justify-center gap-2 rounded-md border border-border bg-surface px-3 py-2 text-xs text-text-primary transition hover:bg-elevated disabled:cursor-not-allowed disabled:opacity-50"
                     onClick={() => void handleAiAction('extend')}
                   >
                     <Clapperboard className="h-3.5 w-3.5" />
@@ -1027,7 +1027,7 @@ export function TimelineClipInspector({
               <p className="text-xs text-text-muted">Sequence Export</p>
               <p className="mt-1 text-sm text-text-primary">{exportScopeLabel}</p>
             </div>
-            <span className="rounded-full border border-border bg-surface px-2 py-1 text-[11px] uppercase tracking-[0.12em] text-text-muted">
+            <span className="rounded-full border border-border bg-surface px-2 py-1 mono-label text-text-muted">
               MP4
             </span>
           </div>
@@ -1040,7 +1040,7 @@ export function TimelineClipInspector({
             type="button"
             data-testid="timeline-inspector-export"
             disabled={exportDisabled}
-            className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-lg border border-border bg-surface px-3 py-2 text-xs text-text-primary transition hover:bg-elevated disabled:cursor-not-allowed disabled:opacity-50"
+            className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-md border border-border bg-surface px-3 py-2 text-xs text-text-primary transition hover:bg-elevated disabled:cursor-not-allowed disabled:opacity-50"
             onClick={onOpenExportDialog}
           >
             <Clapperboard className="h-3.5 w-3.5" />
@@ -1052,7 +1052,7 @@ export function TimelineClipInspector({
           <button
             type="button"
             data-testid="timeline-inspector-split"
-            className="inline-flex items-center justify-center gap-2 rounded-lg border border-border bg-surface px-3 py-2 text-xs text-text-primary transition hover:bg-elevated"
+            className="inline-flex items-center justify-center gap-2 rounded-md border border-border bg-surface px-3 py-2 text-xs text-text-primary transition hover:bg-elevated"
             onClick={() => splitTimelineClip(clip.id, currentTime)}
           >
             <Scissors className="h-3.5 w-3.5" />
@@ -1061,7 +1061,7 @@ export function TimelineClipInspector({
           <button
             type="button"
             data-testid="timeline-inspector-duplicate"
-            className="inline-flex items-center justify-center gap-2 rounded-lg border border-border bg-surface px-3 py-2 text-xs text-text-primary transition hover:bg-elevated"
+            className="inline-flex items-center justify-center gap-2 rounded-md border border-border bg-surface px-3 py-2 text-xs text-text-primary transition hover:bg-elevated"
             onClick={() => duplicateTimelineClip(clip.id)}
           >
             <Copy className="h-3.5 w-3.5" />
@@ -1069,7 +1069,7 @@ export function TimelineClipInspector({
           </button>
           <button
             type="button"
-            className="inline-flex items-center justify-center gap-2 rounded-lg border border-border bg-surface px-3 py-2 text-xs text-text-primary transition hover:bg-elevated"
+            className="inline-flex items-center justify-center gap-2 rounded-md border border-border bg-surface px-3 py-2 text-xs text-text-primary transition hover:bg-elevated"
             onClick={() => moveTimelineClip(clip.id, { startMs: currentTime })}
           >
             <MoveHorizontal className="h-3.5 w-3.5" />
@@ -1077,7 +1077,7 @@ export function TimelineClipInspector({
           </button>
           <button
             type="button"
-            className="inline-flex items-center justify-center gap-2 rounded-lg border border-status-error/30 bg-status-error-muted px-3 py-2 text-xs text-status-error transition hover:bg-status-error-muted/80"
+            className="inline-flex items-center justify-center gap-2 rounded-md border border-status-error/30 bg-status-error-muted px-3 py-2 text-xs text-status-error transition hover:bg-status-error-muted/80"
             onClick={() => deleteTimelineClip(clip.id)}
           >
             <Trash2 className="h-3.5 w-3.5" />

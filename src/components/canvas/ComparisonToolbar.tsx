@@ -26,7 +26,7 @@ export const ComparisonToolbar = memo(function ComparisonToolbar() {
 
   return (
     <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20">
-      <div className="flex items-center gap-1 px-2 py-2 glass glass-border rounded-lg shadow-cinematic">
+      <div className="flex items-center gap-1 px-2 py-2 raised-panel">
         {modes.map((mode) => {
           const Icon = mode.icon;
           const isActive = comparisonMode === mode.id;
@@ -39,7 +39,7 @@ export const ComparisonToolbar = memo(function ComparisonToolbar() {
               className={cn(
                 'flex items-center gap-2 rounded-md px-2.5 py-2 type-ui transition-all',
                 isActive
-                  ? 'bg-red-aura text-red-primary'
+                  ? 'bg-accent-primary-muted text-accent-primary'
                   : 'text-text-body hover:text-text-primary hover:bg-elevated'
               )}
               title={mode.label}
@@ -54,7 +54,7 @@ export const ComparisonToolbar = memo(function ComparisonToolbar() {
 
         <button
           onClick={() => setComparisonMode('off')}
-          className="p-2 rounded-md text-text-muted hover:text-red-primary hover:bg-red-aura transition-all"
+          className="p-2 rounded-md text-text-muted hover:text-accent-primary hover:bg-accent-primary-muted transition-all"
           aria-label="Close comparison view"
           title="Close comparison"
         >

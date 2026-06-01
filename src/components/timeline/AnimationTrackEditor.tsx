@@ -100,8 +100,8 @@ export const AnimationTrackEditor = memo(function AnimationTrackEditor({
       <div className={cn('flex items-center justify-center h-full', className)}>
         <div className="text-center">
           <Film className="w-8 h-8 text-text-muted mx-auto mb-2 opacity-30" />
-          <p className="font-display text-sm text-text-muted">No keyframes yet</p>
-          <p className="font-display text-xs text-text-muted mt-0.5">
+          <p className="text-sm text-text-muted">No keyframes yet</p>
+          <p className="text-xs text-text-muted mt-0.5">
             Add keyframes to layers to animate
           </p>
         </div>
@@ -134,7 +134,7 @@ export const AnimationTrackEditor = memo(function AnimationTrackEditor({
               style={{ left: `${left}%` }}
             >
               <div className="w-px h-3 bg-text-muted/20" />
-              <span className="absolute top-0.5 left-0.5 font-mono text-micro text-text-muted">
+              <span className="absolute top-0.5 left-0.5 type-badge text-text-muted">
                 {time / 1000}s
               </span>
             </div>
@@ -163,7 +163,7 @@ export const AnimationTrackEditor = memo(function AnimationTrackEditor({
                   className="w-2 h-2 rounded-full flex-shrink-0"
                   style={{ backgroundColor: layer.color }}
                 />
-                <span className="font-display text-xs text-text-body truncate flex-1">
+                <span className="text-xs text-text-body truncate flex-1">
                   {layer.name}
                 </span>
               </div>

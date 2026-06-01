@@ -47,7 +47,7 @@ const LAYER_META: Record<
   'inpaint-mask': {
     label: 'Inpaint Mask',
     icon: PaintBucket,
-    accentClassName: 'text-red-primary',
+    accentClassName: 'text-accent-primary',
   },
 };
 
@@ -117,17 +117,17 @@ function LayerRow({
         aria-label={`Select ${layer.name}`}
       >
         <div className="flex min-w-0 flex-1 items-start gap-3">
-          <div className="mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg border border-border bg-canvas">
+          <div className="mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-md border border-border bg-canvas">
             <LayerIcon className={cn('h-4 w-4', meta.accentClassName)} aria-hidden="true" />
           </div>
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
-              <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-text-muted">
+              <span className="mono-label text-text-muted">
                 {String(orderIndex + 1).padStart(2, '0')}
               </span>
               <p className="truncate type-ui text-text-primary">{layer.name}</p>
             </div>
-            <p className="mt-1 text-[11px] uppercase tracking-[0.14em] text-text-muted">
+            <p className="mt-1 mono-label text-text-muted">
               {layer.visible ? meta.label : `${meta.label} Hidden`}
             </p>
           </div>
@@ -166,7 +166,7 @@ function LayerRow({
             event.stopPropagation();
             deleteCanvasControlLayer(sceneId, layer.id);
           }}
-          className="rounded-md p-1.5 text-text-body transition-colors hover:bg-elevated hover:text-red-primary"
+          className="rounded-md p-1.5 text-text-body transition-colors hover:bg-status-error-muted hover:text-status-error"
           aria-label={`Delete ${layer.name}`}
           title="Delete layer"
         >
@@ -208,7 +208,7 @@ export const CanvasControlLayerRail = memo(function CanvasControlLayerRail({
   return (
     <aside
       className={cn(
-        'pointer-events-auto flex w-72 max-w-[calc(100vw-2rem)] flex-col rounded-2xl border border-border bg-surface/92 shadow-cinematic backdrop-blur-sm',
+        'pointer-events-auto flex w-72 max-w-[calc(100vw-2rem)] flex-col raised-panel',
         className,
       )}
       aria-label="Canvas control layers"
@@ -217,12 +217,12 @@ export const CanvasControlLayerRail = memo(function CanvasControlLayerRail({
       <div className="border-b border-border px-3 py-3">
         <div className="flex items-center justify-between gap-3">
           <div>
-            <p className="font-display text-sm font-semibold text-text-primary">Canvas Control Layers</p>
+            <p className="type-section">Canvas Control Layers</p>
             <p className="mt-1 text-xs text-text-muted">
               Select, add, and stage control inputs directly on the canvas.
             </p>
           </div>
-          <span className="rounded-full border border-border px-2 py-0.5 font-mono text-[10px] uppercase tracking-[0.18em] text-text-muted">
+          <span className="rounded-full border border-border px-2 py-0.5 mono-label text-text-muted">
             {scene.canvasControlLayers.length}
           </span>
         </div>
@@ -241,11 +241,11 @@ export const CanvasControlLayerRail = memo(function CanvasControlLayerRail({
             aria-label={label}
             title={label}
           >
-            <span className="flex h-7 w-7 items-center justify-center rounded-lg border border-border bg-surface">
+            <span className="flex h-7 w-7 items-center justify-center rounded-md border border-border bg-surface">
               <Plus className="h-3 w-3" />
               <Icon className="ml-[-2px] h-3.5 w-3.5" />
             </span>
-            <span className="text-[11px] font-medium leading-tight">{shortLabel}</span>
+            <span className="text-xs font-medium leading-tight">{shortLabel}</span>
           </button>
         ))}
       </div>

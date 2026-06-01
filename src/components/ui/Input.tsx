@@ -46,7 +46,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
               'px-3 py-2 text-sm',
               Icon && 'pl-10',
               isNumeric && 'font-mono',
-              error && 'border-red-primary focus:border-red-primary focus:ring-red-primary',
+              error && 'border-status-error focus:border-status-error focus:ring-status-error',
               className
             )}
             {...props}
@@ -56,7 +56,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
           <p id={helperId} className="text-xs text-text-muted">{helper}</p>
         )}
         {error && (
-          <p id={errorId} className="text-xs text-red-primary">{error}</p>
+          <p id={errorId} className="text-xs text-status-error">{error}</p>
         )}
       </div>
     );

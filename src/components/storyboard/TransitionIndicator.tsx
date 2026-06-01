@@ -66,7 +66,7 @@ export const TransitionIndicator = memo(function TransitionIndicator({
       className={cn(
         'flex items-center justify-center gap-1 py-1.5 w-full',
         'type-ui transition-colors duration-150',
-        'hover:bg-elevated rounded-lg cursor-pointer',
+        'hover:bg-elevated rounded-md cursor-pointer',
         onClick ? 'cursor-pointer' : 'cursor-default',
         config.className
       )}

@@ -30,8 +30,8 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
     if (this.state.hasError) {
       return (
         <div role="alert" className="flex-1 flex flex-col items-center justify-center p-8 bg-surface">
-          <div className="w-12 h-12 rounded-xl bg-red-aura flex items-center justify-center mb-4">
-            <AlertTriangle className="w-6 h-6 text-red-primary" />
+          <div className="w-12 h-12 rounded-xl bg-status-error-muted flex items-center justify-center mb-4">
+            <AlertTriangle className="w-6 h-6 text-status-error" />
           </div>
           <h3 className="type-section mb-1">
             {this.props.fallbackLabel || UI_STRINGS.errors.somethingWentWrong}
@@ -41,7 +41,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
           </p>
           <button
             onClick={this.handleRetry}
-            className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-elevated border border-border type-ui text-text-primary hover:bg-surface transition-all"
+            className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-elevated border border-border type-ui text-text-primary hover:bg-surface transition-all"
           >
             <RefreshCw className="w-3.5 h-3.5" />
             {UI_STRINGS.actions.retry}

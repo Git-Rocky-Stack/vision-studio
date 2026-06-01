@@ -122,10 +122,10 @@ function SortableLayerRow({
       style={style}
       onClick={onSelect}
       className={cn(
-        'flex items-center gap-2 px-2 py-1.5 rounded-lg transition-all',
+        'flex items-center gap-2 px-2 py-1.5 rounded-md transition-all',
         isDragging && 'opacity-50 z-50',
         isSelected
-          ? 'bg-red-aura border-l-2 border-red-primary'
+          ? 'bg-accent-primary-muted border-l-2 border-accent-primary'
           : 'hover:bg-elevated/50 border-l-2 border-transparent'
       )}
     >
@@ -176,27 +176,27 @@ function SortableLayerRow({
             onChange={(e) => setEditName(e.target.value)}
             onBlur={handleNameSubmit}
             onKeyDown={(e) => e.key === 'Enter' && handleNameSubmit()}
-            className="w-full bg-surface border border-red-primary rounded px-1 py-0.5 text-xs text-text-primary font-display focus:outline-none"
+            className="w-full bg-surface border border-accent-primary rounded px-1 py-0.5 text-xs text-text-primary focus:outline-none"
             autoFocus
             onClick={(e) => e.stopPropagation()}
           />
         ) : (
           <p
-            className="text-xs text-text-primary font-display truncate cursor-text"
+            className="text-xs text-text-primary truncate cursor-text"
             onDoubleClick={handleDoubleClick}
           >
             {layer.name}
           </p>
         )}
         <div className="flex items-center gap-2 mt-0.5">
-          <span className="font-mono text-micro text-text-muted">
+          <span className="data-mono text-text-muted">
             {Math.round(layer.opacity * 100)}%
           </span>
           <select
             value={layer.blendMode || 'Normal'}
             onChange={(e) => { e.stopPropagation(); onBlendModeChange(e.target.value); }}
             onClick={(e) => e.stopPropagation()}
-            className="appearance-none bg-elevated/50 border border-border rounded px-1.5 py-0.5 text-micro text-text-body font-display cursor-pointer focus:outline-none focus:border-red-primary transition-all"
+            className="appearance-none bg-elevated/50 border border-border rounded px-1.5 py-0.5 text-xs text-text-body cursor-pointer focus:outline-none focus:border-accent-primary transition-all"
           >
             {BLEND_MODES.map((mode) => (
               <option key={mode} value={mode}>
@@ -315,9 +315,9 @@ export function LayerPanel() {
       {/* Header */}
       <div className="flex items-center justify-between px-3 py-2">
         <div className="flex items-center gap-2">
-          <Layers className="w-3.5 h-3.5 text-red-primary" />
+          <Layers className="w-3.5 h-3.5 text-accent-primary" />
           <span className="text-label text-text-primary">Layers</span>
-          <span className="font-mono text-micro text-text-muted">
+          <span className="data-mono text-text-muted">
             {editLayers.length}
           </span>
         </div>
@@ -350,7 +350,7 @@ export function LayerPanel() {
             className={cn(
               'p-1 rounded transition-all',
               selectedLayerId
-                ? 'text-text-muted hover:text-red-primary hover:bg-red-aura'
+                ? 'text-text-muted hover:text-status-error hover:bg-status-error-muted'
                 : 'text-text-muted/30 cursor-not-allowed'
             )}
             aria-label={`Remove layer ${editLayers.find((l) => l.id === selectedLayerId)?.name ?? ''}`}
@@ -366,8 +366,8 @@ export function LayerPanel() {
         {editLayers.length === 0 ? (
           <div className="py-8 text-center">
             <Layers className="w-8 h-8 text-text-muted mx-auto mb-2 opacity-20" />
-            <p className="text-xs text-text-muted font-display">No layers</p>
-            <p className="text-micro text-text-muted mt-0.5">
+            <p className="text-xs text-text-muted">No layers</p>
+            <p className="type-caption mt-0.5">
               Load an image to start
             </p>
           </div>

@@ -290,7 +290,7 @@ export function AssetsPanel() {
                   key={type}
                   onClick={() => setFilter(type)}
                   className={cn(
-                    'px-3 py-1 rounded text-sm font-display font-medium transition-all capitalize',
+                    'px-3 py-1 rounded text-sm font-medium transition-all capitalize',
                     filter === type
                       ? 'raised-control text-text-primary'
                       : 'text-text-body hover:text-text-primary'
@@ -317,7 +317,7 @@ export function AssetsPanel() {
               aria-label="Grid view"
               aria-pressed={viewMode === 'grid'}
               className={cn(
-                'p-2 rounded-lg transition-all',
+                'p-2 rounded-md transition-all',
                 viewMode === 'grid'
                   ? 'raised-control text-text-primary'
                   : 'text-text-body hover:text-text-primary'
@@ -330,7 +330,7 @@ export function AssetsPanel() {
               aria-label="List view"
               aria-pressed={viewMode === 'list'}
               className={cn(
-                'p-2 rounded-lg transition-all',
+                'p-2 rounded-md transition-all',
                 viewMode === 'list'
                   ? 'raised-control text-text-primary'
                   : 'text-text-body hover:text-text-primary'
@@ -347,7 +347,7 @@ export function AssetsPanel() {
             animate={{ opacity: 1, y: 0 }}
             className="flex items-center gap-2 p-2 bg-accent-primary-muted border border-accent-primary-border rounded-md"
           >
-            <span className="text-sm text-accent-primary font-display font-medium" aria-live="polite">
+            <span className="text-sm text-accent-primary font-medium" aria-live="polite">
               {selectedAssets.size} selected
             </span>
             <div className="flex-1" />
@@ -370,7 +370,7 @@ export function AssetsPanel() {
             <div className="w-16 h-16 recessed-well flex items-center justify-center mb-4">
               <FolderPlus className="w-8 h-8" />
             </div>
-            <p className="text-sm font-display">No assets yet</p>
+            <p className="text-sm">No assets yet</p>
             <p className="text-xs text-text-muted mt-1">
               Generate some content to see it here
             </p>
@@ -405,7 +405,7 @@ export function AssetsPanel() {
                       transition={{ delay: (startIdx + colIdx) * 0.03 }}
                       onClick={() => toggleSelection(asset.id)}
                       className={cn(
-                        'group relative rounded-lg border cursor-pointer transition-all overflow-hidden',
+                        'group relative rounded-md border cursor-pointer transition-all overflow-hidden',
                         viewMode === 'grid' ? 'aspect-square' : 'flex items-center gap-3 p-2',
                         selectedAssets.has(asset.id)
                           ? 'border-accent-primary-border bg-accent-primary-muted'
@@ -439,7 +439,7 @@ export function AssetsPanel() {
                         )}
                       >
                         <div className="flex items-center gap-2">
-                          <span className="font-display font-medium text-text-primary truncate">
+                          <span className="font-medium text-text-primary truncate">
                             {asset.name}
                           </span>
                           {asset.favorite && (
@@ -448,7 +448,7 @@ export function AssetsPanel() {
                         </div>
                         <div
                           className={cn(
-                            'flex items-center gap-2 font-mono text-xs',
+                            'flex items-center gap-2 data-mono',
                             viewMode === 'grid' ? 'text-text-body' : 'text-text-muted'
                           )}
                         >
@@ -547,11 +547,11 @@ export function AssetsPanel() {
       <div className="px-4 py-3 border-t border-border bg-elevated">
         <div className="flex items-center justify-between text-xs text-text-muted">
           <div className="flex items-center gap-3">
-            <span className="font-mono" aria-live="polite">{completedCount} items</span>
+            <span className="data-mono" aria-live="polite">{completedCount} items</span>
             {filteredAssets.length > 0 && (
               <button
                 onClick={selectAll}
-                className="text-accent-primary hover:underline font-display"
+                className="text-accent-primary hover:underline"
               >
                 {selectedAssets.size === filteredAssets.length ? 'Deselect all' : 'Select all'}
               </button>
@@ -559,7 +559,7 @@ export function AssetsPanel() {
           </div>
           <div className="flex items-center gap-2">
             <RefreshCw className="w-3 h-3" />
-            <span className="font-display">Persisted Library</span>
+            <span>Persisted Library</span>
           </div>
         </div>
       </div>

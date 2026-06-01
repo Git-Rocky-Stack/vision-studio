@@ -80,7 +80,7 @@ export const PromptTemplateLibrary = memo(function PromptTemplateLibrary({
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search templates..."
           aria-label="Search templates"
-          className="w-full rounded-lg border border-border bg-void py-1.5 pl-8 pr-3 text-xs text-text-primary placeholder:text-text-muted/40 transition-colors duration-normal hover:border-border-hover focus:border-accent-primary-border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary/30"
+          className="w-full rounded-md border border-border bg-void py-1.5 pl-8 pr-3 text-xs text-text-primary placeholder:text-text-muted/40 transition-colors duration-normal hover:border-border-hover focus:border-accent-primary-border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary/30"
         />
       </div>
 
@@ -93,7 +93,7 @@ export const PromptTemplateLibrary = memo(function PromptTemplateLibrary({
             onClick={() => setActiveCategory(cat.value)}
             aria-pressed={activeCategory === cat.value}
             className={cn(
-              'rounded-full border px-2.5 py-0.5 text-[10px] font-medium uppercase tracking-wider transition-colors duration-normal',
+              'rounded-full border px-2.5 py-0.5 mono-label transition-colors duration-normal',
               activeCategory === cat.value
                 ? 'border-accent-primary-border bg-accent-primary/15 text-accent-primary'
                 : 'border-border text-text-muted hover:border-border-hover hover:text-text-primary',

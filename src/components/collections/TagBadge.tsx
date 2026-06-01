@@ -30,7 +30,7 @@ export const TagBadge = memo(function TagBadge({ tag, onRemove, className }: Tag
     >
       {tag.name}
       {tag.source === 'ai' && (
-        <span className="text-[0.6rem] opacity-60">
+        <span className="type-badge opacity-60">
           {Math.round(tag.confidence * 100)}%
         </span>
       )}

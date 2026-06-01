@@ -120,13 +120,13 @@ export function TemplatePreviewModal({
             role="dialog"
             aria-modal="true"
             aria-label="Template preview"
-            className="relative w-full max-w-[720px] max-h-[80vh] bg-surface rounded-2xl border border-border shadow-cinematic overflow-hidden flex flex-col"
+            className="relative w-full max-w-[720px] max-h-[80vh] bg-surface rounded-xl border border-border shadow-cinematic overflow-hidden flex flex-col"
           >
             {/* Close Button */}
             <button
               onClick={onClose}
               aria-label="Close template preview"
-              className="absolute top-4 right-4 z-10 p-2 rounded-lg bg-elevated/80 backdrop-blur-sm text-text-muted hover:text-text-primary hover:bg-elevated transition-all"
+              className="absolute top-4 right-4 z-10 p-2 rounded-md bg-elevated/80 backdrop-blur-sm text-text-muted hover:text-text-primary hover:bg-elevated transition-all"
             >
               <X className="w-4 h-4" />
             </button>
@@ -158,11 +158,11 @@ export function TemplatePreviewModal({
 
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
-                        <h2 className="font-display text-xl font-bold text-text-primary">
+                        <h2 className="text-xl font-bold text-text-primary">
                           {template.name}
                         </h2>
                         <span
-                          className="px-2 py-0.5 rounded-full text-micro font-display font-medium uppercase tracking-wide"
+                          className="px-2 py-0.5 rounded-full mono-label"
                           style={{
                             backgroundColor: hexToRgba(color, 0.08),
                             color: color,
@@ -171,7 +171,7 @@ export function TemplatePreviewModal({
                           {categoryLabels[template.category] || template.category}
                         </span>
                         {template.isCustom && (
-                          <span className="px-2 py-0.5 rounded-full text-micro font-display font-medium uppercase tracking-wide bg-elevated text-text-muted">
+                          <span className="px-2 py-0.5 rounded-full mono-label bg-elevated text-text-muted">
                             Custom
                           </span>
                         )}
@@ -192,7 +192,7 @@ export function TemplatePreviewModal({
                 {/* Aspect ratio preview */}
                 <div className="relative w-24 h-24 flex items-center justify-center">
                   <div
-                    className="border-2 border-border rounded-lg flex items-center justify-center"
+                    className="border-2 border-border rounded-md flex items-center justify-center"
                     style={{
                       width:
                         template.settings.width >= template.settings.height
@@ -204,7 +204,7 @@ export function TemplatePreviewModal({
                           : `${(template.settings.height / template.settings.width) * 80}px`,
                     }}
                   >
-                    <span className="font-mono text-micro text-text-muted">
+                    <span className="type-badge text-text-muted">
                       {template.settings.width}x{template.settings.height}
                     </span>
                   </div>
@@ -220,11 +220,11 @@ export function TemplatePreviewModal({
                   ].map(({ icon: Icon, label, value }) => (
                     <div
                       key={label}
-                      className="flex items-center gap-3 p-3 rounded-lg bg-elevated border border-border"
+                      className="flex items-center gap-3 p-3 rounded-md bg-elevated border border-border"
                     >
                       <Icon className="w-4 h-4 text-text-muted flex-shrink-0" />
                       <div>
-                        <span className="text-micro text-text-muted font-display uppercase tracking-wider block">
+                        <span className="mono-label text-text-muted block">
                           {label}
                         </span>
                         <span className="text-sm text-text-primary font-mono">
@@ -240,12 +240,12 @@ export function TemplatePreviewModal({
               <div className="space-y-2">
                 <div className="flex items-center gap-2">
                   <MessageSquare className="w-3.5 h-3.5 text-text-muted" />
-                  <span className="text-xs font-display font-medium text-text-muted uppercase tracking-wider">
+                  <span className="mono-label text-text-muted">
                     Prompt
                   </span>
                 </div>
-                <div className="p-4 rounded-lg bg-elevated border border-border">
-                  <p className="text-sm text-text-primary font-display leading-relaxed">
+                <div className="p-4 rounded-md bg-elevated border border-border">
+                  <p className="text-sm text-text-primary leading-relaxed">
                     {template.settings.prompt}
                   </p>
                 </div>
@@ -256,12 +256,12 @@ export function TemplatePreviewModal({
                 <div className="space-y-2">
                   <div className="flex items-center gap-2">
                     <MessageSquareX className="w-3.5 h-3.5 text-text-muted" />
-                    <span className="text-xs font-display font-medium text-text-muted uppercase tracking-wider">
+                    <span className="mono-label text-text-muted">
                       Negative Prompt
                     </span>
                   </div>
-                  <div className="p-4 rounded-lg bg-elevated border border-border">
-                    <p className="text-sm text-text-body font-display leading-relaxed">
+                  <div className="p-4 rounded-md bg-elevated border border-border">
+                    <p className="text-sm text-text-body leading-relaxed">
                       {template.settings.negativePrompt}
                     </p>
                   </div>

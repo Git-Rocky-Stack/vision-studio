@@ -180,13 +180,13 @@ describe('SceneCard', () => {
     it('applies selected class when isSelected is true', () => {
       render(<SceneCard scene={mockScene} isSelected={true} onClick={vi.fn()} />);
       const card = screen.getByTestId('scene-card');
-      expect(card).toHaveClass('ring-red-primary');
+      expect(card).toHaveClass('ring-accent-primary');
     });
 
     it('does not apply selected class when isSelected is false', () => {
       render(<SceneCard scene={mockScene} isSelected={false} onClick={vi.fn()} />);
       const card = screen.getByTestId('scene-card');
-      expect(card).not.toHaveClass('ring-red-primary');
+      expect(card).not.toHaveClass('ring-accent-primary');
     });
   });
 

@@ -118,10 +118,10 @@ export const ScenePlaybackStrip = memo(function ScenePlaybackStrip({
         <button
           onClick={handlePlayPause}
           className={cn(
-            'p-1.5 rounded-lg transition-all',
+            'p-1.5 rounded-md transition-all',
             isPlaying
-              ? 'bg-red-primary text-white glow-red-subtle'
-              : 'bg-red-primary/10 text-red-primary border border-red-primary/30 hover:bg-red-primary/20'
+              ? 'bg-accent-primary text-void shadow-accent-subtle'
+              : 'bg-accent-primary-muted text-accent-primary border border-accent-primary-border'
           )}
           aria-label={isPlaying ? 'Pause playback' : 'Play playback'}
           aria-pressed={isPlaying}
@@ -153,9 +153,9 @@ export const ScenePlaybackStrip = memo(function ScenePlaybackStrip({
                 onClick={() => onSceneSelect(scene.id)}
                 className={cn(
                   'flex-shrink-0 w-20 h-12 rounded-md overflow-hidden border-2 transition-all duration-150',
-                  'focus:outline-none focus-visible:ring-2 focus-visible:ring-red-primary',
+                  'focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary',
                   isActive
-                    ? 'border-red-primary shadow-red-glow-subtle'
+                    ? 'border-accent-primary shadow-accent-subtle'
                     : 'border-border hover:border-border-hover'
                 )}
                 aria-label={`Scene ${index + 1}: ${scene.name}`}

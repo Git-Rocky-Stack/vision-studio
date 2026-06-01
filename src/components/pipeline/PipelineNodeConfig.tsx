@@ -78,7 +78,7 @@ export const PipelineNodeConfig = memo(function PipelineNodeConfig({
   }
 
   return (
-    <div className={cn('rounded-lg border border-border bg-elevated/50 overflow-hidden', className)}>
+    <div className={cn('rounded-md border border-border bg-elevated/50 overflow-hidden', className)}>
       <div
         role="button"
         tabIndex={0}
@@ -92,7 +92,7 @@ export const PipelineNodeConfig = memo(function PipelineNodeConfig({
         }}
         className="flex items-center gap-2 w-full px-3 py-3 cursor-pointer"
       >
-        <Icon className="w-3.5 h-3.5 text-red-primary" />
+        <Icon className="w-3.5 h-3.5 text-accent-primary" />
         <span className="text-label text-text-primary flex-1">{step.label} Settings</span>
         <ChevronDown
           className={cn(

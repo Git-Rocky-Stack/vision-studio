@@ -174,7 +174,7 @@ export function ImportDraftReview({
           {draft.issues.map((issue) => (
             <div
               key={issue.id}
-              className={cn('rounded-2xl border px-3 py-3 text-sm', issueStyles(issue.severity))}
+              className={cn('rounded-xl border px-3 py-3 text-sm', issueStyles(issue.severity))}
             >
               <div className="flex items-start gap-3">
                 <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0" />
@@ -198,7 +198,7 @@ export function ImportDraftReview({
             return (
               <article
                 key={sceneDraft.id}
-                className={cn('rounded-2xl border p-4 transition-colors', sceneBorder(sceneDraft.accepted))}
+                className={cn('rounded-xl border p-4 transition-colors', sceneBorder(sceneDraft.accepted))}
               >
                 <div className="flex items-start justify-between gap-3">
                   <div>
@@ -300,7 +300,7 @@ export function ImportDraftReview({
               <article
                 key={candidate.id}
                 className={cn(
-                  'rounded-2xl border p-4 transition-colors',
+                  'rounded-xl border p-4 transition-colors',
                   candidate.accepted ? 'border-border bg-surface/80' : 'border-border/60 bg-surface/30 opacity-70',
                 )}
               >
@@ -365,7 +365,7 @@ export function ImportDraftReview({
           })}
 
           {draft.elementDrafts.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-border px-4 py-4 text-sm text-text-body">
+            <div className="rounded-xl border border-dashed border-border px-4 py-4 text-sm text-text-body">
               No reusable elements were detected. You can still approve the scene draft and add elements later.
             </div>
           ) : null}
@@ -374,7 +374,7 @@ export function ImportDraftReview({
 
       {!canApprove ? (
         <div className="border-t border-border px-4 py-3">
-          <div className="flex items-start gap-3 rounded-2xl border border-border bg-surface/70 px-4 py-3 text-sm text-text-body">
+          <div className="flex items-start gap-3 rounded-xl border border-border bg-surface/70 px-4 py-3 text-sm text-text-body">
             <Sparkles className="mt-0.5 h-4 w-4 text-accent-primary" />
             <div>
               {hasBlockingIssues
@@ -398,7 +398,7 @@ function SummaryCard({
   detail: string;
 }) {
   return (
-    <div className="rounded-2xl border border-border bg-surface/70 px-4 py-3">
+    <div className="rounded-xl border border-border bg-surface/70 px-4 py-3">
       <p className="type-caption text-text-muted">{label}</p>
       <p className="mt-2 type-title text-text-primary">{value}</p>
       <p className="mt-1 text-sm text-text-body">{detail}</p>

@@ -51,7 +51,8 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { ChromeButton, Lcd } from '@/components/hardware';
+import { ChromeButton, Lcd, Led } from '@/components/hardware';
+import { Slider } from '@/components/ui/Slider';
 import { useMotionConfig } from '@/utils/animation';
 
 type GenerationType = 'image' | 'video';
@@ -1156,14 +1157,17 @@ export function GeneratePanel() {
                 </p>
               </div>
               {openRouterImageEnabled ? (
-                <div className="rounded-lg border border-accent-primary-border bg-accent-primary-muted/40 px-4 py-4">
+                <div className="recessed-well px-4 py-4">
                   <div className="flex items-start gap-3">
-                    <div className="mt-0.5 flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg border border-accent-primary-border bg-surface text-accent-primary">
+                    <div className="raised-control mt-0.5 flex h-9 w-9 flex-shrink-0 items-center justify-center text-accent-primary">
                       <Cloud className="h-4 w-4" />
                     </div>
                     <div className="min-w-0 space-y-2">
                       <div>
-                        <p className="type-section text-text-primary">OpenRouter Still Image Route</p>
+                        <div className="flex items-center gap-2">
+                          <Led color="play" size={7} />
+                          <p className="type-section text-text-primary">OpenRouter Still Image Route</p>
+                        </div>
                         <p className="mt-1 text-xs text-text-body">
                           Account: {activeAccount?.name ?? 'No active account'}.
                           {' '}Model: {openRouterImageModel || 'Not set in Settings'}.
@@ -1237,9 +1241,9 @@ export function GeneratePanel() {
             ) : null}
 
             {imageConfig.generationType === 'image' ? (
-              <div className="grid gap-3 rounded-lg border border-border bg-elevated px-3 py-3 md:grid-cols-2">
+              <div className="recessed-well grid items-start gap-4 px-3 py-3 md:grid-cols-2">
                 <label className="space-y-1.5">
-                  <span className="type-caption text-text-muted">Reference routing</span>
+                  <span className="text-label text-text-body">Reference routing</span>
                   <select
                     value={refConfig.referenceMode}
                     onChange={(event) =>
@@ -1255,25 +1259,18 @@ export function GeneratePanel() {
                   </select>
                 </label>
 
-                <label className="space-y-1.5">
-                  <span className="type-caption text-text-muted">
-                    Denoising strength {refConfig.denoisingStrength.toFixed(2)}
-                  </span>
-                  <input
-                    type="range"
-                    min="0"
-                    max="1"
-                    step="0.05"
-                    value={refConfig.denoisingStrength}
-                    onChange={(event) =>
-                      updateRefConfig({ denoisingStrength: Number(event.target.value) })
-                    }
-                    className="w-full accent-accent-primary"
-                  />
-                </label>
+                <Slider
+                  label="Denoising strength"
+                  value={refConfig.denoisingStrength}
+                  min={0}
+                  max={1}
+                  step={0.05}
+                  onChange={(value) => updateRefConfig({ denoisingStrength: value })}
+                  valueFormatter={(v) => v.toFixed(2)}
+                />
               </div>
             ) : (
-              <div className="rounded-lg border border-border bg-elevated px-3 py-3 text-sm text-text-body">
+              <div className="recessed-well px-3 py-3 text-sm text-text-body">
                 {motionReferenceImage
                   ? `Primary motion reference ready${motionReferenceLabel ? `: ${motionReferenceLabel}` : ''}.`
                   : 'Attach at least one reference image when you need shot continuity or motion steering.'}
@@ -1281,7 +1278,7 @@ export function GeneratePanel() {
             )}
 
             {videoModelRequiresReference && !motionReferenceImage && (
-              <div className="rounded-lg border border-status-warning-border bg-status-warning-muted px-3 py-2 text-xs text-status-warning">
+              <div className="rounded-md border border-status-warning-border bg-status-warning-muted px-3 py-2 text-xs text-status-warning">
                 Stable Video Diffusion requires a reference image before launch.
               </div>
             )}
@@ -1345,7 +1342,7 @@ export function GeneratePanel() {
           <div className="space-y-4">
             <AspectRatioPicker />
 
-            <div className="rounded-lg border border-border bg-elevated px-3 py-3">
+            <div className="recessed-well px-3 py-3">
               <div className="flex flex-wrap items-center gap-4 type-ui text-text-body">
                 <div className="flex items-center gap-2">
                   <Frame className="h-3.5 w-3.5" />
@@ -1382,7 +1379,7 @@ export function GeneratePanel() {
             initial={reduced ? {} : { opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={transition}
-            className="flex items-start gap-2 rounded-lg border border-status-error-border bg-status-error-muted p-3"
+            className="flex items-start gap-2 rounded-md border border-status-error-border bg-status-error-muted p-3"
           >
             <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0 text-status-error" />
             <p className="text-xs text-status-error">{genStatus.errorMessage}</p>
@@ -1394,7 +1391,7 @@ export function GeneratePanel() {
             initial={reduced ? {} : { opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={transition}
-            className="flex items-start gap-2 rounded-lg border border-status-success-border bg-status-success-muted p-3"
+            className="flex items-start gap-2 rounded-md border border-status-success-border bg-status-success-muted p-3"
           >
             <Check className="mt-0.5 h-4 w-4 flex-shrink-0 text-status-success" />
             <p className="text-xs text-status-success">
@@ -1407,7 +1404,7 @@ export function GeneratePanel() {
       <div className="border-t border-border bg-panel p-4">
         <div
           data-testid="generate-preflight-summary"
-          className="mb-3 rounded-lg border border-border bg-surface px-3 py-3"
+          className="recessed-well mb-3 px-3 py-3"
         >
           <div className="flex items-center justify-between gap-3">
             <div className="min-w-0">
