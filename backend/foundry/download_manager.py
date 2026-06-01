@@ -118,6 +118,25 @@ class DownloadManager:
             self._jobs.pop(model_id, None)
         return self.enqueue(model_id, token=token)
 
+    def cancel(self, model_id: str) -> Optional[DownloadJob]:
+        """Stop the job; partials are cleaned in _handle_cancellation."""
+        job = self._jobs.get(model_id)
+        if job is None:
+            return None
+        if job.status not in {"queued", "downloading", "paused"}:
+            return job
+        self._intent[model_id] = "cancel"
+        event = self._cancel_events.get(model_id)
+        if event is not None:
+            event.set()
+        if job.status == "paused":
+            # No running task to trip the cancel event — clean up directly.
+            record = self._registry.get_record(model_id)
+            if record is not None:
+                self._delete_partials(self._target_dir(record))
+            job.status = "cancelled"
+        return job
+
     def get_record_status(self, model_id: str) -> Optional[str]:
         """Live lifecycle status for the registry status_provider, or None.
 

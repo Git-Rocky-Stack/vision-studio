@@ -263,6 +263,50 @@ class DownloadManagerResumeTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(manager._jobs["flux-dev"].status, "ready")
 
 
+class DownloadManagerCancelTests(unittest.IsolatedAsyncioTestCase):
+    async def test_cancel_deletes_partials_and_sets_cancelled(self):
+        models_dir = tempfile.mkdtemp()
+        manager = make_manager(models_dir=models_dir)
+        paths = [_path_info("flux1-dev.safetensors", 1000)]
+        started = threading.Event()
+        cancelled = threading.Event()
+        self.addCleanup(started.set)
+        self.addCleanup(cancelled.set)
+
+        def fake_download(*, local_dir, filename, tqdm_class, **_):
+            os.makedirs(local_dir, exist_ok=True)
+            with open(os.path.join(local_dir, filename + ".incomplete"), "w") as handle:
+                handle.write("partial")
+            bar = tqdm_class(total=1000)
+            started.set()
+            bar.update(100)        # first chunk ok (cancel not yet signalled)
+            cancelled.wait()       # block until the test has called cancel()
+            bar.update(100)        # now sink.add sees the cancel event and raises
+            return os.path.join(local_dir, filename)
+
+        with mock.patch.object(dm_module.huggingface_hub, "get_paths_info", return_value=paths), \
+             mock.patch("shutil.disk_usage", return_value=_disk(free=10 ** 12)), \
+             mock.patch.object(dm_module.huggingface_hub, "hf_hub_download", side_effect=fake_download):
+            manager.enqueue("flux-dev")
+            await asyncio.to_thread(started.wait)
+            manager.cancel("flux-dev")
+            cancelled.set()        # release the worker to attempt the second chunk
+            await _drain(manager)
+
+        job = manager._jobs["flux-dev"]
+        self.assertEqual(job.status, "cancelled")
+        target = os.path.join(models_dir, "checkpoints")
+        self.assertFalse(
+            any(name.endswith(".incomplete") for name in os.listdir(target))
+        )
+
+    async def test_get_record_status_is_none_after_cancel(self):
+        manager = make_manager()
+        manager._jobs["flux-dev"] = DownloadJob(model_id="flux-dev", status="cancelled")
+        # Terminal -> registry falls back to its own detection.
+        self.assertIsNone(manager.get_record_status("flux-dev"))
+
+
 async def _drain(manager: DownloadManager):
     tasks = list(manager._tasks.values())
     if tasks:
