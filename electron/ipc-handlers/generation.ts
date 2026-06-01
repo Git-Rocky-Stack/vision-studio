@@ -2,7 +2,7 @@ import crypto from 'node:crypto';
 import { ipcMain, BrowserWindow } from 'electron';
 import axios from 'axios';
 import WebSocket from 'ws';
-import { getBackendAuthToken, backendAuthHeaders } from '../services/backendAuth';
+import { getBackendAuthToken, backendAuthHeaders, hfTokenHeaders } from '../services/backendAuth';
 import { toSafeRendererError } from '../services/security';
 import type { createOpenRouterService } from '../services/openRouter';
 import type { createOutputRootService } from '../services/outputRoots';
@@ -575,7 +575,9 @@ ipcMain.handle('models:get', async (_event, modelId: string) => {
 ipcMain.handle('models:download', async (_event, modelId: string) => {
   try {
     const response = await requestBackend(() =>
-      axios.post(`${BACKEND_URL}/api/models/${modelId}/download`, undefined, { headers: backendAuthHeaders() }),
+      axios.post(`${BACKEND_URL}/api/models/${modelId}/download`, undefined, {
+        headers: { ...backendAuthHeaders(), ...hfTokenHeaders() },
+      }),
     );
     return response.data;
   } catch (error: any) {
@@ -584,6 +586,75 @@ ipcMain.handle('models:download', async (_event, modelId: string) => {
       success: false,
       error: toSafeRendererError(error, 'Model download failed'),
     };
+  }
+});
+
+ipcMain.handle('models:download:pause', async (_event, modelId: string) => {
+  try {
+    const response = await requestBackend(() =>
+      axios.post(`${BACKEND_URL}/api/models/${modelId}/download/pause`, undefined, {
+        headers: backendAuthHeaders(),
+      }),
+    );
+    return response.data;
+  } catch (error: any) {
+    console.error('Pause download error:', error);
+    return { success: false, error: toSafeRendererError(error, 'Pause failed') };
+  }
+});
+
+ipcMain.handle('models:download:resume', async (_event, modelId: string) => {
+  try {
+    const response = await requestBackend(() =>
+      axios.post(`${BACKEND_URL}/api/models/${modelId}/download/resume`, undefined, {
+        headers: { ...backendAuthHeaders(), ...hfTokenHeaders() },
+      }),
+    );
+    return response.data;
+  } catch (error: any) {
+    console.error('Resume download error:', error);
+    return { success: false, error: toSafeRendererError(error, 'Resume failed') };
+  }
+});
+
+ipcMain.handle('models:download:cancel', async (_event, modelId: string) => {
+  try {
+    const response = await requestBackend(() =>
+      axios.post(`${BACKEND_URL}/api/models/${modelId}/download/cancel`, undefined, {
+        headers: backendAuthHeaders(),
+      }),
+    );
+    return response.data;
+  } catch (error: any) {
+    console.error('Cancel download error:', error);
+    return { success: false, error: toSafeRendererError(error, 'Cancel failed') };
+  }
+});
+
+ipcMain.handle('models:downloads:list', async () => {
+  try {
+    const response = await requestBackend(() =>
+      axios.get(`${BACKEND_URL}/api/models/downloads`, { headers: backendAuthHeaders() }),
+    );
+    return response.data;
+  } catch (error: any) {
+    console.error('List downloads error:', error);
+    return [];
+  }
+});
+
+// Poll-based subscribe (mirrors the generation job-poll model): the renderer
+// calls this on an interval to get the current queue snapshot. A push channel
+// can replace this later without changing the renderer contract.
+ipcMain.handle('models:downloads:subscribe', async () => {
+  try {
+    const response = await requestBackend(() =>
+      axios.get(`${BACKEND_URL}/api/models/downloads`, { headers: backendAuthHeaders() }),
+    );
+    return response.data;
+  } catch (error: any) {
+    console.error('Subscribe downloads error:', error);
+    return [];
   }
 });
 

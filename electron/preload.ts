@@ -289,9 +289,17 @@ export interface ElectronAPI {
   models: {
     list: () => Promise<any[]>;
     get: (modelId: string) => Promise<any>;
-    download: (modelId: string) => Promise<{ success: boolean; message?: string }>;
+    download: (modelId: string) => Promise<{ model_id: string; status: string; [k: string]: unknown }>;
+    downloadPause: (modelId: string) => Promise<any>;
+    downloadResume: (modelId: string) => Promise<any>;
+    downloadCancel: (modelId: string) => Promise<any>;
+    downloadsList: () => Promise<any[]>;
+    subscribeDownloads: () => Promise<any[]>;
     getStatus: (modelId: string) => Promise<any>;
     delete: (modelId: string) => Promise<{ success: boolean; error?: string }>;
+  };
+  auth: {
+    setHfToken: (token: string) => Promise<{ success: boolean }>;
   };
   notifications: {
     notify: (
@@ -380,8 +388,16 @@ const electronAPI: ElectronAPI = {
     list: () => ipcRenderer.invoke('models:list'),
     get: (modelId: string) => ipcRenderer.invoke('models:get', modelId),
     download: (modelId: string) => ipcRenderer.invoke('models:download', modelId),
+    downloadPause: (modelId: string) => ipcRenderer.invoke('models:download:pause', modelId),
+    downloadResume: (modelId: string) => ipcRenderer.invoke('models:download:resume', modelId),
+    downloadCancel: (modelId: string) => ipcRenderer.invoke('models:download:cancel', modelId),
+    downloadsList: () => ipcRenderer.invoke('models:downloads:list'),
+    subscribeDownloads: () => ipcRenderer.invoke('models:downloads:subscribe'),
     getStatus: (modelId: string) => ipcRenderer.invoke('models:get-status', modelId),
     delete: (modelId: string) => ipcRenderer.invoke('models:delete', modelId),
+  },
+  auth: {
+    setHfToken: (token: string) => ipcRenderer.invoke('auth:setHfToken', token),
   },
   notifications: {
     notify: (type, payload) => ipcRenderer.invoke('notifications:notify', type, payload),

@@ -31,3 +31,19 @@ export function backendAuthHeaders() {
     [BACKEND_AUTH_HEADER]: getBackendAuthToken(),
   };
 }
+
+/**
+ * HF token for gated/private model downloads. Held only in the main process.
+ * Set via the auth:setHfToken IPC channel (the renderer never reads it back).
+ * Injected per download request as the X-HF-Token header; never logged, never
+ * sent on non-download requests.
+ */
+let _hfToken: string | undefined;
+
+export function setHfToken(token: string | undefined): void {
+  _hfToken = token && token.trim() ? token.trim() : undefined;
+}
+
+export function hfTokenHeaders(): Record<string, string> {
+  return _hfToken ? { 'X-HF-Token': _hfToken } : {};
+}

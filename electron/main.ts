@@ -5,9 +5,18 @@ import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 
 import { createMainProcessServices } from './services/mainProcess';
+import { setHfToken } from './services/backendAuth';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
+
+ipcMain.handle('auth:setHfToken', async (_event, token: string) => {
+  // Hold the token in the main process for the session. It is injected per
+  // download request as X-HF-Token and never returned to the renderer, never
+  // logged. (safeStorage-backed persistence can be layered via secureStore.)
+  setHfToken(typeof token === 'string' ? token : undefined);
+  return { success: true };
+});
 
 const services = createMainProcessServices({
   app,

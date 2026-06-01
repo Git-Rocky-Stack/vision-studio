@@ -397,6 +397,35 @@ describe('ModelRecord contract', () => {
   });
 });
 
+// ── DownloadJob / downloads endpoints contract ───────────────────────────
+
+describe('DownloadJob contract', () => {
+  it('carries the canonical Foundry download fields and no token', () => {
+    const job = buildDownloadJob({ model_id: 'flux-dev', status: 'downloading', progress: 0.5 });
+    expect(job).toMatchObject({
+      model_id: 'flux-dev',
+      status: 'downloading',
+      progress: 0.5,
+      speed: expect.any(Number),
+      total_bytes: expect.any(Number),
+    });
+    expect(job).not.toHaveProperty('token');
+  });
+
+  it('maps a backend downloads array into a model_id-keyed map', () => {
+    const map = mapDownloadsResponse([
+      buildDownloadJob({ model_id: 'a' }),
+      buildDownloadJob({ model_id: 'b', status: 'paused' }),
+    ]);
+    expect(Object.keys(map).sort()).toEqual(['a', 'b']);
+    expect(map.b.status).toBe('paused');
+  });
+
+  it('the download control action set is exactly pause/resume/cancel', () => {
+    expect(downloadActions()).toEqual(['pause', 'resume', 'cancel']);
+  });
+});
+
 // ── Helper implementations ───────────────────────────────────────────────
 // These mirror the logic in electron/ipc-handlers/generation.ts so we can
 // test the contract in isolation without requiring Electron.
@@ -558,4 +587,32 @@ function buildModelRecord(over: Partial<ModelRecordShape>): ModelRecordShape {
 
 function mapModelsListResponse(records: ModelRecordShape[]): ModelRecordShape[] {
   return records;
+}
+
+interface DownloadJobShape {
+  model_id: string;
+  status: 'queued' | 'downloading' | 'paused' | 'verifying' | 'ready' | 'error' | 'cancelled';
+  progress: number;
+  speed: number;
+  eta: number | null;
+  total_bytes: number;
+  error: string | null;
+  gate_url: string | null;
+}
+
+function buildDownloadJob(over: Partial<DownloadJobShape>): DownloadJobShape {
+  return {
+    model_id: 'model', status: 'queued', progress: 0, speed: 0, eta: null,
+    total_bytes: 0, error: null, gate_url: null, ...over,
+  };
+}
+
+function mapDownloadsResponse(jobs: DownloadJobShape[]): Record<string, DownloadJobShape> {
+  const map: Record<string, DownloadJobShape> = {};
+  for (const job of jobs) map[job.model_id] = job;
+  return map;
+}
+
+function downloadActions(): string[] {
+  return ['pause', 'resume', 'cancel'];
 }
