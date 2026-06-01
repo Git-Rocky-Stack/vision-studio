@@ -139,14 +139,14 @@ export function TimelineRetakeCompare({ className }: TimelineRetakeCompareProps)
     >
       <div className="flex items-start justify-between gap-4">
         <div>
-          <p className="font-display text-sm text-text-primary">Retake Compare</p>
+          <p className="text-sm text-text-primary">Retake Compare</p>
           <p className="mt-1 text-xs text-text-muted">
             {formatSeconds(range.startMs)} to {formatSeconds(range.endMs)} / {clip.label}
           </p>
         </div>
         <span
           className={cn(
-            'rounded-full border px-2 py-1 text-[11px] uppercase tracking-[0.12em]',
+            'rounded-full border px-2 py-1 mono-label',
             take.status === 'accepted'
               ? 'border-status-success-border bg-status-success-muted text-status-success'
               : take.status === 'candidate'
@@ -180,7 +180,7 @@ export function TimelineRetakeCompare({ className }: TimelineRetakeCompareProps)
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <button
           type="button"
-          className="inline-flex items-center gap-2 rounded-lg border border-border bg-surface px-3 py-2 text-xs text-text-primary transition hover:bg-elevated"
+          className="inline-flex items-center gap-2 rounded-md border border-border bg-surface px-3 py-2 text-xs text-text-primary transition hover:bg-elevated"
           onClick={handlePreviewRange}
         >
           <Play className="h-3.5 w-3.5" />
@@ -190,7 +190,7 @@ export function TimelineRetakeCompare({ className }: TimelineRetakeCompareProps)
           type="button"
           data-testid="timeline-retake-accept"
           disabled={!canApprove || take.status === 'accepted'}
-          className="inline-flex items-center gap-2 rounded-lg border border-status-success-border bg-status-success-muted px-3 py-2 text-xs text-status-success transition hover:bg-status-success-muted/80 disabled:cursor-not-allowed disabled:opacity-50"
+          className="inline-flex items-center gap-2 rounded-md border border-status-success-border bg-status-success-muted px-3 py-2 text-xs text-status-success transition hover:bg-status-success-muted/80 disabled:cursor-not-allowed disabled:opacity-50"
           onClick={() => acceptClipRetakeTake(take.id)}
         >
           <Check className="h-3.5 w-3.5" />
@@ -200,7 +200,7 @@ export function TimelineRetakeCompare({ className }: TimelineRetakeCompareProps)
           type="button"
           data-testid="timeline-retake-reject"
           disabled={take.status === 'rejected'}
-          className="inline-flex items-center gap-2 rounded-lg border border-status-error-border bg-status-error-muted px-3 py-2 text-xs text-status-error transition hover:bg-status-error-muted/80 disabled:cursor-not-allowed disabled:opacity-50"
+          className="inline-flex items-center gap-2 rounded-md border border-status-error-border bg-status-error-muted px-3 py-2 text-xs text-status-error transition hover:bg-status-error-muted/80 disabled:cursor-not-allowed disabled:opacity-50"
           onClick={() => rejectClipRetakeTake(take.id)}
         >
           <X className="h-3.5 w-3.5" />
@@ -210,7 +210,7 @@ export function TimelineRetakeCompare({ className }: TimelineRetakeCompareProps)
           type="button"
           data-testid="timeline-retake-revert"
           disabled={!range.acceptedTakeId}
-          className="inline-flex items-center gap-2 rounded-lg border border-border bg-surface px-3 py-2 text-xs text-text-primary transition hover:bg-elevated disabled:cursor-not-allowed disabled:opacity-50"
+          className="inline-flex items-center gap-2 rounded-md border border-border bg-surface px-3 py-2 text-xs text-text-primary transition hover:bg-elevated disabled:cursor-not-allowed disabled:opacity-50"
           onClick={() => revertClipRetakeRange(clip.id, range.id)}
         >
           <RotateCcw className="h-3.5 w-3.5" />
@@ -236,10 +236,10 @@ function RetakePreviewPanel({
 }) {
   return (
     <div
-      className="overflow-hidden rounded-lg border border-border bg-black"
+      className="overflow-hidden rounded-md border border-border bg-black"
       data-testid={panelTestId}
     >
-      <div className="border-b border-border bg-surface px-3 py-2 text-[11px] uppercase tracking-[0.12em] text-text-muted">
+      <div className="border-b border-border bg-surface px-3 py-2 mono-label text-text-muted">
         {label}
       </div>
       <div className="aspect-video bg-black">

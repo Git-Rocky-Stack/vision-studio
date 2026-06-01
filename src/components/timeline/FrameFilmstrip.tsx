@@ -61,7 +61,7 @@ export const FrameFilmstrip = memo(function FrameFilmstrip({
                 </div>
               )}
             </button>
-            <span className="font-mono text-micro text-text-muted truncate max-w-14">
+            <span className="type-badge text-text-muted truncate max-w-14">
               {frame.duration}ms
             </span>
           </div>

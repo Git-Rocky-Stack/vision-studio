@@ -226,17 +226,17 @@ export function TimelineExportDialog({
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.96, y: 12 }}
           onClick={(event) => event.stopPropagation()}
-          className="relative w-full max-w-2xl overflow-hidden rounded-3xl border border-border bg-elevated shadow-cinematic"
+          className="relative w-full max-w-2xl overflow-hidden rounded-xl border border-border bg-elevated shadow-cinematic"
           data-testid="timeline-export-dialog"
         >
           <div className="border-b border-border bg-[linear-gradient(180deg,rgba(255,255,255,0.05),rgba(255,255,255,0.01))] px-6 py-5">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <p className="inline-flex items-center gap-2 rounded-full border border-border bg-surface px-3 py-1 text-[11px] uppercase tracking-[0.14em] text-text-muted">
+                <p className="inline-flex items-center gap-2 rounded-full border border-border bg-surface px-3 py-1 mono-label text-text-muted">
                   <Film className="h-3.5 w-3.5" />
                   Timeline Export
                 </p>
-                <h2 className="mt-3 font-display text-2xl text-text-primary">{sequence.name}</h2>
+                <h2 className="mt-3 text-2xl text-text-primary">{sequence.name}</h2>
                 <p className="mt-2 max-w-xl text-sm leading-6 text-text-body">
                   Export a silent MP4 using the same resolved sequence playback used by the center preview.
                 </p>
@@ -278,7 +278,7 @@ export function TimelineExportDialog({
 
             <div
               className={cn(
-                'rounded-2xl border px-4 py-4',
+                'rounded-xl border px-4 py-4',
                 uiState.status === 'success'
                   ? 'border-status-success/40 bg-status-success-muted/40'
                   : uiState.status === 'error'
@@ -290,12 +290,12 @@ export function TimelineExportDialog({
                 <div className="flex items-start gap-3">
                   <CheckCircle2 className="mt-0.5 h-5 w-5 flex-shrink-0 text-status-success" />
                   <div className="min-w-0">
-                    <p className="font-display text-base text-text-primary">Export complete</p>
+                    <p className="text-base text-text-primary">Export complete</p>
                     <p className="mt-1 text-sm text-text-body">
                       The sequence render finished successfully.
                     </p>
                     {uiState.outputPath ? (
-                      <p className="mt-2 break-all font-mono text-xs text-text-muted">{uiState.outputPath}</p>
+                      <p className="mt-2 break-all data-mono text-text-muted">{uiState.outputPath}</p>
                     ) : null}
                   </div>
                 </div>
@@ -303,7 +303,7 @@ export function TimelineExportDialog({
                 <div className="flex items-start gap-3">
                   <AlertTriangle className="mt-0.5 h-5 w-5 flex-shrink-0 text-status-error" />
                   <div className="min-w-0">
-                    <p className="font-display text-base text-text-primary">Export failed</p>
+                    <p className="text-base text-text-primary">Export failed</p>
                     <p className="mt-1 text-sm text-text-body">
                       {uiState.errorMessage || 'Timeline export failed before a file was written.'}
                     </p>
@@ -313,7 +313,7 @@ export function TimelineExportDialog({
                 <div>
                   <div className="flex items-center justify-between gap-3">
                     <div>
-                      <p className="font-display text-base text-text-primary">Rendering MP4</p>
+                      <p className="text-base text-text-primary">Rendering MP4</p>
                       <p className="mt-1 text-sm text-text-body">
                         The export stays local and the dialog will remain open until the render finishes.
                       </p>
@@ -338,14 +338,14 @@ export function TimelineExportDialog({
                     />
                   </div>
                   {uiState.activeJobId ? (
-                    <p className="mt-3 font-mono text-[11px] text-text-muted">Job {uiState.activeJobId}</p>
+                    <p className="mt-3 data-mono text-text-muted">Job {uiState.activeJobId}</p>
                   ) : null}
                 </div>
               ) : (
                 <div className="flex items-start gap-3">
                   <Clapperboard className="mt-0.5 h-5 w-5 flex-shrink-0 text-accent-primary" />
                   <div>
-                    <p className="font-display text-base text-text-primary">Ready to export</p>
+                    <p className="text-base text-text-primary">Ready to export</p>
                     <p className="mt-1 text-sm text-text-body">
                       Choose a save destination, then the app will render this timeline view into one silent MP4.
                     </p>
@@ -428,9 +428,9 @@ function SummaryCard({
   detail: string;
 }) {
   return (
-    <div className="rounded-2xl border border-border bg-surface/70 px-4 py-3">
-      <p className="text-[11px] uppercase tracking-[0.14em] text-text-muted">{label}</p>
-      <p className="mt-2 font-display text-base text-text-primary">{value}</p>
+    <div className="rounded-xl border border-border bg-surface/70 px-4 py-3">
+      <p className="mono-label text-text-muted">{label}</p>
+      <p className="mt-2 text-base text-text-primary">{value}</p>
       <p className="mt-1 text-xs text-text-muted">{detail}</p>
     </div>
   );

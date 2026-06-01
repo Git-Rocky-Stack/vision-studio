@@ -82,8 +82,8 @@ export const StoryboardPlayback = memo(function StoryboardPlayback({
     return (
       <div className={cn('flex items-center justify-center h-full', className)}>
         <div className="text-center">
-          <p className="font-display text-sm text-text-muted">No scenes yet</p>
-          <p className="font-display text-xs text-text-muted mt-0.5">
+          <p className="text-sm text-text-muted">No scenes yet</p>
+          <p className="text-xs text-text-muted mt-0.5">
             Add scenes to your project to use storyboard playback
           </p>
         </div>
@@ -114,7 +114,7 @@ export const StoryboardPlayback = memo(function StoryboardPlayback({
             else timelinePlay();
           }}
           className={cn(
-            'p-1.5 rounded-lg transition-all',
+            'p-1.5 rounded-md transition-all',
             playState === 'playing'
               ? 'bg-accent-primary text-void shadow-accent-subtle'
               : 'bg-accent-primary-muted text-accent-primary border border-accent-primary-border'
@@ -176,7 +176,7 @@ export const StoryboardPlayback = memo(function StoryboardPlayback({
               key={speed}
               onClick={() => setTimelineSpeed(speed)}
               className={cn(
-                'px-1.5 py-0.5 rounded text-xs font-mono transition-all',
+                'px-1.5 py-0.5 rounded data-mono transition-all',
                 timelineSpeed === speed
                   ? 'bg-accent-primary-muted text-accent-primary'
                   : 'text-text-muted hover:text-text-body'
@@ -191,7 +191,7 @@ export const StoryboardPlayback = memo(function StoryboardPlayback({
         <div className="flex-1" />
 
         {/* Scene counter */}
-        <span className="font-mono text-xs text-text-muted">
+        <span className="data-mono text-text-muted">
           {currentSceneIndex + 1}/{scenes.length}
         </span>
       </div>
@@ -209,7 +209,7 @@ export const StoryboardPlayback = memo(function StoryboardPlayback({
                 <button
                   onClick={() => handleSceneClick(scene.id, index)}
                   className={cn(
-                    'relative rounded-lg border overflow-hidden transition-all flex-shrink-0',
+                    'relative rounded-md border overflow-hidden transition-all flex-shrink-0',
                     'w-32 h-20',
                     isActive
                       ? 'border-accent-primary ring-1 ring-accent-primary/50'
@@ -228,7 +228,7 @@ export const StoryboardPlayback = memo(function StoryboardPlayback({
                     />
                   ) : (
                     <div className="absolute inset-0 bg-elevated flex items-center justify-center">
-                      <span className="font-mono text-micro text-text-muted">
+                      <span className="type-badge text-text-muted">
                         {index + 1}
                       </span>
                     </div>
@@ -244,14 +244,14 @@ export const StoryboardPlayback = memo(function StoryboardPlayback({
 
                   {/* Scene name label */}
                   <div className="absolute bottom-0 inset-x-0 px-1.5 py-0.5 bg-gradient-to-t from-void/80 to-transparent">
-                    <span className="font-display text-micro text-text-primary truncate block">
+                    <span className="text-xs text-text-primary truncate block">
                       {scene.name}
                     </span>
                   </div>
 
                   {/* Duration badge */}
                   <div className="absolute top-1 right-1 px-1 rounded bg-void/70">
-                    <span className="font-mono text-micro text-text-muted">
+                    <span className="type-badge text-text-muted">
                       {(sceneDuration / 1000).toFixed(1)}s
                     </span>
                   </div>
@@ -259,7 +259,7 @@ export const StoryboardPlayback = memo(function StoryboardPlayback({
                   {/* Camera keyframe indicator */}
                   {scene.camera && scene.camera.length > 0 && (
                     <div className="absolute top-1 left-1 px-1 rounded bg-accent-primary/70">
-                      <span className="font-mono text-micro text-void">CAM</span>
+                      <span className="type-badge text-void">CAM</span>
                     </div>
                   )}
                 </button>
