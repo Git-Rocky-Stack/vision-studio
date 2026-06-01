@@ -26,7 +26,7 @@ class ModelRecord:
 
     # State (M1: reuse the existing 4-value status; richer union arrives in M2)
     size: str = "Unknown"
-    status: str = "not_found"   # ready | downloading | error | not_found
+    status: str = "not_found"   # ready | downloading | error | not_found | queued | verifying | paused | cancelled
 
     # Compatibility / curation
     tier: str = "verified"      # verified | compatible | experimental

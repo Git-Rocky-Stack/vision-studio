@@ -16,6 +16,7 @@ class ModelRecordSchema(BaseModel):
     revision: str = "main"
     aux_repo_id: Optional[str] = None
     size: str = "Unknown"
+    # Lifecycle: ready | downloading | error | not_found | queued | verifying | paused | cancelled
     status: str = "not_found"
     tier: str = "verified"
     quality: str = "balanced"

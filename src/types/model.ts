@@ -1,4 +1,12 @@
-export type ModelStatus = 'ready' | 'downloading' | 'error' | 'not_found';
+export type ModelStatus =
+  | 'ready'
+  | 'downloading'
+  | 'error'
+  | 'not_found'
+  | 'queued'
+  | 'verifying'
+  | 'paused'
+  | 'cancelled';
 
 export type ModelCapability = 'image' | 'video' | 'edit' | 'inpaint';
 export type ModelRuntime = 'local' | 'comfyui' | 'cloud' | 'byom';

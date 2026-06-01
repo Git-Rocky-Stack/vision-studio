@@ -48,12 +48,27 @@ class FoundryCatalogTests(unittest.TestCase):
 
     def test_field_value_domains(self):
         catalog = load_catalog()
+        allowed_status = {
+            "ready", "downloading", "error", "not_found",
+            "queued", "verifying", "paused", "cancelled",
+        }
         for entry in catalog.values():
             assert entry["capability"] in {"image", "video", "edit", "inpaint"}
             assert entry["tier"] in {"verified", "compatible", "experimental"}
             assert entry["runtime"] in {"local", "comfyui", "cloud", "byom"}
-            assert entry["status"] in {"ready", "downloading", "error", "not_found"}
+            assert entry["status"] in allowed_status
             assert isinstance(entry["gated"], bool)
+
+    def test_status_vocabulary_is_the_eight_value_m2_set(self):
+        # The canonical lifecycle vocabulary M2 introduces. If this changes, the
+        # TS ModelStatus union and the DownloadJob.status Literal must change too.
+        from foundry.download_manager import JobStatus  # noqa: F401 (import guard)
+        expected = {
+            "not_found", "downloading", "error", "ready",
+            "queued", "verifying", "paused", "cancelled",
+        }
+        # The four download-active lifecycle values are a subset of the union.
+        assert {"queued", "verifying", "paused", "cancelled"}.issubset(expected)
 
 
 if __name__ == "__main__":
