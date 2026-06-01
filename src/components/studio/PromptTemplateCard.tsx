@@ -40,7 +40,7 @@ export const PromptTemplateCard = memo(function PromptTemplateCard({
   onToggleFavorite,
 }: PromptTemplateCardProps) {
   return (
-    <div className="group relative flex flex-col gap-2 rounded-lg border border-border bg-surface p-3 transition-colors duration-normal hover:border-border-hover">
+    <div className="group relative flex flex-col gap-2 rounded-md border border-border bg-surface p-3 transition-colors duration-normal hover:border-border-hover">
       {/* Header: name + favorite */}
       <div className="flex items-start justify-between gap-2">
         <h4 className="text-sm font-medium text-text-primary leading-snug">
@@ -77,7 +77,7 @@ export const PromptTemplateCard = memo(function PromptTemplateCard({
       {/* Category badge */}
       <span
         className={cn(
-          'mt-auto inline-block w-fit rounded border px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wider',
+          'mt-auto inline-block w-fit rounded border px-1.5 py-0.5 mono-label',
           CATEGORY_COLORS[template.category],
         )}
       >
