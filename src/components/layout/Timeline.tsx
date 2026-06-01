@@ -57,9 +57,9 @@ const DEFAULT_IMAGE_CLIP_DURATION_MS = 2000;
 const DEFAULT_VIDEO_CLIP_DURATION_MS = 5000;
 const DEFAULT_AUDIO_CLIP_DURATION_MS = 5000;
 const TIMELINE_ACTION_BUTTON_CLASS =
-  'inline-flex h-7 flex-none items-center gap-1 whitespace-nowrap rounded-md border border-border-hover bg-panel-raised px-2 text-[11px] font-display text-text-primary shadow-sm transition hover:border-accent-primary-border hover:bg-elevated disabled:cursor-not-allowed disabled:border-border disabled:bg-surface disabled:text-text-muted disabled:opacity-60';
+  'inline-flex h-7 flex-none items-center gap-1 whitespace-nowrap rounded-md border border-border-hover bg-panel-raised px-2 text-xs text-text-primary shadow-sm transition hover:border-accent-primary-border hover:bg-elevated disabled:cursor-not-allowed disabled:border-border disabled:bg-surface disabled:text-text-muted disabled:opacity-60';
 const TIMELINE_ACTION_SELECT_CLASS =
-  'h-7 max-w-[128px] flex-none rounded-md border border-border-hover bg-panel-raised px-2 text-[11px] font-display text-text-primary shadow-sm';
+  'h-7 max-w-[128px] flex-none rounded-md border border-border-hover bg-panel-raised px-2 text-xs text-text-primary shadow-sm';
 
 interface TimelineRetakeDraftRange {
   clipId: string;
@@ -190,7 +190,7 @@ const TransportControls = memo(function TransportControls({
   onSkipToEnd: () => void;
 }) {
   return (
-    <div className="flex h-8 items-center gap-1.5 rounded-lg border border-border bg-canvas px-1.5 shadow-sm">
+    <div className="flex h-8 items-center gap-1.5 rounded-md border border-border bg-canvas px-1.5 shadow-sm">
       <button
         type="button"
         onClick={onSkipToStart}
@@ -213,7 +213,7 @@ const TransportControls = memo(function TransportControls({
         type="button"
         onClick={onTogglePlay}
         className={cn(
-          'rounded-lg p-2 transition',
+          'rounded-md p-2 transition',
           isPlaying
             ? 'bg-accent-primary text-void shadow-accent-subtle'
             : 'border border-accent-primary-border bg-accent-primary-muted text-accent-primary',
@@ -267,7 +267,7 @@ const ZoomControls = memo(function ZoomControls({
   onZoomChange: (zoom: number) => void;
 }) {
   return (
-    <div className="flex h-8 items-center gap-1.5 rounded-lg border border-border bg-canvas px-2 shadow-sm">
+    <div className="flex h-8 items-center gap-1.5 rounded-md border border-border bg-canvas px-2 shadow-sm">
       <button
         type="button"
         onClick={() => onZoomChange(Math.max(MIN_ZOOM, zoom - ZOOM_STEP))}
@@ -354,7 +354,7 @@ const TimeRuler = memo(function TimeRuler({
             )}
           />
           {tick.label ? (
-            <span className="absolute left-1 top-1 whitespace-nowrap font-mono text-[11px] text-text-muted">
+            <span className="absolute left-1 top-1 whitespace-nowrap data-mono text-text-muted">
               {tick.label}
             </span>
           ) : null}
@@ -409,12 +409,12 @@ const TrackHeader = memo(function TrackHeader({
       )}
       aria-pressed={isSelected}
     >
-      <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-canvas">
+      <div className="flex h-9 w-9 items-center justify-center rounded-md border border-border bg-canvas">
         <TrackIcon className="h-4 w-4 text-text-muted" />
       </div>
       <div className="min-w-0 flex-1">
-        <p className="truncate font-display text-sm text-text-primary">{track.name}</p>
-        <p className="mt-1 text-[11px] uppercase tracking-[0.12em] text-text-muted">
+        <p className="truncate text-sm text-text-primary">{track.name}</p>
+        <p className="mt-1 mono-label text-text-muted">
           {track.kind} track - {clipCount} clip{clipCount === 1 ? '' : 's'}
         </p>
       </div>
@@ -440,7 +440,7 @@ const TrackHeader = memo(function TrackHeader({
               onToggleSolo();
             }}
             className={cn(
-              'rounded px-1.5 py-1 text-[10px] font-display uppercase tracking-[0.12em] transition',
+              'rounded px-1.5 py-1 mono-label transition',
               track.solo
                 ? 'bg-accent-primary-muted text-accent-primary'
                 : 'text-text-muted hover:bg-canvas hover:text-text-primary',
@@ -652,24 +652,24 @@ const TimelineClipBlock = memo(function TimelineClipBlock({
 
       <div className="relative flex h-full flex-col justify-between p-2.5">
         <div className="flex items-center justify-between gap-2">
-          <span className="truncate font-display text-sm text-text-primary">{clip.label}</span>
-          <span className="rounded-full bg-canvas/80 px-2 py-0.5 text-[10px] uppercase tracking-[0.14em] text-text-muted">
+          <span className="truncate text-sm text-text-primary">{clip.label}</span>
+          <span className="rounded-full bg-canvas/80 px-2 py-0.5 mono-label text-text-muted">
             {mediaAsset?.type ?? 'clip'}
           </span>
         </div>
         {clip.storyboardDerived ? (
-          <div className="flex min-w-0 items-center gap-1.5 text-[10px]">
-            <span className="rounded-full border border-border bg-canvas/80 px-1.5 py-0.5 uppercase tracking-[0.12em] text-text-muted">
+          <div className="flex min-w-0 items-center gap-1.5 text-xs">
+            <span className="rounded-full border border-border bg-canvas/80 px-1.5 py-0.5 mono-label text-text-muted">
               Derived
             </span>
             {isPlaceholder ? (
-              <span className="rounded-full border border-status-warning-border bg-status-warning-muted px-1.5 py-0.5 uppercase tracking-[0.12em] text-status-warning">
+              <span className="rounded-full border border-status-warning-border bg-status-warning-muted px-1.5 py-0.5 mono-label text-status-warning">
                 Placeholder
               </span>
             ) : null}
           </div>
         ) : null}
-        <div className="flex items-center justify-between gap-2 text-[11px] text-text-muted">
+        <div className="flex items-center justify-between gap-2 text-xs text-text-muted">
           <span className="truncate">
             {clip.storyboardDerived
               ? (sceneName ?? 'Storyboard scene')
@@ -680,17 +680,17 @@ const TimelineClipBlock = memo(function TimelineClipBlock({
           <span className="font-mono">{formatSecondsLabel(clip.durationMs)}</span>
         </div>
         {retakeRanges.length > 0 || hasDraftRetakeRange ? (
-          <div className="mt-1 flex items-center gap-1.5 text-[10px]">
+          <div className="mt-1 flex items-center gap-1.5 text-xs">
             {retakeRanges.length > 0 ? (
               <span
-                className="rounded-full border border-accent-primary/30 bg-accent-primary-muted px-1.5 py-0.5 uppercase tracking-[0.12em] text-accent-primary"
+                className="rounded-full border border-accent-primary/30 bg-accent-primary-muted px-1.5 py-0.5 mono-label text-accent-primary"
                 data-testid={`timeline-clip-retake-badge-${clip.id}`}
               >
                 {retakeRanges.length} retake{retakeRanges.length === 1 ? '' : 's'}
               </span>
             ) : null}
             {hasDraftRetakeRange ? (
-              <span className="rounded-full border border-status-warning-border bg-status-warning-muted px-1.5 py-0.5 uppercase tracking-[0.12em] text-status-warning">
+              <span className="rounded-full border border-status-warning-border bg-status-warning-muted px-1.5 py-0.5 mono-label text-status-warning">
                 Draft
               </span>
             ) : null}
@@ -1222,7 +1222,7 @@ export const Timeline = memo(function Timeline() {
           type="button"
           onClick={toggleTimelinePlayback}
           className={cn(
-            'rounded-lg p-1.5 transition',
+            'rounded-md p-1.5 transition',
             playState === 'playing'
               ? 'bg-accent-primary text-void shadow-accent-subtle'
               : 'border border-accent-primary-border bg-accent-primary-muted text-accent-primary',
@@ -1257,7 +1257,7 @@ export const Timeline = memo(function Timeline() {
         </div>
         <div className="flex items-center gap-1 text-text-muted">
           <Layers className="h-3 w-3" />
-          <span className="font-mono text-[11px]">{sequenceTracks.length}</span>
+          <span className="data-mono">{sequenceTracks.length}</span>
         </div>
       </motion.div>
     );
@@ -1287,7 +1287,7 @@ export const Timeline = memo(function Timeline() {
 
           <div className="mx-1 h-5 w-px bg-border" />
 
-          <div className="flex h-8 items-center gap-0.5 rounded-lg border border-border bg-canvas p-0.5 shadow-sm">
+          <div className="flex h-8 items-center gap-0.5 rounded-md border border-border bg-canvas p-0.5 shadow-sm">
             {(['storyboard', 'animation', 'canvas'] as const).map((mode) => {
               const active = timelineMode === mode;
               return (
@@ -1296,7 +1296,7 @@ export const Timeline = memo(function Timeline() {
                   type="button"
                   onClick={() => setTimelineMode(mode)}
                   className={cn(
-                    'h-7 rounded-md px-2.5 text-xs font-display capitalize transition',
+                    'h-7 rounded-md px-2.5 text-xs capitalize transition',
                     active
                       ? 'bg-panel-raised text-accent-primary shadow-sm'
                       : 'text-text-muted hover:bg-surface hover:text-text-body',
@@ -1441,7 +1441,7 @@ export const Timeline = memo(function Timeline() {
                             type="button"
                             onClick={() => setActiveScene(scene.id)}
                             className={cn(
-                              'absolute top-1 h-8 overflow-hidden rounded-lg border px-2 text-left transition',
+                              'absolute top-1 h-8 overflow-hidden rounded-md border px-2 text-left transition',
                               activeSceneId === scene.id
                                 ? 'border-accent-primary bg-accent-primary-muted text-accent-primary'
                                 : 'border-border bg-surface/80 text-text-muted hover:text-text-primary',
@@ -1452,7 +1452,7 @@ export const Timeline = memo(function Timeline() {
                             }}
                             aria-label={`Scene: ${scene.name}`}
                           >
-                            <span className="truncate text-[11px]">{scene.name}</span>
+                            <span className="truncate text-xs">{scene.name}</span>
                           </button>
                         );
                       })}
@@ -1469,7 +1469,7 @@ export const Timeline = memo(function Timeline() {
                     <div className="flex h-28 items-center justify-center border-b border-border">
                       <div className="text-center">
                         <Layers className="mx-auto h-8 w-8 text-text-muted/40" />
-                        <p className="mt-2 font-display text-sm text-text-primary">No tracks yet</p>
+                        <p className="mt-2 text-sm text-text-primary">No tracks yet</p>
                         <p className="mt-1 text-xs text-text-muted">
                           Add a track, then drop imported or generated media into the timeline.
                         </p>
@@ -1491,7 +1491,7 @@ export const Timeline = memo(function Timeline() {
                         >
                           <div
                             className={cn(
-                              'pointer-events-none absolute left-3 top-2 z-20 inline-flex max-w-[180px] items-center gap-1.5 rounded-md border px-2 py-1 text-[11px] shadow-sm backdrop-blur-sm',
+                              'pointer-events-none absolute left-3 top-2 z-20 inline-flex max-w-[180px] items-center gap-1.5 rounded-md border px-2 py-1 text-xs shadow-sm backdrop-blur-sm',
                               (activeClip?.trackId ?? selectedTrackId) === track.id
                                 ? 'border-accent-primary-border bg-accent-primary-muted text-accent-primary'
                                 : 'border-border bg-surface/85 text-text-muted',
@@ -1504,7 +1504,7 @@ export const Timeline = memo(function Timeline() {
                             ) : (
                               <ImageIcon className="h-3 w-3 flex-none" />
                             )}
-                            <span className="font-mono text-[10px] text-text-primary">
+                            <span className="data-mono text-text-primary">
                               {track.kind === 'audio' ? 'A' : track.kind === 'video' ? 'V' : 'I'}
                               {track.orderIndex + 1}
                             </span>
@@ -1512,7 +1512,7 @@ export const Timeline = memo(function Timeline() {
                           </div>
 
                           {track.hidden ? (
-                            <div className="flex h-full items-center justify-center text-[11px] uppercase tracking-[0.14em] text-text-muted">
+                            <div className="flex h-full items-center justify-center mono-label text-text-muted">
                               Hidden track
                             </div>
                           ) : (
@@ -1564,7 +1564,7 @@ export const Timeline = memo(function Timeline() {
               data-testid="timeline-details-deck"
             >
               <div className="timeline-toolbar-scroll col-span-full flex min-w-0 items-center gap-2 overflow-x-auto overflow-y-hidden border-b border-border bg-elevated/60 px-3 py-1">
-                <span className="mr-1 flex-none text-[11px] text-text-muted">Clip & Range Tools</span>
+                <span className="mr-1 flex-none text-xs text-text-muted">Clip & Range Tools</span>
                 <select
                   aria-label="Media asset for timeline"
                   className={TIMELINE_ACTION_SELECT_CLASS}
@@ -1629,7 +1629,7 @@ export const Timeline = memo(function Timeline() {
                 </button>
                 <span
                   className={cn(
-                    'max-w-[180px] flex-none truncate whitespace-nowrap rounded-full border px-2 py-1 text-[10px] uppercase tracking-[0.12em]',
+                    'max-w-[180px] flex-none truncate whitespace-nowrap rounded-full border px-2 py-1 mono-label',
                     canAuthorRetake
                       ? 'border-accent-primary/25 bg-accent-primary-muted text-accent-primary'
                       : 'border-border bg-canvas/70 text-text-muted',
@@ -1707,7 +1707,7 @@ export const Timeline = memo(function Timeline() {
                   <div className="flex h-9 items-center justify-between border-b border-border px-3">
                     <div className="min-w-0">
                       <p className="type-ui text-text-primary">Tracks</p>
-                      <p className="truncate text-[11px] text-text-muted">
+                      <p className="truncate text-xs text-text-muted">
                         {sequenceTracks.length === 0
                           ? 'Add tracks to start editing'
                           : `${sequenceTracks.length} track${sequenceTracks.length === 1 ? '' : 's'} in this sequence`}
@@ -1716,7 +1716,7 @@ export const Timeline = memo(function Timeline() {
                     <button
                       type="button"
                       onClick={handleAddTrack}
-                      className="inline-flex h-6 items-center gap-1 rounded-md border border-border bg-surface px-2 text-[11px] text-text-primary transition hover:bg-elevated"
+                      className="inline-flex h-6 items-center gap-1 rounded-md border border-border bg-surface px-2 text-xs text-text-primary transition hover:bg-elevated"
                       aria-label="Add track"
                     >
                       <Plus className="h-3 w-3" />

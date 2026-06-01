@@ -50,14 +50,14 @@ export const ResultCard = memo(function ResultCard({
           }
         }}
         className={cn(
-          'flex items-center gap-4 p-3 rounded-lg border transition-all cursor-pointer',
+          'flex items-center gap-4 p-3 rounded-md border transition-all cursor-pointer',
           isSelected
             ? 'border-accent-primary-border ring-2 ring-accent-primary-border bg-accent-primary-muted'
             : 'border-border bg-elevated/50 hover:border-border-hover hover:bg-elevated'
         )}
       >
         {/* Thumbnail */}
-        <div className="w-16 h-16 rounded-lg overflow-hidden flex-shrink-0 bg-surface">
+        <div className="w-16 h-16 rounded-md overflow-hidden flex-shrink-0 bg-surface">
           {isFailed ? (
             <div className="w-full h-full flex items-center justify-center bg-status-error-muted">
               <AlertTriangle className="w-5 h-5 text-status-error" />
@@ -75,15 +75,15 @@ export const ResultCard = memo(function ResultCard({
 
         {/* Info */}
         <div className="flex-1 min-w-0">
-          <p className="text-sm text-text-primary font-display line-clamp-1">
+          <p className="text-sm text-text-primary line-clamp-1">
             {result.prompt}
           </p>
           <div className="flex items-center gap-3 mt-1">
-            <span className="flex items-center gap-1 text-micro text-text-muted font-mono">
+            <span className="flex items-center gap-1 type-badge text-text-muted">
               <Hash className="w-3 h-3" />
               {result.seed}
             </span>
-            <span className="flex items-center gap-1 text-micro text-text-muted font-mono">
+            <span className="flex items-center gap-1 type-badge text-text-muted">
               <Clock className="w-3 h-3" />
               {result.generationTime.toFixed(1)}s
             </span>
@@ -96,7 +96,7 @@ export const ResultCard = memo(function ResultCard({
             onClick={(e) => { e.stopPropagation(); onToggleFavorite(result.id); }}
             aria-label={result.isFavorite ? 'Remove from favorites' : 'Add to favorites'}
             className={cn(
-              'p-2 rounded-lg transition-all',
+              'p-2 rounded-md transition-all',
               result.isFavorite
                 ? 'text-status-warning bg-status-warning-muted'
                 : 'text-text-muted hover:text-text-primary hover:bg-surface'
@@ -107,14 +107,14 @@ export const ResultCard = memo(function ResultCard({
           <button
             onClick={(e) => { e.stopPropagation(); onDownload(result.id); }}
             aria-label="Download image"
-            className="p-2 rounded-lg text-text-muted hover:text-text-primary hover:bg-surface transition-all"
+            className="p-2 rounded-md text-text-muted hover:text-text-primary hover:bg-surface transition-all"
           >
             <Download className="w-3.5 h-3.5" />
           </button>
           <button
             onClick={(e) => { e.stopPropagation(); onSendToEdit(result.id); }}
             aria-label="Send to edit"
-            className="p-2 rounded-lg text-text-muted hover:text-text-primary hover:bg-surface transition-all"
+            className="p-2 rounded-md text-text-muted hover:text-text-primary hover:bg-surface transition-all"
           >
             <Pencil className="w-3.5 h-3.5" />
           </button>
@@ -144,7 +144,7 @@ export const ResultCard = memo(function ResultCard({
         }
       }}
       className={cn(
-        'rounded-lg border overflow-hidden transition-all cursor-pointer group',
+        'rounded-md border overflow-hidden transition-all cursor-pointer group',
         isSelected
           ? 'border-accent-primary-border ring-2 ring-accent-primary-border'
           : 'border-border hover:border-border-hover',
@@ -159,7 +159,7 @@ export const ResultCard = memo(function ResultCard({
         {isFailed ? (
           <div className="w-full h-full flex flex-col items-center justify-center bg-status-error-muted">
             <AlertTriangle className="w-8 h-8 text-status-error mb-2" />
-            <span className="text-xs text-status-error font-display">Failed</span>
+            <span className="text-xs text-status-error">Failed</span>
           </div>
         ) : (
           <ImageWithFallback
@@ -207,7 +207,7 @@ export const ResultCard = memo(function ResultCard({
               isHovered ? 'opacity-100' : 'opacity-0 focus-within:opacity-100'
             )}
           >
-            <p className="text-xs text-text-primary font-display line-clamp-3 mb-2">
+            <p className="text-xs text-text-primary line-clamp-3 mb-2">
               {result.prompt}
             </p>
             <div className="flex items-center gap-1">
@@ -215,7 +215,7 @@ export const ResultCard = memo(function ResultCard({
                 onClick={(e) => { e.stopPropagation(); onToggleFavorite(result.id); }}
                 aria-label={result.isFavorite ? 'Remove from favorites' : 'Add to favorites'}
                 className={cn(
-                  'p-2 rounded-lg backdrop-blur-sm transition-all focus-visible:opacity-100',
+                  'p-2 rounded-md backdrop-blur-sm transition-all focus-visible:opacity-100',
                   result.isFavorite
                     ? 'bg-status-warning-muted text-status-warning'
                     : 'bg-void/40 text-text-primary hover:bg-void/60'
@@ -226,14 +226,14 @@ export const ResultCard = memo(function ResultCard({
               <button
                 onClick={(e) => { e.stopPropagation(); onDownload(result.id); }}
                 aria-label="Download image"
-                className="p-2 rounded-lg bg-void/40 text-text-primary hover:bg-void/60 backdrop-blur-sm transition-all focus-visible:opacity-100"
+                className="p-2 rounded-md bg-void/40 text-text-primary hover:bg-void/60 backdrop-blur-sm transition-all focus-visible:opacity-100"
               >
                 <Download className="w-3.5 h-3.5" />
               </button>
               <button
                 onClick={(e) => { e.stopPropagation(); onSendToEdit(result.id); }}
                 aria-label="Send to edit"
-                className="p-2 rounded-lg bg-void/40 text-text-primary hover:bg-void/60 backdrop-blur-sm transition-all focus-visible:opacity-100"
+                className="p-2 rounded-md bg-void/40 text-text-primary hover:bg-void/60 backdrop-blur-sm transition-all focus-visible:opacity-100"
               >
                 <Pencil className="w-3.5 h-3.5" />
               </button>
@@ -244,14 +244,14 @@ export const ResultCard = memo(function ResultCard({
 
       {/* Card footer */}
       <div className="px-2.5 py-2 bg-elevated">
-        <p className="text-xs text-text-primary font-display line-clamp-2 leading-relaxed">
+        <p className="text-xs text-text-primary line-clamp-2 leading-relaxed">
           {result.prompt}
         </p>
         <div className="flex items-center gap-3 mt-1.5">
-          <span className="text-micro text-text-muted font-mono">
+          <span className="type-badge text-text-muted">
             seed:{result.seed}
           </span>
-          <span className="text-micro text-text-muted font-mono">
+          <span className="type-badge text-text-muted">
             {result.generationTime.toFixed(1)}s
           </span>
         </div>

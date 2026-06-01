@@ -264,7 +264,7 @@ export function ImagePreviewModal({
             <button
               onClick={onClose}
               aria-label="Close preview"
-              className="absolute top-4 right-4 z-10 p-2 rounded-lg bg-surface/80 backdrop-blur-sm text-text-muted hover:text-text-primary hover:bg-elevated transition-all"
+              className="absolute top-4 right-4 z-10 p-2 rounded-md bg-surface/80 backdrop-blur-sm text-text-muted hover:text-text-primary hover:bg-elevated transition-all"
             >
               <X className="w-5 h-5" />
             </button>
@@ -290,7 +290,7 @@ export function ImagePreviewModal({
                 transition={{ duration: 0.2 }}
                 src={result.imagePath}
                 alt={result.prompt}
-                className="max-h-[80vh] max-w-full object-contain rounded-lg shadow-cinematic"
+                className="max-h-[80vh] max-w-full object-contain rounded-md shadow-cinematic"
               />
 
               {/* Next button */}
@@ -325,7 +325,7 @@ export function ImagePreviewModal({
                 <h3 className="text-label text-text-muted mb-2">
                   Prompt
                 </h3>
-                <p className="text-sm text-text-primary font-display leading-relaxed max-h-32 overflow-y-auto scrollbar-hide">
+                <p className="text-sm text-text-primary leading-relaxed max-h-32 overflow-y-auto scrollbar-hide">
                   {result.prompt}
                 </p>
               </div>
@@ -336,7 +336,7 @@ export function ImagePreviewModal({
                   <h3 className="text-label text-text-muted mb-2">
                     Negative Prompt
                   </h3>
-                  <p className="text-xs text-text-body font-display leading-relaxed max-h-20 overflow-y-auto scrollbar-hide">
+                  <p className="text-xs text-text-body leading-relaxed max-h-20 overflow-y-auto scrollbar-hide">
                     {result.params.negativePrompt}
                   </p>
                 </div>
@@ -352,7 +352,7 @@ export function ImagePreviewModal({
                     <div key={label} className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <Icon className="w-3.5 h-3.5 text-text-muted" />
-                        <span className="text-xs text-text-body font-display">{label}</span>
+                        <span className="text-xs text-text-body">{label}</span>
                       </div>
                       <span className="text-xs text-text-primary font-mono">{value}</span>
                     </div>

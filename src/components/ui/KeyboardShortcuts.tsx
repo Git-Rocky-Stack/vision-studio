@@ -97,7 +97,7 @@ export function KeyboardShortcuts({ open, onClose }: KeyboardShortcutsProps) {
               <button
                 onClick={onClose}
                 aria-label="Close shortcuts"
-                className="p-2 rounded-lg text-text-muted hover:text-text-primary hover:bg-surface transition-all"
+                className="p-2 rounded-md text-text-muted hover:text-text-primary hover:bg-surface transition-all"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -114,7 +114,7 @@ export function KeyboardShortcuts({ open, onClose }: KeyboardShortcutsProps) {
                         key={i}
                         className="flex items-center justify-between py-2"
                       >
-                        <span className="text-sm font-display text-text-body">
+                        <span className="text-sm text-text-body">
                           {shortcut.description}
                         </span>
                         <div className="flex items-center gap-1">
@@ -138,7 +138,7 @@ export function KeyboardShortcuts({ open, onClose }: KeyboardShortcutsProps) {
 
             {/* Footer */}
             <div className="px-6 py-3 border-t border-border bg-surface/50">
-              <p className="text-xs text-text-muted font-display text-center">
+              <p className="text-xs text-text-muted text-center">
                 Press <kbd className="px-1 py-0.5 rounded bg-elevated border border-border font-mono text-xs">?</kbd> to toggle this overlay
               </p>
             </div>

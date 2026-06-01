@@ -216,13 +216,13 @@ export function ResultsGrid({
         {sortedResults.length === 0 ? (
           /* Empty State */
           <div className="flex flex-col items-center justify-center h-full text-center">
-            <div className="w-16 h-16 rounded-2xl bg-elevated flex items-center justify-center mb-4">
+            <div className="w-16 h-16 rounded-xl bg-elevated flex items-center justify-center mb-4">
               <Layers className="w-8 h-8 text-text-muted" />
             </div>
-            <p className="font-display text-sm text-text-primary mb-1">
+            <p className="text-sm text-text-primary mb-1">
               No results yet
             </p>
-            <p className="font-display text-xs text-text-muted max-w-[240px]">
+            <p className="text-xs text-text-muted max-w-[240px]">
               Generate a batch to see results here. Results will appear as each image completes.
             </p>
           </div>
@@ -273,20 +273,20 @@ export function ResultsGrid({
       <AnimatePresence>
         {selectedIds.size > 0 && (
           <div aria-live="polite" className="px-4 py-3 border-t border-border bg-elevated flex items-center gap-3">
-            <span className="text-xs font-display text-text-primary font-medium">
+            <span className="text-xs text-text-primary font-medium">
               {selectedIds.size} selected
             </span>
             <div className="flex-1" />
             <button
               onClick={handleBulkFavorite}
-              className="flex items-center gap-2 px-3 py-2 rounded-md text-xs font-display text-text-body hover:text-status-warning hover:bg-status-warning-muted transition-all"
+              className="flex items-center gap-2 px-3 py-2 rounded-md text-xs text-text-body hover:text-status-warning hover:bg-status-warning-muted transition-all"
             >
               <Heart className="w-3.5 h-3.5" />
               Favorite
             </button>
             <button
               onClick={handleExportAll}
-              className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-display text-text-body hover:text-text-primary hover:bg-surface transition-all"
+              className="flex items-center gap-2 px-3 py-2 rounded-md text-xs text-text-body hover:text-text-primary hover:bg-surface transition-all"
             >
               <Download className="w-3.5 h-3.5" />
               Export
@@ -295,14 +295,14 @@ export function ResultsGrid({
               onClick={() => {
                 selectedIds.forEach((id) => handleSendToEdit(id));
               }}
-              className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-display text-text-body hover:text-text-primary hover:bg-surface transition-all"
+              className="flex items-center gap-2 px-3 py-2 rounded-md text-xs text-text-body hover:text-text-primary hover:bg-surface transition-all"
             >
               <Pencil className="w-3.5 h-3.5" />
               Edit
             </button>
             <button
               onClick={handleBulkDelete}
-              className="flex items-center gap-2 px-3 py-2 rounded-md text-xs font-display text-status-error hover:bg-status-error-muted transition-all"
+              className="flex items-center gap-2 px-3 py-2 rounded-md text-xs text-status-error hover:bg-status-error-muted transition-all"
             >
               <Trash2 className="w-3.5 h-3.5" />
               Delete

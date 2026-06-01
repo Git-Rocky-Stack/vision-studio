@@ -16,7 +16,7 @@ export function Skeleton({ className }: SkeletonProps) {
       aria-busy="true"
       aria-label="Loading"
       className={cn(
-        'animate-pulse rounded-lg bg-elevated',
+        'animate-pulse rounded-md bg-elevated',
         className
       )}
     />
@@ -42,7 +42,7 @@ export function SkeletonText({ className }: SkeletonProps) {
  */
 export function SkeletonCard({ className }: SkeletonProps) {
   return (
-    <div className={cn('rounded-lg border border-border p-3 space-y-3', className)}>
+    <div className={cn('rounded-md border border-border p-3 space-y-3', className)}>
       <Skeleton className="aspect-square w-full" />
       <div className="space-y-2">
         <Skeleton className="h-3 w-2/3" />
@@ -65,7 +65,7 @@ export function SkeletonList({
     <div className={cn('space-y-2', className)}>
       {Array.from({ length: rows }).map((_, i) => (
         <div key={i} className="flex items-center gap-3 p-2">
-          <Skeleton className="w-10 h-10 rounded-lg flex-shrink-0" />
+          <Skeleton className="w-10 h-10 rounded-md flex-shrink-0" />
           <div className="flex-1 space-y-1.5">
             <Skeleton className="h-3 w-1/2" />
             <Skeleton className="h-2.5 w-1/3" />

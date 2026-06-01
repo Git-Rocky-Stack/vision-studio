@@ -23,7 +23,7 @@ export function UserGuidePage() {
     <div className="h-full overflow-y-auto bg-surface p-6">
       <div className="max-w-3xl">
         <p className="text-label text-text-muted">Help</p>
-        <h1 className="mt-1 font-display text-2xl font-semibold text-text-primary">
+        <h1 className="mt-1 text-2xl font-semibold text-text-primary">
           User Guide
         </h1>
         <p className="mt-2 text-sm text-text-body">
@@ -32,7 +32,7 @@ export function UserGuidePage() {
           through Story, Timeline, Workflows, Canvas, Viewer, and Assets without breaking context.
         </p>
 
-        <div className="mt-6 rounded-2xl border border-border bg-elevated p-4">
+        <div className="mt-6 rounded-xl border border-border bg-elevated p-4">
           <p className="type-ui text-text-primary">Jump To</p>
           <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
             {GUIDE_LINKS.map((link) => (

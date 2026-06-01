@@ -455,7 +455,7 @@ export function WorkbenchViewer() {
           </div>
 
           {activeItem.generationType === 'video' ? (
-            <div className="mt-3 rounded-lg border border-border bg-elevated px-3 py-2">
+            <div className="mt-3 rounded-md border border-border bg-elevated px-3 py-2">
               <p className="type-ui text-text-primary">Video review is live</p>
               <p className="mt-1 type-caption text-text-body">
                 Playback controls are active above. Extract the current frame into Canvas and it will land in Assets as a reusable still.
@@ -470,7 +470,7 @@ export function WorkbenchViewer() {
             <div
               data-testid="viewer-compare-status"
               className={cn(
-                'mt-3 rounded-lg border px-3 py-2',
+                'mt-3 rounded-md border px-3 py-2',
                 showCompareReview
                   ? 'border-accent-primary-border bg-accent-primary-muted'
                   : 'border-border bg-elevated',

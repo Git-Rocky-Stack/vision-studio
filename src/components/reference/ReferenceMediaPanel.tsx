@@ -350,7 +350,7 @@ export function ReferenceMediaPanel({
   return (
     <section
       data-testid={testId}
-      className={cn('rounded-lg border border-border bg-elevated/60 p-3', className)}
+      className={cn('rounded-md border border-border bg-elevated/60 p-3', className)}
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
@@ -381,7 +381,7 @@ export function ReferenceMediaPanel({
             {resolvedItems.map((item) => (
               <article
                 key={item.id}
-                className="flex items-center gap-3 rounded-lg border border-border bg-surface p-2"
+                className="flex items-center gap-3 rounded-md border border-border bg-surface p-2"
               >
                 <ImageWithFallback
                   src={item.previewUrl}
@@ -391,7 +391,7 @@ export function ReferenceMediaPanel({
                 />
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="rounded-full border border-border bg-elevated px-2 py-0.5 type-caption uppercase tracking-[0.12em] text-text-muted">
+                    <span className="rounded-full border border-border bg-elevated px-2 py-0.5 mono-label text-text-muted">
                       {item.slot}
                     </span>
                   </div>
@@ -410,13 +410,13 @@ export function ReferenceMediaPanel({
             ))}
           </div>
         ) : (
-          <div className="rounded-lg border border-dashed border-border px-4 py-5 text-center">
+          <div className="rounded-md border border-dashed border-border px-4 py-5 text-center">
             <Layers3 className="mx-auto h-5 w-5 text-text-muted" aria-hidden="true" />
             <p className="mt-2 text-sm text-text-body">{emptyState}</p>
           </div>
         )}
 
-        <div className="rounded-lg border border-border bg-surface p-3">
+        <div className="rounded-md border border-border bg-surface p-3">
           <div className="grid gap-3 md:grid-cols-[minmax(0,150px),minmax(0,1fr),auto]">
             <label className="space-y-1.5">
               <span className="type-caption text-text-muted">Slot</span>
@@ -481,7 +481,7 @@ export function ReferenceMediaPanel({
         </div>
 
         {canLinkElements ? (
-          <div className="rounded-lg border border-border bg-surface p-3">
+          <div className="rounded-md border border-border bg-surface p-3">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
                 <p className="type-ui text-text-primary">Linked Elements</p>

@@ -28,7 +28,7 @@ export const CollectionCard = memo(function CollectionCard({ collection, onClick
       onMouseLeave={() => setShowActions(false)}
       onClick={() => onClick?.(collection.id)}
       className={cn(
-        'group relative flex flex-col gap-2 rounded-lg border border-border bg-surface p-3',
+        'group relative flex flex-col gap-2 rounded-md border border-border bg-surface p-3',
         'cursor-pointer transition-shadow hover:border-border-hover hover:shadow-accent-subtle',
         className,
       )}

@@ -16,7 +16,7 @@ describe('Skeleton', () => {
       const { container } = render(<Skeleton />);
       const skeleton = container.firstChild as HTMLElement;
       expect(skeleton).toHaveClass('animate-pulse');
-      expect(skeleton).toHaveClass('rounded-lg');
+      expect(skeleton).toHaveClass('rounded-md');
       expect(skeleton).toHaveClass('bg-elevated');
     });
 
@@ -31,7 +31,7 @@ describe('Skeleton', () => {
       const { container } = render(<Skeleton className="custom-class another-class" />);
       const skeleton = container.firstChild as HTMLElement;
       expect(skeleton).toHaveClass('animate-pulse');
-      expect(skeleton).toHaveClass('rounded-lg');
+      expect(skeleton).toHaveClass('rounded-md');
       expect(skeleton).toHaveClass('bg-elevated');
       expect(skeleton).toHaveClass('custom-class');
       expect(skeleton).toHaveClass('another-class');
@@ -67,7 +67,7 @@ describe('Skeleton', () => {
     it('renders with border and padding', () => {
       const { container } = render(<SkeletonCard />);
       const card = container.firstChild as HTMLElement;
-      expect(card).toHaveClass('rounded-lg');
+      expect(card).toHaveClass('rounded-md');
       expect(card).toHaveClass('border');
       expect(card).toHaveClass('border-border');
       expect(card).toHaveClass('p-3');
@@ -79,7 +79,7 @@ describe('Skeleton', () => {
       const imagePlaceholder = container.querySelector('.aspect-square');
       expect(imagePlaceholder).toHaveClass('w-full');
       expect(imagePlaceholder).toHaveClass('animate-pulse');
-      expect(imagePlaceholder).toHaveClass('rounded-lg');
+      expect(imagePlaceholder).toHaveClass('rounded-md');
       expect(imagePlaceholder).toHaveClass('bg-elevated');
     });
 
@@ -110,9 +110,9 @@ describe('Skeleton', () => {
       const row = container.querySelector('.flex.items-center.gap-3');
       expect(row).toBeInTheDocument();
 
-      // Thumbnail: w-10 h-10 rounded-lg
+      // Thumbnail: w-10 h-10 rounded-md
       const thumbnail = row?.querySelector('.w-10.h-10');
-      expect(thumbnail).toHaveClass('rounded-lg');
+      expect(thumbnail).toHaveClass('rounded-md');
       expect(thumbnail).toHaveClass('animate-pulse');
 
       // Metadata container
