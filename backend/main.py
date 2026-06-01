@@ -104,7 +104,11 @@ run_migrations(DATABASE_PATH)
 job_manager = JobManager()
 model_manager = ModelManager(MODELS_DIR)
 _CATALOG_PATH = os.path.join(os.path.dirname(__file__), "foundry", "verified-catalog.json")
-model_registry = ModelRegistry(models_dir=MODELS_DIR, catalog_path=_CATALOG_PATH)
+model_registry = ModelRegistry(
+    models_dir=MODELS_DIR,
+    catalog_path=_CATALOG_PATH,
+    status_provider=model_manager.get_record_status,
+)
 comfy_client: Optional[ComfyUIClient] = None
 direct_generator: Optional[DirectGenerator] = None
 direct_video_generator: Optional[DirectVideoGenerator] = None

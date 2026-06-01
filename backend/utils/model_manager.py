@@ -91,6 +91,15 @@ def _load_predefined_models() -> Dict[str, ModelInfo]:
 PREDEFINED_MODELS: Dict[str, ModelInfo] = _load_predefined_models()
 
 
+# ModelManager status enum -> ModelRecord (foundry) status vocabulary.
+_MANAGER_STATUS_TO_RECORD = {
+    "ready": "ready",
+    "downloading": "downloading",
+    "error": "error",
+    "not_downloaded": "not_found",
+}
+
+
 class ModelManager:
     """Manages AI model downloads and storage"""
     
@@ -105,6 +114,7 @@ class ModelManager:
             'lora': os.path.join(models_dir, 'loras'),
             'vae': os.path.join(models_dir, 'vaes'),
             'controlnet': os.path.join(models_dir, 'controlnet'),
+            'embedding': os.path.join(models_dir, 'embeddings'),
             'clip': os.path.join(models_dir, 'clip'),
             'clip_vision': os.path.join(models_dir, 'clip_vision'),
             'diffusers': os.path.join(models_dir, 'diffusers'),
@@ -201,7 +211,25 @@ class ModelManager:
         if not model:
             return {"error": "Model not found"}
         return model.to_dict()
-    
+
+    def get_record_status(self, model_id: str) -> Optional[str]:
+        """Live status for a catalog model in ModelRecord vocabulary.
+
+        Returns None when this manager has no entry for the id (e.g. before the
+        startup scan, or an id it does not track) so the registry can fall back
+        to its own on-disk detection. Bridges the manager status enum
+        (not_downloaded|downloading|ready|error) to the record enum
+        (not_found|downloading|ready|error).
+        """
+        model = self.available_models.get(model_id)
+        if model is None:
+            return None
+        # The mapping is total over the ModelInfo.status enum; keep it in
+        # lockstep with that enum. An unrecognized value (a future addition)
+        # degrades to the conservative not_found rather than leaking a
+        # non-ModelRecord status through the API.
+        return _MANAGER_STATUS_TO_RECORD.get(model.status, "not_found")
+
     async def download_model(self, model_id: str, token: Optional[str] = None):
         """Download a model"""
         model_info = self.available_models.get(model_id)

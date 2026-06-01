@@ -6,18 +6,27 @@ each record's status against what is actually present in the models dir.
 """
 
 import os
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 from foundry.model_record import LEGACY_ID_ALIASES, ModelRecord, load_catalog
 
 
 class ModelRegistry:
-    def __init__(self, models_dir: str, catalog_path: str):
+    def __init__(
+        self,
+        models_dir: str,
+        catalog_path: str,
+        status_provider: Optional[Callable[[str], Optional[str]]] = None,
+    ):
         self.models_dir = models_dir
         self.catalog_path = catalog_path
         self.records: Dict[str, ModelRecord] = load_catalog(catalog_path)
         # Copy so tests/callers can extend without mutating module state.
         self.legacy_aliases: Dict[str, str] = dict(LEGACY_ID_ALIASES)
+        # Optional authority for live status (the model_manager in the running
+        # app). It knows how flat single-file artifacts are stored and tracks
+        # in-flight downloads, which the dir-based check below cannot.
+        self._status_provider = status_provider
 
     # -- public API --------------------------------------------------------
     def list_records(self) -> List[Dict[str, Any]]:
@@ -33,8 +42,24 @@ class ModelRegistry:
     # -- internals ---------------------------------------------------------
     def _reconciled(self, record: ModelRecord) -> Dict[str, Any]:
         data = record.to_dict()
-        data["status"] = "ready" if self._is_present(record) else record.status
+        data["status"] = self._live_status(record)
         return data
+
+    def _live_status(self, record: ModelRecord) -> str:
+        """Resolve a record's live status.
+
+        A wired status_provider is authoritative: it detects flat single-file
+        artifacts and in-flight downloads. When no provider is wired, or it has
+        no opinion (None), fall back to on-disk detection, then to the record's
+        catalog default status.
+        """
+        if self._status_provider is not None:
+            provided = self._status_provider(record.id)
+            if provided:
+                return provided
+        if self._is_present(record):
+            return "ready"
+        return record.status
 
     def _is_present(self, record: ModelRecord) -> bool:
         """True when the model's expected files exist in models_dir.
