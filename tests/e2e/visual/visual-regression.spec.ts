@@ -23,6 +23,8 @@ test.describe('Visual Regression', () => {
       await expect(page).toHaveScreenshot('generate-panel-default.png', {
         fullPage: false,
         mask: [],
+        // Absorb sub-pixel text anti-aliasing jitter on Windows GPU rasterization.
+        maxDiffPixelRatio: 0.02,
       });
     });
 
@@ -34,6 +36,7 @@ test.describe('Visual Regression', () => {
 
       await expect(page).toHaveScreenshot('generate-panel-with-prompt.png', {
         fullPage: false,
+        maxDiffPixelRatio: 0.02,
       });
     });
 
@@ -48,6 +51,7 @@ test.describe('Visual Regression', () => {
 
       await expect(page).toHaveScreenshot('assets-panel-grid-view.png', {
         fullPage: false,
+        maxDiffPixelRatio: 0.02,
       });
     });
   });
@@ -61,6 +65,7 @@ test.describe('Visual Regression', () => {
 
       await expect(page).toHaveScreenshot('settings-panel-all-sections.png', {
         fullPage: false,
+        maxDiffPixelRatio: 0.02,
       });
     });
   });
@@ -74,6 +79,7 @@ test.describe('Visual Regression', () => {
 
       await expect(page).toHaveScreenshot('batch-panel-default.png', {
         fullPage: false,
+        maxDiffPixelRatio: 0.02,
       });
     });
   });
@@ -87,6 +93,7 @@ test.describe('Visual Regression', () => {
 
       await expect(page).toHaveScreenshot('templates-panel-default.png', {
         fullPage: false,
+        maxDiffPixelRatio: 0.02,
       });
     });
   });
@@ -98,15 +105,15 @@ test.describe('Visual Regression', () => {
       // Capture each panel to verify consistent dark theme styling
       await sidebar.navigateTo('generate');
       await expect(page.getByTestId('prompt-input')).toBeVisible();
-      await expect(page).toHaveScreenshot('theme-generate-panel.png', { fullPage: false });
+      await expect(page).toHaveScreenshot('theme-generate-panel.png', { fullPage: false, maxDiffPixelRatio: 0.02 });
 
       await sidebar.navigateTo('assets');
       await expect(page.locator('input[placeholder="Search assets..."]')).toBeVisible();
-      await expect(page).toHaveScreenshot('theme-assets-panel.png', { fullPage: false });
+      await expect(page).toHaveScreenshot('theme-assets-panel.png', { fullPage: false, maxDiffPixelRatio: 0.02 });
 
       await sidebar.navigateTo('settings');
       await expect(page.locator('h2', { hasText: 'General Settings' })).toBeVisible();
-      await expect(page).toHaveScreenshot('theme-settings-panel.png', { fullPage: false });
+      await expect(page).toHaveScreenshot('theme-settings-panel.png', { fullPage: false, maxDiffPixelRatio: 0.02 });
     });
   });
 });
