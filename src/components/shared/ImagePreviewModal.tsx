@@ -411,7 +411,7 @@ export function ImagePreviewModal({
                   fullWidth
                   icon={Trash2}
                   onClick={handleDelete}
-                  className="text-red-primary hover:bg-red-aura"
+                  className="text-status-error hover:bg-status-error-muted"
                 >
                   Delete
                 </Button>

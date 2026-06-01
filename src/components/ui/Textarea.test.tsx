@@ -110,7 +110,7 @@ describe('Textarea', () => {
   it('displays error message when error prop provided', () => {
     render(<Textarea error="Description is required" />);
     expect(screen.getByText('Description is required')).toBeInTheDocument();
-    expect(screen.getByText('Description is required')).toHaveClass('text-red-primary');
+    expect(screen.getByText('Description is required')).toHaveClass('text-status-error');
   });
 
   it('displays helper text when helper prop provided', () => {
@@ -134,7 +134,7 @@ describe('Textarea', () => {
   it('applies error border styling when error prop provided', () => {
     render(<Textarea error="Invalid input" />);
     const textarea = screen.getByRole('textbox');
-    expect(textarea).toHaveClass('border-red-primary');
+    expect(textarea).toHaveClass('border-status-error');
   });
 
   it('maintains accessibility with aria attributes', () => {

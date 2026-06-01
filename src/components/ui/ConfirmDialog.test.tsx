@@ -259,7 +259,7 @@ describe('ConfirmDialog', () => {
       />
     );
     // The icon container should be present
-    const iconContainer = document.querySelector('.bg-red-aura');
+    const iconContainer = document.querySelector('.bg-status-error-muted');
     expect(iconContainer).toBeInTheDocument();
   });
 });

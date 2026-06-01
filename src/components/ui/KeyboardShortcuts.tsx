@@ -87,10 +87,10 @@ export function KeyboardShortcuts({ open, onClose }: KeyboardShortcutsProps) {
             {/* Header */}
             <div className="flex items-center justify-between px-6 py-4 border-b border-border">
               <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-lg bg-red-aura flex items-center justify-center">
-                  <Keyboard className="w-4 h-4 text-red-primary" />
+                <div className="w-8 h-8 rounded-md bg-accent-primary-muted flex items-center justify-center">
+                  <Keyboard className="w-4 h-4 text-accent-primary" />
                 </div>
-                <h2 className="font-display font-semibold text-text-primary text-base">
+                <h2 className="font-semibold text-text-primary text-base">
                   Keyboard Shortcuts
                 </h2>
               </div>

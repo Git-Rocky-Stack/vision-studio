@@ -76,7 +76,7 @@ describe('Button', () => {
 
   it('keeps danger actions on the status error color', () => {
     render(<Button variant="danger">Delete</Button>);
-    expect(screen.getByRole('button', { name: 'Delete' })).toHaveClass('text-red-primary');
-    expect(screen.getByRole('button', { name: 'Delete' })).toHaveClass('border-red-primary/30');
+    expect(screen.getByRole('button', { name: 'Delete' })).toHaveClass('text-status-error');
+    expect(screen.getByRole('button', { name: 'Delete' })).toHaveClass('border-status-error/30');
   });
 });

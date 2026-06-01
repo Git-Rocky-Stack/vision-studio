@@ -76,7 +76,7 @@ export const CollectionCard = memo(function CollectionCard({ collection, onClick
           <button
             type="button"
             onClick={(e) => { e.stopPropagation(); deleteCollection(collection.id); }}
-            className="p-1 rounded-md bg-void/80 text-text-muted hover:text-red-primary hover:bg-void"
+            className="p-1 rounded-md bg-void/80 text-text-muted hover:text-status-error hover:bg-void"
             aria-label={`Delete ${collection.name}`}
           >
             <Trash2 className="w-3.5 h-3.5" />

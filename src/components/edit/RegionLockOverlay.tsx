@@ -109,12 +109,12 @@ const RegionMask = memo(function RegionMask({
           isEraseMask
             ? 'bg-sky-400/10'
             : invertMask
-              ? 'bg-red-primary/10'
+              ? 'bg-red-500/10'
               : 'bg-green-500/10',
           isActive && isEraseMask
             ? 'bg-sky-400/20'
             : isActive && invertMask
-              ? 'bg-red-primary/20'
+              ? 'bg-red-500/20'
               : isActive && !invertMask
                 ? 'bg-green-500/20' : ''
         )}
@@ -177,7 +177,7 @@ const RegionMask = memo(function RegionMask({
 
       {/* Invert indicator */}
       {invertMask && (
-        <div className="absolute -top-5 -right-1 px-1 py-0.5 rounded-sm bg-red-primary type-ui text-white font-bold pointer-events-none">
+        <div className="absolute -top-5 -right-1 px-1 py-0.5 rounded-sm bg-red-500 type-ui text-white font-bold pointer-events-none">
           INV
         </div>
       )}

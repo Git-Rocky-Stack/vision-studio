@@ -116,28 +116,28 @@ export function SetupWizard() {
           initial={{ scale: 0.9, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
           exit={{ scale: 0.9, opacity: 0 }}
-          className="w-full max-w-lg bg-surface border border-border rounded-2xl shadow-cinematic overflow-hidden"
+          className="w-full max-w-lg bg-surface border border-border rounded-xl shadow-cinematic overflow-hidden"
         >
           {/* Header */}
           <div className="p-6 border-b border-border relative overflow-hidden">
-            {/* Subtle red accent line at top */}
+            {/* Subtle chrome accent line at top */}
             <div
               className="absolute top-0 left-0 right-0 h-0.5"
               style={{
                 background:
-                  'linear-gradient(90deg, transparent, var(--color-red-primary), transparent)',
+                  'linear-gradient(90deg, transparent, var(--color-accent-primary), transparent)',
               }}
             />
 
             <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-red-primary to-red-highlight flex items-center justify-center glow-red-subtle">
-                <Sparkles className="w-5 h-5 text-text-primary" />
+              <div className="w-10 h-10 rounded-md bg-accent-primary flex items-center justify-center shadow-accent-subtle">
+                <Sparkles className="w-5 h-5 text-void" />
               </div>
               <div>
-                <h2 className="font-display text-xl font-bold text-text-primary">
+                <h2 className="text-xl font-bold text-text-primary">
                   Vision Studio
                 </h2>
-                <p className="text-sm text-text-body font-display">
+                <p className="text-sm text-text-body">
                   Setup Wizard
                 </p>
               </div>
@@ -167,8 +167,7 @@ export function SetupWizard() {
                     style={
                       index <= currentStep
                         ? {
-                            background:
-                              'linear-gradient(90deg, var(--color-red-deep), var(--color-red-primary))',
+                            backgroundColor: 'var(--color-accent-primary)',
                           }
                         : { backgroundColor: 'var(--color-elevated)' }
                     }
@@ -189,14 +188,14 @@ export function SetupWizard() {
                   exit={{ opacity: 0, x: -20 }}
                   className="space-y-4"
                 >
-                  <h3 className="font-display text-lg font-semibold text-text-primary">
+                  <h3 className="text-lg font-semibold text-text-primary">
                     {steps[0].title}
                   </h3>
-                  <p className="text-text-body font-display">
+                  <p className="text-text-body">
                     {steps[0].description}
                   </p>
 
-                  <div className="p-4 bg-elevated rounded-lg border border-border space-y-3">
+                  <div className="p-4 bg-elevated rounded-md border border-border space-y-3">
                     {[
                       {
                         icon: Monitor,
@@ -215,14 +214,14 @@ export function SetupWizard() {
                       },
                     ].map(({ icon: Icon, title, desc }) => (
                       <div key={title} className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-lg bg-red-aura flex items-center justify-center flex-shrink-0">
-                          <Icon className="w-4 h-4 text-red-primary" />
+                        <div className="w-8 h-8 rounded-md bg-accent-primary-muted flex items-center justify-center flex-shrink-0">
+                          <Icon className="w-4 h-4 text-accent-primary" />
                         </div>
                         <div>
-                          <p className="text-sm font-display font-medium text-text-primary">
+                          <p className="text-sm font-medium text-text-primary">
                             {title}
                           </p>
-                          <p className="text-xs text-text-muted font-display">
+                          <p className="text-xs text-text-muted">
                             {desc}
                           </p>
                         </div>
@@ -250,18 +249,18 @@ export function SetupWizard() {
                   exit={{ opacity: 0, x: -20 }}
                   className="space-y-4"
                 >
-                  <h3 className="font-display text-lg font-semibold text-text-primary">
+                  <h3 className="text-lg font-semibold text-text-primary">
                     {steps[1].title}
                   </h3>
-                  <p className="text-text-body font-display">
+                  <p className="text-text-body">
                     {steps[1].description}
                   </p>
 
                   <div className="flex items-center justify-center py-8">
                     {gpuInfo === null ? (
                       <div className="text-center">
-                        <Loader2 className="w-10 h-10 text-red-primary animate-spin mx-auto mb-3" />
-                        <p className="font-display text-sm text-text-muted">
+                        <Loader2 className="w-10 h-10 text-accent-primary animate-spin mx-auto mb-3" />
+                        <p className="text-sm text-text-muted">
                           Scanning hardware...
                         </p>
                       </div>
@@ -270,13 +269,13 @@ export function SetupWizard() {
                         <div className="w-16 h-16 mx-auto mb-4 rounded-full flex items-center justify-center" style={{ backgroundColor: 'color-mix(in srgb, var(--color-status-success) 10%, transparent)', borderWidth: '1px', borderStyle: 'solid', borderColor: 'color-mix(in srgb, var(--color-status-success) 20%, transparent)' }}>
                           <Check className="w-8 h-8" style={{ color: 'var(--color-status-success)' }} />
                         </div>
-                        <p className="font-display font-medium text-text-primary">
+                        <p className="font-medium text-text-primary">
                           GPU Detected
                         </p>
-                        <p className="text-sm text-text-body font-display mt-1">
+                        <p className="text-sm text-text-body mt-1">
                           {gpuInfo.name}
                         </p>
-                        <p className="font-mono text-xs text-text-muted mt-0.5">
+                        <p className="data-mono text-text-muted mt-0.5">
                           {gpuInfo.vram} VRAM
                         </p>
                       </div>
@@ -285,13 +284,13 @@ export function SetupWizard() {
                         <div className="w-16 h-16 mx-auto mb-4 rounded-full flex items-center justify-center" style={{ backgroundColor: 'color-mix(in srgb, var(--color-status-warning) 10%, transparent)', borderWidth: '1px', borderStyle: 'solid', borderColor: 'color-mix(in srgb, var(--color-status-warning) 20%, transparent)' }}>
                           <Cpu className="w-8 h-8" style={{ color: 'var(--color-status-warning)' }} />
                         </div>
-                        <p className="font-display font-medium text-text-primary">
+                        <p className="font-medium text-text-primary">
                           CPU Mode
                         </p>
-                        <p className="text-sm text-text-body font-display mt-1">
+                        <p className="text-sm text-text-body mt-1">
                           No GPU detected
                         </p>
-                        <p className="text-xs text-text-muted font-display mt-2">
+                        <p className="text-xs text-text-muted mt-2">
                           Generation will work but be slower
                         </p>
                       </div>
@@ -308,21 +307,21 @@ export function SetupWizard() {
                   exit={{ opacity: 0, x: -20 }}
                   className="space-y-4"
                 >
-                  <h3 className="font-display text-lg font-semibold text-text-primary">
+                  <h3 className="text-lg font-semibold text-text-primary">
                     {steps[2].title}
                   </h3>
-                  <p className="text-text-body font-display">
+                  <p className="text-text-body">
                     {steps[2].description}
                   </p>
 
                   <div className="py-4">
                     <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm text-text-body font-display">
+                      <span className="text-sm text-text-body">
                         {downloadStatus === 'complete'
                           ? 'Download Complete'
                           : 'Downloading...'}
                       </span>
-                      <span className="font-mono text-sm text-red-primary">
+                      <span className="data-mono text-accent-primary">
                         {Math.round(downloadProgress)}%
                       </span>
                     </div>
@@ -334,14 +333,13 @@ export function SetupWizard() {
                         animate={{ width: `${downloadProgress}%` }}
                         transition={{ duration: 0.3 }}
                         style={{
-                          background:
-                            'linear-gradient(90deg, var(--color-red-deep), var(--color-red-primary))',
-                          boxShadow: '0 0 8px color-mix(in srgb, var(--color-red-primary) 40%, transparent)',
+                          background: 'var(--color-accent-primary)',
+                          boxShadow: '0 0 8px color-mix(in srgb, var(--color-accent-primary) 40%, transparent)',
                         }}
                       />
                     </div>
 
-                    <div className="mt-4 flex items-center gap-2 text-xs text-text-muted font-display">
+                    <div className="mt-4 flex items-center gap-2 text-xs text-text-muted">
                       <Download className="w-4 h-4" />
                       <span>
                         {downloadStatus === 'downloading'
@@ -363,10 +361,10 @@ export function SetupWizard() {
                   exit={{ opacity: 0, x: -20 }}
                   className="space-y-4"
                 >
-                  <h3 className="font-display text-lg font-semibold text-text-primary">
+                  <h3 className="text-lg font-semibold text-text-primary">
                     {steps[3].title}
                   </h3>
-                  <p className="text-text-body font-display">
+                  <p className="text-text-body">
                     {steps[3].description}
                   </p>
 
@@ -374,18 +372,18 @@ export function SetupWizard() {
                     <div className="w-20 h-20 mx-auto mb-4 rounded-full flex items-center justify-center" style={{ backgroundColor: 'color-mix(in srgb, var(--color-status-success) 10%, transparent)', borderWidth: '1px', borderStyle: 'solid', borderColor: 'color-mix(in srgb, var(--color-status-success) 20%, transparent)' }}>
                       <Sparkles className="w-10 h-10" style={{ color: 'var(--color-status-success)' }} />
                     </div>
-                    <p className="font-display font-medium text-text-primary mb-2">
+                    <p className="font-medium text-text-primary mb-2">
                       All Set!
                     </p>
-                    <p className="text-sm text-text-body font-display">
+                    <p className="text-sm text-text-body">
                       You can now generate images and videos
                     </p>
                   </div>
 
-                  <div className="p-3 bg-elevated rounded-lg border border-border">
+                  <div className="p-3 bg-elevated rounded-md border border-border">
                     <div className="flex items-start gap-2">
                       <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: 'var(--color-status-warning)' }} />
-                      <p className="text-xs text-text-body font-display">
+                      <p className="text-xs text-text-body">
                         AI models will be downloaded automatically when you
                         first generate an image. Each model is 2-6 GB.
                       </p>
