@@ -1,0 +1,109 @@
+import pathlib
+import sys
+import threading
+import unittest
+
+BACKEND_ROOT = pathlib.Path(__file__).resolve().parents[1]
+if str(BACKEND_ROOT) not in sys.path:
+    sys.path.insert(0, str(BACKEND_ROOT))
+
+from foundry.download_errors import DownloadCancelledError  # type: ignore[import-not-found]
+from foundry.download_telemetry import ProgressSink  # type: ignore[import-not-found]
+
+
+class FakeClock:
+    """A monotonic clock we step manually for deterministic speed/eta."""
+
+    def __init__(self):
+        self._now = 0.0
+
+    def __call__(self) -> float:
+        return self._now
+
+    def advance(self, seconds: float) -> None:
+        self._now += seconds
+
+
+class ProgressSinkTests(unittest.TestCase):
+    def test_progress_is_zero_for_zero_total(self):
+        sink = ProgressSink(total_bytes=0, clock=FakeClock())
+        self.assertEqual(sink.progress, 0.0)
+
+    def test_single_file_progress_tracks_inflight_bytes(self):
+        sink = ProgressSink(total_bytes=100, clock=FakeClock())
+        sink.start_file(expected_size=100)
+        sink.add(25)
+        self.assertAlmostEqual(sink.progress, 0.25)
+        sink.add(25)
+        self.assertAlmostEqual(sink.progress, 0.50)
+
+    def test_finish_file_moves_inflight_into_completed(self):
+        sink = ProgressSink(total_bytes=300, clock=FakeClock())
+        sink.start_file(expected_size=100)
+        sink.add(100)
+        sink.finish_file()
+        # File 1 complete; inflight reset.
+        self.assertAlmostEqual(sink.progress, 100 / 300)
+        sink.start_file(expected_size=200)
+        sink.add(100)
+        # completed(100) + inflight(100) over total(300).
+        self.assertAlmostEqual(sink.progress, 200 / 300)
+
+    def test_progress_clamps_to_one(self):
+        sink = ProgressSink(total_bytes=100, clock=FakeClock())
+        sink.start_file(expected_size=100)
+        sink.add(250)  # overshoot (e.g. recompressed) never exceeds 1.0
+        self.assertEqual(sink.progress, 1.0)
+
+    def test_resume_initial_offset_counts_as_inflight(self):
+        sink = ProgressSink(total_bytes=100, clock=FakeClock())
+        sink.start_file(expected_size=100, initial=40)
+        self.assertAlmostEqual(sink.progress, 0.40)
+        sink.add(10)
+        self.assertAlmostEqual(sink.progress, 0.50)
+
+    def test_speed_is_zero_before_two_samples(self):
+        clock = FakeClock()
+        sink = ProgressSink(total_bytes=100, clock=clock)
+        sink.start_file(expected_size=100)
+        self.assertEqual(sink.speed, 0.0)
+        sink.add(10)  # first sample, no delta yet
+        self.assertEqual(sink.speed, 0.0)
+
+    def test_speed_is_bytes_per_second_ewma(self):
+        clock = FakeClock()
+        sink = ProgressSink(total_bytes=1000, clock=clock)
+        sink.start_file(expected_size=1000)
+        sink.add(100)
+        clock.advance(1.0)
+        sink.add(100)  # 100 bytes in 1.0s -> 100 B/s
+        self.assertGreater(sink.speed, 0.0)
+        self.assertLessEqual(sink.speed, 100.0)
+
+    def test_eta_is_remaining_over_speed(self):
+        clock = FakeClock()
+        sink = ProgressSink(total_bytes=1000, clock=clock)
+        sink.start_file(expected_size=1000)
+        sink.add(100)
+        clock.advance(1.0)
+        sink.add(100)  # speed ~100 B/s, 800 bytes remain -> ~8s
+        self.assertIsNotNone(sink.eta)
+        self.assertGreater(sink.eta, 0.0)
+
+    def test_eta_is_none_when_speed_is_zero(self):
+        sink = ProgressSink(total_bytes=1000, clock=FakeClock())
+        sink.start_file(expected_size=1000)
+        self.assertIsNone(sink.eta)
+
+    def test_add_raises_when_cancel_event_set(self):
+        event = threading.Event()
+        sink = ProgressSink(total_bytes=100, clock=FakeClock(), cancel_event=event)
+        sink.start_file(expected_size=100)
+        sink.add(10)
+        event.set()
+        with self.assertRaises(DownloadCancelledError):
+            sink.add(10)
+
+
+if __name__ == "__main__":
+    unittest.main()
