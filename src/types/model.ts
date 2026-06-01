@@ -54,6 +54,32 @@ export interface ModelRecord {
   progress?: number;
 }
 
+export type DownloadStatus =
+  | 'queued'
+  | 'downloading'
+  | 'paused'
+  | 'verifying'
+  | 'ready'
+  | 'error'
+  | 'cancelled';
+
+/**
+ * Transient download telemetry for a single model. Streamed from the backend
+ * via GET /api/models/downloads; correlated to a ModelRecord by model_id.
+ * Deliberately NOT part of ModelRecord (which stays durable). Never carries a
+ * token.
+ */
+export interface DownloadJob {
+  model_id: string;
+  status: DownloadStatus;
+  progress: number;
+  speed: number;
+  eta: number | null;
+  total_bytes: number;
+  error: string | null;
+  gate_url: string | null;
+}
+
 export function isImageCapability(record: Pick<ModelRecord, 'capability'>): boolean {
   return record.capability !== 'video';
 }

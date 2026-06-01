@@ -121,7 +121,7 @@ import type {
 } from '@/types/workflow';
 
 import type { ProjectTemplate } from '@/types/template';
-import type { ModelRecord } from '@/types/model';
+import type { ModelRecord, DownloadJob } from '@/types/model';
 
 import type { AspectRatio, ResolutionTier } from '@/types/resolution';
 
@@ -313,6 +313,7 @@ export interface AppState {
 
   // ─── Models ──────────────────────────────────────────────────────────────
   availableModels: ModelRecord[];
+  downloads: Record<string, DownloadJob>;
 
   // ─── Prompt Intelligence ─────────────────────────────────────────────────
   promptHistory: PromptHistoryEntry[];
@@ -482,6 +483,12 @@ export interface AppState {
   setSystemInfo: (info: AppState['systemInfo']) => void;
   setAvailableModels: (models: ModelRecord[]) => void;
   loadModels: () => Promise<void>;
+  setDownloadJob: (job: DownloadJob) => void;
+  refreshDownloads: () => Promise<void>;
+  enqueueDownload: (modelId: string) => Promise<void>;
+  pauseDownload: (modelId: string) => Promise<void>;
+  resumeDownload: (modelId: string) => Promise<void>;
+  cancelDownload: (modelId: string) => Promise<void>;
   addBatchJob: (batchJob: BatchJob) => void;
   updateBatchJob: (batchId: string, updates: Partial<BatchJob>) => void;
 

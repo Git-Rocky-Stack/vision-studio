@@ -3,6 +3,7 @@
  */
 
 import type { ImageGenerationRequestPayload } from './generation';
+import type { DownloadJob } from './model';
 
 export type GenerationParams = ImageGenerationRequestPayload;
 
@@ -323,7 +324,15 @@ export interface ElectronAPI {
   };
   models: {
     list: () => Promise<ModelInfo[]>;
-    download: (modelId: string) => Promise<{ success: boolean; message?: string }>;
+    // Return shape kept index-permissive (not DownloadJob) so existing callers
+    // that read `.success` (e.g. SettingsPanel) still type-check during the M2
+    // transition; the backend now returns a DownloadJob (202).
+    download: (modelId: string) => Promise<{ model_id: string; status: string; [k: string]: unknown }>;
+    downloadPause: (modelId: string) => Promise<DownloadJob>;
+    downloadResume: (modelId: string) => Promise<DownloadJob>;
+    downloadCancel: (modelId: string) => Promise<DownloadJob>;
+    downloadsList: () => Promise<DownloadJob[]>;
+    subscribeDownloads: () => Promise<DownloadJob[]>;
     getStatus: (modelId: string) => Promise<ModelInfo | null>;
     delete: (modelId: string) => Promise<{ success: boolean; error?: string }>;
   };
