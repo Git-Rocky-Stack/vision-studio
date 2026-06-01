@@ -108,3 +108,43 @@ class ProgressSink:
             self._speed = (
                 _EWMA_ALPHA * instantaneous + (1 - _EWMA_ALPHA) * self._speed
             )
+
+
+def _tqdm_base():
+    """Resolve tqdm.auto.tqdm lazily so the module imports with no tqdm/torch.
+
+    Overridable in tests (monkeypatch this function to return a fake base).
+    """
+    from tqdm.auto import tqdm  # local import: never at module load
+    return tqdm
+
+
+def make_tqdm_class(sink: "ProgressSink") -> type:
+    """Build a silent tqdm subclass bound to ``sink``.
+
+    huggingface_hub instantiates this class once per file (passing total =
+    expected_size and initial = resume offset). For a NON-hf subclass hf does
+    NOT inject ``disable`` or ``name`` (verified in Spike A), so we force
+    ``disable=True`` ourselves to suppress any terminal bar while still
+    receiving every ``update(n)``.
+    """
+    base = _tqdm_base()
+
+    class _SinkTqdm(base):  # type: ignore[misc, valid-type]
+        def __init__(self, *args, **kwargs):
+            kwargs["disable"] = True  # headless: no terminal output
+            super().__init__(*args, **kwargs)
+            sink.start_file(
+                expected_size=getattr(self, "total", 0) or 0,
+                initial=getattr(self, "n", 0) or 0,
+            )
+
+        def update(self, n=1):
+            sink.add(n)
+            return super().update(n)
+
+        def close(self):
+            sink.finish_file()
+            return super().close()
+
+    return _SinkTqdm

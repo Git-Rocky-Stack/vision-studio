@@ -105,5 +105,62 @@ class ProgressSinkTests(unittest.TestCase):
             sink.add(10)
 
 
+import foundry.download_telemetry as telemetry_module  # noqa: E402
+
+
+class FakeTqdm:
+    """Minimal stand-in for tqdm.auto.tqdm so make_tqdm_class is testable
+    without importing the real library."""
+
+    def __init__(self, *args, **kwargs):
+        self.total = kwargs.get("total")
+        self.n = kwargs.get("initial", 0)
+        self.disable = kwargs.get("disable", False)
+        self.closed = False
+
+    def update(self, n=1):
+        self.n += n
+
+    def close(self):
+        self.closed = True
+
+
+class MakeTqdmClassTests(unittest.TestCase):
+    def setUp(self):
+        # Force the factory to subclass our fake base, not the real tqdm.
+        self._orig = telemetry_module._tqdm_base
+        telemetry_module._tqdm_base = lambda: FakeTqdm
+
+    def tearDown(self):
+        telemetry_module._tqdm_base = self._orig
+
+    def test_factory_forces_headless_and_starts_a_file(self):
+        sink = ProgressSink(total_bytes=100, clock=FakeClock())
+        cls = telemetry_module.make_tqdm_class(sink)
+        bar = cls(total=100, initial=0)
+        # hf passes disable through; we force it True so no terminal bar prints.
+        self.assertTrue(bar.disable)
+        # start_file was called with total -> progress reacts to updates.
+        bar.update(50)
+        self.assertAlmostEqual(sink.progress, 0.50)
+
+    def test_update_feeds_the_sink_and_the_base(self):
+        sink = ProgressSink(total_bytes=200, clock=FakeClock())
+        cls = telemetry_module.make_tqdm_class(sink)
+        bar = cls(total=200)
+        bar.update(40)
+        self.assertAlmostEqual(sink.progress, 40 / 200)
+        self.assertEqual(bar.n, 40)  # base also advanced
+
+    def test_close_finishes_the_file(self):
+        sink = ProgressSink(total_bytes=200, clock=FakeClock())
+        cls = telemetry_module.make_tqdm_class(sink)
+        bar = cls(total=100)
+        bar.update(100)
+        bar.close()
+        self.assertTrue(bar.closed)
+        self.assertAlmostEqual(sink.progress, 100 / 200)  # folded into completed
+
+
 if __name__ == "__main__":
     unittest.main()
