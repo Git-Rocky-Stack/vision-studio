@@ -99,6 +99,17 @@ class DownloadManager:
     def list_jobs(self) -> List[DownloadJob]:
         return list(self._jobs.values())
 
+    def pause(self, model_id: str) -> Optional[DownloadJob]:
+        """Cooperatively pause: signal cancel, keep partials for resume."""
+        job = self._jobs.get(model_id)
+        if job is None or job.status not in {"queued", "downloading"}:
+            return job
+        self._intent[model_id] = "pause"
+        event = self._cancel_events.get(model_id)
+        if event is not None:
+            event.set()  # sink.add raises DownloadCancelledError at next chunk
+        return job
+
     def get_record_status(self, model_id: str) -> Optional[str]:
         """Live lifecycle status for the registry status_provider, or None.
 
