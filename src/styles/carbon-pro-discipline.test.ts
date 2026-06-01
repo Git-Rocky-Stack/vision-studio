@@ -17,9 +17,17 @@ import { describe, expect, it } from 'vitest';
  *     never be used decoratively; genuine errors and danger use status-error
  *     and status-error-muted, and functional legends use raw Tailwind scales.
  *     See DESIGN.md section Color.
+ *  3. No ad-hoc shell typography. The eradicated display-font, micro-size, and
+ *     arbitrary pixel text utilities are banned across all app source so they
+ *     cannot creep back into a file that is not yet enrolled in the per-file
+ *     ui-glyphs typography allow-list. The font-mono / uppercase / tracking
+ *     utilities are intentionally NOT covered here: they have legitimate
+ *     inline-style (hardware faceplates), foundational (button label + numeric
+ *     input), and pixel-aligned (token editor) uses, so they stay governed by
+ *     the per-file ui-glyphs allow-list. See DESIGN.md section Typography.
  *
- * Both checks scan .ts/.tsx so const-string class recipes are covered, not just
- * inline JSX. Paths are normalised to POSIX so the allow-list matches on both
+ * All checks scan .ts/.tsx so const-string class recipes are covered, not just
+ * inline JSX. Paths are normalised to POSIX so the allow-lists match on both
  * the Linux pr-gate and the Windows release runner.
  */
 
@@ -41,6 +49,15 @@ const redGuardFiles = new Set([
   'src/styles/carbon-pro-discipline.test.ts',
 ]);
 
+const adHocTypographyPattern = /\bfont-display\b|\btext-micro\b|\btext-\[(?:\d|\.)[^\]]*\]/;
+
+// The discipline spec and the per-file ui-glyphs spec both name these utilities
+// as string literals to assert their absence; they are allowed to reference them.
+const typographyGuardFiles = new Set([
+  'src/styles/ui-glyphs.test.ts',
+  'src/styles/carbon-pro-discipline.test.ts',
+]);
+
 const toPosix = (filePath: string) => relative(process.cwd(), filePath).split(/[\\/]/).join('/');
 
 describe('Carbon Pro design discipline', () => {
@@ -56,6 +73,14 @@ describe('Carbon Pro design discipline', () => {
     const offenders = listSourceFiles(appSourceRoot)
       .filter((filePath) => !redGuardFiles.has(toPosix(filePath)))
       .flatMap((filePath) => collectMatches(filePath, decorativeRedPattern));
+
+    expect(offenders).toEqual([]);
+  });
+
+  it('does not ship ad-hoc shell typography in app source', () => {
+    const offenders = listSourceFiles(appSourceRoot)
+      .filter((filePath) => !typographyGuardFiles.has(toPosix(filePath)))
+      .flatMap((filePath) => collectMatches(filePath, adHocTypographyPattern));
 
     expect(offenders).toEqual([]);
   });
