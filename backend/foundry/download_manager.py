@@ -121,5 +121,187 @@ class DownloadManager:
             await self._execute(model_id, token)
 
     async def _execute(self, model_id: str, token: Optional[str]) -> None:
-        # Implemented in Task 5 (happy path) and extended in Tasks 6-11.
-        raise NotImplementedError
+        job = self._jobs[model_id]
+        record = self._registry.get_record(model_id)
+        if record is None:
+            job.status = "error"
+            job.error = "unknown model id"
+            self._cleanup_task(model_id)
+            return
+
+        repo_id = record.get("repo_id")
+        revision = record.get("revision", "main")
+        cancel_event = self._cancel_events[model_id]
+
+        try:
+            filenames, total_bytes, target_dir = self._resolve_files(model_id, record)
+            job.total_bytes = total_bytes
+
+            self._preflight_disk(total_bytes, target_dir)
+
+            job.status = "downloading"
+            sink = ProgressSink(total_bytes, cancel_event=cancel_event)
+            self._sinks[model_id] = sink
+
+            for filename in filenames:
+                await asyncio.to_thread(
+                    self._download_file, repo_id, filename, target_dir, token, sink, revision
+                )
+                job.progress = sink.progress
+                job.speed = sink.speed
+                job.eta = sink.eta
+
+            job.status = "verifying"
+            # The library already did per-file size-consistency + atomic move;
+            # the repo-level verify is the presence of every target file.
+            self._verify(filenames, target_dir)
+
+            job.progress = 1.0
+            job.speed = 0.0
+            job.eta = 0.0
+            job.status = "ready"
+        except DownloadCancelledError:
+            self._handle_cancellation(model_id, target_dir=self._target_dir(record))
+        except DiskSpaceError as exc:
+            job.status = "error"
+            job.error = str(exc)
+        except GatedModelError as exc:
+            job.status = "error"
+            job.error = str(exc)
+            job.gate_url = exc.gate_url
+        except DownloadError as exc:
+            job.status = "error"
+            job.error = str(exc)
+        except Exception as exc:  # any raw hf error -> typed -> surfaced
+            mapped = map_hf_exception(exc, repo_id=repo_id or model_id)
+            job.status = "error"
+            job.error = str(mapped)
+            if isinstance(mapped, GatedModelError):
+                job.gate_url = mapped.gate_url
+        finally:
+            self._cleanup_task(model_id)
+
+    # -- resolution / preflight / per-file download ------------------------
+    def _resolve_files(self, model_id: str, record: dict):
+        """Return (filenames, total_bytes, target_dir) for the model.
+
+        Single-file artifacts resolve to the one filename from the manager's
+        _SINGLE_FILE_FILENAMES map; diffusers repos resolve to the repo file
+        list. Sizes come from huggingface_hub.get_paths_info (no download).
+        """
+        from utils.model_manager import _SINGLE_FILE_FILENAMES
+
+        repo_id = record.get("repo_id")
+        revision = record.get("revision", "main")
+        target_dir = self._target_dir(record)
+
+        single = _SINGLE_FILE_FILENAMES.get(model_id)
+        if single is not None:
+            paths = [single]
+        else:
+            infos = huggingface_hub.get_paths_info(repo_id, [], revision=revision)
+            paths = [getattr(info, "path", None) or info["path"] for info in infos]
+
+        infos = huggingface_hub.get_paths_info(repo_id, paths, revision=revision)
+        total = 0
+        for info in infos:
+            size = getattr(info, "size", None)
+            if size is None and isinstance(info, dict):
+                size = info.get("size", 0)
+            total += int(size or 0)
+
+        return paths, total, target_dir
+
+    def _target_dir(self, record: dict) -> str:
+        """Destination directory matching the model_manager storage layout."""
+        artifact_type = record.get("artifact_type", "checkpoint")
+        if artifact_type in {"diffusers-pipeline", "motion-adapter"}:
+            return os.path.join(self._models_dir, "diffusers", record["id"])
+        subdir = _ARTIFACT_SUBDIR.get(artifact_type, "checkpoints")
+        return os.path.join(self._models_dir, subdir)
+
+    def _preflight_disk(self, total_bytes: int, target_dir: str) -> None:
+        """Refuse the whole pull up front if free space < total + headroom."""
+        probe = target_dir
+        while probe and not os.path.isdir(probe):
+            probe = os.path.dirname(probe)
+        if not probe:
+            probe = self._models_dir
+        os.makedirs(target_dir, exist_ok=True)
+        free = shutil.disk_usage(probe).free
+        required = total_bytes + _DISK_HEADROOM_BYTES
+        if free < required:
+            raise DiskSpaceError(required=required, available=free)
+
+    def _download_file(self, repo_id, filename, target_dir, token, sink, revision):
+        """Blocking per-file download. Token passed PER CALL only."""
+        os.makedirs(target_dir, exist_ok=True)
+        with self._xet_toggle():
+            huggingface_hub.hf_hub_download(
+                repo_id=repo_id,
+                filename=filename,
+                local_dir=target_dir,
+                token=token,
+                tqdm_class=make_tqdm_class(sink),
+                revision=revision,
+            )
+
+    def _verify(self, filenames, target_dir) -> None:
+        for filename in filenames:
+            dest = os.path.join(target_dir, filename)
+            if not os.path.exists(dest):
+                raise DownloadError(f"verify failed: missing {filename}")
+
+    @contextmanager
+    def _xet_toggle(self):
+        """Force the plain-HTTP byte-exact path in precise mode; restore after.
+
+        file_download.py reads constants.HF_HUB_DISABLE_XET at call time, so
+        mutating the module attribute around the call toggles per-download. The
+        prior value is always restored, even on exception.
+        """
+        if self.mode != "precise":
+            yield
+            return
+        previous = huggingface_hub.constants.HF_HUB_DISABLE_XET
+        huggingface_hub.constants.HF_HUB_DISABLE_XET = True
+        try:
+            yield
+        finally:
+            huggingface_hub.constants.HF_HUB_DISABLE_XET = previous
+
+    # -- lifecycle handlers (cancel/pause fleshed out in Tasks 6-8) --------
+    def _handle_cancellation(self, model_id: str, target_dir: str) -> None:
+        job = self._jobs[model_id]
+        if self._intent.get(model_id) == "pause":
+            job.status = "paused"  # KEEP .incomplete partials for resume
+        else:
+            self._delete_partials(target_dir)
+            job.status = "cancelled"
+
+    def _delete_partials(self, target_dir: str) -> None:
+        if not os.path.isdir(target_dir):
+            return
+        for name in os.listdir(target_dir):
+            if name.endswith(".incomplete"):
+                try:
+                    os.remove(os.path.join(target_dir, name))
+                except OSError:
+                    pass
+
+    def _cleanup_task(self, model_id: str) -> None:
+        self._tasks.pop(model_id, None)
+        self._cancel_events.pop(model_id, None)
+        self._sinks.pop(model_id, None)
+        self._intent.pop(model_id, None)
+
+
+_ARTIFACT_SUBDIR = {
+    "checkpoint": "checkpoints",
+    "diffusers-pipeline": "diffusers",
+    "motion-adapter": "diffusers",
+    "lora": "loras",
+    "vae": "vaes",
+    "controlnet": "controlnet",
+    "embedding": "embeddings",
+}

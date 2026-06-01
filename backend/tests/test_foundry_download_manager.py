@@ -1,4 +1,5 @@
 import asyncio
+import os
 import pathlib
 import sys
 import tempfile
@@ -100,10 +101,73 @@ class DownloadManagerEnqueueTests(unittest.IsolatedAsyncioTestCase):
             self.assertIn("sd-1-5", running)
 
 
+class DownloadManagerHappyPathTests(unittest.IsolatedAsyncioTestCase):
+    async def test_single_file_download_drives_progress_and_reaches_ready(self):
+        models_dir = tempfile.mkdtemp()
+        manager = make_manager(models_dir=models_dir)
+
+        # get_paths_info -> one 100-byte file.
+        paths = [_path_info("flux1-dev.safetensors", 100)]
+
+        def fake_download(*, repo_id, filename, local_dir, token, tqdm_class, revision):
+            # Simulate hf: instantiate the tqdm per file, stream bytes, close.
+            bar = tqdm_class(total=100)
+            bar.update(100)
+            bar.close()
+            dest = os.path.join(local_dir, filename)
+            with open(dest, "w", encoding="utf-8") as handle:
+                handle.write("x")
+            return dest
+
+        with mock.patch.object(dm_module.huggingface_hub, "get_paths_info", return_value=paths), \
+             mock.patch.object(dm_module.huggingface_hub, "disk_usage", create=True), \
+             mock.patch("shutil.disk_usage", return_value=_disk(free=10 ** 12)), \
+             mock.patch.object(dm_module.huggingface_hub, "hf_hub_download", side_effect=fake_download):
+            manager.enqueue("flux-dev")
+            await _drain(manager)
+
+        job = manager._jobs["flux-dev"]
+        self.assertEqual(job.status, "ready")
+        self.assertAlmostEqual(job.progress, 1.0)
+        self.assertEqual(job.total_bytes, 100)
+        self.assertIsNone(job.error)
+
+    async def test_token_is_passed_per_call_and_not_stored(self):
+        manager = make_manager()
+        paths = [_path_info("flux1-dev.safetensors", 10)]
+        seen = {}
+
+        def fake_download(*, token, local_dir, filename, **_):
+            seen["token"] = token
+            dest = os.path.join(local_dir, filename)
+            open(dest, "w").close()
+            return dest
+
+        with mock.patch.object(dm_module.huggingface_hub, "get_paths_info", return_value=paths), \
+             mock.patch("shutil.disk_usage", return_value=_disk(free=10 ** 12)), \
+             mock.patch.object(dm_module.huggingface_hub, "hf_hub_download", side_effect=fake_download):
+            manager.enqueue("flux-dev", token="hf_SECRET")
+            await _drain(manager)
+
+        self.assertEqual(seen["token"], "hf_SECRET")
+        # The secret is on no job and on no manager attribute.
+        self.assertFalse(any("hf_SECRET" in repr(v) for v in manager._jobs.values()))
+        self.assertFalse(any("hf_SECRET" in repr(v) for v in vars(manager).values()))
+
+
 async def _drain(manager: DownloadManager):
     tasks = list(manager._tasks.values())
     if tasks:
         await asyncio.gather(*tasks, return_exceptions=True)
+
+
+def _path_info(path: str, size: int):
+    """Mimic a huggingface_hub RepoFile from get_paths_info."""
+    return type("RepoFile", (), {"path": path, "size": size})()
+
+
+def _disk(free: int):
+    return type("Usage", (), {"total": free * 2, "used": free, "free": free})()
 
 
 if __name__ == "__main__":
