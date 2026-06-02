@@ -19,7 +19,7 @@ export function createModelsActions(set: AppSet, _get: AppGet) {
     loadModels: async () => {
       try {
         const models = await window.electron.models.list();
-        set({ availableModels: models as ModelRecord[] });
+        set({ availableModels: models });
       } catch {
         // Local-first: a backend hiccup must not wipe the known catalog.
       }
@@ -39,7 +39,7 @@ export function createModelsActions(set: AppSet, _get: AppGet) {
     },
     enqueueDownload: async (modelId: string) => {
       try {
-        const job = (await window.electron.models.download(modelId)) as DownloadJob;
+        const job = await window.electron.models.download(modelId);
         mergeJob(job);
       } catch {
         // Swallow: the existing downloads map is left intact.

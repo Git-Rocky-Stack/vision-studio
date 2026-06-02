@@ -6,7 +6,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { useAppStore } from '@/store/appStore';
 import { UserGuidePage } from '@/pages/UserGuidePage';
-import type { ModelRecord } from '@/types/model';
+import type { ModelRecord, DownloadStatus } from '@/types/model';
 import type {
   OpenRouterKeyInfo,
   OpenRouterModelSummary,
@@ -82,6 +82,13 @@ const defaultAccountsSnapshot: UserAccountsSnapshot = {
   accounts: [],
 };
 
+/** How often the queue is re-polled while at least one download is in flight. */
+const DOWNLOAD_POLL_INTERVAL_MS = 2500;
+/** Download states that are still progressing and warrant continued polling. */
+const ACTIVE_DOWNLOAD_STATUSES = new Set<DownloadStatus>(['queued', 'downloading', 'verifying']);
+/** Download states that end the lifecycle - no further polling is needed. */
+const TERMINAL_DOWNLOAD_STATUSES = new Set<DownloadStatus>(['ready', 'error', 'cancelled']);
+
 function formatOpenRouterCurrency(value: number | null) {
   if (value === null || !Number.isFinite(value)) {
     return 'Unavailable';
@@ -115,20 +122,28 @@ export function SettingsPanel() {
     assetLibrary,
     systemInfo,
     availableModels,
+    downloads,
     removeAssetsByRoot,
     clearBatchResults,
     setAvailableModels,
     setSystemInfo,
+    loadModels,
+    enqueueDownload,
+    refreshDownloads,
     taggingMode,
     setTaggingMode,
   } = useAppStore(useShallow((s) => ({
     assetLibrary: s.assetLibrary,
     systemInfo: s.systemInfo,
     availableModels: s.availableModels,
+    downloads: s.downloads,
     removeAssetsByRoot: s.removeAssetsByRoot,
     clearBatchResults: s.clearBatchResults,
     setAvailableModels: s.setAvailableModels,
     setSystemInfo: s.setSystemInfo,
+    loadModels: s.loadModels,
+    enqueueDownload: s.enqueueDownload,
+    refreshDownloads: s.refreshDownloads,
     taggingMode: s.taggingMode,
     setTaggingMode: s.setTaggingMode,
   })));
@@ -150,7 +165,7 @@ export function SettingsPanel() {
   const [isLoadingOpenRouterKeyInfo, setIsLoadingOpenRouterKeyInfo] = useState(false);
   const [isLoadingOpenRouterModels, setIsLoadingOpenRouterModels] = useState(false);
   const [isLoadingOpenRouterImageModels, setIsLoadingOpenRouterImageModels] = useState(false);
-  const modelStatusIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const prevDownloadStatusRef = useRef<Record<string, DownloadStatus>>({});
 
   const activeAccount = useMemo<UserAccountSummary | null>(() => {
     if (accountsSnapshot.accounts.length === 0) {
@@ -184,13 +199,58 @@ export function SettingsPanel() {
     };
 
     void loadInitialState();
-
-    return () => {
-      if (modelStatusIntervalRef.current) {
-        clearInterval(modelStatusIntervalRef.current);
-      }
-    };
+    // Hydrate the live download queue so reopening Settings mid-download shows
+    // current progress; the queue effect below then resumes polling if needed.
+    void useAppStore.getState().refreshDownloads();
   }, []);
+
+  // Drive the live download queue from the store slice: poll while any job is in
+  // flight, and refresh the catalog + notify once a model finishes downloading.
+  useEffect(() => {
+    const previous = prevDownloadStatusRef.current;
+    const snapshot: Record<string, DownloadStatus> = {};
+    const becameReady: string[] = [];
+    for (const [id, job] of Object.entries(downloads)) {
+      snapshot[id] = job.status;
+      if (job.status === 'ready' && previous[id] !== undefined && previous[id] !== 'ready') {
+        becameReady.push(id);
+      }
+    }
+    prevDownloadStatusRef.current = snapshot;
+
+    // Release the per-row spinner once the clicked model reaches a terminal state.
+    if (activeModelId) {
+      const activeJob = downloads[activeModelId];
+      if (activeJob && TERMINAL_DOWNLOAD_STATUSES.has(activeJob.status)) {
+        setActiveModelId(null);
+      }
+    }
+
+    if (becameReady.length > 0) {
+      void (async () => {
+        await loadModels();
+        const installed = useAppStore.getState().availableModels;
+        for (const id of becameReady) {
+          const model = installed.find((entry) => entry.id === id);
+          await window.electron.notifications.notify('model_download', {
+            title: 'Model Ready',
+            body: `${model?.name ?? 'Model'} is installed and ready to use.`,
+          });
+        }
+      })();
+    }
+
+    const hasActiveDownload = Object.values(downloads).some((job) =>
+      ACTIVE_DOWNLOAD_STATUSES.has(job.status),
+    );
+    if (!hasActiveDownload) {
+      return;
+    }
+    const timer = setTimeout(() => {
+      void refreshDownloads();
+    }, DOWNLOAD_POLL_INTERVAL_MS);
+    return () => clearTimeout(timer);
+  }, [downloads, activeModelId, loadModels, refreshDownloads]);
 
   useEffect(() => {
     setAccountNameDraft(activeAccount?.name ?? '');
@@ -269,48 +329,15 @@ export function SettingsPanel() {
     setShowClearCacheConfirm(false);
   };
 
-  const refreshModels = async () => {
-    const models = await window.electron.models.list();
-    setAvailableModels(models);
-  };
-
-  const waitForModelStatus = async (modelId: string) => {
-    if (modelStatusIntervalRef.current) {
-      clearInterval(modelStatusIntervalRef.current);
-    }
-
-    modelStatusIntervalRef.current = setInterval(async () => {
-      const status = await window.electron.models.getStatus(modelId);
-      const models = await window.electron.models.list();
-      setAvailableModels(models);
-
-      if (!status || status.status === 'ready' || status.status === 'error') {
-        if (modelStatusIntervalRef.current) {
-          clearInterval(modelStatusIntervalRef.current);
-          modelStatusIntervalRef.current = null;
-        }
-        setActiveModelId(null);
-
-        if (status?.status === 'ready') {
-          await window.electron.notifications.notify('model_download', {
-            title: 'Model Ready',
-            body: `${status.name} is installed and ready to use.`,
-          });
-        }
-      }
-    }, 2500);
-  };
-
   const handleDownloadModel = async (modelId: string) => {
     setActiveModelId(modelId);
-    const result = await window.electron.models.download(modelId);
-    if (!result.success) {
+    await enqueueDownload(modelId);
+    // enqueueDownload merges the backend's DownloadJob into the store. If nothing
+    // landed (e.g. the backend was unreachable) the enqueue failed - stop tracking.
+    if (!useAppStore.getState().downloads[modelId]) {
       setActiveModelId(null);
-      return;
     }
-
-    await refreshModels();
-    await waitForModelStatus(modelId);
+    // Live progress and completion are driven by the download queue effect above.
   };
 
   const handleDeleteModel = (modelId: string) => {
@@ -320,7 +347,7 @@ export function SettingsPanel() {
   const confirmDeleteModel = async (modelId: string) => {
     setActiveModelId(modelId);
     await window.electron.models.delete(modelId);
-    await refreshModels();
+    await loadModels();
     setActiveModelId(null);
     setDeleteModelTarget(null);
   };
@@ -803,7 +830,7 @@ export function SettingsPanel() {
                                   cudaVersion: info.cuda_version,
                                   comfyuiConnected: info.comfyui_connected,
                                   modelsCount: info.models_count,
-                                  backendConnected: info.backendConnected,
+                                  backendConnected: info.backendConnected ?? false,
                                   backendRunning: backendStatus.running,
                                   bundledBackend: backendStatus.bundled,
                                 });
@@ -1291,54 +1318,62 @@ export function SettingsPanel() {
                       No models reported by the backend yet.
                     </div>
                   ) : (
-                    availableModels.map((model: ModelRecord) => (
-                      <div
-                        key={model.id}
-                        className="flex items-center justify-between py-3 border-b border-border/50"
-                      >
-                        <div>
-                          <h4 className="text-sm text-text-primary">{model.name}</h4>
-                          <p className="data-mono text-text-body">
-                            {model.size}
-                            {typeof model.progress === 'number' && model.status === 'downloading'
-                              ? ` (${Math.round(model.progress)}%)`
-                              : ''}
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <span
-                            className={cn(
-                              'text-xs flex items-center gap-1',
-                              model.status === 'ready'
-                                ? 'text-status-success'
-                                : 'text-text-body',
+                    availableModels.map((model: ModelRecord) => {
+                      const job = downloads[model.id];
+                      const liveStatus = job?.status ?? model.status;
+                      const isActiveDownload = job
+                        ? ACTIVE_DOWNLOAD_STATUSES.has(job.status)
+                        : false;
+                      const progressValue = job?.progress ?? model.progress;
+                      return (
+                        <div
+                          key={model.id}
+                          className="flex items-center justify-between py-3 border-b border-border/50"
+                        >
+                          <div>
+                            <h4 className="text-sm text-text-primary">{model.name}</h4>
+                            <p className="data-mono text-text-body">
+                              {model.size}
+                              {typeof progressValue === 'number' && isActiveDownload
+                                ? ` (${Math.round(progressValue)}%)`
+                                : ''}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span
+                              className={cn(
+                                'text-xs flex items-center gap-1',
+                                liveStatus === 'ready'
+                                  ? 'text-status-success'
+                                  : 'text-text-body',
+                              )}
+                            >
+                              <Check className="w-3 h-3" />
+                              {liveStatus}
+                            </span>
+                            {model.status !== 'ready' ? (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleDownloadModel(model.id)}
+                                disabled={activeModelId === model.id || isActiveDownload}
+                              >
+                                {isActiveDownload ? 'Downloading...' : 'Download'}
+                              </Button>
+                            ) : (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleDeleteModel(model.id)}
+                                disabled={activeModelId === model.id}
+                              >
+                                Remove
+                              </Button>
                             )}
-                          >
-                            <Check className="w-3 h-3" />
-                            {model.status}
-                          </span>
-                          {model.status !== 'ready' ? (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleDownloadModel(model.id)}
-                              disabled={activeModelId === model.id}
-                            >
-                              Download
-                            </Button>
-                          ) : (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleDeleteModel(model.id)}
-                              disabled={activeModelId === model.id}
-                            >
-                              Remove
-                            </Button>
-                          )}
+                          </div>
                         </div>
-                      </div>
-                    ))
+                      );
+                    })
                   )}
                 </div>
               </div>

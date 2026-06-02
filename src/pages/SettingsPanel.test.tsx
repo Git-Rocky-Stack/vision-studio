@@ -2,8 +2,34 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useAppStore } from '@/store/appStore';
+import type { DownloadJob, ModelRecord } from '@/types/model';
 
 import { SettingsPanel } from './SettingsPanel';
+
+function makeModelRecord(overrides: Partial<ModelRecord> = {}): ModelRecord {
+  return {
+    id: 'flux-dev',
+    name: 'FLUX.1 dev',
+    artifact_type: 'checkpoint',
+    capability: 'image',
+    base_architecture: 'flux',
+    source: 'huggingface',
+    repo_id: 'black-forest-labs/FLUX.1-dev',
+    revision: 'main',
+    aux_repo_id: null,
+    size: '23 GB',
+    status: 'not_found',
+    tier: 'verified',
+    quality: 'pro',
+    runtime: 'local',
+    hardware_class: 'workstation',
+    vram: '24 GB',
+    description: 'Test image model.',
+    license: 'flux-1-dev-non-commercial',
+    gated: false,
+    ...overrides,
+  };
+}
 
 function installElectronMock() {
   useAppStore.setState({
@@ -151,7 +177,21 @@ function installElectronMock() {
     },
     models: {
       list: vi.fn().mockResolvedValue([]),
-      download: vi.fn().mockResolvedValue({ success: true }),
+      download: vi.fn().mockResolvedValue({
+        model_id: 'flux-dev',
+        status: 'downloading',
+        progress: 0,
+        speed: 0,
+        eta: null,
+        total_bytes: 0,
+        error: null,
+        gate_url: null,
+      }),
+      downloadPause: vi.fn(),
+      downloadResume: vi.fn(),
+      downloadCancel: vi.fn(),
+      downloadsList: vi.fn().mockResolvedValue([]),
+      subscribeDownloads: vi.fn().mockResolvedValue([]),
       getStatus: vi.fn().mockResolvedValue(null),
       delete: vi.fn().mockResolvedValue({ success: true }),
     },
@@ -180,5 +220,42 @@ describe('SettingsPanel', () => {
       expect(screen.getByText('$6.50')).toBeInTheDocument();
       expect(screen.getByText('$0.40')).toBeInTheDocument();
     });
+  });
+
+  it('enqueues a model download through the store and shows live job progress', async () => {
+    const job: DownloadJob = {
+      model_id: 'flux-dev',
+      status: 'downloading',
+      progress: 42,
+      speed: 1024,
+      eta: 120,
+      total_bytes: 1_000_000,
+      error: null,
+      gate_url: null,
+    };
+    const models = window.electron.models as unknown as Record<string, ReturnType<typeof vi.fn>>;
+    // The catalog keeps reporting the model so any background refresh keeps the row.
+    models.list.mockResolvedValue([makeModelRecord({ status: 'not_found' })]);
+    models.download.mockResolvedValue(job);
+    // Mount hydrate sees nothing in flight; later polls see the active download,
+    // so the live-queue effect cannot revert the row mid-assertion under load.
+    models.downloadsList.mockReset();
+    models.downloadsList.mockResolvedValueOnce([]).mockResolvedValue([job]);
+    useAppStore.setState({ availableModels: [makeModelRecord({ status: 'not_found' })] });
+
+    render(<SettingsPanel />);
+    fireEvent.click(screen.getByRole('button', { name: /AI & Models/i }));
+
+    // Wait for the Installed Models row to mount (AnimatePresence tab transition).
+    await screen.findByText('FLUX.1 dev', {}, { timeout: 3000 });
+    const downloadButton = screen.getByRole('button', { name: /^Download$/ });
+    fireEvent.click(downloadButton);
+
+    // The slice path enqueues via the IPC bridge, and the row reflects live job state.
+    expect(
+      await screen.findByRole('button', { name: /Downloading/i }, { timeout: 3000 }),
+    ).toBeInTheDocument();
+    expect(models.download).toHaveBeenCalledWith('flux-dev');
+    expect(screen.getByText(/42%/)).toBeInTheDocument();
   });
 });

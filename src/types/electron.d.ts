@@ -3,7 +3,7 @@
  */
 
 import type { ImageGenerationRequestPayload } from './generation';
-import type { DownloadJob } from './model';
+import type { DownloadJob, ModelRecord } from './model';
 
 export type GenerationParams = ImageGenerationRequestPayload;
 
@@ -323,11 +323,9 @@ export interface ElectronAPI {
     getInfo: () => Promise<SystemInfo>;
   };
   models: {
-    list: () => Promise<ModelInfo[]>;
-    // Return shape kept index-permissive (not DownloadJob) so existing callers
-    // that read `.success` (e.g. SettingsPanel) still type-check during the M2
-    // transition; the backend now returns a DownloadJob (202).
-    download: (modelId: string) => Promise<{ model_id: string; status: string; [k: string]: unknown }>;
+    list: () => Promise<ModelRecord[]>;
+    // The backend returns a DownloadJob (202 Accepted) when a pull is enqueued.
+    download: (modelId: string) => Promise<DownloadJob>;
     downloadPause: (modelId: string) => Promise<DownloadJob>;
     downloadResume: (modelId: string) => Promise<DownloadJob>;
     downloadCancel: (modelId: string) => Promise<DownloadJob>;
