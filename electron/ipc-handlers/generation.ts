@@ -392,7 +392,7 @@ ipcMain.handle('generation:batch', async (_event, params) => {
       };
     }
 
-    const jobIds = prompts.map((prompt) => {
+    const jobIds = prompts.map((prompt: string) => {
       const jobId = `${OPENROUTER_JOB_PREFIX}-${crypto.randomUUID()}`;
       const jobParams = {
         ...baseParams,

@@ -193,8 +193,10 @@ export async function exportTimelineSequence({
     let finalStatus: JobStatus | null = null;
     for (let attempt = 0; attempt < 2400; attempt += 1) {
       const nextStatus = await electron.generation.getStatus(jobId);
-      if (!nextStatus || ('success' in nextStatus && nextStatus.success === false)) {
-        throw new Error(nextStatus?.error || 'Timeline export returned no job status.');
+      if (!nextStatus || !('status' in nextStatus)) {
+        const failureMessage =
+          nextStatus && 'error' in nextStatus ? nextStatus.error : undefined;
+        throw new Error(failureMessage || 'Timeline export returned no job status.');
       }
 
       if (

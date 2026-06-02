@@ -1,6 +1,8 @@
 import fs from 'fs';
 import path from 'path';
-import type { App, Dialog, IpcMain, NotificationConstructor, Shell } from 'electron';
+import type { App, Dialog, IpcMain, Shell } from 'electron';
+
+type NotificationConstructor = typeof import('electron').Notification;
 
 import {
   isAllowedStoreKey,

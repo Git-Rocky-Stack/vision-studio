@@ -2,12 +2,12 @@ import { describe, expect, it } from 'vitest';
 
 import type { AssetRecord } from '@/types/assets';
 import type { MediaAsset } from '@/types/media';
-import type { Scene } from '@/types/project';
+import type { Project, Scene } from '@/types/project';
 import type { TimelineClip, TimelineSequence, TimelineTrack } from '@/types/timeline';
 
 import { planStoryboardTimelineDerivation } from './deriveStoryboardTimeline';
 
-function createProject(overrides: Record<string, unknown> = {}) {
+function createProject(overrides: Partial<Project> = {}): Project {
   return {
     id: 'project-1',
     name: 'Storyboard Project',
@@ -131,6 +131,7 @@ function createTrack(overrides: Partial<TimelineTrack> = {}): TimelineTrack {
     orderIndex: 0,
     locked: false,
     muted: false,
+    solo: false,
     hidden: false,
     ...overrides,
   };
@@ -148,6 +149,10 @@ function createClip(overrides: Partial<TimelineClip> = {}): TimelineClip {
     sourceOutMs: 2000,
     transitionIn: null,
     transitionOut: null,
+    gain: 1,
+    fadeInMs: 0,
+    fadeOutMs: 0,
+    retakeRanges: [],
     label: 'Opening Shot',
     posterUrl: '/outputs/scenes/opening.png',
     referenceSetIds: ['scene-ref', 'element-ref'],

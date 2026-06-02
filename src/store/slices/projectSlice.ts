@@ -490,6 +490,8 @@ export function createProjectActions(set: AppSet, _get: AppGet) {
                 metadata: { ...shotBeat.metadata },
               })),
               metadata: {
+                created: now,
+                modified: now,
                 fps: project.fps,
                 duration: 0,
                 notes: buildCommittedSceneNotes(sceneDraft),
@@ -599,7 +601,7 @@ export function createProjectActions(set: AppSet, _get: AppGet) {
       const state = _get();
       const project = state.projects.find((p) => p.id === projectId);
       const scene = project?.scenes.find((s) => s.id === sceneId);
-      if (!scene) return undefined;
+      if (!project || !scene) return undefined;
 
       const now = new Date().toISOString();
       const dup = buildScene(

@@ -89,6 +89,7 @@ export interface JobStatus {
   job_id: string;
   status: 'pending' | 'processing' | 'completed' | 'failed' | 'cancelled';
   progress: number;
+  step?: number;
   type: 'image' | 'video';
   created_at: string;
   completed_at?: string;

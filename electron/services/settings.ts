@@ -21,8 +21,8 @@ export function resolveOutputPath(
 }
 
 export function shouldRestartBackend(
-  currentSettings: Pick<AppSettings, 'defaultOutputPath' | 'pythonPath'>,
-  nextSettings: Pick<AppSettings, 'defaultOutputPath' | 'pythonPath'>
+  currentSettings: Partial<AppSettings>,
+  nextSettings: Partial<AppSettings>
 ) {
   const currentOutputPath = (currentSettings.defaultOutputPath || '').trim();
   const nextOutputPath = (nextSettings.defaultOutputPath || '').trim();

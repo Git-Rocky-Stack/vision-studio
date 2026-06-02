@@ -52,7 +52,7 @@ export function WorkbenchGalleryDock() {
       prompt: asset.prompt || 'No prompt saved',
       mediaPath: asset.type === 'video' ? asset.path : asset.previewUrl || asset.path,
       posterPath: asset.thumbnail || asset.previewUrl || asset.path,
-      generationType: asset.type,
+      generationType: (asset.type === 'video' ? 'video' : 'image') as 'image' | 'video',
       createdAt: new Date(asset.createdAt).getTime(),
       source: asset.type === 'video' ? 'Video asset' : 'Image asset',
     }));

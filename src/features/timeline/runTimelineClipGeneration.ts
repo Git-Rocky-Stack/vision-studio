@@ -366,10 +366,16 @@ export async function runTimelineClipGeneration({
             : {}),
         };
 
+  // submitPayload is built from the same generationType branch above, so the
+  // runtime shape always matches the chosen call; assert it to the IPC param type.
   const submitResult =
     providerResolved.generationType === 'video'
-      ? await electron.generation.generateVideo(submitPayload)
-      : await electron.generation.generateImage(submitPayload);
+      ? await electron.generation.generateVideo(
+          submitPayload as Parameters<typeof electron.generation.generateVideo>[0],
+        )
+      : await electron.generation.generateImage(
+          submitPayload as Parameters<typeof electron.generation.generateImage>[0],
+        );
 
   if (!submitResult.success || !submitResult.jobId) {
     const message = submitResult.error || 'Timeline generation failed to start.';

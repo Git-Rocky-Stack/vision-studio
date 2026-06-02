@@ -40,7 +40,9 @@ function mockStore(overrides: Partial<typeof baseStore> = {}) {
     ...baseStore,
     ...overrides,
   };
-  vi.mocked(useAppStore).mockImplementation((selector: (s: typeof state) => unknown) => selector(state));
+  vi.mocked(useAppStore).mockImplementation((selector) =>
+    (selector as (s: typeof state) => unknown)(state),
+  );
 }
 
 describe('Header', () => {

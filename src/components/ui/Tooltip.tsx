@@ -19,7 +19,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 interface TooltipProps {
   content: string;
   placement?: Placement;
-  children: ReactElement;
+  children: ReactElement<Record<string, unknown>>;
   delay?: number;
 }
 
@@ -71,9 +71,9 @@ export function Tooltip({
         ref: refs.setReference,
         ...getReferenceProps(),
         onKeyDown: (event: React.KeyboardEvent) => {
-          getReferenceProps().onKeyDown?.(event);
+          (getReferenceProps().onKeyDown as ((e: React.KeyboardEvent) => void) | undefined)?.(event);
           handleReferenceKeyDown(event);
-          children.props.onKeyDown?.(event);
+          (children.props.onKeyDown as ((e: React.KeyboardEvent) => void) | undefined)?.(event);
         },
       })}
       <FloatingPortal>

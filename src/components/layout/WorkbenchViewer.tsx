@@ -119,7 +119,7 @@ export function WorkbenchViewer() {
       model: asset.model ?? getStringParam(asset.params, 'model'),
       seed: asset.seed ?? null,
       negativePrompt: asset.negativePrompt || getStringParam(asset.params, 'negativePrompt', 'negative_prompt') || '',
-      generationType: asset.type,
+      generationType: (asset.type === 'video' ? 'video' : 'image') as 'image' | 'video',
       width: asset.width ?? getNumberParam(asset.params, 'width'),
       height: asset.height ?? getNumberParam(asset.params, 'height'),
       steps: getNumberParam(asset.params, 'steps'),

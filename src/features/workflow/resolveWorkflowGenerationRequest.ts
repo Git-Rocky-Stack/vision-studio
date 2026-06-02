@@ -86,7 +86,7 @@ export function resolveWorkflowGenerationRequest(
     height: workflow.settings.height,
     steps: steps!,
     cfgScale: cfgScale!,
-    ...(seed !== undefined ? { seed } : {}),
+    ...(typeof seed === 'number' ? { seed } : {}),
   };
 
   return {

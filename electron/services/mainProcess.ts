@@ -6,11 +6,12 @@ import type {
   BrowserWindowConstructorOptions,
   Dialog,
   IpcMain,
-  NotificationConstructor,
   SafeStorage,
   Session,
   Shell,
 } from 'electron';
+
+type NotificationConstructor = typeof import('electron').Notification;
 
 import { createSecureStore } from './secureStore';
 import { createOutputRootService, DEFAULT_SETTINGS, type StoreSchema } from './outputRoots';

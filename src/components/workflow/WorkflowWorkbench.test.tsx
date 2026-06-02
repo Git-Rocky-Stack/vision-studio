@@ -8,8 +8,7 @@ import type { WorkflowExecutionValidationResult } from '@/types/workflow';
 
 const { validateWorkflowExecutionMock, runWorkflowExecutionMock } = vi.hoisted(() => ({
   validateWorkflowExecutionMock: vi.fn<
-    [unknown, unknown],
-    WorkflowExecutionValidationResult
+    (a: unknown, b: unknown) => WorkflowExecutionValidationResult
   >(),
   runWorkflowExecutionMock: vi.fn(),
 }));

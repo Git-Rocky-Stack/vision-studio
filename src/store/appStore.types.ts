@@ -148,7 +148,12 @@ import type {
   TimelineSequence,
   TimelineTrack,
   TimelineClip,
+  TimelineClipMoveOptions,
+  TimelineClipTrimOptions,
+  TimelineSplitResult,
   TimelineTransition,
+  TimelineTransitionEdge,
+  TimelinePlayRange,
   ClipGenerationBinding,
 } from '@/types/timeline';
 
@@ -186,14 +191,17 @@ export interface GenerationJobParams {
   width?: number;
   height?: number;
   scheduler?: string;
-  [key: string]: string | number | boolean | null | undefined;
+  // Dynamic param bag: callers attach arbitrary backend params (control layers,
+  // masks, reference images, etc.), so the index value is intentionally unknown.
+  [key: string]: unknown;
 }
 
 export interface GenerationJobResult {
   images?: string[];
   video?: string;
   seed?: number;
-  [key: string]: string | number | boolean | null | undefined;
+  // Dynamic result bag mirroring the backend's open-ended job payload.
+  [key: string]: unknown;
 }
 
 export interface GenerationJob {

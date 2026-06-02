@@ -75,6 +75,7 @@ export type {
 
 export type { ProjectTemplate } from '@/types/template';
 export type { ModelInfo, ModelStatus } from '@/types/model';
+export type { AppState } from './appStore.types';
 
 // Re-exports: constants now owned by slices
 export { DEFAULT_WORKFLOWS } from './slices/workflowSlice';
@@ -530,6 +531,10 @@ function normalizeTimelineClip(clip: Partial<TimelineClip> | undefined): Timelin
     return null;
   }
 
+  // Capture the narrowed id so it stays `string` inside the closures below;
+  // property narrowing is otherwise lost across nested callbacks.
+  const clipId = clip.id;
+
   const storyboardBeatMarkers = Array.isArray(clip.storyboardBeatMarkers)
     ? clip.storyboardBeatMarkers
         .map((marker) => normalizeTimelineBeatMarker(marker))
@@ -585,7 +590,7 @@ function normalizeTimelineClip(clip: Partial<TimelineClip> | undefined): Timelin
       typeof clip.generationBindingId === 'string' ? clip.generationBindingId : null,
     retakeRanges: Array.isArray(clip.retakeRanges)
       ? clip.retakeRanges
-          .map((range) => normalizeTimelineClipRetakeRange(range, clip.id, durationMs))
+          .map((range) => normalizeTimelineClipRetakeRange(range, clipId, durationMs))
           .filter((range): range is TimelineClipRetakeRange => Boolean(range))
       : [],
     storyboardDerived,

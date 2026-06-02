@@ -27,7 +27,7 @@ export const DEFAULT_SETTINGS: Required<Omit<AppSettings, 'pythonPath'>> = {
   notifyOnModelDownloads: true,
 };
 
-type OutputRootStore = {
+export type OutputRootStore = {
   get: {
     (key: 'settings'): AppSettings;
     (key: 'managedOutputRoots'): string[];

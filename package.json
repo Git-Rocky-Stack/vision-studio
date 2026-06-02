@@ -27,7 +27,7 @@
     "test:integration": "vitest run tests/integration",
     "test:all": "vitest run",
     "lint": "eslint src electron --max-warnings=0",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit -p tsconfig.app.json && tsc --noEmit -p tsconfig.electron.json && tsc --noEmit -p tsconfig.node.json",
     "preview": "electron .",
     "package": "electron-builder",
     "package:win": "electron-builder --win",

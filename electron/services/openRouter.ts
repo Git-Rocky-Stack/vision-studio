@@ -723,8 +723,12 @@ export function createOpenRouterService({
     const rawModels = Array.isArray(response.data?.data) ? response.data.data : [];
     return rawModels
       .map((model: any): OpenRouterModelSummary | null => normalizeModelSummary(model))
-      .filter((model): model is OpenRouterModelSummary => Boolean(model))
-      .sort((left, right) => left.name.localeCompare(right.name));
+      .filter((model: OpenRouterModelSummary | null): model is OpenRouterModelSummary =>
+        Boolean(model),
+      )
+      .sort((left: OpenRouterModelSummary, right: OpenRouterModelSummary) =>
+        left.name.localeCompare(right.name),
+      );
   }
 
   async function getKeyInfo(apiKey: string): Promise<OpenRouterKeyInfo> {
@@ -831,9 +835,10 @@ export function createOpenRouterService({
       throw createOpenRouterError(error, 'OpenRouter prompt enhancement failed.');
     }
 
-    const envelope = parseChatCompletionEnvelope(response.data);
+    const responseData: unknown = (response as { data: unknown }).data;
+    const envelope = parseChatCompletionEnvelope(responseData);
     const content = extractMessageContent(envelope.choices[0].message.content);
-    const usage = extractUsage(response.data);
+    const usage = extractUsage(responseData);
     logUsage('enhancePrompt', usage);
     try {
       const parsed = JSON.parse(content);
@@ -913,9 +918,10 @@ export function createOpenRouterService({
       throw createOpenRouterError(error, 'OpenRouter negative prompt suggestion failed.');
     }
 
-    const envelope = parseChatCompletionEnvelope(response.data);
+    const responseData: unknown = (response as { data: unknown }).data;
+    const envelope = parseChatCompletionEnvelope(responseData);
     const content = extractMessageContent(envelope.choices[0].message.content);
-    const usage = extractUsage(response.data);
+    const usage = extractUsage(responseData);
     logUsage('suggestNegativePrompt', usage);
     try {
       const parsed = JSON.parse(content);

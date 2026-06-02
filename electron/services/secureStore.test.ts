@@ -57,6 +57,18 @@ function createFakeStore(userDataPath: string) {
         this.options.encryptionKey ? Buffer.from('encrypted-store') : JSON.stringify(value)
       );
     }
+
+    get(key: string): unknown {
+      return this.currentStore[key];
+    }
+
+    set(key: string, value: unknown): void {
+      this.currentStore[key] = value;
+    }
+
+    clear(): void {
+      this.currentStore = {};
+    }
   }
 
   return { FakeStore, instances };

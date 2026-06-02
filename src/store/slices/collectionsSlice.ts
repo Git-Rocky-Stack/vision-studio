@@ -71,7 +71,12 @@ export function createCollectionsActions(set: AppSet, get: AppGet) {
         const generationContext = {
           prompt: asset.prompt,
           model: asset.model,
-          createdAt: typeof asset.createdAt === 'string' ? new Date(asset.createdAt).getTime() : asset.createdAt instanceof Date ? asset.createdAt.getTime() : undefined,
+          createdAt:
+            typeof asset.createdAt === 'string'
+              ? new Date(asset.createdAt).getTime()
+              : typeof asset.createdAt === 'number'
+                ? asset.createdAt
+                : undefined,
         };
         if (evaluateSmartQuery(collection.smartQuery!, generationContext, assetMeta)) {
           matchedAssetIds.push(asset.id);

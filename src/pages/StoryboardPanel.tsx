@@ -211,7 +211,9 @@ export function StoryboardPanel() {
   const handleDuplicateScene = (scene: Scene) => {
     if (!activeProject) return;
     const duplicated = duplicateScene(activeProject.id, scene.id);
-    setActiveScene(duplicated.id);
+    if (duplicated) {
+      setActiveScene(duplicated.id);
+    }
   };
 
   const handleDeleteScene = () => {
@@ -660,14 +662,13 @@ export function StoryboardPanel() {
         onCancel={() => setDeleteTarget(null)}
         onConfirm={handleDeleteScene}
         title="Delete Scene"
-        description={
+        message={
           deleteTarget
             ? `Are you sure you want to delete "${deleteTarget.name}"? This action cannot be undone.`
             : ''
         }
         confirmLabel="Delete"
-        confirmVariant="destructive"
-        icon={<Trash2 className="w-5 h-5" aria-hidden="true" />}
+        variant="danger"
       />
 
       <ScriptImportDialog
