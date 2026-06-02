@@ -4,7 +4,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { CharacterRefCard } from '@/components/storyboard/CharacterRefCard';
 import { Button } from '@/components/ui/Button';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
-import { Users, Plus, Trash2 } from 'lucide-react';
+import { Users, Plus } from 'lucide-react';
 import type { CharacterRef, LockedFeature } from '@/types/project';
 
 interface CharacterLibraryProps {
@@ -130,14 +130,13 @@ export function CharacterLibrary({ projectId }: CharacterLibraryProps) {
         onCancel={() => setDeleteTarget(null)}
         onConfirm={handleDeleteCharacter}
         title="Delete Character"
-        description={
+        message={
           deleteTarget
             ? `Are you sure you want to delete "${deleteTarget.name}"? This will remove it from all scenes.`
             : ''
         }
         confirmLabel="Delete"
-        confirmVariant="destructive"
-        icon={<Trash2 className="w-5 h-5" aria-hidden="true" />}
+        variant="danger"
       />
     </div>
   );

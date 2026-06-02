@@ -16,8 +16,8 @@ export function applyThemeToDocument(
   preference: ThemePreference,
   systemPrefersDark: boolean,
   target: {
-    documentElement: { dataset: Record<string, string>; style: { colorScheme: string } };
-    body: { dataset: Record<string, string> };
+    documentElement: { dataset: Record<string, string | undefined>; style: { colorScheme: string } };
+    body: { dataset: Record<string, string | undefined> };
   } = document
 ) {
   const resolvedTheme = resolveThemeMode(preference, systemPrefersDark);

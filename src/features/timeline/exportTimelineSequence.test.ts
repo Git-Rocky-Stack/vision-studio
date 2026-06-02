@@ -2,7 +2,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useAppStore } from '@/store/appStore';
 
-import { buildTimelineExportRequest, exportTimelineSequence } from './exportTimelineSequence';
+import {
+  buildTimelineExportRequest,
+  exportTimelineSequence,
+  type TimelineExportStatusPatch,
+} from './exportTimelineSequence';
 
 describe('exportTimelineSequence', () => {
   beforeEach(() => {
@@ -243,7 +247,7 @@ describe('exportTimelineSequence', () => {
     const { sequence } = seedTimelineForExport();
     const initialMediaAssets = structuredClone(useAppStore.getState().mediaAssets);
     const initialViewerItemId = useAppStore.getState().activeViewerItemId;
-    const statusPatches: Array<Record<string, unknown>> = [];
+    const statusPatches: TimelineExportStatusPatch[] = [];
     const electron = makeElectronExportMock({
       submit: { success: true, jobId: 'timeline-export-job-1' },
       statuses: [

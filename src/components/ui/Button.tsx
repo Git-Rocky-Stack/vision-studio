@@ -5,7 +5,11 @@ import { motion } from 'framer-motion';
 // global resets neutralize the Tailwind `uppercase` / `tracking-*` utilities.
 const LABEL_STYLE: React.CSSProperties = { textTransform: 'uppercase', letterSpacing: '0.5px' };
 
-interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
+interface ButtonProps
+  extends Omit<
+    React.ButtonHTMLAttributes<HTMLButtonElement>,
+    'onDrag' | 'onDragStart' | 'onDragEnd' | 'onAnimationStart' | 'onAnimationEnd'
+  > {
   variant?: 'primary' | 'secondary' | 'ghost' | 'danger' | 'cinema';
   size?: 'sm' | 'md' | 'lg';
   icon?: React.ComponentType<{ className?: string }>;

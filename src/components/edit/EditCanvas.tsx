@@ -169,7 +169,7 @@ export function EditCanvas() {
       currentLineRef.current.points = currentLineRef.current.points.concat([pos.x, pos.y]);
       // Force a re-render of the Konva layer without full state copy
       const layer = stageRef.current?.findOne('.drawing-layer');
-      if (layer) layer.batchDraw();
+      if (layer) (layer as unknown as { batchDraw: () => void }).batchDraw();
     },
     [isDrawing]
   );

@@ -90,7 +90,7 @@ function buildSceneReferenceImages(
   return attachedReferenceSets.flatMap((referenceSet) =>
     [...referenceSet.items]
       .sort((a, b) => a.orderIndex - b.orderIndex)
-      .map((item) => {
+      .map((item): ReferenceImage | null => {
         const path = resolveReferenceItemPath(item, mediaAssets);
         if (!path) {
           return null;
@@ -103,7 +103,7 @@ function buildSceneReferenceImages(
           label: item.label,
           mediaAssetId: item.mediaAssetId ?? undefined,
           referenceSetId: referenceSet.id,
-        } satisfies ReferenceImage;
+        };
       })
       .filter((image): image is ReferenceImage => Boolean(image)),
   );
@@ -1356,7 +1356,7 @@ export function createMediaTimelineActions(set: AppSet, get: AppGet) {
                     ? normalizeTimelineBeatMarkers(updates.storyboardBeatMarkers).length > 0
                     : currentClip.storyboardBeatMarkers.length > 0)
                 ),
-          storyboardDerivedAt: null,
+          storyboardDerivedAt: null as string | null,
           updatedAt: new Date().toISOString(),
         };
         nextClip.storyboardDerivedAt = nextClip.storyboardDerived
@@ -2113,7 +2113,7 @@ export function createMediaTimelineActions(set: AppSet, get: AppGet) {
           if (item.id === takeId) {
             return {
               ...item,
-              status: 'accepted',
+              status: 'accepted' as const,
               updatedAt: new Date().toISOString(),
             };
           }
@@ -2121,7 +2121,7 @@ export function createMediaTimelineActions(set: AppSet, get: AppGet) {
           return item.status === 'accepted'
             ? {
                 ...item,
-                status: 'candidate',
+                status: 'candidate' as const,
                 updatedAt: new Date().toISOString(),
               }
             : item;
@@ -2167,7 +2167,7 @@ export function createMediaTimelineActions(set: AppSet, get: AppGet) {
           item.id === takeId
             ? {
                 ...item,
-                status: 'rejected',
+                status: 'rejected' as const,
                 updatedAt: now,
               }
             : item,

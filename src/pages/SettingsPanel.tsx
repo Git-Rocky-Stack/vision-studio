@@ -803,7 +803,7 @@ export function SettingsPanel() {
                                   cudaVersion: info.cuda_version,
                                   comfyuiConnected: info.comfyui_connected,
                                   modelsCount: info.models_count,
-                                  backendConnected: info.backendConnected,
+                                  backendConnected: info.backendConnected ?? false,
                                   backendRunning: backendStatus.running,
                                   bundledBackend: backendStatus.bundled,
                                 });

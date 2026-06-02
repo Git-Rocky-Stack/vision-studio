@@ -135,14 +135,13 @@ export const CompositionLayerBar = memo(function CompositionLayerBar({
             : 'No layer'}
         </span>
         <Slider
-          value={[opacityValue]}
-          onValueChange={(v) => handleOpacityChange(v[0])}
+          label="Opacity"
+          value={opacityValue}
+          onChange={handleOpacityChange}
           min={0}
           max={100}
           step={1}
-          className={cn('w-20')}
-          disabled={!firstVisibleLayer}
-          aria-label={`${firstVisibleLayer ? LAYER_CONFIG.find((c) => c.key === firstVisibleLayer)?.label ?? 'Layer' : 'Layer'} opacity`}
+          showValue={false}
         />
         <span className={cn('type-meta text-text-muted w-7 text-right tabular-nums')} aria-hidden="true">
           {opacityValue}%

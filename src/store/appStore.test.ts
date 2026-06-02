@@ -203,14 +203,14 @@ describe('appStore', () => {
         inputs: {},
       });
 
-      expect(node.id).toMatch(/^node-/);
+      expect(node!.id).toMatch(/^node-/);
 
-      useAppStore.getState().moveWorkflowNode('image-generation-baseline', node.id, { x: 940, y: 180 });
+      useAppStore.getState().moveWorkflowNode('image-generation-baseline', node!.id, { x: 940, y: 180 });
       const workflow = useAppStore
         .getState()
         .workflowRecords.find((record) => record.id === 'image-generation-baseline');
 
-      expect(workflow?.graph.nodes[node.id].position).toEqual({ x: 940, y: 180 });
+      expect(workflow?.graph.nodes[node!.id].position).toEqual({ x: 940, y: 180 });
     });
 
     it('connects nodes and replaces an existing target input link', () => {
@@ -225,7 +225,7 @@ describe('appStore', () => {
         .getState()
         .workflowRecords.find((record) => record.id === 'image-generation-baseline');
 
-      expect(edge.id).toMatch(/^edge-/);
+      expect(edge!.id).toMatch(/^edge-/);
       expect(
         workflow?.graph.edges.filter(
           (item) => item.targetNodeId === 'sampler' && item.targetInput === 'positive'
@@ -1232,8 +1232,8 @@ We only get one pass at this.
         'Keep the skyline monitors alive in the background.',
       );
       expect(importedScene?.elementIds).toHaveLength(2);
-      expect(importedScene?.shotBeats[0].elementIds).toEqual(importedScene?.elementIds);
-      expect(importedScene?.shotBeats[0].metadata).toEqual({ camera: 'push-in' });
+      expect(importedScene?.shotBeats![0].elementIds).toEqual(importedScene?.elementIds);
+      expect(importedScene?.shotBeats![0].metadata).toEqual({ camera: 'push-in' });
 
       expect(committedProject?.elements).toHaveLength(2);
       const mergedCharacter = committedProject?.elements?.find(

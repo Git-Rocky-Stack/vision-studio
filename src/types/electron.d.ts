@@ -3,6 +3,7 @@
  */
 
 import type { ImageGenerationRequestPayload } from './generation';
+import type { ModelRecord } from './model';
 
 export type GenerationParams = ImageGenerationRequestPayload;
 
@@ -88,6 +89,7 @@ export interface JobStatus {
   job_id: string;
   status: 'pending' | 'processing' | 'completed' | 'failed' | 'cancelled';
   progress: number;
+  step?: number;
   type: 'image' | 'video';
   created_at: string;
   completed_at?: string;
@@ -322,7 +324,7 @@ export interface ElectronAPI {
     getInfo: () => Promise<SystemInfo>;
   };
   models: {
-    list: () => Promise<ModelInfo[]>;
+    list: () => Promise<ModelRecord[]>;
     download: (modelId: string) => Promise<{ success: boolean; message?: string }>;
     getStatus: (modelId: string) => Promise<ModelInfo | null>;
     delete: (modelId: string) => Promise<{ success: boolean; error?: string }>;

@@ -45,7 +45,7 @@ export function QuickGeneratePanel() {
   const [prompt, setPrompt] = useState('');
   const [negativePrompt, setNegativePrompt] = useState('');
   const [selectedModel, setSelectedModel] = useState('flux-dev');
-  const [selectedRatio, setSelectedRatio] = useState(ASPECT_RATIOS[0]);
+  const [selectedRatio, setSelectedRatio] = useState<(typeof ASPECT_RATIOS)[number]>(ASPECT_RATIOS[0]);
   const [activeAccount, setActiveAccount] = useState<UserAccountSummary | null>(null);
   const [genStatus, setGenStatus] = useState<GenStatus>({
     isGenerating: false,

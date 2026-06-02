@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useRef, useCallback, useEffect, memo } from 'react';
 import { cn } from '@/utils/cn';
 import { useAppStore } from '@/store/appStore';
 import { useShallow } from 'zustand/react/shallow';

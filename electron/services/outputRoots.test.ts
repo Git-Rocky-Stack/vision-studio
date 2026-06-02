@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { createOutputRootService } from './outputRoots';
+import { createOutputRootService, type OutputRootStore } from './outputRoots';
 
 describe('output root service', () => {
   it('merges persisted settings over release defaults', () => {
@@ -61,13 +61,15 @@ function createStore(initialState: {
   settings: Record<string, unknown>;
   managedOutputRoots: string[];
 }) {
+  const state = structuredClone(initialState);
   return {
-    state: structuredClone(initialState),
-    get(key: 'settings' | 'managedOutputRoots') {
-      return this.state[key];
-    },
-    set(key: 'settings' | 'managedOutputRoots', value: unknown) {
-      this.state[key] = value as never;
-    },
+    state,
+    // Deliberate partial test double: the service merges persisted settings over
+    // release defaults, so the stored `settings` is intentionally loose. Cast the
+    // accessors to the real overloaded store contract.
+    get: ((key: keyof typeof state) => state[key]) as unknown as OutputRootStore['get'],
+    set: ((key: keyof typeof state, value: unknown) => {
+      state[key] = value as never;
+    }) as unknown as OutputRootStore['set'],
   };
 }

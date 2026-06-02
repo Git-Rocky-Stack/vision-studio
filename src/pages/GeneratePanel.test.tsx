@@ -478,6 +478,7 @@ describe('GeneratePanel', () => {
       clipId: 'clip-variant-1',
       outputAssetId: 'job-1::/outputs/variant.png',
       bindingId: 'binding-1',
+      retakeTakeId: null,
     });
 
     render(<GeneratePanel />);

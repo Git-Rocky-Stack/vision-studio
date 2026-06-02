@@ -110,15 +110,15 @@ export const IterationCanvasOverlay = memo(function IterationCanvasOverlay({ cla
         </defs>
 
         {/* Connection lines */}
-        {positions.map(({ node }) =>
+        {positions.map(({ node, x, y }) =>
           node.childrenIds.map((childId) => {
             const child = positions.find((p) => p.node.id === childId);
             if (!child) return null;
             return (
               <line
                 key={`${node.id}-${childId}`}
-                x1={node.x + 40}
-                y1={node.y + 20}
+                x1={x + 40}
+                y1={y + 20}
                 x2={child.x + 40}
                 y2={child.y}
                 className="stroke-border"

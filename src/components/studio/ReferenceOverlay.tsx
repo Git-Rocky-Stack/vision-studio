@@ -35,7 +35,7 @@ export const ReferenceOverlay = memo(function ReferenceOverlay({
         src={imageUrl}
         alt="Reference composition layer"
         className={cn('h-full w-full object-contain')}
-        style={{ mixBlendMode }}
+        style={{ mixBlendMode: mixBlendMode as React.CSSProperties['mixBlendMode'] }}
         draggable={false}
       />
     </div>
