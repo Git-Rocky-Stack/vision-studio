@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 
 import { createOpenRouterImageJobStore, type OpenRouterImageJob } from './openRouterImageJobs';
 import { runOpenRouterImageJob } from './runOpenRouterImageJob';
@@ -66,9 +66,9 @@ function setupHarness({
 }: {
   account?: ReturnType<typeof makeAccount> | null;
   apiKey?: string | null;
-  generateImage?: ReturnType<typeof vi.fn>;
+  generateImage?: Mock;
   outputDirectory?: string;
-  deleteOrphans?: ReturnType<typeof vi.fn>;
+  deleteOrphans?: Mock;
 } = {}) {
   const emit = vi.fn();
   const store = createOpenRouterImageJobStore({ emit });
@@ -325,7 +325,7 @@ describe('runOpenRouterImageJob', () => {
       // The orchestrator MUST have invoked the orphan cleanup with the
       // image paths it had already written -- otherwise we'd leak files.
       expect(h.deleteOrphans).toHaveBeenCalledTimes(1);
-      const orphansArg = (h.deleteOrphans as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as
+      const orphansArg = h.deleteOrphans.mock.calls[0]?.[0] as
         | string[]
         | undefined;
       expect(orphansArg).toBeDefined();

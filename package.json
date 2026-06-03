@@ -87,6 +87,7 @@
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^14.6.1",
+    "@types/node": "^24.12.4",
     "@types/react": "^19.0.8",
     "@types/react-dom": "^19.0.3",
     "@types/ws": "^8.5.14",
@@ -110,6 +111,6 @@
     "vite": "^6.1.0",
     "vite-plugin-electron": "^0.29.0",
     "vite-plugin-electron-renderer": "^0.14.6",
-    "vitest": "^3.2.4"
+    "vitest": "^4.1.8"
   }
 }
