@@ -137,8 +137,14 @@ def get_uvicorn_config(reload_enabled: Optional[bool] = None) -> Dict[str, Any]:
     if reload_enabled is None:
         reload_enabled = os.getenv("VISION_STUDIO_BACKEND_RELOAD", "").lower() in {"1", "true", "yes"}
 
+    # Vision Studio is a local-first desktop app: bind to loopback by default so the
+    # backend - including the auth-exempt /outputs static mount and the docs/OpenAPI
+    # routes - is not reachable from the LAN. Deliberate LAN or debug exposure must be
+    # opted into explicitly via VISION_STUDIO_BACKEND_HOST (e.g. "0.0.0.0").
+    host = os.getenv("VISION_STUDIO_BACKEND_HOST", "").strip() or "127.0.0.1"
+
     return {
-        "host": "0.0.0.0",
+        "host": host,
         "port": 8000,
         "reload": reload_enabled,
         "log_level": "info",

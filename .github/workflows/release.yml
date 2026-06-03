@@ -45,9 +45,11 @@ jobs:
       - name: Frontend tests (unit + component + integration)
         run: npx vitest run --reporter=default --reporter=junit --outputFile=test-results/junit.xml
 
-      - name: Backend tests
+      - name: Backend tests (pytest)
+        # See backend/pytest.ini. pytest runs both the unittest.TestCase suites
+        # and the pytest-style tests; benchmarks are excluded by default.
         working-directory: backend
-        run: python -m unittest discover -s tests -v
+        run: python -m pytest -v
 
       - name: Build app
         run: npm run build
