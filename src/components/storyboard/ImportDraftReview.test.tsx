@@ -70,8 +70,8 @@ function ImportDraftReviewHarness({
   onChangeSpy = vi.fn(),
   onApprove = vi.fn(),
 }: {
-  onChangeSpy?: ReturnType<typeof vi.fn>;
-  onApprove?: ReturnType<typeof vi.fn>;
+  onChangeSpy?: (draft: ImportDraft) => void;
+  onApprove?: (draft: ImportDraft) => void;
 }) {
   const [draft, setDraft] = useState(makeDraft());
 
