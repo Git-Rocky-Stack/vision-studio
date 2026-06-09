@@ -32,6 +32,7 @@ These are dated working documents. Treat them as historical references for the d
 | [`accessibility-audit-2026-04-18.md`](./accessibility-audit-2026-04-18.md) | 2026-04-18 |
 | [`code-quality-review-2026-04-17.md`](./code-quality-review-2026-04-17.md) | 2026-04-17 |
 | [`code-signing.md`](./code-signing.md) | Reference |
+| [`dependency-security.md`](./dependency-security.md) | Reference |
 | [`competitive-analysis-2026-04.md`](./competitive-analysis-2026-04.md) | 2026-04 |
 | [`handoff-2026-04-17.md`](./handoff-2026-04-17.md) | 2026-04-17 |
 | [`handoff-2026-04-19.md`](./handoff-2026-04-19.md) | 2026-04-19 |
@@ -66,7 +67,8 @@ Plans live under [`plans/`](./plans/) and superpowers notes under [`superpowers/
 **Security review**
 1. `ARCHITECTURE.md §8` (security model + threat table).
 2. `../SECURITY-AUDIT-2026-04-18.md` (last formal audit).
-3. Read `electron/services/security.ts`, `outputRoots.ts`, `secureStore.ts`, `contentSecurityPolicy.ts`, and `backend/middleware/rate_limit.py` + `backend/utils/sanitization.py`.
+3. `dependency-security.md` (shipped-vs-dev audit policy + tracked dev-only exceptions).
+4. Read `electron/services/security.ts`, `outputRoots.ts`, `secureStore.ts`, `contentSecurityPolicy.ts`, and `backend/middleware/rate_limit.py` + `backend/utils/sanitization.py`.
 
 **Release / packaging**
 1. `../BUNDLING.md` and `../DEPLOYMENT.md`.

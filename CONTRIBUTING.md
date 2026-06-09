@@ -169,20 +169,33 @@ npm run test:e2e
 
 ### Backend Tests
 
+The backend suite runs under **pytest** (a superset of the `unittest.TestCase`
+suites that also collects the pytest-style fixture/monkeypatch tests). Run it
+from the `backend/` directory; config lives in `backend/pytest.ini` and tier
+auto-tagging in `backend/tests/conftest.py`.
+
 ```bash
-# Python unittest suite
 cd backend
-python -m unittest discover -s tests -v
+python -m pytest                 # unit + integration tiers (benchmarks excluded)
+python -m pytest -m unit         # fast isolated logic only
+python -m pytest -m integration  # FastAPI / HTTP-boundary tests only
+
+# Benchmark / model-loading tier (opt-in; needs the GPU/model stack):
+python -m pytest tests/benchmarks -o addopts="" --benchmark-only
 ```
+
+> Do **not** use `python -m unittest discover` — it silently skips the
+> pytest-style tests (including the security-sanitization and DB-migration
+> suites). CI runs `python -m pytest`.
 
 ### Test Coverage
 
 | Layer | Framework | Files | Tests |
 |-------|-----------|-------|-------|
-| Unit + Integration | Vitest 3.2 | 16 | 119 |
-| Component | Vitest + Testing Library | 8 | 58 |
-| E2E | Playwright | 3 | 13 |
-| Backend | unittest | 7 | 35 |
+| Frontend (unit + component + integration) | Vitest 4.1 | 142 | 1239 |
+| E2E | Playwright 1.58 | 8 | 35 |
+| Backend (unit + integration) | pytest | 33 | 424 |
+| Backend (benchmark, opt-in) | pytest-benchmark | 1 | 10 |
 
 ### TypeScript Type Check
 

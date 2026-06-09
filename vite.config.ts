@@ -89,8 +89,10 @@ export default defineConfig({
   },
   build: {
     outDir: 'dist',
-    // The renderer already uses vendor chunk splitting; the remaining app chunk is
-    // expected to stay above Vite's default 500 kB warning threshold for now.
+    // The renderer uses vendor chunk splitting (below) and route/panel-level code
+    // splitting (heavy non-startup surfaces are React.lazy'd in
+    // DockviewSettingsPanel). That trimmed the entry chunk from ~825 kB to ~620 kB.
+    // The limit stays at 800 kB as a regression guard with modest headroom.
     chunkSizeWarningLimit: 800,
     rollupOptions: {
       output: {

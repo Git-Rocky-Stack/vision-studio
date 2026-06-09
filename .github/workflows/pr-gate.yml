@@ -28,6 +28,26 @@ jobs:
       - name: TypeScript type-check
         run: npx tsc --noEmit
 
+  audit-prod:
+    name: Dependency Audit (shipped)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - name: Audit production (shipped) dependencies
+        # Gates only the bundled app tree. Dev/build-time advisories are tracked,
+        # documented exceptions in docs/dependency-security.md. A new advisory on
+        # a shipped package fails this job and blocks the PR.
+        run: npm run audit:prod
+
   test-frontend:
     name: Frontend Tests
     runs-on: ubuntu-latest
@@ -77,6 +97,15 @@ jobs:
         # pytest is a superset of the unittest suites and also collects the
         # pytest-style tests (fixtures/monkeypatch) that `unittest discover`
         # silently skipped. Config (testpaths, pythonpath, benchmark ignore)
-        # lives in backend/pytest.ini.
+        # lives in backend/pytest.ini. Runs the unit + integration tiers
+        # (benchmarks are excluded by pytest.ini addopts).
         working-directory: backend
-        run: python -m pytest -v
+        run: python -m pytest -v --junitxml=test-results/backend-junit.xml
+
+      - name: Upload backend test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-test-results
+          path: backend/test-results/backend-junit.xml
+          retention-days: 14

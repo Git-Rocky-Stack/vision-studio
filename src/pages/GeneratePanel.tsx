@@ -134,6 +134,7 @@ function GenerateSectionCard({
             type="button"
             aria-expanded={!collapsed}
             aria-controls={`generate-section-body-${sectionId}`}
+            aria-label={`${collapsed ? 'Expand' : 'Collapse'} ${title} section`}
             data-testid={`toggle-generate-section-${sectionId}`}
             onClick={onToggle}
             className="raised-control vx-knob p-2 text-text-body hover:text-text-primary"

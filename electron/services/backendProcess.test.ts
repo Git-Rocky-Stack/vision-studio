@@ -3,8 +3,10 @@ import { describe, expect, it } from 'vitest';
 
 import {
   buildBackendEnvironment,
+  isExternalBackendEnabled,
   resolveBackendCommand,
   resolveBundledBackendPath,
+  shouldProbeBackendConnectivity,
 } from './backendProcess';
 
 describe('backend process helpers', () => {
@@ -81,5 +83,30 @@ describe('backend process helpers', () => {
       LOG_FILE: path.join('C:/Users/User/AppData/Roaming/Vision Studio', 'logs', 'backend.log'),
       VISION_STUDIO_BACKEND_AUTH_TOKEN: 'session-token',
     });
+  });
+});
+
+describe('external backend connectivity gating', () => {
+  it('treats the external-backend flag as opt-in (disabled by default and for falsey values)', () => {
+    expect(isExternalBackendEnabled({})).toBe(false);
+    for (const value of ['', '0', 'false', 'off', 'no', ' FALSE ', 'Off']) {
+      expect(isExternalBackendEnabled({ VISION_STUDIO_BACKEND_EXTERNAL: value })).toBe(false);
+    }
+  });
+
+  it('enables the external-backend probe for truthy opt-in values', () => {
+    for (const value of ['1', 'true', 'yes', 'on', ' 1 ', 'TRUE']) {
+      expect(isExternalBackendEnabled({ VISION_STUDIO_BACKEND_EXTERNAL: value })).toBe(true);
+    }
+  });
+
+  it('probes connectivity when a child is live OR an external backend is declared', () => {
+    expect(shouldProbeBackendConnectivity({ hasLiveChild: true, externalBackendEnabled: false })).toBe(true);
+    expect(shouldProbeBackendConnectivity({ hasLiveChild: false, externalBackendEnabled: true })).toBe(true);
+    expect(shouldProbeBackendConnectivity({ hasLiveChild: true, externalBackendEnabled: true })).toBe(true);
+  });
+
+  it('skips the probe only when there is no child and no external backend (default)', () => {
+    expect(shouldProbeBackendConnectivity({ hasLiveChild: false, externalBackendEnabled: false })).toBe(false);
   });
 });

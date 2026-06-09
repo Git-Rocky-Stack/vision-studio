@@ -279,6 +279,14 @@ Two registration sites:
 - Restarts on settings changes that affect backend behavior (`shouldRestartBackend(prev, next)` in `settings.ts`).
 - Kills the child on `window-all-closed` and `before-quit` to guarantee no orphaned Uvicorn process.
 
+**Backend lifecycle environment variables** (advanced / dev / CI use):
+
+| Variable | Effect |
+|----------|--------|
+| `VISION_STUDIO_BACKEND_HOST` | Host the FastAPI backend binds to. Defaults to loopback `127.0.0.1`; set to `0.0.0.0` only for deliberate LAN/debug exposure. Read in `backend/main.py`. |
+| `VISION_STUDIO_SKIP_BACKEND` | When set (truthy), the app does **not** spawn the bundled Python backend (`mainProcess.start()`). Used by E2E so a test can manage the backend itself. |
+| `VISION_STUDIO_BACKEND_EXTERNAL` | When set (truthy), `getSystemInfo()` probes the backend over HTTP **even though the app did not spawn it** — so a manually-run (`python main.py`) or test-mocked backend is detected as connected. Pairs with `VISION_STUDIO_SKIP_BACKEND`. Opt-in; off by default. |
+
 ### 4.4 Trust boundary enforcement
 
 `security.ts`:

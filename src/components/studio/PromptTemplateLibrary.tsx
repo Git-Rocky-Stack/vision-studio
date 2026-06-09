@@ -119,7 +119,7 @@ export const PromptTemplateLibrary = memo(function PromptTemplateLibrary({
       ) : (
         <div className="flex flex-col items-center justify-center gap-2 py-8 text-text-muted">
           <p className="text-sm">No templates found</p>
-          <p className="text-xs text-text-muted/60">
+          <p className="text-xs text-text-muted">
             Try a different search or category
           </p>
         </div>

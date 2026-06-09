@@ -1,18 +1,45 @@
-import { memo, useCallback } from 'react';
+import { lazy, memo, Suspense, useCallback } from 'react';
 import { useAppStore } from '@/store/appStore';
 import { cn } from '@/utils/cn';
 import { MonoLabel } from '@/components/hardware';
 import { GeneratePanel } from '@/pages/GeneratePanel';
-import { QuickGeneratePanel } from '@/pages/QuickGeneratePanel';
-import { BatchPanel } from '@/pages/BatchPanel';
-import { PromptStudioPanel } from '@/components/studio/PromptStudioPanel';
-import { StoryboardPanel } from '@/pages/StoryboardPanel';
-import { TemplatesPanel } from '@/pages/TemplatesPanel';
-import { EditPropertiesPanel } from '@/components/edit/EditPropertiesPanel';
-import { ToolStrip } from '@/components/edit/ToolStrip';
 import { IterationTimeline } from '@/components/iteration/IterationTimeline';
-import { PipelineBuilder } from '@/components/pipeline/PipelineBuilder';
 import type { ActiveSubMode, GenerateSubMode, StorySubMode, WorkflowsSubMode } from '@/types/navigation';
+
+// GeneratePanel is the startup surface and stays in the initial chunk. The other
+// sub-mode surfaces (batch, studio, storyboard, templates, the Konva-based edit
+// panels, and the pipeline builder) are heavy and never shown at launch, so they
+// are code-split out of the initial renderer chunk and loaded on first
+// navigation. This trims the entry chunk (less JS parsed/evaluated at startup);
+// in an Electron app the split chunks load from local disk with no network cost.
+const QuickGeneratePanel = lazy(() =>
+  import('@/pages/QuickGeneratePanel').then((m) => ({ default: m.QuickGeneratePanel })),
+);
+const BatchPanel = lazy(() => import('@/pages/BatchPanel').then((m) => ({ default: m.BatchPanel })));
+const PromptStudioPanel = lazy(() =>
+  import('@/components/studio/PromptStudioPanel').then((m) => ({ default: m.PromptStudioPanel })),
+);
+const StoryboardPanel = lazy(() =>
+  import('@/pages/StoryboardPanel').then((m) => ({ default: m.StoryboardPanel })),
+);
+const TemplatesPanel = lazy(() =>
+  import('@/pages/TemplatesPanel').then((m) => ({ default: m.TemplatesPanel })),
+);
+const EditPropertiesPanel = lazy(() =>
+  import('@/components/edit/EditPropertiesPanel').then((m) => ({ default: m.EditPropertiesPanel })),
+);
+const ToolStrip = lazy(() => import('@/components/edit/ToolStrip').then((m) => ({ default: m.ToolStrip })));
+const PipelineBuilder = lazy(() =>
+  import('@/components/pipeline/PipelineBuilder').then((m) => ({ default: m.PipelineBuilder })),
+);
+
+function PanelLoadingFallback() {
+  return (
+    <div role="status" aria-label="Loading panel" className="flex h-full items-center justify-center">
+      <div className="h-6 w-6 animate-pulse rounded-full bg-elevated" />
+    </div>
+  );
+}
 
 /* -------------------------------------------------------------------------- */
 /*  Sub-mode configuration per tab                                            */
@@ -186,7 +213,9 @@ export const DockviewSettingsPanel = memo(function DockviewSettingsPanel() {
         aria-labelledby="settings-segmented-control"
         className="scroll-shadow-y min-h-0 flex-1 overflow-y-auto"
       >
-        <SettingsContent activeTab={activeTab} activeSubMode={activeSubMode} />
+        <Suspense fallback={<PanelLoadingFallback />}>
+          <SettingsContent activeTab={activeTab} activeSubMode={activeSubMode} />
+        </Suspense>
       </div>
 
       {/* Iteration timeline for generate/canvas */}

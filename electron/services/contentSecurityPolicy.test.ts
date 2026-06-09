@@ -1,6 +1,12 @@
+import { readFileSync } from 'fs';
+import { fileURLToPath } from 'url';
+import path from 'path';
+
 import { describe, expect, it } from 'vitest';
 
 import { CONTENT_SECURITY_POLICY } from './contentSecurityPolicy';
+
+const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
 /** Parse a CSP header string into a directive -> source-list map. */
 function parseCsp(policy: string): Record<string, string[]> {
@@ -60,5 +66,33 @@ describe('CONTENT_SECURITY_POLICY', () => {
 
   it('keeps default-src locked to self', () => {
     expect(directives['default-src']).toEqual(["'self'"]);
+  });
+
+  // Regression guard for the bug a real completed-generation E2E surfaced: the
+  // session-header CSP (this constant) was fixed to allow the backend origins,
+  // but the redundant <meta http-equiv="Content-Security-Policy"> in index.html
+  // still carried the old `img-src 'self' data: blob:`. The browser enforces the
+  // INTERSECTION of both, so the stale meta kept blocking generated previews even
+  // though the header allowed them. This locks the two sources together.
+  it('keeps the index.html meta CSP in sync with the session-header CSP', () => {
+    const html = readFileSync(path.join(repoRoot, 'index.html'), 'utf8');
+    const metaTag = html.match(/<meta[^>]*http-equiv=["']Content-Security-Policy["'][^>]*>/i);
+    expect(metaTag, 'index.html must declare a Content-Security-Policy meta tag').not.toBeNull();
+    // The attribute is double-quoted but contains single-quoted sources ('self'),
+    // so capture by the opening delimiter via a backreference rather than [^"'].
+    const content = metaTag![0].match(/content=(["'])([\s\S]*?)\1/i);
+    expect(content, 'CSP meta tag must have a content attribute').not.toBeNull();
+
+    const metaDirectives = parseCsp(content![2]);
+
+    // Every directive in the header policy must be present and identical in the meta.
+    for (const [directive, sources] of Object.entries(directives)) {
+      expect(
+        metaDirectives[directive],
+        `index.html meta CSP "${directive}" must match contentSecurityPolicy.ts`,
+      ).toEqual(sources);
+    }
+    // ...and the meta must not introduce directives the header does not declare.
+    expect(Object.keys(metaDirectives).sort()).toEqual(Object.keys(directives).sort());
   });
 });
