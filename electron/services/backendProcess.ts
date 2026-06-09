@@ -134,6 +134,41 @@ export function buildBackendEnvironment({
   };
 }
 
+const EXTERNAL_BACKEND_FALSEY = new Set(['', '0', 'false', 'off', 'no']);
+
+/**
+ * Whether the user has declared that a Vision Studio backend is running
+ * out-of-process - started manually, by a dev workflow, or by an E2E harness -
+ * rather than spawned and managed by this app.
+ *
+ * When enabled, the app probes the backend over HTTP for connectivity even
+ * though it did not spawn the child itself, so a developer running
+ * `python main.py` themselves is correctly detected as connected instead of
+ * being told "the AI backend is not running". Opt-in via the
+ * `VISION_STUDIO_BACKEND_EXTERNAL` env var. Pairs with
+ * `VISION_STUDIO_SKIP_BACKEND` (do not spawn) and `VISION_STUDIO_BACKEND_HOST`
+ * (where the backend binds).
+ */
+export function isExternalBackendEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
+  const raw = (env.VISION_STUDIO_BACKEND_EXTERNAL ?? '').trim().toLowerCase();
+  return !EXTERNAL_BACKEND_FALSEY.has(raw);
+}
+
+/**
+ * Decide whether `getSystemInfo` should issue an HTTP connectivity probe: when
+ * this app manages a live backend child, OR when an externally-managed backend
+ * has been declared. Pure and host-agnostic for unit testing.
+ */
+export function shouldProbeBackendConnectivity({
+  hasLiveChild,
+  externalBackendEnabled,
+}: {
+  hasLiveChild: boolean;
+  externalBackendEnabled: boolean;
+}): boolean {
+  return hasLiveChild || externalBackendEnabled;
+}
+
 type BackendProcessServiceOptions = {
   appPaths: {
     getPath: (name: 'userData') => string;
@@ -375,7 +410,17 @@ export function createBackendProcessService({
   }
 
   async function getSystemInfo() {
-    if (pythonBackend && pythonBackend.exitCode === null) {
+    const hasLiveChild = Boolean(pythonBackend && pythonBackend.exitCode === null);
+    // Probe whether or not we spawned the child: an externally-managed backend
+    // (manual dev run / E2E harness) should still register as connected. A
+    // closed loopback port refuses the connection near-instantly, so this stays
+    // cheap when nothing is listening.
+    if (
+      shouldProbeBackendConnectivity({
+        hasLiveChild,
+        externalBackendEnabled: isExternalBackendEnabled(),
+      })
+    ) {
       try {
         const response = await fetch('http://127.0.0.1:8000/api/system/info', {
           headers: backendAuthHeaders(),
@@ -385,7 +430,7 @@ export function createBackendProcessService({
           return { ...await response.json(), backendConnected: true };
         }
       } catch {
-        // Backend process is running but not responding.
+        // Backend not reachable (no process, or running but not responding).
       }
     }
 

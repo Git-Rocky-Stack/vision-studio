@@ -28,7 +28,6 @@ export const TokenWeightedEditor = memo(function TokenWeightedEditor({
   const parsed = useMemo(() => parsePrompt(value), [value]);
 
   const isOverLimit = parsed.tokenCount > maxTokens;
-  const tokenRatio = parsed.tokenCount / maxTokens;
 
   return (
     <div className="flex flex-col gap-1.5">
@@ -40,11 +39,8 @@ export const TokenWeightedEditor = memo(function TokenWeightedEditor({
         <span
           className={cn(
             'font-mono text-xs tabular-nums',
-            isOverLimit
-              ? 'text-status-warning'
-              : tokenRatio > 0.8
-                ? 'text-text-muted'
-                : 'text-text-muted/60',
+            // text-text-muted/60 fails WCAG AA contrast (~2.7:1); muted is ~5.2:1.
+            isOverLimit ? 'text-status-warning' : 'text-text-muted',
           )}
         >
           {parsed.tokenCount}/{maxTokens}

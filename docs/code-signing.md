@@ -257,61 +257,48 @@ packaging with `npm run package:win` remains available for development builds.
 
 ## CI/CD Integration
 
-### GitHub Actions with Azure Key Vault
+Production releases are built by `.github/workflows/release.yml` (triggered by a
+`v*` tag) on `windows-latest`. The `build-windows` job:
 
-```yaml
-name: Build and Sign
+1. Runs the signing **preflight** - `npm run release:signing:check` - which fails
+   the build if no supported signing configuration is present, so no *unsigned*
+   production artifact can ever be produced or uploaded.
+2. Packages with `npm run package:win:signed`, which re-checks readiness and
+   passes the mode-specific options to electron-builder at runtime.
 
-on:
-  push:
-    tags:
-      - 'v*'
+Both steps receive the signing secrets via `env:` (see the workflow). The
+preflight (`scripts/verify-release-signing.cjs`) selects the first configured
+mode in this order: **CSC/PFX -> Windows cert-store/token -> Azure Trusted
+Signing**, matching the modes table in [Signing Process](#signing-process).
 
-jobs:
-  build-windows:
-    runs-on: windows-latest
-    
-    steps:
-      - uses: actions/checkout@v4
-      
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-      
-      - name: Install dependencies
-        run: npm ci
-      
-      - name: Build
-        run: npm run build
-      
-      - name: Azure Login
-        uses: azure/login@v1
-        with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}
-      
-      - name: Sign with Azure Key Vault
-        run: |
-          .\scripts\code-sign.ps1 `
-            -FilePath "release\Vision Studio Setup.exe" `
-            -UseAzureKeyVault `
-            -AzureKeyVaultUrl "${{ secrets.AZURE_KEY_VAULT_URL }}" `
-            -AzureCertificateName "VisionStudioEV"
-      
-      - name: Upload Signed Build
-        uses: actions/upload-artifact@v4
-        with:
-          name: signed-installer
-          path: release/
-```
+### Required GitHub repository secrets
 
-### Required Secrets
+Configure the secrets for **exactly one** mode (repo Settings -> Secrets and
+variables -> Actions). The workflow references all of them, but only one complete
+set must be present for the preflight to pass.
 
-| Secret | Description |
-|--------|-------------|
-| `AZURE_CREDENTIALS` | Service principal JSON credentials |
-| `AZURE_KEY_VAULT_URL` | Key Vault HSM endpoint URL |
-| `AZURE_CERT_NAME` | Certificate name in Key Vault |
+| Mode | Secrets |
+|------|---------|
+| **CSC / PFX** | `WIN_CSC_LINK` (or `CSC_LINK`) - base64 or URL of the `.pfx`; plus `WIN_CSC_KEY_PASSWORD` (or `CSC_KEY_PASSWORD`) |
+| **Windows cert-store / hardware token** | `WIN_CSC_SUBJECT_NAME` (or `WIN_CSC_SHA1`) - selects an installed certificate by subject name or SHA-1 thumbprint |
+| **Azure Trusted Signing** (recommended for CI) | `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, `AZURE_TRUSTED_SIGNING_ENDPOINT`, `AZURE_TRUSTED_SIGNING_ACCOUNT_NAME`, `AZURE_TRUSTED_SIGNING_CERTIFICATE_PROFILE_NAME`, plus one auth secret: `AZURE_CLIENT_SECRET`, `AZURE_CLIENT_CERTIFICATE_PATH`, or `AZURE_USERNAME` + `AZURE_PASSWORD` |
+
+> **Action required (repo owner):** the workflow is correctly wired, but it can
+> only pass once the secret **values** for one mode are set in GitHub - these
+> cannot live in the repository. Until then the signed `build-windows` job fails
+> fast at the preflight, by design (this is the audit's "signing preflight failed
+> locally" behavior, working as intended).
+
+### Development (unsigned) vs production (signed)
+
+| | Command | Signing | Use |
+|---|---------|---------|-----|
+| **Dev / local** | `npm run package:win` | none (unsigned) | Fast local installers for testing. SmartScreen will warn - expected for unsigned builds. |
+| **Production** | `npm run package:win:signed` (or the release workflow) | required - preflight-gated | Distributable signed builds. Fails fast if signing is not configured. |
+
+`npm run package:win` deliberately stays available with no credentials so
+contributors can produce local builds; only the `:signed` path and the release
+workflow enforce signing. Never distribute the unsigned dev output.
 
 ---
 
@@ -424,4 +411,4 @@ Get-AuthenticodeSignature "Vision Studio Setup.exe"
 
 ---
 
-*Last Updated: 2026-04-12*
+*Last Updated: 2026-06-08*

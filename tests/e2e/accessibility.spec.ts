@@ -29,14 +29,16 @@ interface AxeViolation {
 }
 
 /**
- * Known a11y violations that are documented as tech debt.
- * These should be fixed, but won't block the test suite.
- * When fixed, remove from this list so regressions are caught.
+ * Known a11y violations accepted as tech debt. EMPTY by design: the two former
+ * exceptions are fixed and now actively guarded against regression -
+ *   - nested-interactive: ControlNetPanel's collapsible header no longer nests
+ *     the enable switch inside a div[role="button"] (sibling buttons now).
+ *   - color-contrast: the Settings "Beta Release" badge (and other text-muted/60
+ *     usages) were raised to full text-muted (~5.2:1 on elevated surfaces).
+ * Any new critical/serious violation on Generate or Settings now fails the suite.
+ * Only add an id here with a tracking note if a violation is deliberately deferred.
  */
-const KNOWN_VIOLATIONS = new Set([
-  'color-contrast',        // Dark cinema theme has several low-contrast elements
-  'nested-interactive',    // Nested button in PromptToolbar
-]);
+const KNOWN_VIOLATIONS = new Set<string>([]);
 
 /**
  * Inject axe-core into the page and run an accessibility audit.

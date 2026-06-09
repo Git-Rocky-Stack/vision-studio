@@ -42,31 +42,27 @@ export function ControlNetPanel({ config, onChange }: ControlNetPanelProps) {
 
   return (
     <div className="rounded-md border border-border bg-elevated/50 overflow-hidden">
-      {/* Toggle Header */}
-      <div
-        onPointerDown={() => setIsExpanded(!isExpanded)}
-        role="button"
-        tabIndex={0}
-        aria-expanded={isExpanded}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault();
-            setIsExpanded(!isExpanded);
-          }
-        }}
-        className="flex items-center gap-2 w-full px-3 py-3 cursor-pointer group"
-      >
-        <Network className="w-3.5 h-3.5 text-text-muted transition-colors group-hover:text-text-body" />
-        <span className="text-label text-text-primary">ControlNet</span>
-        <div className="flex-1" />
+      {/* Toggle Header. The expand control and the enable switch are SIBLING
+          buttons - never nest one interactive element inside another (axe
+          nested-interactive); the old div[role="button"] wrapped the switch. */}
+      <div className="flex items-center gap-2 w-full px-3 py-3 group">
+        <button
+          type="button"
+          onClick={() => setIsExpanded(!isExpanded)}
+          aria-expanded={isExpanded}
+          aria-controls="controlnet-content"
+          className="flex flex-1 min-w-0 items-center gap-2 cursor-pointer rounded text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary focus-visible:ring-offset-2 focus-visible:ring-offset-void"
+        >
+          <Network className="w-3.5 h-3.5 text-text-muted transition-colors group-hover:text-text-body" />
+          <span className="text-label text-text-primary">ControlNet</span>
+        </button>
 
-        {/* Enable/Disable Toggle */}
+        {/* Enable/Disable Toggle - sibling of the expand button, not nested */}
         <button
           role="switch"
           aria-checked={config.enabled}
           aria-label="Enable ControlNet"
-          onClick={(e) => {
-            e.stopPropagation();
+          onClick={() => {
             update({ enabled: !config.enabled });
             if (!config.enabled) setIsExpanded(true);
           }}
@@ -84,6 +80,7 @@ export function ControlNetPanel({ config, onChange }: ControlNetPanelProps) {
         </button>
 
         <ChevronDown
+          aria-hidden="true"
           className={cn(
             'w-3.5 h-3.5 text-text-muted transition-transform',
             isExpanded && 'rotate-180'
@@ -95,6 +92,7 @@ export function ControlNetPanel({ config, onChange }: ControlNetPanelProps) {
       <AnimatePresence>
         {isExpanded && config.enabled && (
           <motion.div
+            id="controlnet-content"
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}

@@ -607,7 +607,7 @@ export function SettingsPanel() {
 
         <div className="mt-auto border-t border-border pt-3">
           <p className="truncate data-mono text-text-muted">{`Vision Studio v${packageJson.version}`}</p>
-          <p className="mt-1 type-badge text-text-muted/60">Beta Release</p>
+          <p className="mt-1 type-badge text-text-muted">Beta Release</p>
         </div>
       </div>
 

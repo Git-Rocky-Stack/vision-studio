@@ -4,7 +4,15 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' http://localhost:* http://127.0.0.1:* ws://localhost:* ws://127.0.0.1:*; media-src 'self' blob:;" />
+    <!--
+      Keep this CSP in sync with electron/services/contentSecurityPolicy.ts
+      (CONTENT_SECURITY_POLICY). The browser enforces the INTERSECTION of this
+      meta policy and the Electron session-header policy, so img-src/media-src
+      MUST allow the local backend origins + file: here too, or generated media
+      previews are blocked even though the header allows them. The
+      meta-matches-header consistency is locked by contentSecurityPolicy.test.ts.
+    -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: file: http://localhost:* http://127.0.0.1:*; connect-src 'self' http://localhost:* http://127.0.0.1:* ws://localhost:* ws://127.0.0.1:*; media-src 'self' blob: file: http://localhost:* http://127.0.0.1:*" />
     <title>Vision Studio - AI Image & Video Generation</title>
     <meta name="description" content="Professional AI-powered image and video generation for content creators" />
     

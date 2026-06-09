@@ -1412,7 +1412,7 @@ export const Timeline = memo(function Timeline() {
       ) : (
         <div className="flex min-h-0 flex-1 flex-col">
           <div className="min-h-0 flex-1 overflow-hidden">
-            <div className="timeline-scroll-area h-full overflow-auto">
+            <div className="timeline-scroll-area h-full overflow-auto" tabIndex={0}>
               <div
                 className="min-h-full"
                 style={{
@@ -1459,7 +1459,7 @@ export const Timeline = memo(function Timeline() {
                   </div>
                 ) : null}
 
-                <div role="listbox" aria-label="Timeline tracks" className="relative">
+                <div role="group" aria-label="Timeline tracks" className="relative">
                   <div
                     className="pointer-events-none absolute inset-y-0 z-20 w-px bg-accent-primary"
                     style={{ left: `${(currentTime / totalDurationMs) * 100}%` }}
