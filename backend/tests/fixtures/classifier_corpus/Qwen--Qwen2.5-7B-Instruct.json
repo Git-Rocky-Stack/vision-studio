@@ -1,0 +1,201 @@
+{
+  "author": "Qwen",
+  "captured": "2026-06-10",
+  "captured_unauthenticated": true,
+  "config": {
+    "architectures": [
+      "Qwen2ForCausalLM"
+    ],
+    "model_type": "qwen2"
+  },
+  "diffusers_class_tags": [],
+  "downloads": 11890117,
+  "ext_census": {
+    ".json": 6,
+    ".md": 1,
+    ".safetensors": 4,
+    ".txt": 1
+  },
+  "gated": false,
+  "ground_truth": {
+    "reason": "transformers LLM - not applicable",
+    "stratum": "non-diffusion",
+    "tier": "experimental"
+  },
+  "has_safetensors": true,
+  "library_name": "transformers",
+  "license": "apache-2.0",
+  "model_index": null,
+  "model_index_error": null,
+  "pipeline_tag": "text-generation",
+  "py_files": [],
+  "reachable": true,
+  "repo_id": "Qwen/Qwen2.5-7B-Instruct",
+  "safetensors_errors": {},
+  "safetensors_per_file": {
+    "model-00001-of-00004.safetensors": {
+      "detection_keys": [],
+      "key_prefixes": {
+        "model.embed_tokens": 1,
+        "model.layers": 81
+      },
+      "sample_keys": [
+        "model.embed_tokens.weight",
+        "model.layers.0.input_layernorm.weight",
+        "model.layers.0.mlp.down_proj.weight",
+        "model.layers.0.mlp.gate_proj.weight",
+        "model.layers.0.mlp.up_proj.weight",
+        "model.layers.0.post_attention_layernorm.weight",
+        "model.layers.0.self_attn.k_proj.bias",
+        "model.layers.0.self_attn.k_proj.weight",
+        "model.layers.0.self_attn.o_proj.weight",
+        "model.layers.0.self_attn.q_proj.bias",
+        "model.layers.0.self_attn.q_proj.weight",
+        "model.layers.0.self_attn.v_proj.bias"
+      ],
+      "tensor_count": 82
+    },
+    "model-00002-of-00004.safetensors": {
+      "detection_keys": [],
+      "key_prefixes": {
+        "model.layers": 97
+      },
+      "sample_keys": [
+        "model.layers.10.input_layernorm.weight",
+        "model.layers.10.mlp.down_proj.weight",
+        "model.layers.10.mlp.gate_proj.weight",
+        "model.layers.10.mlp.up_proj.weight",
+        "model.layers.10.post_attention_layernorm.weight",
+        "model.layers.10.self_attn.k_proj.bias",
+        "model.layers.10.self_attn.k_proj.weight",
+        "model.layers.10.self_attn.o_proj.weight",
+        "model.layers.10.self_attn.q_proj.bias",
+        "model.layers.10.self_attn.q_proj.weight",
+        "model.layers.10.self_attn.v_proj.bias",
+        "model.layers.10.self_attn.v_proj.weight"
+      ],
+      "tensor_count": 97
+    },
+    "model-00003-of-00004.safetensors": {
+      "detection_keys": [],
+      "key_prefixes": {
+        "model.layers": 97
+      },
+      "sample_keys": [
+        "model.layers.14.mlp.down_proj.weight",
+        "model.layers.14.mlp.gate_proj.weight",
+        "model.layers.15.input_layernorm.weight",
+        "model.layers.15.mlp.down_proj.weight",
+        "model.layers.15.mlp.gate_proj.weight",
+        "model.layers.15.mlp.up_proj.weight",
+        "model.layers.15.post_attention_layernorm.weight",
+        "model.layers.15.self_attn.k_proj.bias",
+        "model.layers.15.self_attn.k_proj.weight",
+        "model.layers.15.self_attn.o_proj.weight",
+        "model.layers.15.self_attn.q_proj.bias",
+        "model.layers.15.self_attn.q_proj.weight"
+      ],
+      "tensor_count": 97
+    },
+    "model-00004-of-00004.safetensors": {
+      "detection_keys": [],
+      "key_prefixes": {
+        "lm_head.weight": 1,
+        "model.layers": 61,
+        "model.norm": 1
+      },
+      "sample_keys": [
+        "lm_head.weight",
+        "model.layers.22.mlp.down_proj.weight",
+        "model.layers.23.input_layernorm.weight",
+        "model.layers.23.mlp.down_proj.weight",
+        "model.layers.23.mlp.gate_proj.weight",
+        "model.layers.23.mlp.up_proj.weight",
+        "model.layers.23.post_attention_layernorm.weight",
+        "model.layers.23.self_attn.k_proj.bias",
+        "model.layers.23.self_attn.k_proj.weight",
+        "model.layers.23.self_attn.o_proj.weight",
+        "model.layers.23.self_attn.q_proj.bias",
+        "model.layers.23.self_attn.q_proj.weight"
+      ],
+      "tensor_count": 63
+    }
+  },
+  "siblings": [
+    {
+      "name": ".gitattributes",
+      "size": 1519
+    },
+    {
+      "name": "LICENSE",
+      "size": 11343
+    },
+    {
+      "name": "README.md",
+      "size": 6240
+    },
+    {
+      "name": "config.json",
+      "size": 663
+    },
+    {
+      "name": "generation_config.json",
+      "size": 243
+    },
+    {
+      "name": "merges.txt",
+      "size": 1671839
+    },
+    {
+      "name": "model-00001-of-00004.safetensors",
+      "size": 3945441440
+    },
+    {
+      "name": "model-00002-of-00004.safetensors",
+      "size": 3864726352
+    },
+    {
+      "name": "model-00003-of-00004.safetensors",
+      "size": 3864726424
+    },
+    {
+      "name": "model-00004-of-00004.safetensors",
+      "size": 3556377672
+    },
+    {
+      "name": "model.safetensors.index.json",
+      "size": 27752
+    },
+    {
+      "name": "tokenizer.json",
+      "size": 7031645
+    },
+    {
+      "name": "tokenizer_config.json",
+      "size": 7305
+    },
+    {
+      "name": "vocab.json",
+      "size": 2776833
+    }
+  ],
+  "tags": [
+    "transformers",
+    "safetensors",
+    "qwen2",
+    "text-generation",
+    "chat",
+    "conversational",
+    "en",
+    "arxiv:2309.00071",
+    "arxiv:2407.10671",
+    "base_model:Qwen/Qwen2.5-7B",
+    "base_model:finetune:Qwen/Qwen2.5-7B",
+    "license:apache-2.0",
+    "eval-results",
+    "text-generation-inference",
+    "endpoints_compatible",
+    "deploy:azure",
+    "region:us"
+  ]
+}

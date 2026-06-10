@@ -1,0 +1,288 @@
+{
+  "author": "Qwen",
+  "captured": "2026-06-10",
+  "captured_unauthenticated": true,
+  "config": null,
+  "diffusers_class_tags": [
+    "QwenImagePipeline"
+  ],
+  "downloads": 173021,
+  "ext_census": {
+    ".jinja": 1,
+    ".json": 12,
+    ".md": 1,
+    ".safetensors": 14,
+    ".txt": 1
+  },
+  "gated": false,
+  "ground_truth": {
+    "reason": "QwenImagePipeline not shipped",
+    "stratum": "trap-unsupported",
+    "tier": "experimental"
+  },
+  "has_safetensors": true,
+  "library_name": "diffusers",
+  "license": "apache-2.0",
+  "model_index": {
+    "_class_name": "QwenImagePipeline",
+    "_diffusers_version": "0.34.0.dev0",
+    "scheduler": [
+      "diffusers",
+      "FlowMatchEulerDiscreteScheduler"
+    ],
+    "text_encoder": [
+      "transformers",
+      "Qwen2_5_VLForConditionalGeneration"
+    ],
+    "tokenizer": [
+      "transformers",
+      "Qwen2Tokenizer"
+    ],
+    "transformer": [
+      "diffusers",
+      "QwenImageTransformer2DModel"
+    ],
+    "vae": [
+      "diffusers",
+      "AutoencoderKLQwenImage"
+    ]
+  },
+  "model_index_error": null,
+  "pipeline_tag": "text-to-image",
+  "py_files": [],
+  "reachable": true,
+  "repo_id": "Qwen/Qwen-Image",
+  "safetensors_errors": {
+    "repo_level": "NotASafetensorsRepoError: 'Qwen/Qwen-Image' is not a safetensors repo. Couldn't find 'model.safetensors.index.json' or 'model.safetensors' files."
+  },
+  "safetensors_per_file": {
+    "text_encoder/model-00001-of-00004.safetensors": {
+      "detection_keys": [],
+      "key_prefixes": {
+        "model.embed_tokens": 1,
+        "model.layers": 68,
+        "visual.blocks": 384,
+        "visual.merger": 5,
+        "visual.patch_embed": 1
+      },
+      "sample_keys": [
+        "model.embed_tokens.weight",
+        "model.layers.0.input_layernorm.weight",
+        "model.layers.0.mlp.down_proj.weight",
+        "model.layers.0.mlp.gate_proj.weight",
+        "model.layers.0.mlp.up_proj.weight",
+        "model.layers.0.post_attention_layernorm.weight",
+        "model.layers.0.self_attn.k_proj.bias",
+        "model.layers.0.self_attn.k_proj.weight",
+        "model.layers.0.self_attn.o_proj.weight",
+        "model.layers.0.self_attn.q_proj.bias",
+        "model.layers.0.self_attn.q_proj.weight",
+        "model.layers.0.self_attn.v_proj.bias"
+      ],
+      "tensor_count": 459
+    },
+    "text_encoder/model-00002-of-00004.safetensors": {
+      "detection_keys": [],
+      "key_prefixes": {
+        "model.layers": 131
+      },
+      "sample_keys": [
+        "model.layers.10.input_layernorm.weight",
+        "model.layers.10.mlp.down_proj.weight",
+        "model.layers.10.mlp.gate_proj.weight",
+        "model.layers.10.mlp.up_proj.weight",
+        "model.layers.10.post_attention_layernorm.weight",
+        "model.layers.10.self_attn.k_proj.bias",
+        "model.layers.10.self_attn.k_proj.weight",
+        "model.layers.10.self_attn.o_proj.weight",
+        "model.layers.10.self_attn.q_proj.bias",
+        "model.layers.10.self_attn.q_proj.weight",
+        "model.layers.10.self_attn.v_proj.bias",
+        "model.layers.10.self_attn.v_proj.weight"
+      ],
+      "tensor_count": 131
+    },
+    "text_encoder/model-00003-of-00004.safetensors": {
+      "detection_keys": [],
+      "key_prefixes": {
+        "model.layers": 122
+      },
+      "sample_keys": [
+        "model.layers.16.input_layernorm.weight",
+        "model.layers.16.mlp.down_proj.weight",
+        "model.layers.16.mlp.gate_proj.weight",
+        "model.layers.16.mlp.up_proj.weight",
+        "model.layers.16.post_attention_layernorm.weight",
+        "model.layers.17.input_layernorm.weight",
+        "model.layers.17.mlp.down_proj.weight",
+        "model.layers.17.mlp.gate_proj.weight",
+        "model.layers.17.mlp.up_proj.weight",
+        "model.layers.17.post_attention_layernorm.weight",
+        "model.layers.17.self_attn.k_proj.bias",
+        "model.layers.17.self_attn.k_proj.weight"
+      ],
+      "tensor_count": 122
+    },
+    "text_encoder/model-00004-of-00004.safetensors": {
+      "detection_keys": [],
+      "key_prefixes": {
+        "lm_head.weight": 1,
+        "model.layers": 15,
+        "model.norm": 1
+      },
+      "sample_keys": [
+        "lm_head.weight",
+        "model.layers.26.input_layernorm.weight",
+        "model.layers.26.mlp.down_proj.weight",
+        "model.layers.26.post_attention_layernorm.weight",
+        "model.layers.27.input_layernorm.weight",
+        "model.layers.27.mlp.down_proj.weight",
+        "model.layers.27.mlp.gate_proj.weight",
+        "model.layers.27.mlp.up_proj.weight",
+        "model.layers.27.post_attention_layernorm.weight",
+        "model.layers.27.self_attn.k_proj.bias",
+        "model.layers.27.self_attn.k_proj.weight",
+        "model.layers.27.self_attn.o_proj.weight"
+      ],
+      "tensor_count": 17
+    }
+  },
+  "siblings": [
+    {
+      "name": ".gitattributes",
+      "size": 1519
+    },
+    {
+      "name": "LICENSE",
+      "size": 11343
+    },
+    {
+      "name": "README.md",
+      "size": 6778
+    },
+    {
+      "name": "model_index.json",
+      "size": 443
+    },
+    {
+      "name": "scheduler/scheduler_config.json",
+      "size": 485
+    },
+    {
+      "name": "text_encoder/config.json",
+      "size": 3217
+    },
+    {
+      "name": "text_encoder/generation_config.json",
+      "size": 244
+    },
+    {
+      "name": "text_encoder/model-00001-of-00004.safetensors",
+      "size": 4968243304
+    },
+    {
+      "name": "text_encoder/model-00002-of-00004.safetensors",
+      "size": 4991495816
+    },
+    {
+      "name": "text_encoder/model-00003-of-00004.safetensors",
+      "size": 4932751040
+    },
+    {
+      "name": "text_encoder/model-00004-of-00004.safetensors",
+      "size": 1691924384
+    },
+    {
+      "name": "text_encoder/model.safetensors.index.json",
+      "size": 57655
+    },
+    {
+      "name": "tokenizer/added_tokens.json",
+      "size": 605
+    },
+    {
+      "name": "tokenizer/chat_template.jinja",
+      "size": 2427
+    },
+    {
+      "name": "tokenizer/merges.txt",
+      "size": 1671853
+    },
+    {
+      "name": "tokenizer/special_tokens_map.json",
+      "size": 613
+    },
+    {
+      "name": "tokenizer/tokenizer_config.json",
+      "size": 4686
+    },
+    {
+      "name": "tokenizer/vocab.json",
+      "size": 3383407
+    },
+    {
+      "name": "transformer/config.json",
+      "size": 371
+    },
+    {
+      "name": "transformer/diffusion_pytorch_model-00001-of-00009.safetensors",
+      "size": 4989364312
+    },
+    {
+      "name": "transformer/diffusion_pytorch_model-00002-of-00009.safetensors",
+      "size": 4984214160
+    },
+    {
+      "name": "transformer/diffusion_pytorch_model-00003-of-00009.safetensors",
+      "size": 4946470000
+    },
+    {
+      "name": "transformer/diffusion_pytorch_model-00004-of-00009.safetensors",
+      "size": 4984213736
+    },
+    {
+      "name": "transformer/diffusion_pytorch_model-00005-of-00009.safetensors",
+      "size": 4946471896
+    },
+    {
+      "name": "transformer/diffusion_pytorch_model-00006-of-00009.safetensors",
+      "size": 4946451560
+    },
+    {
+      "name": "transformer/diffusion_pytorch_model-00007-of-00009.safetensors",
+      "size": 4908690520
+    },
+    {
+      "name": "transformer/diffusion_pytorch_model-00008-of-00009.safetensors",
+      "size": 4984232856
+    },
+    {
+      "name": "transformer/diffusion_pytorch_model-00009-of-00009.safetensors",
+      "size": 1170918840
+    },
+    {
+      "name": "transformer/diffusion_pytorch_model.safetensors.index.json",
+      "size": 198887
+    },
+    {
+      "name": "vae/config.json",
+      "size": 730
+    },
+    {
+      "name": "vae/diffusion_pytorch_model.safetensors",
+      "size": 253806966
+    }
+  ],
+  "tags": [
+    "diffusers",
+    "safetensors",
+    "text-to-image",
+    "en",
+    "zh",
+    "arxiv:2508.02324",
+    "license:apache-2.0",
+    "diffusers:QwenImagePipeline",
+    "deploy:azure",
+    "region:us"
+  ]
+}

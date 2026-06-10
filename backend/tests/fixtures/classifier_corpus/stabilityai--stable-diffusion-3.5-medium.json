@@ -1,0 +1,235 @@
+{
+  "author": "stabilityai",
+  "captured": "2026-06-10",
+  "captured_unauthenticated": true,
+  "config": null,
+  "diffusers_class_tags": [
+    "StableDiffusion3Pipeline"
+  ],
+  "downloads": 126738,
+  "ext_census": {
+    ".jpg": 1,
+    ".json": 21,
+    ".md": 3,
+    ".model": 1,
+    ".png": 1,
+    ".safetensors": 15,
+    ".txt": 2
+  },
+  "gated": "auto",
+  "ground_truth": {
+    "reason": "verified-catalog sd3.5-medium",
+    "stratum": "verified",
+    "tier": "verified"
+  },
+  "has_safetensors": true,
+  "library_name": "diffusers",
+  "license": "other",
+  "model_index": null,
+  "model_index_error": "absent:GatedRepoError",
+  "pipeline_tag": "text-to-image",
+  "py_files": [],
+  "reachable": true,
+  "repo_id": "stabilityai/stable-diffusion-3.5-medium",
+  "safetensors_errors": {
+    "repo_level": "GatedRepoError: 401 Client Error. (Request ID: Root=1-6a293a81-42c588c1181cdaf121bf9144;16d734d4-9a85-4695-bd99-43bccec84d8b)\n\nCannot access gated repo for url https://huggingface.co/stabilityai/stable-diffusion-3.5-medium/resolve/main/model.safetensors.\nAccess to model stabilityai/stable-diffusion-3.5-medium is restricted. You must have access to it and be authenticated to access it. Please log in.",
+    "sd3.5_medium.safetensors": "GatedRepoError: 401 Client Error. (Request ID: Root=1-6a293a81-246ab4d62658c9620298c0ba;0cb2bdaf-262a-4fbd-8f30-c4c8b59de6b6)\n\nCannot access gated repo for url https://huggingface.co/stabilityai/stable-diffusion-3.5-medium/resolve/main/sd3.5_medium.safetensors.\nAccess to model stabilityai/stable-diffusion-3.5-medium is restricted. You must have access to it and be authenticated to access it. Please log in.",
+    "text_encoder/model.fp16.safetensors": "GatedRepoError: 401 Client Error. (Request ID: Root=1-6a293a81-59380820341ec82e49a77564;27cf0e36-d17b-4ef5-b356-b26b46504f47)\n\nCannot access gated repo for url https://huggingface.co/stabilityai/stable-diffusion-3.5-medium/resolve/main/text_encoder/model.fp16.safetensors.\nAccess to model stabilityai/stable-diffusion-3.5-medium is restricted. You must have access to it and be authenticated to access it. Please log in.",
+    "text_encoder/model.safetensors": "GatedRepoError: 401 Client Error. (Request ID: Root=1-6a293a81-5ab5acec50a04b107b5d6f16;03ae35ce-3c72-4b47-9d6c-7b6f71dbe164)\n\nCannot access gated repo for url https://huggingface.co/stabilityai/stable-diffusion-3.5-medium/resolve/main/text_encoder/model.safetensors.\nAccess to model stabilityai/stable-diffusion-3.5-medium is restricted. You must have access to it and be authenticated to access it. Please log in.",
+    "text_encoder_2/model.fp16.safetensors": "GatedRepoError: 401 Client Error. (Request ID: Root=1-6a293a82-52a7db7809a4d5f647de9963;78658d39-a4bf-49e9-b7dd-dcc66c55a44d)\n\nCannot access gated repo for url https://huggingface.co/stabilityai/stable-diffusion-3.5-medium/resolve/main/text_encoder_2/model.fp16.safetensors.\nAccess to model stabilityai/stable-diffusion-3.5-medium is restricted. You must have access to it and be authenticated to access it. Please log in."
+  },
+  "safetensors_per_file": {},
+  "siblings": [
+    {
+      "name": ".gitattributes",
+      "size": 1519
+    },
+    {
+      "name": "LICENSE.md",
+      "size": 11726
+    },
+    {
+      "name": "README.md",
+      "size": 12100
+    },
+    {
+      "name": "SD3.5L_plus_SD3.5M_upscaling_example_workflow.json",
+      "size": 20634
+    },
+    {
+      "name": "SD3.5M_SLG_example_workflow.json",
+      "size": 16916
+    },
+    {
+      "name": "SD3.5M_example_workflow.json",
+      "size": 11982
+    },
+    {
+      "name": "mmdit-x.png",
+      "size": 345393
+    },
+    {
+      "name": "model_index.json",
+      "size": 706
+    },
+    {
+      "name": "scheduler/scheduler_config.json",
+      "size": 141
+    },
+    {
+      "name": "sd3.5_medium.safetensors",
+      "size": 5107104286
+    },
+    {
+      "name": "sd3.5_medium_demo.jpg",
+      "size": 488766
+    },
+    {
+      "name": "text_encoder/config.json",
+      "size": 574
+    },
+    {
+      "name": "text_encoder/model.fp16.safetensors",
+      "size": 247323896
+    },
+    {
+      "name": "text_encoder/model.safetensors",
+      "size": 247323896
+    },
+    {
+      "name": "text_encoder_2/config.json",
+      "size": 570
+    },
+    {
+      "name": "text_encoder_2/model.fp16.safetensors",
+      "size": 1389382176
+    },
+    {
+      "name": "text_encoder_2/model.safetensors",
+      "size": 1389382176
+    },
+    {
+      "name": "text_encoder_3/config.json",
+      "size": 740
+    },
+    {
+      "name": "text_encoder_3/model-00001-of-00002.safetensors",
+      "size": 4994582104
+    },
+    {
+      "name": "text_encoder_3/model-00002-of-00002.safetensors",
+      "size": 4530066248
+    },
+    {
+      "name": "text_encoder_3/model.fp16-00001-of-00002.safetensors",
+      "size": 4994582104
+    },
+    {
+      "name": "text_encoder_3/model.fp16-00002-of-00002.safetensors",
+      "size": 4530066248
+    },
+    {
+      "name": "text_encoder_3/model.safetensors.index.fp16.json",
+      "size": 20980
+    },
+    {
+      "name": "text_encoder_3/model.safetensors.index.json",
+      "size": 19885
+    },
+    {
+      "name": "text_encoders/README.md",
+      "size": 636
+    },
+    {
+      "name": "text_encoders/clip_g.safetensors",
+      "size": 1389382176
+    },
+    {
+      "name": "text_encoders/clip_l.safetensors",
+      "size": 246144152
+    },
+    {
+      "name": "text_encoders/t5xxl_fp16.safetensors",
+      "size": 9787841024
+    },
+    {
+      "name": "text_encoders/t5xxl_fp8_e4m3fn.safetensors",
+      "size": 4893934904
+    },
+    {
+      "name": "tokenizer/merges.txt",
+      "size": 524619
+    },
+    {
+      "name": "tokenizer/special_tokens_map.json",
+      "size": 588
+    },
+    {
+      "name": "tokenizer/tokenizer_config.json",
+      "size": 705
+    },
+    {
+      "name": "tokenizer/vocab.json",
+      "size": 1059962
+    },
+    {
+      "name": "tokenizer_2/merges.txt",
+      "size": 524619
+    },
+    {
+      "name": "tokenizer_2/special_tokens_map.json",
+      "size": 576
+    },
+    {
+      "name": "tokenizer_2/tokenizer_config.json",
+      "size": 856
+    },
+    {
+      "name": "tokenizer_2/vocab.json",
+      "size": 1059962
+    },
+    {
+      "name": "tokenizer_3/special_tokens_map.json",
+      "size": 2543
+    },
+    {
+      "name": "tokenizer_3/spiece.model",
+      "size": 791656
+    },
+    {
+      "name": "tokenizer_3/tokenizer.json",
+      "size": 2424035
+    },
+    {
+      "name": "tokenizer_3/tokenizer_config.json",
+      "size": 20617
+    },
+    {
+      "name": "transformer/config.json",
+      "size": 524
+    },
+    {
+      "name": "transformer/diffusion_pytorch_model.safetensors",
+      "size": 4939433672
+    },
+    {
+      "name": "vae/config.json",
+      "size": 809
+    },
+    {
+      "name": "vae/diffusion_pytorch_model.safetensors",
+      "size": 167666902
+    }
+  ],
+  "tags": [
+    "diffusers",
+    "safetensors",
+    "text-to-image",
+    "stable-diffusion",
+    "en",
+    "arxiv:2403.03206",
+    "license:other",
+    "diffusers:StableDiffusion3Pipeline",
+    "region:us"
+  ]
+}

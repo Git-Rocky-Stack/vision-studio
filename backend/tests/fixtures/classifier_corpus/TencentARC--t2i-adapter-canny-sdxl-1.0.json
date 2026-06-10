@@ -1,0 +1,116 @@
+{
+  "author": "TencentARC",
+  "captured": "2026-06-10",
+  "captured_unauthenticated": true,
+  "config": {
+    "_class_name": "T2IAdapter",
+    "in_channels": 3
+  },
+  "diffusers_class_tags": [],
+  "downloads": 2523,
+  "ext_census": {
+    ".json": 1,
+    ".md": 1,
+    ".safetensors": 2
+  },
+  "gated": false,
+  "ground_truth": {
+    "reason": "T2IAdapter not shipped",
+    "stratum": "trap-nearmiss",
+    "tier": "experimental"
+  },
+  "has_safetensors": true,
+  "library_name": "diffusers",
+  "license": "apache-2.0",
+  "model_index": null,
+  "model_index_error": null,
+  "pipeline_tag": "image-to-image",
+  "py_files": [],
+  "reachable": true,
+  "repo_id": "TencentARC/t2i-adapter-canny-sdxl-1.0",
+  "safetensors_errors": {
+    "repo_level": "NotASafetensorsRepoError: 'TencentARC/t2i-adapter-canny-sdxl-1.0' is not a safetensors repo. Couldn't find 'model.safetensors.index.json' or 'model.safetensors' files."
+  },
+  "safetensors_per_file": {
+    "diffusion_pytorch_model.fp16.safetensors": {
+      "detection_keys": [],
+      "key_prefixes": {
+        "adapter.body": 36,
+        "adapter.conv_in": 2
+      },
+      "sample_keys": [
+        "adapter.body.0.resnets.0.block1.bias",
+        "adapter.body.0.resnets.0.block1.weight",
+        "adapter.body.0.resnets.0.block2.bias",
+        "adapter.body.0.resnets.0.block2.weight",
+        "adapter.body.0.resnets.1.block1.bias",
+        "adapter.body.0.resnets.1.block1.weight",
+        "adapter.body.0.resnets.1.block2.bias",
+        "adapter.body.0.resnets.1.block2.weight",
+        "adapter.body.1.in_conv.bias",
+        "adapter.body.1.in_conv.weight",
+        "adapter.body.1.resnets.0.block1.bias",
+        "adapter.body.1.resnets.0.block1.weight"
+      ],
+      "tensor_count": 38
+    },
+    "diffusion_pytorch_model.safetensors": {
+      "detection_keys": [],
+      "key_prefixes": {
+        "adapter.body": 36,
+        "adapter.conv_in": 2
+      },
+      "sample_keys": [
+        "adapter.body.0.resnets.0.block1.bias",
+        "adapter.body.0.resnets.0.block1.weight",
+        "adapter.body.0.resnets.0.block2.bias",
+        "adapter.body.0.resnets.0.block2.weight",
+        "adapter.body.0.resnets.1.block1.bias",
+        "adapter.body.0.resnets.1.block1.weight",
+        "adapter.body.0.resnets.1.block2.bias",
+        "adapter.body.0.resnets.1.block2.weight",
+        "adapter.body.1.in_conv.bias",
+        "adapter.body.1.in_conv.weight",
+        "adapter.body.1.resnets.0.block1.bias",
+        "adapter.body.1.resnets.0.block1.weight"
+      ],
+      "tensor_count": 38
+    }
+  },
+  "siblings": [
+    {
+      "name": ".gitattributes",
+      "size": 1519
+    },
+    {
+      "name": "README.md",
+      "size": 8946
+    },
+    {
+      "name": "config.json",
+      "size": 293
+    },
+    {
+      "name": "diffusion_pytorch_model.fp16.safetensors",
+      "size": 158060440
+    },
+    {
+      "name": "diffusion_pytorch_model.safetensors",
+      "size": 316116778
+    }
+  ],
+  "tags": [
+    "diffusers",
+    "safetensors",
+    "art",
+    "t2i-adapter",
+    "image-to-image",
+    "stable-diffusion-xl-diffusers",
+    "stable-diffusion-xl",
+    "arxiv:2302.08453",
+    "base_model:stabilityai/stable-diffusion-xl-base-1.0",
+    "base_model:finetune:stabilityai/stable-diffusion-xl-base-1.0",
+    "license:apache-2.0",
+    "region:us"
+  ]
+}

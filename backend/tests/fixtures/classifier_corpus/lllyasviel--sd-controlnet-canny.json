@@ -1,0 +1,152 @@
+{
+  "author": "lllyasviel",
+  "captured": "2026-06-10",
+  "captured_unauthenticated": true,
+  "config": {
+    "_class_name": "ControlNetModel",
+    "cross_attention_dim": 768,
+    "in_channels": 4
+  },
+  "diffusers_class_tags": [],
+  "downloads": 21831,
+  "ext_census": {
+    ".bin": 1,
+    ".json": 1,
+    ".md": 1,
+    ".png": 4,
+    ".safetensors": 1
+  },
+  "gated": false,
+  "ground_truth": {
+    "reason": "ControlNetModel sd15",
+    "stratum": "compatible-aux",
+    "tier": "compatible"
+  },
+  "has_safetensors": true,
+  "library_name": "diffusers",
+  "license": "openrail",
+  "model_index": null,
+  "model_index_error": null,
+  "pipeline_tag": "image-to-image",
+  "py_files": [],
+  "reachable": true,
+  "repo_id": "lllyasviel/sd-controlnet-canny",
+  "safetensors_errors": {
+    "repo_level": "NotASafetensorsRepoError: 'lllyasviel/sd-controlnet-canny' is not a safetensors repo. Couldn't find 'model.safetensors.index.json' or 'model.safetensors' files."
+  },
+  "safetensors_per_file": {
+    "diffusion_pytorch_model.safetensors": {
+      "detection_keys": [
+        "controlnet_cond_embedding.blocks.0.bias",
+        "controlnet_cond_embedding.blocks.0.weight",
+        "controlnet_cond_embedding.blocks.1.bias",
+        "controlnet_cond_embedding.blocks.1.weight",
+        "controlnet_cond_embedding.blocks.2.bias",
+        "controlnet_cond_embedding.blocks.2.weight",
+        "controlnet_cond_embedding.blocks.3.bias",
+        "controlnet_cond_embedding.blocks.3.weight",
+        "controlnet_cond_embedding.blocks.4.bias",
+        "controlnet_cond_embedding.blocks.4.weight",
+        "controlnet_cond_embedding.blocks.5.bias",
+        "controlnet_cond_embedding.blocks.5.weight",
+        "controlnet_cond_embedding.conv_in.bias",
+        "controlnet_cond_embedding.conv_in.weight",
+        "controlnet_cond_embedding.conv_out.bias",
+        "controlnet_cond_embedding.conv_out.weight"
+      ],
+      "key_prefixes": {
+        "controlnet_cond_embedding.blocks": 12,
+        "controlnet_cond_embedding.conv_in": 2,
+        "controlnet_cond_embedding.conv_out": 2,
+        "controlnet_down_blocks.0": 2,
+        "controlnet_down_blocks.1": 2,
+        "controlnet_down_blocks.10": 2,
+        "controlnet_down_blocks.11": 2,
+        "controlnet_down_blocks.2": 2,
+        "controlnet_down_blocks.3": 2,
+        "controlnet_down_blocks.4": 2,
+        "controlnet_down_blocks.5": 2,
+        "controlnet_down_blocks.6": 2,
+        "controlnet_down_blocks.7": 2,
+        "controlnet_down_blocks.8": 2,
+        "controlnet_down_blocks.9": 2,
+        "controlnet_mid_block.bias": 1,
+        "controlnet_mid_block.weight": 1,
+        "down_blocks.0": 74,
+        "down_blocks.1": 76,
+        "down_blocks.2": 76,
+        "down_blocks.3": 20,
+        "mid_block.attentions": 26,
+        "mid_block.resnets": 20,
+        "time_embedding.linear_1": 2,
+        "time_embedding.linear_2": 2
+      },
+      "sample_keys": [
+        "controlnet_cond_embedding.blocks.0.bias",
+        "controlnet_cond_embedding.blocks.0.weight",
+        "controlnet_cond_embedding.blocks.1.bias",
+        "controlnet_cond_embedding.blocks.1.weight",
+        "controlnet_cond_embedding.blocks.2.bias",
+        "controlnet_cond_embedding.blocks.2.weight",
+        "controlnet_cond_embedding.blocks.3.bias",
+        "controlnet_cond_embedding.blocks.3.weight",
+        "controlnet_cond_embedding.blocks.4.bias",
+        "controlnet_cond_embedding.blocks.4.weight",
+        "controlnet_cond_embedding.blocks.5.bias",
+        "controlnet_cond_embedding.blocks.5.weight"
+      ],
+      "tensor_count": 340
+    }
+  },
+  "siblings": [
+    {
+      "name": ".gitattributes",
+      "size": 1529
+    },
+    {
+      "name": "README.md",
+      "size": 11661
+    },
+    {
+      "name": "config.json",
+      "size": 920
+    },
+    {
+      "name": "diffusion_pytorch_model.bin",
+      "size": 1445254969
+    },
+    {
+      "name": "diffusion_pytorch_model.safetensors",
+      "size": 1445157124
+    },
+    {
+      "name": "images/bird.png",
+      "size": 1065314
+    },
+    {
+      "name": "images/bird_canny.png",
+      "size": 29063
+    },
+    {
+      "name": "images/bird_canny_out.png",
+      "size": 775867
+    },
+    {
+      "name": "sd.png",
+      "size": 59531
+    }
+  ],
+  "tags": [
+    "diffusers",
+    "safetensors",
+    "art",
+    "controlnet",
+    "stable-diffusion",
+    "image-to-image",
+    "arxiv:2302.05543",
+    "base_model:runwayml/stable-diffusion-v1-5",
+    "base_model:adapter:runwayml/stable-diffusion-v1-5",
+    "license:openrail",
+    "region:us"
+  ]
+}

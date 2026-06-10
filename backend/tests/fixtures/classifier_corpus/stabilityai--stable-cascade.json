@@ -1,0 +1,819 @@
+{
+  "author": "stabilityai",
+  "captured": "2026-06-10",
+  "captured_unauthenticated": true,
+  "config": null,
+  "diffusers_class_tags": [
+    "StableCascadeDecoderPipeline"
+  ],
+  "downloads": 9443,
+  "ext_census": {
+    ".jpg": 15,
+    ".json": 10,
+    ".md": 1,
+    ".png": 1,
+    ".safetensors": 25,
+    ".txt": 1
+  },
+  "gated": false,
+  "ground_truth": {
+    "reason": "StableCascade not shipped",
+    "stratum": "trap-unsupported",
+    "tier": "experimental"
+  },
+  "has_safetensors": true,
+  "library_name": "diffusers",
+  "license": "other",
+  "model_index": {
+    "_class_name": "StableCascadeDecoderPipeline",
+    "_diffusers_version": "0.27.0.dev0",
+    "decoder": [
+      "diffusers",
+      "StableCascadeUNet"
+    ],
+    "latent_dim_scale": 10.67,
+    "scheduler": [
+      "diffusers",
+      "DDPMWuerstchenScheduler"
+    ],
+    "text_encoder": [
+      "transformers",
+      "CLIPTextModelWithProjection"
+    ],
+    "tokenizer": [
+      "transformers",
+      "CLIPTokenizerFast"
+    ],
+    "vqgan": [
+      "wuerstchen",
+      "PaellaVQModel"
+    ]
+  },
+  "model_index_error": null,
+  "pipeline_tag": "text-to-image",
+  "py_files": [],
+  "reachable": true,
+  "repo_id": "stabilityai/stable-cascade",
+  "safetensors_errors": {
+    "repo_level": "NotASafetensorsRepoError: 'stabilityai/stable-cascade' is not a safetensors repo. Couldn't find 'model.safetensors.index.json' or 'model.safetensors' files."
+  },
+  "safetensors_per_file": {
+    "comfyui_checkpoints/stable_cascade_stage_b.safetensors": {
+      "detection_keys": [
+        "model.diffusion_model.clf.1.bias",
+        "model.diffusion_model.clf.1.weight",
+        "model.diffusion_model.clip_mapper.bias",
+        "model.diffusion_model.clip_mapper.weight",
+        "model.diffusion_model.down_blocks.0.0.channelwise.0.bias",
+        "model.diffusion_model.down_blocks.0.0.channelwise.0.weight",
+        "model.diffusion_model.down_blocks.0.0.channelwise.2.beta",
+        "model.diffusion_model.down_blocks.0.0.channelwise.2.gamma",
+        "model.diffusion_model.down_blocks.0.0.channelwise.4.bias",
+        "model.diffusion_model.down_blocks.0.0.channelwise.4.weight",
+        "model.diffusion_model.down_blocks.0.0.depthwise.bias",
+        "model.diffusion_model.down_blocks.0.0.depthwise.weight",
+        "model.diffusion_model.down_blocks.0.1.mapper.bias",
+        "model.diffusion_model.down_blocks.0.1.mapper.weight",
+        "model.diffusion_model.down_blocks.0.1.mapper_sca.bias",
+        "model.diffusion_model.down_blocks.0.1.mapper_sca.weight",
+        "model.diffusion_model.down_blocks.0.2.channelwise.0.bias",
+        "model.diffusion_model.down_blocks.0.2.channelwise.0.weight",
+        "model.diffusion_model.down_blocks.0.2.channelwise.2.beta",
+        "model.diffusion_model.down_blocks.0.2.channelwise.2.gamma",
+        "model.diffusion_model.down_blocks.0.2.channelwise.4.bias",
+        "model.diffusion_model.down_blocks.0.2.channelwise.4.weight",
+        "model.diffusion_model.down_blocks.0.2.depthwise.bias",
+        "model.diffusion_model.down_blocks.0.2.depthwise.weight",
+        "model.diffusion_model.down_blocks.0.3.mapper.bias",
+        "model.diffusion_model.down_blocks.0.3.mapper.weight",
+        "model.diffusion_model.down_blocks.0.3.mapper_sca.bias",
+        "model.diffusion_model.down_blocks.0.3.mapper_sca.weight",
+        "model.diffusion_model.down_blocks.1.0.channelwise.0.bias",
+        "model.diffusion_model.down_blocks.1.0.channelwise.0.weight",
+        "model.diffusion_model.down_blocks.1.0.channelwise.2.beta",
+        "model.diffusion_model.down_blocks.1.0.channelwise.2.gamma",
+        "model.diffusion_model.down_blocks.1.0.channelwise.4.bias",
+        "model.diffusion_model.down_blocks.1.0.channelwise.4.weight",
+        "model.diffusion_model.down_blocks.1.0.depthwise.bias",
+        "model.diffusion_model.down_blocks.1.0.depthwise.weight",
+        "model.diffusion_model.down_blocks.1.1.mapper.bias",
+        "model.diffusion_model.down_blocks.1.1.mapper.weight",
+        "model.diffusion_model.down_blocks.1.1.mapper_sca.bias",
+        "model.diffusion_model.down_blocks.1.1.mapper_sca.weight",
+        "model.diffusion_model.down_blocks.1.10.channelwise.0.bias",
+        "model.diffusion_model.down_blocks.1.10.channelwise.0.weight",
+        "model.diffusion_model.down_blocks.1.10.channelwise.2.beta",
+        "model.diffusion_model.down_blocks.1.10.channelwise.2.gamma",
+        "model.diffusion_model.down_blocks.1.10.channelwise.4.bias",
+        "model.diffusion_model.down_blocks.1.10.channelwise.4.weight",
+        "model.diffusion_model.down_blocks.1.10.depthwise.bias",
+        "model.diffusion_model.down_blocks.1.10.depthwise.weight",
+        "model.diffusion_model.down_blocks.1.11.mapper.bias",
+        "model.diffusion_model.down_blocks.1.11.mapper.weight",
+        "model.diffusion_model.down_blocks.1.11.mapper_sca.bias",
+        "model.diffusion_model.down_blocks.1.11.mapper_sca.weight",
+        "model.diffusion_model.down_blocks.1.2.channelwise.0.bias",
+        "model.diffusion_model.down_blocks.1.2.channelwise.0.weight",
+        "model.diffusion_model.down_blocks.1.2.channelwise.2.beta",
+        "model.diffusion_model.down_blocks.1.2.channelwise.2.gamma",
+        "model.diffusion_model.down_blocks.1.2.channelwise.4.bias",
+        "model.diffusion_model.down_blocks.1.2.channelwise.4.weight",
+        "model.diffusion_model.down_blocks.1.2.depthwise.bias",
+        "model.diffusion_model.down_blocks.1.2.depthwise.weight",
+        "model.diffusion_model.down_blocks.1.3.mapper.bias",
+        "model.diffusion_model.down_blocks.1.3.mapper.weight",
+        "model.diffusion_model.down_blocks.1.3.mapper_sca.bias",
+        "model.diffusion_model.down_blocks.1.3.mapper_sca.weight",
+        "model.diffusion_model.down_blocks.1.4.channelwise.0.bias",
+        "model.diffusion_model.down_blocks.1.4.channelwise.0.weight",
+        "model.diffusion_model.down_blocks.1.4.channelwise.2.beta",
+        "model.diffusion_model.down_blocks.1.4.channelwise.2.gamma",
+        "model.diffusion_model.down_blocks.1.4.channelwise.4.bias",
+        "model.diffusion_model.down_blocks.1.4.channelwise.4.weight",
+        "model.diffusion_model.down_blocks.1.4.depthwise.bias",
+        "model.diffusion_model.down_blocks.1.4.depthwise.weight",
+        "model.diffusion_model.down_blocks.1.5.mapper.bias",
+        "model.diffusion_model.down_blocks.1.5.mapper.weight",
+        "model.diffusion_model.down_blocks.1.5.mapper_sca.bias",
+        "model.diffusion_model.down_blocks.1.5.mapper_sca.weight",
+        "model.diffusion_model.down_blocks.1.6.channelwise.0.bias",
+        "model.diffusion_model.down_blocks.1.6.channelwise.0.weight",
+        "model.diffusion_model.down_blocks.1.6.channelwise.2.beta",
+        "model.diffusion_model.down_blocks.1.6.channelwise.2.gamma",
+        "model.diffusion_model.down_blocks.1.6.channelwise.4.bias",
+        "model.diffusion_model.down_blocks.1.6.channelwise.4.weight",
+        "model.diffusion_model.down_blocks.1.6.depthwise.bias",
+        "model.diffusion_model.down_blocks.1.6.depthwise.weight",
+        "model.diffusion_model.down_blocks.1.7.mapper.bias",
+        "model.diffusion_model.down_blocks.1.7.mapper.weight",
+        "model.diffusion_model.down_blocks.1.7.mapper_sca.bias",
+        "model.diffusion_model.down_blocks.1.7.mapper_sca.weight",
+        "model.diffusion_model.down_blocks.1.8.channelwise.0.bias",
+        "model.diffusion_model.down_blocks.1.8.channelwise.0.weight",
+        "model.diffusion_model.down_blocks.1.8.channelwise.2.beta",
+        "model.diffusion_model.down_blocks.1.8.channelwise.2.gamma",
+        "model.diffusion_model.down_blocks.1.8.channelwise.4.bias",
+        "model.diffusion_model.down_blocks.1.8.channelwise.4.weight",
+        "model.diffusion_model.down_blocks.1.8.depthwise.bias",
+        "model.diffusion_model.down_blocks.1.8.depthwise.weight",
+        "model.diffusion_model.down_blocks.1.9.mapper.bias",
+        "model.diffusion_model.down_blocks.1.9.mapper.weight",
+        "model.diffusion_model.down_blocks.1.9.mapper_sca.bias",
+        "model.diffusion_model.down_blocks.1.9.mapper_sca.weight",
+        "model.diffusion_model.down_blocks.2.0.channelwise.0.bias",
+        "model.diffusion_model.down_blocks.2.0.channelwise.0.weight",
+        "model.diffusion_model.down_blocks.2.0.channelwise.2.beta",
+        "model.diffusion_model.down_blocks.2.0.channelwise.2.gamma",
+        "model.diffusion_model.down_blocks.2.0.channelwise.4.bias",
+        "model.diffusion_model.down_blocks.2.0.channelwise.4.weight",
+        "model.diffusion_model.down_blocks.2.0.depthwise.bias",
+        "model.diffusion_model.down_blocks.2.0.depthwise.weight",
+        "model.diffusion_model.down_blocks.2.1.mapper.bias",
+        "model.diffusion_model.down_blocks.2.1.mapper.weight",
+        "model.diffusion_model.down_blocks.2.1.mapper_sca.bias",
+        "model.diffusion_model.down_blocks.2.1.mapper_sca.weight",
+        "model.diffusion_model.down_blocks.2.10.mapper.bias",
+        "model.diffusion_model.down_blocks.2.10.mapper.weight",
+        "model.diffusion_model.down_blocks.2.10.mapper_sca.bias",
+        "model.diffusion_model.down_blocks.2.10.mapper_sca.weight",
+        "model.diffusion_model.down_blocks.2.11.attention.attn.in_proj_bias",
+        "model.diffusion_model.down_blocks.2.11.attention.attn.in_proj_weight",
+        "model.diffusion_model.down_blocks.2.11.attention.attn.out_proj.bias",
+        "model.diffusion_model.down_blocks.2.11.attention.attn.out_proj.weight",
+        "text_encoder.clip_g.transformer.text_model.encoder.layers.5.layer_norm2.bias",
+        "text_encoder.clip_g.transformer.text_model.encoder.layers.5.layer_norm2.weight",
+        "text_encoder.clip_g.transformer.text_model.encoder.layers.5.mlp.fc1.bias",
+        "text_encoder.clip_g.transformer.text_model.encoder.layers.5.mlp.fc1.weight",
+        "text_encoder.clip_g.transformer.text_model.encoder.layers.5.mlp.fc2.bias",
+        "text_encoder.clip_g.transformer.text_model.encoder.layers.5.mlp.fc2.weight",
+        "text_encoder.clip_g.transformer.text_model.encoder.layers.5.self_attn.k_proj.bias",
+        "text_encoder.clip_g.transformer.text_model.encoder.layers.5.self_attn.k_proj.weight",
+        "text_encoder.clip_g.transformer.text_model.encoder.layers.5.self_attn.out_proj.bias",
+        "text_encoder.clip_g.transformer.text_model.encoder.layers.5.self_attn.out_proj.weight",
+        "text_encoder.clip_g.transformer.text_model.encoder.layers.5.self_attn.q_proj.bias",
+        "text_encoder.clip_g.transformer.text_model.encoder.layers.5.self_attn.q_proj.weight",
+        "text_encoder.clip_g.transformer.text_model.encoder.layers.5.self_attn.v_proj.bias",
+        "text_encoder.clip_g.transformer.text_model.encoder.layers.5.self_attn.v_proj.weight",
+        "text_encoder.clip_g.transformer.text_model.encoder.layers.6.layer_norm1.bias",
+        "text_encoder.clip_g.transformer.text_model.encoder.layers.6.layer_norm1.weight",
+        "text_encoder.clip_g.transformer.text_model.encoder.layers.6.layer_norm2.bias",
+        "text_encoder.clip_g.transformer.text_model.encoder.layers.6.layer_norm2.weight",
+        "text_encoder.clip_g.transformer.text_model.encoder.layers.6.mlp.fc1.bias",
+        "text_encoder.clip_g.transformer.text_model.encoder.layers.6.mlp.fc1.weight",
+        "text_encoder.clip_g.transformer.text_model.encoder.layers.6.mlp.fc2.bias",
+        "text_encoder.clip_g.transformer.text_model.encoder.layers.6.mlp.fc2.weight",
+        "text_encoder.clip_g.transformer.text_model.encoder.layers.6.self_attn.k_proj.bias",
+        "text_encoder.clip_g.transformer.text_model.encoder.layers.6.self_attn.k_proj.weight",
+        "text_encoder.clip_g.transformer.text_model.encoder.layers.6.self_attn.out_proj.bias",
+        "text_encoder.clip_g.transformer.text_model.encoder.layers.6.self_attn.out_proj.weight",
+        "text_encoder.clip_g.transformer.text_model.encoder.layers.6.self_attn.q_proj.bias",
+        "text_encoder.clip_g.transformer.text_model.encoder.layers.6.self_attn.q_proj.weight",
+        "text_encoder.clip_g.transformer.text_model.encoder.layers.6.self_attn.v_proj.bias",
+        "text_encoder.clip_g.transformer.text_model.encoder.layers.6.self_attn.v_proj.weight",
+        "text_encoder.clip_g.transformer.text_model.encoder.layers.7.layer_norm1.bias",
+        "text_encoder.clip_g.transformer.text_model.encoder.layers.7.layer_norm1.weight",
+        "text_encoder.clip_g.transformer.text_model.encoder.layers.7.layer_norm2.bias",
+        "text_encoder.clip_g.transformer.text_model.encoder.layers.7.layer_norm2.weight",
+        "text_encoder.clip_g.transformer.text_model.encoder.layers.7.mlp.fc1.bias",
+        "text_encoder.clip_g.transformer.text_model.encoder.layers.7.mlp.fc1.weight",
+        "text_encoder.clip_g.transformer.text_model.encoder.layers.7.mlp.fc2.bias",
+        "text_encoder.clip_g.transformer.text_model.encoder.layers.7.mlp.fc2.weight",
+        "text_encoder.clip_g.transformer.text_model.encoder.layers.7.self_attn.k_proj.bias",
+        "text_encoder.clip_g.transformer.text_model.encoder.layers.7.self_attn.k_proj.weight",
+        "text_encoder.clip_g.transformer.text_model.encoder.layers.7.self_attn.out_proj.bias",
+        "text_encoder.clip_g.transformer.text_model.encoder.layers.7.self_attn.out_proj.weight",
+        "text_encoder.clip_g.transformer.text_model.encoder.layers.7.self_attn.q_proj.bias",
+        "text_encoder.clip_g.transformer.text_model.encoder.layers.7.self_attn.q_proj.weight",
+        "text_encoder.clip_g.transformer.text_model.encoder.layers.7.self_attn.v_proj.bias",
+        "text_encoder.clip_g.transformer.text_model.encoder.layers.7.self_attn.v_proj.weight",
+        "text_encoder.clip_g.transformer.text_model.encoder.layers.8.layer_norm1.bias",
+        "text_encoder.clip_g.transformer.text_model.encoder.layers.8.layer_norm1.weight",
+        "text_encoder.clip_g.transformer.text_model.encoder.layers.8.layer_norm2.bias",
+        "text_encoder.clip_g.transformer.text_model.encoder.layers.8.layer_norm2.weight",
+        "text_encoder.clip_g.transformer.text_model.encoder.layers.8.mlp.fc1.bias",
+        "text_encoder.clip_g.transformer.text_model.encoder.layers.8.mlp.fc1.weight",
+        "text_encoder.clip_g.transformer.text_model.encoder.layers.8.mlp.fc2.bias",
+        "text_encoder.clip_g.transformer.text_model.encoder.layers.8.mlp.fc2.weight",
+        "text_encoder.clip_g.transformer.text_model.encoder.layers.8.self_attn.k_proj.bias",
+        "text_encoder.clip_g.transformer.text_model.encoder.layers.8.self_attn.k_proj.weight",
+        "text_encoder.clip_g.transformer.text_model.encoder.layers.8.self_attn.out_proj.bias",
+        "text_encoder.clip_g.transformer.text_model.encoder.layers.8.self_attn.out_proj.weight",
+        "text_encoder.clip_g.transformer.text_model.encoder.layers.8.self_attn.q_proj.bias",
+        "text_encoder.clip_g.transformer.text_model.encoder.layers.8.self_attn.q_proj.weight",
+        "text_encoder.clip_g.transformer.text_model.encoder.layers.8.self_attn.v_proj.bias",
+        "text_encoder.clip_g.transformer.text_model.encoder.layers.8.self_attn.v_proj.weight",
+        "text_encoder.clip_g.transformer.text_model.encoder.layers.9.layer_norm1.bias",
+        "text_encoder.clip_g.transformer.text_model.encoder.layers.9.layer_norm1.weight",
+        "text_encoder.clip_g.transformer.text_model.encoder.layers.9.layer_norm2.bias",
+        "text_encoder.clip_g.transformer.text_model.encoder.layers.9.layer_norm2.weight",
+        "text_encoder.clip_g.transformer.text_model.encoder.layers.9.mlp.fc1.bias",
+        "text_encoder.clip_g.transformer.text_model.encoder.layers.9.mlp.fc1.weight",
+        "text_encoder.clip_g.transformer.text_model.encoder.layers.9.mlp.fc2.bias",
+        "text_encoder.clip_g.transformer.text_model.encoder.layers.9.mlp.fc2.weight",
+        "text_encoder.clip_g.transformer.text_model.encoder.layers.9.self_attn.k_proj.bias",
+        "text_encoder.clip_g.transformer.text_model.encoder.layers.9.self_attn.k_proj.weight",
+        "text_encoder.clip_g.transformer.text_model.encoder.layers.9.self_attn.out_proj.bias",
+        "text_encoder.clip_g.transformer.text_model.encoder.layers.9.self_attn.out_proj.weight",
+        "text_encoder.clip_g.transformer.text_model.encoder.layers.9.self_attn.q_proj.bias",
+        "text_encoder.clip_g.transformer.text_model.encoder.layers.9.self_attn.q_proj.weight",
+        "text_encoder.clip_g.transformer.text_model.encoder.layers.9.self_attn.v_proj.bias",
+        "text_encoder.clip_g.transformer.text_model.encoder.layers.9.self_attn.v_proj.weight",
+        "text_encoder.clip_g.transformer.text_model.final_layer_norm.bias",
+        "text_encoder.clip_g.transformer.text_model.final_layer_norm.weight"
+      ],
+      "key_prefixes": {
+        "model.diffusion_model": 1454,
+        "text_encoder.clip_g": 517,
+        "vae.down_blocks": 22,
+        "vae.in_block": 2,
+        "vae.out_block": 2,
+        "vae.up_blocks": 95,
+        "vae.vquantizer": 1
+      },
+      "sample_keys": [
+        "model.diffusion_model.clf.1.bias",
+        "model.diffusion_model.clf.1.weight",
+        "model.diffusion_model.clip_mapper.bias",
+        "model.diffusion_model.clip_mapper.weight",
+        "model.diffusion_model.down_blocks.0.0.channelwise.0.bias",
+        "model.diffusion_model.down_blocks.0.0.channelwise.0.weight",
+        "model.diffusion_model.down_blocks.0.0.channelwise.2.beta",
+        "model.diffusion_model.down_blocks.0.0.channelwise.2.gamma",
+        "model.diffusion_model.down_blocks.0.0.channelwise.4.bias",
+        "model.diffusion_model.down_blocks.0.0.channelwise.4.weight",
+        "model.diffusion_model.down_blocks.0.0.depthwise.bias",
+        "model.diffusion_model.down_blocks.0.0.depthwise.weight"
+      ],
+      "tensor_count": 2093
+    },
+    "comfyui_checkpoints/stable_cascade_stage_c.safetensors": {
+      "detection_keys": [
+        "clip_l_vision.vision_model.encoder.layers.0.layer_norm1.bias",
+        "clip_l_vision.vision_model.encoder.layers.0.layer_norm1.weight",
+        "clip_l_vision.vision_model.encoder.layers.0.layer_norm2.bias",
+        "clip_l_vision.vision_model.encoder.layers.0.layer_norm2.weight",
+        "clip_l_vision.vision_model.encoder.layers.0.mlp.fc1.bias",
+        "clip_l_vision.vision_model.encoder.layers.0.mlp.fc1.weight",
+        "clip_l_vision.vision_model.encoder.layers.0.mlp.fc2.bias",
+        "clip_l_vision.vision_model.encoder.layers.0.mlp.fc2.weight",
+        "clip_l_vision.vision_model.encoder.layers.0.self_attn.k_proj.bias",
+        "clip_l_vision.vision_model.encoder.layers.0.self_attn.k_proj.weight",
+        "clip_l_vision.vision_model.encoder.layers.0.self_attn.out_proj.bias",
+        "clip_l_vision.vision_model.encoder.layers.0.self_attn.out_proj.weight",
+        "clip_l_vision.vision_model.encoder.layers.0.self_attn.q_proj.bias",
+        "clip_l_vision.vision_model.encoder.layers.0.self_attn.q_proj.weight",
+        "clip_l_vision.vision_model.encoder.layers.0.self_attn.v_proj.bias",
+        "clip_l_vision.vision_model.encoder.layers.0.self_attn.v_proj.weight",
+        "clip_l_vision.vision_model.encoder.layers.1.layer_norm1.bias",
+        "clip_l_vision.vision_model.encoder.layers.1.layer_norm1.weight",
+        "clip_l_vision.vision_model.encoder.layers.1.layer_norm2.bias",
+        "clip_l_vision.vision_model.encoder.layers.1.layer_norm2.weight",
+        "clip_l_vision.vision_model.encoder.layers.1.mlp.fc1.bias",
+        "clip_l_vision.vision_model.encoder.layers.1.mlp.fc1.weight",
+        "clip_l_vision.vision_model.encoder.layers.1.mlp.fc2.bias",
+        "clip_l_vision.vision_model.encoder.layers.1.mlp.fc2.weight",
+        "clip_l_vision.vision_model.encoder.layers.1.self_attn.k_proj.bias",
+        "clip_l_vision.vision_model.encoder.layers.1.self_attn.k_proj.weight",
+        "clip_l_vision.vision_model.encoder.layers.1.self_attn.out_proj.bias",
+        "clip_l_vision.vision_model.encoder.layers.1.self_attn.out_proj.weight",
+        "clip_l_vision.vision_model.encoder.layers.1.self_attn.q_proj.bias",
+        "clip_l_vision.vision_model.encoder.layers.1.self_attn.q_proj.weight",
+        "clip_l_vision.vision_model.encoder.layers.1.self_attn.v_proj.bias",
+        "clip_l_vision.vision_model.encoder.layers.1.self_attn.v_proj.weight",
+        "clip_l_vision.vision_model.encoder.layers.10.layer_norm1.bias",
+        "clip_l_vision.vision_model.encoder.layers.10.layer_norm1.weight",
+        "clip_l_vision.vision_model.encoder.layers.10.layer_norm2.bias",
+        "clip_l_vision.vision_model.encoder.layers.10.layer_norm2.weight",
+        "clip_l_vision.vision_model.encoder.layers.10.mlp.fc1.bias",
+        "clip_l_vision.vision_model.encoder.layers.10.mlp.fc1.weight",
+        "clip_l_vision.vision_model.encoder.layers.10.mlp.fc2.bias",
+        "clip_l_vision.vision_model.encoder.layers.10.mlp.fc2.weight",
+        "clip_l_vision.vision_model.encoder.layers.10.self_attn.k_proj.bias",
+        "clip_l_vision.vision_model.encoder.layers.10.self_attn.k_proj.weight",
+        "clip_l_vision.vision_model.encoder.layers.10.self_attn.out_proj.bias",
+        "clip_l_vision.vision_model.encoder.layers.10.self_attn.out_proj.weight",
+        "clip_l_vision.vision_model.encoder.layers.10.self_attn.q_proj.bias",
+        "clip_l_vision.vision_model.encoder.layers.10.self_attn.q_proj.weight",
+        "clip_l_vision.vision_model.encoder.layers.10.self_attn.v_proj.bias",
+        "clip_l_vision.vision_model.encoder.layers.10.self_attn.v_proj.weight",
+        "clip_l_vision.vision_model.encoder.layers.11.layer_norm1.bias",
+        "clip_l_vision.vision_model.encoder.layers.11.layer_norm1.weight",
+        "clip_l_vision.vision_model.encoder.layers.11.layer_norm2.bias",
+        "clip_l_vision.vision_model.encoder.layers.11.layer_norm2.weight",
+        "clip_l_vision.vision_model.encoder.layers.11.mlp.fc1.bias",
+        "clip_l_vision.vision_model.encoder.layers.11.mlp.fc1.weight",
+        "clip_l_vision.vision_model.encoder.layers.11.mlp.fc2.bias",
+        "clip_l_vision.vision_model.encoder.layers.11.mlp.fc2.weight",
+        "clip_l_vision.vision_model.encoder.layers.11.self_attn.k_proj.bias",
+        "clip_l_vision.vision_model.encoder.layers.11.self_attn.k_proj.weight",
+        "clip_l_vision.vision_model.encoder.layers.11.self_attn.out_proj.bias",
+        "clip_l_vision.vision_model.encoder.layers.11.self_attn.out_proj.weight",
+        "clip_l_vision.vision_model.encoder.layers.11.self_attn.q_proj.bias",
+        "clip_l_vision.vision_model.encoder.layers.11.self_attn.q_proj.weight",
+        "clip_l_vision.vision_model.encoder.layers.11.self_attn.v_proj.bias",
+        "clip_l_vision.vision_model.encoder.layers.11.self_attn.v_proj.weight",
+        "clip_l_vision.vision_model.encoder.layers.12.layer_norm1.bias",
+        "clip_l_vision.vision_model.encoder.layers.12.layer_norm1.weight",
+        "clip_l_vision.vision_model.encoder.layers.12.layer_norm2.bias",
+        "clip_l_vision.vision_model.encoder.layers.12.layer_norm2.weight",
+        "clip_l_vision.vision_model.encoder.layers.12.mlp.fc1.bias",
+        "clip_l_vision.vision_model.encoder.layers.12.mlp.fc1.weight",
+        "clip_l_vision.vision_model.encoder.layers.12.mlp.fc2.bias",
+        "clip_l_vision.vision_model.encoder.layers.12.mlp.fc2.weight",
+        "clip_l_vision.vision_model.encoder.layers.12.self_attn.k_proj.bias",
+        "clip_l_vision.vision_model.encoder.layers.12.self_attn.k_proj.weight",
+        "clip_l_vision.vision_model.encoder.layers.12.self_attn.out_proj.bias",
+        "clip_l_vision.vision_model.encoder.layers.12.self_attn.out_proj.weight",
+        "clip_l_vision.vision_model.encoder.layers.12.self_attn.q_proj.bias",
+        "clip_l_vision.vision_model.encoder.layers.12.self_attn.q_proj.weight",
+        "clip_l_vision.vision_model.encoder.layers.12.self_attn.v_proj.bias",
+        "clip_l_vision.vision_model.encoder.layers.12.self_attn.v_proj.weight",
+        "clip_l_vision.vision_model.encoder.layers.13.layer_norm1.bias",
+        "clip_l_vision.vision_model.encoder.layers.13.layer_norm1.weight",
+        "clip_l_vision.vision_model.encoder.layers.13.layer_norm2.bias",
+        "clip_l_vision.vision_model.encoder.layers.13.layer_norm2.weight",
+        "clip_l_vision.vision_model.encoder.layers.13.mlp.fc1.bias",
+        "clip_l_vision.vision_model.encoder.layers.13.mlp.fc1.weight",
+        "clip_l_vision.vision_model.encoder.layers.13.mlp.fc2.bias",
+        "clip_l_vision.vision_model.encoder.layers.13.mlp.fc2.weight",
+        "clip_l_vision.vision_model.encoder.layers.13.self_attn.k_proj.bias",
+        "clip_l_vision.vision_model.encoder.layers.13.self_attn.k_proj.weight",
+        "clip_l_vision.vision_model.encoder.layers.13.self_attn.out_proj.bias",
+        "clip_l_vision.vision_model.encoder.layers.13.self_attn.out_proj.weight",
+        "clip_l_vision.vision_model.encoder.layers.13.self_attn.q_proj.bias",
+        "clip_l_vision.vision_model.encoder.layers.13.self_attn.q_proj.weight",
+        "clip_l_vision.vision_model.encoder.layers.13.self_attn.v_proj.bias",
+        "clip_l_vision.vision_model.encoder.layers.13.self_attn.v_proj.weight",
+        "clip_l_vision.vision_model.encoder.layers.14.layer_norm1.bias",
+        "clip_l_vision.vision_model.encoder.layers.14.layer_norm1.weight",
+        "clip_l_vision.vision_model.encoder.layers.14.layer_norm2.bias",
+        "clip_l_vision.vision_model.encoder.layers.14.layer_norm2.weight",
+        "clip_l_vision.vision_model.encoder.layers.14.mlp.fc1.bias",
+        "clip_l_vision.vision_model.encoder.layers.14.mlp.fc1.weight",
+        "clip_l_vision.vision_model.encoder.layers.14.mlp.fc2.bias",
+        "clip_l_vision.vision_model.encoder.layers.14.mlp.fc2.weight",
+        "clip_l_vision.vision_model.encoder.layers.14.self_attn.k_proj.bias",
+        "clip_l_vision.vision_model.encoder.layers.14.self_attn.k_proj.weight",
+        "clip_l_vision.vision_model.encoder.layers.14.self_attn.out_proj.bias",
+        "clip_l_vision.vision_model.encoder.layers.14.self_attn.out_proj.weight",
+        "clip_l_vision.vision_model.encoder.layers.14.self_attn.q_proj.bias",
+        "clip_l_vision.vision_model.encoder.layers.14.self_attn.q_proj.weight",
+        "clip_l_vision.vision_model.encoder.layers.14.self_attn.v_proj.bias",
+        "clip_l_vision.vision_model.encoder.layers.14.self_attn.v_proj.weight",
+        "clip_l_vision.vision_model.encoder.layers.15.layer_norm1.bias",
+        "clip_l_vision.vision_model.encoder.layers.15.layer_norm1.weight",
+        "clip_l_vision.vision_model.encoder.layers.15.layer_norm2.bias",
+        "clip_l_vision.vision_model.encoder.layers.15.layer_norm2.weight",
+        "clip_l_vision.vision_model.encoder.layers.15.mlp.fc1.bias",
+        "clip_l_vision.vision_model.encoder.layers.15.mlp.fc1.weight",
+        "clip_l_vision.vision_model.encoder.layers.15.mlp.fc2.bias",
+        "clip_l_vision.vision_model.encoder.layers.15.mlp.fc2.weight",
+        "vae.encoder.backbone.6.6.block.3.1.num_batches_tracked",
+        "vae.encoder.backbone.6.6.block.3.1.running_mean",
+        "vae.encoder.backbone.6.6.block.3.1.running_var",
+        "vae.encoder.backbone.6.6.block.3.1.weight",
+        "vae.encoder.backbone.6.7.block.0.0.weight",
+        "vae.encoder.backbone.6.7.block.0.1.bias",
+        "vae.encoder.backbone.6.7.block.0.1.num_batches_tracked",
+        "vae.encoder.backbone.6.7.block.0.1.running_mean",
+        "vae.encoder.backbone.6.7.block.0.1.running_var",
+        "vae.encoder.backbone.6.7.block.0.1.weight",
+        "vae.encoder.backbone.6.7.block.1.0.weight",
+        "vae.encoder.backbone.6.7.block.1.1.bias",
+        "vae.encoder.backbone.6.7.block.1.1.num_batches_tracked",
+        "vae.encoder.backbone.6.7.block.1.1.running_mean",
+        "vae.encoder.backbone.6.7.block.1.1.running_var",
+        "vae.encoder.backbone.6.7.block.1.1.weight",
+        "vae.encoder.backbone.6.7.block.2.fc1.bias",
+        "vae.encoder.backbone.6.7.block.2.fc1.weight",
+        "vae.encoder.backbone.6.7.block.2.fc2.bias",
+        "vae.encoder.backbone.6.7.block.2.fc2.weight",
+        "vae.encoder.backbone.6.7.block.3.0.weight",
+        "vae.encoder.backbone.6.7.block.3.1.bias",
+        "vae.encoder.backbone.6.7.block.3.1.num_batches_tracked",
+        "vae.encoder.backbone.6.7.block.3.1.running_mean",
+        "vae.encoder.backbone.6.7.block.3.1.running_var",
+        "vae.encoder.backbone.6.7.block.3.1.weight",
+        "vae.encoder.backbone.6.8.block.0.0.weight",
+        "vae.encoder.backbone.6.8.block.0.1.bias",
+        "vae.encoder.backbone.6.8.block.0.1.num_batches_tracked",
+        "vae.encoder.backbone.6.8.block.0.1.running_mean",
+        "vae.encoder.backbone.6.8.block.0.1.running_var",
+        "vae.encoder.backbone.6.8.block.0.1.weight",
+        "vae.encoder.backbone.6.8.block.1.0.weight",
+        "vae.encoder.backbone.6.8.block.1.1.bias",
+        "vae.encoder.backbone.6.8.block.1.1.num_batches_tracked",
+        "vae.encoder.backbone.6.8.block.1.1.running_mean",
+        "vae.encoder.backbone.6.8.block.1.1.running_var",
+        "vae.encoder.backbone.6.8.block.1.1.weight",
+        "vae.encoder.backbone.6.8.block.2.fc1.bias",
+        "vae.encoder.backbone.6.8.block.2.fc1.weight",
+        "vae.encoder.backbone.6.8.block.2.fc2.bias",
+        "vae.encoder.backbone.6.8.block.2.fc2.weight",
+        "vae.encoder.backbone.6.8.block.3.0.weight",
+        "vae.encoder.backbone.6.8.block.3.1.bias",
+        "vae.encoder.backbone.6.8.block.3.1.num_batches_tracked",
+        "vae.encoder.backbone.6.8.block.3.1.running_mean",
+        "vae.encoder.backbone.6.8.block.3.1.running_var",
+        "vae.encoder.backbone.6.8.block.3.1.weight",
+        "vae.encoder.backbone.6.9.block.0.0.weight",
+        "vae.encoder.backbone.6.9.block.0.1.bias",
+        "vae.encoder.backbone.6.9.block.0.1.num_batches_tracked",
+        "vae.encoder.backbone.6.9.block.0.1.running_mean",
+        "vae.encoder.backbone.6.9.block.0.1.running_var",
+        "vae.encoder.backbone.6.9.block.0.1.weight",
+        "vae.encoder.backbone.6.9.block.1.0.weight",
+        "vae.encoder.backbone.6.9.block.1.1.bias",
+        "vae.encoder.backbone.6.9.block.1.1.num_batches_tracked",
+        "vae.encoder.backbone.6.9.block.1.1.running_mean",
+        "vae.encoder.backbone.6.9.block.1.1.running_var",
+        "vae.encoder.backbone.6.9.block.1.1.weight",
+        "vae.encoder.backbone.6.9.block.2.fc1.bias",
+        "vae.encoder.backbone.6.9.block.2.fc1.weight",
+        "vae.encoder.backbone.6.9.block.2.fc2.bias",
+        "vae.encoder.backbone.6.9.block.2.fc2.weight",
+        "vae.encoder.backbone.6.9.block.3.0.weight",
+        "vae.encoder.backbone.6.9.block.3.1.bias",
+        "vae.encoder.backbone.6.9.block.3.1.num_batches_tracked",
+        "vae.encoder.backbone.6.9.block.3.1.running_mean",
+        "vae.encoder.backbone.6.9.block.3.1.running_var",
+        "vae.encoder.backbone.6.9.block.3.1.weight",
+        "vae.encoder.backbone.7.0.weight",
+        "vae.encoder.backbone.7.1.bias",
+        "vae.encoder.backbone.7.1.num_batches_tracked",
+        "vae.encoder.backbone.7.1.running_mean",
+        "vae.encoder.backbone.7.1.running_var",
+        "vae.encoder.backbone.7.1.weight",
+        "vae.encoder.mapper.0.weight",
+        "vae.encoder.mapper.1.num_batches_tracked",
+        "vae.encoder.mapper.1.running_mean",
+        "vae.encoder.mapper.1.running_var"
+      ],
+      "key_prefixes": {
+        "clip_l_vision.vision_model": 392,
+        "clip_l_vision.visual_projection": 1,
+        "model.diffusion_model": 1294,
+        "text_encoder.clip_g": 517,
+        "vae.encoder": 784,
+        "vae.previewer": 58
+      },
+      "sample_keys": [
+        "clip_l_vision.vision_model.embeddings.class_embedding",
+        "clip_l_vision.vision_model.embeddings.patch_embedding.weight",
+        "clip_l_vision.vision_model.embeddings.position_embedding.weight",
+        "clip_l_vision.vision_model.embeddings.position_ids",
+        "clip_l_vision.vision_model.encoder.layers.0.layer_norm1.bias",
+        "clip_l_vision.vision_model.encoder.layers.0.layer_norm1.weight",
+        "clip_l_vision.vision_model.encoder.layers.0.layer_norm2.bias",
+        "clip_l_vision.vision_model.encoder.layers.0.layer_norm2.weight",
+        "clip_l_vision.vision_model.encoder.layers.0.mlp.fc1.bias",
+        "clip_l_vision.vision_model.encoder.layers.0.mlp.fc1.weight",
+        "clip_l_vision.vision_model.encoder.layers.0.mlp.fc2.bias",
+        "clip_l_vision.vision_model.encoder.layers.0.mlp.fc2.weight"
+      ],
+      "tensor_count": 3046
+    },
+    "controlnet/canny.safetensors": {
+      "detection_keys": [],
+      "key_prefixes": {
+        "backbone.0": 6,
+        "backbone.1": 12,
+        "backbone.2": 48,
+        "backbone.3": 48,
+        "backbone.4": 132,
+        "backbone.5": 198,
+        "backbone.6": 330,
+        "backbone.7": 6,
+        "projections.0": 2,
+        "projections.1": 2,
+        "projections.2": 2,
+        "projections.3": 2,
+        "projections.4": 2,
+        "projections.5": 2,
+        "projections.6": 2,
+        "projections.7": 2
+      },
+      "sample_keys": [
+        "backbone.0.0.weight",
+        "backbone.0.1.bias",
+        "backbone.0.1.num_batches_tracked",
+        "backbone.0.1.running_mean",
+        "backbone.0.1.running_var",
+        "backbone.0.1.weight",
+        "backbone.1.0.block.0.0.weight",
+        "backbone.1.0.block.0.1.bias",
+        "backbone.1.0.block.0.1.num_batches_tracked",
+        "backbone.1.0.block.0.1.running_mean",
+        "backbone.1.0.block.0.1.running_var",
+        "backbone.1.0.block.0.1.weight"
+      ],
+      "tensor_count": 796
+    },
+    "controlnet/inpainting.safetensors": {
+      "detection_keys": [],
+      "key_prefixes": {
+        "backbone.0": 6,
+        "backbone.1": 12,
+        "backbone.2": 48,
+        "backbone.3": 48,
+        "backbone.4": 132,
+        "backbone.5": 198,
+        "backbone.6": 330,
+        "backbone.7": 6,
+        "projections.0": 2,
+        "projections.1": 2,
+        "projections.2": 2,
+        "projections.3": 2,
+        "projections.4": 2,
+        "projections.5": 2,
+        "projections.6": 2,
+        "projections.7": 2
+      },
+      "sample_keys": [
+        "backbone.0.0.weight",
+        "backbone.0.1.bias",
+        "backbone.0.1.num_batches_tracked",
+        "backbone.0.1.running_mean",
+        "backbone.0.1.running_var",
+        "backbone.0.1.weight",
+        "backbone.1.0.block.0.0.weight",
+        "backbone.1.0.block.0.1.bias",
+        "backbone.1.0.block.0.1.num_batches_tracked",
+        "backbone.1.0.block.0.1.running_mean",
+        "backbone.1.0.block.0.1.running_var",
+        "backbone.1.0.block.0.1.weight"
+      ],
+      "tensor_count": 796
+    }
+  },
+  "siblings": [
+    {
+      "name": ".gitattributes",
+      "size": 1635
+    },
+    {
+      "name": "LICENSE",
+      "size": 7452
+    },
+    {
+      "name": "README.md",
+      "size": 9961
+    },
+    {
+      "name": "comfyui_checkpoints/stable_cascade_stage_b.safetensors",
+      "size": 4552331265
+    },
+    {
+      "name": "comfyui_checkpoints/stable_cascade_stage_c.safetensors",
+      "size": 9224575566
+    },
+    {
+      "name": "controlnet/canny.safetensors",
+      "size": 217739268
+    },
+    {
+      "name": "controlnet/inpainting.safetensors",
+      "size": 217741855
+    },
+    {
+      "name": "controlnet/super_resolution.safetensors",
+      "size": 813989376
+    },
+    {
+      "name": "decoder/config.json",
+      "size": 1318
+    },
+    {
+      "name": "decoder/diffusion_pytorch_model.bf16.safetensors",
+      "size": 3126071088
+    },
+    {
+      "name": "decoder/diffusion_pytorch_model.safetensors",
+      "size": 6251952232
+    },
+    {
+      "name": "decoder_lite/config.json",
+      "size": 1318
+    },
+    {
+      "name": "decoder_lite/diffusion_pytorch_model.bf16.safetensors",
+      "size": 1399047416
+    },
+    {
+      "name": "decoder_lite/diffusion_pytorch_model.safetensors",
+      "size": 2797989648
+    },
+    {
+      "name": "effnet_encoder.safetensors",
+      "size": 81506763
+    },
+    {
+      "name": "figures/collage_1.jpg",
+      "size": 1508888
+    },
+    {
+      "name": "figures/collage_2.jpg",
+      "size": 783068
+    },
+    {
+      "name": "figures/collage_3.jpg",
+      "size": 1021116
+    },
+    {
+      "name": "figures/collage_4.jpg",
+      "size": 722863
+    },
+    {
+      "name": "figures/comparison.png",
+      "size": 54043
+    },
+    {
+      "name": "figures/controlnet-canny.jpg",
+      "size": 809313
+    },
+    {
+      "name": "figures/controlnet-face.jpg",
+      "size": 791059
+    },
+    {
+      "name": "figures/controlnet-paint.jpg",
+      "size": 787163
+    },
+    {
+      "name": "figures/fernando.jpg",
+      "size": 326467
+    },
+    {
+      "name": "figures/fernando_original.jpg",
+      "size": 438116
+    },
+    {
+      "name": "figures/image-to-image-example-rodent.jpg",
+      "size": 807096
+    },
+    {
+      "name": "figures/image-variations-example-headset.jpg",
+      "size": 633367
+    },
+    {
+      "name": "figures/model-overview.jpg",
+      "size": 87944
+    },
+    {
+      "name": "figures/original.jpg",
+      "size": 389305
+    },
+    {
+      "name": "figures/reconstructed.jpg",
+      "size": 401563
+    },
+    {
+      "name": "figures/text-to-image-example-penguin.jpg",
+      "size": 379607
+    },
+    {
+      "name": "model_index.json",
+      "size": 451
+    },
+    {
+      "name": "previewer.safetensors",
+      "size": 15954183
+    },
+    {
+      "name": "scheduler/scheduler_config.json",
+      "size": 117
+    },
+    {
+      "name": "stage_a.safetensors",
+      "size": 73654345
+    },
+    {
+      "name": "stage_b.safetensors",
+      "size": 6251950402
+    },
+    {
+      "name": "stage_b_bf16.safetensors",
+      "size": 3126069112
+    },
+    {
+      "name": "stage_b_lite.safetensors",
+      "size": 2797995764
+    },
+    {
+      "name": "stage_b_lite_bf16.safetensors",
+      "size": 1399053542
+    },
+    {
+      "name": "stage_c.safetensors",
+      "size": 14356582818
+    },
+    {
+      "name": "stage_c_bf16.safetensors",
+      "size": 7178375922
+    },
+    {
+      "name": "stage_c_lite.safetensors",
+      "size": 4123231220
+    },
+    {
+      "name": "stage_c_lite_bf16.safetensors",
+      "size": 2061661425
+    },
+    {
+      "name": "stage_c_pretrained.safetensors",
+      "size": 14356582894
+    },
+    {
+      "name": "text_encoder/config.json",
+      "size": 642
+    },
+    {
+      "name": "text_encoder/model.bf16.safetensors",
+      "size": 1389382688
+    },
+    {
+      "name": "text_encoder/model.safetensors",
+      "size": 1389382688
+    },
+    {
+      "name": "tokenizer/merges.txt",
+      "size": 524619
+    },
+    {
+      "name": "tokenizer/special_tokens_map.json",
+      "size": 588
+    },
+    {
+      "name": "tokenizer/tokenizer.json",
+      "size": 2224119
+    },
+    {
+      "name": "tokenizer/tokenizer_config.json",
+      "size": 705
+    },
+    {
+      "name": "tokenizer/vocab.json",
+      "size": 862328
+    },
+    {
+      "name": "vqgan/config.json",
+      "size": 328
+    },
+    {
+      "name": "vqgan/diffusion_pytorch_model.bf16.safetensors",
+      "size": 36825828
+    },
+    {
+      "name": "vqgan/diffusion_pytorch_model.safetensors",
+      "size": 73639568
+    }
+  ],
+  "tags": [
+    "diffusers",
+    "safetensors",
+    "text-to-image",
+    "license:other",
+    "diffusers:StableCascadeDecoderPipeline",
+    "region:us"
+  ]
+}

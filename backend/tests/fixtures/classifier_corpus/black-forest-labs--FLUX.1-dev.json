@@ -1,0 +1,171 @@
+{
+  "author": "black-forest-labs",
+  "captured": "2026-06-10",
+  "captured_unauthenticated": true,
+  "config": null,
+  "diffusers_class_tags": [
+    "FluxPipeline"
+  ],
+  "downloads": 984011,
+  "ext_census": {
+    ".jpg": 1,
+    ".json": 14,
+    ".md": 2,
+    ".model": 1,
+    ".safetensors": 9,
+    ".txt": 1
+  },
+  "gated": "auto",
+  "ground_truth": {
+    "reason": "verified-catalog flux-dev",
+    "stratum": "verified",
+    "tier": "verified"
+  },
+  "has_safetensors": true,
+  "library_name": "diffusers",
+  "license": "other",
+  "model_index": null,
+  "model_index_error": "absent:GatedRepoError",
+  "pipeline_tag": "text-to-image",
+  "py_files": [],
+  "reachable": true,
+  "repo_id": "black-forest-labs/FLUX.1-dev",
+  "safetensors_errors": {
+    "ae.safetensors": "GatedRepoError: 401 Client Error. (Request ID: Root=1-6a293a80-24790f595dca89a41c1cb185;a335586a-fd03-403e-aef0-1d2fe4f5fd9a)\n\nCannot access gated repo for url https://huggingface.co/black-forest-labs/FLUX.1-dev/resolve/main/ae.safetensors.\nAccess to model black-forest-labs/FLUX.1-dev is restricted. You must have access to it and be authenticated to access it. Please log in.",
+    "flux1-dev.safetensors": "GatedRepoError: 401 Client Error. (Request ID: Root=1-6a293a80-264a1e4448dabfda3d8f66ef;999c4ab8-adfb-4b98-863f-4bc5a2477bd3)\n\nCannot access gated repo for url https://huggingface.co/black-forest-labs/FLUX.1-dev/resolve/main/flux1-dev.safetensors.\nAccess to model black-forest-labs/FLUX.1-dev is restricted. You must have access to it and be authenticated to access it. Please log in.",
+    "repo_level": "GatedRepoError: 401 Client Error. (Request ID: Root=1-6a293a80-7e1ef56c114a199e5830de9b;84becc60-683b-4997-90c0-992578972d92)\n\nCannot access gated repo for url https://huggingface.co/black-forest-labs/FLUX.1-dev/resolve/main/model.safetensors.\nAccess to model black-forest-labs/FLUX.1-dev is restricted. You must have access to it and be authenticated to access it. Please log in.",
+    "text_encoder/model.safetensors": "GatedRepoError: 401 Client Error. (Request ID: Root=1-6a293a80-46be1bf876a6b9361969c936;6ff98441-4110-4cea-9990-6cc513ebb0c6)\n\nCannot access gated repo for url https://huggingface.co/black-forest-labs/FLUX.1-dev/resolve/main/text_encoder/model.safetensors.\nAccess to model black-forest-labs/FLUX.1-dev is restricted. You must have access to it and be authenticated to access it. Please log in.",
+    "text_encoder_2/model-00001-of-00002.safetensors": "GatedRepoError: 401 Client Error. (Request ID: Root=1-6a293a80-50cd86f808ad0d1404c1dcbd;f3f7b6eb-55ae-4190-aedc-b11cea62fd7d)\n\nCannot access gated repo for url https://huggingface.co/black-forest-labs/FLUX.1-dev/resolve/main/text_encoder_2/model-00001-of-00002.safetensors.\nAccess to model black-forest-labs/FLUX.1-dev is restricted. You must have access to it and be authenticated to access it. Please log in."
+  },
+  "safetensors_per_file": {},
+  "siblings": [
+    {
+      "name": ".gitattributes",
+      "size": 1655
+    },
+    {
+      "name": "LICENSE.md",
+      "size": 18621
+    },
+    {
+      "name": "README.md",
+      "size": 4394
+    },
+    {
+      "name": "ae.safetensors",
+      "size": 335304388
+    },
+    {
+      "name": "dev_grid.jpg",
+      "size": 1301528
+    },
+    {
+      "name": "flux1-dev.safetensors",
+      "size": 23802932552
+    },
+    {
+      "name": "model_index.json",
+      "size": 536
+    },
+    {
+      "name": "scheduler/scheduler_config.json",
+      "size": 273
+    },
+    {
+      "name": "text_encoder/config.json",
+      "size": 613
+    },
+    {
+      "name": "text_encoder/model.safetensors",
+      "size": 246144352
+    },
+    {
+      "name": "text_encoder_2/config.json",
+      "size": 782
+    },
+    {
+      "name": "text_encoder_2/model-00001-of-00002.safetensors",
+      "size": 4994582224
+    },
+    {
+      "name": "text_encoder_2/model-00002-of-00002.safetensors",
+      "size": 4530066360
+    },
+    {
+      "name": "text_encoder_2/model.safetensors.index.json",
+      "size": 19885
+    },
+    {
+      "name": "tokenizer/merges.txt",
+      "size": 524619
+    },
+    {
+      "name": "tokenizer/special_tokens_map.json",
+      "size": 588
+    },
+    {
+      "name": "tokenizer/tokenizer_config.json",
+      "size": 705
+    },
+    {
+      "name": "tokenizer/vocab.json",
+      "size": 1059962
+    },
+    {
+      "name": "tokenizer_2/special_tokens_map.json",
+      "size": 2543
+    },
+    {
+      "name": "tokenizer_2/spiece.model",
+      "size": 791656
+    },
+    {
+      "name": "tokenizer_2/tokenizer.json",
+      "size": 2424235
+    },
+    {
+      "name": "tokenizer_2/tokenizer_config.json",
+      "size": 20817
+    },
+    {
+      "name": "transformer/config.json",
+      "size": 378
+    },
+    {
+      "name": "transformer/diffusion_pytorch_model-00001-of-00003.safetensors",
+      "size": 9983040304
+    },
+    {
+      "name": "transformer/diffusion_pytorch_model-00002-of-00003.safetensors",
+      "size": 9949328904
+    },
+    {
+      "name": "transformer/diffusion_pytorch_model-00003-of-00003.safetensors",
+      "size": 3870584832
+    },
+    {
+      "name": "transformer/diffusion_pytorch_model.safetensors.index.json",
+      "size": 121262
+    },
+    {
+      "name": "vae/config.json",
+      "size": 820
+    },
+    {
+      "name": "vae/diffusion_pytorch_model.safetensors",
+      "size": 167666902
+    }
+  ],
+  "tags": [
+    "diffusers",
+    "safetensors",
+    "text-to-image",
+    "image-generation",
+    "flux",
+    "en",
+    "license:other",
+    "endpoints_compatible",
+    "diffusers:FluxPipeline",
+    "region:us"
+  ]
+}

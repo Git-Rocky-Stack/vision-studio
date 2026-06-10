@@ -1,0 +1,339 @@
+{
+  "author": "sentence-transformers",
+  "captured": "2026-06-10",
+  "captured_unauthenticated": true,
+  "config": {
+    "architectures": [
+      "BertModel"
+    ],
+    "model_type": "bert"
+  },
+  "diffusers_class_tags": [],
+  "downloads": 223586670,
+  "ext_census": {
+    ".bin": 3,
+    ".h5": 1,
+    ".json": 9,
+    ".md": 1,
+    ".onnx": 9,
+    ".ot": 1,
+    ".py": 1,
+    ".safetensors": 1,
+    ".txt": 1,
+    ".xml": 2
+  },
+  "gated": false,
+  "ground_truth": {
+    "reason": "embedding model - not applicable",
+    "stratum": "non-diffusion",
+    "tier": "experimental"
+  },
+  "has_safetensors": true,
+  "library_name": "sentence-transformers",
+  "license": "apache-2.0",
+  "model_index": null,
+  "model_index_error": null,
+  "pipeline_tag": "sentence-similarity",
+  "py_files": [
+    "train_script.py"
+  ],
+  "reachable": true,
+  "repo_id": "sentence-transformers/all-MiniLM-L6-v2",
+  "safetensors_errors": {},
+  "safetensors_per_file": {
+    "model.safetensors": {
+      "detection_keys": [
+        "encoder.layer.0.attention.output.LayerNorm.bias",
+        "encoder.layer.0.attention.output.LayerNorm.weight",
+        "encoder.layer.0.attention.output.dense.bias",
+        "encoder.layer.0.attention.output.dense.weight",
+        "encoder.layer.0.attention.self.key.bias",
+        "encoder.layer.0.attention.self.key.weight",
+        "encoder.layer.0.attention.self.query.bias",
+        "encoder.layer.0.attention.self.query.weight",
+        "encoder.layer.0.attention.self.value.bias",
+        "encoder.layer.0.attention.self.value.weight",
+        "encoder.layer.0.intermediate.dense.bias",
+        "encoder.layer.0.intermediate.dense.weight",
+        "encoder.layer.0.output.LayerNorm.bias",
+        "encoder.layer.0.output.LayerNorm.weight",
+        "encoder.layer.0.output.dense.bias",
+        "encoder.layer.0.output.dense.weight",
+        "encoder.layer.1.attention.output.LayerNorm.bias",
+        "encoder.layer.1.attention.output.LayerNorm.weight",
+        "encoder.layer.1.attention.output.dense.bias",
+        "encoder.layer.1.attention.output.dense.weight",
+        "encoder.layer.1.attention.self.key.bias",
+        "encoder.layer.1.attention.self.key.weight",
+        "encoder.layer.1.attention.self.query.bias",
+        "encoder.layer.1.attention.self.query.weight",
+        "encoder.layer.1.attention.self.value.bias",
+        "encoder.layer.1.attention.self.value.weight",
+        "encoder.layer.1.intermediate.dense.bias",
+        "encoder.layer.1.intermediate.dense.weight",
+        "encoder.layer.1.output.LayerNorm.bias",
+        "encoder.layer.1.output.LayerNorm.weight",
+        "encoder.layer.1.output.dense.bias",
+        "encoder.layer.1.output.dense.weight",
+        "encoder.layer.2.attention.output.LayerNorm.bias",
+        "encoder.layer.2.attention.output.LayerNorm.weight",
+        "encoder.layer.2.attention.output.dense.bias",
+        "encoder.layer.2.attention.output.dense.weight",
+        "encoder.layer.2.attention.self.key.bias",
+        "encoder.layer.2.attention.self.key.weight",
+        "encoder.layer.2.attention.self.query.bias",
+        "encoder.layer.2.attention.self.query.weight",
+        "encoder.layer.2.attention.self.value.bias",
+        "encoder.layer.2.attention.self.value.weight",
+        "encoder.layer.2.intermediate.dense.bias",
+        "encoder.layer.2.intermediate.dense.weight",
+        "encoder.layer.2.output.LayerNorm.bias",
+        "encoder.layer.2.output.LayerNorm.weight",
+        "encoder.layer.2.output.dense.bias",
+        "encoder.layer.2.output.dense.weight",
+        "encoder.layer.3.attention.output.LayerNorm.bias",
+        "encoder.layer.3.attention.output.LayerNorm.weight",
+        "encoder.layer.3.attention.output.dense.bias",
+        "encoder.layer.3.attention.output.dense.weight",
+        "encoder.layer.3.attention.self.key.bias",
+        "encoder.layer.3.attention.self.key.weight",
+        "encoder.layer.3.attention.self.query.bias",
+        "encoder.layer.3.attention.self.query.weight",
+        "encoder.layer.3.attention.self.value.bias",
+        "encoder.layer.3.attention.self.value.weight",
+        "encoder.layer.3.intermediate.dense.bias",
+        "encoder.layer.3.intermediate.dense.weight",
+        "encoder.layer.3.output.LayerNorm.bias",
+        "encoder.layer.3.output.LayerNorm.weight",
+        "encoder.layer.3.output.dense.bias",
+        "encoder.layer.3.output.dense.weight",
+        "encoder.layer.4.attention.output.LayerNorm.bias",
+        "encoder.layer.4.attention.output.LayerNorm.weight",
+        "encoder.layer.4.attention.output.dense.bias",
+        "encoder.layer.4.attention.output.dense.weight",
+        "encoder.layer.4.attention.self.key.bias",
+        "encoder.layer.4.attention.self.key.weight",
+        "encoder.layer.4.attention.self.query.bias",
+        "encoder.layer.4.attention.self.query.weight",
+        "encoder.layer.4.attention.self.value.bias",
+        "encoder.layer.4.attention.self.value.weight",
+        "encoder.layer.4.intermediate.dense.bias",
+        "encoder.layer.4.intermediate.dense.weight",
+        "encoder.layer.4.output.LayerNorm.bias",
+        "encoder.layer.4.output.LayerNorm.weight",
+        "encoder.layer.4.output.dense.bias",
+        "encoder.layer.4.output.dense.weight",
+        "encoder.layer.5.attention.output.LayerNorm.bias",
+        "encoder.layer.5.attention.output.LayerNorm.weight",
+        "encoder.layer.5.attention.output.dense.bias",
+        "encoder.layer.5.attention.output.dense.weight",
+        "encoder.layer.5.attention.self.key.bias",
+        "encoder.layer.5.attention.self.key.weight",
+        "encoder.layer.5.attention.self.query.bias",
+        "encoder.layer.5.attention.self.query.weight",
+        "encoder.layer.5.attention.self.value.bias",
+        "encoder.layer.5.attention.self.value.weight",
+        "encoder.layer.5.intermediate.dense.bias",
+        "encoder.layer.5.intermediate.dense.weight",
+        "encoder.layer.5.output.LayerNorm.bias",
+        "encoder.layer.5.output.LayerNorm.weight",
+        "encoder.layer.5.output.dense.bias",
+        "encoder.layer.5.output.dense.weight"
+      ],
+      "key_prefixes": {
+        "embeddings.LayerNorm": 2,
+        "embeddings.position_embeddings": 1,
+        "embeddings.position_ids": 1,
+        "embeddings.token_type_embeddings": 1,
+        "embeddings.word_embeddings": 1,
+        "encoder.layer": 96,
+        "pooler.dense": 2
+      },
+      "sample_keys": [
+        "embeddings.LayerNorm.bias",
+        "embeddings.LayerNorm.weight",
+        "embeddings.position_embeddings.weight",
+        "embeddings.position_ids",
+        "embeddings.token_type_embeddings.weight",
+        "embeddings.word_embeddings.weight",
+        "encoder.layer.0.attention.output.LayerNorm.bias",
+        "encoder.layer.0.attention.output.LayerNorm.weight",
+        "encoder.layer.0.attention.output.dense.bias",
+        "encoder.layer.0.attention.output.dense.weight",
+        "encoder.layer.0.attention.self.key.bias",
+        "encoder.layer.0.attention.self.key.weight"
+      ],
+      "tensor_count": 104
+    }
+  },
+  "siblings": [
+    {
+      "name": ".gitattributes",
+      "size": 1229
+    },
+    {
+      "name": "1_Pooling/config.json",
+      "size": 190
+    },
+    {
+      "name": "README.md",
+      "size": 10502
+    },
+    {
+      "name": "config.json",
+      "size": 612
+    },
+    {
+      "name": "config_sentence_transformers.json",
+      "size": 116
+    },
+    {
+      "name": "data_config.json",
+      "size": 39265
+    },
+    {
+      "name": "model.safetensors",
+      "size": 90868376
+    },
+    {
+      "name": "modules.json",
+      "size": 349
+    },
+    {
+      "name": "onnx/model.onnx",
+      "size": 90405214
+    },
+    {
+      "name": "onnx/model_O1.onnx",
+      "size": 90360328
+    },
+    {
+      "name": "onnx/model_O2.onnx",
+      "size": 90326566
+    },
+    {
+      "name": "onnx/model_O3.onnx",
+      "size": 90326497
+    },
+    {
+      "name": "onnx/model_O4.onnx",
+      "size": 45212349
+    },
+    {
+      "name": "onnx/model_qint8_arm64.onnx",
+      "size": 23026053
+    },
+    {
+      "name": "onnx/model_qint8_avx512.onnx",
+      "size": 23026053
+    },
+    {
+      "name": "onnx/model_qint8_avx512_vnni.onnx",
+      "size": 23026053
+    },
+    {
+      "name": "onnx/model_quint8_avx2.onnx",
+      "size": 23046789
+    },
+    {
+      "name": "openvino/openvino_model.bin",
+      "size": 90265744
+    },
+    {
+      "name": "openvino/openvino_model.xml",
+      "size": 211315
+    },
+    {
+      "name": "openvino/openvino_model_qint8_quantized.bin",
+      "size": 22933664
+    },
+    {
+      "name": "openvino/openvino_model_qint8_quantized.xml",
+      "size": 368006
+    },
+    {
+      "name": "pytorch_model.bin",
+      "size": 90888945
+    },
+    {
+      "name": "rust_model.ot",
+      "size": 90887379
+    },
+    {
+      "name": "sentence_bert_config.json",
+      "size": 53
+    },
+    {
+      "name": "special_tokens_map.json",
+      "size": 112
+    },
+    {
+      "name": "tf_model.h5",
+      "size": 91005696
+    },
+    {
+      "name": "tokenizer.json",
+      "size": 466247
+    },
+    {
+      "name": "tokenizer_config.json",
+      "size": 350
+    },
+    {
+      "name": "train_script.py",
+      "size": 13156
+    },
+    {
+      "name": "vocab.txt",
+      "size": 231508
+    }
+  ],
+  "tags": [
+    "sentence-transformers",
+    "pytorch",
+    "tf",
+    "rust",
+    "onnx",
+    "safetensors",
+    "openvino",
+    "bert",
+    "feature-extraction",
+    "sentence-similarity",
+    "transformers",
+    "en",
+    "dataset:s2orc",
+    "dataset:flax-sentence-embeddings/stackexchange_xml",
+    "dataset:ms_marco",
+    "dataset:gooaq",
+    "dataset:yahoo_answers_topics",
+    "dataset:code_search_net",
+    "dataset:search_qa",
+    "dataset:eli5",
+    "dataset:snli",
+    "dataset:multi_nli",
+    "dataset:wikihow",
+    "dataset:natural_questions",
+    "dataset:trivia_qa",
+    "dataset:embedding-data/sentence-compression",
+    "dataset:embedding-data/flickr30k-captions",
+    "dataset:embedding-data/altlex",
+    "dataset:embedding-data/simple-wiki",
+    "dataset:embedding-data/QQP",
+    "dataset:embedding-data/SPECTER",
+    "dataset:embedding-data/PAQ_pairs",
+    "dataset:embedding-data/WikiAnswers",
+    "arxiv:1904.06472",
+    "arxiv:2102.07033",
+    "arxiv:2104.08727",
+    "arxiv:1704.05179",
+    "arxiv:1810.09305",
+    "base_model:nreimers/MiniLM-L6-H384-uncased",
+    "base_model:quantized:nreimers/MiniLM-L6-H384-uncased",
+    "license:apache-2.0",
+    "eval-results",
+    "text-embeddings-inference",
+    "endpoints_compatible",
+    "deploy:azure",
+    "region:us"
+  ]
+}

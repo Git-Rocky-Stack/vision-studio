@@ -1,0 +1,244 @@
+{
+  "author": "DeepFloyd",
+  "captured": "2026-06-10",
+  "captured_unauthenticated": true,
+  "config": null,
+  "diffusers_class_tags": [
+    "IFPipeline"
+  ],
+  "downloads": 998,
+  "ext_census": {
+    ".bin": 11,
+    ".jpg": 6,
+    ".json": 15,
+    ".md": 1,
+    ".model": 2,
+    ".safetensors": 10,
+    ".yml": 1
+  },
+  "gated": "auto",
+  "ground_truth": {
+    "reason": "IFPipeline not shipped; gated",
+    "stratum": "trap-unsupported",
+    "tier": "experimental"
+  },
+  "has_safetensors": true,
+  "library_name": "diffusers",
+  "license": "deepfloyd-if-license",
+  "model_index": null,
+  "model_index_error": "absent:GatedRepoError",
+  "pipeline_tag": "text-to-image",
+  "py_files": [],
+  "reachable": true,
+  "repo_id": "DeepFloyd/IF-I-XL-v1.0",
+  "safetensors_errors": {
+    "repo_level": "GatedRepoError: 401 Client Error. (Request ID: Root=1-6a293aa8-761489b867ade29a32ab948a;66917e8d-5d2b-4ccd-aec6-351c7cfe841b)\n\nCannot access gated repo for url https://huggingface.co/DeepFloyd/IF-I-XL-v1.0/resolve/main/model.safetensors.\nAccess to model DeepFloyd/IF-I-XL-v1.0 is restricted. You must have access to it and be authenticated to access it. Please log in.",
+    "safety_checker/model.fp16.safetensors": "GatedRepoError: 401 Client Error. (Request ID: Root=1-6a293aa8-4dd61ae1791615d04b943f9c;388ca0e4-6bce-493e-8a37-d36b6c9dfe8a)\n\nCannot access gated repo for url https://huggingface.co/DeepFloyd/IF-I-XL-v1.0/resolve/main/safety_checker/model.fp16.safetensors.\nAccess to model DeepFloyd/IF-I-XL-v1.0 is restricted. You must have access to it and be authenticated to access it. Please log in.",
+    "safety_checker/model.safetensors": "GatedRepoError: 401 Client Error. (Request ID: Root=1-6a293aa8-539932886d36fc604f919e5c;bdc1edfc-559e-46d4-a7b1-be0170030bd4)\n\nCannot access gated repo for url https://huggingface.co/DeepFloyd/IF-I-XL-v1.0/resolve/main/safety_checker/model.safetensors.\nAccess to model DeepFloyd/IF-I-XL-v1.0 is restricted. You must have access to it and be authenticated to access it. Please log in.",
+    "text_encoder/model-00001-of-00002.safetensors": "GatedRepoError: 401 Client Error. (Request ID: Root=1-6a293aa8-559a4bfe4346209a08fed560;95432ac8-003a-40d6-9d9a-2dfff37230a8)\n\nCannot access gated repo for url https://huggingface.co/DeepFloyd/IF-I-XL-v1.0/resolve/main/text_encoder/model-00001-of-00002.safetensors.\nAccess to model DeepFloyd/IF-I-XL-v1.0 is restricted. You must have access to it and be authenticated to access it. Please log in.",
+    "text_encoder/model-00002-of-00002.safetensors": "GatedRepoError: 401 Client Error. (Request ID: Root=1-6a293aa9-17c1361876b24b9868d95a39;aba1c261-95a7-44ed-95b0-d499bf9d75ce)\n\nCannot access gated repo for url https://huggingface.co/DeepFloyd/IF-I-XL-v1.0/resolve/main/text_encoder/model-00002-of-00002.safetensors.\nAccess to model DeepFloyd/IF-I-XL-v1.0 is restricted. You must have access to it and be authenticated to access it. Please log in."
+  },
+  "safetensors_per_file": {},
+  "siblings": [
+    {
+      "name": ".gitattributes",
+      "size": 1477
+    },
+    {
+      "name": "README.md",
+      "size": 23548
+    },
+    {
+      "name": "config.yml",
+      "size": 471
+    },
+    {
+      "name": "feature_extractor/preprocessor_config.json",
+      "size": 518
+    },
+    {
+      "name": "model_index.json",
+      "size": 601
+    },
+    {
+      "name": "pics/deepfloyd_if_scheme.jpg",
+      "size": 218514
+    },
+    {
+      "name": "pics/fid30k_if.jpg",
+      "size": 162757
+    },
+    {
+      "name": "pics/if_architecture.jpg",
+      "size": 255461
+    },
+    {
+      "name": "pics/loss.jpg",
+      "size": 297499
+    },
+    {
+      "name": "pics/lr.jpg",
+      "size": 265037
+    },
+    {
+      "name": "pics/scheme-h.jpg",
+      "size": 224221
+    },
+    {
+      "name": "pytorch_model.bin",
+      "size": 8609638545
+    },
+    {
+      "name": "safety_checker/config.json",
+      "size": 4495
+    },
+    {
+      "name": "safety_checker/model.fp16.safetensors",
+      "size": 607990743
+    },
+    {
+      "name": "safety_checker/model.safetensors",
+      "size": 1215926450
+    },
+    {
+      "name": "safety_checker/pytorch_model.bin",
+      "size": 1216009409
+    },
+    {
+      "name": "safety_checker/pytorch_model.fp16.bin",
+      "size": 608075916
+    },
+    {
+      "name": "scheduler/scheduler_config.json",
+      "size": 454
+    },
+    {
+      "name": "text_encoder/config.json",
+      "size": 741
+    },
+    {
+      "name": "text_encoder/model-00001-of-00002.safetensors",
+      "size": 9989150322
+    },
+    {
+      "name": "text_encoder/model-00002-of-00002.safetensors",
+      "size": 9060119390
+    },
+    {
+      "name": "text_encoder/model.8bit.safetensors",
+      "size": 7917591394
+    },
+    {
+      "name": "text_encoder/model.fp16-00001-of-00002.safetensors",
+      "size": 9960786792
+    },
+    {
+      "name": "text_encoder/model.fp16-00002-of-00002.safetensors",
+      "size": 1577127548
+    },
+    {
+      "name": "text_encoder/model.safetensors.index.fp16.json",
+      "size": 20981
+    },
+    {
+      "name": "text_encoder/model.safetensors.index.json",
+      "size": 19886
+    },
+    {
+      "name": "text_encoder/pytorch_model-00001-of-00002.bin",
+      "size": 9452285635
+    },
+    {
+      "name": "text_encoder/pytorch_model-00002-of-00002.bin",
+      "size": 9597031749
+    },
+    {
+      "name": "text_encoder/pytorch_model.8bit.bin",
+      "size": 7917675826
+    },
+    {
+      "name": "text_encoder/pytorch_model.bin.index.fp16.json",
+      "size": 20981
+    },
+    {
+      "name": "text_encoder/pytorch_model.bin.index.json",
+      "size": 19957
+    },
+    {
+      "name": "text_encoder/pytorch_model.fp16-00001-of-00002.bin",
+      "size": 9960831045
+    },
+    {
+      "name": "text_encoder/pytorch_model.fp16-00002-of-00002.bin",
+      "size": 1577134283
+    },
+    {
+      "name": "text_encoder/special_tokens_map.json",
+      "size": 1786
+    },
+    {
+      "name": "text_encoder/spiece.model",
+      "size": 791656
+    },
+    {
+      "name": "text_encoder/tokenizer_config.json",
+      "size": 1857
+    },
+    {
+      "name": "tokenizer/special_tokens_map.json",
+      "size": 2201
+    },
+    {
+      "name": "tokenizer/spiece.model",
+      "size": 791656
+    },
+    {
+      "name": "tokenizer/tokenizer_config.json",
+      "size": 2496
+    },
+    {
+      "name": "unet/config.json",
+      "size": 1653
+    },
+    {
+      "name": "unet/diffusion_pytorch_model.bin",
+      "size": 17219076439
+    },
+    {
+      "name": "unet/diffusion_pytorch_model.fp16.bin",
+      "size": 8609688700
+    },
+    {
+      "name": "unet/diffusion_pytorch_model.fp16.safetensors",
+      "size": 8609476940
+    },
+    {
+      "name": "unet/diffusion_pytorch_model.safetensors",
+      "size": 17218867967
+    },
+    {
+      "name": "watermarker/config.json",
+      "size": 74
+    },
+    {
+      "name": "watermarker/diffusion_pytorch_model.bin",
+      "size": 16347
+    },
+    {
+      "name": "watermarker/diffusion_pytorch_model.safetensors",
+      "size": 15492
+    }
+  ],
+  "tags": [
+    "diffusers",
+    "pytorch",
+    "safetensors",
+    "if",
+    "text-to-image",
+    "arxiv:2205.11487",
+    "arxiv:2110.02861",
+    "license:deepfloyd-if-license",
+    "diffusers:IFPipeline",
+    "region:us"
+  ]
+}
