@@ -1,6 +1,6 @@
 """Pydantic schema mirroring ModelRecord for FastAPI response_model."""
 
-from typing import Optional
+from typing import List, Optional
 
 from pydantic import BaseModel
 
@@ -26,6 +26,10 @@ class ModelRecordSchema(BaseModel):
     description: str = ""
     license: Optional[str] = None
     gated: bool = False
+    locations: List[str] = []
+    identity: Optional[str] = None
+    availability: str = "available"
+    library_root_id: Optional[str] = None
 
 
 class DownloadJobSchema(BaseModel):
