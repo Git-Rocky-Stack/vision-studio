@@ -81,6 +81,8 @@ class ConsentStore:
             self._consents, self._audit = {}, []
 
     def _save(self) -> None:
+        # dirname is always non-empty: __init__ abspath's self.path. Keep that
+        # invariant - os.makedirs("") raises FileNotFoundError.
         os.makedirs(os.path.dirname(self.path), exist_ok=True)
         payload = {"consents": self._consents, "audit": self._audit}
         fd, tmp = tempfile.mkstemp(dir=os.path.dirname(self.path), suffix=".tmp")

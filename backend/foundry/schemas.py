@@ -95,6 +95,10 @@ class ConsentStateSchema(BaseModel):
 
 
 class SearchResultSchema(BaseModel):
+    # DELIBERATE omission: SearchResult's download_url/sha256 are server-side
+    # acquisition data carried on the transient ModelRecord, never in browse
+    # responses. Pydantic's extra='ignore' silently drops them at
+    # SearchResultSchema(**asdict(result)) - keep it that way.
     id: str
     source: str
     name: str

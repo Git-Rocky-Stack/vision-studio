@@ -279,6 +279,31 @@ class CivitaiDownloadTests(unittest.IsolatedAsyncioTestCase):
         # A civitai 403 must never surface a huggingface.co gate URL.
         self.assertIsNone(job.gate_url)
 
+    async def test_cancel_mid_stream_leaves_no_incomplete(self):
+        payload = b"x" * (3 * 1024 * 1024)  # several 1 MiB chunks
+        models_dir = tempfile.mkdtemp()
+        manager = make_civitai_manager(
+            models_dir=models_dir, sha256=hashlib.sha256(payload).hexdigest()
+        )
+
+        class _CancellingResponse(_FakeResponse):
+            def iter_content(self, chunk_size: int):
+                for index, start in enumerate(range(0, len(self._payload), chunk_size)):
+                    if index == 1:
+                        manager.cancel(MODEL_ID)  # trips sink.add on next chunk
+                    yield self._payload[start:start + chunk_size]
+
+        with mock.patch("requests.get", return_value=_CancellingResponse(payload)), \
+             mock.patch("shutil.disk_usage", return_value=_disk(free=10 ** 12)):
+            manager.enqueue(MODEL_ID)
+            await _drain(manager)
+
+        self.assertEqual(manager._jobs[MODEL_ID].status, "cancelled")
+        target_dir = os.path.join(models_dir, "loras")
+        names = os.listdir(target_dir) if os.path.isdir(target_dir) else []
+        self.assertFalse(any(name.endswith(".incomplete") for name in names))
+        self.assertFalse(any(name.endswith(".safetensors") for name in names))
+
     async def test_hashless_record_refused_before_any_request(self):
         # Delivery is a CDN redirect; the record sha256 is the only integrity
         # anchor. No hash -> fail closed, zero bytes fetched.
