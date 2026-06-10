@@ -67,5 +67,31 @@ class ScanHfCacheTests(unittest.TestCase):
         self.assertEqual(result.warnings, ["huggingface_hub unavailable: no hub"])
 
 
+    def test_second_revision_of_catalog_repo_keeps_distinct_identity(self):
+        rev_a = SimpleNamespace(
+            commit_hash="aaaa1111bbbb2222",
+            nb_files=2,
+            snapshot_path="C:\\cache\\models--org--m\\snapshots\\aaaa1111bbbb2222",
+            size_on_disk=1_000_000_000,
+        )
+        rev_b = SimpleNamespace(
+            commit_hash="cccc3333dddd4444",
+            nb_files=2,
+            snapshot_path="C:\\cache\\models--org--m\\snapshots\\cccc3333dddd4444",
+            size_on_disk=2_000_000_000,
+        )
+        repo = SimpleNamespace(
+            repo_id="org/m", repo_type="model", size_on_disk=3_000_000_000, revisions=[rev_a, rev_b]
+        )
+        info = SimpleNamespace(repos=[repo], warnings=[])
+        with mock.patch("foundry.hf_cache._scan", return_value=info):
+            result = scan_hf_cache(_CATALOG_BY_REPO)
+        ids = sorted(record.id for record in result.records)
+        self.assertEqual(ids, ["catalog-id-m", "hf-org--m--cccc3333"])
+        sizes = {record.id: record.size for record in result.records}
+        self.assertEqual(sizes["catalog-id-m"], "1.00 GB")
+        self.assertEqual(sizes["hf-org--m--cccc3333"], "2.00 GB")
+
+
 if __name__ == "__main__":
     unittest.main()

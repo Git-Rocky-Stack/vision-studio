@@ -44,12 +44,22 @@ def scan_hf_cache(catalog_by_repo: Dict[Tuple[str, str], str]) -> HfCacheScan:
     for repo in getattr(info, "repos", []) or []:
         if getattr(repo, "repo_type", "model") != "model":
             continue
+        catalog_claimed = False
         for revision in getattr(repo, "revisions", []) or []:
             catalog_id = (
                 catalog_by_repo.get((repo.repo_id, revision.commit_hash))
                 or catalog_by_repo.get((repo.repo_id, "main"))
             )
-            record_id = catalog_id or f"hf-{repo.repo_id.replace('/', '--')}"
+            if catalog_id is not None and not catalog_claimed:
+                record_id = catalog_id
+                catalog_claimed = True
+            elif catalog_id is not None:
+                # A sibling revision already claimed the catalog id; this one
+                # is a distinct snapshot and must keep a distinct identity.
+                record_id = f"hf-{repo.repo_id.replace('/', '--')}--{revision.commit_hash[:8]}"
+                catalog_id = None  # tier/quality fall to experimental/local
+            else:
+                record_id = f"hf-{repo.repo_id.replace('/', '--')}"
             result.records.append(
                 ModelRecord(
                     id=record_id,
@@ -60,7 +70,7 @@ def scan_hf_cache(catalog_by_repo: Dict[Tuple[str, str], str]) -> HfCacheScan:
                     source="huggingface",
                     repo_id=repo.repo_id,
                     revision=revision.commit_hash,
-                    size=f"{repo.size_on_disk / 1e9:.2f} GB",
+                    size=f"{(getattr(revision, 'size_on_disk', None) or repo.size_on_disk) / 1e9:.2f} GB",
                     status="ready",
                     tier="verified" if catalog_id else "experimental",
                     quality="balanced" if catalog_id else "local",
