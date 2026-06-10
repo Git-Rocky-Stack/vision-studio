@@ -38,6 +38,7 @@ import shutil
 import subprocess
 import time
 import uuid
+from dataclasses import asdict
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List
@@ -66,6 +67,8 @@ from utils.prompt_service import enhance_prompt
 from api.controlnet import router as controlnet_router
 from db.migrate import run_migrations
 from middleware.rate_limit import limiter, rate_limit_exceeded_handler
+from foundry import civitai_search, hub_search
+from foundry.model_record import ModelRecord
 from foundry.registry import ModelRegistry
 from foundry.schemas import (
     ConsentRequestSchema,
@@ -75,6 +78,8 @@ from foundry.schemas import (
     LibraryRootSchema,
     ModelRecordSchema,
     ScanResultSchema,
+    SearchResponseSchema,
+    SearchResultSchema,
 )
 from foundry.download_manager import DownloadManager
 from foundry.library_roots import RootsStore
@@ -149,6 +154,24 @@ index_service = IndexService(
     state_path=os.path.join(_FOUNDRY_STATE_DIR, "index_state.json"),
 )
 consent_store = ConsentStore(os.path.join(_FOUNDRY_STATE_DIR, "consents.json"))
+
+
+def _verified_repo_ids() -> set:
+    """Catalog repo ids — the classifier's Verified short-circuit (spec 5.2)."""
+    return {r.repo_id for r in model_registry.records.values() if r.repo_id}
+
+
+def _search_result_to_record(result) -> ModelRecord:
+    """Map a SearchResult to a transient ModelRecord (registry normalizes status)."""
+    return ModelRecord(
+        id=result.id, name=result.name, artifact_type=result.artifact_type,
+        capability=result.capability, base_architecture=result.base_architecture,
+        source=result.source, repo_id=result.repo_id, size=result.size,
+        status="not_found", tier=result.tier, tier_reason=result.tier_reason,
+        quality="local", license=result.license, gated=result.gated,
+        format=result.format, trust_remote_code=result.trust_remote_code,
+        nsfw=result.nsfw, download_url=result.download_url, sha256=result.sha256,
+    )
 
 comfy_client: Optional[ComfyUIClient] = None
 direct_generator: Optional[DirectGenerator] = None
@@ -1555,6 +1578,61 @@ async def set_consent(request: Request, body: ConsentRequestSchema):
         raise HTTPException(status_code=400, detail=str(exc))
     state = consent_store.get(body.model_id)
     return ConsentStateSchema(model_id=body.model_id, **state)
+
+
+@app.get("/api/models/search", response_model=SearchResponseSchema, tags=["Models"])
+@limiter.limit("30/minute")
+async def search_models(
+    request: Request,
+    q: str = "",
+    source: str = "hf",
+    task: Optional[str] = None,
+    sort: str = "downloads",
+    page: int = 1,
+    nsfw: bool = False,
+    author: Optional[str] = None,
+):
+    """Search HF or CivitAI. Offline-degrading: failures return offline=True,
+    never a 5xx - the local library stays fully operational (spec 5.1).
+
+    Declared BEFORE the dynamic /api/models/{model_id} route so the literal
+    'search' path is not captured as a model id. Hub tokens arrive per-request
+    in headers (Electron safeStorage); NEVER persisted in Python, NEVER logged.
+    """
+    if source not in ("hf", "civitai"):
+        raise HTTPException(status_code=400, detail="source must be 'hf' or 'civitai'")
+    loop = asyncio.get_running_loop()
+    try:
+        if source == "hf":
+            from huggingface_hub import HfApi
+
+            hf_token = request.headers.get("X-HF-Token")
+            api = HfApi(token=hf_token)
+            results = await loop.run_in_executor(
+                None,
+                lambda: hub_search.search_hf(
+                    api, query=q, verified_repo_ids=_verified_repo_ids(),
+                    task=task, sort=sort, page=page, author=author,
+                ),
+            )
+        else:
+            civitai_token = request.headers.get("X-Civitai-Token")
+            results = await loop.run_in_executor(
+                None,
+                lambda: civitai_search.search_civitai(
+                    q, include_nsfw=nsfw, token=civitai_token,
+                ),
+            )
+    except Exception as exc:
+        return SearchResponseSchema(
+            source=source, query=q, page=page, results=[],
+            offline=True, warning=f"search unavailable: {type(exc).__name__}",
+        )
+    model_registry.register_transient([_search_result_to_record(r) for r in results])
+    return SearchResponseSchema(
+        source=source, query=q, page=page,
+        results=[SearchResultSchema(**asdict(r)) for r in results],
+    )
 
 
 @app.get("/api/models/{model_id}", response_model=ModelRecordSchema, tags=["Models"])

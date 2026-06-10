@@ -35,6 +35,9 @@ class ModelRegistry:
         # M3: indexed records (HF cache / linked roots / app tree), applied by
         # the IndexService. Keyed by canonical id; replaced wholesale per scan.
         self._indexed: Dict[str, ModelRecord] = {}
+        # M4: transient search results (spec 2.3). Lowest-precedence layer -
+        # get-able for detail/download but never listed; replaced per search.
+        self._transient: Dict[str, ModelRecord] = {}
 
     # -- public API --------------------------------------------------------
     def list_records(self) -> List[Dict[str, Any]]:
@@ -49,7 +52,11 @@ class ModelRegistry:
 
     def get_record(self, model_id: str) -> Optional[Dict[str, Any]]:
         canonical = self.legacy_aliases.get(model_id, model_id)
-        record = self.records.get(canonical) or self._indexed.get(canonical)
+        record = (
+            self.records.get(canonical)
+            or self._indexed.get(canonical)
+            or self._transient.get(canonical)
+        )
         if record is None:
             return None
         return self._reconciled(record)
@@ -80,6 +87,23 @@ class ModelRegistry:
                 if existing.availability == "unavailable" and record.availability == "available":
                     existing.availability = "available"
         self._indexed = merged
+
+    def register_transient(self, records: List[ModelRecord]) -> None:
+        """Replace the transient search layer (spec 2.3: results merge transiently).
+
+        Transient records are get-able and download-able but never listed -
+        the search response is their listing surface. They never shadow
+        catalog or indexed records and always report not_found until acquired.
+        """
+        merged: Dict[str, ModelRecord] = {}
+        for record in records:
+            if record.id in self.records or record.id in self._indexed:
+                continue
+            owned = copy.copy(record)
+            owned.locations = list(record.locations)
+            owned.status = "not_found"
+            merged[record.id] = owned
+        self._transient = merged
 
     # -- internals ---------------------------------------------------------
     def _reconciled(self, record: ModelRecord) -> Dict[str, Any]:

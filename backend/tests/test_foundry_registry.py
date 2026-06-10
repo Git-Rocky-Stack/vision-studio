@@ -8,6 +8,7 @@ BACKEND_ROOT = pathlib.Path(__file__).resolve().parents[1]
 if str(BACKEND_ROOT) not in sys.path:
     sys.path.insert(0, str(BACKEND_ROOT))
 
+from foundry.model_record import ModelRecord  # type: ignore[import-not-found]
 from foundry.registry import ModelRegistry  # type: ignore[import-not-found]
 
 CATALOG_PATH = str(BACKEND_ROOT / "foundry" / "verified-catalog.json")
@@ -136,6 +137,49 @@ class FoundryRegistryTests(unittest.TestCase):
         )
         registry.legacy_aliases["sd15"] = "sd-1-5"
         assert registry.get_record("sd15")["status"] == "ready"
+
+
+class TransientLayerTests(unittest.TestCase):
+    def test_transient_records_resolvable_but_not_listed(self):
+        registry = make_registry()
+        record = ModelRecord(
+            id="search-hf--org-model", name="model", artifact_type="diffusers-pipeline",
+            capability="image", base_architecture="sdxl", source="huggingface",
+            repo_id="org/model", tier="compatible", tier_reason="x",
+        )
+        registry.register_transient([record])
+        self.assertIsNotNone(registry.get_record("search-hf--org-model"))
+        listed_ids = {r["id"] for r in registry.list_records()}
+        self.assertNotIn("search-hf--org-model", listed_ids)
+
+    def test_transient_never_shadows_catalog_or_indexed(self):
+        registry = make_registry()
+        catalog_id = next(iter(registry.records))
+        shadow = ModelRecord(
+            id=catalog_id, name="shadow", artifact_type="checkpoint",
+            capability="image", base_architecture="flux", source="huggingface",
+        )
+        registry.register_transient([shadow])
+        self.assertNotEqual(registry.get_record(catalog_id)["name"], "shadow")
+
+    def test_register_transient_replaces_wholesale(self):
+        registry = make_registry()
+        a = ModelRecord(id="search-hf--a", name="a", artifact_type="checkpoint",
+                        capability="image", base_architecture="sdxl", source="huggingface")
+        b = ModelRecord(id="search-hf--b", name="b", artifact_type="checkpoint",
+                        capability="image", base_architecture="sdxl", source="huggingface")
+        registry.register_transient([a])
+        registry.register_transient([b])
+        self.assertIsNone(registry.get_record("search-hf--a"))
+        self.assertIsNotNone(registry.get_record("search-hf--b"))
+
+    def test_transient_status_is_not_found(self):
+        registry = make_registry()
+        a = ModelRecord(id="search-hf--a", name="a", artifact_type="checkpoint",
+                        capability="image", base_architecture="sdxl", source="huggingface",
+                        status="ready")  # lies from outside are normalized
+        registry.register_transient([a])
+        self.assertEqual(registry.get_record("search-hf--a")["status"], "not_found")
 
 
 if __name__ == "__main__":
