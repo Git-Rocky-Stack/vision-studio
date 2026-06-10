@@ -23,7 +23,7 @@ Conventions used throughout:
 
 The renderer never talks to the backend directly. It calls `window.electron.<namespace>.<method>(args)` which is exposed by `electron/preload.ts` via `contextBridge.exposeInMainWorld('electron', electronAPI)`.
 
-Every IPC method below corresponds to one `ipcMain.handle('<channel>', ...)` registration in `electron/services/mainIpc.ts` or `electron/ipc-handlers/generation.ts`. The push channels (`generation:progress`, `backend:status`) use `ipcRenderer.on(...)` — `onProgress(cb)` and `onStatusChange(cb)` return an unsubscribe function.
+Every IPC method below corresponds to one `ipcMain.handle('<channel>', ...)` registration in `electron/services/mainIpc.ts`, `electron/ipc-handlers/generation.ts`, or (for the `auth:*` channels) `electron/main.ts`. The push channels (`generation:progress`, `backend:status`) use `ipcRenderer.on(...)` — `onProgress(cb)` and `onStatusChange(cb)` return an unsubscribe function.
 
 ### 1.1 `electron.app`
 
@@ -235,8 +235,14 @@ This is **enriched on the Main side** — it asks the backend for its `/api/syst
 
 | Method | IPC channel | Returns | Backend call |
 |--------|-------------|---------|--------------|
-| `list()` | `models:list` | `Promise<ModelInfo[]>` | `GET /api/models` |
-| `download(modelId)` | `models:download` | `Promise<{ success, message? }>` | `POST /api/models/{id}/download` |
+| `list()` | `models:list` | `Promise<ModelRecord[]>` | `GET /api/models` |
+| `get(modelId)` | `models:get` | `Promise<ModelRecord \| null>` | `GET /api/models/{id}` |
+| `download(modelId)` | `models:download` | `Promise<DownloadJob \| { success: false, error }>` | `POST /api/models/{id}/download` (forwards `X-HF-Token` / `X-Civitai-Token`) |
+| `downloadPause(modelId)` | `models:download:pause` | `Promise<DownloadJob \| { success: false, error }>` | `POST /api/models/{id}/download/pause` |
+| `downloadResume(modelId)` | `models:download:resume` | `Promise<DownloadJob \| { success: false, error }>` | `POST /api/models/{id}/download/resume` (re-forwards `X-HF-Token` / `X-Civitai-Token`) |
+| `downloadCancel(modelId)` | `models:download:cancel` | `Promise<DownloadJob \| { success: false, error }>` | `POST /api/models/{id}/download/cancel` |
+| `downloadsList()` | `models:downloads:list` | `Promise<DownloadJob[]>` | `GET /api/models/downloads` |
+| `subscribeDownloads()` | `models:downloads:subscribe` | `Promise<DownloadJob[]>` | `GET /api/models/downloads` (poll-based subscribe; a push channel can replace it later without changing the renderer contract) |
 | `getStatus(modelId)` | `models:get-status` | `Promise<ModelStatus \| null>` | `GET /api/models/{id}/status` |
 | `delete(modelId)` | `models:delete` | `Promise<{ success, error? }>` | `DELETE /api/models/{id}` |
 | `importRoot(body)` | `models:import` | `Promise<LibraryRoot>` | `POST /api/models/import` |
@@ -244,10 +250,26 @@ This is **enriched on the Main side** — it asks the backend for its `/api/syst
 | `librariesList()` | `models:libraries:list` | `Promise<LibraryRoot[]>` | `GET /api/models/libraries` |
 | `librariesRemove(rootId)` | `models:libraries:remove` | `Promise<{ removed: boolean, records_dropped: number }>` | `DELETE /api/models/libraries/{root_id}` |
 | `librariesDetect()` | `models:libraries:detect` | `Promise<DetectedRoot[]>` | `GET /api/models/libraries/detect` |
+| `search(query, source, page, nsfw)` | `models:search` | `Promise<SearchResponse>` | `GET /api/models/search` (forwards `X-HF-Token` + `X-Civitai-Token`) |
+| `consent(modelId, kind, granted)` | `models:consent` | `Promise<ConsentState \| { success: false, error }>` | `POST /api/models/consent` |
+| `convert(modelId)` | `models:convert` | `Promise<ConvertResult \| { success: false, error }>` | `POST /api/models/{id}/convert-safetensors` |
 
-`body` for `importRoot`: `{ path: string; layout_hint?: string }` — see `ImportRootRequest` in the REST section below. `LibraryRoot` and `DetectedRoot` types mirror the backend schemas of the same name.
+`body` for `importRoot`: `{ path: string; layout_hint?: string }` — see `ImportRootRequest` in the REST section below. `LibraryRoot`, `DetectedRoot`, `ModelRecord`, `DownloadJob`, `SearchResponse`, `ConsentState`, and `ConvertResult` types mirror the backend schemas of the same name.
 
-### 1.10 `electron.notifications`
+`search(query, source, page, nsfw)` — `source` ∈ `'hf' | 'civitai'`. The handler attaches whichever hub tokens are held in the Main process (see `electron.auth` below) as `X-HF-Token` / `X-Civitai-Token` headers. The IPC layer mirrors the backend's offline-degrade contract: if the backend is unreachable, the handler resolves with `{ source, query, page, results: [], offline: true, warning }` instead of rejecting — the renderer never sees a thrown search error. Handler logging is message-only: the raw Axios error carries token-bearing request headers and must never reach the log.
+
+`consent(modelId, kind, granted)` — `kind` ∈ `'pickle' | 'trust_remote_code'`. Consent is **deny-by-default and per-model**; granting/revoking is a deliberate user action and every change is audited by the backend `ConsentStore`.
+
+### 1.10 `electron.auth`
+
+Session-scoped hub credentials. Tokens are held **only in Main-process memory** — never persisted by the Python backend, never returned to the renderer, never logged. The Main process injects them per-request as headers on the backend calls noted above: `X-HF-Token` for Hugging Face (search + downloads of HF-source records), `X-Civitai-Token` for CivitAI (search + direct-URL downloads/resume of `civitai`-source records). An empty or whitespace-only token clears the stored value.
+
+| Method | IPC channel | Returns |
+|--------|-------------|---------|
+| `setHfToken(token)` | `auth:setHfToken` | `Promise<{ success: true }>` |
+| `setCivitaiToken(token)` | `auth:setCivitaiToken` | `Promise<{ success: true }>` |
+
+### 1.11 `electron.notifications`
 
 ```ts
 notify(
@@ -258,7 +280,7 @@ notify(
 
 Each notification type is gated by the matching `notifyOn*` boolean in settings; if the user has disabled it, the call returns `{ success: true, skipped: true }` instead of showing.
 
-### 1.11 `electron.backend`
+### 1.12 `electron.backend`
 
 | Method | IPC channel | Returns |
 |--------|-------------|---------|
@@ -283,7 +305,7 @@ Base URL: `http://127.0.0.1:8000` (Uvicorn binds `0.0.0.0:8000` but the Main pro
 | Prompts | LLM prompt enhancement |
 | Generation | Image + video generation jobs |
 | Jobs | Job status, cancel, list |
-| Models | Model registry, download, delete |
+| Models | Model registry, hub search, consent, download, convert, delete |
 | Images | Crop/upscale primitives |
 | Videos | Frame extraction |
 | Timeline | Resolved timeline → MP4 export |
@@ -447,15 +469,160 @@ Returns `ModelRecord[]` from the Foundry registry (M3+). The full `ModelRecord` 
   "locations": ["/path/to/weights.safetensors"],
   "identity": "sha256:abc123…",
   "availability": "available",
-  "library_root_id": null
+  "library_root_id": null,
+  "tier_reason": "in verified catalog",
+  "format": "safetensors",
+  "trust_remote_code": false,
+  "nsfw": false,
+  "download_url": null,
+  "sha256": null
 }
 ```
 
 Four fields were added in M3: `locations` (absolute filesystem paths where the artifact is present; `string[]`), `identity` (content-derived identity hash for deduplication; `string | null`), `availability` (`"available" | "linked" | "remote"`), and `library_root_id` (ID of the `LibraryRoot` this record was indexed from; `string | null`). All four have safe defaults and are absent from records created before M3.
 
+Six more fields were added in M4: `tier_reason` (human-readable explanation of the classifier's tier verdict; `string | null`), `format` (weight format, e.g. `"safetensors" | "pickle"`; `string | null`), `trust_remote_code` (model requires executing repo-authored code; `bool`, default `false`), `nsfw` (hub-flagged NSFW content; `bool`, default `false`), `download_url` (direct acquisition URL for CivitAI-source records; `string | null`), and `sha256` (expected weight digest — **must be a 64-character lowercase hex string**, schema-validated; `string | null`). All six have safe defaults. **`download_url` and `sha256` are server-side acquisition details only** — they live on the registry record for the download manager and are **never included in `SearchResult` responses**.
+
+#### `GET /api/models/search` — `tags=[Models]`, limit `30/min`
+
+Search Hugging Face or CivitAI for models. Results are classified through the tri-tier ladder (`verified | compatible | experimental`) with a `tier_reason`, and registered into the registry's **transient layer** so a follow-up `POST /api/models/{id}/download` can resolve them.
+
+Query parameters:
+
+| Param | Type | Default | Notes |
+|-------|------|---------|-------|
+| `q` | string | `""` | Search query |
+| `source` | string | `hf` | `hf \| civitai` — anything else is `400` |
+| `task` | string \| null | `null` | HF pipeline tag filter (`hf` source only) |
+| `sort` | string | `downloads` | `downloads \| likes \| lastModified`; unknown values fall back to `downloads` (`hf` source only) |
+| `page` | int | `1` | Page of 20 results (`hf` source only; echoed back for both sources) |
+| `nsfw` | bool | `false` | Include NSFW results (`civitai` source only; CivitAI is NSFW-off by default) |
+| `author` | string \| null | `null` | Author/organization filter (`hf` source only) |
+
+Headers (both optional, supplied automatically by the Main process): `X-HF-Token` for the `hf` source, `X-Civitai-Token` for the `civitai` source. Tokens are read per-request, **never persisted in Python, never logged**.
+
+Response — `SearchResponse`:
+
+```json
+{
+  "source": "hf",
+  "query": "flux lora",
+  "page": 1,
+  "results": [
+    {
+      "id": "hf:XLabs-AI/flux-RealismLora",
+      "source": "hf",
+      "name": "flux-RealismLora",
+      "repo_id": "XLabs-AI/flux-RealismLora",
+      "tier": "compatible",
+      "tier_reason": "flux lora with safetensors weights",
+      "artifact_type": "lora",
+      "base_architecture": "flux",
+      "capability": "image",
+      "downloads": 12345,
+      "likes": 678,
+      "author": "XLabs-AI",
+      "license": "other",
+      "gated": false,
+      "nsfw": false,
+      "format": "safetensors",
+      "trust_remote_code": false,
+      "size": "Unknown",
+      "tags": ["lora", "flux"]
+    }
+  ],
+  "offline": false,
+  "warning": null
+}
+```
+
+`SearchResult` never carries `download_url` or `sha256` — those stay server-side on the registry record.
+
+**Offline-degrade contract (spec 5.1):** any upstream failure (network down, hub outage, bad token) returns **`200`** with `offline: true`, `results: []`, and a `warning` naming **only the exception type** (e.g. `"search unavailable: ConnectionError"`) — **never a 5xx**. The local library stays fully operational regardless of hub reachability.
+
+Errors: `400` if `source` is not `hf` or `civitai`.
+
+#### `POST /api/models/consent` — `tags=[Models]`, limit `30/min`
+
+Grant or revoke per-model security consent. Consent is **deny-by-default**, **per-model**, and every grant/revoke is **audited** by the backend `ConsentStore`.
+
+Body — `ConsentRequest`:
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `model_id` | string | — (required) | Registry record id |
+| `kind` | string | — (required) | `pickle \| trust_remote_code` |
+| `granted` | bool | — (required) | `true` to grant, `false` to revoke |
+
+Response — `ConsentState` (the full post-update state for the model):
+
+```json
+{ "model_id": "civitai:12345", "pickle": true, "trust_remote_code": false }
+```
+
+Errors: `400` if `kind` is not a recognised value.
+
+#### `GET /api/models/downloads` — `tags=[Models]`, limit `60/min`
+
+Snapshot of every download job (queue + progress). Returns `DownloadJob[]`:
+
+```json
+[
+  {
+    "model_id": "flux-dev",
+    "status": "downloading",
+    "progress": 42.5,
+    "speed": 18350080.0,
+    "eta": 312.4,
+    "total_bytes": 12884901888,
+    "error": null,
+    "gate_url": null
+  }
+]
+```
+
+`status` ∈ `queued | downloading | paused | verifying | ready | error | cancelled`. `gate_url` is set when an HF repo is gated and the user must accept terms on the hub first.
+
+#### `GET /api/models/{model_id}` — `tags=[Models]`, limit `60/min`
+
+Returns a single `ModelRecord` by id (resolving legacy aliases). `404` if not found.
+
 #### `POST /api/models/{model_id}/download` — `tags=[Models]`, limit `30/min`
 
-Queues an async download. Returns `{ "success": true, "message": "Started downloading flux-dev" }`.
+Enqueues an async download and returns the `DownloadJob` with **`202 Accepted`**.
+
+Headers: HF-source records read the optional `X-HF-Token` header; **`civitai`-source records read `X-Civitai-Token` instead** (the Main process sends both; the backend picks per record source). Tokens are never persisted in Python and never logged.
+
+CivitAI-source records download via host-allowlisted HTTPS from the record's `download_url`, stream to a `.incomplete` staging file, and **verify the record's `sha256` before the atomic move into place** — a mismatch fails the job as corrupt/tampered. **Hashless CivitAI records are refused** (`status: "error"`, `"no sha256 on civitai record - refusing unverifiable download"`): the sha256 is the only integrity anchor because delivery is a CDN redirect.
+
+Errors:
+
+- `404` — unknown `model_id`.
+- `409` — security consent missing (spec 5.3 rail, deny-by-default). `detail.error_code` is `"pickle-consent-required"` (record `format` is `pickle` and pickle consent has not been granted) or `"remote-code-consent-required"` (record sets `trust_remote_code` and remote-code consent has not been granted). Grant via `POST /api/models/consent`, then retry.
+
+#### `POST /api/models/{model_id}/download/{action}` — `tags=[Models]`, limit `30/min`
+
+Pause, resume, or cancel an in-flight download. `action` ∈ `pause | resume | cancel`. Returns the updated `DownloadJob`. `resume` re-reads the per-source token header (`X-Civitai-Token` for `civitai`-source records, `X-HF-Token` otherwise) so resumed transfers stay authenticated. `404` for an unknown action or when no download job exists for `model_id`.
+
+#### `POST /api/models/{model_id}/convert-safetensors` — `tags=[Models]`, limit `5/min` (heavy)
+
+Consent-gated pickle → safetensors conversion (spec 5.3). No request body. Finds the record's local pickle file (`.ckpt`/`.pt`/`.pth`/`.bin` in `locations`), loads it inside the **`torch.load(weights_only=True)` security boundary** (tensors only — no arbitrary-code unpickling), and writes `<source>.safetensors` next to it.
+
+Response — `ConvertResult`:
+
+```json
+{ "model_id": "civitai:12345", "safetensors_path": "C:/models/checkpoint.safetensors", "tensor_count": 1131 }
+```
+
+Errors:
+
+- `404` — unknown `model_id`.
+- `409` with `detail.error_code`:
+  - `"pickle-consent-required"` — converting requires reading the pickle file; grant pickle consent first.
+  - `"no-pickle-source"` — no local pickle file found for this model; download it first.
+  - `"already-converted"` — a safetensors file already exists at the destination; it is never silently clobbered — delete it first to re-convert.
+- `422` — conversion failed (corrupt/unreadable source, disk error).
+- `503` — conversion unavailable: the backend is running in stub mode without `torch` installed.
 
 #### `GET /api/models/{model_id}/status` — `tags=[Models]`, limit `60/min`
 
@@ -920,15 +1087,17 @@ for i, image in enumerate(data["images"]):
 |------|---------|------|
 | `200` | Success | Normal response |
 | `201` | Created | `POST /api/models/import` — new library root registered |
-| `202` | Accepted | `POST /api/models/{id}/download` — download enqueued |
-| `400` | Bad request | Pydantic validation failure or `INVALID_INPUT` from `/api/v1/*` |
+| `202` | Accepted | `POST /api/models/{id}/download` — download enqueued; body is the `DownloadJob` |
+| `400` | Bad request | Pydantic validation failure, `INVALID_INPUT` from `/api/v1/*`, unknown `source` on `/api/models/search`, or unknown `kind` on `/api/models/consent` |
 | `403` | Forbidden | Missing/invalid `x-vision-studio-token` |
-| `404` | Not found | Missing job, model, library root, or source file |
-| `409` | Conflict | `DELETE /api/models/{id}` on a linked library reference — remove its library root instead |
+| `404` | Not found | Missing job, model, library root, download job/action, or source file |
+| `409` | Conflict | `DELETE /api/models/{id}` on a linked library reference (remove its library root instead); consent/conversion conflicts on download + convert routes with `detail.error_code` ∈ `pickle-consent-required \| remote-code-consent-required \| no-pickle-source \| already-converted` |
+| `422` | Unprocessable | `POST /api/models/{id}/convert-safetensors` — conversion failed (corrupt/unreadable pickle source) |
 | `429` | Rate limited | Hit the per-IP rate limit; response includes `Retry-After` header and `{ "error": "Rate limit exceeded", "error_code": "RATE_LIMITED", "retry_after": "60" }` |
 | `500` | Server error | Generation/edit/service exception; `{ error, error_code }` body |
+| `503` | Unavailable | `POST /api/models/{id}/convert-safetensors` in stub mode — `torch` is not installed, conversion is unavailable |
 | WS `1008` | Policy violation | Token mismatch on `/ws` |
 
 ---
 
-_Last verified against the codebase on 2026-06-09. Canonical source: `backend/main.py`, `backend/api/{controlnet,lora,edit,batch}.py`, `backend/foundry/{schemas,library_roots,index_service}.py`, `electron/preload.ts`, `electron/ipc-handlers/generation.ts`, `electron/services/mainIpc.ts`._
+_Last verified against the codebase on 2026-06-10. Canonical source: `backend/main.py`, `backend/api/{controlnet,lora,edit,batch}.py`, `backend/foundry/{schemas,library_roots,index_service,hub_search,civitai_search,security_policy,download_manager,convert}.py`, `electron/preload.ts`, `electron/ipc-handlers/generation.ts`, `electron/services/mainIpc.ts`, `electron/main.ts`._
