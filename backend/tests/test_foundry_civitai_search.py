@@ -102,6 +102,28 @@ class CivitaiSearchTests(unittest.TestCase):
         self.assertEqual(CIVITAI_BASE_FAMILY["Pony"], "sdxl")
         self.assertEqual(CIVITAI_BASE_FAMILY["Illustrious"], "sdxl")
 
+    def test_unverified_format_never_fails_open_to_compatible(self):
+        # CivitAI also emits "Other"/"Diffusers"/missing metadata.format;
+        # a known-family lora WITHOUT a SafeTensor marker must not be
+        # Compatible (false-Compatible=0 invariant, positive signal required).
+        for format_value in ("Other", None):
+            item = civitai_item()
+            if format_value is None:
+                item["modelVersions"][0]["files"][0]["metadata"] = {}
+            else:
+                item["modelVersions"][0]["files"][0]["metadata"]["format"] = format_value
+            results = search_civitai("x", session=self._session([item]))
+            with self.subTest(format=format_value):
+                self.assertEqual(results[0].tier, "experimental")
+                self.assertIn("unverified", results[0].tier_reason)
+
+    def test_video_families_carry_video_capability(self):
+        item = civitai_item(type="Checkpoint")
+        item["modelVersions"][0]["baseModel"] = "SVD"
+        results = search_civitai("x", session=self._session([item]))
+        self.assertEqual(results[0].capability, "video")
+        self.assertEqual(results[0].base_architecture, "svd")
+
 
 if __name__ == "__main__":
     unittest.main()

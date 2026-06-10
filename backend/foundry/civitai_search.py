@@ -55,6 +55,11 @@ def _classify_civitai(item_type: str, family: Optional[str], fmt: Optional[str])
         return "experimental", "base model vocabulary unrecognized - never guessed"
     artifact = _TYPE_TO_ARTIFACT.get(item_type, "unknown")
     if artifact == "lora" and family in ("sd15", "sdxl", "flux", "sd35"):
+        # Positive signal required: metadata.format must SAY SafeTensor.
+        # CivitAI also emits "Other"/"Diffusers"/"Core ML"/"ONNX" (or nothing)
+        # -> fmt None must not fail open into Compatible (false-Compatible=0).
+        if fmt != "safetensors":
+            return "experimental", f"{family} lora but weight format unverified (no SafeTensor marker)"
         return "compatible", f"standalone {family} lora - safetensors - loads via load_lora_weights"
     if artifact == "checkpoint":
         return "experimental", f"{family} single-file checkpoint - load path lands with M5 from_single_file"
@@ -100,6 +105,8 @@ def search_civitai(
         versions = item.get("modelVersions") or []
         if not versions:
             continue
+        # CivitAI orders modelVersions newest-first; files[0] is the primary
+        # artifact for a version. Alternate files (VAE-baked, fp16) come later.
         version = versions[0]
         files = version.get("files") or []
         primary = files[0] if files else {}
@@ -125,6 +132,7 @@ def search_civitai(
                 author=(item.get("creator") or {}).get("username"),
                 nsfw=nsfw,
                 format=fmt,
+                capability="video" if family in ("svd", "ltx") else "image",
                 size=f"{size_kb / 1024 / 1024:.1f} GB" if size_kb else "Unknown",
                 download_url=download_url,
                 sha256=sha256,
