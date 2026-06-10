@@ -99,3 +99,76 @@ class LinkLedger:
 
     def entries(self) -> List[Dict[str, str]]:
         return list(self._entries)
+
+
+@dataclass
+class LinkResult:
+    mechanism: str  # hardlink | junction | symlink | copy
+    source: str
+    dest: str
+
+
+def _copy(source: str, dest: str) -> str:
+    if os.path.isdir(source):
+        shutil.copytree(source, dest)
+    else:
+        shutil.copy2(source, dest)
+    return "copy"
+
+
+def materialize_link(source: str, dest: str, ledger: LinkLedger) -> LinkResult:
+    """Materialize a concrete path for a referenced artifact.
+
+    Ladder (Spike B): reparse-point source -> copy; cross-volume -> copy
+    (no link attempt); same-volume dir -> junction (win) / symlink (posix);
+    same-volume file -> hardlink; ANY OSError from a link attempt -> copy.
+    """
+    os.makedirs(os.path.dirname(dest), exist_ok=True)
+    mechanism = "copy"
+    if is_reparse_point(source) or not same_volume(source, os.path.dirname(dest)):
+        mechanism = _copy(source, dest)
+    elif os.path.isdir(source):
+        try:
+            if sys.platform == "win32":
+                import _winapi
+
+                _winapi.CreateJunction(source, dest)
+                mechanism = "junction"
+            else:
+                os.symlink(source, dest, target_is_directory=True)
+                mechanism = "symlink"
+        except OSError:
+            mechanism = _copy(source, dest)
+    else:
+        try:
+            os.link(source, dest)
+            mechanism = "hardlink"
+        except OSError:
+            mechanism = _copy(source, dest)
+    ledger.add(mechanism=mechanism, source=source, dest=dest)
+    return LinkResult(mechanism=mechanism, source=source, dest=dest)
+
+
+def safe_remove(path: str, ledger: LinkLedger, app_root: str) -> bool:
+    """Delete ONLY app-managed paths or recorded Foundry links. Never user bytes.
+
+    Returns False (and deletes nothing) for any other path.
+    """
+    normalized = _normalize(path)
+    app = _normalize(app_root)
+    is_ours = ledger.is_foundry_link(path)
+    inside_app = normalized.startswith(app + os.sep) or normalized == app
+    if not (is_ours or inside_app):
+        return False
+    if os.path.isdir(path) and not os.path.islink(path):
+        if sys.platform == "win32" and is_reparse_point(path):
+            os.rmdir(path)  # remove the junction itself, never its target's content
+        else:
+            shutil.rmtree(path)
+    elif os.path.exists(path) or os.path.islink(path):
+        os.remove(path)
+    else:
+        return False
+    if is_ours:
+        ledger.remove(path)
+    return True
