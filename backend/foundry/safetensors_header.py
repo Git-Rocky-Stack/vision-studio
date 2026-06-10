@@ -30,8 +30,11 @@ def read_safetensors_header(path: str) -> Dict[str, Any]:
             raw = handle.read(length)
             if len(raw) != length:
                 raise HeaderError(f"truncated safetensors header: {path}")
-            return json.loads(raw)
-    except (OSError, json.JSONDecodeError) as exc:
+            header = json.loads(raw)
+            if not isinstance(header, dict):
+                raise HeaderError(f"safetensors header is not a JSON object: {path}")
+            return header
+    except (OSError, json.JSONDecodeError, UnicodeDecodeError) as exc:
         raise HeaderError(f"unreadable safetensors header: {path}: {exc}") from exc
 
 

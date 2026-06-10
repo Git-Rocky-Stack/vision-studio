@@ -23,7 +23,9 @@ def make_safetensors(
     if metadata:
         header["__metadata__"] = metadata
     encoded = json.dumps(header).encode("utf-8")
-    os.makedirs(os.path.dirname(path), exist_ok=True)
+    parent = os.path.dirname(path)
+    if parent:
+        os.makedirs(parent, exist_ok=True)
     with open(path, "wb") as handle:
         handle.write(struct.pack("<Q", len(encoded)))
         handle.write(encoded)

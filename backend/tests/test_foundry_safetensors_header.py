@@ -58,6 +58,28 @@ class HeaderReadTests(unittest.TestCase):
         with self.assertRaises(HeaderError):
             read_safetensors_header(path)
 
+    def test_non_dict_json_header_raises_typed_error(self):
+        import struct
+
+        body = json.dumps([1, 2, 3]).encode("utf-8")
+        path = os.path.join(self.tmp, "list-header.safetensors")
+        with open(path, "wb") as handle:
+            handle.write(struct.pack("<Q", len(body)))
+            handle.write(body)
+        with self.assertRaises(HeaderError):
+            read_safetensors_header(path)
+
+    def test_non_utf8_header_raises_typed_error(self):
+        import struct
+
+        body = b"\xff\xfe\xfd\xfc"
+        path = os.path.join(self.tmp, "binary-header.safetensors")
+        with open(path, "wb") as handle:
+            handle.write(struct.pack("<Q", len(body)))
+            handle.write(body)
+        with self.assertRaises(HeaderError):
+            read_safetensors_header(path)
+
 
 class ClassifyTests(unittest.TestCase):
     def _header(self, tensors):
