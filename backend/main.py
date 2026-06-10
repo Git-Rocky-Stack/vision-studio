@@ -1489,17 +1489,22 @@ async def list_downloads(request: Request):
 
 
 @app.post("/api/models/import", response_model=LibraryRootSchema, status_code=201, tags=["Models"])
+@limiter.limit("30/minute")
 async def import_library_root(request: Request, body: ImportRootRequest):
     """Register a user library root by reference (never copies bytes)."""
     try:
         root = roots_store.add(body.path, body.layout_hint)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
+    # If the scan below fails the root stays registered (500-but-added):
+    # add() is idempotent and scan is freely retriable - do not "fix" by
+    # un-persisting, that would break idempotent retry.
     await asyncio.to_thread(index_service.scan)
     return root.to_dict()
 
 
 @app.post("/api/models/scan", response_model=ScanResultSchema, tags=["Models"])
+@limiter.limit("30/minute")
 async def scan_libraries(request: Request):
     """Re-index every feed (app tree, HF cache, linked roots)."""
     snapshot = await asyncio.to_thread(index_service.scan)
@@ -1507,17 +1512,20 @@ async def scan_libraries(request: Request):
 
 
 @app.get("/api/models/libraries", response_model=List[LibraryRootSchema], tags=["Models"])
+@limiter.limit("60/minute")
 async def list_library_roots(request: Request):
     return [root.to_dict() for root in roots_store.list()]
 
 
 @app.get("/api/models/libraries/detect", response_model=List[DetectedRootSchema], tags=["Models"])
+@limiter.limit("60/minute")
 async def detect_library_roots(request: Request):
     """First-run detection: existing ComfyUI/A1111 installs, offers only."""
     return await asyncio.to_thread(index_service.detect_candidates)
 
 
 @app.delete("/api/models/libraries/{root_id}", tags=["Models"])
+@limiter.limit("30/minute")
 async def remove_library_root(request: Request, root_id: str):
     """Remove a root: referenced-only records dropped, zero bytes touched."""
     if root_id not in {root.id for root in roots_store.list()}:
