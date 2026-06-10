@@ -133,5 +133,69 @@ class ConsentApiTests(unittest.TestCase):
         enq.assert_called_once()
 
 
+class ConvertApiTests(unittest.TestCase):
+    """API surface tests for POST /api/models/{model_id}/convert-safetensors."""
+
+    def setUp(self):
+        self.client = TestClient(main.app)
+        self.tmp = tempfile.mkdtemp(prefix="foundry-convert-api-")
+        self._real_store = main.consent_store
+        main.consent_store = ConsentStore(os.path.join(self.tmp, "consents.json"))
+
+    def tearDown(self):
+        main.consent_store = self._real_store
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def _url(self, model_id: str) -> str:
+        return f"/api/models/{model_id}/convert-safetensors"
+
+    def test_convert_404_unknown_model(self):
+        with mock.patch.object(main.model_registry, "get_record", return_value=None):
+            response = self.client.post(self._url("ghost-model"))
+        self.assertEqual(response.status_code, 404)
+
+    def test_convert_409_without_pickle_consent(self):
+        with mock.patch.object(
+            main.model_registry, "get_record", return_value=_record(format="pickle")
+        ):
+            response = self.client.post(self._url("m-test"))
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(response.json()["detail"]["error_code"], "pickle-consent-required")
+
+    def test_convert_409_no_pickle_source(self):
+        # Consent granted but record has no .ckpt/.pt/.pth/.bin in locations.
+        self.client.post(
+            "/api/models/consent",
+            json={"model_id": "m-test", "kind": "pickle", "granted": True},
+        )
+        with mock.patch.object(
+            main.model_registry,
+            "get_record",
+            return_value=_record(format="pickle", locations=[]),
+        ):
+            response = self.client.post(self._url("m-test"))
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(response.json()["detail"]["error_code"], "no-pickle-source")
+
+    def test_convert_503_unavailable(self):
+        # Consent granted; record has a real tmp .ckpt file in locations.
+        ckpt_path = os.path.join(self.tmp, "model.ckpt")
+        open(ckpt_path, "wb").close()  # create an empty file so os.path.isfile passes
+        self.client.post(
+            "/api/models/consent",
+            json={"model_id": "m-test", "kind": "pickle", "granted": True},
+        )
+        with mock.patch.object(
+            main.model_registry,
+            "get_record",
+            return_value=_record(format="pickle", locations=[ckpt_path]),
+        ), mock.patch(
+            "main.convert_pickle_to_safetensors",
+            side_effect=main.ConvertUnavailableError("torch not available"),
+        ):
+            response = self.client.post(self._url("m-test"))
+        self.assertEqual(response.status_code, 503)
+
+
 if __name__ == "__main__":
     unittest.main()

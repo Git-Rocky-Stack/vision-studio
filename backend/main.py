@@ -73,6 +73,7 @@ from foundry.registry import ModelRegistry
 from foundry.schemas import (
     ConsentRequestSchema,
     ConsentStateSchema,
+    ConvertResultSchema,
     DetectedRootSchema,
     DownloadJobSchema,
     LibraryRootSchema,
@@ -81,6 +82,7 @@ from foundry.schemas import (
     SearchResponseSchema,
     SearchResultSchema,
 )
+from foundry.convert import ConvertUnavailableError, convert_pickle_to_safetensors
 from foundry.download_manager import DownloadManager
 from foundry.library_roots import RootsStore
 from foundry.index_service import IndexService
@@ -1706,6 +1708,35 @@ async def control_download(request: Request, model_id: str, action: str):
     if job is None:
         raise HTTPException(status_code=404, detail=f"No download job for '{model_id}'")
     return _job_to_dict(job)
+
+
+@app.post("/api/models/{model_id}/convert-safetensors", response_model=ConvertResultSchema, tags=["Models"])
+@limiter.limit("5/minute")
+async def convert_model_to_safetensors(request: Request, model_id: str):
+    """Consent-gated pickle -> safetensors conversion (spec 5.3)."""
+    record = model_registry.get_record(model_id)
+    if record is None:
+        raise HTTPException(status_code=404, detail=f"unknown model: {model_id}")
+    if not consent_store.get(model_id)["pickle"]:
+        raise HTTPException(status_code=409, detail={
+            "error_code": "pickle-consent-required",
+            "message": "Converting requires reading the pickle file - grant pickle consent first."})
+    src = next((p for p in record.get("locations", [])
+                if p.lower().endswith((".ckpt", ".pt", ".pth", ".bin"))), None)
+    if src is None or not os.path.isfile(src):
+        raise HTTPException(status_code=409, detail={
+            "error_code": "no-pickle-source",
+            "message": "No local pickle file found for this model - download it first."})
+    dest = os.path.splitext(src)[0] + ".safetensors"
+    loop = asyncio.get_running_loop()
+    try:
+        tensor_count = await loop.run_in_executor(
+            None, convert_pickle_to_safetensors, src, dest)
+    except ConvertUnavailableError as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
+    except (ValueError, OSError) as exc:
+        raise HTTPException(status_code=422, detail=f"conversion failed: {exc}")
+    return ConvertResultSchema(model_id=model_id, safetensors_path=dest, tensor_count=tensor_count)
 
 
 @app.get("/api/models/{model_id}/status", tags=["Models"])

@@ -123,3 +123,11 @@ class SearchResponseSchema(BaseModel):
     results: List[SearchResultSchema] = []
     offline: bool = False
     warning: Optional[str] = None
+
+
+class ConvertResultSchema(BaseModel):
+    model_config = {"protected_namespaces": ()}
+
+    model_id: str
+    safetensors_path: str
+    tensor_count: int
