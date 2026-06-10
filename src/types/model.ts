@@ -22,7 +22,7 @@ export interface ModelInfo {
   status: ModelStatus;
   progress?: number;
   type?: string;
-  format?: string;
+  format?: string | null;
 }
 
 /**
@@ -54,6 +54,13 @@ export interface ModelRecord {
   identity?: string | null;
   availability?: 'available' | 'unavailable';
   library_root_id?: string | null;
+  // M4 classification + security fields (absent on older payloads):
+  tier_reason?: string | null;
+  format?: 'safetensors' | 'pickle' | 'diffusers' | null;
+  trust_remote_code?: boolean;
+  nsfw?: boolean;
+  download_url?: string | null;
+  sha256?: string | null;
   // Optional legacy-compat fields some consumers read:
   type?: string;
   progress?: number;
@@ -104,6 +111,48 @@ export interface DetectedRoot {
 export interface ScanResult {
   records_indexed: number;
   warnings: string[];
+}
+
+/** Hub search source selector ('hf' = Hugging Face). */
+export type SearchSource = 'hf' | 'civitai';
+
+/** Security consent categories gated before download/load (M4). */
+export type ConsentKind = 'pickle' | 'trust_remote_code';
+
+/**
+ * One hub search hit. Mirrors the backend SearchResultSchema - a transient,
+ * pre-registry shape; becomes a ModelRecord only once the user pulls it.
+ */
+export interface SearchResult {
+  id: string;
+  source: 'huggingface' | 'civitai';
+  name: string;
+  repo_id: string | null;
+  tier: ModelTier;
+  tier_reason: string;
+  artifact_type: string;
+  base_architecture: string;
+  capability: ModelCapability;
+  downloads: number;
+  likes: number;
+  author: string | null;
+  license: string | null;
+  gated: boolean;
+  nsfw: boolean;
+  format: 'safetensors' | 'pickle' | 'diffusers' | null;
+  trust_remote_code: boolean;
+  size: string;
+  tags: string[];
+}
+
+/** Envelope for GET /api/models/search. `offline: true` degrades gracefully. */
+export interface SearchResponse {
+  source: SearchSource;
+  query: string;
+  page: number;
+  results: SearchResult[];
+  offline: boolean;
+  warning: string | null;
 }
 
 export function isImageCapability(record: Pick<ModelRecord, 'capability'>): boolean {

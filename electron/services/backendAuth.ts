@@ -47,3 +47,19 @@ export function setHfToken(token: string | undefined): void {
 export function hfTokenHeaders(): Record<string, string> {
   return _hfToken ? { 'X-HF-Token': _hfToken } : {};
 }
+
+/**
+ * CivitAI API token for authenticated downloads and NSFW-gated search.
+ * Held only in the main process. Set via the auth:setCivitaiToken IPC channel
+ * (the renderer never reads it back). Injected per request as the
+ * X-Civitai-Token header; never logged, never sent on unrelated requests.
+ */
+let _civitaiToken: string | undefined;
+
+export function setCivitaiToken(token: string | undefined): void {
+  _civitaiToken = token && token.trim() ? token.trim() : undefined;
+}
+
+export function civitaiTokenHeaders(): Record<string, string> {
+  return _civitaiToken ? { 'X-Civitai-Token': _civitaiToken } : {};
+}

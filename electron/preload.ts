@@ -302,9 +302,29 @@ export interface ElectronAPI {
     librariesList: () => Promise<any[]>;
     librariesRemove: (rootId: string) => Promise<{ removed: boolean; records_dropped: number }>;
     librariesDetect: () => Promise<any[]>;
+    search: (
+      query: string,
+      source: 'hf' | 'civitai',
+      page: number,
+      nsfw: boolean
+    ) => Promise<{
+      source: 'hf' | 'civitai';
+      query: string;
+      page: number;
+      results: any[];
+      offline: boolean;
+      warning: string | null;
+    }>;
+    consent: (
+      modelId: string,
+      kind: 'pickle' | 'trust_remote_code',
+      granted: boolean
+    ) => Promise<{ success: boolean; error?: string; [k: string]: unknown }>;
+    convert: (modelId: string) => Promise<{ success: boolean; error?: string; [k: string]: unknown }>;
   };
   auth: {
     setHfToken: (token: string) => Promise<{ success: boolean }>;
+    setCivitaiToken: (token: string) => Promise<{ success: boolean }>;
   };
   notifications: {
     notify: (
@@ -405,9 +425,15 @@ const electronAPI: ElectronAPI = {
     librariesList: () => ipcRenderer.invoke('models:libraries:list'),
     librariesRemove: (rootId: string) => ipcRenderer.invoke('models:libraries:remove', rootId),
     librariesDetect: () => ipcRenderer.invoke('models:libraries:detect'),
+    search: (query: string, source: 'hf' | 'civitai', page: number, nsfw: boolean) =>
+      ipcRenderer.invoke('models:search', query, source, page, nsfw),
+    consent: (modelId: string, kind: 'pickle' | 'trust_remote_code', granted: boolean) =>
+      ipcRenderer.invoke('models:consent', modelId, kind, granted),
+    convert: (modelId: string) => ipcRenderer.invoke('models:convert', modelId),
   },
   auth: {
     setHfToken: (token: string) => ipcRenderer.invoke('auth:setHfToken', token),
+    setCivitaiToken: (token: string) => ipcRenderer.invoke('auth:setCivitaiToken', token),
   },
   notifications: {
     notify: (type, payload) => ipcRenderer.invoke('notifications:notify', type, payload),

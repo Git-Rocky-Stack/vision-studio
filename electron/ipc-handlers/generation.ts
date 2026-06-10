@@ -2,7 +2,12 @@ import crypto from 'node:crypto';
 import { ipcMain, BrowserWindow } from 'electron';
 import axios from 'axios';
 import WebSocket from 'ws';
-import { getBackendAuthToken, backendAuthHeaders, hfTokenHeaders } from '../services/backendAuth';
+import {
+  getBackendAuthToken,
+  backendAuthHeaders,
+  hfTokenHeaders,
+  civitaiTokenHeaders,
+} from '../services/backendAuth';
 import { toSafeRendererError } from '../services/security';
 import type { createOpenRouterService } from '../services/openRouter';
 import type { createOutputRootService } from '../services/outputRoots';
@@ -576,7 +581,9 @@ ipcMain.handle('models:download', async (_event, modelId: string) => {
   try {
     const response = await requestBackend(() =>
       axios.post(`${BACKEND_URL}/api/models/${modelId}/download`, undefined, {
-        headers: { ...backendAuthHeaders(), ...hfTokenHeaders() },
+        // The backend routes X-HF-Token to HF downloads and X-Civitai-Token to
+        // CivitAI direct-URL downloads based on the model record's source.
+        headers: { ...backendAuthHeaders(), ...hfTokenHeaders(), ...civitaiTokenHeaders() },
       }),
     );
     return response.data;
@@ -607,7 +614,7 @@ ipcMain.handle('models:download:resume', async (_event, modelId: string) => {
   try {
     const response = await requestBackend(() =>
       axios.post(`${BACKEND_URL}/api/models/${modelId}/download/resume`, undefined, {
-        headers: { ...backendAuthHeaders(), ...hfTokenHeaders() },
+        headers: { ...backendAuthHeaders(), ...hfTokenHeaders(), ...civitaiTokenHeaders() },
       }),
     );
     return response.data;
@@ -743,6 +750,68 @@ ipcMain.handle('models:libraries:remove', async (_event, rootId: string) => {
       success: false,
       error: toSafeRendererError(error, 'Library root removal failed'),
     };
+  }
+});
+
+ipcMain.handle(
+  'models:search',
+  async (_event, query: string, source: 'hf' | 'civitai', page: number, nsfw: boolean) => {
+    try {
+      const response = await requestBackend(() =>
+        axios.get(`${BACKEND_URL}/api/models/search`, {
+          params: { q: query, source, page, nsfw },
+          headers: { ...backendAuthHeaders(), ...hfTokenHeaders(), ...civitaiTokenHeaders() },
+        }),
+      );
+      return response.data;
+    } catch (error: any) {
+      // Message only: the raw AxiosError carries token-bearing request
+      // headers in config.headers and must never reach the log.
+      console.error('Model search error:', error instanceof Error ? error.message : error);
+      return {
+        source,
+        query,
+        page,
+        results: [],
+        offline: true,
+        warning: toSafeRendererError(error, 'Model search failed'),
+      };
+    }
+  },
+);
+
+ipcMain.handle(
+  'models:consent',
+  async (_event, modelId: string, kind: 'pickle' | 'trust_remote_code', granted: boolean) => {
+    try {
+      const response = await requestBackend(() =>
+        axios.post(
+          `${BACKEND_URL}/api/models/consent`,
+          { model_id: modelId, kind, granted },
+          { headers: backendAuthHeaders() },
+        ),
+      );
+      return response.data;
+    } catch (error: any) {
+      console.error('Model consent error:', error instanceof Error ? error.message : error);
+      return { success: false, error: toSafeRendererError(error, 'Consent update failed') };
+    }
+  },
+);
+
+ipcMain.handle('models:convert', async (_event, modelId: string) => {
+  try {
+    const response = await requestBackend(() =>
+      axios.post(
+        `${BACKEND_URL}/api/models/${encodeURIComponent(modelId)}/convert-safetensors`,
+        undefined,
+        { headers: backendAuthHeaders() },
+      ),
+    );
+    return response.data;
+  } catch (error: any) {
+    console.error('Model convert error:', error instanceof Error ? error.message : error);
+    return { success: false, error: toSafeRendererError(error, 'Conversion failed') };
   }
 });
 

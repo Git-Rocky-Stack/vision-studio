@@ -50,7 +50,9 @@ class IndexService:
         self._roots = roots_store
         self._models_dir = models_dir
         self._state_path = state_path
-        # signatures: root_id -> {normalized path: [mtime_ns, size, type, identity]}
+        # signatures: root_id ->
+        #   {normalized path: [mtime_ns, size, type, identity, tier, tier_reason]}
+        # (legacy pre-M4 4-entry values tolerated; see foundry.indexer.Signatures)
         self._signatures: Dict[str, Dict] = {}
         # Last good records per root, kept IN MEMORY ONLY so an unmounted root
         # degrades to 'unavailable' records instead of vanishing (spec 4.6).

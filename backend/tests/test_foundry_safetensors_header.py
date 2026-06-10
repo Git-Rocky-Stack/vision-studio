@@ -100,6 +100,14 @@ class ClassifyTests(unittest.TestCase):
             ({"encoder.block.0.layer.0.SelfAttention.q.weight": [4, 4]}, "unknown"),
             ({"encoder.layer.0.attention.self.query.weight": [4, 4]}, "unknown"),
             ({"decoder.conv_out.bias": [4]}, "unknown"),
+            # Spike C gap: diffusers-layout controlnet (lllyasviel--sd-controlnet-canny
+            # fixture). The second key mirrors the real fixture tree; the
+            # controlnet_cond_embedding key alone is the discriminating signal.
+            ({"controlnet_cond_embedding.conv_in.weight": [4, 4], "down_blocks.0.attentions.0.proj_in.weight": [4, 4]}, "controlnet"),
+            # Spike C gap: XLabs flux lora (XLabs-AI--flux-RealismLora fixture)
+            ({"double_blocks.0.processor.qkv_lora1.down.weight": [4, 4], "double_blocks.0.processor.proj_lora1.up.weight": [4, 4]}, "lora"),
+            # Spike C gap: XLabs flux lora - single_blocks variant (same corpus fixture)
+            ({"single_blocks.1.processor.qkv_lora.down.weight": [4, 4]}, "lora"),
         ]
         for tensors, expected in cases:
             with self.subTest(expected=expected):

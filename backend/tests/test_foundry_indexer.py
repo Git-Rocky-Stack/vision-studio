@@ -114,6 +114,44 @@ class ScanTreeTests(unittest.TestCase):
         self.assertEqual(len(identities), 2)
         self.assertEqual(identities[0], identities[1])
 
+    def test_indexed_lora_record_carries_compatible_tier_and_reason(self):
+        artifacts, _ = scan_tree(self.root, "comfyui", "root1", {})
+        lora = next(a for a in artifacts if os.path.basename(a.path) == "style.safetensors")
+        record = artifact_to_record(lora, {})
+        self.assertEqual(record.tier, "compatible")
+        self.assertIn("load_lora_weights", record.tier_reason)
+
+    def test_indexed_checkpoint_record_stays_experimental(self):
+        artifacts, _ = scan_tree(self.root, "comfyui", "root1", {})
+        checkpoint = next(a for a in artifacts if os.path.basename(a.path) == "dream.safetensors")
+        record = artifact_to_record(checkpoint, {})
+        self.assertEqual(record.tier, "experimental")
+        self.assertIn("single-file", record.tier_reason)
+
+    def test_cached_signature_hit_reuses_persisted_tier_without_reread(self):
+        _, signatures = scan_tree(self.root, "comfyui", "root1", {})
+        with mock.patch("foundry.indexer.read_safetensors_header") as header_spy:
+            artifacts, _ = scan_tree(self.root, "comfyui", "root1", signatures)
+        header_spy.assert_not_called()
+        lora = next(a for a in artifacts if os.path.basename(a.path) == "style.safetensors")
+        self.assertEqual(lora.tier, "compatible")
+        self.assertIn("load_lora_weights", lora.tier_reason)
+
+    def test_legacy_four_entry_state_recomputes_tier_with_one_header_read(self):
+        _, signatures = scan_tree(self.root, "comfyui", "root1", {})
+        legacy = {key: entry[:4] for key, entry in signatures.items()}
+        from foundry.safetensors_header import read_safetensors_header as real_read_header
+
+        with mock.patch(
+            "foundry.indexer.read_safetensors_header", wraps=real_read_header
+        ) as header_spy:
+            artifacts, next_signatures = scan_tree(self.root, "comfyui", "root1", legacy)
+        self.assertEqual(header_spy.call_count, 2)  # exactly one re-read per legacy entry
+        self.assertTrue(all(len(entry) == 6 for entry in next_signatures.values()))
+        lora = next(a for a in artifacts if os.path.basename(a.path) == "style.safetensors")
+        self.assertEqual(lora.tier, "compatible")
+        self.assertIn("load_lora_weights", lora.tier_reason)
+
     def test_vanished_file_mid_scan_is_skipped_not_fatal(self):
         real_stat = os.stat
 
@@ -143,10 +181,15 @@ class ArtifactToRecordTests(unittest.TestCase):
         return IndexedArtifact(**base)
 
     def test_unknown_local_record_shape(self):
+        # Hand-built artifact with NO stamped tier and NO header keys: this
+        # exercises artifact_to_record's keyless FALLBACK path, where even a
+        # lora honestly degrades to experimental (family unprovable). Scanned
+        # loras of a recognized family arrive with tier="compatible" stamped.
         record = artifact_to_record(self._artifact(), {})
         self.assertEqual(record.id, "local-aabbccddeeff0011")
         self.assertEqual(record.source, "linked")
         self.assertEqual(record.tier, "experimental")
+        self.assertIn("unrecognized", record.tier_reason)
         self.assertEqual(record.quality, "local")
         self.assertEqual(record.status, "ready")
         self.assertEqual(record.base_architecture, "unknown")

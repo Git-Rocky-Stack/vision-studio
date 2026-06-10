@@ -395,6 +395,29 @@ describe('ModelRecord contract', () => {
     ]);
     expect(mapped.map((m) => m.id)).toEqual(['a', 'b']);
   });
+
+  it('M4 fields are present and typed correctly on ModelRecord (compile-time contract)', () => {
+    // Compile-time contract: typed as import ModelRecord so tsc validates every field.
+    const record: import('@/types/model').ModelRecord = {
+      id: 'civitai-lora-1', name: 'Test LoRA', artifact_type: 'lora', capability: 'image',
+      base_architecture: 'sdxl', source: 'civitai', repo_id: null, revision: 'main',
+      aux_repo_id: null, size: '200 MB', status: 'not_found', tier: 'compatible',
+      quality: 'balanced', runtime: 'local', hardware_class: 'creator', vram: '8 GB',
+      description: '', license: null, gated: false,
+      tier_reason: 'standalone sdxl lora - safetensors',
+      format: 'safetensors',
+      trust_remote_code: false,
+      nsfw: false,
+      download_url: 'https://civitai.com/api/download/models/1',
+      sha256: 'ab'.repeat(32),
+    };
+    expect(record.tier_reason).toBe('standalone sdxl lora - safetensors');
+    expect(record.format).toBe('safetensors');
+    expect(record.trust_remote_code).toBe(false);
+    expect(record.nsfw).toBe(false);
+    expect(record.download_url).toBe('https://civitai.com/api/download/models/1');
+    expect(record.sha256).toBe('ab'.repeat(32));
+  });
 });
 
 // ── DownloadJob / downloads endpoints contract ───────────────────────────
@@ -573,6 +596,13 @@ interface ModelRecordShape {
   description: string;
   license: string | null;
   gated: boolean;
+  // M4 classification + security fields (absent on older payloads):
+  tier_reason?: string | null;
+  format?: 'safetensors' | 'pickle' | 'diffusers' | null;
+  trust_remote_code?: boolean;
+  nsfw?: boolean;
+  download_url?: string | null;
+  sha256?: string | null;
 }
 
 function buildModelRecord(over: Partial<ModelRecordShape>): ModelRecordShape {

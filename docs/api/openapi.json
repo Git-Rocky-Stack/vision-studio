@@ -182,21 +182,108 @@
     "/api/models": {
       "get": {
         "tags": ["Models"],
-        "summary": "List available models",
+        "summary": "List available models (full Foundry registry records)",
         "operationId": "listModels",
         "responses": {
-          "200": { "description": "Model list", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/ModelInfo" } } } } }
+          "200": { "description": "Model list", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/ModelRecord" } } } } }
+        }
+      }
+    },
+    "/api/models/search": {
+      "get": {
+        "tags": ["Models"],
+        "summary": "Search Hugging Face or CivitAI; offline-degrading (upstream failures return 200 with offline=true, never a 5xx)",
+        "operationId": "searchModels",
+        "parameters": [
+          { "in": "query", "name": "q", "schema": { "type": "string", "default": "" } },
+          { "in": "query", "name": "source", "schema": { "type": "string", "enum": ["hf", "civitai"], "default": "hf" } },
+          { "in": "query", "name": "task", "schema": { "type": "string", "nullable": true }, "description": "HF pipeline tag filter (hf source only)" },
+          { "in": "query", "name": "sort", "schema": { "type": "string", "enum": ["downloads", "likes", "lastModified"], "default": "downloads" }, "description": "Unknown values fall back to downloads (hf source only)" },
+          { "in": "query", "name": "page", "schema": { "type": "integer", "minimum": 1, "default": 1 }, "description": "Page of 20 results (hf source only; echoed back for both sources)" },
+          { "in": "query", "name": "nsfw", "schema": { "type": "boolean", "default": false }, "description": "Include NSFW results (civitai source only; NSFW-off by default)" },
+          { "in": "query", "name": "author", "schema": { "type": "string", "nullable": true }, "description": "Author/organization filter (hf source only)" },
+          { "in": "header", "name": "X-HF-Token", "schema": { "type": "string" }, "description": "Optional Hugging Face token (hf source). Read per-request; never persisted, never logged." },
+          { "in": "header", "name": "X-Civitai-Token", "schema": { "type": "string" }, "description": "Optional CivitAI token (civitai source). Read per-request; never persisted, never logged." }
+        ],
+        "responses": {
+          "200": { "description": "Search results; on upstream failure offline=true with a warning naming only the exception type", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SearchResponse" } } } },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "429": { "$ref": "#/components/responses/RateLimited" }
+        }
+      }
+    },
+    "/api/models/consent": {
+      "post": {
+        "tags": ["Models"],
+        "summary": "Grant or revoke per-model security consent (deny-by-default, audited)",
+        "operationId": "setModelConsent",
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ConsentRequest" } } }
+        },
+        "responses": {
+          "200": { "description": "Full post-update consent state for the model", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ConsentState" } } } },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "429": { "$ref": "#/components/responses/RateLimited" }
+        }
+      }
+    },
+    "/api/models/downloads": {
+      "get": {
+        "tags": ["Models"],
+        "summary": "Snapshot of every download job (queue + progress)",
+        "operationId": "listDownloads",
+        "responses": {
+          "200": { "description": "Download jobs", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/DownloadJob" } } } } }
         }
       }
     },
     "/api/models/{model_id}/download": {
       "post": {
         "tags": ["Models"],
-        "summary": "Queue a model download",
+        "summary": "Enqueue a model download (consent-gated; CivitAI-source records are sha256-verified and refused when hashless)",
         "operationId": "downloadModel",
+        "parameters": [
+          { "in": "path", "name": "model_id", "required": true, "schema": { "type": "string" } },
+          { "in": "header", "name": "X-HF-Token", "schema": { "type": "string" }, "description": "Optional Hugging Face token, read for non-civitai-source records. Never persisted, never logged." },
+          { "in": "header", "name": "X-Civitai-Token", "schema": { "type": "string" }, "description": "Optional CivitAI token, read for civitai-source records. Never persisted, never logged." }
+        ],
+        "responses": {
+          "202": { "description": "Download enqueued", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/DownloadJob" } } } },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "description": "Consent missing — detail.error_code is pickle-consent-required or remote-code-consent-required; grant via POST /api/models/consent and retry", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    },
+    "/api/models/{model_id}/download/{action}": {
+      "post": {
+        "tags": ["Models"],
+        "summary": "Pause, resume, or cancel an in-flight download",
+        "operationId": "controlDownload",
+        "parameters": [
+          { "in": "path", "name": "model_id", "required": true, "schema": { "type": "string" } },
+          { "in": "path", "name": "action", "required": true, "schema": { "type": "string", "enum": ["pause", "resume", "cancel"] } },
+          { "in": "header", "name": "X-HF-Token", "schema": { "type": "string" }, "description": "Re-read on resume for non-civitai-source records" },
+          { "in": "header", "name": "X-Civitai-Token", "schema": { "type": "string" }, "description": "Re-read on resume for civitai-source records" }
+        ],
+        "responses": {
+          "200": { "description": "Updated download job", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/DownloadJob" } } } },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/api/models/{model_id}/convert-safetensors": {
+      "post": {
+        "tags": ["Models"],
+        "summary": "Consent-gated pickle -> safetensors conversion inside the torch.load(weights_only=True) security boundary",
+        "operationId": "convertModelToSafetensors",
         "parameters": [{ "in": "path", "name": "model_id", "required": true, "schema": { "type": "string" } }],
         "responses": {
-          "200": { "description": "Download queued", "content": { "application/json": { "schema": { "type": "object", "properties": { "success": { "type": "boolean" }, "message": { "type": "string" } } } } } }
+          "200": { "description": "Conversion complete", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ConvertResult" } } } },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "description": "Conflict — detail.error_code is pickle-consent-required, no-pickle-source, or already-converted (an existing safetensors file is never silently clobbered)", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+          "422": { "description": "Conversion failed (corrupt or unreadable pickle source)", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+          "503": { "description": "Conversion unavailable — backend is running in stub mode without torch installed", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
         }
       }
     },
@@ -274,6 +361,16 @@
       }
     },
     "/api/models/{model_id}": {
+      "get": {
+        "tags": ["Models"],
+        "summary": "Get a single Foundry registry record by id (resolving legacy aliases)",
+        "operationId": "getModelRecord",
+        "parameters": [{ "in": "path", "name": "model_id", "required": true, "schema": { "type": "string" } }],
+        "responses": {
+          "200": { "description": "Model record", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ModelRecord" } } } },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      },
       "delete": {
         "tags": ["Models"],
         "summary": "Delete an installed model",
@@ -540,17 +637,6 @@
           "models_count": { "type": "integer" }
         }
       },
-      "ModelInfo": {
-        "type": "object",
-        "properties": {
-          "id": { "type": "string", "example": "flux-dev" },
-          "name": { "type": "string", "example": "FLUX.1 [dev]" },
-          "type": { "type": "string", "enum": ["image", "video", "lora", "controlnet"] },
-          "size": { "type": "string", "example": "12.0 GB" },
-          "status": { "type": "string", "enum": ["installed", "available", "downloading"] },
-          "description": { "type": "string" }
-        }
-      },
       "ModelRecord": {
         "description": "Full Foundry registry record returned by GET /api/models and GET /api/models/{model_id} (M3+).",
         "type": "object",
@@ -578,7 +664,13 @@
           "locations": { "type": "array", "items": { "type": "string" }, "description": "Absolute filesystem paths where the artifact is present (M3+)", "default": [] },
           "identity": { "type": "string", "nullable": true, "description": "Content-derived identity hash (M3+)" },
           "availability": { "type": "string", "description": "available | linked | remote (M3+)", "default": "available" },
-          "library_root_id": { "type": "string", "nullable": true, "description": "ID of the LibraryRoot this record was indexed from, if any (M3+)" }
+          "library_root_id": { "type": "string", "nullable": true, "description": "ID of the LibraryRoot this record was indexed from, if any (M3+)" },
+          "tier_reason": { "type": "string", "nullable": true, "description": "Human-readable explanation of the classifier's tier verdict (M4+)" },
+          "format": { "type": "string", "nullable": true, "description": "Weight format, e.g. safetensors | pickle (M4+)" },
+          "trust_remote_code": { "type": "boolean", "default": false, "description": "Model requires executing repo-authored code; download is consent-gated (M4+)" },
+          "nsfw": { "type": "boolean", "default": false, "description": "Hub-flagged NSFW content (M4+)" },
+          "download_url": { "type": "string", "nullable": true, "description": "Direct acquisition URL for CivitAI-source records. Server-side only — never included in SearchResult responses (M4+)" },
+          "sha256": { "type": "string", "nullable": true, "pattern": "^[0-9a-f]{64}$", "description": "Expected weight digest; must be a 64-character lowercase hex string (schema-validated). Server-side only — never included in SearchResult responses (M4+)" }
         }
       },
       "ImportRootRequest": {
@@ -613,6 +705,90 @@
         "properties": {
           "records_indexed": { "type": "integer", "description": "Total ModelRecords indexed across all feeds" },
           "warnings": { "type": "array", "items": { "type": "string" }, "default": [] }
+        }
+      },
+      "DownloadJob": {
+        "description": "Download-queue entry returned by the download routes and GET /api/models/downloads.",
+        "type": "object",
+        "required": ["model_id", "status"],
+        "properties": {
+          "model_id": { "type": "string" },
+          "status": { "type": "string", "enum": ["queued", "downloading", "paused", "verifying", "ready", "error", "cancelled"] },
+          "progress": { "type": "number", "minimum": 0, "maximum": 100, "default": 0 },
+          "speed": { "type": "number", "default": 0, "description": "Bytes per second" },
+          "eta": { "type": "number", "nullable": true, "description": "Estimated seconds remaining" },
+          "total_bytes": { "type": "integer", "default": 0 },
+          "error": { "type": "string", "nullable": true },
+          "gate_url": { "type": "string", "nullable": true, "description": "Set when an HF repo is gated and terms must be accepted on the hub first" }
+        }
+      },
+      "SearchResult": {
+        "description": "One hub search hit (M4+). Never carries download_url or sha256 — those stay server-side on the registry record.",
+        "type": "object",
+        "required": ["id", "source", "name", "tier", "tier_reason"],
+        "properties": {
+          "id": { "type": "string", "example": "hf:XLabs-AI/flux-RealismLora" },
+          "source": { "type": "string", "enum": ["hf", "civitai"] },
+          "name": { "type": "string" },
+          "repo_id": { "type": "string", "nullable": true },
+          "tier": { "type": "string", "enum": ["verified", "compatible", "experimental"] },
+          "tier_reason": { "type": "string", "description": "Human-readable explanation of the tier verdict" },
+          "artifact_type": { "type": "string", "default": "diffusers-pipeline" },
+          "base_architecture": { "type": "string", "default": "unknown" },
+          "capability": { "type": "string", "default": "image" },
+          "downloads": { "type": "integer", "default": 0 },
+          "likes": { "type": "integer", "default": 0 },
+          "author": { "type": "string", "nullable": true },
+          "license": { "type": "string", "nullable": true },
+          "gated": { "type": "boolean", "default": false },
+          "nsfw": { "type": "boolean", "default": false },
+          "format": { "type": "string", "nullable": true, "description": "Weight format, e.g. safetensors | pickle" },
+          "trust_remote_code": { "type": "boolean", "default": false },
+          "size": { "type": "string", "default": "Unknown" },
+          "tags": { "type": "array", "items": { "type": "string" }, "default": [] }
+        }
+      },
+      "SearchResponse": {
+        "description": "Hub search envelope (M4+). Offline-degrade contract: upstream failures return 200 with offline=true and a warning naming only the exception type — never a 5xx.",
+        "type": "object",
+        "required": ["source", "query", "page"],
+        "properties": {
+          "source": { "type": "string", "enum": ["hf", "civitai"] },
+          "query": { "type": "string" },
+          "page": { "type": "integer" },
+          "results": { "type": "array", "items": { "$ref": "#/components/schemas/SearchResult" }, "default": [] },
+          "offline": { "type": "boolean", "default": false },
+          "warning": { "type": "string", "nullable": true, "example": "search unavailable: ConnectionError" }
+        }
+      },
+      "ConsentRequest": {
+        "description": "Grant/revoke per-model security consent (M4+). Deny-by-default, per-model, audited.",
+        "type": "object",
+        "required": ["model_id", "kind", "granted"],
+        "properties": {
+          "model_id": { "type": "string" },
+          "kind": { "type": "string", "enum": ["pickle", "trust_remote_code"] },
+          "granted": { "type": "boolean" }
+        }
+      },
+      "ConsentState": {
+        "description": "Full per-model consent state after an update (M4+).",
+        "type": "object",
+        "required": ["model_id", "pickle", "trust_remote_code"],
+        "properties": {
+          "model_id": { "type": "string" },
+          "pickle": { "type": "boolean" },
+          "trust_remote_code": { "type": "boolean" }
+        }
+      },
+      "ConvertResult": {
+        "description": "Result of a pickle -> safetensors conversion (M4+).",
+        "type": "object",
+        "required": ["model_id", "safetensors_path", "tensor_count"],
+        "properties": {
+          "model_id": { "type": "string" },
+          "safetensors_path": { "type": "string", "description": "Absolute path of the written .safetensors file (next to the pickle source)" },
+          "tensor_count": { "type": "integer" }
         }
       },
       "ModelStatus": {

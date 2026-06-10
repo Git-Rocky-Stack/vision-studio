@@ -1,8 +1,9 @@
 """Pydantic schema mirroring ModelRecord for FastAPI response_model."""
 
+import re
 from typing import List, Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 
 class ModelRecordSchema(BaseModel):
@@ -30,6 +31,19 @@ class ModelRecordSchema(BaseModel):
     identity: Optional[str] = None
     availability: str = "available"
     library_root_id: Optional[str] = None
+    tier_reason: Optional[str] = None
+    format: Optional[str] = None
+    trust_remote_code: bool = False
+    nsfw: bool = False
+    download_url: Optional[str] = None
+    sha256: Optional[str] = None
+
+    @field_validator("sha256")
+    @classmethod
+    def _validate_sha256(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None and not re.fullmatch(r"[0-9a-f]{64}", v):
+            raise ValueError("sha256 must be a 64-character lowercase hex string")
+        return v
 
 
 class DownloadJobSchema(BaseModel):
@@ -62,3 +76,62 @@ class DetectedRootSchema(BaseModel):
 class ScanResultSchema(BaseModel):
     records_indexed: int
     warnings: List[str] = []
+
+
+class ConsentRequestSchema(BaseModel):
+    model_config = {"protected_namespaces": ()}
+
+    model_id: str
+    kind: str  # pickle | trust_remote_code
+    granted: bool
+
+
+class ConsentStateSchema(BaseModel):
+    model_config = {"protected_namespaces": ()}
+
+    model_id: str
+    pickle: bool
+    trust_remote_code: bool
+
+
+class SearchResultSchema(BaseModel):
+    # DELIBERATE omission: SearchResult's download_url/sha256 are server-side
+    # acquisition data carried on the transient ModelRecord, never in browse
+    # responses. Pydantic's extra='ignore' silently drops them at
+    # SearchResultSchema(**asdict(result)) - keep it that way.
+    id: str
+    source: str
+    name: str
+    repo_id: Optional[str] = None
+    tier: str
+    tier_reason: str
+    artifact_type: str = "diffusers-pipeline"
+    base_architecture: str = "unknown"
+    capability: str = "image"
+    downloads: int = 0
+    likes: int = 0
+    author: Optional[str] = None
+    license: Optional[str] = None
+    gated: bool = False
+    nsfw: bool = False
+    format: Optional[str] = None
+    trust_remote_code: bool = False
+    size: str = "Unknown"
+    tags: List[str] = []
+
+
+class SearchResponseSchema(BaseModel):
+    source: str
+    query: str
+    page: int
+    results: List[SearchResultSchema] = []
+    offline: bool = False
+    warning: Optional[str] = None
+
+
+class ConvertResultSchema(BaseModel):
+    model_config = {"protected_namespaces": ()}
+
+    model_id: str
+    safetensors_path: str
+    tensor_count: int

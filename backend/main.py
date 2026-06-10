@@ -38,6 +38,7 @@ import shutil
 import subprocess
 import time
 import uuid
+from dataclasses import asdict
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List
@@ -66,17 +67,26 @@ from utils.prompt_service import enhance_prompt
 from api.controlnet import router as controlnet_router
 from db.migrate import run_migrations
 from middleware.rate_limit import limiter, rate_limit_exceeded_handler
+from foundry import civitai_search, hub_search
+from foundry.model_record import ModelRecord
 from foundry.registry import ModelRegistry
 from foundry.schemas import (
+    ConsentRequestSchema,
+    ConsentStateSchema,
+    ConvertResultSchema,
     DetectedRootSchema,
     DownloadJobSchema,
     LibraryRootSchema,
     ModelRecordSchema,
     ScanResultSchema,
+    SearchResponseSchema,
+    SearchResultSchema,
 )
+from foundry.convert import ConvertUnavailableError, convert_pickle_to_safetensors
 from foundry.download_manager import DownloadManager
 from foundry.library_roots import RootsStore
 from foundry.index_service import IndexService
+from foundry.security_policy import ConsentStore
 
 # Initialize logging at module load time
 setup_logging(log_file=os.getenv("LOG_FILE"))
@@ -145,6 +155,25 @@ index_service = IndexService(
     models_dir=MODELS_DIR,
     state_path=os.path.join(_FOUNDRY_STATE_DIR, "index_state.json"),
 )
+consent_store = ConsentStore(os.path.join(_FOUNDRY_STATE_DIR, "consents.json"))
+
+
+def _verified_repo_ids() -> set:
+    """Catalog repo ids — the classifier's Verified short-circuit (spec 5.2)."""
+    return {r.repo_id for r in model_registry.records.values() if r.repo_id}
+
+
+def _search_result_to_record(result) -> ModelRecord:
+    """Map a SearchResult to a transient ModelRecord (registry normalizes status)."""
+    return ModelRecord(
+        id=result.id, name=result.name, artifact_type=result.artifact_type,
+        capability=result.capability, base_architecture=result.base_architecture,
+        source=result.source, repo_id=result.repo_id, size=result.size,
+        status="not_found", tier=result.tier, tier_reason=result.tier_reason,
+        quality="local", license=result.license, gated=result.gated,
+        format=result.format, trust_remote_code=result.trust_remote_code,
+        nsfw=result.nsfw, download_url=result.download_url, sha256=result.sha256,
+    )
 
 comfy_client: Optional[ComfyUIClient] = None
 direct_generator: Optional[DirectGenerator] = None
@@ -1534,6 +1563,80 @@ async def remove_library_root(request: Request, root_id: str):
     return {"removed": True, "records_dropped": dropped}
 
 
+@app.post("/api/models/consent", response_model=ConsentStateSchema, tags=["Models"])
+@limiter.limit("30/minute")
+async def set_consent(request: Request, body: ConsentRequestSchema):
+    """Grant/revoke per-model consent. Deliberate, logged; deny is the default.
+
+    Declared BEFORE the dynamic /api/models/{model_id} route so the literal
+    'consent' path is not captured as a model id.
+    """
+    try:
+        if body.granted:
+            consent_store.grant(body.model_id, body.kind)
+        else:
+            consent_store.revoke(body.model_id, body.kind)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    state = consent_store.get(body.model_id)
+    return ConsentStateSchema(model_id=body.model_id, **state)
+
+
+@app.get("/api/models/search", response_model=SearchResponseSchema, tags=["Models"])
+@limiter.limit("30/minute")
+async def search_models(
+    request: Request,
+    q: str = "",
+    source: str = "hf",
+    task: Optional[str] = None,
+    sort: str = "downloads",
+    page: int = 1,
+    nsfw: bool = False,
+    author: Optional[str] = None,
+):
+    """Search HF or CivitAI. Offline-degrading: failures return offline=True,
+    never a 5xx - the local library stays fully operational (spec 5.1).
+
+    Declared BEFORE the dynamic /api/models/{model_id} route so the literal
+    'search' path is not captured as a model id. Hub tokens arrive per-request
+    in headers (Electron safeStorage); NEVER persisted in Python, NEVER logged.
+    """
+    if source not in ("hf", "civitai"):
+        raise HTTPException(status_code=400, detail="source must be 'hf' or 'civitai'")
+    loop = asyncio.get_running_loop()
+    try:
+        if source == "hf":
+            from huggingface_hub import HfApi
+
+            hf_token = request.headers.get("X-HF-Token")
+            api = HfApi(token=hf_token)
+            results = await loop.run_in_executor(
+                None,
+                lambda: hub_search.search_hf(
+                    api, query=q, verified_repo_ids=_verified_repo_ids(),
+                    task=task, sort=sort, page=page, author=author,
+                ),
+            )
+        else:
+            civitai_token = request.headers.get("X-Civitai-Token")
+            results = await loop.run_in_executor(
+                None,
+                lambda: civitai_search.search_civitai(
+                    q, include_nsfw=nsfw, token=civitai_token,
+                ),
+            )
+    except Exception as exc:
+        return SearchResponseSchema(
+            source=source, query=q, page=page, results=[],
+            offline=True, warning=f"search unavailable: {type(exc).__name__}",
+        )
+    model_registry.register_transient([_search_result_to_record(r) for r in results])
+    return SearchResponseSchema(
+        source=source, query=q, page=page,
+        results=[SearchResultSchema(**asdict(r)) for r in results],
+    )
+
+
 @app.get("/api/models/{model_id}", response_model=ModelRecordSchema, tags=["Models"])
 @limiter.limit("60/minute")
 async def get_model_record(request: Request, model_id: str):
@@ -1553,11 +1656,42 @@ async def enqueue_download(request: Request, model_id: str):
     Electron main process (safeStorage). It is forwarded to the manager as a
     local parameter and is NEVER persisted in Python and NEVER logged.
     """
-    if model_registry.get_record(model_id) is None:
+    record = model_registry.get_record(model_id)
+    if record is None:
         raise HTTPException(status_code=404, detail=f"Model '{model_id}' not found")
-    token = request.headers.get("X-HF-Token")
+    # Spec 5.3 security rail: pickle weights and trust_remote_code are
+    # deny-by-default - downloads are blocked until per-model consent exists.
+    consent = consent_store.get(model_id)
+    if record.get("format") == "pickle" and not consent["pickle"]:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "error_code": "pickle-consent-required",
+                "message": "This model ships pickle weights. Explicit consent is required (Settings > Model Trust).",
+            },
+        )
+    if record.get("trust_remote_code") and not consent["trust_remote_code"]:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "error_code": "remote-code-consent-required",
+                "message": "This model requires running code authored by the repo. Explicit per-model consent is required.",
+            },
+        )
+    token = _acquisition_token(request, record)
     job = download_manager.enqueue(model_id, token=token)
     return _job_to_dict(job)
+
+
+def _acquisition_token(request: Request, record: Optional[Dict[str, Any]]) -> Optional[str]:
+    """Per-source acquisition token header (Electron safeStorage).
+
+    CivitAI-source records read X-Civitai-Token; everything else reads
+    X-HF-Token. NEVER persisted in Python, NEVER logged.
+    """
+    if record is not None and record.get("source") == "civitai":
+        return request.headers.get("X-Civitai-Token")
+    return request.headers.get("X-HF-Token")
 
 
 @app.post("/api/models/{model_id}/download/{action}", response_model=DownloadJobSchema, tags=["Models"])
@@ -1567,13 +1701,49 @@ async def control_download(request: Request, model_id: str, action: str):
     if action not in {"pause", "resume", "cancel"}:
         raise HTTPException(status_code=404, detail=f"Unknown action '{action}'")
     if action == "resume":
-        token = request.headers.get("X-HF-Token")
+        token = _acquisition_token(request, model_registry.get_record(model_id))
         job = download_manager.resume(model_id, token=token)
     else:
         job = getattr(download_manager, action)(model_id)
     if job is None:
         raise HTTPException(status_code=404, detail=f"No download job for '{model_id}'")
     return _job_to_dict(job)
+
+
+@app.post("/api/models/{model_id}/convert-safetensors", response_model=ConvertResultSchema, tags=["Models"])
+@limiter.limit("5/minute")
+async def convert_model_to_safetensors(request: Request, model_id: str):
+    """Consent-gated pickle -> safetensors conversion (spec 5.3)."""
+    record = model_registry.get_record(model_id)
+    if record is None:
+        raise HTTPException(status_code=404, detail=f"unknown model: {model_id}")
+    if not consent_store.get(model_id)["pickle"]:
+        raise HTTPException(status_code=409, detail={
+            "error_code": "pickle-consent-required",
+            "message": "Converting requires reading the pickle file - grant pickle consent first."})
+    src = next((p for p in record.get("locations", [])
+                if p.lower().endswith((".ckpt", ".pt", ".pth", ".bin"))
+                and os.path.isfile(p)), None)
+    if src is None:
+        raise HTTPException(status_code=409, detail={
+            "error_code": "no-pickle-source",
+            "message": "No local pickle file found for this model - download it first."})
+    dest = os.path.splitext(src)[0] + ".safetensors"
+    if os.path.exists(dest):
+        # Never silently clobber an existing (possibly authoritative)
+        # safetensors copy; re-convert is an explicit delete-then-convert.
+        raise HTTPException(status_code=409, detail={
+            "error_code": "already-converted",
+            "message": f"A safetensors file already exists at {os.path.basename(dest)} - delete it first to re-convert."})
+    loop = asyncio.get_running_loop()
+    try:
+        tensor_count = await loop.run_in_executor(
+            None, convert_pickle_to_safetensors, src, dest)
+    except ConvertUnavailableError as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
+    except (ValueError, OSError) as exc:
+        raise HTTPException(status_code=422, detail=f"conversion failed: {exc}")
+    return ConvertResultSchema(model_id=model_id, safetensors_path=dest, tensor_count=tensor_count)
 
 
 @app.get("/api/models/{model_id}/status", tags=["Models"])
