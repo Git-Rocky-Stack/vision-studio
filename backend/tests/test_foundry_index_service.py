@@ -232,6 +232,32 @@ class IndexServiceTests(unittest.TestCase):
             offers = self.service.detect_candidates()
         self.assertEqual(offers, [{"path": comfy, "layout_hint": "comfyui"}])
 
+    def test_hf_cache_warnings_propagate_to_snapshot(self):
+        with mock.patch(
+            "foundry.index_service.scan_hf_cache",
+            return_value=HfCacheScan(warnings=["broken cache entry: Qwen-Image-2512"]),
+        ):
+            snapshot = self.service.scan()
+        self.assertIn("broken cache entry: Qwen-Image-2512", snapshot.warnings)
+
+    def test_remove_unknown_root_returns_zero(self):
+        with mock.patch("foundry.index_service.scan_hf_cache", return_value=HfCacheScan()):
+            self.assertEqual(self.service.remove_root("does-not-exist"), 0)
+
+    def test_generic_diffusers_filename_does_not_reconcile_to_catalog(self):
+        lib = os.path.join(self.tmp, "lib-generic")
+        make_safetensors(
+            os.path.join(lib, "loras", "diffusion_pytorch_model.safetensors"), LORA_TENSORS
+        )
+        self.roots.add(lib, "comfyui")
+        self._scan()
+        ids = [record["id"] for record in self.registry.list_records()]
+        local_ids = [i for i in ids if i.startswith("local-")]
+        self.assertEqual(len(local_ids), 1)  # discovered as a local record, NOT catalog-reconciled
+        vae = self.registry.get_record("sd-vae-ft-mse")
+        if vae is not None:
+            self.assertNotEqual(vae["status"], "ready")
+
 
 if __name__ == "__main__":
     unittest.main()

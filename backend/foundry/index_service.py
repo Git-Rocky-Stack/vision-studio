@@ -18,6 +18,11 @@ from foundry.registry import ModelRegistry
 
 _APP_ROOT_ID = "__app__"
 
+# Filenames too generic to identify a model: never use them for catalog
+# reconciliation of discovered loose files (a user's arbitrary
+# diffusion_pytorch_model.safetensors is NOT the catalog VAE).
+_AMBIGUOUS_FILENAMES = {"diffusion_pytorch_model.safetensors"}
+
 # (path, layout_hint) candidates probed by first-run detection. Patched in tests.
 _WELL_KNOWN_CANDIDATES: List[Tuple[str, str]] = [
     (os.path.expanduser(os.path.join("~", "ComfyUI", "models")), "comfyui"),
@@ -47,8 +52,11 @@ class IndexService:
         self._state_path = state_path
         # signatures: root_id -> {normalized path: [mtime_ns, size, type, identity]}
         self._signatures: Dict[str, Dict] = {}
-        # last good records per root, kept so an unmounted root degrades
-        # to 'unavailable' records instead of vanishing (spec 4.6).
+        # Last good records per root, kept IN MEMORY ONLY so an unmounted root
+        # degrades to 'unavailable' records instead of vanishing (spec 4.6).
+        # Known limitation: after a process restart while the root is still
+        # unmounted, its records vanish until the root remounts and a scan
+        # runs (durable degradation is a tracked follow-up).
         self._last_records: Dict[str, List[ModelRecord]] = {}
         self._load_state()
 
@@ -71,6 +79,12 @@ class IndexService:
 
     # -- public API ----------------------------------------------------------
     def scan(self) -> IndexSnapshot:
+        """Merge all index feeds and push the result into the registry.
+
+        Scans assume serialized invocation (main.py runs them via
+        asyncio.to_thread one at a time); concurrent scans are
+        last-writer-wins, not corrupting.
+        """
         snapshot = IndexSnapshot()
         reconciliation = self._filename_reconciliation()
         indexed: List[ModelRecord] = []
@@ -101,7 +115,12 @@ class IndexService:
 
     def remove_root(self, root_id: str) -> int:
         """Drop a root + its referenced-only records. Touches zero bytes."""
-        dropped = len(self._last_records.pop(root_id, []))
+        dropped = sum(
+            1
+            for record in self._registry.list_records()
+            if record.get("library_root_id") == root_id
+        )
+        self._last_records.pop(root_id, None)
         self._signatures.pop(root_id, None)
         self._roots.remove(root_id)
         self.scan()
@@ -134,7 +153,11 @@ class IndexService:
     def _filename_reconciliation(self) -> Dict[str, str]:
         from utils.model_manager import _SINGLE_FILE_FILENAMES
 
-        return {filename: model_id for model_id, filename in _SINGLE_FILE_FILENAMES.items()}
+        return {
+            filename: model_id
+            for model_id, filename in _SINGLE_FILE_FILENAMES.items()
+            if filename not in _AMBIGUOUS_FILENAMES
+        }
 
     def _catalog_by_repo(self) -> Dict[Tuple[str, str], str]:
         return {
