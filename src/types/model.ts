@@ -49,6 +49,11 @@ export interface ModelRecord {
   description: string;
   license: string | null;
   gated: boolean;
+  // M3 location/index fields (absent on older payloads):
+  locations?: string[];
+  identity?: string | null;
+  availability?: 'available' | 'unavailable';
+  library_root_id?: string | null;
   // Optional legacy-compat fields some consumers read:
   type?: string;
   progress?: number;
@@ -78,6 +83,27 @@ export interface DownloadJob {
   total_bytes: number;
   error: string | null;
   gate_url: string | null;
+}
+
+export type LayoutHint = 'comfyui' | 'a1111' | 'generic';
+
+/** A user library root indexed in place - bytes are referenced, never copied. */
+export interface LibraryRoot {
+  id: string;
+  path: string;
+  layout_hint: LayoutHint;
+  added_at: string;
+}
+
+/** First-run detection offer (existing ComfyUI/A1111 install). Opt-in only. */
+export interface DetectedRoot {
+  path: string;
+  layout_hint: LayoutHint;
+}
+
+export interface ScanResult {
+  records_indexed: number;
+  warnings: string[];
 }
 
 export function isImageCapability(record: Pick<ModelRecord, 'capability'>): boolean {

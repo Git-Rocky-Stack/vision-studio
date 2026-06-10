@@ -297,6 +297,11 @@ export interface ElectronAPI {
     subscribeDownloads: () => Promise<any[]>;
     getStatus: (modelId: string) => Promise<any>;
     delete: (modelId: string) => Promise<{ success: boolean; error?: string }>;
+    importRoot: (path: string, layoutHint: string) => Promise<{ id: string; path: string; layout_hint: string; added_at: string }>;
+    scan: () => Promise<{ records_indexed: number; warnings: string[] }>;
+    librariesList: () => Promise<any[]>;
+    librariesRemove: (rootId: string) => Promise<{ removed: boolean; records_dropped: number }>;
+    librariesDetect: () => Promise<any[]>;
   };
   auth: {
     setHfToken: (token: string) => Promise<{ success: boolean }>;
@@ -395,6 +400,11 @@ const electronAPI: ElectronAPI = {
     subscribeDownloads: () => ipcRenderer.invoke('models:downloads:subscribe'),
     getStatus: (modelId: string) => ipcRenderer.invoke('models:get-status', modelId),
     delete: (modelId: string) => ipcRenderer.invoke('models:delete', modelId),
+    importRoot: (path: string, layoutHint: string) => ipcRenderer.invoke('models:import', path, layoutHint),
+    scan: () => ipcRenderer.invoke('models:scan'),
+    librariesList: () => ipcRenderer.invoke('models:libraries:list'),
+    librariesRemove: (rootId: string) => ipcRenderer.invoke('models:libraries:remove', rootId),
+    librariesDetect: () => ipcRenderer.invoke('models:libraries:detect'),
   },
   auth: {
     setHfToken: (token: string) => ipcRenderer.invoke('auth:setHfToken', token),

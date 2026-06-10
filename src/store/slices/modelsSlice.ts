@@ -1,9 +1,11 @@
 import type { AppSet, AppGet, AppState } from '../appStore.types';
-import type { ModelRecord, ModelCapability, DownloadJob } from '@/types/model';
+import type { ModelRecord, ModelCapability, DownloadJob, LibraryRoot, DetectedRoot, LayoutHint } from '@/types/model';
 
 export const modelsInitialState = {
   availableModels: [] as ModelRecord[],
   downloads: {} as Record<string, DownloadJob>,
+  libraryRoots: [] as LibraryRoot[],
+  detectedRoots: [] as DetectedRoot[],
 };
 
 export function createModelsActions(set: AppSet, _get: AppGet) {
@@ -62,6 +64,53 @@ export function createModelsActions(set: AppSet, _get: AppGet) {
     cancelDownload: async (modelId: string) => {
       try {
         mergeJob((await window.electron.models.downloadCancel(modelId)) as DownloadJob);
+      } catch {
+        /* local-first */
+      }
+    },
+
+    // Library roots ---------------------------------------------------------
+    loadLibraryRoots: async () => {
+      try {
+        const roots = (await window.electron.models.librariesList()) as LibraryRoot[];
+        set({ libraryRoots: roots });
+      } catch {
+        // Local-first: keep last-known roots on a backend hiccup.
+      }
+    },
+    addLibraryRoot: async (path: string, layoutHint: LayoutHint) => {
+      try {
+        await window.electron.models.importRoot(path, layoutHint);
+        const roots = (await window.electron.models.librariesList()) as LibraryRoot[];
+        const models = await window.electron.models.list();
+        set({ libraryRoots: roots, availableModels: models });
+      } catch {
+        /* local-first */
+      }
+    },
+    removeLibraryRoot: async (rootId: string) => {
+      try {
+        await window.electron.models.librariesRemove(rootId);
+        const roots = (await window.electron.models.librariesList()) as LibraryRoot[];
+        const models = await window.electron.models.list();
+        set({ libraryRoots: roots, availableModels: models });
+      } catch {
+        /* local-first */
+      }
+    },
+    scanLibraries: async () => {
+      try {
+        await window.electron.models.scan();
+        const models = await window.electron.models.list();
+        set({ availableModels: models });
+      } catch {
+        /* local-first */
+      }
+    },
+    detectLibraries: async () => {
+      try {
+        const offers = (await window.electron.models.librariesDetect()) as DetectedRoot[];
+        set({ detectedRoots: offers });
       } catch {
         /* local-first */
       }

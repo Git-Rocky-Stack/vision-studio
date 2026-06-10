@@ -121,7 +121,7 @@ import type {
 } from '@/types/workflow';
 
 import type { ProjectTemplate } from '@/types/template';
-import type { ModelRecord, DownloadJob } from '@/types/model';
+import type { ModelRecord, DownloadJob, LibraryRoot, DetectedRoot, LayoutHint } from '@/types/model';
 
 import type { AspectRatio, ResolutionTier } from '@/types/resolution';
 
@@ -322,6 +322,8 @@ export interface AppState {
   // ─── Models ──────────────────────────────────────────────────────────────
   availableModels: ModelRecord[];
   downloads: Record<string, DownloadJob>;
+  libraryRoots: LibraryRoot[];
+  detectedRoots: DetectedRoot[];
 
   // ─── Prompt Intelligence ─────────────────────────────────────────────────
   promptHistory: PromptHistoryEntry[];
@@ -497,6 +499,11 @@ export interface AppState {
   pauseDownload: (modelId: string) => Promise<void>;
   resumeDownload: (modelId: string) => Promise<void>;
   cancelDownload: (modelId: string) => Promise<void>;
+  loadLibraryRoots: () => Promise<void>;
+  addLibraryRoot: (path: string, layoutHint: LayoutHint) => Promise<void>;
+  removeLibraryRoot: (rootId: string) => Promise<void>;
+  scanLibraries: () => Promise<void>;
+  detectLibraries: () => Promise<void>;
   addBatchJob: (batchJob: BatchJob) => void;
   updateBatchJob: (batchId: string, updates: Partial<BatchJob>) => void;
 

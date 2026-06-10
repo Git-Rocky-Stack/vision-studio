@@ -239,6 +239,13 @@ This is **enriched on the Main side** — it asks the backend for its `/api/syst
 | `download(modelId)` | `models:download` | `Promise<{ success, message? }>` | `POST /api/models/{id}/download` |
 | `getStatus(modelId)` | `models:get-status` | `Promise<ModelStatus \| null>` | `GET /api/models/{id}/status` |
 | `delete(modelId)` | `models:delete` | `Promise<{ success, error? }>` | `DELETE /api/models/{id}` |
+| `importRoot(body)` | `models:import` | `Promise<LibraryRoot>` | `POST /api/models/import` |
+| `scan()` | `models:scan` | `Promise<{ records_indexed: number, warnings: string[] }>` | `POST /api/models/scan` |
+| `librariesList()` | `models:libraries:list` | `Promise<LibraryRoot[]>` | `GET /api/models/libraries` |
+| `librariesRemove(rootId)` | `models:libraries:remove` | `Promise<{ removed: boolean, records_dropped: number }>` | `DELETE /api/models/libraries/{root_id}` |
+| `librariesDetect()` | `models:libraries:detect` | `Promise<DetectedRoot[]>` | `GET /api/models/libraries/detect` |
+
+`body` for `importRoot`: `{ path: string; layout_hint?: string }` — see `ImportRootRequest` in the REST section below. `LibraryRoot` and `DetectedRoot` types mirror the backend schemas of the same name.
 
 ### 1.10 `electron.notifications`
 
@@ -418,20 +425,33 @@ Sets status to `cancelled` if the job is `pending` or `processing`. No-op messag
 
 #### `GET /api/models` — `tags=[Models]`, limit `60/min`
 
-Returns `ModelInfo[]` from `ModelManager.scan_models()`:
+Returns `ModelRecord[]` from the Foundry registry (M3+). The full `ModelRecord` shape is:
 
 ```json
-[
-  {
-    "id": "flux-dev",
-    "name": "FLUX.1 [dev]",
-    "type": "image",
-    "size": "12.0 GB",
-    "status": "installed",
-    "description": "High-quality text-to-image model"
-  }
-]
+{
+  "id": "flux-dev",
+  "name": "FLUX.1 [dev]",
+  "artifact_type": "checkpoint",
+  "capability": "image",
+  "base_architecture": "flux",
+  "source": "huggingface",
+  "size": "12.0 GB",
+  "status": "ready",
+  "tier": "verified",
+  "quality": "balanced",
+  "runtime": "local",
+  "hardware_class": "high",
+  "vram": "16.0 GB",
+  "description": "High-quality text-to-image model",
+  "gated": false,
+  "locations": ["/path/to/weights.safetensors"],
+  "identity": "sha256:abc123…",
+  "availability": "available",
+  "library_root_id": null
+}
 ```
+
+Four fields were added in M3: `locations` (absolute filesystem paths where the artifact is present; `string[]`), `identity` (content-derived identity hash for deduplication; `string | null`), `availability` (`"available" | "linked" | "remote"`), and `library_root_id` (ID of the `LibraryRoot` this record was indexed from; `string | null`). All four have safe defaults and are absent from records created before M3.
 
 #### `POST /api/models/{model_id}/download` — `tags=[Models]`, limit `30/min`
 
@@ -443,7 +463,52 @@ Returns `{ id, name, status, progress, downloaded_bytes, total_bytes, error? }`.
 
 #### `DELETE /api/models/{model_id}` — `tags=[Models]`, limit `30/min`
 
-Deletes locally installed weights. Returns `{ "success": true }`. `404` if not installed.
+Deletes locally installed weights. Returns `{ "success": true }`. `404` if not installed. `409` if the model is a linked library reference — call `DELETE /api/models/libraries/{root_id}` instead; no bytes are ever deleted by that path either.
+
+#### `POST /api/models/import` — `tags=[Models]`, limit `30/min`
+
+Register a user-owned model library directory by reference. Vision Studio indexes it without copying any bytes.
+
+Body — `ImportRootRequest`:
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `path` | string | — (required) | Absolute filesystem path to the library directory |
+| `layout_hint` | string | `"generic"` | Directory-layout hint: `generic \| comfyui \| a1111 \| diffusers \| huggingface` |
+
+Returns `201 LibraryRoot` on success. `400` if the path is invalid or `layout_hint` is not a recognised value. The operation is idempotent — calling it twice with the same path registers once and re-indexes.
+
+#### `POST /api/models/scan` — `tags=[Models]`, limit `30/min`
+
+Re-index all feeds (built-in app tree, HF cache, and every registered library root). Returns:
+
+```json
+{ "records_indexed": 42, "warnings": [] }
+```
+
+`records_indexed` is the total count across all feeds. `warnings` lists any paths that were skipped due to permissions or parse errors.
+
+#### `GET /api/models/libraries` — `tags=[Models]`, limit `60/min`
+
+List every registered `LibraryRoot`:
+
+```json
+[{ "id": "a1b2…", "path": "C:/Users/me/ComfyUI/models", "layout_hint": "comfyui", "added_at": "2026-05-10T14:00:00Z" }]
+```
+
+#### `GET /api/models/libraries/detect` — `tags=[Models]`, limit `60/min`
+
+First-run detection: scans well-known install locations for ComfyUI, Automatic1111, and diffusers caches. Returns candidate `DetectedRoot[]` — these are **offers only**, nothing is registered until the user confirms via `POST /api/models/import`.
+
+```json
+[{ "path": "C:/Users/me/ComfyUI/models", "layout_hint": "comfyui" }]
+```
+
+#### `DELETE /api/models/libraries/{root_id}` — `tags=[Models]`, limit `30/min`
+
+Remove a registered library root. Drops all `ModelRecord` entries that were sourced exclusively from this root. **Never touches source bytes** — files on disk are left untouched.
+
+Returns `{ "removed": true, "records_dropped": 17 }`. `404` if `root_id` is unknown.
 
 ### 2.7 Images
 
@@ -854,13 +919,16 @@ for i, image in enumerate(data["images"]):
 | Code | Meaning | When |
 |------|---------|------|
 | `200` | Success | Normal response |
+| `201` | Created | `POST /api/models/import` — new library root registered |
+| `202` | Accepted | `POST /api/models/{id}/download` — download enqueued |
 | `400` | Bad request | Pydantic validation failure or `INVALID_INPUT` from `/api/v1/*` |
 | `403` | Forbidden | Missing/invalid `x-vision-studio-token` |
-| `404` | Not found | Missing job, model, or source file |
+| `404` | Not found | Missing job, model, library root, or source file |
+| `409` | Conflict | `DELETE /api/models/{id}` on a linked library reference — remove its library root instead |
 | `429` | Rate limited | Hit the per-IP rate limit; response includes `Retry-After` header and `{ "error": "Rate limit exceeded", "error_code": "RATE_LIMITED", "retry_after": "60" }` |
 | `500` | Server error | Generation/edit/service exception; `{ error, error_code }` body |
 | WS `1008` | Policy violation | Token mismatch on `/ws` |
 
 ---
 
-_Last verified against the codebase on 2026-05-03. Canonical source: `backend/main.py`, `backend/api/{controlnet,lora,edit,batch}.py`, `electron/preload.ts`, `electron/ipc-handlers/generation.ts`, `electron/services/mainIpc.ts`._
+_Last verified against the codebase on 2026-06-09. Canonical source: `backend/main.py`, `backend/api/{controlnet,lora,edit,batch}.py`, `backend/foundry/{schemas,library_roots,index_service}.py`, `electron/preload.ts`, `electron/ipc-handlers/generation.ts`, `electron/services/mainIpc.ts`._

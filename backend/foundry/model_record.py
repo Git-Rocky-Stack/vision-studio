@@ -5,8 +5,8 @@ Live download/location/hardware-fit fields are added in later milestones.
 """
 
 import json
-from dataclasses import asdict, dataclass
-from typing import Any, Dict, Optional
+from dataclasses import asdict, dataclass, field
+from typing import Any, Dict, List, Optional
 
 
 @dataclass
@@ -39,6 +39,12 @@ class ModelRecord:
     description: str = ""
     license: Optional[str] = None
     gated: bool = False
+
+    # Location / index (M3)
+    locations: List[str] = field(default_factory=list)
+    identity: Optional[str] = None
+    availability: str = "available"   # available | unavailable (separate axis from status)
+    library_root_id: Optional[str] = None
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)

@@ -34,6 +34,7 @@ resources/VisionStudio-Backend.exe
 
 # Local runtime data (SQLite DB auto-created by backend migrations)
 backend/data/
+backend/models/
 
 # Development artifacts
 output/

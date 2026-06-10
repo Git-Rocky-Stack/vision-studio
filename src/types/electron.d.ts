@@ -3,7 +3,7 @@
  */
 
 import type { ImageGenerationRequestPayload } from './generation';
-import type { DownloadJob, ModelRecord } from './model';
+import type { DownloadJob, ModelRecord, LibraryRoot, DetectedRoot, ScanResult } from './model';
 
 export type GenerationParams = ImageGenerationRequestPayload;
 
@@ -325,6 +325,7 @@ export interface ElectronAPI {
   };
   models: {
     list: () => Promise<ModelRecord[]>;
+    get: (modelId: string) => Promise<ModelRecord | null>;
     // The backend returns a DownloadJob (202 Accepted) when a pull is enqueued.
     download: (modelId: string) => Promise<DownloadJob>;
     downloadPause: (modelId: string) => Promise<DownloadJob>;
@@ -334,6 +335,14 @@ export interface ElectronAPI {
     subscribeDownloads: () => Promise<DownloadJob[]>;
     getStatus: (modelId: string) => Promise<ModelInfo | null>;
     delete: (modelId: string) => Promise<{ success: boolean; error?: string }>;
+    importRoot: (path: string, layoutHint: string) => Promise<LibraryRoot>;
+    scan: () => Promise<ScanResult>;
+    librariesList: () => Promise<LibraryRoot[]>;
+    librariesRemove: (rootId: string) => Promise<{ removed: boolean; records_dropped: number }>;
+    librariesDetect: () => Promise<DetectedRoot[]>;
+  };
+  auth: {
+    setHfToken: (token: string) => Promise<{ success: boolean }>;
   };
   notifications: {
     notify: (
