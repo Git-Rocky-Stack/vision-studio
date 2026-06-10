@@ -3,7 +3,7 @@
  */
 
 import type { ImageGenerationRequestPayload } from './generation';
-import type { DownloadJob, ModelRecord } from './model';
+import type { DownloadJob, ModelRecord, LibraryRoot, DetectedRoot, ScanResult } from './model';
 
 export type GenerationParams = ImageGenerationRequestPayload;
 
@@ -334,6 +334,11 @@ export interface ElectronAPI {
     subscribeDownloads: () => Promise<DownloadJob[]>;
     getStatus: (modelId: string) => Promise<ModelInfo | null>;
     delete: (modelId: string) => Promise<{ success: boolean; error?: string }>;
+    importRoot: (path: string, layoutHint: string) => Promise<LibraryRoot>;
+    scan: () => Promise<ScanResult>;
+    librariesList: () => Promise<LibraryRoot[]>;
+    librariesRemove: (rootId: string) => Promise<{ removed: boolean; records_dropped: number }>;
+    librariesDetect: () => Promise<DetectedRoot[]>;
   };
   notifications: {
     notify: (

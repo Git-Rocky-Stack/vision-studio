@@ -684,3 +684,76 @@ ipcMain.handle('models:delete', async (_event, modelId: string) => {
     };
   }
 });
+
+ipcMain.handle('models:import', async (_event, path: string, layoutHint: string) => {
+  try {
+    const response = await requestBackend(() =>
+      axios.post(`${BACKEND_URL}/api/models/import`, { path, layout_hint: layoutHint }, {
+        headers: backendAuthHeaders(),
+      }),
+    );
+    return response.data;
+  } catch (error: any) {
+    console.error('Import library root error:', error);
+    return {
+      success: false,
+      error: toSafeRendererError(error, 'Library root import failed'),
+    };
+  }
+});
+
+ipcMain.handle('models:scan', async () => {
+  try {
+    const response = await requestBackend(() =>
+      axios.post(`${BACKEND_URL}/api/models/scan`, undefined, { headers: backendAuthHeaders() }),
+    );
+    return response.data;
+  } catch (error: any) {
+    console.error('Library scan error:', error);
+    return {
+      success: false,
+      error: toSafeRendererError(error, 'Library scan failed'),
+    };
+  }
+});
+
+ipcMain.handle('models:libraries:list', async () => {
+  try {
+    const response = await requestBackend(() =>
+      axios.get(`${BACKEND_URL}/api/models/libraries`, { headers: backendAuthHeaders() }),
+    );
+    return response.data;
+  } catch (error: any) {
+    console.error('List library roots error:', error);
+    return [];
+  }
+});
+
+ipcMain.handle('models:libraries:remove', async (_event, rootId: string) => {
+  try {
+    const response = await requestBackend(() =>
+      axios.delete(`${BACKEND_URL}/api/models/libraries/${encodeURIComponent(rootId)}`, {
+        headers: backendAuthHeaders(),
+      }),
+    );
+    return response.data;
+  } catch (error: any) {
+    console.error('Remove library root error:', error);
+    return {
+      success: false,
+      error: toSafeRendererError(error, 'Library root removal failed'),
+    };
+  }
+});
+
+ipcMain.handle('models:libraries:detect', async () => {
+  try {
+    const response = await requestBackend(() =>
+      axios.get(`${BACKEND_URL}/api/models/libraries/detect`, { headers: backendAuthHeaders() }),
+    );
+    return response.data;
+  } catch (error: any) {
+    console.error('Detect library roots error:', error);
+    return [];
+  }
+});

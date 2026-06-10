@@ -616,3 +616,22 @@ function mapDownloadsResponse(jobs: DownloadJobShape[]): Record<string, Download
 function downloadActions(): string[] {
   return ['pause', 'resume', 'cancel'];
 }
+
+// ── LibraryRoot / ScanResult contracts ───────────────────────────────────
+
+describe('LibraryRoot contract', () => {
+  it('matches the backend LibraryRootSchema field set', () => {
+    const root: import('@/types/model').LibraryRoot = {
+      id: 'r1',
+      path: '/some/path',
+      layout_hint: 'comfyui',
+      added_at: '2026-06-09T00:00:00Z',
+    };
+    expect(Object.keys(root).sort()).toEqual(['added_at', 'id', 'layout_hint', 'path']);
+  });
+
+  it('ScanResult matches ScanResultSchema', () => {
+    const result: import('@/types/model').ScanResult = { records_indexed: 0, warnings: [] };
+    expect(Object.keys(result).sort()).toEqual(['records_indexed', 'warnings']);
+  });
+});
