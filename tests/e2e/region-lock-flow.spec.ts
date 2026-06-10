@@ -19,51 +19,38 @@ const MAIN_ENTRY = path.resolve(__dirname, '../../dist-electron/main.mjs');
 const TEST_IMAGE =
   'data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22800%22%20height%3D%22600%22%3E%3Crect%20width%3D%22800%22%20height%3D%22600%22%20fill%3D%22%23161616%22%2F%3E%3C%2Fsvg%3E';
 
-async function seedProject(page: import('@playwright/test').Page) {
-  // Create a minimal project + scene and set it active, plus load a current image
-  // so the artboard has known dimensions.
-  await page.evaluate((img) => {
+async function seedProject(
+  page: import('@playwright/test').Page
+): Promise<{ projectId: string; sceneId: string }> {
+  // Seed through the store's own actions (createProject/addScene) instead of a
+  // hand-rolled state literal: addScene routes through buildScene, so the seeded
+  // scene always matches the real Scene shape. A drifted literal here once
+  // omitted canvasControlLayers, crashing the center view (undefined.find)
+  // before the mask drawer could ever mount.
+  return page.evaluate((img) => {
     const w = window as unknown as {
       __VISION_STUDIO_STORE__: {
-        getState: () => Record<string, unknown>;
-        setState: (partial: Record<string, unknown>) => void;
+        getState: () => {
+          createProject: (
+            name: string,
+            dimensions?: { width: number; height: number }
+          ) => { id: string };
+          addScene: (projectId: string) => { id: string };
+          setActiveProject: (id: string | null) => void;
+          setActiveScene: (id: string | null) => void;
+          setCurrentImage: (imagePath: string | null, assetPath?: string | null) => void;
+          setActiveTab: (tab: 'canvas') => void;
+        };
       };
     };
-    const store = w.__VISION_STUDIO_STORE__;
-    const now = new Date().toISOString();
-    const project = {
-      id: 'p-e2e-1',
-      name: 'E2E Project',
-      created: now,
-      modified: now,
-      dimensions: { width: 800, height: 600 },
-      fps: 24,
-      characters: [],
-      scenes: [
-        {
-          id: 's-e2e-1',
-          projectId: 'p-e2e-1',
-          index: 0,
-          name: 'Scene 1',
-          prompt: '',
-          generationConfig: {},
-          transition: { type: 'cut', duration: 0 },
-          regionLocks: [],
-          metadata: { created: now, modified: now, duration: 0, fps: 24, notes: '' },
-          status: 'draft',
-          characterRefs: [],
-          frames: [],
-        },
-      ],
-      metadata: {},
-    };
-    store.setState({
-      projects: [project],
-      activeProjectId: 'p-e2e-1',
-      activeSceneId: 's-e2e-1',
-      currentImage: img,
-      activeTab: 'canvas',
-    });
+    const actions = w.__VISION_STUDIO_STORE__.getState();
+    const project = actions.createProject('E2E Project', { width: 800, height: 600 });
+    const scene = actions.addScene(project.id);
+    actions.setActiveProject(project.id); // also clears activeSceneId
+    actions.setActiveScene(scene.id);
+    actions.setCurrentImage(img);
+    actions.setActiveTab('canvas');
+    return { projectId: project.id, sceneId: scene.id };
   }, TEST_IMAGE);
 }
 
@@ -96,13 +83,13 @@ test.describe('Region Lock - workflow', () => {
   });
 
   test('Create Region Lock button creates and selects a region', async ({ page }) => {
-    await seedProject(page);
+    const { sceneId } = await seedProject(page);
 
     await page.click('#tab-region');
     await page.waitForSelector('[data-testid="create-region-lock"]');
     await page.click('[data-testid="create-region-lock"]');
 
-    const state = await page.evaluate(() => {
+    const state = await page.evaluate((sceneId) => {
       const w = window as unknown as {
         __VISION_STUDIO_STORE__: {
           getState: () => {
@@ -113,14 +100,14 @@ test.describe('Region Lock - workflow', () => {
         };
       };
       const s = w.__VISION_STUDIO_STORE__.getState();
-      const scene = s.projects[0]?.scenes.find((sc) => sc.id === 's-e2e-1');
+      const scene = s.projects[0]?.scenes.find((sc) => sc.id === sceneId);
       return {
         activeRegionId: s.activeRegionId,
         activeMaskTool: s.activeMaskTool,
         regionCount: scene?.regionLocks.length ?? 0,
         firstName: scene?.regionLocks[0]?.name ?? null,
       };
-    });
+    }, sceneId);
 
     expect(state.regionCount).toBe(1);
     expect(state.activeRegionId).not.toBeNull();
@@ -129,7 +116,7 @@ test.describe('Region Lock - workflow', () => {
   });
 
   test('drawing a rectangle on the mask drawer updates the region bounds', async ({ page }) => {
-    await seedProject(page);
+    const { sceneId } = await seedProject(page);
 
     await page.click('#tab-region');
     await page.waitForSelector('[data-testid="create-region-lock"]');
@@ -156,7 +143,7 @@ test.describe('Region Lock - workflow', () => {
     await page.mouse.up();
 
     // After release, updateRegionLock should have been called and the bounds persisted.
-    const bounds = await page.evaluate(() => {
+    const bounds = await page.evaluate((sceneId) => {
       const w = window as unknown as {
         __VISION_STUDIO_STORE__: {
           getState: () => {
@@ -171,10 +158,10 @@ test.describe('Region Lock - workflow', () => {
         };
       };
       const s = w.__VISION_STUDIO_STORE__.getState();
-      const scene = s.projects[0]?.scenes.find((sc) => sc.id === 's-e2e-1');
+      const scene = s.projects[0]?.scenes.find((sc) => sc.id === sceneId);
       const lock = scene?.regionLocks.find((l) => l.id === s.activeRegionId);
       return lock?.mask.bounds ?? null;
-    });
+    }, sceneId);
 
     expect(bounds).not.toBeNull();
     expect(bounds!.width).toBeGreaterThan(10);
