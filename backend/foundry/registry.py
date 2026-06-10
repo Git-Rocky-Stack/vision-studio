@@ -125,9 +125,9 @@ class ModelRegistry:
         Detection is per-model and precise: diffusers pipelines / motion
         adapters live under diffusers/<id>/; single-file artifacts are matched
         by their typed subdir + id. A stray unrelated file in a typed subdir
-        must NOT mark a different model ready. Filename-aware indexing for flat
-        single-file artifacts arrives with the M3 indexer; until then a
-        single-file model whose id-named directory is absent stays not_found.
+        must NOT mark a different model ready. Flat single-file artifacts are
+        reconciled by the M3 indexer's filename map; this dir check remains as
+        the no-index fallback.
         """
         candidates = []
         if record.artifact_type in {"diffusers-pipeline", "motion-adapter"}:

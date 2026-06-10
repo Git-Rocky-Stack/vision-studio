@@ -211,6 +211,68 @@
         }
       }
     },
+    "/api/models/import": {
+      "post": {
+        "tags": ["Models"],
+        "summary": "Register a user library root by reference (never copies bytes)",
+        "operationId": "importLibraryRoot",
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ImportRootRequest" } } }
+        },
+        "responses": {
+          "201": { "description": "Library root registered", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/LibraryRoot" } } } },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "429": { "$ref": "#/components/responses/RateLimited" }
+        }
+      }
+    },
+    "/api/models/scan": {
+      "post": {
+        "tags": ["Models"],
+        "summary": "Re-index every feed (app tree, HF cache, linked roots)",
+        "operationId": "scanLibraries",
+        "responses": {
+          "200": { "description": "Scan complete", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ScanResult" } } } },
+          "429": { "$ref": "#/components/responses/RateLimited" }
+        }
+      }
+    },
+    "/api/models/libraries": {
+      "get": {
+        "tags": ["Models"],
+        "summary": "List all registered library roots",
+        "operationId": "listLibraryRoots",
+        "responses": {
+          "200": { "description": "Library roots", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/LibraryRoot" } } } } }
+        }
+      }
+    },
+    "/api/models/libraries/detect": {
+      "get": {
+        "tags": ["Models"],
+        "summary": "First-run detection: existing ComfyUI / A1111 installs (offers only, nothing registered)",
+        "operationId": "detectLibraryRoots",
+        "responses": {
+          "200": { "description": "Detected candidates", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/DetectedRoot" } } } } }
+        }
+      }
+    },
+    "/api/models/libraries/{root_id}": {
+      "delete": {
+        "tags": ["Models"],
+        "summary": "Remove a library root; drops linked records, never touches source bytes",
+        "operationId": "removeLibraryRoot",
+        "parameters": [{ "in": "path", "name": "root_id", "required": true, "schema": { "type": "string" } }],
+        "responses": {
+          "200": {
+            "description": "Root removed",
+            "content": { "application/json": { "schema": { "type": "object", "properties": { "removed": { "type": "boolean" }, "records_dropped": { "type": "integer" } } } } }
+          },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
     "/api/models/{model_id}": {
       "delete": {
         "tags": ["Models"],
@@ -219,7 +281,8 @@
         "parameters": [{ "in": "path", "name": "model_id", "required": true, "schema": { "type": "string" } }],
         "responses": {
           "200": { "description": "Deleted", "content": { "application/json": { "schema": { "type": "object", "properties": { "success": { "type": "boolean" } } } } } },
-          "404": { "$ref": "#/components/responses/NotFound" }
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "description": "Model is a linked library reference — remove its library root instead", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
         }
       }
     },
@@ -486,6 +549,70 @@
           "size": { "type": "string", "example": "12.0 GB" },
           "status": { "type": "string", "enum": ["installed", "available", "downloading"] },
           "description": { "type": "string" }
+        }
+      },
+      "ModelRecord": {
+        "description": "Full Foundry registry record returned by GET /api/models and GET /api/models/{model_id} (M3+).",
+        "type": "object",
+        "required": ["id", "name", "artifact_type", "capability", "base_architecture", "source"],
+        "properties": {
+          "id": { "type": "string", "example": "flux-dev" },
+          "name": { "type": "string", "example": "FLUX.1 [dev]" },
+          "artifact_type": { "type": "string", "example": "checkpoint" },
+          "capability": { "type": "string", "enum": ["image", "video", "lora", "controlnet"] },
+          "base_architecture": { "type": "string", "example": "flux" },
+          "source": { "type": "string", "example": "huggingface" },
+          "repo_id": { "type": "string", "nullable": true },
+          "revision": { "type": "string", "default": "main" },
+          "aux_repo_id": { "type": "string", "nullable": true },
+          "size": { "type": "string", "default": "Unknown" },
+          "status": { "type": "string", "description": "ready | downloading | error | not_found | queued | verifying | paused | cancelled", "default": "not_found" },
+          "tier": { "type": "string", "default": "verified" },
+          "quality": { "type": "string", "default": "balanced" },
+          "runtime": { "type": "string", "default": "local" },
+          "hardware_class": { "type": "string", "default": "unknown" },
+          "vram": { "type": "string", "default": "Unknown" },
+          "description": { "type": "string", "default": "" },
+          "license": { "type": "string", "nullable": true },
+          "gated": { "type": "boolean", "default": false },
+          "locations": { "type": "array", "items": { "type": "string" }, "description": "Absolute filesystem paths where the artifact is present (M3+)", "default": [] },
+          "identity": { "type": "string", "nullable": true, "description": "Content-derived identity hash (M3+)" },
+          "availability": { "type": "string", "description": "available | linked | remote (M3+)", "default": "available" },
+          "library_root_id": { "type": "string", "nullable": true, "description": "ID of the LibraryRoot this record was indexed from, if any (M3+)" }
+        }
+      },
+      "ImportRootRequest": {
+        "type": "object",
+        "required": ["path"],
+        "properties": {
+          "path": { "type": "string", "description": "Absolute filesystem path to the model library directory" },
+          "layout_hint": { "type": "string", "default": "generic", "description": "Hint for directory-layout interpretation: generic | comfyui | a1111 | diffusers | huggingface" }
+        }
+      },
+      "LibraryRoot": {
+        "type": "object",
+        "required": ["id", "path", "layout_hint", "added_at"],
+        "properties": {
+          "id": { "type": "string", "description": "Stable UUID for this root" },
+          "path": { "type": "string", "description": "Absolute filesystem path as registered" },
+          "layout_hint": { "type": "string" },
+          "added_at": { "type": "string", "format": "date-time" }
+        }
+      },
+      "DetectedRoot": {
+        "type": "object",
+        "required": ["path", "layout_hint"],
+        "properties": {
+          "path": { "type": "string" },
+          "layout_hint": { "type": "string" }
+        }
+      },
+      "ScanResult": {
+        "type": "object",
+        "required": ["records_indexed"],
+        "properties": {
+          "records_indexed": { "type": "integer", "description": "Total ModelRecords indexed across all feeds" },
+          "warnings": { "type": "array", "items": { "type": "string" }, "default": [] }
         }
       },
       "ModelStatus": {
