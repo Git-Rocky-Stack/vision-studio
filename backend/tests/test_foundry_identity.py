@@ -54,6 +54,23 @@ class QuickIdentityTests(unittest.TestCase):
         path = self._write("d.bin", b"payload")
         self.assertEqual(full_sha256(path), hashlib.sha256(b"payload").hexdigest())
 
+    def test_mid_range_file_tail_distinguishes_content(self):
+        # File in (64KB, 128KB]: the tail must still distinguish content.
+        head = b"H" * 65536  # identical first window
+        a = self._write("mid_a.bin", head + b"A" * 4096)
+        b = self._write("mid_b.bin", head + b"B" * 4096)
+        self.assertNotEqual(quick_identity(a), quick_identity(b))
+
+    def test_missing_file_raises_os_error(self):
+        with self.assertRaises(OSError):
+            quick_identity(os.path.join(self.tmp, "does_not_exist.bin"))
+
+    def test_zero_byte_file_is_stable(self):
+        a = self._write("empty_a.bin", b"")
+        b = self._write("empty_b.bin", b"")
+        self.assertEqual(quick_identity(a), quick_identity(b))
+        self.assertTrue(quick_identity(a).startswith("0:"))
+
 
 if __name__ == "__main__":
     unittest.main()
