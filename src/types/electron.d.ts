@@ -325,6 +325,7 @@ export interface ElectronAPI {
   };
   models: {
     list: () => Promise<ModelRecord[]>;
+    get: (modelId: string) => Promise<ModelRecord | null>;
     // The backend returns a DownloadJob (202 Accepted) when a pull is enqueued.
     download: (modelId: string) => Promise<DownloadJob>;
     downloadPause: (modelId: string) => Promise<DownloadJob>;
@@ -339,6 +340,9 @@ export interface ElectronAPI {
     librariesList: () => Promise<LibraryRoot[]>;
     librariesRemove: (rootId: string) => Promise<{ removed: boolean; records_dropped: number }>;
     librariesDetect: () => Promise<DetectedRoot[]>;
+  };
+  auth: {
+    setHfToken: (token: string) => Promise<{ success: boolean }>;
   };
   notifications: {
     notify: (
