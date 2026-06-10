@@ -109,10 +109,23 @@ class LinkResult:
 
 
 def _copy(source: str, dest: str) -> str:
-    if os.path.isdir(source):
-        shutil.copytree(source, dest)
-    else:
-        shutil.copy2(source, dest)
+    """Copy via a same-volume staging path so dest is complete-or-absent."""
+    staging = dest + ".foundry-partial"
+    try:
+        if os.path.isdir(source):
+            shutil.copytree(source, staging)
+        else:
+            shutil.copy2(source, staging)
+        os.replace(staging, dest)
+    except Exception:
+        if os.path.isdir(staging) and not os.path.islink(staging):
+            shutil.rmtree(staging, ignore_errors=True)
+        else:
+            try:
+                os.unlink(staging)
+            except OSError:
+                pass
+        raise
     return "copy"
 
 
@@ -123,11 +136,15 @@ def materialize_link(source: str, dest: str, ledger: LinkLedger) -> LinkResult:
     (no link attempt); same-volume dir -> junction (win) / symlink (posix);
     same-volume file -> hardlink; ANY OSError from a link attempt -> copy.
     """
+    dest = os.path.abspath(dest)
+    if os.path.lexists(dest):
+        raise FileExistsError(f"materialize_link: dest already exists: {dest}")
     os.makedirs(os.path.dirname(dest), exist_ok=True)
     mechanism = "copy"
     if is_reparse_point(source) or not same_volume(source, os.path.dirname(dest)):
         mechanism = _copy(source, dest)
     elif os.path.isdir(source):
+        linked = False
         try:
             if sys.platform == "win32":
                 import _winapi
@@ -137,13 +154,20 @@ def materialize_link(source: str, dest: str, ledger: LinkLedger) -> LinkResult:
             else:
                 os.symlink(source, dest, target_is_directory=True)
                 mechanism = "symlink"
+            linked = True
         except OSError:
+            pass
+        if not linked:
             mechanism = _copy(source, dest)
     else:
+        linked = False
         try:
             os.link(source, dest)
             mechanism = "hardlink"
+            linked = True
         except OSError:
+            pass
+        if not linked:
             mechanism = _copy(source, dest)
     ledger.add(mechanism=mechanism, source=source, dest=dest)
     return LinkResult(mechanism=mechanism, source=source, dest=dest)
@@ -152,7 +176,9 @@ def materialize_link(source: str, dest: str, ledger: LinkLedger) -> LinkResult:
 def safe_remove(path: str, ledger: LinkLedger, app_root: str) -> bool:
     """Delete ONLY app-managed paths or recorded Foundry links. Never user bytes.
 
-    Returns False (and deletes nothing) for any other path.
+    Returns False (and deletes nothing) for any other path. If the path is
+    already gone but recorded in the ledger, the ledger entry is reclaimed
+    and True is returned (desired end-state — gone and de-ledgered — holds).
     """
     normalized = _normalize(path)
     app = _normalize(app_root)
@@ -167,6 +193,9 @@ def safe_remove(path: str, ledger: LinkLedger, app_root: str) -> bool:
             shutil.rmtree(path)
     elif os.path.exists(path) or os.path.islink(path):
         os.remove(path)
+    elif is_ours:
+        ledger.remove(path)  # already gone out-of-band; reclaim the record
+        return True
     else:
         return False
     if is_ours:

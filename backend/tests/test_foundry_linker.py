@@ -250,5 +250,85 @@ class SafeRemoveTests(unittest.TestCase):
         self.assertTrue(os.path.exists(keep))
 
 
+class MaterializeDestPolicyTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp(prefix="foundry-destpolicy-")
+        self.ledger = LinkLedger(os.path.join(self.tmp, ".foundry", "links.json"))
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def _file(self, rel, payload=b"x" * 64):
+        path = os.path.join(self.tmp, rel)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "wb") as handle:
+            handle.write(payload)
+        return path
+
+    def test_existing_file_dest_raises_and_preserves_content(self):
+        src = self._file(os.path.join("user", "w.safetensors"))
+        dest = self._file(os.path.join("app", "w.safetensors"), payload=b"KEEP")
+        with self.assertRaises(FileExistsError):
+            materialize_link(src, dest, self.ledger)
+        with open(dest, "rb") as handle:
+            self.assertEqual(handle.read(), b"KEEP")
+        self.assertFalse(self.ledger.is_foundry_link(dest))
+
+    def test_existing_dir_dest_raises(self):
+        srcdir = os.path.join(self.tmp, "user", "model-dir")
+        os.makedirs(srcdir)
+        destdir = os.path.join(self.tmp, "app", "model-dir")
+        os.makedirs(destdir)
+        with self.assertRaises(FileExistsError):
+            materialize_link(srcdir, destdir, self.ledger)
+
+    def test_failed_copy_leaves_no_partial_and_no_ledger_entry(self):
+        src = self._file(os.path.join("user", "w2.safetensors"))
+        dest = os.path.join(self.tmp, "app", "w2.safetensors")
+        with mock.patch("foundry.linker.same_volume", return_value=False), mock.patch(
+            "foundry.linker.shutil.copy2", side_effect=OSError(28, "No space left on device")
+        ):
+            with self.assertRaises(OSError):
+                materialize_link(src, dest, self.ledger)
+        self.assertFalse(os.path.exists(dest))
+        self.assertFalse(os.path.exists(dest + ".foundry-partial"))
+        self.assertFalse(self.ledger.is_foundry_link(dest))
+
+
+class SafeRemoveStaleLedgerTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp(prefix="foundry-stale-")
+        self.app_root = os.path.join(self.tmp, "models")
+        os.makedirs(self.app_root)
+        self.ledger = LinkLedger(os.path.join(self.app_root, ".foundry", "links.json"))
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def test_already_gone_ledgered_dest_is_reclaimed(self):
+        src = os.path.join(self.tmp, "user", "w.safetensors")
+        os.makedirs(os.path.dirname(src), exist_ok=True)
+        with open(src, "wb") as handle:
+            handle.write(b"x" * 64)
+        dest = os.path.join(self.tmp, "elsewhere", "w.safetensors")
+        materialize_link(src, dest, self.ledger)
+        os.remove(dest)  # deleted out-of-band
+        self.assertTrue(safe_remove(dest, self.ledger, self.app_root))
+        self.assertFalse(self.ledger.is_foundry_link(dest))
+
+    @unittest.skipUnless(sys.platform != "win32", "POSIX-only")
+    def test_posix_dir_symlink_removal_spares_target(self):
+        user_dir = os.path.join(self.tmp, "user", "lib")
+        os.makedirs(user_dir)
+        keep = os.path.join(user_dir, "precious.safetensors")
+        with open(keep, "wb") as handle:
+            handle.write(b"P" * 128)
+        dest = os.path.join(self.app_root, "linked-lib")
+        materialize_link(user_dir, dest, self.ledger)
+        self.assertTrue(safe_remove(dest, self.ledger, self.app_root))
+        self.assertFalse(os.path.lexists(dest))
+        self.assertTrue(os.path.exists(keep))
+
+
 if __name__ == "__main__":
     unittest.main()
