@@ -150,7 +150,12 @@ def indexed_tier(artifact_type: str, keys: List[str]) -> Tuple[str, str]:
 
 
 def classify_repo(signals: RepoSignals, verified_repo_ids: Set[str]) -> TierVerdict:
-    """The 8-rule ladder. First match wins; default Experimental."""
+    """The 8-rule ladder. First match wins; default Experimental.
+
+    NOTE: hub_search._family_from_reason parses family tokens out of the
+    reason strings below - keep family names lowercase and space-delimited
+    when rewording. (M5: promote family to a TierVerdict field instead.)
+    """
     # 1 - catalog authority (even if the hub copy is gone; bytes may be local).
     if signals.repo_id in verified_repo_ids:
         return TierVerdict("verified", "in verified catalog",
