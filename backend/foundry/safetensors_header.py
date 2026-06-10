@@ -43,7 +43,9 @@ def classify_safetensors(header: Dict[str, Any]) -> str:
     keys = [key for key in header if key != "__metadata__"]
     if any(
         key.startswith(("lora_unet_", "lora_te_")) or ".lora_down." in key or ".lora_up." in key
-        # XLabs flux format: double_blocks.N.processor.qkv_lora1.down.weight (Spike C)
+        # XLabs flux format: double_blocks.N.processor.qkv_lora{1,2}.{down,up}.weight.
+        # Conjunction required: _lora alone is too broad; double_blocks./single_blocks.
+        # are Flux DiT architecture markers that make the compound specific (Spike C).
         or ("_lora" in key and ("double_blocks." in key or "single_blocks." in key))
         for key in keys
     ):
