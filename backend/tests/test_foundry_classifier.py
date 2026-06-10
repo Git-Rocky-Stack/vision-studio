@@ -162,10 +162,20 @@ class IndexedTierTests(unittest.TestCase):
         self.assertEqual(tier, "compatible")
         self.assertIn("load_lora_weights", reason)
 
-    def test_indexed_lora_unrecognized_family_stays_experimental(self):
+    def test_indexed_lora_dit_unknown_family_stays_experimental(self):
         from foundry.classifier import indexed_tier
 
+        # transformer.* prefix -> family "dit-unknown" (recognized DiT lora,
+        # base unprovable) - distinct from the no-pattern "unrecognized" case.
         tier, reason = indexed_tier("lora", ["transformer.blocks.0.attn.lora_down.weight"])
+        self.assertEqual(tier, "experimental")
+        self.assertIn("unrecognized", reason)
+
+    def test_indexed_lora_truly_unrecognized_family_stays_experimental(self):
+        from foundry.classifier import indexed_tier
+
+        # .lora_down. marks it a lora, but no family pattern matches at all.
+        tier, reason = indexed_tier("lora", ["proj.0.lora_down.weight"])
         self.assertEqual(tier, "experimental")
         self.assertIn("unrecognized", reason)
 

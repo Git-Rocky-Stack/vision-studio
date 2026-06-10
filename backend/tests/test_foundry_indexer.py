@@ -181,10 +181,15 @@ class ArtifactToRecordTests(unittest.TestCase):
         return IndexedArtifact(**base)
 
     def test_unknown_local_record_shape(self):
+        # Hand-built artifact with NO stamped tier and NO header keys: this
+        # exercises artifact_to_record's keyless FALLBACK path, where even a
+        # lora honestly degrades to experimental (family unprovable). Scanned
+        # loras of a recognized family arrive with tier="compatible" stamped.
         record = artifact_to_record(self._artifact(), {})
         self.assertEqual(record.id, "local-aabbccddeeff0011")
         self.assertEqual(record.source, "linked")
         self.assertEqual(record.tier, "experimental")
+        self.assertIn("unrecognized", record.tier_reason)
         self.assertEqual(record.quality, "local")
         self.assertEqual(record.status, "ready")
         self.assertEqual(record.base_architecture, "unknown")

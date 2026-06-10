@@ -93,7 +93,13 @@ def scan_tree(
     root_id: str,
     signatures: Signatures,
 ) -> Tuple[List[IndexedArtifact], Signatures]:
-    """Index one root. Returns (artifacts, next_signatures)."""
+    """Index one root. Returns (artifacts, next_signatures).
+
+    Signature format (M4): [mtime_ns, size, artifact_type, identity, tier,
+    tier_reason]. Legacy pre-M4 4-entry state is tolerated read-only: type and
+    identity are reused, tier is recomputed via one header re-read, and the
+    entry is persisted 6-wide. 6-entry hits never re-read headers.
+    """
     artifacts: List[IndexedArtifact] = []
     next_signatures: Signatures = {}
     if not os.path.isdir(root_path):
@@ -107,6 +113,9 @@ def scan_tree(
                 dirnames[:] = []  # pruning a vanished dir is still safe
                 continue
             identity = _dir_identity(dirpath)
+            # diffusers-pipeline tier is deliberately NOT persisted in the
+            # signature cache: directories have no stable file-level cache key,
+            # so the (constant until M5) verdict is re-derived per scan.
             dir_tier, dir_tier_reason = indexed_tier("diffusers-pipeline", [])
             artifacts.append(
                 IndexedArtifact(
