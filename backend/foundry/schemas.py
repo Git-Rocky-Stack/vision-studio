@@ -92,3 +92,34 @@ class ConsentStateSchema(BaseModel):
     model_id: str
     pickle: bool
     trust_remote_code: bool
+
+
+class SearchResultSchema(BaseModel):
+    id: str
+    source: str
+    name: str
+    repo_id: Optional[str] = None
+    tier: str
+    tier_reason: str
+    artifact_type: str = "diffusers-pipeline"
+    base_architecture: str = "unknown"
+    capability: str = "image"
+    downloads: int = 0
+    likes: int = 0
+    author: Optional[str] = None
+    license: Optional[str] = None
+    gated: bool = False
+    nsfw: bool = False
+    format: Optional[str] = None
+    trust_remote_code: bool = False
+    size: str = "Unknown"
+    tags: List[str] = []
+
+
+class SearchResponseSchema(BaseModel):
+    source: str
+    query: str
+    page: int
+    results: List[SearchResultSchema] = []
+    offline: bool = False
+    warning: Optional[str] = None
