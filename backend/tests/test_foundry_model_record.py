@@ -44,5 +44,33 @@ class FoundryModelRecordTests(unittest.TestCase):
             assert canonical in records, f"alias {alias} -> missing {canonical}"
 
 
+    def test_m4_fields_default_and_serialize(self):
+        record = ModelRecord(
+            id="x", name="X", artifact_type="checkpoint", capability="image",
+            base_architecture="sdxl", source="huggingface",
+        )
+        data = record.to_dict()
+        self.assertIsNone(data["tier_reason"])
+        self.assertIsNone(data["format"])
+        self.assertFalse(data["trust_remote_code"])
+        self.assertFalse(data["nsfw"])
+        self.assertIsNone(data["download_url"])
+        self.assertIsNone(data["sha256"])
+
+    def test_m4_fields_round_trip(self):
+        record = ModelRecord(
+            id="x", name="X", artifact_type="lora", capability="image",
+            base_architecture="sdxl", source="civitai",
+            tier="compatible", tier_reason="standalone sdxl lora - safetensors",
+            format="safetensors", nsfw=False,
+            download_url="https://civitai.com/api/download/models/1",
+            sha256="ab" * 32,
+        )
+        data = record.to_dict()
+        self.assertEqual(data["tier_reason"], "standalone sdxl lora - safetensors")
+        self.assertEqual(data["format"], "safetensors")
+        self.assertEqual(data["sha256"], "ab" * 32)
+
+
 if __name__ == "__main__":
     unittest.main()

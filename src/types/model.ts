@@ -22,7 +22,7 @@ export interface ModelInfo {
   status: ModelStatus;
   progress?: number;
   type?: string;
-  format?: string;
+  format?: string | null;
 }
 
 /**
@@ -54,6 +54,13 @@ export interface ModelRecord {
   identity?: string | null;
   availability?: 'available' | 'unavailable';
   library_root_id?: string | null;
+  // M4 classification + security fields (absent on older payloads):
+  tier_reason?: string | null;
+  format?: 'safetensors' | 'pickle' | 'diffusers' | null;
+  trust_remote_code?: boolean;
+  nsfw?: boolean;
+  download_url?: string | null;
+  sha256?: string | null;
   // Optional legacy-compat fields some consumers read:
   type?: string;
   progress?: number;

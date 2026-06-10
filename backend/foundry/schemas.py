@@ -30,6 +30,12 @@ class ModelRecordSchema(BaseModel):
     identity: Optional[str] = None
     availability: str = "available"
     library_root_id: Optional[str] = None
+    tier_reason: Optional[str] = None
+    format: Optional[str] = None
+    trust_remote_code: bool = False
+    nsfw: bool = False
+    download_url: Optional[str] = None
+    sha256: Optional[str] = None
 
 
 class DownloadJobSchema(BaseModel):

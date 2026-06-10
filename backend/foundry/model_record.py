@@ -46,6 +46,16 @@ class ModelRecord:
     availability: str = "available"   # available | unavailable (separate axis from status)
     library_root_id: Optional[str] = None
 
+    # Classification + security (M4)
+    tier_reason: Optional[str] = None       # one-line "why this tier" (spec 5.2)
+    format: Optional[str] = None            # safetensors | pickle | diffusers
+    trust_remote_code: bool = False         # repo requires running its own code
+    nsfw: bool = False                      # CivitAI channel; HF results always False
+
+    # Acquisition provenance (CivitAI direct-URL path, M4)
+    download_url: Optional[str] = None
+    sha256: Optional[str] = None
+
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
 
