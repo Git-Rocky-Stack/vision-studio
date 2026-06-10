@@ -90,6 +90,7 @@ class LinkLedgerTests(unittest.TestCase):
             json.dump({"not": "a list"}, handle)
         ledger = LinkLedger(self.ledger_path)
         self.assertEqual(ledger.entries(), [])
+        self.assertTrue(os.path.isfile(self.ledger_path + ".corrupt"))
 
     def test_add_same_dest_twice_upserts(self):
         ledger = LinkLedger(self.ledger_path)
