@@ -148,7 +148,7 @@ class EditService:
             RuntimeError: If background removal fails
         """
         logger.info("Starting background removal", extra={"operation": "remove_background", "alpha_matting": alpha_matting})
-        start_time = time.time()
+        start_time = time.perf_counter()
 
         # Validate input
         validate_base64_image(image)
@@ -178,7 +178,7 @@ class EditService:
         # Encode result
         result_base64 = encode_image_base64(result, format="PNG")
 
-        processing_time_ms = (time.time() - start_time) * 1000
+        processing_time_ms = (time.perf_counter() - start_time) * 1000
         logger.info("Background removal complete", extra={"operation": "remove_background", "duration_ms": round(processing_time_ms, 2)})
 
         return result_base64, processing_time_ms
@@ -206,7 +206,7 @@ class EditService:
             RuntimeError: If upscaling fails
         """
         logger.info("Starting upscaling", extra={"operation": "upscale", "scale": scale, "face_enhance": face_enhance})
-        start_time = time.time()
+        start_time = time.perf_counter()
 
         # Validate input
         validate_base64_image(image)
@@ -255,7 +255,7 @@ class EditService:
         # Encode result
         result_base64 = encode_image_base64(result, format="PNG")
 
-        processing_time_ms = (time.time() - start_time) * 1000
+        processing_time_ms = (time.perf_counter() - start_time) * 1000
         logger.info("Upscaling complete", extra={"operation": "upscale", "duration_ms": round(processing_time_ms, 2), "original_size": original_size, "new_size": new_size})
 
         return result_base64, original_size, new_size, processing_time_ms
@@ -280,7 +280,7 @@ class EditService:
             RuntimeError: If face restoration fails
         """
         logger.info("Starting face restoration", extra={"operation": "restore_faces", "fidelity": fidelity})
-        start_time = time.time()
+        start_time = time.perf_counter()
 
         # Validate input
         validate_base64_image(image)
@@ -322,7 +322,7 @@ class EditService:
         # Encode result
         result_base64 = encode_image_base64(result, format="PNG")
 
-        processing_time_ms = (time.time() - start_time) * 1000
+        processing_time_ms = (time.perf_counter() - start_time) * 1000
         logger.info("Face restoration complete", extra={"operation": "restore_faces", "duration_ms": round(processing_time_ms, 2), "faces_detected": faces_detected})
 
         return result_base64, faces_detected, processing_time_ms
