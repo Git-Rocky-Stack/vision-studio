@@ -229,7 +229,7 @@ class CivitaiDownloadTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_no_token_sends_no_authorization_header(self):
         payload = b"weights"
-        manager = make_civitai_manager()
+        manager = make_civitai_manager(sha256=hashlib.sha256(payload).hexdigest())
 
         with mock.patch("requests.get", return_value=_FakeResponse(payload)) as get, \
              mock.patch("shutil.disk_usage", return_value=_disk(free=10 ** 12)):
@@ -240,7 +240,7 @@ class CivitaiDownloadTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(kwargs.get("headers"))
 
     async def test_http_error_is_typed_without_hf_gate_url(self):
-        manager = make_civitai_manager()
+        manager = make_civitai_manager(sha256="0" * 64)
 
         with mock.patch("requests.get", return_value=_FakeResponse(b"", status_code=403)), \
              mock.patch("shutil.disk_usage", return_value=_disk(free=10 ** 12)):
@@ -252,6 +252,22 @@ class CivitaiDownloadTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("403", job.error)
         # A civitai 403 must never surface a huggingface.co gate URL.
         self.assertIsNone(job.gate_url)
+
+    async def test_hashless_record_refused_before_any_request(self):
+        # Delivery is a CDN redirect; the record sha256 is the only integrity
+        # anchor. No hash -> fail closed, zero bytes fetched.
+        manager = make_civitai_manager(sha256=None)
+        get = mock.MagicMock()
+
+        with mock.patch("requests.get", get):
+            manager.enqueue(MODEL_ID)
+            await _drain(manager)
+
+        job = manager._jobs[MODEL_ID]
+        self.assertEqual(job.status, "error")
+        self.assertIn("sha256", job.error)
+        self.assertIn("unverifiable", job.error)
+        get.assert_not_called()
 
 
 class CivitaiDownloadRouteTests(unittest.TestCase):

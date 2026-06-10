@@ -152,7 +152,11 @@ class DownloadManager:
         return job
 
     def resume(self, model_id: str, token: Optional[str] = None) -> DownloadJob:
-        """Re-enqueue a paused/errored job. hf auto-resumes from .incomplete."""
+        """Re-enqueue a paused/errored job.
+
+        hf auto-resumes from .incomplete (hub_download); civitai restarts
+        from byte 0 (the stream truncates with "wb" - no Range support yet).
+        """
         existing = self._jobs.get(model_id)
         if existing is not None and existing.status in {"paused", "error", "cancelled"}:
             # Clear the terminal/paused job so enqueue starts a fresh task.
@@ -352,6 +356,13 @@ class DownloadManager:
         url = record.get("download_url")
         if not url:
             raise DownloadFailedError("no download_url on civitai record")
+        # Fail closed: delivery is a CDN redirect, so the record's sha256 is
+        # the ONLY integrity anchor. No hash -> no unverifiable download
+        # (positive-signal discipline, same posture as the classifier).
+        if not (record.get("sha256") or "").strip():
+            raise DownloadFailedError(
+                "no sha256 on civitai record - refusing unverifiable download"
+            )
         try:
             validate_civitai_url(url)
         except ValueError as exc:
@@ -402,7 +413,7 @@ class DownloadManager:
                 close()
 
         expected = (record.get("sha256") or "").strip().lower()
-        if expected and hasher.hexdigest() != expected:
+        if hasher.hexdigest() != expected:
             try:
                 os.remove(incomplete)
             except OSError:
