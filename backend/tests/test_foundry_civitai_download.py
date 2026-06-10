@@ -154,7 +154,8 @@ class CivitaiDownloadTests(unittest.IsolatedAsyncioTestCase):
     async def test_uppercase_record_sha256_still_verifies(self):
         payload = b"case-insensitive"
         digest = hashlib.sha256(payload).hexdigest().upper()
-        manager = make_civitai_manager(sha256=digest)
+        models_dir = tempfile.mkdtemp()
+        manager = make_civitai_manager(models_dir=models_dir, sha256=digest)
 
         with mock.patch("requests.get", return_value=_FakeResponse(payload)), \
              mock.patch("shutil.disk_usage", return_value=_disk(free=10 ** 12)):
@@ -162,6 +163,31 @@ class CivitaiDownloadTests(unittest.IsolatedAsyncioTestCase):
             await _drain(manager)
 
         self.assertEqual(manager._jobs[MODEL_ID].status, "ready")
+        final = os.path.join(models_dir, "loras", f"{MODEL_ID}.safetensors")
+        self.assertTrue(os.path.exists(final), "final file must exist after ready")
+
+    async def test_consented_pickle_record_lands_with_pickle_extension(self):
+        # Pickle records ARE downloadable once consent is granted (live path);
+        # the on-disk extension must track the format or the indexer's header
+        # parse and the convert flow silently break on a misnamed file.
+        payload = b"pickle-bytes"
+        digest = hashlib.sha256(payload).hexdigest()
+        models_dir = tempfile.mkdtemp()
+        manager = make_civitai_manager(
+            models_dir=models_dir, sha256=digest, format="pickle"
+        )
+
+        with mock.patch("requests.get", return_value=_FakeResponse(payload)), \
+             mock.patch("shutil.disk_usage", return_value=_disk(free=10 ** 12)):
+            manager.enqueue(MODEL_ID)
+            await _drain(manager)
+
+        self.assertEqual(manager._jobs[MODEL_ID].status, "ready")
+        target_dir = os.path.join(models_dir, "loras")
+        self.assertTrue(os.path.exists(os.path.join(target_dir, f"{MODEL_ID}.ckpt")))
+        self.assertFalse(
+            os.path.exists(os.path.join(target_dir, f"{MODEL_ID}.safetensors"))
+        )
 
     async def test_sha256_mismatch_deletes_partial_and_errors(self):
         payload = b"tampered-bytes"

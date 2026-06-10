@@ -67,15 +67,19 @@ def validate_civitai_url(url: str) -> None:
         raise ValueError(f"refusing non-civitai download url: {url[:80]}")
 
 
-def _civitai_filename(model_id: str) -> str:
+def _civitai_filename(model_id: str, record: dict) -> str:
     """Deterministic on-disk name for a civitai single-file artifact.
 
-    CivitAI records always come through the safetensors/pickle-consent rails
-    as single files; the registry/indexer key them by record id, so the id is
-    the filename (HF single-file artifacts follow the same convention via
-    _SINGLE_FILE_FILENAMES).
+    The registry/indexer key civitai records by record id, so the id is the
+    filename (HF single-file artifacts follow the same convention via
+    _SINGLE_FILE_FILENAMES). The extension MUST track the record format: a
+    pickle record downloaded after explicit consent is a real, live path,
+    and a .safetensors-named pickle would silently break the indexer's
+    header parse and the convert flow.
     """
-    return f"{model_id}.safetensors"
+    fmt = (record.get("format") or "safetensors").lower()
+    extension = ".ckpt" if fmt == "pickle" else ".safetensors"
+    return f"{model_id}{extension}"
 
 
 @dataclass
@@ -223,7 +227,7 @@ class DownloadManager:
                 # transition the HF path uses.
                 await asyncio.to_thread(self._download_civitai, model_id, record, token)
                 job.status = "verifying"
-                self._verify([_civitai_filename(model_id)], self._target_dir(record))
+                self._verify([_civitai_filename(model_id, record)], self._target_dir(record))
                 job.progress = 1.0
                 job.speed = 0.0
                 job.eta = 0.0
@@ -373,7 +377,7 @@ class DownloadManager:
         job = self._jobs[model_id]
         cancel_event = self._cancel_events[model_id]
         target_dir = self._target_dir(record)
-        target = os.path.join(target_dir, _civitai_filename(model_id))
+        target = os.path.join(target_dir, _civitai_filename(model_id, record))
         incomplete = target + ".incomplete"
 
         headers = {"Authorization": f"Bearer {token}"} if token else {}
