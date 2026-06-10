@@ -11,6 +11,8 @@ from foundry.model_record import (  # type: ignore[import-not-found]
     ModelRecord,
     load_catalog,
 )
+from foundry.schemas import ModelRecordSchema  # type: ignore[import-not-found]
+from pydantic import ValidationError
 
 CATALOG_PATH = BACKEND_ROOT / "foundry" / "verified-catalog.json"
 
@@ -62,14 +64,58 @@ class FoundryModelRecordTests(unittest.TestCase):
             id="x", name="X", artifact_type="lora", capability="image",
             base_architecture="sdxl", source="civitai",
             tier="compatible", tier_reason="standalone sdxl lora - safetensors",
-            format="safetensors", nsfw=False,
+            format="safetensors", trust_remote_code=True, nsfw=False,
             download_url="https://civitai.com/api/download/models/1",
             sha256="ab" * 32,
         )
         data = record.to_dict()
         self.assertEqual(data["tier_reason"], "standalone sdxl lora - safetensors")
         self.assertEqual(data["format"], "safetensors")
+        self.assertTrue(data["trust_remote_code"])
         self.assertEqual(data["sha256"], "ab" * 32)
+
+
+    # -- ModelRecordSchema validator tests --
+
+    def test_schema_sha256_valid_64_hex_passes(self):
+        schema = ModelRecordSchema(
+            id="x", name="X", artifact_type="checkpoint", capability="image",
+            base_architecture="sdxl", source="huggingface",
+            sha256="ab" * 32,
+        )
+        self.assertEqual(schema.sha256, "ab" * 32)
+
+    def test_schema_sha256_none_passes(self):
+        schema = ModelRecordSchema(
+            id="x", name="X", artifact_type="checkpoint", capability="image",
+            base_architecture="sdxl", source="huggingface",
+            sha256=None,
+        )
+        self.assertIsNone(schema.sha256)
+
+    def test_schema_sha256_too_short_raises(self):
+        with self.assertRaises(ValidationError):
+            ModelRecordSchema(
+                id="x", name="X", artifact_type="checkpoint", capability="image",
+                base_architecture="sdxl", source="huggingface",
+                sha256="deadbeef",
+            )
+
+    def test_schema_sha256_uppercase_raises(self):
+        with self.assertRaises(ValidationError):
+            ModelRecordSchema(
+                id="x", name="X", artifact_type="checkpoint", capability="image",
+                base_architecture="sdxl", source="huggingface",
+                sha256="AB" * 32,
+            )
+
+    def test_schema_sha256_non_hex_raises(self):
+        with self.assertRaises(ValidationError):
+            ModelRecordSchema(
+                id="x", name="X", artifact_type="checkpoint", capability="image",
+                base_architecture="sdxl", source="huggingface",
+                sha256="zz" * 32,
+            )
 
 
 if __name__ == "__main__":

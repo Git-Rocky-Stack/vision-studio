@@ -1,8 +1,9 @@
 """Pydantic schema mirroring ModelRecord for FastAPI response_model."""
 
+import re
 from typing import List, Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 
 class ModelRecordSchema(BaseModel):
@@ -36,6 +37,13 @@ class ModelRecordSchema(BaseModel):
     nsfw: bool = False
     download_url: Optional[str] = None
     sha256: Optional[str] = None
+
+    @field_validator("sha256")
+    @classmethod
+    def _validate_sha256(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None and not re.fullmatch(r"[0-9a-f]{64}", v):
+            raise ValueError("sha256 must be a 64-character lowercase hex string")
+        return v
 
 
 class DownloadJobSchema(BaseModel):
