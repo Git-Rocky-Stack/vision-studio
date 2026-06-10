@@ -128,6 +128,27 @@ def lora_base_family(tags: List[str]) -> Optional[str]:
     return None
 
 
+def indexed_tier(artifact_type: str, keys: List[str]) -> Tuple[str, str]:
+    """Post-index tier for a locally indexed artifact (spec 5.2 upgrade/downgrade).
+
+    Bounded by load paths that exist today (Spike C adjustment 4): standalone
+    loras load via load_lora_weights -> compatible; single-file checkpoints
+    wait for from_single_file wiring in M5 -> experimental, honestly reasoned.
+    """
+    if artifact_type == "lora":
+        family = lora_family_from_keys(keys)
+        if family in ("sdxl", "sd-unet-family", "flux"):
+            return "compatible", f"indexed {family} lora - loads via load_lora_weights"
+        return "experimental", "indexed lora - base family unrecognized from header"
+    if artifact_type == "checkpoint":
+        return "experimental", "indexed single-file checkpoint - load path lands with M5 from_single_file"
+    if artifact_type in ("vae", "controlnet"):
+        return "experimental", f"indexed loose {artifact_type} - wiring lands with M5 runtime resolution"
+    if artifact_type == "diffusers-pipeline":
+        return "experimental", "indexed diffusers directory - load wiring lands with M5 runtime resolution"
+    return "experimental", "indexed artifact of unrecognized type"
+
+
 def classify_repo(signals: RepoSignals, verified_repo_ids: Set[str]) -> TierVerdict:
     """The 8-rule ladder. First match wins; default Experimental."""
     # 1 - catalog authority (even if the hub copy is gone; bytes may be local).

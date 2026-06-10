@@ -152,6 +152,45 @@ class LoraChannelTests(unittest.TestCase):
         self.assertIn("ambiguous", v.reason)
 
 
+class IndexedTierTests(unittest.TestCase):
+    def test_indexed_lora_known_family_upgrades_to_compatible(self):
+        from foundry.classifier import indexed_tier
+
+        tier, reason = indexed_tier(
+            "lora", ["lora_unet_a.lora_down.weight", "lora_te2_b.lora_down.weight"]
+        )
+        self.assertEqual(tier, "compatible")
+        self.assertIn("load_lora_weights", reason)
+
+    def test_indexed_lora_unrecognized_family_stays_experimental(self):
+        from foundry.classifier import indexed_tier
+
+        tier, reason = indexed_tier("lora", ["transformer.blocks.0.attn.lora_down.weight"])
+        self.assertEqual(tier, "experimental")
+        self.assertIn("unrecognized", reason)
+
+    def test_indexed_checkpoint_stays_experimental_with_reason(self):
+        from foundry.classifier import indexed_tier
+
+        tier, reason = indexed_tier("checkpoint", ["model.diffusion_model.x.weight"])
+        self.assertEqual(tier, "experimental")
+        self.assertIn("single-file", reason)
+
+    def test_indexed_loose_vae_and_controlnet_stay_experimental(self):
+        from foundry.classifier import indexed_tier
+
+        for artifact_type in ("vae", "controlnet"):
+            tier, reason = indexed_tier(artifact_type, [])
+            self.assertEqual(tier, "experimental")
+            self.assertIn(artifact_type, reason)
+
+    def test_indexed_unknown_stays_experimental(self):
+        from foundry.classifier import indexed_tier
+
+        tier, reason = indexed_tier("unknown", [])
+        self.assertEqual(tier, "experimental")
+
+
 class HelperTests(unittest.TestCase):
     def test_tree_weight_format_scopes_components(self):
         comp_st, comp_pickle, root_st, root_pickle = tree_weight_format(
