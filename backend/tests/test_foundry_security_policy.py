@@ -68,6 +68,24 @@ class ConsentStoreTests(unittest.TestCase):
         self.assertEqual(audit[1]["action"], "revoke")
         self.assertIn("at", audit[0])
 
+    def test_malformed_audit_entries_stripped_on_load(self):
+        """Non-dict audit entries are silently dropped; valid dict entries survive."""
+        import json
+
+        valid_consents = {"m1": {"pickle": True, "trust_remote_code": False}}
+        raw = {
+            "consents": valid_consents,
+            "audit": ["junk", {"action": "grant"}],
+        }
+        with open(self.path, "w", encoding="utf-8") as fh:
+            json.dump(raw, fh)
+
+        store = ConsentStore(self.path)
+        self.assertEqual(store.audit(), [{"action": "grant"}])
+        # Valid consent data is still honoured after load.
+        self.assertTrue(store.get("m1")["pickle"])
+        self.assertFalse(store.get("m1")["trust_remote_code"])
+
 
 if __name__ == "__main__":
     unittest.main()

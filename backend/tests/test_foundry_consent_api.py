@@ -106,6 +106,22 @@ class ConsentApiTests(unittest.TestCase):
         self.assertEqual(response.status_code, 202)
         enq.assert_called_once()
 
+    def test_trust_remote_code_download_with_consent_proceeds(self):
+        self.client.post(
+            "/api/models/consent",
+            json={"model_id": "m-test", "kind": "trust_remote_code", "granted": True},
+        )
+        job = DownloadJob(model_id="m-test", status="queued", total_bytes=0)
+        with mock.patch.object(
+            main.model_registry,
+            "get_record",
+            return_value=_record(trust_remote_code=True),
+        ), mock.patch.object(main.download_manager, "enqueue", return_value=job) as enq:
+            response = self.client.post("/api/models/m-test/download")
+        self.assertNotEqual(response.status_code, 409)
+        self.assertEqual(response.status_code, 202)
+        enq.assert_called_once()
+
     def test_verified_safetensors_record_is_not_blocked(self):
         job = DownloadJob(model_id="m-test", status="queued", total_bytes=0)
         with mock.patch.object(

@@ -21,7 +21,7 @@ class ConsentStore:
     """JSON-persisted per-model consent grants plus an append-only audit trail."""
 
     def __init__(self, path: str):
-        self.path = path
+        self.path = os.path.abspath(path)
         self._consents: Dict[str, Dict[str, bool]] = {}
         self._audit: List[Dict[str, Any]] = []
         self._load()
@@ -65,7 +65,7 @@ class ConsentStore:
                 str(k): {kind: bool(v.get(kind)) for kind in CONSENT_KINDS}
                 for k, v in dict(data.get("consents", {})).items()
             }
-            self._audit = list(data.get("audit", []))
+            self._audit = [e for e in data.get("audit", []) if isinstance(e, dict)]
         except (OSError, ValueError, TypeError, AttributeError) as exc:
             # Fail-safe: deny everything rather than trust a corrupt file.
             # Keep the corrupt file for diagnostics and start fresh.
@@ -88,7 +88,7 @@ class ConsentStore:
             with os.fdopen(fd, "w", encoding="utf-8") as fh:
                 json.dump(payload, fh, indent=2)
             os.replace(tmp, self.path)
-        except OSError:
+        except Exception:
             try:
                 os.unlink(tmp)
             except OSError:
