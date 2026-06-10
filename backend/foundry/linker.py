@@ -9,17 +9,20 @@ Spike-B law (docs/superpowers/spikes/2026-06-09-windows-linking.md):
 """
 
 import json
+import logging
 import os
 import shutil
 import sys
+import tempfile
 from dataclasses import dataclass
 from typing import Dict, List
 
 _FILE_ATTRIBUTE_REPARSE_POINT = 0x400
+_log = logging.getLogger(__name__)
 
 
 def same_volume(path_a: str, path_b: str) -> bool:
-    """Cheap same-volume predicate via st_dev (volume serial on Windows)."""
+    """Cheap same-volume predicate via st_dev (volume serial on Windows). Raises OSError on nonexistent paths — callers apply Spike-B fallback-always."""
     return os.stat(path_a).st_dev == os.stat(path_b).st_dev
 
 
@@ -44,18 +47,41 @@ class LinkLedger:
         self._path = path
         self._entries: List[Dict[str, str]] = []
         if os.path.isfile(path):
-            with open(path, "r", encoding="utf-8") as handle:
-                self._entries = json.load(handle)
+            try:
+                with open(path, "r", encoding="utf-8") as handle:
+                    loaded = json.load(handle)
+                if not isinstance(loaded, list) or not all(isinstance(e, dict) for e in loaded):
+                    raise ValueError("ledger is not a list of entries")
+                self._entries = loaded
+            except (OSError, ValueError) as exc:
+                # Fail-safe: an empty ledger under-claims ownership (we refuse
+                # deletions rather than delete wrongly). Keep the corrupt file
+                # for diagnostics and start fresh.
+                _log.error("LinkLedger: corrupt ledger at %s (%s); preserving as .corrupt", path, exc)
+                try:
+                    os.replace(path, path + ".corrupt")
+                except OSError:
+                    pass
 
     def _save(self) -> None:
-        os.makedirs(os.path.dirname(self._path), exist_ok=True)
-        with open(self._path, "w", encoding="utf-8") as handle:
-            json.dump(self._entries, handle, indent=2)
+        parent = os.path.dirname(self._path)
+        os.makedirs(parent, exist_ok=True)
+        fd, tmp = tempfile.mkstemp(dir=parent, suffix=".tmp")
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as handle:
+                json.dump(self._entries, handle, indent=2)
+            os.replace(tmp, self._path)
+        except Exception:
+            try:
+                os.unlink(tmp)
+            except OSError:
+                pass
+            raise
 
     def add(self, mechanism: str, source: str, dest: str) -> None:
-        self._entries.append(
-            {"mechanism": mechanism, "source": source, "dest": _normalize(dest)}
-        )
+        normalized = _normalize(dest)
+        self._entries = [entry for entry in self._entries if entry["dest"] != normalized]
+        self._entries.append({"mechanism": mechanism, "source": source, "dest": normalized})
         self._save()
 
     def remove(self, dest: str) -> bool:
