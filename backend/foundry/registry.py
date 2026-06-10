@@ -9,6 +9,7 @@ linked roots, app tree) are merged via apply_index, following the spec 4.6
 reconciliation rules.
 """
 
+import copy
 import os
 from typing import Any, Callable, Dict, List, Optional
 
@@ -63,11 +64,19 @@ class ModelRegistry:
         for record in indexed:
             existing = merged.get(record.id)
             if existing is None:
-                merged[record.id] = record
+                # Copy-on-apply: the registry owns its layer. Callers retain
+                # their record objects (e.g. for unavailable-root degradation)
+                # and must never alias registry-visible state.
+                owned = copy.copy(record)
+                owned.locations = list(record.locations)
+                merged[record.id] = owned
             else:
                 for location in record.locations:
                     if location not in existing.locations:
                         existing.locations.append(location)
+                # Available if ANY location is available; locations may include
+                # currently-unreachable paths (per-location availability is a
+                # later milestone).
                 if existing.availability == "unavailable" and record.availability == "available":
                     existing.availability = "available"
         self._indexed = merged
@@ -102,6 +111,8 @@ class ModelRegistry:
         indexed = self._indexed.get(record.id)
         if indexed is not None and indexed.locations and indexed.availability == "available":
             return "ready"
+        # Deliberate precedence: a copy present in the app dir is usable even
+        # when an indexed location is currently unavailable.
         if self._is_present(record):
             return "ready"
         if indexed is not None:

@@ -105,6 +105,25 @@ class RegistryIndexMergeTests(unittest.TestCase):
         self.assertEqual(listed["availability"], "unavailable")
         self.assertEqual(listed["status"], "not_found")  # unavailable never reports ready
 
+    def test_dup_merge_upgrades_availability_and_keeps_both_locations(self):
+        gone = self._indexed("local-aa", os.path.join(self.tmp, "nas", "x.st"))
+        gone.availability = "unavailable"
+        here = self._indexed("local-aa", os.path.join(self.tmp, "local", "x.st"))
+        self.registry.apply_index([gone, here])
+        record = self.registry.get_record("local-aa")
+        self.assertEqual(record["availability"], "available")
+        self.assertEqual(len(record["locations"]), 2)
+        self.assertEqual(record["status"], "ready")
+
+    def test_apply_index_does_not_alias_caller_records(self):
+        caller_record = self._indexed("local-aa", os.path.join(self.tmp, "x.st"))
+        self.registry.apply_index([caller_record])
+        caller_record.availability = "unavailable"
+        caller_record.locations.append(os.path.join(self.tmp, "y.st"))
+        listed = self.registry.get_record("local-aa")
+        self.assertEqual(listed["availability"], "available")  # registry copy unaffected
+        self.assertEqual(len(listed["locations"]), 1)
+
 
 if __name__ == "__main__":
     unittest.main()
