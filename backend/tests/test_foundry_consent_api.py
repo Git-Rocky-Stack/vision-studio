@@ -196,6 +196,46 @@ class ConvertApiTests(unittest.TestCase):
             response = self.client.post(self._url("m-test"))
         self.assertEqual(response.status_code, 503)
 
+    def test_convert_409_when_safetensors_already_exists(self):
+        # Never silently clobber an existing safetensors copy.
+        ckpt_path = os.path.join(self.tmp, "model.ckpt")
+        open(ckpt_path, "wb").close()
+        open(os.path.join(self.tmp, "model.safetensors"), "wb").close()
+        self.client.post(
+            "/api/models/consent",
+            json={"model_id": "m-test", "kind": "pickle", "granted": True},
+        )
+        with mock.patch.object(
+            main.model_registry,
+            "get_record",
+            return_value=_record(format="pickle", locations=[ckpt_path]),
+        ):
+            response = self.client.post(self._url("m-test"))
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(response.json()["detail"]["error_code"], "already-converted")
+
+    def test_convert_stale_first_location_falls_through_to_real_file(self):
+        # The isfile check lives in the selection predicate: a stale first
+        # pickle location must not 409 when a later location exists on disk.
+        stale = os.path.join(self.tmp, "gone.ckpt")
+        real = os.path.join(self.tmp, "real.ckpt")
+        open(real, "wb").close()
+        self.client.post(
+            "/api/models/consent",
+            json={"model_id": "m-test", "kind": "pickle", "granted": True},
+        )
+        with mock.patch.object(
+            main.model_registry,
+            "get_record",
+            return_value=_record(format="pickle", locations=[stale, real]),
+        ), mock.patch(
+            "main.convert_pickle_to_safetensors", return_value=7
+        ) as convert:
+            response = self.client.post(self._url("m-test"))
+        self.assertEqual(response.status_code, 200)
+        convert.assert_called_once()
+        self.assertEqual(convert.call_args.args[0], real)
+
 
 if __name__ == "__main__":
     unittest.main()

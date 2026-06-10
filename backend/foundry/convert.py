@@ -27,6 +27,14 @@ def convert_pickle_to_safetensors(src_path: str, dest_path: str) -> int:
         raise ValueError(f"no tensors found in {src_path}")
 
     tmp = dest_path + ".converting"
-    save_file(tensors, tmp)
-    os.replace(tmp, dest_path)
+    try:
+        save_file(tensors, tmp)
+        os.replace(tmp, dest_path)
+    except Exception:
+        # Complete-or-absent holds for dest; never orphan the staging file.
+        try:
+            os.remove(tmp)
+        except OSError:
+            pass
+        raise
     return len(tensors)

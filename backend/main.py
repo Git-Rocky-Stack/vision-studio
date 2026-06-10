@@ -1722,12 +1722,19 @@ async def convert_model_to_safetensors(request: Request, model_id: str):
             "error_code": "pickle-consent-required",
             "message": "Converting requires reading the pickle file - grant pickle consent first."})
     src = next((p for p in record.get("locations", [])
-                if p.lower().endswith((".ckpt", ".pt", ".pth", ".bin"))), None)
-    if src is None or not os.path.isfile(src):
+                if p.lower().endswith((".ckpt", ".pt", ".pth", ".bin"))
+                and os.path.isfile(p)), None)
+    if src is None:
         raise HTTPException(status_code=409, detail={
             "error_code": "no-pickle-source",
             "message": "No local pickle file found for this model - download it first."})
     dest = os.path.splitext(src)[0] + ".safetensors"
+    if os.path.exists(dest):
+        # Never silently clobber an existing (possibly authoritative)
+        # safetensors copy; re-convert is an explicit delete-then-convert.
+        raise HTTPException(status_code=409, detail={
+            "error_code": "already-converted",
+            "message": f"A safetensors file already exists at {os.path.basename(dest)} - delete it first to re-convert."})
     loop = asyncio.get_running_loop()
     try:
         tensor_count = await loop.run_in_executor(
