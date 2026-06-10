@@ -7,17 +7,24 @@ asyncio.Tasks keyed by model id, pause/resume/cancel lifecycle + intent, the
 fast/precise (Xet) toggle, per-call token injection (never stored/logged), and
 the live status the registry composes through its status_provider.
 
+CivitAI-source records (source="civitai") take the direct-URL branch instead:
+host-allowlisted https GET, streamed to <target>.incomplete, sha256-verified
+against the record hash, then atomically moved into place (complete-or-absent,
+spec 3.5). The token is only ever a Bearer header on that one request.
+
 Telemetry (progress/speed/eta) lives on DownloadJob and is streamed via
 GET /models/downloads; it is deliberately NOT written onto ModelRecord.
 """
 
 import asyncio
+import hashlib
 import os
 import shutil
 import threading
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from typing import Dict, List, Literal, Optional
+from urllib.parse import urlparse
 
 import huggingface_hub
 
@@ -25,6 +32,7 @@ from foundry.download_errors import (
     DiskSpaceError,
     DownloadCancelledError,
     DownloadError,
+    DownloadFailedError,
     GatedModelError,
     map_hf_exception,
 )
@@ -40,6 +48,34 @@ _DISK_HEADROOM_BYTES = 256 * 1024 * 1024
 
 # Active lifecycle states an enqueue is idempotent against.
 _ACTIVE_STATES = {"queued", "downloading", "paused", "verifying"}
+
+# CivitAI direct-URL streaming: 1 MiB chunks; (connect, read) timeout matching
+# the latency variance measured in Spike C.
+_CIVITAI_CHUNK_BYTES = 1024 * 1024
+_CIVITAI_TIMEOUT = (5, 60)
+
+
+def validate_civitai_url(url: str) -> None:
+    """Supply-chain guard: only ``https://civitai.com/...`` download URLs.
+
+    ``urlparse(...).hostname`` strips any userinfo, so spoofs of the form
+    ``https://civitai.com@evil.example.com/x`` resolve to the REAL host and
+    are refused, as are subdomains and plain http.
+    """
+    parsed = urlparse(url)
+    if parsed.scheme != "https" or parsed.hostname != "civitai.com":
+        raise ValueError(f"refusing non-civitai download url: {url[:80]}")
+
+
+def _civitai_filename(model_id: str) -> str:
+    """Deterministic on-disk name for a civitai single-file artifact.
+
+    CivitAI records always come through the safetensors/pickle-consent rails
+    as single files; the registry/indexer key them by record id, so the id is
+    the filename (HF single-file artifacts follow the same convention via
+    _SINGLE_FILE_FILENAMES).
+    """
+    return f"{model_id}.safetensors"
 
 
 @dataclass
@@ -177,6 +213,19 @@ class DownloadManager:
         cancel_event = self._cancel_events[model_id]
 
         try:
+            if record.get("source") == "civitai":
+                # Direct-URL branch: stream + sha256 verify + atomic move all
+                # happen in the worker thread; then the same verifying -> ready
+                # transition the HF path uses.
+                await asyncio.to_thread(self._download_civitai, model_id, record, token)
+                job.status = "verifying"
+                self._verify([_civitai_filename(model_id)], self._target_dir(record))
+                job.progress = 1.0
+                job.speed = 0.0
+                job.eta = 0.0
+                job.status = "ready"
+                return
+
             filenames, total_bytes, target_dir = self._resolve_files(model_id, record)
             job.total_bytes = total_bytes
 
@@ -288,6 +337,79 @@ class DownloadManager:
                 tqdm_class=make_tqdm_class(sink),
                 revision=revision,
             )
+
+    def _download_civitai(self, model_id: str, record: dict, token: Optional[str]) -> None:
+        """Blocking CivitAI direct-URL download (runs in a worker thread).
+
+        Stream -> ``<target>.incomplete`` -> sha256 verify -> atomic
+        ``os.replace``: the final file is complete-or-absent (spec 3.5). The
+        URL is never trusted (https + civitai.com host allowlist) and the
+        token is used ONLY as a Bearer header on this one request - never
+        stored, never logged, never on the job or in error text. A hash
+        mismatch deletes the partial so corrupt or tampered bytes can never
+        present as ready.
+        """
+        url = record.get("download_url")
+        if not url:
+            raise DownloadFailedError("no download_url on civitai record")
+        try:
+            validate_civitai_url(url)
+        except ValueError as exc:
+            raise DownloadFailedError(str(exc)) from exc
+
+        import requests  # lazy: keep module import light (mirrors civitai_search)
+
+        job = self._jobs[model_id]
+        cancel_event = self._cancel_events[model_id]
+        target_dir = self._target_dir(record)
+        target = os.path.join(target_dir, _civitai_filename(model_id))
+        incomplete = target + ".incomplete"
+
+        headers = {"Authorization": f"Bearer {token}"} if token else {}
+        response = requests.get(
+            url, stream=True, timeout=_CIVITAI_TIMEOUT, headers=headers
+        )
+        hasher = hashlib.sha256()
+        try:
+            status = getattr(response, "status_code", 200)
+            if isinstance(status, int) and status >= 400:
+                # Typed HERE (not via map_hf_exception) so a civitai 401/403
+                # never surfaces a huggingface.co gate URL.
+                raise DownloadFailedError(f"civitai responded HTTP {status}")
+
+            total = int(response.headers.get("Content-Length") or 0)
+            self._preflight_disk(total, target_dir)
+            job.total_bytes = total
+            job.status = "downloading"  # post-preflight, mirroring the HF path
+
+            sink = ProgressSink(total, cancel_event=cancel_event)
+            self._sinks[model_id] = sink
+            sink.start_file(expected_size=total)
+            with open(incomplete, "wb") as handle:
+                for chunk in response.iter_content(chunk_size=_CIVITAI_CHUNK_BYTES):
+                    if not chunk:
+                        continue
+                    sink.add(len(chunk))  # raises DownloadCancelledError on signal
+                    handle.write(chunk)
+                    hasher.update(chunk)
+                    job.progress = sink.progress
+                    job.speed = sink.speed
+                    job.eta = sink.eta
+            sink.finish_file()
+        finally:
+            close = getattr(response, "close", None)
+            if callable(close):
+                close()
+
+        expected = (record.get("sha256") or "").strip().lower()
+        if expected and hasher.hexdigest() != expected:
+            try:
+                os.remove(incomplete)
+            except OSError:
+                pass
+            raise DownloadFailedError("sha256 mismatch - corrupt or tampered download")
+
+        os.replace(incomplete, target)  # atomic: complete-or-absent
 
     def _verify(self, filenames, target_dir) -> None:
         for filename in filenames:

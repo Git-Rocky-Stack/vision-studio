@@ -1676,9 +1676,20 @@ async def enqueue_download(request: Request, model_id: str):
                 "message": "This model requires running code authored by the repo. Explicit per-model consent is required.",
             },
         )
-    token = request.headers.get("X-HF-Token")
+    token = _acquisition_token(request, record)
     job = download_manager.enqueue(model_id, token=token)
     return _job_to_dict(job)
+
+
+def _acquisition_token(request: Request, record: Optional[Dict[str, Any]]) -> Optional[str]:
+    """Per-source acquisition token header (Electron safeStorage).
+
+    CivitAI-source records read X-Civitai-Token; everything else reads
+    X-HF-Token. NEVER persisted in Python, NEVER logged.
+    """
+    if record is not None and record.get("source") == "civitai":
+        return request.headers.get("X-Civitai-Token")
+    return request.headers.get("X-HF-Token")
 
 
 @app.post("/api/models/{model_id}/download/{action}", response_model=DownloadJobSchema, tags=["Models"])
@@ -1688,7 +1699,7 @@ async def control_download(request: Request, model_id: str, action: str):
     if action not in {"pause", "resume", "cancel"}:
         raise HTTPException(status_code=404, detail=f"Unknown action '{action}'")
     if action == "resume":
-        token = request.headers.get("X-HF-Token")
+        token = _acquisition_token(request, model_registry.get_record(model_id))
         job = download_manager.resume(model_id, token=token)
     else:
         job = getattr(download_manager, action)(model_id)
