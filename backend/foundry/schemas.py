@@ -45,3 +45,20 @@ class DownloadJobSchema(BaseModel):
     total_bytes: int = 0
     error: Optional[str] = None
     gate_url: Optional[str] = None
+
+
+class LibraryRootSchema(BaseModel):
+    id: str
+    path: str
+    layout_hint: str
+    added_at: str
+
+
+class DetectedRootSchema(BaseModel):
+    path: str
+    layout_hint: str
+
+
+class ScanResultSchema(BaseModel):
+    records_indexed: int
+    warnings: List[str] = []

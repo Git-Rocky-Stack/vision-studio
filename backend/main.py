@@ -67,8 +67,16 @@ from api.controlnet import router as controlnet_router
 from db.migrate import run_migrations
 from middleware.rate_limit import limiter, rate_limit_exceeded_handler
 from foundry.registry import ModelRegistry
-from foundry.schemas import ModelRecordSchema, DownloadJobSchema
+from foundry.schemas import (
+    DetectedRootSchema,
+    DownloadJobSchema,
+    LibraryRootSchema,
+    ModelRecordSchema,
+    ScanResultSchema,
+)
 from foundry.download_manager import DownloadManager
+from foundry.library_roots import RootsStore
+from foundry.index_service import IndexService
 
 # Initialize logging at module load time
 setup_logging(log_file=os.getenv("LOG_FILE"))
@@ -128,6 +136,16 @@ model_registry = ModelRegistry(
 )
 # Late-bind the registry the manager needs for file resolution at run time.
 download_manager._registry = model_registry
+
+_FOUNDRY_STATE_DIR = os.path.join(MODELS_DIR, ".foundry")
+roots_store = RootsStore(os.path.join(_FOUNDRY_STATE_DIR, "library_roots.json"))
+index_service = IndexService(
+    registry=model_registry,
+    roots_store=roots_store,
+    models_dir=MODELS_DIR,
+    state_path=os.path.join(_FOUNDRY_STATE_DIR, "index_state.json"),
+)
+
 comfy_client: Optional[ComfyUIClient] = None
 direct_generator: Optional[DirectGenerator] = None
 direct_video_generator: Optional[DirectVideoGenerator] = None
@@ -463,6 +481,11 @@ class SystemInfo(BaseModel):
     cuda_version: Optional[str]
     comfyui_connected: bool
     models_count: int
+
+
+class ImportRootRequest(BaseModel):
+    path: str
+    layout_hint: str = "generic"
 
 
 # ============= API Endpoints =============
@@ -1465,6 +1488,44 @@ async def list_downloads(request: Request):
     return [_job_to_dict(job) for job in download_manager.list_jobs()]
 
 
+@app.post("/api/models/import", response_model=LibraryRootSchema, status_code=201, tags=["Models"])
+async def import_library_root(request: Request, body: ImportRootRequest):
+    """Register a user library root by reference (never copies bytes)."""
+    try:
+        root = roots_store.add(body.path, body.layout_hint)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    await asyncio.to_thread(index_service.scan)
+    return root.to_dict()
+
+
+@app.post("/api/models/scan", response_model=ScanResultSchema, tags=["Models"])
+async def scan_libraries(request: Request):
+    """Re-index every feed (app tree, HF cache, linked roots)."""
+    snapshot = await asyncio.to_thread(index_service.scan)
+    return {"records_indexed": snapshot.records_indexed, "warnings": snapshot.warnings}
+
+
+@app.get("/api/models/libraries", response_model=List[LibraryRootSchema], tags=["Models"])
+async def list_library_roots(request: Request):
+    return [root.to_dict() for root in roots_store.list()]
+
+
+@app.get("/api/models/libraries/detect", response_model=List[DetectedRootSchema], tags=["Models"])
+async def detect_library_roots(request: Request):
+    """First-run detection: existing ComfyUI/A1111 installs, offers only."""
+    return await asyncio.to_thread(index_service.detect_candidates)
+
+
+@app.delete("/api/models/libraries/{root_id}", tags=["Models"])
+async def remove_library_root(request: Request, root_id: str):
+    """Remove a root: referenced-only records dropped, zero bytes touched."""
+    if root_id not in {root.id for root in roots_store.list()}:
+        raise HTTPException(status_code=404, detail=f"No library root '{root_id}'")
+    dropped = await asyncio.to_thread(index_service.remove_root, root_id)
+    return {"removed": True, "records_dropped": dropped}
+
+
 @app.get("/api/models/{model_id}", response_model=ModelRecordSchema, tags=["Models"])
 @limiter.limit("60/minute")
 async def get_model_record(request: Request, model_id: str):
@@ -1550,7 +1611,14 @@ async def delete_model(request: Request, model_id: str):
 
     ### Errors
     - `404`: Model not found or not installed locally
+    - `409`: Model is a linked library reference — remove its root instead
     """
+    record = model_registry.get_record(model_id)
+    if record is not None and record.get("source") == "linked":
+        raise HTTPException(
+            status_code=409,
+            detail="This model is a linked library reference - remove its library root instead.",
+        )
     deleted = await model_manager.delete_model(model_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Model not found or not installed")
