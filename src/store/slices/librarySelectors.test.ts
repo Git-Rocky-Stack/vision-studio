@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useAppStore } from '../appStore';
-import type { LibraryRoot } from '@/types/model';
+import type { LibraryRoot, SearchResponse, SearchResult } from '@/types/model';
 
 const ROOT: LibraryRoot = {
   id: 'r1',
@@ -72,5 +72,128 @@ describe('modelsSlice library actions', () => {
     useAppStore.setState({ libraryRoots: [ROOT] });
     await useAppStore.getState().loadLibraryRoots();
     expect(useAppStore.getState().libraryRoots).toEqual([ROOT]);
+  });
+});
+
+function makeSearchResult(overrides: Partial<SearchResult> = {}): SearchResult {
+  return {
+    id: 'hf:stabilityai/sdxl-base',
+    source: 'huggingface',
+    name: 'sdxl-base',
+    repo_id: 'stabilityai/sdxl-base',
+    tier: 'verified',
+    tier_reason: 'curated',
+    artifact_type: 'checkpoint',
+    base_architecture: 'sdxl',
+    capability: 'image',
+    downloads: 1000,
+    likes: 50,
+    author: 'stabilityai',
+    license: 'openrail++',
+    gated: false,
+    nsfw: false,
+    format: 'safetensors',
+    trust_remote_code: false,
+    size: '6.9 GB',
+    tags: ['diffusers'],
+    ...overrides,
+  };
+}
+
+function makeSearchResponse(overrides: Partial<SearchResponse> = {}): SearchResponse {
+  return {
+    source: 'hf',
+    query: 'sdxl',
+    page: 1,
+    results: [makeSearchResult()],
+    offline: false,
+    warning: null,
+    ...overrides,
+  };
+}
+
+describe('modelsSlice hub search actions', () => {
+  beforeEach(() => {
+    useAppStore.setState({
+      searchResults: [],
+      searchStatus: 'idle',
+      searchQuery: '',
+      searchSource: 'hf',
+      searchPage: 1,
+      searchWarning: null,
+      nsfwOptIn: false,
+    });
+  });
+
+  it('searchModels transitions loading -> ready and stores results', async () => {
+    const search = vi.fn().mockImplementation(() => {
+      // The loading state must be visible while the IPC call is in flight.
+      expect(useAppStore.getState().searchStatus).toBe('loading');
+      return Promise.resolve(makeSearchResponse());
+    });
+    mockModelsApi({ search });
+
+    await useAppStore.getState().searchModels('sdxl', 'hf');
+
+    const state = useAppStore.getState();
+    expect(state.searchStatus).toBe('ready');
+    expect(state.searchResults).toEqual([makeSearchResult()]);
+    expect(state.searchQuery).toBe('sdxl');
+    expect(state.searchSource).toBe('hf');
+    expect(state.searchPage).toBe(1);
+    expect(state.searchWarning).toBeNull();
+  });
+
+  it('searchModels transitions loading -> offline with the warning surfaced', async () => {
+    const search = vi.fn().mockResolvedValue(
+      makeSearchResponse({ results: [], offline: true, warning: 'Model search failed' }),
+    );
+    mockModelsApi({ search });
+
+    await useAppStore.getState().searchModels('sdxl', 'hf');
+
+    const state = useAppStore.getState();
+    expect(state.searchStatus).toBe('offline');
+    expect(state.searchResults).toEqual([]);
+    expect(state.searchWarning).toBe('Model search failed');
+  });
+
+  it('nsfw opt-in defaults to false and is forwarded as false for civitai', async () => {
+    const search = vi.fn().mockResolvedValue(makeSearchResponse({ source: 'civitai' }));
+    mockModelsApi({ search });
+
+    expect(useAppStore.getState().nsfwOptIn).toBe(false);
+    await useAppStore.getState().searchModels('anything', 'civitai');
+    expect(search).toHaveBeenCalledWith('anything', 'civitai', 1, false);
+  });
+
+  it('setNsfwOptIn(true) forwards nsfw=true for civitai but never for hf', async () => {
+    const search = vi.fn().mockResolvedValue(makeSearchResponse());
+    mockModelsApi({ search });
+
+    useAppStore.getState().setNsfwOptIn(true);
+    expect(useAppStore.getState().nsfwOptIn).toBe(true);
+
+    await useAppStore.getState().searchModels('anything', 'civitai', 2);
+    expect(search).toHaveBeenCalledWith('anything', 'civitai', 2, true);
+
+    await useAppStore.getState().searchModels('anything', 'hf');
+    expect(search).toHaveBeenLastCalledWith('anything', 'hf', 1, false);
+  });
+
+  it('a second search replaces results rather than appending', async () => {
+    const first = makeSearchResult();
+    const second = makeSearchResult({ id: 'civitai:123', source: 'civitai', name: 'other' });
+    const search = vi
+      .fn()
+      .mockResolvedValueOnce(makeSearchResponse({ results: [first] }))
+      .mockResolvedValueOnce(makeSearchResponse({ results: [second] }));
+    mockModelsApi({ search });
+
+    await useAppStore.getState().searchModels('sdxl', 'hf');
+    expect(useAppStore.getState().searchResults).toEqual([first]);
+
+    await useAppStore.getState().searchModels('other', 'hf');
+    expect(useAppStore.getState().searchResults).toEqual([second]);
   });
 });

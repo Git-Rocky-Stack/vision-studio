@@ -3,7 +3,16 @@
  */
 
 import type { ImageGenerationRequestPayload } from './generation';
-import type { DownloadJob, ModelRecord, LibraryRoot, DetectedRoot, ScanResult } from './model';
+import type {
+  DownloadJob,
+  ModelRecord,
+  LibraryRoot,
+  DetectedRoot,
+  ScanResult,
+  SearchSource,
+  SearchResponse,
+  ConsentKind,
+} from './model';
 
 export type GenerationParams = ImageGenerationRequestPayload;
 
@@ -340,9 +349,22 @@ export interface ElectronAPI {
     librariesList: () => Promise<LibraryRoot[]>;
     librariesRemove: (rootId: string) => Promise<{ removed: boolean; records_dropped: number }>;
     librariesDetect: () => Promise<DetectedRoot[]>;
+    search: (
+      query: string,
+      source: SearchSource,
+      page: number,
+      nsfw: boolean
+    ) => Promise<SearchResponse>;
+    consent: (
+      modelId: string,
+      kind: ConsentKind,
+      granted: boolean
+    ) => Promise<{ success: boolean; error?: string; [k: string]: unknown }>;
+    convert: (modelId: string) => Promise<{ success: boolean; error?: string; [k: string]: unknown }>;
   };
   auth: {
     setHfToken: (token: string) => Promise<{ success: boolean }>;
+    setCivitaiToken: (token: string) => Promise<{ success: boolean }>;
   };
   notifications: {
     notify: (

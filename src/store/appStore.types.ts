@@ -121,7 +121,16 @@ import type {
 } from '@/types/workflow';
 
 import type { ProjectTemplate } from '@/types/template';
-import type { ModelRecord, DownloadJob, LibraryRoot, DetectedRoot, LayoutHint } from '@/types/model';
+import type {
+  ModelRecord,
+  DownloadJob,
+  LibraryRoot,
+  DetectedRoot,
+  LayoutHint,
+  SearchResult,
+  SearchSource,
+  ConsentKind,
+} from '@/types/model';
 
 import type { AspectRatio, ResolutionTier } from '@/types/resolution';
 
@@ -324,6 +333,14 @@ export interface AppState {
   downloads: Record<string, DownloadJob>;
   libraryRoots: LibraryRoot[];
   detectedRoots: DetectedRoot[];
+  // Hub search (M4) - transient, never persisted
+  searchResults: SearchResult[];
+  searchStatus: 'idle' | 'loading' | 'ready' | 'offline';
+  searchQuery: string;
+  searchSource: SearchSource;
+  searchPage: number;
+  searchWarning: string | null;
+  nsfwOptIn: boolean;
 
   // ─── Prompt Intelligence ─────────────────────────────────────────────────
   promptHistory: PromptHistoryEntry[];
@@ -504,6 +521,10 @@ export interface AppState {
   removeLibraryRoot: (rootId: string) => Promise<void>;
   scanLibraries: () => Promise<void>;
   detectLibraries: () => Promise<void>;
+  searchModels: (query: string, source: SearchSource, page?: number) => Promise<void>;
+  setNsfwOptIn: (optIn: boolean) => void;
+  grantConsent: (modelId: string, kind: ConsentKind, granted: boolean) => Promise<void>;
+  convertModel: (modelId: string) => Promise<{ success: boolean; error?: string; [k: string]: unknown }>;
   addBatchJob: (batchJob: BatchJob) => void;
   updateBatchJob: (batchId: string, updates: Partial<BatchJob>) => void;
 

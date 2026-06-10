@@ -113,6 +113,48 @@ export interface ScanResult {
   warnings: string[];
 }
 
+/** Hub search source selector ('hf' = Hugging Face). */
+export type SearchSource = 'hf' | 'civitai';
+
+/** Security consent categories gated before download/load (M4). */
+export type ConsentKind = 'pickle' | 'trust_remote_code';
+
+/**
+ * One hub search hit. Mirrors the backend SearchResultSchema - a transient,
+ * pre-registry shape; becomes a ModelRecord only once the user pulls it.
+ */
+export interface SearchResult {
+  id: string;
+  source: 'huggingface' | 'civitai';
+  name: string;
+  repo_id: string | null;
+  tier: ModelTier;
+  tier_reason: string;
+  artifact_type: string;
+  base_architecture: string;
+  capability: ModelCapability;
+  downloads: number;
+  likes: number;
+  author: string | null;
+  license: string | null;
+  gated: boolean;
+  nsfw: boolean;
+  format: 'safetensors' | 'pickle' | 'diffusers' | null;
+  trust_remote_code: boolean;
+  size: string;
+  tags: string[];
+}
+
+/** Envelope for GET /api/models/search. `offline: true` degrades gracefully. */
+export interface SearchResponse {
+  source: SearchSource;
+  query: string;
+  page: number;
+  results: SearchResult[];
+  offline: boolean;
+  warning: string | null;
+}
+
 export function isImageCapability(record: Pick<ModelRecord, 'capability'>): boolean {
   return record.capability !== 'video';
 }

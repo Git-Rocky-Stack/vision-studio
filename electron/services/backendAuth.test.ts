@@ -7,6 +7,8 @@ import {
   backendAuthHeaders,
   setHfToken,
   hfTokenHeaders,
+  setCivitaiToken,
+  civitaiTokenHeaders,
 } from './backendAuth';
 
 describe('backend auth helpers', () => {
@@ -53,5 +55,44 @@ describe('HF token holder', () => {
     setHfToken('hf_abc');
     setHfToken(undefined);
     expect(hfTokenHeaders()).toEqual({});
+  });
+});
+
+describe('CivitAI token holder', () => {
+  beforeEach(() => {
+    // Reset the process-local token before each assertion so tests are isolated.
+    setCivitaiToken(undefined);
+  });
+
+  it('emits the X-Civitai-Token header after setCivitaiToken', () => {
+    setCivitaiToken('civ_abc');
+    expect(civitaiTokenHeaders()).toEqual({ 'X-Civitai-Token': 'civ_abc' });
+  });
+
+  it('trims surrounding whitespace from the token', () => {
+    setCivitaiToken('  civ_x  ');
+    expect(civitaiTokenHeaders()).toEqual({ 'X-Civitai-Token': 'civ_x' });
+  });
+
+  it('clears the token on empty, whitespace-only, or undefined input', () => {
+    setCivitaiToken('civ_abc');
+    setCivitaiToken('');
+    expect(civitaiTokenHeaders()).toEqual({});
+
+    setCivitaiToken('civ_abc');
+    setCivitaiToken('   ');
+    expect(civitaiTokenHeaders()).toEqual({});
+
+    setCivitaiToken('civ_abc');
+    setCivitaiToken(undefined);
+    expect(civitaiTokenHeaders()).toEqual({});
+  });
+
+  it('does not cross-contaminate the HF token holder', () => {
+    setHfToken('hf_abc');
+    setCivitaiToken('civ_abc');
+    expect(hfTokenHeaders()).toEqual({ 'X-HF-Token': 'hf_abc' });
+    expect(civitaiTokenHeaders()).toEqual({ 'X-Civitai-Token': 'civ_abc' });
+    setHfToken(undefined);
   });
 });

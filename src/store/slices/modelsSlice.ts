@@ -1,14 +1,36 @@
 import type { AppSet, AppGet, AppState } from '../appStore.types';
-import type { ModelRecord, ModelCapability, DownloadJob, LibraryRoot, DetectedRoot, LayoutHint } from '@/types/model';
+import type {
+  ModelRecord,
+  ModelCapability,
+  DownloadJob,
+  LibraryRoot,
+  DetectedRoot,
+  LayoutHint,
+  SearchResult,
+  SearchResponse,
+  SearchSource,
+  ConsentKind,
+} from '@/types/model';
 
 export const modelsInitialState = {
   availableModels: [] as ModelRecord[],
   downloads: {} as Record<string, DownloadJob>,
   libraryRoots: [] as LibraryRoot[],
   detectedRoots: [] as DetectedRoot[],
+  // Hub search (M4). Transient browse state - none of it is persisted
+  // (the appStore partialize allowlist excludes the whole group).
+  searchResults: [] as SearchResult[],
+  searchStatus: 'idle' as 'idle' | 'loading' | 'ready' | 'offline',
+  searchQuery: '',
+  searchSource: 'hf' as SearchSource,
+  searchPage: 1,
+  searchWarning: null as string | null,
+  // Session-only CivitAI NSFW opt-in. Deliberately NOT persisted: every
+  // session starts safe-search-on.
+  nsfwOptIn: false,
 };
 
-export function createModelsActions(set: AppSet, _get: AppGet) {
+export function createModelsActions(set: AppSet, get: AppGet) {
   const mergeJob = (jobLike: DownloadJob | null | undefined) => {
     if (!jobLike || !jobLike.model_id) return;
     set((state) => ({
@@ -115,6 +137,35 @@ export function createModelsActions(set: AppSet, _get: AppGet) {
         /* local-first */
       }
     },
+
+    // Hub search (M4) ------------------------------------------------------
+    searchModels: async (query: string, source: SearchSource, page = 1) => {
+      set({ searchStatus: 'loading', searchQuery: query, searchSource: source, searchPage: page });
+      // NSFW is a CivitAI-only concept; HF searches always send false.
+      const nsfw = source === 'civitai' ? get().nsfwOptIn : false;
+      try {
+        const response = (await window.electron.models.search(
+          query,
+          source,
+          page,
+          nsfw,
+        )) as SearchResponse;
+        set({
+          searchResults: response.results ?? [],
+          searchStatus: response.offline ? 'offline' : 'ready',
+          searchWarning: response.warning ?? null,
+        });
+      } catch {
+        // Local-first: the IPC layer already degrades to an offline envelope;
+        // this guards the bridge itself dying mid-flight.
+        set({ searchResults: [], searchStatus: 'offline', searchWarning: null });
+      }
+    },
+    setNsfwOptIn: (optIn: boolean) => set({ nsfwOptIn: optIn }),
+    grantConsent: async (modelId: string, kind: ConsentKind, granted: boolean) => {
+      await window.electron.models.consent(modelId, kind, granted);
+    },
+    convertModel: async (modelId: string) => window.electron.models.convert(modelId),
   };
 }
 
