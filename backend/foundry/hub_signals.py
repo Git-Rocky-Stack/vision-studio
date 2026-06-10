@@ -103,6 +103,10 @@ def fetch_repo_signals(repo_id: str, token: Optional[str] = None) -> RepoSignals
         from huggingface_hub import HfApi  # noqa: PLC0415
 
         api = HfApi(token=token)
+        # files_metadata=False still returns sibling FILENAMES (the default
+        # /api/models response); True only adds per-file size/LFS blobs we
+        # don't consume here. license/per_file_keys stay unpopulated on the
+        # live path - the classifier doesn't branch on either today.
         info = api.model_info(repo_id, files_metadata=False)
     except Exception:
         return RepoSignals(repo_id=repo_id, reachable=False)

@@ -23,7 +23,14 @@ class FixtureParsingTests(unittest.TestCase):
         return json.loads((CORPUS / name).read_text(encoding="utf-8"))
 
     def test_gated_repo_class_from_diffusers_tag(self):
-        sig = signals_from_fixture(self._load("black-forest-labs--FLUX.1-dev.json"))
+        raw = self._load("black-forest-labs--FLUX.1-dev.json")
+        # Gated repos hide model_index from unauthenticated capture - the
+        # diffusers:<Class> TAG path must carry the class (Spike C finding).
+        self.assertIsNone(
+            raw.get("model_index"),
+            "fixture must have null model_index for this test to exercise the tag path",
+        )
+        sig = signals_from_fixture(raw)
         self.assertEqual(sig.class_name, "FluxPipeline")
         self.assertTrue(sig.gated)
         self.assertTrue(sig.reachable)
@@ -32,6 +39,15 @@ class FixtureParsingTests(unittest.TestCase):
         fixture = self._load("Qwen--Qwen-Image.json")
         sig = signals_from_fixture(fixture)
         self.assertEqual(sig.class_name, "QwenImagePipeline")
+        # Precedence proof: in the real fixture both channels agree, so force
+        # a disagreement to verify model_index actually wins over the tag.
+        forced = dict(fixture)
+        forced["model_index"] = {"_class_name": "OverrideClass"}
+        self.assertEqual(
+            signals_from_fixture(forced).class_name,
+            "OverrideClass",
+            "model_index._class_name must beat the diffusers:<Class> tag",
+        )
 
     def test_unreachable_fixture(self):
         sig = signals_from_fixture(self._load("stabilityai--stable-diffusion-2-1.json"))
