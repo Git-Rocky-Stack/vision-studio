@@ -76,3 +76,19 @@ class DetectedRootSchema(BaseModel):
 class ScanResultSchema(BaseModel):
     records_indexed: int
     warnings: List[str] = []
+
+
+class ConsentRequestSchema(BaseModel):
+    model_config = {"protected_namespaces": ()}
+
+    model_id: str
+    kind: str  # pickle | trust_remote_code
+    granted: bool
+
+
+class ConsentStateSchema(BaseModel):
+    model_config = {"protected_namespaces": ()}
+
+    model_id: str
+    pickle: bool
+    trust_remote_code: bool

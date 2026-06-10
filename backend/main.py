@@ -68,6 +68,8 @@ from db.migrate import run_migrations
 from middleware.rate_limit import limiter, rate_limit_exceeded_handler
 from foundry.registry import ModelRegistry
 from foundry.schemas import (
+    ConsentRequestSchema,
+    ConsentStateSchema,
     DetectedRootSchema,
     DownloadJobSchema,
     LibraryRootSchema,
@@ -77,6 +79,7 @@ from foundry.schemas import (
 from foundry.download_manager import DownloadManager
 from foundry.library_roots import RootsStore
 from foundry.index_service import IndexService
+from foundry.security_policy import ConsentStore
 
 # Initialize logging at module load time
 setup_logging(log_file=os.getenv("LOG_FILE"))
@@ -145,6 +148,7 @@ index_service = IndexService(
     models_dir=MODELS_DIR,
     state_path=os.path.join(_FOUNDRY_STATE_DIR, "index_state.json"),
 )
+consent_store = ConsentStore(os.path.join(_FOUNDRY_STATE_DIR, "consents.json"))
 
 comfy_client: Optional[ComfyUIClient] = None
 direct_generator: Optional[DirectGenerator] = None
@@ -1534,6 +1538,25 @@ async def remove_library_root(request: Request, root_id: str):
     return {"removed": True, "records_dropped": dropped}
 
 
+@app.post("/api/models/consent", response_model=ConsentStateSchema, tags=["Models"])
+@limiter.limit("30/minute")
+async def set_consent(request: Request, body: ConsentRequestSchema):
+    """Grant/revoke per-model consent. Deliberate, logged; deny is the default.
+
+    Declared BEFORE the dynamic /api/models/{model_id} route so the literal
+    'consent' path is not captured as a model id.
+    """
+    try:
+        if body.granted:
+            consent_store.grant(body.model_id, body.kind)
+        else:
+            consent_store.revoke(body.model_id, body.kind)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    state = consent_store.get(body.model_id)
+    return ConsentStateSchema(model_id=body.model_id, **state)
+
+
 @app.get("/api/models/{model_id}", response_model=ModelRecordSchema, tags=["Models"])
 @limiter.limit("60/minute")
 async def get_model_record(request: Request, model_id: str):
@@ -1553,8 +1576,28 @@ async def enqueue_download(request: Request, model_id: str):
     Electron main process (safeStorage). It is forwarded to the manager as a
     local parameter and is NEVER persisted in Python and NEVER logged.
     """
-    if model_registry.get_record(model_id) is None:
+    record = model_registry.get_record(model_id)
+    if record is None:
         raise HTTPException(status_code=404, detail=f"Model '{model_id}' not found")
+    # Spec 5.3 security rail: pickle weights and trust_remote_code are
+    # deny-by-default - downloads are blocked until per-model consent exists.
+    consent = consent_store.get(model_id)
+    if record.get("format") == "pickle" and not consent["pickle"]:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "error_code": "pickle-consent-required",
+                "message": "This model ships pickle weights. Explicit consent is required (Settings > Model Trust).",
+            },
+        )
+    if record.get("trust_remote_code") and not consent["trust_remote_code"]:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "error_code": "remote-code-consent-required",
+                "message": "This model requires running code authored by the repo. Explicit per-model consent is required.",
+            },
+        )
     token = request.headers.get("X-HF-Token")
     job = download_manager.enqueue(model_id, token=token)
     return _job_to_dict(job)
