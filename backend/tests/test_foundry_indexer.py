@@ -84,6 +84,50 @@ class ScanTreeTests(unittest.TestCase):
         target = next(a for a in artifacts if a.path == ddir)
         self.assertEqual(target.artifact_type, "diffusers-pipeline")
 
+    def test_same_named_pipeline_dirs_with_different_content_get_distinct_identities(self):
+        import json as json_module
+
+        a = os.path.join(self.root, "diffusers", "pipeline-x")
+        b = os.path.join(self.root, "other", "pipeline-x")
+        os.makedirs(a)
+        os.makedirs(b)
+        with open(os.path.join(a, "model_index.json"), "w", encoding="utf-8") as handle:
+            json_module.dump({"_class_name": "StableDiffusionPipeline"}, handle)
+        with open(os.path.join(b, "model_index.json"), "w", encoding="utf-8") as handle:
+            json_module.dump({"_class_name": "FluxPipeline"}, handle)
+        artifacts, _ = scan_tree(self.root, "comfyui", "root1", {})
+        identities = {a2.identity for a2 in artifacts if a2.artifact_type == "diffusers-pipeline"}
+        self.assertEqual(len(identities), 2)
+
+    def test_identical_pipeline_dirs_share_identity(self):
+        import json as json_module
+
+        a = os.path.join(self.root, "diffusers", "pipeline-y")
+        b = os.path.join(self.root, "other", "pipeline-y")
+        os.makedirs(a)
+        os.makedirs(b)
+        for d in (a, b):
+            with open(os.path.join(d, "model_index.json"), "w", encoding="utf-8") as handle:
+                json_module.dump({"_class_name": "StableDiffusionPipeline"}, handle)
+        artifacts, _ = scan_tree(self.root, "comfyui", "root1", {})
+        identities = [a2.identity for a2 in artifacts if a2.artifact_type == "diffusers-pipeline"]
+        self.assertEqual(len(identities), 2)
+        self.assertEqual(identities[0], identities[1])
+
+    def test_vanished_file_mid_scan_is_skipped_not_fatal(self):
+        real_stat = os.stat
+
+        def flaky_stat(path, *args, **kwargs):
+            if str(path).endswith("style.safetensors"):
+                raise OSError(2, "vanished mid-scan")
+            return real_stat(path, *args, **kwargs)
+
+        with mock.patch("foundry.indexer.os.stat", side_effect=flaky_stat):
+            artifacts, _ = scan_tree(self.root, "comfyui", "root1", {})
+        names = {os.path.basename(a.path) for a in artifacts}
+        self.assertIn("dream.safetensors", names)
+        self.assertNotIn("style.safetensors", names)
+
 
 class ArtifactToRecordTests(unittest.TestCase):
     def _artifact(self, **overrides):

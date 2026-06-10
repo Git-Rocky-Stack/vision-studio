@@ -5,8 +5,9 @@ identity, and keeps (mtime_ns, size) signatures so unchanged files are never
 re-read on subsequent scans.
 """
 
+import hashlib
 import os
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple
 
 from foundry.identity import quick_identity
@@ -34,6 +35,21 @@ class IndexedArtifact:
     base_architecture: str = "unknown"
 
 
+def _dir_identity(dirpath: str) -> str:
+    """Content-sensitive identity for a diffusers dir: identical pipelines in
+    two roots merge (dedup); different pipelines sharing a dirname do not."""
+    index_path = os.path.join(dirpath, "model_index.json")
+    try:
+        with open(index_path, "rb") as handle:
+            digest = hashlib.sha256(handle.read()).hexdigest()[:16]
+    except OSError:
+        # Unreadable index: fall back to a per-path identity (no cross-root merge).
+        digest = hashlib.sha256(
+            os.path.normcase(os.path.normpath(dirpath)).encode("utf-8")
+        ).hexdigest()[:16]
+    return f"dir:{os.path.basename(dirpath)}:{digest}"
+
+
 def _classify_file(path: str, layout_hint: str, relative: str) -> str:
     try:
         header_type = classify_safetensors(read_safetensors_header(path))
@@ -58,12 +74,17 @@ def scan_tree(
 
     for dirpath, dirnames, filenames in os.walk(root_path):
         if detect_diffusers_dir(dirpath):
-            stat = os.stat(dirpath)
+            try:
+                stat = os.stat(dirpath)
+            except OSError:
+                dirnames[:] = []  # pruning a vanished dir is still safe
+                continue
+            identity = _dir_identity(dirpath)
             artifacts.append(
                 IndexedArtifact(
                     path=dirpath,
                     artifact_type="diffusers-pipeline",
-                    identity=f"dir:{os.path.basename(dirpath)}",
+                    identity=identity,
                     size_bytes=0,
                     mtime_ns=stat.st_mtime_ns,
                     root_id=root_id,
@@ -76,7 +97,10 @@ def scan_tree(
                 continue
             path = os.path.join(dirpath, filename)
             key = os.path.normcase(os.path.normpath(path))
-            stat = os.stat(path)
+            try:
+                stat = os.stat(path)
+            except OSError:
+                continue
             cached = signatures.get(key)
             if cached and cached[0] == stat.st_mtime_ns and cached[1] == stat.st_size:
                 artifact_type, identity = cached[2], cached[3]
