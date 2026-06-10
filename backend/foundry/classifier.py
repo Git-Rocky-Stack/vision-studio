@@ -88,6 +88,9 @@ def tree_weight_format(siblings: List[str]) -> Tuple[int, int, int, int]:
 
 
 def file_is_lora(keys: List[str]) -> bool:
+    # NOTE: .lora_A./.lora_B. are PEFT-format keys. classify_safetensors in
+    # safetensors_header.py deliberately does NOT include them (M3 indexer
+    # scope); if PEFT loras need local indexing, update BOTH sites together.
     return any(
         ".lora_down." in k or ".lora_up." in k or ".lora_A." in k or ".lora_B." in k
         or k.startswith(("lora_unet_", "lora_te", "lora_transformer_"))
@@ -103,6 +106,8 @@ def lora_family_from_keys(keys: List[str]) -> Optional[str]:
         return None
     if any("lora_te2" in k or "text_encoder_2" in k for k in keys):
         return "sdxl"
+    # "sd-unet-family" is a routing label meaning sd15/sdxl non-DiT (any
+    # kohya/diffusers unet- or te-targeting lora), not literally unet-only.
     if any(k.startswith(("lora_unet_", "lora_te")) or ".unet." in k or k.startswith("unet.") for k in keys):
         return "sd-unet-family"
     if any("double_blocks." in k or "single_blocks." in k for k in keys):
@@ -214,6 +219,11 @@ def classify_repo(signals: RepoSignals, verified_repo_ids: Set[str]) -> TierVerd
         if not keys:
             continue
         if file_is_lora(keys):
+            # First recognized family wins. A pack mixing families (sd15 +
+            # flux loras) still verdicts compatible naming the first family:
+            # every file is individually loadable via load_lora_weights, so
+            # this is not a false-Compatible. Known limitation, not in the
+            # measured corpus; revisit if multi-family packs surface.
             lora_hit = lora_hit or lora_family_from_keys(keys)
         else:
             saw_non_lora = True

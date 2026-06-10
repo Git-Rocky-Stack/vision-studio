@@ -88,6 +88,25 @@ class PrecedenceTests(unittest.TestCase):
         v = classify_repo(sig(library_name="diffusers"), VERIFIED)
         self.assertEqual(v.tier, "experimental")
 
+    def test_shipped_component_safetensors_compatible(self):
+        v = classify_repo(
+            sig(library_name="diffusers", class_name="ControlNetModel",
+                siblings=["diffusion_pytorch_model.safetensors"], has_safetensors=True),
+            VERIFIED,
+        )
+        self.assertEqual(v.tier, "compatible")
+        self.assertIn("ControlNetModel", v.reason)
+        self.assertEqual(v.format, "safetensors")
+
+    def test_shipped_component_pickle_only_experimental(self):
+        v = classify_repo(
+            sig(library_name="diffusers", class_name="ControlNetModel",
+                siblings=["diffusion_pytorch_model.bin"]),
+            VERIFIED,
+        )
+        self.assertEqual(v.tier, "experimental")
+        self.assertEqual(v.format, "pickle")
+
 
 class LoraChannelTests(unittest.TestCase):
     def test_lora_tag_with_catalog_base_compatible(self):
