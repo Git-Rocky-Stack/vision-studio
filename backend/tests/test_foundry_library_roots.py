@@ -33,7 +33,10 @@ class RootsStoreTests(unittest.TestCase):
         self.assertIsInstance(root, LibraryRoot)
         self.assertEqual(root.layout_hint, "comfyui")
         self.assertTrue(root.id)
-        self.assertTrue(root.added_at)
+        from datetime import datetime
+
+        parsed = datetime.fromisoformat(root.added_at)
+        self.assertIsNotNone(parsed.tzinfo)  # UTC-aware ISO timestamp
 
     def test_add_missing_path_raises_value_error(self):
         with self.assertRaises(ValueError):
@@ -74,6 +77,20 @@ class RootsStoreTests(unittest.TestCase):
         os.makedirs(os.path.dirname(store_path), exist_ok=True)
         with open(store_path, "w", encoding="utf-8") as handle:
             json.dump({"not": "a list"}, handle)
+        store = RootsStore(store_path)
+        self.assertEqual(store.list(), [])
+        self.assertTrue(os.path.isfile(store_path + ".corrupt"))
+
+    def test_schema_drift_entry_treated_as_corrupt(self):
+        import json as json_module
+
+        store_path = os.path.join(self.tmp, ".foundry", "library_roots.json")
+        os.makedirs(os.path.dirname(store_path), exist_ok=True)
+        with open(store_path, "w", encoding="utf-8") as handle:
+            json_module.dump(
+                [{"id": "x", "path": "/x", "layout_hint": "generic", "added_at": "2026", "extra": "boom"}],
+                handle,
+            )
         store = RootsStore(store_path)
         self.assertEqual(store.list(), [])
         self.assertTrue(os.path.isfile(store_path + ".corrupt"))

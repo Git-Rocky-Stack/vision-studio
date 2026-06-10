@@ -70,7 +70,7 @@ class RootsStore:
                 if not isinstance(loaded, list) or not all(isinstance(e, dict) for e in loaded):
                     raise ValueError("store is not a list of entries")
                 self._roots = [LibraryRoot(**entry) for entry in loaded]
-            except (OSError, ValueError) as exc:
+            except (OSError, ValueError, TypeError) as exc:
                 # Fail-safe: an empty store under-claims knowledge of roots.
                 # Keep the corrupt file for diagnostics and start fresh.
                 _log.error(
@@ -104,6 +104,7 @@ class RootsStore:
         if not os.path.isdir(path):
             raise ValueError(f"library root does not exist: {path!r}")
         normalized = os.path.normcase(os.path.normpath(os.path.abspath(path)))
+        # First-writer wins: re-adding an existing path returns the original root (original hint retained).
         for root in self._roots:
             if os.path.normcase(os.path.normpath(os.path.abspath(root.path))) == normalized:
                 return root  # idempotent
