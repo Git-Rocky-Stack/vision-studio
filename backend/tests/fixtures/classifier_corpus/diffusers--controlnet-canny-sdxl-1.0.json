@@ -1,0 +1,237 @@
+{
+  "author": "diffusers",
+  "captured": "2026-06-10",
+  "captured_unauthenticated": true,
+  "config": {
+    "_class_name": "ControlNetModel",
+    "addition_embed_type": "text_time",
+    "cross_attention_dim": 2048,
+    "in_channels": 4
+  },
+  "diffusers_class_tags": [],
+  "downloads": 18995,
+  "ext_census": {
+    ".bin": 2,
+    ".json": 1,
+    ".md": 1,
+    ".png": 6,
+    ".safetensors": 2
+  },
+  "gated": false,
+  "ground_truth": {
+    "reason": "ControlNetModel sdxl",
+    "stratum": "compatible-aux",
+    "tier": "compatible"
+  },
+  "has_safetensors": true,
+  "library_name": "diffusers",
+  "license": "openrail++",
+  "model_index": null,
+  "model_index_error": null,
+  "pipeline_tag": "text-to-image",
+  "py_files": [],
+  "reachable": true,
+  "repo_id": "diffusers/controlnet-canny-sdxl-1.0",
+  "safetensors_errors": {
+    "repo_level": "NotASafetensorsRepoError: 'diffusers/controlnet-canny-sdxl-1.0' is not a safetensors repo. Couldn't find 'model.safetensors.index.json' or 'model.safetensors' files."
+  },
+  "safetensors_per_file": {
+    "diffusion_pytorch_model.fp16.safetensors": {
+      "detection_keys": [
+        "add_embedding.linear_1.bias",
+        "add_embedding.linear_1.weight",
+        "add_embedding.linear_2.bias",
+        "add_embedding.linear_2.weight",
+        "controlnet_cond_embedding.blocks.0.bias",
+        "controlnet_cond_embedding.blocks.0.weight",
+        "controlnet_cond_embedding.blocks.1.bias",
+        "controlnet_cond_embedding.blocks.1.weight",
+        "controlnet_cond_embedding.blocks.2.bias",
+        "controlnet_cond_embedding.blocks.2.weight",
+        "controlnet_cond_embedding.blocks.3.bias",
+        "controlnet_cond_embedding.blocks.3.weight",
+        "controlnet_cond_embedding.blocks.4.bias",
+        "controlnet_cond_embedding.blocks.4.weight",
+        "controlnet_cond_embedding.blocks.5.bias",
+        "controlnet_cond_embedding.blocks.5.weight",
+        "controlnet_cond_embedding.conv_in.bias",
+        "controlnet_cond_embedding.conv_in.weight",
+        "controlnet_cond_embedding.conv_out.bias",
+        "controlnet_cond_embedding.conv_out.weight"
+      ],
+      "key_prefixes": {
+        "add_embedding.linear_1": 2,
+        "add_embedding.linear_2": 2,
+        "controlnet_cond_embedding.blocks": 12,
+        "controlnet_cond_embedding.conv_in": 2,
+        "controlnet_cond_embedding.conv_out": 2,
+        "controlnet_down_blocks.0": 2,
+        "controlnet_down_blocks.1": 2,
+        "controlnet_down_blocks.2": 2,
+        "controlnet_down_blocks.3": 2,
+        "controlnet_down_blocks.4": 2,
+        "controlnet_down_blocks.5": 2,
+        "controlnet_down_blocks.6": 2,
+        "controlnet_down_blocks.7": 2,
+        "controlnet_down_blocks.8": 2,
+        "controlnet_mid_block.bias": 1,
+        "controlnet_mid_block.weight": 1,
+        "conv_in.bias": 1,
+        "conv_in.weight": 1,
+        "down_blocks.0": 22,
+        "down_blocks.1": 116,
+        "down_blocks.2": 434,
+        "mid_block.attentions": 206,
+        "mid_block.resnets": 20,
+        "time_embedding.linear_1": 2,
+        "time_embedding.linear_2": 2
+      },
+      "sample_keys": [
+        "add_embedding.linear_1.bias",
+        "add_embedding.linear_1.weight",
+        "add_embedding.linear_2.bias",
+        "add_embedding.linear_2.weight",
+        "controlnet_cond_embedding.blocks.0.bias",
+        "controlnet_cond_embedding.blocks.0.weight",
+        "controlnet_cond_embedding.blocks.1.bias",
+        "controlnet_cond_embedding.blocks.1.weight",
+        "controlnet_cond_embedding.blocks.2.bias",
+        "controlnet_cond_embedding.blocks.2.weight",
+        "controlnet_cond_embedding.blocks.3.bias",
+        "controlnet_cond_embedding.blocks.3.weight"
+      ],
+      "tensor_count": 844
+    },
+    "diffusion_pytorch_model.safetensors": {
+      "detection_keys": [
+        "add_embedding.linear_1.bias",
+        "add_embedding.linear_1.weight",
+        "add_embedding.linear_2.bias",
+        "add_embedding.linear_2.weight",
+        "controlnet_cond_embedding.blocks.0.bias",
+        "controlnet_cond_embedding.blocks.0.weight",
+        "controlnet_cond_embedding.blocks.1.bias",
+        "controlnet_cond_embedding.blocks.1.weight",
+        "controlnet_cond_embedding.blocks.2.bias",
+        "controlnet_cond_embedding.blocks.2.weight",
+        "controlnet_cond_embedding.blocks.3.bias",
+        "controlnet_cond_embedding.blocks.3.weight",
+        "controlnet_cond_embedding.blocks.4.bias",
+        "controlnet_cond_embedding.blocks.4.weight",
+        "controlnet_cond_embedding.blocks.5.bias",
+        "controlnet_cond_embedding.blocks.5.weight",
+        "controlnet_cond_embedding.conv_in.bias",
+        "controlnet_cond_embedding.conv_in.weight",
+        "controlnet_cond_embedding.conv_out.bias",
+        "controlnet_cond_embedding.conv_out.weight"
+      ],
+      "key_prefixes": {
+        "add_embedding.linear_1": 2,
+        "add_embedding.linear_2": 2,
+        "controlnet_cond_embedding.blocks": 12,
+        "controlnet_cond_embedding.conv_in": 2,
+        "controlnet_cond_embedding.conv_out": 2,
+        "controlnet_down_blocks.0": 2,
+        "controlnet_down_blocks.1": 2,
+        "controlnet_down_blocks.2": 2,
+        "controlnet_down_blocks.3": 2,
+        "controlnet_down_blocks.4": 2,
+        "controlnet_down_blocks.5": 2,
+        "controlnet_down_blocks.6": 2,
+        "controlnet_down_blocks.7": 2,
+        "controlnet_down_blocks.8": 2,
+        "controlnet_mid_block.bias": 1,
+        "controlnet_mid_block.weight": 1,
+        "conv_in.bias": 1,
+        "conv_in.weight": 1,
+        "down_blocks.0": 22,
+        "down_blocks.1": 116,
+        "down_blocks.2": 434,
+        "mid_block.attentions": 206,
+        "mid_block.resnets": 20,
+        "time_embedding.linear_1": 2,
+        "time_embedding.linear_2": 2
+      },
+      "sample_keys": [
+        "add_embedding.linear_1.bias",
+        "add_embedding.linear_1.weight",
+        "add_embedding.linear_2.bias",
+        "add_embedding.linear_2.weight",
+        "controlnet_cond_embedding.blocks.0.bias",
+        "controlnet_cond_embedding.blocks.0.weight",
+        "controlnet_cond_embedding.blocks.1.bias",
+        "controlnet_cond_embedding.blocks.1.weight",
+        "controlnet_cond_embedding.blocks.2.bias",
+        "controlnet_cond_embedding.blocks.2.weight",
+        "controlnet_cond_embedding.blocks.3.bias",
+        "controlnet_cond_embedding.blocks.3.weight"
+      ],
+      "tensor_count": 844
+    }
+  },
+  "siblings": [
+    {
+      "name": ".gitattributes",
+      "size": 1824
+    },
+    {
+      "name": "README.md",
+      "size": 3580
+    },
+    {
+      "name": "config.json",
+      "size": 1309
+    },
+    {
+      "name": "diffusion_pytorch_model.bin",
+      "size": 5004438321
+    },
+    {
+      "name": "diffusion_pytorch_model.fp16.bin",
+      "size": 2502401039
+    },
+    {
+      "name": "diffusion_pytorch_model.fp16.safetensors",
+      "size": 2502139136
+    },
+    {
+      "name": "diffusion_pytorch_model.safetensors",
+      "size": 5004167864
+    },
+    {
+      "name": "out_bird.png",
+      "size": 6935069
+    },
+    {
+      "name": "out_couple.png",
+      "size": 7286999
+    },
+    {
+      "name": "out_hug_lab_7.png",
+      "size": 1967716
+    },
+    {
+      "name": "out_room.png",
+      "size": 6420362
+    },
+    {
+      "name": "out_tornado.png",
+      "size": 8511428
+    },
+    {
+      "name": "out_women.png",
+      "size": 7586978
+    }
+  ],
+  "tags": [
+    "diffusers",
+    "safetensors",
+    "stable-diffusion-xl",
+    "stable-diffusion-xl-diffusers",
+    "text-to-image",
+    "base_model:runwayml/stable-diffusion-v1-5",
+    "base_model:finetune:runwayml/stable-diffusion-v1-5",
+    "license:openrail++",
+    "region:us"
+  ]
+}

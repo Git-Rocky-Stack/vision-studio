@@ -1,0 +1,135 @@
+{
+  "author": "meta-llama",
+  "captured": "2026-06-10",
+  "captured_unauthenticated": true,
+  "config": null,
+  "diffusers_class_tags": [],
+  "downloads": 10031112,
+  "ext_census": {
+    ".json": 7,
+    ".md": 2,
+    ".model": 1,
+    ".pth": 1,
+    ".safetensors": 4
+  },
+  "gated": "manual",
+  "ground_truth": {
+    "reason": "transformers LLM - not applicable",
+    "stratum": "non-diffusion",
+    "tier": "experimental"
+  },
+  "has_safetensors": true,
+  "library_name": "transformers",
+  "license": "llama3.1",
+  "model_index": null,
+  "model_index_error": null,
+  "pipeline_tag": "text-generation",
+  "py_files": [],
+  "reachable": true,
+  "repo_id": "meta-llama/Llama-3.1-8B-Instruct",
+  "safetensors_errors": {
+    "model-00001-of-00004.safetensors": "GatedRepoError: 401 Client Error. (Request ID: Root=1-6a293ab8-32bb300019b4186d7af822f4;ecbb8825-0f28-4dc2-9e58-9fff876b8834)\n\nCannot access gated repo for url https://huggingface.co/meta-llama/Llama-3.1-8B-Instruct/resolve/main/model-00001-of-00004.safetensors.\nAccess to model meta-llama/Llama-3.1-8B-Instruct is restricted. You must have access to it and be authenticated to access it. Please log in.",
+    "model-00002-of-00004.safetensors": "GatedRepoError: 401 Client Error. (Request ID: Root=1-6a293ab9-09661a6115184190633e4bdb;0ce4514d-1f67-42d2-aa83-386d050f5697)\n\nCannot access gated repo for url https://huggingface.co/meta-llama/Llama-3.1-8B-Instruct/resolve/main/model-00002-of-00004.safetensors.\nAccess to model meta-llama/Llama-3.1-8B-Instruct is restricted. You must have access to it and be authenticated to access it. Please log in.",
+    "model-00003-of-00004.safetensors": "GatedRepoError: 401 Client Error. (Request ID: Root=1-6a293ab9-065b08c747e580800e9e7be3;542d130d-39ad-4ae6-b313-f7b451873a7c)\n\nCannot access gated repo for url https://huggingface.co/meta-llama/Llama-3.1-8B-Instruct/resolve/main/model-00003-of-00004.safetensors.\nAccess to model meta-llama/Llama-3.1-8B-Instruct is restricted. You must have access to it and be authenticated to access it. Please log in.",
+    "model-00004-of-00004.safetensors": "GatedRepoError: 401 Client Error. (Request ID: Root=1-6a293ab9-0def8c2e7250ffcc632e6e9b;d7a68eb0-a9b3-45bf-b10e-c808d7cb0d11)\n\nCannot access gated repo for url https://huggingface.co/meta-llama/Llama-3.1-8B-Instruct/resolve/main/model-00004-of-00004.safetensors.\nAccess to model meta-llama/Llama-3.1-8B-Instruct is restricted. You must have access to it and be authenticated to access it. Please log in.",
+    "repo_level": "GatedRepoError: 401 Client Error. (Request ID: Root=1-6a293ab8-60398a146be5ab605f330220;3e315b11-12ce-44d0-b1f8-b5c6303cd5fe)\n\nCannot access gated repo for url https://huggingface.co/meta-llama/Llama-3.1-8B-Instruct/resolve/main/model.safetensors.\nAccess to model meta-llama/Llama-3.1-8B-Instruct is restricted. You must have access to it and be authenticated to access it. Please log in."
+  },
+  "safetensors_per_file": {},
+  "siblings": [
+    {
+      "name": ".gitattributes",
+      "size": 1519
+    },
+    {
+      "name": "LICENSE",
+      "size": 7627
+    },
+    {
+      "name": "README.md",
+      "size": 44044
+    },
+    {
+      "name": "USE_POLICY.md",
+      "size": 4691
+    },
+    {
+      "name": "config.json",
+      "size": 855
+    },
+    {
+      "name": "generation_config.json",
+      "size": 184
+    },
+    {
+      "name": "model-00001-of-00004.safetensors",
+      "size": 4976698672
+    },
+    {
+      "name": "model-00002-of-00004.safetensors",
+      "size": 4999802720
+    },
+    {
+      "name": "model-00003-of-00004.safetensors",
+      "size": 4915916176
+    },
+    {
+      "name": "model-00004-of-00004.safetensors",
+      "size": 1168138808
+    },
+    {
+      "name": "model.safetensors.index.json",
+      "size": 23950
+    },
+    {
+      "name": "original/consolidated.00.pth",
+      "size": 16060617592
+    },
+    {
+      "name": "original/params.json",
+      "size": 199
+    },
+    {
+      "name": "original/tokenizer.model",
+      "size": 2183982
+    },
+    {
+      "name": "special_tokens_map.json",
+      "size": 296
+    },
+    {
+      "name": "tokenizer.json",
+      "size": 9085657
+    },
+    {
+      "name": "tokenizer_config.json",
+      "size": 55351
+    }
+  ],
+  "tags": [
+    "transformers",
+    "safetensors",
+    "llama",
+    "text-generation",
+    "facebook",
+    "meta",
+    "pytorch",
+    "llama-3",
+    "conversational",
+    "en",
+    "de",
+    "fr",
+    "it",
+    "pt",
+    "hi",
+    "es",
+    "th",
+    "arxiv:2204.05149",
+    "base_model:meta-llama/Llama-3.1-8B",
+    "base_model:finetune:meta-llama/Llama-3.1-8B",
+    "license:llama3.1",
+    "eval-results",
+    "text-generation-inference",
+    "endpoints_compatible",
+    "region:us"
+  ]
+}

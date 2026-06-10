@@ -1,0 +1,63 @@
+{
+  "author": "CompVis",
+  "captured": "2026-06-10",
+  "captured_unauthenticated": true,
+  "config": null,
+  "diffusers_class_tags": [],
+  "downloads": 0,
+  "ext_census": {
+    ".ckpt": 2,
+    ".jpg": 1,
+    ".md": 1
+  },
+  "gated": false,
+  "ground_truth": {
+    "reason": "pickle-only .ckpt",
+    "stratum": "pickle",
+    "tier": "experimental"
+  },
+  "has_safetensors": false,
+  "library_name": "stable-diffusion",
+  "license": "creativeml-openrail-m",
+  "model_index": null,
+  "model_index_error": null,
+  "pipeline_tag": "text-to-image",
+  "py_files": [],
+  "reachable": true,
+  "repo_id": "CompVis/stable-diffusion-v-1-4-original",
+  "safetensors_errors": {},
+  "safetensors_per_file": {},
+  "siblings": [
+    {
+      "name": ".gitattributes",
+      "size": 1445
+    },
+    {
+      "name": "README.md",
+      "size": 11749
+    },
+    {
+      "name": "sd-v1-4-full-ema.ckpt",
+      "size": 7703807346
+    },
+    {
+      "name": "sd-v1-4.ckpt",
+      "size": 4265380512
+    },
+    {
+      "name": "v1-variants-scores.jpg",
+      "size": 71237
+    }
+  ],
+  "tags": [
+    "stable-diffusion",
+    "text-to-image",
+    "arxiv:2207.12598",
+    "arxiv:2112.10752",
+    "arxiv:2103.00020",
+    "arxiv:2205.11487",
+    "arxiv:1910.09700",
+    "license:creativeml-openrail-m",
+    "region:us"
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "captured": "2026-06-10",
+  "captured_unauthenticated": true,
+  "error": "RepositoryNotFoundError: 401 Client Error. (Request ID: Root=1-6a293a91-5d9c9bb675c50d254cd500e9;a1be5bd6-cf4a-4307-beb5-21cd371c2a38)",
+  "ground_truth": {
+    "reason": "sd2.1: family unlisted but StableDiffusionPipeline IS shipped",
+    "stratum": "compatible-boundary",
+    "tier": "compatible"
+  },
+  "reachable": false,
+  "repo_id": "stabilityai/stable-diffusion-2-1"
+}

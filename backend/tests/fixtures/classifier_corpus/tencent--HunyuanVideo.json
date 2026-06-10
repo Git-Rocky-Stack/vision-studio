@@ -1,0 +1,79 @@
+{
+  "author": "tencent",
+  "captured": "2026-06-10",
+  "captured_unauthenticated": true,
+  "config": null,
+  "diffusers_class_tags": [],
+  "downloads": 984,
+  "ext_census": {
+    ".json": 2,
+    ".md": 1,
+    ".pt": 4
+  },
+  "gated": false,
+  "ground_truth": {
+    "reason": "HunyuanVideoPipeline not shipped",
+    "stratum": "trap-unsupported",
+    "tier": "experimental"
+  },
+  "has_safetensors": false,
+  "library_name": null,
+  "license": "other",
+  "model_index": null,
+  "model_index_error": null,
+  "pipeline_tag": "text-to-video",
+  "py_files": [],
+  "reachable": true,
+  "repo_id": "tencent/HunyuanVideo",
+  "safetensors_errors": {},
+  "safetensors_per_file": {},
+  "siblings": [
+    {
+      "name": ".gitattributes",
+      "size": 1519
+    },
+    {
+      "name": "LICENSE",
+      "size": 15302
+    },
+    {
+      "name": "Notice",
+      "size": 18975
+    },
+    {
+      "name": "README.md",
+      "size": 23743
+    },
+    {
+      "name": "config.json",
+      "size": 39
+    },
+    {
+      "name": "hunyuan-video-t2v-720p/transformers/mp_rank_00_model_states.pt",
+      "size": 25642314002
+    },
+    {
+      "name": "hunyuan-video-t2v-720p/transformers/mp_rank_00_model_states_fp8.pt",
+      "size": 13185233506
+    },
+    {
+      "name": "hunyuan-video-t2v-720p/transformers/mp_rank_00_model_states_fp8_map.pt",
+      "size": 103890
+    },
+    {
+      "name": "hunyuan-video-t2v-720p/vae/config.json",
+      "size": 785
+    },
+    {
+      "name": "hunyuan-video-t2v-720p/vae/pytorch_model.pt",
+      "size": 986000558
+    }
+  ],
+  "tags": [
+    "text-to-video",
+    "arxiv:2412.03603",
+    "arxiv:2405.07719",
+    "license:other",
+    "region:us"
+  ]
+}

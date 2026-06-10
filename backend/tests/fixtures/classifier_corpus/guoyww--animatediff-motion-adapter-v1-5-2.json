@@ -1,0 +1,121 @@
+{
+  "author": "guoyww",
+  "captured": "2026-06-10",
+  "captured_unauthenticated": true,
+  "config": {
+    "_class_name": "MotionAdapter"
+  },
+  "diffusers_class_tags": [],
+  "downloads": 3529,
+  "ext_census": {
+    ".json": 1,
+    ".md": 1,
+    ".safetensors": 2
+  },
+  "gated": false,
+  "ground_truth": {
+    "reason": "MotionAdapter",
+    "stratum": "compatible-aux",
+    "tier": "compatible"
+  },
+  "has_safetensors": true,
+  "library_name": "diffusers",
+  "license": null,
+  "model_index": null,
+  "model_index_error": null,
+  "pipeline_tag": "text-to-video",
+  "py_files": [],
+  "reachable": true,
+  "repo_id": "guoyww/animatediff-motion-adapter-v1-5-2",
+  "safetensors_errors": {
+    "repo_level": "NotASafetensorsRepoError: 'guoyww/animatediff-motion-adapter-v1-5-2' is not a safetensors repo. Couldn't find 'model.safetensors.index.json' or 'model.safetensors' files."
+  },
+  "safetensors_per_file": {
+    "diffusion_pytorch_model.fp16.safetensors": {
+      "detection_keys": [],
+      "key_prefixes": {
+        "down_blocks.0": 54,
+        "down_blocks.1": 54,
+        "down_blocks.2": 54,
+        "down_blocks.3": 54,
+        "mid_block.motion_modules": 27,
+        "up_blocks.0": 81,
+        "up_blocks.1": 81,
+        "up_blocks.2": 81,
+        "up_blocks.3": 81
+      },
+      "sample_keys": [
+        "down_blocks.0.motion_modules.0.norm.bias",
+        "down_blocks.0.motion_modules.0.norm.weight",
+        "down_blocks.0.motion_modules.0.proj_in.bias",
+        "down_blocks.0.motion_modules.0.proj_in.weight",
+        "down_blocks.0.motion_modules.0.proj_out.bias",
+        "down_blocks.0.motion_modules.0.proj_out.weight",
+        "down_blocks.0.motion_modules.0.transformer_blocks.0.attn1.to_k.weight",
+        "down_blocks.0.motion_modules.0.transformer_blocks.0.attn1.to_out.0.bias",
+        "down_blocks.0.motion_modules.0.transformer_blocks.0.attn1.to_out.0.weight",
+        "down_blocks.0.motion_modules.0.transformer_blocks.0.attn1.to_q.weight",
+        "down_blocks.0.motion_modules.0.transformer_blocks.0.attn1.to_v.weight",
+        "down_blocks.0.motion_modules.0.transformer_blocks.0.attn2.to_k.weight"
+      ],
+      "tensor_count": 567
+    },
+    "diffusion_pytorch_model.safetensors": {
+      "detection_keys": [],
+      "key_prefixes": {
+        "down_blocks.0": 54,
+        "down_blocks.1": 54,
+        "down_blocks.2": 54,
+        "down_blocks.3": 54,
+        "mid_block.motion_modules": 27,
+        "up_blocks.0": 81,
+        "up_blocks.1": 81,
+        "up_blocks.2": 81,
+        "up_blocks.3": 81
+      },
+      "sample_keys": [
+        "down_blocks.0.motion_modules.0.norm.bias",
+        "down_blocks.0.motion_modules.0.norm.weight",
+        "down_blocks.0.motion_modules.0.proj_in.bias",
+        "down_blocks.0.motion_modules.0.proj_in.weight",
+        "down_blocks.0.motion_modules.0.proj_out.bias",
+        "down_blocks.0.motion_modules.0.proj_out.weight",
+        "down_blocks.0.motion_modules.0.transformer_blocks.0.attn1.to_k.weight",
+        "down_blocks.0.motion_modules.0.transformer_blocks.0.attn1.to_out.0.bias",
+        "down_blocks.0.motion_modules.0.transformer_blocks.0.attn1.to_out.0.weight",
+        "down_blocks.0.motion_modules.0.transformer_blocks.0.attn1.to_q.weight",
+        "down_blocks.0.motion_modules.0.transformer_blocks.0.attn1.to_v.weight",
+        "down_blocks.0.motion_modules.0.transformer_blocks.0.attn2.to_k.weight"
+      ],
+      "tensor_count": 567
+    }
+  },
+  "siblings": [
+    {
+      "name": ".gitattributes",
+      "size": 1519
+    },
+    {
+      "name": "README.md",
+      "size": 2695
+    },
+    {
+      "name": "config.json",
+      "size": 455
+    },
+    {
+      "name": "diffusion_pytorch_model.fp16.safetensors",
+      "size": 1815329816
+    },
+    {
+      "name": "diffusion_pytorch_model.safetensors",
+      "size": 1815329816
+    }
+  ],
+  "tags": [
+    "diffusers",
+    "safetensors",
+    "text-to-video",
+    "region:us"
+  ]
+}

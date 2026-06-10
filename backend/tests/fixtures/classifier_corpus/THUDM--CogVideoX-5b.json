@@ -1,0 +1,498 @@
+{
+  "author": "zai-org",
+  "captured": "2026-06-10",
+  "captured_unauthenticated": true,
+  "config": null,
+  "diffusers_class_tags": [
+    "CogVideoXPipeline"
+  ],
+  "downloads": 17761,
+  "ext_census": {
+    ".json": 11,
+    ".md": 2,
+    ".model": 1,
+    ".safetensors": 5
+  },
+  "gated": false,
+  "ground_truth": {
+    "reason": "CogVideoXPipeline not shipped",
+    "stratum": "trap-unsupported",
+    "tier": "experimental"
+  },
+  "has_safetensors": true,
+  "library_name": "diffusers",
+  "license": "other",
+  "model_index": {
+    "_class_name": "CogVideoXPipeline",
+    "_diffusers_version": "0.31.0.dev0",
+    "scheduler": [
+      "diffusers",
+      "CogVideoXDDIMScheduler"
+    ],
+    "text_encoder": [
+      "transformers",
+      "T5EncoderModel"
+    ],
+    "tokenizer": [
+      "transformers",
+      "T5Tokenizer"
+    ],
+    "transformer": [
+      "diffusers",
+      "CogVideoXTransformer3DModel"
+    ],
+    "vae": [
+      "diffusers",
+      "AutoencoderKLCogVideoX"
+    ]
+  },
+  "model_index_error": null,
+  "pipeline_tag": "text-to-video",
+  "py_files": [],
+  "reachable": true,
+  "repo_id": "THUDM/CogVideoX-5b",
+  "safetensors_errors": {
+    "repo_level": "NotASafetensorsRepoError: 'THUDM/CogVideoX-5b' is not a safetensors repo. Couldn't find 'model.safetensors.index.json' or 'model.safetensors' files."
+  },
+  "safetensors_per_file": {
+    "text_encoder/model-00001-of-00002.safetensors": {
+      "detection_keys": [
+        "encoder.block.0.layer.0.SelfAttention.k.weight",
+        "encoder.block.0.layer.0.SelfAttention.o.weight",
+        "encoder.block.0.layer.0.SelfAttention.q.weight",
+        "encoder.block.0.layer.0.SelfAttention.relative_attention_bias.weight",
+        "encoder.block.0.layer.0.SelfAttention.v.weight",
+        "encoder.block.0.layer.0.layer_norm.weight",
+        "encoder.block.0.layer.1.DenseReluDense.wi_0.weight",
+        "encoder.block.0.layer.1.DenseReluDense.wi_1.weight",
+        "encoder.block.0.layer.1.DenseReluDense.wo.weight",
+        "encoder.block.0.layer.1.layer_norm.weight",
+        "encoder.block.1.layer.0.SelfAttention.k.weight",
+        "encoder.block.1.layer.0.SelfAttention.o.weight",
+        "encoder.block.1.layer.0.SelfAttention.q.weight",
+        "encoder.block.1.layer.0.SelfAttention.v.weight",
+        "encoder.block.1.layer.0.layer_norm.weight",
+        "encoder.block.1.layer.1.DenseReluDense.wi_0.weight",
+        "encoder.block.1.layer.1.DenseReluDense.wi_1.weight",
+        "encoder.block.1.layer.1.DenseReluDense.wo.weight",
+        "encoder.block.1.layer.1.layer_norm.weight",
+        "encoder.block.10.layer.0.SelfAttention.k.weight",
+        "encoder.block.10.layer.0.SelfAttention.o.weight",
+        "encoder.block.10.layer.0.SelfAttention.q.weight",
+        "encoder.block.10.layer.0.SelfAttention.v.weight",
+        "encoder.block.10.layer.0.layer_norm.weight",
+        "encoder.block.10.layer.1.DenseReluDense.wi_0.weight",
+        "encoder.block.10.layer.1.DenseReluDense.wi_1.weight",
+        "encoder.block.10.layer.1.DenseReluDense.wo.weight",
+        "encoder.block.10.layer.1.layer_norm.weight",
+        "encoder.block.11.layer.0.SelfAttention.k.weight",
+        "encoder.block.11.layer.0.SelfAttention.o.weight",
+        "encoder.block.11.layer.0.SelfAttention.q.weight",
+        "encoder.block.11.layer.0.SelfAttention.v.weight",
+        "encoder.block.11.layer.0.layer_norm.weight",
+        "encoder.block.11.layer.1.DenseReluDense.wi_0.weight",
+        "encoder.block.11.layer.1.DenseReluDense.wi_1.weight",
+        "encoder.block.11.layer.1.DenseReluDense.wo.weight",
+        "encoder.block.11.layer.1.layer_norm.weight",
+        "encoder.block.12.layer.0.SelfAttention.k.weight",
+        "encoder.block.12.layer.0.SelfAttention.q.weight",
+        "encoder.block.12.layer.0.SelfAttention.v.weight",
+        "encoder.block.2.layer.0.SelfAttention.k.weight",
+        "encoder.block.2.layer.0.SelfAttention.o.weight",
+        "encoder.block.2.layer.0.SelfAttention.q.weight",
+        "encoder.block.2.layer.0.SelfAttention.v.weight",
+        "encoder.block.2.layer.0.layer_norm.weight",
+        "encoder.block.2.layer.1.DenseReluDense.wi_0.weight",
+        "encoder.block.2.layer.1.DenseReluDense.wi_1.weight",
+        "encoder.block.2.layer.1.DenseReluDense.wo.weight",
+        "encoder.block.2.layer.1.layer_norm.weight",
+        "encoder.block.3.layer.0.SelfAttention.k.weight",
+        "encoder.block.3.layer.0.SelfAttention.o.weight",
+        "encoder.block.3.layer.0.SelfAttention.q.weight",
+        "encoder.block.3.layer.0.SelfAttention.v.weight",
+        "encoder.block.3.layer.0.layer_norm.weight",
+        "encoder.block.3.layer.1.DenseReluDense.wi_0.weight",
+        "encoder.block.3.layer.1.DenseReluDense.wi_1.weight",
+        "encoder.block.3.layer.1.DenseReluDense.wo.weight",
+        "encoder.block.3.layer.1.layer_norm.weight",
+        "encoder.block.4.layer.0.SelfAttention.k.weight",
+        "encoder.block.4.layer.0.SelfAttention.o.weight",
+        "encoder.block.4.layer.0.SelfAttention.q.weight",
+        "encoder.block.4.layer.0.SelfAttention.v.weight",
+        "encoder.block.4.layer.0.layer_norm.weight",
+        "encoder.block.4.layer.1.DenseReluDense.wi_0.weight",
+        "encoder.block.4.layer.1.DenseReluDense.wi_1.weight",
+        "encoder.block.4.layer.1.DenseReluDense.wo.weight",
+        "encoder.block.4.layer.1.layer_norm.weight",
+        "encoder.block.5.layer.0.SelfAttention.k.weight",
+        "encoder.block.5.layer.0.SelfAttention.o.weight",
+        "encoder.block.5.layer.0.SelfAttention.q.weight",
+        "encoder.block.5.layer.0.SelfAttention.v.weight",
+        "encoder.block.5.layer.0.layer_norm.weight",
+        "encoder.block.5.layer.1.DenseReluDense.wi_0.weight",
+        "encoder.block.5.layer.1.DenseReluDense.wi_1.weight",
+        "encoder.block.5.layer.1.DenseReluDense.wo.weight",
+        "encoder.block.5.layer.1.layer_norm.weight",
+        "encoder.block.6.layer.0.SelfAttention.k.weight",
+        "encoder.block.6.layer.0.SelfAttention.o.weight",
+        "encoder.block.6.layer.0.SelfAttention.q.weight",
+        "encoder.block.6.layer.0.SelfAttention.v.weight",
+        "encoder.block.6.layer.0.layer_norm.weight",
+        "encoder.block.6.layer.1.DenseReluDense.wi_0.weight",
+        "encoder.block.6.layer.1.DenseReluDense.wi_1.weight",
+        "encoder.block.6.layer.1.DenseReluDense.wo.weight",
+        "encoder.block.6.layer.1.layer_norm.weight",
+        "encoder.block.7.layer.0.SelfAttention.k.weight",
+        "encoder.block.7.layer.0.SelfAttention.o.weight",
+        "encoder.block.7.layer.0.SelfAttention.q.weight",
+        "encoder.block.7.layer.0.SelfAttention.v.weight",
+        "encoder.block.7.layer.0.layer_norm.weight",
+        "encoder.block.7.layer.1.DenseReluDense.wi_0.weight",
+        "encoder.block.7.layer.1.DenseReluDense.wi_1.weight",
+        "encoder.block.7.layer.1.DenseReluDense.wo.weight",
+        "encoder.block.7.layer.1.layer_norm.weight",
+        "encoder.block.8.layer.0.SelfAttention.k.weight",
+        "encoder.block.8.layer.0.SelfAttention.o.weight",
+        "encoder.block.8.layer.0.SelfAttention.q.weight",
+        "encoder.block.8.layer.0.SelfAttention.v.weight",
+        "encoder.block.8.layer.0.layer_norm.weight",
+        "encoder.block.8.layer.1.DenseReluDense.wi_0.weight",
+        "encoder.block.8.layer.1.DenseReluDense.wi_1.weight",
+        "encoder.block.8.layer.1.DenseReluDense.wo.weight",
+        "encoder.block.8.layer.1.layer_norm.weight",
+        "encoder.block.9.layer.0.SelfAttention.k.weight",
+        "encoder.block.9.layer.0.SelfAttention.o.weight",
+        "encoder.block.9.layer.0.SelfAttention.q.weight",
+        "encoder.block.9.layer.0.SelfAttention.v.weight",
+        "encoder.block.9.layer.0.layer_norm.weight",
+        "encoder.block.9.layer.1.DenseReluDense.wi_0.weight",
+        "encoder.block.9.layer.1.DenseReluDense.wi_1.weight",
+        "encoder.block.9.layer.1.DenseReluDense.wo.weight",
+        "encoder.block.9.layer.1.layer_norm.weight"
+      ],
+      "key_prefixes": {
+        "encoder.block": 112,
+        "shared.weight": 1
+      },
+      "sample_keys": [
+        "encoder.block.0.layer.0.SelfAttention.k.weight",
+        "encoder.block.0.layer.0.SelfAttention.o.weight",
+        "encoder.block.0.layer.0.SelfAttention.q.weight",
+        "encoder.block.0.layer.0.SelfAttention.relative_attention_bias.weight",
+        "encoder.block.0.layer.0.SelfAttention.v.weight",
+        "encoder.block.0.layer.0.layer_norm.weight",
+        "encoder.block.0.layer.1.DenseReluDense.wi_0.weight",
+        "encoder.block.0.layer.1.DenseReluDense.wi_1.weight",
+        "encoder.block.0.layer.1.DenseReluDense.wo.weight",
+        "encoder.block.0.layer.1.layer_norm.weight",
+        "encoder.block.1.layer.0.SelfAttention.k.weight",
+        "encoder.block.1.layer.0.SelfAttention.o.weight"
+      ],
+      "tensor_count": 113
+    },
+    "text_encoder/model-00002-of-00002.safetensors": {
+      "detection_keys": [
+        "encoder.block.12.layer.0.SelfAttention.o.weight",
+        "encoder.block.12.layer.0.layer_norm.weight",
+        "encoder.block.12.layer.1.DenseReluDense.wi_0.weight",
+        "encoder.block.12.layer.1.DenseReluDense.wi_1.weight",
+        "encoder.block.12.layer.1.DenseReluDense.wo.weight",
+        "encoder.block.12.layer.1.layer_norm.weight",
+        "encoder.block.13.layer.0.SelfAttention.k.weight",
+        "encoder.block.13.layer.0.SelfAttention.o.weight",
+        "encoder.block.13.layer.0.SelfAttention.q.weight",
+        "encoder.block.13.layer.0.SelfAttention.v.weight",
+        "encoder.block.13.layer.0.layer_norm.weight",
+        "encoder.block.13.layer.1.DenseReluDense.wi_0.weight",
+        "encoder.block.13.layer.1.DenseReluDense.wi_1.weight",
+        "encoder.block.13.layer.1.DenseReluDense.wo.weight",
+        "encoder.block.13.layer.1.layer_norm.weight",
+        "encoder.block.14.layer.0.SelfAttention.k.weight",
+        "encoder.block.14.layer.0.SelfAttention.o.weight",
+        "encoder.block.14.layer.0.SelfAttention.q.weight",
+        "encoder.block.14.layer.0.SelfAttention.v.weight",
+        "encoder.block.14.layer.0.layer_norm.weight",
+        "encoder.block.14.layer.1.DenseReluDense.wi_0.weight",
+        "encoder.block.14.layer.1.DenseReluDense.wi_1.weight",
+        "encoder.block.14.layer.1.DenseReluDense.wo.weight",
+        "encoder.block.14.layer.1.layer_norm.weight",
+        "encoder.block.15.layer.0.SelfAttention.k.weight",
+        "encoder.block.15.layer.0.SelfAttention.o.weight",
+        "encoder.block.15.layer.0.SelfAttention.q.weight",
+        "encoder.block.15.layer.0.SelfAttention.v.weight",
+        "encoder.block.15.layer.0.layer_norm.weight",
+        "encoder.block.15.layer.1.DenseReluDense.wi_0.weight",
+        "encoder.block.15.layer.1.DenseReluDense.wi_1.weight",
+        "encoder.block.15.layer.1.DenseReluDense.wo.weight",
+        "encoder.block.15.layer.1.layer_norm.weight",
+        "encoder.block.16.layer.0.SelfAttention.k.weight",
+        "encoder.block.16.layer.0.SelfAttention.o.weight",
+        "encoder.block.16.layer.0.SelfAttention.q.weight",
+        "encoder.block.16.layer.0.SelfAttention.v.weight",
+        "encoder.block.16.layer.0.layer_norm.weight",
+        "encoder.block.16.layer.1.DenseReluDense.wi_0.weight",
+        "encoder.block.16.layer.1.DenseReluDense.wi_1.weight",
+        "encoder.block.16.layer.1.DenseReluDense.wo.weight",
+        "encoder.block.16.layer.1.layer_norm.weight",
+        "encoder.block.17.layer.0.SelfAttention.k.weight",
+        "encoder.block.17.layer.0.SelfAttention.o.weight",
+        "encoder.block.17.layer.0.SelfAttention.q.weight",
+        "encoder.block.17.layer.0.SelfAttention.v.weight",
+        "encoder.block.17.layer.0.layer_norm.weight",
+        "encoder.block.17.layer.1.DenseReluDense.wi_0.weight",
+        "encoder.block.17.layer.1.DenseReluDense.wi_1.weight",
+        "encoder.block.17.layer.1.DenseReluDense.wo.weight",
+        "encoder.block.17.layer.1.layer_norm.weight",
+        "encoder.block.18.layer.0.SelfAttention.k.weight",
+        "encoder.block.18.layer.0.SelfAttention.o.weight",
+        "encoder.block.18.layer.0.SelfAttention.q.weight",
+        "encoder.block.18.layer.0.SelfAttention.v.weight",
+        "encoder.block.18.layer.0.layer_norm.weight",
+        "encoder.block.18.layer.1.DenseReluDense.wi_0.weight",
+        "encoder.block.18.layer.1.DenseReluDense.wi_1.weight",
+        "encoder.block.18.layer.1.DenseReluDense.wo.weight",
+        "encoder.block.18.layer.1.layer_norm.weight",
+        "encoder.block.19.layer.0.SelfAttention.k.weight",
+        "encoder.block.19.layer.0.SelfAttention.o.weight",
+        "encoder.block.19.layer.0.SelfAttention.q.weight",
+        "encoder.block.19.layer.0.SelfAttention.v.weight",
+        "encoder.block.19.layer.0.layer_norm.weight",
+        "encoder.block.19.layer.1.DenseReluDense.wi_0.weight",
+        "encoder.block.19.layer.1.DenseReluDense.wi_1.weight",
+        "encoder.block.19.layer.1.DenseReluDense.wo.weight",
+        "encoder.block.19.layer.1.layer_norm.weight",
+        "encoder.block.20.layer.0.SelfAttention.k.weight",
+        "encoder.block.20.layer.0.SelfAttention.o.weight",
+        "encoder.block.20.layer.0.SelfAttention.q.weight",
+        "encoder.block.20.layer.0.SelfAttention.v.weight",
+        "encoder.block.20.layer.0.layer_norm.weight",
+        "encoder.block.20.layer.1.DenseReluDense.wi_0.weight",
+        "encoder.block.20.layer.1.DenseReluDense.wi_1.weight",
+        "encoder.block.20.layer.1.DenseReluDense.wo.weight",
+        "encoder.block.20.layer.1.layer_norm.weight",
+        "encoder.block.21.layer.0.SelfAttention.k.weight",
+        "encoder.block.21.layer.0.SelfAttention.o.weight",
+        "encoder.block.21.layer.0.SelfAttention.q.weight",
+        "encoder.block.21.layer.0.SelfAttention.v.weight",
+        "encoder.block.21.layer.0.layer_norm.weight",
+        "encoder.block.21.layer.1.DenseReluDense.wi_0.weight",
+        "encoder.block.21.layer.1.DenseReluDense.wi_1.weight",
+        "encoder.block.21.layer.1.DenseReluDense.wo.weight",
+        "encoder.block.21.layer.1.layer_norm.weight",
+        "encoder.block.22.layer.0.SelfAttention.k.weight",
+        "encoder.block.22.layer.0.SelfAttention.o.weight",
+        "encoder.block.22.layer.0.SelfAttention.q.weight",
+        "encoder.block.22.layer.0.SelfAttention.v.weight",
+        "encoder.block.22.layer.0.layer_norm.weight",
+        "encoder.block.22.layer.1.DenseReluDense.wi_0.weight",
+        "encoder.block.22.layer.1.DenseReluDense.wi_1.weight",
+        "encoder.block.22.layer.1.DenseReluDense.wo.weight",
+        "encoder.block.22.layer.1.layer_norm.weight",
+        "encoder.block.23.layer.0.SelfAttention.k.weight",
+        "encoder.block.23.layer.0.SelfAttention.o.weight",
+        "encoder.block.23.layer.0.SelfAttention.q.weight",
+        "encoder.block.23.layer.0.SelfAttention.v.weight",
+        "encoder.block.23.layer.0.layer_norm.weight",
+        "encoder.block.23.layer.1.DenseReluDense.wi_0.weight",
+        "encoder.block.23.layer.1.DenseReluDense.wi_1.weight",
+        "encoder.block.23.layer.1.DenseReluDense.wo.weight",
+        "encoder.block.23.layer.1.layer_norm.weight",
+        "encoder.final_layer_norm.weight"
+      ],
+      "key_prefixes": {
+        "encoder.block": 105,
+        "encoder.final_layer_norm": 1
+      },
+      "sample_keys": [
+        "encoder.block.12.layer.0.SelfAttention.o.weight",
+        "encoder.block.12.layer.0.layer_norm.weight",
+        "encoder.block.12.layer.1.DenseReluDense.wi_0.weight",
+        "encoder.block.12.layer.1.DenseReluDense.wi_1.weight",
+        "encoder.block.12.layer.1.DenseReluDense.wo.weight",
+        "encoder.block.12.layer.1.layer_norm.weight",
+        "encoder.block.13.layer.0.SelfAttention.k.weight",
+        "encoder.block.13.layer.0.SelfAttention.o.weight",
+        "encoder.block.13.layer.0.SelfAttention.q.weight",
+        "encoder.block.13.layer.0.SelfAttention.v.weight",
+        "encoder.block.13.layer.0.layer_norm.weight",
+        "encoder.block.13.layer.1.DenseReluDense.wi_0.weight"
+      ],
+      "tensor_count": 106
+    },
+    "transformer/diffusion_pytorch_model-00001-of-00002.safetensors": {
+      "detection_keys": [],
+      "key_prefixes": {
+        "transformer_blocks.0": 24,
+        "transformer_blocks.1": 24,
+        "transformer_blocks.10": 24,
+        "transformer_blocks.11": 24,
+        "transformer_blocks.12": 24,
+        "transformer_blocks.13": 24,
+        "transformer_blocks.14": 24,
+        "transformer_blocks.15": 24,
+        "transformer_blocks.16": 24,
+        "transformer_blocks.17": 24,
+        "transformer_blocks.18": 24,
+        "transformer_blocks.19": 24,
+        "transformer_blocks.2": 24,
+        "transformer_blocks.20": 24,
+        "transformer_blocks.21": 24,
+        "transformer_blocks.22": 24,
+        "transformer_blocks.23": 24,
+        "transformer_blocks.24": 24,
+        "transformer_blocks.25": 24,
+        "transformer_blocks.26": 24,
+        "transformer_blocks.27": 24,
+        "transformer_blocks.28": 24,
+        "transformer_blocks.29": 24,
+        "transformer_blocks.3": 24,
+        "transformer_blocks.30": 24
+      },
+      "sample_keys": [
+        "patch_embed.proj.bias",
+        "patch_embed.proj.weight",
+        "patch_embed.text_proj.bias",
+        "patch_embed.text_proj.weight",
+        "time_embedding.linear_1.bias",
+        "time_embedding.linear_1.weight",
+        "time_embedding.linear_2.bias",
+        "time_embedding.linear_2.weight",
+        "transformer_blocks.0.attn1.norm_k.bias",
+        "transformer_blocks.0.attn1.norm_k.weight",
+        "transformer_blocks.0.attn1.norm_q.bias",
+        "transformer_blocks.0.attn1.norm_q.weight"
+      ],
+      "tensor_count": 916
+    },
+    "transformer/diffusion_pytorch_model-00002-of-00002.safetensors": {
+      "detection_keys": [],
+      "key_prefixes": {
+        "norm_final.bias": 1,
+        "norm_final.weight": 1,
+        "norm_out.linear": 2,
+        "norm_out.norm": 2,
+        "proj_out.bias": 1,
+        "proj_out.weight": 1,
+        "transformer_blocks.37": 4,
+        "transformer_blocks.38": 24,
+        "transformer_blocks.39": 24,
+        "transformer_blocks.40": 24,
+        "transformer_blocks.41": 24
+      },
+      "sample_keys": [
+        "norm_final.bias",
+        "norm_final.weight",
+        "norm_out.linear.bias",
+        "norm_out.linear.weight",
+        "norm_out.norm.bias",
+        "norm_out.norm.weight",
+        "proj_out.bias",
+        "proj_out.weight",
+        "transformer_blocks.37.ff.net.0.proj.bias",
+        "transformer_blocks.37.ff.net.0.proj.weight",
+        "transformer_blocks.37.ff.net.2.bias",
+        "transformer_blocks.37.ff.net.2.weight"
+      ],
+      "tensor_count": 108
+    }
+  },
+  "siblings": [
+    {
+      "name": ".gitattributes",
+      "size": 1519
+    },
+    {
+      "name": "LICENSE",
+      "size": 5704
+    },
+    {
+      "name": "README.md",
+      "size": 19520
+    },
+    {
+      "name": "README_zh.md",
+      "size": 18460
+    },
+    {
+      "name": "configuration.json",
+      "size": 56
+    },
+    {
+      "name": "model_index.json",
+      "size": 411
+    },
+    {
+      "name": "scheduler/scheduler_config.json",
+      "size": 482
+    },
+    {
+      "name": "text_encoder/config.json",
+      "size": 809
+    },
+    {
+      "name": "text_encoder/model-00001-of-00002.safetensors",
+      "size": 4994582224
+    },
+    {
+      "name": "text_encoder/model-00002-of-00002.safetensors",
+      "size": 4530066360
+    },
+    {
+      "name": "text_encoder/model.safetensors.index.json",
+      "size": 19885
+    },
+    {
+      "name": "tokenizer/added_tokens.json",
+      "size": 2593
+    },
+    {
+      "name": "tokenizer/special_tokens_map.json",
+      "size": 2543
+    },
+    {
+      "name": "tokenizer/spiece.model",
+      "size": 791656
+    },
+    {
+      "name": "tokenizer/tokenizer_config.json",
+      "size": 20617
+    },
+    {
+      "name": "transformer/config.json",
+      "size": 757
+    },
+    {
+      "name": "transformer/diffusion_pytorch_model-00001-of-00002.safetensors",
+      "size": 9925342208
+    },
+    {
+      "name": "transformer/diffusion_pytorch_model-00002-of-00002.safetensors",
+      "size": 1215340384
+    },
+    {
+      "name": "transformer/diffusion_pytorch_model.safetensors.index.json",
+      "size": 103074
+    },
+    {
+      "name": "vae/config.json",
+      "size": 872
+    },
+    {
+      "name": "vae/diffusion_pytorch_model.safetensors",
+      "size": 862388596
+    }
+  ],
+  "tags": [
+    "diffusers",
+    "safetensors",
+    "cogvideox",
+    "video-generation",
+    "thudm",
+    "text-to-video",
+    "en",
+    "arxiv:2408.06072",
+    "license:other",
+    "diffusers:CogVideoXPipeline",
+    "region:us"
+  ]
+}

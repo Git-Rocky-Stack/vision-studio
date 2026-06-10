@@ -1,0 +1,100 @@
+{
+  "author": "deepseek-ai",
+  "captured": "2026-06-10",
+  "captured_unauthenticated": true,
+  "config": {
+    "model_type": "multi_modality"
+  },
+  "diffusers_class_tags": [],
+  "downloads": 11128,
+  "ext_census": {
+    ".bin": 2,
+    ".json": 7,
+    ".md": 1,
+    ".png": 2
+  },
+  "gated": false,
+  "ground_truth": {
+    "reason": "custom-code multimodal",
+    "stratum": "remote-code",
+    "tier": "experimental"
+  },
+  "has_safetensors": false,
+  "library_name": "transformers",
+  "license": "mit",
+  "model_index": null,
+  "model_index_error": null,
+  "pipeline_tag": "any-to-any",
+  "py_files": [],
+  "reachable": true,
+  "repo_id": "deepseek-ai/Janus-Pro-7B",
+  "safetensors_errors": {},
+  "safetensors_per_file": {},
+  "siblings": [
+    {
+      "name": ".gitattributes",
+      "size": 1519
+    },
+    {
+      "name": "README.md",
+      "size": 2549
+    },
+    {
+      "name": "config.json",
+      "size": 1283
+    },
+    {
+      "name": "janus_pro_teaser1.png",
+      "size": 97999
+    },
+    {
+      "name": "janus_pro_teaser2.png",
+      "size": 530033
+    },
+    {
+      "name": "preprocessor_config.json",
+      "size": 346
+    },
+    {
+      "name": "processor_config.json",
+      "size": 210
+    },
+    {
+      "name": "pytorch_model-00001-of-00002.bin",
+      "size": 9988183802
+    },
+    {
+      "name": "pytorch_model-00002-of-00002.bin",
+      "size": 4853013705
+    },
+    {
+      "name": "pytorch_model.bin.index.json",
+      "size": 89033
+    },
+    {
+      "name": "special_tokens_map.json",
+      "size": 344
+    },
+    {
+      "name": "tokenizer.json",
+      "size": 4721126
+    },
+    {
+      "name": "tokenizer_config.json",
+      "size": 285
+    }
+  ],
+  "tags": [
+    "transformers",
+    "pytorch",
+    "multi_modality",
+    "muiltimodal",
+    "text-to-image",
+    "unified-model",
+    "any-to-any",
+    "arxiv:2501.17811",
+    "license:mit",
+    "endpoints_compatible",
+    "region:us"
+  ]
+}

@@ -1,0 +1,299 @@
+{
+  "captured": "2026-06-10",
+  "entries": [
+    {
+      "file": "black-forest-labs--FLUX.1-dev.json",
+      "reachable": true,
+      "repo_id": "black-forest-labs/FLUX.1-dev",
+      "stratum": "verified",
+      "tier": "verified"
+    },
+    {
+      "file": "black-forest-labs--FLUX.1-schnell.json",
+      "reachable": true,
+      "repo_id": "black-forest-labs/FLUX.1-schnell",
+      "stratum": "verified",
+      "tier": "verified"
+    },
+    {
+      "file": "ByteDance--SDXL-Lightning.json",
+      "reachable": true,
+      "repo_id": "ByteDance/SDXL-Lightning",
+      "stratum": "loose-header",
+      "tier": "experimental"
+    },
+    {
+      "file": "CompVis--stable-diffusion-v-1-4-original.json",
+      "reachable": true,
+      "repo_id": "CompVis/stable-diffusion-v-1-4-original",
+      "stratum": "pickle",
+      "tier": "experimental"
+    },
+    {
+      "file": "DeepFloyd--IF-I-XL-v1.0.json",
+      "reachable": true,
+      "repo_id": "DeepFloyd/IF-I-XL-v1.0",
+      "stratum": "trap-unsupported",
+      "tier": "experimental"
+    },
+    {
+      "file": "deepseek-ai--Janus-Pro-7B.json",
+      "reachable": true,
+      "repo_id": "deepseek-ai/Janus-Pro-7B",
+      "stratum": "remote-code",
+      "tier": "experimental"
+    },
+    {
+      "file": "diffusers--controlnet-canny-sdxl-1.0.json",
+      "reachable": true,
+      "repo_id": "diffusers/controlnet-canny-sdxl-1.0",
+      "stratum": "compatible-aux",
+      "tier": "compatible"
+    },
+    {
+      "file": "diffusers--stable-diffusion-xl-1.0-inpainting-0.1.json",
+      "reachable": true,
+      "repo_id": "diffusers/stable-diffusion-xl-1.0-inpainting-0.1",
+      "stratum": "trap-nearmiss",
+      "tier": "experimental"
+    },
+    {
+      "file": "emilianJR--epiCRealism.json",
+      "reachable": true,
+      "repo_id": "emilianJR/epiCRealism",
+      "stratum": "compatible-core",
+      "tier": "compatible"
+    },
+    {
+      "file": "fal--AuraFlow.json",
+      "reachable": true,
+      "repo_id": "fal/AuraFlow",
+      "stratum": "trap-unsupported",
+      "tier": "experimental"
+    },
+    {
+      "file": "gsdf--Counterfeit-V2.5.json",
+      "reachable": true,
+      "repo_id": "gsdf/Counterfeit-V2.5",
+      "stratum": "loose-dump",
+      "tier": "compatible"
+    },
+    {
+      "file": "guoyww--animatediff-motion-adapter-v1-5-2.json",
+      "reachable": true,
+      "repo_id": "guoyww/animatediff-motion-adapter-v1-5-2",
+      "stratum": "compatible-aux",
+      "tier": "compatible"
+    },
+    {
+      "file": "kandinsky-community--kandinsky-3.json",
+      "reachable": true,
+      "repo_id": "kandinsky-community/kandinsky-3",
+      "stratum": "trap-unsupported",
+      "tier": "experimental"
+    },
+    {
+      "file": "latent-consistency--lcm-lora-sdxl.json",
+      "reachable": true,
+      "repo_id": "latent-consistency/lcm-lora-sdxl",
+      "stratum": "compatible-aux",
+      "tier": "compatible"
+    },
+    {
+      "file": "Lightricks--LTX-Video.json",
+      "reachable": true,
+      "repo_id": "Lightricks/LTX-Video",
+      "stratum": "verified",
+      "tier": "verified"
+    },
+    {
+      "file": "lllyasviel--sd-controlnet-canny.json",
+      "reachable": true,
+      "repo_id": "lllyasviel/sd-controlnet-canny",
+      "stratum": "compatible-aux",
+      "tier": "compatible"
+    },
+    {
+      "file": "madebyollin--sdxl-vae-fp16-fix.json",
+      "reachable": true,
+      "repo_id": "madebyollin/sdxl-vae-fp16-fix",
+      "stratum": "verified",
+      "tier": "verified"
+    },
+    {
+      "file": "meta-llama--Llama-3.1-8B-Instruct.json",
+      "reachable": true,
+      "repo_id": "meta-llama/Llama-3.1-8B-Instruct",
+      "stratum": "non-diffusion",
+      "tier": "experimental"
+    },
+    {
+      "file": "nerijs--pixel-art-xl.json",
+      "reachable": true,
+      "repo_id": "nerijs/pixel-art-xl",
+      "stratum": "compatible-loose",
+      "tier": "compatible"
+    },
+    {
+      "file": "openai--whisper-large-v3.json",
+      "reachable": true,
+      "repo_id": "openai/whisper-large-v3",
+      "stratum": "non-diffusion",
+      "tier": "experimental"
+    },
+    {
+      "file": "playgroundai--playground-v2.5-1024px-aesthetic.json",
+      "reachable": true,
+      "repo_id": "playgroundai/playground-v2.5-1024px-aesthetic",
+      "stratum": "compatible-boundary",
+      "tier": "compatible"
+    },
+    {
+      "file": "Qwen--Qwen-Image.json",
+      "reachable": true,
+      "repo_id": "Qwen/Qwen-Image",
+      "stratum": "trap-unsupported",
+      "tier": "experimental"
+    },
+    {
+      "file": "Qwen--Qwen2.5-7B-Instruct.json",
+      "reachable": true,
+      "repo_id": "Qwen/Qwen2.5-7B-Instruct",
+      "stratum": "non-diffusion",
+      "tier": "experimental"
+    },
+    {
+      "file": "runwayml--stable-diffusion-v1-5.json",
+      "reachable": true,
+      "repo_id": "runwayml/stable-diffusion-v1-5",
+      "stratum": "verified-unreachable",
+      "tier": "verified"
+    },
+    {
+      "file": "segmind--SSD-1B.json",
+      "reachable": true,
+      "repo_id": "segmind/SSD-1B",
+      "stratum": "compatible-core",
+      "tier": "compatible"
+    },
+    {
+      "file": "sentence-transformers--all-MiniLM-L6-v2.json",
+      "reachable": true,
+      "repo_id": "sentence-transformers/all-MiniLM-L6-v2",
+      "stratum": "non-diffusion",
+      "tier": "experimental"
+    },
+    {
+      "file": "stabilityai--sdxl-turbo.json",
+      "reachable": true,
+      "repo_id": "stabilityai/sdxl-turbo",
+      "stratum": "compatible-core",
+      "tier": "compatible"
+    },
+    {
+      "file": "stabilityai--stable-cascade.json",
+      "reachable": true,
+      "repo_id": "stabilityai/stable-cascade",
+      "stratum": "trap-unsupported",
+      "tier": "experimental"
+    },
+    {
+      "file": "stabilityai--stable-diffusion-2-1.json",
+      "reachable": false,
+      "repo_id": "stabilityai/stable-diffusion-2-1",
+      "stratum": "compatible-boundary",
+      "tier": "compatible"
+    },
+    {
+      "file": "stabilityai--stable-diffusion-3.5-medium.json",
+      "reachable": true,
+      "repo_id": "stabilityai/stable-diffusion-3.5-medium",
+      "stratum": "verified",
+      "tier": "verified"
+    },
+    {
+      "file": "stabilityai--stable-diffusion-x4-upscaler.json",
+      "reachable": true,
+      "repo_id": "stabilityai/stable-diffusion-x4-upscaler",
+      "stratum": "trap-nearmiss",
+      "tier": "experimental"
+    },
+    {
+      "file": "stabilityai--stable-diffusion-xl-base-1.0.json",
+      "reachable": true,
+      "repo_id": "stabilityai/stable-diffusion-xl-base-1.0",
+      "stratum": "verified",
+      "tier": "verified"
+    },
+    {
+      "file": "stabilityai--stable-video-diffusion-img2vid-xt.json",
+      "reachable": true,
+      "repo_id": "stabilityai/stable-video-diffusion-img2vid-xt",
+      "stratum": "verified",
+      "tier": "verified"
+    },
+    {
+      "file": "stable-diffusion-v1-5--stable-diffusion-v1-5.json",
+      "reachable": true,
+      "repo_id": "stable-diffusion-v1-5/stable-diffusion-v1-5",
+      "stratum": "compatible-core",
+      "tier": "compatible"
+    },
+    {
+      "file": "tencent--HunyuanVideo.json",
+      "reachable": true,
+      "repo_id": "tencent/HunyuanVideo",
+      "stratum": "trap-unsupported",
+      "tier": "experimental"
+    },
+    {
+      "file": "TencentARC--t2i-adapter-canny-sdxl-1.0.json",
+      "reachable": true,
+      "repo_id": "TencentARC/t2i-adapter-canny-sdxl-1.0",
+      "stratum": "trap-nearmiss",
+      "tier": "experimental"
+    },
+    {
+      "file": "THUDM--chatglm3-6b.json",
+      "reachable": true,
+      "repo_id": "THUDM/chatglm3-6b",
+      "stratum": "remote-code",
+      "tier": "experimental"
+    },
+    {
+      "file": "THUDM--CogVideoX-5b.json",
+      "reachable": true,
+      "repo_id": "THUDM/CogVideoX-5b",
+      "stratum": "trap-unsupported",
+      "tier": "experimental"
+    },
+    {
+      "file": "Wan-AI--Wan2.2-TI2V-5B-Diffusers.json",
+      "reachable": true,
+      "repo_id": "Wan-AI/Wan2.2-TI2V-5B-Diffusers",
+      "stratum": "trap-unsupported",
+      "tier": "experimental"
+    },
+    {
+      "file": "WarriorMama777--OrangeMixs.json",
+      "reachable": true,
+      "repo_id": "WarriorMama777/OrangeMixs",
+      "stratum": "loose-dump",
+      "tier": "experimental"
+    },
+    {
+      "file": "XLabs-AI--flux-RealismLora.json",
+      "reachable": true,
+      "repo_id": "XLabs-AI/flux-RealismLora",
+      "stratum": "compatible-loose",
+      "tier": "compatible"
+    }
+  ],
+  "repos": 41,
+  "source": "Spike C (docs/superpowers/spikes/2026-06-10-classifier-confidence.md)",
+  "tiers": {
+    "compatible": 13,
+    "experimental": 20,
+    "verified": 8
+  }
+}

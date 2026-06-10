@@ -1,0 +1,391 @@
+{
+  "author": "zai-org",
+  "captured": "2026-06-10",
+  "captured_unauthenticated": true,
+  "config": {
+    "architectures": [
+      "ChatGLMModel"
+    ],
+    "auto_map": {
+      "AutoConfig": "configuration_chatglm.ChatGLMConfig",
+      "AutoModel": "modeling_chatglm.ChatGLMForConditionalGeneration",
+      "AutoModelForCausalLM": "modeling_chatglm.ChatGLMForConditionalGeneration",
+      "AutoModelForSeq2SeqLM": "modeling_chatglm.ChatGLMForConditionalGeneration",
+      "AutoModelForSequenceClassification": "modeling_chatglm.ChatGLMForSequenceClassification"
+    },
+    "model_type": "chatglm"
+  },
+  "diffusers_class_tags": [],
+  "downloads": 125505,
+  "ext_census": {
+    ".bin": 7,
+    ".json": 5,
+    ".md": 1,
+    ".model": 1,
+    ".py": 4,
+    ".safetensors": 7
+  },
+  "gated": false,
+  "ground_truth": {
+    "reason": "trust_remote_code transformers",
+    "stratum": "remote-code",
+    "tier": "experimental"
+  },
+  "has_safetensors": true,
+  "library_name": "transformers",
+  "license": null,
+  "model_index": null,
+  "model_index_error": null,
+  "pipeline_tag": null,
+  "py_files": [
+    "configuration_chatglm.py",
+    "modeling_chatglm.py",
+    "quantization.py",
+    "tokenization_chatglm.py"
+  ],
+  "reachable": true,
+  "repo_id": "THUDM/chatglm3-6b",
+  "safetensors_errors": {},
+  "safetensors_per_file": {
+    "model-00001-of-00007.safetensors": {
+      "detection_keys": [
+        "transformer.encoder.layers.0.input_layernorm.weight",
+        "transformer.encoder.layers.0.mlp.dense_4h_to_h.weight",
+        "transformer.encoder.layers.0.mlp.dense_h_to_4h.weight",
+        "transformer.encoder.layers.0.post_attention_layernorm.weight",
+        "transformer.encoder.layers.0.self_attention.dense.weight",
+        "transformer.encoder.layers.0.self_attention.query_key_value.bias",
+        "transformer.encoder.layers.0.self_attention.query_key_value.weight",
+        "transformer.encoder.layers.1.input_layernorm.weight",
+        "transformer.encoder.layers.1.mlp.dense_4h_to_h.weight",
+        "transformer.encoder.layers.1.mlp.dense_h_to_4h.weight",
+        "transformer.encoder.layers.1.post_attention_layernorm.weight",
+        "transformer.encoder.layers.1.self_attention.dense.weight",
+        "transformer.encoder.layers.1.self_attention.query_key_value.bias",
+        "transformer.encoder.layers.1.self_attention.query_key_value.weight",
+        "transformer.encoder.layers.2.input_layernorm.weight",
+        "transformer.encoder.layers.2.mlp.dense_4h_to_h.weight",
+        "transformer.encoder.layers.2.mlp.dense_h_to_4h.weight",
+        "transformer.encoder.layers.2.post_attention_layernorm.weight",
+        "transformer.encoder.layers.2.self_attention.dense.weight",
+        "transformer.encoder.layers.2.self_attention.query_key_value.bias",
+        "transformer.encoder.layers.2.self_attention.query_key_value.weight",
+        "transformer.encoder.layers.3.input_layernorm.weight",
+        "transformer.encoder.layers.3.post_attention_layernorm.weight",
+        "transformer.encoder.layers.3.self_attention.dense.weight",
+        "transformer.encoder.layers.3.self_attention.query_key_value.bias",
+        "transformer.encoder.layers.3.self_attention.query_key_value.weight"
+      ],
+      "key_prefixes": {
+        "transformer.embedding": 1,
+        "transformer.encoder": 26,
+        "transformer.rotary_pos_emb": 1
+      },
+      "sample_keys": [
+        "transformer.embedding.word_embeddings.weight",
+        "transformer.encoder.layers.0.input_layernorm.weight",
+        "transformer.encoder.layers.0.mlp.dense_4h_to_h.weight",
+        "transformer.encoder.layers.0.mlp.dense_h_to_4h.weight",
+        "transformer.encoder.layers.0.post_attention_layernorm.weight",
+        "transformer.encoder.layers.0.self_attention.dense.weight",
+        "transformer.encoder.layers.0.self_attention.query_key_value.bias",
+        "transformer.encoder.layers.0.self_attention.query_key_value.weight",
+        "transformer.encoder.layers.1.input_layernorm.weight",
+        "transformer.encoder.layers.1.mlp.dense_4h_to_h.weight",
+        "transformer.encoder.layers.1.mlp.dense_h_to_4h.weight",
+        "transformer.encoder.layers.1.post_attention_layernorm.weight"
+      ],
+      "tensor_count": 28
+    },
+    "model-00002-of-00007.safetensors": {
+      "detection_keys": [
+        "transformer.encoder.layers.3.mlp.dense_4h_to_h.weight",
+        "transformer.encoder.layers.3.mlp.dense_h_to_4h.weight",
+        "transformer.encoder.layers.4.input_layernorm.weight",
+        "transformer.encoder.layers.4.mlp.dense_4h_to_h.weight",
+        "transformer.encoder.layers.4.mlp.dense_h_to_4h.weight",
+        "transformer.encoder.layers.4.post_attention_layernorm.weight",
+        "transformer.encoder.layers.4.self_attention.dense.weight",
+        "transformer.encoder.layers.4.self_attention.query_key_value.bias",
+        "transformer.encoder.layers.4.self_attention.query_key_value.weight",
+        "transformer.encoder.layers.5.input_layernorm.weight",
+        "transformer.encoder.layers.5.mlp.dense_4h_to_h.weight",
+        "transformer.encoder.layers.5.mlp.dense_h_to_4h.weight",
+        "transformer.encoder.layers.5.post_attention_layernorm.weight",
+        "transformer.encoder.layers.5.self_attention.dense.weight",
+        "transformer.encoder.layers.5.self_attention.query_key_value.bias",
+        "transformer.encoder.layers.5.self_attention.query_key_value.weight",
+        "transformer.encoder.layers.6.input_layernorm.weight",
+        "transformer.encoder.layers.6.mlp.dense_4h_to_h.weight",
+        "transformer.encoder.layers.6.mlp.dense_h_to_4h.weight",
+        "transformer.encoder.layers.6.post_attention_layernorm.weight",
+        "transformer.encoder.layers.6.self_attention.dense.weight",
+        "transformer.encoder.layers.6.self_attention.query_key_value.bias",
+        "transformer.encoder.layers.6.self_attention.query_key_value.weight",
+        "transformer.encoder.layers.7.input_layernorm.weight",
+        "transformer.encoder.layers.7.mlp.dense_4h_to_h.weight",
+        "transformer.encoder.layers.7.mlp.dense_h_to_4h.weight",
+        "transformer.encoder.layers.7.post_attention_layernorm.weight",
+        "transformer.encoder.layers.7.self_attention.dense.weight",
+        "transformer.encoder.layers.7.self_attention.query_key_value.bias",
+        "transformer.encoder.layers.7.self_attention.query_key_value.weight",
+        "transformer.encoder.layers.8.input_layernorm.weight"
+      ],
+      "key_prefixes": {
+        "transformer.encoder": 31
+      },
+      "sample_keys": [
+        "transformer.encoder.layers.3.mlp.dense_4h_to_h.weight",
+        "transformer.encoder.layers.3.mlp.dense_h_to_4h.weight",
+        "transformer.encoder.layers.4.input_layernorm.weight",
+        "transformer.encoder.layers.4.mlp.dense_4h_to_h.weight",
+        "transformer.encoder.layers.4.mlp.dense_h_to_4h.weight",
+        "transformer.encoder.layers.4.post_attention_layernorm.weight",
+        "transformer.encoder.layers.4.self_attention.dense.weight",
+        "transformer.encoder.layers.4.self_attention.query_key_value.bias",
+        "transformer.encoder.layers.4.self_attention.query_key_value.weight",
+        "transformer.encoder.layers.5.input_layernorm.weight",
+        "transformer.encoder.layers.5.mlp.dense_4h_to_h.weight",
+        "transformer.encoder.layers.5.mlp.dense_h_to_4h.weight"
+      ],
+      "tensor_count": 31
+    },
+    "model-00003-of-00007.safetensors": {
+      "detection_keys": [
+        "transformer.encoder.layers.10.input_layernorm.weight",
+        "transformer.encoder.layers.10.mlp.dense_4h_to_h.weight",
+        "transformer.encoder.layers.10.mlp.dense_h_to_4h.weight",
+        "transformer.encoder.layers.10.post_attention_layernorm.weight",
+        "transformer.encoder.layers.10.self_attention.dense.weight",
+        "transformer.encoder.layers.10.self_attention.query_key_value.bias",
+        "transformer.encoder.layers.10.self_attention.query_key_value.weight",
+        "transformer.encoder.layers.11.input_layernorm.weight",
+        "transformer.encoder.layers.11.mlp.dense_4h_to_h.weight",
+        "transformer.encoder.layers.11.mlp.dense_h_to_4h.weight",
+        "transformer.encoder.layers.11.post_attention_layernorm.weight",
+        "transformer.encoder.layers.11.self_attention.dense.weight",
+        "transformer.encoder.layers.11.self_attention.query_key_value.bias",
+        "transformer.encoder.layers.11.self_attention.query_key_value.weight",
+        "transformer.encoder.layers.12.input_layernorm.weight",
+        "transformer.encoder.layers.12.mlp.dense_h_to_4h.weight",
+        "transformer.encoder.layers.12.post_attention_layernorm.weight",
+        "transformer.encoder.layers.12.self_attention.dense.weight",
+        "transformer.encoder.layers.12.self_attention.query_key_value.bias",
+        "transformer.encoder.layers.12.self_attention.query_key_value.weight",
+        "transformer.encoder.layers.8.mlp.dense_4h_to_h.weight",
+        "transformer.encoder.layers.8.mlp.dense_h_to_4h.weight",
+        "transformer.encoder.layers.8.post_attention_layernorm.weight",
+        "transformer.encoder.layers.8.self_attention.dense.weight",
+        "transformer.encoder.layers.8.self_attention.query_key_value.bias",
+        "transformer.encoder.layers.8.self_attention.query_key_value.weight",
+        "transformer.encoder.layers.9.input_layernorm.weight",
+        "transformer.encoder.layers.9.mlp.dense_4h_to_h.weight",
+        "transformer.encoder.layers.9.mlp.dense_h_to_4h.weight",
+        "transformer.encoder.layers.9.post_attention_layernorm.weight",
+        "transformer.encoder.layers.9.self_attention.dense.weight",
+        "transformer.encoder.layers.9.self_attention.query_key_value.bias",
+        "transformer.encoder.layers.9.self_attention.query_key_value.weight"
+      ],
+      "key_prefixes": {
+        "transformer.encoder": 33
+      },
+      "sample_keys": [
+        "transformer.encoder.layers.10.input_layernorm.weight",
+        "transformer.encoder.layers.10.mlp.dense_4h_to_h.weight",
+        "transformer.encoder.layers.10.mlp.dense_h_to_4h.weight",
+        "transformer.encoder.layers.10.post_attention_layernorm.weight",
+        "transformer.encoder.layers.10.self_attention.dense.weight",
+        "transformer.encoder.layers.10.self_attention.query_key_value.bias",
+        "transformer.encoder.layers.10.self_attention.query_key_value.weight",
+        "transformer.encoder.layers.11.input_layernorm.weight",
+        "transformer.encoder.layers.11.mlp.dense_4h_to_h.weight",
+        "transformer.encoder.layers.11.mlp.dense_h_to_4h.weight",
+        "transformer.encoder.layers.11.post_attention_layernorm.weight",
+        "transformer.encoder.layers.11.self_attention.dense.weight"
+      ],
+      "tensor_count": 33
+    },
+    "model-00004-of-00007.safetensors": {
+      "detection_keys": [
+        "transformer.encoder.layers.12.mlp.dense_4h_to_h.weight",
+        "transformer.encoder.layers.13.input_layernorm.weight",
+        "transformer.encoder.layers.13.mlp.dense_4h_to_h.weight",
+        "transformer.encoder.layers.13.mlp.dense_h_to_4h.weight",
+        "transformer.encoder.layers.13.post_attention_layernorm.weight",
+        "transformer.encoder.layers.13.self_attention.dense.weight",
+        "transformer.encoder.layers.13.self_attention.query_key_value.bias",
+        "transformer.encoder.layers.13.self_attention.query_key_value.weight",
+        "transformer.encoder.layers.14.input_layernorm.weight",
+        "transformer.encoder.layers.14.mlp.dense_4h_to_h.weight",
+        "transformer.encoder.layers.14.mlp.dense_h_to_4h.weight",
+        "transformer.encoder.layers.14.post_attention_layernorm.weight",
+        "transformer.encoder.layers.14.self_attention.dense.weight",
+        "transformer.encoder.layers.14.self_attention.query_key_value.bias",
+        "transformer.encoder.layers.14.self_attention.query_key_value.weight",
+        "transformer.encoder.layers.15.input_layernorm.weight",
+        "transformer.encoder.layers.15.mlp.dense_4h_to_h.weight",
+        "transformer.encoder.layers.15.mlp.dense_h_to_4h.weight",
+        "transformer.encoder.layers.15.post_attention_layernorm.weight",
+        "transformer.encoder.layers.15.self_attention.dense.weight",
+        "transformer.encoder.layers.15.self_attention.query_key_value.bias",
+        "transformer.encoder.layers.15.self_attention.query_key_value.weight",
+        "transformer.encoder.layers.16.input_layernorm.weight",
+        "transformer.encoder.layers.16.mlp.dense_4h_to_h.weight",
+        "transformer.encoder.layers.16.mlp.dense_h_to_4h.weight",
+        "transformer.encoder.layers.16.post_attention_layernorm.weight",
+        "transformer.encoder.layers.16.self_attention.dense.weight",
+        "transformer.encoder.layers.16.self_attention.query_key_value.bias",
+        "transformer.encoder.layers.16.self_attention.query_key_value.weight",
+        "transformer.encoder.layers.17.input_layernorm.weight",
+        "transformer.encoder.layers.17.post_attention_layernorm.weight",
+        "transformer.encoder.layers.17.self_attention.dense.weight",
+        "transformer.encoder.layers.17.self_attention.query_key_value.bias",
+        "transformer.encoder.layers.17.self_attention.query_key_value.weight"
+      ],
+      "key_prefixes": {
+        "transformer.encoder": 34
+      },
+      "sample_keys": [
+        "transformer.encoder.layers.12.mlp.dense_4h_to_h.weight",
+        "transformer.encoder.layers.13.input_layernorm.weight",
+        "transformer.encoder.layers.13.mlp.dense_4h_to_h.weight",
+        "transformer.encoder.layers.13.mlp.dense_h_to_4h.weight",
+        "transformer.encoder.layers.13.post_attention_layernorm.weight",
+        "transformer.encoder.layers.13.self_attention.dense.weight",
+        "transformer.encoder.layers.13.self_attention.query_key_value.bias",
+        "transformer.encoder.layers.13.self_attention.query_key_value.weight",
+        "transformer.encoder.layers.14.input_layernorm.weight",
+        "transformer.encoder.layers.14.mlp.dense_4h_to_h.weight",
+        "transformer.encoder.layers.14.mlp.dense_h_to_4h.weight",
+        "transformer.encoder.layers.14.post_attention_layernorm.weight"
+      ],
+      "tensor_count": 34
+    }
+  },
+  "siblings": [
+    {
+      "name": ".gitattributes",
+      "size": 1519
+    },
+    {
+      "name": "MODEL_LICENSE",
+      "size": 5178
+    },
+    {
+      "name": "README.md",
+      "size": 8571
+    },
+    {
+      "name": "config.json",
+      "size": 1317
+    },
+    {
+      "name": "configuration_chatglm.py",
+      "size": 2332
+    },
+    {
+      "name": "model-00001-of-00007.safetensors",
+      "size": 1827774160
+    },
+    {
+      "name": "model-00002-of-00007.safetensors",
+      "size": 1968291888
+    },
+    {
+      "name": "model-00003-of-00007.safetensors",
+      "size": 1927406936
+    },
+    {
+      "name": "model-00004-of-00007.safetensors",
+      "size": 1815217640
+    },
+    {
+      "name": "model-00005-of-00007.safetensors",
+      "size": 1968291920
+    },
+    {
+      "name": "model-00006-of-00007.safetensors",
+      "size": 1927406960
+    },
+    {
+      "name": "model-00007-of-00007.safetensors",
+      "size": 1052805400
+    },
+    {
+      "name": "model.safetensors.index.json",
+      "size": 21249
+    },
+    {
+      "name": "modeling_chatglm.py",
+      "size": 56521
+    },
+    {
+      "name": "pytorch_model-00001-of-00007.bin",
+      "size": 1827781090
+    },
+    {
+      "name": "pytorch_model-00002-of-00007.bin",
+      "size": 1968299480
+    },
+    {
+      "name": "pytorch_model-00003-of-00007.bin",
+      "size": 1927415036
+    },
+    {
+      "name": "pytorch_model-00004-of-00007.bin",
+      "size": 1815225998
+    },
+    {
+      "name": "pytorch_model-00005-of-00007.bin",
+      "size": 1968299544
+    },
+    {
+      "name": "pytorch_model-00006-of-00007.bin",
+      "size": 1927415036
+    },
+    {
+      "name": "pytorch_model-00007-of-00007.bin",
+      "size": 1052808542
+    },
+    {
+      "name": "pytorch_model.bin.index.json",
+      "size": 20437
+    },
+    {
+      "name": "quantization.py",
+      "size": 14687
+    },
+    {
+      "name": "special_tokens_map.json",
+      "size": 3
+    },
+    {
+      "name": "tokenization_chatglm.py",
+      "size": 13096
+    },
+    {
+      "name": "tokenizer.model",
+      "size": 1018370
+    },
+    {
+      "name": "tokenizer_config.json",
+      "size": 1395
+    }
+  ],
+  "tags": [
+    "transformers",
+    "pytorch",
+    "safetensors",
+    "chatglm",
+    "glm",
+    "thudm",
+    "custom_code",
+    "zh",
+    "en",
+    "arxiv:2103.10360",
+    "arxiv:2210.02414",
+    "arxiv:2406.12793",
+    "endpoints_compatible",
+    "region:us"
+  ]
+}
