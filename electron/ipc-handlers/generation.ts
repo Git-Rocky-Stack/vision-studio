@@ -765,7 +765,9 @@ ipcMain.handle(
       );
       return response.data;
     } catch (error: any) {
-      console.error('Model search error:', error);
+      // Message only: the raw AxiosError carries token-bearing request
+      // headers in config.headers and must never reach the log.
+      console.error('Model search error:', error instanceof Error ? error.message : error);
       return {
         source,
         query,
@@ -791,7 +793,7 @@ ipcMain.handle(
       );
       return response.data;
     } catch (error: any) {
-      console.error('Model consent error:', error);
+      console.error('Model consent error:', error instanceof Error ? error.message : error);
       return { success: false, error: toSafeRendererError(error, 'Consent update failed') };
     }
   },
@@ -808,7 +810,7 @@ ipcMain.handle('models:convert', async (_event, modelId: string) => {
     );
     return response.data;
   } catch (error: any) {
-    console.error('Model convert error:', error);
+    console.error('Model convert error:', error instanceof Error ? error.message : error);
     return { success: false, error: toSafeRendererError(error, 'Conversion failed') };
   }
 });
