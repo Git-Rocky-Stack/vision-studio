@@ -197,3 +197,42 @@ describe('modelsSlice hub search actions', () => {
     expect(useAppStore.getState().searchResults).toEqual([second]);
   });
 });
+
+describe('modelsSlice consent + convert actions', () => {
+  it('grantConsent forwards args and returns the backend envelope', async () => {
+    const consent = vi
+      .fn()
+      .mockResolvedValue({ model_id: 'm1', pickle: true, trust_remote_code: false });
+    mockModelsApi({ consent });
+
+    const state = await useAppStore.getState().grantConsent('m1', 'pickle', true);
+    expect(consent).toHaveBeenCalledWith('m1', 'pickle', true);
+    expect(state).toEqual({ model_id: 'm1', pickle: true, trust_remote_code: false });
+  });
+
+  it('grantConsent surfaces bridge failures instead of swallowing them', async () => {
+    // Deliberate deviation from the local-first swallow pattern: a consent
+    // grant that did not persist must never be silently lost.
+    mockModelsApi({ consent: vi.fn().mockRejectedValue(new Error('bridge down')) });
+
+    await expect(
+      useAppStore.getState().grantConsent('m1', 'pickle', true),
+    ).rejects.toThrow('bridge down');
+  });
+
+  it('convertModel forwards the id and surfaces failures', async () => {
+    const convert = vi.fn().mockResolvedValue({
+      model_id: 'm1',
+      safetensors_path: 'C:\\models\\m1.safetensors',
+      tensor_count: 7,
+    });
+    mockModelsApi({ convert });
+
+    const result = await useAppStore.getState().convertModel('m1');
+    expect(convert).toHaveBeenCalledWith('m1');
+    expect(result).toMatchObject({ tensor_count: 7 });
+
+    mockModelsApi({ convert: vi.fn().mockRejectedValue(new Error('bridge down')) });
+    await expect(useAppStore.getState().convertModel('m1')).rejects.toThrow('bridge down');
+  });
+});

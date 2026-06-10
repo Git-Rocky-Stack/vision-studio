@@ -523,8 +523,17 @@ export interface AppState {
   detectLibraries: () => Promise<void>;
   searchModels: (query: string, source: SearchSource, page?: number) => Promise<void>;
   setNsfwOptIn: (optIn: boolean) => void;
-  grantConsent: (modelId: string, kind: ConsentKind, granted: boolean) => Promise<void>;
-  convertModel: (modelId: string) => Promise<{ success: boolean; error?: string; [k: string]: unknown }>;
+  // Consent/convert return the backend envelope so callers can react to
+  // failures - these deliberately do NOT follow the local-first swallow
+  // pattern (a lost consent grant must surface, never vanish).
+  grantConsent: (
+    modelId: string,
+    kind: ConsentKind,
+    granted: boolean,
+  ) => Promise<{ success?: boolean; error?: string; [k: string]: unknown }>;
+  convertModel: (
+    modelId: string,
+  ) => Promise<{ success?: boolean; error?: string; [k: string]: unknown }>;
   addBatchJob: (batchJob: BatchJob) => void;
   updateBatchJob: (batchId: string, updates: Partial<BatchJob>) => void;
 

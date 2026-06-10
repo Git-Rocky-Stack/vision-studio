@@ -162,8 +162,13 @@ export function createModelsActions(set: AppSet, get: AppGet) {
       }
     },
     setNsfwOptIn: (optIn: boolean) => set({ nsfwOptIn: optIn }),
+    // Consent + convert deliberately do NOT swallow errors like the
+    // local-first actions above: a consent grant that did not persist or a
+    // failed conversion must surface to the caller, never be silently lost.
+    // (The IPC layer returns {success:false, error} envelopes for backend
+    // errors; a rejection here means the bridge itself failed.)
     grantConsent: async (modelId: string, kind: ConsentKind, granted: boolean) => {
-      await window.electron.models.consent(modelId, kind, granted);
+      return window.electron.models.consent(modelId, kind, granted);
     },
     convertModel: async (modelId: string) => window.electron.models.convert(modelId),
   };
