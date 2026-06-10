@@ -50,7 +50,12 @@ def classify_safetensors(header: Dict[str, Any]) -> str:
         return "checkpoint"
     if any(key.startswith(("control_model.", "input_hint_block.")) for key in keys):
         return "controlnet"
-    if any(key.startswith(("encoder.", "decoder.")) for key in keys):
+    # A vae must have BOTH halves: T5/CLIP/BERT text encoders carry only
+    # encoder.* keys and must not be mis-typed (Spike C, measured on real
+    # text_encoder shards across AuraFlow/CogVideoX/Wan/MiniLM).
+    if any(key.startswith("encoder.") for key in keys) and any(
+        key.startswith("decoder.") for key in keys
+    ):
         return "vae"
     return "unknown"
 

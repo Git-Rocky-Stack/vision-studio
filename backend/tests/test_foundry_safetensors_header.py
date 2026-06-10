@@ -93,6 +93,13 @@ class ClassifyTests(unittest.TestCase):
             (VAE_TENSORS, "vae"),
             (CONTROLNET_TENSORS, "controlnet"),
             ({"some.unrecognized.tensor": [4]}, "unknown"),
+            # Spike C regression: a vae needs BOTH encoder.* and decoder.* keys.
+            # T5/CLIP/BERT text encoders carry only encoder.* and were
+            # mis-typed as vae (measured on real AuraFlow/CogVideoX/Wan
+            # text_encoder shards and sentence-transformers MiniLM).
+            ({"encoder.block.0.layer.0.SelfAttention.q.weight": [4, 4]}, "unknown"),
+            ({"encoder.layer.0.attention.self.query.weight": [4, 4]}, "unknown"),
+            ({"decoder.conv_out.bias": [4]}, "unknown"),
         ]
         for tensors, expected in cases:
             with self.subTest(expected=expected):
