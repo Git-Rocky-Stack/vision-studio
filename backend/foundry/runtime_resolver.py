@@ -109,7 +109,7 @@ def _local_weight_bytes(record: dict) -> Tuple[int, int]:
 
     total = 0
     native = 4
-    for location in record.get("locations") or []:
+    for location in dict.fromkeys(record.get("locations") or []):
         paths = []
         if os.path.isfile(location) and location.endswith(".safetensors"):
             paths = [location]
@@ -135,8 +135,10 @@ def _missing_components(record: dict) -> List[str]:
     import json
     import os
 
+    # Duplicate locations would double-count weights / duplicate "Needs"
+    # entries; dict.fromkeys dedupes while preserving order.
     missing: List[str] = []
-    for location in record.get("locations") or []:
+    for location in dict.fromkeys(record.get("locations") or []):
         index_path = os.path.join(location, "model_index.json")
         if not os.path.isfile(index_path):
             continue
@@ -144,6 +146,10 @@ def _missing_components(record: dict) -> List[str]:
             with open(index_path, "r", encoding="utf-8") as handle:
                 index = json.load(handle)
         except (OSError, ValueError):
+            continue
+        if not isinstance(index, dict):
+            # Valid JSON but not an object (e.g. a list) - a corrupt or
+            # foreign file must skip this location, never crash resolution.
             continue
         for name, value in index.items():
             if not (isinstance(value, (list, tuple)) and len(value) == 2):

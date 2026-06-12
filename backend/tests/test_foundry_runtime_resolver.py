@@ -183,6 +183,7 @@ class ResolveHappyPathTests(unittest.TestCase):
 
 import json
 import os
+import shutil
 import tempfile
 from tests.foundry_fixtures import LORA_TENSORS, make_safetensors
 
@@ -190,6 +191,7 @@ from tests.foundry_fixtures import LORA_TENSORS, make_safetensors
 class LocalTruthTests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.mkdtemp(prefix="foundry-resolver-")
+        self.addCleanup(shutil.rmtree, self.tmp, True)
 
     def test_local_header_beats_size_string(self):
         # A real local safetensors header gives EXACT weight bytes.
@@ -223,6 +225,32 @@ class LocalTruthTests(unittest.TestCase):
         self.assertIn("vae", plan.missing_components)
         self.assertNotIn("scheduler", plan.missing_components)  # config-only never blocks
         self.assertIn("Needs", plan.readiness)
+
+    def test_non_dict_model_index_skips_instead_of_crashing(self):
+        # Valid JSON whose top level is a list (corrupt/foreign file) must
+        # skip the location - never raise out of resolve_model_runtime.
+        snap = os.path.join(self.tmp, "weird")
+        os.makedirs(snap)
+        with open(os.path.join(snap, "model_index.json"), "w", encoding="utf-8") as h:
+            json.dump(["not", "an", "object"], h)
+        plan = resolve_model_runtime(
+            _record(artifact_type="diffusers-pipeline", locations=[snap]),
+            _profile(), consent=NO_CONSENT,
+        )
+        self.assertIsNone(plan.refusal)
+        self.assertEqual(plan.missing_components, [])
+
+    def test_duplicate_locations_do_not_double_count(self):
+        path = make_safetensors(os.path.join(self.tmp, "m.safetensors"), LORA_TENSORS)
+        once = resolve_model_runtime(
+            _record(artifact_type="lora", locations=[path]),
+            _profile(), consent=NO_CONSENT,
+        )
+        twice = resolve_model_runtime(
+            _record(artifact_type="lora", locations=[path, path]),
+            _profile(), consent=NO_CONSENT,
+        )
+        self.assertEqual(once.vram_plan.weight_bytes, twice.vram_plan.weight_bytes)
 
     def test_single_file_load_peak_warns_on_low_ram(self):
         path = make_safetensors(os.path.join(self.tmp, "big.safetensors"),
