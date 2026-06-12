@@ -1,13 +1,26 @@
-"""HF hub search -> classified SearchResult list. Network only via the passed api."""
+"""HF hub search -> classified SearchResult list. Network only via the passed
+api / fetch_signals callables.
+
+Supply-chain rail (Codex M4 review H-1): listing data is PARTIAL - tags but no
+file/config census - so it cannot prove "no remote code" or "safetensors
+tree". A verdict that would be Compatible from partial signals is therefore
+re-verified against full repo signals before it is surfaced; if the full
+fetch fails, the result fails closed to Experimental. Non-Compatible partial
+verdicts never trigger the extra fetch (no request amplification).
+"""
 
 import re
 from dataclasses import dataclass, field
-from typing import List, Optional, Set
+from typing import Callable, List, Optional, Set
 
-from foundry.classifier import classify_repo
-from foundry.hub_signals import signals_from_listing
+from foundry.classifier import TierVerdict, classify_repo
+from foundry.hub_signals import RepoSignals, fetch_repo_signals, signals_from_listing
 
 _SORT_FIELDS = {"downloads", "likes", "lastModified"}
+
+_UNVERIFIED_REASON = (
+    "compatible by tags only - full repo signals unverifiable, defaulting to experimental"
+)
 
 
 @dataclass
@@ -52,8 +65,14 @@ def search_hf(
     page_size: int = 20,
     author: Optional[str] = None,
     tags: Optional[List[str]] = None,
+    fetch_signals: Optional[Callable[[str], RepoSignals]] = None,
 ) -> List[SearchResult]:
-    """One page of classified HF results. Caller owns error handling/offline."""
+    """One page of classified HF results. Caller owns error handling/offline.
+
+    ``fetch_signals`` provides full-fidelity repo signals for verifying
+    Compatible candidates (defaults to the unauthenticated live fetch; the
+    API route injects a token-bearing closure)."""
+    fetch = fetch_signals or fetch_repo_signals
     page = max(1, page)
     sort_field = sort if sort in _SORT_FIELDS else "downloads"
     listings = api.list_models(
@@ -81,6 +100,8 @@ def search_hf(
         }
         signals = signals_from_listing(raw)
         verdict = classify_repo(signals, verified_repo_ids)
+        if verdict.tier == "compatible" and signals.partial:
+            verdict = _verify_partial_compatible(item.id, verified_repo_ids, fetch)
         family = _family_from_reason(verdict.reason)
         results.append(
             SearchResult(
@@ -102,6 +123,25 @@ def search_hf(
             )
         )
     return results
+
+
+def _verify_partial_compatible(
+    repo_id: str,
+    verified_repo_ids: Set[str],
+    fetch: Callable[[str], RepoSignals],
+) -> TierVerdict:
+    """Re-run the ladder on full signals before surfacing Compatible.
+
+    Fail closed: an unreachable repo or a fetch failure of any kind yields an
+    honest Experimental - never the optimistic tag-derived verdict. The
+    failure detail is deliberately not echoed (it can carry URLs)."""
+    try:
+        full = fetch(repo_id)
+    except Exception:
+        full = None
+    if full is None or not full.reachable:
+        return TierVerdict("experimental", _UNVERIFIED_REASON)
+    return classify_repo(full, verified_repo_ids)
 
 
 def _family_from_reason(reason: str) -> Optional[str]:

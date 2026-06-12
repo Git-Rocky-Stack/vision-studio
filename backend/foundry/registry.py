@@ -105,6 +105,33 @@ class ModelRegistry:
             merged[record.id] = owned
         self._transient = merged
 
+    def is_transient(self, model_id: str) -> bool:
+        """True only for records living in the transient search layer.
+
+        The download boundary uses this to decide which records need a
+        full-signal reclassification before consent checks (search verdicts
+        come from partial listing data); catalog and indexed records are
+        authoritative and must never be reported transient.
+        """
+        canonical = self.legacy_aliases.get(model_id, model_id)
+        return (
+            canonical in self._transient
+            and canonical not in self.records
+            and canonical not in self._indexed
+        )
+
+    def update_transient(self, model_id: str, **fields: Any) -> None:
+        """Refresh fields on a transient record after full-signal
+        reclassification, so the UI and consent checks see the fresh verdict.
+        Unknown ids and unknown attributes are safe no-ops."""
+        canonical = self.legacy_aliases.get(model_id, model_id)
+        record = self._transient.get(canonical)
+        if record is None:
+            return
+        for key, value in fields.items():
+            if hasattr(record, key):
+                setattr(record, key, value)
+
     # -- internals ---------------------------------------------------------
     def _reconciled(self, record: ModelRecord) -> Dict[str, Any]:
         data = record.to_dict()

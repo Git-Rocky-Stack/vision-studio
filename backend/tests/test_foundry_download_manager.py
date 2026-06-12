@@ -466,6 +466,69 @@ class DownloadManagerTokenDisciplineTests(unittest.IsolatedAsyncioTestCase):
             self.assertNotIn("hf_TOPSECRET", repr(job))
 
 
+class DownloadFileFilterTests(unittest.TestCase):
+    """Codex M4 review H-2: a diffusers repo download must not acquire pickle
+    sidecars or repo-authored Python. The safe load path needs neither;
+    pickle suffixes are fetched only with explicit per-model consent."""
+
+    REPO_FILES = [
+        ("model_index.json", 10),
+        ("unet/diffusion_pytorch_model.safetensors", 1000),
+        ("vae/config.json", 5),
+        ("bonus.ckpt", 700),            # root pickle sidecar
+        ("unet/extra_state.bin", 300),  # component-level pickle
+        ("pipeline.py", 20),            # repo-authored code: NEVER fetched
+        ("rng_state.pth", 40),
+    ]
+
+    def _resolve(self, consent_lookup=None):
+        manager = make_manager()
+        if consent_lookup is not None:
+            manager._consent_lookup = consent_lookup
+        record = {"id": "m-repo", "repo_id": "org/m-repo",
+                  "artifact_type": "diffusers-pipeline"}
+        infos = [_path_info(path, size) for path, size in self.REPO_FILES]
+
+        def fake_paths_info(repo_id, paths, revision):
+            if not paths:
+                return infos
+            return [i for i in infos if i.path in paths]
+
+        with mock.patch.object(
+            dm_module.huggingface_hub, "get_paths_info", side_effect=fake_paths_info
+        ):
+            return manager._resolve_files("m-repo", record)
+
+    def test_pickle_and_py_files_excluded_without_consent(self):
+        filenames, total, _dir = self._resolve()
+        self.assertEqual(
+            sorted(filenames),
+            ["model_index.json", "unet/diffusion_pytorch_model.safetensors",
+             "vae/config.json"],
+        )
+        # The byte preflight must budget only what will be fetched.
+        self.assertEqual(total, 1015)
+
+    def test_pickle_files_included_with_consent_but_py_never(self):
+        filenames, total, _dir = self._resolve(
+            consent_lookup=lambda mid: {"pickle": True, "trust_remote_code": False}
+        )
+        self.assertIn("bonus.ckpt", filenames)
+        self.assertIn("unet/extra_state.bin", filenames)
+        self.assertIn("rng_state.pth", filenames)
+        # No loader executes repo code in M4 - fetching it serves nothing.
+        self.assertNotIn("pipeline.py", filenames)
+        self.assertEqual(total, 1015 + 700 + 300 + 40)
+
+    def test_consent_lookup_failure_fails_closed(self):
+        def broken(mid):
+            raise RuntimeError("store corrupt")
+
+        filenames, _total, _dir = self._resolve(consent_lookup=broken)
+        self.assertNotIn("bonus.ckpt", filenames)
+        self.assertNotIn("unet/extra_state.bin", filenames)
+
+
 async def _drain(manager: DownloadManager):
     tasks = list(manager._tasks.values())
     if tasks:

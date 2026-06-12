@@ -195,19 +195,20 @@
         "summary": "Search Hugging Face or CivitAI; offline-degrading (upstream failures return 200 with offline=true, never a 5xx)",
         "operationId": "searchModels",
         "parameters": [
-          { "in": "query", "name": "q", "schema": { "type": "string", "default": "" } },
+          { "in": "query", "name": "q", "schema": { "type": "string", "default": "", "maxLength": 256 } },
           { "in": "query", "name": "source", "schema": { "type": "string", "enum": ["hf", "civitai"], "default": "hf" } },
-          { "in": "query", "name": "task", "schema": { "type": "string", "nullable": true }, "description": "HF pipeline tag filter (hf source only)" },
+          { "in": "query", "name": "task", "schema": { "type": "string", "nullable": true, "maxLength": 64 }, "description": "HF pipeline tag filter (hf source only)" },
           { "in": "query", "name": "sort", "schema": { "type": "string", "enum": ["downloads", "likes", "lastModified"], "default": "downloads" }, "description": "Unknown values fall back to downloads (hf source only)" },
-          { "in": "query", "name": "page", "schema": { "type": "integer", "minimum": 1, "default": 1 }, "description": "Page of 20 results (hf source only; echoed back for both sources)" },
+          { "in": "query", "name": "page", "schema": { "type": "integer", "minimum": 1, "maximum": 50, "default": 1 }, "description": "Page of 20 results, 1-50 (hf source only; echoed back for both sources). Bounded: the HF call requests page*20 items, so the cap stops request amplification." },
           { "in": "query", "name": "nsfw", "schema": { "type": "boolean", "default": false }, "description": "Include NSFW results (civitai source only; NSFW-off by default)" },
-          { "in": "query", "name": "author", "schema": { "type": "string", "nullable": true }, "description": "Author/organization filter (hf source only)" },
+          { "in": "query", "name": "author", "schema": { "type": "string", "nullable": true, "maxLength": 128 }, "description": "Author/organization filter (hf source only)" },
           { "in": "header", "name": "X-HF-Token", "schema": { "type": "string" }, "description": "Optional Hugging Face token (hf source). Read per-request; never persisted, never logged." },
           { "in": "header", "name": "X-Civitai-Token", "schema": { "type": "string" }, "description": "Optional CivitAI token (civitai source). Read per-request; never persisted, never logged." }
         ],
         "responses": {
-          "200": { "description": "Search results; on upstream failure offline=true with a warning naming only the exception type", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SearchResponse" } } } },
+          "200": { "description": "Search results; on upstream failure offline=true with a warning naming only the exception type. HF results that would classify compatible from listing tags alone are re-verified against full repo signals first; verification failure fails closed to experimental.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SearchResponse" } } } },
           "400": { "$ref": "#/components/responses/BadRequest" },
+          "422": { "description": "Out-of-bounds query parameters (page outside 1-50, over-length q/author/task)" },
           "429": { "$ref": "#/components/responses/RateLimited" }
         }
       }
@@ -241,7 +242,7 @@
     "/api/models/{model_id}/download": {
       "post": {
         "tags": ["Models"],
-        "summary": "Enqueue a model download (consent-gated; CivitAI-source records are sha256-verified and refused when hashless)",
+        "summary": "Enqueue a model download (consent-gated; transient HF records are reclassified from full repo signals before the consent checks; CivitAI-source records are sha256-verified, refused when hashless, and redirects are walked manually with https-only hops and first-party-only auth; HF repo file lists exclude .py always and pickle suffixes without consent)",
         "operationId": "downloadModel",
         "parameters": [
           { "in": "path", "name": "model_id", "required": true, "schema": { "type": "string" } },
@@ -251,7 +252,8 @@
         "responses": {
           "202": { "description": "Download enqueued", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/DownloadJob" } } } },
           "404": { "$ref": "#/components/responses/NotFound" },
-          "409": { "description": "Consent missing — detail.error_code is pickle-consent-required or remote-code-consent-required; grant via POST /api/models/consent and retry", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+          "409": { "description": "Consent missing — detail.error_code is pickle-consent-required or remote-code-consent-required; grant via POST /api/models/consent and retry", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+          "503": { "description": "detail.error_code repo-signals-unverifiable — a transient HF record's full safety signals could not be fetched; the download fails closed before any bytes move. Retry when online.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
         }
       }
     },

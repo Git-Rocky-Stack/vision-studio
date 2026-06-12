@@ -23,8 +23,8 @@ import shutil
 import threading
 from contextlib import contextmanager
 from dataclasses import dataclass, field
-from typing import Dict, List, Literal, Optional
-from urllib.parse import urlparse
+from typing import Callable, Dict, List, Literal, Optional
+from urllib.parse import urljoin, urlparse
 
 import huggingface_hub
 
@@ -53,6 +53,12 @@ _ACTIVE_STATES = {"queued", "downloading", "paused", "verifying"}
 # the latency variance measured in Spike C.
 _CIVITAI_CHUNK_BYTES = 1024 * 1024
 _CIVITAI_TIMEOUT = (5, 60)
+_CIVITAI_MAX_REDIRECTS = 5
+
+# Pickle-bearing suffixes: acquired only with explicit per-model consent
+# (spec 5.3 / Codex M4 review H-2). The safe diffusers load path
+# (safetensors-first) needs none of them.
+_PICKLE_SUFFIXES = (".ckpt", ".pt", ".pth", ".bin", ".pkl")
 
 
 def validate_civitai_url(url: str) -> None:
@@ -104,10 +110,14 @@ class DownloadManager:
         models_dir: str,
         concurrency: int = 2,
         mode: str = "fast",
+        consent_lookup: Optional[Callable[[str], Dict[str, bool]]] = None,
     ):
         self._registry = registry
         self._model_manager = model_manager
         self._models_dir = models_dir
+        # Per-model consent oracle (ConsentStore.get). None or any failure
+        # reads as "no consent" - the filter in _resolve_files fails closed.
+        self._consent_lookup = consent_lookup
         self._concurrency = max(1, min(int(concurrency), 6))
         self.mode = mode if mode in {"fast", "precise"} else "fast"
 
@@ -288,6 +298,13 @@ class DownloadManager:
         Single-file artifacts resolve to the one filename from the manager's
         _SINGLE_FILE_FILENAMES map; diffusers repos resolve to the repo file
         list. Sizes come from huggingface_hub.get_paths_info (no download).
+
+        Repo file lists are FILTERED (Codex M4 review H-2): repo-authored
+        ``.py`` is never fetched (no loader executes repo code - M5 revisits
+        with loader-side consent), and pickle-bearing suffixes are fetched
+        only with explicit per-model pickle consent. The classifier judges
+        the safetensors component tree; this filter keeps acquisition aligned
+        with that judgment instead of pulling every sidecar in the repo.
         """
         from utils.model_manager import _SINGLE_FILE_FILENAMES
 
@@ -301,6 +318,9 @@ class DownloadManager:
         else:
             infos = huggingface_hub.get_paths_info(repo_id, [], revision=revision)
             paths = [getattr(info, "path", None) or info["path"] for info in infos]
+            paths = [p for p in paths if not p.lower().endswith(".py")]
+            if not self._pickle_allowed(model_id):
+                paths = [p for p in paths if not p.lower().endswith(_PICKLE_SUFFIXES)]
 
         infos = huggingface_hub.get_paths_info(repo_id, paths, revision=revision)
         total = 0
@@ -311,6 +331,15 @@ class DownloadManager:
             total += int(size or 0)
 
         return paths, total, target_dir
+
+    def _pickle_allowed(self, model_id: str) -> bool:
+        """Explicit per-model pickle consent, failing closed on any error."""
+        if self._consent_lookup is None:
+            return False
+        try:
+            return bool(self._consent_lookup(model_id).get("pickle"))
+        except Exception:
+            return False
 
     def _target_dir(self, record: dict) -> str:
         """Destination directory matching the model_manager storage layout."""
@@ -351,11 +380,12 @@ class DownloadManager:
 
         Stream -> ``<target>.incomplete`` -> sha256 verify -> atomic
         ``os.replace``: the final file is complete-or-absent (spec 3.5). The
-        URL is never trusted (https + civitai.com host allowlist) and the
-        token is used ONLY as a Bearer header on this one request - never
-        stored, never logged, never on the job or in error text. A hash
-        mismatch deletes the partial so corrupt or tampered bytes can never
-        present as ready.
+        URL is never trusted (https + civitai.com host allowlist on the first
+        hop; redirects walked manually per _civitai_get) and the token is
+        used ONLY as a Bearer header while the hop host is civitai.com -
+        never stored, never logged, never on the job or in error text. A
+        hash mismatch deletes the partial so corrupt or tampered bytes can
+        never present as ready.
         """
         url = record.get("download_url")
         if not url:
@@ -380,10 +410,7 @@ class DownloadManager:
         target = os.path.join(target_dir, _civitai_filename(model_id, record))
         incomplete = target + ".incomplete"
 
-        headers = {"Authorization": f"Bearer {token}"} if token else {}
-        response = requests.get(
-            url, stream=True, timeout=_CIVITAI_TIMEOUT, headers=headers
-        )
+        response = self._civitai_get(requests, url, token)
         hasher = hashlib.sha256()
         try:
             status = getattr(response, "status_code", 200)
@@ -425,6 +452,51 @@ class DownloadManager:
             raise DownloadFailedError("sha256 mismatch - corrupt or tampered download")
 
         os.replace(incomplete, target)  # atomic: complete-or-absent
+
+    def _civitai_get(self, requests_module, url: str, token: Optional[str]):
+        """Manual redirect walk for the CivitAI delivery chain (review M-1).
+
+        requests' automatic redirect following is disabled so the policy is
+        explicit and testable: every hop must be https; the Bearer token is
+        attached ONLY while the hop host is civitai.com (delivery CDNs must
+        never see it); the chain is capped. CDN hostnames are deliberately
+        NOT allowlisted by name - they are infrastructure-volatile - because
+        integrity comes from the mandatory sha256 over the final bytes and
+        confidentiality from confining the secret to the first-party host.
+        """
+        current = url
+        for _ in range(_CIVITAI_MAX_REDIRECTS):
+            parsed = urlparse(current)
+            if parsed.scheme != "https":
+                raise DownloadFailedError(
+                    "refusing non-https hop in civitai redirect chain"
+                )
+            headers = (
+                {"Authorization": f"Bearer {token}"}
+                if token and parsed.hostname == "civitai.com"
+                else {}
+            )
+            response = requests_module.get(
+                current,
+                stream=True,
+                timeout=_CIVITAI_TIMEOUT,
+                headers=headers,
+                allow_redirects=False,
+            )
+            status = getattr(response, "status_code", 200)
+            if isinstance(status, int) and status in (301, 302, 303, 307, 308):
+                location = (getattr(response, "headers", {}) or {}).get("Location")
+                close = getattr(response, "close", None)
+                if callable(close):
+                    close()
+                if not location:
+                    raise DownloadFailedError("civitai redirect without a Location header")
+                current = urljoin(current, location)
+                continue
+            return response
+        raise DownloadFailedError(
+            f"civitai redirect chain exceeded {_CIVITAI_MAX_REDIRECTS} hops"
+        )
 
     def _verify(self, filenames, target_dir) -> None:
         for filename in filenames:

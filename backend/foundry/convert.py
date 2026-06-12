@@ -24,7 +24,9 @@ def convert_pickle_to_safetensors(src_path: str, dest_path: str) -> int:
         state = state["state_dict"]
     tensors = {k: v for k, v in state.items() if hasattr(v, "shape")}
     if not tensors:
-        raise ValueError(f"no tensors found in {src_path}")
+        # Basename only: this message is echoed by the API route, and
+        # absolute local paths belong in logs, not in API error details.
+        raise ValueError(f"no tensors found in {os.path.basename(src_path)}")
 
     tmp = dest_path + ".converting"
     try:

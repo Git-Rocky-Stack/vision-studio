@@ -5,6 +5,9 @@ always mocked in tests). Fixture parsing mirrors the Spike C corpus schema so
 the corpus is the regression gate for this module too.
 """
 
+import json
+import os
+import tempfile
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Union
 
@@ -98,6 +101,17 @@ def fetch_repo_signals(repo_id: str, token: Optional[str] = None) -> RepoSignals
 
     Lazy hub import; any failure -> RepoSignals(reachable=False). Token is a
     LOCAL parameter, never stored or logged.
+
+    Census (Codex M4 gate re-review): sibling NAMES alone cannot prove "no
+    remote code" - ``auto_map`` lives inside config.json and may point at
+    code in another repo (zero local .py files). For public repos the tiny
+    config.json / model_index.json files are therefore fetched and parsed
+    (the Spike C capture pattern); a census that cannot complete fails
+    CLOSED (reachable=False -> callers default to Experimental / refuse the
+    download). Gated repos cannot be file-fetched pre-license: they classify
+    from tags + sibling names with the ladder's explicit "format verified
+    after license accept" disclosure, and post-acquisition header inspection
+    downgrades them if the bytes disagree.
     """
     try:
         from huggingface_hub import HfApi  # noqa: PLC0415
@@ -112,17 +126,53 @@ def fetch_repo_signals(repo_id: str, token: Optional[str] = None) -> RepoSignals
         return RepoSignals(repo_id=repo_id, reachable=False)
     tags = info.tags or []
     siblings = [s.rfilename for s in (info.siblings or [])]
+    gated = info.gated or False
+    config = None
+    model_index = None
+    if not gated:
+        try:
+            config = _fetch_tiny_json(repo_id, "config.json", siblings, token)
+            model_index = _fetch_tiny_json(repo_id, "model_index.json", siblings, token)
+        except Exception:
+            return RepoSignals(repo_id=repo_id, reachable=False)
     return RepoSignals(
         repo_id=repo_id,
         reachable=True,
-        gated=info.gated or False,
+        gated=gated,
         library_name=info.library_name,
         pipeline_tag=info.pipeline_tag,
         tags=tags,
-        class_name=_class_name(None, tags, None),
-        py_file_count=sum(1 for s in siblings if s.endswith(".py")),
+        class_name=_class_name(model_index, tags, config),
+        has_auto_map=bool(config) and "auto_map" in config,
+        py_file_count=sum(1 for s in siblings if s.lower().endswith(".py")),
         siblings=siblings,
         has_safetensors=any(s.endswith(".safetensors") for s in siblings),
         downloads=info.downloads or 0,
         author=info.author,
     )
+
+
+def _fetch_tiny_json(
+    repo_id: str, filename: str, siblings: List[str], token: Optional[str]
+) -> Optional[dict]:
+    """Fetch one tiny root-level JSON if the repo ships it, else None.
+
+    Downloads into a dedicated probe cache (never the user's HF cache - these
+    are pre-consent probes of arbitrary repos). Raises on any failure so the
+    caller can fail closed.
+    """
+    if filename not in siblings:
+        return None
+    import huggingface_hub  # noqa: PLC0415
+
+    path = huggingface_hub.hf_hub_download(
+        repo_id,
+        filename,
+        token=token,
+        cache_dir=os.path.join(tempfile.gettempdir(), "vision-studio-signal-probe"),
+    )
+    with open(path, "r", encoding="utf-8") as handle:
+        data = json.load(handle)
+    if not isinstance(data, dict):
+        raise ValueError(f"{filename} is not a JSON object")
+    return data
