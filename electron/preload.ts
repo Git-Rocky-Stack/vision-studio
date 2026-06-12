@@ -321,6 +321,10 @@ export interface ElectronAPI {
       granted: boolean
     ) => Promise<{ success: boolean; error?: string; [k: string]: unknown }>;
     convert: (modelId: string) => Promise<{ success: boolean; error?: string; [k: string]: unknown }>;
+    resolveRuntime: (modelId: string) => Promise<any>;
+  };
+  hardware: {
+    get: () => Promise<any>;
   };
   auth: {
     setHfToken: (token: string) => Promise<{ success: boolean }>;
@@ -430,6 +434,10 @@ const electronAPI: ElectronAPI = {
     consent: (modelId: string, kind: 'pickle' | 'trust_remote_code', granted: boolean) =>
       ipcRenderer.invoke('models:consent', modelId, kind, granted),
     convert: (modelId: string) => ipcRenderer.invoke('models:convert', modelId),
+    resolveRuntime: (modelId: string) => ipcRenderer.invoke('models:resolveRuntime', modelId),
+  },
+  hardware: {
+    get: () => ipcRenderer.invoke('hardware:get'),
   },
   auth: {
     setHfToken: (token: string) => ipcRenderer.invoke('auth:setHfToken', token),

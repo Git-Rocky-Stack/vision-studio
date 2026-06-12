@@ -12,6 +12,8 @@ import type {
   SearchSource,
   SearchResponse,
   ConsentKind,
+  HardwareProfile,
+  RuntimePlan,
 } from './model';
 
 export type GenerationParams = ImageGenerationRequestPayload;
@@ -361,6 +363,11 @@ export interface ElectronAPI {
       granted: boolean
     ) => Promise<{ success: boolean; error?: string; [k: string]: unknown }>;
     convert: (modelId: string) => Promise<{ success: boolean; error?: string; [k: string]: unknown }>;
+    resolveRuntime: (modelId: string) => Promise<RuntimePlan | { success: false; error: string }>;
+  };
+  hardware: {
+    /** GET /api/hardware. Returns HardwareProfile on success. */
+    get: () => Promise<HardwareProfile | { success: false; error: string }>;
   };
   auth: {
     setHfToken: (token: string) => Promise<{ success: boolean }>;
