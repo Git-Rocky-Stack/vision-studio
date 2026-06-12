@@ -253,6 +253,15 @@ class FamilyFieldTests(unittest.TestCase):
         self.assertEqual(tier, "compatible")
         self.assertEqual(family, "sdxl")
 
+    def test_pickle_only_tag_lora_still_carries_family(self):
+        signals = self._signals(
+            class_name=None, tags=["lora", "base_model:black-forest-labs/FLUX.1-dev"],
+            siblings=["pytorch_lora_weights.bin"], has_safetensors=False,
+        )
+        verdict = classify_repo(signals, set())
+        self.assertEqual(verdict.tier, "experimental")
+        self.assertEqual(verdict.family, "flux")
+
 
 if __name__ == "__main__":
     unittest.main()

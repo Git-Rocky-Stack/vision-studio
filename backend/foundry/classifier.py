@@ -62,7 +62,7 @@ class TierVerdict:
     available: bool = True
     trust_remote_code: bool = False
     format: Optional[str] = None   # safetensors | pickle | diffusers
-    family: Optional[str] = None   # M5: sdxl|sd15|sd35|flux|ltx|svd|animatediff
+    family: Optional[str] = None   # M5: sdxl|sd15|sd35|flux|ltx|svd|animatediff|sd-unet-family (header-lora routing label)
 
 
 def tree_weight_format(siblings: List[str]) -> Tuple[int, int, int, int]:
@@ -220,6 +220,7 @@ def classify_repo(signals: RepoSignals, verified_repo_ids: Set[str]) -> TierVerd
                 "experimental",
                 f"{signals.class_name} but pickle-only weights - requires explicit consent",
                 format="pickle",
+                family=cls_family,
             )
         if signals.class_name in SHIPPED_COMPONENTS:
             if comp_st or root_st or signals.has_safetensors:
@@ -249,7 +250,7 @@ def classify_repo(signals: RepoSignals, verified_repo_ids: Set[str]) -> TierVerd
                 format="safetensors",
                 family=tag_family,
             )
-        return TierVerdict("experimental", f"{tag_family} lora but pickle-only weights", format="pickle")
+        return TierVerdict("experimental", f"{tag_family} lora but pickle-only weights", format="pickle", family=tag_family)
 
     # 6 - header lora channel (loose files), with the mixed-repo guard.
     lora_hit = None
