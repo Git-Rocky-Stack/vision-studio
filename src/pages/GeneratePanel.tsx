@@ -5,6 +5,7 @@ import { useAppStore } from '@/store/appStore';
 import { PromptArea } from '@/components/generate/PromptArea';
 import { StylePresetsBar } from '@/components/generate/StylePresetsBar';
 import { ModelSelector } from '@/components/generate/ModelSelector';
+import { PreflightFooter } from '@/components/generate/PreflightFooter';
 import { AdvancedGenerationSettings } from '@/components/generate/AdvancedGenerationSettings';
 import { ControlNetPanel } from '@/components/generate/ControlNetPanel';
 import { LoRAMixer } from '@/components/generate/LoRAMixer';
@@ -1428,6 +1429,11 @@ export function GeneratePanel() {
             </p>
           )}
         </div>
+
+        {/* Run-readiness preflight (M5): resolves the local runtime plan for
+            the selected model. OpenRouter routes bypass the local pipeline,
+            so no local model id is in play there. */}
+        <PreflightFooter modelId={openRouterImageEnabled ? null : currentModel} />
 
         <AnimatePresence mode="wait">
           {genStatus.isGenerating ? (

@@ -130,6 +130,8 @@ import type {
   SearchResult,
   SearchSource,
   ConsentKind,
+  HardwareProfile,
+  RuntimePlan,
 } from '@/types/model';
 
 import type { AspectRatio, ResolutionTier } from '@/types/resolution';
@@ -341,6 +343,9 @@ export interface AppState {
   searchPage: number;
   searchWarning: string | null;
   nsfwOptIn: boolean;
+  // Hardware snapshot (M5) - transient, never persisted (hardware can change
+  // between sessions; the partialize allowlist excludes it)
+  hardwareProfile: HardwareProfile | null;
 
   // ─── Prompt Intelligence ─────────────────────────────────────────────────
   promptHistory: PromptHistoryEntry[];
@@ -534,6 +539,12 @@ export interface AppState {
   convertModel: (
     modelId: string,
   ) => Promise<{ success?: boolean; error?: string; [k: string]: unknown }>;
+  // Hardware + preflight (M5). loadHardwareProfile is local-first (keeps the
+  // last-known profile on failure); resolveRuntime deliberately does NOT
+  // swallow - preflight truth must surface to the caller (same deviation as
+  // consent/convert above).
+  loadHardwareProfile: () => Promise<void>;
+  resolveRuntime: (modelId: string) => Promise<RuntimePlan>;
   addBatchJob: (batchJob: BatchJob) => void;
   updateBatchJob: (batchId: string, updates: Partial<BatchJob>) => void;
 
