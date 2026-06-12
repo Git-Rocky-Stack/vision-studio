@@ -125,6 +125,38 @@ class VideoPlanConsumptionTests(unittest.TestCase):
         self.assertIn("convert", str(ctx.exception))
         loader.assert_not_called()
 
+    def test_single_file_plan_uses_from_single_file_with_pinned_config(self):
+        # A Compatible ltx single-file checkpoint must actually load via
+        # from_single_file with the catalog-pinned config - the classifier
+        # tier upgrade and the loader path must agree (final-review blocker).
+        generator = self._generator()
+        plan = _video_plan(
+            pipeline_class="LTXPipeline", precision="bf16",
+            single_file=True, config_catalog_id="ltx-video",
+            checkpoint_path="C:/models/ltx.safetensors",
+            config_repo_id="Lightricks/LTX-Video",
+        )
+        with mock.patch("utils.direct_video_generator.resolve_plan", return_value=plan), \
+                mock.patch.object(diffusers.LTXPipeline, "from_single_file") as loader, \
+                mock.patch.object(diffusers.LTXPipeline, "from_pretrained") as pretrained:
+            generator.load_model("local-ltx-checkpoint")
+        pretrained.assert_not_called()
+        self.assertEqual(loader.call_args.args[0], "C:/models/ltx.safetensors")
+        self.assertEqual(loader.call_args.kwargs["config"], "Lightricks/LTX-Video")
+        self.assertEqual(loader.call_args.kwargs["torch_dtype"], torch.bfloat16)
+
+    def test_single_file_plan_without_local_checkpoint_refuses(self):
+        generator = self._generator()
+        plan = _video_plan(
+            pipeline_class="LTXPipeline", single_file=True,
+            checkpoint_path=None,
+        )
+        with mock.patch("utils.direct_video_generator.resolve_plan", return_value=plan), \
+                mock.patch.object(diffusers.LTXPipeline, "from_single_file") as loader:
+            with self.assertRaises(ModelLoadRefusedError):
+                generator.load_model("ghost-checkpoint")
+        loader.assert_not_called()
+
     def test_animatediff_keeps_motion_adapter_load(self):
         generator = self._generator()
         plan = _video_plan(pipeline_class="AnimateDiffPipeline", precision="fp16")

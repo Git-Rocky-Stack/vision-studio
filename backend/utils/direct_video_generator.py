@@ -160,6 +160,24 @@ class DirectVideoGenerator:
         """One load attempt driven entirely by the plan (no name-sniffing)."""
         dtype = dtype_for_precision(plan.precision)
         pipeline_cls = pipeline_class_for(plan)
+
+        if plan.single_file:
+            # Mirror of DirectGenerator: ltx/animatediff single-file
+            # checkpoints load via from_single_file with the catalog-pinned
+            # config (Spike D adj. 3) - keys are NEVER sniffed for a config.
+            # (svd never reaches here: the resolver refuses svd single-file.)
+            checkpoint = getattr(plan, "checkpoint_path", None)
+            if not checkpoint:
+                raise ModelLoadRefusedError(
+                    f"Model '{model_name}' has no local safetensors checkpoint to load"
+                )
+            pipeline = pipeline_cls.from_single_file(
+                checkpoint,
+                config=getattr(plan, "config_repo_id", None),
+                torch_dtype=dtype,
+            )
+            return self._apply_plan_runtime_flags(pipeline, plan, slicing_max)
+
         source = resolve_video_model_source(
             self.models_dir, model_name, default=getattr(plan, "load_source", None)
         )
@@ -199,6 +217,10 @@ class DirectVideoGenerator:
                 use_safetensors=True,
             )
 
+        return self._apply_plan_runtime_flags(pipeline, plan, slicing_max)
+
+    def _apply_plan_runtime_flags(self, pipeline, plan, slicing_max: bool):
+        """Post-load flags from the plan - shared by both load branches."""
         if plan.offload:
             # Offload manages device placement itself - no manual .to(device).
             pipeline.enable_model_cpu_offload()
