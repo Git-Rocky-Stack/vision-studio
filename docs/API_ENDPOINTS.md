@@ -491,13 +491,15 @@ Query parameters:
 
 | Param | Type | Default | Notes |
 |-------|------|---------|-------|
-| `q` | string | `""` | Search query |
+| `q` | string | `""` | Search query (max 256 chars) |
 | `source` | string | `hf` | `hf \| civitai` — anything else is `400` |
-| `task` | string \| null | `null` | HF pipeline tag filter (`hf` source only) |
+| `task` | string \| null | `null` | HF pipeline tag filter (`hf` source only; max 64 chars) |
 | `sort` | string | `downloads` | `downloads \| likes \| lastModified`; unknown values fall back to `downloads` (`hf` source only) |
-| `page` | int | `1` | Page of 20 results (`hf` source only; echoed back for both sources) |
+| `page` | int | `1` | Page of 20 results, **1–50** (`hf` source only; echoed back for both sources). Bounded because the HF call requests `page × 20` items — the cap stops local→hub request amplification. |
 | `nsfw` | bool | `false` | Include NSFW results (`civitai` source only; CivitAI is NSFW-off by default) |
-| `author` | string \| null | `null` | Author/organization filter (`hf` source only) |
+| `author` | string \| null | `null` | Author/organization filter (`hf` source only; max 128 chars) |
+
+Out-of-bounds parameters (page outside 1–50, over-length strings) are FastAPI-native **`422`** validation errors.
 
 Headers (both optional, supplied automatically by the Main process): `X-HF-Token` for the `hf` source, `X-Civitai-Token` for the `civitai` source. Tokens are read per-request, **never persisted in Python, never logged**.
 
@@ -537,6 +539,8 @@ Response — `SearchResponse`:
 ```
 
 `SearchResult` never carries `download_url` or `sha256` — those stay server-side on the registry record.
+
+**Compatible-tier verification (supply-chain rail):** HF listing data is partial (tags, no file/config census), so any result that would classify `compatible` from listing tags alone is **re-verified against full repo signals** (`model_info` census: `auto_map`, repo `.py` files, safetensors component tree) before it is returned. If the verification fetch fails, the result fails closed to `experimental` with `tier_reason` `"compatible by tags only - full repo signals unverifiable, defaulting to experimental"`. Non-compatible results never trigger the extra fetch.
 
 **Offline-degrade contract (spec 5.1):** any upstream failure (network down, hub outage, bad token) returns **`200`** with `offline: true`, `results: []`, and a `warning` naming **only the exception type** (e.g. `"search unavailable: ConnectionError"`) — **never a 5xx**. The local library stays fully operational regardless of hub reachability.
 
@@ -593,12 +597,17 @@ Enqueues an async download and returns the `DownloadJob` with **`202 Accepted`**
 
 Headers: HF-source records read the optional `X-HF-Token` header; **`civitai`-source records read `X-Civitai-Token` instead** (the Main process sends both; the backend picks per record source). Tokens are never persisted in Python and never logged.
 
-CivitAI-source records download via host-allowlisted HTTPS from the record's `download_url`, stream to a `.incomplete` staging file, and **verify the record's `sha256` before the atomic move into place** — a mismatch fails the job as corrupt/tampered. **Hashless CivitAI records are refused** (`status: "error"`, `"no sha256 on civitai record - refusing unverifiable download"`): the sha256 is the only integrity anchor because delivery is a CDN redirect.
+**Transient-record reclassification (supply-chain boundary):** search-originated HF records carry verdicts classified from partial listing data, so the route **re-fetches full repo signals and reclassifies them here, before the consent checks** — the fresh `tier` / `tier_reason` / `format` / `trust_remote_code` are written back onto the transient record. Catalog, indexed, and `civitai`-source records skip this (their verdicts are authoritative: catalog/header-verified, or CivitAI's explicit per-file metadata + mandatory sha256).
+
+CivitAI-source records download via host-allowlisted HTTPS from the record's `download_url`, stream to a `.incomplete` staging file, and **verify the record's `sha256` before the atomic move into place** — a mismatch fails the job as corrupt/tampered. **Hashless CivitAI records are refused** (`status: "error"`, `"no sha256 on civitai record - refusing unverifiable download"`): the sha256 is the only integrity anchor because delivery is a CDN redirect. Redirects are walked manually with a strict policy: **every hop must be HTTPS**, the Bearer token is attached **only while the hop host is `civitai.com`** (delivery CDNs never see it), and the chain is capped at 5 hops.
+
+HF repo downloads acquire a **filtered** file list: repo-authored `.py` files are never fetched (no loader executes repo code), and pickle-bearing suffixes (`.ckpt`/`.pt`/`.pth`/`.bin`/`.pkl`) are fetched only when per-model pickle consent exists.
 
 Errors:
 
 - `404` — unknown `model_id`.
 - `409` — security consent missing (spec 5.3 rail, deny-by-default). `detail.error_code` is `"pickle-consent-required"` (record `format` is `pickle` and pickle consent has not been granted) or `"remote-code-consent-required"` (record sets `trust_remote_code` and remote-code consent has not been granted). Grant via `POST /api/models/consent`, then retry.
+- `503` — `detail.error_code` `"repo-signals-unverifiable"`: a transient HF record's full safety signals could not be fetched (offline / hub outage), so the download fails closed before any bytes move. Retry when online.
 
 #### `POST /api/models/{model_id}/download/{action}` — `tags=[Models]`, limit `30/min`
 
@@ -621,7 +630,7 @@ Errors:
   - `"pickle-consent-required"` — converting requires reading the pickle file; grant pickle consent first.
   - `"no-pickle-source"` — no local pickle file found for this model; download it first.
   - `"already-converted"` — a safetensors file already exists at the destination; it is never silently clobbered — delete it first to re-convert.
-- `422` — conversion failed (corrupt/unreadable source, disk error).
+- `422` — conversion failed (corrupt/unreadable source, disk error). Error details are path-free: source names appear as basenames only and OS errors surface only the exception type (full details go to server logs).
 - `503` — conversion unavailable: the backend is running in stub mode without `torch` installed.
 
 #### `GET /api/models/{model_id}/status` — `tags=[Models]`, limit `60/min`
@@ -1092,12 +1101,12 @@ for i, image in enumerate(data["images"]):
 | `403` | Forbidden | Missing/invalid `x-vision-studio-token` |
 | `404` | Not found | Missing job, model, library root, download job/action, or source file |
 | `409` | Conflict | `DELETE /api/models/{id}` on a linked library reference (remove its library root instead); consent/conversion conflicts on download + convert routes with `detail.error_code` ∈ `pickle-consent-required \| remote-code-consent-required \| no-pickle-source \| already-converted` |
-| `422` | Unprocessable | `POST /api/models/{id}/convert-safetensors` — conversion failed (corrupt/unreadable pickle source) |
+| `422` | Unprocessable | `POST /api/models/{id}/convert-safetensors` — conversion failed (corrupt/unreadable pickle source); `GET /api/models/search` — out-of-bounds query params (`page` outside 1–50, over-length `q`/`author`/`task`) |
 | `429` | Rate limited | Hit the per-IP rate limit; response includes `Retry-After` header and `{ "error": "Rate limit exceeded", "error_code": "RATE_LIMITED", "retry_after": "60" }` |
 | `500` | Server error | Generation/edit/service exception; `{ error, error_code }` body |
-| `503` | Unavailable | `POST /api/models/{id}/convert-safetensors` in stub mode — `torch` is not installed, conversion is unavailable |
+| `503` | Unavailable | `POST /api/models/{id}/convert-safetensors` in stub mode — `torch` is not installed, conversion is unavailable; `POST /api/models/{id}/download` with `detail.error_code` `repo-signals-unverifiable` — a transient HF record's full safety signals could not be fetched, so the download fails closed |
 | WS `1008` | Policy violation | Token mismatch on `/ws` |
 
 ---
 
-_Last verified against the codebase on 2026-06-10. Canonical source: `backend/main.py`, `backend/api/{controlnet,lora,edit,batch}.py`, `backend/foundry/{schemas,library_roots,index_service,hub_search,civitai_search,security_policy,download_manager,convert}.py`, `electron/preload.ts`, `electron/ipc-handlers/generation.ts`, `electron/services/mainIpc.ts`, `electron/main.ts`._
+_Last verified against the codebase on 2026-06-11. Canonical source: `backend/main.py`, `backend/api/{controlnet,lora,edit,batch}.py`, `backend/foundry/{schemas,library_roots,index_service,hub_search,civitai_search,security_policy,download_manager,convert}.py`, `electron/preload.ts`, `electron/ipc-handlers/generation.ts`, `electron/services/mainIpc.ts`, `electron/main.ts`._

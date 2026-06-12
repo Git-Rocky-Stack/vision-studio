@@ -181,6 +181,39 @@ class TransientLayerTests(unittest.TestCase):
         registry.register_transient([a])
         self.assertEqual(registry.get_record("search-hf--a")["status"], "not_found")
 
+    def test_is_transient_true_only_for_transient_layer(self):
+        # The enqueue boundary reclassifies ONLY transient (search-originated)
+        # records; catalog and indexed records must never be reported transient.
+        registry = make_registry()
+        a = ModelRecord(id="search-hf--a", name="a", artifact_type="checkpoint",
+                        capability="image", base_architecture="sdxl", source="huggingface")
+        registry.register_transient([a])
+        self.assertTrue(registry.is_transient("search-hf--a"))
+        catalog_id = next(iter(registry.records))
+        self.assertFalse(registry.is_transient(catalog_id))
+        self.assertFalse(registry.is_transient("ghost-id"))
+
+    def test_update_transient_refreshes_safety_fields(self):
+        # Full-signal reclassification at the download boundary writes the
+        # fresh verdict back so the UI and consent checks see the truth.
+        registry = make_registry()
+        a = ModelRecord(id="search-hf--a", name="a", artifact_type="checkpoint",
+                        capability="image", base_architecture="sdxl", source="huggingface",
+                        tier="compatible", tier_reason="stale", format="diffusers",
+                        trust_remote_code=False)
+        registry.register_transient([a])
+        registry.update_transient(
+            "search-hf--a", tier="experimental",
+            tier_reason="repo ships custom code", format=None,
+            trust_remote_code=True,
+        )
+        record = registry.get_record("search-hf--a")
+        self.assertEqual(record["tier"], "experimental")
+        self.assertEqual(record["tier_reason"], "repo ships custom code")
+        self.assertTrue(record["trust_remote_code"])
+        # Unknown ids are a safe no-op.
+        registry.update_transient("ghost-id", tier="experimental")
+
 
 if __name__ == "__main__":
     unittest.main()

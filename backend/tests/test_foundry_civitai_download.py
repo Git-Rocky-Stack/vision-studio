@@ -321,6 +321,92 @@ class CivitaiDownloadTests(unittest.IsolatedAsyncioTestCase):
         get.assert_not_called()
 
 
+class _RedirectResponse:
+    """A requests.Response shaped 3xx hop."""
+
+    def __init__(self, location: str, status_code: int = 302):
+        self.status_code = status_code
+        self.headers = {"Location": location}
+        self.closed = False
+
+    def close(self):
+        self.closed = True
+
+
+class RedirectPolicyTests(unittest.IsolatedAsyncioTestCase):
+    """Codex M4 review M-1: redirects are followed MANUALLY - every hop must
+    be https, the Bearer token is attached only while the hop host is
+    civitai.com (the CDN never sees it), and the chain is hop-capped. CDN
+    hostnames are deliberately not allowlisted by name (infra-volatile);
+    integrity is the mandatory sha256."""
+
+    async def _run(self, get, sha256, token=None):
+        manager = make_civitai_manager(sha256=sha256)
+        with mock.patch("requests.get", get), \
+                mock.patch("shutil.disk_usage", return_value=_disk(free=10 ** 12)):
+            manager.enqueue(MODEL_ID, token=token)
+            await _drain(manager)
+        return manager._jobs[MODEL_ID], get
+
+    async def test_https_redirect_followed_and_token_confined_to_first_hop(self):
+        payload = b"cdn-bytes"
+        get = mock.MagicMock(side_effect=[
+            _RedirectResponse("https://cdn.example-delivery.com/blob/9"),
+            _FakeResponse(payload),
+        ])
+        job, get = await self._run(
+            get, hashlib.sha256(payload).hexdigest(), token="civ_TOPSECRET"
+        )
+        self.assertEqual(job.status, "ready")
+        self.assertEqual(get.call_count, 2)
+        first_kwargs = get.call_args_list[0].kwargs
+        second_kwargs = get.call_args_list[1].kwargs
+        self.assertEqual(
+            first_kwargs.get("headers"), {"Authorization": "Bearer civ_TOPSECRET"}
+        )
+        # The CDN hop must NEVER see the token.
+        self.assertFalse(second_kwargs.get("headers"))
+        # And redirects are never delegated back to requests.
+        self.assertFalse(first_kwargs.get("allow_redirects", False))
+        self.assertFalse(second_kwargs.get("allow_redirects", False))
+
+    async def test_http_redirect_hop_refused(self):
+        get = mock.MagicMock(side_effect=[
+            _RedirectResponse("http://cdn.example-delivery.com/blob/9"),
+        ])
+        job, get = await self._run(get, "0" * 64)
+        self.assertEqual(job.status, "error")
+        self.assertIn("https", job.error)
+        self.assertEqual(get.call_count, 1)
+
+    async def test_redirect_chain_is_hop_capped(self):
+        get = mock.MagicMock(
+            return_value=_RedirectResponse("https://civitai.com/api/again")
+        )
+        job, get = await self._run(get, "0" * 64)
+        self.assertEqual(job.status, "error")
+        self.assertIn("redirect", job.error)
+        self.assertLessEqual(get.call_count, 5)
+
+    async def test_relative_location_resolves_against_current_url(self):
+        payload = b"relative-bytes"
+        get = mock.MagicMock(side_effect=[
+            _RedirectResponse("/api/download/cdn/9"),
+            _FakeResponse(payload),
+        ])
+        job, get = await self._run(get, hashlib.sha256(payload).hexdigest())
+        self.assertEqual(job.status, "ready")
+        second_url = get.call_args_list[1].args[0]
+        self.assertEqual(second_url, "https://civitai.com/api/download/cdn/9")
+
+    async def test_redirect_without_location_is_typed_error(self):
+        response = _RedirectResponse("ignored")
+        response.headers = {}
+        job, get = await self._run(mock.MagicMock(return_value=response), "0" * 64)
+        self.assertEqual(job.status, "error")
+        self.assertIn("redirect", job.error)
+
+
 class CivitaiDownloadRouteTests(unittest.TestCase):
     """The download route forwards X-Civitai-Token for civitai-source records."""
 

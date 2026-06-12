@@ -22,6 +22,8 @@ from fastapi.testclient import TestClient  # type: ignore[import-not-found]
 
 import main  # type: ignore[import-not-found]
 from foundry.download_manager import DownloadJob  # type: ignore[import-not-found]
+from foundry.hub_signals import RepoSignals  # type: ignore[import-not-found]
+from foundry.model_record import ModelRecord  # type: ignore[import-not-found]
 from foundry.security_policy import ConsentStore  # type: ignore[import-not-found]
 
 
@@ -131,6 +133,146 @@ class ConsentApiTests(unittest.TestCase):
         self.assertNotEqual(response.status_code, 409)
         self.assertEqual(response.status_code, 202)
         enq.assert_called_once()
+
+
+TRANSIENT_ID = "search-hf--org-cool-model"
+TRANSIENT_REPO = "org/cool-model"
+
+
+def _transient_record(**overrides) -> ModelRecord:
+    fields = dict(
+        id=TRANSIENT_ID, name="cool-model", artifact_type="diffusers-pipeline",
+        capability="image", base_architecture="sdxl", source="huggingface",
+        repo_id=TRANSIENT_REPO, status="not_found", tier="compatible",
+        tier_reason="diffusers sdxl - safetensors tag - no remote code",
+        format="diffusers", trust_remote_code=False,
+    )
+    fields.update(overrides)
+    return ModelRecord(**fields)
+
+
+def _full_signals(**overrides) -> RepoSignals:
+    base = dict(
+        repo_id=TRANSIENT_REPO, reachable=True, library_name="diffusers",
+        tags=["diffusers:StableDiffusionXLPipeline", "safetensors"],
+        class_name="StableDiffusionXLPipeline",
+        siblings=["model_index.json", "unet/diffusion_pytorch_model.safetensors"],
+        has_safetensors=True,
+    )
+    base.update(overrides)
+    return RepoSignals(**base)
+
+
+class SupplyChainGateTests(unittest.TestCase):
+    """Codex M4 review H-1: search-tier verdicts come from PARTIAL listing
+    data, so the download boundary re-fetches full repo signals and
+    reclassifies transient HF records BEFORE the consent checks run. Stale
+    or crafted search records can never talk their way past consent."""
+
+    def setUp(self):
+        self.client = TestClient(main.app)
+        self.tmp = tempfile.mkdtemp(prefix="foundry-gate-api-")
+        self._real_store = main.consent_store
+        main.consent_store = ConsentStore(os.path.join(self.tmp, "consents.json"))
+        main.model_registry.register_transient([_transient_record()])
+
+    def tearDown(self):
+        main.model_registry.register_transient([])
+        main.consent_store = self._real_store
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def test_remote_code_revealed_at_enqueue_is_409(self):
+        # The transient record claims compatible/no-remote-code, but the full
+        # census reveals repo-authored Python: consent is required and the
+        # record is downgraded so the UI tells the truth.
+        signals = _full_signals(
+            py_file_count=2,
+            siblings=["pipeline.py", "unet/diffusion_pytorch_model.safetensors"],
+        )
+        with mock.patch.object(main, "fetch_repo_signals", return_value=signals):
+            response = self.client.post(f"/api/models/{TRANSIENT_ID}/download")
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(
+            response.json()["detail"]["error_code"], "remote-code-consent-required"
+        )
+        refreshed = self.client.get(f"/api/models/{TRANSIENT_ID}").json()
+        self.assertEqual(refreshed["tier"], "experimental")
+        self.assertTrue(refreshed["trust_remote_code"])
+
+    def test_pickle_only_revealed_at_enqueue_is_409(self):
+        signals = _full_signals(
+            tags=["diffusers:StableDiffusionXLPipeline"],
+            siblings=["model_index.json", "unet/diffusion_pytorch_model.bin"],
+            has_safetensors=False,
+        )
+        with mock.patch.object(main, "fetch_repo_signals", return_value=signals):
+            response = self.client.post(f"/api/models/{TRANSIENT_ID}/download")
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(
+            response.json()["detail"]["error_code"], "pickle-consent-required"
+        )
+
+    def test_unverifiable_signals_fail_closed_with_503(self):
+        unreachable = RepoSignals(repo_id=TRANSIENT_REPO, reachable=False)
+        with mock.patch.object(
+            main, "fetch_repo_signals", return_value=unreachable
+        ), mock.patch.object(main.download_manager, "enqueue") as enq:
+            response = self.client.post(f"/api/models/{TRANSIENT_ID}/download")
+        self.assertEqual(response.status_code, 503)
+        self.assertEqual(
+            response.json()["detail"]["error_code"], "repo-signals-unverifiable"
+        )
+        enq.assert_not_called()
+
+    def test_clean_full_signals_proceed_to_enqueue(self):
+        job = DownloadJob(model_id=TRANSIENT_ID, status="queued", total_bytes=0)
+        with mock.patch.object(
+            main, "fetch_repo_signals", return_value=_full_signals()
+        ) as fetch, mock.patch.object(
+            main.download_manager, "enqueue", return_value=job
+        ) as enq:
+            response = self.client.post(
+                f"/api/models/{TRANSIENT_ID}/download",
+                headers={"X-HF-Token": "hf_secret_999"},
+            )
+        self.assertEqual(response.status_code, 202)
+        enq.assert_called_once()
+        fetch.assert_called_once()
+        self.assertEqual(fetch.call_args.args[0], TRANSIENT_REPO)
+        # The per-request token funds the verification fetch too - and never leaks.
+        self.assertEqual(fetch.call_args.kwargs.get("token"), "hf_secret_999")
+        self.assertNotIn("hf_secret_999", response.text)
+
+    def test_non_transient_records_skip_reclassification(self):
+        job = DownloadJob(model_id="m-test", status="queued", total_bytes=0)
+        with mock.patch.object(
+            main.model_registry, "get_record", return_value=_record()
+        ), mock.patch.object(
+            main, "fetch_repo_signals"
+        ) as fetch, mock.patch.object(
+            main.download_manager, "enqueue", return_value=job
+        ):
+            response = self.client.post("/api/models/m-test/download")
+        self.assertEqual(response.status_code, 202)
+        fetch.assert_not_called()
+
+    def test_civitai_transient_records_skip_hf_reclassification(self):
+        # CivitAI verdicts come from explicit per-file metadata (positive
+        # SafeTensor marker, mandatory sha256) - there is no HF census to run.
+        civitai_id = "search-civitai--7-9"
+        record = _transient_record(
+            id=civitai_id, source="civitai", repo_id=None,
+            artifact_type="lora", format="safetensors",
+            download_url="https://civitai.com/api/download/models/99",
+            sha256="0" * 64,
+        )
+        main.model_registry.register_transient([record])
+        job = DownloadJob(model_id=civitai_id, status="queued", total_bytes=0)
+        with mock.patch.object(main, "fetch_repo_signals") as fetch, \
+                mock.patch.object(main.download_manager, "enqueue", return_value=job):
+            response = self.client.post(f"/api/models/{civitai_id}/download")
+        self.assertEqual(response.status_code, 202)
+        fetch.assert_not_called()
 
 
 class ConvertApiTests(unittest.TestCase):

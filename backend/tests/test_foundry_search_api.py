@@ -120,6 +120,23 @@ class SearchApiTests(unittest.TestCase):
         # Tokens are per-request locals - never echoed back.
         self.assertNotIn("civ_secret_456", opted_in.text)
 
+    def test_search_param_bounds_are_enforced(self):
+        # Codex M4 review M-2: page drove limit=page*page_size on the HF call,
+        # so one local request could amplify into an unbounded hub request.
+        with mock.patch.object(main.hub_search, "search_hf", return_value=[]):
+            cases = [
+                ({"q": "x", "page": "0"}, 422),
+                ({"q": "x", "page": "51"}, 422),
+                ({"q": "x", "page": "-3"}, 422),
+                ({"q": "a" * 300}, 422),
+                ({"q": "x", "author": "a" * 200}, 422),
+                ({"q": "x", "page": "50"}, 200),  # the boundary itself is valid
+            ]
+            for params, expected in cases:
+                with self.subTest(params=params):
+                    response = self.client.get("/api/models/search", params=params)
+                    self.assertEqual(response.status_code, expected)
+
     def test_hf_token_header_reaches_hfapi_and_never_leaks(self):
         # HfApi is imported inside the route, so patch the import source.
         with mock.patch("huggingface_hub.HfApi") as hf_api, mock.patch.object(

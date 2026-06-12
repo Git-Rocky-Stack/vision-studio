@@ -200,6 +200,11 @@ def classify_repo(signals: RepoSignals, verified_repo_ids: Set[str]) -> TierVerd
                     format="diffusers",
                 )
             if signals.partial and signals.has_safetensors:
+                # PROVISIONAL: partial (listing-level) signals carry no
+                # file/config census, so this branch cannot prove "no remote
+                # code". Callers MUST re-verify against full repo signals
+                # before surfacing or acting on this verdict - hub_search
+                # does (display) and enqueue_download does (boundary).
                 return TierVerdict(
                     "compatible",
                     f"diffusers {family} ({signals.class_name}) - safetensors tag - no remote code",

@@ -41,6 +41,18 @@ class ConvertTests(unittest.TestCase):
         self.assertIn("w", saved)
         self.assertNotIn("epoch", saved)
 
+    def test_no_tensors_error_names_basename_not_full_path(self):
+        # Codex M4 review L-1: the route echoes this message to the renderer;
+        # absolute local paths stay in logs, never in API error details.
+        torch = MagicMock()
+        torch.load.return_value = {"epoch": 3}
+        st = MagicMock()
+        with patch.dict(sys.modules, {"torch": torch, "safetensors": MagicMock(torch=st), "safetensors.torch": st}):
+            with self.assertRaises(ValueError) as ctx:
+                convert_pickle_to_safetensors(r"C:\secret\dir\model.ckpt", "out.safetensors")
+        self.assertIn("model.ckpt", str(ctx.exception))
+        self.assertNotIn("secret", str(ctx.exception))
+
     def test_save_goes_through_temp_then_replace(self):
         torch = MagicMock()
         torch.load.return_value = {"w": MagicMock(shape=(1,))}

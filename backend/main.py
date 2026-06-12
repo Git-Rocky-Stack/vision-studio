@@ -47,7 +47,7 @@ from contextlib import asynccontextmanager
 import imageio.v2 as imageio
 import imageio_ffmpeg
 import numpy as np
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, BackgroundTasks, Request, Response
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, BackgroundTasks, Query, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -68,6 +68,8 @@ from api.controlnet import router as controlnet_router
 from db.migrate import run_migrations
 from middleware.rate_limit import limiter, rate_limit_exceeded_handler
 from foundry import civitai_search, hub_search
+from foundry.classifier import classify_repo
+from foundry.hub_signals import fetch_repo_signals
 from foundry.model_record import ModelRecord
 from foundry.registry import ModelRegistry
 from foundry.schemas import (
@@ -156,6 +158,11 @@ index_service = IndexService(
     state_path=os.path.join(_FOUNDRY_STATE_DIR, "index_state.json"),
 )
 consent_store = ConsentStore(os.path.join(_FOUNDRY_STATE_DIR, "consents.json"))
+# Late-bind (like the registry above): the manager filters pickle-bearing
+# files out of repo downloads unless per-model consent exists (review H-2).
+# Routed through the module attribute so tests that swap main.consent_store
+# are honored.
+download_manager._consent_lookup = lambda model_id: consent_store.get(model_id)
 
 
 def _verified_repo_ids() -> set:
@@ -1586,13 +1593,13 @@ async def set_consent(request: Request, body: ConsentRequestSchema):
 @limiter.limit("30/minute")
 async def search_models(
     request: Request,
-    q: str = "",
-    source: str = "hf",
-    task: Optional[str] = None,
-    sort: str = "downloads",
-    page: int = 1,
+    q: str = Query("", max_length=256),
+    source: str = Query("hf", max_length=16),
+    task: Optional[str] = Query(None, max_length=64),
+    sort: str = Query("downloads", max_length=32),
+    page: int = Query(1, ge=1, le=50),
     nsfw: bool = False,
-    author: Optional[str] = None,
+    author: Optional[str] = Query(None, max_length=128),
 ):
     """Search HF or CivitAI. Offline-degrading: failures return offline=True,
     never a 5xx - the local library stays fully operational (spec 5.1).
@@ -1600,6 +1607,10 @@ async def search_models(
     Declared BEFORE the dynamic /api/models/{model_id} route so the literal
     'search' path is not captured as a model id. Hub tokens arrive per-request
     in headers (Electron safeStorage); NEVER persisted in Python, NEVER logged.
+
+    Param bounds (review M-2): page is clamped because the HF call requests
+    limit=page*page_size - without the cap one local request could amplify
+    into an unbounded hub request. Violations are FastAPI-native 422s.
     """
     if source not in ("hf", "civitai"):
         raise HTTPException(status_code=400, detail="source must be 'hf' or 'civitai'")
@@ -1615,6 +1626,9 @@ async def search_models(
                 lambda: hub_search.search_hf(
                     api, query=q, verified_repo_ids=_verified_repo_ids(),
                     task=task, sort=sort, page=page, author=author,
+                    # Full-signal verification of Compatible candidates
+                    # (review H-1) rides the same per-request token.
+                    fetch_signals=lambda rid: fetch_repo_signals(rid, token=hf_token),
                 ),
             )
         else:
@@ -1659,6 +1673,36 @@ async def enqueue_download(request: Request, model_id: str):
     record = model_registry.get_record(model_id)
     if record is None:
         raise HTTPException(status_code=404, detail=f"Model '{model_id}' not found")
+    # Supply-chain boundary (review H-1): transient HF records carry verdicts
+    # classified from PARTIAL listing data, which cannot prove "no remote
+    # code" or "safetensors tree". Re-fetch full signals and reclassify HERE,
+    # before the consent checks, so a stale or crafted search record can
+    # never talk its way past consent. CivitAI records are exempt: their
+    # verdicts come from explicit per-file metadata (positive SafeTensor
+    # marker) and integrity is the mandatory sha256.
+    if (
+        model_registry.is_transient(model_id)
+        and record.get("source") != "civitai"
+        and record.get("repo_id")
+    ):
+        hf_token = request.headers.get("X-HF-Token")
+        loop = asyncio.get_running_loop()
+        signals = await loop.run_in_executor(
+            None, lambda: fetch_repo_signals(record["repo_id"], token=hf_token)
+        )
+        if not signals.reachable:
+            # Fail closed: if safety signals cannot be verified, the bytes
+            # cannot be acquired. (Downloads need the network anyway.)
+            raise HTTPException(status_code=503, detail={
+                "error_code": "repo-signals-unverifiable",
+                "message": "Could not verify the repo's safety signals (remote code / weight format). Check your connection and try again.",
+            })
+        verdict = classify_repo(signals, _verified_repo_ids())
+        model_registry.update_transient(
+            model_id, tier=verdict.tier, tier_reason=verdict.reason,
+            format=verdict.format, trust_remote_code=verdict.trust_remote_code,
+        )
+        record = model_registry.get_record(model_id)
     # Spec 5.3 security rail: pickle weights and trust_remote_code are
     # deny-by-default - downloads are blocked until per-model consent exists.
     consent = consent_store.get(model_id)
@@ -1741,8 +1785,14 @@ async def convert_model_to_safetensors(request: Request, model_id: str):
             None, convert_pickle_to_safetensors, src, dest)
     except ConvertUnavailableError as exc:
         raise HTTPException(status_code=503, detail=str(exc))
-    except (ValueError, OSError) as exc:
+    except ValueError as exc:
+        # convert.py keeps these messages path-free (basename only).
         raise HTTPException(status_code=422, detail=f"conversion failed: {exc}")
+    except OSError as exc:
+        # OS error strings embed absolute local paths - surface the type only
+        # (review L-1); the full detail belongs in server logs.
+        logger.warning("convert-safetensors OS error for %s: %s", model_id, exc)
+        raise HTTPException(status_code=422, detail=f"conversion failed: {type(exc).__name__}")
     return ConvertResultSchema(model_id=model_id, safetensors_path=dest, tensor_count=tensor_count)
 
 
