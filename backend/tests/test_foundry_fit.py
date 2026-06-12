@@ -67,6 +67,33 @@ class EstimateTests(unittest.TestCase):
         )
         self.assertEqual(estimate.total_bytes, 5 * 2**30)
         self.assertEqual(estimate.basis, "measured")
+        # The decomposition stays honest: weights remain the exact computed
+        # bytes; the measurement's remainder is the non-weight component.
+        self.assertEqual(estimate.weight_bytes, 2 * 2**30)
+        self.assertEqual(estimate.activation_bytes + estimate.runtime_bytes, 3 * 2**30)
+        self.assertEqual(
+            estimate.total_bytes,
+            estimate.weight_bytes + estimate.activation_bytes + estimate.runtime_bytes,
+        )
+
+    def test_measured_below_computed_weights_clamps(self):
+        estimate = estimate_vram(
+            weight_bytes_native=4 * 2**30, native_bytes_per_param=4,
+            target_precision="fp32", family="sd15",
+            measured_total_bytes=1 * 2**30,
+        )
+        self.assertEqual(estimate.total_bytes, 1 * 2**30)
+        self.assertEqual(estimate.weight_bytes, 1 * 2**30)
+        self.assertEqual(estimate.activation_bytes, 0)
+
+    def test_zero_or_negative_measurement_is_not_a_measurement(self):
+        for bogus in (0, -5):
+            estimate = estimate_vram(
+                weight_bytes_native=4 * 2**30, native_bytes_per_param=4,
+                target_precision="fp16", family="sd15",
+                measured_total_bytes=bogus,
+            )
+            self.assertEqual(estimate.basis, "estimated")
 
     def test_unknown_family_gets_widest_band(self):
         known = estimate_vram(2**30, 4, "fp16", "sd15")
@@ -115,6 +142,30 @@ class HardwareFitTests(unittest.TestCase):
     def test_fits_when_total_within_free_vram(self):
         verdict = hardware_fit(_estimate(8 * 2**30), _profile())
         self.assertEqual(verdict, "fits")
+
+    def test_measured_over_budget_is_honest(self):
+        # Regression: the measured branch must keep a real weights/non-weights
+        # decomposition or over-budget becomes structurally unreachable for
+        # measured models (40 GiB measured on 1 GiB VRAM + 1 GiB RAM).
+        estimate = estimate_vram(
+            weight_bytes_native=38 * 2**30, native_bytes_per_param=2,
+            target_precision="fp16", family="flux",
+            measured_total_bytes=40 * 2**30,
+        )
+        profile = _profile(
+            vram_free_bytes=1 * 2**30, vram_total_bytes=1 * 2**30,
+            system_ram_available_bytes=1 * 2**30,
+        )
+        self.assertEqual(hardware_fit(estimate, profile), "over-budget")
+
+    def test_measured_offload_still_reachable(self):
+        # Weights fit in RAM, the measured non-weight remainder fits in VRAM.
+        estimate = estimate_vram(
+            weight_bytes_native=11 * 2**30, native_bytes_per_param=2,
+            target_precision="fp16", family="sdxl",
+            measured_total_bytes=14 * 2**30,
+        )
+        self.assertEqual(hardware_fit(estimate, _profile()), "fits-with-offload")
 
     def test_fits_with_offload_when_weights_fit_in_ram(self):
         # 16 GiB total > 10 free VRAM, but offloadable weights fit in RAM.

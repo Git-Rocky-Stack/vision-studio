@@ -71,19 +71,31 @@ def estimate_vram(
     measured_total_bytes: Optional[int] = None,
 ) -> VramEstimate:
     """Compose the plan-time VRAM budget for a model at a target precision."""
-    if measured_total_bytes:
-        return VramEstimate(
-            weight_bytes=0, activation_bytes=0, runtime_bytes=0,
-            total_bytes=int(measured_total_bytes), basis="measured",
-        )
     target_bytes = PRECISION_BYTES.get(target_precision, 4)
-    weights = (weight_bytes_native * target_bytes) // max(1, native_bytes_per_param)
+    weights = int((weight_bytes_native * target_bytes) // max(1, native_bytes_per_param))
+    if measured_total_bytes and measured_total_bytes > 0:
+        # A measurement anchors the TOTAL, but hardware_fit's offload rung
+        # still needs the weights/non-weights split: weights stay exact
+        # (computed, clamped to the measurement) and the measurement's
+        # remainder lands in activation_bytes (runtime folded in - a single
+        # measured total carries no finer decomposition). Zeroing the
+        # components instead would make over-budget structurally unreachable
+        # for measured models.
+        measured = int(measured_total_bytes)
+        measured_weights = min(weights, measured)
+        return VramEstimate(
+            weight_bytes=measured_weights,
+            activation_bytes=measured - measured_weights,
+            runtime_bytes=0,
+            total_bytes=measured,
+            basis="measured",
+        )
     activation = ACTIVATION_BAND_BYTES.get(family or "", _UNKNOWN_ACTIVATION_BAND)
     return VramEstimate(
-        weight_bytes=int(weights),
+        weight_bytes=weights,
         activation_bytes=activation,
         runtime_bytes=RUNTIME_BAND_BYTES,
-        total_bytes=int(weights) + activation + RUNTIME_BAND_BYTES,
+        total_bytes=weights + activation + RUNTIME_BAND_BYTES,
         basis="estimated",
     )
 
