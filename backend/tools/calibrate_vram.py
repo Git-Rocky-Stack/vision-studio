@@ -14,6 +14,8 @@ Refuses to run without CUDA: estimates must never masquerade as measured.
 from __future__ import annotations
 
 import argparse
+import contextlib
+import gc
 import json
 import os
 import sys
@@ -67,7 +69,6 @@ _BACKEND_ROOT = Path(__file__).resolve().parent.parent
 if str(_BACKEND_ROOT) not in sys.path:
     sys.path.insert(0, str(_BACKEND_ROOT))
 
-from foundry.model_record import load_catalog  # noqa: E402
 from utils.direct_generator import ModelLoadRefusedError, resolve_plan  # noqa: E402
 from utils.direct_video_generator import DirectVideoGenerator  # noqa: E402
 
@@ -76,17 +77,13 @@ from utils.direct_video_generator import DirectVideoGenerator  # noqa: E402
 # Registry helpers
 # ---------------------------------------------------------------------------
 
-def _catalog_path() -> str:
-    return str(_BACKEND_ROOT / "foundry" / "verified-catalog.json")
-
-
 def _ready_model_ids() -> List[str]:
     """Return all catalog ids whose record currently reports status == 'ready'.
 
-    We read the catalog raw and then ask the running registry (via main's
-    model_registry) for live status so the status_provider (model_manager)
-    is consulted. On a calibration machine models are expected to be present
-    so this usually resolves to 'ready' via the dir-presence fallback.
+    get_record consults the registry's status_provider (model_manager), so
+    each id's status reflects live disk state. On a calibration machine the
+    models are expected to be present, so this usually resolves to 'ready'
+    via the dir-presence fallback.
 
     Import choice: resolve_plan already drags in `main` (it needs MODELS_DIR,
     consent_store, and probe_hardware to build the plan), so re-using main's
@@ -101,9 +98,8 @@ def _ready_model_ids() -> List[str]:
 
     return [
         record_id
-        for record_id, record in model_registry.records.items()
-        if model_registry.get_record(record_id, )  # triggers reconciliation
-        and (model_registry.get_record(record_id) or {}).get("status") == "ready"
+        for record_id in model_registry.records
+        if (model_registry.get_record(record_id) or {}).get("status") == "ready"
     ]
 
 
@@ -122,14 +118,37 @@ def _run_image_inference(pipeline: Any) -> None:
         )
 
 
-def _run_video_inference(pipeline: Any) -> None:
+def _run_inpaint_inference(pipeline: Any) -> None:
+    """One 128x128 / 2-step image+mask pass for inpaint pipelines.
+
+    Inpaint pipelines (FluxFillPipeline) require image and mask_image and
+    crash in preprocess on a prompt-only call — feed a tiny dummy canvas
+    with a full-white mask (inpaint everything). Kwarg names verified
+    against the installed diffusers FluxFillPipeline.__call__ signature.
+    """
+    from PIL import Image as _Image  # noqa: PLC0415
+
+    image = _Image.new("RGB", (128, 128))
+    mask = _Image.new("L", (128, 128), 255)
+    with torch.inference_mode():
+        pipeline(
+            prompt="a red circle",
+            image=image,
+            mask_image=mask,
+            num_inference_steps=2,
+            height=128,
+            width=128,
+        )
+
+
+def _run_video_inference(pipeline: Any, plan: Any) -> None:
     """One minimal-frame inference pass for video pipelines."""
     with torch.inference_mode():
-        # SVD requires an input image; for the others a plain text prompt works.
-        # We detect by checking whether the pipeline class name contains 'Video'.
-        cls_name = type(pipeline).__name__
-        if "StableVideo" in cls_name:
-            from PIL import Image as _Image
+        # svd is the only image-conditioned video pipeline in the catalog;
+        # key on the plan's own pipeline_class field (exact equality against
+        # the plan-declared class — never substring-sniffing the live object).
+        if str(plan.pipeline_class) == "StableVideoDiffusionPipeline":
+            from PIL import Image as _Image  # noqa: PLC0415
             dummy = _Image.new("RGB", (128, 128), color=(128, 128, 128))
             pipeline(
                 dummy,
@@ -148,6 +167,29 @@ def _run_video_inference(pipeline: Any) -> None:
             )
 
 
+def _measured_precision(pipeline: Any) -> Optional[str]:
+    """Map the pipeline's ACTUAL weight dtype to a catalog precision string.
+
+    DiffusionPipeline.dtype is a property returning the first nn.Module
+    component's dtype; fall back to the transformer/unet component directly
+    if it is unreadable. Returns None when no recognizable dtype is found.
+    """
+    dtype = getattr(pipeline, "dtype", None)
+    if not isinstance(dtype, torch.dtype):
+        for component_name in ("transformer", "unet"):
+            component_dtype = getattr(
+                getattr(pipeline, component_name, None), "dtype", None
+            )
+            if isinstance(component_dtype, torch.dtype):
+                dtype = component_dtype
+                break
+    return {
+        torch.bfloat16: "bf16",
+        torch.float16: "fp16",
+        torch.float32: "fp32",
+    }.get(dtype)
+
+
 # ---------------------------------------------------------------------------
 # Per-model calibration
 # ---------------------------------------------------------------------------
@@ -160,7 +202,9 @@ def _calibrate_one(
     """Load model_id, run one tiny inference, return measurement dict or None.
 
     Returns None on any failure (plan refusal, OOM, load error) — a partial
-    patch of real numbers is better than an aborted run.
+    patch of real numbers is better than an aborted run. All generator
+    chatter (construction banners, "Loading model:", OOM rung messages) is
+    redirected to stderr so stdout carries ONLY the final JSON patch.
     """
     print(f"  calibrating {model_id} ...", file=sys.stderr)
 
@@ -178,62 +222,94 @@ def _calibrate_one(
         print(f"  SKIP {model_id}: plan.refusal = {plan.refusal!r}", file=sys.stderr)
         return None
 
-    # -- load via the correct generator -------------------------------------
-    # capability comes from the catalog record; read it back via plan indirectly
-    # by checking the plan's pipeline_class name for known video classes.
-    _VIDEO_PIPELINE_NAMES = {
-        "StableVideoDiffusionPipeline",
-        "LTXPipeline",
-        "AnimateDiffPipeline",
-    }
-    is_video = str(plan.pipeline_class) in _VIDEO_PIPELINE_NAMES
+    # -- route by the record's capability (never name-sniffed) ---------------
+    # Lazy import: same `main` seam _ready_model_ids uses; resolve_plan has
+    # already imported main by this point, so this is a cache hit.
+    from main import model_registry  # noqa: PLC0415
+
+    record = model_registry.get_record(model_id) or {}
+    capability = record.get("capability") or "image"
 
     torch.cuda.reset_peak_memory_stats(0)
 
+    gen: Any = None
+    pipeline: Any = None
+    result: Optional[Dict[str, Any]] = None
     try:
-        if is_video:
-            gen = DirectVideoGenerator(models_dir=models_dir, output_dir=output_dir)
-            pipeline = gen.load_model(model_id)
-            _run_video_inference(pipeline)
-            # unload
-            del gen.pipelines[model_id]
-        else:
-            from utils.direct_generator import DirectGenerator  # noqa: PLC0415
-            gen = DirectGenerator(models_dir=models_dir, output_dir=output_dir)
-            pipeline = gen.load_model(model_id)
-            _run_image_inference(pipeline)
-            # unload
-            del gen.pipelines[model_id]
+        # The Task 11 generators print progress to stdout; the redirect keeps
+        # the stdout-is-pure-JSON contract intact without touching them.
+        with contextlib.redirect_stdout(sys.stderr):
+            if capability == "video":
+                gen = DirectVideoGenerator(models_dir=models_dir, output_dir=output_dir)
+            else:
+                from utils.direct_generator import DirectGenerator  # noqa: PLC0415
+                gen = DirectGenerator(models_dir=models_dir, output_dir=output_dir)
 
-        del pipeline
+            pipeline = gen.load_model(model_id)
+
+            if capability == "video":
+                _run_video_inference(pipeline, plan)
+            elif capability == "inpaint":
+                _run_inpaint_inference(pipeline)
+            else:
+                _run_image_inference(pipeline)
+
+        # Peak numbers are captured BEFORE the finally-block cleanup frees
+        # anything. reserved is what the allocator actually held at peak —
+        # the number the user's GPU must accommodate, not just what tensors
+        # occupied.
+        reserved = torch.cuda.max_memory_reserved(0)
+        allocated = torch.cuda.max_memory_allocated(0)
+
+        # load_model resolves its OWN plan and may consume OOM fallback rungs
+        # (precision:fp16, offload:cpu) — the tool-side plan can therefore lie
+        # about the dtype the measurement was actually taken at. Bless the
+        # pipeline's REAL dtype, never the planned one.
+        planned_precision = str(plan.precision)
+        measured_precision = _measured_precision(pipeline)
+        if measured_precision is None:
+            print(
+                f"  WARN  {model_id}: pipeline dtype unreadable; "
+                f"reporting planned precision '{planned_precision}'",
+                file=sys.stderr,
+            )
+            measured_precision = planned_precision
+        elif measured_precision != planned_precision:
+            print(
+                f"  NOTE  {model_id}: ladder fired: planned {planned_precision}, "
+                f"measured at {measured_precision}",
+                file=sys.stderr,
+            )
+
+        print(
+            f"  OK    {model_id}: reserved={reserved / 1e9:.2f} GB  "
+            f"allocated={allocated / 1e9:.2f} GB",
+            file=sys.stderr,
+        )
+
+        result = {
+            "measured_vram_bytes": reserved,
+            "precision": measured_precision,
+            "torch": torch.__version__,
+            "gpu": torch.cuda.get_device_name(0),
+        }
     except torch.cuda.OutOfMemoryError as exc:
         print(f"  FAIL {model_id}: OOM — {exc}", file=sys.stderr)
-        torch.cuda.empty_cache()
-        return None
     except Exception as exc:  # noqa: BLE001
         print(f"  FAIL {model_id}: load/infer error — {exc}", file=sys.stderr)
+    finally:
+        # Cross-model isolation: drop the generator's held ref and the locals
+        # FIRST, then gc.collect() (offload hooks create reference cycles that
+        # survive `del`), THEN empty_cache() so the allocator actually releases
+        # the blocks before the next model resets peak stats and measures.
+        if gen is not None:
+            gen.pipelines.pop(model_id, None)
+        gen = None
+        pipeline = None
+        gc.collect()
         torch.cuda.empty_cache()
-        return None
 
-    # reserved is what the allocator actually held at peak — this is the
-    # number the user's GPU must accommodate, not just what tensors occupied.
-    reserved = torch.cuda.max_memory_reserved(0)
-    allocated = torch.cuda.max_memory_allocated(0)
-
-    print(
-        f"  OK    {model_id}: reserved={reserved / 1e9:.2f} GB  "
-        f"allocated={allocated / 1e9:.2f} GB",
-        file=sys.stderr,
-    )
-
-    torch.cuda.empty_cache()
-
-    return {
-        "measured_vram_bytes": reserved,
-        "precision": str(plan.precision),
-        "torch": torch.__version__,
-        "gpu": torch.cuda.get_device_name(0),
-    }
+    return result
 
 
 # ---------------------------------------------------------------------------
