@@ -61,7 +61,8 @@ class TierVerdict:
     reason: str          # one-line tier_reason, always set
     available: bool = True
     trust_remote_code: bool = False
-    format: Optional[str] = None  # safetensors | pickle | diffusers
+    format: Optional[str] = None   # safetensors | pickle | diffusers
+    family: Optional[str] = None   # M5: sdxl|sd15|sd35|flux|ltx|svd|animatediff
 
 
 def tree_weight_format(siblings: List[str]) -> Tuple[int, int, int, int]:
@@ -128,33 +129,35 @@ def lora_base_family(tags: List[str]) -> Optional[str]:
     return None
 
 
-def indexed_tier(artifact_type: str, keys: List[str]) -> Tuple[str, str]:
+def indexed_tier(artifact_type: str, family: Optional[str]) -> Tuple[str, str, Optional[str]]:
     """Post-index tier for a locally indexed artifact (spec 5.2 upgrade/downgrade).
 
     Bounded by load paths that exist today (Spike C adjustment 4): standalone
     loras load via load_lora_weights -> compatible; single-file checkpoints
     wait for from_single_file wiring in M5 -> experimental, honestly reasoned.
+
+    Returns (tier, reason, family_out). family_out echoes the input family for
+    recognized families, None otherwise (M5 structured field).
     """
     if artifact_type == "lora":
-        family = lora_family_from_keys(keys)
         if family in ("sdxl", "sd-unet-family", "flux"):
-            return "compatible", f"indexed {family} lora - loads via load_lora_weights"
-        return "experimental", "indexed lora - base family unrecognized from header"
+            return "compatible", f"indexed {family} lora - loads via load_lora_weights", family
+        return "experimental", "indexed lora - base family unrecognized from header", None
     if artifact_type == "checkpoint":
-        return "experimental", "indexed single-file checkpoint - load path lands with M5 from_single_file"
+        return "experimental", "indexed single-file checkpoint - load path lands with M5 from_single_file", None
     if artifact_type in ("vae", "controlnet"):
-        return "experimental", f"indexed loose {artifact_type} - wiring lands with M5 runtime resolution"
+        return "experimental", f"indexed loose {artifact_type} - wiring lands with M5 runtime resolution", None
     if artifact_type == "diffusers-pipeline":
-        return "experimental", "indexed diffusers directory - load wiring lands with M5 runtime resolution"
-    return "experimental", "indexed artifact of unrecognized type"
+        return "experimental", "indexed diffusers directory - load wiring lands with M5 runtime resolution", None
+    return "experimental", "indexed artifact of unrecognized type", None
 
 
 def classify_repo(signals: RepoSignals, verified_repo_ids: Set[str]) -> TierVerdict:
     """The 8-rule ladder. First match wins; default Experimental.
 
-    NOTE: hub_search._family_from_reason parses family tokens out of the
-    reason strings below - keep family names lowercase and space-delimited
-    when rewording. (M5: promote family to a TierVerdict field instead.)
+    Every Compatible verdict carries a structured family field (M5). Verified
+    verdicts omit family (the catalog record owns that metadata). Experimental
+    defaults stay None.
     """
     # 1 - catalog authority (even if the hub copy is gone; bytes may be local).
     if signals.repo_id in verified_repo_ids:
@@ -185,19 +188,21 @@ def classify_repo(signals: RepoSignals, verified_repo_ids: Set[str]) -> TierVerd
 
     # 5 - explicit class signal.
     if signals.class_name:
-        family = FAMILY_BY_CLASS.get(signals.class_name)
+        cls_family = FAMILY_BY_CLASS.get(signals.class_name)
         if signals.class_name in SHIPPED_PIPELINES:
             if signals.gated:
                 return TierVerdict(
                     "compatible",
-                    f"diffusers {family} ({signals.class_name}) - gated; format verified after license accept",
+                    f"diffusers {cls_family} ({signals.class_name}) - gated; format verified after license accept",
                     format="diffusers",
+                    family=cls_family,
                 )
             if comp_st:
                 return TierVerdict(
                     "compatible",
-                    f"diffusers {family} ({signals.class_name}) - safetensors - no remote code",
+                    f"diffusers {cls_family} ({signals.class_name}) - safetensors - no remote code",
                     format="diffusers",
+                    family=cls_family,
                 )
             if signals.partial and signals.has_safetensors:
                 # PROVISIONAL: partial (listing-level) signals carry no
@@ -207,8 +212,9 @@ def classify_repo(signals: RepoSignals, verified_repo_ids: Set[str]) -> TierVerd
                 # does (display) and enqueue_download does (boundary).
                 return TierVerdict(
                     "compatible",
-                    f"diffusers {family} ({signals.class_name}) - safetensors tag - no remote code",
+                    f"diffusers {cls_family} ({signals.class_name}) - safetensors tag - no remote code",
                     format="diffusers",
+                    family=cls_family,
                 )
             return TierVerdict(
                 "experimental",
@@ -221,6 +227,7 @@ def classify_repo(signals: RepoSignals, verified_repo_ids: Set[str]) -> TierVerd
                     "compatible",
                     f"{signals.class_name} component - safetensors - no remote code",
                     format="safetensors",
+                    family=cls_family,
                 )
             return TierVerdict(
                 "experimental",
@@ -240,6 +247,7 @@ def classify_repo(signals: RepoSignals, verified_repo_ids: Set[str]) -> TierVerd
                 "compatible",
                 f"standalone {tag_family} lora (base_model tag) - safetensors - loads via load_lora_weights",
                 format="safetensors",
+                family=tag_family,
             )
         return TierVerdict("experimental", f"{tag_family} lora but pickle-only weights", format="pickle")
 
@@ -269,6 +277,7 @@ def classify_repo(signals: RepoSignals, verified_repo_ids: Set[str]) -> TierVerd
                 "compatible",
                 f"standalone lora ({lora_hit}) - safetensors - loads via load_lora_weights",
                 format="safetensors",
+                family=lora_hit,
             )
         return TierVerdict(
             "experimental",

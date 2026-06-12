@@ -10,7 +10,7 @@ import os
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple
 
-from foundry.classifier import indexed_tier
+from foundry.classifier import indexed_tier, lora_family_from_keys
 from foundry.identity import quick_identity
 from foundry.library_roots import layout_type_for
 from foundry.model_record import ModelRecord
@@ -116,7 +116,7 @@ def scan_tree(
             # diffusers-pipeline tier is deliberately NOT persisted in the
             # signature cache: directories have no stable file-level cache key,
             # so the (constant until M5) verdict is re-derived per scan.
-            dir_tier, dir_tier_reason = indexed_tier("diffusers-pipeline", [])
+            dir_tier, dir_tier_reason, _dir_family = indexed_tier("diffusers-pipeline", None)
             artifacts.append(
                 IndexedArtifact(
                     path=dirpath,
@@ -150,12 +150,12 @@ def scan_tree(
                     # Legacy pre-M4 4-entry state: type/identity stay trusted,
                     # tier needs ONE header re-read; persisted 6-wide below.
                     header_keys = _read_header_keys(path)
-                    tier, tier_reason = indexed_tier(artifact_type, header_keys)
+                    tier, tier_reason, _ = indexed_tier(artifact_type, lora_family_from_keys(header_keys))
             else:
                 relative = os.path.relpath(path, root_path)
                 artifact_type, header_keys = _classify_file(path, layout_hint, relative)
                 identity = quick_identity(path)
-                tier, tier_reason = indexed_tier(artifact_type, header_keys)
+                tier, tier_reason, _ = indexed_tier(artifact_type, lora_family_from_keys(header_keys))
             next_signatures[key] = [
                 stat.st_mtime_ns,
                 stat.st_size,
@@ -200,7 +200,10 @@ def artifact_to_record(
     if artifact.tier is not None and artifact.tier_reason is not None:
         tier, tier_reason = artifact.tier, artifact.tier_reason
     else:
-        tier, tier_reason = indexed_tier(artifact.artifact_type, artifact.header_keys or [])
+        tier, tier_reason, _ = indexed_tier(
+            artifact.artifact_type,
+            lora_family_from_keys(artifact.header_keys or []),
+        )
     return ModelRecord(
         id=record_id,
         name=os.path.splitext(filename)[0],
