@@ -44,14 +44,19 @@ class ConvertTests(unittest.TestCase):
     def test_no_tensors_error_names_basename_not_full_path(self):
         # Codex M4 review L-1: the route echoes this message to the renderer;
         # absolute local paths stay in logs, never in API error details.
+        # Path built with os.path.join: basename() splits on the HOST
+        # separator, and CI runs this on both Linux and Windows.
+        import os
+
+        src = os.path.join("secret-dir", "deep", "model.ckpt")
         torch = MagicMock()
         torch.load.return_value = {"epoch": 3}
         st = MagicMock()
         with patch.dict(sys.modules, {"torch": torch, "safetensors": MagicMock(torch=st), "safetensors.torch": st}):
             with self.assertRaises(ValueError) as ctx:
-                convert_pickle_to_safetensors(r"C:\secret\dir\model.ckpt", "out.safetensors")
+                convert_pickle_to_safetensors(src, "out.safetensors")
         self.assertIn("model.ckpt", str(ctx.exception))
-        self.assertNotIn("secret", str(ctx.exception))
+        self.assertNotIn("secret-dir", str(ctx.exception))
 
     def test_save_goes_through_temp_then_replace(self):
         torch = MagicMock()
