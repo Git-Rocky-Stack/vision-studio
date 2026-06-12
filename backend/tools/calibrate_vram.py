@@ -17,6 +17,7 @@ import argparse
 import contextlib
 import gc
 import json
+import logging
 import os
 import sys
 from pathlib import Path
@@ -69,8 +70,26 @@ _BACKEND_ROOT = Path(__file__).resolve().parent.parent
 if str(_BACKEND_ROOT) not in sys.path:
     sys.path.insert(0, str(_BACKEND_ROOT))
 
-from utils.direct_generator import ModelLoadRefusedError, resolve_plan  # noqa: E402
-from utils.direct_video_generator import DirectVideoGenerator  # noqa: E402
+# main.py runs setup_logging() at import time: it prints a JSON log line to
+# stdout AND pins a StreamHandler to the real stdout object. Both would
+# corrupt the stdout-is-pure-JSON patch contract - and a handler bound to
+# the real stream object bypasses any later redirect_stdout. Import main
+# (and the generator modules, whose import-failure prints also hit stdout)
+# under a stderr quarantine HERE, before resolve_plan or the registry can
+# trigger the import uncontrolled, then retarget every stdout-bound logging
+# handler onto stderr.
+_REAL_STDOUT = sys.stdout
+with contextlib.redirect_stdout(sys.stderr):
+    import main as _main  # noqa: E402, F401  - forces setup_logging under quarantine
+    from utils.direct_generator import ModelLoadRefusedError, resolve_plan  # noqa: E402
+    from utils.direct_video_generator import DirectVideoGenerator  # noqa: E402
+
+for _logger in [logging.getLogger()] + [
+    logging.getLogger(_name) for _name in list(logging.root.manager.loggerDict)
+]:
+    for _handler in list(getattr(_logger, "handlers", [])):
+        if getattr(_handler, "stream", None) is _REAL_STDOUT and hasattr(_handler, "setStream"):
+            _handler.setStream(sys.stderr)
 
 
 # ---------------------------------------------------------------------------
@@ -92,8 +111,8 @@ def _ready_model_ids() -> List[str]:
     would duplicate the status-provider wiring; the `main` import is the
     intended seam (Task 11 design).
     """
-    # Lazy import: only reached on CUDA machines; keeps the import explosion
-    # isolated from the gate path.
+    # main was already imported (stdout-quarantined) at module level; this
+    # is a cache hit, never a fresh import.
     from main import model_registry  # noqa: PLC0415
 
     return [
@@ -223,8 +242,7 @@ def _calibrate_one(
         return None
 
     # -- route by the record's capability (never name-sniffed) ---------------
-    # Lazy import: same `main` seam _ready_model_ids uses; resolve_plan has
-    # already imported main by this point, so this is a cache hit.
+    # Cache hit - main was imported (stdout-quarantined) at module level.
     from main import model_registry  # noqa: PLC0415
 
     record = model_registry.get_record(model_id) or {}
