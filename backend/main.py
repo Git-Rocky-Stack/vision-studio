@@ -171,7 +171,12 @@ def _verified_repo_ids() -> set:
 
 
 def _search_result_to_record(result) -> ModelRecord:
-    """Map a SearchResult to a transient ModelRecord (registry normalizes status)."""
+    """Map a SearchResult to a transient ModelRecord (registry normalizes status).
+
+    revision is intentionally None here: search listings carry no commit sha.
+    Pinning happens at the enqueue boundary after fetch_repo_signals returns
+    the sha of the tree whose safety signals were actually verified.
+    """
     return ModelRecord(
         id=result.id, name=result.name, artifact_type=result.artifact_type,
         capability=result.capability, base_architecture=result.base_architecture,
@@ -180,6 +185,7 @@ def _search_result_to_record(result) -> ModelRecord:
         quality="local", license=result.license, gated=result.gated,
         format=result.format, trust_remote_code=result.trust_remote_code,
         nsfw=result.nsfw, download_url=result.download_url, sha256=result.sha256,
+        revision=None,
     )
 
 comfy_client: Optional[ComfyUIClient] = None
@@ -1701,6 +1707,7 @@ async def enqueue_download(request: Request, model_id: str):
         model_registry.update_transient(
             model_id, tier=verdict.tier, tier_reason=verdict.reason,
             format=verdict.format, trust_remote_code=verdict.trust_remote_code,
+            revision=signals.revision,
         )
         record = model_registry.get_record(model_id)
     # Spec 5.3 security rail: pickle weights and trust_remote_code are

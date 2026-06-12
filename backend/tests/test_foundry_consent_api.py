@@ -158,6 +158,7 @@ def _full_signals(**overrides) -> RepoSignals:
         class_name="StableDiffusionXLPipeline",
         siblings=["model_index.json", "unet/diffusion_pytorch_model.safetensors"],
         has_safetensors=True,
+        revision="abc123commit",
     )
     base.update(overrides)
     return RepoSignals(**base)
@@ -242,6 +243,9 @@ class SupplyChainGateTests(unittest.TestCase):
         # The per-request token funds the verification fetch too - and never leaks.
         self.assertEqual(fetch.call_args.kwargs.get("token"), "hf_secret_999")
         self.assertNotIn("hf_secret_999", response.text)
+        # The record is pinned to the revision the signals were classified at.
+        refreshed = self.client.get(f"/api/models/{TRANSIENT_ID}").json()
+        self.assertEqual(refreshed["revision"], "abc123commit")
 
     def test_non_transient_records_skip_reclassification(self):
         job = DownloadJob(model_id="m-test", status="queued", total_bytes=0)

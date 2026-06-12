@@ -119,6 +119,7 @@ class FetchRepoSignalsTests(unittest.TestCase):
             pipeline_tag="text-to-image",
             downloads=100,
             author="org",
+            sha="abc123commit",
         )
 
     def _tiny_files(self, contents):
@@ -195,6 +196,11 @@ class FetchRepoSignalsTests(unittest.TestCase):
         info = self._info(["PIPELINE.PY", "unet/x.safetensors"])
         signals, _dl = self._fetch(info)
         self.assertEqual(signals.py_file_count, 1)
+
+    def test_revision_sha_captured(self):
+        info = self._info(["unet/diffusion_pytorch_model.safetensors"])
+        signals, _dl = self._fetch(info)
+        self.assertEqual(signals.revision, "abc123commit")
 
     def test_token_is_forwarded_to_both_calls_and_never_stored(self):
         info = self._info(["config.json"])

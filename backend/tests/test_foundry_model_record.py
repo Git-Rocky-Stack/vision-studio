@@ -34,7 +34,7 @@ class FoundryModelRecordTests(unittest.TestCase):
         )
         data = record.to_dict()
         assert data["id"] == "x"
-        assert data["revision"] == "main"          # default
+        assert data["revision"] is None               # default: unpinned (resolves to "main" at download)
         assert data["status"] == "not_found"       # default
         assert data["tier"] == "verified"          # default
         assert data["gated"] is False              # default

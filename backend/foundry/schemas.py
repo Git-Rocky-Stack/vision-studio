@@ -14,7 +14,7 @@ class ModelRecordSchema(BaseModel):
     base_architecture: str
     source: str
     repo_id: Optional[str] = None
-    revision: str = "main"
+    revision: Optional[str] = None  # commit sha pinned at classification; None = unpinned
     aux_repo_id: Optional[str] = None
     size: str = "Unknown"
     # Lifecycle: ready | downloading | error | not_found | queued | verifying | paused | cancelled

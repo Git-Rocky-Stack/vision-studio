@@ -21,7 +21,7 @@ class ModelRecord:
 
     # Origin
     repo_id: Optional[str] = None
-    revision: str = "main"      # pinned for reproducibility (Pillar 5)
+    revision: Optional[str] = None  # commit sha pinned at classification; None = unpinned (resolves to "main" at download)
     aux_repo_id: Optional[str] = None
 
     # State (M2: 8-value lifecycle status, single-sourced with the TS union)

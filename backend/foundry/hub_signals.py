@@ -30,6 +30,7 @@ class RepoSignals:
     author: Optional[str] = None
     license: Optional[str] = None
     partial: bool = False                    # listing-level: no file census available
+    revision: Optional[str] = None          # commit sha from model_info; None for listing-level signals
 
 
 def _class_name(
@@ -149,6 +150,7 @@ def fetch_repo_signals(repo_id: str, token: Optional[str] = None) -> RepoSignals
         has_safetensors=any(s.endswith(".safetensors") for s in siblings),
         downloads=info.downloads or 0,
         author=info.author,
+        revision=getattr(info, "sha", None),
     )
 
 
