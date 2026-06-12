@@ -38,4 +38,26 @@ Codex's positive assurance was spot-checked and stands: consent store deny-by-de
 
 ## 4. Re-review outcome
 
-_Recorded after the focused Codex re-review of the remediation diff:_ see the addendum commit on this file.
+A focused Codex re-review (same model/config) of the remediation diff was run
+2026-06-11. The reviewer verified the diff and each finding's closure, then
+stalled while streaming its final report (process killed after ~15 minutes
+idle; verdicts extracted from the session transcript's interim messages). Its
+substantive finding was real and is fixed in this same PR:
+
+- **H-1 residual (accepted, fixed):** the LIVE `fetch_repo_signals` read only
+  `model_info` - sibling NAMES - so `auto_map` was undetectable on the live
+  path (`auto_map` lives inside `config.json` and can point at code in
+  ANOTHER repo, i.e. zero local `.py` files), and the `.py` census was
+  case-sensitive. Fixed: public repos get a tiny-file census (`config.json` +
+  `model_index.json`, fetched into a dedicated probe cache - never the user's
+  HF cache); a census that cannot complete **fails closed**
+  (`reachable=False` -> Experimental / download refused). Gated repos cannot
+  be file-fetched pre-license and keep the ladder's explicit
+  "format verified after license accept" disclosure path, with
+  post-acquisition header inspection as the downgrade hook. `.py` matching is
+  now case-insensitive. 7 new tests (`FetchRepoSignalsTests`).
+
+With that residual closed, every original finding is remediated and
+regression-tested: **gate considered PASSED** (foundry suite 314 passed; CI
+green on both OSes). The M5 loader-side enforcement items in section 2 remain
+tracked.
