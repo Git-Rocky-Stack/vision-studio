@@ -155,9 +155,11 @@ def indexed_tier(artifact_type: str, family: Optional[str]) -> Tuple[str, str, O
 def classify_repo(signals: RepoSignals, verified_repo_ids: Set[str]) -> TierVerdict:
     """The 8-rule ladder. First match wins; default Experimental.
 
-    Every Compatible verdict carries a structured family field (M5). Verified
-    verdicts omit family (the catalog record owns that metadata). Experimental
-    defaults stay None.
+    Every Compatible pipeline/lora verdict carries a structured family field
+    (M5). Component verdicts (ControlNetModel/MotionAdapter/AutoencoderKL)
+    carry family=None - a component's base family is not derivable from its
+    class alone. Verified verdicts omit family (the catalog record owns that
+    metadata). Experimental defaults stay None.
     """
     # 1 - catalog authority (even if the hub copy is gone; bytes may be local).
     if signals.repo_id in verified_repo_ids:
@@ -224,11 +226,14 @@ def classify_repo(signals: RepoSignals, verified_repo_ids: Set[str]) -> TierVerd
             )
         if signals.class_name in SHIPPED_COMPONENTS:
             if comp_st or root_st or signals.has_safetensors:
+                # family=None deliberately: a component's base family is not
+                # derivable from its class alone (a ControlNetModel may target
+                # sd15 or sdxl); FAMILY_BY_CLASS has no component entries.
                 return TierVerdict(
                     "compatible",
                     f"{signals.class_name} component - safetensors - no remote code",
                     format="safetensors",
-                    family=cls_family,
+                    family=None,
                 )
             return TierVerdict(
                 "experimental",

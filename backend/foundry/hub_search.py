@@ -142,4 +142,3 @@ def _verify_partial_compatible(
     if full is None or not full.reachable:
         return TierVerdict("experimental", _UNVERIFIED_REASON)
     return classify_repo(full, verified_repo_ids)
-
