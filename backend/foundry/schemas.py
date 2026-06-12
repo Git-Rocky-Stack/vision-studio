@@ -138,3 +138,53 @@ class ConvertResultSchema(BaseModel):
     model_id: str
     safetensors_path: str
     tensor_count: int
+
+
+class HardwareProfileSchema(BaseModel):
+    """Mirror of foundry.hardware.HardwareProfile (spec 6.1)."""
+
+    gpu_available: bool
+    gpu_name: Optional[str] = None
+    vram_total_bytes: int = 0
+    vram_free_bytes: int = 0
+    compute_major: int = 0
+    compute_minor: int = 0
+    cuda_version: Optional[str] = None
+    torch_available: bool = False
+    system_ram_total_bytes: int = 0
+    system_ram_available_bytes: int = 0
+    disk_free_bytes: int = 0
+
+
+class VramEstimateSchema(BaseModel):
+    """Mirror of foundry.fit.VramEstimate (spec 6.2)."""
+
+    weight_bytes: int
+    activation_bytes: int
+    runtime_bytes: int
+    total_bytes: int
+    basis: str  # measured | estimated
+
+
+class RuntimePlanSchema(BaseModel):
+    """Mirror of foundry.runtime_resolver.RuntimePlan (spec 6.4).
+
+    A refusal is an informational 200 payload, never a 4xx/5xx: preflight
+    answers 'will this load here, and why not' - that answer is the product.
+    """
+
+    model_config = {"protected_namespaces": ()}
+
+    pipeline_class: Optional[str] = None
+    precision: Optional[str] = None
+    offload: bool = False
+    vae_tiling: bool = False
+    attention_slicing: bool = True
+    single_file: bool = False
+    config_catalog_id: Optional[str] = None
+    vram_plan: Optional[VramEstimateSchema] = None
+    fit: Optional[str] = None  # fits | fits-with-offload | over-budget | cpu-only
+    missing_components: List[str] = []
+    fallback_ladder: List[str] = []
+    readiness: str = ""
+    refusal: Optional[str] = None

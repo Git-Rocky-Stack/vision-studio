@@ -70,16 +70,20 @@ from middleware.rate_limit import limiter, rate_limit_exceeded_handler
 from foundry import civitai_search, hub_search
 from foundry.classifier import classify_repo
 from foundry.hub_signals import fetch_repo_signals
+from foundry.hardware import probe_hardware
 from foundry.model_record import ModelRecord
 from foundry.registry import ModelRegistry
+from foundry.runtime_resolver import resolve_model_runtime
 from foundry.schemas import (
     ConsentRequestSchema,
     ConsentStateSchema,
     ConvertResultSchema,
     DetectedRootSchema,
     DownloadJobSchema,
+    HardwareProfileSchema,
     LibraryRootSchema,
     ModelRecordSchema,
+    RuntimePlanSchema,
     ScanResultSchema,
     SearchResponseSchema,
     SearchResultSchema,
@@ -1498,6 +1502,16 @@ async def list_jobs(request: Request, status: Optional[str] = None, limit: int =
 
 # ============= Model Management =============
 
+@app.get("/api/hardware", response_model=HardwareProfileSchema, tags=["Models"])
+@limiter.limit("60/minute")
+async def get_hardware(request: Request):
+    """Truthful hardware probe (spec 6.1). Runs in a worker thread - the
+    CUDA query can block briefly on a cold driver."""
+    loop = asyncio.get_running_loop()
+    profile = await loop.run_in_executor(None, probe_hardware, MODELS_DIR)
+    return HardwareProfileSchema(**asdict(profile))
+
+
 @app.get("/api/models", response_model=List[ModelRecordSchema], tags=["Models"])
 @limiter.limit("60/minute")
 async def list_models(request: Request):
@@ -1801,6 +1815,24 @@ async def convert_model_to_safetensors(request: Request, model_id: str):
         logger.warning("convert-safetensors OS error for %s: %s", model_id, exc)
         raise HTTPException(status_code=422, detail=f"conversion failed: {type(exc).__name__}")
     return ConvertResultSchema(model_id=model_id, safetensors_path=dest, tensor_count=tensor_count)
+
+
+@app.post("/api/models/{model_id}/resolve-runtime", response_model=RuntimePlanSchema, tags=["Models"])
+@limiter.limit("30/minute")
+async def resolve_runtime(request: Request, model_id: str):
+    """The load plan for THIS machine (spec 6.4). Refusals are 200 payloads:
+    preflight is informational - 'this will not load, and here is why' is an
+    answer, not a server error."""
+    record = model_registry.get_record(model_id)
+    if record is None:
+        raise HTTPException(status_code=404, detail=f"Model '{model_id}' not found")
+    loop = asyncio.get_running_loop()
+    profile = await loop.run_in_executor(None, probe_hardware, MODELS_DIR)
+    plan = resolve_model_runtime(record, profile, consent_store.get(model_id))
+    data = asdict(plan)
+    if plan.vram_plan is not None:
+        data["vram_plan"] = asdict(plan.vram_plan)
+    return RuntimePlanSchema(**data)
 
 
 @app.get("/api/models/{model_id}/status", tags=["Models"])
