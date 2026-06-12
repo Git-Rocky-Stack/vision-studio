@@ -65,10 +65,12 @@ class ModelRecord:
 
 
 # Legacy id aliases -> canonical catalog ids. Saved projects / jobs that
-# reference an old slug resolve here so nothing breaks. (Seeded empty — every
-# historical id is currently still canonical; add entries here if a slug is
-# ever renamed.)
-LEGACY_ID_ALIASES: Dict[str, str] = {}
+# reference an old slug resolve here so nothing breaks.
+LEGACY_ID_ALIASES: Dict[str, str] = {
+    # Pre-foundry direct_generator slug: its hardcoded model_map accepted
+    # both "sdxl" and "sdxl-base" for SDXL base (M5 Task 11 retired the map).
+    "sdxl": "sdxl-base",
+}
 
 
 def load_catalog(path: str) -> Dict[str, "ModelRecord"]:

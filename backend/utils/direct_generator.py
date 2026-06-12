@@ -17,12 +17,8 @@ from concurrent.futures import ThreadPoolExecutor
 # These imports will fail if torch/diffusers not installed
 # The app should handle this gracefully
 try:
+    import diffusers
     from diffusers import (
-        StableDiffusionPipeline,
-        StableDiffusionXLPipeline,
-        StableDiffusion3Pipeline,
-        FluxPipeline,
-        FluxFillPipeline,
         DPMSolverMultistepScheduler,
         EulerDiscreteScheduler,
         EulerAncestralDiscreteScheduler,
@@ -31,8 +27,105 @@ try:
     )
     DIFFUSERS_AVAILABLE = True
 except ImportError as e:
+    diffusers = None  # type: ignore[assignment]
     DIFFUSERS_AVAILABLE = False
     print(f"⚠️ diffusers import failed: {e}. Direct image generation disabled.")
+
+
+class ModelLoadRefusedError(RuntimeError):
+    """The runtime plan refused to load this model (security or capability).
+
+    The generation request itself was fine - the model cannot be loaded as
+    asked (409-style). Carries the plan's refusal string verbatim; refusal
+    messages never contain filesystem paths or tokens.
+    """
+
+
+def resolve_plan(model_id: str, overrides: Optional[Dict[str, Any]] = None):
+    """Resolve the runtime plan for model_id on THIS machine (lazy imports
+    avoid the main<->generator circular import). overrides may carry
+    precision/offload/vae_tiling from the request's advanced settings -
+    applied AFTER resolution; security refusals are NEVER overridable.
+
+    Module-level so tests patch ONE seam: ``utils.direct_generator.resolve_plan``.
+
+    Besides the wire-format RuntimePlan fields, the returned plan carries
+    loader-facing source attributes derived from the registry record (these
+    never travel over the API):
+
+    - ``load_source``      local diffusers snapshot dir or the record's repo_id
+    - ``checkpoint_path``  local .safetensors checkpoint (single-file plans)
+    - ``config_repo_id``   repo_id of ``plan.config_catalog_id`` - the pinned
+                           ``config=`` for from_single_file, never key-sniffed
+    - ``adapter_repo_id``  the record's aux repo (AnimateDiff motion adapter)
+    """
+    from main import MODELS_DIR, consent_store, model_registry, probe_hardware
+    from foundry.runtime_resolver import resolve_model_runtime
+
+    record = model_registry.get_record(model_id)
+    if record is None:
+        raise ModelLoadRefusedError(f"Model '{model_id}' is not in the library")
+    profile = probe_hardware(MODELS_DIR)
+    plan = resolve_model_runtime(record, profile, consent_store.get(model_id))
+    if overrides and not plan.refusal:
+        for key in ("precision", "offload", "vae_tiling"):
+            value = overrides.get(key)
+            if value is not None:
+                setattr(plan, key, value)
+
+    locations = record.get("locations") or []
+    plan.checkpoint_path = next(
+        (loc for loc in locations if os.path.isfile(loc) and loc.endswith(".safetensors")),
+        None,
+    )
+    plan.load_source = next(
+        (loc for loc in locations if os.path.isdir(loc)), None
+    ) or record.get("repo_id")
+    plan.config_repo_id = None
+    if plan.config_catalog_id:
+        config_record = model_registry.get_record(plan.config_catalog_id)
+        plan.config_repo_id = (config_record or {}).get("repo_id")
+    plan.adapter_repo_id = record.get("aux_repo_id")
+    return plan
+
+
+# plan.precision -> torch dtype. Anything else is a plan bug we refuse loudly.
+def dtype_for_precision(precision) -> Any:
+    dtype = {
+        "bf16": torch.bfloat16,
+        "fp16": torch.float16,
+        "fp32": torch.float32,
+    }.get(precision)
+    if dtype is None:
+        raise ModelLoadRefusedError(f"unsupported precision '{precision}' in runtime plan")
+    return dtype
+
+
+def pipeline_class_for(plan) -> Any:
+    """Resolve plan.pipeline_class on the diffusers module - never name-sniffed."""
+    pipeline_cls = getattr(diffusers, str(plan.pipeline_class), None)
+    if pipeline_cls is None:
+        raise ModelLoadRefusedError(
+            f"pipeline class '{plan.pipeline_class}' is not available in this diffusers build"
+        )
+    return pipeline_cls
+
+
+def apply_fallback_rung(plan, rung: str) -> bool:
+    """Apply one OOM-recovery rung onto the plan (spec 6.6).
+
+    Returns True when the rung requests max attention slicing (applied
+    post-load rather than on the plan itself).
+    """
+    if rung == "precision:fp16":
+        plan.precision = "fp16"
+    elif rung == "offload:cpu":
+        plan.offload = True
+    elif rung == "vae:tiling":
+        plan.vae_tiling = True
+    elif rung == "attention:slicing-max":
+        return True
+    return False
 
 
 class DirectGenerator:
@@ -54,74 +147,96 @@ class DirectGenerator:
             print(f"   GPU: {torch.cuda.get_device_name(0)}")
             print(f"   VRAM: {torch.cuda.get_device_properties(0).total_memory / 1e9:.1f} GB")
     
-    def _load_pipeline(self, model_name: str):
-        """Load or get cached pipeline"""
+    def load_model(self, model_name: str, overrides: Optional[Dict[str, Any]] = None):
+        """Resolve the runtime plan for model_name, then load exactly what it says.
+
+        Replaces the legacy name-substring branching and hardcoded model map:
+        pipeline class, dtype, offload, tiling and the single-file path all
+        come from resolve_model_runtime via the resolve_plan seam. On CUDA
+        OOM the plan's fallback_ladder is consumed rung by rung; the OOM is
+        re-raised honestly when the ladder is exhausted.
+        """
         if model_name in self.pipelines:
             return self.pipelines[model_name]
-        
-        print(f"📥 Loading model: {model_name}")
-        
-        # Map model names to HuggingFace repo IDs
-        model_map = {
-            "sd-1-5": "runwayml/stable-diffusion-v1-5",
-            "sdxl": "stabilityai/stable-diffusion-xl-base-1.0",
-            "sdxl-base": "stabilityai/stable-diffusion-xl-base-1.0",
-            "sd3.5-large": "stabilityai/stable-diffusion-3.5-large",
-            "sd3.5-medium": "stabilityai/stable-diffusion-3.5-medium",
-            "flux-dev": "black-forest-labs/FLUX.1-dev",
-            "flux-schnell": "black-forest-labs/FLUX.1-schnell",
-            "flux-fill": "black-forest-labs/FLUX.1-Fill-dev",
-        }
-        
-        repo_id = model_map.get(model_name, model_name)
-        
-        # Load appropriate pipeline
-        if "flux-fill" in model_name.lower():
-            pipeline = FluxFillPipeline.from_pretrained(
-                repo_id,
-                torch_dtype=torch.bfloat16 if self.device == "cuda" else torch.float32,
-                use_safetensors=True
-            )
-        elif "flux" in model_name.lower():
-            pipeline = FluxPipeline.from_pretrained(
-                repo_id,
-                torch_dtype=torch.bfloat16 if self.device == "cuda" else torch.float32,
-                use_safetensors=True
-            )
-        elif "sd3.5" in model_name.lower() or "stable-diffusion-3" in model_name.lower():
-            pipeline = StableDiffusion3Pipeline.from_pretrained(
-                repo_id,
-                torch_dtype=torch.float16 if self.device == "cuda" else torch.float32,
-            )
-        elif "xl" in model_name.lower():
-            pipeline = StableDiffusionXLPipeline.from_pretrained(
-                repo_id,
-                torch_dtype=torch.float16 if self.device == "cuda" else torch.float32,
-                use_safetensors=True
+
+        print(f"Loading model: {model_name}")
+        plan = resolve_plan(model_name, overrides)
+        if plan.refusal:
+            raise ModelLoadRefusedError(plan.refusal)
+
+        ladder = list(plan.fallback_ladder)
+        slicing_max = False
+        while True:
+            try:
+                pipeline = self._load_from_plan(model_name, plan, slicing_max)
+                break
+            except torch.cuda.OutOfMemoryError:
+                if not ladder:
+                    print(f"OOM loading {model_name}: fallback ladder exhausted")
+                    raise
+                rung = ladder.pop(0)
+                print(f"OOM loading {model_name}: stepping fallback rung '{rung}'")
+                slicing_max = apply_fallback_rung(plan, rung) or slicing_max
+                torch.cuda.empty_cache()
+
+        self.pipelines[model_name] = pipeline
+        print(f"Model loaded: {model_name} ({plan.pipeline_class}, {plan.precision})")
+        return pipeline
+
+    def _load_from_plan(self, model_name: str, plan, slicing_max: bool):
+        """One load attempt driven entirely by the plan (no name-sniffing)."""
+        dtype = dtype_for_precision(plan.precision)
+        pipeline_cls = pipeline_class_for(plan)
+
+        if plan.single_file:
+            checkpoint = getattr(plan, "checkpoint_path", None)
+            if not checkpoint:
+                raise ModelLoadRefusedError(
+                    f"Model '{model_name}' has no local safetensors checkpoint to load"
+                )
+            # config= pinned from the catalog entry (Spike D adj. 3) - the
+            # checkpoint's keys are NEVER sniffed to guess a config repo.
+            pipeline = pipeline_cls.from_single_file(
+                checkpoint,
+                config=getattr(plan, "config_repo_id", None),
+                torch_dtype=dtype,
             )
         else:
-            pipeline = StableDiffusionPipeline.from_pretrained(
-                repo_id,
-                torch_dtype=torch.float16 if self.device == "cuda" else torch.float32,
-                use_safetensors=True
+            source = getattr(plan, "load_source", None)
+            if not source:
+                raise ModelLoadRefusedError(
+                    f"Model '{model_name}' has no repo or local snapshot to load from"
+                )
+            # use_safetensors=True is NON-NEGOTIABLE: never fall back from
+            # safetensors to pickle weights (M4 gate residual).
+            pipeline = pipeline_cls.from_pretrained(
+                source,
+                torch_dtype=dtype,
+                use_safetensors=True,
             )
-        
-        # Move to device
-        pipeline = pipeline.to(self.device)
-        
+
+        if plan.offload:
+            # Offload manages device placement itself - no manual .to(device).
+            pipeline.enable_model_cpu_offload()
+        else:
+            pipeline = pipeline.to(self.device)
+
+        if plan.vae_tiling and hasattr(pipeline, "vae"):
+            pipeline.vae.enable_tiling()
+
         # Enable memory optimizations
         if self.device == "cuda":
-            pipeline.enable_attention_slicing()
+            if slicing_max:
+                pipeline.enable_attention_slicing("max")
+            else:
+                pipeline.enable_attention_slicing()
             # Try to enable xformers if available
             try:
                 pipeline.enable_xformers_memory_efficient_attention()
-                print("   ✅ xformers enabled")
-            except:
+                print("   xformers enabled")
+            except Exception:
                 pass
-        
-        self.pipelines[model_name] = pipeline
-        print(f"   ✅ Model loaded")
-        
+
         return pipeline
 
     def _configure_scheduler(self, pipeline, scheduler_name: str):
@@ -225,7 +340,7 @@ class DirectGenerator:
         """Synchronous generation (runs in thread pool)"""
         
         # Load pipeline
-        pipeline = self._load_pipeline(model_name)
+        pipeline = self.load_model(model_name)
         pipeline = self._configure_scheduler(pipeline, scheduler)
         
         # Set generator for reproducibility

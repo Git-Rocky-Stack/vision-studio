@@ -61,7 +61,7 @@ from utils.logging_config import setup_logging, get_logger
 from utils.comfy_workflows import build_image_workflow
 from utils.direct_video_generator import DirectVideoGenerator
 from utils.model_manager import ModelManager
-from utils.direct_generator import DirectGenerator
+from utils.direct_generator import DirectGenerator, ModelLoadRefusedError
 from utils.image_ops import apply_crop_and_transform, upscale_image_file
 from utils.prompt_service import enhance_prompt
 from api.controlnet import router as controlnet_router
@@ -1178,6 +1178,16 @@ async def process_image_generation(job_id: str, request: ImageGenerationRequest)
             completed_at=datetime.now()
         )
 
+    except ModelLoadRefusedError as e:
+        # 409-style: the request was fine - the model refuses to load. The
+        # refusal string is user-facing (no paths, no tokens); no traceback.
+        logger.warning(f"[Job {job_id}] Model refused to load: {e}")
+        job_manager.update_job(
+            job_id,
+            status=JobStatus.FAILED,
+            error=str(e),
+            completed_at=datetime.now()
+        )
     except Exception as e:
         logger.error(f"Image generation failed: {e}", exc_info=True)
         job_manager.update_job(
@@ -1376,6 +1386,15 @@ async def process_video_generation(job_id: str, request: VideoGenerationRequest)
             completed_at=datetime.now()
         )
         
+    except ModelLoadRefusedError as e:
+        # 409-style: the request was fine - the model refuses to load.
+        logger.warning(f"[Job {job_id}] Model refused to load: {e}")
+        job_manager.update_job(
+            job_id,
+            status=JobStatus.FAILED,
+            error=str(e),
+            completed_at=datetime.now()
+        )
     except Exception as e:
         logger.error(f"Video generation failed: {e}", exc_info=True)
         job_manager.update_job(
