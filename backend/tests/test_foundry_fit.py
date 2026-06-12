@@ -14,9 +14,11 @@ from foundry.fit import (  # type: ignore[import-not-found]
     PRECISION_BYTES,
     VramEstimate,
     estimate_vram,
+    hardware_fit,
     load_peak_ram_bytes,
     weight_bytes_from_header,
 )
+from foundry.hardware import HardwareProfile  # type: ignore[import-not-found]
 
 
 def _header(tensors):
@@ -88,6 +90,51 @@ class LoadPeakTests(unittest.TestCase):
             load_peak_ram_bytes(4 * 2**30, checkpoint_bytes=0, single_file=False),
             4 * 2**30,
         )
+
+
+def _profile(**kw):
+    base = dict(
+        gpu_available=True, gpu_name="RTX", vram_total_bytes=12 * 2**30,
+        vram_free_bytes=10 * 2**30, compute_major=8, compute_minor=6,
+        torch_available=True, system_ram_total_bytes=32 * 2**30,
+        system_ram_available_bytes=24 * 2**30, disk_free_bytes=500 * 2**30,
+    )
+    base.update(kw)
+    return HardwareProfile(**base)
+
+
+def _estimate(total, weights=None):
+    weights = weights if weights is not None else int(total * 0.7)
+    return VramEstimate(
+        weight_bytes=weights, activation_bytes=total - weights - 1, runtime_bytes=1,
+        total_bytes=total, basis="estimated",
+    )
+
+
+class HardwareFitTests(unittest.TestCase):
+    def test_fits_when_total_within_free_vram(self):
+        verdict = hardware_fit(_estimate(8 * 2**30), _profile())
+        self.assertEqual(verdict, "fits")
+
+    def test_fits_with_offload_when_weights_fit_in_ram(self):
+        # 16 GiB total > 10 free VRAM, but offloadable weights fit in RAM.
+        verdict = hardware_fit(_estimate(16 * 2**30, weights=11 * 2**30), _profile())
+        self.assertEqual(verdict, "fits-with-offload")
+
+    def test_over_budget_when_even_offload_cannot_hold_it(self):
+        profile = _profile(system_ram_available_bytes=4 * 2**30)
+        verdict = hardware_fit(_estimate(40 * 2**30, weights=38 * 2**30), profile)
+        self.assertEqual(verdict, "over-budget")
+
+    def test_cpu_only_when_no_gpu(self):
+        verdict = hardware_fit(_estimate(4 * 2**30), _profile(
+            gpu_available=False, vram_free_bytes=0, vram_total_bytes=0,
+        ))
+        self.assertEqual(verdict, "cpu-only")
+
+    def test_boundary_exactly_free_vram_fits(self):
+        verdict = hardware_fit(_estimate(10 * 2**30), _profile())
+        self.assertEqual(verdict, "fits")
 
 
 if __name__ == "__main__":

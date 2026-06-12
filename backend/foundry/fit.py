@@ -92,3 +92,24 @@ def load_peak_ram_bytes(resident_bytes: int, checkpoint_bytes: int, single_file:
     """System-RAM peak during load (Spike D adjustment 5): single-file
     conversion is not mmap-lazy and transiently holds resident + checkpoint."""
     return resident_bytes + (checkpoint_bytes if single_file else 0)
+
+
+def hardware_fit(estimate: VramEstimate, profile) -> str:
+    """fits | fits-with-offload | over-budget | cpu-only (spec 6.2).
+
+    Offload moves weights to pinned host RAM, so the offload rung needs the
+    WEIGHTS to fit in available system RAM while activations + runtime still
+    fit in VRAM. No GPU -> cpu-only, stated honestly (Spike D: a 2-step
+    128x128 sd15 run took ~13 s on this machine's CPU - functional, unfit).
+    """
+    if not profile.gpu_available:
+        return "cpu-only"
+    if estimate.total_bytes <= profile.vram_free_bytes:
+        return "fits"
+    non_weight = estimate.activation_bytes + estimate.runtime_bytes
+    if (
+        estimate.weight_bytes <= profile.system_ram_available_bytes
+        and non_weight <= profile.vram_free_bytes
+    ):
+        return "fits-with-offload"
+    return "over-budget"
