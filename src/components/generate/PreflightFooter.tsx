@@ -14,6 +14,8 @@ type PreflightStatus = 'empty' | 'loading' | 'ready' | 'error';
 interface PreflightState {
   status: PreflightStatus;
   plan: RuntimePlan | null;
+  /** Honest failure detail from the resolve attempt (error state only). */
+  errorDetail: string | null;
 }
 
 /**
@@ -40,9 +42,10 @@ const FIT_LED_COLOR: Record<string, 'play' | 'cue' | 'rec'> = {
 export function PreflightFooter({ modelId }: PreflightFooterProps) {
   const resolveRuntime = useAppStore((s) => s.resolveRuntime);
   const loadHardwareProfile = useAppStore((s) => s.loadHardwareProfile);
-  const [{ status, plan }, setState] = useState<PreflightState>({
+  const [{ status, plan, errorDetail }, setState] = useState<PreflightState>({
     status: modelId ? 'loading' : 'empty',
     plan: null,
+    errorDetail: null,
   });
 
   // Hardware snapshot is local-first and cheap; keep it warm for the plan
@@ -53,20 +56,23 @@ export function PreflightFooter({ modelId }: PreflightFooterProps) {
 
   useEffect(() => {
     if (!modelId) {
-      setState({ status: 'empty', plan: null });
+      setState({ status: 'empty', plan: null, errorDetail: null });
       return;
     }
 
     // Stale-response guard: a rapid model switch flips this flag in cleanup,
     // so an in-flight resolution for the previous model is ignored.
     let stale = false;
-    setState({ status: 'loading', plan: null });
+    setState({ status: 'loading', plan: null, errorDetail: null });
     resolveRuntime(modelId)
       .then((nextPlan) => {
-        if (!stale) setState({ status: 'ready', plan: nextPlan });
+        if (!stale) setState({ status: 'ready', plan: nextPlan, errorDetail: null });
       })
-      .catch(() => {
-        if (!stale) setState({ status: 'error', plan: null });
+      .catch((err: unknown) => {
+        // Surface the real failure reason - "bridge down" and "model not
+        // found" are different truths and the copy must not over-claim.
+        const detail = err instanceof Error ? err.message : null;
+        if (!stale) setState({ status: 'error', plan: null, errorDetail: detail });
       });
 
     return () => {
@@ -75,7 +81,8 @@ export function PreflightFooter({ modelId }: PreflightFooterProps) {
   }, [modelId, resolveRuntime]);
 
   const refusal = status === 'ready' ? plan?.refusal ?? null : null;
-  const missingComponents = status === 'ready' && !refusal && (plan?.missing_components.length ?? 0) > 0;
+  const missingComponents =
+    status === 'ready' && !refusal && (plan?.missing_components?.length ?? 0) > 0;
   const fitLedColor =
     status === 'ready' && !refusal && !missingComponents && plan?.fit
       ? FIT_LED_COLOR[plan.fit] ?? null
@@ -108,8 +115,8 @@ export function PreflightFooter({ modelId }: PreflightFooterProps) {
 
       {status === 'error' && (
         <p data-testid="preflight-error" className="mt-1.5 text-xs text-text-muted">
-          Preflight unavailable. Run readiness could not be verified; the backend bridge did not
-          respond.
+          Preflight unavailable. Run readiness could not be verified
+          {errorDetail ? ` - ${errorDetail}` : '.'}
         </p>
       )}
 
