@@ -164,14 +164,16 @@ def indexed_tier(artifact_type: str, family: Optional[str]) -> Tuple[str, str, O
             return (
                 "compatible",
                 f"single-file {family} checkpoint - loads via from_single_file "
-                f"(config pinned to catalog)",
+                "(config pinned to catalog)",
                 family,
             )
         return ("experimental", "single-file checkpoint of unrecognized architecture", None)
     if artifact_type in ("vae", "controlnet"):
-        return "experimental", f"indexed loose {artifact_type} - wiring lands with M5 runtime resolution", None
+        # Companions are catalog data; one-click auto-wiring of a LOOSE
+        # vae/controlnet is explicitly out of M5 scope (browse-panel pass).
+        return "experimental", f"indexed loose {artifact_type} - no auto-wire path yet", None
     if artifact_type == "diffusers-pipeline":
-        return "experimental", "indexed diffusers directory - load wiring lands with M5 runtime resolution", None
+        return "experimental", "indexed diffusers directory - family unproven at index time", None
     return "experimental", "indexed artifact of unrecognized type", None
 
 

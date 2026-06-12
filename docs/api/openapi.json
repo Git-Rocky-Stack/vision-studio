@@ -675,7 +675,7 @@
           "base_architecture": { "type": "string", "example": "flux" },
           "source": { "type": "string", "example": "huggingface" },
           "repo_id": { "type": "string", "nullable": true },
-          "revision": { "type": "string", "default": "main" },
+          "revision": { "type": "string", "nullable": true, "description": "Commit sha pinned at classification; null = unpinned (resolves to the repo default branch at load time)." },
           "aux_repo_id": { "type": "string", "nullable": true },
           "size": { "type": "string", "default": "Unknown" },
           "status": { "type": "string", "description": "ready | downloading | error | not_found | queued | verifying | paused | cancelled", "default": "not_found" },

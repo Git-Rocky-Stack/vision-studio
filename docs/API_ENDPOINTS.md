@@ -253,14 +253,23 @@ This is **enriched on the Main side** — it asks the backend for its `/api/syst
 | `search(query, source, page, nsfw)` | `models:search` | `Promise<SearchResponse>` | `GET /api/models/search` (forwards `X-HF-Token` + `X-Civitai-Token`) |
 | `consent(modelId, kind, granted)` | `models:consent` | `Promise<ConsentState \| { success: false, error }>` | `POST /api/models/consent` |
 | `convert(modelId)` | `models:convert` | `Promise<ConvertResult \| { success: false, error }>` | `POST /api/models/{id}/convert-safetensors` |
+| `resolveRuntime(modelId)` | `models:resolveRuntime` | `Promise<RuntimePlan \| { success: false, error }>` | `POST /api/models/{id}/resolve-runtime` (refusals are 200 payloads — see the REST section) |
 
-`body` for `importRoot`: `{ path: string; layout_hint?: string }` — see `ImportRootRequest` in the REST section below. `LibraryRoot`, `DetectedRoot`, `ModelRecord`, `DownloadJob`, `SearchResponse`, `ConsentState`, and `ConvertResult` types mirror the backend schemas of the same name.
+`body` for `importRoot`: `{ path: string; layout_hint?: string }` — see `ImportRootRequest` in the REST section below. `LibraryRoot`, `DetectedRoot`, `ModelRecord`, `DownloadJob`, `SearchResponse`, `ConsentState`, `ConvertResult`, and `RuntimePlan` types mirror the backend schemas of the same name.
 
 `search(query, source, page, nsfw)` — `source` ∈ `'hf' | 'civitai'`. The handler attaches whichever hub tokens are held in the Main process (see `electron.auth` below) as `X-HF-Token` / `X-Civitai-Token` headers. The IPC layer mirrors the backend's offline-degrade contract: if the backend is unreachable, the handler resolves with `{ source, query, page, results: [], offline: true, warning }` instead of rejecting — the renderer never sees a thrown search error. Handler logging is message-only: the raw Axios error carries token-bearing request headers and must never reach the log.
 
 `consent(modelId, kind, granted)` — `kind` ∈ `'pickle' | 'trust_remote_code'`. Consent is **deny-by-default and per-model**; granting/revoking is a deliberate user action and every change is audited by the backend `ConsentStore`.
 
-### 1.10 `electron.auth`
+### 1.10 `electron.hardware`
+
+| Method | IPC channel | Returns | Backend call |
+|--------|-------------|---------|--------------|
+| `get()` | `hardware:get` | `Promise<HardwareProfile \| { success: false, error }>` | `GET /api/hardware` |
+
+Truthful hardware probe for run-readiness preflight (M5). `HardwareProfile` mirrors the backend schema of the same name (snake_case wire keys). The renderer keeps the last-known profile when the call fails (local-first); the store action `loadHardwareProfile` owns that policy.
+
+### 1.11 `electron.auth`
 
 Session-scoped hub credentials. Tokens are held **only in Main-process memory** — never persisted by the Python backend, never returned to the renderer, never logged. The Main process injects them per-request as headers on the backend calls noted above: `X-HF-Token` for Hugging Face (search + downloads of HF-source records), `X-Civitai-Token` for CivitAI (search + direct-URL downloads/resume of `civitai`-source records). An empty or whitespace-only token clears the stored value.
 
@@ -269,7 +278,7 @@ Session-scoped hub credentials. Tokens are held **only in Main-process memory** 
 | `setHfToken(token)` | `auth:setHfToken` | `Promise<{ success: true }>` |
 | `setCivitaiToken(token)` | `auth:setCivitaiToken` | `Promise<{ success: true }>` |
 
-### 1.11 `electron.notifications`
+### 1.12 `electron.notifications`
 
 ```ts
 notify(
@@ -280,7 +289,7 @@ notify(
 
 Each notification type is gated by the matching `notifyOn*` boolean in settings; if the user has disabled it, the call returns `{ success: true, skipped: true }` instead of showing.
 
-### 1.12 `electron.backend`
+### 1.13 `electron.backend`
 
 | Method | IPC channel | Returns |
 |--------|-------------|---------|

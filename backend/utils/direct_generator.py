@@ -348,7 +348,16 @@ class DirectGenerator:
         
         # Generate
         print(f"🎨 Generating: {width}x{height}, {steps} steps, seed={seed}")
-        
+
+        # callback_on_step_end is the only progress hook diffusers >=0.37
+        # supports on every shipped pipeline: SD3/Flux/LTX removed the legacy
+        # callback=/callback_steps= kwargs entirely (passing them - even as
+        # None - raises TypeError), and SD/SDXL only tolerate them behind a
+        # deprecation shim slated for removal in 1.0.0.
+        def _on_step_end(_pipe, step, timestep, callback_kwargs):
+            progress_callback_fn(step, timestep, callback_kwargs.get("latents"))
+            return callback_kwargs
+
         with torch.inference_mode():
             output = pipeline(
                 prompt=prompt,
@@ -358,8 +367,7 @@ class DirectGenerator:
                 num_inference_steps=steps,
                 guidance_scale=cfg_scale,
                 generator=generator,
-                callback=progress_callback_fn if model_name.startswith("sd") else None,
-                callback_steps=1
+                callback_on_step_end=_on_step_end,
             )
         
         # Save image

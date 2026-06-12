@@ -6,6 +6,7 @@ hard timeouts; the caller layers offline-degrade.
 
 from typing import List, Optional
 
+from foundry.classifier import _SINGLE_FILE_FAMILIES
 from foundry.hub_search import SearchResult
 
 CIVITAI_API = "https://civitai.com/api/v1/models"
@@ -47,8 +48,10 @@ _TYPE_TO_ARTIFACT = {
 
 
 def _classify_civitai(item_type: str, family: Optional[str], fmt: Optional[str]):
-    """(tier, reason). Compatible is loras-of-known-family + SafeTensor only -
-    the only one-click load path that exists today (Spike C adjustment 4)."""
+    """(tier, reason). Compatible requires a known family AND a positive
+    SafeTensor marker: loras load via load_lora_weights, single-file
+    checkpoints via from_single_file with a catalog-pinned config (M5 Task 9
+    boundary, svd carved out - no FromSingleFileMixin in diffusers)."""
     if fmt == "pickle":
         return "experimental", "pickle weights - requires explicit consent (convert to safetensors offered)"
     if family is None:
@@ -62,8 +65,26 @@ def _classify_civitai(item_type: str, family: Optional[str], fmt: Optional[str])
             return "experimental", f"{family} lora but weight format unverified (no SafeTensor marker)"
         return "compatible", f"standalone {family} lora - safetensors - loads via load_lora_weights"
     if artifact == "checkpoint":
-        return "experimental", f"{family} single-file checkpoint - load path lands with M5 from_single_file"
-    return "experimental", f"{item_type} for {family} - wiring lands with M5 runtime resolution"
+        if family == "svd":
+            return (
+                "experimental",
+                "svd single-file checkpoint - StableVideoDiffusionPipeline has no "
+                "from_single_file path in diffusers",
+            )
+        if family in _SINGLE_FILE_FAMILIES:
+            # Same positive-marker rule as loras: fmt None never fails open.
+            if fmt != "safetensors":
+                return (
+                    "experimental",
+                    f"{family} checkpoint but weight format unverified (no SafeTensor marker)",
+                )
+            return (
+                "compatible",
+                f"single-file {family} checkpoint - safetensors - loads via "
+                f"from_single_file (config pinned to catalog)",
+            )
+        return "experimental", f"{family} single-file checkpoint of unrecognized architecture"
+    return "experimental", f"loose {item_type} for {family} - no one-click load path"
 
 
 def search_civitai(
