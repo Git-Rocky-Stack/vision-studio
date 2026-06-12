@@ -125,6 +125,27 @@ class ResolveSecurityTests(unittest.TestCase):
         self.assertIsNotNone(plan.refusal)
         self.assertIn("from_single_file", plan.refusal)
 
+    def test_pickle_without_consent_names_the_grant_step(self):
+        plan = resolve_model_runtime(
+            _record(format="pickle"), _profile(), consent=NO_CONSENT,
+        )
+        self.assertIsNotNone(plan.refusal)
+        self.assertIn("consent", plan.refusal)
+
+    def test_remote_code_beats_pickle_in_refusal_precedence(self):
+        plan = resolve_model_runtime(
+            _record(format="pickle", trust_remote_code=True), _profile(),
+            consent={"pickle": True, "trust_remote_code": True},
+        )
+        self.assertIn("remote code", plan.refusal)
+
+    def test_video_capability_on_image_family_refused(self):
+        plan = resolve_model_runtime(
+            _record(capability="video"), _profile(), consent=NO_CONSENT,
+        )
+        self.assertIsNotNone(plan.refusal)
+        self.assertIn("video", plan.refusal)
+
 
 class ResolveHappyPathTests(unittest.TestCase):
     def test_verified_sdxl_resolves_complete_plan(self):
@@ -152,6 +173,102 @@ class ResolveHappyPathTests(unittest.TestCase):
         )
         self.assertEqual(plan.vram_plan.basis, "measured")
         self.assertEqual(plan.vram_plan.total_bytes, 9 * 2**30)
+
+    def test_malformed_size_string_is_zero_not_crash(self):
+        plan = resolve_model_runtime(
+            _record(size="1.2.3 GB"), _profile(), consent=NO_CONSENT,
+        )
+        self.assertIsNone(plan.refusal)  # parses as unknown, never raises
+
+
+import json
+import os
+import tempfile
+from tests.foundry_fixtures import LORA_TENSORS, make_safetensors
+
+
+class LocalTruthTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp(prefix="foundry-resolver-")
+
+    def test_local_header_beats_size_string(self):
+        # A real local safetensors header gives EXACT weight bytes.
+        path = make_safetensors(os.path.join(self.tmp, "m.safetensors"), LORA_TENSORS)
+        plan = resolve_model_runtime(
+            _record(artifact_type="lora", size="999 GB", locations=[path]),
+            _profile(), consent=NO_CONSENT,
+        )
+        self.assertLess(plan.vram_plan.weight_bytes, 2**20)  # tiny fixture, not 999GB
+
+    def test_diffusers_dir_missing_weighted_component_reported(self):
+        snap = os.path.join(self.tmp, "repo")
+        os.makedirs(os.path.join(snap, "unet"))
+        os.makedirs(os.path.join(snap, "vae"))
+        with open(os.path.join(snap, "model_index.json"), "w", encoding="utf-8") as h:
+            json.dump({
+                "_class_name": "StableDiffusionXLPipeline",
+                "unet": ["diffusers", "UNet2DConditionModel"],
+                "vae": ["diffusers", "AutoencoderKL"],
+                "scheduler": ["diffusers", "EulerDiscreteScheduler"],
+            }, h)
+        # unet has weights; vae dir exists but is EMPTY -> missing.
+        make_safetensors(
+            os.path.join(snap, "unet", "diffusion_pytorch_model.safetensors"),
+            {"unet.weight": [4, 4]},
+        )
+        plan = resolve_model_runtime(
+            _record(artifact_type="diffusers-pipeline", locations=[snap]),
+            _profile(), consent=NO_CONSENT,
+        )
+        self.assertIn("vae", plan.missing_components)
+        self.assertNotIn("scheduler", plan.missing_components)  # config-only never blocks
+        self.assertIn("Needs", plan.readiness)
+
+    def test_single_file_load_peak_warns_on_low_ram(self):
+        path = make_safetensors(os.path.join(self.tmp, "big.safetensors"),
+                                {"w": [1024, 1024]})
+        plan = resolve_model_runtime(
+            _record(artifact_type="checkpoint", locations=[path]),
+            _profile(system_ram_available_bytes=1024),  # absurdly low
+            consent=NO_CONSENT,
+        )
+        self.assertIn("Low RAM", plan.readiness)
+
+
+class ReadinessReadoutTests(unittest.TestCase):
+    def test_ready_string(self):
+        plan = resolve_model_runtime(_record(), _profile(), consent=NO_CONSENT)
+        self.assertEqual(plan.readiness, "Ready - bf16 - fits (estimated)")
+
+    def test_offload_string(self):
+        plan = resolve_model_runtime(
+            _record(), _profile(vram_free_bytes=4 * 2**30), consent=NO_CONSENT
+        )
+        self.assertIn("CPU offload", plan.readiness)
+
+    def test_over_budget_names_the_vram(self):
+        plan = resolve_model_runtime(
+            _record(size="23.8 GB"),
+            _profile(vram_free_bytes=6 * 2**30, vram_total_bytes=8 * 2**30,
+                     system_ram_available_bytes=2 * 2**30),
+            consent=NO_CONSENT,
+        )
+        self.assertIn("Over budget", plan.readiness)
+        self.assertIn("8 GB", plan.readiness)
+
+    def test_cpu_only_string_is_honest(self):
+        plan = resolve_model_runtime(
+            _record(), _profile(gpu_available=False, vram_free_bytes=0),
+            consent=NO_CONSENT,
+        )
+        self.assertIn("CPU only", plan.readiness)
+        self.assertIn("not recommended", plan.readiness)
+
+    def test_unknown_weight_size_is_disclosed(self):
+        plan = resolve_model_runtime(
+            _record(size="Unknown"), _profile(), consent=NO_CONSENT,
+        )
+        self.assertIn("weight size unknown", plan.readiness)
 
 
 if __name__ == "__main__":

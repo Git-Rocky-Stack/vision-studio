@@ -1,6 +1,7 @@
 """resolve_model_runtime(record, hardware) -> RuntimePlan (spec 6.3/6.4).
 
-THE PLAN, fully surfaced and overridable (D8). Pillar 2 optimizes within it.
+THE PLAN, fully surfaced and overridable (D8; overrides are wired through the
+generators' resolve seam). Pillar 2 optimizes within it.
 Security comes first: this module is the loader-side enforcement point the
 M4 Codex gate deferred to M5 - remote-code records never resolve (M5 ships
 no remote-code load path, consent or not); pickle records resolve only
@@ -13,8 +14,15 @@ import re
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple
 
-from foundry.fit import VramEstimate, estimate_vram, hardware_fit
+from foundry.fit import (
+    VramEstimate,
+    estimate_vram,
+    hardware_fit,
+    load_peak_ram_bytes,
+    weight_bytes_from_header,
+)
 from foundry.hardware import HardwareProfile
+from foundry.safetensors_header import HeaderError, read_safetensors_header
 
 
 @dataclass(frozen=True)
@@ -44,7 +52,9 @@ PIPELINE_BY_FAMILY: Dict[Tuple[str, str], PipelineEntry] = {
 # Families that corrupt output in fp16 (community-established; flux notably).
 _NO_FP16_FAMILIES = {"flux", "sd35"}
 
-_SIZE_RE = re.compile(r"([\d.]+)\s*(GB|GiB|MB|MiB)", re.IGNORECASE)
+_SIZE_RE = re.compile(r"(\d+(?:\.\d+)?)\s*(GB|GiB|MB|MiB)", re.IGNORECASE)
+
+_WEIGHT_GLOBS = ("*.safetensors", "*.bin")
 
 
 def select_precision(family: str, profile: HardwareProfile) -> str:
@@ -90,6 +100,94 @@ def _refuse(reason: str) -> RuntimePlan:
     return RuntimePlan(refusal=reason, readiness=reason)
 
 
+def _local_weight_bytes(record: dict) -> Tuple[int, int]:
+    """(weight_bytes, native_bytes_per_param) from local safetensors headers.
+    (0, 4) when nothing local is readable - callers fall back to the size
+    string. Reads headers only - never loads tensors."""
+    import glob
+    import os
+
+    total = 0
+    native = 4
+    for location in record.get("locations") or []:
+        paths = []
+        if os.path.isfile(location) and location.endswith(".safetensors"):
+            paths = [location]
+        elif os.path.isdir(location):
+            paths = glob.glob(os.path.join(location, "**", "*.safetensors"), recursive=True)
+        for path in paths:
+            try:
+                header = read_safetensors_header(path)
+            except (HeaderError, OSError):
+                continue
+            total += weight_bytes_from_header(header)
+            dtypes = {m.get("dtype") for k, m in header.items() if k != "__metadata__"}
+            if dtypes & {"F16", "BF16"}:
+                native = 2
+    return total, native
+
+
+def _missing_components(record: dict) -> List[str]:
+    """Weighted model_index.json submodels with no weights on disk (Spike D
+    stage 3: config-only components - scheduler/tokenizer/feature_extractor -
+    never block)."""
+    import glob
+    import json
+    import os
+
+    missing: List[str] = []
+    for location in record.get("locations") or []:
+        index_path = os.path.join(location, "model_index.json")
+        if not os.path.isfile(index_path):
+            continue
+        try:
+            with open(index_path, "r", encoding="utf-8") as handle:
+                index = json.load(handle)
+        except (OSError, ValueError):
+            continue
+        for name, value in index.items():
+            if not (isinstance(value, (list, tuple)) and len(value) == 2):
+                continue
+            if value[1] is None or name in ("scheduler", "tokenizer", "tokenizer_2",
+                                            "tokenizer_3", "feature_extractor"):
+                continue
+            component_dir = os.path.join(location, name)
+            weighted = any(
+                glob.glob(os.path.join(component_dir, pattern)) for pattern in _WEIGHT_GLOBS
+            )
+            if not weighted:
+                missing.append(name)
+    return missing
+
+
+def _readiness(plan: RuntimePlan, profile: HardwareProfile) -> str:
+    if plan.missing_components:
+        return "Needs " + ", ".join(plan.missing_components)
+    basis = plan.vram_plan.basis if plan.vram_plan else "estimated"
+    if plan.fit == "fits":
+        return f"Ready - {plan.precision} - fits ({basis})"
+    if plan.fit == "fits-with-offload":
+        return f"Runs with CPU offload (~slower) - {plan.precision} ({basis})"
+    if plan.fit == "cpu-only":
+        return "CPU only - not recommended for real work"
+    total_gb = round(profile.vram_total_bytes / 2**30)
+    return f"Over budget on {total_gb} GB VRAM ({basis})"
+
+
+def _checkpoint_file_bytes(record: dict) -> int:
+    """Size of the first local checkpoint file, 0 when nothing is on disk yet
+    (pre-download single-file plans skip the load-peak RAM check honestly)."""
+    import os
+
+    for location in record.get("locations") or []:
+        try:
+            if os.path.isfile(location):
+                return os.path.getsize(location)
+        except OSError:
+            continue
+    return 0
+
+
 def resolve_model_runtime(
     record: dict,
     profile: HardwareProfile,
@@ -108,11 +206,14 @@ def resolve_model_runtime(
 
     family = record.get("base_architecture") or "unknown"
     capability = record.get("capability") or "image"
-    entry = PIPELINE_BY_FAMILY.get((family, capability)) or PIPELINE_BY_FAMILY.get(
-        (family, "image")
-    )
+    entry = PIPELINE_BY_FAMILY.get((family, capability))
+    if entry is None and capability in ("edit", "inpaint"):
+        entry = PIPELINE_BY_FAMILY.get((family, "image"))
     if entry is None:
-        return _refuse(f"architecture '{family}' has no shipped pipeline - cannot auto-wire")
+        return _refuse(
+            f"architecture '{family}' has no shipped pipeline for capability "
+            f"'{capability}' - cannot auto-wire"
+        )
 
     single_file = record.get("artifact_type") == "checkpoint" and bool(record.get("locations"))
     if single_file and not entry.single_file_ok:
@@ -123,10 +224,16 @@ def resolve_model_runtime(
 
     # -- the plan -----------------------------------------------------------
     precision = select_precision(family, profile)
-    weight_bytes = weight_bytes_from_size_string(record.get("size") or "")
+    # Local-header truth beats the catalog's human size string (spec 6.2):
+    # post-index the header gives EXACT bytes; pre-download the string is
+    # the only signal and stays the fallback.
+    weight_bytes, native_bytes = _local_weight_bytes(record)
+    if weight_bytes == 0:
+        weight_bytes = weight_bytes_from_size_string(record.get("size") or "")
+        native_bytes = 2 if "fp16" in (record.get("size") or "").lower() else 4
     estimate = estimate_vram(
         weight_bytes_native=weight_bytes,
-        native_bytes_per_param=2 if "fp16" in (record.get("size") or "").lower() else 4,
+        native_bytes_per_param=native_bytes,
         target_precision=precision,
         family=family,
         measured_total_bytes=record.get("measured_vram_bytes"),
@@ -143,8 +250,30 @@ def resolve_model_runtime(
         config_catalog_id=entry.config_catalog_id if single_file else None,
         vram_plan=estimate,
         fit=fit,
+        missing_components=_missing_components(record),
         fallback_ladder=_ladder(precision, fit),
     )
+
+    # -- readiness readout (GeneratePanel footer contract, Task 13) ----------
+    readiness = _readiness(plan, profile)
+    if single_file:
+        # Load-peak RAM check (Spike D adjustment 5): single-file conversion
+        # transiently holds resident + checkpoint bytes in system RAM.
+        # Informational only - never a refusal.
+        checkpoint_bytes = _checkpoint_file_bytes(record)
+        if checkpoint_bytes:
+            peak = load_peak_ram_bytes(
+                estimate.weight_bytes,
+                checkpoint_bytes=checkpoint_bytes,
+                single_file=True,
+            )
+            if peak > profile.system_ram_available_bytes:
+                readiness = "Low RAM for load conversion - " + readiness
+    if weight_bytes == 0 and estimate.basis == "estimated":
+        # Nothing local, size string unparseable, no measurement: the plan
+        # is activation-band-only - disclose it rather than imply precision.
+        readiness += " (weight size unknown)"
+    plan.readiness = readiness
     return plan
 
 
