@@ -37,6 +37,9 @@ class ModelRecordSchema(BaseModel):
     nsfw: bool = False
     download_url: Optional[str] = None
     sha256: Optional[str] = None
+    # Dependency graph + calibrated hardware budget (M5)
+    companions: List[str] = []
+    measured_vram_bytes: Optional[int] = None
 
     @field_validator("sha256")
     @classmethod

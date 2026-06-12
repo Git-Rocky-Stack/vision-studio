@@ -56,6 +56,10 @@ class ModelRecord:
     download_url: Optional[str] = None
     sha256: Optional[str] = None
 
+    # Dependency graph + calibrated hardware budget (M5)
+    companions: List[str] = field(default_factory=list)   # catalog ids required alongside this model
+    measured_vram_bytes: Optional[int] = None              # null until calibration harness writes it
+
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
 

@@ -118,5 +118,26 @@ class FoundryModelRecordTests(unittest.TestCase):
             )
 
 
+class M5CatalogFieldTests(unittest.TestCase):
+    def test_companions_and_measured_vram_default_safely(self):
+        record = ModelRecord(
+            id="x", name="x", artifact_type="checkpoint",
+            capability="image", base_architecture="sdxl", source="huggingface",
+        )
+        self.assertEqual(record.companions, [])
+        self.assertIsNone(record.measured_vram_bytes)
+        data = record.to_dict()
+        self.assertIn("companions", data)
+        self.assertIn("measured_vram_bytes", data)
+
+    def test_catalog_companions_load(self):
+        records = load_catalog(CATALOG_PATH)
+        self.assertIn("sdxl-vae", records["sdxl-base"].companions)
+        # Every companion id must itself be a catalog id - no dangling refs.
+        for record in records.values():
+            for companion in record.companions:
+                self.assertIn(companion, records)
+
+
 if __name__ == "__main__":
     unittest.main()
