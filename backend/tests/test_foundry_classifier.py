@@ -291,5 +291,26 @@ class FamilyFieldTests(unittest.TestCase):
         self.assertEqual(verdict.family, "flux")
 
 
+class IndexedSingleFileUpgradeTests(unittest.TestCase):
+    def test_known_family_checkpoint_now_compatible(self):
+        from foundry.classifier import indexed_tier
+        tier, reason, family = indexed_tier("checkpoint", "sdxl")
+        self.assertEqual(tier, "compatible")
+        self.assertIn("from_single_file", reason)
+        self.assertEqual(family, "sdxl")
+
+    def test_svd_checkpoint_stays_experimental_with_load_path_named(self):
+        from foundry.classifier import indexed_tier
+        tier, reason, _family = indexed_tier("checkpoint", "svd")
+        self.assertEqual(tier, "experimental")
+        self.assertIn("from_single_file", reason)
+
+    def test_unknown_family_checkpoint_stays_experimental(self):
+        from foundry.classifier import indexed_tier
+        tier, reason, family = indexed_tier("checkpoint", "unknown")
+        self.assertEqual(tier, "experimental")
+        self.assertIsNone(family)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -54,6 +54,13 @@ _COMPONENT_DIR_RE = re.compile(
 )
 _PICKLE_SUFFIXES = (".ckpt", ".bin", ".pt", ".pth")
 
+# Families with a confirmed from_single_file load path (Spike D adjustment 3 -
+# config pinned to catalog id; no key-sniffing). "sd-unet-family" is the
+# ambiguous kohya-lora routing label and cannot pin a config - stays experimental.
+# svd is carved out separately: StableVideoDiffusionPipeline has no
+# FromSingleFileMixin in diffusers.
+_SINGLE_FILE_FAMILIES = {"sd15", "sdxl", "sd35", "flux", "ltx", "animatediff"}
+
 
 @dataclass
 class TierVerdict:
@@ -132,9 +139,11 @@ def lora_base_family(tags: List[str]) -> Optional[str]:
 def indexed_tier(artifact_type: str, family: Optional[str]) -> Tuple[str, str, Optional[str]]:
     """Post-index tier for a locally indexed artifact (spec 5.2 upgrade/downgrade).
 
-    Bounded by load paths that exist today (Spike C adjustment 4): standalone
-    loras load via load_lora_weights -> compatible; single-file checkpoints
-    wait for from_single_file wiring in M5 -> experimental, honestly reasoned.
+    Standalone loras load via load_lora_weights -> compatible. Single-file
+    checkpoints with a known family load via from_single_file (config pinned to
+    catalog) -> compatible; the from_single_file load path shipped in M5.
+    svd is carved out: StableVideoDiffusionPipeline has no FromSingleFileMixin
+    in diffusers (Spike D adjustment 4).
 
     Returns (tier, reason, family_out). family_out echoes the input family for
     recognized families, None otherwise (M5 structured field).
@@ -144,7 +153,21 @@ def indexed_tier(artifact_type: str, family: Optional[str]) -> Tuple[str, str, O
             return "compatible", f"indexed {family} lora - loads via load_lora_weights", family
         return "experimental", "indexed lora - base family unrecognized from header", None
     if artifact_type == "checkpoint":
-        return "experimental", "indexed single-file checkpoint - load path lands with M5 from_single_file", None
+        if family == "svd":
+            return (
+                "experimental",
+                "svd single-file checkpoint - StableVideoDiffusionPipeline has no "
+                "from_single_file path in diffusers",
+                "svd",
+            )
+        if family in _SINGLE_FILE_FAMILIES:  # sd15|sdxl|sd35|flux|ltx|animatediff
+            return (
+                "compatible",
+                f"single-file {family} checkpoint - loads via from_single_file "
+                f"(config pinned to catalog)",
+                family,
+            )
+        return ("experimental", "single-file checkpoint of unrecognized architecture", None)
     if artifact_type in ("vae", "controlnet"):
         return "experimental", f"indexed loose {artifact_type} - wiring lands with M5 runtime resolution", None
     if artifact_type == "diffusers-pipeline":
