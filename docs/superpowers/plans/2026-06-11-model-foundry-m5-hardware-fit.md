@@ -1736,6 +1736,25 @@ Expected: all green; corpus gate (false-Compatible = 0) green; CI green on the P
 - **Panel composition / Carbon Pro styling** - design agent's pass; M5 ships states + data.
 - **Runtime OOM ladder beyond load** - the ladder wraps LOAD; mid-inference OOM recovery belongs to Pillar 2 (Accelerator).
 
+## Execution amendments (recorded during subagent-driven execution)
+
+1. **Task 4 `estimate_vram` measured branch (Critical, found by the Task 4+5
+   quality review):** the plan's sketch zeroed all components under measured
+   basis, which made `over-budget` structurally unreachable for measured
+   models in `hardware_fit` (`non_weight=0` and `weights=0` are vacuously
+   satisfiable; probe-verified: a 40 GiB measured model on 1 GiB VRAM read
+   "fits-with-offload"). Shipped fix: weights stay exact (computed, clamped
+   to the measurement), the measurement's remainder lands in
+   `activation_bytes` (runtime folded in), zero/negative measurements are
+   treated as no-measurement. Regression tests:
+   `test_measured_over_budget_is_honest`, `test_measured_offload_still_reachable`,
+   `test_measured_below_computed_weights_clamps`,
+   `test_zero_or_negative_measurement_is_not_a_measurement`.
+2. **Task 8 addition:** when `weight_bytes_native` is 0 (unparseable size,
+   nothing local) and no measurement exists, the readiness string must
+   disclose the uncertainty (append "(weight size unknown)") rather than
+   reporting a confident bands-only verdict.
+
 ## After the milestone
 
 Per spec 8.4: **Codex independent review (final sweep)** on the full Foundry surface before declaring Foundry v1 done. Then Pillar 2 (Accelerator) planning begins on top of `resolve_model_runtime`'s plan contract.

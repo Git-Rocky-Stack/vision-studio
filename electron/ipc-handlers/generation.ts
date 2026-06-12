@@ -826,3 +826,31 @@ ipcMain.handle('models:libraries:detect', async () => {
     return [];
   }
 });
+
+ipcMain.handle('hardware:get', async () => {
+  try {
+    const response = await requestBackend(() =>
+      axios.get(`${BACKEND_URL}/api/hardware`, { headers: backendAuthHeaders() }),
+    );
+    return response.data;
+  } catch (error: any) {
+    console.error('Hardware profile error:', error instanceof Error ? error.message : error);
+    return { success: false, error: toSafeRendererError(error, 'Could not fetch hardware profile') };
+  }
+});
+
+ipcMain.handle('models:resolveRuntime', async (_event, modelId: string) => {
+  try {
+    const response = await requestBackend(() =>
+      axios.post(
+        `${BACKEND_URL}/api/models/${encodeURIComponent(modelId)}/resolve-runtime`,
+        undefined,
+        { headers: backendAuthHeaders() },
+      ),
+    );
+    return response.data;
+  } catch (error: any) {
+    console.error('Resolve runtime error:', error instanceof Error ? error.message : error);
+    return { success: false, error: toSafeRendererError(error, 'Runtime resolution failed') };
+  }
+});

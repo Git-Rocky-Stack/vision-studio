@@ -647,6 +647,33 @@ function downloadActions(): string[] {
   return ['pause', 'resume', 'cancel'];
 }
 
+// ── M5 hardware + runtime plan contracts ─────────────────────────────────
+
+describe('M5 hardware + runtime plan contracts', () => {
+  it('HardwareProfile carries the fit-relevant fields', () => {
+    const profile: import('@/types/model').HardwareProfile = {
+      gpu_available: true, gpu_name: 'RTX 4090',
+      vram_total_bytes: 25769803776, vram_free_bytes: 21474836480,
+      compute_major: 8, compute_minor: 9, cuda_version: '12.1',
+      torch_available: true, system_ram_total_bytes: 68719476736,
+      system_ram_available_bytes: 51539607552, disk_free_bytes: 966367641600,
+    };
+    expect(profile.vram_total_bytes).toBeGreaterThan(0);
+  });
+
+  it('RuntimePlan refusal and readiness are renderer-visible', () => {
+    const plan: import('@/types/model').RuntimePlan = {
+      pipeline_class: 'StableDiffusionXLPipeline', precision: 'bf16',
+      offload: false, vae_tiling: false, attention_slicing: true,
+      single_file: false, config_catalog_id: null,
+      vram_plan: { weight_bytes: 1, activation_bytes: 1, runtime_bytes: 1, total_bytes: 3, basis: 'estimated' },
+      fit: 'fits', missing_components: [], fallback_ladder: [],
+      readiness: 'Ready - bf16 - fits (estimated)', refusal: null,
+    };
+    expect(plan.readiness).toContain('Ready');
+  });
+});
+
 // ── LibraryRoot / ScanResult contracts ───────────────────────────────────
 
 describe('LibraryRoot contract', () => {

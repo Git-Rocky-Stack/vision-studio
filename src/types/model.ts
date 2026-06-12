@@ -37,7 +37,8 @@ export interface ModelRecord {
   base_architecture: string;
   source: 'huggingface' | 'civitai' | 'local' | 'linked';
   repo_id: string | null;
-  revision: string;
+  /** null = unpinned (M5 Task 2: backend changed Optional[str] = None). */
+  revision: string | null;
   aux_repo_id: string | null;
   size: string;
   status: ModelStatus;
@@ -61,6 +62,9 @@ export interface ModelRecord {
   nsfw?: boolean;
   download_url?: string | null;
   sha256?: string | null;
+  // M5 Task 6: companion model IDs (e.g. VAE, text encoder) and measured VRAM.
+  companions?: string[];
+  measured_vram_bytes?: number | null;
   // Optional legacy-compat fields some consumers read:
   type?: string;
   progress?: number;
@@ -157,4 +161,58 @@ export interface SearchResponse {
 
 export function isImageCapability(record: Pick<ModelRecord, 'capability'>): boolean {
   return record.capability !== 'video';
+}
+
+// ── M5 hardware + runtime plan wire types ────────────────────────────────
+
+/**
+ * GPU/CPU snapshot from GET /api/hardware.
+ * Mirrors backend HardwareProfileSchema (spec 6.1). Snake_case wire format.
+ */
+export interface HardwareProfile {
+  gpu_available: boolean;
+  gpu_name: string | null;
+  vram_total_bytes: number;
+  vram_free_bytes: number;
+  compute_major: number;
+  compute_minor: number;
+  cuda_version: string | null;
+  torch_available: boolean;
+  system_ram_total_bytes: number;
+  system_ram_available_bytes: number;
+  disk_free_bytes: number;
+}
+
+/**
+ * VRAM breakdown for a single model load.
+ * Mirrors backend VramEstimateSchema (spec 6.2). Snake_case wire format.
+ */
+export interface VramEstimate {
+  weight_bytes: number;
+  activation_bytes: number;
+  runtime_bytes: number;
+  total_bytes: number;
+  /** 'measured' | 'estimated' */
+  basis: string;
+}
+
+/**
+ * Resolved pipeline runtime plan from POST /api/models/{id}/resolve-runtime.
+ * Mirrors backend RuntimePlanSchema (spec 6.4). Snake_case wire format.
+ * A refusal is an informational 200 payload (refusal field set); never a 4xx/5xx.
+ */
+export interface RuntimePlan {
+  pipeline_class: string | null;
+  precision: string | null;
+  offload: boolean;
+  vae_tiling: boolean;
+  attention_slicing: boolean;
+  single_file: boolean;
+  config_catalog_id: string | null;
+  vram_plan: VramEstimate | null;
+  fit: string | null;
+  missing_components: string[];
+  fallback_ladder: string[];
+  readiness: string;
+  refusal: string | null;
 }

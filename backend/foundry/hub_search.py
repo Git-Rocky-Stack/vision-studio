@@ -102,7 +102,7 @@ def search_hf(
         verdict = classify_repo(signals, verified_repo_ids)
         if verdict.tier == "compatible" and signals.partial:
             verdict = _verify_partial_compatible(item.id, verified_repo_ids, fetch)
-        family = _family_from_reason(verdict.reason)
+        family = verdict.family
         results.append(
             SearchResult(
                 id=_slug(item.id),
@@ -142,10 +142,3 @@ def _verify_partial_compatible(
     if full is None or not full.reachable:
         return TierVerdict("experimental", _UNVERIFIED_REASON)
     return classify_repo(full, verified_repo_ids)
-
-
-def _family_from_reason(reason: str) -> Optional[str]:
-    for family in ("sdxl", "sd15", "sd35", "flux", "ltx", "svd", "animatediff"):
-        if f" {family} " in f" {reason} " or f"{family} " in reason:
-            return family
-    return None

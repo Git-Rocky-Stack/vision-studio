@@ -19,16 +19,26 @@ from PIL import Image
 
 try:
     import torch
-    from diffusers import AnimateDiffPipeline, LTXPipeline, MotionAdapter, StableVideoDiffusionPipeline
+    import diffusers
+    from diffusers import MotionAdapter
 
     VIDEO_DIFFUSERS_AVAILABLE = True
 except ImportError:
     torch = None  # type: ignore[assignment]
-    AnimateDiffPipeline = None  # type: ignore[assignment]
-    LTXPipeline = None  # type: ignore[assignment]
+    diffusers = None  # type: ignore[assignment]
     MotionAdapter = None  # type: ignore[assignment]
-    StableVideoDiffusionPipeline = None  # type: ignore[assignment]
     VIDEO_DIFFUSERS_AVAILABLE = False
+
+# Plan seam + typed refusal shared with the image generator so main.py maps
+# ONE error type to its job-failure envelope. Tests patch the seam where it
+# is used: ``utils.direct_video_generator.resolve_plan``.
+from utils.direct_generator import (
+    ModelLoadRefusedError,
+    apply_fallback_rung,
+    dtype_for_precision,
+    pipeline_class_for,
+    resolve_plan,
+)
 
 
 def resolve_video_model_strategy(model_name: str, has_input_image: bool) -> str:
@@ -60,20 +70,23 @@ def build_video_result(
     }
 
 
-VIDEO_MODEL_REPOS = {
-    "ltx-video": "Lightricks/LTX-Video",
-    "svd": "stabilityai/stable-video-diffusion-img2vid-xt",
-}
-
-
-def resolve_video_model_source(models_dir: str, model_name: str) -> str:
+def resolve_video_model_source(models_dir: str, model_name: str, default: Optional[str] = None) -> str:
+    """Prefer a pre-seeded local diffusers bundle; otherwise the plan-resolved
+    source (record repo_id or local snapshot). The legacy hardcoded repo map
+    died with M5 Task 11 - repo ids come from the registry record."""
     local_bundle = Path(models_dir) / "diffusers" / model_name
     if local_bundle.exists():
         return str(local_bundle).replace("\\", "/")
-    return VIDEO_MODEL_REPOS.get(model_name, model_name)
+    return default or model_name
 
 
-def resolve_animatediff_sources(models_dir: str) -> tuple[str, str]:
+def resolve_animatediff_sources(
+    models_dir: str,
+    base_repo: Optional[str] = None,
+    adapter_repo: Optional[str] = None,
+) -> tuple[str, str]:
+    """(base, motion adapter) sources: pre-seeded local bundles win, then the
+    record's repo_id / aux_repo_id, then the historical defaults."""
     animatediff_root = Path(models_dir) / "diffusers" / "animatediff"
     base_bundle = animatediff_root / "base"
     adapter_bundle = animatediff_root / "adapter"
@@ -82,7 +95,10 @@ def resolve_animatediff_sources(models_dir: str) -> tuple[str, str]:
             str(base_bundle).replace("\\", "/"),
             str(adapter_bundle).replace("\\", "/"),
         )
-    return ("runwayml/stable-diffusion-v1-5", "guoyww/animatediff-motion-adapter-v1-5-2")
+    return (
+        base_repo or "runwayml/stable-diffusion-v1-5",
+        adapter_repo or "guoyww/animatediff-motion-adapter-v1-5-2",
+    )
 
 
 @contextmanager
@@ -106,39 +122,116 @@ class DirectVideoGenerator:
         self.executor = ThreadPoolExecutor(max_workers=1)
         self.pipelines: Dict[str, Any] = {}
 
-    def _load_pipeline(self, model_name: str):
+    def load_model(self, model_name: str, overrides: Optional[Dict[str, Any]] = None):
+        """Plan-driven load mirroring DirectGenerator.load_model: the runtime
+        plan decides pipeline class, dtype, offload and tiling; refusals raise
+        ModelLoadRefusedError; CUDA OOM consumes the plan's fallback ladder.
+        svd records arrive as plans only via from_pretrained (the resolver
+        refuses svd single-file)."""
         if not VIDEO_DIFFUSERS_AVAILABLE:
             raise RuntimeError("diffusers video pipelines are not available")
 
         if model_name in self.pipelines:
             return self.pipelines[model_name]
 
-        if model_name == "ltx-video":
-            pipeline_source = resolve_video_model_source(self.models_dir, model_name)
-            pipeline = LTXPipeline.from_pretrained(
-                pipeline_source,
-                torch_dtype=torch.bfloat16 if self.device == "cuda" else torch.float32,
+        plan = resolve_plan(model_name, overrides)
+        if plan.refusal:
+            raise ModelLoadRefusedError(plan.refusal)
+
+        ladder = list(plan.fallback_ladder)
+        slicing_max = False
+        while True:
+            try:
+                pipeline = self._load_from_plan(model_name, plan, slicing_max)
+                break
+            except torch.cuda.OutOfMemoryError:
+                if not ladder:
+                    print(f"OOM loading {model_name}: fallback ladder exhausted")
+                    raise
+                rung = ladder.pop(0)
+                print(f"OOM loading {model_name}: stepping fallback rung '{rung}'")
+                slicing_max = apply_fallback_rung(plan, rung) or slicing_max
+                torch.cuda.empty_cache()
+
+        self.pipelines[model_name] = pipeline
+        return pipeline
+
+    def _load_from_plan(self, model_name: str, plan, slicing_max: bool):
+        """One load attempt driven entirely by the plan (no name-sniffing)."""
+        dtype = dtype_for_precision(plan.precision)
+        pipeline_cls = pipeline_class_for(plan)
+
+        if plan.single_file:
+            # Mirror of DirectGenerator: ltx/animatediff single-file
+            # checkpoints load via from_single_file with the catalog-pinned
+            # config (Spike D adj. 3) - keys are NEVER sniffed for a config.
+            # (svd never reaches here: the resolver refuses svd single-file.)
+            checkpoint = getattr(plan, "checkpoint_path", None)
+            if not checkpoint:
+                raise ModelLoadRefusedError(
+                    f"Model '{model_name}' has no local safetensors checkpoint to load"
+                )
+            pipeline = pipeline_cls.from_single_file(
+                checkpoint,
+                config=getattr(plan, "config_repo_id", None),
+                torch_dtype=dtype,
             )
-        elif model_name == "svd":
-            pipeline_source = resolve_video_model_source(self.models_dir, model_name)
-            pipeline = StableVideoDiffusionPipeline.from_pretrained(
-                pipeline_source,
-                torch_dtype=torch.float16 if self.device == "cuda" else torch.float32,
-                variant="fp16" if self.device == "cuda" else None,
+            return self._apply_plan_runtime_flags(pipeline, plan, slicing_max)
+
+        source = resolve_video_model_source(
+            self.models_dir, model_name, default=getattr(plan, "load_source", None)
+        )
+        if not source:
+            raise ModelLoadRefusedError(
+                f"Model '{model_name}' has no repo or local snapshot to load from"
             )
-        elif model_name == "animatediff":
-            base_source, adapter_source = resolve_animatediff_sources(self.models_dir)
-            adapter = MotionAdapter.from_pretrained(adapter_source)
-            pipeline = AnimateDiffPipeline.from_pretrained(
+
+        # use_safetensors=True is NON-NEGOTIABLE on every weight load: never
+        # fall back from safetensors to pickle weights (M4 gate residual).
+        if plan.pipeline_class == "AnimateDiffPipeline":
+            base_source, adapter_source = resolve_animatediff_sources(
+                self.models_dir,
+                base_repo=getattr(plan, "load_source", None),
+                adapter_repo=getattr(plan, "adapter_repo_id", None),
+            )
+            adapter = MotionAdapter.from_pretrained(adapter_source, use_safetensors=True)
+            pipeline = pipeline_cls.from_pretrained(
                 base_source,
                 motion_adapter=adapter,
-                torch_dtype=torch.float16 if self.device == "cuda" else torch.float32,
+                torch_dtype=dtype,
+                use_safetensors=True,
+            )
+        elif plan.pipeline_class == "StableVideoDiffusionPipeline":
+            pipeline = pipeline_cls.from_pretrained(
+                source,
+                torch_dtype=dtype,
+                # The svd repo ships fp16-variant weight files; on GPU plans
+                # (fp16/bf16) select them as the legacy loader did on CUDA.
+                variant="fp16" if plan.precision in ("fp16", "bf16") else None,
+                use_safetensors=True,
             )
         else:
-            raise ValueError(f"Unsupported video model: {model_name}")
+            pipeline = pipeline_cls.from_pretrained(
+                source,
+                torch_dtype=dtype,
+                use_safetensors=True,
+            )
 
-        pipeline = pipeline.to(self.device)
-        self.pipelines[model_name] = pipeline
+        return self._apply_plan_runtime_flags(pipeline, plan, slicing_max)
+
+    def _apply_plan_runtime_flags(self, pipeline, plan, slicing_max: bool):
+        """Post-load flags from the plan - shared by both load branches."""
+        if plan.offload:
+            # Offload manages device placement itself - no manual .to(device).
+            pipeline.enable_model_cpu_offload()
+        else:
+            pipeline = pipeline.to(self.device)
+
+        if plan.vae_tiling and hasattr(pipeline, "vae"):
+            pipeline.vae.enable_tiling()
+        if slicing_max and hasattr(pipeline, "enable_attention_slicing"):
+            pipeline.enable_attention_slicing("max")
+
         return pipeline
 
     def _export_frames_to_video(self, frames, output_path: str, fps: int) -> None:
@@ -167,7 +260,7 @@ class DirectVideoGenerator:
     ) -> Dict[str, object]:
         frame_count = max(8, fps * duration)
         strategy = resolve_video_model_strategy(model_name, bool(image_path))
-        pipeline = self._load_pipeline(model_name)
+        pipeline = self.load_model(model_name)
 
         generator = None
         if torch is not None:

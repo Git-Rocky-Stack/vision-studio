@@ -179,6 +179,17 @@
         }
       }
     },
+    "/api/hardware": {
+      "get": {
+        "tags": ["Models"],
+        "summary": "Truthful hardware probe: GPU, VRAM, compute capability, RAM, disk (spec 6.1). Never errors — a failed CUDA query degrades to gpu_available=false with zeroed VRAM fields (a half-probed GPU must never look usable)",
+        "operationId": "getHardware",
+        "responses": {
+          "200": { "description": "Hardware profile", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/HardwareProfile" } } } },
+          "429": { "$ref": "#/components/responses/RateLimited" }
+        }
+      }
+    },
     "/api/models": {
       "get": {
         "tags": ["Models"],
@@ -286,6 +297,19 @@
           "409": { "description": "Conflict — detail.error_code is pickle-consent-required, no-pickle-source, or already-converted (an existing safetensors file is never silently clobbered)", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
           "422": { "description": "Conversion failed (corrupt or unreadable pickle source)", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
           "503": { "description": "Conversion unavailable — backend is running in stub mode without torch installed", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    },
+    "/api/models/{model_id}/resolve-runtime": {
+      "post": {
+        "tags": ["Models"],
+        "summary": "Resolve the load plan for THIS machine (spec 6.4): fresh hardware probe + record + per-model consent -> concrete diffusers plan. Refusals are informational 200 payloads (refusal field set, plan fields at null defaults) — 'this will not load, and here is why' is an answer, not a server error",
+        "operationId": "resolveModelRuntime",
+        "parameters": [{ "in": "path", "name": "model_id", "required": true, "schema": { "type": "string" } }],
+        "responses": {
+          "200": { "description": "Runtime plan; refusals (remote-code records, unconverted pickle, unsupported architecture/capability, single-file family without a from_single_file path) arrive here as payloads, never as 4xx/5xx", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/RuntimePlan" } } } },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "429": { "$ref": "#/components/responses/RateLimited" }
         }
       }
     },
@@ -651,7 +675,7 @@
           "base_architecture": { "type": "string", "example": "flux" },
           "source": { "type": "string", "example": "huggingface" },
           "repo_id": { "type": "string", "nullable": true },
-          "revision": { "type": "string", "default": "main" },
+          "revision": { "type": "string", "nullable": true, "description": "Commit sha pinned at classification; null = unpinned (resolves to the repo default branch at load time)." },
           "aux_repo_id": { "type": "string", "nullable": true },
           "size": { "type": "string", "default": "Unknown" },
           "status": { "type": "string", "description": "ready | downloading | error | not_found | queued | verifying | paused | cancelled", "default": "not_found" },
@@ -672,7 +696,9 @@
           "trust_remote_code": { "type": "boolean", "default": false, "description": "Model requires executing repo-authored code; download is consent-gated (M4+)" },
           "nsfw": { "type": "boolean", "default": false, "description": "Hub-flagged NSFW content (M4+)" },
           "download_url": { "type": "string", "nullable": true, "description": "Direct acquisition URL for CivitAI-source records. Server-side only — never included in SearchResult responses (M4+)" },
-          "sha256": { "type": "string", "nullable": true, "pattern": "^[0-9a-f]{64}$", "description": "Expected weight digest; must be a 64-character lowercase hex string (schema-validated). Server-side only — never included in SearchResult responses (M4+)" }
+          "sha256": { "type": "string", "nullable": true, "pattern": "^[0-9a-f]{64}$", "description": "Expected weight digest; must be a 64-character lowercase hex string (schema-validated). Server-side only — never included in SearchResult responses (M4+)" },
+          "companions": { "type": "array", "items": { "type": "string" }, "default": [], "description": "Catalog ids of companion artifacts (e.g. a recommended VAE) in the dependency graph (M5+)" },
+          "measured_vram_bytes": { "type": "integer", "nullable": true, "description": "Calibrated peak VRAM measurement from the calibration harness; basis for 'measured' fit verdicts (M5+)" }
         }
       },
       "ImportRootRequest": {
@@ -791,6 +817,56 @@
           "model_id": { "type": "string" },
           "safetensors_path": { "type": "string", "description": "Absolute path of the written .safetensors file (next to the pickle source)" },
           "tensor_count": { "type": "integer" }
+        }
+      },
+      "HardwareProfile": {
+        "description": "Truthful hardware probe result (M5, spec 6.1). gpu_available is true ONLY when every CUDA query succeeded; probe failures degrade the affected fields to zero/null rather than erroring.",
+        "type": "object",
+        "required": ["gpu_available"],
+        "properties": {
+          "gpu_available": { "type": "boolean" },
+          "gpu_name": { "type": "string", "nullable": true, "example": "NVIDIA GeForce RTX 4090" },
+          "vram_total_bytes": { "type": "integer", "default": 0 },
+          "vram_free_bytes": { "type": "integer", "default": 0 },
+          "compute_major": { "type": "integer", "default": 0, "description": "CUDA compute capability major version (8.0+ = bf16, 8.9+ = fp8)" },
+          "compute_minor": { "type": "integer", "default": 0 },
+          "cuda_version": { "type": "string", "nullable": true, "example": "12.1" },
+          "torch_available": { "type": "boolean", "default": false },
+          "system_ram_total_bytes": { "type": "integer", "default": 0 },
+          "system_ram_available_bytes": { "type": "integer", "default": 0 },
+          "disk_free_bytes": { "type": "integer", "default": 0, "description": "Free bytes on the volume holding the models directory" }
+        }
+      },
+      "VramEstimate": {
+        "description": "VRAM budget breakdown inside a RuntimePlan (M5, spec 6.2).",
+        "type": "object",
+        "required": ["weight_bytes", "activation_bytes", "runtime_bytes", "total_bytes", "basis"],
+        "properties": {
+          "weight_bytes": { "type": "integer", "description": "Weights at the planned precision (exact from local safetensors headers when available; else parsed from the record's size string)" },
+          "activation_bytes": { "type": "integer", "description": "Per-family activation band" },
+          "runtime_bytes": { "type": "integer", "description": "CUDA context + allocator overhead" },
+          "total_bytes": { "type": "integer" },
+          "basis": { "type": "string", "enum": ["measured", "estimated"], "description": "measured = calibrated measured_vram_bytes on the record; estimated = computed bands" }
+        }
+      },
+      "RuntimePlan": {
+        "description": "The load plan for this machine (M5, spec 6.4). A refusal is an informational 200 payload — refusal is set (mirrored in readiness) and the plan fields stay at their null defaults; preflight never signals refusals as 4xx/5xx.",
+        "type": "object",
+        "required": ["readiness"],
+        "properties": {
+          "pipeline_class": { "type": "string", "nullable": true, "example": "StableDiffusionXLPipeline" },
+          "precision": { "type": "string", "nullable": true, "description": "bf16 | fp16 | fp32 (fp16-corrupting families like flux/sd35 get fp32 on pre-bf16 GPUs)" },
+          "offload": { "type": "boolean", "default": false, "description": "CPU offload enabled (auto-on for fits-with-offload)" },
+          "vae_tiling": { "type": "boolean", "default": false },
+          "attention_slicing": { "type": "boolean", "default": true },
+          "single_file": { "type": "boolean", "default": false, "description": "Load via from_single_file (local single-file checkpoint)" },
+          "config_catalog_id": { "type": "string", "nullable": true, "description": "Catalog id whose repo supplies from_single_file's pinned config (single-file plans only)" },
+          "vram_plan": { "allOf": [{ "$ref": "#/components/schemas/VramEstimate" }], "nullable": true },
+          "fit": { "type": "string", "nullable": true, "enum": ["fits", "fits-with-offload", "over-budget", "cpu-only", null], "description": "Hardware fit verdict" },
+          "missing_components": { "type": "array", "items": { "type": "string" }, "default": [], "description": "Weighted model_index.json submodels with no weights on disk; config-only components never appear" },
+          "fallback_ladder": { "type": "array", "items": { "type": "string" }, "default": [], "description": "Ordered OOM-recovery rungs (spec 6.6), e.g. precision:fp16, offload:cpu, vae:tiling, attention:slicing-max" },
+          "readiness": { "type": "string", "description": "Human-readable preflight readout for the Generate panel footer", "example": "Ready - bf16 - fits (estimated)" },
+          "refusal": { "type": "string", "nullable": true, "description": "Set when the model will not load on any hardware (remote code, unconverted pickle, unsupported architecture, no single-file path). Informational — still HTTP 200" }
         }
       },
       "ModelStatus": {

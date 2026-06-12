@@ -10,6 +10,8 @@ import type {
   SearchResponse,
   SearchSource,
   ConsentKind,
+  HardwareProfile,
+  RuntimePlan,
 } from '@/types/model';
 
 export const modelsInitialState = {
@@ -28,6 +30,10 @@ export const modelsInitialState = {
   // Session-only CivitAI NSFW opt-in. Deliberately NOT persisted: every
   // session starts safe-search-on.
   nsfwOptIn: false,
+  // GPU/CPU snapshot (M5). Deliberately NOT persisted - hardware can change
+  // between sessions (driver updates, eGPU, VRAM pressure), so a stale
+  // profile is worse than none. The appStore partialize allowlist excludes it.
+  hardwareProfile: null as HardwareProfile | null,
 };
 
 export function createModelsActions(set: AppSet, get: AppGet) {
@@ -171,6 +177,34 @@ export function createModelsActions(set: AppSet, get: AppGet) {
       return window.electron.models.consent(modelId, kind, granted);
     },
     convertModel: async (modelId: string) => window.electron.models.convert(modelId),
+
+    // Hardware + preflight (M5) -------------------------------------------
+    loadHardwareProfile: async () => {
+      try {
+        const profile = await window.electron.hardware.get();
+        if (profile && typeof profile === 'object' && 'success' in profile) {
+          // {success:false, error} envelope: treat like a bridge failure and
+          // keep the last-known profile (local-first).
+          return;
+        }
+        set({ hardwareProfile: profile as HardwareProfile });
+      } catch {
+        // Local-first: a backend hiccup must not wipe the last-known profile.
+      }
+    },
+    // resolveRuntime deliberately does NOT swallow errors like the
+    // local-first actions above: preflight truth must surface to the caller,
+    // never be silently lost (same deviation as consent/convert). The IPC
+    // layer returns {success:false, error} envelopes for backend errors;
+    // those are normalized to throws here, and a rejection means the bridge
+    // itself failed.
+    resolveRuntime: async (modelId: string): Promise<RuntimePlan> => {
+      const plan = await window.electron.models.resolveRuntime(modelId);
+      if (plan && typeof plan === 'object' && 'success' in plan && plan.success === false) {
+        throw new Error(plan.error || 'Runtime preflight failed');
+      }
+      return plan as RuntimePlan;
+    },
   };
 }
 

@@ -71,6 +71,7 @@ class HfSearchTests(unittest.TestCase):
         self.assertEqual(len(results), 2)
         self.assertEqual(results[0].tier, "compatible")
         self.assertIn("sdxl", results[0].tier_reason)
+        self.assertEqual(results[0].base_architecture, "sdxl")
         self.assertEqual(results[1].tier, "experimental")
         self.assertIn("WanPipeline", results[1].tier_reason)
         # Only the Compatible candidate needed full verification; the

@@ -61,7 +61,7 @@ from utils.logging_config import setup_logging, get_logger
 from utils.comfy_workflows import build_image_workflow
 from utils.direct_video_generator import DirectVideoGenerator
 from utils.model_manager import ModelManager
-from utils.direct_generator import DirectGenerator
+from utils.direct_generator import DirectGenerator, ModelLoadRefusedError
 from utils.image_ops import apply_crop_and_transform, upscale_image_file
 from utils.prompt_service import enhance_prompt
 from api.controlnet import router as controlnet_router
@@ -70,16 +70,20 @@ from middleware.rate_limit import limiter, rate_limit_exceeded_handler
 from foundry import civitai_search, hub_search
 from foundry.classifier import classify_repo
 from foundry.hub_signals import fetch_repo_signals
+from foundry.hardware import probe_hardware
 from foundry.model_record import ModelRecord
 from foundry.registry import ModelRegistry
+from foundry.runtime_resolver import resolve_model_runtime
 from foundry.schemas import (
     ConsentRequestSchema,
     ConsentStateSchema,
     ConvertResultSchema,
     DetectedRootSchema,
     DownloadJobSchema,
+    HardwareProfileSchema,
     LibraryRootSchema,
     ModelRecordSchema,
+    RuntimePlanSchema,
     ScanResultSchema,
     SearchResponseSchema,
     SearchResultSchema,
@@ -171,7 +175,12 @@ def _verified_repo_ids() -> set:
 
 
 def _search_result_to_record(result) -> ModelRecord:
-    """Map a SearchResult to a transient ModelRecord (registry normalizes status)."""
+    """Map a SearchResult to a transient ModelRecord (registry normalizes status).
+
+    revision is intentionally None here: search listings carry no commit sha.
+    Pinning happens at the enqueue boundary after fetch_repo_signals returns
+    the sha of the tree whose safety signals were actually verified.
+    """
     return ModelRecord(
         id=result.id, name=result.name, artifact_type=result.artifact_type,
         capability=result.capability, base_architecture=result.base_architecture,
@@ -180,6 +189,7 @@ def _search_result_to_record(result) -> ModelRecord:
         quality="local", license=result.license, gated=result.gated,
         format=result.format, trust_remote_code=result.trust_remote_code,
         nsfw=result.nsfw, download_url=result.download_url, sha256=result.sha256,
+        revision=None,
     )
 
 comfy_client: Optional[ComfyUIClient] = None
@@ -1168,6 +1178,16 @@ async def process_image_generation(job_id: str, request: ImageGenerationRequest)
             completed_at=datetime.now()
         )
 
+    except ModelLoadRefusedError as e:
+        # 409-style: the request was fine - the model refuses to load. The
+        # refusal string is user-facing (no paths, no tokens); no traceback.
+        logger.warning(f"[Job {job_id}] Model refused to load: {e}")
+        job_manager.update_job(
+            job_id,
+            status=JobStatus.FAILED,
+            error=str(e),
+            completed_at=datetime.now()
+        )
     except Exception as e:
         logger.error(f"Image generation failed: {e}", exc_info=True)
         job_manager.update_job(
@@ -1366,6 +1386,15 @@ async def process_video_generation(job_id: str, request: VideoGenerationRequest)
             completed_at=datetime.now()
         )
         
+    except ModelLoadRefusedError as e:
+        # 409-style: the request was fine - the model refuses to load.
+        logger.warning(f"[Job {job_id}] Model refused to load: {e}")
+        job_manager.update_job(
+            job_id,
+            status=JobStatus.FAILED,
+            error=str(e),
+            completed_at=datetime.now()
+        )
     except Exception as e:
         logger.error(f"Video generation failed: {e}", exc_info=True)
         job_manager.update_job(
@@ -1491,6 +1520,16 @@ async def list_jobs(request: Request, status: Optional[str] = None, limit: int =
 
 
 # ============= Model Management =============
+
+@app.get("/api/hardware", response_model=HardwareProfileSchema, tags=["Models"])
+@limiter.limit("60/minute")
+async def get_hardware(request: Request):
+    """Truthful hardware probe (spec 6.1). Runs in a worker thread - the
+    CUDA query can block briefly on a cold driver."""
+    loop = asyncio.get_running_loop()
+    profile = await loop.run_in_executor(None, probe_hardware, MODELS_DIR)
+    return HardwareProfileSchema(**asdict(profile))
+
 
 @app.get("/api/models", response_model=List[ModelRecordSchema], tags=["Models"])
 @limiter.limit("60/minute")
@@ -1701,6 +1740,7 @@ async def enqueue_download(request: Request, model_id: str):
         model_registry.update_transient(
             model_id, tier=verdict.tier, tier_reason=verdict.reason,
             format=verdict.format, trust_remote_code=verdict.trust_remote_code,
+            revision=signals.revision,
         )
         record = model_registry.get_record(model_id)
     # Spec 5.3 security rail: pickle weights and trust_remote_code are
@@ -1794,6 +1834,24 @@ async def convert_model_to_safetensors(request: Request, model_id: str):
         logger.warning("convert-safetensors OS error for %s: %s", model_id, exc)
         raise HTTPException(status_code=422, detail=f"conversion failed: {type(exc).__name__}")
     return ConvertResultSchema(model_id=model_id, safetensors_path=dest, tensor_count=tensor_count)
+
+
+@app.post("/api/models/{model_id}/resolve-runtime", response_model=RuntimePlanSchema, tags=["Models"])
+@limiter.limit("30/minute")
+async def resolve_runtime(request: Request, model_id: str):
+    """The load plan for THIS machine (spec 6.4). Refusals are 200 payloads:
+    preflight is informational - 'this will not load, and here is why' is an
+    answer, not a server error."""
+    record = model_registry.get_record(model_id)
+    if record is None:
+        raise HTTPException(status_code=404, detail=f"Model '{model_id}' not found")
+    loop = asyncio.get_running_loop()
+    profile = await loop.run_in_executor(None, probe_hardware, MODELS_DIR)
+    plan = resolve_model_runtime(record, profile, consent_store.get(model_id))
+    data = asdict(plan)
+    if plan.vram_plan is not None:
+        data["vram_plan"] = asdict(plan.vram_plan)
+    return RuntimePlanSchema(**data)
 
 
 @app.get("/api/models/{model_id}/status", tags=["Models"])

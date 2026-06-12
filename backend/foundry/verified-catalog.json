@@ -6,7 +6,8 @@
     "size": "23.8 GB", "status": "not_found", "tier": "verified", "quality": "pro",
     "runtime": "byom", "hardware_class": "workstation", "vram": "23.8 GB",
     "description": "State-of-the-art image generation model by Black Forest Labs.",
-    "license": "flux-1-dev-non-commercial", "gated": true
+    "license": "flux-1-dev-non-commercial", "gated": true,
+    "companions": [], "measured_vram_bytes": null
   },
   "flux-schnell": {
     "id": "flux-schnell", "name": "FLUX.1 [schnell]", "artifact_type": "checkpoint",
@@ -15,7 +16,8 @@
     "size": "23.8 GB", "status": "not_found", "tier": "verified", "quality": "draft",
     "runtime": "byom", "hardware_class": "workstation", "vram": "23.8 GB",
     "description": "Fast 4-step image generation model.",
-    "license": "apache-2.0", "gated": false
+    "license": "apache-2.0", "gated": false,
+    "companions": [], "measured_vram_bytes": null
   },
   "flux-fill": {
     "id": "flux-fill", "name": "FLUX.1 Fill [dev]", "artifact_type": "checkpoint",
@@ -24,7 +26,8 @@
     "size": "23.8 GB", "status": "not_found", "tier": "verified", "quality": "pro",
     "runtime": "byom", "hardware_class": "workstation", "vram": "23.8 GB",
     "description": "Inpainting and outpainting model by Black Forest Labs.",
-    "license": "flux-1-dev-non-commercial", "gated": true
+    "license": "flux-1-dev-non-commercial", "gated": true,
+    "companions": [], "measured_vram_bytes": null
   },
   "sd3.5-large": {
     "id": "sd3.5-large", "name": "Stable Diffusion 3.5 Large", "artifact_type": "diffusers-pipeline",
@@ -33,7 +36,8 @@
     "size": "16 GB", "status": "not_found", "tier": "verified", "quality": "pro",
     "runtime": "local", "hardware_class": "workstation", "vram": "~12 GB",
     "description": "Modern MM-DiT architecture with superior composition and typography.",
-    "license": "stabilityai-community", "gated": true
+    "license": "stabilityai-community", "gated": true,
+    "companions": [], "measured_vram_bytes": null
   },
   "sd3.5-medium": {
     "id": "sd3.5-medium", "name": "Stable Diffusion 3.5 Medium", "artifact_type": "diffusers-pipeline",
@@ -42,7 +46,8 @@
     "size": "5.5 GB", "status": "not_found", "tier": "verified", "quality": "balanced",
     "runtime": "local", "hardware_class": "creator", "vram": "~6 GB",
     "description": "Strong prompt understanding and versatile output with low VRAM.",
-    "license": "stabilityai-community", "gated": true
+    "license": "stabilityai-community", "gated": true,
+    "companions": [], "measured_vram_bytes": null
   },
   "sdxl-base": {
     "id": "sdxl-base", "name": "Stable Diffusion XL Base", "artifact_type": "checkpoint",
@@ -51,7 +56,8 @@
     "size": "6.9 GB", "status": "not_found", "tier": "verified", "quality": "balanced",
     "runtime": "local", "hardware_class": "creator", "vram": "~8 GB",
     "description": "High-resolution image generation by Stability AI.",
-    "license": "openrail++", "gated": false
+    "license": "openrail++", "gated": false,
+    "companions": ["sdxl-vae"], "measured_vram_bytes": null
   },
   "sdxl-refiner": {
     "id": "sdxl-refiner", "name": "Stable Diffusion XL Refiner", "artifact_type": "checkpoint",
@@ -60,7 +66,8 @@
     "size": "6.1 GB", "status": "not_found", "tier": "verified", "quality": "balanced",
     "runtime": "local", "hardware_class": "creator", "vram": "~8 GB",
     "description": "Detail refinement for SDXL by Stability AI.",
-    "license": "openrail++", "gated": false
+    "license": "openrail++", "gated": false,
+    "companions": ["sdxl-vae"], "measured_vram_bytes": null
   },
   "sd-1-5": {
     "id": "sd-1-5", "name": "Stable Diffusion 1.5", "artifact_type": "checkpoint",
@@ -69,7 +76,8 @@
     "size": "4.3 GB", "status": "not_found", "tier": "verified", "quality": "local",
     "runtime": "local", "hardware_class": "laptop", "vram": "4.0 GB",
     "description": "Original Stable Diffusion 1.5 with broad LoRA and ControlNet support.",
-    "license": "creativeml-openrail-m", "gated": false
+    "license": "creativeml-openrail-m", "gated": false,
+    "companions": ["sd-vae-ft-mse"], "measured_vram_bytes": null
   },
   "svd": {
     "id": "svd", "name": "Stable Video Diffusion", "artifact_type": "diffusers-pipeline",
@@ -78,7 +86,8 @@
     "size": "9.6 GB", "status": "not_found", "tier": "verified", "quality": "balanced",
     "runtime": "local", "hardware_class": "creator", "vram": "8.0 GB",
     "description": "Image-to-video generation by Stability AI. Requires a reference image.",
-    "license": "stabilityai-community", "gated": false
+    "license": "stabilityai-community", "gated": false,
+    "companions": [], "measured_vram_bytes": null
   },
   "ltx-video": {
     "id": "ltx-video", "name": "LTX Video", "artifact_type": "diffusers-pipeline",
@@ -87,7 +96,8 @@
     "size": "9.4 GB", "status": "not_found", "tier": "verified", "quality": "pro",
     "runtime": "local", "hardware_class": "creator", "vram": "9.4 GB",
     "description": "High-quality text-to-video model by Lightricks.",
-    "license": "ltx-video-license", "gated": false
+    "license": "ltx-video-license", "gated": false,
+    "companions": [], "measured_vram_bytes": null
   },
   "animatediff": {
     "id": "animatediff", "name": "AnimateDiff", "artifact_type": "motion-adapter",
@@ -97,7 +107,8 @@
     "size": "1.6 GB", "status": "not_found", "tier": "verified", "quality": "balanced",
     "runtime": "local", "hardware_class": "creator", "vram": "8.0 GB",
     "description": "Animation motion module for Stable Diffusion 1.5.",
-    "license": "creativeml-openrail-m", "gated": false
+    "license": "creativeml-openrail-m", "gated": false,
+    "companions": [], "measured_vram_bytes": null
   },
   "sdxl-vae": {
     "id": "sdxl-vae", "name": "SDXL VAE", "artifact_type": "vae",
@@ -106,7 +117,8 @@
     "size": "335 MB", "status": "not_found", "tier": "verified", "quality": "balanced",
     "runtime": "local", "hardware_class": "laptop", "vram": "0.3 GB",
     "description": "FP16-fixed VAE for SDXL.",
-    "license": "mit", "gated": false
+    "license": "mit", "gated": false,
+    "companions": [], "measured_vram_bytes": null
   },
   "sd-vae-ft-mse": {
     "id": "sd-vae-ft-mse", "name": "SD VAE FT MSE", "artifact_type": "vae",
@@ -115,6 +127,7 @@
     "size": "335 MB", "status": "not_found", "tier": "verified", "quality": "balanced",
     "runtime": "local", "hardware_class": "laptop", "vram": "0.3 GB",
     "description": "Fine-tuned VAE with MSE loss.",
-    "license": "mit", "gated": false
+    "license": "mit", "gated": false,
+    "companions": [], "measured_vram_bytes": null
   }
 }

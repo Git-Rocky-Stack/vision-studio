@@ -21,7 +21,7 @@ class ModelRecord:
 
     # Origin
     repo_id: Optional[str] = None
-    revision: str = "main"      # pinned for reproducibility (Pillar 5)
+    revision: Optional[str] = None  # commit sha pinned at classification; None = unpinned (resolves to "main" at download)
     aux_repo_id: Optional[str] = None
 
     # State (M2: 8-value lifecycle status, single-sourced with the TS union)
@@ -56,15 +56,21 @@ class ModelRecord:
     download_url: Optional[str] = None
     sha256: Optional[str] = None
 
+    # Dependency graph + calibrated hardware budget (M5)
+    companions: List[str] = field(default_factory=list)   # catalog ids required alongside this model
+    measured_vram_bytes: Optional[int] = None              # null until calibration harness writes it
+
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
 
 
 # Legacy id aliases -> canonical catalog ids. Saved projects / jobs that
-# reference an old slug resolve here so nothing breaks. (Seeded empty — every
-# historical id is currently still canonical; add entries here if a slug is
-# ever renamed.)
-LEGACY_ID_ALIASES: Dict[str, str] = {}
+# reference an old slug resolve here so nothing breaks.
+LEGACY_ID_ALIASES: Dict[str, str] = {
+    # Pre-foundry direct_generator slug: its hardcoded model_map accepted
+    # both "sdxl" and "sdxl-base" for SDXL base (M5 Task 11 retired the map).
+    "sdxl": "sdxl-base",
+}
 
 
 def load_catalog(path: str) -> Dict[str, "ModelRecord"]:

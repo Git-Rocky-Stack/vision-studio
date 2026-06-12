@@ -253,14 +253,23 @@ This is **enriched on the Main side** — it asks the backend for its `/api/syst
 | `search(query, source, page, nsfw)` | `models:search` | `Promise<SearchResponse>` | `GET /api/models/search` (forwards `X-HF-Token` + `X-Civitai-Token`) |
 | `consent(modelId, kind, granted)` | `models:consent` | `Promise<ConsentState \| { success: false, error }>` | `POST /api/models/consent` |
 | `convert(modelId)` | `models:convert` | `Promise<ConvertResult \| { success: false, error }>` | `POST /api/models/{id}/convert-safetensors` |
+| `resolveRuntime(modelId)` | `models:resolveRuntime` | `Promise<RuntimePlan \| { success: false, error }>` | `POST /api/models/{id}/resolve-runtime` (refusals are 200 payloads — see the REST section) |
 
-`body` for `importRoot`: `{ path: string; layout_hint?: string }` — see `ImportRootRequest` in the REST section below. `LibraryRoot`, `DetectedRoot`, `ModelRecord`, `DownloadJob`, `SearchResponse`, `ConsentState`, and `ConvertResult` types mirror the backend schemas of the same name.
+`body` for `importRoot`: `{ path: string; layout_hint?: string }` — see `ImportRootRequest` in the REST section below. `LibraryRoot`, `DetectedRoot`, `ModelRecord`, `DownloadJob`, `SearchResponse`, `ConsentState`, `ConvertResult`, and `RuntimePlan` types mirror the backend schemas of the same name.
 
 `search(query, source, page, nsfw)` — `source` ∈ `'hf' | 'civitai'`. The handler attaches whichever hub tokens are held in the Main process (see `electron.auth` below) as `X-HF-Token` / `X-Civitai-Token` headers. The IPC layer mirrors the backend's offline-degrade contract: if the backend is unreachable, the handler resolves with `{ source, query, page, results: [], offline: true, warning }` instead of rejecting — the renderer never sees a thrown search error. Handler logging is message-only: the raw Axios error carries token-bearing request headers and must never reach the log.
 
 `consent(modelId, kind, granted)` — `kind` ∈ `'pickle' | 'trust_remote_code'`. Consent is **deny-by-default and per-model**; granting/revoking is a deliberate user action and every change is audited by the backend `ConsentStore`.
 
-### 1.10 `electron.auth`
+### 1.10 `electron.hardware`
+
+| Method | IPC channel | Returns | Backend call |
+|--------|-------------|---------|--------------|
+| `get()` | `hardware:get` | `Promise<HardwareProfile \| { success: false, error }>` | `GET /api/hardware` |
+
+Truthful hardware probe for run-readiness preflight (M5). `HardwareProfile` mirrors the backend schema of the same name (snake_case wire keys). The renderer keeps the last-known profile when the call fails (local-first); the store action `loadHardwareProfile` owns that policy.
+
+### 1.11 `electron.auth`
 
 Session-scoped hub credentials. Tokens are held **only in Main-process memory** — never persisted by the Python backend, never returned to the renderer, never logged. The Main process injects them per-request as headers on the backend calls noted above: `X-HF-Token` for Hugging Face (search + downloads of HF-source records), `X-Civitai-Token` for CivitAI (search + direct-URL downloads/resume of `civitai`-source records). An empty or whitespace-only token clears the stored value.
 
@@ -269,7 +278,7 @@ Session-scoped hub credentials. Tokens are held **only in Main-process memory** 
 | `setHfToken(token)` | `auth:setHfToken` | `Promise<{ success: true }>` |
 | `setCivitaiToken(token)` | `auth:setCivitaiToken` | `Promise<{ success: true }>` |
 
-### 1.11 `electron.notifications`
+### 1.12 `electron.notifications`
 
 ```ts
 notify(
@@ -280,7 +289,7 @@ notify(
 
 Each notification type is gated by the matching `notifyOn*` boolean in settings; if the user has disabled it, the call returns `{ success: true, skipped: true }` instead of showing.
 
-### 1.12 `electron.backend`
+### 1.13 `electron.backend`
 
 | Method | IPC channel | Returns |
 |--------|-------------|---------|
@@ -305,7 +314,7 @@ Base URL: `http://127.0.0.1:8000` (Uvicorn binds `0.0.0.0:8000` but the Main pro
 | Prompts | LLM prompt enhancement |
 | Generation | Image + video generation jobs |
 | Jobs | Job status, cancel, list |
-| Models | Model registry, hub search, consent, download, convert, delete |
+| Models | Model registry, hub search, consent, download, convert, delete, hardware probe, runtime preflight |
 | Images | Crop/upscale primitives |
 | Videos | Frame extraction |
 | Timeline | Resolved timeline → MP4 export |
@@ -444,6 +453,28 @@ Sets status to `cancelled` if the job is `pending` or `processing`. No-op messag
 ```
 
 ### 2.6 Models
+
+#### `GET /api/hardware` — `tags=[Models]`, limit `60/min`
+
+Truthful hardware probe (spec 6.1). Runs the CUDA/RAM/disk queries in a worker thread (a cold driver can block briefly). Returns `HardwareProfile`:
+
+```json
+{
+  "gpu_available": true,
+  "gpu_name": "NVIDIA GeForce RTX 4090",
+  "vram_total_bytes": 25769803776,
+  "vram_free_bytes": 21474836480,
+  "compute_major": 8,
+  "compute_minor": 9,
+  "cuda_version": "12.1",
+  "torch_available": true,
+  "system_ram_total_bytes": 68719476736,
+  "system_ram_available_bytes": 51539607552,
+  "disk_free_bytes": 966367641600
+}
+```
+
+The probe never errors: a failed CUDA query degrades to `gpu_available: false` with zeroed VRAM fields (a half-probed GPU must never look usable), and RAM/disk probe failures degrade their fields to `0`/`null` defaults. `vram_free_bytes`/`vram_total_bytes` come straight from `torch.cuda.mem_get_info` — never inferred.
 
 #### `GET /api/models` — `tags=[Models]`, limit `60/min`
 
@@ -632,6 +663,45 @@ Errors:
   - `"already-converted"` — a safetensors file already exists at the destination; it is never silently clobbered — delete it first to re-convert.
 - `422` — conversion failed (corrupt/unreadable source, disk error). Error details are path-free: source names appear as basenames only and OS errors surface only the exception type (full details go to server logs).
 - `503` — conversion unavailable: the backend is running in stub mode without `torch` installed.
+
+#### `POST /api/models/{model_id}/resolve-runtime` — `tags=[Models]`, limit `30/min`
+
+The load plan for **this** machine (spec 6.4). No request body. Probes the hardware fresh (worker thread), then resolves the record + per-model consent into a concrete diffusers plan. Returns `RuntimePlan`:
+
+```json
+{
+  "pipeline_class": "StableDiffusionXLPipeline",
+  "precision": "bf16",
+  "offload": false,
+  "vae_tiling": false,
+  "attention_slicing": true,
+  "single_file": false,
+  "config_catalog_id": null,
+  "vram_plan": {
+    "weight_bytes": 3704409292,
+    "activation_bytes": 3221225472,
+    "runtime_bytes": 751619276,
+    "total_bytes": 7677254040,
+    "basis": "estimated"
+  },
+  "fit": "fits",
+  "missing_components": [],
+  "fallback_ladder": ["precision:fp16", "offload:cpu", "vae:tiling", "attention:slicing-max"],
+  "readiness": "Ready - bf16 - fits (estimated)",
+  "refusal": null
+}
+```
+
+- `precision` ∈ `bf16 | fp16 | fp32` (honest selection: fp16-corrupting families like flux/sd35 get fp32 on pre-Ampere GPUs).
+- `fit` ∈ `fits | fits-with-offload | over-budget | cpu-only`; `offload`/`vae_tiling` flip on automatically for `fits-with-offload`.
+- `vram_plan.basis` is `"measured"` when the catalog carries a calibrated `measured_vram_bytes` for the record, else `"estimated"`. Weight size prefers local safetensors headers (exact) over the record's human size string (pre-download fallback).
+- `missing_components` lists weighted `model_index.json` submodels with no weights on disk; config-only components (scheduler/tokenizer/feature_extractor) never appear.
+- `fallback_ladder` is the ordered OOM-recovery rungs (spec 6.6).
+- `readiness` is the human-readable preflight readout shown in the Generate panel footer.
+
+**Refusals are `200` payloads, never 4xx/5xx** — preflight is informational: "this will not load, and here is why" is an answer, not a server error. A refused plan sets `refusal` (mirrored into `readiness`) and leaves the plan fields at their null defaults. Refusal causes: `trust_remote_code` records (no remote-code load path ships, consent or not), pickle-format records (convert to safetensors first), an architecture/capability pair with no shipped pipeline, or a single-file checkpoint family with no `from_single_file` path (svd).
+
+Errors: `404` — unknown `model_id` (the only error case).
 
 #### `GET /api/models/{model_id}/status` — `tags=[Models]`, limit `60/min`
 
@@ -1109,4 +1179,4 @@ for i, image in enumerate(data["images"]):
 
 ---
 
-_Last verified against the codebase on 2026-06-11. Canonical source: `backend/main.py`, `backend/api/{controlnet,lora,edit,batch}.py`, `backend/foundry/{schemas,library_roots,index_service,hub_search,civitai_search,security_policy,download_manager,convert}.py`, `electron/preload.ts`, `electron/ipc-handlers/generation.ts`, `electron/services/mainIpc.ts`, `electron/main.ts`._
+_Last verified against the codebase on 2026-06-12. Canonical source: `backend/main.py`, `backend/api/{controlnet,lora,edit,batch}.py`, `backend/foundry/{schemas,library_roots,index_service,hub_search,civitai_search,security_policy,download_manager,convert,hardware,runtime_resolver}.py`, `electron/preload.ts`, `electron/ipc-handlers/generation.ts`, `electron/services/mainIpc.ts`, `electron/main.ts`._

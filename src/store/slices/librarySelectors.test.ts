@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useAppStore } from '../appStore';
-import type { LibraryRoot, SearchResponse, SearchResult } from '@/types/model';
+import type { HardwareProfile, LibraryRoot, SearchResponse, SearchResult } from '@/types/model';
 
 const ROOT: LibraryRoot = {
   id: 'r1',
@@ -234,5 +234,49 @@ describe('modelsSlice consent + convert actions', () => {
 
     mockModelsApi({ convert: vi.fn().mockRejectedValue(new Error('bridge down')) });
     await expect(useAppStore.getState().convertModel('m1')).rejects.toThrow('bridge down');
+  });
+});
+
+describe('modelsSlice hardware + preflight actions', () => {
+  beforeEach(() => {
+    useAppStore.setState({ hardwareProfile: null });
+  });
+
+  it('loadHardwareProfile stores the profile (local-first on failure)', async () => {
+    const profile = { gpu_available: false, vram_total_bytes: 0 } as HardwareProfile;
+    mockModelsApi({});
+    (globalThis as any).window.electron.hardware = { get: vi.fn().mockResolvedValue(profile) };
+    await useAppStore.getState().loadHardwareProfile();
+    expect(useAppStore.getState().hardwareProfile).toEqual(profile);
+
+    (globalThis as any).window.electron.hardware.get = vi.fn().mockRejectedValue(new Error('down'));
+    await useAppStore.getState().loadHardwareProfile();
+    expect(useAppStore.getState().hardwareProfile).toEqual(profile); // kept
+
+    // {success:false} envelopes are treated exactly like a bridge failure.
+    (globalThis as any).window.electron.hardware.get = vi
+      .fn()
+      .mockResolvedValue({ success: false, error: 'probe failed' });
+    await useAppStore.getState().loadHardwareProfile();
+    expect(useAppStore.getState().hardwareProfile).toEqual(profile); // kept
+  });
+
+  it('resolveRuntime returns the plan and surfaces bridge failures', async () => {
+    const plan = { readiness: 'Ready - bf16 - fits (estimated)', refusal: null };
+    mockModelsApi({ resolveRuntime: vi.fn().mockResolvedValue(plan) });
+    const result = await useAppStore.getState().resolveRuntime('sdxl-base');
+    expect(result).toMatchObject({ readiness: expect.stringContaining('Ready') });
+
+    mockModelsApi({ resolveRuntime: vi.fn().mockRejectedValue(new Error('bridge down')) });
+    await expect(useAppStore.getState().resolveRuntime('sdxl-base')).rejects.toThrow('bridge down');
+  });
+
+  it('resolveRuntime surfaces {success:false} envelopes as thrown errors', async () => {
+    mockModelsApi({
+      resolveRuntime: vi.fn().mockResolvedValue({ success: false, error: 'model not found' }),
+    });
+    await expect(useAppStore.getState().resolveRuntime('missing')).rejects.toThrow(
+      'model not found',
+    );
   });
 });

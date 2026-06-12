@@ -154,50 +154,56 @@ class LoraChannelTests(unittest.TestCase):
 
 class IndexedTierTests(unittest.TestCase):
     def test_indexed_lora_known_family_upgrades_to_compatible(self):
-        from foundry.classifier import indexed_tier
+        from foundry.classifier import indexed_tier, lora_family_from_keys
 
-        tier, reason = indexed_tier(
-            "lora", ["lora_unet_a.lora_down.weight", "lora_te2_b.lora_down.weight"]
-        )
+        keys = ["lora_unet_a.lora_down.weight", "lora_te2_b.lora_down.weight"]
+        tier, reason, family = indexed_tier("lora", lora_family_from_keys(keys))
         self.assertEqual(tier, "compatible")
         self.assertIn("load_lora_weights", reason)
+        self.assertEqual(family, "sdxl")  # lora_te2_ discriminates sdxl
 
     def test_indexed_lora_dit_unknown_family_stays_experimental(self):
-        from foundry.classifier import indexed_tier
+        from foundry.classifier import indexed_tier, lora_family_from_keys
 
         # transformer.* prefix -> family "dit-unknown" (recognized DiT lora,
         # base unprovable) - distinct from the no-pattern "unrecognized" case.
-        tier, reason = indexed_tier("lora", ["transformer.blocks.0.attn.lora_down.weight"])
+        keys = ["transformer.blocks.0.attn.lora_down.weight"]
+        tier, reason, family = indexed_tier("lora", lora_family_from_keys(keys))
         self.assertEqual(tier, "experimental")
         self.assertIn("unrecognized", reason)
+        self.assertIsNone(family)
 
     def test_indexed_lora_truly_unrecognized_family_stays_experimental(self):
-        from foundry.classifier import indexed_tier
+        from foundry.classifier import indexed_tier, lora_family_from_keys
 
         # .lora_down. marks it a lora, but no family pattern matches at all.
-        tier, reason = indexed_tier("lora", ["proj.0.lora_down.weight"])
+        keys = ["proj.0.lora_down.weight"]
+        tier, reason, family = indexed_tier("lora", lora_family_from_keys(keys))
         self.assertEqual(tier, "experimental")
         self.assertIn("unrecognized", reason)
+        self.assertIsNone(family)
 
     def test_indexed_checkpoint_stays_experimental_with_reason(self):
         from foundry.classifier import indexed_tier
 
-        tier, reason = indexed_tier("checkpoint", ["model.diffusion_model.x.weight"])
+        tier, reason, family = indexed_tier("checkpoint", None)
         self.assertEqual(tier, "experimental")
         self.assertIn("single-file", reason)
+        self.assertIsNone(family)
 
     def test_indexed_loose_vae_and_controlnet_stay_experimental(self):
         from foundry.classifier import indexed_tier
 
         for artifact_type in ("vae", "controlnet"):
-            tier, reason = indexed_tier(artifact_type, [])
+            tier, reason, family = indexed_tier(artifact_type, None)
             self.assertEqual(tier, "experimental")
             self.assertIn(artifact_type, reason)
+            self.assertIsNone(family)
 
     def test_indexed_unknown_stays_experimental(self):
         from foundry.classifier import indexed_tier
 
-        tier, reason = indexed_tier("unknown", [])
+        tier, reason, _family = indexed_tier("unknown", None)
         self.assertEqual(tier, "experimental")
 
 
@@ -211,6 +217,99 @@ class HelperTests(unittest.TestCase):
     def test_classifier_never_raises_on_empty_signals(self):
         v = classify_repo(RepoSignals(repo_id="x/y"), set())
         self.assertIsInstance(v, TierVerdict)
+
+
+class FamilyFieldTests(unittest.TestCase):
+    """M5: family is a first-class verdict field - no reason-string parsing."""
+
+    def _signals(self, **kw):
+        base = dict(
+            repo_id="org/m", reachable=True, library_name="diffusers",
+            tags=["diffusers:StableDiffusionXLPipeline"],
+            class_name="StableDiffusionXLPipeline",
+            siblings=["model_index.json", "unet/diffusion_pytorch_model.safetensors"],
+            has_safetensors=True,
+        )
+        base.update(kw)
+        return RepoSignals(**base)
+
+    def test_class_signal_carries_family(self):
+        verdict = classify_repo(self._signals(), set())
+        self.assertEqual(verdict.tier, "compatible")
+        self.assertEqual(verdict.family, "sdxl")
+
+    def test_lora_tag_channel_carries_family(self):
+        signals = self._signals(
+            class_name=None, tags=["lora", "base_model:black-forest-labs/FLUX.1-dev"],
+            siblings=["pytorch_lora_weights.safetensors"],
+        )
+        verdict = classify_repo(signals, set())
+        self.assertEqual(verdict.tier, "compatible")
+        self.assertEqual(verdict.family, "flux")
+
+    def test_pipeline_pickle_only_branch_carries_family(self):
+        signals = self._signals(
+            siblings=["model_index.json", "unet/diffusion_pytorch_model.bin"],
+            has_safetensors=False,
+        )
+        verdict = classify_repo(signals, set())
+        self.assertEqual(verdict.tier, "experimental")
+        self.assertEqual(verdict.format, "pickle")
+        self.assertEqual(verdict.family, "sdxl")
+
+    def test_component_class_family_is_none_by_design(self):
+        # A ControlNetModel may target sd15 OR sdxl - its class alone cannot
+        # prove a base family, so the verdict must not claim one.
+        signals = self._signals(
+            class_name="ControlNetModel",
+            tags=["diffusers:ControlNetModel"],
+            siblings=["diffusion_pytorch_model.safetensors"],
+        )
+        verdict = classify_repo(signals, set())
+        self.assertEqual(verdict.tier, "compatible")
+        self.assertIsNone(verdict.family)
+
+    def test_experimental_default_has_no_family(self):
+        signals = self._signals(class_name=None, tags=[], siblings=["weights.safetensors"])
+        verdict = classify_repo(signals, set())
+        self.assertEqual(verdict.tier, "experimental")
+        self.assertIsNone(verdict.family)
+
+    def test_indexed_tier_carries_family(self):
+        from foundry.classifier import indexed_tier
+        tier, reason, family = indexed_tier("lora", "sdxl")
+        self.assertEqual(tier, "compatible")
+        self.assertEqual(family, "sdxl")
+
+    def test_pickle_only_tag_lora_still_carries_family(self):
+        signals = self._signals(
+            class_name=None, tags=["lora", "base_model:black-forest-labs/FLUX.1-dev"],
+            siblings=["pytorch_lora_weights.bin"], has_safetensors=False,
+        )
+        verdict = classify_repo(signals, set())
+        self.assertEqual(verdict.tier, "experimental")
+        self.assertEqual(verdict.family, "flux")
+
+
+class IndexedSingleFileUpgradeTests(unittest.TestCase):
+    def test_known_family_checkpoint_now_compatible(self):
+        from foundry.classifier import indexed_tier
+        tier, reason, family = indexed_tier("checkpoint", "sdxl")
+        self.assertEqual(tier, "compatible")
+        self.assertIn("from_single_file", reason)
+        self.assertEqual(family, "sdxl")
+
+    def test_svd_checkpoint_stays_experimental_with_load_path_named(self):
+        from foundry.classifier import indexed_tier
+        tier, reason, _family = indexed_tier("checkpoint", "svd")
+        self.assertEqual(tier, "experimental")
+        self.assertIn("from_single_file", reason)
+
+    def test_unknown_family_checkpoint_stays_experimental(self):
+        from foundry.classifier import indexed_tier
+        tier, reason, family = indexed_tier("checkpoint", "unknown")
+        self.assertEqual(tier, "experimental")
+        self.assertIsNone(family)
 
 
 if __name__ == "__main__":

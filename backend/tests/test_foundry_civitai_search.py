@@ -59,11 +59,28 @@ class CivitaiSearchTests(unittest.TestCase):
         self.assertEqual(results[0].sha256, "ab" * 32)
         self.assertTrue(results[0].download_url.startswith("https://civitai.com/"))
 
-    def test_checkpoint_stays_experimental_until_m5(self):
+    def test_safetensor_checkpoint_compatible_via_from_single_file(self):
+        # The "until M5" promise is kept: known-family SafeTensor checkpoints
+        # load via from_single_file with a catalog-pinned config (Task 9).
         item = civitai_item(type="Checkpoint")
         results = search_civitai("x", session=self._session([item]))
+        self.assertEqual(results[0].tier, "compatible")
+        self.assertIn("from_single_file", results[0].tier_reason)
+
+    def test_checkpoint_without_safetensor_marker_stays_experimental(self):
+        # fmt None/Other must never fail open into Compatible (false-Compatible=0).
+        item = civitai_item(type="Checkpoint")
+        item["modelVersions"][0]["files"][0]["metadata"]["format"] = "Other"
+        results = search_civitai("x", session=self._session([item]))
         self.assertEqual(results[0].tier, "experimental")
-        self.assertIn("single-file", results[0].tier_reason)
+        self.assertIn("unverified", results[0].tier_reason)
+
+    def test_svd_checkpoint_carved_out_of_single_file_upgrade(self):
+        item = civitai_item(type="Checkpoint")
+        item["modelVersions"][0]["baseModel"] = "SVD"
+        results = search_civitai("x", session=self._session([item]))
+        self.assertEqual(results[0].tier, "experimental")
+        self.assertIn("from_single_file", results[0].tier_reason)
 
     def test_pickle_tensor_experimental_with_consent_reason(self):
         item = civitai_item()
