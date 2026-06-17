@@ -3,14 +3,14 @@ import { resolve } from 'path';
 
 export default defineConfig({
   test: {
-    include: ['src/**/*.test.{ts,tsx}', 'electron/**/*.test.ts', 'tests/**/*.test.{ts,tsx}'],
+    include: ['src/**/*.test.{ts,tsx}', 'electron/**/*.test.ts', 'shared/**/*.test.ts', 'tests/**/*.test.{ts,tsx}'],
     environment: 'node',
     setupFiles: ['./tests/setup.ts'],
     projects: [
       {
         // Node tests (pure logic + Electron services + integration)
         test: {
-          include: ['src/**/*.test.ts', 'electron/**/*.test.ts', 'tests/**/*.test.ts'],
+          include: ['src/**/*.test.ts', 'electron/**/*.test.ts', 'shared/**/*.test.ts', 'tests/**/*.test.ts'],
           environment: 'node',
           name: 'unit',
         },

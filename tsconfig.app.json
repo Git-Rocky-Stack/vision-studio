@@ -29,5 +29,5 @@
     "noFallthroughCasesInSwitch": true,
     "noUncheckedSideEffectImports": true
   },
-  "include": ["src", "tests/setup.ts"]
+  "include": ["src", "shared", "tests/setup.ts"]
 }
