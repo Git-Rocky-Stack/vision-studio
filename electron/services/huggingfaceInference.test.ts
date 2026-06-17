@@ -147,3 +147,144 @@ describe('createHuggingFaceInferenceService.generateImage', () => {
     expect(axiosInstance.post).not.toHaveBeenCalled();
   });
 });
+
+const MP4_BYTES = Buffer.concat([Buffer.from([0x00, 0x00, 0x00, 0x18]), Buffer.from('ftypmp42'), Buffer.alloc(8)]);
+
+describe('createHuggingFaceInferenceService.listVideoModels', () => {
+  it('returns curated video-capable defaults', async () => {
+    const service = createHuggingFaceInferenceService({ axiosInstance: { get: vi.fn(), post: vi.fn() } });
+    const models = await service.listVideoModels('hf_token');
+    expect(models.length).toBeGreaterThan(0);
+    expect(models.every((model) => model.modality === 'video' && model.id.includes('/'))).toBe(true);
+  });
+});
+
+describe('createHuggingFaceInferenceService.generateVideo', () => {
+  it('normalizes returned bytes to an mp4 data URL via the hf-inference router', async () => {
+    const axiosInstance = {
+      get: vi.fn(),
+      post: vi.fn().mockResolvedValue({ data: MP4_BYTES, headers: { 'content-type': 'video/mp4' } }),
+    };
+    const service = createHuggingFaceInferenceService({ axiosInstance });
+    const result = await service.generateVideo({
+      token: 'hf_token',
+      model: 'Lightricks/LTX-Video',
+      prompt: 'a wave',
+      durationSeconds: 5,
+    });
+    expect(result.mimeType).toBe('video/mp4');
+    expect(result.dataUrl.startsWith('data:video/mp4;base64,')).toBe(true);
+    const url = axiosInstance.post.mock.calls[0][0] as string;
+    expect(url).toBe('https://router.huggingface.co/hf-inference/models/Lightricks/LTX-Video');
+  });
+
+  it('rejects a non-video response body (sanitization)', async () => {
+    const axiosInstance = {
+      get: vi.fn(),
+      post: vi.fn().mockResolvedValue({ data: Buffer.from('{"error":"loading"}'), headers: {} }),
+    };
+    const service = createHuggingFaceInferenceService({ axiosInstance });
+    await expect(
+      service.generateVideo({ token: 'hf_token', model: 'm/v', prompt: 'a wave' }),
+    ).rejects.toThrow(/did not return a valid video|failed/i);
+  });
+
+  it('rejects an empty prompt before any network call', async () => {
+    const axiosInstance = { get: vi.fn(), post: vi.fn() };
+    const service = createHuggingFaceInferenceService({ axiosInstance });
+    await expect(service.generateVideo({ token: 'hf_token', model: 'm/v', prompt: '   ' })).rejects.toThrow(/empty/i);
+    expect(axiosInstance.post).not.toHaveBeenCalled();
+  });
+});
+
+describe('createHuggingFaceInferenceService.generateControlNet / generateInpaint', () => {
+  it('returns a normalized image for ControlNet via the hf-inference router', async () => {
+    const axiosInstance = {
+      get: vi.fn(),
+      post: vi.fn().mockResolvedValue({ data: PNG_MAGIC, headers: { 'content-type': 'image/png' } }),
+    };
+    const service = createHuggingFaceInferenceService({ axiosInstance });
+    const result = await service.generateControlNet({
+      token: 'hf_token',
+      model: 'm/cn',
+      prompt: 'a city',
+      controlImageBase64: 'aGVsbG8=',
+      width: 512,
+      height: 512,
+    });
+    expect(result.images[0].mimeType).toBe('image/png');
+    const url = axiosInstance.post.mock.calls[0][0] as string;
+    expect(url).toBe('https://router.huggingface.co/hf-inference/models/m/cn');
+  });
+
+  it('returns a normalized image for inpaint', async () => {
+    const axiosInstance = {
+      get: vi.fn(),
+      post: vi.fn().mockResolvedValue({ data: PNG_MAGIC, headers: { 'content-type': 'image/png' } }),
+    };
+    const service = createHuggingFaceInferenceService({ axiosInstance });
+    const result = await service.generateInpaint({
+      token: 'hf_token',
+      model: 'm/inpaint',
+      prompt: 'a dog',
+      initImageBase64: 'aGVsbG8=',
+      maskImageBase64: 'aGVsbG8=',
+      width: 512,
+      height: 512,
+    });
+    expect(result.images[0].mimeType).toBe('image/png');
+  });
+
+  it('requires a control image for ControlNet before any network call', async () => {
+    const axiosInstance = { get: vi.fn(), post: vi.fn() };
+    const service = createHuggingFaceInferenceService({ axiosInstance });
+    await expect(
+      service.generateControlNet({
+        token: 'hf_token',
+        model: 'm/cn',
+        prompt: 'a city',
+        controlImageBase64: '',
+        width: 512,
+        height: 512,
+      }),
+    ).rejects.toThrow(/control image/i);
+    expect(axiosInstance.post).not.toHaveBeenCalled();
+  });
+
+  it('requires an init image and a mask for inpaint before any network call', async () => {
+    const axiosInstance = { get: vi.fn(), post: vi.fn() };
+    const service = createHuggingFaceInferenceService({ axiosInstance });
+    await expect(
+      service.generateInpaint({
+        token: 'hf_token',
+        model: 'm/inpaint',
+        prompt: 'a dog',
+        initImageBase64: 'aGVsbG8=',
+        maskImageBase64: '',
+        width: 512,
+        height: 512,
+      }),
+    ).rejects.toThrow(/init image and a mask/i);
+    expect(axiosInstance.post).not.toHaveBeenCalled();
+  });
+});
+
+describe('createHuggingFaceInferenceService surface', () => {
+  it('exposes the full generation surface without leaking internals', () => {
+    const service = createHuggingFaceInferenceService({ axiosInstance: { get: vi.fn(), post: vi.fn() } });
+    expect(Object.keys(service).sort()).toEqual(
+      [
+        'enhancePrompt',
+        'generateControlNet',
+        'generateImage',
+        'generateInpaint',
+        'generateVideo',
+        'getKeyInfo',
+        'listImageModels',
+        'listTextModels',
+        'listVideoModels',
+        'suggestNegativePrompt',
+      ].sort(),
+    );
+  });
+});

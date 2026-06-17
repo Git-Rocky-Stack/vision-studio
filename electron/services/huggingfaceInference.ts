@@ -1,9 +1,13 @@
 /**
  * HuggingFace Inference client (M6, S6). Runs in the Electron main process and
- * mirrors openRouter.ts so hosted secrets never reach the renderer. PR1 surface:
- * key info, model listing, LLM prompt-assist (OpenAI-compatible chat), and
- * text-to-image with magic-byte sanitization. Video / ControlNet / inpaint land
- * in PR2.
+ * mirrors openRouter.ts so hosted secrets never reach the renderer. Full surface:
+ * key info, model listing (image / text / video), LLM prompt-assist
+ * (OpenAI-compatible chat), text-to-image, text-to-video, ControlNet, and
+ * inpaint - every generation path normalizes remote bytes via magic-byte sniffing.
+ *
+ * All generation posts to the Inference Providers router
+ * (https://router.huggingface.co/hf-inference/models/<model>) returning raw
+ * bytes; chat posts to the OpenAI-compatible router (.../v1/chat/completions).
  *
  * Security (Codex gate): the token is used per-request, never logged, never
  * echoed into errors; remote bytes are validated before any caller writes them.
@@ -55,6 +59,12 @@ export interface HuggingFaceImageGenerationResult {
   usage: HuggingFaceUsage | null;
 }
 
+export interface HuggingFaceVideoGenerationResult {
+  model: string | null;
+  dataUrl: string;
+  mimeType: string;
+}
+
 export interface HuggingFacePromptEnhancementResult {
   prompt: string;
   variations: string[];
@@ -92,6 +102,9 @@ const CURATED_IMAGE_MODELS: HuggingFaceModelSummary[] = [
 ];
 const CURATED_TEXT_MODELS: HuggingFaceModelSummary[] = [
   { id: 'meta-llama/Llama-3.1-8B-Instruct', name: 'Llama 3.1 8B Instruct', modality: 'text' },
+];
+const CURATED_VIDEO_MODELS: HuggingFaceModelSummary[] = [
+  { id: 'Lightricks/LTX-Video', name: 'LTX-Video', modality: 'video' },
 ];
 
 const PROMPT_ENHANCEMENT_SYSTEM_PROMPT =
@@ -185,6 +198,26 @@ function toImageResult(data: unknown): HuggingFaceImageResult {
   return { dataUrl: `data:${mime};base64,${buffer.toString('base64')}`, mimeType: mime };
 }
 
+const VIDEO_MAGIC: Array<{ mime: string; test: (buffer: Buffer) => boolean }> = [
+  // ISO-BMFF (mp4): bytes 4-8 spell the 'ftyp' box type.
+  { mime: 'video/mp4', test: (buffer) => buffer.length >= 8 && buffer.slice(4, 8).toString('ascii') === 'ftyp' },
+  // Matroska / WebM EBML header.
+  {
+    mime: 'video/webm',
+    test: (buffer) =>
+      buffer.length >= 4 && buffer[0] === 0x1a && buffer[1] === 0x45 && buffer[2] === 0xdf && buffer[3] === 0xa3,
+  },
+];
+
+function toVideoResult(model: string, data: unknown): HuggingFaceVideoGenerationResult {
+  const buffer = Buffer.isBuffer(data) ? data : Buffer.from(data as ArrayBuffer);
+  const match = VIDEO_MAGIC.find((candidate) => candidate.test(buffer));
+  if (!match) {
+    throw new Error('HuggingFace did not return a valid video payload.');
+  }
+  return { model, dataUrl: `data:${match.mime};base64,${buffer.toString('base64')}`, mimeType: match.mime };
+}
+
 export function createHuggingFaceInferenceService({
   axiosInstance = axios as unknown as AxiosLike,
   routerBaseUrl = DEFAULT_ROUTER_BASE_URL,
@@ -267,6 +300,10 @@ export function createHuggingFaceInferenceService({
 
   async function listTextModels(_token: string): Promise<HuggingFaceModelSummary[]> {
     return CURATED_TEXT_MODELS;
+  }
+
+  async function listVideoModels(_token: string): Promise<HuggingFaceModelSummary[]> {
+    return CURATED_VIDEO_MODELS;
   }
 
   async function enhancePrompt({
@@ -395,12 +432,176 @@ export function createHuggingFaceInferenceService({
     }
   }
 
+  /** Shared image-bytes POST for ControlNet/inpaint - both return a single image. */
+  async function postForImage(token: string, model: string, body: unknown, signal?: AbortSignal) {
+    const response = await withRetry(
+      token,
+      () =>
+        axiosInstance.post(`${inferenceBaseUrl}/${model}`, body, {
+          headers: buildHeaders(token),
+          timeout: GENERATION_TIMEOUT_MS,
+          responseType: 'arraybuffer',
+          signal,
+        }),
+      signal,
+    );
+    return toImageResult((response as { data: unknown }).data);
+  }
+
+  async function generateVideo({
+    token,
+    model,
+    prompt,
+    durationSeconds,
+    signal,
+  }: {
+    token: string;
+    model: string;
+    prompt: string;
+    durationSeconds?: number;
+    signal?: AbortSignal;
+  }): Promise<HuggingFaceVideoGenerationResult> {
+    const normalizedPrompt = prompt.trim();
+    const normalizedModel = model.trim();
+    if (!normalizedPrompt) throw new Error('Prompt cannot be empty.');
+    if (!normalizedModel) throw new Error('HuggingFace video model is required.');
+    assertPromptLength(normalizedPrompt, 'Prompt');
+    try {
+      const response = await withRetry(
+        token,
+        () =>
+          axiosInstance.post(
+            `${inferenceBaseUrl}/${normalizedModel}`,
+            {
+              inputs: normalizedPrompt,
+              parameters: { ...(durationSeconds ? { num_frames: Math.round(durationSeconds * 24) } : {}) },
+            },
+            {
+              headers: buildHeaders(token),
+              timeout: GENERATION_TIMEOUT_MS,
+              responseType: 'arraybuffer',
+              signal,
+            },
+          ),
+        signal,
+      );
+      return toVideoResult(normalizedModel, (response as { data: unknown }).data);
+    } catch (error) {
+      throw createHuggingFaceError(error, 'HuggingFace video generation failed.');
+    }
+  }
+
+  async function generateControlNet({
+    token,
+    model,
+    prompt,
+    controlImageBase64,
+    negativePrompt,
+    width,
+    height,
+    seed,
+    signal,
+  }: {
+    token: string;
+    model: string;
+    prompt: string;
+    controlImageBase64: string;
+    negativePrompt?: string;
+    width: number;
+    height: number;
+    seed?: number;
+    signal?: AbortSignal;
+  }): Promise<HuggingFaceImageGenerationResult> {
+    const normalizedPrompt = prompt.trim();
+    const normalizedModel = model.trim();
+    if (!normalizedPrompt) throw new Error('Prompt cannot be empty.');
+    if (!normalizedModel) throw new Error('HuggingFace ControlNet model is required.');
+    if (!controlImageBase64) throw new Error('A control image is required.');
+    assertPromptLength(normalizedPrompt, 'Prompt');
+    try {
+      const image = await postForImage(
+        token,
+        normalizedModel,
+        {
+          inputs: normalizedPrompt,
+          parameters: {
+            control_image: controlImageBase64,
+            ...(negativePrompt?.trim() ? { negative_prompt: negativePrompt.trim() } : {}),
+            width,
+            height,
+            ...(typeof seed === 'number' ? { seed } : {}),
+          },
+        },
+        signal,
+      );
+      return { model: normalizedModel, images: [image], usage: null };
+    } catch (error) {
+      throw createHuggingFaceError(error, 'HuggingFace ControlNet generation failed.');
+    }
+  }
+
+  async function generateInpaint({
+    token,
+    model,
+    prompt,
+    initImageBase64,
+    maskImageBase64,
+    negativePrompt,
+    width,
+    height,
+    seed,
+    signal,
+  }: {
+    token: string;
+    model: string;
+    prompt: string;
+    initImageBase64: string;
+    maskImageBase64: string;
+    negativePrompt?: string;
+    width: number;
+    height: number;
+    seed?: number;
+    signal?: AbortSignal;
+  }): Promise<HuggingFaceImageGenerationResult> {
+    const normalizedPrompt = prompt.trim();
+    const normalizedModel = model.trim();
+    if (!normalizedPrompt) throw new Error('Prompt cannot be empty.');
+    if (!normalizedModel) throw new Error('HuggingFace inpaint model is required.');
+    if (!initImageBase64 || !maskImageBase64) throw new Error('An init image and a mask are required.');
+    assertPromptLength(normalizedPrompt, 'Prompt');
+    try {
+      const image = await postForImage(
+        token,
+        normalizedModel,
+        {
+          inputs: normalizedPrompt,
+          parameters: {
+            image: initImageBase64,
+            mask_image: maskImageBase64,
+            ...(negativePrompt?.trim() ? { negative_prompt: negativePrompt.trim() } : {}),
+            width,
+            height,
+            ...(typeof seed === 'number' ? { seed } : {}),
+          },
+        },
+        signal,
+      );
+      return { model: normalizedModel, images: [image], usage: null };
+    } catch (error) {
+      throw createHuggingFaceError(error, 'HuggingFace inpaint generation failed.');
+    }
+  }
+
   return {
     getKeyInfo,
     listImageModels,
     listTextModels,
+    listVideoModels,
     enhancePrompt,
     suggestNegativePrompt,
     generateImage,
+    generateVideo,
+    generateControlNet,
+    generateInpaint,
   };
 }
