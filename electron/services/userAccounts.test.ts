@@ -106,7 +106,9 @@ describe('HuggingFace BYOK token', () => {
 
     service.updateAccount(accountId, {
       imageGenerationProvider: 'huggingface',
+      videoGenerationProvider: 'huggingface',
       huggingFaceImageModel: 'black-forest-labs/FLUX.1-schnell',
+      huggingFaceVideoModel: 'Lightricks/LTX-Video',
     });
     service.setHuggingFaceToken(accountId, 'hf_secrettoken');
 
@@ -114,6 +116,7 @@ describe('HuggingFace BYOK token', () => {
 
     expect(snapshot.accounts[0].huggingFace.tokenStored).toBe(false);
     expect(snapshot.accounts[0].preferences.imageGenerationProvider).toBe('local');
+    expect(snapshot.accounts[0].preferences.videoGenerationProvider).toBe('local');
     expect(service.getHuggingFaceToken(accountId)).toBeNull();
   });
 

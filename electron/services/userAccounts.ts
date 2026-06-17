@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 
 export type PromptEnhancementProvider = 'local' | 'openrouter' | 'huggingface';
 export type ImageGenerationProvider = 'local' | 'openrouter' | 'huggingface';
+export type VideoGenerationProvider = 'local' | 'openrouter' | 'huggingface';
 export type FallbackProvider = 'openrouter' | 'huggingface';
 
 export interface UserAccountRecord {
@@ -13,6 +14,7 @@ export interface UserAccountRecord {
     promptEnhancementProvider: PromptEnhancementProvider;
     openRouterModel: string;
     imageGenerationProvider: ImageGenerationProvider;
+    videoGenerationProvider: VideoGenerationProvider;
     openRouterImageModel: string;
     huggingFaceModel: string;
     huggingFaceImageModel: string;
@@ -47,6 +49,7 @@ type UserAccountUpdatePatch = {
   promptEnhancementProvider?: PromptEnhancementProvider;
   openRouterModel?: string;
   imageGenerationProvider?: ImageGenerationProvider;
+  videoGenerationProvider?: VideoGenerationProvider;
   openRouterImageModel?: string;
   huggingFaceModel?: string;
   huggingFaceImageModel?: string;
@@ -120,6 +123,7 @@ function createAccountRecord(name: string): UserAccountRecord {
       promptEnhancementProvider: 'local',
       openRouterModel: '',
       imageGenerationProvider: 'local',
+      videoGenerationProvider: 'local',
       openRouterImageModel: '',
       huggingFaceModel: '',
       huggingFaceImageModel: '',
@@ -176,6 +180,7 @@ export function createUserAccountsService({
           promptEnhancementProvider: account.preferences?.promptEnhancementProvider ?? 'local',
           openRouterModel: account.preferences?.openRouterModel ?? '',
           imageGenerationProvider: account.preferences?.imageGenerationProvider ?? 'local',
+          videoGenerationProvider: account.preferences?.videoGenerationProvider ?? 'local',
           openRouterImageModel: account.preferences?.openRouterImageModel ?? '',
           huggingFaceModel: account.preferences?.huggingFaceModel ?? '',
           huggingFaceImageModel: account.preferences?.huggingFaceImageModel ?? '',
@@ -252,6 +257,8 @@ export function createUserAccountsService({
             : account.preferences.openRouterModel,
         imageGenerationProvider:
           patch.imageGenerationProvider ?? account.preferences.imageGenerationProvider,
+        videoGenerationProvider:
+          patch.videoGenerationProvider ?? account.preferences.videoGenerationProvider,
         openRouterImageModel:
           patch.openRouterImageModel !== undefined
             ? patch.openRouterImageModel.trim()
@@ -415,6 +422,10 @@ export function createUserAccountsService({
           account.preferences.imageGenerationProvider === 'openrouter'
             ? 'local'
             : account.preferences.imageGenerationProvider,
+        videoGenerationProvider:
+          account.preferences.videoGenerationProvider === 'openrouter'
+            ? 'local'
+            : account.preferences.videoGenerationProvider,
       },
     };
 
@@ -520,6 +531,10 @@ export function createUserAccountsService({
           account.preferences.imageGenerationProvider === 'huggingface'
             ? 'local'
             : account.preferences.imageGenerationProvider,
+        videoGenerationProvider:
+          account.preferences.videoGenerationProvider === 'huggingface'
+            ? 'local'
+            : account.preferences.videoGenerationProvider,
         fallbackProvider:
           account.preferences.fallbackProvider === 'huggingface'
             ? null

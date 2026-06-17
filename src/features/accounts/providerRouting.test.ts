@@ -28,6 +28,7 @@ function makeAccount(overrides?: AccountOverrides): UserAccountSummary {
       promptEnhancementProvider: 'local',
       openRouterModel: '',
       imageGenerationProvider: 'local',
+      videoGenerationProvider: 'local',
       openRouterImageModel: '',
       huggingFaceModel: '',
       huggingFaceImageModel: '',
