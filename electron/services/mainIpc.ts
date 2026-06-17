@@ -21,6 +21,7 @@ import type {
 } from './openRouter';
 import type {
   ImageGenerationProvider,
+  VideoGenerationProvider,
   PromptEnhancementProvider,
   UserAccountRecord,
   UserAccountsSnapshot,
@@ -59,6 +60,7 @@ type UserAccountsServiceLike = {
       promptEnhancementProvider?: PromptEnhancementProvider;
       openRouterModel?: string;
       imageGenerationProvider?: ImageGenerationProvider;
+      videoGenerationProvider?: VideoGenerationProvider;
       openRouterImageModel?: string;
       huggingFaceModel?: string;
       huggingFaceImageModel?: string;
@@ -270,6 +272,7 @@ export function registerMainIpcHandlers({
         promptEnhancementProvider?: PromptEnhancementProvider;
         openRouterModel?: string;
         imageGenerationProvider?: ImageGenerationProvider;
+        videoGenerationProvider?: VideoGenerationProvider;
         openRouterImageModel?: string;
         huggingFaceModel?: string;
         huggingFaceImageModel?: string;

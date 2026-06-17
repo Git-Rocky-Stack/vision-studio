@@ -127,6 +127,81 @@ describe('runWorkflowExecution', () => {
     });
   });
 
+  it('routes still-image workflow execution through the HuggingFace image model while offline', async () => {
+    useAppStore.setState((state) => ({
+      systemInfo: {
+        ...state.systemInfo,
+        backendConnected: false,
+      },
+    }));
+
+    const electron = makeElectronGenerationMock({
+      huggingFaceImageEnabled: true,
+      huggingFaceImageModel: 'black-forest-labs/FLUX.1-schnell',
+      submit: { success: true, jobId: 'job-hf-1' },
+      statuses: [
+        {
+          job_id: 'job-hf-1',
+          status: 'completed',
+          type: 'image',
+          created_at: '2026-04-24T20:00:00.000Z',
+          completed_at: '2026-04-24T20:00:05.000Z',
+          progress: 100,
+          result: {
+            images: ['/outputs/job-hf-1/image-1.png'],
+          },
+        },
+      ],
+    });
+
+    await runWorkflowExecution({
+      workflowId: 'image-generation-baseline',
+      electron,
+      store: useAppStore,
+      pollIntervalMs: 0,
+    });
+
+    // The local checkpoint id must be replaced by the account's HuggingFace
+    // image model so the main handler never forwards a local id into HF.
+    expect(electron.generation.generateImage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        model: 'black-forest-labs/FLUX.1-schnell',
+      }),
+    );
+    expect(useAppStore.getState().workflowRecords[0].runHistory[0]).toMatchObject({
+      status: 'complete',
+    });
+  });
+
+  it('blocks workflow execution with a config error when HuggingFace is selected but no token is stored', async () => {
+    useAppStore.setState((state) => ({
+      systemInfo: {
+        ...state.systemInfo,
+        backendConnected: false,
+      },
+    }));
+
+    const electron = makeElectronGenerationMock({
+      huggingFaceImageEnabled: true,
+      huggingFaceTokenStored: false,
+      huggingFaceImageModel: 'black-forest-labs/FLUX.1-schnell',
+    });
+
+    await runWorkflowExecution({
+      workflowId: 'image-generation-baseline',
+      electron,
+      store: useAppStore,
+      pollIntervalMs: 0,
+    });
+
+    // A hosted route bypasses the backend-offline error; a missing token must
+    // surface as a provider-config error, not a false backend-unavailable one.
+    expect(electron.generation.generateImage).not.toHaveBeenCalled();
+    const runtime = useAppStore.getState().workflowRuntimeById['image-generation-baseline'];
+    expect(runtime?.issues.some((issue) => issue.code === 'provider-config')).toBe(true);
+    expect(runtime?.issues.some((issue) => issue.code === 'backend-unavailable')).toBe(false);
+  });
+
   it('polls beyond 120 attempts when on the OpenRouter still-image route', async () => {
     useAppStore.setState((state) => ({
       systemInfo: {
@@ -369,7 +444,20 @@ function makeElectronGenerationMock(options: {
   submitError?: Error;
   statuses?: Array<Record<string, unknown>>;
   openRouterImageEnabled?: boolean;
+  huggingFaceImageEnabled?: boolean;
+  huggingFaceImageModel?: string;
+  huggingFaceTokenStored?: boolean;
 }) {
+  const imageGenerationProvider = options.huggingFaceImageEnabled
+    ? 'huggingface'
+    : options.openRouterImageEnabled
+      ? 'openrouter'
+      : 'local';
+  const huggingFaceImageModel = options.huggingFaceImageEnabled
+    ? options.huggingFaceImageModel ?? 'black-forest-labs/FLUX.1-schnell'
+    : '';
+  const huggingFaceTokenStored =
+    options.huggingFaceTokenStored ?? options.huggingFaceImageEnabled ?? false;
   const statuses = [...(options.statuses ?? [])];
   const notify = vi.fn().mockResolvedValue({ success: true });
 
@@ -400,13 +488,23 @@ function makeElectronGenerationMock(options: {
             preferences: {
               promptEnhancementProvider: 'local',
               openRouterModel: '',
-              imageGenerationProvider: options.openRouterImageEnabled ? 'openrouter' : 'local',
+              imageGenerationProvider,
+              videoGenerationProvider: 'local',
               openRouterImageModel: options.openRouterImageEnabled ? 'google/gemini-2.5-flash-image' : '',
+              huggingFaceModel: '',
+              huggingFaceImageModel,
+              huggingFaceVideoModel: '',
+              fallbackProvider: null,
             },
             openRouter: {
               apiKeyStored: options.openRouterImageEnabled ?? false,
               keyLabel: options.openRouterImageEnabled ? 'Primary Key' : null,
               lastValidatedAt: options.openRouterImageEnabled ? '2026-04-24T00:00:00.000Z' : null,
+            },
+            huggingFace: {
+              tokenStored: huggingFaceTokenStored,
+              keyLabel: huggingFaceTokenStored ? 'HF Key' : null,
+              lastValidatedAt: null,
             },
           },
         ],

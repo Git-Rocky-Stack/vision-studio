@@ -16,6 +16,7 @@ function account(overrides?: {
       promptEnhancementProvider: 'local',
       openRouterModel: '',
       imageGenerationProvider: 'local',
+      videoGenerationProvider: 'local',
       openRouterImageModel: '',
       huggingFaceModel: '',
       huggingFaceImageModel: '',

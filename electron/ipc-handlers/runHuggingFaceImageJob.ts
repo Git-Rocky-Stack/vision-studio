@@ -2,11 +2,24 @@ import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import type { HuggingFaceImageJobStore } from './huggingfaceImageJobs';
 
+type HuggingFaceImageGenResult = {
+  model: string | null;
+  images: Array<{ dataUrl: string; mimeType: string }>;
+  usage: unknown;
+};
+
 /**
  * Runs a HuggingFace still-image job in the main process (M6). Resolves the
- * account token + model, calls the HF Inference client, persists normalized
- * images under <outputRoot>/huggingface/YYYY-MM-DD/, and patches the job store.
- * The token is read per-run and never persisted into the job record (Codex gate).
+ * account token + model, calls the HF Inference client (prompt-only
+ * text-to-image), persists normalized images under
+ * <outputRoot>/huggingface/YYYY-MM-DD/, and patches the job store. The token is
+ * read per-run and never persisted into the job record (Codex gate).
+ *
+ * ControlNet and inpaint are NOT routed here: HuggingFace's Inference Providers
+ * task API documents no control_image / mask_image contract, so the renderer
+ * and the generate-image IPC guard keep those passes Local. As an authoritative
+ * main-process backstop this runner also fails any CN/inpaint request that
+ * reaches it rather than silently degrading it to a plain prompt (Codex M6 gate).
  */
 
 type RunDeps = {
@@ -27,10 +40,18 @@ type RunDeps = {
       height: number;
       seed?: number;
       signal?: AbortSignal;
-    }) => Promise<{ model: string | null; images: Array<{ dataUrl: string; mimeType: string }>; usage: unknown }>;
+    }) => Promise<HuggingFaceImageGenResult>;
   };
-  outputRoots: { getResolvedOutputDirectory: () => string; rememberOutputRoot: (dir: string) => void };
+  outputRoots: {
+    getResolvedOutputDirectory: () => string;
+    rememberOutputRoot: (dir: string) => void;
+    getManagedOutputRoots: () => string[];
+  };
 };
+
+/** Hosted CN/inpaint has no documented Inference Providers contract; stay Local. */
+const HUGGINGFACE_GUIDED_PASS_UNSUPPORTED =
+  'HuggingFace does not support ControlNet or inpaint. Switch the active account back to Local to run ControlNet and inpaint passes.';
 
 const MIME_EXT: Record<string, string> = {
   'image/png': 'png',
@@ -83,18 +104,37 @@ export async function runHuggingFaceImageJob(
       failJob(store, jobId, 'Select a HuggingFace image model before generating.');
       return;
     }
+    // Authoritative main-process guard: HuggingFace has no documented hosted
+    // ControlNet/inpaint contract, so reject those passes outright instead of
+    // silently running a plain prompt and discarding the user's guides.
+    const inpaint = params.inpaint as { mask?: unknown } | undefined;
+    const controlnetLayers = Array.isArray(params.controlnet)
+      ? (params.controlnet as Array<{ source_path?: string }>)
+      : [];
+    const hasControlLayer = controlnetLayers.some((layer) => Boolean(layer?.source_path));
+    if (inpaint?.mask || hasControlLayer) {
+      failJob(store, jobId, HUGGINGFACE_GUIDED_PASS_UNSUPPORTED);
+      return;
+    }
+
     const controller = new AbortController();
     store.patch(jobId, { status: 'processing', progress: 12, abortController: controller });
 
     const outputDir = outputRoots.getResolvedOutputDirectory();
+    const prompt = String(params.prompt ?? '');
+    const negativePrompt = typeof params.negative_prompt === 'string' ? params.negative_prompt : undefined;
+    const width = typeof params.width === 'number' ? params.width : 1024;
+    const height = typeof params.height === 'number' ? params.height : 1024;
+    const seed = typeof params.seed === 'number' && params.seed >= 0 ? params.seed : undefined;
+
     const result = await huggingFace.generateImage({
       token,
       model,
-      prompt: String(params.prompt ?? ''),
-      negativePrompt: typeof params.negative_prompt === 'string' ? params.negative_prompt : undefined,
-      width: typeof params.width === 'number' ? params.width : 1024,
-      height: typeof params.height === 'number' ? params.height : 1024,
-      seed: typeof params.seed === 'number' && params.seed >= 0 ? params.seed : undefined,
+      prompt,
+      negativePrompt,
+      width,
+      height,
+      seed,
       signal: controller.signal,
     });
 

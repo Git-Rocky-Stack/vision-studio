@@ -28,7 +28,15 @@ import { suggestNegativePromptFromHeuristics } from './negativePromptHeuristics'
 import { runOpenRouterImageJob } from './runOpenRouterImageJob';
 import { createHuggingFaceImageJobStore } from './huggingfaceImageJobs';
 import { runHuggingFaceImageJob } from './runHuggingFaceImageJob';
-import { HUGGINGFACE_JOB_PREFIX, routedJobProvider } from './hostedImageRouting';
+import { createHuggingFaceVideoJobStore } from './huggingfaceVideoJobs';
+import { runHuggingFaceVideoJob } from './runHuggingFaceVideoJob';
+import {
+  HUGGINGFACE_JOB_PREFIX,
+  HUGGINGFACE_VIDEO_JOB_PREFIX,
+  hasUnsupportedHuggingFaceImageInputs,
+  isHuggingFaceVideoJobId,
+  routedJobProvider,
+} from './hostedImageRouting';
 
 void _BACKEND_DOWN_MESSAGE; // Re-exported by callers via './backendRequest'.
 
@@ -90,6 +98,28 @@ function dispatchHuggingFaceImageJob(jobId: string, params: Record<string, unkno
   }
   void runHuggingFaceImageJob(jobId, params, {
     store: huggingFaceImageJobStore,
+    userAccounts: userAccountsService,
+    huggingFace: huggingFaceService,
+    outputRoots: outputRootService,
+  });
+}
+
+const huggingFaceVideoJobStore = createHuggingFaceVideoJobStore({
+  emit: (channel, payload) => mainWindow?.webContents.send(channel, payload),
+});
+
+function dispatchHuggingFaceVideoJob(jobId: string, params: Record<string, unknown>) {
+  if (!userAccountsService || !huggingFaceService || !outputRootService) {
+    huggingFaceVideoJobStore.patch(jobId, {
+      status: 'failed',
+      progress: 100,
+      completed_at: new Date().toISOString(),
+      error: 'HuggingFace is selected for video, but the active account is not fully configured.',
+    });
+    return;
+  }
+  void runHuggingFaceVideoJob(jobId, params, {
+    store: huggingFaceVideoJobStore,
     userAccounts: userAccountsService,
     huggingFace: huggingFaceService,
     outputRoots: outputRootService,
@@ -204,11 +234,11 @@ ipcMain.handle('generation:generate-image', async (_event, params) => {
   }
 
   if (activeAccount && effectiveImageProvider === 'huggingface') {
-    if (hasUnsupportedOpenRouterImageInputs(params)) {
+    if (hasUnsupportedHuggingFaceImageInputs(params)) {
       return {
         success: false,
         error:
-          'HuggingFace still-image routing currently supports prompt-only generations. Switch the active account back to Local for ControlNet, inpaint, or reference-image passes.',
+          'HuggingFace still-image routing supports prompt-only generations. Switch the active account back to Local for ControlNet, inpaint, or reference-image passes.',
       };
     }
 
@@ -268,6 +298,48 @@ ipcMain.handle('generation:generate-image', async (_event, params) => {
 });
 
 ipcMain.handle('generation:generate-video', async (_event, params) => {
+  const activeAccount = userAccountsService?.getActiveAccount();
+  const providerOverride = params?.__providerOverride === 'huggingface' ? 'huggingface' : null;
+  const effectiveVideoProvider = providerOverride ?? activeAccount?.preferences.videoGenerationProvider;
+  if (activeAccount && effectiveVideoProvider === 'huggingface') {
+    if (!activeAccount.huggingFace.tokenStored) {
+      return {
+        success: false,
+        error: 'HuggingFace is selected for video, but no token is stored for the active account.',
+      };
+    }
+
+    const requestedModel =
+      (typeof params?.model === 'string' && params.model.trim()) ||
+      activeAccount.preferences.huggingFaceVideoModel.trim();
+    if (!requestedModel) {
+      return {
+        success: false,
+        error: 'Select a HuggingFace video model for the active account before generating.',
+      };
+    }
+
+    const jobId = `${HUGGINGFACE_VIDEO_JOB_PREFIX}-${crypto.randomUUID()}`;
+    huggingFaceVideoJobStore.set({
+      job_id: jobId,
+      status: 'pending',
+      progress: 0,
+      type: 'video',
+      created_at: new Date().toISOString(),
+      params,
+    });
+    dispatchHuggingFaceVideoJob(jobId, {
+      ...params,
+      model: requestedModel,
+      __huggingFaceAccountId: activeAccount.id,
+    });
+
+    return {
+      success: true,
+      jobId,
+    };
+  }
+
   try {
     const response = await requestBackend(() =>
       axios.post(`${BACKEND_URL}/api/generate/video`, params, { headers: backendAuthHeaders() }),
@@ -566,7 +638,7 @@ ipcMain.handle('generation:batch', async (_event, params) => {
   }
 
   if (activeAccount?.preferences.imageGenerationProvider === 'huggingface') {
-    if (hasUnsupportedOpenRouterImageInputs(params)) {
+    if (hasUnsupportedHuggingFaceImageInputs(params)) {
       return {
         success: false,
         error:
@@ -660,7 +732,9 @@ ipcMain.handle('generation:get-status', async (_event, jobId: string) => {
     }
   }
   if (provider === 'huggingface') {
-    const status = huggingFaceImageJobStore.getStatus(jobId);
+    const status = isHuggingFaceVideoJobId(jobId)
+      ? huggingFaceVideoJobStore.getStatus(jobId)
+      : huggingFaceImageJobStore.getStatus(jobId);
     if (status) {
       return status;
     }
@@ -707,6 +781,30 @@ ipcMain.handle('generation:cancel', async (_event, jobId: string) => {
   }
 
   if (provider === 'huggingface') {
+    if (isHuggingFaceVideoJobId(jobId)) {
+      const currentJob = huggingFaceVideoJobStore.get(jobId);
+      if (!currentJob) {
+        return {
+          success: false,
+          error: 'HuggingFace generation job not found.',
+        };
+      }
+
+      if (!isTerminalJobStatus(currentJob.status)) {
+        currentJob.abortController?.abort();
+        huggingFaceVideoJobStore.patch(jobId, {
+          status: 'cancelled',
+          progress: currentJob.progress,
+          completed_at: new Date().toISOString(),
+          abortController: undefined,
+        });
+      }
+
+      return {
+        success: true,
+      };
+    }
+
     const currentJob = huggingFaceImageJobStore.get(jobId);
     if (!currentJob) {
       return {
@@ -749,6 +847,7 @@ ipcMain.handle('generation:list-jobs', async (_event, options = {}) => {
   const localJobs = [
     ...openRouterImageJobStore.values(),
     ...huggingFaceImageJobStore.values(),
+    ...huggingFaceVideoJobStore.values(),
   ].filter((job) => !status || job.status === status);
 
   try {

@@ -10,7 +10,13 @@ import type { ClipGenerationBinding, TimelineClip, TimelineSequence, TimelineTra
 import { computeDimensions } from '@/types/resolution';
 import { SVD_REFERENCE_ERROR } from '@/features/generate/validation';
 import { resolveCanvasControlLayers } from '@/features/generation/resolveCanvasControlLayers';
-import { getActiveUserAccount, resolveStillImageRoute } from '@/features/accounts/providerRouting';
+import {
+  getActiveUserAccount,
+  isHostedStillImageRoute,
+  isHostedVideoRoute,
+  resolveStillImageRoute,
+  resolveVideoRoute,
+} from '@/features/accounts/providerRouting';
 import {
   delay,
   getOutputAssetId,
@@ -23,12 +29,13 @@ type TimelineStore = UseBoundStore<StoreApi<AppState>>;
 /**
  * Poll budgets: max wall time before the runner gives up waiting on the
  * job. Multiplied against pollIntervalMs (default 500ms) inside the poll
- * loop, so the local-backend budget is ~60s and the OpenRouter budget is
- * ~120s. OpenRouter gets the longer ceiling because hosted image generation
- * has higher tail latency than the local CUDA path.
+ * loop, so the local-backend budget is ~60s and the hosted budget is
+ * ~120s. Hosted routes (OpenRouter, HuggingFace) get the longer ceiling
+ * because off-device image generation has higher tail latency than the
+ * local CUDA path.
  */
 const MAX_POLL_ATTEMPTS_LOCAL_BACKEND = 120;
-const MAX_POLL_ATTEMPTS_OPENROUTER = 240;
+const MAX_POLL_ATTEMPTS_HOSTED = 240;
 
 type GenerationType = 'image' | 'video';
 type TimelineGenerationOperation = 'generate' | 'regenerate' | 'variant' | 'extend' | 'retake';
@@ -172,7 +179,9 @@ export async function runTimelineClipGeneration({
     throw new Error('Select a timeline sequence before generating into the editor.');
   }
   const accountSnapshot = await electron.accounts.list().catch(() => null);
-  const stillImageRoute = resolveStillImageRoute(getActiveUserAccount(accountSnapshot));
+  const activeAccount = getActiveUserAccount(accountSnapshot);
+  const stillImageRoute = resolveStillImageRoute(activeAccount);
+  const videoRoute = resolveVideoRoute(activeAccount);
 
   const existingBinding = targetClip?.generationBindingId
     ? state.clipGenerationBindings.find((binding) => binding.id === targetClip.generationBindingId) ?? null
@@ -227,15 +236,33 @@ export async function runTimelineClipGeneration({
           duration: Math.max(0.12, (targetRetakeRange.endMs - targetRetakeRange.startMs) / 1000),
         }
       : resolved;
-  const providerResolved =
-    effectiveResolved.generationType === 'image' &&
-    stillImageRoute.provider === 'openrouter' &&
-    stillImageRoute.model
-      ? {
-          ...effectiveResolved,
-          model: stillImageRoute.model,
-        }
-      : effectiveResolved;
+  // Re-resolve the request model against the active route. The runner is the
+  // authoritative routing point for the timeline: hosted still-image AND hosted
+  // video both override the incoming (local) model so a local checkpoint id like
+  // 'svd' is never submitted to a hosted provider.
+  const providerResolved = ((): ResolvedTimelineGenerationInput => {
+    if (
+      effectiveResolved.generationType === 'image' &&
+      isHostedStillImageRoute(stillImageRoute) &&
+      stillImageRoute.model
+    ) {
+      return { ...effectiveResolved, model: stillImageRoute.model };
+    }
+    if (
+      effectiveResolved.generationType === 'video' &&
+      isHostedVideoRoute(videoRoute) &&
+      videoRoute.model
+    ) {
+      return { ...effectiveResolved, model: videoRoute.model };
+    }
+    return effectiveResolved;
+  })();
+  // Which route owns this generation type, and is it hosted (off-device)?
+  const activeRoute = providerResolved.generationType === 'image' ? stillImageRoute : videoRoute;
+  const hostedRoute =
+    providerResolved.generationType === 'image'
+      ? isHostedStillImageRoute(stillImageRoute)
+      : isHostedVideoRoute(videoRoute);
   const targetProject = state.projects.find((item) => item.id === targetSequence.projectId) ?? null;
   const targetScene = targetClip?.sceneId
     ? targetProject?.scenes.find((item) => item.id === targetClip.sceneId) ?? null
@@ -243,15 +270,16 @@ export async function runTimelineClipGeneration({
       ? targetProject?.scenes.find((item) => item.id === state.activeSceneId) ?? null
       : null;
 
-  if (
-    !state.systemInfo.backendConnected &&
-    (providerResolved.generationType !== 'image' || stillImageRoute.provider !== 'openrouter')
-  ) {
+  // A hosted route (still-image OR video) runs off-device, so a stopped local
+  // backend must not block it; only local routes need the backend.
+  if (!state.systemInfo.backendConnected && !hostedRoute) {
     throw new Error('The AI backend is not running.');
   }
 
-  if (providerResolved.generationType === 'image' && stillImageRoute.provider === 'openrouter' && stillImageRoute.error) {
-    throw new Error(stillImageRoute.error);
+  // A misconfigured hosted route surfaces its own config error (missing token /
+  // model) rather than a misleading backend-offline error.
+  if (hostedRoute && activeRoute.error) {
+    throw new Error(activeRoute.error);
   }
 
   if (!providerResolved.prompt.trim()) {
@@ -463,11 +491,9 @@ export async function runTimelineClipGeneration({
     activeJobId: jobId,
   });
 
-  const isHostedImageRoute =
-    providerResolved.generationType === 'image' && stillImageRoute.provider === 'openrouter';
-  const maxPollAttempts = isHostedImageRoute
-    ? MAX_POLL_ATTEMPTS_OPENROUTER
-    : MAX_POLL_ATTEMPTS_LOCAL_BACKEND;
+  // Hosted routes (OpenRouter / HuggingFace, still-image or video) get the
+  // longer poll ceiling because off-device generation has higher tail latency.
+  const maxPollAttempts = hostedRoute ? MAX_POLL_ATTEMPTS_HOSTED : MAX_POLL_ATTEMPTS_LOCAL_BACKEND;
 
   let finalStatus: JobStatus | null = null;
   let signalAborted = false;

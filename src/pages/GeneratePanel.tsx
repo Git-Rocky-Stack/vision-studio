@@ -563,14 +563,17 @@ export function GeneratePanel() {
     const forcedRoute = forcedRouteRef.current;
     forcedRouteRef.current = null;
 
-    const latestActiveAccount =
-      imageConfig.generationType === 'image' ? await syncActiveAccount() : activeAccount;
+    const latestActiveAccount = await syncActiveAccount();
     const savedImageProvider = latestActiveAccount?.preferences.imageGenerationProvider ?? 'local';
     const effectiveImageProvider = forcedRoute ?? savedImageProvider;
     const useOpenRouterImage =
       imageConfig.generationType === 'image' && effectiveImageProvider === 'openrouter';
     const useHuggingFaceImage =
       imageConfig.generationType === 'image' && effectiveImageProvider === 'huggingface';
+    const savedVideoProvider = latestActiveAccount?.preferences.videoGenerationProvider ?? 'local';
+    const useHuggingFaceVideo =
+      imageConfig.generationType === 'video' && savedVideoProvider === 'huggingface';
+    const huggingFaceVideoModel = latestActiveAccount?.preferences.huggingFaceVideoModel?.trim() ?? '';
     const openRouterImageModel = latestActiveAccount?.preferences.openRouterImageModel.trim() ?? '';
     const huggingFaceImageModel = latestActiveAccount?.preferences.huggingFaceImageModel?.trim() ?? '';
     const hostedImageModel = useHuggingFaceImage ? huggingFaceImageModel : openRouterImageModel;
@@ -579,8 +582,21 @@ export function GeneratePanel() {
         ? useOpenRouterImage || useHuggingFaceImage
           ? hostedImageModel
           : imageConfig.model
-        : imageConfig.videoModel;
-    const hostedUnsupportedInputs =
+        : useHuggingFaceVideo
+          ? huggingFaceVideoModel
+          : imageConfig.videoModel;
+    const openRouterUnsupportedInputs =
+      imageConfig.generationType === 'image' &&
+      (resolvedCanvasControlLayers.visibleLayerCount > 0 ||
+        resolvedCanvasControlLayers.controlnet.length > 0 ||
+        resolvedCanvasControlLayers.referenceImages.length > 0 ||
+        Boolean(resolvedCanvasControlLayers.inpaint) ||
+        resolvedCanvasControlLayers.errors.length > 0);
+    // HuggingFace hosted still-image routing is prompt-only: the Inference
+    // Providers API documents no ControlNet/inpaint contract, so any guided
+    // pass (ControlNet, inpaint, reference images, or misconfigured layers)
+    // must stay on the local backend - mirrors the OpenRouter envelope.
+    const huggingFaceUnsupportedInputs =
       imageConfig.generationType === 'image' &&
       (resolvedCanvasControlLayers.visibleLayerCount > 0 ||
         resolvedCanvasControlLayers.controlnet.length > 0 ||
@@ -628,18 +644,49 @@ export function GeneratePanel() {
       return;
     }
 
-    if ((useOpenRouterImage || useHuggingFaceImage) && hostedUnsupportedInputs) {
+    if (useHuggingFaceVideo && !latestActiveAccount?.huggingFace?.tokenStored) {
       updateGenStatus({
         status: 'error',
-        errorMessage:
-          'Hosted still-image routing currently supports prompt-only generations. Switch the active account back to Local for ControlNet, inpaint, or reference-image passes.',
+        errorMessage: 'HuggingFace is selected for video, but no token is stored for the active account.',
         isGenerating: false,
       });
       isGeneratingRef.current = false;
       return;
     }
 
-    if (!systemInfo.backendConnected && !useOpenRouterImage && !useHuggingFaceImage) {
+    if (useHuggingFaceVideo && !huggingFaceVideoModel) {
+      updateGenStatus({
+        status: 'error',
+        errorMessage: 'Select a HuggingFace video model in Settings before generating.',
+        isGenerating: false,
+      });
+      isGeneratingRef.current = false;
+      return;
+    }
+
+    if (useOpenRouterImage && openRouterUnsupportedInputs) {
+      updateGenStatus({
+        status: 'error',
+        errorMessage:
+          'OpenRouter still-image routing supports prompt-only generations. Switch the active account back to Local for ControlNet, inpaint, or reference-image passes.',
+        isGenerating: false,
+      });
+      isGeneratingRef.current = false;
+      return;
+    }
+
+    if (useHuggingFaceImage && huggingFaceUnsupportedInputs) {
+      updateGenStatus({
+        status: 'error',
+        errorMessage:
+          'HuggingFace still-image routing supports prompt-only generations. Switch the active account back to Local for ControlNet, inpaint, or reference-image passes.',
+        isGenerating: false,
+      });
+      isGeneratingRef.current = false;
+      return;
+    }
+
+    if (!systemInfo.backendConnected && !useOpenRouterImage && !useHuggingFaceImage && !useHuggingFaceVideo) {
       updateGenStatus({
         status: 'error',
         errorMessage: 'The AI backend is not running. Please restart the app or start the backend from Settings.',
@@ -795,19 +842,19 @@ export function GeneratePanel() {
           throw new Error(result.error || 'Generation failed');
         }
       } else {
-        if (imageConfig.videoModel === 'svd' && !motionReferenceImage) {
+        if (!useHuggingFaceVideo && imageConfig.videoModel === 'svd' && !motionReferenceImage) {
           throw new Error(SVD_REFERENCE_ERROR);
         }
 
         const result = await window.electron.generation.generateVideo({
           prompt: imageConfig.prompt.trim(),
-          image_path: motionReferenceImage ?? undefined,
+          image_path: useHuggingFaceVideo ? undefined : (motionReferenceImage ?? undefined),
           width: dimensions.width,
           height: dimensions.height,
           duration: advancedGeneration.duration,
           fps: advancedGeneration.fps,
           steps: advancedGeneration.steps,
-          model: imageConfig.videoModel,
+          model: useHuggingFaceVideo ? huggingFaceVideoModel : imageConfig.videoModel,
           seed: advancedGeneration.seed === -1 ? undefined : advancedGeneration.seed,
         });
 
@@ -825,7 +872,7 @@ export function GeneratePanel() {
               duration: advancedGeneration.duration,
               fps: advancedGeneration.fps,
               steps: advancedGeneration.steps,
-              model: imageConfig.videoModel,
+              model: useHuggingFaceVideo ? huggingFaceVideoModel : imageConfig.videoModel,
               seed: advancedGeneration.seed,
               output_root: outputRoot,
             },
@@ -1041,7 +1088,19 @@ export function GeneratePanel() {
   const openRouterImageEnabled =
     imageConfig.generationType === 'image' &&
     activeAccount?.preferences.imageGenerationProvider === 'openrouter';
+  const huggingFaceImageEnabled =
+    imageConfig.generationType === 'image' &&
+    activeAccount?.preferences.imageGenerationProvider === 'huggingface';
+  const huggingFaceVideoEnabled =
+    imageConfig.generationType === 'video' &&
+    activeAccount?.preferences.videoGenerationProvider === 'huggingface';
+  // Any route that runs entirely off-device. These bypass the local backend,
+  // so backend-offline state and local runtime preflight must not gate them.
+  const hostedImageEnabled = openRouterImageEnabled || huggingFaceImageEnabled;
+  const hostedRouteEnabled = hostedImageEnabled || huggingFaceVideoEnabled;
   const openRouterImageModel = activeAccount?.preferences.openRouterImageModel.trim() ?? '';
+  const huggingFaceImageModel = activeAccount?.preferences.huggingFaceImageModel?.trim() ?? '';
+  const huggingFaceVideoModel = activeAccount?.preferences.huggingFaceVideoModel?.trim() ?? '';
   const openRouterImageWarning = openRouterImageEnabled
     ? !activeAccount?.openRouter.apiKeyStored
       ? 'OpenRouter is selected for still images, but no API key is stored for the active account.'
@@ -1055,17 +1114,53 @@ export function GeneratePanel() {
           ? 'OpenRouter still-image routing currently supports prompt-only generations. Switch the active account back to Local for ControlNet, inpaint, or reference-image passes.'
           : null
     : null;
+  // HuggingFace hosted still-image routing is prompt-only: the Inference
+  // Providers API documents no ControlNet/inpaint contract, so any guided pass
+  // (ControlNet, inpaint, reference images, or misconfigured layers) must stay
+  // on the local backend. This footer predicate mirrors the click-time guard
+  // (huggingFaceUnsupportedInputs) so the route is never shown ready when it
+  // would be rejected at generate time.
+  const huggingFaceImageWarning = huggingFaceImageEnabled
+    ? !activeAccount?.huggingFace?.tokenStored
+      ? 'HuggingFace is selected for still images, but no token is stored for the active account.'
+      : !huggingFaceImageModel
+        ? 'Select a HuggingFace still-image model in Settings before generating.'
+        : resolvedCanvasControlLayers.visibleLayerCount > 0 ||
+            resolvedCanvasControlLayers.controlnet.length > 0 ||
+            resolvedCanvasControlLayers.referenceImages.length > 0 ||
+            Boolean(resolvedCanvasControlLayers.inpaint) ||
+            resolvedCanvasControlLayers.errors.length > 0
+          ? 'HuggingFace still-image routing supports prompt-only generations. Switch the active account back to Local for ControlNet, inpaint, or reference-image passes.'
+          : null
+    : null;
+  const huggingFaceVideoWarning = huggingFaceVideoEnabled
+    ? !activeAccount?.huggingFace?.tokenStored
+      ? 'HuggingFace is selected for video, but no token is stored for the active account.'
+      : !huggingFaceVideoModel
+        ? 'Select a HuggingFace video model in Settings before generating.'
+        : null
+    : null;
+  const hostedRouteWarning = openRouterImageWarning ?? huggingFaceImageWarning ?? huggingFaceVideoWarning;
   const currentModel = imageConfig.generationType === 'image'
     ? openRouterImageEnabled
       ? openRouterImageModel || 'OpenRouter model not set'
-      : imageConfig.model
-    : imageConfig.videoModel;
-  const videoModelRequiresReference = imageConfig.generationType === 'video' && imageConfig.videoModel === 'svd';
+      : huggingFaceImageEnabled
+        ? huggingFaceImageModel || 'HuggingFace model not set'
+        : imageConfig.model
+    : huggingFaceVideoEnabled
+      ? huggingFaceVideoModel || 'HuggingFace model not set'
+      : imageConfig.videoModel;
+  // SVD's reference requirement is a local-pipeline rule; hosted video routes
+  // do not run the SVD checkpoint, so the rule must not gate them.
+  const videoModelRequiresReference =
+    imageConfig.generationType === 'video' && !huggingFaceVideoEnabled && imageConfig.videoModel === 'svd';
   const estimatedDuration = imageConfig.generationType === 'image'
-    ? openRouterImageEnabled
+    ? hostedImageEnabled
       ? '30-90s'
       : '15-30s'
-    : '2-5min';
+    : huggingFaceVideoEnabled
+      ? '1-3min'
+      : '2-5min';
   const collapsedGenerateSections = layoutPreferences.collapsedGenerateSections;
 
   const isGenerateSectionCollapsed = useCallback(
@@ -1098,12 +1193,10 @@ export function GeneratePanel() {
     : activeTimelineSequence
       ? `Append to ${activeTimelineSequence.name}`
       : null;
-  const footerWarning = !systemInfo.backendConnected
-    ? openRouterImageEnabled
-      ? openRouterImageWarning
-      : 'Backend offline. Start it from Settings before generating.'
-    : openRouterImageEnabled
-      ? openRouterImageWarning
+  const footerWarning = hostedRouteEnabled
+    ? hostedRouteWarning
+    : !systemInfo.backendConnected
+      ? 'Backend offline. Start it from Settings before generating.'
       : imageConfig.generationType === 'image' && resolvedCanvasControlLayers.errors.length > 0
         ? resolvedCanvasControlLayers.errors[0]
         : videoModelRequiresReference && !motionReferenceImage
@@ -1117,12 +1210,21 @@ export function GeneratePanel() {
         ? `Ready to generate ${imageConfig.generationType} to the timeline`
         : openRouterImageEnabled
           ? 'Ready to generate image with OpenRouter'
-        : `Ready to generate ${imageConfig.generationType}`;
+          : huggingFaceImageEnabled
+            ? 'Ready to generate image with HuggingFace'
+            : huggingFaceVideoEnabled
+              ? 'Ready to generate video with HuggingFace'
+              : `Ready to generate ${imageConfig.generationType}`;
   const footerMeta = `${currentModel} / ${dimensions.width} x ${dimensions.height}`;
+  const byokSupportLabel = openRouterImageEnabled
+    ? 'OpenRouter BYOK'
+    : huggingFaceImageEnabled || huggingFaceVideoEnabled
+      ? 'HuggingFace BYOK'
+      : null;
   const footerSupportMeta = [
-    openRouterImageEnabled ? 'OpenRouter BYOK' : `${isGpuAvailable ? 'GPU' : 'CPU'} mode`,
+    byokSupportLabel ?? `${isGpuAvailable ? 'GPU' : 'CPU'} mode`,
     `~${estimatedDuration}`,
-    genStatus.isGenerating && !openRouterImageEnabled
+    genStatus.isGenerating && !hostedRouteEnabled
       ? `Step ${Math.max(genStatus.step, 1)}/${advancedGeneration.steps}`
       : null,
   ].filter(Boolean).join(' / ');
@@ -1527,9 +1629,10 @@ export function GeneratePanel() {
         </div>
 
         {/* Run-readiness preflight (M5): resolves the local runtime plan for
-            the selected model. OpenRouter routes bypass the local pipeline,
-            so no local model id is in play there. */}
-        <PreflightFooter modelId={openRouterImageEnabled ? null : currentModel} />
+            the selected model. Hosted routes (OpenRouter, HuggingFace image,
+            HuggingFace video) bypass the local pipeline, so no local model id
+            is in play there. */}
+        <PreflightFooter modelId={hostedRouteEnabled ? null : currentModel} />
 
         <AnimatePresence mode="wait">
           {genStatus.isGenerating ? (

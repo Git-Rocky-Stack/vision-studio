@@ -3,7 +3,11 @@ import { AlertCircle, Loader2, Play, ShieldCheck } from 'lucide-react';
 
 import type { UserAccountSummary } from '@/types/electron';
 import type { WorkflowExecutionIssue, WorkflowExecutionSummary } from '@/types/workflow';
-import { getActiveUserAccount, resolveStillImageRoute } from '@/features/accounts/providerRouting';
+import {
+  getActiveUserAccount,
+  isHostedStillImageRoute,
+  resolveStillImageRoute,
+} from '@/features/accounts/providerRouting';
 import { exportWorkflowGraphToComfyPrompt } from '@/features/workflow/comfyExport';
 import { createWorkflowNodeFromClassType } from '@/features/workflow/nodeDefaults';
 import { runWorkflowExecution } from '@/features/workflow/runWorkflowExecution';
@@ -70,7 +74,7 @@ export function WorkflowWorkbench() {
   const showRunOutputRail = activeWorkflow.runHistory.length > 0 || isRunning;
   const stillImageRoute = resolveStillImageRoute(activeAccount);
   const workflowCanRunWithoutBackend =
-    stillImageRoute.provider === 'openrouter' && stillImageRoute.configured;
+    isHostedStillImageRoute(stillImageRoute) && stillImageRoute.configured;
 
   useEffect(() => {
     setExportedJson(null);
@@ -202,7 +206,7 @@ export function WorkflowWorkbench() {
             <div className="mt-2 rounded-md border border-border bg-elevated px-3 py-3">
               <p className="type-ui text-text-primary">{stillImageRoute.providerLabel}</p>
               <p className="mt-1 type-caption text-text-body">
-                {stillImageRoute.provider === 'openrouter'
+                {isHostedStillImageRoute(stillImageRoute)
                   ? `Account ${activeAccount?.name ?? 'No active account'} / Model ${stillImageRoute.model || 'Not set in Settings'}`
                   : 'Workflow still-image runs use the local backend and installed checkpoints.'}
               </p>
@@ -433,7 +437,7 @@ function applyWorkflowExecutionValidationRoute(
 ) {
   let nextIssues = [...issues];
 
-  if (!backendConnected && stillImageRoute.provider !== 'openrouter') {
+  if (!backendConnected && !isHostedStillImageRoute(stillImageRoute)) {
     nextIssues = appendWorkflowIssue(nextIssues, {
       severity: 'error',
       code: 'backend-unavailable',
@@ -441,7 +445,7 @@ function applyWorkflowExecutionValidationRoute(
     });
   }
 
-  if (stillImageRoute.provider === 'openrouter' && stillImageRoute.error) {
+  if (isHostedStillImageRoute(stillImageRoute) && stillImageRoute.error) {
     nextIssues = appendWorkflowIssue(nextIssues, {
       severity: 'error',
       code: 'provider-config',
@@ -460,7 +464,7 @@ function applyWorkflowExecutionSummaryRoute(
     return null;
   }
 
-  if (stillImageRoute.provider === 'openrouter' && stillImageRoute.model) {
+  if (isHostedStillImageRoute(stillImageRoute) && stillImageRoute.model) {
     return {
       ...summary,
       model: stillImageRoute.model,

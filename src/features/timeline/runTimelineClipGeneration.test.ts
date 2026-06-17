@@ -435,6 +435,170 @@ describe('runTimelineClipGeneration', () => {
     );
   });
 
+  it('routes a HuggingFace still-image timeline generation through the HF model while offline', async () => {
+    useAppStore.setState((state) => ({
+      systemInfo: {
+        ...state.systemInfo,
+        backendConnected: false,
+      },
+    }));
+
+    const { sequence, clip } = seedImageTimelineClip();
+    const electron = makeElectronGenerationMock({
+      huggingFaceImageEnabled: true,
+      huggingFaceImageModel: 'black-forest-labs/FLUX.1-schnell',
+      submitImage: { success: true, jobId: 'timeline-image-job-hf' },
+      statuses: [
+        {
+          job_id: 'timeline-image-job-hf',
+          status: 'completed',
+          type: 'image',
+          created_at: '2026-04-24T08:30:00.000Z',
+          completed_at: '2026-04-24T08:30:03.000Z',
+          progress: 100,
+          result: {
+            images: ['/outputs/timeline-image-job-hf/frame.png'],
+          },
+        },
+      ],
+    });
+
+    await runTimelineClipGeneration({
+      operation: 'generate',
+      clipId: clip.id,
+      sequenceId: sequence.id,
+      input: {
+        prompt: 'hero portrait cleanup',
+        generationType: 'image',
+        model: 'flux-dev',
+        width: 1280,
+        height: 720,
+        steps: 25,
+        cfgScale: 7.5,
+        scheduler: 'Euler a',
+        seed: 9,
+      },
+      electron,
+      pollIntervalMs: 0,
+    });
+
+    // Backend offline must not block the hosted route, and the local checkpoint
+    // id must be replaced by the account's HuggingFace image model.
+    expect(electron.generation.generateImage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        model: 'black-forest-labs/FLUX.1-schnell',
+      }),
+    );
+  });
+
+  it('routes a HuggingFace video timeline generation through the HF video model while offline', async () => {
+    useAppStore.setState((state) => ({
+      systemInfo: {
+        ...state.systemInfo,
+        backendConnected: false,
+      },
+    }));
+
+    const { sequence, clip } = seedImageTimelineClip();
+    const electron = makeElectronGenerationMock({
+      huggingFaceVideoEnabled: true,
+      huggingFaceVideoModel: 'Lightricks/LTX-Video',
+      submitVideo: { success: true, jobId: 'timeline-video-job-hf' },
+      statuses: [
+        {
+          job_id: 'timeline-video-job-hf',
+          status: 'completed',
+          type: 'video',
+          created_at: '2026-04-24T08:40:00.000Z',
+          completed_at: '2026-04-24T08:40:06.000Z',
+          progress: 100,
+          result: {
+            video: '/outputs/timeline-video-job-hf/shot.mp4',
+            duration: 4,
+          },
+        },
+      ],
+    });
+
+    const result = await runTimelineClipGeneration({
+      operation: 'generate',
+      clipId: clip.id,
+      sequenceId: sequence.id,
+      input: {
+        prompt: 'cinematic dolly across the launch pad',
+        generationType: 'video',
+        // The renderer hands the runner the LOCAL video model; the runner must
+        // override it with the account's HuggingFace video model.
+        model: 'svd',
+        width: 1280,
+        height: 720,
+        steps: 25,
+        cfgScale: 7.5,
+        scheduler: 'Euler a',
+        seed: 9,
+        duration: 4,
+        fps: 24,
+      },
+      electron,
+      pollIntervalMs: 0,
+    });
+
+    // Backend offline must NOT block the hosted video route, and the local
+    // checkpoint id 'svd' must be replaced by the account's HF video model.
+    expect(result.cancelled).toBe(false);
+    expect(electron.generation.generateVideo).toHaveBeenCalledWith(
+      expect.objectContaining({
+        model: 'Lightricks/LTX-Video',
+      }),
+    );
+    expect(electron.generation.generateVideo).not.toHaveBeenCalledWith(
+      expect.objectContaining({ model: 'svd' }),
+    );
+  });
+
+  it('blocks HuggingFace video with a config error (not backend-offline) when no video model is selected', async () => {
+    useAppStore.setState((state) => ({
+      systemInfo: {
+        ...state.systemInfo,
+        backendConnected: false,
+      },
+    }));
+
+    const { sequence, clip } = seedImageTimelineClip();
+    const electron = makeElectronGenerationMock({
+      huggingFaceVideoEnabled: true,
+      huggingFaceVideoModel: '', // token stored, but no model selected
+      submitVideo: { success: true, jobId: 'timeline-video-job-hf-misconfigured' },
+      statuses: [],
+    });
+
+    await expect(
+      runTimelineClipGeneration({
+        operation: 'generate',
+        clipId: clip.id,
+        sequenceId: sequence.id,
+        input: {
+          prompt: 'cinematic dolly across the launch pad',
+          generationType: 'video',
+          model: 'svd',
+          width: 1280,
+          height: 720,
+          steps: 25,
+          cfgScale: 7.5,
+          scheduler: 'Euler a',
+          seed: 9,
+          duration: 4,
+          fps: 24,
+        },
+        electron,
+        pollIntervalMs: 0,
+      }),
+    ).rejects.toThrow('Select a HuggingFace video model for the active account before generating.');
+
+    // The misconfigured hosted route surfaced its own error before any submit.
+    expect(electron.generation.generateVideo).not.toHaveBeenCalled();
+  });
+
   it('bails before submitting any HTTP call when the signal is pre-aborted', async () => {
     const { sequence, clip } = seedImageTimelineClip();
     const electron = makeElectronGenerationMock({
@@ -950,8 +1114,27 @@ function makeElectronGenerationMock(options: {
   submitVideo?: { success: boolean; jobId?: string; error?: string };
   statuses?: Array<Record<string, unknown>>;
   openRouterImageEnabled?: boolean;
+  huggingFaceImageEnabled?: boolean;
+  huggingFaceImageModel?: string;
+  huggingFaceVideoEnabled?: boolean;
+  huggingFaceVideoModel?: string;
 }) {
   const statuses = [...(options.statuses ?? [])];
+  const imageGenerationProvider = options.huggingFaceImageEnabled
+    ? 'huggingface'
+    : options.openRouterImageEnabled
+      ? 'openrouter'
+      : 'local';
+  const videoGenerationProvider = options.huggingFaceVideoEnabled ? 'huggingface' : 'local';
+  const huggingFaceImageModel = options.huggingFaceImageEnabled
+    ? options.huggingFaceImageModel ?? 'black-forest-labs/FLUX.1-schnell'
+    : '';
+  const huggingFaceVideoModel = options.huggingFaceVideoEnabled
+    ? options.huggingFaceVideoModel ?? 'Lightricks/LTX-Video'
+    : '';
+  const huggingFaceTokenStored = Boolean(
+    options.huggingFaceImageEnabled || options.huggingFaceVideoEnabled,
+  );
 
   return {
     app: {
@@ -974,13 +1157,23 @@ function makeElectronGenerationMock(options: {
             preferences: {
               promptEnhancementProvider: 'local',
               openRouterModel: '',
-              imageGenerationProvider: options.openRouterImageEnabled ? 'openrouter' : 'local',
+              imageGenerationProvider,
+              videoGenerationProvider,
               openRouterImageModel: options.openRouterImageEnabled ? 'google/gemini-2.5-flash-image' : '',
+              huggingFaceModel: '',
+              huggingFaceImageModel,
+              huggingFaceVideoModel,
+              fallbackProvider: null,
             },
             openRouter: {
               apiKeyStored: options.openRouterImageEnabled ?? false,
               keyLabel: options.openRouterImageEnabled ? 'Primary Key' : null,
               lastValidatedAt: options.openRouterImageEnabled ? '2026-04-24T00:00:00.000Z' : null,
+            },
+            huggingFace: {
+              tokenStored: huggingFaceTokenStored,
+              keyLabel: huggingFaceTokenStored ? 'HF Key' : null,
+              lastValidatedAt: null,
             },
           },
         ],

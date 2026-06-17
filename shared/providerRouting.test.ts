@@ -24,11 +24,13 @@ describe('PROVIDER_CAPABILITIES', () => {
       llmAssist: true,
       reportsUsage: true,
     });
+    // HuggingFace Inference Providers has no documented ControlNet / masked
+    // inpaint task, so those are false; still-image + text-to-video are real.
     expect(PROVIDER_CAPABILITIES.huggingface).toMatchObject({
       stillImage: true,
       controlNet: false,
       inpaint: false,
-      video: false,
+      video: true,
       llmAssist: true,
       reportsUsage: true,
     });
@@ -55,10 +57,13 @@ describe('providerSupports', () => {
     }
   });
 
-  it('limits HuggingFace to still-image + LLM-assist this slice (CN/inpaint/video land in PR2)', () => {
-    expect(providerSupports('huggingface', 'still-image')).toBe(true);
-    expect(providerSupports('huggingface', 'llm-assist')).toBe(true);
-    for (const modality of ['controlnet', 'inpaint', 'video'] as RequestModality[]) {
+  it('allows HuggingFace for still-image, video, and LLM but refuses ControlNet and inpaint', () => {
+    const allowed: RequestModality[] = ['still-image', 'video', 'llm-assist'];
+    for (const modality of allowed) {
+      expect(providerSupports('huggingface', modality)).toBe(true);
+    }
+    const refused: RequestModality[] = ['controlnet', 'inpaint'];
+    for (const modality of refused) {
       expect(providerSupports('huggingface', modality)).toBe(false);
     }
   });

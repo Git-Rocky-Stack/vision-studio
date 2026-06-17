@@ -3,7 +3,11 @@ import type { StoreApi, UseBoundStore } from 'zustand';
 import type { AppState } from '@/store/appStore.types';
 import { useAppStore } from '@/store/appStore';
 import type { JobStatus, GenerationParams, UserAccountsSnapshot } from '@/types/electron';
-import { getActiveUserAccount, resolveStillImageRoute } from '@/features/accounts/providerRouting';
+import {
+  getActiveUserAccount,
+  isHostedStillImageRoute,
+  resolveStillImageRoute,
+} from '@/features/accounts/providerRouting';
 import type { WorkflowExecutionIssue, WorkflowExecutionSummary, WorkflowGenerationRequest } from '@/types/workflow';
 import { resolveWorkflowGenerationRequest } from './resolveWorkflowGenerationRequest';
 import { validateWorkflowExecution } from './validateWorkflowExecution';
@@ -13,12 +17,13 @@ type WorkflowStore = UseBoundStore<StoreApi<AppState>>;
 /**
  * Poll budgets: max wall time before the runner gives up waiting on the
  * job. Multiplied against pollIntervalMs (default 500ms) inside the poll
- * loop, so the local-backend budget is ~60s and the OpenRouter budget is
- * ~120s. OpenRouter gets the longer ceiling because hosted image generation
- * has higher tail latency than the local CUDA path.
+ * loop, so the local-backend budget is ~60s and the hosted budget is
+ * ~120s. Hosted routes (OpenRouter, HuggingFace) get the longer ceiling
+ * because off-device image generation has higher tail latency than the
+ * local CUDA path.
  */
 const MAX_POLL_ATTEMPTS_LOCAL_BACKEND = 120;
-const MAX_POLL_ATTEMPTS_OPENROUTER = 240;
+const MAX_POLL_ATTEMPTS_HOSTED = 240;
 
 interface WorkflowExecutionElectronApi {
   app: {
@@ -168,10 +173,9 @@ export async function runWorkflowExecution({
     });
     state.setWorkflowRuntimeState(workflowId, { activeJobId: jobId });
 
-    const maxPollAttempts =
-      stillImageRoute.provider === 'openrouter'
-        ? MAX_POLL_ATTEMPTS_OPENROUTER
-        : MAX_POLL_ATTEMPTS_LOCAL_BACKEND;
+    const maxPollAttempts = isHostedStillImageRoute(stillImageRoute)
+      ? MAX_POLL_ATTEMPTS_HOSTED
+      : MAX_POLL_ATTEMPTS_LOCAL_BACKEND;
 
     let finalStatus: JobStatus | null = null;
     for (let attempt = 0; attempt < maxPollAttempts; attempt += 1) {
@@ -374,7 +378,11 @@ function applyWorkflowExecutionRoute({
   let nextRequest = request ?? null;
   let nextSummary = summary ?? null;
 
-  if (!backendConnected && stillImageRoute.provider !== 'openrouter') {
+  // Only local routes need the backend. Hosted routes (OpenRouter, HuggingFace)
+  // run off-device, so a backend-offline state must not block them.
+  const hostedRoute = isHostedStillImageRoute(stillImageRoute);
+
+  if (!backendConnected && !hostedRoute) {
     nextIssues = appendWorkflowIssue(nextIssues, {
       severity: 'error',
       code: 'backend-unavailable',
@@ -382,14 +390,18 @@ function applyWorkflowExecutionRoute({
     });
   }
 
-  if (stillImageRoute.provider === 'openrouter') {
+  if (hostedRoute) {
     if (stillImageRoute.error) {
+      // Misconfigured hosted route: surface the config error instead of
+      // letting an unresolved/local model id reach the hosted dispatcher.
       nextIssues = appendWorkflowIssue(nextIssues, {
         severity: 'error',
         code: 'provider-config',
         message: stillImageRoute.error,
       });
     } else if (stillImageRoute.model) {
+      // Override the request model with the account's hosted model so the main
+      // handler does not forward a local checkpoint id into the hosted route.
       if (nextRequest) {
         nextRequest = {
           ...nextRequest,

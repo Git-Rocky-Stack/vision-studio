@@ -103,6 +103,7 @@ export interface ElectronAPI {
         promptEnhancementProvider?: 'local' | 'openrouter' | 'huggingface';
         openRouterModel?: string;
         imageGenerationProvider?: 'local' | 'openrouter' | 'huggingface';
+        videoGenerationProvider?: 'local' | 'openrouter' | 'huggingface';
         openRouterImageModel?: string;
         huggingFaceModel?: string;
         huggingFaceImageModel?: string;

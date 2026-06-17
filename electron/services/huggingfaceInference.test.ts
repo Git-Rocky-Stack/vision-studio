@@ -146,4 +146,115 @@ describe('createHuggingFaceInferenceService.generateImage', () => {
     ).rejects.toThrow(/empty/i);
     expect(axiosInstance.post).not.toHaveBeenCalled();
   });
+
+  it('accepts a genuine RIFF/WEBP body as image/webp', async () => {
+    // 'RIFF' (0-3) + size (4-7) + 'WEBP' form type (8-11) + payload.
+    const webp = Buffer.concat([
+      Buffer.from('RIFF', 'ascii'),
+      Buffer.from([0x10, 0x00, 0x00, 0x00]),
+      Buffer.from('WEBP', 'ascii'),
+      Buffer.from([0x56, 0x50, 0x38, 0x20]),
+    ]);
+    const axiosInstance = {
+      get: vi.fn(),
+      post: vi.fn().mockResolvedValue({ data: webp, headers: { 'content-type': 'image/webp' } }),
+    };
+    const service = createHuggingFaceInferenceService({ axiosInstance });
+
+    const result = await service.generateImage({
+      token: 'hf_token',
+      model: 'm/x',
+      prompt: 'a tree',
+      width: 512,
+      height: 512,
+    });
+
+    expect(result.images[0].mimeType).toBe('image/webp');
+    expect(result.images[0].dataUrl.startsWith('data:image/webp;base64,')).toBe(true);
+  });
+
+  it('rejects a bare RIFF body that is not WEBP (e.g. WAVE) instead of trusting it as webp', async () => {
+    // RIFF container with a 'WAVE' form type must NOT be persisted as a webp.
+    const wave = Buffer.concat([
+      Buffer.from('RIFF', 'ascii'),
+      Buffer.from([0x10, 0x00, 0x00, 0x00]),
+      Buffer.from('WAVE', 'ascii'),
+      Buffer.from([0x66, 0x6d, 0x74, 0x20]),
+    ]);
+    const axiosInstance = {
+      get: vi.fn(),
+      post: vi.fn().mockResolvedValue({ data: wave, headers: { 'content-type': 'image/webp' } }),
+    };
+    const service = createHuggingFaceInferenceService({ axiosInstance });
+    await expect(
+      service.generateImage({ token: 'hf_token', model: 'm/x', prompt: 'a tree', width: 512, height: 512 }),
+    ).rejects.toThrow(/did not return a valid image|failed/i);
+  });
+});
+
+const MP4_BYTES = Buffer.concat([Buffer.from([0x00, 0x00, 0x00, 0x18]), Buffer.from('ftypmp42'), Buffer.alloc(8)]);
+
+describe('createHuggingFaceInferenceService.listVideoModels', () => {
+  it('returns curated video-capable defaults', async () => {
+    const service = createHuggingFaceInferenceService({ axiosInstance: { get: vi.fn(), post: vi.fn() } });
+    const models = await service.listVideoModels('hf_token');
+    expect(models.length).toBeGreaterThan(0);
+    expect(models.every((model) => model.modality === 'video' && model.id.includes('/'))).toBe(true);
+  });
+});
+
+describe('createHuggingFaceInferenceService.generateVideo', () => {
+  it('normalizes returned bytes to an mp4 data URL via the hf-inference router', async () => {
+    const axiosInstance = {
+      get: vi.fn(),
+      post: vi.fn().mockResolvedValue({ data: MP4_BYTES, headers: { 'content-type': 'video/mp4' } }),
+    };
+    const service = createHuggingFaceInferenceService({ axiosInstance });
+    const result = await service.generateVideo({
+      token: 'hf_token',
+      model: 'Lightricks/LTX-Video',
+      prompt: 'a wave',
+      durationSeconds: 5,
+    });
+    expect(result.mimeType).toBe('video/mp4');
+    expect(result.dataUrl.startsWith('data:video/mp4;base64,')).toBe(true);
+    const url = axiosInstance.post.mock.calls[0][0] as string;
+    expect(url).toBe('https://router.huggingface.co/hf-inference/models/Lightricks/LTX-Video');
+  });
+
+  it('rejects a non-video response body (sanitization)', async () => {
+    const axiosInstance = {
+      get: vi.fn(),
+      post: vi.fn().mockResolvedValue({ data: Buffer.from('{"error":"loading"}'), headers: {} }),
+    };
+    const service = createHuggingFaceInferenceService({ axiosInstance });
+    await expect(
+      service.generateVideo({ token: 'hf_token', model: 'm/v', prompt: 'a wave' }),
+    ).rejects.toThrow(/did not return a valid video|failed/i);
+  });
+
+  it('rejects an empty prompt before any network call', async () => {
+    const axiosInstance = { get: vi.fn(), post: vi.fn() };
+    const service = createHuggingFaceInferenceService({ axiosInstance });
+    await expect(service.generateVideo({ token: 'hf_token', model: 'm/v', prompt: '   ' })).rejects.toThrow(/empty/i);
+    expect(axiosInstance.post).not.toHaveBeenCalled();
+  });
+});
+
+describe('createHuggingFaceInferenceService surface', () => {
+  it('exposes the full generation surface without leaking internals or unproven CN/inpaint clients', () => {
+    const service = createHuggingFaceInferenceService({ axiosInstance: { get: vi.fn(), post: vi.fn() } });
+    expect(Object.keys(service).sort()).toEqual(
+      [
+        'enhancePrompt',
+        'generateImage',
+        'generateVideo',
+        'getKeyInfo',
+        'listImageModels',
+        'listTextModels',
+        'listVideoModels',
+        'suggestNegativePrompt',
+      ].sort(),
+    );
+  });
 });

@@ -52,11 +52,17 @@ export const PROVIDER_CAPABILITIES: Record<ProviderId, ProviderCapabilities> = {
   },
   huggingface: {
     stillImage: true,
-    // ControlNet / inpaint / video are wired in PR2; declared false here so the
-    // registry stays an honest authority for routing decisions (Codex M6 gate).
+    // ControlNet and masked inpaint are FALSE on purpose. The HuggingFace
+    // Inference Providers task API documents no ControlNet control_image
+    // parameter on text-to-image, and image-to-image takes no mask_image /
+    // mask parameter - so neither pass has a provable hosted contract. We will
+    // not advertise a capability dispatch cannot honestly deliver: those passes
+    // stay Local, where diffusers runs them on the user's GPU (Codex M6 gate).
+    // text-to-video IS a documented task (inputs=prompt, parameters.num_frames),
+    // so video stays true.
     controlNet: false,
     inpaint: false,
-    video: false,
+    video: true,
     llmAssist: true,
     reportsUsage: true,
     maxResolution: null,
