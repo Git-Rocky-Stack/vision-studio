@@ -26,6 +26,7 @@ import {
 } from '../ipc-handlers/generation';
 import { createUserAccountsService, DEFAULT_USER_ACCOUNTS_STATE } from './userAccounts';
 import { createOpenRouterService } from './openRouter';
+import { createHuggingFaceInferenceService } from './huggingfaceInference';
 
 type BrowserWindowConstructor = new (options: BrowserWindowConstructorOptions) => BrowserWindow;
 
@@ -95,6 +96,7 @@ export function createMainProcessServices({
   });
 
   const openRouter = createOpenRouterService();
+  const huggingFace = createHuggingFaceInferenceService();
 
   const mainWindow = createMainWindowService({
     BrowserWindow,
@@ -121,6 +123,7 @@ export function createMainProcessServices({
   configureGenerationHandlerServices({
     userAccounts,
     openRouter,
+    huggingFace,
     outputRoots,
   });
 
