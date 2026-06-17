@@ -96,6 +96,31 @@ describe('runHuggingFaceImageJob', () => {
     expect(h.store.get('huggingface-image-cn')?.status).toBe('completed');
   });
 
+  it('rejects multi-layer ControlNet instead of silently dropping the extra guides', async () => {
+    const h = setup();
+    h.store.set({ job_id: 'huggingface-image-cn-multi', status: 'pending', progress: 0, type: 'image', created_at: '2026-06-16T00:00:00.000Z' });
+    await runHuggingFaceImageJob(
+      'huggingface-image-cn-multi',
+      {
+        prompt: 'a city',
+        width: 512,
+        height: 512,
+        __huggingFaceAccountId: 'account-1',
+        controlnet: [
+          { source_path: '/srv/vision/output/edge.png', preprocessor: 'canny' },
+          { source_path: '/srv/vision/output/depth.png', preprocessor: 'depth' },
+        ],
+      },
+      h.deps,
+    );
+    const job = h.store.get('huggingface-image-cn-multi');
+    expect(job?.status).toBe('failed');
+    expect(job?.error).toContain('single control image');
+    // No guide was used, and no control image was read off disk.
+    expect(h.huggingFace.generateControlNet).not.toHaveBeenCalled();
+    expect(h.readImageFile).not.toHaveBeenCalled();
+  });
+
   it('routes an inpaint pass through generateInpaint with a rasterized mask', async () => {
     const h = setup();
     h.store.set({ job_id: 'huggingface-image-ip', status: 'pending', progress: 0, type: 'image', created_at: '2026-06-16T00:00:00.000Z' });

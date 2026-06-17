@@ -143,6 +143,7 @@ export async function runHuggingFaceImageJob(
     const controlnetLayers = Array.isArray(params.controlnet)
       ? (params.controlnet as Array<{ source_path?: string; negative_prompt?: string }>)
       : [];
+    const controlLayersWithSource = controlnetLayers.filter((layer) => Boolean(layer?.source_path));
 
     let result: HuggingFaceImageGenResult;
     if (inpaint?.mask) {
@@ -166,10 +167,22 @@ export async function runHuggingFaceImageJob(
         seed,
         signal: controller.signal,
       });
-    } else if (controlnetLayers[0]?.source_path) {
-      // HF's Inference Providers ControlNet endpoint takes one control image;
-      // the per-layer region mask is a local-only refinement and is not applied.
-      const layer = controlnetLayers[0];
+    } else if (controlLayersWithSource.length > 0) {
+      // HF's Inference Providers ControlNet endpoint takes exactly one control
+      // image. Rather than silently dropping the extra guides (which would look
+      // accepted but quietly ignore all but the first), reject multi-layer jobs
+      // so the user makes an explicit "switch back to Local" decision.
+      if (controlLayersWithSource.length > 1) {
+        failJob(
+          store,
+          jobId,
+          'HuggingFace ControlNet supports a single control image. Switch the active account back to Local to run multi-layer ControlNet.',
+        );
+        return;
+      }
+      // The per-layer region mask is a local-only refinement and is not applied
+      // by the hosted endpoint.
+      const layer = controlLayersWithSource[0];
       const control = await readImage(layer.source_path as string, allowedRoots);
       result = await huggingFace.generateControlNet({
         token,
