@@ -152,6 +152,9 @@ export function SettingsPanel() {
   const [accountsSnapshot, setAccountsSnapshot] = useState<UserAccountsSnapshot>(defaultAccountsSnapshot);
   const [accountNameDraft, setAccountNameDraft] = useState('');
   const [openRouterApiKeyInput, setOpenRouterApiKeyInput] = useState('');
+  const [huggingFaceTokenInput, setHuggingFaceTokenInput] = useState('');
+  const [isSavingHuggingFaceToken, setIsSavingHuggingFaceToken] = useState(false);
+  const [autoRouteOnOverBudget, setAutoRouteOnOverBudget] = useState(false);
   const [openRouterKeyInfo, setOpenRouterKeyInfo] = useState<OpenRouterKeyInfo | null>(null);
   const [openRouterModels, setOpenRouterModels] = useState<OpenRouterModelSummary[]>([]);
   const [openRouterImageModels, setOpenRouterImageModels] = useState<OpenRouterModelSummary[]>([]);
@@ -202,6 +205,11 @@ export function SettingsPanel() {
     // Hydrate the live download queue so reopening Settings mid-download shows
     // current progress; the queue effect below then resumes polling if needed.
     void useAppStore.getState().refreshDownloads();
+  }, []);
+
+  // Hydrate the over-budget auto-routing preference from the app settings store.
+  useEffect(() => {
+    void window.electron.settings.get().then((s) => setAutoRouteOnOverBudget(Boolean(s.autoRouteOnOverBudget)));
   }, []);
 
   // Drive the live download queue from the store slice: poll while any job is in
@@ -449,10 +457,14 @@ export function SettingsPanel() {
   const handleUpdateActiveAccount = async (
     patch: {
       name?: string;
-      promptEnhancementProvider?: 'local' | 'openrouter';
+      promptEnhancementProvider?: 'local' | 'openrouter' | 'huggingface';
       openRouterModel?: string;
-      imageGenerationProvider?: 'local' | 'openrouter';
+      imageGenerationProvider?: 'local' | 'openrouter' | 'huggingface';
       openRouterImageModel?: string;
+      huggingFaceModel?: string;
+      huggingFaceImageModel?: string;
+      huggingFaceVideoModel?: string;
+      fallbackProvider?: 'openrouter' | 'huggingface' | null;
     },
   ) => {
     if (!activeAccount) {
@@ -549,6 +561,43 @@ export function SettingsPanel() {
     });
   };
 
+  const handleSaveHuggingFaceToken = async () => {
+    if (!activeAccount) {
+      return;
+    }
+
+    const token = huggingFaceTokenInput.trim();
+    if (!token) {
+      return;
+    }
+
+    setIsSavingHuggingFaceToken(true);
+    try {
+      const snapshot = await window.electron.accounts.setHuggingFaceToken({
+        accountId: activeAccount.id,
+        token,
+      });
+      setAccountsSnapshot(snapshot);
+      setHuggingFaceTokenInput('');
+    } finally {
+      setIsSavingHuggingFaceToken(false);
+    }
+  };
+
+  const handleClearHuggingFaceToken = async () => {
+    if (!activeAccount) {
+      return;
+    }
+
+    const snapshot = await window.electron.accounts.clearHuggingFaceToken(activeAccount.id);
+    setAccountsSnapshot(snapshot);
+  };
+
+  const handleUpdateAutoRoute = async (next: boolean) => {
+    setAutoRouteOnOverBudget(next);
+    await window.electron.settings.update({ autoRouteOnOverBudget: next });
+  };
+
   const confirmDeleteAccount = async () => {
     if (!deleteAccountTarget) {
       return;
@@ -562,6 +611,10 @@ export function SettingsPanel() {
       message: 'Removed the selected account profile.',
     });
   };
+
+  // Guard against account snapshots that predate the HuggingFace BYOK fields so a
+  // partial/legacy snapshot from the main process can never crash the renderer.
+  const hasHuggingFaceToken = Boolean(activeAccount?.huggingFace?.tokenStored);
 
   const openRouterStatusLabel = useMemo(() => {
     if (!activeAccount?.openRouter.apiKeyStored) {
@@ -923,7 +976,7 @@ export function SettingsPanel() {
                           <p className="text-xs text-text-body">
                             This controls the prompt-enhancement tools for the active account.
                           </p>
-                          <div className="grid grid-cols-2 gap-2">
+                          <div className="grid grid-cols-3 gap-2">
                             {([
                               {
                                 value: 'local' as const,
@@ -935,31 +988,42 @@ export function SettingsPanel() {
                                 label: 'OpenRouter',
                                 description: 'Use the active account\'s OpenRouter key and model.',
                               },
-                            ]).map((provider) => (
-                              <button
-                                key={provider.value}
-                                type="button"
-                                onClick={() =>
-                                  void handleUpdateActiveAccount({
-                                    promptEnhancementProvider: provider.value,
-                                  })
-                                }
-                                className={cn(
-                                  'rounded-md border px-3 py-3 text-left transition-all',
-                                  activeAccount.preferences.promptEnhancementProvider ===
-                                    provider.value
-                                    ? 'border-accent-primary-border bg-accent-primary-muted'
-                                    : 'border-border bg-surface hover:border-border-hover',
-                                )}
-                              >
-                                <div className="text-sm font-medium text-text-primary">
-                                  {provider.label}
-                                </div>
-                                <p className="mt-1 text-xs text-text-muted">
-                                  {provider.description}
-                                </p>
-                              </button>
-                            ))}
+                              {
+                                value: 'huggingface' as const,
+                                label: 'HuggingFace',
+                                description: "Use the active account's HuggingFace BYOK token and models.",
+                              },
+                            ]).map((provider) => {
+                              const isDisabled =
+                                provider.value === 'huggingface' && !hasHuggingFaceToken;
+                              return (
+                                <button
+                                  key={provider.value}
+                                  type="button"
+                                  disabled={isDisabled}
+                                  onClick={() =>
+                                    void handleUpdateActiveAccount({
+                                      promptEnhancementProvider: provider.value,
+                                    })
+                                  }
+                                  className={cn(
+                                    'rounded-md border px-3 py-3 text-left transition-all',
+                                    activeAccount.preferences.promptEnhancementProvider ===
+                                      provider.value
+                                      ? 'border-accent-primary-border bg-accent-primary-muted'
+                                      : 'border-border bg-surface hover:border-border-hover',
+                                    isDisabled && 'cursor-not-allowed opacity-50',
+                                  )}
+                                >
+                                  <div className="text-sm font-medium text-text-primary">
+                                    {provider.label}
+                                  </div>
+                                  <p className="mt-1 text-xs text-text-muted">
+                                    {provider.description}
+                                  </p>
+                                </button>
+                              );
+                            })}
                           </div>
                         </div>
 
@@ -974,7 +1038,7 @@ export function SettingsPanel() {
                             Route still-image generations through the local backend or the active
                             account&apos;s OpenRouter BYOK model. Video remains local-only in this slice.
                           </p>
-                          <div className="grid grid-cols-2 gap-2">
+                          <div className="grid grid-cols-3 gap-2">
                             {([
                               {
                                 value: 'local' as const,
@@ -986,30 +1050,41 @@ export function SettingsPanel() {
                                 label: 'OpenRouter',
                                 description: 'Use the active account\'s hosted still-image model.',
                               },
-                            ]).map((provider) => (
-                              <button
-                                key={provider.value}
-                                type="button"
-                                onClick={() =>
-                                  void handleUpdateActiveAccount({
-                                    imageGenerationProvider: provider.value,
-                                  })
-                                }
-                                className={cn(
-                                  'rounded-md border px-3 py-3 text-left transition-all',
-                                  activeAccount.preferences.imageGenerationProvider === provider.value
-                                    ? 'border-accent-primary-border bg-accent-primary-muted'
-                                    : 'border-border bg-surface hover:border-border-hover',
-                                )}
-                              >
-                                <div className="text-sm font-medium text-text-primary">
-                                  {provider.label}
-                                </div>
-                                <p className="mt-1 text-xs text-text-muted">
-                                  {provider.description}
-                                </p>
-                              </button>
-                            ))}
+                              {
+                                value: 'huggingface' as const,
+                                label: 'HuggingFace',
+                                description: "Use the active account's HuggingFace BYOK token and models.",
+                              },
+                            ]).map((provider) => {
+                              const isDisabled =
+                                provider.value === 'huggingface' && !hasHuggingFaceToken;
+                              return (
+                                <button
+                                  key={provider.value}
+                                  type="button"
+                                  disabled={isDisabled}
+                                  onClick={() =>
+                                    void handleUpdateActiveAccount({
+                                      imageGenerationProvider: provider.value,
+                                    })
+                                  }
+                                  className={cn(
+                                    'rounded-md border px-3 py-3 text-left transition-all',
+                                    activeAccount.preferences.imageGenerationProvider === provider.value
+                                      ? 'border-accent-primary-border bg-accent-primary-muted'
+                                      : 'border-border bg-surface hover:border-border-hover',
+                                    isDisabled && 'cursor-not-allowed opacity-50',
+                                  )}
+                                >
+                                  <div className="text-sm font-medium text-text-primary">
+                                    {provider.label}
+                                  </div>
+                                  <p className="mt-1 text-xs text-text-muted">
+                                    {provider.description}
+                                  </p>
+                                </button>
+                              );
+                            })}
                           </div>
                         </div>
 
@@ -1256,6 +1331,172 @@ export function SettingsPanel() {
                               output through OpenRouter.
                             </p>
                           </div>
+                        </div>
+
+                        <div className="space-y-4 raised-panel p-4">
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-2 text-sm font-medium text-text-primary">
+                              <Key className="w-4 h-4" />
+                              HuggingFace Inference Token
+                            </div>
+                            <p className="text-xs text-text-body">
+                              Save one encrypted HuggingFace token per local account to enable BYOK
+                              prompt enhancement and hosted still-image generation through the
+                              HuggingFace Inference providers.
+                            </p>
+                          </div>
+
+                          <div className="flex flex-col gap-3 md:flex-row">
+                            <input
+                              type="password"
+                              value={huggingFaceTokenInput}
+                              onChange={(event) => setHuggingFaceTokenInput(event.target.value)}
+                              placeholder={
+                                hasHuggingFaceToken
+                                  ? 'Stored securely. Paste a new token to replace it.'
+                                  : 'Paste your HuggingFace access token'
+                              }
+                              className="recessed-well flex-1 px-3 py-2 text-sm text-text-primary"
+                            />
+                            <div className="flex gap-2">
+                              <Button
+                                variant="secondary"
+                                size="sm"
+                                onClick={handleSaveHuggingFaceToken}
+                                disabled={isSavingHuggingFaceToken}
+                              >
+                                {isSavingHuggingFaceToken ? 'Saving...' : 'Save Token'}
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={handleClearHuggingFaceToken}
+                                disabled={!hasHuggingFaceToken}
+                              >
+                                Clear
+                              </Button>
+                            </div>
+                          </div>
+
+                          <p className="data-mono text-text-muted">
+                            {hasHuggingFaceToken ? 'Token stored' : 'No token stored'}
+                          </p>
+
+                          <div className="space-y-1">
+                            <label
+                              htmlFor="huggingface-image-model-select"
+                              className="text-xs text-text-muted"
+                            >
+                              Still image model
+                            </label>
+                            <select
+                              id="huggingface-image-model-select"
+                              value={activeAccount.preferences.huggingFaceImageModel ?? ''}
+                              onChange={(event) =>
+                                void handleUpdateActiveAccount({
+                                  huggingFaceImageModel: event.target.value,
+                                })
+                              }
+                              disabled={!hasHuggingFaceToken}
+                              className="recessed-well w-full px-3 py-2 text-sm text-text-primary"
+                            >
+                              <option value="">Select a HuggingFace image model</option>
+                              <option value="black-forest-labs/FLUX.1-schnell">
+                                FLUX.1 schnell
+                              </option>
+                              <option value="stabilityai/stable-diffusion-xl-base-1.0">
+                                SDXL 1.0
+                              </option>
+                            </select>
+                            <p className="text-xs text-text-muted">
+                              The selected model is used when this account routes still-image
+                              generation through HuggingFace.
+                            </p>
+                          </div>
+
+                          <div className="space-y-1">
+                            <label
+                              htmlFor="huggingface-model-select"
+                              className="text-xs text-text-muted"
+                            >
+                              Prompt model
+                            </label>
+                            <select
+                              id="huggingface-model-select"
+                              value={activeAccount.preferences.huggingFaceModel ?? ''}
+                              onChange={(event) =>
+                                void handleUpdateActiveAccount({
+                                  huggingFaceModel: event.target.value,
+                                })
+                              }
+                              disabled={!hasHuggingFaceToken}
+                              className="recessed-well w-full px-3 py-2 text-sm text-text-primary"
+                            >
+                              <option value="">Select a HuggingFace prompt model</option>
+                              <option value="meta-llama/Llama-3.1-8B-Instruct">
+                                Llama 3.1 8B Instruct
+                              </option>
+                            </select>
+                            <p className="text-xs text-text-muted">
+                              The selected model is used when this account routes prompt enhancement
+                              through HuggingFace.
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="space-y-4 raised-panel p-4">
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-2 text-sm font-medium text-text-primary">
+                              <Cloud className="w-4 h-4" />
+                              Over-Budget Policy
+                            </div>
+                            <p className="text-xs text-text-body">
+                              Decide what happens when a local job is projected to exceed its budget:
+                              choose a hosted fallback provider and whether over-budget jobs route to
+                              it automatically.
+                            </p>
+                          </div>
+
+                          <div className="space-y-1">
+                            <label
+                              htmlFor="fallback-provider-select"
+                              className="text-xs text-text-muted"
+                            >
+                              Fallback provider
+                            </label>
+                            <select
+                              id="fallback-provider-select"
+                              value={activeAccount.preferences.fallbackProvider ?? ''}
+                              onChange={(event) =>
+                                void handleUpdateActiveAccount({
+                                  fallbackProvider:
+                                    event.target.value === ''
+                                      ? null
+                                      : (event.target.value as 'openrouter' | 'huggingface'),
+                                })
+                              }
+                              className="recessed-well w-full px-3 py-2 text-sm text-text-primary"
+                            >
+                              <option value="">None (always prompt)</option>
+                              <option value="openrouter">OpenRouter</option>
+                              <option value="huggingface">HuggingFace</option>
+                            </select>
+                          </div>
+
+                          <label className="flex items-start gap-3 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={autoRouteOnOverBudget}
+                              onChange={(event) =>
+                                void handleUpdateAutoRoute(event.target.checked)
+                              }
+                              className="mt-1 accent-accent-primary"
+                            />
+                            <span className="text-sm text-text-body">
+                              Auto-route over-budget local jobs to the fallback provider (skip the
+                              prompt)
+                            </span>
+                          </label>
                         </div>
                       </>
                     )}
