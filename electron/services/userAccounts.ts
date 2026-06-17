@@ -1,7 +1,8 @@
 import crypto from 'node:crypto';
 
-export type PromptEnhancementProvider = 'local' | 'openrouter';
-export type ImageGenerationProvider = 'local' | 'openrouter';
+export type PromptEnhancementProvider = 'local' | 'openrouter' | 'huggingface';
+export type ImageGenerationProvider = 'local' | 'openrouter' | 'huggingface';
+export type FallbackProvider = 'openrouter' | 'huggingface';
 
 export interface UserAccountRecord {
   id: string;
@@ -13,9 +14,18 @@ export interface UserAccountRecord {
     openRouterModel: string;
     imageGenerationProvider: ImageGenerationProvider;
     openRouterImageModel: string;
+    huggingFaceModel: string;
+    huggingFaceImageModel: string;
+    huggingFaceVideoModel: string;
+    fallbackProvider: FallbackProvider | null;
   };
   openRouter: {
     apiKeyStored: boolean;
+    keyLabel: string | null;
+    lastValidatedAt: string | null;
+  };
+  huggingFace: {
+    tokenStored: boolean;
     keyLabel: string | null;
     lastValidatedAt: string | null;
   };
@@ -24,7 +34,7 @@ export interface UserAccountRecord {
 export interface UserAccountsState {
   activeAccountId: string | null;
   accounts: UserAccountRecord[];
-  secrets: Record<string, { openRouterApiKey?: string }>;
+  secrets: Record<string, { openRouterApiKey?: string; huggingFaceToken?: string }>;
 }
 
 export interface UserAccountsSnapshot {
@@ -38,6 +48,10 @@ type UserAccountUpdatePatch = {
   openRouterModel?: string;
   imageGenerationProvider?: ImageGenerationProvider;
   openRouterImageModel?: string;
+  huggingFaceModel?: string;
+  huggingFaceImageModel?: string;
+  huggingFaceVideoModel?: string;
+  fallbackProvider?: FallbackProvider | null;
 };
 
 type SafeStorageLike = {
@@ -78,6 +92,7 @@ function cloneAccount(account: UserAccountRecord): UserAccountRecord {
     ...account,
     preferences: { ...account.preferences },
     openRouter: { ...account.openRouter },
+    huggingFace: { ...account.huggingFace },
   };
 }
 
@@ -106,9 +121,18 @@ function createAccountRecord(name: string): UserAccountRecord {
       openRouterModel: '',
       imageGenerationProvider: 'local',
       openRouterImageModel: '',
+      huggingFaceModel: '',
+      huggingFaceImageModel: '',
+      huggingFaceVideoModel: '',
+      fallbackProvider: null,
     },
     openRouter: {
       apiKeyStored: false,
+      keyLabel: null,
+      lastValidatedAt: null,
+    },
+    huggingFace: {
+      tokenStored: false,
       keyLabel: null,
       lastValidatedAt: null,
     },
@@ -153,11 +177,20 @@ export function createUserAccountsService({
           openRouterModel: account.preferences?.openRouterModel ?? '',
           imageGenerationProvider: account.preferences?.imageGenerationProvider ?? 'local',
           openRouterImageModel: account.preferences?.openRouterImageModel ?? '',
+          huggingFaceModel: account.preferences?.huggingFaceModel ?? '',
+          huggingFaceImageModel: account.preferences?.huggingFaceImageModel ?? '',
+          huggingFaceVideoModel: account.preferences?.huggingFaceVideoModel ?? '',
+          fallbackProvider: account.preferences?.fallbackProvider ?? null,
         },
         openRouter: {
           apiKeyStored: Boolean(account.openRouter?.apiKeyStored),
           keyLabel: account.openRouter?.keyLabel ?? null,
           lastValidatedAt: account.openRouter?.lastValidatedAt ?? null,
+        },
+        huggingFace: {
+          tokenStored: Boolean(account.huggingFace?.tokenStored),
+          keyLabel: account.huggingFace?.keyLabel ?? null,
+          lastValidatedAt: account.huggingFace?.lastValidatedAt ?? null,
         },
       })),
       secrets: stored.secrets ?? {},
@@ -223,8 +256,25 @@ export function createUserAccountsService({
           patch.openRouterImageModel !== undefined
             ? patch.openRouterImageModel.trim()
             : account.preferences.openRouterImageModel,
+        huggingFaceModel:
+          patch.huggingFaceModel !== undefined
+            ? patch.huggingFaceModel.trim()
+            : account.preferences.huggingFaceModel,
+        huggingFaceImageModel:
+          patch.huggingFaceImageModel !== undefined
+            ? patch.huggingFaceImageModel.trim()
+            : account.preferences.huggingFaceImageModel,
+        huggingFaceVideoModel:
+          patch.huggingFaceVideoModel !== undefined
+            ? patch.huggingFaceVideoModel.trim()
+            : account.preferences.huggingFaceVideoModel,
+        fallbackProvider:
+          patch.fallbackProvider !== undefined
+            ? patch.fallbackProvider
+            : account.preferences.fallbackProvider,
       },
       openRouter: { ...account.openRouter },
+      huggingFace: { ...account.huggingFace },
     };
 
     const nextState: UserAccountsState = {
@@ -287,7 +337,7 @@ export function createUserAccountsService({
 
   function encryptSecret(value: string) {
     if (!safeStorage.isEncryptionAvailable()) {
-      throw new Error('Secure storage is unavailable on this system. OpenRouter keys cannot be stored.');
+      throw new Error('Secure storage is unavailable on this system. BYOK keys cannot be stored.');
     }
 
     return safeStorage.encryptString(value).toString('base64');
@@ -409,6 +459,115 @@ export function createUserAccountsService({
     });
   }
 
+  function setHuggingFaceToken(accountId: string, token: string) {
+    const normalized = token.trim();
+    if (!normalized) {
+      throw new Error('HuggingFace token cannot be empty.');
+    }
+
+    const state = readState();
+    const account = resolveAccount(state, accountId);
+    const nextSecrets = {
+      ...state.secrets,
+      [accountId]: {
+        ...(state.secrets[accountId] ?? {}),
+        huggingFaceToken: encryptSecret(normalized),
+      },
+    };
+    const nextAccount: UserAccountRecord = {
+      ...account,
+      updatedAt: new Date().toISOString(),
+      huggingFace: {
+        ...account.huggingFace,
+        tokenStored: true,
+        keyLabel: null,
+        lastValidatedAt: null,
+      },
+    };
+
+    return writeState({
+      ...state,
+      accounts: state.accounts.map((candidate) =>
+        candidate.id === accountId ? nextAccount : candidate,
+      ),
+      secrets: nextSecrets,
+    });
+  }
+
+  function clearHuggingFaceToken(accountId: string) {
+    const state = readState();
+    const account = resolveAccount(state, accountId);
+    const nextSecrets = { ...state.secrets };
+    const accountSecrets = { ...(nextSecrets[accountId] ?? {}) };
+    delete accountSecrets.huggingFaceToken;
+    nextSecrets[accountId] = accountSecrets;
+
+    const nextAccount: UserAccountRecord = {
+      ...account,
+      updatedAt: new Date().toISOString(),
+      huggingFace: {
+        tokenStored: false,
+        keyLabel: null,
+        lastValidatedAt: null,
+      },
+      preferences: {
+        ...account.preferences,
+        promptEnhancementProvider:
+          account.preferences.promptEnhancementProvider === 'huggingface'
+            ? 'local'
+            : account.preferences.promptEnhancementProvider,
+        imageGenerationProvider:
+          account.preferences.imageGenerationProvider === 'huggingface'
+            ? 'local'
+            : account.preferences.imageGenerationProvider,
+        fallbackProvider:
+          account.preferences.fallbackProvider === 'huggingface'
+            ? null
+            : account.preferences.fallbackProvider,
+      },
+    };
+
+    return writeState({
+      ...state,
+      accounts: state.accounts.map((candidate) =>
+        candidate.id === accountId ? nextAccount : candidate,
+      ),
+      secrets: nextSecrets,
+    });
+  }
+
+  function getHuggingFaceToken(accountId?: string | null) {
+    const state = readState();
+    const resolvedAccountId = accountId ?? state.activeAccountId;
+    if (!resolvedAccountId) {
+      return null;
+    }
+
+    return decryptSecret(state.secrets[resolvedAccountId]?.huggingFaceToken);
+  }
+
+  function markHuggingFaceVerified(accountId: string, details: { label?: string | null }) {
+    const state = readState();
+    const account = resolveAccount(state, accountId);
+    const nextAccount: UserAccountRecord = {
+      ...account,
+      updatedAt: new Date().toISOString(),
+      huggingFace: {
+        ...account.huggingFace,
+        tokenStored: true,
+        keyLabel: details.label?.trim() || account.huggingFace.keyLabel,
+        lastValidatedAt: new Date().toISOString(),
+      },
+    };
+
+    return writeState({
+      ...state,
+      accounts: state.accounts.map((candidate) =>
+        candidate.id === accountId ? nextAccount : candidate,
+      ),
+    });
+  }
+
   return {
     listAccounts,
     createAccount,
@@ -421,5 +580,9 @@ export function createUserAccountsService({
     clearOpenRouterApiKey,
     getOpenRouterApiKey,
     markOpenRouterVerified,
+    setHuggingFaceToken,
+    clearHuggingFaceToken,
+    getHuggingFaceToken,
+    markHuggingFaceVerified,
   };
 }

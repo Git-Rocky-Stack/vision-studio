@@ -140,13 +140,22 @@ export interface UserAccountSummary {
   createdAt: string;
   updatedAt: string;
   preferences: {
-    promptEnhancementProvider: 'local' | 'openrouter';
+    promptEnhancementProvider: 'local' | 'openrouter' | 'huggingface';
     openRouterModel: string;
-    imageGenerationProvider: 'local' | 'openrouter';
+    imageGenerationProvider: 'local' | 'openrouter' | 'huggingface';
     openRouterImageModel: string;
+    huggingFaceModel: string;
+    huggingFaceImageModel: string;
+    huggingFaceVideoModel: string;
+    fallbackProvider: 'openrouter' | 'huggingface' | null;
   };
   openRouter: {
     apiKeyStored: boolean;
+    keyLabel: string | null;
+    lastValidatedAt: string | null;
+  };
+  huggingFace: {
+    tokenStored: boolean;
     keyLabel: string | null;
     lastValidatedAt: string | null;
   };
@@ -211,6 +220,7 @@ export interface ElectronAPI {
       notifyOnGenerationComplete: boolean;
       notifyOnGenerationFailed: boolean;
       notifyOnModelDownloads: boolean;
+      autoRouteOnOverBudget: boolean;
       pythonPath?: string;
     }>;
     update: (patch: Record<string, unknown>) => Promise<{
@@ -221,6 +231,7 @@ export interface ElectronAPI {
       notifyOnGenerationComplete: boolean;
       notifyOnGenerationFailed: boolean;
       notifyOnModelDownloads: boolean;
+      autoRouteOnOverBudget: boolean;
       pythonPath?: string;
     }>;
     reset: () => Promise<{
@@ -231,6 +242,7 @@ export interface ElectronAPI {
       notifyOnGenerationComplete: boolean;
       notifyOnGenerationFailed: boolean;
       notifyOnModelDownloads: boolean;
+      autoRouteOnOverBudget: boolean;
       pythonPath?: string;
     }>;
   };
@@ -241,16 +253,22 @@ export interface ElectronAPI {
       accountId: string,
       patch: {
         name?: string;
-        promptEnhancementProvider?: 'local' | 'openrouter';
+        promptEnhancementProvider?: 'local' | 'openrouter' | 'huggingface';
         openRouterModel?: string;
-        imageGenerationProvider?: 'local' | 'openrouter';
+        imageGenerationProvider?: 'local' | 'openrouter' | 'huggingface';
         openRouterImageModel?: string;
+        huggingFaceModel?: string;
+        huggingFaceImageModel?: string;
+        huggingFaceVideoModel?: string;
+        fallbackProvider?: 'openrouter' | 'huggingface' | null;
       }
     ) => Promise<UserAccountsSnapshot>;
     delete: (accountId: string) => Promise<UserAccountsSnapshot>;
     setActive: (accountId: string) => Promise<UserAccountsSnapshot>;
     setOpenRouterApiKey: (payload: { accountId: string; apiKey: string }) => Promise<UserAccountsSnapshot>;
     clearOpenRouterApiKey: (accountId: string) => Promise<UserAccountsSnapshot>;
+    setHuggingFaceToken: (payload: { accountId: string; token: string }) => Promise<UserAccountsSnapshot>;
+    clearHuggingFaceToken: (accountId: string) => Promise<UserAccountsSnapshot>;
   };
   openrouter: {
     testConnection: (accountId?: string) => Promise<{

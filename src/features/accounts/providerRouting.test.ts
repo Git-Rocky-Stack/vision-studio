@@ -8,32 +8,45 @@ import {
   resolveStillImageRoute,
 } from './providerRouting';
 
-function makeAccount(overrides?: Partial<UserAccountSummary>): UserAccountSummary {
-  const preferences = overrides?.preferences ?? {};
-  const openRouter = overrides?.openRouter ?? {};
+type AccountOverrides = {
+  id?: string;
+  name?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  preferences?: Partial<UserAccountSummary['preferences']>;
+  openRouter?: Partial<UserAccountSummary['openRouter']>;
+  huggingFace?: Partial<UserAccountSummary['huggingFace']>;
+};
 
+function makeAccount(overrides?: AccountOverrides): UserAccountSummary {
   return {
-    id: 'account-primary',
-    name: 'Primary',
-    createdAt: '2026-04-24T00:00:00.000Z',
-    updatedAt: '2026-04-24T00:00:00.000Z',
+    id: overrides?.id ?? 'account-primary',
+    name: overrides?.name ?? 'Primary',
+    createdAt: overrides?.createdAt ?? '2026-04-24T00:00:00.000Z',
+    updatedAt: overrides?.updatedAt ?? '2026-04-24T00:00:00.000Z',
     preferences: {
       promptEnhancementProvider: 'local',
       openRouterModel: '',
       imageGenerationProvider: 'local',
       openRouterImageModel: '',
-      ...preferences,
+      huggingFaceModel: '',
+      huggingFaceImageModel: '',
+      huggingFaceVideoModel: '',
+      fallbackProvider: null,
+      ...overrides?.preferences,
     },
     openRouter: {
       apiKeyStored: false,
       keyLabel: null,
       lastValidatedAt: null,
-      ...openRouter,
+      ...overrides?.openRouter,
     },
-    ...(overrides?.id ? { id: overrides.id } : {}),
-    ...(overrides?.name ? { name: overrides.name } : {}),
-    ...(overrides?.createdAt ? { createdAt: overrides.createdAt } : {}),
-    ...(overrides?.updatedAt ? { updatedAt: overrides.updatedAt } : {}),
+    huggingFace: {
+      tokenStored: false,
+      keyLabel: null,
+      lastValidatedAt: null,
+      ...overrides?.huggingFace,
+    },
   };
 }
 

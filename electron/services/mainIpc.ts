@@ -60,6 +60,10 @@ type UserAccountsServiceLike = {
       openRouterModel?: string;
       imageGenerationProvider?: ImageGenerationProvider;
       openRouterImageModel?: string;
+      huggingFaceModel?: string;
+      huggingFaceImageModel?: string;
+      huggingFaceVideoModel?: string;
+      fallbackProvider?: 'openrouter' | 'huggingface' | null;
     }
   ) => UserAccountsSnapshot;
   deleteAccount: (accountId: string) => UserAccountsSnapshot;
@@ -69,6 +73,13 @@ type UserAccountsServiceLike = {
   clearOpenRouterApiKey: (accountId: string) => UserAccountsSnapshot;
   getOpenRouterApiKey: (accountId?: string | null) => string | null;
   markOpenRouterVerified: (
+    accountId: string,
+    details: { label?: string | null }
+  ) => UserAccountsSnapshot;
+  setHuggingFaceToken: (accountId: string, token: string) => UserAccountsSnapshot;
+  clearHuggingFaceToken: (accountId: string) => UserAccountsSnapshot;
+  getHuggingFaceToken: (accountId?: string | null) => string | null;
+  markHuggingFaceVerified: (
     accountId: string,
     details: { label?: string | null }
   ) => UserAccountsSnapshot;
@@ -260,6 +271,10 @@ export function registerMainIpcHandlers({
         openRouterModel?: string;
         imageGenerationProvider?: ImageGenerationProvider;
         openRouterImageModel?: string;
+        huggingFaceModel?: string;
+        huggingFaceImageModel?: string;
+        huggingFaceVideoModel?: string;
+        fallbackProvider?: 'openrouter' | 'huggingface' | null;
       },
     ) => userAccounts.updateAccount(accountId, patch),
   );
@@ -281,6 +296,17 @@ export function registerMainIpcHandlers({
 
   ipcMain.handle('accounts:clear-openrouter-api-key', (_event, accountId: string) => {
     return userAccounts.clearOpenRouterApiKey(accountId);
+  });
+
+  ipcMain.handle(
+    'accounts:set-huggingface-token',
+    (_event, payload: { accountId: string; token: string }) => {
+      return userAccounts.setHuggingFaceToken(payload.accountId, payload.token);
+    },
+  );
+
+  ipcMain.handle('accounts:clear-huggingface-token', (_event, accountId: string) => {
+    return userAccounts.clearHuggingFaceToken(accountId);
   });
 
   ipcMain.handle('openrouter:test-connection', async (_event, accountId?: string) => {

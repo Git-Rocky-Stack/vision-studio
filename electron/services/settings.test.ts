@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { resolveOutputPath, shouldRestartBackend } from './settings';
+import { DEFAULT_SETTINGS } from './outputRoots';
 
 describe('resolveOutputPath', () => {
   it('uses the configured output path when present', () => {
@@ -51,5 +52,11 @@ describe('shouldRestartBackend', () => {
         { defaultOutputPath: 'C:/A', pythonPath: 'python', theme: 'light' }
       )
     ).toBe(false);
+  });
+});
+
+describe('autoRouteOnOverBudget setting', () => {
+  it('defaults to false (always-prompt is the default fallback policy)', () => {
+    expect(DEFAULT_SETTINGS.autoRouteOnOverBudget).toBe(false);
   });
 });
