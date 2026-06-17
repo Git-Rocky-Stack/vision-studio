@@ -152,7 +152,12 @@ function connectWebSocket() {
 
 ipcMain.handle('generation:generate-image', async (_event, params) => {
   const activeAccount = userAccountsService?.getActiveAccount();
-  if (activeAccount?.preferences.imageGenerationProvider === 'openrouter') {
+  const providerOverride =
+    params?.__providerOverride === 'openrouter' || params?.__providerOverride === 'huggingface'
+      ? (params.__providerOverride as 'openrouter' | 'huggingface')
+      : null;
+  const effectiveImageProvider = providerOverride ?? activeAccount?.preferences.imageGenerationProvider;
+  if (activeAccount && effectiveImageProvider === 'openrouter') {
     if (hasUnsupportedOpenRouterImageInputs(params)) {
       return {
         success: false,
@@ -198,7 +203,15 @@ ipcMain.handle('generation:generate-image', async (_event, params) => {
     };
   }
 
-  if (activeAccount?.preferences.imageGenerationProvider === 'huggingface') {
+  if (activeAccount && effectiveImageProvider === 'huggingface') {
+    if (hasUnsupportedOpenRouterImageInputs(params)) {
+      return {
+        success: false,
+        error:
+          'HuggingFace still-image routing currently supports prompt-only generations. Switch the active account back to Local for ControlNet, inpaint, or reference-image passes.',
+      };
+    }
+
     if (!activeAccount.huggingFace.tokenStored) {
       return {
         success: false,
