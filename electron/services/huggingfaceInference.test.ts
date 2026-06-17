@@ -146,6 +146,50 @@ describe('createHuggingFaceInferenceService.generateImage', () => {
     ).rejects.toThrow(/empty/i);
     expect(axiosInstance.post).not.toHaveBeenCalled();
   });
+
+  it('accepts a genuine RIFF/WEBP body as image/webp', async () => {
+    // 'RIFF' (0-3) + size (4-7) + 'WEBP' form type (8-11) + payload.
+    const webp = Buffer.concat([
+      Buffer.from('RIFF', 'ascii'),
+      Buffer.from([0x10, 0x00, 0x00, 0x00]),
+      Buffer.from('WEBP', 'ascii'),
+      Buffer.from([0x56, 0x50, 0x38, 0x20]),
+    ]);
+    const axiosInstance = {
+      get: vi.fn(),
+      post: vi.fn().mockResolvedValue({ data: webp, headers: { 'content-type': 'image/webp' } }),
+    };
+    const service = createHuggingFaceInferenceService({ axiosInstance });
+
+    const result = await service.generateImage({
+      token: 'hf_token',
+      model: 'm/x',
+      prompt: 'a tree',
+      width: 512,
+      height: 512,
+    });
+
+    expect(result.images[0].mimeType).toBe('image/webp');
+    expect(result.images[0].dataUrl.startsWith('data:image/webp;base64,')).toBe(true);
+  });
+
+  it('rejects a bare RIFF body that is not WEBP (e.g. WAVE) instead of trusting it as webp', async () => {
+    // RIFF container with a 'WAVE' form type must NOT be persisted as a webp.
+    const wave = Buffer.concat([
+      Buffer.from('RIFF', 'ascii'),
+      Buffer.from([0x10, 0x00, 0x00, 0x00]),
+      Buffer.from('WAVE', 'ascii'),
+      Buffer.from([0x66, 0x6d, 0x74, 0x20]),
+    ]);
+    const axiosInstance = {
+      get: vi.fn(),
+      post: vi.fn().mockResolvedValue({ data: wave, headers: { 'content-type': 'image/webp' } }),
+    };
+    const service = createHuggingFaceInferenceService({ axiosInstance });
+    await expect(
+      service.generateImage({ token: 'hf_token', model: 'm/x', prompt: 'a tree', width: 512, height: 512 }),
+    ).rejects.toThrow(/did not return a valid image|failed/i);
+  });
 });
 
 const MP4_BYTES = Buffer.concat([Buffer.from([0x00, 0x00, 0x00, 0x18]), Buffer.from('ftypmp42'), Buffer.alloc(8)]);
