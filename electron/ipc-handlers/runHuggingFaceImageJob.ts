@@ -1,6 +1,18 @@
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import type { HuggingFaceImageJobStore } from './huggingfaceImageJobs';
+import {
+  readImageFileAsBase64,
+  rasterizeMaskToPng,
+  type MaskGeometry,
+  type ReadImageResult,
+} from './hostedControlAssets';
+
+type HuggingFaceImageGenResult = {
+  model: string | null;
+  images: Array<{ dataUrl: string; mimeType: string }>;
+  usage: unknown;
+};
 
 /**
  * Runs a HuggingFace still-image job in the main process (M6). Resolves the
@@ -27,9 +39,40 @@ type RunDeps = {
       height: number;
       seed?: number;
       signal?: AbortSignal;
-    }) => Promise<{ model: string | null; images: Array<{ dataUrl: string; mimeType: string }>; usage: unknown }>;
+    }) => Promise<HuggingFaceImageGenResult>;
+    generateControlNet: (args: {
+      token: string;
+      model: string;
+      prompt: string;
+      controlImageBase64: string;
+      negativePrompt?: string;
+      width: number;
+      height: number;
+      seed?: number;
+      signal?: AbortSignal;
+    }) => Promise<HuggingFaceImageGenResult>;
+    generateInpaint: (args: {
+      token: string;
+      model: string;
+      prompt: string;
+      initImageBase64: string;
+      maskImageBase64: string;
+      negativePrompt?: string;
+      width: number;
+      height: number;
+      seed?: number;
+      signal?: AbortSignal;
+    }) => Promise<HuggingFaceImageGenResult>;
   };
-  outputRoots: { getResolvedOutputDirectory: () => string; rememberOutputRoot: (dir: string) => void };
+  outputRoots: {
+    getResolvedOutputDirectory: () => string;
+    rememberOutputRoot: (dir: string) => void;
+    getManagedOutputRoots: () => string[];
+  };
+  /** Injectable for tests; defaults to the path-guarded fs reader. */
+  readImageFile?: (filePath: string, allowedRoots: string[]) => Promise<ReadImageResult>;
+  /** Injectable for tests; defaults to the pure PNG rasterizer. */
+  rasterizeMask?: (mask: MaskGeometry, width: number, height: number) => Buffer;
 };
 
 const MIME_EXT: Record<string, string> = {
@@ -87,16 +130,70 @@ export async function runHuggingFaceImageJob(
     store.patch(jobId, { status: 'processing', progress: 12, abortController: controller });
 
     const outputDir = outputRoots.getResolvedOutputDirectory();
-    const result = await huggingFace.generateImage({
-      token,
-      model,
-      prompt: String(params.prompt ?? ''),
-      negativePrompt: typeof params.negative_prompt === 'string' ? params.negative_prompt : undefined,
-      width: typeof params.width === 'number' ? params.width : 1024,
-      height: typeof params.height === 'number' ? params.height : 1024,
-      seed: typeof params.seed === 'number' && params.seed >= 0 ? params.seed : undefined,
-      signal: controller.signal,
-    });
+    const readImage = deps.readImageFile ?? readImageFileAsBase64;
+    const rasterize = deps.rasterizeMask ?? rasterizeMaskToPng;
+    const allowedRoots = outputRoots.getManagedOutputRoots();
+    const prompt = String(params.prompt ?? '');
+    const negativePrompt = typeof params.negative_prompt === 'string' ? params.negative_prompt : undefined;
+    const width = typeof params.width === 'number' ? params.width : 1024;
+    const height = typeof params.height === 'number' ? params.height : 1024;
+    const seed = typeof params.seed === 'number' && params.seed >= 0 ? params.seed : undefined;
+
+    const inpaint = params.inpaint as { image_path?: string; mask?: MaskGeometry } | undefined;
+    const controlnetLayers = Array.isArray(params.controlnet)
+      ? (params.controlnet as Array<{ source_path?: string; negative_prompt?: string }>)
+      : [];
+
+    let result: HuggingFaceImageGenResult;
+    if (inpaint?.mask) {
+      const initPath =
+        inpaint.image_path ?? (typeof params.image_path === 'string' ? params.image_path : '');
+      if (!initPath) {
+        failJob(store, jobId, 'Inpaint needs a base image on the canvas before HuggingFace can run it.');
+        return;
+      }
+      const init = await readImage(initPath, allowedRoots);
+      const maskPng = rasterize(inpaint.mask, init.dimensions.width, init.dimensions.height);
+      result = await huggingFace.generateInpaint({
+        token,
+        model,
+        prompt,
+        initImageBase64: init.base64,
+        maskImageBase64: maskPng.toString('base64'),
+        negativePrompt,
+        width: init.dimensions.width,
+        height: init.dimensions.height,
+        seed,
+        signal: controller.signal,
+      });
+    } else if (controlnetLayers[0]?.source_path) {
+      // HF's Inference Providers ControlNet endpoint takes one control image;
+      // the per-layer region mask is a local-only refinement and is not applied.
+      const layer = controlnetLayers[0];
+      const control = await readImage(layer.source_path as string, allowedRoots);
+      result = await huggingFace.generateControlNet({
+        token,
+        model,
+        prompt,
+        controlImageBase64: control.base64,
+        negativePrompt: layer.negative_prompt ?? negativePrompt,
+        width,
+        height,
+        seed,
+        signal: controller.signal,
+      });
+    } else {
+      result = await huggingFace.generateImage({
+        token,
+        model,
+        prompt,
+        negativePrompt,
+        width,
+        height,
+        seed,
+        signal: controller.signal,
+      });
+    }
 
     store.patch(jobId, { progress: 72 });
     const images: string[] = [];
