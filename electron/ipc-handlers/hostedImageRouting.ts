@@ -26,21 +26,31 @@ export function routedJobProvider(jobId: string): Exclude<ProviderId, 'local'> |
 }
 
 /**
- * HuggingFace hosted still-image routing supports prompt-only generations,
- * ControlNet, and inpaint. A bare init image (img2img) and reference images
- * (IP-adapter) have no standard Inference Providers contract, so those passes
- * stay on the local backend.
+ * HuggingFace hosted still-image routing supports prompt-only generations only.
+ * The Inference Providers task API documents no ControlNet control_image and no
+ * masked-inpaint mask_image parameter, and bare img2img / reference images
+ * (IP-adapter) have no standard hosted contract either - so every guided pass
+ * (ControlNet, inpaint, mask, img2img, reference images) stays on the local
+ * backend (Codex M6 gate).
  */
 export function hasUnsupportedHuggingFaceImageInputs(params: unknown): boolean {
   const candidate = params as
-    | { reference_images?: unknown[]; image_path?: unknown; inpaint?: unknown }
+    | {
+        controlnet?: unknown[];
+        reference_images?: unknown[];
+        image_path?: unknown;
+        mask?: unknown;
+        inpaint?: unknown;
+      }
     | null
     | undefined;
-  const hasInpaint = Boolean(candidate?.inpaint);
-  const hasReferenceImages =
-    Array.isArray(candidate?.reference_images) && candidate.reference_images.length > 0;
-  const hasBareImg2Img = Boolean(candidate?.image_path) && !hasInpaint;
-  return hasReferenceImages || hasBareImg2Img;
+  return Boolean(
+    candidate?.controlnet?.length ||
+      candidate?.reference_images?.length ||
+      candidate?.image_path ||
+      candidate?.mask ||
+      candidate?.inpaint,
+  );
 }
 
 export { OPENROUTER_JOB_PREFIX };

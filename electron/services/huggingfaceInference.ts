@@ -2,8 +2,14 @@
  * HuggingFace Inference client (M6, S6). Runs in the Electron main process and
  * mirrors openRouter.ts so hosted secrets never reach the renderer. Full surface:
  * key info, model listing (image / text / video), LLM prompt-assist
- * (OpenAI-compatible chat), text-to-image, text-to-video, ControlNet, and
- * inpaint - every generation path normalizes remote bytes via magic-byte sniffing.
+ * (OpenAI-compatible chat), text-to-image, and text-to-video - every generation
+ * path normalizes remote bytes via magic-byte sniffing.
+ *
+ * Deliberately NO ControlNet / inpaint client: the Inference Providers task API
+ * documents no control_image parameter on text-to-image and no mask_image /
+ * mask parameter on image-to-image, so there is no provable hosted contract for
+ * either. Those passes stay Local (diffusers on the user's GPU) - we do not ship
+ * a client for a payload shape we cannot stand behind (Codex M6 gate).
  *
  * All generation posts to the Inference Providers router
  * (https://router.huggingface.co/hf-inference/models/<model>) returning raw
@@ -38,7 +44,7 @@ export interface HuggingFaceKeyInfo {
 export interface HuggingFaceModelSummary {
   id: string;
   name: string;
-  modality: 'image' | 'video' | 'text' | 'controlnet' | 'inpaint';
+  modality: 'image' | 'video' | 'text';
 }
 
 export interface HuggingFaceUsage {
@@ -455,22 +461,6 @@ export function createHuggingFaceInferenceService({
     }
   }
 
-  /** Shared image-bytes POST for ControlNet/inpaint - both return a single image. */
-  async function postForImage(token: string, model: string, body: unknown, signal?: AbortSignal) {
-    const response = await withRetry(
-      token,
-      () =>
-        axiosInstance.post(`${inferenceBaseUrl}/${model}`, body, {
-          headers: buildHeaders(token),
-          timeout: GENERATION_TIMEOUT_MS,
-          responseType: 'arraybuffer',
-          signal,
-        }),
-      signal,
-    );
-    return toImageResult((response as { data: unknown }).data);
-  }
-
   async function generateVideo({
     token,
     model,
@@ -514,107 +504,6 @@ export function createHuggingFaceInferenceService({
     }
   }
 
-  async function generateControlNet({
-    token,
-    model,
-    prompt,
-    controlImageBase64,
-    negativePrompt,
-    width,
-    height,
-    seed,
-    signal,
-  }: {
-    token: string;
-    model: string;
-    prompt: string;
-    controlImageBase64: string;
-    negativePrompt?: string;
-    width: number;
-    height: number;
-    seed?: number;
-    signal?: AbortSignal;
-  }): Promise<HuggingFaceImageGenerationResult> {
-    const normalizedPrompt = prompt.trim();
-    const normalizedModel = model.trim();
-    if (!normalizedPrompt) throw new Error('Prompt cannot be empty.');
-    if (!normalizedModel) throw new Error('HuggingFace ControlNet model is required.');
-    if (!controlImageBase64) throw new Error('A control image is required.');
-    assertPromptLength(normalizedPrompt, 'Prompt');
-    try {
-      const image = await postForImage(
-        token,
-        normalizedModel,
-        {
-          inputs: normalizedPrompt,
-          parameters: {
-            control_image: controlImageBase64,
-            ...(negativePrompt?.trim() ? { negative_prompt: negativePrompt.trim() } : {}),
-            width,
-            height,
-            ...(typeof seed === 'number' ? { seed } : {}),
-          },
-        },
-        signal,
-      );
-      return { model: normalizedModel, images: [image], usage: null };
-    } catch (error) {
-      throw createHuggingFaceError(error, 'HuggingFace ControlNet generation failed.');
-    }
-  }
-
-  async function generateInpaint({
-    token,
-    model,
-    prompt,
-    initImageBase64,
-    maskImageBase64,
-    negativePrompt,
-    width,
-    height,
-    seed,
-    signal,
-  }: {
-    token: string;
-    model: string;
-    prompt: string;
-    initImageBase64: string;
-    maskImageBase64: string;
-    negativePrompt?: string;
-    width: number;
-    height: number;
-    seed?: number;
-    signal?: AbortSignal;
-  }): Promise<HuggingFaceImageGenerationResult> {
-    const normalizedPrompt = prompt.trim();
-    const normalizedModel = model.trim();
-    if (!normalizedPrompt) throw new Error('Prompt cannot be empty.');
-    if (!normalizedModel) throw new Error('HuggingFace inpaint model is required.');
-    if (!initImageBase64 || !maskImageBase64) throw new Error('An init image and a mask are required.');
-    assertPromptLength(normalizedPrompt, 'Prompt');
-    try {
-      const image = await postForImage(
-        token,
-        normalizedModel,
-        {
-          inputs: normalizedPrompt,
-          parameters: {
-            image: initImageBase64,
-            mask_image: maskImageBase64,
-            ...(negativePrompt?.trim() ? { negative_prompt: negativePrompt.trim() } : {}),
-            width,
-            height,
-            ...(typeof seed === 'number' ? { seed } : {}),
-          },
-        },
-        signal,
-      );
-      return { model: normalizedModel, images: [image], usage: null };
-    } catch (error) {
-      throw createHuggingFaceError(error, 'HuggingFace inpaint generation failed.');
-    }
-  }
-
   return {
     getKeyInfo,
     listImageModels,
@@ -624,7 +513,5 @@ export function createHuggingFaceInferenceService({
     suggestNegativePrompt,
     generateImage,
     generateVideo,
-    generateControlNet,
-    generateInpaint,
   };
 }

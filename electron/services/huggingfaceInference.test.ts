@@ -241,87 +241,13 @@ describe('createHuggingFaceInferenceService.generateVideo', () => {
   });
 });
 
-describe('createHuggingFaceInferenceService.generateControlNet / generateInpaint', () => {
-  it('returns a normalized image for ControlNet via the hf-inference router', async () => {
-    const axiosInstance = {
-      get: vi.fn(),
-      post: vi.fn().mockResolvedValue({ data: PNG_MAGIC, headers: { 'content-type': 'image/png' } }),
-    };
-    const service = createHuggingFaceInferenceService({ axiosInstance });
-    const result = await service.generateControlNet({
-      token: 'hf_token',
-      model: 'm/cn',
-      prompt: 'a city',
-      controlImageBase64: 'aGVsbG8=',
-      width: 512,
-      height: 512,
-    });
-    expect(result.images[0].mimeType).toBe('image/png');
-    const url = axiosInstance.post.mock.calls[0][0] as string;
-    expect(url).toBe('https://router.huggingface.co/hf-inference/models/m/cn');
-  });
-
-  it('returns a normalized image for inpaint', async () => {
-    const axiosInstance = {
-      get: vi.fn(),
-      post: vi.fn().mockResolvedValue({ data: PNG_MAGIC, headers: { 'content-type': 'image/png' } }),
-    };
-    const service = createHuggingFaceInferenceService({ axiosInstance });
-    const result = await service.generateInpaint({
-      token: 'hf_token',
-      model: 'm/inpaint',
-      prompt: 'a dog',
-      initImageBase64: 'aGVsbG8=',
-      maskImageBase64: 'aGVsbG8=',
-      width: 512,
-      height: 512,
-    });
-    expect(result.images[0].mimeType).toBe('image/png');
-  });
-
-  it('requires a control image for ControlNet before any network call', async () => {
-    const axiosInstance = { get: vi.fn(), post: vi.fn() };
-    const service = createHuggingFaceInferenceService({ axiosInstance });
-    await expect(
-      service.generateControlNet({
-        token: 'hf_token',
-        model: 'm/cn',
-        prompt: 'a city',
-        controlImageBase64: '',
-        width: 512,
-        height: 512,
-      }),
-    ).rejects.toThrow(/control image/i);
-    expect(axiosInstance.post).not.toHaveBeenCalled();
-  });
-
-  it('requires an init image and a mask for inpaint before any network call', async () => {
-    const axiosInstance = { get: vi.fn(), post: vi.fn() };
-    const service = createHuggingFaceInferenceService({ axiosInstance });
-    await expect(
-      service.generateInpaint({
-        token: 'hf_token',
-        model: 'm/inpaint',
-        prompt: 'a dog',
-        initImageBase64: 'aGVsbG8=',
-        maskImageBase64: '',
-        width: 512,
-        height: 512,
-      }),
-    ).rejects.toThrow(/init image and a mask/i);
-    expect(axiosInstance.post).not.toHaveBeenCalled();
-  });
-});
-
 describe('createHuggingFaceInferenceService surface', () => {
-  it('exposes the full generation surface without leaking internals', () => {
+  it('exposes the full generation surface without leaking internals or unproven CN/inpaint clients', () => {
     const service = createHuggingFaceInferenceService({ axiosInstance: { get: vi.fn(), post: vi.fn() } });
     expect(Object.keys(service).sort()).toEqual(
       [
         'enhancePrompt',
-        'generateControlNet',
         'generateImage',
-        'generateInpaint',
         'generateVideo',
         'getKeyInfo',
         'listImageModels',

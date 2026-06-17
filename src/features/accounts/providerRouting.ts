@@ -32,6 +32,18 @@ export function isHostedStillImageRoute(route: ProviderRouteState): boolean {
   return route.provider !== 'local';
 }
 
+/**
+ * A hosted video route (HuggingFace text-to-video) runs entirely off-device and
+ * does NOT require the local backend. The timeline runner uses this to decide
+ * whether a backend-offline state blocks video generation and whether to
+ * override the request model with the account's hosted video model. Local
+ * routes return false. OpenRouter has no video capability, so it never reaches
+ * a hosted video route.
+ */
+export function isHostedVideoRoute(route: ProviderRouteState): boolean {
+  return route.provider !== 'local';
+}
+
 export function resolveStillImageRoute(activeAccount: UserAccountSummary | null): ProviderRouteState {
   const provider = activeAccount?.preferences.imageGenerationProvider ?? 'local';
 
@@ -116,6 +128,63 @@ export function resolveStillImageRoute(activeAccount: UserAccountSummary | null)
     model,
     configured: true,
     supportsOffline: true,
+    error: null,
+  };
+}
+
+/**
+ * Resolve the video generation route for the active account. HuggingFace
+ * text-to-video runs off-device (no local backend); every other selection
+ * (local, or OpenRouter which has no video capability) resolves to the local
+ * backend. Error strings match the main-process generate-video guard exactly so
+ * the renderer preflight and the authoritative main guard agree.
+ */
+export function resolveVideoRoute(activeAccount: UserAccountSummary | null): ProviderRouteState {
+  const provider = activeAccount?.preferences.videoGenerationProvider ?? 'local';
+
+  if (provider === 'huggingface') {
+    const huggingFaceVideoModel = activeAccount?.preferences.huggingFaceVideoModel?.trim() ?? '';
+    const tokenStored = Boolean(activeAccount?.huggingFace?.tokenStored);
+    if (!tokenStored) {
+      return {
+        activeAccount,
+        provider,
+        providerLabel: 'HuggingFace Video Route',
+        model: huggingFaceVideoModel,
+        configured: false,
+        supportsOffline: true,
+        error: 'HuggingFace is selected for video, but no token is stored for the active account.',
+      };
+    }
+    if (!huggingFaceVideoModel) {
+      return {
+        activeAccount,
+        provider,
+        providerLabel: 'HuggingFace Video Route',
+        model: huggingFaceVideoModel,
+        configured: false,
+        supportsOffline: true,
+        error: 'Select a HuggingFace video model for the active account before generating.',
+      };
+    }
+    return {
+      activeAccount,
+      provider,
+      providerLabel: 'HuggingFace Video Route',
+      model: huggingFaceVideoModel,
+      configured: true,
+      supportsOffline: true,
+      error: null,
+    };
+  }
+
+  return {
+    activeAccount,
+    provider: 'local',
+    providerLabel: 'Local Backend',
+    model: '',
+    configured: true,
+    supportsOffline: false,
     error: null,
   };
 }

@@ -52,12 +52,16 @@ export const PROVIDER_CAPABILITIES: Record<ProviderId, ProviderCapabilities> = {
   },
   huggingface: {
     stillImage: true,
-    // Wired end-to-end in PR2: hosted ControlNet + inpaint (Inference Providers
-    // image-to-image router, renderer supplies base64 control/init/mask) and
-    // text-to-video. The registry stays an honest authority - these are only
-    // true because dispatch + UI back them (Codex M6 gate).
-    controlNet: true,
-    inpaint: true,
+    // ControlNet and masked inpaint are FALSE on purpose. The HuggingFace
+    // Inference Providers task API documents no ControlNet control_image
+    // parameter on text-to-image, and image-to-image takes no mask_image /
+    // mask parameter - so neither pass has a provable hosted contract. We will
+    // not advertise a capability dispatch cannot honestly deliver: those passes
+    // stay Local, where diffusers runs them on the user's GPU (Codex M6 gate).
+    // text-to-video IS a documented task (inputs=prompt, parameters.num_frames),
+    // so video stays true.
+    controlNet: false,
+    inpaint: false,
     video: true,
     llmAssist: true,
     reportsUsage: true,

@@ -5,8 +5,10 @@ import type { UserAccountSummary, UserAccountsSnapshot } from '@/types/electron'
 import {
   getActiveUserAccount,
   isHostedStillImageRoute,
+  isHostedVideoRoute,
   resolvePromptEnhancementRoute,
   resolveStillImageRoute,
+  resolveVideoRoute,
 } from './providerRouting';
 
 type AccountOverrides = {
@@ -190,6 +192,66 @@ describe('providerRouting', () => {
 
     expect(isHostedStillImageRoute(huggingFace)).toBe(true);
     expect(huggingFace.configured).toBe(false);
+  });
+
+  it('marks the HuggingFace video route ready and hosted when token + model are configured', () => {
+    const route = resolveVideoRoute(
+      makeAccount({
+        preferences: {
+          videoGenerationProvider: 'huggingface',
+          huggingFaceVideoModel: 'Lightricks/LTX-Video',
+        },
+        huggingFace: { tokenStored: true, keyLabel: 'HF Key', lastValidatedAt: null },
+      }),
+    );
+
+    expect(route).toMatchObject({
+      provider: 'huggingface',
+      configured: true,
+      supportsOffline: true,
+      model: 'Lightricks/LTX-Video',
+      error: null,
+    });
+    expect(isHostedVideoRoute(route)).toBe(true);
+  });
+
+  it('flags the HuggingFace video route when no token is stored (matches the main guard string)', () => {
+    const route = resolveVideoRoute(
+      makeAccount({
+        preferences: {
+          videoGenerationProvider: 'huggingface',
+          huggingFaceVideoModel: 'Lightricks/LTX-Video',
+        },
+      }),
+    );
+
+    expect(route.provider).toBe('huggingface');
+    expect(route.configured).toBe(false);
+    // A misconfigured hosted route is still hosted: a config error, not a
+    // backend-offline error, must surface.
+    expect(isHostedVideoRoute(route)).toBe(true);
+    expect(route.error).toBe(
+      'HuggingFace is selected for video, but no token is stored for the active account.',
+    );
+  });
+
+  it('flags the HuggingFace video route when no model is selected (matches the main guard string)', () => {
+    const route = resolveVideoRoute(
+      makeAccount({
+        preferences: { videoGenerationProvider: 'huggingface', huggingFaceVideoModel: '' },
+        huggingFace: { tokenStored: true, keyLabel: 'HF Key', lastValidatedAt: null },
+      }),
+    );
+
+    expect(route.configured).toBe(false);
+    expect(route.error).toBe('Select a HuggingFace video model for the active account before generating.');
+  });
+
+  it('resolves video to the local backend (not hosted) when no hosted video provider is selected', () => {
+    const local = resolveVideoRoute(makeAccount());
+    expect(local.provider).toBe('local');
+    expect(local.supportsOffline).toBe(false);
+    expect(isHostedVideoRoute(local)).toBe(false);
   });
 
   it('returns a configuration error when the OpenRouter prompt route is missing an API key', () => {

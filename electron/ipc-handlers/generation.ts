@@ -238,7 +238,7 @@ ipcMain.handle('generation:generate-image', async (_event, params) => {
       return {
         success: false,
         error:
-          'HuggingFace image routing supports prompt-only, ControlNet, and inpaint passes. Switch the active account back to Local for img2img or reference-image passes.',
+          'HuggingFace still-image routing supports prompt-only generations. Switch the active account back to Local for ControlNet, inpaint, or reference-image passes.',
       };
     }
 

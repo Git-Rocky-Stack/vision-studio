@@ -28,15 +28,17 @@ describe('hostedImageRouting', () => {
 });
 
 describe('hasUnsupportedHuggingFaceImageInputs', () => {
-  it('allows prompt-only, ControlNet, and inpaint passes', () => {
+  it('allows prompt-only generations', () => {
     expect(hasUnsupportedHuggingFaceImageInputs({ prompt: 'a tree' })).toBe(false);
-    expect(hasUnsupportedHuggingFaceImageInputs({ controlnet: [{ source_path: 'x.png' }] })).toBe(false);
-    expect(
-      hasUnsupportedHuggingFaceImageInputs({ inpaint: { image_path: 'b.png' }, image_path: 'b.png' }),
-    ).toBe(false);
+    expect(hasUnsupportedHuggingFaceImageInputs({})).toBe(false);
   });
 
-  it('blocks reference images and bare img2img init images', () => {
+  it('blocks ControlNet, inpaint, masks, reference images, and bare img2img (no hosted contract)', () => {
+    expect(hasUnsupportedHuggingFaceImageInputs({ controlnet: [{ source_path: 'x.png' }] })).toBe(true);
+    expect(
+      hasUnsupportedHuggingFaceImageInputs({ inpaint: { image_path: 'b.png' }, image_path: 'b.png' }),
+    ).toBe(true);
+    expect(hasUnsupportedHuggingFaceImageInputs({ mask: { type: 'rectangle' } })).toBe(true);
     expect(hasUnsupportedHuggingFaceImageInputs({ reference_images: [{ source_path: 'r.png' }] })).toBe(true);
     expect(hasUnsupportedHuggingFaceImageInputs({ image_path: 'init.png' })).toBe(true);
   });
