@@ -1071,12 +1071,12 @@ Prompt-enhancement and negative-prompt suggestion use the account's `huggingFace
 | Modality | Local | OpenRouter | HuggingFace |
 |----------|:-----:|:----------:|:-----------:|
 | Still image | yes | yes | yes |
-| ControlNet | yes | no | yes† |
-| Inpaint | yes | no | yes† |
-| Video | yes | no | yes† |
+| ControlNet | yes | no | PR2 |
+| Inpaint | yes | no | PR2 |
+| Video | yes | no | PR2 |
 | LLM prompt-assist | yes (heuristic) | yes | yes |
 
-OpenRouter still-image is prompt-only (no ControlNet / inpaint / reference inputs). † HuggingFace ControlNet / inpaint / video are capability-declared and land in the following slice; the still-image and LLM routes ship now.
+OpenRouter still-image is prompt-only (no ControlNet / inpaint / reference inputs). HuggingFace ControlNet / inpaint / video are deliberately **not** in the capability registry in this slice - the registry is the authoritative routing guard, so it only declares what is actually wired. They are added in PR 2, where the registry flips them on alongside the dispatch + UI. This slice ships HuggingFace still-image + LLM-assist.
 
 **Over-budget fallback.** A Local job that the M5 fit verdict marks `over-budget` triggers a fallback: when `autoRouteOnOverBudget` (Settings) is enabled and the account's `fallbackProvider` is capable + configured, the job routes silently (carried as a per-request `__providerOverride` on `generation:generate-image`); otherwise the renderer prompts (run locally / route to a hosted provider / cancel).
 

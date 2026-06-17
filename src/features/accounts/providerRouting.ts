@@ -1,6 +1,6 @@
 import type { UserAccountSummary, UserAccountsSnapshot } from '@/types/electron';
 
-export type HostedProvider = 'local' | 'openrouter';
+export type HostedProvider = 'local' | 'openrouter' | 'huggingface';
 
 export interface ProviderRouteState {
   activeAccount: UserAccountSummary | null;
@@ -78,6 +78,22 @@ export function resolvePromptEnhancementRoute(
 ): ProviderRouteState {
   const provider = activeAccount?.preferences.promptEnhancementProvider ?? 'local';
   const model = activeAccount?.preferences.openRouterModel.trim() ?? '';
+
+  if (provider === 'huggingface') {
+    const huggingFaceModel = activeAccount?.preferences.huggingFaceModel?.trim() ?? '';
+    const tokenStored = Boolean(activeAccount?.huggingFace?.tokenStored);
+    return {
+      activeAccount,
+      provider,
+      providerLabel: 'HuggingFace Prompt Route',
+      model: huggingFaceModel,
+      configured: tokenStored,
+      supportsOffline: false,
+      error: tokenStored
+        ? null
+        : 'HuggingFace is selected for prompt enhancement, but no token is stored for the active account.',
+    };
+  }
 
   if (provider !== 'openrouter') {
     return {

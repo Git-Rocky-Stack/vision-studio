@@ -126,4 +126,27 @@ describe('providerRouting', () => {
     expect(route.configured).toBe(false);
     expect(route.error).toContain('no API key is stored');
   });
+
+  it('routes prompt enhancement to HuggingFace when the account is configured', () => {
+    const route = resolvePromptEnhancementRoute(
+      makeAccount({
+        preferences: {
+          promptEnhancementProvider: 'huggingface',
+          huggingFaceModel: 'meta-llama/Llama-3.1-8B-Instruct',
+        },
+        huggingFace: { tokenStored: true, keyLabel: null, lastValidatedAt: null },
+      }),
+    );
+
+    expect(route).toMatchObject({ provider: 'huggingface', configured: true, error: null });
+  });
+
+  it('flags the HuggingFace prompt route when no token is stored', () => {
+    const route = resolvePromptEnhancementRoute(
+      makeAccount({ preferences: { promptEnhancementProvider: 'huggingface' } }),
+    );
+
+    expect(route.configured).toBe(false);
+    expect(route.error).toContain('no token is stored');
+  });
 });

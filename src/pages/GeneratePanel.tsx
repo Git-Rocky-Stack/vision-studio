@@ -653,7 +653,7 @@ export function GeneratePanel() {
       const autoRouteOnOverBudget = Boolean(
         (await window.electron.settings.get()).autoRouteOnOverBudget,
       );
-      let fit: FitVerdict | null = null;
+      let fit: FitVerdict | null;
       try {
         const plan = (await window.electron.models.resolveRuntime(imageConfig.model)) as
           | { fit?: string | null }

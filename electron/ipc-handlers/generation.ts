@@ -316,6 +316,34 @@ ipcMain.handle('generation:enhance-prompt', async (_event, params) => {
     }
   }
 
+  if (activeAccount?.preferences.promptEnhancementProvider === 'huggingface') {
+    const token = userAccountsService?.getHuggingFaceToken(activeAccount.id);
+    if (!token || !huggingFaceService) {
+      return {
+        success: false,
+        error: 'HuggingFace is selected for prompt enhancement, but no token is configured for the active account.',
+      };
+    }
+
+    try {
+      const result = await huggingFaceService.enhancePrompt({
+        token,
+        prompt: params.prompt,
+        mode: params.mode ?? 'clarify',
+        model: activeAccount.preferences.huggingFaceModel || undefined,
+      });
+      return {
+        success: true,
+        ...result,
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Prompt enhancement failed',
+      };
+    }
+  }
+
   try {
     const response = await requestBackend(() =>
       axios.post(`${BACKEND_URL}/api/prompts/enhance`, params, { headers: backendAuthHeaders() }),
@@ -357,6 +385,35 @@ ipcMain.handle('generation:suggest-negative-prompt', async (_event, params) => {
       return {
         success: false,
         error: toOpenRouterRendererMessage(error, 'Negative prompt suggestion failed'),
+      };
+    }
+  }
+
+  if (activeAccount?.preferences.promptEnhancementProvider === 'huggingface') {
+    const token = userAccountsService?.getHuggingFaceToken(activeAccount.id);
+    if (!token || !huggingFaceService) {
+      return {
+        success: false,
+        error: 'HuggingFace is selected for prompt enhancement, but no token is configured for the active account.',
+      };
+    }
+
+    try {
+      const result = await huggingFaceService.suggestNegativePrompt({
+        token,
+        prompt: params.prompt,
+        negativePrompt: params.negativePrompt,
+        model: activeAccount.preferences.huggingFaceModel || undefined,
+      });
+      return {
+        success: true,
+        ...result,
+        source: 'huggingface' as const,
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Negative prompt suggestion failed',
       };
     }
   }
@@ -508,6 +565,60 @@ ipcMain.handle('generation:batch', async (_event, params) => {
     };
   }
 
+  if (activeAccount?.preferences.imageGenerationProvider === 'huggingface') {
+    if (hasUnsupportedOpenRouterImageInputs(params)) {
+      return {
+        success: false,
+        error:
+          'HuggingFace still-image routing currently supports prompt-only generations. Switch the active account back to Local for ControlNet, inpaint, or reference-image passes.',
+      };
+    }
+
+    if (!activeAccount.huggingFace.tokenStored) {
+      return {
+        success: false,
+        error: 'HuggingFace is selected for still images, but no token is stored for the active account.',
+      };
+    }
+
+    const requestedModel =
+      (typeof params?.model === 'string' && params.model.trim()) ||
+      activeAccount.preferences.huggingFaceImageModel.trim();
+    if (!requestedModel) {
+      return {
+        success: false,
+        error: 'Select a HuggingFace still-image model for the active account before generating.',
+      };
+    }
+
+    const jobIds = prompts.map((prompt: string) => {
+      const jobId = `${HUGGINGFACE_JOB_PREFIX}-${crypto.randomUUID()}`;
+      const jobParams = {
+        ...baseParams,
+        prompt,
+        model: requestedModel,
+      };
+      huggingFaceImageJobStore.set({
+        job_id: jobId,
+        status: 'pending',
+        progress: 0,
+        type: 'image',
+        created_at: new Date().toISOString(),
+        params: jobParams,
+      });
+      dispatchHuggingFaceImageJob(jobId, {
+        ...jobParams,
+        __huggingFaceAccountId: activeAccount.id,
+      });
+      return jobId;
+    });
+
+    return {
+      success: true,
+      jobIds,
+    };
+  }
+
   try {
     const jobIds = await submitBatch(
       prompts,
@@ -635,9 +746,10 @@ ipcMain.handle('generation:cancel', async (_event, jobId: string) => {
 
 ipcMain.handle('generation:list-jobs', async (_event, options = {}) => {
   const { status, limit = 50 } = options as { status?: string; limit?: number };
-  const localJobs = openRouterImageJobStore
-    .values()
-    .filter((job) => !status || job.status === status);
+  const localJobs = [
+    ...openRouterImageJobStore.values(),
+    ...huggingFaceImageJobStore.values(),
+  ].filter((job) => !status || job.status === status);
 
   try {
     let url = `${BACKEND_URL}/api/jobs?limit=${limit}`;

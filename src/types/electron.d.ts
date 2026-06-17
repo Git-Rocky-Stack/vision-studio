@@ -326,7 +326,7 @@ export interface ElectronAPI {
       error?: string;
       negativePrompt?: string;
       suggestions?: string[];
-      source?: 'openrouter' | 'heuristic';
+      source?: 'openrouter' | 'huggingface' | 'heuristic';
       usage?: OpenRouterUsageSnapshot | null;
     }>;
     cropImage: (params: {

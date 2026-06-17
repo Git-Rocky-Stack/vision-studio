@@ -177,7 +177,9 @@ export const PromptStudioPanel = memo(function PromptStudioPanel() {
         message:
           nextRoute.provider === 'openrouter'
             ? 'Prompt enhanced through the active OpenRouter account.'
-            : 'Prompt enhanced with the local prompt tools.',
+            : nextRoute.provider === 'huggingface'
+              ? 'Prompt enhanced through the active HuggingFace account.'
+              : 'Prompt enhanced with the local prompt tools.',
       });
     } catch (error) {
       setBanner({
@@ -311,7 +313,9 @@ export const PromptStudioPanel = memo(function PromptStudioPanel() {
             <p className="mt-1 type-caption text-text-body">
               {promptRoute.provider === 'openrouter'
                 ? `Account ${activeAccount?.name ?? 'No active account'} / Model ${promptRoute.model || 'OpenRouter default router'}`
-                : 'Prompt Studio stays connected to the local draft and local prompt helpers by default.'}
+                : promptRoute.provider === 'huggingface'
+                  ? `Account ${activeAccount?.name ?? 'No active account'} / Model ${promptRoute.model || 'HuggingFace default model'}`
+                  : 'Prompt Studio stays connected to the local draft and local prompt helpers by default.'}
             </p>
             {promptRoute.error ? (
               <p className="mt-2 type-caption text-status-warning">{promptRoute.error}</p>

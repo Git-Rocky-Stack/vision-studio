@@ -82,8 +82,8 @@ describe('resolveRoute', () => {
         configuredHosted: ['openrouter', 'huggingface'],
       }),
     );
-    // OpenRouter cannot do video, so it must not be offered as a candidate.
-    expect(decision).toEqual({ ok: false, kind: 'fallback-prompt', candidates: ['huggingface'] });
+    // No hosted provider can do video in this slice, so there are no candidates.
+    expect(decision).toEqual({ ok: false, kind: 'fallback-prompt', candidates: [] });
   });
 
   it('prompts even when auto is on but the chosen fallback is not configured', () => {

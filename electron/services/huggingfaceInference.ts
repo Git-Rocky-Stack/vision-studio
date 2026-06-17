@@ -13,6 +13,9 @@ import { createKeyConcurrencyLimit, retryHostedCall } from './hostedHttp';
 
 const DEFAULT_ROUTER_BASE_URL = 'https://router.huggingface.co/v1';
 const DEFAULT_HUB_BASE_URL = 'https://huggingface.co';
+// Inference Providers router (hf-inference). Text-to-image posts { inputs, parameters }
+// and returns raw image bytes. See https://huggingface.co/docs/inference-providers.
+const DEFAULT_INFERENCE_BASE_URL = 'https://router.huggingface.co/hf-inference/models';
 const DEFAULT_MAX_RETRY_ATTEMPTS = 3;
 const DEFAULT_RETRY_BASE_DELAY_MS = 250;
 const DEFAULT_MAX_CONCURRENT_PER_KEY = 4;
@@ -75,6 +78,7 @@ type CreateHuggingFaceInferenceServiceOptions = {
   axiosInstance?: AxiosLike;
   routerBaseUrl?: string;
   hubBaseUrl?: string;
+  inferenceBaseUrl?: string;
   retryBaseDelayMs?: number;
   maxRetryAttempts?: number;
   maxConcurrentPerKey?: number;
@@ -185,6 +189,7 @@ export function createHuggingFaceInferenceService({
   axiosInstance = axios as unknown as AxiosLike,
   routerBaseUrl = DEFAULT_ROUTER_BASE_URL,
   hubBaseUrl = DEFAULT_HUB_BASE_URL,
+  inferenceBaseUrl = DEFAULT_INFERENCE_BASE_URL,
   retryBaseDelayMs = DEFAULT_RETRY_BASE_DELAY_MS,
   maxRetryAttempts = DEFAULT_MAX_RETRY_ATTEMPTS,
   maxConcurrentPerKey = DEFAULT_MAX_CONCURRENT_PER_KEY,
@@ -365,7 +370,7 @@ export function createHuggingFaceInferenceService({
         token,
         () =>
           axiosInstance.post(
-            `${hubBaseUrl}/api/inference-proxy/models/${normalizedModel}`,
+            `${inferenceBaseUrl}/${normalizedModel}`,
             {
               inputs: normalizedPrompt,
               parameters: {

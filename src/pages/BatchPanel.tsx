@@ -164,6 +164,8 @@ export function BatchPromptQueue() {
 
   const openRouterImageEnabled = activeAccount?.preferences.imageGenerationProvider === 'openrouter';
   const openRouterImageModel = activeAccount?.preferences.openRouterImageModel.trim() ?? '';
+  const huggingFaceImageEnabled = activeAccount?.preferences.imageGenerationProvider === 'huggingface';
+  const huggingFaceImageModel = activeAccount?.preferences.huggingFaceImageModel?.trim() ?? '';
 
   const addPrompt = () => {
     setPrompts([
@@ -210,8 +212,13 @@ export function BatchPromptQueue() {
     const latestActiveAccount = await syncActiveAccount();
     const useOpenRouterImage =
       latestActiveAccount?.preferences.imageGenerationProvider === 'openrouter';
+    const useHuggingFaceImage =
+      latestActiveAccount?.preferences.imageGenerationProvider === 'huggingface';
+    const useHostedImage = useOpenRouterImage || useHuggingFaceImage;
     const resolvedOpenRouterImageModel =
       latestActiveAccount?.preferences.openRouterImageModel.trim() ?? '';
+    const resolvedHuggingFaceImageModel =
+      latestActiveAccount?.preferences.huggingFaceImageModel?.trim() ?? '';
 
     if (useOpenRouterImage && !latestActiveAccount?.openRouter.apiKeyStored) {
       setBatchNotice({
@@ -229,21 +236,41 @@ export function BatchPromptQueue() {
       return;
     }
 
-    if (!systemInfo.backendConnected && !useOpenRouterImage) {
+    if (useHuggingFaceImage && !latestActiveAccount?.huggingFace.tokenStored) {
       setBatchNotice({
         tone: 'error',
-        message: 'The AI backend is not running. Start the backend or switch the active account to OpenRouter for hosted still-image batches.',
+        message: 'HuggingFace is selected for still images, but no token is stored for the active account.',
       });
       return;
     }
 
-    const submittedModel = useOpenRouterImage ? resolvedOpenRouterImageModel : model;
+    if (useHuggingFaceImage && !resolvedHuggingFaceImageModel) {
+      setBatchNotice({
+        tone: 'error',
+        message: 'Select a HuggingFace still-image model in Settings before starting a hosted batch.',
+      });
+      return;
+    }
+
+    if (!systemInfo.backendConnected && !useHostedImage) {
+      setBatchNotice({
+        tone: 'error',
+        message: 'The AI backend is not running. Start the backend or switch the active account to a hosted provider for hosted still-image batches.',
+      });
+      return;
+    }
+
+    const submittedModel = useHuggingFaceImage
+      ? resolvedHuggingFaceImageModel
+      : useOpenRouterImage
+        ? resolvedOpenRouterImageModel
+        : model;
 
     setBatchNotice(
-      useOpenRouterImage
+      useHostedImage
         ? {
             tone: 'info',
-            message: `Batch is routing through OpenRouter for ${latestActiveAccount?.name ?? 'the active account'}.`,
+            message: `Batch is routing through ${useHuggingFaceImage ? 'HuggingFace' : 'OpenRouter'} for ${latestActiveAccount?.name ?? 'the active account'}.`,
           }
         : null
     );
@@ -407,12 +434,20 @@ export function BatchPromptQueue() {
     const data = {
       prompts: prompts.map((p) => p.prompt).filter(Boolean),
       settings: {
-        provider: openRouterImageEnabled ? 'openrouter' : 'local',
+        provider: huggingFaceImageEnabled
+          ? 'huggingface'
+          : openRouterImageEnabled
+            ? 'openrouter'
+            : 'local',
         width,
         height,
         steps,
         cfgScale,
-        model: openRouterImageEnabled ? openRouterImageModel : model,
+        model: huggingFaceImageEnabled
+          ? huggingFaceImageModel
+          : openRouterImageEnabled
+            ? openRouterImageModel
+            : model,
       },
       createdAt: new Date().toISOString(),
     };

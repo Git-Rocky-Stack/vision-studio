@@ -52,9 +52,11 @@ export const PROVIDER_CAPABILITIES: Record<ProviderId, ProviderCapabilities> = {
   },
   huggingface: {
     stillImage: true,
-    controlNet: true,
-    inpaint: true,
-    video: true,
+    // ControlNet / inpaint / video are wired in PR2; declared false here so the
+    // registry stays an honest authority for routing decisions (Codex M6 gate).
+    controlNet: false,
+    inpaint: false,
+    video: false,
     llmAssist: true,
     reportsUsage: true,
     maxResolution: null,

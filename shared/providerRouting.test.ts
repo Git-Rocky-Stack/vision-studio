@@ -26,9 +26,9 @@ describe('PROVIDER_CAPABILITIES', () => {
     });
     expect(PROVIDER_CAPABILITIES.huggingface).toMatchObject({
       stillImage: true,
-      controlNet: true,
-      inpaint: true,
-      video: true,
+      controlNet: false,
+      inpaint: false,
+      video: false,
       llmAssist: true,
       reportsUsage: true,
     });
@@ -48,11 +48,18 @@ describe('providerSupports', () => {
     }
   });
 
-  it('allows HuggingFace and Local for every modality', () => {
+  it('allows Local for every modality', () => {
     const all: RequestModality[] = ['still-image', 'controlnet', 'inpaint', 'video', 'llm-assist'];
     for (const modality of all) {
-      expect(providerSupports('huggingface', modality)).toBe(true);
       expect(providerSupports('local', modality)).toBe(true);
+    }
+  });
+
+  it('limits HuggingFace to still-image + LLM-assist this slice (CN/inpaint/video land in PR2)', () => {
+    expect(providerSupports('huggingface', 'still-image')).toBe(true);
+    expect(providerSupports('huggingface', 'llm-assist')).toBe(true);
+    for (const modality of ['controlnet', 'inpaint', 'video'] as RequestModality[]) {
+      expect(providerSupports('huggingface', modality)).toBe(false);
     }
   });
 });
