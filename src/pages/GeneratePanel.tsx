@@ -563,14 +563,17 @@ export function GeneratePanel() {
     const forcedRoute = forcedRouteRef.current;
     forcedRouteRef.current = null;
 
-    const latestActiveAccount =
-      imageConfig.generationType === 'image' ? await syncActiveAccount() : activeAccount;
+    const latestActiveAccount = await syncActiveAccount();
     const savedImageProvider = latestActiveAccount?.preferences.imageGenerationProvider ?? 'local';
     const effectiveImageProvider = forcedRoute ?? savedImageProvider;
     const useOpenRouterImage =
       imageConfig.generationType === 'image' && effectiveImageProvider === 'openrouter';
     const useHuggingFaceImage =
       imageConfig.generationType === 'image' && effectiveImageProvider === 'huggingface';
+    const savedVideoProvider = latestActiveAccount?.preferences.videoGenerationProvider ?? 'local';
+    const useHuggingFaceVideo =
+      imageConfig.generationType === 'video' && savedVideoProvider === 'huggingface';
+    const huggingFaceVideoModel = latestActiveAccount?.preferences.huggingFaceVideoModel?.trim() ?? '';
     const openRouterImageModel = latestActiveAccount?.preferences.openRouterImageModel.trim() ?? '';
     const huggingFaceImageModel = latestActiveAccount?.preferences.huggingFaceImageModel?.trim() ?? '';
     const hostedImageModel = useHuggingFaceImage ? huggingFaceImageModel : openRouterImageModel;
@@ -580,12 +583,18 @@ export function GeneratePanel() {
           ? hostedImageModel
           : imageConfig.model
         : imageConfig.videoModel;
-    const hostedUnsupportedInputs =
+    const openRouterUnsupportedInputs =
       imageConfig.generationType === 'image' &&
       (resolvedCanvasControlLayers.visibleLayerCount > 0 ||
         resolvedCanvasControlLayers.controlnet.length > 0 ||
         resolvedCanvasControlLayers.referenceImages.length > 0 ||
         Boolean(resolvedCanvasControlLayers.inpaint) ||
+        resolvedCanvasControlLayers.errors.length > 0);
+    // HuggingFace runs ControlNet + inpaint in the main process; only
+    // reference-image (img2img) passes and misconfigured layers stay local.
+    const huggingFaceUnsupportedInputs =
+      imageConfig.generationType === 'image' &&
+      (resolvedCanvasControlLayers.referenceImages.length > 0 ||
         resolvedCanvasControlLayers.errors.length > 0);
 
     if (useOpenRouterImage && !latestActiveAccount?.openRouter.apiKeyStored) {
@@ -628,18 +637,49 @@ export function GeneratePanel() {
       return;
     }
 
-    if ((useOpenRouterImage || useHuggingFaceImage) && hostedUnsupportedInputs) {
+    if (useHuggingFaceVideo && !latestActiveAccount?.huggingFace?.tokenStored) {
       updateGenStatus({
         status: 'error',
-        errorMessage:
-          'Hosted still-image routing currently supports prompt-only generations. Switch the active account back to Local for ControlNet, inpaint, or reference-image passes.',
+        errorMessage: 'HuggingFace is selected for video, but no token is stored for the active account.',
         isGenerating: false,
       });
       isGeneratingRef.current = false;
       return;
     }
 
-    if (!systemInfo.backendConnected && !useOpenRouterImage && !useHuggingFaceImage) {
+    if (useHuggingFaceVideo && !huggingFaceVideoModel) {
+      updateGenStatus({
+        status: 'error',
+        errorMessage: 'Select a HuggingFace video model in Settings before generating.',
+        isGenerating: false,
+      });
+      isGeneratingRef.current = false;
+      return;
+    }
+
+    if (useOpenRouterImage && openRouterUnsupportedInputs) {
+      updateGenStatus({
+        status: 'error',
+        errorMessage:
+          'OpenRouter still-image routing supports prompt-only generations. Switch the active account back to Local for ControlNet, inpaint, or reference-image passes.',
+        isGenerating: false,
+      });
+      isGeneratingRef.current = false;
+      return;
+    }
+
+    if (useHuggingFaceImage && huggingFaceUnsupportedInputs) {
+      updateGenStatus({
+        status: 'error',
+        errorMessage:
+          'HuggingFace image routing supports prompt-only, ControlNet, and inpaint. Switch the active account back to Local for reference-image (img2img) passes.',
+        isGenerating: false,
+      });
+      isGeneratingRef.current = false;
+      return;
+    }
+
+    if (!systemInfo.backendConnected && !useOpenRouterImage && !useHuggingFaceImage && !useHuggingFaceVideo) {
       updateGenStatus({
         status: 'error',
         errorMessage: 'The AI backend is not running. Please restart the app or start the backend from Settings.',
@@ -795,19 +835,19 @@ export function GeneratePanel() {
           throw new Error(result.error || 'Generation failed');
         }
       } else {
-        if (imageConfig.videoModel === 'svd' && !motionReferenceImage) {
+        if (!useHuggingFaceVideo && imageConfig.videoModel === 'svd' && !motionReferenceImage) {
           throw new Error(SVD_REFERENCE_ERROR);
         }
 
         const result = await window.electron.generation.generateVideo({
           prompt: imageConfig.prompt.trim(),
-          image_path: motionReferenceImage ?? undefined,
+          image_path: useHuggingFaceVideo ? undefined : (motionReferenceImage ?? undefined),
           width: dimensions.width,
           height: dimensions.height,
           duration: advancedGeneration.duration,
           fps: advancedGeneration.fps,
           steps: advancedGeneration.steps,
-          model: imageConfig.videoModel,
+          model: useHuggingFaceVideo ? huggingFaceVideoModel : imageConfig.videoModel,
           seed: advancedGeneration.seed === -1 ? undefined : advancedGeneration.seed,
         });
 
@@ -825,7 +865,7 @@ export function GeneratePanel() {
               duration: advancedGeneration.duration,
               fps: advancedGeneration.fps,
               steps: advancedGeneration.steps,
-              model: imageConfig.videoModel,
+              model: useHuggingFaceVideo ? huggingFaceVideoModel : imageConfig.videoModel,
               seed: advancedGeneration.seed,
               output_root: outputRoot,
             },

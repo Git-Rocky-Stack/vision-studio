@@ -189,6 +189,7 @@ function installElectronGenerationMock() {
               promptEnhancementProvider: 'local',
               openRouterModel: '',
               imageGenerationProvider: 'local',
+              videoGenerationProvider: 'local',
               openRouterImageModel: '',
               huggingFaceModel: '',
               huggingFaceImageModel: '',
@@ -480,6 +481,47 @@ describe('GeneratePanel', () => {
     expect(screen.getByText(/Primary motion reference ready: Storyboard Frame\./)).toBeInTheDocument();
   });
 
+  it('routes video through the HuggingFace video model when the account selects HuggingFace', async () => {
+    (window.electron.accounts.list as ReturnType<typeof vi.fn>).mockResolvedValue({
+      activeAccountId: 'account-primary',
+      accounts: [
+        {
+          id: 'account-primary',
+          name: 'Primary',
+          createdAt: '2026-04-24T00:00:00.000Z',
+          updatedAt: '2026-04-24T00:00:00.000Z',
+          preferences: {
+            promptEnhancementProvider: 'local',
+            openRouterModel: '',
+            imageGenerationProvider: 'local',
+            videoGenerationProvider: 'huggingface',
+            openRouterImageModel: '',
+            huggingFaceModel: '',
+            huggingFaceImageModel: '',
+            huggingFaceVideoModel: 'Lightricks/LTX-Video',
+            fallbackProvider: null,
+          },
+          openRouter: { apiKeyStored: false, keyLabel: null, lastValidatedAt: null },
+          huggingFace: { tokenStored: true, keyLabel: null, lastValidatedAt: null },
+        },
+      ],
+    });
+
+    render(<GeneratePanel />);
+
+    fireEvent.click(screen.getByRole('button', { name: /^Video$/ }));
+    fireEvent.change(screen.getByTestId('mock-prompt-input'), {
+      target: { value: 'an ocean wave' },
+    });
+    fireEvent.click(screen.getByTestId('generate-button'));
+
+    await waitFor(() => {
+      expect(window.electron.generation.generateVideo).toHaveBeenCalledWith(
+        expect.objectContaining({ prompt: 'an ocean wave', model: 'Lightricks/LTX-Video' }),
+      );
+    });
+  });
+
   it('routes generation through the timeline runner when a timeline target is selected', async () => {
     seedTimelineTargetClip();
     vi.mocked(runTimelineClipGeneration).mockResolvedValue({
@@ -609,6 +651,7 @@ describe('GeneratePanel', () => {
             promptEnhancementProvider: 'local',
             openRouterModel: '',
             imageGenerationProvider: 'openrouter',
+            videoGenerationProvider: 'local',
             openRouterImageModel: 'google/gemini-2.5-flash-image',
             huggingFaceModel: '',
             huggingFaceImageModel: '',

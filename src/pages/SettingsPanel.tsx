@@ -460,6 +460,7 @@ export function SettingsPanel() {
       promptEnhancementProvider?: 'local' | 'openrouter' | 'huggingface';
       openRouterModel?: string;
       imageGenerationProvider?: 'local' | 'openrouter' | 'huggingface';
+      videoGenerationProvider?: 'local' | 'openrouter' | 'huggingface';
       openRouterImageModel?: string;
       huggingFaceModel?: string;
       huggingFaceImageModel?: string;
@@ -1036,7 +1037,8 @@ export function SettingsPanel() {
                           </div>
                           <p className="text-xs text-text-body">
                             Route still-image generations through the local backend or the active
-                            account&apos;s OpenRouter BYOK model. Video remains local-only in this slice.
+                            account&apos;s OpenRouter / HuggingFace BYOK model. Motion (video) has its
+                            own provider below.
                           </p>
                           <div className="grid grid-cols-3 gap-2">
                             {([
@@ -1071,6 +1073,68 @@ export function SettingsPanel() {
                                   className={cn(
                                     'rounded-md border px-3 py-3 text-left transition-all',
                                     activeAccount.preferences.imageGenerationProvider === provider.value
+                                      ? 'border-accent-primary-border bg-accent-primary-muted'
+                                      : 'border-border bg-surface hover:border-border-hover',
+                                    isDisabled && 'cursor-not-allowed opacity-50',
+                                  )}
+                                >
+                                  <div className="text-sm font-medium text-text-primary">
+                                    {provider.label}
+                                  </div>
+                                  <p className="mt-1 text-xs text-text-muted">
+                                    {provider.description}
+                                  </p>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-2">
+                            <Cloud className="w-4 h-4 text-text-muted" />
+                            <h4 className="text-sm font-medium text-text-primary">
+                              Motion / Video Provider
+                            </h4>
+                          </div>
+                          <p className="text-xs text-text-body">
+                            Route video generations through the local backend or the active
+                            account&apos;s HuggingFace BYOK model. OpenRouter does not support video.
+                          </p>
+                          <div className="grid grid-cols-3 gap-2">
+                            {([
+                              {
+                                value: 'local' as const,
+                                label: 'Local',
+                                description: 'Use the installed local video stack (LTX-Video, SVD).',
+                              },
+                              {
+                                value: 'openrouter' as const,
+                                label: 'OpenRouter',
+                                description: 'OpenRouter does not offer video generation.',
+                              },
+                              {
+                                value: 'huggingface' as const,
+                                label: 'HuggingFace',
+                                description: "Use the active account's HuggingFace BYOK video model.",
+                              },
+                            ]).map((provider) => {
+                              const isDisabled =
+                                provider.value === 'openrouter' ||
+                                (provider.value === 'huggingface' && !hasHuggingFaceToken);
+                              return (
+                                <button
+                                  key={provider.value}
+                                  type="button"
+                                  disabled={isDisabled}
+                                  onClick={() =>
+                                    void handleUpdateActiveAccount({
+                                      videoGenerationProvider: provider.value,
+                                    })
+                                  }
+                                  className={cn(
+                                    'rounded-md border px-3 py-3 text-left transition-all',
+                                    activeAccount.preferences.videoGenerationProvider === provider.value
                                       ? 'border-accent-primary-border bg-accent-primary-muted'
                                       : 'border-border bg-surface hover:border-border-hover',
                                     isDisabled && 'cursor-not-allowed opacity-50',
@@ -1411,6 +1475,33 @@ export function SettingsPanel() {
                             <p className="text-xs text-text-muted">
                               The selected model is used when this account routes still-image
                               generation through HuggingFace.
+                            </p>
+                          </div>
+
+                          <div className="space-y-1">
+                            <label
+                              htmlFor="huggingface-video-model-select"
+                              className="text-xs text-text-muted"
+                            >
+                              Video model
+                            </label>
+                            <select
+                              id="huggingface-video-model-select"
+                              value={activeAccount.preferences.huggingFaceVideoModel ?? ''}
+                              onChange={(event) =>
+                                void handleUpdateActiveAccount({
+                                  huggingFaceVideoModel: event.target.value,
+                                })
+                              }
+                              disabled={!hasHuggingFaceToken}
+                              className="recessed-well w-full px-3 py-2 text-sm text-text-primary"
+                            >
+                              <option value="">Select a HuggingFace video model</option>
+                              <option value="Lightricks/LTX-Video">LTX-Video</option>
+                            </select>
+                            <p className="text-xs text-text-muted">
+                              The selected model is used when this account routes video generation
+                              through HuggingFace.
                             </p>
                           </div>
 
