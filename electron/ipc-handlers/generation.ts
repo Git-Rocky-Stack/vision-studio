@@ -638,7 +638,7 @@ ipcMain.handle('generation:batch', async (_event, params) => {
   }
 
   if (activeAccount?.preferences.imageGenerationProvider === 'huggingface') {
-    if (hasUnsupportedOpenRouterImageInputs(params)) {
+    if (hasUnsupportedHuggingFaceImageInputs(params)) {
       return {
         success: false,
         error:

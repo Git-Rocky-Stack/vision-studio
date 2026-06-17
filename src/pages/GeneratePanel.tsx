@@ -1114,16 +1114,23 @@ export function GeneratePanel() {
           ? 'OpenRouter still-image routing currently supports prompt-only generations. Switch the active account back to Local for ControlNet, inpaint, or reference-image passes.'
           : null
     : null;
-  // HuggingFace runs ControlNet + inpaint in the main process; only
-  // reference-image (img2img) passes and misconfigured layers stay local.
+  // HuggingFace hosted still-image routing is prompt-only: the Inference
+  // Providers API documents no ControlNet/inpaint contract, so any guided pass
+  // (ControlNet, inpaint, reference images, or misconfigured layers) must stay
+  // on the local backend. This footer predicate mirrors the click-time guard
+  // (huggingFaceUnsupportedInputs) so the route is never shown ready when it
+  // would be rejected at generate time.
   const huggingFaceImageWarning = huggingFaceImageEnabled
     ? !activeAccount?.huggingFace?.tokenStored
       ? 'HuggingFace is selected for still images, but no token is stored for the active account.'
       : !huggingFaceImageModel
         ? 'Select a HuggingFace still-image model in Settings before generating.'
-        : resolvedCanvasControlLayers.referenceImages.length > 0 ||
+        : resolvedCanvasControlLayers.visibleLayerCount > 0 ||
+            resolvedCanvasControlLayers.controlnet.length > 0 ||
+            resolvedCanvasControlLayers.referenceImages.length > 0 ||
+            Boolean(resolvedCanvasControlLayers.inpaint) ||
             resolvedCanvasControlLayers.errors.length > 0
-          ? 'HuggingFace image routing supports prompt-only, ControlNet, and inpaint. Switch the active account back to Local for reference-image (img2img) passes.'
+          ? 'HuggingFace still-image routing supports prompt-only generations. Switch the active account back to Local for ControlNet, inpaint, or reference-image passes.'
           : null
     : null;
   const huggingFaceVideoWarning = huggingFaceVideoEnabled
