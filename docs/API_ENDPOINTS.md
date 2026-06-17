@@ -132,7 +132,7 @@ Generation IPC is the densest namespace. It is **provider-aware**: when the acti
 | Method | IPC channel | Backend call (local path) | Notes |
 |--------|-------------|---------------------------|-------|
 | `generateImage(params)` | `generation:generate-image` | `POST /api/generate/image` | Returns `{ success, jobId? }`. Provider-aware. |
-| `generateVideo(params)` | `generation:generate-video` | `POST /api/generate/video` | Local backend only. |
+| `generateVideo(params)` | `generation:generate-video` | `POST /api/generate/video` | Provider-aware: routes to HuggingFace when `videoGenerationProvider === 'huggingface'`, else the local backend. |
 | `exportTimelineSequence(params)` | `generation:export-timeline-sequence` | `POST /api/timeline/export` | Returns `{ success, jobId? }`. |
 | `batch(params)` | `generation:batch` | Multiple `POST /api/generate/image` (one per prompt) | Provider-aware. Returns `{ success, jobIds? }`. |
 | `enhancePrompt(params)` | `generation:enhance-prompt` | `POST /api/prompts/enhance` OR OpenRouter | Returns `{ mode, prompt, variations[]? }`. |
@@ -1055,14 +1055,17 @@ Configuration is per-account; one account can route prompts to OpenRouter but ge
 
 ### HuggingFace Inference (M6)
 
-When the active account's `imageGenerationProvider === 'huggingface'` — or a Local over-budget job is routed to HuggingFace via the fallback policy — still-image jobs run **entirely in the Main process** without calling the Python backend. They:
+When the active account routes a job to HuggingFace — `imageGenerationProvider === 'huggingface'` (still image, ControlNet, inpaint), `videoGenerationProvider === 'huggingface'` (video), or a Local over-budget job carried over via the fallback policy — the job runs **entirely in the Main process** without calling the Python backend. They:
 
 1. Use `HuggingFaceInferenceService` (`electron/services/huggingfaceInference.ts`) with the per-account BYOK token (decrypted via `safeStorage`); the token is used per-request, never logged, never returned to the renderer.
-2. Validate returned bytes against image magic numbers (sanitization) before normalizing to a data URL, then persist under `<outputRoot>/huggingface/YYYY-MM-DD/<jobId>-<n>.<ext>`.
-3. Track jobs in an in-memory store with IDs prefixed `huggingface-image-<uuid>`, discriminated by `routedJobProvider` (`electron/ipc-handlers/hostedImageRouting.ts`) so `getStatus` / `cancel` route to the right store.
-4. Emit `generation:progress` so the renderer's progress UI is provider-agnostic.
+2. Post to the Inference Providers router — `https://router.huggingface.co/hf-inference/models/<model>` for image / ControlNet / inpaint / video (returning raw bytes), and the OpenAI-compatible router for chat.
+3. Validate returned bytes against image/video magic numbers (sanitization) before normalizing to a data URL, then persist under `<outputRoot>/huggingface/YYYY-MM-DD/` (`<jobId>-<n>.<ext>` for images, `<jobId>.<ext>` for video).
+4. Track jobs in in-memory stores with IDs prefixed `huggingface-image-<uuid>` / `huggingface-video-<uuid>`, discriminated by `routedJobProvider` (`electron/ipc-handlers/hostedImageRouting.ts`) so `getStatus` / `cancel` / `list-jobs` route to the right store.
+5. Emit `generation:progress` so the renderer's progress UI is provider-agnostic.
 
-Prompt-enhancement and negative-prompt suggestion use the account's `huggingFaceModel` against HuggingFace's OpenAI-compatible router (`https://router.huggingface.co/v1/chat/completions`). In the current slice the HuggingFace still-image route is prompt-only; ControlNet, inpaint, mask, and reference-image inputs return a structured prompt-only error, identical to the OpenRouter route.
+**ControlNet & inpaint.** These ride `generation:generate-image`. The control/init image (a managed file path) is read and base64-encoded in the Main process behind a path guard (`hostedControlAssets.ts` — never reads outside the app's asset roots), and the vector inpaint mask is rasterized to a PNG sized to the init image (pure-JS point-in-polygon fill + zlib PNG encode, no native dependency). HuggingFace's ControlNet endpoint takes a single control image; the per-layer region mask is a local-only refinement and is not applied. img2img (a bare init image) and reference-image (IP-adapter) passes are not supported on HuggingFace and stay on Local.
+
+Prompt-enhancement and negative-prompt suggestion use the account's `huggingFaceModel` against the OpenAI-compatible router (`https://router.huggingface.co/v1/chat/completions`).
 
 ### Routing fabric & capability matrix (M6)
 
@@ -1071,16 +1074,16 @@ Prompt-enhancement and negative-prompt suggestion use the account's `huggingFace
 | Modality | Local | OpenRouter | HuggingFace |
 |----------|:-----:|:----------:|:-----------:|
 | Still image | yes | yes | yes |
-| ControlNet | yes | no | PR2 |
-| Inpaint | yes | no | PR2 |
-| Video | yes | no | PR2 |
+| ControlNet | yes | no | yes |
+| Inpaint | yes | no | yes |
+| Video | yes | no | yes |
 | LLM prompt-assist | yes (heuristic) | yes | yes |
 
-OpenRouter still-image is prompt-only (no ControlNet / inpaint / reference inputs). HuggingFace ControlNet / inpaint / video are deliberately **not** in the capability registry in this slice - the registry is the authoritative routing guard, so it only declares what is actually wired. They are added in PR 2, where the registry flips them on alongside the dispatch + UI. This slice ships HuggingFace still-image + LLM-assist.
+OpenRouter still-image is prompt-only (no ControlNet / inpaint / reference inputs). HuggingFace ships still image, ControlNet, inpaint, video, and LLM-assist — the registry declares each as `true` only because dispatch + UI back them end-to-end (it remains the authoritative routing guard). Because OpenRouter cannot do video, `resolveRoute` only ever surfaces HuggingFace as a hosted candidate for the `video` modality. The over-budget fallback prompt is currently wired for the still-image flow; video routing is an explicit per-account provider choice.
 
 **Over-budget fallback.** A Local job that the M5 fit verdict marks `over-budget` triggers a fallback: when `autoRouteOnOverBudget` (Settings) is enabled and the account's `fallbackProvider` is capable + configured, the job routes silently (carried as a per-request `__providerOverride` on `generation:generate-image`); otherwise the renderer prompts (run locally / route to a hosted provider / cancel).
 
-**New IPC.** `accounts:set-huggingface-token`, `accounts:clear-huggingface-token`; the `accounts:update` patch gains `huggingFaceModel`, `huggingFaceImageModel`, `huggingFaceVideoModel`, and `fallbackProvider`; `settings` gains `autoRouteOnOverBudget`.
+**New IPC.** `accounts:set-huggingface-token`, `accounts:clear-huggingface-token`; the `accounts:update` patch gains `huggingFaceModel`, `huggingFaceImageModel`, `huggingFaceVideoModel`, `videoGenerationProvider`, and `fallbackProvider`; `settings` gains `autoRouteOnOverBudget`.
 
 This integration adds **no backend Python endpoint**, so `docs/api/openapi.json` is unchanged.
 
