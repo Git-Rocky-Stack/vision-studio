@@ -522,6 +522,50 @@ describe('GeneratePanel', () => {
     });
   });
 
+  it('treats a HuggingFace still-image route as hosted in the preflight while the backend is offline', async () => {
+    useAppStore.setState((state) => ({
+      systemInfo: {
+        ...state.systemInfo,
+        backendConnected: false,
+      },
+    }));
+    (window.electron.accounts.list as ReturnType<typeof vi.fn>).mockResolvedValue({
+      activeAccountId: 'account-primary',
+      accounts: [
+        {
+          id: 'account-primary',
+          name: 'Primary',
+          createdAt: '2026-04-24T00:00:00.000Z',
+          updatedAt: '2026-04-24T00:00:00.000Z',
+          preferences: {
+            promptEnhancementProvider: 'local',
+            openRouterModel: '',
+            imageGenerationProvider: 'huggingface',
+            videoGenerationProvider: 'local',
+            openRouterImageModel: '',
+            huggingFaceModel: '',
+            huggingFaceImageModel: 'black-forest-labs/FLUX.1-schnell',
+            huggingFaceVideoModel: '',
+            fallbackProvider: null,
+          },
+          openRouter: { apiKeyStored: false, keyLabel: null, lastValidatedAt: null },
+          huggingFace: { tokenStored: true, keyLabel: null, lastValidatedAt: null },
+        },
+      ],
+    });
+
+    render(<GeneratePanel />);
+
+    // The preflight reflects the hosted HF model, not the local checkpoint id.
+    await waitFor(() => {
+      expect(screen.getByTestId('generate-preflight-summary')).toHaveTextContent(
+        'black-forest-labs/FLUX.1-schnell',
+      );
+    });
+    // A hosted route must never surface the local backend-offline warning.
+    expect(screen.queryByTestId('generate-preflight-warning')).not.toBeInTheDocument();
+  });
+
   it('routes generation through the timeline runner when a timeline target is selected', async () => {
     seedTimelineTargetClip();
     vi.mocked(runTimelineClipGeneration).mockResolvedValue({

@@ -1081,7 +1081,19 @@ export function GeneratePanel() {
   const openRouterImageEnabled =
     imageConfig.generationType === 'image' &&
     activeAccount?.preferences.imageGenerationProvider === 'openrouter';
+  const huggingFaceImageEnabled =
+    imageConfig.generationType === 'image' &&
+    activeAccount?.preferences.imageGenerationProvider === 'huggingface';
+  const huggingFaceVideoEnabled =
+    imageConfig.generationType === 'video' &&
+    activeAccount?.preferences.videoGenerationProvider === 'huggingface';
+  // Any route that runs entirely off-device. These bypass the local backend,
+  // so backend-offline state and local runtime preflight must not gate them.
+  const hostedImageEnabled = openRouterImageEnabled || huggingFaceImageEnabled;
+  const hostedRouteEnabled = hostedImageEnabled || huggingFaceVideoEnabled;
   const openRouterImageModel = activeAccount?.preferences.openRouterImageModel.trim() ?? '';
+  const huggingFaceImageModel = activeAccount?.preferences.huggingFaceImageModel?.trim() ?? '';
+  const huggingFaceVideoModel = activeAccount?.preferences.huggingFaceVideoModel?.trim() ?? '';
   const openRouterImageWarning = openRouterImageEnabled
     ? !activeAccount?.openRouter.apiKeyStored
       ? 'OpenRouter is selected for still images, but no API key is stored for the active account.'
@@ -1095,17 +1107,46 @@ export function GeneratePanel() {
           ? 'OpenRouter still-image routing currently supports prompt-only generations. Switch the active account back to Local for ControlNet, inpaint, or reference-image passes.'
           : null
     : null;
+  // HuggingFace runs ControlNet + inpaint in the main process; only
+  // reference-image (img2img) passes and misconfigured layers stay local.
+  const huggingFaceImageWarning = huggingFaceImageEnabled
+    ? !activeAccount?.huggingFace?.tokenStored
+      ? 'HuggingFace is selected for still images, but no token is stored for the active account.'
+      : !huggingFaceImageModel
+        ? 'Select a HuggingFace still-image model in Settings before generating.'
+        : resolvedCanvasControlLayers.referenceImages.length > 0 ||
+            resolvedCanvasControlLayers.errors.length > 0
+          ? 'HuggingFace image routing supports prompt-only, ControlNet, and inpaint. Switch the active account back to Local for reference-image (img2img) passes.'
+          : null
+    : null;
+  const huggingFaceVideoWarning = huggingFaceVideoEnabled
+    ? !activeAccount?.huggingFace?.tokenStored
+      ? 'HuggingFace is selected for video, but no token is stored for the active account.'
+      : !huggingFaceVideoModel
+        ? 'Select a HuggingFace video model in Settings before generating.'
+        : null
+    : null;
+  const hostedRouteWarning = openRouterImageWarning ?? huggingFaceImageWarning ?? huggingFaceVideoWarning;
   const currentModel = imageConfig.generationType === 'image'
     ? openRouterImageEnabled
       ? openRouterImageModel || 'OpenRouter model not set'
-      : imageConfig.model
-    : imageConfig.videoModel;
-  const videoModelRequiresReference = imageConfig.generationType === 'video' && imageConfig.videoModel === 'svd';
+      : huggingFaceImageEnabled
+        ? huggingFaceImageModel || 'HuggingFace model not set'
+        : imageConfig.model
+    : huggingFaceVideoEnabled
+      ? huggingFaceVideoModel || 'HuggingFace model not set'
+      : imageConfig.videoModel;
+  // SVD's reference requirement is a local-pipeline rule; hosted video routes
+  // do not run the SVD checkpoint, so the rule must not gate them.
+  const videoModelRequiresReference =
+    imageConfig.generationType === 'video' && !huggingFaceVideoEnabled && imageConfig.videoModel === 'svd';
   const estimatedDuration = imageConfig.generationType === 'image'
-    ? openRouterImageEnabled
+    ? hostedImageEnabled
       ? '30-90s'
       : '15-30s'
-    : '2-5min';
+    : huggingFaceVideoEnabled
+      ? '1-3min'
+      : '2-5min';
   const collapsedGenerateSections = layoutPreferences.collapsedGenerateSections;
 
   const isGenerateSectionCollapsed = useCallback(
@@ -1138,12 +1179,10 @@ export function GeneratePanel() {
     : activeTimelineSequence
       ? `Append to ${activeTimelineSequence.name}`
       : null;
-  const footerWarning = !systemInfo.backendConnected
-    ? openRouterImageEnabled
-      ? openRouterImageWarning
-      : 'Backend offline. Start it from Settings before generating.'
-    : openRouterImageEnabled
-      ? openRouterImageWarning
+  const footerWarning = hostedRouteEnabled
+    ? hostedRouteWarning
+    : !systemInfo.backendConnected
+      ? 'Backend offline. Start it from Settings before generating.'
       : imageConfig.generationType === 'image' && resolvedCanvasControlLayers.errors.length > 0
         ? resolvedCanvasControlLayers.errors[0]
         : videoModelRequiresReference && !motionReferenceImage
@@ -1157,12 +1196,21 @@ export function GeneratePanel() {
         ? `Ready to generate ${imageConfig.generationType} to the timeline`
         : openRouterImageEnabled
           ? 'Ready to generate image with OpenRouter'
-        : `Ready to generate ${imageConfig.generationType}`;
+          : huggingFaceImageEnabled
+            ? 'Ready to generate image with HuggingFace'
+            : huggingFaceVideoEnabled
+              ? 'Ready to generate video with HuggingFace'
+              : `Ready to generate ${imageConfig.generationType}`;
   const footerMeta = `${currentModel} / ${dimensions.width} x ${dimensions.height}`;
+  const byokSupportLabel = openRouterImageEnabled
+    ? 'OpenRouter BYOK'
+    : huggingFaceImageEnabled || huggingFaceVideoEnabled
+      ? 'HuggingFace BYOK'
+      : null;
   const footerSupportMeta = [
-    openRouterImageEnabled ? 'OpenRouter BYOK' : `${isGpuAvailable ? 'GPU' : 'CPU'} mode`,
+    byokSupportLabel ?? `${isGpuAvailable ? 'GPU' : 'CPU'} mode`,
     `~${estimatedDuration}`,
-    genStatus.isGenerating && !openRouterImageEnabled
+    genStatus.isGenerating && !hostedRouteEnabled
       ? `Step ${Math.max(genStatus.step, 1)}/${advancedGeneration.steps}`
       : null,
   ].filter(Boolean).join(' / ');
@@ -1567,9 +1615,10 @@ export function GeneratePanel() {
         </div>
 
         {/* Run-readiness preflight (M5): resolves the local runtime plan for
-            the selected model. OpenRouter routes bypass the local pipeline,
-            so no local model id is in play there. */}
-        <PreflightFooter modelId={openRouterImageEnabled ? null : currentModel} />
+            the selected model. Hosted routes (OpenRouter, HuggingFace image,
+            HuggingFace video) bypass the local pipeline, so no local model id
+            is in play there. */}
+        <PreflightFooter modelId={hostedRouteEnabled ? null : currentModel} />
 
         <AnimatePresence mode="wait">
           {genStatus.isGenerating ? (
