@@ -10,7 +10,11 @@ import type { ClipGenerationBinding, TimelineClip, TimelineSequence, TimelineTra
 import { computeDimensions } from '@/types/resolution';
 import { SVD_REFERENCE_ERROR } from '@/features/generate/validation';
 import { resolveCanvasControlLayers } from '@/features/generation/resolveCanvasControlLayers';
-import { getActiveUserAccount, resolveStillImageRoute } from '@/features/accounts/providerRouting';
+import {
+  getActiveUserAccount,
+  isHostedStillImageRoute,
+  resolveStillImageRoute,
+} from '@/features/accounts/providerRouting';
 import {
   delay,
   getOutputAssetId,
@@ -23,12 +27,13 @@ type TimelineStore = UseBoundStore<StoreApi<AppState>>;
 /**
  * Poll budgets: max wall time before the runner gives up waiting on the
  * job. Multiplied against pollIntervalMs (default 500ms) inside the poll
- * loop, so the local-backend budget is ~60s and the OpenRouter budget is
- * ~120s. OpenRouter gets the longer ceiling because hosted image generation
- * has higher tail latency than the local CUDA path.
+ * loop, so the local-backend budget is ~60s and the hosted budget is
+ * ~120s. Hosted routes (OpenRouter, HuggingFace) get the longer ceiling
+ * because off-device image generation has higher tail latency than the
+ * local CUDA path.
  */
 const MAX_POLL_ATTEMPTS_LOCAL_BACKEND = 120;
-const MAX_POLL_ATTEMPTS_OPENROUTER = 240;
+const MAX_POLL_ATTEMPTS_HOSTED = 240;
 
 type GenerationType = 'image' | 'video';
 type TimelineGenerationOperation = 'generate' | 'regenerate' | 'variant' | 'extend' | 'retake';
@@ -229,7 +234,7 @@ export async function runTimelineClipGeneration({
       : resolved;
   const providerResolved =
     effectiveResolved.generationType === 'image' &&
-    stillImageRoute.provider === 'openrouter' &&
+    isHostedStillImageRoute(stillImageRoute) &&
     stillImageRoute.model
       ? {
           ...effectiveResolved,
@@ -245,12 +250,16 @@ export async function runTimelineClipGeneration({
 
   if (
     !state.systemInfo.backendConnected &&
-    (providerResolved.generationType !== 'image' || stillImageRoute.provider !== 'openrouter')
+    (providerResolved.generationType !== 'image' || !isHostedStillImageRoute(stillImageRoute))
   ) {
     throw new Error('The AI backend is not running.');
   }
 
-  if (providerResolved.generationType === 'image' && stillImageRoute.provider === 'openrouter' && stillImageRoute.error) {
+  if (
+    providerResolved.generationType === 'image' &&
+    isHostedStillImageRoute(stillImageRoute) &&
+    stillImageRoute.error
+  ) {
     throw new Error(stillImageRoute.error);
   }
 
@@ -464,9 +473,9 @@ export async function runTimelineClipGeneration({
   });
 
   const isHostedImageRoute =
-    providerResolved.generationType === 'image' && stillImageRoute.provider === 'openrouter';
+    providerResolved.generationType === 'image' && isHostedStillImageRoute(stillImageRoute);
   const maxPollAttempts = isHostedImageRoute
-    ? MAX_POLL_ATTEMPTS_OPENROUTER
+    ? MAX_POLL_ATTEMPTS_HOSTED
     : MAX_POLL_ATTEMPTS_LOCAL_BACKEND;
 
   let finalStatus: JobStatus | null = null;

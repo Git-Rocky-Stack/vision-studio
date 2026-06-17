@@ -4,6 +4,7 @@ import type { UserAccountSummary, UserAccountsSnapshot } from '@/types/electron'
 
 import {
   getActiveUserAccount,
+  isHostedStillImageRoute,
   resolvePromptEnhancementRoute,
   resolveStillImageRoute,
 } from './providerRouting';
@@ -110,6 +111,85 @@ describe('providerRouting', () => {
 
     expect(route.configured).toBe(false);
     expect(route.error).toContain('Select an OpenRouter still-image model');
+  });
+
+  it('marks the still-image route ready when a HuggingFace account is configured', () => {
+    const route = resolveStillImageRoute(
+      makeAccount({
+        preferences: {
+          imageGenerationProvider: 'huggingface',
+          huggingFaceImageModel: 'black-forest-labs/FLUX.1-schnell',
+        },
+        huggingFace: { tokenStored: true, keyLabel: 'HF Key', lastValidatedAt: null },
+      }),
+    );
+
+    expect(route).toMatchObject({
+      provider: 'huggingface',
+      configured: true,
+      supportsOffline: true,
+      model: 'black-forest-labs/FLUX.1-schnell',
+      error: null,
+    });
+  });
+
+  it('flags the HuggingFace still-image route when no token is stored', () => {
+    const route = resolveStillImageRoute(
+      makeAccount({
+        preferences: {
+          imageGenerationProvider: 'huggingface',
+          huggingFaceImageModel: 'black-forest-labs/FLUX.1-schnell',
+        },
+      }),
+    );
+
+    expect(route.provider).toBe('huggingface');
+    expect(route.configured).toBe(false);
+    expect(route.error).toContain('no token is stored');
+  });
+
+  it('flags the HuggingFace still-image route when no model is selected', () => {
+    const route = resolveStillImageRoute(
+      makeAccount({
+        preferences: {
+          imageGenerationProvider: 'huggingface',
+          huggingFaceImageModel: '',
+        },
+        huggingFace: { tokenStored: true, keyLabel: 'HF Key', lastValidatedAt: null },
+      }),
+    );
+
+    expect(route.configured).toBe(false);
+    expect(route.error).toContain('Select a HuggingFace image model');
+  });
+
+  it('treats OpenRouter and HuggingFace as hosted routes, local as not hosted', () => {
+    const openRouter = resolveStillImageRoute(
+      makeAccount({
+        preferences: { imageGenerationProvider: 'openrouter', openRouterImageModel: 'x' },
+        openRouter: { apiKeyStored: true, keyLabel: 'k', lastValidatedAt: null },
+      }),
+    );
+    const huggingFace = resolveStillImageRoute(
+      makeAccount({
+        preferences: { imageGenerationProvider: 'huggingface', huggingFaceImageModel: 'm' },
+        huggingFace: { tokenStored: true, keyLabel: 'k', lastValidatedAt: null },
+      }),
+    );
+    const local = resolveStillImageRoute(makeAccount());
+
+    expect(isHostedStillImageRoute(openRouter)).toBe(true);
+    expect(isHostedStillImageRoute(huggingFace)).toBe(true);
+    expect(isHostedStillImageRoute(local)).toBe(false);
+  });
+
+  it('treats a misconfigured HuggingFace route as hosted (config error, not a backend error)', () => {
+    const huggingFace = resolveStillImageRoute(
+      makeAccount({ preferences: { imageGenerationProvider: 'huggingface' } }),
+    );
+
+    expect(isHostedStillImageRoute(huggingFace)).toBe(true);
+    expect(huggingFace.configured).toBe(false);
   });
 
   it('returns a configuration error when the OpenRouter prompt route is missing an API key', () => {

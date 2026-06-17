@@ -435,6 +435,62 @@ describe('runTimelineClipGeneration', () => {
     );
   });
 
+  it('routes a HuggingFace still-image timeline generation through the HF model while offline', async () => {
+    useAppStore.setState((state) => ({
+      systemInfo: {
+        ...state.systemInfo,
+        backendConnected: false,
+      },
+    }));
+
+    const { sequence, clip } = seedImageTimelineClip();
+    const electron = makeElectronGenerationMock({
+      huggingFaceImageEnabled: true,
+      huggingFaceImageModel: 'black-forest-labs/FLUX.1-schnell',
+      submitImage: { success: true, jobId: 'timeline-image-job-hf' },
+      statuses: [
+        {
+          job_id: 'timeline-image-job-hf',
+          status: 'completed',
+          type: 'image',
+          created_at: '2026-04-24T08:30:00.000Z',
+          completed_at: '2026-04-24T08:30:03.000Z',
+          progress: 100,
+          result: {
+            images: ['/outputs/timeline-image-job-hf/frame.png'],
+          },
+        },
+      ],
+    });
+
+    await runTimelineClipGeneration({
+      operation: 'generate',
+      clipId: clip.id,
+      sequenceId: sequence.id,
+      input: {
+        prompt: 'hero portrait cleanup',
+        generationType: 'image',
+        model: 'flux-dev',
+        width: 1280,
+        height: 720,
+        steps: 25,
+        cfgScale: 7.5,
+        scheduler: 'Euler a',
+        seed: 9,
+      },
+      electron,
+      pollIntervalMs: 0,
+    });
+
+    // Backend offline must not block the hosted route, and the local checkpoint
+    // id must be replaced by the account's HuggingFace image model.
+    expect(electron.generation.generateImage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        model: 'black-forest-labs/FLUX.1-schnell',
+      }),
+    );
+  });
+
   it('bails before submitting any HTTP call when the signal is pre-aborted', async () => {
     const { sequence, clip } = seedImageTimelineClip();
     const electron = makeElectronGenerationMock({
@@ -950,8 +1006,18 @@ function makeElectronGenerationMock(options: {
   submitVideo?: { success: boolean; jobId?: string; error?: string };
   statuses?: Array<Record<string, unknown>>;
   openRouterImageEnabled?: boolean;
+  huggingFaceImageEnabled?: boolean;
+  huggingFaceImageModel?: string;
 }) {
   const statuses = [...(options.statuses ?? [])];
+  const imageGenerationProvider = options.huggingFaceImageEnabled
+    ? 'huggingface'
+    : options.openRouterImageEnabled
+      ? 'openrouter'
+      : 'local';
+  const huggingFaceImageModel = options.huggingFaceImageEnabled
+    ? options.huggingFaceImageModel ?? 'black-forest-labs/FLUX.1-schnell'
+    : '';
 
   return {
     app: {
@@ -974,13 +1040,23 @@ function makeElectronGenerationMock(options: {
             preferences: {
               promptEnhancementProvider: 'local',
               openRouterModel: '',
-              imageGenerationProvider: options.openRouterImageEnabled ? 'openrouter' : 'local',
+              imageGenerationProvider,
+              videoGenerationProvider: 'local',
               openRouterImageModel: options.openRouterImageEnabled ? 'google/gemini-2.5-flash-image' : '',
+              huggingFaceModel: '',
+              huggingFaceImageModel,
+              huggingFaceVideoModel: '',
+              fallbackProvider: null,
             },
             openRouter: {
               apiKeyStored: options.openRouterImageEnabled ?? false,
               keyLabel: options.openRouterImageEnabled ? 'Primary Key' : null,
               lastValidatedAt: options.openRouterImageEnabled ? '2026-04-24T00:00:00.000Z' : null,
+            },
+            huggingFace: {
+              tokenStored: options.huggingFaceImageEnabled ?? false,
+              keyLabel: options.huggingFaceImageEnabled ? 'HF Key' : null,
+              lastValidatedAt: null,
             },
           },
         ],

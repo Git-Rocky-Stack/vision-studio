@@ -22,8 +22,55 @@ export function getActiveUserAccount(snapshot?: UserAccountsSnapshot | null) {
   return accounts.find((account) => account.id === snapshot.activeAccountId) ?? accounts[0] ?? null;
 }
 
+/**
+ * A hosted still-image route (OpenRouter or HuggingFace) runs entirely off-device
+ * and does NOT require the local backend. Consumers use this to decide whether a
+ * backend-offline state blocks generation and whether to override the request
+ * model with the account's hosted model. Local routes return false.
+ */
+export function isHostedStillImageRoute(route: ProviderRouteState): boolean {
+  return route.provider !== 'local';
+}
+
 export function resolveStillImageRoute(activeAccount: UserAccountSummary | null): ProviderRouteState {
   const provider = activeAccount?.preferences.imageGenerationProvider ?? 'local';
+
+  if (provider === 'huggingface') {
+    const huggingFaceModel = activeAccount?.preferences.huggingFaceImageModel.trim() ?? '';
+    const tokenStored = Boolean(activeAccount?.huggingFace?.tokenStored);
+    if (!tokenStored) {
+      return {
+        activeAccount,
+        provider,
+        providerLabel: 'HuggingFace Still Image Route',
+        model: huggingFaceModel,
+        configured: false,
+        supportsOffline: true,
+        error: 'HuggingFace is selected for still images, but no token is stored for the active account.',
+      };
+    }
+    if (!huggingFaceModel) {
+      return {
+        activeAccount,
+        provider,
+        providerLabel: 'HuggingFace Still Image Route',
+        model: huggingFaceModel,
+        configured: false,
+        supportsOffline: true,
+        error: 'Select a HuggingFace image model for the active account before generating.',
+      };
+    }
+    return {
+      activeAccount,
+      provider,
+      providerLabel: 'HuggingFace Still Image Route',
+      model: huggingFaceModel,
+      configured: true,
+      supportsOffline: true,
+      error: null,
+    };
+  }
+
   const model = activeAccount?.preferences.openRouterImageModel.trim() ?? '';
 
   if (provider !== 'openrouter') {
