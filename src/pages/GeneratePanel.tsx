@@ -28,6 +28,10 @@ import {
   recordPollSuccess,
 } from '@/features/generation/pollErrorBudget';
 import type { ControlNetConfig, ImageGenerationRequestPayload, LoRAConfig } from '@/types/generation';
+import { resolveRoute } from '../../shared/resolveRoute';
+import { buildRouteResolverInput } from '@/features/routing/buildRouteResolverInput';
+import { OverBudgetFallbackDialog } from '@/components/generate/OverBudgetFallbackDialog';
+import type { ProviderId, FitVerdict } from '../../shared/providerRouting';
 import type { GenerateCollapsibleSectionId } from '@/store/layoutPreferences';
 import type { UserAccountSummary } from '@/types/electron';
 import type { MediaAsset, ReferenceSet } from '@/types/media';
@@ -304,6 +308,8 @@ export function GeneratePanel() {
 
   const pollingTimeoutRef = useRef<ReturnType<typeof setTimeout>>(null);
   const isGeneratingRef = useRef(false);
+  const forcedRouteRef = useRef<ProviderId | null>(null);
+  const [overBudgetCandidates, setOverBudgetCandidates] = useState<ProviderId[] | null>(null);
   // Cap consecutive getStatus failures so a persistent backend outage
   // does not leave the renderer polling forever in a hidden setTimeout
   // chain. Reset on every successful poll so a flapping connection stays
@@ -554,19 +560,27 @@ export function GeneratePanel() {
     if (isGeneratingRef.current) return;
     isGeneratingRef.current = true;
 
+    const forcedRoute = forcedRouteRef.current;
+    forcedRouteRef.current = null;
+
     const latestActiveAccount =
       imageConfig.generationType === 'image' ? await syncActiveAccount() : activeAccount;
+    const savedImageProvider = latestActiveAccount?.preferences.imageGenerationProvider ?? 'local';
+    const effectiveImageProvider = forcedRoute ?? savedImageProvider;
     const useOpenRouterImage =
-      imageConfig.generationType === 'image' &&
-      latestActiveAccount?.preferences.imageGenerationProvider === 'openrouter';
+      imageConfig.generationType === 'image' && effectiveImageProvider === 'openrouter';
+    const useHuggingFaceImage =
+      imageConfig.generationType === 'image' && effectiveImageProvider === 'huggingface';
     const openRouterImageModel = latestActiveAccount?.preferences.openRouterImageModel.trim() ?? '';
+    const huggingFaceImageModel = latestActiveAccount?.preferences.huggingFaceImageModel?.trim() ?? '';
+    const hostedImageModel = useHuggingFaceImage ? huggingFaceImageModel : openRouterImageModel;
     const requestedModelId =
       imageConfig.generationType === 'image'
-        ? useOpenRouterImage
-          ? openRouterImageModel
+        ? useOpenRouterImage || useHuggingFaceImage
+          ? hostedImageModel
           : imageConfig.model
         : imageConfig.videoModel;
-    const openRouterUnsupportedInputs =
+    const hostedUnsupportedInputs =
       imageConfig.generationType === 'image' &&
       (resolvedCanvasControlLayers.visibleLayerCount > 0 ||
         resolvedCanvasControlLayers.controlnet.length > 0 ||
@@ -594,18 +608,38 @@ export function GeneratePanel() {
       return;
     }
 
-    if (useOpenRouterImage && openRouterUnsupportedInputs) {
+    if (useHuggingFaceImage && !latestActiveAccount?.huggingFace?.tokenStored) {
       updateGenStatus({
         status: 'error',
-        errorMessage:
-          'OpenRouter still-image routing currently supports prompt-only generations. Switch the active account back to Local for ControlNet, inpaint, or reference-image passes.',
+        errorMessage: 'HuggingFace is selected for still images, but no token is stored for the active account.',
         isGenerating: false,
       });
       isGeneratingRef.current = false;
       return;
     }
 
-    if (!systemInfo.backendConnected && !useOpenRouterImage) {
+    if (useHuggingFaceImage && !huggingFaceImageModel) {
+      updateGenStatus({
+        status: 'error',
+        errorMessage: 'Select a HuggingFace still-image model in Settings before generating.',
+        isGenerating: false,
+      });
+      isGeneratingRef.current = false;
+      return;
+    }
+
+    if ((useOpenRouterImage || useHuggingFaceImage) && hostedUnsupportedInputs) {
+      updateGenStatus({
+        status: 'error',
+        errorMessage:
+          'Hosted still-image routing currently supports prompt-only generations. Switch the active account back to Local for ControlNet, inpaint, or reference-image passes.',
+        isGenerating: false,
+      });
+      isGeneratingRef.current = false;
+      return;
+    }
+
+    if (!systemInfo.backendConnected && !useOpenRouterImage && !useHuggingFaceImage) {
       updateGenStatus({
         status: 'error',
         errorMessage: 'The AI backend is not running. Please restart the app or start the backend from Settings.',
@@ -613,6 +647,43 @@ export function GeneratePanel() {
       });
       isGeneratingRef.current = false;
       return;
+    }
+
+    if (!forcedRoute && imageConfig.generationType === 'image' && effectiveImageProvider === 'local') {
+      const autoRouteOnOverBudget = Boolean(
+        (await window.electron.settings.get()).autoRouteOnOverBudget,
+      );
+      let fit: FitVerdict | null;
+      try {
+        const plan = (await window.electron.models.resolveRuntime(imageConfig.model)) as
+          | { fit?: string | null }
+          | null;
+        const rawFit = plan?.fit ?? null;
+        fit = rawFit ? (rawFit as FitVerdict) : null;
+      } catch {
+        fit = null;
+      }
+      const decision = resolveRoute(
+        buildRouteResolverInput({
+          account: latestActiveAccount ?? null,
+          modality: 'still-image',
+          requested: 'local',
+          autoRouteOnOverBudget,
+          fit,
+        }),
+      );
+      if (!decision.ok && decision.kind === 'fallback-prompt') {
+        setOverBudgetCandidates(decision.candidates);
+        updateGenStatus({ isGenerating: false });
+        isGeneratingRef.current = false;
+        return;
+      }
+      if (decision.ok && decision.reason === 'fallback-auto') {
+        forcedRouteRef.current = decision.provider;
+        isGeneratingRef.current = false;
+        void handleGenerate();
+        return;
+      }
     }
 
     updateGenStatus({
@@ -685,7 +756,7 @@ export function GeneratePanel() {
           steps: advancedGeneration.steps,
           cfg_scale: advancedGeneration.cfgScale,
           seed: advancedGeneration.seed === -1 ? undefined : advancedGeneration.seed,
-          model: useOpenRouterImage ? openRouterImageModel : imageConfig.model,
+          model: useOpenRouterImage || useHuggingFaceImage ? hostedImageModel : imageConfig.model,
           scheduler: advancedGeneration.scheduler,
           ...(resolvedCanvasControlLayers.controlnet.length > 0
             ? { controlnet: resolvedCanvasControlLayers.controlnet }
@@ -700,6 +771,7 @@ export function GeneratePanel() {
                 inpaint: resolvedCanvasControlLayers.inpaint,
               }
             : {}),
+          ...(forcedRoute && forcedRoute !== 'local' ? { __providerOverride: forcedRoute } : {}),
         };
 
         const result = await window.electron.generation.generateImage(imageRequest);
@@ -775,6 +847,22 @@ export function GeneratePanel() {
       });
       isGeneratingRef.current = false;
     }
+  };
+
+  const handleOverBudgetRouteTo = (provider: ProviderId) => {
+    forcedRouteRef.current = provider;
+    setOverBudgetCandidates(null);
+    void handleGenerate();
+  };
+
+  const handleOverBudgetRunLocally = () => {
+    forcedRouteRef.current = 'local';
+    setOverBudgetCandidates(null);
+    void handleGenerate();
+  };
+
+  const handleOverBudgetCancel = () => {
+    setOverBudgetCandidates(null);
   };
 
   const pollJobStatus = useCallback(async (jobId: string) => {
@@ -1050,6 +1138,14 @@ export function GeneratePanel() {
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-panel" data-testid="generate-panel">
       <h1 className="sr-only">Generate</h1>
+
+      <OverBudgetFallbackDialog
+        open={overBudgetCandidates !== null}
+        candidates={overBudgetCandidates ?? []}
+        onRouteTo={handleOverBudgetRouteTo}
+        onRunLocally={handleOverBudgetRunLocally}
+        onCancel={handleOverBudgetCancel}
+      />
 
       <div className="border-b border-border bg-panel px-3 py-3">
         <div className="raised-panel px-3 py-2.5">

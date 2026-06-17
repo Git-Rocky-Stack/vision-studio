@@ -1,0 +1,149 @@
+import { describe, expect, it, vi } from 'vitest';
+import { createHuggingFaceInferenceService } from './huggingfaceInference';
+
+const PNG_MAGIC = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x01]);
+
+describe('createHuggingFaceInferenceService.getKeyInfo', () => {
+  it('reads the account label and never echoes the token', async () => {
+    const axiosInstance = {
+      get: vi.fn().mockResolvedValue({
+        data: { name: 'rocky', fullname: 'Rocky E', auth: { accessToken: { displayName: 'vision-studio' } } },
+      }),
+      post: vi.fn(),
+    };
+    const service = createHuggingFaceInferenceService({ axiosInstance });
+
+    const info = await service.getKeyInfo('hf_secrettoken');
+
+    expect(info.label).toBe('rocky');
+    expect(JSON.stringify(info)).not.toContain('hf_secrettoken');
+    const calledUrl = axiosInstance.get.mock.calls[0][0] as string;
+    const calledHeaders = (axiosInstance.get.mock.calls[0][1] as { headers: Record<string, string> }).headers;
+    expect(calledUrl).toContain('whoami');
+    expect(calledHeaders.Authorization).toBe('Bearer hf_secrettoken');
+  });
+
+  it('maps an auth failure to a sanitized error that omits the token', async () => {
+    const error = new Error('HTTP 401') as Error & { response: unknown };
+    (error as { response: unknown }).response = {
+      status: 401,
+      headers: {},
+      data: { error: 'Invalid token hf_secrettoken' },
+    };
+    const axiosInstance = { get: vi.fn().mockRejectedValue(error), post: vi.fn() };
+    const service = createHuggingFaceInferenceService({ axiosInstance });
+
+    await expect(service.getKeyInfo('hf_secrettoken')).rejects.toThrow(/HuggingFace/);
+    await service.getKeyInfo('hf_secrettoken').catch((thrown: unknown) => {
+      expect(String(thrown)).not.toContain('hf_secrettoken');
+    });
+  });
+});
+
+describe('createHuggingFaceInferenceService.listImageModels', () => {
+  it('returns curated image-capable defaults', async () => {
+    const service = createHuggingFaceInferenceService({ axiosInstance: { get: vi.fn(), post: vi.fn() } });
+    const models = await service.listImageModels('hf_token');
+    expect(models.length).toBeGreaterThan(0);
+    expect(models.every((model) => typeof model.id === 'string' && model.id.includes('/'))).toBe(true);
+  });
+});
+
+describe('createHuggingFaceInferenceService.enhancePrompt', () => {
+  it('calls the OpenAI-compatible chat endpoint and parses JSON output', async () => {
+    const axiosInstance = {
+      get: vi.fn(),
+      post: vi.fn().mockResolvedValue({
+        data: {
+          choices: [
+            { message: { content: JSON.stringify({ prompt: 'dramatic portrait, crisp detail', variations: [] }) } },
+          ],
+          usage: { prompt_tokens: 10, completion_tokens: 8, total_tokens: 18 },
+        },
+      }),
+    };
+    const service = createHuggingFaceInferenceService({ axiosInstance });
+
+    const result = await service.enhancePrompt({
+      token: 'hf_token',
+      prompt: 'dramatic portrait',
+      mode: 'clarify',
+      model: 'meta-llama/Llama-3.1-8B-Instruct',
+    });
+
+    expect(result.prompt).toBe('dramatic portrait, crisp detail');
+    expect(result.usage?.totalTokens).toBe(18);
+    const url = axiosInstance.post.mock.calls[0][0] as string;
+    expect(url).toContain('/chat/completions');
+  });
+
+  it('rejects an over-long prompt before any network call', async () => {
+    const axiosInstance = { get: vi.fn(), post: vi.fn() };
+    const service = createHuggingFaceInferenceService({ axiosInstance });
+    await expect(
+      service.enhancePrompt({ token: 'hf_token', prompt: 'x'.repeat(9000), mode: 'clarify' }),
+    ).rejects.toThrow(/character limit/);
+    expect(axiosInstance.post).not.toHaveBeenCalled();
+  });
+});
+
+describe('createHuggingFaceInferenceService.suggestNegativePrompt', () => {
+  it('parses a structured negative-prompt suggestion', async () => {
+    const axiosInstance = {
+      get: vi.fn(),
+      post: vi.fn().mockResolvedValue({
+        data: {
+          choices: [
+            { message: { content: JSON.stringify({ negativePrompt: 'blurry, low quality', suggestions: ['blurry', 'low quality'] }) } },
+          ],
+        },
+      }),
+    };
+    const service = createHuggingFaceInferenceService({ axiosInstance });
+    const result = await service.suggestNegativePrompt({ token: 'hf_token', prompt: 'a castle' });
+    expect(result.negativePrompt).toBe('blurry, low quality');
+    expect(result.suggestions).toEqual(['blurry', 'low quality']);
+  });
+});
+
+describe('createHuggingFaceInferenceService.generateImage', () => {
+  it('normalizes returned bytes to a png data URL', async () => {
+    const axiosInstance = {
+      get: vi.fn(),
+      post: vi.fn().mockResolvedValue({ data: PNG_MAGIC, headers: { 'content-type': 'image/png' } }),
+    };
+    const service = createHuggingFaceInferenceService({ axiosInstance });
+
+    const result = await service.generateImage({
+      token: 'hf_token',
+      model: 'black-forest-labs/FLUX.1-schnell',
+      prompt: 'a tree',
+      width: 1024,
+      height: 1024,
+    });
+
+    expect(result.images).toHaveLength(1);
+    expect(result.images[0].mimeType).toBe('image/png');
+    expect(result.images[0].dataUrl.startsWith('data:image/png;base64,')).toBe(true);
+  });
+
+  it('rejects a non-image response body (sanitization)', async () => {
+    const axiosInstance = {
+      get: vi.fn(),
+      post: vi.fn().mockResolvedValue({ data: Buffer.from('{"error":"loading"}'), headers: { 'content-type': 'application/json' } }),
+    };
+    const service = createHuggingFaceInferenceService({ axiosInstance });
+    await expect(
+      service.generateImage({ token: 'hf_token', model: 'm/x', prompt: 'a tree', width: 512, height: 512 }),
+    ).rejects.toThrow(/did not return a valid image|failed/i);
+  });
+
+  it('rejects an empty prompt before any network call', async () => {
+    const axiosInstance = { get: vi.fn(), post: vi.fn() };
+    const service = createHuggingFaceInferenceService({ axiosInstance });
+    await expect(
+      service.generateImage({ token: 'hf_token', model: 'm/x', prompt: '   ', width: 512, height: 512 }),
+    ).rejects.toThrow(/empty/i);
+    expect(axiosInstance.post).not.toHaveBeenCalled();
+  });
+});

@@ -10,6 +10,7 @@ import {
 } from '../services/backendAuth';
 import { toSafeRendererError } from '../services/security';
 import type { createOpenRouterService } from '../services/openRouter';
+import type { createHuggingFaceInferenceService } from '../services/huggingfaceInference';
 import type { createOutputRootService } from '../services/outputRoots';
 import type { createUserAccountsService } from '../services/userAccounts';
 import { submitBatch } from './submitBatch';
@@ -20,12 +21,14 @@ import {
   OPENROUTER_IMAGE_UNSUPPORTED_MESSAGE,
   OPENROUTER_JOB_PREFIX,
   hasUnsupportedOpenRouterImageInputs,
-  isOpenRouterJobId,
   isTerminalJobStatus,
 } from './openRouterImageRouting';
 import { createOpenRouterImageJobStore } from './openRouterImageJobs';
 import { suggestNegativePromptFromHeuristics } from './negativePromptHeuristics';
 import { runOpenRouterImageJob } from './runOpenRouterImageJob';
+import { createHuggingFaceImageJobStore } from './huggingfaceImageJobs';
+import { runHuggingFaceImageJob } from './runHuggingFaceImageJob';
+import { HUGGINGFACE_JOB_PREFIX, routedJobProvider } from './hostedImageRouting';
 
 void _BACKEND_DOWN_MESSAGE; // Re-exported by callers via './backendRequest'.
 
@@ -68,6 +71,31 @@ function dispatchOpenRouterImageJob(jobId: string, params: Record<string, unknow
   });
 }
 
+type HuggingFaceService = ReturnType<typeof createHuggingFaceInferenceService>;
+let huggingFaceService: HuggingFaceService | null = null;
+
+const huggingFaceImageJobStore = createHuggingFaceImageJobStore({
+  emit: (channel, payload) => mainWindow?.webContents.send(channel, payload),
+});
+
+function dispatchHuggingFaceImageJob(jobId: string, params: Record<string, unknown>) {
+  if (!userAccountsService || !huggingFaceService || !outputRootService) {
+    huggingFaceImageJobStore.patch(jobId, {
+      status: 'failed',
+      progress: 100,
+      completed_at: new Date().toISOString(),
+      error: 'HuggingFace is selected, but the active account is not fully configured.',
+    });
+    return;
+  }
+  void runHuggingFaceImageJob(jobId, params, {
+    store: huggingFaceImageJobStore,
+    userAccounts: userAccountsService,
+    huggingFace: huggingFaceService,
+    outputRoots: outputRootService,
+  });
+}
+
 export function setupGenerationHandlers(window: BrowserWindow) {
   mainWindow = window;
   connectWebSocket();
@@ -76,14 +104,17 @@ export function setupGenerationHandlers(window: BrowserWindow) {
 export function configureGenerationHandlerServices({
   userAccounts,
   openRouter,
+  huggingFace,
   outputRoots,
 }: {
   userAccounts: UserAccountsService;
   openRouter: OpenRouterService;
+  huggingFace: HuggingFaceService;
   outputRoots: OutputRootService;
 }) {
   userAccountsService = userAccounts;
   openRouterService = openRouter;
+  huggingFaceService = huggingFace;
   outputRootService = outputRoots;
 }
 
@@ -121,7 +152,12 @@ function connectWebSocket() {
 
 ipcMain.handle('generation:generate-image', async (_event, params) => {
   const activeAccount = userAccountsService?.getActiveAccount();
-  if (activeAccount?.preferences.imageGenerationProvider === 'openrouter') {
+  const providerOverride =
+    params?.__providerOverride === 'openrouter' || params?.__providerOverride === 'huggingface'
+      ? (params.__providerOverride as 'openrouter' | 'huggingface')
+      : null;
+  const effectiveImageProvider = providerOverride ?? activeAccount?.preferences.imageGenerationProvider;
+  if (activeAccount && effectiveImageProvider === 'openrouter') {
     if (hasUnsupportedOpenRouterImageInputs(params)) {
       return {
         success: false,
@@ -159,6 +195,53 @@ ipcMain.handle('generation:generate-image', async (_event, params) => {
       ...params,
       model: requestedModel,
       __openrouterAccountId: activeAccount.id,
+    });
+
+    return {
+      success: true,
+      jobId,
+    };
+  }
+
+  if (activeAccount && effectiveImageProvider === 'huggingface') {
+    if (hasUnsupportedOpenRouterImageInputs(params)) {
+      return {
+        success: false,
+        error:
+          'HuggingFace still-image routing currently supports prompt-only generations. Switch the active account back to Local for ControlNet, inpaint, or reference-image passes.',
+      };
+    }
+
+    if (!activeAccount.huggingFace.tokenStored) {
+      return {
+        success: false,
+        error: 'HuggingFace is selected for still images, but no token is stored for the active account.',
+      };
+    }
+
+    const requestedModel =
+      (typeof params?.model === 'string' && params.model.trim()) ||
+      activeAccount.preferences.huggingFaceImageModel.trim();
+    if (!requestedModel) {
+      return {
+        success: false,
+        error: 'Select a HuggingFace image model for the active account before generating.',
+      };
+    }
+
+    const jobId = `${HUGGINGFACE_JOB_PREFIX}-${crypto.randomUUID()}`;
+    huggingFaceImageJobStore.set({
+      job_id: jobId,
+      status: 'pending',
+      progress: 0,
+      type: 'image',
+      created_at: new Date().toISOString(),
+      params,
+    });
+    dispatchHuggingFaceImageJob(jobId, {
+      ...params,
+      model: requestedModel,
+      __huggingFaceAccountId: activeAccount.id,
     });
 
     return {
@@ -233,6 +316,34 @@ ipcMain.handle('generation:enhance-prompt', async (_event, params) => {
     }
   }
 
+  if (activeAccount?.preferences.promptEnhancementProvider === 'huggingface') {
+    const token = userAccountsService?.getHuggingFaceToken(activeAccount.id);
+    if (!token || !huggingFaceService) {
+      return {
+        success: false,
+        error: 'HuggingFace is selected for prompt enhancement, but no token is configured for the active account.',
+      };
+    }
+
+    try {
+      const result = await huggingFaceService.enhancePrompt({
+        token,
+        prompt: params.prompt,
+        mode: params.mode ?? 'clarify',
+        model: activeAccount.preferences.huggingFaceModel || undefined,
+      });
+      return {
+        success: true,
+        ...result,
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Prompt enhancement failed',
+      };
+    }
+  }
+
   try {
     const response = await requestBackend(() =>
       axios.post(`${BACKEND_URL}/api/prompts/enhance`, params, { headers: backendAuthHeaders() }),
@@ -274,6 +385,35 @@ ipcMain.handle('generation:suggest-negative-prompt', async (_event, params) => {
       return {
         success: false,
         error: toOpenRouterRendererMessage(error, 'Negative prompt suggestion failed'),
+      };
+    }
+  }
+
+  if (activeAccount?.preferences.promptEnhancementProvider === 'huggingface') {
+    const token = userAccountsService?.getHuggingFaceToken(activeAccount.id);
+    if (!token || !huggingFaceService) {
+      return {
+        success: false,
+        error: 'HuggingFace is selected for prompt enhancement, but no token is configured for the active account.',
+      };
+    }
+
+    try {
+      const result = await huggingFaceService.suggestNegativePrompt({
+        token,
+        prompt: params.prompt,
+        negativePrompt: params.negativePrompt,
+        model: activeAccount.preferences.huggingFaceModel || undefined,
+      });
+      return {
+        success: true,
+        ...result,
+        source: 'huggingface' as const,
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Negative prompt suggestion failed',
       };
     }
   }
@@ -425,6 +565,60 @@ ipcMain.handle('generation:batch', async (_event, params) => {
     };
   }
 
+  if (activeAccount?.preferences.imageGenerationProvider === 'huggingface') {
+    if (hasUnsupportedOpenRouterImageInputs(params)) {
+      return {
+        success: false,
+        error:
+          'HuggingFace still-image routing currently supports prompt-only generations. Switch the active account back to Local for ControlNet, inpaint, or reference-image passes.',
+      };
+    }
+
+    if (!activeAccount.huggingFace.tokenStored) {
+      return {
+        success: false,
+        error: 'HuggingFace is selected for still images, but no token is stored for the active account.',
+      };
+    }
+
+    const requestedModel =
+      (typeof params?.model === 'string' && params.model.trim()) ||
+      activeAccount.preferences.huggingFaceImageModel.trim();
+    if (!requestedModel) {
+      return {
+        success: false,
+        error: 'Select a HuggingFace still-image model for the active account before generating.',
+      };
+    }
+
+    const jobIds = prompts.map((prompt: string) => {
+      const jobId = `${HUGGINGFACE_JOB_PREFIX}-${crypto.randomUUID()}`;
+      const jobParams = {
+        ...baseParams,
+        prompt,
+        model: requestedModel,
+      };
+      huggingFaceImageJobStore.set({
+        job_id: jobId,
+        status: 'pending',
+        progress: 0,
+        type: 'image',
+        created_at: new Date().toISOString(),
+        params: jobParams,
+      });
+      dispatchHuggingFaceImageJob(jobId, {
+        ...jobParams,
+        __huggingFaceAccountId: activeAccount.id,
+      });
+      return jobId;
+    });
+
+    return {
+      success: true,
+      jobIds,
+    };
+  }
+
   try {
     const jobIds = await submitBatch(
       prompts,
@@ -458,8 +652,15 @@ ipcMain.handle('generation:batch', async (_event, params) => {
 });
 
 ipcMain.handle('generation:get-status', async (_event, jobId: string) => {
-  if (isOpenRouterJobId(jobId)) {
+  const provider = routedJobProvider(jobId);
+  if (provider === 'openrouter') {
     const status = openRouterImageJobStore.getStatus(jobId);
+    if (status) {
+      return status;
+    }
+  }
+  if (provider === 'huggingface') {
+    const status = huggingFaceImageJobStore.getStatus(jobId);
     if (status) {
       return status;
     }
@@ -480,7 +681,8 @@ ipcMain.handle('generation:get-status', async (_event, jobId: string) => {
 });
 
 ipcMain.handle('generation:cancel', async (_event, jobId: string) => {
-  if (isOpenRouterJobId(jobId)) {
+  const provider = routedJobProvider(jobId);
+  if (provider === 'openrouter') {
     const currentJob = openRouterImageJobStore.get(jobId);
     if (!currentJob) {
       return {
@@ -492,6 +694,30 @@ ipcMain.handle('generation:cancel', async (_event, jobId: string) => {
     if (!isTerminalJobStatus(currentJob.status)) {
       currentJob.abortController?.abort();
       openRouterImageJobStore.patch(jobId, {
+        status: 'cancelled',
+        progress: currentJob.progress,
+        completed_at: new Date().toISOString(),
+        abortController: undefined,
+      });
+    }
+
+    return {
+      success: true,
+    };
+  }
+
+  if (provider === 'huggingface') {
+    const currentJob = huggingFaceImageJobStore.get(jobId);
+    if (!currentJob) {
+      return {
+        success: false,
+        error: 'HuggingFace generation job not found.',
+      };
+    }
+
+    if (!isTerminalJobStatus(currentJob.status)) {
+      currentJob.abortController?.abort();
+      huggingFaceImageJobStore.patch(jobId, {
         status: 'cancelled',
         progress: currentJob.progress,
         completed_at: new Date().toISOString(),
@@ -520,9 +746,10 @@ ipcMain.handle('generation:cancel', async (_event, jobId: string) => {
 
 ipcMain.handle('generation:list-jobs', async (_event, options = {}) => {
   const { status, limit = 50 } = options as { status?: string; limit?: number };
-  const localJobs = openRouterImageJobStore
-    .values()
-    .filter((job) => !status || job.status === status);
+  const localJobs = [
+    ...openRouterImageJobStore.values(),
+    ...huggingFaceImageJobStore.values(),
+  ].filter((job) => !status || job.status === status);
 
   try {
     let url = `${BACKEND_URL}/api/jobs?limit=${limit}`;

@@ -9,6 +9,8 @@ export interface AppSettings {
   notifyOnGenerationFailed?: boolean;
   notifyOnModelDownloads?: boolean;
   pythonPath?: string;
+  /** When true, a Local over-budget job silently routes to the account fallback provider (M6 S8). */
+  autoRouteOnOverBudget?: boolean;
 }
 
 export function resolveOutputPath(

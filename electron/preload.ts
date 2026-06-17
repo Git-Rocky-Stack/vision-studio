@@ -100,16 +100,22 @@ export interface ElectronAPI {
       accountId: string,
       patch: {
         name?: string;
-        promptEnhancementProvider?: 'local' | 'openrouter';
+        promptEnhancementProvider?: 'local' | 'openrouter' | 'huggingface';
         openRouterModel?: string;
-        imageGenerationProvider?: 'local' | 'openrouter';
+        imageGenerationProvider?: 'local' | 'openrouter' | 'huggingface';
         openRouterImageModel?: string;
+        huggingFaceModel?: string;
+        huggingFaceImageModel?: string;
+        huggingFaceVideoModel?: string;
+        fallbackProvider?: 'openrouter' | 'huggingface' | null;
       }
     ) => Promise<AccountsSnapshot>;
     delete: (accountId: string) => Promise<AccountsSnapshot>;
     setActive: (accountId: string) => Promise<AccountsSnapshot>;
     setOpenRouterApiKey: (payload: { accountId: string; apiKey: string }) => Promise<AccountsSnapshot>;
     clearOpenRouterApiKey: (accountId: string) => Promise<AccountsSnapshot>;
+    setHuggingFaceToken: (payload: { accountId: string; token: string }) => Promise<AccountsSnapshot>;
+    clearHuggingFaceToken: (accountId: string) => Promise<AccountsSnapshot>;
   };
   openrouter: {
     testConnection: (accountId?: string) => Promise<{
@@ -376,6 +382,8 @@ const electronAPI: ElectronAPI = {
     setActive: (accountId) => ipcRenderer.invoke('accounts:set-active', accountId),
     setOpenRouterApiKey: (payload) => ipcRenderer.invoke('accounts:set-openrouter-api-key', payload),
     clearOpenRouterApiKey: (accountId) => ipcRenderer.invoke('accounts:clear-openrouter-api-key', accountId),
+    setHuggingFaceToken: (payload) => ipcRenderer.invoke('accounts:set-huggingface-token', payload),
+    clearHuggingFaceToken: (accountId) => ipcRenderer.invoke('accounts:clear-huggingface-token', accountId),
   },
   openrouter: {
     testConnection: (accountId) => ipcRenderer.invoke('openrouter:test-connection', accountId),

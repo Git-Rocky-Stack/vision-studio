@@ -82,3 +82,48 @@ describe('createUserAccountsService', () => {
     expect(service.getOpenRouterApiKey(accountId)).toBeNull();
   });
 });
+
+describe('HuggingFace BYOK token', () => {
+  it('stores and decrypts an HF token without exposing it in account metadata', () => {
+    const store = createStore();
+    const service = createUserAccountsService({ store, safeStorage: createSafeStorage() });
+    const accountId = service.listAccounts().accounts[0].id;
+
+    const snapshot = service.setHuggingFaceToken(accountId, 'hf_secrettoken');
+
+    expect(snapshot.accounts[0].huggingFace.tokenStored).toBe(true);
+    expect(service.getHuggingFaceToken(accountId)).toBe('hf_secrettoken');
+    const persisted = store.peek().userAccounts as {
+      secrets: Record<string, { huggingFaceToken?: string }>;
+    };
+    expect(persisted.secrets[accountId].huggingFaceToken).not.toContain('hf_secrettoken');
+  });
+
+  it('reverts huggingface provider preferences to local when the HF token is cleared', () => {
+    const store = createStore();
+    const service = createUserAccountsService({ store, safeStorage: createSafeStorage() });
+    const accountId = service.listAccounts().accounts[0].id;
+
+    service.updateAccount(accountId, {
+      imageGenerationProvider: 'huggingface',
+      huggingFaceImageModel: 'black-forest-labs/FLUX.1-schnell',
+    });
+    service.setHuggingFaceToken(accountId, 'hf_secrettoken');
+
+    const snapshot = service.clearHuggingFaceToken(accountId);
+
+    expect(snapshot.accounts[0].huggingFace.tokenStored).toBe(false);
+    expect(snapshot.accounts[0].preferences.imageGenerationProvider).toBe('local');
+    expect(service.getHuggingFaceToken(accountId)).toBeNull();
+  });
+
+  it('persists a fallbackProvider preference', () => {
+    const store = createStore();
+    const service = createUserAccountsService({ store, safeStorage: createSafeStorage() });
+    const accountId = service.listAccounts().accounts[0].id;
+
+    const snapshot = service.updateAccount(accountId, { fallbackProvider: 'huggingface' });
+
+    expect(snapshot.accounts[0].preferences.fallbackProvider).toBe('huggingface');
+  });
+});

@@ -25,6 +25,7 @@ export const DEFAULT_SETTINGS: Required<Omit<AppSettings, 'pythonPath'>> = {
   notifyOnGenerationComplete: true,
   notifyOnGenerationFailed: true,
   notifyOnModelDownloads: true,
+  autoRouteOnOverBudget: false,
 };
 
 export type OutputRootStore = {

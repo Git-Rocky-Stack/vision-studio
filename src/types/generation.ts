@@ -129,6 +129,8 @@ export interface ImageGenerationRequestPayload {
   image_path?: string;
   mask?: GenerationMaskPayload;
   inpaint?: GenerationInpaintPayload;
+  /** M6: per-request hosted provider override for over-budget fallback routing. */
+  __providerOverride?: 'openrouter' | 'huggingface';
 }
 
 export const BUILT_IN_STYLE_PRESETS: StylePreset[] = [
