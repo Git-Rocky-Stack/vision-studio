@@ -52,11 +52,13 @@ export const PROVIDER_CAPABILITIES: Record<ProviderId, ProviderCapabilities> = {
   },
   huggingface: {
     stillImage: true,
-    // ControlNet / inpaint / video are wired in PR2; declared false here so the
-    // registry stays an honest authority for routing decisions (Codex M6 gate).
-    controlNet: false,
-    inpaint: false,
-    video: false,
+    // Wired end-to-end in PR2: hosted ControlNet + inpaint (Inference Providers
+    // image-to-image router, renderer supplies base64 control/init/mask) and
+    // text-to-video. The registry stays an honest authority - these are only
+    // true because dispatch + UI back them (Codex M6 gate).
+    controlNet: true,
+    inpaint: true,
+    video: true,
     llmAssist: true,
     reportsUsage: true,
     maxResolution: null,
