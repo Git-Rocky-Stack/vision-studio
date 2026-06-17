@@ -7,7 +7,7 @@ This document describes **three** API surfaces, in the order you typically encou
 
 1. **Electron IPC** — what the renderer calls. Every channel is typed by `ElectronAPI` in `electron/preload.ts`.
 2. **Backend REST + WebSocket** — what the Main process calls (and what the IPC handlers proxy to). This is the source of truth for everything the AI subsystem can do.
-3. **OpenRouter integration (BYO)** — how to plug in OpenRouter for prompt enhancement and still-image generation.
+3. **Hosted provider integrations (BYO)** — OpenRouter and HuggingFace Inference for prompt enhancement and still-image generation, behind one routing fabric.
 
 Conventions used throughout:
 
@@ -1034,7 +1034,9 @@ The server ignores these (it broadcasts everything). Reserved for future per-job
 
 ---
 
-## Part 4 — OpenRouter integration
+## Part 4 — Hosted provider integrations (OpenRouter + HuggingFace Inference)
+
+### OpenRouter
 
 When the active account's `imageGenerationProvider === 'openrouter'`, image jobs run **entirely in the Main process** without ever calling the Python backend. They:
 
@@ -1050,6 +1052,37 @@ Limitations:
 - Prompt-enhancement and negative-prompt suggestion routes use the account's `openRouterModel` (typically a chat model), not the image model.
 
 Configuration is per-account; one account can route prompts to OpenRouter but generate locally, or vice-versa. See the `accounts:update` IPC for valid shapes.
+
+### HuggingFace Inference (M6)
+
+When the active account's `imageGenerationProvider === 'huggingface'` — or a Local over-budget job is routed to HuggingFace via the fallback policy — still-image jobs run **entirely in the Main process** without calling the Python backend. They:
+
+1. Use `HuggingFaceInferenceService` (`electron/services/huggingfaceInference.ts`) with the per-account BYOK token (decrypted via `safeStorage`); the token is used per-request, never logged, never returned to the renderer.
+2. Validate returned bytes against image magic numbers (sanitization) before normalizing to a data URL, then persist under `<outputRoot>/huggingface/YYYY-MM-DD/<jobId>-<n>.<ext>`.
+3. Track jobs in an in-memory store with IDs prefixed `huggingface-image-<uuid>`, discriminated by `routedJobProvider` (`electron/ipc-handlers/hostedImageRouting.ts`) so `getStatus` / `cancel` route to the right store.
+4. Emit `generation:progress` so the renderer's progress UI is provider-agnostic.
+
+Prompt-enhancement and negative-prompt suggestion use the account's `huggingFaceModel` against HuggingFace's OpenAI-compatible router (`https://router.huggingface.co/v1/chat/completions`). In the current slice the HuggingFace still-image route is prompt-only; ControlNet, inpaint, mask, and reference-image inputs return a structured prompt-only error, identical to the OpenRouter route.
+
+### Routing fabric & capability matrix (M6)
+
+*Where* a still-image or prompt-assist job runs is decided by the pure resolver `resolveRoute` (`shared/resolveRoute.ts`) over the capability registry (`shared/providerRouting.ts`). The renderer reads it to gray out impossible combinations; the Main process re-runs it at dispatch as the authoritative guard and refuses unsupported/unconfigured routes with a structured error.
+
+| Modality | Local | OpenRouter | HuggingFace |
+|----------|:-----:|:----------:|:-----------:|
+| Still image | yes | yes | yes |
+| ControlNet | yes | no | yes† |
+| Inpaint | yes | no | yes† |
+| Video | yes | no | yes† |
+| LLM prompt-assist | yes (heuristic) | yes | yes |
+
+OpenRouter still-image is prompt-only (no ControlNet / inpaint / reference inputs). † HuggingFace ControlNet / inpaint / video are capability-declared and land in the following slice; the still-image and LLM routes ship now.
+
+**Over-budget fallback.** A Local job that the M5 fit verdict marks `over-budget` triggers a fallback: when `autoRouteOnOverBudget` (Settings) is enabled and the account's `fallbackProvider` is capable + configured, the job routes silently (carried as a per-request `__providerOverride` on `generation:generate-image`); otherwise the renderer prompts (run locally / route to a hosted provider / cancel).
+
+**New IPC.** `accounts:set-huggingface-token`, `accounts:clear-huggingface-token`; the `accounts:update` patch gains `huggingFaceModel`, `huggingFaceImageModel`, `huggingFaceVideoModel`, and `fallbackProvider`; `settings` gains `autoRouteOnOverBudget`.
+
+This integration adds **no backend Python endpoint**, so `docs/api/openapi.json` is unchanged.
 
 ---
 
