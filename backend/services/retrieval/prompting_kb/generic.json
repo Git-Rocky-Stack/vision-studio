@@ -1,0 +1,10 @@
+{
+  "family": "generic",
+  "displayName": "General image models",
+  "source": "https://huggingface.co/docs/diffusers/using-diffusers/weighted_prompts",
+  "entries": [
+    { "kind": "positive-convention", "text": "Lead with the subject, then setting, then style and lighting; concrete nouns and specific adjectives outperform vague mood words.", "tags": ["composition"] },
+    { "kind": "negative-convention", "text": "Common artifact-prevention negatives: blurry, low quality, deformed, extra fingers, watermark, jpeg artifacts.", "tags": ["quality"] },
+    { "kind": "param-hint", "text": "Higher guidance (CFG) follows the prompt more literally but can over-saturate; mid-range CFG 6-8 balances fidelity and naturalness for most models.", "tags": ["cfg"] }
+  ]
+}

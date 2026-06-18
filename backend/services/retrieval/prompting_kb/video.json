@@ -1,0 +1,9 @@
+{
+  "family": "video",
+  "displayName": "Video generation models",
+  "source": "https://huggingface.co/docs/diffusers/using-diffusers/text-img2vid",
+  "entries": [
+    { "kind": "positive-convention", "text": "Describe motion explicitly — camera move, subject action, pacing — not just a still scene; video models need a verb.", "tags": ["motion"] },
+    { "kind": "param-hint", "text": "Keep clips short and motion modest for coherence; large, fast motion increases warping and flicker.", "tags": ["motion"] }
+  ]
+}

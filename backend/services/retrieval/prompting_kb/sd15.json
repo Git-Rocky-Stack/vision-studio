@@ -1,0 +1,10 @@
+{
+  "family": "sd15",
+  "displayName": "Stable Diffusion 1.5",
+  "source": "https://huggingface.co/runwayml/stable-diffusion-v1-5",
+  "entries": [
+    { "kind": "resolution", "text": "SD 1.5 is trained at 512x512; stay near 512 on the short edge — large native resolutions tile and duplicate subjects.", "tags": ["resolution"] },
+    { "kind": "param-hint", "text": "SD 1.5 responds well to 20-30 steps with CFG 7; very high CFG (>12) tends to look fried.", "tags": ["steps", "cfg"] },
+    { "kind": "positive-convention", "text": "Emphasis with parentheses, e.g. (sharp focus:1.2), nudges weighting in SD 1.5 pipelines that support prompt weighting.", "tags": ["weighting"] }
+  ]
+}
