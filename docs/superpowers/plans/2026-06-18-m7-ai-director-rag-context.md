@@ -596,7 +596,7 @@ git commit -m "feat(m7): NumPy cosine index store with file persistence"
 ### Task 4: The curated prompting knowledge base
 
 **Files:**
-- Create: `backend/data/prompting_kb/generic.json`, `sd15.json`, `sdxl.json`, `flux.json`, `video.json`
+- Create: `backend/services/retrieval/prompting_kb/{generic,sd15,sdxl,flux,video}.json` — **execution note:** originally specced under `backend/data/prompting_kb/`, but `backend/data/` is gitignored (the runtime data dir), so the committed curated KB ships co-located with its loader instead; `DEFAULT_KB_DIR` and the test `KB_DIR` use this path.
 - Create: `backend/services/retrieval/knowledge_base.py`
 - Create: `backend/tests/test_retrieval_kb.py`
 
