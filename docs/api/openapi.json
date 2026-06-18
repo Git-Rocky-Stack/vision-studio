@@ -592,6 +592,48 @@
           "500": { "$ref": "#/components/responses/InternalError" }
         }
       }
+    },
+    "/api/v1/retrieval/ingest": {
+      "post": {
+        "tags": ["Retrieval"],
+        "summary": "Ingest sanitized corpus records into the local retrieval index",
+        "operationId": "retrievalIngest",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/RetrievalIngestRequest" } } } },
+        "responses": {
+          "200": { "description": "Ingest counts", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/RetrievalIngestResponse" } } } },
+          "422": { "description": "Validation error" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      }
+    },
+    "/api/v1/retrieval/query": {
+      "post": {
+        "tags": ["Retrieval"],
+        "summary": "Query the local retrieval store for budgeted context snippets",
+        "operationId": "retrievalQuery",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/RetrievalQueryRequest" } } } },
+        "responses": {
+          "200": { "description": "Ranked snippets within the token budget", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/RetrievalQueryResponse" } } } },
+          "422": { "description": "Validation error" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      }
+    },
+    "/api/v1/retrieval/clear": {
+      "post": {
+        "tags": ["Retrieval"],
+        "summary": "Clear the local retrieval index",
+        "operationId": "retrievalClear",
+        "responses": { "200": { "description": "Cleared", "content": { "application/json": { "schema": { "type": "object", "properties": { "success": { "type": "boolean" } } } } } } }
+      }
+    },
+    "/api/v1/retrieval/stats": {
+      "get": {
+        "tags": ["Retrieval"],
+        "summary": "Retrieval index stats (item count + ranking mode)",
+        "operationId": "retrievalStats",
+        "responses": { "200": { "description": "Stats", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/RetrievalStatsResponse" } } } } }
+      }
     }
   },
   "components": {
@@ -604,6 +646,71 @@
       }
     },
     "schemas": {
+      "RetrievalSource": {
+        "type": "string",
+        "enum": ["prompt-history", "assets", "knowledge-base"]
+      },
+      "RetrievalIngestRecord": {
+        "type": "object",
+        "required": ["source", "text"],
+        "properties": {
+          "source": { "$ref": "#/components/schemas/RetrievalSource" },
+          "text": { "type": "string", "minLength": 1, "maxLength": 8000 },
+          "boosted": { "type": "boolean", "default": false },
+          "label": { "type": "string" }
+        }
+      },
+      "RetrievalIngestRequest": {
+        "type": "object",
+        "required": ["records"],
+        "properties": { "records": { "type": "array", "items": { "$ref": "#/components/schemas/RetrievalIngestRecord" } } }
+      },
+      "RetrievalIngestResponse": {
+        "type": "object",
+        "required": ["ingested", "skipped", "total"],
+        "properties": {
+          "ingested": { "type": "integer" },
+          "skipped": { "type": "integer" },
+          "total": { "type": "integer" }
+        }
+      },
+      "RetrievalQueryRequest": {
+        "type": "object",
+        "required": ["text", "sources", "maxTokens"],
+        "properties": {
+          "text": { "type": "string", "minLength": 1, "maxLength": 8000 },
+          "modelFamily": { "type": "string", "nullable": true },
+          "sources": { "type": "array", "items": { "$ref": "#/components/schemas/RetrievalSource" } },
+          "maxTokens": { "type": "integer", "minimum": 1, "maximum": 8000 }
+        }
+      },
+      "RetrievalSnippet": {
+        "type": "object",
+        "required": ["id", "source", "text", "label", "score"],
+        "properties": {
+          "id": { "type": "string" },
+          "source": { "$ref": "#/components/schemas/RetrievalSource" },
+          "text": { "type": "string" },
+          "label": { "type": "string" },
+          "score": { "type": "number" }
+        }
+      },
+      "RetrievalQueryResponse": {
+        "type": "object",
+        "required": ["snippets", "mode"],
+        "properties": {
+          "snippets": { "type": "array", "items": { "$ref": "#/components/schemas/RetrievalSnippet" } },
+          "mode": { "type": "string", "enum": ["semantic", "lexical"] }
+        }
+      },
+      "RetrievalStatsResponse": {
+        "type": "object",
+        "required": ["count", "mode"],
+        "properties": {
+          "count": { "type": "integer" },
+          "mode": { "type": "string", "enum": ["semantic", "lexical"] }
+        }
+      },
       "JobStatus": {
         "type": "string",
         "enum": ["pending", "processing", "completed", "failed", "cancelled"]
