@@ -15,6 +15,8 @@ import type { createOutputRootService } from '../services/outputRoots';
 import type { createUserAccountsService } from '../services/userAccounts';
 import { submitBatch } from './submitBatch';
 import { toOpenRouterRendererMessage } from './openRouterError';
+import { buildPromptContext } from '../services/promptAugmentation';
+import { createRetrievalClient } from '../services/retrievalClient';
 import { mergeJobsByCreatedAtDesc } from './jobListing';
 import { BACKEND_DOWN_MESSAGE as _BACKEND_DOWN_MESSAGE, requestBackend } from './backendRequest';
 import {
@@ -41,6 +43,11 @@ import {
 void _BACKEND_DOWN_MESSAGE; // Re-exported by callers via './backendRequest'.
 
 const BACKEND_URL = 'http://127.0.0.1:8000';
+
+// M7: AI Director retrieval client. The prompt-assist seam queries it for
+// reference context; all calls degrade gracefully (buildPromptContext swallows
+// failures) so the assist proceeds un-augmented when the backend is unreachable.
+const retrievalClient = createRetrievalClient({ baseUrl: BACKEND_URL, authHeaders: backendAuthHeaders });
 const WS_URL = 'ws://127.0.0.1:8000/ws';
 const BATCH_SUBMISSION_CONCURRENCY = 4;
 
@@ -370,15 +377,19 @@ ipcMain.handle('generation:enhance-prompt', async (_event, params) => {
     }
 
     try {
+      const promptCtx = await buildPromptContext({ prompt: params.prompt, directive: params.augment, retrievalClient });
       const result = await openRouterService.enhancePrompt({
         apiKey,
         prompt: params.prompt,
         mode: params.mode ?? 'clarify',
         model: activeAccount.preferences.openRouterModel || undefined,
+        context: promptCtx.context,
       });
       return {
         success: true,
         ...result,
+        provenance: promptCtx.provenance,
+        contextMode: promptCtx.mode,
       };
     } catch (error: any) {
       return {
@@ -398,15 +409,19 @@ ipcMain.handle('generation:enhance-prompt', async (_event, params) => {
     }
 
     try {
+      const promptCtx = await buildPromptContext({ prompt: params.prompt, directive: params.augment, retrievalClient });
       const result = await huggingFaceService.enhancePrompt({
         token,
         prompt: params.prompt,
         mode: params.mode ?? 'clarify',
         model: activeAccount.preferences.huggingFaceModel || undefined,
+        context: promptCtx.context,
       });
       return {
         success: true,
         ...result,
+        provenance: promptCtx.provenance,
+        contextMode: promptCtx.mode,
       };
     } catch (error: any) {
       return {
@@ -442,16 +457,20 @@ ipcMain.handle('generation:suggest-negative-prompt', async (_event, params) => {
     }
 
     try {
+      const promptCtx = await buildPromptContext({ prompt: params.prompt, directive: params.augment, retrievalClient });
       const result = await openRouterService.suggestNegativePrompt({
         apiKey,
         prompt: params.prompt,
         negativePrompt: params.negativePrompt,
         model: activeAccount.preferences.openRouterModel || undefined,
+        context: promptCtx.context,
       });
       return {
         success: true,
         ...result,
         source: 'openrouter' as const,
+        provenance: promptCtx.provenance,
+        contextMode: promptCtx.mode,
       };
     } catch (error: any) {
       return {
@@ -471,16 +490,20 @@ ipcMain.handle('generation:suggest-negative-prompt', async (_event, params) => {
     }
 
     try {
+      const promptCtx = await buildPromptContext({ prompt: params.prompt, directive: params.augment, retrievalClient });
       const result = await huggingFaceService.suggestNegativePrompt({
         token,
         prompt: params.prompt,
         negativePrompt: params.negativePrompt,
         model: activeAccount.preferences.huggingFaceModel || undefined,
+        context: promptCtx.context,
       });
       return {
         success: true,
         ...result,
         source: 'huggingface' as const,
+        provenance: promptCtx.provenance,
+        contextMode: promptCtx.mode,
       };
     } catch (error: any) {
       return {
