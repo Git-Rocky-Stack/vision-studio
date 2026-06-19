@@ -793,12 +793,15 @@ export function createOpenRouterService({
     mode,
     model,
     signal,
+    context,
   }: {
     apiKey: string;
     prompt: string;
     mode: PromptEnhancementMode;
     model?: string;
     signal?: AbortSignal;
+    /** M7: retrieved reference context, injected into the user message (never the system prompt). */
+    context?: string;
   }): Promise<OpenRouterPromptEnhancementResult> {
     const normalizedPrompt = prompt.trim();
     if (!normalizedPrompt) {
@@ -820,7 +823,13 @@ export function createOpenRouterService({
               plugins: [{ id: 'response-healing' }],
               messages: [
                 buildCachedSystemMessage(PROMPT_ENHANCEMENT_SYSTEM_PROMPT),
-                buildUserTextMessage(JSON.stringify({ mode, prompt: normalizedPrompt })),
+                buildUserTextMessage(
+                  JSON.stringify({
+                    mode,
+                    prompt: normalizedPrompt,
+                    ...(context ? { referenceContext: context } : {}),
+                  }),
+                ),
               ],
             },
             {
@@ -869,12 +878,15 @@ export function createOpenRouterService({
     negativePrompt,
     model,
     signal,
+    context,
   }: {
     apiKey: string;
     prompt: string;
     negativePrompt?: string;
     model?: string;
     signal?: AbortSignal;
+    /** M7: retrieved reference context, injected into the user message. */
+    context?: string;
   }): Promise<OpenRouterNegativePromptSuggestionResult> {
     const normalizedPrompt = prompt.trim();
     const normalizedNegativePrompt = negativePrompt?.trim() ?? '';
@@ -902,6 +914,7 @@ export function createOpenRouterService({
                   JSON.stringify({
                     prompt: normalizedPrompt,
                     negativePrompt: normalizedNegativePrompt,
+                    ...(context ? { referenceContext: context } : {}),
                   }),
                 ),
               ],
