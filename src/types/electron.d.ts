@@ -304,6 +304,12 @@ export interface ElectronAPI {
     reveal: (sourcePath: string) => Promise<{ success: boolean; error?: string }>;
     clearCache: () => Promise<{ success: boolean; error?: string }>;
   };
+  director: {
+    syncCorpus: (records: import('../../shared/retrieval').IngestRecord[]) => Promise<{ ingested: number; skipped: number; total: number }>;
+    ingestRecord: (record: import('../../shared/retrieval').IngestRecord) => Promise<{ ingested: number; skipped: number; total: number }>;
+    clearIndex: () => Promise<{ success: boolean }>;
+    indexStats: () => Promise<{ count: number; mode: 'semantic' | 'lexical' }>;
+  };
   generation: {
     generateImage: (params: GenerationParams) => Promise<JobResponse>;
     generateVideo: (params: VideoGenerationParams) => Promise<JobResponse>;
@@ -312,6 +318,7 @@ export interface ElectronAPI {
     enhancePrompt: (params: {
       prompt: string;
       mode?: string;
+      augment?: { sources: import('../../shared/retrieval').RetrievalSource[]; modelFamily: string | null };
     }) => Promise<{
       success?: boolean;
       error?: string;
@@ -319,10 +326,13 @@ export interface ElectronAPI {
       prompt?: string;
       variations?: string[];
       usage?: OpenRouterUsageSnapshot | null;
+      provenance?: import('../../shared/retrieval').ContextProvenanceItem[];
+      contextMode?: 'semantic' | 'lexical';
     }>;
     suggestNegativePrompt: (params: {
       prompt: string;
       negativePrompt?: string;
+      augment?: { sources: import('../../shared/retrieval').RetrievalSource[]; modelFamily: string | null };
     }) => Promise<{
       success?: boolean;
       error?: string;
@@ -330,6 +340,8 @@ export interface ElectronAPI {
       suggestions?: string[];
       source?: 'openrouter' | 'huggingface' | 'heuristic';
       usage?: OpenRouterUsageSnapshot | null;
+      provenance?: import('../../shared/retrieval').ContextProvenanceItem[];
+      contextMode?: 'semantic' | 'lexical';
     }>;
     cropImage: (params: {
       source_path: string;

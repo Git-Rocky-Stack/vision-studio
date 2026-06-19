@@ -61,6 +61,12 @@ export interface ElectronAPI {
     set: (key: string, value: any) => Promise<void>;
     reset: () => Promise<void>;
   };
+  director: {
+    syncCorpus: (records: import('../shared/retrieval').IngestRecord[]) => Promise<{ ingested: number; skipped: number; total: number }>;
+    ingestRecord: (record: import('../shared/retrieval').IngestRecord) => Promise<{ ingested: number; skipped: number; total: number }>;
+    clearIndex: () => Promise<{ success: boolean }>;
+    indexStats: () => Promise<{ count: number; mode: 'semantic' | 'lexical' }>;
+  };
   settings: {
     get: () => Promise<{
       theme: 'dark' | 'light' | 'system';
@@ -233,6 +239,7 @@ export interface ElectronAPI {
     enhancePrompt: (params: {
       prompt: string;
       mode?: string;
+      augment?: { sources: import('../shared/retrieval').RetrievalSource[]; modelFamily: string | null };
     }) => Promise<{
       success?: boolean;
       error?: string;
@@ -245,10 +252,13 @@ export interface ElectronAPI {
         totalTokens: number | null;
         cost: number | null;
       } | null;
+      provenance?: import('../shared/retrieval').ContextProvenanceItem[];
+      contextMode?: 'semantic' | 'lexical';
     }>;
     suggestNegativePrompt: (params: {
       prompt: string;
       negativePrompt?: string;
+      augment?: { sources: import('../shared/retrieval').RetrievalSource[]; modelFamily: string | null };
     }) => Promise<{
       success?: boolean;
       error?: string;
@@ -261,6 +271,8 @@ export interface ElectronAPI {
         totalTokens: number | null;
         cost: number | null;
       } | null;
+      provenance?: import('../shared/retrieval').ContextProvenanceItem[];
+      contextMode?: 'semantic' | 'lexical';
     }>;
     cropImage: (params: {
       source_path: string;
@@ -374,6 +386,12 @@ const electronAPI: ElectronAPI = {
     get: () => ipcRenderer.invoke('settings:get'),
     update: (patch) => ipcRenderer.invoke('settings:update', patch),
     reset: () => ipcRenderer.invoke('settings:reset'),
+  },
+  director: {
+    syncCorpus: (records) => ipcRenderer.invoke('director:sync-corpus', records),
+    ingestRecord: (record) => ipcRenderer.invoke('director:ingest-record', record),
+    clearIndex: () => ipcRenderer.invoke('director:clear-index'),
+    indexStats: () => ipcRenderer.invoke('director:index-stats'),
   },
   accounts: {
     list: () => ipcRenderer.invoke('accounts:list'),

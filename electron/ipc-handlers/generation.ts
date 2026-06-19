@@ -529,6 +529,41 @@ ipcMain.handle('generation:suggest-negative-prompt', async (_event, params) => {
   }
 });
 
+// M7 AI Director index management. Non-fatal: a retrieval failure must never
+// break the renderer, so every handler returns a safe shape on error.
+ipcMain.handle('director:sync-corpus', async (_event, records) => {
+  try {
+    return await retrievalClient.ingest(records);
+  } catch (error) {
+    return { ingested: 0, skipped: 0, total: 0, error: error instanceof Error ? error.message : 'sync failed' };
+  }
+});
+
+ipcMain.handle('director:ingest-record', async (_event, record) => {
+  try {
+    return await retrievalClient.ingest([record]);
+  } catch {
+    return { ingested: 0, skipped: 0, total: 0 };
+  }
+});
+
+ipcMain.handle('director:clear-index', async () => {
+  try {
+    await retrievalClient.clearIndex();
+    return { success: true };
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : 'clear failed' };
+  }
+});
+
+ipcMain.handle('director:index-stats', async () => {
+  try {
+    return await retrievalClient.stats();
+  } catch {
+    return { count: 0, mode: 'lexical' as const };
+  }
+});
+
 ipcMain.handle('generation:crop-image', async (_event, params) => {
   try {
     const response = await requestBackend(() =>
