@@ -7,6 +7,8 @@ import { FilmGrainOverlay } from '@/components/effects/FilmGrainOverlay';
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
 import { KeyboardShortcuts } from '@/components/ui/KeyboardShortcuts';
 import { applyThemeToDocument, type ThemePreference } from '@/features/theme/theme';
+import { AI_DIRECTOR_DEFAULTS } from '../shared/retrieval';
+import { buildIngestRecords } from '@/features/director/buildIngestRecords';
 
 function App() {
   const { setSystemInfo, loadModels, updateJob } = useAppStore(
@@ -36,6 +38,23 @@ function App() {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  // M7: sync the local corpus into the retrieval index on startup (when AI Director
+  // is enabled) so prompt-assist augmentation has the user's prompts/assets. The
+  // backend re-embeds only new items (content-hash), so repeat launches are cheap,
+  // and the call degrades silently if the backend is not yet up.
+  useEffect(() => {
+    const electron = window.electron;
+    if (!electron?.settings || !electron?.director) return;
+    void electron.settings.get().then((s) => {
+      if ((s.aiDirector ?? AI_DIRECTOR_DEFAULTS).enabled) {
+        const { promptHistory, favoritePrompts, assetLibrary, batchResults } = useAppStore.getState();
+        void electron.director.syncCorpus(
+          buildIngestRecords({ promptHistory, favoritePrompts, assetLibrary, batchResults }),
+        );
+      }
+    });
   }, []);
 
   // Fetch system info on mount

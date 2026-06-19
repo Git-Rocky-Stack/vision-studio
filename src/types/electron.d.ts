@@ -222,6 +222,7 @@ export interface ElectronAPI {
       notifyOnGenerationFailed: boolean;
       notifyOnModelDownloads: boolean;
       autoRouteOnOverBudget: boolean;
+      aiDirector?: import('../../shared/retrieval').AiDirectorSettings;
       pythonPath?: string;
     }>;
     update: (patch: Record<string, unknown>) => Promise<{
@@ -233,6 +234,7 @@ export interface ElectronAPI {
       notifyOnGenerationFailed: boolean;
       notifyOnModelDownloads: boolean;
       autoRouteOnOverBudget: boolean;
+      aiDirector?: import('../../shared/retrieval').AiDirectorSettings;
       pythonPath?: string;
     }>;
     reset: () => Promise<{
@@ -244,6 +246,7 @@ export interface ElectronAPI {
       notifyOnGenerationFailed: boolean;
       notifyOnModelDownloads: boolean;
       autoRouteOnOverBudget: boolean;
+      aiDirector?: import('../../shared/retrieval').AiDirectorSettings;
       pythonPath?: string;
     }>;
   };

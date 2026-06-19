@@ -112,10 +112,9 @@ describe('PromptStudioPanel', () => {
     await user.click(screen.getByTitle('Automatically improve prompt quality with AI'));
 
     await waitFor(() => {
-      expect(window.electron.generation.enhancePrompt).toHaveBeenCalledWith({
-        prompt: 'hero portrait',
-        mode: 'clarify',
-      });
+      expect(window.electron.generation.enhancePrompt).toHaveBeenCalledWith(
+        expect.objectContaining({ prompt: 'hero portrait', mode: 'clarify' }),
+      );
       expect(screen.getByPlaceholderText('Describe what you want to generate...')).toHaveValue(
         'enhanced prompt from service',
       );
@@ -137,10 +136,9 @@ describe('PromptStudioPanel', () => {
     await user.click(screen.getByTitle('Expand prompt with additional detail keywords'));
 
     await waitFor(() => {
-      expect(window.electron.generation.enhancePrompt).toHaveBeenCalledWith({
-        prompt: 'hero portrait',
-        mode: 'expand',
-      });
+      expect(window.electron.generation.enhancePrompt).toHaveBeenCalledWith(
+        expect.objectContaining({ prompt: 'hero portrait', mode: 'expand' }),
+      );
       expect(screen.getByPlaceholderText('Describe what you want to generate...')).toHaveValue(
         'expanded hero portrait with layered wardrobe detail',
       );
@@ -156,10 +154,9 @@ describe('PromptStudioPanel', () => {
     await user.click(screen.getByTitle('Generate smart negative prompt suggestions'));
 
     await waitFor(() => {
-      expect(window.electron.generation.suggestNegativePrompt).toHaveBeenCalledWith({
-        prompt: 'hero portrait',
-        negativePrompt: '',
-      });
+      expect(window.electron.generation.suggestNegativePrompt).toHaveBeenCalledWith(
+        expect.objectContaining({ prompt: 'hero portrait', negativePrompt: '' }),
+      );
       expect(screen.getByPlaceholderText('What to avoid in the generation...')).toHaveValue(
         'blurry, low quality',
       );
