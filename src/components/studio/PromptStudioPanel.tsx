@@ -14,6 +14,13 @@ import { Led } from '@/components/hardware';
 import { PromptEnhancementToolkit } from './PromptEnhancementToolkit';
 import { PromptTemplateLibrary } from './PromptTemplateLibrary';
 import { TokenWeightedEditor } from './TokenWeightedEditor';
+import {
+  AI_DIRECTOR_DEFAULTS,
+  enabledSources,
+  type AiDirectorSettings,
+  type ContextProvenanceItem,
+} from '../../../shared/retrieval';
+import { inferModelFamily } from '@/features/director/inferModelFamily';
 
 interface CollapsibleSectionProps {
   title: string;
@@ -94,6 +101,9 @@ export const PromptStudioPanel = memo(function PromptStudioPanel() {
   const [isNegativeSuggesting, setIsNegativeSuggesting] = useState(false);
   const [isStyleTransferOpen, setIsStyleTransferOpen] = useState(false);
   const [activeStylePresets, setActiveStylePresets] = useState<string[]>([]);
+  const [aiDirector, setAiDirector] = useState<AiDirectorSettings>(AI_DIRECTOR_DEFAULTS);
+  const [contextProvenance, setContextProvenance] = useState<ContextProvenanceItem[]>([]);
+  const [contextMode, setContextMode] = useState<'semantic' | 'lexical' | undefined>(undefined);
 
   const draft = useMemo(
     () =>
@@ -137,6 +147,21 @@ export const PromptStudioPanel = memo(function PromptStudioPanel() {
     });
   }, [syncActiveAccount]);
 
+  // M7: load the AI Director settings so prompt-assist can carry the augmentation
+  // directive. Guarded so the panel renders without the preload settings API.
+  useEffect(() => {
+    if (!window.electron?.settings) return;
+    void window.electron.settings.get().then((s) => setAiDirector(s.aiDirector ?? AI_DIRECTOR_DEFAULTS));
+  }, []);
+
+  const buildAugment = useCallback(
+    () =>
+      aiDirector.enabled
+        ? { sources: enabledSources(aiDirector), modelFamily: inferModelFamily(draft.model) }
+        : undefined,
+    [aiDirector, draft.model],
+  );
+
   const handleApplyTemplate = useCallback(
     (id: string, mode: 'replace' | 'merge') => {
       applyPromptTemplate(id, mode);
@@ -166,12 +191,15 @@ export const PromptStudioPanel = memo(function PromptStudioPanel() {
       const result = await window.electron.generation.enhancePrompt({
         prompt: draft.prompt,
         mode: 'clarify',
+        augment: buildAugment(),
       });
       if (!result.success || !result.prompt) {
         throw new Error(result.error || 'Prompt enhancement failed.');
       }
 
       updateDraft({ prompt: result.prompt });
+      setContextProvenance(result.provenance ?? []);
+      setContextMode(result.contextMode);
       setBanner({
         tone: 'success',
         message:
@@ -189,7 +217,7 @@ export const PromptStudioPanel = memo(function PromptStudioPanel() {
     } finally {
       setIsEnhancing(false);
     }
-  }, [activeAccount, draft.prompt, syncActiveAccount, updateDraft]);
+  }, [activeAccount, buildAugment, draft.prompt, syncActiveAccount, updateDraft]);
 
   const handleExpand = useCallback(async () => {
     if (!draft.prompt.trim()) {
@@ -209,12 +237,15 @@ export const PromptStudioPanel = memo(function PromptStudioPanel() {
       const result = await window.electron.generation.enhancePrompt({
         prompt: draft.prompt,
         mode: 'expand',
+        augment: buildAugment(),
       });
       if (!result.success || !result.prompt) {
         throw new Error(result.error || 'Prompt expansion failed.');
       }
 
       updateDraft({ prompt: result.prompt });
+      setContextProvenance(result.provenance ?? []);
+      setContextMode(result.contextMode);
       setBanner({
         tone: 'success',
         message: 'Prompt expanded with richer detail and context.',
@@ -227,7 +258,7 @@ export const PromptStudioPanel = memo(function PromptStudioPanel() {
     } finally {
       setIsExpanding(false);
     }
-  }, [activeAccount, draft.prompt, syncActiveAccount, updateDraft]);
+  }, [activeAccount, buildAugment, draft.prompt, syncActiveAccount, updateDraft]);
 
   const handleNegativeSuggest = useCallback(async () => {
     if (!draft.prompt.trim()) {
@@ -247,12 +278,15 @@ export const PromptStudioPanel = memo(function PromptStudioPanel() {
       const result = await window.electron.generation.suggestNegativePrompt({
         prompt: draft.prompt,
         negativePrompt: draft.negativePrompt,
+        augment: buildAugment(),
       });
       if (!result.success || !result.negativePrompt) {
         throw new Error(result.error || 'Negative prompt suggestion failed.');
       }
 
       updateDraft({ negativePrompt: result.negativePrompt });
+      setContextProvenance(result.provenance ?? []);
+      setContextMode(result.contextMode);
       const suggestionCount = result.suggestions?.length ?? 0;
       setBanner({
         tone: 'info',
@@ -269,7 +303,7 @@ export const PromptStudioPanel = memo(function PromptStudioPanel() {
     } finally {
       setIsNegativeSuggesting(false);
     }
-  }, [activeAccount, draft.negativePrompt, draft.prompt, syncActiveAccount, updateDraft]);
+  }, [activeAccount, buildAugment, draft.negativePrompt, draft.prompt, syncActiveAccount, updateDraft]);
 
   const handleStyleTransferToggle = useCallback(() => {
     setIsStyleTransferOpen((prev) => !prev);
@@ -370,6 +404,22 @@ export const PromptStudioPanel = memo(function PromptStudioPanel() {
             isNegativeSuggesting={isNegativeSuggesting}
             isStyleTransferActive={isStyleTransferOpen}
           />
+
+          {contextProvenance.length > 0 ? (
+            <div className="recessed-well mt-2 px-3 py-3">
+              <p className="mono-label text-text-muted">
+                Context used: {contextProvenance.length} reference{contextProvenance.length === 1 ? '' : 's'}
+                {contextMode === 'lexical' ? ' (lexical match)' : ''}
+              </p>
+              <ul className="mt-1 space-y-1">
+                {contextProvenance.map((item, index) => (
+                  <li key={index} className="type-caption text-text-body">
+                    <span className="text-text-muted">[{item.label}]</span> {item.preview}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
 
           {isStyleTransferOpen ? (
             <div className="recessed-well px-3 py-3">

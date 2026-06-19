@@ -135,8 +135,8 @@ Generation IPC is the densest namespace. It is **provider-aware**: when the acti
 | `generateVideo(params)` | `generation:generate-video` | `POST /api/generate/video` | Provider-aware: routes to HuggingFace when `videoGenerationProvider === 'huggingface'`, else the local backend. |
 | `exportTimelineSequence(params)` | `generation:export-timeline-sequence` | `POST /api/timeline/export` | Returns `{ success, jobId? }`. |
 | `batch(params)` | `generation:batch` | Multiple `POST /api/generate/image` (one per prompt) | Provider-aware. Returns `{ success, jobIds? }`. |
-| `enhancePrompt(params)` | `generation:enhance-prompt` | `POST /api/prompts/enhance` OR OpenRouter | Returns `{ mode, prompt, variations[]? }`. |
-| `suggestNegativePrompt(params)` | `generation:suggest-negative-prompt` | OpenRouter OR built-in heuristic | Returns `{ negativePrompt, suggestions[], source: 'openrouter' \| 'heuristic' }`. |
+| `enhancePrompt(params)` | `generation:enhance-prompt` | `POST /api/prompts/enhance` OR OpenRouter/HF | Returns `{ mode, prompt, variations[]? }`. M7: accepts `augment` and returns `provenance[]` + `contextMode` on LLM routes (see 1.14). |
+| `suggestNegativePrompt(params)` | `generation:suggest-negative-prompt` | OpenRouter/HF OR built-in heuristic | Returns `{ negativePrompt, suggestions[], source }`. M7: accepts `augment`, returns `provenance[]` + `contextMode` on LLM routes. |
 | `cropImage(params)` | `generation:crop-image` | `POST /api/images/crop` | |
 | `extractVideoFrame(params)` | `generation:extract-video-frame` | `POST /api/videos/extract-frame` | |
 | `upscaleImage(params)` | `generation:upscale-image` | `POST /api/images/upscale` | |
@@ -300,6 +300,25 @@ Each notification type is gated by the matching `notifyOn*` boolean in settings;
 | `onStatusChange(cb)` | `backend:status` (event) | unsubscribe function |
 
 ---
+
+### 1.14 `electron.director` (M7 AI Director — RAG)
+
+Local-first retrieval-augmented prompt-assist. The renderer syncs its corpus
+(prior prompts, asset metadata) into a local index; the prompt-assist seam queries
+it and injects a delimited reference-context block into the LLM **user** message
+(never the cache-pinned system prompt). All handlers are non-fatal: a retrieval
+failure never breaks the renderer.
+
+| Renderer call | IPC channel | Backend | Notes |
+|---|---|---|---|
+| `director.syncCorpus(records)` | `director:sync-corpus` | `POST /api/v1/retrieval/ingest` | Bulk allow-list-sanitized corpus snapshot; backend re-embeds only new items (content hash). |
+| `director.ingestRecord(record)` | `director:ingest-record` | `POST /api/v1/retrieval/ingest` | Single incremental record. |
+| `director.clearIndex()` | `director:clear-index` | `POST /api/v1/retrieval/clear` | Returns `{ success }`. |
+| `director.indexStats()` | `director:index-stats` | `GET /api/v1/retrieval/stats` | Returns `{ count, mode: 'semantic' \| 'lexical' }`. |
+
+Settings: `settings.aiDirector = { enabled, sources: { promptHistory, assets, knowledgeBase } }` (default on, all sources). `generation.enhancePrompt` / `suggestNegativePrompt` accept an optional `augment: { sources, modelFamily }` and return `provenance[]` + `contextMode` when augmentation runs (LLM routes only; the local heuristic route is unchanged).
+
+**Trust boundary:** retrieved + model-authored text is data, never instructions — wrapped in a delimited DATA block, and ingestion is allow-list so secrets/keys/paths are never indexed. Degrades cleanly: embedder absent → lexical; backend unreachable → un-augmented; empty corpus → knowledge-base only.
 
 ## Part 2 — Backend REST API
 
@@ -987,6 +1006,25 @@ Response — `BatchExportResponse`:
 
 `404` if **all** image_ids are missing; partial misses are warned and skipped.
 
+### 2.15 Retrieval / AI Director — `/api/v1/retrieval`
+
+Local-first retrieval store for M7. The embedding model (`all-MiniLM-L6-v2`) is
+lazily loaded and optional: when absent, ranking falls back to deterministic
+lexical matching. The index persists as files under the runtime data dir
+(`vectors.npz` + `corpus.json`); no SQLite, no native extension.
+
+| Method | Path | Body → Response | Notes |
+|---|---|---|---|
+| POST | `/api/v1/retrieval/ingest` | `{ records: [{ source, text, boosted?, label? }] }` → `{ ingested, skipped, total }` | Allow-list: only `source/text/boosted/label` are read; content-hash dedupe. |
+| POST | `/api/v1/retrieval/query` | `{ text, modelFamily?, sources[], maxTokens }` → `{ snippets: [{ id, source, text, label, score }], mode }` | `mode` is `semantic` or `lexical`. Snippets are budget-fit; KB entries merged by `modelFamily`. |
+| POST | `/api/v1/retrieval/clear` | → `{ success }` | Empties the index. |
+| GET | `/api/v1/retrieval/stats` | → `{ count, mode }` | |
+
+`source` is `prompt-history \| assets \| knowledge-base`. The curated knowledge
+base ships in-repo (`backend/services/retrieval/prompting_kb/*.json`, keyed by
+model family) and is always available as the cold-start source. Favorited /
+successfully-completed items are score-boosted; no `trust_remote_code` path.
+
 ### 2.14 Static `/outputs/*`
 
 Mounted via `StaticFiles(directory=OUTPUT_DIR)`. Authentication is **bypassed** (path is in `AUTH_EXEMPT_PATHS`) so the renderer can render images via `<img src="http://127.0.0.1:8000/outputs/<job>/image_001.png">` without proxying through IPC. This is safe because the backend is loopback-only and the renderer can only request paths it learned through API responses.
@@ -1215,4 +1253,4 @@ for i, image in enumerate(data["images"]):
 
 ---
 
-_Last verified against the codebase on 2026-06-12. Canonical source: `backend/main.py`, `backend/api/{controlnet,lora,edit,batch}.py`, `backend/foundry/{schemas,library_roots,index_service,hub_search,civitai_search,security_policy,download_manager,convert,hardware,runtime_resolver}.py`, `electron/preload.ts`, `electron/ipc-handlers/generation.ts`, `electron/services/mainIpc.ts`, `electron/main.ts`._
+_Last verified against the codebase on 2026-06-18. Canonical source: `backend/main.py`, `backend/api/{controlnet,lora,edit,batch,retrieval}.py`, `backend/services/retrieval/*`, `backend/foundry/{schemas,library_roots,index_service,hub_search,civitai_search,security_policy,download_manager,convert,hardware,runtime_resolver}.py`, `shared/retrieval.ts`, `electron/preload.ts`, `electron/ipc-handlers/generation.ts`, `electron/services/{mainIpc,retrievalClient,contextAssembler,promptAugmentation}.ts`, `electron/main.ts`._

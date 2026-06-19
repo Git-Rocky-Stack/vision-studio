@@ -5,6 +5,8 @@ import { Button } from '@/components/ui/Button';
 import { useShallow } from 'zustand/react/shallow';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { useAppStore } from '@/store/appStore';
+import { AI_DIRECTOR_DEFAULTS, type AiDirectorSettings } from '../../shared/retrieval';
+import { buildIngestRecords } from '@/features/director/buildIngestRecords';
 import { UserGuidePage } from '@/pages/UserGuidePage';
 import type { ModelRecord, DownloadStatus } from '@/types/model';
 import type {
@@ -32,6 +34,7 @@ import {
   Trash2,
   UserPlus,
   Users,
+  Sparkles,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -155,6 +158,8 @@ export function SettingsPanel() {
   const [huggingFaceTokenInput, setHuggingFaceTokenInput] = useState('');
   const [isSavingHuggingFaceToken, setIsSavingHuggingFaceToken] = useState(false);
   const [autoRouteOnOverBudget, setAutoRouteOnOverBudget] = useState(false);
+  const [aiDirector, setAiDirector] = useState<AiDirectorSettings>(AI_DIRECTOR_DEFAULTS);
+  const [indexStats, setIndexStats] = useState<{ count: number; mode: 'semantic' | 'lexical' }>({ count: 0, mode: 'lexical' });
   const [openRouterKeyInfo, setOpenRouterKeyInfo] = useState<OpenRouterKeyInfo | null>(null);
   const [openRouterModels, setOpenRouterModels] = useState<OpenRouterModelSummary[]>([]);
   const [openRouterImageModels, setOpenRouterImageModels] = useState<OpenRouterModelSummary[]>([]);
@@ -211,6 +216,33 @@ export function SettingsPanel() {
   useEffect(() => {
     void window.electron.settings.get().then((s) => setAutoRouteOnOverBudget(Boolean(s.autoRouteOnOverBudget)));
   }, []);
+
+  // Hydrate the AI Director (RAG) settings + index stats (M7). Guarded so the
+  // panel renders when the preload API (or its director surface) is absent.
+  useEffect(() => {
+    const electron = window.electron;
+    if (!electron?.settings || !electron?.director) return;
+    void electron.settings.get().then((s) => setAiDirector(s.aiDirector ?? AI_DIRECTOR_DEFAULTS));
+    void electron.director.indexStats().then(setIndexStats);
+  }, []);
+
+  const updateAiDirector = async (next: AiDirectorSettings) => {
+    setAiDirector(next);
+    await window.electron.settings.update({ aiDirector: next });
+  };
+
+  const rebuildDirectorIndex = async () => {
+    const { promptHistory, favoritePrompts, assetLibrary, batchResults } = useAppStore.getState();
+    await window.electron.director.syncCorpus(
+      buildIngestRecords({ promptHistory, favoritePrompts, assetLibrary, batchResults }),
+    );
+    setIndexStats(await window.electron.director.indexStats());
+  };
+
+  const clearDirectorIndex = async () => {
+    await window.electron.director.clearIndex();
+    setIndexStats(await window.electron.director.indexStats());
+  };
 
   // Drive the live download queue from the store slice: poll while any job is in
   // flight, and refresh the catalog + notify once a model finishes downloading.
@@ -1640,6 +1672,58 @@ export function SettingsPanel() {
                       </div>
                     </label>
                   ))}
+                </div>
+
+                <div className="space-y-4">
+                  <h3 className="text-label text-text-body flex items-center gap-2">
+                    <Sparkles className="w-4 h-4" />
+                    AI Director (RAG)
+                  </h3>
+                  <p className="text-xs text-text-body mb-3">
+                    Augment prompt-assist with your prior prompts, your assets, and a curated
+                    model-prompting knowledge base. Everything is indexed locally; nothing leaves your machine.
+                  </p>
+                  <label className="flex items-center justify-between py-2 cursor-pointer">
+                    <span className="text-sm font-medium text-text-primary">Enable retrieval-augmented assist</span>
+                    <input
+                      type="checkbox"
+                      checked={aiDirector.enabled}
+                      onChange={(e) => void updateAiDirector({ ...aiDirector, enabled: e.target.checked })}
+                      className="accent-accent-primary"
+                    />
+                  </label>
+                  {([
+                    { key: 'promptHistory' as const, label: 'Your prior prompts' },
+                    { key: 'assets' as const, label: 'Your asset library' },
+                    { key: 'knowledgeBase' as const, label: 'Model-prompting knowledge base' },
+                  ]).map((src) => (
+                    <label key={src.key} className="flex items-center justify-between py-1 pl-4 cursor-pointer">
+                      <span className="text-sm text-text-body">{src.label}</span>
+                      <input
+                        type="checkbox"
+                        disabled={!aiDirector.enabled}
+                        checked={aiDirector.sources[src.key]}
+                        onChange={(e) =>
+                          void updateAiDirector({
+                            ...aiDirector,
+                            sources: { ...aiDirector.sources, [src.key]: e.target.checked },
+                          })
+                        }
+                        className="accent-accent-primary"
+                      />
+                    </label>
+                  ))}
+                  <div className="flex items-center gap-3 pt-2">
+                    <button type="button" className="btn-chrome px-3 py-1.5 text-sm" onClick={() => void rebuildDirectorIndex()}>
+                      Rebuild index
+                    </button>
+                    <button type="button" className="raised-control px-3 py-1.5 text-sm" onClick={() => void clearDirectorIndex()}>
+                      Clear index
+                    </button>
+                    <span className="mono-label text-text-muted">
+                      {indexStats.count} indexed ({indexStats.mode})
+                    </span>
+                  </div>
                 </div>
 
                 <div className="space-y-4">

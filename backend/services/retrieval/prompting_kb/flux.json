@@ -1,0 +1,10 @@
+{
+  "family": "flux",
+  "displayName": "FLUX.1",
+  "source": "https://huggingface.co/black-forest-labs/FLUX.1-schnell",
+  "entries": [
+    { "kind": "positive-convention", "text": "FLUX rewards detailed natural-language prompts and handles text rendering; describe scenes as sentences, not tag lists.", "tags": ["composition", "text"] },
+    { "kind": "param-hint", "text": "FLUX.1-schnell is distilled for very few steps (1-4) at low/zero guidance; do not push high CFG or step counts.", "tags": ["steps", "cfg"] },
+    { "kind": "negative-convention", "text": "FLUX largely ignores classic negative prompts; rely on positive description rather than long negatives.", "tags": ["quality"] }
+  ]
+}

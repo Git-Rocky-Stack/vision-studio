@@ -100,6 +100,7 @@ logger = get_logger(__name__)
 from api.lora import router as lora_router
 from api.edit import router as edit_router
 from api.batch import router as batch_router
+from api.retrieval import router as retrieval_router
 
 try:
     from utils.comfy_client import ComfyUIClient
@@ -387,6 +388,7 @@ app.include_router(controlnet_router)
 app.include_router(lora_router)
 app.include_router(edit_router)
 app.include_router(batch_router)
+app.include_router(retrieval_router)
 
 
 @app.get("/api/health", tags=["System"])

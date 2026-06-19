@@ -1,0 +1,10 @@
+{
+  "family": "sdxl",
+  "displayName": "Stable Diffusion XL",
+  "source": "https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0",
+  "entries": [
+    { "kind": "resolution", "text": "SDXL is trained around 1024x1024; prefer ~1MP totals (1024x1024, 1152x896, 896x1152) for clean composition.", "tags": ["resolution", "aspect"] },
+    { "kind": "param-hint", "text": "SDXL needs fewer steps than SD 1.5 for coherent results; 25-40 steps at CFG 5-7 is a strong default.", "tags": ["steps", "cfg"] },
+    { "kind": "positive-convention", "text": "SDXL parses natural-language descriptions well — full descriptive phrases beat keyword soup.", "tags": ["composition"] }
+  ]
+}

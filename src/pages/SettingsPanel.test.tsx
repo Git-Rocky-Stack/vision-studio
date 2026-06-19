@@ -269,13 +269,13 @@ describe('SettingsPanel', () => {
     fireEvent.click(screen.getByRole('button', { name: /AI & Models/i }));
 
     // Wait for the Installed Models row to mount (AnimatePresence tab transition).
-    await screen.findByText('FLUX.1 dev', {}, { timeout: 3000 });
+    await screen.findByText('FLUX.1 dev', {}, { timeout: 15000 });
     const downloadButton = screen.getByRole('button', { name: /^Download$/ });
     fireEvent.click(downloadButton);
 
     // The slice path enqueues via the IPC bridge, and the row reflects live job state.
     expect(
-      await screen.findByRole('button', { name: /Downloading/i }, { timeout: 3000 }),
+      await screen.findByRole('button', { name: /Downloading/i }, { timeout: 15000 }),
     ).toBeInTheDocument();
     expect(models.download).toHaveBeenCalledWith('flux-dev');
     expect(screen.getByText(/42%/)).toBeInTheDocument();

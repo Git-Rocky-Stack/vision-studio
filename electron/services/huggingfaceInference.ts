@@ -341,12 +341,15 @@ export function createHuggingFaceInferenceService({
     mode,
     model,
     signal,
+    context,
   }: {
     token: string;
     prompt: string;
     mode: HuggingFacePromptMode;
     model?: string;
     signal?: AbortSignal;
+    /** M7: retrieved reference context, injected into the user message JSON. */
+    context?: string;
   }): Promise<HuggingFacePromptEnhancementResult> {
     const normalized = prompt.trim();
     if (!normalized) throw new Error('Prompt cannot be empty.');
@@ -356,7 +359,7 @@ export function createHuggingFaceInferenceService({
         token,
         model,
         PROMPT_ENHANCEMENT_SYSTEM_PROMPT,
-        JSON.stringify({ mode, prompt: normalized }),
+        JSON.stringify({ mode, prompt: normalized, ...(context ? { referenceContext: context } : {}) }),
         signal,
       );
       return {
@@ -377,12 +380,15 @@ export function createHuggingFaceInferenceService({
     negativePrompt,
     model,
     signal,
+    context,
   }: {
     token: string;
     prompt: string;
     negativePrompt?: string;
     model?: string;
     signal?: AbortSignal;
+    /** M7: retrieved reference context, injected into the user message JSON. */
+    context?: string;
   }): Promise<HuggingFaceNegativePromptSuggestionResult> {
     const normalized = prompt.trim();
     if (!normalized) throw new Error('Prompt cannot be empty.');
@@ -392,7 +398,7 @@ export function createHuggingFaceInferenceService({
         token,
         model,
         NEGATIVE_PROMPT_SYSTEM_PROMPT,
-        JSON.stringify({ prompt: normalized, current: negativePrompt ?? '' }),
+        JSON.stringify({ prompt: normalized, current: negativePrompt ?? '', ...(context ? { referenceContext: context } : {}) }),
         signal,
       );
       return {

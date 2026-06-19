@@ -6,6 +6,7 @@ import {
   resolveOutputPath,
   type AppSettings,
 } from './settings';
+import { AI_DIRECTOR_DEFAULTS } from '../../shared/retrieval';
 import type { UserAccountsState } from './userAccounts';
 
 export interface StoreSchema {
@@ -26,6 +27,7 @@ export const DEFAULT_SETTINGS: Required<Omit<AppSettings, 'pythonPath'>> = {
   notifyOnGenerationFailed: true,
   notifyOnModelDownloads: true,
   autoRouteOnOverBudget: false,
+  aiDirector: AI_DIRECTOR_DEFAULTS,
 };
 
 export type OutputRootStore = {

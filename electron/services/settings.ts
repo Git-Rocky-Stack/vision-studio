@@ -1,4 +1,5 @@
 import path from 'path';
+import type { AiDirectorSettings } from '../../shared/retrieval';
 
 export interface AppSettings {
   theme?: 'dark' | 'light' | 'system';
@@ -11,6 +12,8 @@ export interface AppSettings {
   pythonPath?: string;
   /** When true, a Local over-budget job silently routes to the account fallback provider (M6 S8). */
   autoRouteOnOverBudget?: boolean;
+  /** M7 AI Director: retrieval-augmented prompt-assist settings. */
+  aiDirector?: AiDirectorSettings;
 }
 
 export function resolveOutputPath(
