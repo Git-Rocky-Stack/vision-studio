@@ -2206,3 +2206,32 @@ function makeIterationJob(id: string) {
     createdAt: new Date(),
   };
 }
+
+describe('acceleration settings (M9)', () => {
+  beforeEach(() => {
+    useAppStore.setState(useAppStore.getInitialState());
+  });
+
+  it('defaults every optimization to auto and master enabled', () => {
+    const s = useAppStore.getState().accelerationSettings;
+    expect(s.masterEnable).toBe(true);
+    expect(s.compile).toBe('auto');
+    expect(s.quantization).toBe('auto');
+  });
+
+  it('updates a single optimization without touching the others', () => {
+    useAppStore.getState().updateAccelerationSettings({ compile: 'off' });
+    const s = useAppStore.getState().accelerationSettings;
+    expect(s.compile).toBe('off');
+    expect(s.sdpa).toBe('auto');
+  });
+
+  it('records the last applied acceleration', () => {
+    useAppStore.getState().setLastAppliedAcceleration({
+      applied: ['sdpa', 'compile:reduce-overhead'],
+      skipped: [],
+      fellBack: [],
+    });
+    expect(useAppStore.getState().lastAppliedAcceleration?.applied).toContain('sdpa');
+  });
+});
