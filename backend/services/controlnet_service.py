@@ -3,6 +3,7 @@ ControlNet service for model management and image generation.
 
 This service handles ControlNet model loading, generation, and memory management.
 Currently uses stub implementations - actual diffusers integration comes later.
+Tracked: #34
 """
 
 from __future__ import annotations

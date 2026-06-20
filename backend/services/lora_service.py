@@ -3,6 +3,7 @@ LoRA Mixer service for model management and image generation.
 
 This service handles LoRA model loading, generation, and memory management.
 Currently uses stub implementations - actual diffusers integration comes later.
+Tracked: #34
 """
 
 from __future__ import annotations
