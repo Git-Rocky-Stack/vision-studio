@@ -33,6 +33,8 @@ from foundry.runtime_resolver import PIPELINE_BY_FAMILY
 # are neutral-to-negative, so channels_last stays OFF for them (spec S4).
 _CONV_UNET_FAMILIES = {"sd15", "sdxl", "svd"}
 
+_VAE_SCALE_DEFAULT = 8  # SD15/SDXL VAE downscale; engine resolution-bucket math
+
 # Derived from the resolver's authoritative table - never hand-maintained.
 # Each pipeline_class belongs to exactly one family (verified: no cross-family
 # collisions in PIPELINE_BY_FAMILY).
@@ -359,18 +361,77 @@ def _apply_compile(pipeline, accel: AccelerationPlan, result: AppliedAcceleratio
         result.fell_back.append(f"compile ({type(exc).__name__}, ran eager)")
 
 
+# precision derivation reads str(module.dtype) so it needs no torch import.
+_PRECISION_BY_DTYPE_STR = {
+    "torch.float16": "fp16", "torch.half": "fp16",
+    "torch.bfloat16": "bf16",
+    "torch.float32": "fp32", "torch.float": "fp32",
+}
+_CANONICAL_BUCKETS = (512, 768, 1024)
+
+
+def _pipeline_precision(pipeline) -> str:
+    """The denoiser's working precision, from its dtype repr. Defaults fp16."""
+    _attr, module = _compile_target(pipeline)
+    dtype_str = str(getattr(module, "dtype", "")) if module is not None else ""
+    return _PRECISION_BY_DTYPE_STR.get(dtype_str, "fp16")
+
+
+def _resolution_bucket(pipeline) -> str:
+    """Snap the denoiser's native pixel resolution to a canonical engine bucket.
+    sample_size (latent) * vae_scale_factor = native pixels. Defaults 1024x1024
+    when the pipeline does not expose a usable sample_size."""
+    _attr, module = _compile_target(pipeline)
+    config = getattr(module, "config", None)
+    sample_size = getattr(config, "sample_size", None)
+    vae_scale = getattr(pipeline, "vae_scale_factor", _VAE_SCALE_DEFAULT) or _VAE_SCALE_DEFAULT
+    if not isinstance(sample_size, int):
+        return "1024x1024"
+    pixels = sample_size * vae_scale
+    nearest = min(_CANONICAL_BUCKETS, key=lambda b: abs(b - pixels))
+    return f"{nearest}x{nearest}"
+
+
+def _device_capability() -> tuple:
+    """GPU compute capability, or (0, 0) when torch/CUDA is unavailable."""
+    if torch is None or getattr(torch, "cuda", None) is None:
+        return (0, 0)
+    try:
+        return tuple(torch.cuda.get_device_capability())
+    except Exception:  # noqa: BLE001 - any CUDA error -> safe sentinel
+        return (0, 0)
+
+
+def _trt_version() -> str:
+    """Installed TensorRT/torch_tensorrt version string, or 'unknown'."""
+    for name in ("tensorrt", "torch_tensorrt"):
+        try:
+            module = importlib.import_module(name)
+        except ImportError:
+            continue
+        version = getattr(module, "__version__", None)
+        if version:
+            return str(version)
+    return "unknown"
+
+
 def _run_tensorrt(pipeline, family) -> str:
     """Resolve the TRT engine for this pipeline; returns the state token
-    ("cached"/"built"). Isolated so tests patch ONE seam. The real generator-level
-    integration (Task 18 wiring) passes the plan's precision, resolution bucket,
-    GPU capability and TRT version; this default signature is the seam."""
+    ("cached"/"built"). Derives every cache-key dimension from reality so a
+    cached <key>.plan is specific to the GPU + shape it was built for. Isolated
+    so the apply tests patch ONE seam."""
     from foundry.tensorrt_engine import build_or_load_engine
 
     return build_or_load_engine(
-        pipeline, family=family, pipeline_class=type(pipeline).__name__,
-        precision="bf16", resolution_bucket="1024x1024",
+        pipeline,
+        family=family,
+        pipeline_class=type(pipeline).__name__,
+        precision=_pipeline_precision(pipeline),
+        resolution_bucket=_resolution_bucket(pipeline),
         cache_dir=os.environ.get("VS_TRT_CACHE_DIR", ".cache/tensorrt"),
-        compute_capability=(8, 9), trt_version="unknown")
+        compute_capability=_device_capability(),
+        trt_version=_trt_version(),
+    )
 
 
 def _apply_tensorrt(pipeline, family, result: AppliedAcceleration) -> None:
