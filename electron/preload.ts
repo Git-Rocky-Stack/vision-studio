@@ -294,6 +294,13 @@ export interface ElectronAPI {
     listJobs: (options?: { status?: string; limit?: number }) => Promise<any>;
     onProgress: (callback: (data: any) => void) => () => void;
   };
+  workflow: {
+    runGraph: (params: { graph: unknown; generationType: 'image' | 'video' }) => Promise<{
+      job_id: string;
+      status: string;
+      message: string;
+    }>;
+  };
   system: {
     getInfo: () => Promise<{
       gpu_available: boolean;
@@ -436,6 +443,10 @@ const electronAPI: ElectronAPI = {
       ipcRenderer.on('generation:progress', handler);
       return () => ipcRenderer.off('generation:progress', handler);
     },
+  },
+  workflow: {
+    runGraph: (params: { graph: unknown; generationType: 'image' | 'video' }) =>
+      ipcRenderer.invoke('workflow:run-graph', params),
   },
   system: {
     getInfo: () => ipcRenderer.invoke('system:get-info'),

@@ -294,4 +294,13 @@ describe('WorkflowWorkbench', () => {
     await waitFor(() => expect(screen.getByText(/not executable/i)).toBeInTheDocument());
     expect(screen.getAllByText('WeirdCustomNode').length).toBeGreaterThanOrEqual(1);
   });
+
+  it('disables Run on ComfyUI when the active graph is not executable', async () => {
+    render(<WorkflowWorkbench />);
+    const json = JSON.stringify({ '1': { class_type: 'WeirdCustomNode', inputs: {} } });
+    fireEvent.change(screen.getByLabelText(/comfy graph json/i), { target: { value: json } });
+    fireEvent.click(screen.getByRole('button', { name: /import graph/i }));
+    await waitFor(() => expect(screen.getByText(/not executable/i)).toBeInTheDocument());
+    expect(screen.getByRole('button', { name: /run on comfyui/i })).toBeDisabled();
+  });
 });

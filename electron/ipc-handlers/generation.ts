@@ -187,6 +187,20 @@ function connectWebSocket() {
   });
 }
 
+ipcMain.handle(
+  'workflow:run-graph',
+  async (_event, params: { graph: unknown; generationType: 'image' | 'video' }) => {
+    const response = await requestBackend(() =>
+      axios.post(
+        `${BACKEND_URL}/api/v1/comfy/run-graph`,
+        { graph: params.graph, generation_type: params.generationType },
+        { headers: backendAuthHeaders() }
+      )
+    );
+    return response.data;
+  }
+);
+
 ipcMain.handle('generation:generate-image', async (_event, params) => {
   const activeAccount = userAccountsService?.getActiveAccount();
   const providerOverride =
