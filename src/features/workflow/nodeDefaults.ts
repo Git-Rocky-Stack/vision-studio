@@ -20,13 +20,33 @@ export const NODE_REGISTRY: Record<string, NodeRegistryEntry> = {
   },
   KSampler: {
     label: 'Sampler',
-    defaultOutput: 'IMAGE',
+    defaultOutput: 'LATENT',
     defaultInput: 'positive',
     connectionMap: {
       MODEL: 'model',
       CONDITIONING: 'positive',
       LATENT: 'latent_image',
     },
+  },
+  EmptyLatentImage: {
+    label: 'Empty Latent',
+    defaultOutput: 'LATENT',
+    defaultInput: 'pixels',
+  },
+  VAEDecode: {
+    label: 'VAE Decode',
+    defaultOutput: 'IMAGE',
+    defaultInput: 'samples',
+  },
+  LoraLoader: {
+    label: 'LoRA Loader',
+    defaultOutput: 'MODEL',
+    defaultInput: 'model',
+  },
+  VAELoader: {
+    label: 'VAE Loader',
+    defaultOutput: 'VAE',
+    defaultInput: 'vae_name',
   },
   PreviewImage: {
     label: 'Preview',
@@ -39,6 +59,23 @@ export const NODE_REGISTRY: Record<string, NodeRegistryEntry> = {
     defaultInput: 'images',
   },
 };
+
+/**
+ * The Comfy class types M8 treats as first-class: known output-slot map (faithful
+ * round-trip), known path fields (safety), and executable on a connected Comfy
+ * server. Every other node imports structurally but is not executable.
+ */
+export const FIRST_CLASS_NODES = new Set<string>([
+  'CheckpointLoaderSimple',
+  'CLIPTextEncode',
+  'EmptyLatentImage',
+  'KSampler',
+  'VAEDecode',
+  'SaveImage',
+  'PreviewImage',
+  'LoraLoader',
+  'VAELoader',
+]);
 
 export const addNodeActions = Object.entries(NODE_REGISTRY).map(([classType, entry]) => ({
   label: `Add ${entry.label} node`,
@@ -85,7 +122,7 @@ export function createWorkflowNodeFromClassType(
       label,
       position: { x: 80 + offset, y: 280 + offset },
       inputs: {
-        ckpt_name: { kind: 'literal', value: 'flux-dev.safetensors' },
+        ckpt_name: { kind: 'literal', value: 'flux1-dev.safetensors' },
       },
       metadata: {
         state: 'pending',
