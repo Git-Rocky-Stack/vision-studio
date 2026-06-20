@@ -2,12 +2,17 @@
 ComfyUI Client - Interface with ComfyUI server
 """
 
+from __future__ import annotations
+
 import asyncio
 import json
 import uuid
 from typing import Any, Callable, Dict, List, Optional
 
-import aiohttp
+try:
+    import aiohttp
+except ModuleNotFoundError:  # CI stub omits aiohttp; keep the module import-safe.
+    aiohttp = None  # type: ignore[assignment]
 
 from .comfy_workflows import extract_history_outputs
 
