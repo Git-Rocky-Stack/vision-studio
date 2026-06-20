@@ -25,6 +25,76 @@ def is_trt_eligible(family: Optional[str]) -> bool:
     return family in TRT_PROVEN_FAMILIES
 
 
+# Latent channel count and VAE downscale are shared by SD15/SDXL UNets.
+_LATENT_CHANNELS = 4
+_VAE_SCALE = 8
+_SEQ_LEN = 77  # CLIP token sequence length
+_CFG_BATCH = 2  # classifier-free guidance doubles the batch (cond + uncond)
+
+
+def _bucket_pixels(resolution_bucket: str) -> int:
+    """Pixel edge from a 'WxH' bucket label (square buckets; uses the width)."""
+    return int(resolution_bucket.lower().split("x")[0])
+
+
+def example_input_shapes(family: str, resolution_bucket: str) -> dict:
+    """Pure name->shape map for the denoiser's example inputs at this bucket.
+
+    Verified on hardware (see docs/TENSORRT_VERIFICATION.md); the shapes follow
+    the documented diffusers UNet forward signatures for the two TRT-relevant
+    families. Batch is _CFG_BATCH (cond + uncond)."""
+    latent = _bucket_pixels(resolution_bucket) // _VAE_SCALE
+    sample = (_CFG_BATCH, _LATENT_CHANNELS, latent, latent)
+    if family == "sdxl":
+        return {
+            "sample": sample,
+            "encoder_hidden_states": (_CFG_BATCH, _SEQ_LEN, 2048),
+            "text_embeds": (_CFG_BATCH, 1280),
+            "time_ids": (_CFG_BATCH, 6),
+        }
+    if family == "sd15":
+        return {
+            "sample": sample,
+            "encoder_hidden_states": (_CFG_BATCH, _SEQ_LEN, 768),
+        }
+    raise ValueError(f"no TRT example-input recipe for family {family!r}")
+
+
+def _trt_dtype(precision: str):
+    """Map our precision label to a torch dtype. Lazy torch import (hardware)."""
+    import torch  # noqa: PLC0415 - lazy heavy dep
+
+    return {"fp16": torch.float16, "bf16": torch.bfloat16,
+            "fp32": torch.float32}.get(precision, torch.float16)
+
+
+def build_example_inputs(family: str, resolution_bucket: str, precision: str):
+    """Materialize (arg_inputs, kwarg_inputs) for torch_tensorrt.compile. Runs
+    only on a CUDA box; the maintainer confirms the exact forward plumbing per
+    the runbook. Returns positional args (sample, timestep, encoder_hidden_states)
+    and SDXL's added_cond_kwargs as kwarg_inputs."""
+    import torch  # noqa: PLC0415 - lazy heavy dep
+
+    shapes = example_input_shapes(family, resolution_bucket)
+    dtype = _trt_dtype(precision)
+
+    def _rand(shape):
+        return torch.randn(*shape, dtype=dtype, device="cuda")
+
+    arg_inputs = (
+        _rand(shapes["sample"]),
+        torch.tensor(1.0, dtype=dtype, device="cuda"),  # timestep
+        _rand(shapes["encoder_hidden_states"]),
+    )
+    kwarg_inputs: dict = {}
+    if family == "sdxl":
+        kwarg_inputs["added_cond_kwargs"] = {
+            "text_embeds": _rand(shapes["text_embeds"]),
+            "time_ids": _rand(shapes["time_ids"]),
+        }
+    return arg_inputs, kwarg_inputs
+
+
 def engine_cache_key(*, family: str, pipeline_class: str, precision: str,
                      resolution_bucket: str, compute_capability: Tuple[int, int],
                      trt_version: str) -> str:
