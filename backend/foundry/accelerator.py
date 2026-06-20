@@ -147,7 +147,48 @@ def _resolve_slicing(plan, settings: AccelerationSettings, gpu: bool, notes: Lis
     return "auto"
 
 
-def resolve_acceleration(plan, profile, settings: AccelerationSettings) -> AccelerationPlan:
+def _auto_quant(family, profile, backends: QuantBackends) -> Optional[str]:
+    """Most aggressive PROVEN-SAFE method for (family, hardware, deps)."""
+    if family is None:
+        return None
+    if getattr(profile, "supports_fp8", False) and family in _QUANT_ALLOWLIST["fp8"] and backends.fp8:
+        return "fp8"
+    if family in _QUANT_ALLOWLIST["int8"] and backends.int8:
+        return "int8"
+    return None
+
+
+def _resolve_quant(family, profile, settings, backends: QuantBackends, notes: List[str]) -> Optional[str]:
+    """Four-gate quantization (spec S5): family allowlist, hardware capability,
+    backend availability, GPU-only. Explicit method honored only if all pass."""
+    s = settings.quantization
+    if s == "off":
+        return None
+    if not getattr(profile, "gpu_available", False):
+        if s in ("int8", "fp8"):
+            notes.append(f"quantization {s} skipped: no GPU")
+        return None
+    if s == "auto":
+        method = _auto_quant(family, profile, backends)
+        if method:
+            notes.append(f"quantization auto: {method} ({family})")
+        return method
+    # Forced method - honor only if every gate passes (spec S5 Gate-4 override).
+    method = s
+    if family not in _QUANT_ALLOWLIST.get(method, set()):
+        notes.append(f"quantization {method} skipped: {family or 'unknown'} not on the {method} allowlist")
+        return None
+    if method == "fp8" and not getattr(profile, "supports_fp8", False):
+        notes.append("quantization fp8 skipped: GPU compute < 8.9")
+        return None
+    if not getattr(backends, method, False):
+        notes.append(f"quantization {method} skipped: backend unavailable")
+        return None
+    notes.append(f"quantization forced: {method}")
+    return method
+
+
+def resolve_acceleration(plan, profile, settings: AccelerationSettings, *, backends: Optional[QuantBackends] = None) -> AccelerationPlan:
     """Decide the optimization set for this (plan, hardware, settings). Pure -
     no torch, no I/O. Security refusals and the master switch short-circuit to
     an all-disabled plan before any optimization is considered."""
@@ -162,6 +203,10 @@ def resolve_acceleration(plan, profile, settings: AccelerationSettings) -> Accel
 
     family = family_for_plan(plan)
     gpu = bool(getattr(profile, "gpu_available", False))
+
+    if backends is None:
+        backends = quant_backends_available()
+    quantization = _resolve_quant(family, profile, settings, backends, notes)
 
     sdpa = _decide(settings.sdpa, auto_default=True)
 
@@ -178,6 +223,7 @@ def resolve_acceleration(plan, profile, settings: AccelerationSettings) -> Accel
         channels_last=channels_last,
         sdpa=sdpa,
         attention_slicing=attention_slicing,
+        quantization=quantization,
         notes=notes,
     )
 
