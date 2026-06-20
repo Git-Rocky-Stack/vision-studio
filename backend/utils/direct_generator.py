@@ -31,6 +31,9 @@ except ImportError as e:
     DIFFUSERS_AVAILABLE = False
     print(f"⚠️ diffusers import failed: {e}. Direct image generation disabled.")
 
+# M9 acceleration seam (import-safe: accelerator imports no torch at module load).
+from foundry.accelerator import DEFAULT_ACCELERATION_SETTINGS, accelerate_pipeline
+
 
 class ModelLoadRefusedError(RuntimeError):
     """The runtime plan refused to load this model (security or capability).
@@ -67,6 +70,9 @@ def resolve_plan(model_id: str, overrides: Optional[Dict[str, Any]] = None):
         raise ModelLoadRefusedError(f"Model '{model_id}' is not in the library")
     profile = probe_hardware(MODELS_DIR)
     plan = resolve_model_runtime(record, profile, consent_store.get(model_id))
+    # Loader-facing attribute (never serialized) so the M9 accel layer can
+    # resolve without re-probing - mirrors load_source/checkpoint_path below.
+    plan.hardware_profile = profile
     if overrides and not plan.refusal:
         for key in ("precision", "offload", "vae_tiling"):
             value = overrides.get(key)
@@ -111,6 +117,17 @@ def pipeline_class_for(plan) -> Any:
     return pipeline_cls
 
 
+def _acceleration_payload(applied) -> Optional[Dict[str, Any]]:
+    """AppliedAcceleration -> JSON-safe dict for the job result, or None."""
+    if applied is None:
+        return None
+    return {
+        "applied": list(applied.applied),
+        "skipped": list(applied.skipped),
+        "fell_back": list(applied.fell_back),
+    }
+
+
 def apply_fallback_rung(plan, rung: str) -> bool:
     """Apply one OOM-recovery rung onto the plan (spec 6.6).
 
@@ -135,8 +152,12 @@ class DirectGenerator:
         self.models_dir = models_dir
         self.output_dir = output_dir
         self.pipelines: Dict[str, Any] = {}
+        self.applied_acceleration: Dict[str, Any] = {}
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self.executor = ThreadPoolExecutor(max_workers=1)
+
+        from foundry.accelerator import configure_inductor_cache
+        configure_inductor_cache(os.path.join(models_dir, ".cache", "inductor"))
         
         if not DIFFUSERS_AVAILABLE:
             raise RuntimeError("diffusers library not available")
@@ -178,6 +199,10 @@ class DirectGenerator:
                 print(f"OOM loading {model_name}: stepping fallback rung '{rung}'")
                 slicing_max = apply_fallback_rung(plan, rung) or slicing_max
                 torch.cuda.empty_cache()
+
+        applied = accelerate_pipeline(
+            pipeline, plan, DEFAULT_ACCELERATION_SETTINGS, slicing_max=slicing_max)
+        self.applied_acceleration[model_name] = applied
 
         self.pipelines[model_name] = pipeline
         print(f"Model loaded: {model_name} ({plan.pipeline_class}, {plan.precision})")
@@ -224,19 +249,10 @@ class DirectGenerator:
         if plan.vae_tiling and hasattr(pipeline, "vae"):
             pipeline.vae.enable_tiling()
 
-        # Enable memory optimizations
-        if self.device == "cuda":
-            if slicing_max:
-                pipeline.enable_attention_slicing("max")
-            else:
-                pipeline.enable_attention_slicing()
-            # Try to enable xformers if available
-            try:
-                pipeline.enable_xformers_memory_efficient_attention()
-                print("   xformers enabled")
-            except Exception:
-                pass
-
+        # Memory optimizations (attention slicing + fused attention) and
+        # torch.compile are now owned by the M9 accel layer, applied once in
+        # load_model after this returns. slicing_max stays a parameter for
+        # signature stability and is threaded into accelerate_pipeline there.
         return pipeline
 
     def _configure_scheduler(self, pipeline, scheduler_name: str):
@@ -383,7 +399,8 @@ class DirectGenerator:
             "width": width,
             "height": height,
             "prompt": prompt,
-            "model": model_name
+            "model": model_name,
+            "acceleration": _acceleration_payload(self.applied_acceleration.get(model_name)),
         }
     
     def unload_model(self, model_name: str):

@@ -39,6 +39,11 @@ from utils.direct_generator import (
     pipeline_class_for,
     resolve_plan,
 )
+from foundry.accelerator import (
+    DEFAULT_ACCELERATION_SETTINGS,
+    accelerate_pipeline,
+    configure_inductor_cache,
+)
 
 
 def resolve_video_model_strategy(model_name: str, has_input_image: bool) -> str:
@@ -121,6 +126,8 @@ class DirectVideoGenerator:
         self.device = "cuda" if torch and torch.cuda.is_available() else "cpu"
         self.executor = ThreadPoolExecutor(max_workers=1)
         self.pipelines: Dict[str, Any] = {}
+        self.applied_acceleration: Dict[str, Any] = {}
+        configure_inductor_cache(os.path.join(models_dir, ".cache", "inductor"))
 
     def load_model(self, model_name: str, overrides: Optional[Dict[str, Any]] = None):
         """Plan-driven load mirroring DirectGenerator.load_model: the runtime
@@ -152,6 +159,10 @@ class DirectVideoGenerator:
                 print(f"OOM loading {model_name}: stepping fallback rung '{rung}'")
                 slicing_max = apply_fallback_rung(plan, rung) or slicing_max
                 torch.cuda.empty_cache()
+
+        applied = accelerate_pipeline(
+            pipeline, plan, DEFAULT_ACCELERATION_SETTINGS, slicing_max=slicing_max)
+        self.applied_acceleration[model_name] = applied
 
         self.pipelines[model_name] = pipeline
         return pipeline
@@ -229,9 +240,10 @@ class DirectVideoGenerator:
 
         if plan.vae_tiling and hasattr(pipeline, "vae"):
             pipeline.vae.enable_tiling()
-        if slicing_max and hasattr(pipeline, "enable_attention_slicing"):
-            pipeline.enable_attention_slicing("max")
 
+        # Attention slicing + fused attention + compile are owned by the M9
+        # accel layer (applied once in load_model). slicing_max stays a
+        # parameter for signature stability and is threaded there.
         return pipeline
 
     def _export_frames_to_video(self, frames, output_path: str, fps: int) -> None:
@@ -295,13 +307,21 @@ class DirectVideoGenerator:
         output_path = os.path.join(output_dir, "video.mp4")
         self._export_frames_to_video(frames, output_path, fps=fps)
 
-        return build_video_result(
+        result = build_video_result(
             job_id=os.path.basename(output_dir),
             relative_video_path=f"/outputs/{os.path.basename(output_dir)}/video.mp4",
             frame_count=len(frames),
             fps=fps,
             duration=duration,
         )
+        applied = self.applied_acceleration.get(model_name)
+        if applied is not None:
+            result["acceleration"] = {
+                "applied": list(applied.applied),
+                "skipped": list(applied.skipped),
+                "fell_back": list(applied.fell_back),
+            }
+        return result
 
     async def generate_video(
         self,
