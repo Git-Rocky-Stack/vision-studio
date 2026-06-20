@@ -413,8 +413,8 @@ gates, and acceptance are already locked above. The standing loop is:
 | M1-M5 | Model Foundry (Pillar 1) | Complete |
 | M6 | Provider Routing Fabric | Complete |
 | M7 | Director: RAG + Context | Complete |
-| **M8** | ComfyUI Interop Deepening | **Next - elaborating to design spec + plan** |
-| M9 | Accelerator + Inference | Baselined |
+| M8 | ComfyUI Interop Deepening | Complete |
+| **M9** | Accelerator + Inference | **Next** |
 | M10 | Release Hardening + Docs | Baselined |
 
 ---
