@@ -126,6 +126,15 @@ export function createWorkflowActions(set: AppSet, get: AppGet) {
       return workflow;
     },
 
+    createWorkflowFromGraph: (name: string, graph: WorkflowGraph): WorkflowRecord => {
+      const workflow: WorkflowRecord = { ...createDraftWorkflow(name), graph };
+      set((state) => ({
+        workflowRecords: [...state.workflowRecords, workflow],
+        activeWorkflowId: workflow.id,
+      }));
+      return workflow;
+    },
+
     setWorkflowStatus: (workflowId: string, status: WorkflowRecord['status']) =>
       set((state) => ({
         workflowRecords: state.workflowRecords.map((workflow) =>

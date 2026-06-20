@@ -51,7 +51,7 @@ describe('exportWorkflowGraphToComfyPrompt', () => {
       sampler: {
         class_type: 'KSampler',
         inputs: {
-          positive: ['prompt', 'CONDITIONING'],
+          positive: ['prompt', 0],
           steps: 25,
         },
         _meta: {
@@ -146,6 +146,27 @@ describe('exportWorkflowGraphToComfyPrompt', () => {
 
   it('exports an empty graph as an empty prompt', () => {
     expect(exportWorkflowGraphToComfyPrompt({ nodes: {}, edges: [] })).toEqual({});
+  });
+
+  it('passes opaque-node link outputs through verbatim', () => {
+    const opaqueGraph: WorkflowGraph = {
+      nodes: {
+        custom: {
+          id: 'custom', classType: 'CustomSampler', label: 'Custom',
+          position: { x: 0, y: 0 }, inputs: {},
+        },
+        sink: {
+          id: 'sink', classType: 'SaveImage', label: 'Save',
+          position: { x: 240, y: 0 },
+          inputs: { images: { kind: 'link', nodeId: 'custom', output: 'WEIRD' } },
+        },
+      },
+      edges: [{
+        id: 'edge-custom-sink', sourceNodeId: 'custom', sourceOutput: 'WEIRD',
+        targetNodeId: 'sink', targetInput: 'images',
+      }],
+    };
+    expect(exportWorkflowGraphToComfyPrompt(opaqueGraph).sink.inputs.images).toEqual(['custom', 'WEIRD']);
   });
 
   it('exports nodes with boolean and null literal values', () => {

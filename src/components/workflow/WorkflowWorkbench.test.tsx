@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -279,5 +279,19 @@ describe('WorkflowWorkbench', () => {
     expect(runWorkflowExecutionMock).toHaveBeenCalledWith(
       expect.objectContaining({ workflowId: 'image-generation-baseline' })
     );
+  });
+
+  it('imports a pasted Comfy graph and surfaces the fidelity report', async () => {
+    render(<WorkflowWorkbench />);
+    const json = JSON.stringify({
+      '1': { class_type: 'CheckpointLoaderSimple', inputs: { ckpt_name: 'flux1-dev.safetensors' } },
+      '2': { class_type: 'WeirdCustomNode', inputs: {} },
+    });
+    fireEvent.change(screen.getByLabelText(/comfy graph json/i), { target: { value: json } });
+    fireEvent.click(screen.getByRole('button', { name: /import graph/i }));
+    // "not executable" is the unique report headline; the opaque node also renders
+    // in the now-active imported graph, so assert at least one occurrence.
+    await waitFor(() => expect(screen.getByText(/not executable/i)).toBeInTheDocument());
+    expect(screen.getAllByText('WeirdCustomNode').length).toBeGreaterThanOrEqual(1);
   });
 });
