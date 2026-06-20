@@ -310,6 +310,35 @@ def _apply_compile(pipeline, accel: AccelerationPlan, result: AppliedAcceleratio
         result.fell_back.append(f"compile ({type(exc).__name__}, ran eager)")
 
 
+def _quant_target(pipeline):
+    """The heavy module to quantize - unet or transformer."""
+    _attr, module = _compile_target(pipeline)
+    return module
+
+
+def _quantize_module(module, method: str) -> None:
+    """Post-load quantization via optimum-quanto (works on a loaded module)."""
+    from optimum.quanto import freeze, qfloat8, qint8, quantize
+
+    weights = qfloat8 if method == "fp8" else qint8
+    quantize(module, weights=weights)
+    freeze(module)
+
+
+def _apply_quant(pipeline, method: str, result: AppliedAcceleration) -> None:
+    target = _quant_target(pipeline)
+    if target is None:
+        result.skipped.append(f"quantization:{method} (no unet/transformer)")
+        return
+    try:
+        _quantize_module(target, method)
+        result.applied.append(f"quantization:{method}")
+    except ImportError:
+        result.skipped.append(f"quantization:{method} (backend unavailable)")
+    except Exception as exc:  # noqa: BLE001 - non-fatal, unquantized pipeline still valid
+        result.fell_back.append(f"quantization:{method} ({type(exc).__name__})")
+
+
 def apply_acceleration(pipeline, accel: AccelerationPlan, family, *, slicing_max: bool = False) -> AppliedAcceleration:
     """Apply ``accel`` to a loaded, on-device pipeline. Every step is guarded and
     non-fatal; returns the honest AppliedAcceleration record."""
@@ -322,6 +351,8 @@ def apply_acceleration(pipeline, accel: AccelerationPlan, family, *, slicing_max
         _apply_sdpa(pipeline, result)
     if accel.channels_last:
         _apply_channels_last(pipeline, family, result)
+    if accel.quantization:
+        _apply_quant(pipeline, accel.quantization, result)
 
     slicing = "max" if slicing_max else accel.attention_slicing
     if slicing is not None:
