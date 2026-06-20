@@ -84,3 +84,69 @@ def family_for_plan(plan) -> Optional[str]:
     """Family string for a RuntimePlan, via its pipeline_class. None if unknown
     (the decision layer then defaults conservatively)."""
     return _FAMILY_BY_PIPELINE_CLASS.get(getattr(plan, "pipeline_class", None))
+
+
+def _decide(setting: str, auto_default: bool) -> bool:
+    """Tri-state -> bool. Explicit on/off always win; auto uses the matrix."""
+    if setting == "on":
+        return True
+    if setting == "off":
+        return False
+    return auto_default
+
+
+def _resolve_slicing(plan, settings: AccelerationSettings, gpu: bool, notes: List[str]) -> Optional[str]:
+    """Attention-slicing decision - the always-on perf-bug fix (spec S4).
+
+    Today RuntimePlan.attention_slicing defaults True unconditionally, slowing
+    every generation even with abundant VRAM. We derive it from fit headroom
+    instead. The OOM fallback ladder still re-adds max slicing at runtime if we
+    are wrong, so removing the default carries zero stability risk.
+    """
+    if settings.attention_slicing == "off":
+        return None
+    if settings.attention_slicing == "on":
+        return "auto"
+    if not gpu:
+        return None  # CPU: no VRAM-pressure concept
+    fit = getattr(plan, "fit", None)
+    if fit == "fits":
+        notes.append("attention_slicing off: model fits with headroom")
+        return None
+    notes.append(f"attention_slicing auto: tight/unknown fit ({fit or 'unknown'})")
+    return "auto"
+
+
+def resolve_acceleration(plan, profile, settings: AccelerationSettings) -> AccelerationPlan:
+    """Decide the optimization set for this (plan, hardware, settings). Pure -
+    no torch, no I/O. Security refusals and the master switch short-circuit to
+    an all-disabled plan before any optimization is considered."""
+    notes: List[str] = []
+
+    if getattr(plan, "refusal", None):
+        notes.append("acceleration disabled: plan refused load")
+        return AccelerationPlan(sdpa=False, notes=notes)
+    if not settings.master_enable:
+        notes.append("acceleration disabled: master switch off")
+        return AccelerationPlan(sdpa=False, notes=notes)
+
+    family = family_for_plan(plan)
+    gpu = bool(getattr(profile, "gpu_available", False))
+
+    sdpa = _decide(settings.sdpa, auto_default=True)
+
+    conv = family in _CONV_UNET_FAMILIES
+    channels_last = _decide(settings.channels_last, auto_default=gpu and conv)
+    if settings.channels_last == "auto" and gpu and not conv:
+        notes.append(f"channels_last off: {family or 'unknown'} is not a conv-UNet family")
+
+    compile_on = _decide(settings.compile, auto_default=gpu)
+    attention_slicing = _resolve_slicing(plan, settings, gpu, notes)
+
+    return AccelerationPlan(
+        compile=compile_on,
+        channels_last=channels_last,
+        sdpa=sdpa,
+        attention_slicing=attention_slicing,
+        notes=notes,
+    )
