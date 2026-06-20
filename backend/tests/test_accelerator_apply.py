@@ -138,5 +138,27 @@ class QuantApplyTests(unittest.TestCase):
         self.assertIsInstance(result, AppliedAcceleration)
 
 
+class TensorrtApplyTests(unittest.TestCase):
+    def setUp(self):
+        self._patch = mock.patch.object(accelerator, "torch", _StubTorch)
+        self._patch.start()
+
+    def tearDown(self):
+        self._patch.stop()
+
+    def test_tensorrt_applied_records_state(self):
+        pipe = _FakePipeline()
+        with mock.patch.object(accelerator, "_run_tensorrt", return_value="cached"):
+            result = apply_acceleration(pipe, AccelerationPlan(tensorrt=True), "sdxl")
+        self.assertTrue(any(a.startswith("tensorrt") for a in result.applied))
+
+    def test_tensorrt_build_failure_falls_back(self):
+        pipe = _FakePipeline()
+        with mock.patch.object(accelerator, "_run_tensorrt", side_effect=RuntimeError("build failed")):
+            result = apply_acceleration(pipe, AccelerationPlan(tensorrt=True), "sdxl")
+        self.assertTrue(any("tensorrt" in f for f in result.fell_back))
+        self.assertIsInstance(result, AppliedAcceleration)
+
+
 if __name__ == "__main__":
     unittest.main()

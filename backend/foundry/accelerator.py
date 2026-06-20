@@ -207,6 +207,30 @@ def _resolve_quant(family, profile, settings, backends: QuantBackends, notes: Li
     return method
 
 
+def _trt_backend_available() -> bool:
+    """True when a TensorRT backend is importable - WITHOUT importing it
+    (find_spec does not execute the module)."""
+    return _spec_present("torch_tensorrt") or _spec_present("tensorrt")
+
+
+def _resolve_tensorrt(family, settings: AccelerationSettings, gpu: bool, notes: List[str]) -> bool:
+    """TensorRT decision (spec S7). Off by default in ``auto`` (engine build is
+    expensive); enabled only when forced ``on`` OR the family is TRT-proven and a
+    TRT backend is present on a GPU. Never auto-builds for an un-vetted family."""
+    from foundry.tensorrt_engine import is_trt_eligible
+
+    if settings.tensorrt == "off":
+        return False
+    if not gpu or not _trt_backend_available():
+        if settings.tensorrt == "on":
+            notes.append("tensorrt off: no GPU or TRT backend")
+        return False
+    if settings.tensorrt == "on":
+        return True
+    # auto: only proven families, and never unbidden for un-vetted ones.
+    return is_trt_eligible(family)
+
+
 def resolve_acceleration(plan, profile, settings: AccelerationSettings, *, backends: Optional[QuantBackends] = None) -> AccelerationPlan:
     """Decide the optimization set for this (plan, hardware, settings). Pure -
     no torch, no I/O. Security refusals and the master switch short-circuit to
@@ -237,12 +261,18 @@ def resolve_acceleration(plan, profile, settings: AccelerationSettings, *, backe
     compile_on = _decide(settings.compile, auto_default=gpu)
     attention_slicing = _resolve_slicing(plan, settings, gpu, notes)
 
+    tensorrt = _resolve_tensorrt(family, settings, gpu, notes)
+    if tensorrt and compile_on:
+        compile_on = False
+        notes.append("compile off: tensorrt is the compiled artifact (mutually exclusive)")
+
     return AccelerationPlan(
         compile=compile_on,
         channels_last=channels_last,
         sdpa=sdpa,
         attention_slicing=attention_slicing,
         quantization=quantization,
+        tensorrt=tensorrt,
         notes=notes,
     )
 
@@ -329,6 +359,30 @@ def _apply_compile(pipeline, accel: AccelerationPlan, result: AppliedAcceleratio
         result.fell_back.append(f"compile ({type(exc).__name__}, ran eager)")
 
 
+def _run_tensorrt(pipeline, family) -> str:
+    """Resolve the TRT engine for this pipeline; returns the state token
+    ("cached"/"built"). Isolated so tests patch ONE seam. The real generator-level
+    integration (Task 18 wiring) passes the plan's precision, resolution bucket,
+    GPU capability and TRT version; this default signature is the seam."""
+    from foundry.tensorrt_engine import build_or_load_engine
+
+    return build_or_load_engine(
+        pipeline, family=family, pipeline_class=type(pipeline).__name__,
+        precision="bf16", resolution_bucket="1024x1024",
+        cache_dir=os.environ.get("VS_TRT_CACHE_DIR", ".cache/tensorrt"),
+        compute_capability=(8, 9), trt_version="unknown")
+
+
+def _apply_tensorrt(pipeline, family, result: AppliedAcceleration) -> None:
+    """TensorRT engine build/load with the HARD-FALLBACK rule: a failure NEVER
+    fails a generation - we leave the eager module in place and record fell_back."""
+    try:
+        state = _run_tensorrt(pipeline, family)
+        result.applied.append(f"tensorrt:{state}")
+    except Exception as exc:  # noqa: BLE001 - hard-fallback, never fails a generation
+        result.fell_back.append(f"tensorrt (build/load failed: {type(exc).__name__}, ran eager)")
+
+
 def _quant_target(pipeline):
     """The heavy module to quantize - unet or transformer."""
     _attr, module = _compile_target(pipeline)
@@ -377,7 +431,12 @@ def apply_acceleration(pipeline, accel: AccelerationPlan, family, *, slicing_max
     if slicing is not None:
         _apply_slicing(pipeline, slicing, result)
 
-    if accel.compile:
+    # TensorRT and torch.compile are mutually exclusive (the decision layer
+    # already forces compile off when tensorrt wins); guard here too so a direct
+    # apply_acceleration caller can never run both compiled paths.
+    if accel.tensorrt:
+        _apply_tensorrt(pipeline, family, result)
+    elif accel.compile:
         _apply_compile(pipeline, accel, result)
     return result
 

@@ -3,7 +3,7 @@ import { Cpu, Gauge, Zap } from 'lucide-react';
 
 import { MonoLabel } from '@/components/hardware/MonoLabel';
 import { useAppStore } from '@/store/appStore';
-import type { TriState } from '@/types/acceleration';
+import type { AppliedAcceleration, TriState } from '@/types/acceleration';
 
 type OptimizationKey =
   | 'sdpa' | 'channelsLast' | 'compile' | 'quantization' | 'attentionSlicing' | 'tensorrt';
@@ -27,6 +27,7 @@ export function PerformancePanel() {
       applied: s.lastAppliedAcceleration,
     }))
   );
+  const trtStatus = tensorrtStatus(applied);
 
   return (
     <div className="space-y-5">
@@ -78,6 +79,12 @@ export function PerformancePanel() {
             <Zap className="w-3.5 h-3.5 text-accent-primary" aria-hidden />
             <MonoLabel>Applied This Run</MonoLabel>
           </div>
+          {trtStatus ? (
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-text-muted data-mono uppercase">TensorRT</span>
+              <span className="text-xs data-mono text-text-body">{trtStatus}</span>
+            </div>
+          ) : null}
           <AppliedGroup title="Applied" items={applied.applied} tone="text-accent-primary" />
           <AppliedGroup title="Skipped" items={applied.skipped} tone="text-text-muted" />
           <AppliedGroup title="Fell Back" items={applied.fellBack} tone="text-amber-400" />
@@ -90,6 +97,20 @@ export function PerformancePanel() {
       )}
     </div>
   );
+}
+
+// Derive a concise TensorRT status from the applied readout. On fallback we
+// return a short token rather than the full reason: the detailed reason already
+// renders in the "Fell Back" group below, and duplicating it would surface the
+// same text twice (and break single-match test queries).
+function tensorrtStatus(applied: AppliedAcceleration | null): string | null {
+  if (!applied) return null;
+  const hit = applied.applied.find((a) => a.startsWith('tensorrt:'));
+  if (hit === 'tensorrt:cached') return 'cached & active';
+  if (hit === 'tensorrt:built') return 'built';
+  const fell = applied.fellBack.find((f) => f.startsWith('tensorrt'));
+  if (fell) return 'unavailable';
+  return null;
 }
 
 function AppliedGroup({ title, items, tone }: { title: string; items: string[]; tone: string }) {
