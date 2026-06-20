@@ -114,6 +114,21 @@ export interface VideoFrameInput {
   label: string;       // 'Start Frame' | 'End Frame'
 }
 
+/**
+ * M9: per-request acceleration toggles, snake_case for the Python backend.
+ * Each optimization is a tri-state string ('auto' | 'on' | 'off'); 'auto' lets
+ * the backend decide from the hardware fit, 'on'/'off' force the toggle.
+ */
+export interface AccelerationRequestPayload {
+  master_enable: boolean;
+  sdpa: string;
+  channels_last: string;
+  compile: string;
+  quantization: string;
+  attention_slicing: string;
+  tensorrt: string;
+}
+
 export interface ImageGenerationRequestPayload {
   prompt: string;
   negative_prompt?: string;
@@ -131,6 +146,8 @@ export interface ImageGenerationRequestPayload {
   inpaint?: GenerationInpaintPayload;
   /** M6: per-request hosted provider override for over-budget fallback routing. */
   __providerOverride?: 'openrouter' | 'huggingface';
+  /** M9: optional per-request acceleration toggles (local generation only). */
+  acceleration_settings?: AccelerationRequestPayload;
 }
 
 export const BUILT_IN_STYLE_PRESETS: StylePreset[] = [

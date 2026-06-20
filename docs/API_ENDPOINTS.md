@@ -416,6 +416,20 @@ Body — `ImageGenerationRequest`:
 | `seed` | int | `-1` | -1 = random |
 | `model` | string | `flux-dev` | `flux-dev`, `flux-schnell`, `flux-fill`, `sd3.5-large`, `sd3.5-medium`, `sd-1.5` |
 | `scheduler` | string | `euler` | sampler name accepted by ComfyUI / diffusers |
+| `acceleration_settings` | object \| null | `null` | M9 acceleration toggles (see below); `null` = all defaults |
+
+<a id="acceleration-settings"></a>
+**`acceleration_settings`** (M9, local generation only) — per-request inference acceleration toggles. Ignored by the hosted (OpenRouter / HuggingFace) routes. Each optimization is a tri-state string: `auto` (the backend decides from the hardware fit), `on` (force), or `off` (disable).
+
+| Field | Type | Default | Values |
+|-------|------|---------|--------|
+| `master_enable` | bool | `true` | `false` disables all acceleration for the run |
+| `sdpa` | string | `auto` | `auto` / `on` / `off` — fused scaled-dot-product attention |
+| `channels_last` | string | `auto` | `auto` / `on` / `off` — channels-last memory format (conv-UNet families) |
+| `compile` | string | `auto` | `auto` / `on` / `off` — `torch.compile` (reduce-overhead) |
+| `quantization` | string | `auto` | `auto` / `on` / `off` — int8 / fp8 where the family + hardware allow |
+| `attention_slicing` | string | `auto` | `auto` / `on` / `off` — only engaged under VRAM pressure |
+| `tensorrt` | string | `auto` | `auto` / `on` / `off` — TensorRT engine build (one-time) |
 
 Response — `JobResponse`:
 
@@ -440,6 +454,7 @@ Body — `VideoGenerationRequest`:
 | `steps` | int | `25` | 1–100 |
 | `model` | string | `ltx-video` | `ltx-video`, `svd`, `animate-diff` |
 | `seed` | int | `-1` | -1 = random |
+| `acceleration_settings` | object \| null | `null` | M9 acceleration toggles ([same shape as image](#acceleration-settings)); `null` = all defaults |
 
 Returns `JobResponse`.
 
@@ -466,6 +481,16 @@ When `status === "completed"`, `result` is provider-specific:
 
 - Image: `{ "images": ["/outputs/<job_id>/image_001.png", …], "seed": 12345, "width": 1024, "height": 1024, "prompt": "...", "model": "flux-dev" }`
 - Video / timeline export: `{ "video": "/outputs/.../out.mp4", "output_path": "...", "fps": 24, "duration": 5.0, "frames": 120, "width": 1024, "height": 576, ... }`
+
+For local diffusers generations (M9), the result also carries `acceleration` — the optimizations that actually took effect, honestly split into applied / skipped / fell-back lists (`null` for hosted-provider jobs):
+
+```json
+"acceleration": {
+  "applied": ["sdpa", "compile:reduce-overhead", "channels_last"],
+  "skipped": ["quantization:int8 (backend unavailable)"],
+  "fell_back": ["compile (RuntimeError, ran eager)"]
+}
+```
 
 `404` if not found.
 

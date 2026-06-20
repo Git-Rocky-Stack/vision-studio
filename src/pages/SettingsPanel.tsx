@@ -8,6 +8,7 @@ import { useAppStore } from '@/store/appStore';
 import { AI_DIRECTOR_DEFAULTS, type AiDirectorSettings } from '../../shared/retrieval';
 import { buildIngestRecords } from '@/features/director/buildIngestRecords';
 import { UserGuidePage } from '@/pages/UserGuidePage';
+import { PerformancePanel } from '@/components/settings/PerformancePanel';
 import type { ModelRecord, DownloadStatus } from '@/types/model';
 import type {
   OpenRouterKeyInfo,
@@ -19,6 +20,7 @@ import {
   Settings,
   Folder,
   Cpu,
+  Gauge,
   Palette,
   Bell,
   ChevronRight,
@@ -38,7 +40,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-type SettingsTab = 'general' | 'ai' | 'appearance' | 'notifications' | 'guide';
+type SettingsTab = 'general' | 'ai' | 'performance' | 'appearance' | 'notifications' | 'guide';
 
 interface SettingsSection {
   id: SettingsTab;
@@ -65,6 +67,7 @@ interface ConnectionBannerState {
 const sections: SettingsSection[] = [
   { id: 'general', label: 'General', icon: Settings },
   { id: 'ai', label: 'AI & Models', icon: Cpu },
+  { id: 'performance', label: 'Performance', icon: Gauge },
   { id: 'appearance', label: 'Appearance', icon: Palette },
   { id: 'notifications', label: 'Notifications', icon: Bell },
   { id: 'guide', label: 'User Guide', icon: HelpCircle },
@@ -1791,6 +1794,24 @@ export function SettingsPanel() {
                       );
                     })
                   )}
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'performance' && (
+              <div className="space-y-8">
+                <div>
+                  <h2 className="type-title text-text-primary mb-1">
+                    Performance
+                  </h2>
+                  <p className="text-sm text-text-body">
+                    Tune local inference acceleration. Auto lets the engine pick the fastest safe
+                    path for your hardware; On and Off override a single optimization.
+                  </p>
+                </div>
+
+                <div className="raised-panel p-4">
+                  <PerformancePanel />
                 </div>
               </div>
             )}

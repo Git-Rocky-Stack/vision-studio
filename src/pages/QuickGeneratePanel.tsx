@@ -1,6 +1,10 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useAppStore } from '@/store/appStore';
+import {
+  fromAccelerationResult,
+  toAccelerationRequestPayload,
+} from '@/features/generation/accelerationRequest';
 import { Button } from '@/components/ui/Button';
 import { ModelSelector } from '@/components/generate/ModelSelector';
 import { cn } from '@/utils/cn';
@@ -80,6 +84,11 @@ export function QuickGeneratePanel() {
               error: status.error,
               completedAt,
             });
+
+            // M9: surface which optimizations actually took effect on this run.
+            useAppStore
+              .getState()
+              .setLastAppliedAcceleration(fromAccelerationResult(status.result?.acceleration));
 
             syncAssetsFromJobStatus({
               ...status,
@@ -236,6 +245,9 @@ export function QuickGeneratePanel() {
         seed: advancedGeneration.seed === -1 ? undefined : advancedGeneration.seed,
         model: useOpenRouterImage ? openRouterImageModel : selectedModel,
         scheduler: advancedGeneration.scheduler,
+        acceleration_settings: toAccelerationRequestPayload(
+          useAppStore.getState().accelerationSettings,
+        ),
       });
 
       if (result.success && result.jobId) {

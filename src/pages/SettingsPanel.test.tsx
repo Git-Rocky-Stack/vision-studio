@@ -244,6 +244,17 @@ describe('SettingsPanel', () => {
     });
   });
 
+  it('exposes the Performance acceleration panel', async () => {
+    render(<SettingsPanel />);
+
+    fireEvent.click(screen.getByRole('button', { name: /^Performance$/ }));
+
+    // The dedicated panel renders its tri-state optimization controls.
+    expect(await screen.findByText('Compile')).toBeInTheDocument();
+    expect(screen.getByText('Quantization')).toBeInTheDocument();
+    expect(screen.getByLabelText('Master Enable')).toBeInTheDocument();
+  });
+
   it('enqueues a model download through the store and shows live job progress', async () => {
     const job: DownloadJob = {
       model_id: 'flux-dev',
