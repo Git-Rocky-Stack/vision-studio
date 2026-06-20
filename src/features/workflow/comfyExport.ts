@@ -1,15 +1,27 @@
 import type { WorkflowGraph } from '@/types/workflow';
+import { namedOutputToSlot } from './nodeSlots';
 
 export type ComfyPrompt = Record<
   string,
   {
     class_type: string;
-    inputs: Record<string, string | number | boolean | null | [string, string]>;
+    inputs: Record<string, string | number | boolean | null | [string, string | number]>;
     _meta?: {
       title?: string;
     };
   }
 >;
+
+/**
+ * Resolve an in-app named output to the integer slot ComfyUI requires. First-class
+ * source nodes map to their canonical slot index; opaque or unmapped outputs pass
+ * through verbatim so no link is silently dropped (M8 S4).
+ */
+function resolveExportSlot(graph: WorkflowGraph, nodeId: string, output: string): string | number {
+  const sourceClassType = graph.nodes[nodeId]?.classType;
+  const slot = sourceClassType ? namedOutputToSlot(sourceClassType, output) : null;
+  return slot ?? output;
+}
 
 export function exportWorkflowGraphToComfyPrompt(graph: WorkflowGraph): ComfyPrompt {
   validateWorkflowGraphForComfyExport(graph);
@@ -22,7 +34,9 @@ export function exportWorkflowGraphToComfyPrompt(graph: WorkflowGraph): ComfyPro
         inputs: Object.fromEntries(
           Object.entries(node.inputs).map(([name, input]) => [
             name,
-            input.kind === 'link' ? [input.nodeId, input.output] : input.value,
+            input.kind === 'link'
+              ? [input.nodeId, resolveExportSlot(graph, input.nodeId, input.output)]
+              : input.value,
           ])
         ),
         _meta: {
