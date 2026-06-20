@@ -13,8 +13,12 @@ import hashlib
 import os
 from typing import Optional, Tuple
 
-# Populated from the PR3 correctness sweep - evidence, not assertion.
-TRT_PROVEN_FAMILIES = {"sdxl", "sd15"}
+# Blessed by the maintainer's CUDA correctness sweep (docs/TENSORRT_VERIFICATION.md)
+# - "evidence, not assertion". Empty in 3.1.0: TRT ships code-complete but
+# auto-off until a family passes the sweep on real hardware. Explicit
+# tensorrt="on" still builds (with hard-fallback to eager). Blessing a family
+# is a one-line data edit here after its sweep result passes correctness.
+TRT_PROVEN_FAMILIES: set[str] = set()
 
 
 def is_trt_eligible(family: Optional[str]) -> bool:
