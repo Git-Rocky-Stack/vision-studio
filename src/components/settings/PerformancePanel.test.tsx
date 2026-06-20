@@ -47,4 +47,20 @@ describe('PerformancePanel', () => {
     );
     expect(hasBannedGlyph).toBe(false);
   });
+
+  it('surfaces TensorRT state from the applied readout', () => {
+    useAppStore.getState().setLastAppliedAcceleration({
+      applied: ['tensorrt:cached'], skipped: [], fellBack: [],
+    });
+    render(<PerformancePanel />);
+    expect(screen.getByText(/cached & active/i)).toBeInTheDocument();
+  });
+
+  it('surfaces a TensorRT fallback reason', () => {
+    useAppStore.getState().setLastAppliedAcceleration({
+      applied: [], skipped: [], fellBack: ['tensorrt (build/load failed: RuntimeError, ran eager)'],
+    });
+    render(<PerformancePanel />);
+    expect(screen.getByText(/ran eager/i)).toBeInTheDocument();
+  });
 });
