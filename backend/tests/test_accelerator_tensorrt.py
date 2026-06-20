@@ -10,14 +10,13 @@ BACKEND_ROOT = pathlib.Path(__file__).resolve().parents[1]
 if str(BACKEND_ROOT) not in sys.path:
     sys.path.insert(0, str(BACKEND_ROOT))
 
-from foundry import accelerator
+from foundry import accelerator, tensorrt_engine
 from foundry.accelerator import AccelerationSettings, resolve_acceleration
 from foundry.hardware import HardwareProfile
 from foundry.tensorrt_engine import (
     TRT_PROVEN_FAMILIES,
     engine_cache_key,
     engine_cache_path,
-    is_trt_eligible,
 )
 
 
@@ -47,13 +46,16 @@ class CacheKeyTests(unittest.TestCase):
 
 
 class AllowlistTests(unittest.TestCase):
-    def test_proven_families_are_eligible(self):
-        for family in TRT_PROVEN_FAMILIES:
-            self.assertTrue(is_trt_eligible(family))
+    def test_production_allowlist_is_empty_until_blessed(self):
+        # M10 honesty rail: no family is auto-eligible until a CUDA sweep
+        # blesses it (docs/TENSORRT_VERIFICATION.md). Auto must never build.
+        self.assertEqual(TRT_PROVEN_FAMILIES, set())
 
-    def test_unvetted_family_not_eligible(self):
-        self.assertFalse(is_trt_eligible("ltx"))
-        self.assertFalse(is_trt_eligible(None))
+    def test_eligibility_follows_the_allowlist(self):
+        with mock.patch.object(tensorrt_engine, "TRT_PROVEN_FAMILIES", {"sdxl"}):
+            self.assertTrue(tensorrt_engine.is_trt_eligible("sdxl"))
+            self.assertFalse(tensorrt_engine.is_trt_eligible("ltx"))
+            self.assertFalse(tensorrt_engine.is_trt_eligible(None))
 
 
 class _FakePlan:
@@ -69,11 +71,16 @@ def _gpu():
 
 class TensorrtDecisionTests(unittest.TestCase):
     def setUp(self):
-        # Pretend a TRT backend is importable for these decision tests.
+        # Pretend a TRT backend is importable AND bless sdxl, so these tests
+        # exercise the decision logic independent of the (empty) production
+        # allowlist.
         self._p = mock.patch.object(accelerator, "_trt_backend_available", lambda: True)
         self._p.start()
+        self._a = mock.patch.object(tensorrt_engine, "TRT_PROVEN_FAMILIES", {"sdxl"})
+        self._a.start()
 
     def tearDown(self):
+        self._a.stop()
         self._p.stop()
 
     def test_auto_does_not_build_trt_for_unvetted_family(self):
@@ -98,4 +105,18 @@ class TensorrtDecisionTests(unittest.TestCase):
     def test_off_disables(self):
         accel = resolve_acceleration(
             _FakePlan("StableDiffusionXLPipeline"), _gpu(), AccelerationSettings(tensorrt="off"))
+        self.assertFalse(accel.tensorrt)
+
+
+class TensorrtProductionDefaultTests(unittest.TestCase):
+    def setUp(self):
+        self._p = mock.patch.object(accelerator, "_trt_backend_available", lambda: True)
+        self._p.start()  # backend present, but the REAL (empty) allowlist stands
+
+    def tearDown(self):
+        self._p.stop()
+
+    def test_auto_stays_off_when_allowlist_empty(self):
+        accel = resolve_acceleration(
+            _FakePlan("StableDiffusionXLPipeline"), _gpu(), AccelerationSettings())
         self.assertFalse(accel.tensorrt)
