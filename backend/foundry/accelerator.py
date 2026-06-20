@@ -359,6 +359,30 @@ def _apply_compile(pipeline, accel: AccelerationPlan, result: AppliedAcceleratio
         result.fell_back.append(f"compile ({type(exc).__name__}, ran eager)")
 
 
+def _run_tensorrt(pipeline, family) -> str:
+    """Resolve the TRT engine for this pipeline; returns the state token
+    ("cached"/"built"). Isolated so tests patch ONE seam. The real generator-level
+    integration (Task 18 wiring) passes the plan's precision, resolution bucket,
+    GPU capability and TRT version; this default signature is the seam."""
+    from foundry.tensorrt_engine import build_or_load_engine
+
+    return build_or_load_engine(
+        pipeline, family=family, pipeline_class=type(pipeline).__name__,
+        precision="bf16", resolution_bucket="1024x1024",
+        cache_dir=os.environ.get("VS_TRT_CACHE_DIR", ".cache/tensorrt"),
+        compute_capability=(8, 9), trt_version="unknown")
+
+
+def _apply_tensorrt(pipeline, family, result: AppliedAcceleration) -> None:
+    """TensorRT engine build/load with the HARD-FALLBACK rule: a failure NEVER
+    fails a generation - we leave the eager module in place and record fell_back."""
+    try:
+        state = _run_tensorrt(pipeline, family)
+        result.applied.append(f"tensorrt:{state}")
+    except Exception as exc:  # noqa: BLE001 - hard-fallback, never fails a generation
+        result.fell_back.append(f"tensorrt (build/load failed: {type(exc).__name__}, ran eager)")
+
+
 def _quant_target(pipeline):
     """The heavy module to quantize - unet or transformer."""
     _attr, module = _compile_target(pipeline)
@@ -407,7 +431,12 @@ def apply_acceleration(pipeline, accel: AccelerationPlan, family, *, slicing_max
     if slicing is not None:
         _apply_slicing(pipeline, slicing, result)
 
-    if accel.compile:
+    # TensorRT and torch.compile are mutually exclusive (the decision layer
+    # already forces compile off when tensorrt wins); guard here too so a direct
+    # apply_acceleration caller can never run both compiled paths.
+    if accel.tensorrt:
+        _apply_tensorrt(pipeline, family, result)
+    elif accel.compile:
         _apply_compile(pipeline, accel, result)
     return result
 

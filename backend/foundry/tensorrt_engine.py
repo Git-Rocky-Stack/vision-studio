@@ -34,3 +34,40 @@ def engine_cache_key(*, family: str, pipeline_class: str, precision: str,
 
 def engine_cache_path(cache_dir: str, key: str) -> str:
     return os.path.join(cache_dir, f"{key}.plan")
+
+
+def build_or_load_engine(pipeline, *, family: str, pipeline_class: str, precision: str,
+                         resolution_bucket: str, cache_dir: str,
+                         compute_capability: Tuple[int, int], trt_version: str) -> str:
+    """Cache-hit -> bind prebuilt engine ("cached"); cache-miss -> export ONNX,
+    build, serialize ("built"). Raises on real build failure - the caller guards
+    it into a non-fatal fell_back. Heavy deps imported lazily."""
+    key = engine_cache_key(
+        family=family, pipeline_class=pipeline_class, precision=precision,
+        resolution_bucket=resolution_bucket, compute_capability=compute_capability,
+        trt_version=trt_version)
+    path = engine_cache_path(cache_dir, key)
+    os.makedirs(cache_dir, exist_ok=True)
+    if os.path.isfile(path):
+        _bind_engine(pipeline, path)
+        return "cached"
+    _build_engine(pipeline, path, resolution_bucket=resolution_bucket, precision=precision)
+    return "built"
+
+
+def _bind_engine(pipeline, path: str) -> None:
+    import torch_tensorrt  # noqa: F401, PLC0415 - lazy heavy dep
+
+    # Deserialize the serialized TRT module and attach to the pipeline's denoiser.
+    # (Engineer: bind to pipeline.unet/transformer per the torch_tensorrt API.)
+    raise NotImplementedError  # replaced with the real bind in the CUDA-verified pass
+
+
+def _build_engine(pipeline, path: str, *, resolution_bucket: str, precision: str) -> None:
+    import torch_tensorrt  # noqa: F401, PLC0415 - lazy heavy dep
+
+    # Export the denoiser to ONNX at the bucket's shape, compile a TRT engine,
+    # serialize to `path`. (Engineer: implement per the torch_tensorrt API and
+    # verify output tolerance via benchmark_accel before adding the family to
+    # TRT_PROVEN_FAMILIES.)
+    raise NotImplementedError  # replaced with the real build in the CUDA-verified pass
