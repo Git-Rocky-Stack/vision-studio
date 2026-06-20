@@ -58,7 +58,7 @@ from slowapi.errors import RateLimitExceeded
 
 from utils.job_manager import JobManager, JobStatus, GenerationJob
 from utils.logging_config import setup_logging, get_logger
-from utils.comfy_workflows import build_image_workflow
+from utils.comfy_workflows import build_image_workflow, build_video_workflow
 from utils.direct_video_generator import DirectVideoGenerator
 from utils.model_manager import ModelManager
 from utils.direct_generator import DirectGenerator, ModelLoadRefusedError
@@ -101,6 +101,7 @@ from api.lora import router as lora_router
 from api.edit import router as edit_router
 from api.batch import router as batch_router
 from api.retrieval import router as retrieval_router
+from api.comfy_graph import router as comfy_graph_router, configure as configure_comfy_graph
 
 try:
     from utils.comfy_client import ComfyUIClient
@@ -389,6 +390,10 @@ app.include_router(lora_router)
 app.include_router(edit_router)
 app.include_router(batch_router)
 app.include_router(retrieval_router)
+app.include_router(comfy_graph_router)
+# `lambda: comfy_client` reads the live module global, which is assigned when the
+# ComfyUI connection is established during startup (None until then).
+configure_comfy_graph(lambda: comfy_client, job_manager, OUTPUT_DIR)
 
 
 @app.get("/api/health", tags=["System"])
@@ -1254,6 +1259,50 @@ async def generate_with_comfyui(job_id: str, request: ImageGenerationRequest) ->
     }
 
 
+async def generate_video_with_comfyui(job_id: str, request: VideoGenerationRequest) -> Dict:
+    """Generate video using a connected ComfyUI server (flat request path)."""
+    if not comfy_client:
+        raise RuntimeError("ComfyUI client is not available")
+
+    image_filename = ""
+    if request.image_path:
+        image_filename = await comfy_client.upload_image(request.image_path)
+
+    workflow, resolved_seed = build_video_workflow(
+        model=request.model,
+        prompt=request.prompt,
+        image_filename=image_filename,
+        width=request.width,
+        height=request.height,
+        fps=request.fps,
+        steps=request.steps,
+        seed=request.seed if request.seed != -1 else None,
+        file_prefix=f"vision_studio/{job_id}/video",
+    )
+
+    prompt_id = await comfy_client.queue_prompt(workflow)
+    job_manager.update_job(job_id, progress=10.0)
+    outputs = await comfy_client.wait_for_prompt_completion(
+        prompt_id,
+        progress_callback=lambda progress: job_manager.update_job(job_id, progress=progress),
+        kinds=("images", "gifs", "videos"),
+    )
+
+    output_dir = Path(OUTPUT_DIR) / job_id
+    output_dir.mkdir(parents=True, exist_ok=True)
+    saved: List[str] = []
+    for index, output in enumerate(outputs, start=1):
+        data = await comfy_client.get_image(
+            output["filename"], output.get("subfolder", ""), output.get("type", "output")
+        )
+        extension = Path(output["filename"]).suffix or ".webp"
+        local_name = f"video_{index:03d}{extension}"
+        (output_dir / local_name).write_bytes(data)
+        saved.append(f"/outputs/{job_id}/{local_name}")
+
+    return {"videos": saved, "seed": resolved_seed, "prompt": request.prompt, "model": request.model}
+
+
 async def generate_direct(job_id: str, request: ImageGenerationRequest) -> Dict:
     """Generate image using direct diffusers pipeline"""
     if not direct_generator:
@@ -1360,26 +1409,30 @@ async def process_video_generation(job_id: str, request: VideoGenerationRequest)
     try:
         job_manager.update_job(job_id, status=JobStatus.PROCESSING, progress=0.0)
 
-        if not direct_video_generator:
-            raise RuntimeError(
-                "No video generation backend available. Install the required libraries "
-                "(pip install diffusers torch) for direct video generation."
+        if comfy_client and comfy_client.connected:
+            logger.info(f"[Job {job_id}] Using ComfyUI video generator")
+            result = await generate_video_with_comfyui(job_id, request)
+        else:
+            if not direct_video_generator:
+                raise RuntimeError(
+                    "No video generation backend available. Install the required libraries "
+                    "(pip install diffusers torch) for direct video generation."
+                )
+
+            result = await direct_video_generator.generate_video(
+                job_id=job_id,
+                prompt=request.prompt,
+                image_path=request.image_path,
+                width=request.width,
+                height=request.height,
+                fps=request.fps,
+                duration=request.duration,
+                steps=request.steps,
+                model_name=request.model,
+                seed=request.seed if request.seed != -1 else 0,
+                progress_callback=lambda progress: job_manager.update_job(job_id, progress=progress),
             )
 
-        result = await direct_video_generator.generate_video(
-            job_id=job_id,
-            prompt=request.prompt,
-            image_path=request.image_path,
-            width=request.width,
-            height=request.height,
-            fps=request.fps,
-            duration=request.duration,
-            steps=request.steps,
-            model_name=request.model,
-            seed=request.seed if request.seed != -1 else 0,
-            progress_callback=lambda progress: job_manager.update_job(job_id, progress=progress),
-        )
-        
         job_manager.update_job(
             job_id,
             status=JobStatus.COMPLETED,

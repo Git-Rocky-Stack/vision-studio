@@ -313,6 +313,12 @@ export interface ElectronAPI {
     clearIndex: () => Promise<{ success: boolean }>;
     indexStats: () => Promise<{ count: number; mode: 'semantic' | 'lexical' }>;
   };
+  workflow: {
+    runGraph: (params: {
+      graph: import('@/features/workflow/comfyExport').ComfyPrompt;
+      generationType: 'image' | 'video';
+    }) => Promise<{ job_id: string; status: string; message: string }>;
+  };
   generation: {
     generateImage: (params: GenerationParams) => Promise<JobResponse>;
     generateVideo: (params: VideoGenerationParams) => Promise<JobResponse>;

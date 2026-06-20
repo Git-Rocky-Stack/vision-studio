@@ -2,14 +2,19 @@
 ComfyUI Client - Interface with ComfyUI server
 """
 
+from __future__ import annotations
+
 import asyncio
 import json
 import uuid
 from typing import Any, Callable, Dict, List, Optional
 
-import aiohttp
+try:
+    import aiohttp
+except ModuleNotFoundError:  # CI stub omits aiohttp; keep the module import-safe.
+    aiohttp = None  # type: ignore[assignment]
 
-from .comfy_workflows import extract_history_image_outputs
+from .comfy_workflows import extract_history_outputs
 
 
 class ComfyUIClient:
@@ -157,12 +162,13 @@ class ComfyUIClient:
         timeout_seconds: int = 600,
         poll_interval: float = 1.0,
         progress_callback: Optional[Callable[[float], None]] = None,
+        kinds: tuple[str, ...] = ("images",),
     ) -> List[Dict[str, str]]:
         start = asyncio.get_running_loop().time()
 
         while True:
             history = await self.get_history(prompt_id)
-            outputs = extract_history_image_outputs(history, prompt_id)
+            outputs = extract_history_outputs(history, prompt_id, kinds=kinds)
             if outputs:
                 if progress_callback:
                     progress_callback(95.0)

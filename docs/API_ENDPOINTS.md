@@ -320,6 +320,16 @@ Settings: `settings.aiDirector = { enabled, sources: { promptHistory, assets, kn
 
 **Trust boundary:** retrieved + model-authored text is data, never instructions — wrapped in a delimited DATA block, and ingestion is allow-list so secrets/keys/paths are never indexed. Degrades cleanly: embedder absent → lexical; backend unreachable → un-augmented; empty corpus → knowledge-base only.
 
+### 1.15 `electron.workflow` (M8 ComfyUI Interop)
+
+Runs a user-authored ComfyUI graph as-authored on a connected Comfy server. The renderer exports the active `WorkflowGraph` to a Comfy API-format prompt (with integer output slots, via the slot-reconciliation layer) and submits it; the backend validates it through the safety gate before queueing. The renderer polls the returned job via `generation.getStatus(jobId)`.
+
+| Renderer call | IPC channel | Backend | Notes |
+|---|---|---|---|
+| `workflow.runGraph({ graph, generationType })` | `workflow:run-graph` | `POST /api/v1/comfy/run-graph` | `generationType` is `'image' \| 'video'`. Returns `{ job_id, status, message }`. The Run-on-ComfyUI UI is gated on the renderer safety pre-check (first-class nodes + safe paths). |
+
+ComfyUI stays **out of the M6 routing fabric** — it is a backend-internal execution detail, not a routable provider.
+
 ## Part 2 — Backend REST API
 
 Base URL: `http://127.0.0.1:8000` (Uvicorn binds `0.0.0.0:8000` but the Main process always uses loopback).
@@ -1024,6 +1034,28 @@ lexical matching. The index persists as files under the runtime data dir
 base ships in-repo (`backend/services/retrieval/prompting_kb/*.json`, keyed by
 model family) and is always available as the cold-start source. Favorited /
 successfully-completed items are score-boosted; no `trust_remote_code` path.
+
+### 2.16 ComfyUI Interop — `/api/v1/comfy`
+
+Runs an imported / authored ComfyUI graph on a connected Comfy server (replacing
+the hardcoded template for graph-originated runs). Imported graphs are **untrusted
+input**: every graph is validated by `comfy_graph_guard.validate_comfy_graph`
+before it reaches `queue_prompt`.
+
+| Method | Path | Body → Response | Notes |
+|---|---|---|---|
+| POST | `/api/v1/comfy/run-graph` | `{ graph, generation_type? }` → `{ job_id, status, message }` | `generation_type` is `image` (default) or `video`. `200` schedules a background job (poll `GET /api/jobs/{job_id}`); `409` when no Comfy server is connected; `422` when the graph fails the safety gate. |
+
+**Safety gate (Codex):** a **class-type allow-list** (the first-class core pipeline —
+`CheckpointLoaderSimple`, `CLIPTextEncode`, `EmptyLatentImage`, `KSampler`,
+`VAEDecode`, `SaveImage`, `PreviewImage`, `LoraLoader`, `VAELoader`) plus
+`sanitize_path` / `sanitize_model_name` over every path/model field. Any
+unsupported node type or unsafe path raises a structured, **leak-free** refusal
+(no path or token in the message) and the graph is never submitted. The check runs
+at the endpoint **and** as defense-in-depth at the start of `execute_comfy_graph`.
+**Video-through-Comfy:** the flat video path (`process_video_generation`) prefers a
+connected Comfy server (`build_video_workflow` + image/gif/video output extraction)
+and falls back to `DirectVideoGenerator`.
 
 ### 2.14 Static `/outputs/*`
 

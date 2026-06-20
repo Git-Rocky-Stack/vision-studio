@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { AlertCircle, Loader2, Play, ShieldCheck } from 'lucide-react';
 
 import type { UserAccountSummary } from '@/types/electron';
@@ -10,6 +10,7 @@ import {
 } from '@/features/accounts/providerRouting';
 import { exportWorkflowGraphToComfyPrompt, type ComfyPrompt } from '@/features/workflow/comfyExport';
 import { importComfyPromptToWorkflowGraph, type ImportFidelityReport } from '@/features/workflow/comfyImport';
+import { evaluateGraphSafety } from '@/features/workflow/comfyImportSafety';
 import { createWorkflowNodeFromClassType } from '@/features/workflow/nodeDefaults';
 import { runWorkflowExecution } from '@/features/workflow/runWorkflowExecution';
 import { validateWorkflowExecution } from '@/features/workflow/validateWorkflowExecution';
@@ -107,6 +108,24 @@ export function WorkflowWorkbench() {
       cancelled = true;
     };
   }, []);
+
+  // Export the active graph once per change so the Run-on-ComfyUI gate and click
+  // handler share one source; export can throw on an invalid graph, so guard it.
+  const activePrompt = useMemo(() => {
+    try {
+      return exportWorkflowGraphToComfyPrompt(activeWorkflow.graph);
+    } catch {
+      return null;
+    }
+  }, [activeWorkflow]);
+  const runnableOnComfy = activePrompt ? evaluateGraphSafety(activePrompt).safe : false;
+
+  async function handleRunOnComfy() {
+    if (!activePrompt) return;
+    const electron = window.electron;
+    if (!electron?.workflow) return;
+    await electron.workflow.runGraph({ graph: activePrompt, generationType: 'image' });
+  }
 
   function handleExportComfyJson() {
     try {
@@ -314,6 +333,14 @@ export function WorkflowWorkbench() {
             >
               {isRunning ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
               {isRunning ? 'Running workflow...' : 'Run Workflow'}
+            </button>
+            <button
+              type="button"
+              onClick={handleRunOnComfy}
+              disabled={!runnableOnComfy}
+              className="inline-flex items-center gap-2 rounded-md border border-border bg-elevated px-3 py-1.5 type-ui text-text-body transition-all hover:border-border-hover hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Run on ComfyUI
             </button>
             <button
               type="button"

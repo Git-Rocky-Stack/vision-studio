@@ -99,20 +99,89 @@ def build_image_workflow(
     return workflow, normalized_seed
 
 
-def extract_history_image_outputs(history: Dict, prompt_id: str) -> List[Dict[str, str]]:
+def extract_history_outputs(
+    history: Dict, prompt_id: str, kinds: Tuple[str, ...] = ("images",)
+) -> List[Dict[str, str]]:
     entry = history.get(prompt_id, {})
     outputs = entry.get("outputs", {})
     collected: List[Dict[str, str]] = []
 
     for node_output in outputs.values():
-        for image in node_output.get("images", []):
-            if image.get("filename"):
-                collected.append(
-                    {
-                        "filename": image["filename"],
-                        "subfolder": image.get("subfolder", ""),
-                        "type": image.get("type", "output"),
-                    }
-                )
+        for kind in kinds:
+            for item in node_output.get(kind, []):
+                if item.get("filename"):
+                    collected.append(
+                        {
+                            "filename": item["filename"],
+                            "subfolder": item.get("subfolder", ""),
+                            "type": item.get("type", "output"),
+                        }
+                    )
 
     return collected
+
+
+def extract_history_image_outputs(history: Dict, prompt_id: str) -> List[Dict[str, str]]:
+    return extract_history_outputs(history, prompt_id, kinds=("images",))
+
+
+def build_video_workflow(
+    model: str,
+    prompt: str,
+    image_filename: str,
+    width: int,
+    height: int,
+    fps: int,
+    steps: int,
+    seed: int | None,
+    file_prefix: str = "vision_studio",
+) -> Tuple[Dict[str, Dict], int]:
+    """
+    Build a Stable-Video-Diffusion image-to-video workflow. SaveAnimatedWEBP reports
+    its result under the history "images" key; VHS custom nodes (if installed) report
+    under "gifs"/"videos" - the dispatch extractor collects all three (S8).
+    The exact video family is plan-time-tunable against the user's installed nodes.
+    """
+    normalized_seed = _normalize_seed(seed)
+
+    workflow = {
+        "1": {"inputs": {"ckpt_name": "svd_xt.safetensors"}, "class_type": "ImageOnlyCheckpointLoader"},
+        "2": {"inputs": {"image": image_filename, "upload": "image"}, "class_type": "LoadImage"},
+        "3": {
+            "inputs": {
+                "width": width,
+                "height": height,
+                "video_frames": 14,
+                "motion_bucket_id": 127,
+                "fps": fps,
+                "augmentation_level": 0.0,
+                "clip_vision": ["1", 1],
+                "init_image": ["2", 0],
+                "vae": ["1", 2],
+            },
+            "class_type": "SVD_img2vid_Conditioning",
+        },
+        "4": {"inputs": {"min_cfg": 1.0, "model": ["1", 0]}, "class_type": "VideoLinearCFGGuidance"},
+        "5": {
+            "inputs": {
+                "seed": normalized_seed,
+                "steps": steps,
+                "cfg": 2.5,
+                "sampler_name": "euler",
+                "scheduler": "karras",
+                "denoise": 1.0,
+                "model": ["4", 0],
+                "positive": ["3", 0],
+                "negative": ["3", 1],
+                "latent_image": ["3", 2],
+            },
+            "class_type": "KSampler",
+        },
+        "6": {"inputs": {"samples": ["5", 0], "vae": ["1", 2]}, "class_type": "VAEDecode"},
+        "7": {
+            "inputs": {"filename_prefix": file_prefix, "fps": fps, "images": ["6", 0]},
+            "class_type": "SaveAnimatedWEBP",
+        },
+    }
+
+    return workflow, normalized_seed

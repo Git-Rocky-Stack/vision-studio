@@ -634,6 +634,20 @@
         "operationId": "retrievalStats",
         "responses": { "200": { "description": "Stats", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/RetrievalStatsResponse" } } } } }
       }
+    },
+    "/api/v1/comfy/run-graph": {
+      "post": {
+        "tags": ["ComfyUI Interop"],
+        "summary": "Run a user-authored ComfyUI graph on a connected Comfy server (image or video)",
+        "operationId": "comfyRunGraph",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "required": ["graph"], "properties": { "graph": { "type": "object", "description": "ComfyUI API-format prompt graph (validated by the safety gate before execution)" }, "generation_type": { "type": "string", "enum": ["image", "video"], "default": "image" } } } } } },
+        "responses": {
+          "200": { "description": "Graph job accepted; poll via GET /api/jobs/{job_id}", "content": { "application/json": { "schema": { "type": "object", "properties": { "job_id": { "type": "string" }, "status": { "type": "string" }, "message": { "type": "string" } } } } } },
+          "409": { "description": "No connected ComfyUI server" },
+          "422": { "description": "Graph failed the safety gate (unsupported node type or unsafe path/model field)" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      }
     }
   },
   "components": {
