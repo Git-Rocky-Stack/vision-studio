@@ -16,6 +16,7 @@ or extends it.
 
 from __future__ import annotations
 
+import importlib.util
 import os
 from dataclasses import dataclass, field
 from typing import List, Optional
@@ -79,6 +80,34 @@ class AppliedAcceleration:
 
 
 DEFAULT_ACCELERATION_SETTINGS = AccelerationSettings()
+
+# method -> families verified safe (output within tolerance vs unquantized).
+# Populated from the PR2 benchmark+correctness sweep, not asserted (spec S5/S8).
+_QUANT_ALLOWLIST = {
+    "int8": {"sdxl", "sd15", "flux", "sd35"},
+    "fp8": {"flux", "sd35", "sdxl"},
+}
+
+
+@dataclass(frozen=True)
+class QuantBackends:
+    int8: bool = False
+    fp8: bool = False
+
+
+def _spec_present(name: str) -> bool:
+    try:
+        return importlib.util.find_spec(name) is not None
+    except (ImportError, ValueError):
+        return False
+
+
+def quant_backends_available() -> QuantBackends:
+    """Which quantization backends are importable - WITHOUT importing them
+    (find_spec does not execute the module). optimum-quanto provides both
+    post-load int8 (qint8) and fp8 (qfloat8); torchao is an fp8 alternative."""
+    quanto = _spec_present("optimum.quanto")
+    return QuantBackends(int8=quanto, fp8=quanto or _spec_present("torchao"))
 
 
 def family_for_plan(plan) -> Optional[str]:
