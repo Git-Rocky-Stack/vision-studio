@@ -207,6 +207,30 @@ def _resolve_quant(family, profile, settings, backends: QuantBackends, notes: Li
     return method
 
 
+def _trt_backend_available() -> bool:
+    """True when a TensorRT backend is importable - WITHOUT importing it
+    (find_spec does not execute the module)."""
+    return _spec_present("torch_tensorrt") or _spec_present("tensorrt")
+
+
+def _resolve_tensorrt(family, settings: AccelerationSettings, gpu: bool, notes: List[str]) -> bool:
+    """TensorRT decision (spec S7). Off by default in ``auto`` (engine build is
+    expensive); enabled only when forced ``on`` OR the family is TRT-proven and a
+    TRT backend is present on a GPU. Never auto-builds for an un-vetted family."""
+    from foundry.tensorrt_engine import is_trt_eligible
+
+    if settings.tensorrt == "off":
+        return False
+    if not gpu or not _trt_backend_available():
+        if settings.tensorrt == "on":
+            notes.append("tensorrt off: no GPU or TRT backend")
+        return False
+    if settings.tensorrt == "on":
+        return True
+    # auto: only proven families, and never unbidden for un-vetted ones.
+    return is_trt_eligible(family)
+
+
 def resolve_acceleration(plan, profile, settings: AccelerationSettings, *, backends: Optional[QuantBackends] = None) -> AccelerationPlan:
     """Decide the optimization set for this (plan, hardware, settings). Pure -
     no torch, no I/O. Security refusals and the master switch short-circuit to
@@ -237,12 +261,18 @@ def resolve_acceleration(plan, profile, settings: AccelerationSettings, *, backe
     compile_on = _decide(settings.compile, auto_default=gpu)
     attention_slicing = _resolve_slicing(plan, settings, gpu, notes)
 
+    tensorrt = _resolve_tensorrt(family, settings, gpu, notes)
+    if tensorrt and compile_on:
+        compile_on = False
+        notes.append("compile off: tensorrt is the compiled artifact (mutually exclusive)")
+
     return AccelerationPlan(
         compile=compile_on,
         channels_last=channels_last,
         sdpa=sdpa,
         attention_slicing=attention_slicing,
         quantization=quantization,
+        tensorrt=tensorrt,
         notes=notes,
     )
 
