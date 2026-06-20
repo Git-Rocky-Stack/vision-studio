@@ -16,8 +16,9 @@ or extends it.
 
 from __future__ import annotations
 
+import importlib.util
 import os
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import List, Optional
 
 try:  # torch is optional and absent in the lightweight CI/test env
@@ -80,11 +81,58 @@ class AppliedAcceleration:
 
 DEFAULT_ACCELERATION_SETTINGS = AccelerationSettings()
 
+# method -> families verified safe (output within tolerance vs unquantized).
+# Populated from the PR2 benchmark+correctness sweep, not asserted (spec S5/S8).
+_QUANT_ALLOWLIST = {
+    "int8": {"sdxl", "sd15", "flux", "sd35"},
+    "fp8": {"flux", "sd35", "sdxl"},
+}
+
+
+@dataclass(frozen=True)
+class QuantBackends:
+    int8: bool = False
+    fp8: bool = False
+
+
+def _spec_present(name: str) -> bool:
+    try:
+        return importlib.util.find_spec(name) is not None
+    except (ImportError, ValueError):
+        return False
+
+
+def quant_backends_available() -> QuantBackends:
+    """Which quantization backends are importable - WITHOUT importing them
+    (find_spec does not execute the module). optimum-quanto provides both
+    post-load int8 (qint8) and fp8 (qfloat8); torchao is an fp8 alternative."""
+    quanto = _spec_present("optimum.quanto")
+    return QuantBackends(int8=quanto, fp8=quanto or _spec_present("torchao"))
+
 
 def family_for_plan(plan) -> Optional[str]:
     """Family string for a RuntimePlan, via its pipeline_class. None if unknown
     (the decision layer then defaults conservatively)."""
     return _FAMILY_BY_PIPELINE_CLASS.get(getattr(plan, "pipeline_class", None))
+
+
+_VALID_TRISTATE = {"auto", "on", "off"}
+_TRISTATE_FIELDS = ("sdpa", "channels_last", "compile", "quantization", "attention_slicing", "tensorrt")
+
+
+def accel_settings_from_dict(data: Optional[dict]) -> AccelerationSettings:
+    """Tolerant parser: missing -> default, unknown keys ignored, an invalid
+    tri-state falls back to 'auto'. Never raises on user-supplied data."""
+    if not data:
+        return DEFAULT_ACCELERATION_SETTINGS
+    patch = {}
+    if isinstance(data.get("master_enable"), bool):
+        patch["master_enable"] = data["master_enable"]
+    for field_name in _TRISTATE_FIELDS:
+        value = data.get(field_name)
+        if isinstance(value, str):
+            patch[field_name] = value if value in _VALID_TRISTATE else "auto"
+    return replace(DEFAULT_ACCELERATION_SETTINGS, **patch)
 
 
 def _decide(setting: str, auto_default: bool) -> bool:
@@ -118,7 +166,48 @@ def _resolve_slicing(plan, settings: AccelerationSettings, gpu: bool, notes: Lis
     return "auto"
 
 
-def resolve_acceleration(plan, profile, settings: AccelerationSettings) -> AccelerationPlan:
+def _auto_quant(family, profile, backends: QuantBackends) -> Optional[str]:
+    """Most aggressive PROVEN-SAFE method for (family, hardware, deps)."""
+    if family is None:
+        return None
+    if getattr(profile, "supports_fp8", False) and family in _QUANT_ALLOWLIST["fp8"] and backends.fp8:
+        return "fp8"
+    if family in _QUANT_ALLOWLIST["int8"] and backends.int8:
+        return "int8"
+    return None
+
+
+def _resolve_quant(family, profile, settings, backends: QuantBackends, notes: List[str]) -> Optional[str]:
+    """Four-gate quantization (spec S5): family allowlist, hardware capability,
+    backend availability, GPU-only. Explicit method honored only if all pass."""
+    s = settings.quantization
+    if s == "off":
+        return None
+    if not getattr(profile, "gpu_available", False):
+        if s in ("int8", "fp8"):
+            notes.append(f"quantization {s} skipped: no GPU")
+        return None
+    if s == "auto":
+        method = _auto_quant(family, profile, backends)
+        if method:
+            notes.append(f"quantization auto: {method} ({family})")
+        return method
+    # Forced method - honor only if every gate passes (spec S5 Gate-4 override).
+    method = s
+    if family not in _QUANT_ALLOWLIST.get(method, set()):
+        notes.append(f"quantization {method} skipped: {family or 'unknown'} not on the {method} allowlist")
+        return None
+    if method == "fp8" and not getattr(profile, "supports_fp8", False):
+        notes.append("quantization fp8 skipped: GPU compute < 8.9")
+        return None
+    if not getattr(backends, method, False):
+        notes.append(f"quantization {method} skipped: backend unavailable")
+        return None
+    notes.append(f"quantization forced: {method}")
+    return method
+
+
+def resolve_acceleration(plan, profile, settings: AccelerationSettings, *, backends: Optional[QuantBackends] = None) -> AccelerationPlan:
     """Decide the optimization set for this (plan, hardware, settings). Pure -
     no torch, no I/O. Security refusals and the master switch short-circuit to
     an all-disabled plan before any optimization is considered."""
@@ -133,6 +222,10 @@ def resolve_acceleration(plan, profile, settings: AccelerationSettings) -> Accel
 
     family = family_for_plan(plan)
     gpu = bool(getattr(profile, "gpu_available", False))
+
+    if backends is None:
+        backends = quant_backends_available()
+    quantization = _resolve_quant(family, profile, settings, backends, notes)
 
     sdpa = _decide(settings.sdpa, auto_default=True)
 
@@ -149,6 +242,7 @@ def resolve_acceleration(plan, profile, settings: AccelerationSettings) -> Accel
         channels_last=channels_last,
         sdpa=sdpa,
         attention_slicing=attention_slicing,
+        quantization=quantization,
         notes=notes,
     )
 
@@ -235,6 +329,35 @@ def _apply_compile(pipeline, accel: AccelerationPlan, result: AppliedAcceleratio
         result.fell_back.append(f"compile ({type(exc).__name__}, ran eager)")
 
 
+def _quant_target(pipeline):
+    """The heavy module to quantize - unet or transformer."""
+    _attr, module = _compile_target(pipeline)
+    return module
+
+
+def _quantize_module(module, method: str) -> None:
+    """Post-load quantization via optimum-quanto (works on a loaded module)."""
+    from optimum.quanto import freeze, qfloat8, qint8, quantize
+
+    weights = qfloat8 if method == "fp8" else qint8
+    quantize(module, weights=weights)
+    freeze(module)
+
+
+def _apply_quant(pipeline, method: str, result: AppliedAcceleration) -> None:
+    target = _quant_target(pipeline)
+    if target is None:
+        result.skipped.append(f"quantization:{method} (no unet/transformer)")
+        return
+    try:
+        _quantize_module(target, method)
+        result.applied.append(f"quantization:{method}")
+    except ImportError:
+        result.skipped.append(f"quantization:{method} (backend unavailable)")
+    except Exception as exc:  # noqa: BLE001 - non-fatal, unquantized pipeline still valid
+        result.fell_back.append(f"quantization:{method} ({type(exc).__name__})")
+
+
 def apply_acceleration(pipeline, accel: AccelerationPlan, family, *, slicing_max: bool = False) -> AppliedAcceleration:
     """Apply ``accel`` to a loaded, on-device pipeline. Every step is guarded and
     non-fatal; returns the honest AppliedAcceleration record."""
@@ -247,6 +370,8 @@ def apply_acceleration(pipeline, accel: AccelerationPlan, family, *, slicing_max
         _apply_sdpa(pipeline, result)
     if accel.channels_last:
         _apply_channels_last(pipeline, family, result)
+    if accel.quantization:
+        _apply_quant(pipeline, accel.quantization, result)
 
     slicing = "max" if slicing_max else accel.attention_slicing
     if slicing is not None:

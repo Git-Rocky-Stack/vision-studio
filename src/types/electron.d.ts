@@ -2,7 +2,7 @@
  * Type definitions for Electron API exposed via contextBridge
  */
 
-import type { ImageGenerationRequestPayload } from './generation';
+import type { AccelerationRequestPayload, ImageGenerationRequestPayload } from './generation';
 import type {
   DownloadJob,
   ModelRecord,
@@ -35,6 +35,8 @@ export interface VideoGenerationParams {
   steps?: number;
   model?: string;
   seed?: number;
+  /** M9: optional per-request acceleration toggles (local generation only). */
+  acceleration_settings?: AccelerationRequestPayload;
 }
 
 export interface TimelineExportLayerParams {
@@ -108,6 +110,12 @@ export interface JobStatus {
     images?: string[];
     video?: string;
     seed?: number;
+    /** M9: optimizations that actually took effect on this run (snake_case). */
+    acceleration?: {
+      applied: string[];
+      skipped: string[];
+      fell_back: string[];
+    } | null;
     [key: string]: any;
   };
   error?: string;

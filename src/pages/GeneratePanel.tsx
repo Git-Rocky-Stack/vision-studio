@@ -20,6 +20,10 @@ import {
   SVD_REFERENCE_ERROR,
 } from '@/features/generate/validation';
 import { resolveCanvasControlLayers } from '@/features/generation/resolveCanvasControlLayers';
+import {
+  fromAccelerationResult,
+  toAccelerationRequestPayload,
+} from '@/features/generation/accelerationRequest';
 import { getActiveUserAccount } from '@/features/accounts/providerRouting';
 import { runTimelineClipGeneration } from '@/features/timeline/runTimelineClipGeneration';
 import {
@@ -819,6 +823,9 @@ export function GeneratePanel() {
               }
             : {}),
           ...(forcedRoute && forcedRoute !== 'local' ? { __providerOverride: forcedRoute } : {}),
+          acceleration_settings: toAccelerationRequestPayload(
+            useAppStore.getState().accelerationSettings,
+          ),
         };
 
         const result = await window.electron.generation.generateImage(imageRequest);
@@ -856,6 +863,9 @@ export function GeneratePanel() {
           steps: advancedGeneration.steps,
           model: useHuggingFaceVideo ? huggingFaceVideoModel : imageConfig.videoModel,
           seed: advancedGeneration.seed === -1 ? undefined : advancedGeneration.seed,
+          acceleration_settings: toAccelerationRequestPayload(
+            useAppStore.getState().accelerationSettings,
+          ),
         });
 
         if (result.success && result.jobId) {
@@ -931,6 +941,11 @@ export function GeneratePanel() {
             error: status.error,
             completedAt,
           });
+
+          // M9: surface which optimizations actually took effect on this run.
+          useAppStore
+            .getState()
+            .setLastAppliedAcceleration(fromAccelerationResult(status.result?.acceleration));
 
           syncAssetsFromJobStatus({
             ...status,

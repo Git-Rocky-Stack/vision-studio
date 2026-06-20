@@ -758,7 +758,7 @@
           "type": { "type": "string", "enum": ["image", "video"] },
           "created_at": { "type": "string", "format": "date-time" },
           "completed_at": { "type": "string", "format": "date-time", "nullable": true },
-          "result": { "type": "object", "additionalProperties": true, "nullable": true },
+          "result": { "type": "object", "additionalProperties": true, "nullable": true, "description": "Provider-specific output. Local diffusers jobs also carry an 'acceleration' object (see AppliedAcceleration)." },
           "error": { "type": "string", "nullable": true }
         }
       },
@@ -1022,7 +1022,8 @@
           "cfg_scale": { "type": "number", "minimum": 1, "maximum": 30, "default": 7.5 },
           "seed": { "type": "integer", "default": -1, "description": "-1 for random" },
           "model": { "type": "string", "default": "flux-dev", "enum": ["flux-dev", "flux-schnell", "flux-fill", "sd3.5-large", "sd3.5-medium", "sd-1.5"] },
-          "scheduler": { "type": "string", "default": "euler" }
+          "scheduler": { "type": "string", "default": "euler" },
+          "acceleration_settings": { "allOf": [{ "$ref": "#/components/schemas/AccelerationSettings" }], "nullable": true, "description": "M9 acceleration toggles (local generation only). Null = all defaults." }
         }
       },
       "VideoGenerationRequest": {
@@ -1037,7 +1038,30 @@
           "duration": { "type": "integer", "minimum": 1, "maximum": 10, "default": 5 },
           "steps": { "type": "integer", "minimum": 1, "maximum": 100, "default": 25 },
           "model": { "type": "string", "default": "ltx-video", "enum": ["ltx-video", "svd", "animate-diff"] },
-          "seed": { "type": "integer", "default": -1 }
+          "seed": { "type": "integer", "default": -1 },
+          "acceleration_settings": { "allOf": [{ "$ref": "#/components/schemas/AccelerationSettings" }], "nullable": true, "description": "M9 acceleration toggles (local generation only). Null = all defaults." }
+        }
+      },
+      "AccelerationSettings": {
+        "type": "object",
+        "description": "M9 per-request inference acceleration toggles. Each optimization is a tri-state: 'auto' (backend decides from the hardware fit), 'on' (force), or 'off' (disable). Ignored by hosted (OpenRouter / HuggingFace) routes.",
+        "properties": {
+          "master_enable": { "type": "boolean", "default": true, "description": "False disables all acceleration for the run" },
+          "sdpa": { "type": "string", "enum": ["auto", "on", "off"], "default": "auto", "description": "Fused scaled-dot-product attention" },
+          "channels_last": { "type": "string", "enum": ["auto", "on", "off"], "default": "auto", "description": "Channels-last memory format (conv-UNet families)" },
+          "compile": { "type": "string", "enum": ["auto", "on", "off"], "default": "auto", "description": "torch.compile (reduce-overhead)" },
+          "quantization": { "type": "string", "enum": ["auto", "on", "off"], "default": "auto", "description": "int8 / fp8 where the family and hardware allow" },
+          "attention_slicing": { "type": "string", "enum": ["auto", "on", "off"], "default": "auto", "description": "Only engaged under VRAM pressure" },
+          "tensorrt": { "type": "string", "enum": ["auto", "on", "off"], "default": "auto", "description": "TensorRT engine build (one-time)" }
+        }
+      },
+      "AppliedAcceleration": {
+        "type": "object",
+        "description": "M9 result-side report of which optimizations actually took effect on a local generation. Null for hosted-provider jobs.",
+        "properties": {
+          "applied": { "type": "array", "items": { "type": "string" }, "description": "Optimizations that took effect, e.g. 'sdpa', 'compile:reduce-overhead'" },
+          "skipped": { "type": "array", "items": { "type": "string" }, "description": "Optimizations not attempted, with reason" },
+          "fell_back": { "type": "array", "items": { "type": "string" }, "description": "Optimizations attempted that fell back, with reason" }
         }
       },
       "CropBox": {

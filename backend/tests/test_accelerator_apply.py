@@ -107,5 +107,36 @@ class ApplyTests(unittest.TestCase):
         self.assertIsInstance(result, AppliedAcceleration)
 
 
+class QuantApplyTests(unittest.TestCase):
+    def setUp(self):
+        self._patch = mock.patch.object(accelerator, "torch", _StubTorch)
+        self._patch.start()
+
+    def tearDown(self):
+        self._patch.stop()
+
+    def test_quant_applied_records_method(self):
+        pipe = _FakePipeline()
+        called = {}
+
+        def _fake_quant(pipeline, method, result):
+            called["method"] = method
+            result.applied.append(f"quantization:{method}")
+
+        with mock.patch.object(accelerator, "_apply_quant", _fake_quant):
+            result = apply_acceleration(pipe, AccelerationPlan(quantization="int8"), "sdxl")
+        self.assertEqual(called["method"], "int8")
+        self.assertIn("quantization:int8", result.applied)
+
+    def test_quant_missing_backend_is_skipped_not_fatal(self):
+        pipe = _FakePipeline()
+        # _apply_quant catches ImportError internally; simulate the missing
+        # backend by making the quanto import helper raise.
+        with mock.patch.object(accelerator, "_quantize_module", side_effect=ImportError("x")):
+            result = apply_acceleration(pipe, AccelerationPlan(quantization="int8"), "sdxl")
+        self.assertTrue(any("quantization" in s for s in result.skipped))
+        self.assertIsInstance(result, AppliedAcceleration)
+
+
 if __name__ == "__main__":
     unittest.main()

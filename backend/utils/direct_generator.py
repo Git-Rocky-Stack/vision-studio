@@ -168,7 +168,8 @@ class DirectGenerator:
             print(f"   GPU: {torch.cuda.get_device_name(0)}")
             print(f"   VRAM: {torch.cuda.get_device_properties(0).total_memory / 1e9:.1f} GB")
     
-    def load_model(self, model_name: str, overrides: Optional[Dict[str, Any]] = None):
+    def load_model(self, model_name: str, overrides: Optional[Dict[str, Any]] = None,
+                   acceleration_settings=None):
         """Resolve the runtime plan for model_name, then load exactly what it says.
 
         Replaces the legacy name-substring branching and hardcoded model map:
@@ -201,7 +202,8 @@ class DirectGenerator:
                 torch.cuda.empty_cache()
 
         applied = accelerate_pipeline(
-            pipeline, plan, DEFAULT_ACCELERATION_SETTINGS, slicing_max=slicing_max)
+            pipeline, plan, acceleration_settings or DEFAULT_ACCELERATION_SETTINGS,
+            slicing_max=slicing_max)
         self.applied_acceleration[model_name] = applied
 
         self.pipelines[model_name] = pipeline
@@ -292,7 +294,8 @@ class DirectGenerator:
         seed: Optional[int] = None,
         model_name: str = "sdxl",
         scheduler: str = "Euler a",
-        progress_callback: Optional[Callable[[float], None]] = None
+        progress_callback: Optional[Callable[[float], None]] = None,
+        acceleration_settings=None,
     ) -> Dict[str, Any]:
         """Generate an image"""
         
@@ -330,9 +333,10 @@ class DirectGenerator:
                 model_name,
                 scheduler,
                 progress_callback_fn,
-                output_dir
+                output_dir,
+                acceleration_settings,
             )
-            
+
             return result
             
         except Exception as e:
@@ -351,12 +355,13 @@ class DirectGenerator:
         model_name: str,
         scheduler: str,
         progress_callback_fn: Callable,
-        output_dir: str
+        output_dir: str,
+        acceleration_settings=None,
     ) -> Dict[str, Any]:
         """Synchronous generation (runs in thread pool)"""
-        
+
         # Load pipeline
-        pipeline = self.load_model(model_name)
+        pipeline = self.load_model(model_name, acceleration_settings=acceleration_settings)
         pipeline = self._configure_scheduler(pipeline, scheduler)
         
         # Set generator for reproducibility

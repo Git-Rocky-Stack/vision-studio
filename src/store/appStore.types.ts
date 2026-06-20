@@ -73,6 +73,12 @@ export type {
   PipelineExecution,
 } from '@/types/pipeline';
 
+export type {
+  TriState,
+  AccelerationSettings,
+  AppliedAcceleration,
+} from '@/types/acceleration';
+
 // ---------------------------------------------------------------------------
 // Imports used only internally by AppState (not re-exported)
 // ---------------------------------------------------------------------------
@@ -110,6 +116,11 @@ import type {
   AssetRecord,
   DerivedAssetResult,
 } from '@/types/assets';
+
+import type {
+  AccelerationSettings,
+  AppliedAcceleration,
+} from '@/types/acceleration';
 
 import type {
   WorkflowRunInput,
@@ -406,6 +417,10 @@ export interface AppState {
     duration: number;
     fps: number;
   };
+
+  // ─── Acceleration (M9 Performance) ───────────────────────────────────────────
+  accelerationSettings: AccelerationSettings;
+  lastAppliedAcceleration: AppliedAcceleration | null;
 
   // ─── Prompt Studio ──────────────────────────────────────────────────────────
   promptTemplates: PromptTemplate[];
@@ -724,6 +739,10 @@ export interface AppState {
   // Generation draft & advanced generation
   setGenerationDraft: (draft: GenerationDraft | null) => void;
   updateAdvancedGeneration: (patch: Partial<AppState['advancedGeneration']>) => void;
+
+  // Acceleration (M9 Performance)
+  updateAccelerationSettings: (patch: Partial<AccelerationSettings>) => void;
+  setLastAppliedAcceleration: (applied: AppliedAcceleration | null) => void;
 
   // Prompt Studio
   addUserPromptTemplate: (template: PromptTemplate) => void;

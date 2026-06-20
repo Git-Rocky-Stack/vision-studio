@@ -50,6 +50,7 @@ import { collectionsInitialState, createCollectionsActions } from './slices/coll
 import { mediaTimelineInitialState, createMediaTimelineActions } from './slices/mediaTimelineSlice';
 import { timelineInitialState, createTimelineActions } from './slices/timelineSlice';
 import { pipelineInitialState, createPipelineActions } from './slices/pipelineSlice';
+import { accelerationInitialState, createAccelerationActions } from './slices/accelerationSlice';
 
 // Re-exports: local types
 export type {
@@ -1004,6 +1005,8 @@ export const useAppStore = create<AppState>()(
       ...createTimelineActions(set, get),
       ...pipelineInitialState,
       ...createPipelineActions(set),
+      ...accelerationInitialState,
+      ...createAccelerationActions(set, get),
     }),
     {
       name: 'vision-studio-storage',
