@@ -414,7 +414,7 @@ gates, and acceptance are already locked above. The standing loop is:
 | M6 | Provider Routing Fabric | Complete |
 | M7 | Director: RAG + Context | Complete |
 | M8 | ComfyUI Interop Deepening | Complete |
-| **M9** | Accelerator + Inference | **Next** |
+| **M9** | Accelerator + Inference | **In progress (PR1)** |
 | M10 | Release Hardening + Docs | Baselined |
 
 ---
