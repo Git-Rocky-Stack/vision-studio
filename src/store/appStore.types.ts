@@ -477,6 +477,7 @@ export interface AppState {
   // Workflow
   setActiveWorkflow: (workflowId: string) => void;
   createWorkflow: (name: string) => WorkflowRecord;
+  createWorkflowFromGraph: (name: string, graph: WorkflowGraph) => WorkflowRecord;
   setWorkflowStatus: (workflowId: string, status: WorkflowRecord['status']) => void;
   setWorkflowRuntimeState: (workflowId: string, patch: Partial<WorkflowRuntimeState>) => void;
   resetWorkflowRuntimeState: (workflowId: string) => void;

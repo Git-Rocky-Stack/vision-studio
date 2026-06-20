@@ -195,6 +195,19 @@ describe('appStore', () => {
       );
     });
 
+    it('creates a workflow from an imported graph (M8)', () => {
+      const graph = {
+        nodes: {
+          n1: { id: 'n1', classType: 'CheckpointLoaderSimple', label: 'Loader', position: { x: 0, y: 0 }, inputs: {} },
+        },
+        edges: [],
+      };
+      const record = useAppStore.getState().createWorkflowFromGraph('Imported', graph);
+      expect(record.name).toBe('Imported');
+      expect(record.graph.nodes.n1.classType).toBe('CheckpointLoaderSimple');
+      expect(useAppStore.getState().activeWorkflowId).toBe(record.id);
+    });
+
     it('adds and moves a workflow graph node', () => {
       const node = useAppStore.getState().addWorkflowNode('image-generation-baseline', {
         classType: 'PreviewImage',
