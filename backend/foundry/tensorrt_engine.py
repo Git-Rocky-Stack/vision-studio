@@ -113,9 +113,10 @@ def engine_cache_path(cache_dir: str, key: str) -> str:
 def build_or_load_engine(pipeline, *, family: str, pipeline_class: str, precision: str,
                          resolution_bucket: str, cache_dir: str,
                          compute_capability: Tuple[int, int], trt_version: str) -> str:
-    """Cache-hit -> bind prebuilt engine ("cached"); cache-miss -> export ONNX,
-    build, serialize ("built"). Raises on real build failure - the caller guards
-    it into a non-fatal fell_back. Heavy deps imported lazily."""
+    """Cache-hit -> bind prebuilt engine ("cached"); cache-miss -> build +
+    serialize ("built"). Raises on real build/load failure - the caller
+    (accelerator._apply_tensorrt) guards it into a non-fatal fell_back. Heavy
+    deps imported lazily inside _bind_engine/_build_engine."""
     key = engine_cache_key(
         family=family, pipeline_class=pipeline_class, precision=precision,
         resolution_bucket=resolution_bucket, compute_capability=compute_capability,
@@ -125,23 +126,57 @@ def build_or_load_engine(pipeline, *, family: str, pipeline_class: str, precisio
     if os.path.isfile(path):
         _bind_engine(pipeline, path)
         return "cached"
-    _build_engine(pipeline, path, resolution_bucket=resolution_bucket, precision=precision)
+    _build_engine(pipeline, path, family=family, pipeline_class=pipeline_class,
+                  resolution_bucket=resolution_bucket, precision=precision)
     return "built"
 
 
+def _denoiser(pipeline):
+    """(attr_name, module) for the heavy denoiser - unet preferred, then
+    transformer. Mirrors accelerator._compile_target so engine + compile target
+    the same module."""
+    unet = getattr(pipeline, "unet", None)
+    if unet is not None:
+        return "unet", unet
+    transformer = getattr(pipeline, "transformer", None)
+    if transformer is not None:
+        return "transformer", transformer
+    return None, None
+
+
+def _enabled_precisions(precision: str):
+    """The torch dtype set torch_tensorrt may use for this engine."""
+    return {_trt_dtype(precision)}
+
+
 def _bind_engine(pipeline, path: str) -> None:
+    """Deserialize a serialized TRT module and re-attach to the denoiser."""
     import torch_tensorrt  # noqa: F401, PLC0415 - lazy heavy dep
 
-    # Deserialize the serialized TRT module and attach to the pipeline's denoiser.
-    # (Engineer: bind to pipeline.unet/transformer per the torch_tensorrt API.)
-    raise NotImplementedError  # replaced with the real bind in the CUDA-verified pass
+    attr, module = _denoiser(pipeline)
+    if module is None:
+        raise RuntimeError("TRT bind: pipeline exposes no unet/transformer")
+    loaded = torch_tensorrt.load(path)
+    setattr(pipeline, attr, getattr(loaded, "module", loaded))
 
 
-def _build_engine(pipeline, path: str, *, resolution_bucket: str, precision: str) -> None:
-    import torch_tensorrt  # noqa: F401, PLC0415 - lazy heavy dep
+def _build_engine(pipeline, path: str, *, family: str, pipeline_class: str,
+                  resolution_bucket: str, precision: str) -> None:
+    """Compile the denoiser to a TRT engine via the Dynamo frontend, serialize
+    to `path`, and attach the compiled module. Verified on hardware per
+    docs/TENSORRT_VERIFICATION.md before a family joins TRT_PROVEN_FAMILIES."""
+    import torch_tensorrt  # noqa: PLC0415 - lazy heavy dep
 
-    # Export the denoiser to ONNX at the bucket's shape, compile a TRT engine,
-    # serialize to `path`. (Engineer: implement per the torch_tensorrt API and
-    # verify output tolerance via benchmark_accel before adding the family to
-    # TRT_PROVEN_FAMILIES.)
-    raise NotImplementedError  # replaced with the real build in the CUDA-verified pass
+    attr, module = _denoiser(pipeline)
+    if module is None:
+        raise RuntimeError("TRT build: pipeline exposes no unet/transformer")
+    arg_inputs, kwarg_inputs = build_example_inputs(family, resolution_bucket, precision)
+    compiled = torch_tensorrt.compile(
+        module,
+        ir="dynamo",
+        arg_inputs=list(arg_inputs),
+        kwarg_inputs=kwarg_inputs,
+        enabled_precisions=_enabled_precisions(precision),
+    )
+    torch_tensorrt.save(compiled, path, arg_inputs=list(arg_inputs), kwarg_inputs=kwarg_inputs)
+    setattr(pipeline, attr, compiled)

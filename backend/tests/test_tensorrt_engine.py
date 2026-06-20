@@ -81,5 +81,34 @@ class ParamDerivationTests(unittest.TestCase):
         self.assertEqual(accelerator._trt_version(), "unknown")
 
 
+class _NoDenoiserPipe:
+    unet = None
+    transformer = None
+
+
+class BuildBindContractTests(unittest.TestCase):
+    """The scaffold is gone: build/bind now reach a lazy torch_tensorrt import
+    (ImportError on stub CI) or a clean RuntimeError - never NotImplementedError."""
+
+    def test_bind_engine_is_not_a_stub(self):
+        with self.assertRaises(Exception) as ctx:
+            tensorrt_engine._bind_engine(_FakePipe(), "/nonexistent/x.plan")
+        self.assertNotIsInstance(ctx.exception, NotImplementedError)
+
+    def test_build_engine_is_not_a_stub(self):
+        with self.assertRaises(Exception) as ctx:
+            tensorrt_engine._build_engine(
+                _FakePipe(), "/nonexistent/x.plan", family="sdxl",
+                pipeline_class="StableDiffusionXLPipeline",
+                resolution_bucket="1024x1024", precision="bf16")
+        self.assertNotIsInstance(ctx.exception, NotImplementedError)
+
+    def test_denoiser_prefers_unet_then_transformer(self):
+        attr, module = tensorrt_engine._denoiser(_FakePipe())
+        self.assertEqual(attr, "unet")
+        self.assertIsNotNone(module)
+        self.assertEqual(tensorrt_engine._denoiser(_NoDenoiserPipe()), (None, None))
+
+
 if __name__ == "__main__":
     unittest.main()
