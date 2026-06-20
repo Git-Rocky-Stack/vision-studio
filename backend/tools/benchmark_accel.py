@@ -235,11 +235,26 @@ def _load_and_run(model_id: str, acceleration_settings: Any, models_dir: str,
         _free(gen, model_id)
 
 
-def _benchmark_one(model_id: str, models_dir: str, output_dir: str) -> Optional[Dict[str, Any]]:
-    """Reference (unaccelerated) + accelerated pass for one model.
+def _accel_configs():
+    """The accel configs benchmarked per model, each correctness-checked against
+    the one unaccelerated reference. ``default`` is the all-auto path
+    (sdpa/compile/quant/channels-last as the decision layer chooses); ``tensorrt``
+    forces a TRT engine build so the engine is benchmarked and verified even on
+    families not yet in TRT_PROVEN_FAMILIES (that is how a family earns its place
+    on the allowlist - evidence, not assertion)."""
+    from foundry.accelerator import AccelerationSettings, DEFAULT_ACCELERATION_SETTINGS  # noqa: PLC0415
 
-    Returns a perf patch dict or None on any failure (plan refusal, OOM, load
-    error) - a partial patch of real numbers beats an aborted run.
+    return [
+        ("default", DEFAULT_ACCELERATION_SETTINGS),
+        ("tensorrt", AccelerationSettings(tensorrt="on")),
+    ]
+
+
+def _benchmark_one(model_id: str, models_dir: str, output_dir: str) -> Optional[Dict[str, Any]]:
+    """Reference (unaccelerated) + one accelerated pass per accel config for one
+    model. Returns ``{config_label: perf_patch, ...}`` (TRT and default each get
+    their own correctness verdict) or None on a fatal failure - a partial patch of
+    real numbers beats an aborted run.
     """
     import torch  # noqa: PLC0415
     from utils.direct_generator import ModelLoadRefusedError, resolve_plan  # noqa: PLC0415
@@ -265,32 +280,42 @@ def _benchmark_one(model_id: str, models_dir: str, output_dir: str) -> Optional[
     record = model_registry.get_record(model_id) or {}
     capability = record.get("capability") or "image"
 
+    # Unaccelerated reference, captured once; every accel config is checked
+    # against it. master_enable=False disables every optimization.
     try:
-        # Reference: master_enable=False disables every optimization.
         ref_s, ref_rows, _ref_label, _ref_vram = _load_and_run(
             model_id, AccelerationSettings(master_enable=False),
             models_dir, output_dir, capability, plan)
-        # Accelerated: all-auto defaults; the generator records what took effect.
-        acc_s, acc_rows, label, peak = _load_and_run(
-            model_id, DEFAULT_ACCELERATION_SETTINGS,
-            models_dir, output_dir, capability, plan)
     except torch.cuda.OutOfMemoryError as exc:
-        print(f"  FAIL {model_id}: OOM - {exc}", file=sys.stderr)
+        print(f"  FAIL {model_id}: reference OOM - {exc}", file=sys.stderr)
         return None
     except Exception as exc:  # noqa: BLE001
-        print(f"  FAIL {model_id}: load/infer error - {exc}", file=sys.stderr)
+        print(f"  FAIL {model_id}: reference error - {exc}", file=sys.stderr)
         return None
 
-    correct = outputs_within_tolerance(ref_rows, acc_rows, threshold=_CORRECTNESS_THRESHOLD)
-    verdict = "OK" if correct else "DRIFT"
-    print(
-        f"  {verdict} {model_id}: baseline={ref_s:.2f}s accel={acc_s:.2f}s "
-        f"({label})",
-        file=sys.stderr,
-    )
-    return build_perf_patch(
-        model_id, baseline_s=ref_s, accel_s=acc_s,
-        vram_bytes=peak, accel_label=label, correct=correct)
+    configs: Dict[str, Any] = {}
+    for config_label, settings in _accel_configs():
+        try:
+            acc_s, acc_rows, applied_label, peak = _load_and_run(
+                model_id, settings, models_dir, output_dir, capability, plan)
+        except torch.cuda.OutOfMemoryError as exc:
+            print(f"  FAIL {model_id} [{config_label}]: OOM - {exc}", file=sys.stderr)
+            continue
+        except Exception as exc:  # noqa: BLE001
+            print(f"  FAIL {model_id} [{config_label}]: load/infer error - {exc}", file=sys.stderr)
+            continue
+        correct = outputs_within_tolerance(ref_rows, acc_rows, threshold=_CORRECTNESS_THRESHOLD)
+        verdict = "OK" if correct else "DRIFT"
+        print(
+            f"  {verdict} {model_id} [{config_label}]: baseline={ref_s:.2f}s "
+            f"accel={acc_s:.2f}s ({applied_label})",
+            file=sys.stderr,
+        )
+        configs[config_label] = build_perf_patch(
+            model_id, baseline_s=ref_s, accel_s=acc_s,
+            vram_bytes=peak, accel_label=applied_label, correct=correct)
+
+    return configs or None
 
 
 def _quarantined_imports() -> None:
