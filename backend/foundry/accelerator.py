@@ -16,6 +16,7 @@ or extends it.
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass, field
 from typing import List, Optional
 
@@ -150,3 +151,115 @@ def resolve_acceleration(plan, profile, settings: AccelerationSettings) -> Accel
         attention_slicing=attention_slicing,
         notes=notes,
     )
+
+
+def configure_inductor_cache(cache_dir: str) -> None:
+    """Point the Inductor compile cache at a persistent app-data dir so the
+    one-time torch.compile warmup is paid once across runs (spec S6). Idempotent
+    and side-effect-only; never raises."""
+    try:
+        os.makedirs(cache_dir, exist_ok=True)
+        os.environ.setdefault("TORCHINDUCTOR_CACHE_DIR", cache_dir)
+    except OSError:
+        pass
+
+
+def _sdpa_processor():
+    """The diffusers PyTorch-native SDPA attention processor. Isolated so tests
+    can stub it without importing diffusers."""
+    from diffusers.models.attention_processor import AttnProcessor2_0
+
+    return AttnProcessor2_0()
+
+
+def _compile_target(pipeline):
+    """(attr_name, module) for the heavy denoiser - unet or transformer."""
+    unet = getattr(pipeline, "unet", None)
+    if unet is not None:
+        return "unet", unet
+    transformer = getattr(pipeline, "transformer", None)
+    if transformer is not None:
+        return "transformer", transformer
+    return None, None
+
+
+def _apply_sdpa(pipeline, result: AppliedAcceleration) -> None:
+    try:
+        if hasattr(pipeline, "set_attn_processor"):
+            pipeline.set_attn_processor(_sdpa_processor())
+            result.applied.append("sdpa")
+        else:
+            result.skipped.append("sdpa (no attn-processor surface)")
+    except Exception as exc:  # noqa: BLE001 - best-effort
+        result.skipped.append(f"sdpa ({type(exc).__name__})")
+
+
+def _apply_channels_last(pipeline, family, result: AppliedAcceleration) -> None:
+    if family not in _CONV_UNET_FAMILIES:
+        result.skipped.append(f"channels_last ({family or 'unknown'} not conv-UNet)")
+        return
+    try:
+        unet = getattr(pipeline, "unet", None)
+        if unet is None:
+            result.skipped.append("channels_last (no unet)")
+            return
+        unet.to(memory_format=torch.channels_last)
+        result.applied.append("channels_last")
+    except Exception as exc:  # noqa: BLE001
+        result.fell_back.append(f"channels_last ({type(exc).__name__})")
+
+
+def _apply_slicing(pipeline, level: str, result: AppliedAcceleration) -> None:
+    try:
+        if not hasattr(pipeline, "enable_attention_slicing"):
+            result.skipped.append("attention_slicing (unsupported pipeline)")
+            return
+        pipeline.enable_attention_slicing("max" if level == "max" else None)
+        result.applied.append(f"attention_slicing:{level}")
+    except Exception as exc:  # noqa: BLE001
+        result.skipped.append(f"attention_slicing ({type(exc).__name__})")
+
+
+def _apply_compile(pipeline, accel: AccelerationPlan, result: AppliedAcceleration) -> None:
+    """torch.compile with the spec's HARD-FALLBACK rule: a failure NEVER fails a
+    generation - we leave the eager module in place and record fell_back."""
+    try:
+        attr, target = _compile_target(pipeline)
+        if target is None:
+            result.skipped.append("compile (no unet/transformer)")
+            return
+        compiled = torch.compile(target, mode=accel.compile_mode, dynamic=accel.compile_dynamic)
+        setattr(pipeline, attr, compiled)
+        result.applied.append(f"compile:{accel.compile_mode}")
+    except Exception as exc:  # noqa: BLE001
+        result.fell_back.append(f"compile ({type(exc).__name__}, ran eager)")
+
+
+def apply_acceleration(pipeline, accel: AccelerationPlan, family, *, slicing_max: bool = False) -> AppliedAcceleration:
+    """Apply ``accel`` to a loaded, on-device pipeline. Every step is guarded and
+    non-fatal; returns the honest AppliedAcceleration record."""
+    result = AppliedAcceleration()
+    if torch is None:
+        result.skipped.append("all optimizations (torch unavailable)")
+        return result
+
+    if accel.sdpa:
+        _apply_sdpa(pipeline, result)
+    if accel.channels_last:
+        _apply_channels_last(pipeline, family, result)
+
+    slicing = "max" if slicing_max else accel.attention_slicing
+    if slicing is not None:
+        _apply_slicing(pipeline, slicing, result)
+
+    if accel.compile:
+        _apply_compile(pipeline, accel, result)
+    return result
+
+
+def accelerate_pipeline(pipeline, plan, settings: AccelerationSettings, *, slicing_max: bool = False) -> AppliedAcceleration:
+    """The single seam both generators call: resolve from the plan's attached
+    hardware_profile, then apply. Returns AppliedAcceleration for surfacing."""
+    profile = getattr(plan, "hardware_profile", None)
+    accel = resolve_acceleration(plan, profile, settings)
+    return apply_acceleration(pipeline, accel, family_for_plan(plan), slicing_max=slicing_max)

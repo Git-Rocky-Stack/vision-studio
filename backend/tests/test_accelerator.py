@@ -1,17 +1,14 @@
 """accelerator.py - pure decision layer (M9 S3/S4). No torch at decision time."""
 
-import builtins
-import importlib
 import pathlib
+import subprocess
 import sys
 import unittest
-from unittest import mock
 
 BACKEND_ROOT = pathlib.Path(__file__).resolve().parents[1]
 if str(BACKEND_ROOT) not in sys.path:
     sys.path.insert(0, str(BACKEND_ROOT))
 
-from foundry import accelerator
 from foundry.accelerator import (
     AccelerationPlan,
     AccelerationSettings,
@@ -75,21 +72,52 @@ class FamilyMapTests(unittest.TestCase):
         self.assertIsNone(family_for_plan(_FakePlan("TotallyMadeUpPipeline")))
 
 
+_IMPORT_SAFETY_PROBE = """
+import sys, importlib.abc
+
+class _BlockTorch(importlib.abc.MetaPathFinder):
+    def find_spec(self, name, path, target=None):
+        if name == "torch" or name.startswith("torch."):
+            raise ModuleNotFoundError("No module named 'torch'")
+        return None
+
+sys.meta_path.insert(0, _BlockTorch())
+
+from foundry import accelerator
+assert accelerator.torch is None, "torch should be None when absent"
+
+from foundry.accelerator import resolve_acceleration, AccelerationSettings
+
+class _Plan:
+    pipeline_class = "StableDiffusionXLPipeline"
+    fit = "fits"
+    refusal = None
+
+class _Profile:
+    gpu_available = False
+
+accel = resolve_acceleration(_Plan(), _Profile(), AccelerationSettings())
+assert accel.sdpa is True, "decision layer must work without torch"
+print("IMPORT_SAFETY_OK")
+"""
+
+
 class ImportSafetyTests(unittest.TestCase):
     def test_imports_without_torch(self):
-        # Simulate the stub-CI machine: torch absent. The module must still
-        # import and the decision layer must work.
-        real_import = builtins.__import__
-
-        def _blocked(name, *args, **kwargs):
-            if name == "torch" or name.startswith("torch."):
-                raise ModuleNotFoundError("No module named 'torch'")
-            return real_import(name, *args, **kwargs)
-
-        with mock.patch.object(builtins, "__import__", _blocked):
-            reloaded = importlib.reload(accelerator)
-            self.assertIsNone(reloaded.torch)
-        importlib.reload(accelerator)  # restore real module state for other tests
+        # Run in an ISOLATED subprocess so blocking torch cannot pollute the
+        # class identities of sibling test modules (importlib.reload would).
+        # This is also the truest proof of the stub-CI import-safety rail.
+        completed = subprocess.run(
+            [sys.executable, "-c", _IMPORT_SAFETY_PROBE],
+            cwd=str(BACKEND_ROOT),
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(
+            completed.returncode, 0,
+            msg=f"import-safety probe failed:\nSTDOUT:{completed.stdout}\nSTDERR:{completed.stderr}",
+        )
+        self.assertIn("IMPORT_SAFETY_OK", completed.stdout)
 
 
 class ResolveDecisionTests(unittest.TestCase):
