@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import importlib.util
 import os
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import List, Optional
 
 try:  # torch is optional and absent in the lightweight CI/test env
@@ -114,6 +114,25 @@ def family_for_plan(plan) -> Optional[str]:
     """Family string for a RuntimePlan, via its pipeline_class. None if unknown
     (the decision layer then defaults conservatively)."""
     return _FAMILY_BY_PIPELINE_CLASS.get(getattr(plan, "pipeline_class", None))
+
+
+_VALID_TRISTATE = {"auto", "on", "off"}
+_TRISTATE_FIELDS = ("sdpa", "channels_last", "compile", "quantization", "attention_slicing", "tensorrt")
+
+
+def accel_settings_from_dict(data: Optional[dict]) -> AccelerationSettings:
+    """Tolerant parser: missing -> default, unknown keys ignored, an invalid
+    tri-state falls back to 'auto'. Never raises on user-supplied data."""
+    if not data:
+        return DEFAULT_ACCELERATION_SETTINGS
+    patch = {}
+    if isinstance(data.get("master_enable"), bool):
+        patch["master_enable"] = data["master_enable"]
+    for field_name in _TRISTATE_FIELDS:
+        value = data.get(field_name)
+        if isinstance(value, str):
+            patch[field_name] = value if value in _VALID_TRISTATE else "auto"
+    return replace(DEFAULT_ACCELERATION_SETTINGS, **patch)
 
 
 def _decide(setting: str, auto_default: bool) -> bool:

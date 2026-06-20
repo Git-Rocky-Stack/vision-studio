@@ -423,6 +423,8 @@ class ImageGenerationRequest(BaseModel):
     seed: int = Field(default=-1, description="Random seed (-1 for random)")
     model: str = Field(default="flux-dev", description="Model to use")
     scheduler: str = Field(default="euler", description="Scheduler/sampler")
+    acceleration_settings: Optional[dict] = Field(
+        default=None, description="M9 acceleration toggles (auto/on/off per optimization)")
 
 
 class VideoGenerationRequest(BaseModel):
@@ -435,6 +437,8 @@ class VideoGenerationRequest(BaseModel):
     steps: int = Field(default=25, ge=1, le=100)
     model: str = Field(default="ltx-video", description="Model to use")
     seed: int = Field(default=-1)
+    acceleration_settings: Optional[dict] = Field(
+        default=None, description="M9 acceleration toggles (auto/on/off per optimization)")
 
 
 class JobResponse(BaseModel):
@@ -1311,6 +1315,8 @@ async def generate_direct(job_id: str, request: ImageGenerationRequest) -> Dict:
             "the diffusers library (pip install diffusers torch) for direct generation."
         )
     logger.info(f"[Job {job_id}] Starting direct generation with model={request.model}")
+    from foundry.accelerator import accel_settings_from_dict
+    accel_settings = accel_settings_from_dict(request.acceleration_settings)
     result = await direct_generator.generate_image(
         job_id=job_id,
         prompt=request.prompt,
@@ -1322,6 +1328,7 @@ async def generate_direct(job_id: str, request: ImageGenerationRequest) -> Dict:
         seed=request.seed if request.seed != -1 else None,
         model_name=request.model,
         scheduler=request.scheduler,
+        acceleration_settings=accel_settings,
         progress_callback=lambda p: job_manager.update_job(job_id, progress=p)
     )
     logger.info(f"[Job {job_id}] Direct generation completed")
@@ -1419,6 +1426,8 @@ async def process_video_generation(job_id: str, request: VideoGenerationRequest)
                     "(pip install diffusers torch) for direct video generation."
                 )
 
+            from foundry.accelerator import accel_settings_from_dict
+            accel_settings = accel_settings_from_dict(request.acceleration_settings)
             result = await direct_video_generator.generate_video(
                 job_id=job_id,
                 prompt=request.prompt,
@@ -1430,6 +1439,7 @@ async def process_video_generation(job_id: str, request: VideoGenerationRequest)
                 steps=request.steps,
                 model_name=request.model,
                 seed=request.seed if request.seed != -1 else 0,
+                acceleration_settings=accel_settings,
                 progress_callback=lambda progress: job_manager.update_job(job_id, progress=progress),
             )
 

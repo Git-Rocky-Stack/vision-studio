@@ -129,7 +129,8 @@ class DirectVideoGenerator:
         self.applied_acceleration: Dict[str, Any] = {}
         configure_inductor_cache(os.path.join(models_dir, ".cache", "inductor"))
 
-    def load_model(self, model_name: str, overrides: Optional[Dict[str, Any]] = None):
+    def load_model(self, model_name: str, overrides: Optional[Dict[str, Any]] = None,
+                   acceleration_settings=None):
         """Plan-driven load mirroring DirectGenerator.load_model: the runtime
         plan decides pipeline class, dtype, offload and tiling; refusals raise
         ModelLoadRefusedError; CUDA OOM consumes the plan's fallback ladder.
@@ -161,7 +162,8 @@ class DirectVideoGenerator:
                 torch.cuda.empty_cache()
 
         applied = accelerate_pipeline(
-            pipeline, plan, DEFAULT_ACCELERATION_SETTINGS, slicing_max=slicing_max)
+            pipeline, plan, acceleration_settings or DEFAULT_ACCELERATION_SETTINGS,
+            slicing_max=slicing_max)
         self.applied_acceleration[model_name] = applied
 
         self.pipelines[model_name] = pipeline
@@ -269,10 +271,11 @@ class DirectVideoGenerator:
         model_name: str,
         seed: int,
         output_dir: str,
+        acceleration_settings=None,
     ) -> Dict[str, object]:
         frame_count = max(8, fps * duration)
         strategy = resolve_video_model_strategy(model_name, bool(image_path))
-        pipeline = self.load_model(model_name)
+        pipeline = self.load_model(model_name, acceleration_settings=acceleration_settings)
 
         generator = None
         if torch is not None:
@@ -336,6 +339,7 @@ class DirectVideoGenerator:
         model_name: str,
         seed: Optional[int] = None,
         progress_callback: Optional[Callable[[float], None]] = None,
+        acceleration_settings=None,
     ) -> Dict[str, object]:
         output_dir = os.path.join(self.output_dir, job_id)
         Path(output_dir).mkdir(parents=True, exist_ok=True)
@@ -360,6 +364,7 @@ class DirectVideoGenerator:
             model_name,
             seed,
             output_dir,
+            acceleration_settings,
         )
 
         if progress_callback:
