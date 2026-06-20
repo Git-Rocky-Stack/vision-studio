@@ -101,6 +101,7 @@ from api.lora import router as lora_router
 from api.edit import router as edit_router
 from api.batch import router as batch_router
 from api.retrieval import router as retrieval_router
+from api.comfy_graph import router as comfy_graph_router, configure as configure_comfy_graph
 
 try:
     from utils.comfy_client import ComfyUIClient
@@ -389,6 +390,10 @@ app.include_router(lora_router)
 app.include_router(edit_router)
 app.include_router(batch_router)
 app.include_router(retrieval_router)
+app.include_router(comfy_graph_router)
+# `lambda: comfy_client` reads the live module global, which is assigned when the
+# ComfyUI connection is established during startup (None until then).
+configure_comfy_graph(lambda: comfy_client, job_manager, OUTPUT_DIR)
 
 
 @app.get("/api/health", tags=["System"])
