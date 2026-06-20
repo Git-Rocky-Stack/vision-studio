@@ -72,11 +72,11 @@ export function TextControls() {
   };
 
   const handleAddText = () => {
-    // TODO: integrate with canvas to add text layer
+    // Canvas text-layer integration is tracked post-3.1.0. Tracked: #32
   };
 
   const handleDeleteSelected = () => {
-    // TODO: integrate with canvas to delete selected text
+    // Canvas text-layer deletion is tracked post-3.1.0. Tracked: #32
   };
 
   useEffect(() => {

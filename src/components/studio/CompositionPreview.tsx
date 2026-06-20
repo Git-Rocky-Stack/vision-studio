@@ -45,8 +45,7 @@ export const CompositionPreview = memo(function CompositionPreview() {
   }, []);
 
   const handleGenerate = useCallback(() => {
-    // TODO: Wire to full generation action - this will trigger the generation
-    // and stream step images via the generationPreviewSlice
+    // Full generation and step streaming is tracked post-3.1.0. Tracked: #33
     useAppStore.getState().setPreviewActive(true);
   }, []);
   const hasReferenceImage = Boolean(currentImage || currentImageAssetPath);
