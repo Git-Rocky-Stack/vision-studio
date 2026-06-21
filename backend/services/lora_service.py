@@ -182,13 +182,18 @@ class LoRAService:
             logger.info("LoRA loaded successfully", extra={"operation": "load_lora", "lora_path": lora_path, "scale": scale})
             return True
 
-        except Exception as e:
+        except Exception:
             logger.error("Failed to load LoRA", extra={"operation": "load_lora", "lora_path": lora_path}, exc_info=True)
-            # Stub fallback for testing without diffusers
-            self._current_lora = lora_path
-            self._current_scale = scale
-            self._model_loaded = True
-            return True
+            # A real load failure must NOT masquerade as success. Leaving
+            # _model_loaded=True with _pipeline=None makes generate() silently
+            # emit placeholder output as a 200 OK. Reset to the unloaded state
+            # and surface the failure. (The diffusers-absent stub path is handled
+            # by the DIFFUSERS_AVAILABLE guard above, before this try.)
+            self._pipeline = None
+            self._current_lora = None
+            self._current_scale = 0.0
+            self._model_loaded = False
+            raise
 
     async def generate(
         self,
