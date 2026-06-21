@@ -32,8 +32,8 @@ npm run package:win
 ```
 
 **Output:**
-- `release/Vision-Studio-Setup-3.0.0.exe` (~150 MB)
-- `release/Vision-Studio-Portable-3.0.0.exe` (~150 MB)
+- `Vision Studio Setup 3.1.0.exe` - NSIS installer (~150 MB)
+- `Vision Studio-3.1.0-win.zip` - portable ZIP archive (~150 MB)
 
 ⚠️ **Note:** This version requires Python to be installed separately.
 
@@ -51,8 +51,8 @@ npm run build:windows      # Package with Electron (~5 min)
 ```
 
 **Output:**
-- `release/Vision-Studio-Setup-3.0.0.exe` (~4-6 GB)
-- `release/Vision-Studio-Portable-3.0.0.exe` (~4-6 GB)
+- `Vision Studio Setup 3.1.0.exe` - NSIS installer (~4-6 GB)
+- `Vision Studio-3.1.0-win.zip` - portable ZIP archive (~4-6 GB)
 
 ### Full Build Steps Explained
 
@@ -95,8 +95,7 @@ This will:
 - Build React frontend
 - Package with Electron
 - Create NSIS installer
-- Create portable executable
-- Create ZIP archive
+- Create portable ZIP archive
 
 ⏱️ **Time:** 5-10 minutes
 
@@ -106,10 +105,9 @@ After successful build, you'll find these files in `release/`:
 
 | File | Size | Description |
 |------|------|-------------|
-| `Vision-Studio-Setup-3.0.0.exe` | 4-6 GB | Full installer with wizard |
-| `Vision-Studio-Portable-3.0.0.exe` | 4-6 GB | Standalone portable app |
-| `Vision-Studio-3.0.0-win.zip` | 4-6 GB | ZIP archive (unpacked) |
-| `win-unpacked/` | 4-6 GB | Unpacked files |
+| `Vision Studio Setup 3.1.0.exe` | 4-6 GB | NSIS installer with wizard |
+| `Vision Studio-3.1.0-win.zip` | 4-6 GB | Portable ZIP archive |
+| `win-unpacked/` | 4-6 GB | Unpacked app files |
 
 ### Installer Features
 
@@ -161,40 +159,40 @@ SectionEnd
 
 ## 🔏 Code Signing (Recommended for Distribution)
 
-Unsigned installers show "Windows protected your PC" warning. To fix this:
+Unsigned installers show a "Windows protected your PC" warning. Vision Studio
+gates release signing through `scripts/verify-release-signing.cjs` instead of
+manual signing, so production artifacts cannot ship unsigned by accident.
 
-### Get Code Signing Certificate
-
-1. Purchase from:
-   - DigiCert (~$200/year)
-   - Sectigo (~$80/year)
-   - Certum (~$70/year)
-
-2. Install certificate to Windows Certificate Store
-
-### Sign the Installer
+### Packaging commands
 
 ```powershell
-# Using Windows SDK signtool
-signtool sign /f certificate.pfx /p password `
-  /tr http://timestamp.digicert.com `
-  /td sha256 `
-  /fd sha256 `
-  "release\Vision-Studio-Setup-3.0.0.exe"
+# Local development build (unsigned - fine for testing)
+npm run package:win
+
+# Production build (preflights the signing setup, then packages signed)
+npm run package:win:signed
+
+# Check the signing configuration without packaging
+npm run release:signing:check
 ```
 
-Or add to package.json:
+### Configure one signing mode
 
-```json
-{
-  "build": {
-    "win": {
-      "certificateFile": "certificate.pfx",
-      "certificatePassword": "password"
-    }
-  }
-}
-```
+`verify-release-signing.cjs` accepts any one of three modes via environment
+variables, then passes the right options to electron-builder:
+
+1. **CSC / PFX file** - `WIN_CSC_LINK` (or `CSC_LINK`) plus `WIN_CSC_KEY_PASSWORD`
+   (or `CSC_KEY_PASSWORD`).
+2. **Windows certificate-store token** - `WIN_CSC_SUBJECT_NAME` (or
+   `WINDOWS_CERTIFICATE_SUBJECT_NAME`), or `WIN_CSC_SHA1`.
+3. **Azure Trusted Signing** - `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`,
+   `AZURE_TRUSTED_SIGNING_ENDPOINT`, `AZURE_TRUSTED_SIGNING_ACCOUNT_NAME`,
+   `AZURE_TRUSTED_SIGNING_CERTIFICATE_PROFILE_NAME`, plus an auth secret.
+
+Get a certificate from a CA (DigiCert, Sectigo, Certum, etc.). `electron-builder.yml`
+sets `publisherName` and `verifyUpdateCodeSignature: true`, so auto-update only
+installs signed builds. `package:win:signed` fails fast if no mode is configured,
+rather than emitting an unsigned production build.
 
 ## 🐛 Troubleshooting
 
@@ -273,15 +271,16 @@ npx electron-builder --config electron-builder.windows.json --win
 ### GitHub Releases
 
 1. Create a new release on GitHub
-2. Upload the installer:
-   - `Vision-Studio-Setup-3.0.0.exe`
+2. Upload the installer and ZIP:
+   - `Vision Studio Setup 3.1.0.exe`
+   - `Vision Studio-3.1.0-win.zip`
 3. Add release notes
 4. Publish
 
 ### Website Distribution
 
 ```html
-<a href="/download/Vision-Studio-Setup-3.0.0.exe" 
+<a href="/download/Vision-Studio-Setup-3.1.0.exe" 
    download>
    Download for Windows (4.5 GB)
 </a>
