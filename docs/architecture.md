@@ -332,7 +332,7 @@ If the OpenRouter account is misconfigured for a particular request (no key, no 
 ```python
 app = FastAPI(
     title="Vision Studio API",
-    version="3.0.0",
+    version="3.1.0",
     docs_url="/api/docs",
     redoc_url="/api/redoc",
     openapi_url="/api/openapi.json",

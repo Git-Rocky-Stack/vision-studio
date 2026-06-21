@@ -411,14 +411,14 @@ FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.`);
 ## Installation
 
 ### Installer (Recommended)
-File: \`Vision-Studio-3.0.0-Setup.exe\`
+File: \`Vision-Studio-3.1.0-Setup.exe\`
 
-1. Run \`Vision-Studio-3.0.0-Setup.exe\`
+1. Run \`Vision-Studio-3.1.0-Setup.exe\`
 2. Follow the installation wizard
 3. Launch Vision Studio from the desktop or Start Menu shortcut
 
-**Important:** If the installer came with \`.bin\` data files (e.g. \`Vision-Studio-3.0.0-Setup-1.bin\`),
-keep them in the same folder as the Setup .exe (e.g. \`Vision-Studio-3.0.0-Setup-1.bin\`) — the installer needs them.
+**Important:** If the installer came with \`.bin\` data files (e.g. \`Vision-Studio-3.1.0-Setup-1.bin\`),
+keep them in the same folder as the Setup .exe (e.g. \`Vision-Studio-3.1.0-Setup-1.bin\`) — the installer needs them.
 
 ### Portable (Unpacked)
 Folder: \`win-unpacked\`
