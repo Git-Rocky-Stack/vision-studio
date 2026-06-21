@@ -350,7 +350,10 @@ class DirectVideoGenerator:
         if progress_callback:
             progress_callback(5.0)
 
-        loop = asyncio.get_event_loop()
+        # get_running_loop is the correct API inside an async context (avoids the
+        # 3.12 get_event_loop deprecation); progress here is reported on the
+        # async side, so no worker-thread loop hop is needed.
+        loop = asyncio.get_running_loop()
         result = await loop.run_in_executor(
             self.executor,
             self._generate_sync,

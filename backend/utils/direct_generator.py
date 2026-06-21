@@ -307,18 +307,19 @@ class DirectGenerator:
             import random
             seed = random.randint(0, 2**32 - 1)
         
-        # Progress tracking
+        # Progress tracking. Capture the running loop HERE (async context, main
+        # thread). progress_callback_fn runs inside the ThreadPoolExecutor
+        # worker, where asyncio.get_event_loop() raises on Python 3.12 ("no
+        # current event loop in thread ..." - worker threads have no loop);
+        # call_soon_threadsafe hops the progress update back onto this loop.
+        loop = asyncio.get_running_loop()
+
         def progress_callback_fn(step, timestep, latents):
-            progress = (step + 1) / steps * 100
             if progress_callback:
-                # Schedule callback in event loop
-                asyncio.get_event_loop().call_soon_threadsafe(
-                    lambda: progress_callback(progress)
-                )
-        
-        # Run generation in thread pool (to not block event loop)
-        loop = asyncio.get_event_loop()
-        
+                progress = (step + 1) / steps * 100
+                loop.call_soon_threadsafe(progress_callback, progress)
+
+        # Run generation in thread pool (to not block the event loop)
         try:
             result = await loop.run_in_executor(
                 self.executor,
