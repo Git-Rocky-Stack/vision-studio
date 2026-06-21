@@ -34,6 +34,7 @@ import asyncio
 import json
 import logging
 import os
+import secrets
 import shutil
 import subprocess
 import time
@@ -117,6 +118,20 @@ COMFYUI_URL = os.getenv("COMFYUI_URL", "http://127.0.0.1:8188")
 DATABASE_PATH = os.getenv("DATABASE_PATH", os.path.join(os.path.dirname(__file__), "data", "vision_studio.db"))
 BACKEND_AUTH_HEADER = "x-vision-studio-token"
 BACKEND_AUTH_TOKEN = os.getenv("VISION_STUDIO_BACKEND_AUTH_TOKEN")
+if not BACKEND_AUTH_TOKEN:
+    # Fail closed. The auth middleware below only enforces when a token is set,
+    # so an unset token would leave every non-exempt route (generation, ComfyUI
+    # graph execution, retrieval ingest) reachable unauthenticated on loopback.
+    # The packaged app always injects this token; a bare `python main.py` gets a
+    # generated one - logged once here so a local developer can present it -
+    # rather than silently disabling auth.
+    BACKEND_AUTH_TOKEN = secrets.token_urlsafe(32)
+    logger.warning(
+        "VISION_STUDIO_BACKEND_AUTH_TOKEN was not set; generated an ephemeral "
+        "backend auth token for this run. Send it as the %r header: %s",
+        BACKEND_AUTH_HEADER,
+        BACKEND_AUTH_TOKEN,
+    )
 AUTH_EXEMPT_PATHS = {"/", "/api/health", "/api/docs", "/api/redoc", "/api/openapi.json"}
 
 # Ensure directories exist
