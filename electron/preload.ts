@@ -1,4 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron';
+import type { AppSettings } from './services/settings';
 
 type AccountPreferences = {
   promptEnhancementProvider: 'local' | 'openrouter';
@@ -68,36 +69,9 @@ export interface ElectronAPI {
     indexStats: () => Promise<{ count: number; mode: 'semantic' | 'lexical' }>;
   };
   settings: {
-    get: () => Promise<{
-      theme: 'dark' | 'light' | 'system';
-      autoSave: boolean;
-      defaultOutputPath: string;
-      backendAutostart: boolean;
-      notifyOnGenerationComplete: boolean;
-      notifyOnGenerationFailed: boolean;
-      notifyOnModelDownloads: boolean;
-      pythonPath?: string;
-    }>;
-    update: (patch: Record<string, unknown>) => Promise<{
-      theme: 'dark' | 'light' | 'system';
-      autoSave: boolean;
-      defaultOutputPath: string;
-      backendAutostart: boolean;
-      notifyOnGenerationComplete: boolean;
-      notifyOnGenerationFailed: boolean;
-      notifyOnModelDownloads: boolean;
-      pythonPath?: string;
-    }>;
-    reset: () => Promise<{
-      theme: 'dark' | 'light' | 'system';
-      autoSave: boolean;
-      defaultOutputPath: string;
-      backendAutostart: boolean;
-      notifyOnGenerationComplete: boolean;
-      notifyOnGenerationFailed: boolean;
-      notifyOnModelDownloads: boolean;
-      pythonPath?: string;
-    }>;
+    get: () => Promise<AppSettings>;
+    update: (patch: Record<string, unknown>) => Promise<AppSettings>;
+    reset: () => Promise<AppSettings>;
   };
   accounts: {
     list: () => Promise<AccountsSnapshot>;

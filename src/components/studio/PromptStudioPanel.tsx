@@ -155,10 +155,23 @@ export const PromptStudioPanel = memo(function PromptStudioPanel() {
   }, []);
 
   const buildAugment = useCallback(
-    () =>
-      aiDirector.enabled
-        ? { sources: enabledSources(aiDirector), modelFamily: inferModelFamily(draft.model) }
-        : undefined,
+    async () => {
+      // Re-read settings at call time: the Settings panel can toggle AI Director
+      // while this panel stays mounted (DockView keeps tabs alive), so the
+      // on-mount snapshot would otherwise go stale and send wrong provenance.
+      let current = aiDirector;
+      if (window.electron?.settings) {
+        try {
+          const s = await window.electron.settings.get();
+          current = s.aiDirector ?? AI_DIRECTOR_DEFAULTS;
+        } catch {
+          // Keep the last-known settings if the read fails.
+        }
+      }
+      return current.enabled
+        ? { sources: enabledSources(current), modelFamily: inferModelFamily(draft.model) }
+        : undefined;
+    },
     [aiDirector, draft.model],
   );
 
@@ -191,7 +204,7 @@ export const PromptStudioPanel = memo(function PromptStudioPanel() {
       const result = await window.electron.generation.enhancePrompt({
         prompt: draft.prompt,
         mode: 'clarify',
-        augment: buildAugment(),
+        augment: await buildAugment(),
       });
       if (!result.success || !result.prompt) {
         throw new Error(result.error || 'Prompt enhancement failed.');
@@ -237,7 +250,7 @@ export const PromptStudioPanel = memo(function PromptStudioPanel() {
       const result = await window.electron.generation.enhancePrompt({
         prompt: draft.prompt,
         mode: 'expand',
-        augment: buildAugment(),
+        augment: await buildAugment(),
       });
       if (!result.success || !result.prompt) {
         throw new Error(result.error || 'Prompt expansion failed.');
@@ -278,7 +291,7 @@ export const PromptStudioPanel = memo(function PromptStudioPanel() {
       const result = await window.electron.generation.suggestNegativePrompt({
         prompt: draft.prompt,
         negativePrompt: draft.negativePrompt,
-        augment: buildAugment(),
+        augment: await buildAugment(),
       });
       if (!result.success || !result.negativePrompt) {
         throw new Error(result.error || 'Negative prompt suggestion failed.');

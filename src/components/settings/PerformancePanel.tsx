@@ -46,7 +46,7 @@ export function PerformancePanel() {
         />
       </label>
 
-      <div className="space-y-3" aria-disabled={!settings.masterEnable}>
+      <div className={`space-y-3 transition-opacity ${settings.masterEnable ? '' : 'opacity-50'}`}>
         {OPTIMIZATIONS.map(({ key, label, hint }) => (
           <div key={key} className="space-y-1.5">
             <div className="flex items-center justify-between">
@@ -57,12 +57,14 @@ export function PerformancePanel() {
               {TRISTATES.map((value) => (
                 <button
                   key={value}
+                  type="button"
+                  disabled={!settings.masterEnable}
                   onClick={() => updateSettings({ [key]: value })}
                   aria-label={`${label} ${value}`}
                   className={
                     settings[key] === value
-                      ? 'flex-1 py-1.5 rounded-md data-mono text-xs font-medium transition-all bg-accent-primary text-void shadow-accent-subtle'
-                      : 'flex-1 py-1.5 rounded-md data-mono text-xs font-medium transition-all bg-elevated text-text-body border border-border hover:border-border-hover'
+                      ? 'flex-1 py-1.5 rounded-md data-mono text-xs font-medium transition-all bg-accent-primary text-void shadow-accent-subtle disabled:cursor-not-allowed'
+                      : 'flex-1 py-1.5 rounded-md data-mono text-xs font-medium transition-all bg-elevated text-text-body border border-border hover:border-border-hover disabled:cursor-not-allowed disabled:hover:border-border'
                   }
                 >
                   {value.toUpperCase()}
