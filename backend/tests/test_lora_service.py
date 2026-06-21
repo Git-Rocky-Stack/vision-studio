@@ -5,6 +5,7 @@ import io
 import pathlib
 import sys
 import unittest
+from unittest import mock
 
 from PIL import Image
 
@@ -12,6 +13,7 @@ BACKEND_ROOT = pathlib.Path(__file__).resolve().parents[1]
 if str(BACKEND_ROOT) not in sys.path:
     sys.path.insert(0, str(BACKEND_ROOT))
 
+import services.lora_service as lora_service  # noqa: E402
 from services.lora_service import (  # type: ignore[import-not-found]
     LoRAService,
     GeneratedImage,
@@ -63,7 +65,16 @@ class LoRAServiceTests(unittest.TestCase):
     """Tests for LoRAService class."""
 
     def setUp(self):
-        """Set up test fixtures."""
+        """Set up test fixtures.
+
+        Force the diffusers-absent stub path so these tests are deterministic on
+        any machine. Without it, a host WITH diffusers attempts real model loads
+        that fail offline; they previously "passed" only because load_lora
+        masqueraded load failures as success (the M10.1 bug now fixed).
+        """
+        patcher = mock.patch.object(lora_service, "DIFFUSERS_AVAILABLE", False)
+        patcher.start()
+        self.addCleanup(patcher.stop)
         self.service = LoRAService()
 
     def test_service_initialization(self):
@@ -301,3 +312,38 @@ class LoRAServiceTests(unittest.TestCase):
         results = asyncio.run(run_test())
         # All images should have the same seed
         self.assertTrue(all(r.seed == 123 for r in results))
+
+
+class LoRALoadFailureTests(unittest.TestCase):
+    """A real load failure must surface as an error, never a silent success.
+
+    Regression: the except block used to set _model_loaded=True with
+    _pipeline=None, so generate() emitted placeholder output as a 200 OK.
+    """
+
+    def test_real_load_failure_raises_and_stays_unloaded(self):
+        import services.lora_service as ls
+
+        service = LoRAService()
+        fake_torch = mock.MagicMock()
+        fake_diffusers = mock.MagicMock()
+        fake_diffusers.StableDiffusionPipeline.from_pretrained.side_effect = RuntimeError("weights corrupt")
+
+        with mock.patch.object(ls, "DIFFUSERS_AVAILABLE", True), \
+                mock.patch.object(ls, "torch", fake_torch), \
+                mock.patch.dict("sys.modules", {"diffusers": fake_diffusers}):
+
+            async def run_test():
+                with self.assertRaises(RuntimeError):
+                    await service.load_lora("base-model", "lora.safetensors", 0.8)
+
+            asyncio.run(run_test())
+
+        # Must remain unloaded so generate() refuses instead of returning a
+        # placeholder masquerading as a real result.
+        self.assertFalse(service._model_loaded)
+        self.assertIsNone(service._current_lora)
+
+
+if __name__ == "__main__":
+    unittest.main()

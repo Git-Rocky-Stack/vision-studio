@@ -153,6 +153,9 @@ class DirectGenerator:
         self.output_dir = output_dir
         self.pipelines: Dict[str, Any] = {}
         self.applied_acceleration: Dict[str, Any] = {}
+        # Acceleration settings the cached pipeline was built with, per model.
+        # A changed request must evict+rebuild (in-place accel is irreversible).
+        self._loaded_acceleration: Dict[str, Any] = {}
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self.executor = ThreadPoolExecutor(max_workers=1)
 
@@ -178,8 +181,17 @@ class DirectGenerator:
         OOM the plan's fallback_ladder is consumed rung by rung; the OOM is
         re-raised honestly when the ladder is exhausted.
         """
-        if model_name in self.pipelines:
-            return self.pipelines[model_name]
+        requested_acceleration = acceleration_settings or DEFAULT_ACCELERATION_SETTINGS
+        cached = self.pipelines.get(model_name)
+        if cached is not None:
+            if self._loaded_acceleration.get(model_name) == requested_acceleration:
+                return cached
+            # The Performance-panel acceleration request changed since this
+            # model was cached. compile/quantization/slicing mutate the pipeline
+            # in place and cannot be cleanly reverted, so evict and rebuild to
+            # honor (and honestly report) the new settings.
+            print(f"Acceleration settings changed for {model_name}; reloading")
+            self.unload_model(model_name)
 
         print(f"Loading model: {model_name}")
         plan = resolve_plan(model_name, overrides)
@@ -202,9 +214,9 @@ class DirectGenerator:
                 torch.cuda.empty_cache()
 
         applied = accelerate_pipeline(
-            pipeline, plan, acceleration_settings or DEFAULT_ACCELERATION_SETTINGS,
-            slicing_max=slicing_max)
+            pipeline, plan, requested_acceleration, slicing_max=slicing_max)
         self.applied_acceleration[model_name] = applied
+        self._loaded_acceleration[model_name] = requested_acceleration
 
         self.pipelines[model_name] = pipeline
         print(f"Model loaded: {model_name} ({plan.pipeline_class}, {plan.precision})")
@@ -307,18 +319,19 @@ class DirectGenerator:
             import random
             seed = random.randint(0, 2**32 - 1)
         
-        # Progress tracking
+        # Progress tracking. Capture the running loop HERE (async context, main
+        # thread). progress_callback_fn runs inside the ThreadPoolExecutor
+        # worker, where asyncio.get_event_loop() raises on Python 3.12 ("no
+        # current event loop in thread ..." - worker threads have no loop);
+        # call_soon_threadsafe hops the progress update back onto this loop.
+        loop = asyncio.get_running_loop()
+
         def progress_callback_fn(step, timestep, latents):
-            progress = (step + 1) / steps * 100
             if progress_callback:
-                # Schedule callback in event loop
-                asyncio.get_event_loop().call_soon_threadsafe(
-                    lambda: progress_callback(progress)
-                )
-        
-        # Run generation in thread pool (to not block event loop)
-        loop = asyncio.get_event_loop()
-        
+                progress = (step + 1) / steps * 100
+                loop.call_soon_threadsafe(progress_callback, progress)
+
+        # Run generation in thread pool (to not block the event loop)
         try:
             result = await loop.run_in_executor(
                 self.executor,
@@ -412,6 +425,8 @@ class DirectGenerator:
         """Unload a model to free VRAM"""
         if model_name in self.pipelines:
             del self.pipelines[model_name]
+            self._loaded_acceleration.pop(model_name, None)
+            self.applied_acceleration.pop(model_name, None)
             torch.cuda.empty_cache()
             print(f"🗑️ Unloaded model: {model_name}")
     

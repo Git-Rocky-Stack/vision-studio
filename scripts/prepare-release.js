@@ -24,14 +24,14 @@ const readmeContent = `# Vision Studio v3.1.0 - Windows Release
 ## 🚀 Quick Start
 
 ### Option 1: Installer (Recommended)
-1. Run \`Vision-Studio-Setup-3.1.0.exe\`
+1. Run the Vision Studio Setup installer (the \`...Setup.exe\` in this folder)
 2. Follow the installation wizard
 3. Launch from Start Menu or Desktop
 
-### Option 2: Portable
-1. Run \`Vision-Studio-Portable-3.1.0.exe\`
-2. No installation required
-3. Can run from USB drive
+### Option 2: Portable ZIP archive
+1. Extract the Vision Studio Windows ZIP archive (the \`.zip\` in this folder)
+2. Run \`Vision Studio.exe\` from the extracted folder
+3. No installation required
 
 ## 💻 System Requirements
 
@@ -129,7 +129,7 @@ FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
 
 // Create checksums
 const crypto = require('crypto');
-const files = fs.readdirSync(RELEASE_DIR).filter(f => f.endsWith('.exe'));
+const files = fs.readdirSync(RELEASE_DIR).filter(f => f.endsWith('.exe') || f.endsWith('.zip'));
 
 if (files.length > 0) {
   let checksumContent = '# Checksums (SHA256)\n\n';

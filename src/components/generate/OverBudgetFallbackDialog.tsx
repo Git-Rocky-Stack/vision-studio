@@ -30,14 +30,46 @@ export function OverBudgetFallbackDialog({
   onCancel,
 }: OverBudgetFallbackDialogProps) {
   const dialogRef = useRef<HTMLDivElement>(null);
+  const previousFocusRef = useRef<HTMLElement | null>(null);
 
+  // Focus trap, Escape-to-cancel, and focus restoration (mirrors ConfirmDialog).
   useEffect(() => {
     if (!open) return;
+    previousFocusRef.current = document.activeElement as HTMLElement;
+
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onCancel();
+      if (event.key === 'Escape') {
+        onCancel();
+        return;
+      }
+      if (event.key !== 'Tab' || !dialogRef.current) return;
+
+      const focusable = dialogRef.current.querySelectorAll<HTMLElement>(
+        'button:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      );
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last?.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first?.focus();
+      }
     };
+
     document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
+    // Auto-focus the Cancel button (safe default).
+    requestAnimationFrame(() => {
+      const cancelBtn = dialogRef.current?.querySelector<HTMLElement>('[data-cancel]');
+      cancelBtn?.focus();
+    });
+
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+      previousFocusRef.current?.focus();
+    };
   }, [open, onCancel]);
 
   const hosted = candidates.filter(
@@ -101,7 +133,7 @@ export function OverBudgetFallbackDialog({
             </div>
 
             <div className="mt-6 flex justify-end gap-2">
-              <Button variant="ghost" size="sm" onClick={onCancel}>
+              <Button variant="ghost" size="sm" onClick={onCancel} data-cancel>
                 Cancel
               </Button>
               <Button variant="secondary" size="sm" data-testid="fallback-run-locally" onClick={onRunLocally}>

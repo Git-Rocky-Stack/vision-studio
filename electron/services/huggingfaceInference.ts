@@ -113,6 +113,18 @@ const CURATED_VIDEO_MODELS: HuggingFaceModelSummary[] = [
   { id: 'Lightricks/LTX-Video', name: 'LTX-Video', modality: 'video' },
 ];
 
+// A user-typed model id is interpolated into the inference URL path. The host
+// stays pinned (axios treats this as a path, not a new origin), but validate
+// the shape - an "org/model" (or single) slug - to reject stray slashes and
+// traversal-ish input before the URL is built.
+const HF_MODEL_ID = /^[A-Za-z0-9][\w.-]*(?:\/[A-Za-z0-9][\w.-]*)?$/;
+
+function assertValidHfModelId(model: string): void {
+  if (!HF_MODEL_ID.test(model)) {
+    throw new Error('Invalid HuggingFace model id.');
+  }
+}
+
 const PROMPT_ENHANCEMENT_SYSTEM_PROMPT =
   'You refine image-generation prompts. Reply ONLY with compact JSON of shape {"prompt": string, "variations": string[]}. Preserve intent; improve clarity and visual specificity.';
 const NEGATIVE_PROMPT_SYSTEM_PROMPT =
@@ -436,6 +448,7 @@ export function createHuggingFaceInferenceService({
     const normalizedModel = model.trim();
     if (!normalizedPrompt) throw new Error('Prompt cannot be empty.');
     if (!normalizedModel) throw new Error('HuggingFace image model is required.');
+    assertValidHfModelId(normalizedModel);
     assertPromptLength(normalizedPrompt, 'Prompt');
     try {
       const response = await withRetry(
@@ -484,6 +497,7 @@ export function createHuggingFaceInferenceService({
     const normalizedModel = model.trim();
     if (!normalizedPrompt) throw new Error('Prompt cannot be empty.');
     if (!normalizedModel) throw new Error('HuggingFace video model is required.');
+    assertValidHfModelId(normalizedModel);
     assertPromptLength(normalizedPrompt, 'Prompt');
     try {
       const response = await withRetry(

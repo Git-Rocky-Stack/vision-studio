@@ -208,12 +208,18 @@ class ControlNetService:
             logger.info("Model loaded successfully", extra={"operation": "load_model", "model_type": model_type})
             return True
 
-        except Exception as e:
+        except Exception:
             logger.error("Failed to load model", extra={"operation": "load_model", "model_type": model_type}, exc_info=True)
-            # Stub fallback for testing without diffusers
-            self._current_model_type = model_type
-            self._model_loaded = True
-            return True
+            # A real load failure must NOT masquerade as success. Leaving
+            # _model_loaded=True with _pipeline=None makes generate() silently
+            # emit gray placeholder images as a 200 OK. Reset to the unloaded
+            # state and surface the failure. (The diffusers-absent stub path is
+            # handled by the DIFFUSERS_AVAILABLE guard above, before this try.)
+            self._pipeline = None
+            self._model = None
+            self._current_model_type = None
+            self._model_loaded = False
+            raise
 
     async def generate(
         self,

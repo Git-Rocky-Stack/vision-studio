@@ -7,6 +7,7 @@ import io
 import pathlib
 import sys
 import unittest
+from unittest import mock
 
 from PIL import Image
 
@@ -18,6 +19,7 @@ from fastapi.testclient import TestClient
 
 from api.controlnet import router  # type: ignore[import-not-found]
 from fastapi import FastAPI
+import services.controlnet_service as controlnet_service  # type: ignore[import-not-found]
 
 # Create test app with ControlNet router
 app = FastAPI()
@@ -35,6 +37,15 @@ def create_test_base64_image(width: int = 64, height: int = 64, color: str = "re
 
 class ControlNetAPITests(unittest.TestCase):
     """Tests for ControlNet API endpoints."""
+
+    def setUp(self):
+        # Force the diffusers-absent stub path so generation is deterministic on
+        # any machine (a host WITH diffusers but without cached weights would
+        # attempt a real load that fails offline, and a real failure now raises
+        # rather than masquerading - M10.1). Mirrors CI, where diffusers is absent.
+        patcher = mock.patch.object(controlnet_service, "DIFFUSERS_AVAILABLE", False)
+        patcher.start()
+        self.addCleanup(patcher.stop)
 
     def test_generate_success(self):
         """Test successful ControlNet generation."""

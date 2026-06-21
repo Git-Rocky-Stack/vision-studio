@@ -127,6 +127,9 @@ class DirectVideoGenerator:
         self.executor = ThreadPoolExecutor(max_workers=1)
         self.pipelines: Dict[str, Any] = {}
         self.applied_acceleration: Dict[str, Any] = {}
+        # Acceleration settings the cached pipeline was built with, per model.
+        # A changed request must evict+rebuild (in-place accel is irreversible).
+        self._loaded_acceleration: Dict[str, Any] = {}
         configure_inductor_cache(os.path.join(models_dir, ".cache", "inductor"))
 
     def load_model(self, model_name: str, overrides: Optional[Dict[str, Any]] = None,
@@ -139,8 +142,20 @@ class DirectVideoGenerator:
         if not VIDEO_DIFFUSERS_AVAILABLE:
             raise RuntimeError("diffusers video pipelines are not available")
 
-        if model_name in self.pipelines:
-            return self.pipelines[model_name]
+        requested_acceleration = acceleration_settings or DEFAULT_ACCELERATION_SETTINGS
+        cached = self.pipelines.get(model_name)
+        if cached is not None:
+            if self._loaded_acceleration.get(model_name) == requested_acceleration:
+                return cached
+            # Acceleration request changed since this model was cached; in-place
+            # accel (compile/quantization/slicing) is irreversible, so evict and
+            # rebuild to honor (and honestly report) the new settings.
+            print(f"Acceleration settings changed for {model_name}; reloading")
+            del self.pipelines[model_name]
+            self._loaded_acceleration.pop(model_name, None)
+            self.applied_acceleration.pop(model_name, None)
+            if torch is not None:
+                torch.cuda.empty_cache()
 
         plan = resolve_plan(model_name, overrides)
         if plan.refusal:
@@ -162,9 +177,9 @@ class DirectVideoGenerator:
                 torch.cuda.empty_cache()
 
         applied = accelerate_pipeline(
-            pipeline, plan, acceleration_settings or DEFAULT_ACCELERATION_SETTINGS,
-            slicing_max=slicing_max)
+            pipeline, plan, requested_acceleration, slicing_max=slicing_max)
         self.applied_acceleration[model_name] = applied
+        self._loaded_acceleration[model_name] = requested_acceleration
 
         self.pipelines[model_name] = pipeline
         return pipeline
@@ -350,7 +365,10 @@ class DirectVideoGenerator:
         if progress_callback:
             progress_callback(5.0)
 
-        loop = asyncio.get_event_loop()
+        # get_running_loop is the correct API inside an async context (avoids the
+        # 3.12 get_event_loop deprecation); progress here is reported on the
+        # async side, so no worker-thread loop hop is needed.
+        loop = asyncio.get_running_loop()
         result = await loop.run_in_executor(
             self.executor,
             self._generate_sync,

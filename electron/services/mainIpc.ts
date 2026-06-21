@@ -132,11 +132,23 @@ function resolveImportedMediaType(filePath: string): 'image' | 'video' | 'audio'
   return null;
 }
 
-function resolveShellPath(filePath: string, outputRoots: OutputRootServiceLike) {
+function resolveShellPath(
+  filePath: string,
+  outputRoots: OutputRootServiceLike,
+  allowedExportRoots: string[],
+): string {
   try {
     return outputRoots.resolveManagedAssetPath(filePath);
   } catch {
-    return path.resolve(filePath);
+    // Not a managed asset. Allow it only if it resolves inside an allowed
+    // export root (the user's chosen export destination, e.g. Desktop). Any
+    // other renderer-supplied path is refused rather than handed to the OS
+    // shell, which would otherwise open/execute an arbitrary path.
+    const exportPath = resolveSafeExportDestination(filePath, allowedExportRoots);
+    if (!exportPath) {
+      throw new Error('Refusing to open a path outside managed or export locations.');
+    }
+    return exportPath;
   }
 }
 
@@ -165,7 +177,13 @@ export function registerMainIpcHandlers({
   });
 
   ipcMain.handle('app:open-path', async (_event, filePath: string) => {
-    const error = await shell.openPath(resolveShellPath(filePath, outputRoots));
+    let resolved: string;
+    try {
+      resolved = resolveShellPath(filePath, outputRoots, getAllowedExportRoots(app));
+    } catch (error: any) {
+      return { success: false, error: error?.message ?? 'Refused to open path.' };
+    }
+    const error = await shell.openPath(resolved);
     return error ? { success: false, error } : { success: true };
   });
 
@@ -560,7 +578,7 @@ export function registerMainIpcHandlers({
 
   ipcMain.handle('assets:reveal', async (_event, sourcePath: string) => {
     try {
-      shell.showItemInFolder(resolveShellPath(sourcePath, outputRoots));
+      shell.showItemInFolder(resolveShellPath(sourcePath, outputRoots, getAllowedExportRoots(app)));
       return { success: true };
     } catch (error: any) {
       return { success: false, error: error.message };

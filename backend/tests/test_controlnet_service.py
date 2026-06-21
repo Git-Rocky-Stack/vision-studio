@@ -9,6 +9,7 @@ import pathlib
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 from PIL import Image
 
@@ -16,6 +17,7 @@ BACKEND_ROOT = pathlib.Path(__file__).resolve().parents[1]
 if str(BACKEND_ROOT) not in sys.path:
     sys.path.insert(0, str(BACKEND_ROOT))
 
+import services.controlnet_service as controlnet_service  # noqa: E402
 from services.controlnet_service import (  # type: ignore[import-not-found]
     ControlNetService,
     GeneratedImage,
@@ -101,7 +103,15 @@ class ControlNetServiceTests(unittest.TestCase):
     """Tests for ControlNetService class."""
 
     def setUp(self):
-        """Set up test fixtures."""
+        """Set up test fixtures.
+
+        Force the diffusers-absent stub path so these tests are deterministic on
+        any machine (no dependency on locally-cached models or the old
+        load-failure masquerade, fixed in M10.1).
+        """
+        patcher = mock.patch.object(controlnet_service, "DIFFUSERS_AVAILABLE", False)
+        patcher.start()
+        self.addCleanup(patcher.stop)
         self.service = ControlNetService()
         self.test_image = create_test_base64_image(64, 64, "red")
 
@@ -306,6 +316,36 @@ class ControlNetServiceTests(unittest.TestCase):
             self.assertFalse(fresh_service.is_model_loaded())
 
         asyncio.run(run_test())
+
+
+class ControlNetLoadFailureTests(unittest.TestCase):
+    """A real load failure must surface as an error, never a silent success.
+
+    Regression: the except block used to set _model_loaded=True with
+    _pipeline=None, so generate() emitted a gray placeholder image as a 200 OK.
+    """
+
+    def test_real_load_failure_raises_and_stays_unloaded(self):
+        import services.controlnet_service as cs
+
+        service = ControlNetService(device="cpu")
+        fake_torch = mock.MagicMock()
+
+        with mock.patch.object(cs, "DIFFUSERS_AVAILABLE", True), \
+                mock.patch.object(cs, "torch", fake_torch), \
+                mock.patch.object(cs, "ControlNetModel", create=True) as controlnet_model:
+            controlnet_model.from_pretrained.side_effect = RuntimeError("weights corrupt")
+
+            async def run_test():
+                with self.assertRaises(RuntimeError):
+                    await service.load_model("canny")
+
+            asyncio.run(run_test())
+
+        # Must remain unloaded so generate() refuses instead of returning a
+        # placeholder masquerading as a real result.
+        self.assertFalse(service.is_model_loaded())
+        self.assertIsNone(service.get_current_model_type())
 
 
 if __name__ == "__main__":
