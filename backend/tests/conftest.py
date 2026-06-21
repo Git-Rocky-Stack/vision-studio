@@ -42,7 +42,9 @@ def pytest_collection_modifyitems(
         parts = item.path.parts
         if "benchmarks" in parts:
             item.add_marker(pytest.mark.benchmark)
-        elif item.path.name.endswith("_api.py"):
+        elif item.path.name.endswith("_api.py") or item.path.name.startswith("test_foundry_"):
+            # Every test_foundry_* file drives the real app via TestClient (the
+            # civitai download file does not use the _api.py suffix).
             item.add_marker(pytest.mark.integration)
         else:
             item.add_marker(pytest.mark.unit)
