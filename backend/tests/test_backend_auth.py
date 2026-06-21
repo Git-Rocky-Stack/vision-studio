@@ -31,5 +31,30 @@ class BackendAuthFailClosedTests(unittest.TestCase):
         self.assertGreaterEqual(len(main.BACKEND_AUTH_TOKEN), 32)
 
 
+class BackendAuthEnforcementTests(unittest.TestCase):
+    """The middleware actually enforces the token on non-exempt routes."""
+
+    def test_non_exempt_route_requires_the_token(self):
+        try:
+            import main
+            from fastapi.testclient import TestClient
+        except Exception as exc:  # pragma: no cover - main pulls heavy optional deps
+            self.skipTest(f"main/TestClient not importable: {exc}")
+
+        token = "enforcement-test-token-abcdefghijklmnop"
+        previous = main.BACKEND_AUTH_TOKEN
+        main.BACKEND_AUTH_TOKEN = token
+        try:
+            client = TestClient(main.app)
+            # Exempt path: reachable without a token (not 403).
+            self.assertNotEqual(client.get("/api/health").status_code, 403)
+            # Non-exempt path: refused without the token, allowed with it.
+            self.assertEqual(client.get("/api/models").status_code, 403)
+            allowed = client.get("/api/models", headers={main.BACKEND_AUTH_HEADER: token})
+            self.assertNotEqual(allowed.status_code, 403)
+        finally:
+            main.BACKEND_AUTH_TOKEN = previous
+
+
 if __name__ == "__main__":
     unittest.main()

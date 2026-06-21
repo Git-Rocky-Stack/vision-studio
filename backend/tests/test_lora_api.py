@@ -7,6 +7,7 @@ import io
 import pathlib
 import sys
 import unittest
+from unittest import mock
 
 from PIL import Image
 
@@ -18,6 +19,7 @@ from fastapi.testclient import TestClient
 
 from api.lora import router  # type: ignore[import-not-found]
 from fastapi import FastAPI
+import services.lora_service as lora_service  # type: ignore[import-not-found]
 
 # Create test app with LoRA router
 app = FastAPI()
@@ -35,6 +37,16 @@ def create_test_base64_image(width: int = 64, height: int = 64, color: str = "re
 
 class LoRAAPITests(unittest.TestCase):
     """Tests for LoRA API endpoints."""
+
+    def setUp(self):
+        # Force the diffusers-absent stub path so generation is deterministic on
+        # any machine; a host WITH diffusers would attempt a real model load that
+        # fails offline (these tests previously "passed" only via the
+        # load-failure masquerade, fixed in M10.1). Mirrors CI, where diffusers
+        # is absent.
+        patcher = mock.patch.object(lora_service, "DIFFUSERS_AVAILABLE", False)
+        patcher.start()
+        self.addCleanup(patcher.stop)
 
     def test_generate_success(self):
         """Test successful LoRA generation."""

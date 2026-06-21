@@ -46,3 +46,25 @@ def pytest_collection_modifyitems(
             item.add_marker(pytest.mark.integration)
         else:
             item.add_marker(pytest.mark.unit)
+
+
+@pytest.fixture(autouse=True)
+def _disable_backend_auth_for_integration(request):
+    """Integration tests drive the real FastAPI app via TestClient without an
+    auth token. The backend fails closed (a token is always configured) for
+    production safety - see main and test_backend_auth.py - so disable
+    enforcement for these tests rather than threading a token through every
+    client. Unit tests are untouched and never import main.
+    """
+    if request.node.get_closest_marker("integration") is None:
+        yield
+        return
+
+    import main  # already imported by the integration test module
+
+    previous = main.BACKEND_AUTH_TOKEN
+    main.BACKEND_AUTH_TOKEN = None
+    try:
+        yield
+    finally:
+        main.BACKEND_AUTH_TOKEN = previous
