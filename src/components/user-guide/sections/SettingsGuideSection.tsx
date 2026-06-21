@@ -8,14 +8,15 @@ export function SettingsGuideSection() {
     <UserGuideSection
       id="guide-settings"
       title="Settings"
-      summary="Configure local accounts, BYOK routing, backend startup, models, output paths, tagging, appearance, and notifications."
+      summary="Configure local accounts, BYOK routing, backend startup, models, GPU acceleration, output paths, appearance, and notifications."
     >
       <GuideList
         items={[
           <span>
-            Settings is split across five tabs: <strong>General</strong>,{' '}
-            <strong>AI &amp; Models</strong>, <strong>Appearance</strong>,{' '}
-            <strong>Notifications</strong>, and <strong>User Guide</strong> (this document).
+            Settings is split across six tabs: <strong>General</strong>,{' '}
+            <strong>AI &amp; Models</strong>, <strong>Performance</strong>,{' '}
+            <strong>Appearance</strong>, <strong>Notifications</strong>, and{' '}
+            <strong>User Guide</strong> (this document).
           </span>,
           <span>
             Use <strong>AI &amp; Models</strong> to start the backend, inspect GPU state, manage
@@ -45,6 +46,11 @@ export function SettingsGuideSection() {
             title: 'AI & Models -- configure your account and BYOK routing',
             description:
               'Use User Accounts & BYOK to create or switch the active account. Per account, choose your prompt enhancement provider (Local or OpenRouter) and your still-image provider. Save your OpenRouter key, run Verify, and pick the prompt and still-image models you want hosted runs to use.',
+          },
+          {
+            title: 'Performance -- tune acceleration per your GPU',
+            description:
+              'The Performance tab exposes per-optimization tri-state controls (SDPA, channels-last, torch.compile, quantization, attention slicing, TensorRT) plus a master switch. Auto lets Vision Studio choose for your hardware; On/Off override it. After a Local generation, the panel shows exactly what was applied, skipped, or fell back this run.',
           },
           {
             title: 'Appearance -- pick a theme',
@@ -144,6 +150,32 @@ export function SettingsGuideSection() {
               On Windows, the bundled backend is a PyInstaller one-file exe -- first launch can
               take several minutes to extract. Vision Studio surfaces a friendly modal with that
               hint if the readiness probe times out.
+            </span>,
+          ]}
+        />
+      </GuideCallout>
+
+      <GuideCallout title="GPU Acceleration" tone="info">
+        <GuideList
+          items={[
+            <span>
+              The <strong>Performance</strong> tab tunes how Local generations use your GPU. A
+              master switch turns acceleration on or off; each optimization is tri-state
+              (<strong>Auto</strong>, <strong>On</strong>, <strong>Off</strong>).
+            </span>,
+            <span>
+              Covered optimizations: SDPA attention, channels-last memory format, torch.compile,
+              quantization, attention slicing, and the opt-in TensorRT engine path. Auto lets
+              Vision Studio pick what fits your hardware; On/Off override per optimization.
+            </span>,
+            <span>
+              Every optimization is best-effort and never fails a generation. After a Local run the
+              panel reports exactly what was <strong>applied</strong>, <strong>skipped</strong>, or
+              <strong> fell back</strong> to eager -- no guessing, no silent failures.
+            </span>,
+            <span>
+              TensorRT ships auto-off until it is verified on real hardware. Enabling it explicitly
+              builds an engine with a hard fallback to eager if the build does not succeed.
             </span>,
           ]}
         />
