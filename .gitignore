@@ -72,6 +72,9 @@ worktrees/
 # Superpowers
 .superpowers/
 
+# Independent review reports (codex-review skill output, never commit)
+.jez/
+
 # Claude Code local config (never commit)
 .claude/
 website DESIGN.md

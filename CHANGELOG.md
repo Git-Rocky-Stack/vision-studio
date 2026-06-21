@@ -22,6 +22,12 @@ breaking changes.
 
 ### Fixed
 - Acceleration optimizations are best-effort and never fail a generation; failures fall back to eager and are surfaced honestly in the Performance panel
+- Local (non-ComfyUI) image generation crashed on its first denoising step on Python 3.12 - the progress callback captured the event loop from a worker thread; it now schedules onto the main loop thread-safely
+- ControlNet/LoRA load failures no longer masquerade as success and emit placeholder images as a 200 OK; a real failure now surfaces an error
+- Changing Performance-panel acceleration settings is honored on a re-load of an already-cached model instead of silently reusing the first load's settings
+- The local backend now fails closed when no auth token is configured (a bare `python main.py` gets a generated token) instead of leaving non-exempt routes unauthenticated
+- Imported ComfyUI graphs are bounded by node count and numeric input ranges to prevent resource exhaustion on the connected server
+- The over-budget fallback dialog now traps focus so keyboard and screen-reader users can reach its actions; the AI Director provenance no longer goes stale while the Prompt Studio panel stays mounted
 
 ## [3.0.0] - 2026-05-30
 
