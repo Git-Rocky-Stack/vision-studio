@@ -147,6 +147,18 @@ describe('createHuggingFaceInferenceService.generateImage', () => {
     expect(axiosInstance.post).not.toHaveBeenCalled();
   });
 
+  it('rejects an unsafe model id before any network call', async () => {
+    const axiosInstance = { get: vi.fn(), post: vi.fn() };
+    const service = createHuggingFaceInferenceService({ axiosInstance });
+    await expect(
+      service.generateImage({ token: 'hf_token', model: '../../etc/passwd', prompt: 'a tree', width: 512, height: 512 }),
+    ).rejects.toThrow(/Invalid HuggingFace model id/);
+    await expect(
+      service.generateImage({ token: 'hf_token', model: 'org/model/extra', prompt: 'a tree', width: 512, height: 512 }),
+    ).rejects.toThrow(/Invalid HuggingFace model id/);
+    expect(axiosInstance.post).not.toHaveBeenCalled();
+  });
+
   it('accepts a genuine RIFF/WEBP body as image/webp', async () => {
     // 'RIFF' (0-3) + size (4-7) + 'WEBP' form type (8-11) + payload.
     const webp = Buffer.concat([
