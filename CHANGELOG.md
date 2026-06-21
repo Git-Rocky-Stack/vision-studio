@@ -2,6 +2,27 @@
 
 All notable changes to Vision Studio will be documented in this file.
 
+## [3.1.0] - 2026-06-20
+
+Hardening + feature-consolidation release on top of the public 3.0.0. Folds the
+M6-M9 work into a coherent, documented, shippable build. Additive only - no known
+breaking changes.
+
+### Added
+- **Provider Routing Fabric (M6)** - local-first generation plus optional OpenRouter BYOK; per-account routing of prompt tools and still images, hosted image/video/ControlNet/inpaint providers, and over-budget fallback
+- **AI Director + RAG Context (M7)** - retrieval-augmented prompt assistance grounded in project context
+- **ComfyUI Interop Deepening (M8)** - import and run ComfyUI API-format graphs in the workbench
+- **Accelerator + Inference Enhancement (M9)** - per-optimization Performance panel (SDPA, channels-last, torch.compile, quantization, attention slicing) tuned to your GPU, with an honest applied/skipped/fell-back readout
+- **TensorRT engine path (M10)** - opt-in `torch_tensorrt` engine build/cache, auto-off until hardware-verified (see `docs/TENSORRT_VERIFICATION.md`)
+- `THIRD-PARTY-NOTICES.md` and a license-compatibility scan
+
+### Changed
+- Attention slicing is now derived from VRAM headroom instead of always-on, removing a per-generation slowdown when the model fits with room to spare
+- Documentation refreshed across the user guide, build docs, and README for the M6-M9 surface
+
+### Fixed
+- Acceleration optimizations are best-effort and never fail a generation; failures fall back to eager and are surfaced honestly in the Performance panel
+
 ## [3.0.0] - 2026-05-30
 
 First public release. Vision Studio-X is now open source under the MIT license,

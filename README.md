@@ -11,6 +11,10 @@ A professional AI-powered desktop application for image and video generation. No
 
 - **Image Generation** - FLUX.1, Stable Diffusion XL, SD 1.5
 - **Video Generation** - LTX Video, Stable Video Diffusion, AnimateDiff
+- **Provider Routing** - run fully local or bring your own OpenRouter key (BYOK); route prompt tools and still images per account, with graceful over-budget fallback
+- **AI Director** - retrieval-augmented prompt assistance grounded in your own project context
+- **ComfyUI Interop** - import and run ComfyUI API-format graphs inside the workbench
+- **GPU Acceleration** - per-optimization Performance panel (SDPA, channels-last, torch.compile, quantization; TensorRT opt-in) tuned to your hardware
 - **Batch Processing** - Generate multiple images at once
 - **Templates** - YouTube, TikTok, Instagram presets
 - **Professional Editor** - Timeline, canvas, effects
@@ -148,7 +152,7 @@ vision-studio/
 │   ├── store/            # Zustand state
 │   └── App.tsx           # Main app
 │
-├── build-backend.js       # Build script
+├── build-backend.cjs      # Build script
 ├── quickstart.bat         # Windows quick start
 └── package.json
 ```
@@ -156,7 +160,7 @@ vision-studio/
 ## Tech Stack
 
 ### Frontend
-- **Electron 33** - Desktop shell
+- **Electron 42** - Desktop shell
 - **React 19** - UI framework
 - **TypeScript** - Type safety
 - **Tailwind CSS v4** - Styling
@@ -262,11 +266,11 @@ npm run test:a11y          # Accessibility smoke tests only
 cd backend && python -m unittest discover -s tests -v
 ```
 
-| Layer | Framework | Files | Tests |
-|-------|-----------|-------|-------|
-| Unit + Integration | Vitest 3.2 | 16 | 119 |
-| E2E | Playwright | 3 | 13 |
-| Backend | unittest | 7 | 35 (28 + 7 skipped) |
+| Layer | Framework | What it covers |
+|-------|-----------|----------------|
+| Unit + Component + Integration | Vitest 4 | 1,400+ frontend tests - pure logic, Zustand store, Electron services, React components, API/workflow contracts |
+| E2E + Visual | Playwright | Electron end-to-end, accessibility, and Windows visual-regression suites |
+| Backend | pytest / unittest | FastAPI + foundry + services; import-safe collection on CI, real model runs are local |
 
 ## Documentation
 

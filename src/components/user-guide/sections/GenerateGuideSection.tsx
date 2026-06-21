@@ -133,6 +133,29 @@ export function GenerateGuideSection() {
         />
       </GuideCallout>
 
+      <GuideCallout title="AI Director (Grounded Prompt Assist)" tone="info">
+        <GuideList
+          items={[
+            <span>
+              Enable <strong>AI Director (RAG)</strong> in Settings &gt; AI &amp; Models to ground
+              prompt enhancement in your own context. Add sources, then build the retrieval index
+              so Enhance and Expand pull in relevant detail instead of guessing.
+            </span>,
+            <span>
+              With the Director on, Prompt Studio reports{' '}
+              <strong>Context used: N references</strong> for an assisted prompt, with a{' '}
+              <code>(lexical match)</code> note when it falls back from semantic to keyword
+              retrieval. You always see exactly which references shaped the prompt.
+            </span>,
+            <span>
+              Retrieval is local to your machine and entirely optional; with the Director off,
+              prompt tools behave exactly as before. Rebuild or clear the index any time from
+              Settings as your source material changes.
+            </span>,
+          ]}
+        />
+      </GuideCallout>
+
       <GuideCallout title="Batch Generation" tone="info">
         <GuideList
           items={[
@@ -190,6 +213,28 @@ export function GenerateGuideSection() {
               If those controls matter for the current run, switch the active account&apos;s
               still-image provider back to Local in Settings before launching, or switch to a
               different account that is already configured for Local.
+            </span>,
+          ]}
+        />
+      </GuideCallout>
+
+      <GuideCallout title="Over-Budget Fallback" tone="warning">
+        <GuideList
+          items={[
+            <span>
+              Before a Local run, Vision Studio checks whether the selected model is likely to fit
+              in VRAM. If it is <strong>over your GPU budget</strong>, a dialog warns you instead of
+              letting the run fail with an out-of-memory error mid-generation.
+            </span>,
+            <span>
+              From that dialog you can <strong>route the run to a configured hosted provider</strong>{' '}
+              (OpenRouter or HuggingFace, if the active account has one set up),{' '}
+              <strong>run locally anyway</strong> (accepting the OOM risk), or cancel.
+            </span>,
+            <span>
+              If no hosted provider is configured to handle the request, the dialog says so and
+              points you to add a key and model in Settings -- it never silently downgrades or
+              drops the job.
             </span>,
           ]}
         />

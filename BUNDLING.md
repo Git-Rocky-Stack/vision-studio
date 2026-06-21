@@ -29,7 +29,7 @@ npm run build:backend
 npm run package:win
 ```
 
-The `build-backend.js` script will:
+The `build-backend.cjs` script will:
 1. Create a Python virtual environment
 2. Install PyTorch with CUDA
 3. Install all Python dependencies

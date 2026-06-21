@@ -65,24 +65,20 @@ npm run package:win
 ```
 
 Creates:
-- `Vision Studio Setup.exe` - NSIS installer
-- `Vision Studio.exe` - Portable executable (in win-unpacked/)
+- `Vision Studio Setup 3.1.0.exe` - NSIS installer
+- `Vision Studio-3.1.0-win.zip` - portable ZIP archive
+- `Vision Studio.exe` - unpacked app (in win-unpacked/)
 
 ### Code Signing (Recommended)
 
-```bash
-# Get code signing certificate (e.g., from DigiCert)
-# Then add to package.json:
-
-{
-  "build": {
-    "win": {
-      "certificateFile": "certificate.pfx",
-      "certificatePassword": "password"
-    }
-  }
-}
-```
+Vision Studio gates release signing through `scripts/verify-release-signing.cjs`.
+Use `npm run package:win` for local unsigned development builds and
+`npm run package:win:signed` for production artifacts (it preflights the signing
+setup, then packages signed). Configure one signing mode via environment
+variables - CSC/PFX (`WIN_CSC_LINK` + `WIN_CSC_KEY_PASSWORD`), a Windows
+certificate-store token (`WIN_CSC_SUBJECT_NAME` / `WIN_CSC_SHA1`), or Azure
+Trusted Signing. Signing config lives in `electron-builder.yml`
+(`publisherName`, `verifyUpdateCodeSignature: true`), not in `package.json`.
 
 ### Windows Store (MSIX)
 
@@ -177,7 +173,7 @@ chmod +x "Vision Studio.AppImage"
 ```yaml
 # snap/snapcraft.yaml
 name: vision-studio
-version: '3.0.0'
+version: '3.1.0'
 grade: stable
 confinement: strict
 parts:
@@ -200,7 +196,7 @@ command: vision-studio
 ```bash
 # PKGBUILD
 pkgname=vision-studio
-pkgver=3.0.0
+pkgver=3.1.0
 source=("$pkgname-$pkgver.AppImage")
 ```
 
@@ -210,8 +206,8 @@ source=("$pkgname-$pkgver.AppImage")
 
 ```bash
 # 1. Create tag
-git tag -a v3.0.0 -m "Release v3.0.0"
-git push origin v3.0.0
+git tag -a v3.1.0 -m "Release v3.1.0"
+git push origin v3.1.0
 
 # 2. GitHub Actions will build and upload
 # Or manually upload from release/ folder

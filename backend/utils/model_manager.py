@@ -360,7 +360,7 @@ class ModelManager:
             raise
 
     def _build_civitai_headers(self) -> Dict[str, str]:
-        headers = {"User-Agent": "VisionStudio/3.0.0"}
+        headers = {"User-Agent": "VisionStudio/3.1.0"}
         token = os.getenv("CIVITAI_API_TOKEN")
         if token:
             headers["Authorization"] = f"Bearer {token}"
