@@ -21,8 +21,6 @@ const shellTypographyFiles = [
   'src/components/canvas/CanvasContextMenu.tsx',
   'src/components/canvas/CanvasControlLayerProperties.tsx',
   'src/components/canvas/CanvasControlLayerRail.tsx',
-  'src/components/canvas/ComparisonView.tsx',
-  'src/components/canvas/ComparisonToolbar.tsx',
   'src/components/canvas/GenerationQueue.tsx',
   'src/components/canvas/GenerationProgress.tsx',
   'src/components/edit/AIToolsPanel.tsx',

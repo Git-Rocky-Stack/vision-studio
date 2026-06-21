@@ -7,6 +7,7 @@ Provides services for:
 - Face restoration (GFPGAN)
 
 All tools use stub implementations for now - actual model integration later.
+Tracked: #34
 """
 
 from __future__ import annotations

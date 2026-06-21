@@ -32,6 +32,11 @@ backend/venv/
 *.blockmap
 resources/VisionStudio-Backend.exe
 
+# Acceleration caches (torch.compile inductor + TensorRT engines)
+**/.cache/inductor/
+**/.cache/tensorrt/
+*.plan
+
 # Local runtime data (SQLite DB auto-created by backend migrations)
 backend/data/
 backend/models/
