@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   buildBackendEnvironment,
+  externalBackendTokenWarning,
   isExternalBackendEnabled,
   resolveBackendCommand,
   resolveBundledBackendPath,
@@ -108,5 +109,27 @@ describe('external backend connectivity gating', () => {
 
   it('skips the probe only when there is no child and no external backend (default)', () => {
     expect(shouldProbeBackendConnectivity({ hasLiveChild: false, externalBackendEnabled: false })).toBe(false);
+  });
+});
+
+describe('external backend auth-token guard', () => {
+  it('warns when external mode is on but no shared auth token is set', () => {
+    const warning = externalBackendTokenWarning({ VISION_STUDIO_BACKEND_EXTERNAL: '1' });
+    expect(warning).toMatch(/VISION_STUDIO_BACKEND_AUTH_TOKEN/);
+    expect(warning).toMatch(/403/);
+  });
+
+  it('stays silent when external mode is off', () => {
+    expect(externalBackendTokenWarning({})).toBeNull();
+    expect(externalBackendTokenWarning({ VISION_STUDIO_BACKEND_AUTH_TOKEN: 'shared' })).toBeNull();
+  });
+
+  it('stays silent when external mode is on and a shared token is provided', () => {
+    expect(
+      externalBackendTokenWarning({
+        VISION_STUDIO_BACKEND_EXTERNAL: '1',
+        VISION_STUDIO_BACKEND_AUTH_TOKEN: 'shared',
+      })
+    ).toBeNull();
   });
 });

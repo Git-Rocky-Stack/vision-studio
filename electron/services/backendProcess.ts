@@ -155,6 +155,29 @@ export function isExternalBackendEnabled(env: NodeJS.ProcessEnv = process.env): 
 }
 
 /**
+ * When an external backend is declared but no shared auth token is configured,
+ * Electron (via backendAuth) and the manually-started `python main.py` each
+ * mint a *different* random token. The backend then rejects Electron's
+ * authenticated requests with HTTP 403 - only the exempt health route succeeds
+ * - so the app reads as "disconnected" even though the backend is up. Returns
+ * an actionable warning in that case, or null when the configuration is sound.
+ */
+export function externalBackendTokenWarning(
+  env: NodeJS.ProcessEnv = process.env
+): string | null {
+  if (!isExternalBackendEnabled(env) || env.VISION_STUDIO_BACKEND_AUTH_TOKEN) {
+    return null;
+  }
+  return (
+    'External backend mode (VISION_STUDIO_BACKEND_EXTERNAL) is enabled but ' +
+    'VISION_STUDIO_BACKEND_AUTH_TOKEN is not set. This app and the external ' +
+    'backend will generate different auth tokens, so authenticated requests ' +
+    '(generation, models, websocket) fail with HTTP 403. Set the SAME ' +
+    'VISION_STUDIO_BACKEND_AUTH_TOKEN for both this app and the backend process.'
+  );
+}
+
+/**
  * Decide whether `getSystemInfo` should issue an HTTP connectivity probe: when
  * this app manages a live backend child, OR when an externally-managed backend
  * has been declared. Pure and host-agnostic for unit testing.
@@ -197,6 +220,14 @@ export function createBackendProcessService({
 }: BackendProcessServiceOptions) {
   let pythonBackend: ChildProcess | null = null;
   let backendReady = false;
+
+  // Surface the external-backend token mismatch once at startup: in external
+  // mode without a shared VISION_STUDIO_BACKEND_AUTH_TOKEN the backend 403s our
+  // authenticated calls and the app misreads as disconnected.
+  const startupTokenWarning = externalBackendTokenWarning();
+  if (startupTokenWarning) {
+    logger.error(`[backend-auth] ${startupTokenWarning}`);
+  }
 
   function sendStatus(webContents?: Pick<WebContents, 'send'>) {
     webContents?.send('backend:status', getBackendStatusSnapshot(pythonBackend, backendReady));

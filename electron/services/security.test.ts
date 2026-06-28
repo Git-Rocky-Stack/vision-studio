@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   isAllowedStoreKey,
+  isExecutablePath,
   isSafeExternalUrl,
   isSafePythonCommand,
   resolveSafeExportDestination,
@@ -24,6 +25,18 @@ describe('electron security helpers', () => {
     expect(isSafePythonCommand('cmd.exe')).toBe(false);
     expect(isSafePythonCommand('powershell.exe')).toBe(false);
     expect(isSafePythonCommand('C:\\Windows\\System32\\cmd.exe')).toBe(false);
+  });
+
+  it('flags executable and script file types so app:open-path never launches them', () => {
+    expect(isExecutablePath('C:/Users/User/Downloads/tool.exe')).toBe(true);
+    expect(isExecutablePath('C:\\Users\\User\\Downloads\\install.MSI')).toBe(true);
+    expect(isExecutablePath('payload.bat')).toBe(true);
+    expect(isExecutablePath('script.ps1')).toBe(true);
+    expect(isExecutablePath('shortcut.lnk')).toBe(true);
+    expect(isExecutablePath('C:/Users/User/Pictures/render.png')).toBe(false);
+    expect(isExecutablePath('C:/Users/User/Videos/clip.mp4')).toBe(false);
+    expect(isExecutablePath('report.pdf')).toBe(false);
+    expect(isExecutablePath('C:/Users/User/no-extension-file')).toBe(false);
   });
 
   it('limits generic store IPC access to known keys', () => {

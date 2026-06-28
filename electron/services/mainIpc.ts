@@ -6,6 +6,7 @@ type NotificationConstructor = typeof import('electron').Notification;
 
 import {
   isAllowedStoreKey,
+  isExecutablePath,
   isSafeExternalUrl,
   resolveSafeExportDestination,
 } from './security';
@@ -132,7 +133,7 @@ function resolveImportedMediaType(filePath: string): 'image' | 'video' | 'audio'
   return null;
 }
 
-function resolveShellPath(
+export function resolveShellPath(
   filePath: string,
   outputRoots: OutputRootServiceLike,
   allowedExportRoots: string[],
@@ -182,6 +183,9 @@ export function registerMainIpcHandlers({
       resolved = resolveShellPath(filePath, outputRoots, getAllowedExportRoots(app));
     } catch (error: any) {
       return { success: false, error: error?.message ?? 'Refused to open path.' };
+    }
+    if (isExecutablePath(resolved)) {
+      return { success: false, error: 'Refusing to open an executable file.' };
     }
     const error = await shell.openPath(resolved);
     return error ? { success: false, error } : { success: true };
@@ -640,9 +644,13 @@ export function registerMainIpcHandlers({
   });
 }
 
-function getAllowedExportRoots(app: Pick<App, 'getPath'>) {
+// Roots a renderer-supplied path may resolve into for export (write) and for
+// open/reveal (shell). Deliberately the standard user content directories and
+// NOT app.getPath('home'): including the whole home folder would widen
+// acceptance to the entire profile (AppData, dotfiles, Startup) and let
+// shell.openPath reach sensitive or executable files anywhere under it.
+export function getAllowedExportRoots(app: Pick<App, 'getPath'>) {
   return [
-    app.getPath('home'),
     app.getPath('desktop'),
     app.getPath('documents'),
     app.getPath('downloads'),
