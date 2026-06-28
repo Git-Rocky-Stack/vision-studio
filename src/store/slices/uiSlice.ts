@@ -121,6 +121,7 @@ export function createUIActions(set: AppSet, _get: AppGet) {
         workflows: 'workflows',
         assets: null,
         collections: null,
+        foundry: null,
         settings: null,
       };
       set({ activeTab: tab, activeSubMode: subModeDefaults[tab] ?? null });
