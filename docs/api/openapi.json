@@ -3,7 +3,7 @@
   "info": {
     "title": "Vision Studio API",
     "description": "Local-first AI image and video generation backend for the Vision Studio Electron desktop app. The runtime backend exposes a richer, fully introspectable spec at http://127.0.0.1:8000/api/openapi.json — this file is a hand-curated, human-friendly snapshot suitable for diffing in PRs.",
-    "version": "3.1.0",
+    "version": "3.1.1",
     "contact": {
       "name": "Vision Studio Team",
       "email": "hello@visionstudio.app"
@@ -42,7 +42,7 @@
             "content": {
               "application/json": {
                 "schema": { "type": "object", "properties": { "message": { "type": "string" }, "version": { "type": "string" } } },
-                "example": { "message": "Vision Studio API", "version": "3.1.0" }
+                "example": { "message": "Vision Studio API", "version": "3.1.1" }
               }
             }
           }

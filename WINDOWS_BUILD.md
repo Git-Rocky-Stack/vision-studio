@@ -32,8 +32,8 @@ npm run package:win
 ```
 
 **Output:**
-- `Vision Studio Setup 3.1.0.exe` - NSIS installer (~150 MB)
-- `Vision Studio-3.1.0-win.zip` - portable ZIP archive (~150 MB)
+- `Vision Studio Setup 3.1.1.exe` - NSIS installer (~150 MB)
+- `Vision Studio-3.1.1-win.zip` - portable ZIP archive (~150 MB)
 
 ⚠️ **Note:** This version requires Python to be installed separately.
 
@@ -51,8 +51,8 @@ npm run build:windows      # Package with Electron (~5 min)
 ```
 
 **Output:**
-- `Vision Studio Setup 3.1.0.exe` - NSIS installer (~4-6 GB)
-- `Vision Studio-3.1.0-win.zip` - portable ZIP archive (~4-6 GB)
+- `Vision Studio Setup 3.1.1.exe` - NSIS installer (~4-6 GB)
+- `Vision Studio-3.1.1-win.zip` - portable ZIP archive (~4-6 GB)
 
 ### Full Build Steps Explained
 
@@ -105,8 +105,8 @@ After successful build, you'll find these files in `release/`:
 
 | File | Size | Description |
 |------|------|-------------|
-| `Vision Studio Setup 3.1.0.exe` | 4-6 GB | NSIS installer with wizard |
-| `Vision Studio-3.1.0-win.zip` | 4-6 GB | Portable ZIP archive |
+| `Vision Studio Setup 3.1.1.exe` | 4-6 GB | NSIS installer with wizard |
+| `Vision Studio-3.1.1-win.zip` | 4-6 GB | Portable ZIP archive |
 | `win-unpacked/` | 4-6 GB | Unpacked app files |
 
 ### Installer Features
@@ -272,15 +272,15 @@ npx electron-builder --config electron-builder.windows.json --win
 
 1. Create a new release on GitHub
 2. Upload the installer and ZIP:
-   - `Vision Studio Setup 3.1.0.exe`
-   - `Vision Studio-3.1.0-win.zip`
+   - `Vision Studio Setup 3.1.1.exe`
+   - `Vision Studio-3.1.1-win.zip`
 3. Add release notes
 4. Publish
 
 ### Website Distribution
 
 ```html
-<a href="/download/Vision-Studio-Setup-3.1.0.exe" 
+<a href="/download/Vision-Studio-Setup-3.1.1.exe" 
    download>
    Download for Windows (4.5 GB)
 </a>

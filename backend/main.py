@@ -303,7 +303,7 @@ Rate limiting is enabled to prevent abuse:
 - Batch endpoints: 5 requests/minute
 - Default: 60 requests/minute
     """,
-    version="3.1.0",
+    version="3.1.1",
     docs_url="/api/docs",      # Swagger UI
     redoc_url="/api/redoc",    # ReDoc
     openapi_url="/api/openapi.json",
@@ -570,7 +570,7 @@ async def root(request: Request):
 
     Returns a simple message confirming the API is running.
     """
-    return {"message": "Vision Studio API", "version": "3.1.0"}
+    return {"message": "Vision Studio API", "version": "3.1.1"}
 
 
 @app.get("/api/system/info", response_model=SystemInfo, tags=["System"])

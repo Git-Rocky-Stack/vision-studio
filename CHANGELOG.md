@@ -2,6 +2,28 @@
 
 All notable changes to Vision Studio will be documented in this file.
 
+## [3.1.1] - 2026-06-27
+
+Security hardening patch on top of 3.1.0, from an independent review of the
+release. Additive and behavior-preserving for normal use.
+
+### Security
+- The allow-list for opening, revealing, and exporting files is now scoped to the
+  standard user content directories (Desktop, Documents, Downloads, Pictures,
+  Videos) instead of the entire home folder. Including `home` had widened
+  acceptance to the whole user profile (AppData, dotfiles, Startup), letting a
+  renderer-supplied path reach sensitive locations through the OS shell
+- `app:open-path` now refuses to launch executable and script file types, so the
+  in-app "Open" action can never run a program even from an allowed directory
+
+### Fixed
+- External-backend mode (`VISION_STUDIO_BACKEND_EXTERNAL`) now logs a clear
+  startup warning when no shared `VISION_STUDIO_BACKEND_AUTH_TOKEN` is set:
+  previously the app and a manually-started backend generated mismatched tokens,
+  so authenticated requests failed with HTTP 403 and the backend appeared
+  disconnected. The shared-token requirement is now documented in the
+  architecture reference
+
 ## [3.1.0] - 2026-06-20
 
 Hardening + feature-consolidation release on top of the public 3.0.0. Folds the

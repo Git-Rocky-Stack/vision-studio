@@ -65,8 +65,8 @@ npm run package:win
 ```
 
 Creates:
-- `Vision Studio Setup 3.1.0.exe` - NSIS installer
-- `Vision Studio-3.1.0-win.zip` - portable ZIP archive
+- `Vision Studio Setup 3.1.1.exe` - NSIS installer
+- `Vision Studio-3.1.1-win.zip` - portable ZIP archive
 - `Vision Studio.exe` - unpacked app (in win-unpacked/)
 
 ### Code Signing (Recommended)
@@ -173,7 +173,7 @@ chmod +x "Vision Studio.AppImage"
 ```yaml
 # snap/snapcraft.yaml
 name: vision-studio
-version: '3.1.0'
+version: '3.1.1'
 grade: stable
 confinement: strict
 parts:
@@ -196,7 +196,7 @@ command: vision-studio
 ```bash
 # PKGBUILD
 pkgname=vision-studio
-pkgver=3.1.0
+pkgver=3.1.1
 source=("$pkgname-$pkgver.AppImage")
 ```
 
@@ -206,8 +206,8 @@ source=("$pkgname-$pkgver.AppImage")
 
 ```bash
 # 1. Create tag
-git tag -a v3.1.0 -m "Release v3.1.0"
-git push origin v3.1.0
+git tag -a v3.1.1 -m "Release v3.1.1"
+git push origin v3.1.1
 
 # 2. GitHub Actions will build and upload
 # Or manually upload from release/ folder

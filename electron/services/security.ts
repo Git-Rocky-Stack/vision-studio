@@ -64,6 +64,26 @@ export function isSafePythonCommand(command: string) {
   return PYTHON_EXECUTABLE_NAME.test(executableName);
 }
 
+// File extensions the OS shell would launch/execute (or run as a script)
+// rather than open in a viewer. `app:open-path` only ever opens generated
+// media or documents, so refusing these stops a renderer-supplied path - even
+// one inside an allowed root, e.g. `Downloads\tool.exe` - from being executed
+// via shell.openPath.
+const DANGEROUS_OPEN_EXTENSIONS = new Set([
+  '.exe', '.msi', '.bat', '.cmd', '.com', '.scr', '.pif', '.cpl', '.reg',
+  '.ps1', '.psm1', '.vbs', '.vbe', '.js', '.jse', '.wsf', '.wsh', '.hta',
+  '.lnk', '.url', '.jar', '.msc', '.gadget', '.sh', '.command', '.app',
+]);
+
+export function isExecutablePath(filePath: string) {
+  const name = crossPlatformBasename(filePath).toLowerCase();
+  const dotIndex = name.lastIndexOf('.');
+  if (dotIndex <= 0) {
+    return false;
+  }
+  return DANGEROUS_OPEN_EXTENSIONS.has(name.slice(dotIndex));
+}
+
 export function isAllowedStoreKey(key: string) {
   return ALLOWED_STORE_KEYS.has(key);
 }

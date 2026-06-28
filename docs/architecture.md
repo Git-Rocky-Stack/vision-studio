@@ -285,7 +285,8 @@ Two registration sites:
 |----------|--------|
 | `VISION_STUDIO_BACKEND_HOST` | Host the FastAPI backend binds to. Defaults to loopback `127.0.0.1`; set to `0.0.0.0` only for deliberate LAN/debug exposure. Read in `backend/main.py`. |
 | `VISION_STUDIO_SKIP_BACKEND` | When set (truthy), the app does **not** spawn the bundled Python backend (`mainProcess.start()`). Used by E2E so a test can manage the backend itself. |
-| `VISION_STUDIO_BACKEND_EXTERNAL` | When set (truthy), `getSystemInfo()` probes the backend over HTTP **even though the app did not spawn it** — so a manually-run (`python main.py`) or test-mocked backend is detected as connected. Pairs with `VISION_STUDIO_SKIP_BACKEND`. Opt-in; off by default. |
+| `VISION_STUDIO_BACKEND_EXTERNAL` | When set (truthy), `getSystemInfo()` probes the backend over HTTP **even though the app did not spawn it** — so a manually-run (`python main.py`) or test-mocked backend is detected as connected. Pairs with `VISION_STUDIO_SKIP_BACKEND`. Opt-in; off by default. **In this mode you must set the same `VISION_STUDIO_BACKEND_AUTH_TOKEN` in both this app and the external backend** — otherwise each process mints its own token and authenticated requests fail with HTTP 403 (the app logs a `[backend-auth]` warning at startup and reads as disconnected). |
+| `VISION_STUDIO_BACKEND_AUTH_TOKEN` | Shared per-launch auth token for the local backend. When the app **spawns** the backend it generates this and injects it into the child env automatically (`backendAuth.ts` → `buildBackendEnvironment`). When the backend runs **externally**, set it yourself to the *same* value in both processes. If unset on a bare `python main.py`, the backend fails closed by generating an ephemeral token (logged once) rather than disabling auth. |
 
 ### 4.4 Trust boundary enforcement
 
@@ -332,7 +333,7 @@ If the OpenRouter account is misconfigured for a particular request (no key, no 
 ```python
 app = FastAPI(
     title="Vision Studio API",
-    version="3.1.0",
+    version="3.1.1",
     docs_url="/api/docs",
     redoc_url="/api/redoc",
     openapi_url="/api/openapi.json",

@@ -19,7 +19,7 @@ if (!fs.existsSync(RELEASE_DIR)) {
 }
 
 // Create README for release
-const readmeContent = `# Vision Studio v3.1.0 - Windows Release
+const readmeContent = `# Vision Studio v3.1.1 - Windows Release
 
 ## 🚀 Quick Start
 
@@ -95,7 +95,7 @@ MIT License - See LICENSE.txt for details
 - Built with Electron, React, and FastAPI
 
 ---
-Version: 3.1.0
+Version: 3.1.1
 Build Date: ${new Date().toISOString().split('T')[0]}
 `;
 
