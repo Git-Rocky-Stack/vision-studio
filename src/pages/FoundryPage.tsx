@@ -3,6 +3,10 @@ import { useShallow } from 'zustand/react/shallow';
 import { cn } from '@/utils/cn';
 import { useAppStore } from '@/store/appStore';
 import type { DownloadStatus } from '@/types/model';
+import { FoundryHeaderBar } from '@/components/foundry/FoundryHeaderBar';
+import { DiscoverSection } from '@/components/foundry/DiscoverSection';
+import { LibrarySection } from '@/components/foundry/LibrarySection';
+import { HardwareSection } from '@/components/foundry/HardwareSection';
 
 type FoundrySection = 'discover' | 'library' | 'hardware';
 
@@ -73,13 +77,17 @@ export function FoundryPage() {
 
   return (
     <div className="h-full overflow-y-auto bg-surface p-6">
-      <div className="max-w-5xl">
+      <div className="mx-auto max-w-6xl">
         <p className="mono-label text-text-muted">Models</p>
         <h1 className="mt-1 text-2xl font-semibold text-text-primary">Foundry</h1>
         <p className="mt-2 text-sm text-text-body">
           Discover and acquire models, manage your local library, and check how each
           model fits your hardware.
         </p>
+
+        <div className="mt-6">
+          <FoundryHeaderBar />
+        </div>
 
         <div role="tablist" aria-label="Foundry sections" className="mt-6 flex gap-2">
           {SECTIONS.map((s) => (
@@ -101,11 +109,10 @@ export function FoundryPage() {
           ))}
         </div>
 
-        <div
-          data-testid={`foundry-section-${section}`}
-          className="mt-6 text-sm text-text-body"
-        >
-          {SECTIONS.find((s) => s.id === section)?.label} section coming online.
+        <div data-testid={`foundry-section-${section}`} className="mt-6">
+          {section === 'discover' && <DiscoverSection />}
+          {section === 'library' && <LibrarySection />}
+          {section === 'hardware' && <HardwareSection />}
         </div>
       </div>
     </div>
