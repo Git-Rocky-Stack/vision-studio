@@ -2,7 +2,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useAppStore } from '@/store/appStore';
-import type { DownloadJob, ModelRecord } from '@/types/model';
+import type { ModelRecord } from '@/types/model';
 
 import { SettingsPanel } from './SettingsPanel';
 
@@ -255,40 +255,23 @@ describe('SettingsPanel', () => {
     expect(screen.getByLabelText('Master Enable')).toBeInTheDocument();
   });
 
-  it('enqueues a model download through the store and shows live job progress', async () => {
-    const job: DownloadJob = {
-      model_id: 'flux-dev',
-      status: 'downloading',
-      progress: 42,
-      speed: 1024,
-      eta: 120,
-      total_bytes: 1_000_000,
-      error: null,
-      gate_url: null,
-    };
-    const models = window.electron.models as unknown as Record<string, ReturnType<typeof vi.fn>>;
-    // The catalog keeps reporting the model so any background refresh keeps the row.
-    models.list.mockResolvedValue([makeModelRecord({ status: 'not_found' })]);
-    models.download.mockResolvedValue(job);
-    // Mount hydrate sees nothing in flight; later polls see the active download,
-    // so the live-queue effect cannot revert the row mid-assertion under load.
-    models.downloadsList.mockReset();
-    models.downloadsList.mockResolvedValueOnce([]).mockResolvedValue([job]);
-    useAppStore.setState({ availableModels: [makeModelRecord({ status: 'not_found' })] });
+  it('links model management to the Foundry', async () => {
+    // Model discovery/download/management moved to the Foundry; Settings now shows a
+    // count summary plus a button that navigates to the Foundry tab.
+    useAppStore.setState({
+      availableModels: [makeModelRecord({ status: 'ready' })],
+      activeTab: 'generate',
+    });
 
     render(<SettingsPanel />);
     fireEvent.click(screen.getByRole('button', { name: /AI & Models/i }));
 
-    // Wait for the Installed Models row to mount (AnimatePresence tab transition).
-    await screen.findByText('FLUX.1 dev', {}, { timeout: 15000 });
-    const downloadButton = screen.getByRole('button', { name: /^Download$/ });
-    fireEvent.click(downloadButton);
-
-    // The slice path enqueues via the IPC bridge, and the row reflects live job state.
-    expect(
-      await screen.findByRole('button', { name: /Downloading/i }, { timeout: 15000 }),
-    ).toBeInTheDocument();
-    expect(models.download).toHaveBeenCalledWith('flux-dev');
-    expect(screen.getByText(/42%/)).toBeInTheDocument();
+    const manageButton = await screen.findByRole(
+      'button',
+      { name: /manage in foundry/i },
+      { timeout: 15000 },
+    );
+    fireEvent.click(manageButton);
+    expect(useAppStore.getState().activeTab).toBe('foundry');
   });
 });

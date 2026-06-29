@@ -9,7 +9,7 @@ import { AI_DIRECTOR_DEFAULTS, type AiDirectorSettings } from '../../shared/retr
 import { buildIngestRecords } from '@/features/director/buildIngestRecords';
 import { UserGuidePage } from '@/pages/UserGuidePage';
 import { PerformancePanel } from '@/components/settings/PerformancePanel';
-import type { ModelRecord, DownloadStatus } from '@/types/model';
+import type { DownloadStatus } from '@/types/model';
 import type {
   OpenRouterKeyInfo,
   OpenRouterModelSummary,
@@ -19,6 +19,7 @@ import type {
 import {
   Settings,
   Folder,
+  Boxes,
   Cpu,
   Gauge,
   Palette,
@@ -134,7 +135,6 @@ export function SettingsPanel() {
     setAvailableModels,
     setSystemInfo,
     loadModels,
-    enqueueDownload,
     refreshDownloads,
     taggingMode,
     setTaggingMode,
@@ -148,11 +148,11 @@ export function SettingsPanel() {
     setAvailableModels: s.setAvailableModels,
     setSystemInfo: s.setSystemInfo,
     loadModels: s.loadModels,
-    enqueueDownload: s.enqueueDownload,
     refreshDownloads: s.refreshDownloads,
     taggingMode: s.taggingMode,
     setTaggingMode: s.setTaggingMode,
   })));
+  const setNavTab = useAppStore((s) => s.setActiveTab);
   const [activeTab, setActiveTab] = useState<SettingsTab>('general');
   const [settings, setSettings] = useState<SettingsState>(defaultSettingsState);
   const [accountsSnapshot, setAccountsSnapshot] = useState<UserAccountsSnapshot>(defaultAccountsSnapshot);
@@ -169,7 +169,6 @@ export function SettingsPanel() {
   const [openRouterBanner, setOpenRouterBanner] = useState<ConnectionBannerState | null>(null);
   const [activeModelId, setActiveModelId] = useState<string | null>(null);
   const [showClearCacheConfirm, setShowClearCacheConfirm] = useState(false);
-  const [deleteModelTarget, setDeleteModelTarget] = useState<string | null>(null);
   const [deleteAccountTarget, setDeleteAccountTarget] = useState<string | null>(null);
   const [isSavingOpenRouterKey, setIsSavingOpenRouterKey] = useState(false);
   const [isVerifyingOpenRouter, setIsVerifyingOpenRouter] = useState(false);
@@ -370,29 +369,6 @@ export function SettingsPanel() {
       clearBatchResults();
     }
     setShowClearCacheConfirm(false);
-  };
-
-  const handleDownloadModel = async (modelId: string) => {
-    setActiveModelId(modelId);
-    await enqueueDownload(modelId);
-    // enqueueDownload merges the backend's DownloadJob into the store. If nothing
-    // landed (e.g. the backend was unreachable) the enqueue failed - stop tracking.
-    if (!useAppStore.getState().downloads[modelId]) {
-      setActiveModelId(null);
-    }
-    // Live progress and completion are driven by the download queue effect above.
-  };
-
-  const handleDeleteModel = (modelId: string) => {
-    setDeleteModelTarget(modelId);
-  };
-
-  const confirmDeleteModel = async (modelId: string) => {
-    setActiveModelId(modelId);
-    await window.electron.models.delete(modelId);
-    await loadModels();
-    setActiveModelId(null);
-    setDeleteModelTarget(null);
   };
 
   const loadOpenRouterModels = async (accountId: string, silentError = false) => {
@@ -1732,68 +1708,25 @@ export function SettingsPanel() {
                 <div className="space-y-4">
                   <h3 className="text-label text-text-body">Installed Models</h3>
 
-                  {availableModels.length === 0 ? (
-                    <div className="raised-panel p-4 text-sm text-text-body">
-                      No models reported by the backend yet.
+                  <div className="raised-panel flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <p className="text-sm text-text-primary">
+                        {availableModels.length} model{availableModels.length === 1 ? '' : 's'} installed
+                      </p>
+                      <p className="text-xs text-text-body">
+                        Discover, download, convert, and manage models in the Foundry.
+                      </p>
                     </div>
-                  ) : (
-                    availableModels.map((model: ModelRecord) => {
-                      const job = downloads[model.id];
-                      const liveStatus = job?.status ?? model.status;
-                      const isActiveDownload = job
-                        ? ACTIVE_DOWNLOAD_STATUSES.has(job.status)
-                        : false;
-                      const progressValue = job?.progress ?? model.progress;
-                      return (
-                        <div
-                          key={model.id}
-                          className="flex items-center justify-between py-3 border-b border-border/50"
-                        >
-                          <div>
-                            <h4 className="text-sm text-text-primary">{model.name}</h4>
-                            <p className="data-mono text-text-body">
-                              {model.size}
-                              {typeof progressValue === 'number' && isActiveDownload
-                                ? ` (${Math.round(progressValue)}%)`
-                                : ''}
-                            </p>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <span
-                              className={cn(
-                                'text-xs flex items-center gap-1',
-                                liveStatus === 'ready'
-                                  ? 'text-status-success'
-                                  : 'text-text-body',
-                              )}
-                            >
-                              <Check className="w-3 h-3" />
-                              {liveStatus}
-                            </span>
-                            {model.status !== 'ready' ? (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleDownloadModel(model.id)}
-                                disabled={activeModelId === model.id || isActiveDownload}
-                              >
-                                {isActiveDownload ? 'Downloading...' : 'Download'}
-                              </Button>
-                            ) : (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleDeleteModel(model.id)}
-                                disabled={activeModelId === model.id}
-                              >
-                                Remove
-                              </Button>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })
-                  )}
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      icon={Boxes}
+                      onClick={() => setNavTab('foundry')}
+                      className="self-start sm:self-auto"
+                    >
+                      Manage in Foundry
+                    </Button>
+                  </div>
                 </div>
               </div>
             )}
@@ -2003,19 +1936,6 @@ export function SettingsPanel() {
         variant="danger"
         onConfirm={confirmClearCache}
         onCancel={() => setShowClearCacheConfirm(false)}
-      />
-      <ConfirmDialog
-        open={deleteModelTarget !== null}
-        title="Remove Model"
-        message="Are you sure you want to remove this model? You can re-download it later."
-        confirmLabel="Remove"
-        variant="danger"
-        onConfirm={() => {
-          if (deleteModelTarget) {
-            void confirmDeleteModel(deleteModelTarget);
-          }
-        }}
-        onCancel={() => setDeleteModelTarget(null)}
       />
       <ConfirmDialog
         open={deleteAccountTarget !== null}

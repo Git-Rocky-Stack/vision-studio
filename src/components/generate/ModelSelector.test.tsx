@@ -33,6 +33,15 @@ describe('ModelSelector', () => {
     expect(screen.getByText('Stable Diffusion XL Base')).toBeInTheDocument();
   });
 
+  it('navigates to the Foundry from the empty state', async () => {
+    const user = userEvent.setup();
+    useAppStore.setState({ availableModels: [], activeTab: 'generate' });
+    render(<ModelSelector value="" generationType="image" onChange={vi.fn()} />);
+
+    await user.click(screen.getByTestId('model-selector-trigger'));
+    expect(useAppStore.getState().activeTab).toBe('foundry');
+  });
+
   it('lists capability-filtered video models and keeps ids on select', async () => {
     const user = userEvent.setup();
     const onChange = vi.fn();
