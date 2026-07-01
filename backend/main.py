@@ -98,7 +98,6 @@ from foundry.security_policy import ConsentStore
 # Initialize logging at module load time
 setup_logging(log_file=os.getenv("LOG_FILE"))
 logger = get_logger(__name__)
-from api.lora import router as lora_router
 from api.edit import router as edit_router
 from api.batch import router as batch_router
 from api.retrieval import router as retrieval_router
@@ -401,7 +400,6 @@ app.mount("/outputs", StaticFiles(directory=OUTPUT_DIR), name="outputs")
 
 # Register API routers
 app.include_router(controlnet_router)
-app.include_router(lora_router)
 app.include_router(edit_router)
 app.include_router(batch_router)
 app.include_router(retrieval_router)
@@ -428,6 +426,11 @@ async def health_check():
 
 # ============= Pydantic Models =============
 
+class LoraSelection(BaseModel):
+    id: str = Field(..., description="Installed LoRA model id")
+    weight: float = Field(default=1.0, ge=0.0, le=2.0, description="Adapter weight (0-2)")
+
+
 class ImageGenerationRequest(BaseModel):
     prompt: str = Field(..., description="Positive prompt for generation")
     negative_prompt: str = Field(default="", description="Negative prompt")
@@ -440,6 +443,7 @@ class ImageGenerationRequest(BaseModel):
     scheduler: str = Field(default="euler", description="Scheduler/sampler")
     acceleration_settings: Optional[dict] = Field(
         default=None, description="M9 acceleration toggles (auto/on/off per optimization)")
+    loras: List[LoraSelection] = Field(default_factory=list, description="#136 local LoRA adapters")
 
 
 class VideoGenerationRequest(BaseModel):
@@ -454,6 +458,7 @@ class VideoGenerationRequest(BaseModel):
     seed: int = Field(default=-1)
     acceleration_settings: Optional[dict] = Field(
         default=None, description="M9 acceleration toggles (auto/on/off per optimization)")
+    loras: List[LoraSelection] = Field(default_factory=list, description="#136 local LoRA adapters")
 
 
 class JobResponse(BaseModel):
@@ -1344,6 +1349,7 @@ async def generate_direct(job_id: str, request: ImageGenerationRequest) -> Dict:
         model_name=request.model,
         scheduler=request.scheduler,
         acceleration_settings=accel_settings,
+        loras=[l.dict() for l in request.loras],
         progress_callback=lambda p: job_manager.update_job(job_id, progress=p)
     )
     logger.info(f"[Job {job_id}] Direct generation completed")
@@ -1455,6 +1461,7 @@ async def process_video_generation(job_id: str, request: VideoGenerationRequest)
                 model_name=request.model,
                 seed=request.seed if request.seed != -1 else 0,
                 acceleration_settings=accel_settings,
+                loras=[l.dict() for l in request.loras],
                 progress_callback=lambda progress: job_manager.update_job(job_id, progress=progress),
             )
 

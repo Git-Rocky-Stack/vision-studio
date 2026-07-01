@@ -2,6 +2,10 @@ import { useState, useCallback } from 'react';
 import { cn } from '@/utils/cn';
 import { Slider } from '@/components/ui/Slider';
 import type { LoRAConfig } from '@/types/generation';
+import { useAppStore } from '@/store/appStore';
+import { useShallow } from 'zustand/react/shallow';
+import { selectInstalledLoras, isLoraCompatible } from '@/store/slices/modelsSlice';
+import type { ModelRecord } from '@/types/model';
 import {
   DndContext,
   closestCenter,
@@ -40,31 +44,26 @@ const LORA_COLORS = [
   'var(--color-feature-08)',
 ];
 
-// Placeholder LoRA library (backend API not built yet)
-const AVAILABLE_LORAS = [
-  { name: 'Detail Enhancer', triggerWord: 'detail_enhancer', size: '144 MB' },
-  { name: 'Realistic Vision', triggerWord: 'realistic_vision', size: '183 MB' },
-  { name: 'Anime Style', triggerWord: 'anime_style', size: '156 MB' },
-  { name: 'Film Grain FX', triggerWord: 'film_grain', size: '92 MB' },
-  { name: 'Soft Lighting', triggerWord: 'soft_light', size: '128 MB' },
-  { name: 'Ink Wash', triggerWord: 'ink_wash', size: '167 MB' },
-  { name: 'Pixel Perfect', triggerWord: 'pixel_perfect', size: '110 MB' },
-  { name: 'Neon Glow', triggerWord: 'neon_glow', size: '134 MB' },
-];
-
 interface LoRAMixerProps {
   configs: LoRAConfig[];
   onChange: (configs: LoRAConfig[]) => void;
+  /** base_architecture of the currently selected checkpoint/video model. */
+  baseArchitecture: string | null;
+  onInsertTrigger: (triggerWord: string) => void;
+  /** When set, the mixer renders a disabled note instead of the picker. */
+  disabledReason?: string | null;
 }
 
 function SortableLoRACard({
   config,
   onWeightChange,
   onRemove,
+  onInsertTrigger,
 }: {
   config: LoRAConfig;
   onWeightChange: (weight: number) => void;
   onRemove: () => void;
+  onInsertTrigger: () => void;
 }) {
   const {
     attributes,
@@ -121,9 +120,6 @@ function SortableLoRACard({
             <X className="w-3 h-3" />
           </button>
         </div>
-        <p className="type-badge text-text-muted mb-2">
-          {config.triggerWord}
-        </p>
         <Slider
           label="Weight"
           value={config.weight}
@@ -132,15 +128,35 @@ function SortableLoRACard({
           step={0.05}
           onChange={onWeightChange}
         />
+        {config.triggerWord && (
+          <button
+            type="button"
+            onClick={onInsertTrigger}
+            aria-label={`Insert trigger ${config.triggerWord}`}
+            className="mt-2 inline-flex items-center gap-1 rounded px-1.5 py-0.5 type-badge text-text-muted hover:text-text-primary hover:bg-elevated transition-all"
+          >
+            <Plus className="w-3 h-3" />
+            {config.triggerWord}
+          </button>
+        )}
       </div>
     </div>
   );
 }
 
-export function LoRAMixer({ configs, onChange }: LoRAMixerProps) {
+export function LoRAMixer({
+  configs,
+  onChange,
+  baseArchitecture,
+  onInsertTrigger,
+  disabledReason = null,
+}: LoRAMixerProps) {
   const [showBrowser, setShowBrowser] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [showIncompatible, setShowIncompatible] = useState(false);
   const [isExpanded, setIsExpanded] = useState(configs.length > 0);
+
+  const installed = useAppStore(useShallow((s) => selectInstalledLoras(s.availableModels)));
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -161,12 +177,12 @@ export function LoRAMixer({ configs, onChange }: LoRAMixerProps) {
   );
 
   const addLoRA = useCallback(
-    (lora: (typeof AVAILABLE_LORAS)[0]) => {
+    (record: ModelRecord) => {
       const newConfig: LoRAConfig = {
-        id: crypto.randomUUID(),
-        name: lora.name,
-        triggerWord: lora.triggerWord,
-        weight: 1.0,
+        id: record.id,
+        name: record.name,
+        triggerWord: record.trigger_words?.[0] ?? '',
+        weight: record.default_weight ?? 1.0,
         color: LORA_COLORS[configs.length % LORA_COLORS.length],
       };
       onChange([...configs, newConfig]);
@@ -191,19 +207,32 @@ export function LoRAMixer({ configs, onChange }: LoRAMixerProps) {
     [configs, onChange]
   );
 
-  const filteredLoRAs = AVAILABLE_LORAS.filter(
-    (l) =>
-      !searchQuery ||
-      l.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      l.triggerWord.toLowerCase().includes(searchQuery.toLowerCase())
-  ).filter(
-    (l) => !configs.some((c) => c.triggerWord === l.triggerWord)
+  const selectedIds = new Set(configs.map((c) => c.id));
+  const matchesQuery = (r: ModelRecord) =>
+    !searchQuery || r.name.toLowerCase().includes(searchQuery.toLowerCase());
+  const compatibleLoras = installed.filter(
+    (r) => !selectedIds.has(r.id) && matchesQuery(r) && isLoraCompatible(baseArchitecture, r.base_architecture),
   );
+  const incompatibleLoras = installed.filter(
+    (r) => !selectedIds.has(r.id) && matchesQuery(r) && !isLoraCompatible(baseArchitecture, r.base_architecture),
+  );
+  const browserLoras = showIncompatible ? [...compatibleLoras, ...incompatibleLoras] : compatibleLoras;
+
+  if (disabledReason) {
+    return (
+      <div className="rounded-md border border-dashed border-border bg-elevated/40 px-3 py-3">
+        <p className="text-xs text-text-muted">{disabledReason}</p>
+      </div>
+    );
+  }
 
   if (!isExpanded && configs.length === 0) {
     return (
       <button
-        onClick={() => setIsExpanded(true)}
+        onClick={() => {
+          setIsExpanded(true);
+          setShowBrowser(true);
+        }}
         aria-expanded={isExpanded}
         aria-controls="lora-mixer-panel"
         className="flex items-center gap-2 w-full py-3 px-3 rounded-md border border-dashed border-border text-text-body hover:text-text-primary hover:border-border-hover transition-all text-sm"
@@ -245,6 +274,7 @@ export function LoRAMixer({ configs, onChange }: LoRAMixerProps) {
                     config={config}
                     onWeightChange={(w) => updateWeight(config.id, w)}
                     onRemove={() => removeLoRA(config.id)}
+                    onInsertTrigger={() => onInsertTrigger(config.triggerWord)}
                   />
                 ))}
               </div>
@@ -276,29 +306,46 @@ export function LoRAMixer({ configs, onChange }: LoRAMixerProps) {
 
                 {/* LoRA List */}
                 <div className="max-h-40 overflow-y-auto space-y-1">
-                  {filteredLoRAs.map((lora) => (
-                    <button
-                      key={lora.triggerWord}
-                      onClick={() => addLoRA(lora)}
-                      className="w-full flex items-center justify-between px-2.5 py-2 rounded-md hover:bg-elevated transition-all text-left"
-                    >
-                      <div>
-                        <p className="text-xs font-medium text-text-primary">
-                          {lora.name}
-                        </p>
-                        <p className="type-badge text-text-muted">
-                          {lora.size}
-                        </p>
-                      </div>
-                      <Plus className="w-3.5 h-3.5 text-text-muted" />
-                    </button>
-                  ))}
-                  {filteredLoRAs.length === 0 && (
+                  {browserLoras.map((record) => {
+                    const compatible = isLoraCompatible(baseArchitecture, record.base_architecture);
+                    return (
+                      <button
+                        key={record.id}
+                        onClick={() => addLoRA(record)}
+                        className="w-full flex items-center justify-between px-2.5 py-2 rounded-md hover:bg-elevated transition-all text-left"
+                      >
+                        <div>
+                          <p className="text-xs font-medium text-text-primary">
+                            {record.name}
+                          </p>
+                          <p className="type-badge text-text-muted">
+                            {record.size}{!compatible ? ' - incompatible' : ''}
+                          </p>
+                        </div>
+                        <Plus className="w-3.5 h-3.5 text-text-muted" />
+                      </button>
+                    );
+                  })}
+                  {browserLoras.length === 0 && (
                     <p className="text-xs text-text-muted text-center py-3">
-                      No LoRAs found
+                      {installed.length === 0
+                        ? 'No LoRAs installed - add some in the Foundry'
+                        : 'No compatible LoRAs found'}
                     </p>
                   )}
                 </div>
+
+                {incompatibleLoras.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setShowIncompatible((v) => !v)}
+                    className="w-full text-xs text-text-muted hover:text-text-primary text-center py-1"
+                  >
+                    {showIncompatible
+                      ? 'Hide incompatible'
+                      : `Show incompatible (may fail) (${incompatibleLoras.length})`}
+                  </button>
+                )}
 
                 <button
                   onClick={() => {

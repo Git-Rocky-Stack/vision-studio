@@ -68,7 +68,30 @@ vi.mock('@/components/generate/ControlNetPanel', () => ({
 }));
 
 vi.mock('@/components/generate/LoRAMixer', () => ({
-  LoRAMixer: () => <div>LoRA Mixer</div>,
+  LoRAMixer: ({
+    onChange,
+    onInsertTrigger,
+  }: {
+    onChange: (configs: unknown[]) => void;
+    onInsertTrigger?: (trigger: string) => void;
+  }) => (
+    <div>
+      LoRA Mixer
+      <button
+        type="button"
+        onClick={() =>
+          onChange([
+            { id: 'lora-test', name: 'Test LoRA', triggerWord: 'trg', weight: 0.7, color: '#000' },
+          ])
+        }
+      >
+        Add Test LoRA
+      </button>
+      <button type="button" onClick={() => onInsertTrigger?.('trg')}>
+        Insert Test Trigger
+      </button>
+    </div>
+  ),
 }));
 
 vi.mock('@/components/generate/PromptHistory', () => ({
@@ -102,6 +125,7 @@ vi.mock('@/features/timeline/runTimelineClipGeneration', () => ({
 import { useAppStore } from '@/store/appStore';
 import { computeDimensions } from '@/types/resolution';
 import { runTimelineClipGeneration } from '@/features/timeline/runTimelineClipGeneration';
+import type { ModelRecord } from '@/types/model';
 
 import { GeneratePanel } from './GeneratePanel';
 
@@ -115,6 +139,16 @@ function resetStore() {
       backendConnected: true,
     },
   });
+}
+
+function videoModel(id: string, base: string): ModelRecord {
+  return {
+    id, name: id, artifact_type: 'checkpoint', capability: 'video',
+    base_architecture: base, source: 'local', repo_id: null, revision: null,
+    aux_repo_id: null, size: '', status: 'ready', tier: 'compatible',
+    quality: 'balanced', runtime: 'local', hardware_class: 'creator', vram: '',
+    description: '', license: null, gated: false,
+  };
 }
 
 function seedDurableReferenceImage() {
@@ -681,6 +715,71 @@ describe('GeneratePanel', () => {
         }),
       );
     });
+  });
+
+  it('carries selected LoRAs in the image generation payload', async () => {
+    useAppStore.setState((state) => ({
+      layoutPreferences: {
+        ...state.layoutPreferences,
+        collapsedGenerateSections: state.layoutPreferences.collapsedGenerateSections.filter(
+          (id) => id !== 'control-layers',
+        ),
+      },
+    }));
+
+    render(<GeneratePanel />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add Test LoRA' }));
+    fireEvent.change(screen.getByTestId('mock-prompt-input'), {
+      target: { value: 'a portrait with lora' },
+    });
+    fireEvent.click(screen.getByTestId('generate-button'));
+
+    await waitFor(() => {
+      expect(window.electron.generation.generateImage).toHaveBeenCalledWith(
+        expect.objectContaining({ loras: [{ id: 'lora-test', weight: 0.7 }] }),
+      );
+    });
+  });
+
+  it('carries selected LoRAs in the video payload for a LoRA-capable model', async () => {
+    useAppStore.setState({ availableModels: [videoModel('ltx-video', 'ltx')] });
+    render(<GeneratePanel />);
+
+    fireEvent.click(screen.getByRole('button', { name: /^Video$/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Add Test LoRA' }));
+    fireEvent.change(screen.getByTestId('mock-prompt-input'), {
+      target: { value: 'a drifting cloud' },
+    });
+    fireEvent.click(screen.getByTestId('generate-button'));
+
+    await waitFor(() => {
+      expect(window.electron.generation.generateVideo).toHaveBeenCalledWith(
+        expect.objectContaining({ loras: [{ id: 'lora-test', weight: 0.7 }] }),
+      );
+    });
+  });
+
+  it('omits LoRAs from the video payload for SVD', async () => {
+    seedDurableReferenceImage();
+    useAppStore.setState({ availableModels: [videoModel('svd', 'svd')] });
+    render(<GeneratePanel />);
+
+    fireEvent.click(screen.getByRole('button', { name: /^Video$/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Use SVD' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Add Test LoRA' }));
+    fireEvent.change(screen.getByTestId('mock-prompt-input'), {
+      target: { value: 'push in slowly' },
+    });
+    fireEvent.click(screen.getByTestId('generate-button'));
+
+    await waitFor(() => {
+      expect(window.electron.generation.generateVideo).toHaveBeenCalled();
+    });
+    const args = vi.mocked(window.electron.generation.generateVideo).mock.calls[0][0] as {
+      loras?: unknown;
+    };
+    expect(args.loras).toBeUndefined();
   });
 
   it('blocks generation when a visible canvas control layer is invalid', async () => {
