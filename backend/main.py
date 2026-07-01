@@ -98,7 +98,6 @@ from foundry.security_policy import ConsentStore
 # Initialize logging at module load time
 setup_logging(log_file=os.getenv("LOG_FILE"))
 logger = get_logger(__name__)
-from api.lora import router as lora_router
 from api.edit import router as edit_router
 from api.batch import router as batch_router
 from api.retrieval import router as retrieval_router
@@ -401,7 +400,6 @@ app.mount("/outputs", StaticFiles(directory=OUTPUT_DIR), name="outputs")
 
 # Register API routers
 app.include_router(controlnet_router)
-app.include_router(lora_router)
 app.include_router(edit_router)
 app.include_router(batch_router)
 app.include_router(retrieval_router)
