@@ -354,6 +354,12 @@ export function GeneratePanel() {
   const availableModels = useAppStore((s) => s.availableModels);
   const selectedImageBaseArch =
     availableModels.find((m) => m.id === imageConfig.model)?.base_architecture ?? null;
+  const selectedVideoBaseArch =
+    availableModels.find((m) => m.id === imageConfig.videoModel)?.base_architecture ?? null;
+  // LoRA is only loadable on video architectures with a diffusers LoRA path
+  // (AnimateDiff spatial UNet, LTX). svd has no LoRA conditioning.
+  const videoLorasEnabled =
+    selectedVideoBaseArch === 'animatediff' || selectedVideoBaseArch === 'ltx';
 
   const { aspectRatio, resolutionTier, customWidth, customHeight } = useAppStore(useShallow(s => ({
     aspectRatio: s.aspectRatio,
@@ -677,6 +683,17 @@ export function GeneratePanel() {
       return;
     }
 
+    if (useHuggingFaceVideo && refConfig.loraConfigs.length > 0) {
+      updateGenStatus({
+        status: 'error',
+        errorMessage:
+          'HuggingFace video routing supports prompt-only generations. Switch the active account back to Local to use LoRAs.',
+        isGenerating: false,
+      });
+      isGeneratingRef.current = false;
+      return;
+    }
+
     if (useOpenRouterImage && openRouterUnsupportedInputs) {
       updateGenStatus({
         status: 'error',
@@ -875,6 +892,9 @@ export function GeneratePanel() {
           steps: advancedGeneration.steps,
           model: useHuggingFaceVideo ? huggingFaceVideoModel : imageConfig.videoModel,
           seed: advancedGeneration.seed === -1 ? undefined : advancedGeneration.seed,
+          ...(videoLorasEnabled && refConfig.loraConfigs.length > 0
+            ? { loras: toLoraSelections(refConfig.loraConfigs) }
+            : {}),
           acceleration_settings: toAccelerationRequestPayload(
             useAppStore.getState().accelerationSettings,
           ),
@@ -1531,6 +1551,17 @@ export function GeneratePanel() {
                 onImageChange={setEndFrameImage}
               />
               <VideoControls />
+              <LoRAMixer
+                configs={refConfig.loraConfigs}
+                onChange={(value) => updateRefConfig({ loraConfigs: value })}
+                baseArchitecture={selectedVideoBaseArch}
+                onInsertTrigger={(trigger) =>
+                  updateImageConfig({ prompt: appendTrigger(imageConfig.prompt, trigger) })
+                }
+                disabledReason={
+                  videoLorasEnabled ? null : 'LoRA is not supported for this video model.'
+                }
+              />
             </div>
           </GenerateSectionCard>
         )}
