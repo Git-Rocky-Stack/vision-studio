@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { CSSProperties, ElementType, ReactNode } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
+  Boxes,
   Check,
   ChevronDown,
   Cloud,
@@ -80,6 +81,7 @@ export function ModelSelector({ value, onChange, generationType }: ModelSelector
   const [dropdownStyle, setDropdownStyle] = useState<CSSProperties>({});
   const containerRef = useRef<HTMLDivElement>(null);
   const availableModels = useAppStore((s) => s.availableModels);
+  const setActiveTab = useAppStore((s) => s.setActiveTab);
 
   const positionDropdown = useCallback(() => {
     const trigger = containerRef.current;
@@ -141,9 +143,10 @@ export function ModelSelector({ value, onChange, generationType }: ModelSelector
         <button
           data-testid="model-selector-trigger"
           type="button"
-          disabled
-          className="w-full flex items-center gap-3 px-3 py-3 rounded-md border border-border bg-panel-raised text-left opacity-70"
+          onClick={() => setActiveTab('foundry')}
+          className="w-full flex items-center gap-3 px-3 py-3 rounded-md border border-border bg-panel-raised text-left transition-all hover:border-border-hover hover:bg-elevated"
         >
+          <Boxes className="w-4 h-4 text-text-muted" />
           <span className="type-meta text-text-muted">
             No models installed - open the Foundry to add one
           </span>

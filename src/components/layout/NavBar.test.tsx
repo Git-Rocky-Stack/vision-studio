@@ -25,6 +25,7 @@ describe('NavBar', () => {
     expect(screen.getByLabelText('Story')).toBeInTheDocument();
     expect(screen.getByLabelText('Workflows')).toBeInTheDocument();
     expect(screen.getByLabelText('Assets')).toBeInTheDocument();
+    expect(screen.getByLabelText('Foundry')).toBeInTheDocument();
     expect(screen.getByLabelText('Settings')).toBeInTheDocument();
   });
 
@@ -66,6 +67,16 @@ describe('NavBar', () => {
     await user.click(screen.getByLabelText('Canvas'));
 
     expect(useAppStore.getState().activeTab).toBe('canvas');
+    expect(useAppStore.getState().activeSubMode).toBeNull();
+  });
+
+  it('activates the Foundry tab on click with no sub-mode', async () => {
+    const user = userEvent.setup();
+    render(<NavBar />);
+
+    await user.click(screen.getByLabelText('Foundry'));
+
+    expect(useAppStore.getState().activeTab).toBe('foundry');
     expect(useAppStore.getState().activeSubMode).toBeNull();
   });
 

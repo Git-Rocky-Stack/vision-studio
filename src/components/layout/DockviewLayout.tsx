@@ -13,6 +13,7 @@ import { DockviewLayersPanel } from '@/components/layout/DockviewLayersPanel';
 import { AssetsPanel } from '@/pages/AssetsPanel';
 import { SettingsPanel } from '@/pages/SettingsPanel';
 import { CollectionsPage } from '@/pages/CollectionsPage';
+import { FoundryPage } from '@/pages/FoundryPage';
 import { CompositionPreview } from '@/components/studio/CompositionPreview';
 import { TimelinePlaybackPreview } from '@/components/timeline/TimelinePlaybackPreview';
 import { IterationViewSelector } from '@/components/iteration/IterationViewSelector';
@@ -323,7 +324,15 @@ export const DockviewLayout = memo(function DockviewLayout() {
             className="min-h-0 flex-1 overflow-hidden"
           >
             <ErrorBoundary fallbackLabel={`${activeTab} panel error`}>
-              {activeTab === 'assets' ? <AssetsPanel /> : activeTab === 'collections' ? <CollectionsPage /> : <SettingsPanel />}
+              {activeTab === 'assets' ? (
+                <AssetsPanel />
+              ) : activeTab === 'collections' ? (
+                <CollectionsPage />
+              ) : activeTab === 'foundry' ? (
+                <FoundryPage />
+              ) : (
+                <SettingsPanel />
+              )}
             </ErrorBoundary>
           </section>
         </main>

@@ -7,6 +7,7 @@ import {
   GitBranch,
   FolderOpen,
   Layers,
+  Boxes,
   Settings,
 } from 'lucide-react';
 import { useAppStore } from '@/store/appStore';
@@ -38,6 +39,7 @@ const navBarTabs: NavBarTabDef[] = [
   { id: 'workflows', label: 'Workflows', icon: GitBranch, cluster: 'top' },
   { id: 'assets', label: 'Assets', icon: FolderOpen, cluster: 'bottom' },
   { id: 'collections', label: 'Collections', icon: Layers, cluster: 'bottom' },
+  { id: 'foundry', label: 'Foundry', icon: Boxes, cluster: 'bottom' },
   { id: 'settings', label: 'Settings', icon: Settings, cluster: 'bottom' },
 ];
 

@@ -72,6 +72,16 @@ const presets: Record<ActiveTab, LayoutPreset> = {
     leftDockMinWidth: 0,
     rightDockMinWidth: 0,
   },
+  foundry: {
+    tabId: 'foundry',
+    hasLeftDock: false,
+    hasRightDock: false,
+    centerViews: ['canvas'],
+    rightDockPanels: [],
+    subModes: [],
+    leftDockMinWidth: 0,
+    rightDockMinWidth: 0,
+  },
   settings: {
     tabId: 'settings',
     hasLeftDock: false,
