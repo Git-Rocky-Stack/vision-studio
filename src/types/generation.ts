@@ -129,6 +129,12 @@ export interface AccelerationRequestPayload {
   tensorrt: string;
 }
 
+/** #136: one LoRA adapter to stack, by installed model id + weight (0-2). */
+export interface LoraSelectionPayload {
+  id: string;
+  weight: number;
+}
+
 export interface ImageGenerationRequestPayload {
   prompt: string;
   negative_prompt?: string;
@@ -148,6 +154,8 @@ export interface ImageGenerationRequestPayload {
   __providerOverride?: 'openrouter' | 'huggingface';
   /** M9: optional per-request acceleration toggles (local generation only). */
   acceleration_settings?: AccelerationRequestPayload;
+  /** #136: local-only LoRA adapters to stack (Local route only). */
+  loras?: LoraSelectionPayload[];
 }
 
 export const BUILT_IN_STYLE_PRESETS: StylePreset[] = [
