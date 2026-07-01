@@ -68,7 +68,30 @@ vi.mock('@/components/generate/ControlNetPanel', () => ({
 }));
 
 vi.mock('@/components/generate/LoRAMixer', () => ({
-  LoRAMixer: () => <div>LoRA Mixer</div>,
+  LoRAMixer: ({
+    onChange,
+    onInsertTrigger,
+  }: {
+    onChange: (configs: unknown[]) => void;
+    onInsertTrigger?: (trigger: string) => void;
+  }) => (
+    <div>
+      LoRA Mixer
+      <button
+        type="button"
+        onClick={() =>
+          onChange([
+            { id: 'lora-test', name: 'Test LoRA', triggerWord: 'trg', weight: 0.7, color: '#000' },
+          ])
+        }
+      >
+        Add Test LoRA
+      </button>
+      <button type="button" onClick={() => onInsertTrigger?.('trg')}>
+        Insert Test Trigger
+      </button>
+    </div>
+  ),
 }));
 
 vi.mock('@/components/generate/PromptHistory', () => ({
@@ -679,6 +702,31 @@ describe('GeneratePanel', () => {
             layer_name: 'Fill Mask',
           }),
         }),
+      );
+    });
+  });
+
+  it('carries selected LoRAs in the image generation payload', async () => {
+    useAppStore.setState((state) => ({
+      layoutPreferences: {
+        ...state.layoutPreferences,
+        collapsedGenerateSections: state.layoutPreferences.collapsedGenerateSections.filter(
+          (id) => id !== 'control-layers',
+        ),
+      },
+    }));
+
+    render(<GeneratePanel />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add Test LoRA' }));
+    fireEvent.change(screen.getByTestId('mock-prompt-input'), {
+      target: { value: 'a portrait with lora' },
+    });
+    fireEvent.click(screen.getByTestId('generate-button'));
+
+    await waitFor(() => {
+      expect(window.electron.generation.generateImage).toHaveBeenCalledWith(
+        expect.objectContaining({ loras: [{ id: 'lora-test', weight: 0.7 }] }),
       );
     });
   });

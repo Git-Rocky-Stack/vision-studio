@@ -32,6 +32,7 @@ import {
   recordPollSuccess,
 } from '@/features/generation/pollErrorBudget';
 import type { ControlNetConfig, ImageGenerationRequestPayload, LoRAConfig } from '@/types/generation';
+import { toLoraSelections, appendTrigger } from '@/utils/loraPayload';
 import { resolveRoute } from '../../shared/resolveRoute';
 import { buildRouteResolverInput } from '@/features/routing/buildRouteResolverInput';
 import { OverBudgetFallbackDialog } from '@/components/generate/OverBudgetFallbackDialog';
@@ -348,6 +349,12 @@ export function GeneratePanel() {
     }
   };
 
+  // #136: base_architecture of the selected image checkpoint, for LoRA
+  // compatibility filtering in the mixer.
+  const availableModels = useAppStore((s) => s.availableModels);
+  const selectedImageBaseArch =
+    availableModels.find((m) => m.id === imageConfig.model)?.base_architecture ?? null;
+
   const { aspectRatio, resolutionTier, customWidth, customHeight } = useAppStore(useShallow(s => ({
     aspectRatio: s.aspectRatio,
     resolutionTier: s.resolutionTier,
@@ -595,7 +602,8 @@ export function GeneratePanel() {
         resolvedCanvasControlLayers.controlnet.length > 0 ||
         resolvedCanvasControlLayers.referenceImages.length > 0 ||
         Boolean(resolvedCanvasControlLayers.inpaint) ||
-        resolvedCanvasControlLayers.errors.length > 0);
+        resolvedCanvasControlLayers.errors.length > 0 ||
+        refConfig.loraConfigs.length > 0);
     // HuggingFace hosted still-image routing is prompt-only: the Inference
     // Providers API documents no ControlNet/inpaint contract, so any guided
     // pass (ControlNet, inpaint, reference images, or misconfigured layers)
@@ -606,7 +614,8 @@ export function GeneratePanel() {
         resolvedCanvasControlLayers.controlnet.length > 0 ||
         resolvedCanvasControlLayers.referenceImages.length > 0 ||
         Boolean(resolvedCanvasControlLayers.inpaint) ||
-        resolvedCanvasControlLayers.errors.length > 0);
+        resolvedCanvasControlLayers.errors.length > 0 ||
+        refConfig.loraConfigs.length > 0);
 
     if (useOpenRouterImage && !latestActiveAccount?.openRouter.apiKeyStored) {
       updateGenStatus({
@@ -821,6 +830,9 @@ export function GeneratePanel() {
                 mask: resolvedCanvasControlLayers.inpaint.mask,
                 inpaint: resolvedCanvasControlLayers.inpaint,
               }
+            : {}),
+          ...(refConfig.loraConfigs.length > 0
+            ? { loras: toLoraSelections(refConfig.loraConfigs) }
             : {}),
           ...(forcedRoute && forcedRoute !== 'local' ? { __providerOverride: forcedRoute } : {}),
           acceleration_settings: toAccelerationRequestPayload(
@@ -1542,6 +1554,10 @@ export function GeneratePanel() {
               <LoRAMixer
                 configs={refConfig.loraConfigs}
                 onChange={(value) => updateRefConfig({ loraConfigs: value })}
+                baseArchitecture={selectedImageBaseArch}
+                onInsertTrigger={(trigger) =>
+                  updateImageConfig({ prompt: appendTrigger(imageConfig.prompt, trigger) })
+                }
               />
             </div>
           </GenerateSectionCard>
