@@ -34,6 +34,8 @@ These are dated working documents. Treat them as historical references for the d
 | [`code-signing.md`](./code-signing.md) | Reference |
 | [`dependency-security.md`](./dependency-security.md) | Reference |
 | [`competitive-analysis-2026-04.md`](./competitive-analysis-2026-04.md) | 2026-04 |
+| [`comprehensive-audit-2026-06-03.md`](./comprehensive-audit-2026-06-03.md) | 2026-06-03 |
+| [`current-todos-2026-07-04.md`](./current-todos-2026-07-04.md) | 2026-07-04 |
 | [`handoff-2026-04-17.md`](./handoff-2026-04-17.md) | 2026-04-17 |
 | [`handoff-2026-04-19.md`](./handoff-2026-04-19.md) | 2026-04-19 |
 | [`performance-audit-2026-04-18.md`](./performance-audit-2026-04-18.md) | 2026-04-18 |
