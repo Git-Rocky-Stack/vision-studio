@@ -65,7 +65,6 @@ from utils.model_manager import ModelManager
 from utils.direct_generator import DirectGenerator, ModelLoadRefusedError
 from utils.image_ops import apply_crop_and_transform, upscale_image_file
 from utils.prompt_service import enhance_prompt
-from api.controlnet import router as controlnet_router
 from db.migrate import run_migrations
 from middleware.rate_limit import limiter, rate_limit_exceeded_handler
 from foundry import civitai_search, hub_search
@@ -400,7 +399,6 @@ app.add_middleware(
 app.mount("/outputs", StaticFiles(directory=OUTPUT_DIR), name="outputs")
 
 # Register API routers
-app.include_router(controlnet_router)
 app.include_router(edit_router)
 app.include_router(batch_router)
 app.include_router(retrieval_router)

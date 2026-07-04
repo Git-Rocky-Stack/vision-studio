@@ -7,7 +7,7 @@ Test tiers (the ``markers`` in ``pytest.ini``):
                config. No HTTP layer, no real model loading.
   integration  Exercises the FastAPI app / HTTP boundary through ``TestClient``
                (the ``test_*_api.py`` files).
-  benchmark    Real diffusion / ControlNet weight loading. Lives in
+  benchmark    Real diffusion weight loading. Lives in
                ``tests/benchmarks/`` and is excluded from default runs (see the
                ``addopts`` ``--ignore`` in ``pytest.ini``). This tier *is* the
                hardware / model-loading tier: no non-benchmark test loads real
