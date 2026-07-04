@@ -1,4 +1,4 @@
-"""#34 PR1: resolve the request's guided-pass fields into one validated plan.
+"""#34: resolve the request's guided-pass fields into one validated plan.
 
 THE honesty seam: everything the schema accepts either resolves into a pass
 that will really run, or raises GuidedValidationError with a user-facing,
@@ -11,12 +11,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
-# User-facing decline messages (honesty rails - see the PR1 spec).
-MSG_CONTROLNET_NOT_YET = (
-    "ControlNet layers are not supported by the local engine yet - hide or "
-    "remove the ControlNet layer(s) to generate. ControlNet support lands in "
-    "the next update (#34)."
-)
+# User-facing decline messages (honesty rails - see the #34 spec).
 MSG_MULTI_REFERENCE_NOT_YET = (
     "Multiple reference images need IP-Adapter support, which is not "
     "available yet - keep one visible reference image layer (#34)."
@@ -28,6 +23,11 @@ MSG_INPAINT_PLUS_REFERENCE = (
 NOTICE_REFERENCE_MASK_IGNORED = (
     "Reference mask not applied: single-reference passes run full-image "
     "img2img until IP-Adapter support lands (#34)."
+)
+NOTICE_CONTROLNET_PROMPT_IGNORED = (
+    "ControlNet layer prompts are not supported by the local engine - the "
+    "layer prompt was ignored; use the main prompt (layer prompts stay "
+    "inpaint-only)."
 )
 
 
@@ -44,6 +44,8 @@ class GuidedPassPlan:
     prompt_override: Optional[str] = None
     negative_prompt_override: Optional[str] = None
     notices: List[str] = field(default_factory=list)
+    # #34 PR2: validated ControlNet layers; composes with every kind above.
+    controlnet: List[Dict[str, Any]] = field(default_factory=list)
 
 
 def _clean(text: Optional[str]) -> Optional[str]:
@@ -60,12 +62,17 @@ def resolve_guided_pass(
     controlnet = controlnet or []
     reference_images = reference_images or []
 
-    if controlnet:
-        raise GuidedValidationError(MSG_CONTROLNET_NOT_YET)
     if len(reference_images) > 1:
         raise GuidedValidationError(MSG_MULTI_REFERENCE_NOT_YET)
     if inpaint and reference_images:
         raise GuidedValidationError(MSG_INPAINT_PLUS_REFERENCE)
+
+    # diffusers has no per-layer ControlNet prompting; say so, don't pretend.
+    notices: List[str] = []
+    if any(_clean(layer.get("prompt")) or _clean(layer.get("negative_prompt"))
+           for layer in controlnet):
+        notices.append(NOTICE_CONTROLNET_PROMPT_IGNORED)
+    controlnet = [dict(layer) for layer in controlnet]
 
     if inpaint:
         return GuidedPassPlan(
@@ -75,6 +82,8 @@ def resolve_guided_pass(
             strength=denoising_strength,
             prompt_override=_clean(inpaint.get("prompt")),
             negative_prompt_override=_clean(inpaint.get("negative_prompt")),
+            notices=notices,
+            controlnet=controlnet,
         )
 
     if reference_images:
@@ -84,7 +93,8 @@ def resolve_guided_pass(
             image_path=reference.get("source_path"),
             mask=None,  # honestly not applied - see the notice
             strength=denoising_strength,
-            notices=[NOTICE_REFERENCE_MASK_IGNORED],
+            notices=notices + [NOTICE_REFERENCE_MASK_IGNORED],
+            controlnet=controlnet,
         )
 
-    return GuidedPassPlan()
+    return GuidedPassPlan(notices=notices, controlnet=controlnet)

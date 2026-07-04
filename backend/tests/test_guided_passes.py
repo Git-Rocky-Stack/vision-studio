@@ -1,22 +1,42 @@
-"""#34 PR1: guided-pass resolution + honesty-rail validation. Pure - stub CI safe."""
+"""#34: guided-pass resolution + honesty-rail validation. Pure - stub CI safe."""
 import pytest
 
 from guided.passes import GuidedValidationError, resolve_guided_pass
 
 MASK = {"type": "rectangle", "points": [{"x": 0, "y": 0}], "bounds": {"x": 0, "y": 0, "width": 8, "height": 8}}
 
+CN_LAYER = {"layer_id": "c1", "layer_name": "Edges", "source_path": "s.png",
+            "preprocessor": "canny", "strength": 1.0, "start_step": 0.0,
+            "end_step": 1.0, "mask": MASK, "prompt": None, "negative_prompt": None}
+
 
 def test_no_guided_fields_resolves_none():
     plan = resolve_guided_pass([], [], None, 0.75)
     assert plan.kind == "none"
     assert plan.notices == []
+    assert plan.controlnet == []
 
 
-def test_controlnet_layers_are_declined_until_pr2():
-    layer = {"layer_id": "c1", "source_path": "x.png", "preprocessor": "canny", "mask": MASK}
-    with pytest.raises(GuidedValidationError) as ctx:
-        resolve_guided_pass([layer], [], None, 0.75)
-    assert "ControlNet" in str(ctx.value)
+def test_controlnet_layers_thread_into_the_plan():
+    plan = resolve_guided_pass([dict(CN_LAYER)], [], None, 0.75)
+    assert plan.kind == "none"
+    assert plan.controlnet == [CN_LAYER]
+    assert plan.notices == []
+
+
+def test_controlnet_composes_with_inpaint():
+    inpaint = {"layer_id": "i1", "image_path": "base.png", "mask": MASK,
+               "prompt": None, "negative_prompt": None}
+    plan = resolve_guided_pass([dict(CN_LAYER)], [], inpaint, 0.6)
+    assert plan.kind == "inpaint"
+    assert plan.controlnet == [CN_LAYER]
+
+
+def test_controlnet_layer_prompt_gets_an_ignored_notice():
+    from guided.passes import NOTICE_CONTROLNET_PROMPT_IGNORED
+
+    plan = resolve_guided_pass([dict(CN_LAYER, prompt="  regional  ")], [], None, 0.75)
+    assert NOTICE_CONTROLNET_PROMPT_IGNORED in plan.notices
 
 
 def test_single_reference_resolves_img2img_with_mask_notice():
