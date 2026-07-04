@@ -239,5 +239,49 @@
     "description": "Surface-normal weights for the ControlNet normal preprocessor.",
     "license": null, "gated": false, "format": "pickle",
     "companions": [], "measured_vram_bytes": null
+  },
+  "controlnet-union-sdxl": {
+    "id": "controlnet-union-sdxl", "name": "ControlNet Union (SDXL)", "artifact_type": "controlnet",
+    "capability": "image", "base_architecture": "sdxl", "source": "huggingface",
+    "repo_id": "xinsir/controlnet-union-sdxl-1.0", "revision": "main", "aux_repo_id": null,
+    "size": "~2.4 GB", "status": "not_found", "tier": "verified", "quality": "balanced",
+    "runtime": "local", "hardware_class": "creator", "vram": "~1.2 GB",
+    "description": "All-in-one SDXL ControlNet: openpose, depth, scribble, canny, and normal through one set of weights.",
+    "license": "apache-2.0", "gated": false, "format": "safetensors",
+    "companions": [], "measured_vram_bytes": null,
+    "files": ["config.json", "diffusion_pytorch_model.safetensors"]
+  },
+  "controlnet-union-flux": {
+    "id": "controlnet-union-flux", "name": "ControlNet Union (FLUX.1 dev)", "artifact_type": "controlnet",
+    "capability": "image", "base_architecture": "flux", "source": "huggingface",
+    "repo_id": "InstantX/FLUX.1-dev-Controlnet-Union", "revision": "main", "aux_repo_id": null,
+    "size": "~6.2 GB", "status": "not_found", "tier": "verified", "quality": "balanced",
+    "runtime": "local", "hardware_class": "workstation", "vram": "~6.2 GB",
+    "description": "All-in-one FLUX.1 [dev] ControlNet: canny, depth, and pose conditioning. Trained for FLUX.1 [dev]; schnell is not supported.",
+    "license": "flux-1-dev-non-commercial", "gated": false, "format": "safetensors",
+    "companions": [], "measured_vram_bytes": null,
+    "files": ["config.json", "diffusion_pytorch_model.safetensors"]
+  },
+  "controlnet-canny-sd35": {
+    "id": "controlnet-canny-sd35", "name": "ControlNet Canny (SD 3.5 Large)", "artifact_type": "controlnet",
+    "capability": "image", "base_architecture": "sd35", "source": "huggingface",
+    "repo_id": "stabilityai/stable-diffusion-3.5-large-controlnet-canny", "revision": "main", "aux_repo_id": null,
+    "size": "~8.1 GB", "status": "not_found", "tier": "verified", "quality": "pro",
+    "runtime": "local", "hardware_class": "workstation", "vram": "~8.1 GB",
+    "description": "Edge-map conditioning for SD 3.5 Large canvas ControlNet layers. SD 3.5 Large only.",
+    "license": "stabilityai-community", "gated": false, "format": "safetensors",
+    "companions": [], "measured_vram_bytes": null,
+    "files": ["config.json", "diffusion_pytorch_model.safetensors"]
+  },
+  "controlnet-depth-sd35": {
+    "id": "controlnet-depth-sd35", "name": "ControlNet Depth (SD 3.5 Large)", "artifact_type": "controlnet",
+    "capability": "image", "base_architecture": "sd35", "source": "huggingface",
+    "repo_id": "stabilityai/stable-diffusion-3.5-large-controlnet-depth", "revision": "main", "aux_repo_id": null,
+    "size": "~8.1 GB", "status": "not_found", "tier": "verified", "quality": "pro",
+    "runtime": "local", "hardware_class": "workstation", "vram": "~8.1 GB",
+    "description": "Depth-map conditioning for SD 3.5 Large canvas ControlNet layers. SD 3.5 Large only.",
+    "license": "stabilityai-community", "gated": false, "format": "safetensors",
+    "companions": ["annotator-midas"], "measured_vram_bytes": null,
+    "files": ["config.json", "diffusion_pytorch_model.safetensors"]
   }
 }
