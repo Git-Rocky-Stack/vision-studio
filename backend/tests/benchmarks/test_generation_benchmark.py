@@ -9,7 +9,6 @@ import asyncio
 import pathlib
 import sys
 import tracemalloc
-from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from PIL import Image
@@ -21,12 +20,6 @@ if str(BACKEND_ROOT) not in sys.path:
 # Memory benchmark thresholds
 MAX_MEMORY_MB = 50
 MAX_IMAGE_PROC_MEMORY_MB = 10
-
-
-@pytest.fixture
-def sample_image() -> Image.Image:
-    """Create a 512x512 sample image for benchmarks."""
-    return Image.new("RGB", (512, 512), color="red")
 
 
 @pytest.fixture
@@ -45,76 +38,6 @@ def sample_image_base64() -> str:
     buffer = io.BytesIO()
     img.save(buffer, format="PNG")
     return base64.b64encode(buffer.getvalue()).decode("ascii")
-
-
-class TestControlNetBenchmarks:
-    """Benchmarks for ControlNet service operations."""
-
-    def test_controlnet_generation_latency(self, benchmark, sample_image):
-        """Benchmark ControlNet generation dispatch latency.
-
-        Target: < 5.0 seconds mean latency per image.
-
-        NOTE: This benchmark measures dispatch latency (mock overhead + service method call),
-        not full operation latency. The mock isolates the service layer invocation cost.
-        For end-to-end latency including model inference, use integration benchmarks.
-        """
-        from services.controlnet_service import ControlNetService
-
-        async def generate():
-            service = ControlNetService()
-            await service.load_model("canny")
-            return await service.generate(
-                prompt="test prompt",
-                init_image=sample_image,
-                control_image=sample_image,
-                model_type="canny",
-                width=512,
-                height=512,
-                steps=1,
-            )
-
-        # Mock the actual generation to avoid long-running tests
-        with patch.object(ControlNetService, "generate", new_callable=AsyncMock) as mock_gen:
-            mock_result = MagicMock()
-            mock_result.seed = 42
-            mock_result.width = 512
-            mock_result.height = 512
-            mock_gen.return_value = [mock_result]
-
-            result = benchmark.pedantic(
-                lambda: asyncio.run(generate()),
-                iterations=5,
-                rounds=3,
-            )
-
-        # Verify benchmark completed successfully
-        assert result is not None
-
-    def test_controlnet_model_load_latency(self, benchmark):
-        """Benchmark ControlNet model loading dispatch latency.
-
-        Target: < 10.0 seconds mean latency for model load.
-
-        NOTE: This benchmark measures dispatch latency (mock overhead + service method call),
-        not full model loading latency. The mock isolates the service layer invocation cost.
-        """
-        from services.controlnet_service import ControlNetService
-
-        async def load_model():
-            service = ControlNetService()
-            return await service.load_model("canny")
-
-        with patch.object(ControlNetService, "load_model", new_callable=AsyncMock) as mock_load:
-            mock_load.return_value = True
-
-            result = benchmark.pedantic(
-                lambda: asyncio.run(load_model()),
-                iterations=5,
-                rounds=3,
-            )
-
-        assert result is True
 
 
 class TestEditServiceBenchmarks:
@@ -190,25 +113,6 @@ class TestEditServiceBenchmarks:
 class TestMemoryUsageBenchmarks:
     """Benchmarks for memory usage and leaks."""
 
-    def test_memory_usage_controlnet_service(self):
-        """Test ControlNetService memory usage doesn't exceed baseline.
-
-        Target: < 50MB peak memory for 100 create/destroy cycles.
-        """
-        from services.controlnet_service import ControlNetService
-
-        tracemalloc.start()
-
-        # Create/destroy several service instances
-        for _ in range(100):
-            _ = ControlNetService()
-
-        current, peak = tracemalloc.get_traced_memory()
-        tracemalloc.stop()
-
-        # Peak memory should be under 50MB
-        assert peak < MAX_MEMORY_MB * 1024 * 1024, f"Peak memory {peak / 1024 / 1024:.2f}MB exceeds {MAX_MEMORY_MB}MB limit"
-
     def test_memory_usage_edit_service(self):
         """Test EditService memory usage doesn't exceed baseline.
 
@@ -251,45 +155,5 @@ class TestMemoryUsageBenchmarks:
         # Peak memory should be under 10MB per operation
         assert peak < MAX_IMAGE_PROC_MEMORY_MB * 1024 * 1024, f"Peak memory {peak / 1024 / 1024:.2f}MB exceeds {MAX_IMAGE_PROC_MEMORY_MB}MB limit"
         assert result is not None
-
-
-class TestBatchOperationBenchmarks:
-    """Benchmarks for batch processing operations."""
-
-    def test_batch_image_decode_latency(self, benchmark, sample_image_base64):
-        """Benchmark batch image decoding latency.
-
-        Target: < 0.1 seconds for 10 images.
-        """
-        from services.controlnet_service import decode_base64_image
-
-        def decode_batch():
-            images = []
-            for _ in range(10):
-                images.append(decode_base64_image(sample_image_base64))
-            return images
-
-        result = benchmark(decode_batch)
-
-        assert len(result) == 10
-        assert all(isinstance(img, Image.Image) for img in result)
-
-    def test_batch_image_encode_latency(self, benchmark, sample_image_small):
-        """Benchmark batch image encoding latency.
-
-        Target: < 0.1 seconds for 10 images.
-        """
-        from services.controlnet_service import encode_image_base64
-
-        def encode_batch():
-            encoded = []
-            for _ in range(10):
-                encoded.append(encode_image_base64(sample_image_small))
-            return encoded
-
-        result = benchmark(encode_batch)
-
-        assert len(result) == 10
-        assert all(isinstance(enc, str) for enc in result)
 
 

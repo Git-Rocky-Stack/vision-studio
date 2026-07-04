@@ -65,7 +65,6 @@ from utils.model_manager import ModelManager
 from utils.direct_generator import DirectGenerator, ModelLoadRefusedError
 from utils.image_ops import apply_crop_and_transform, upscale_image_file
 from utils.prompt_service import enhance_prompt
-from api.controlnet import router as controlnet_router
 from db.migrate import run_migrations
 from middleware.rate_limit import limiter, rate_limit_exceeded_handler
 from foundry import civitai_search, hub_search
@@ -102,6 +101,7 @@ from api.edit import router as edit_router
 from api.batch import router as batch_router
 from api.retrieval import router as retrieval_router
 from api.comfy_graph import router as comfy_graph_router, configure as configure_comfy_graph
+from guided.controlnet_registry import resolve_controlnet_stack
 from guided.passes import GuidedValidationError, resolve_guided_pass
 
 try:
@@ -400,7 +400,6 @@ app.add_middleware(
 app.mount("/outputs", StaticFiles(directory=OUTPUT_DIR), name="outputs")
 
 # Register API routers
-app.include_router(controlnet_router)
 app.include_router(edit_router)
 app.include_router(batch_router)
 app.include_router(retrieval_router)
@@ -441,7 +440,7 @@ class GuidedMaskPayload(BaseModel):
 
 
 class ControlNetLayerPayload(BaseModel):
-    """#34: accepted so the decline is honest (support lands in PR2)."""
+    """#34: canvas ControlNet layer (SD 1.5 / SDXL real since PR2)."""
     layer_id: str
     layer_name: str = ""
     source_path: str
@@ -487,7 +486,7 @@ class ImageGenerationRequest(BaseModel):
         default=None, description="M9 acceleration toggles (auto/on/off per optimization)")
     loras: List[LoraSelection] = Field(default_factory=list, description="#136 local LoRA adapters")
     controlnet: List[ControlNetLayerPayload] = Field(
-        default_factory=list, description="#34 canvas ControlNet layers (declined until PR2)")
+        default_factory=list, description="#34 canvas ControlNet layers")
     reference_images: List[ReferenceImageLayerPayload] = Field(
         default_factory=list, description="#34 reference image layers (img2img)")
     inpaint: Optional[InpaintPassPayload] = Field(
@@ -1250,6 +1249,23 @@ async def generate_image(
                                 "install 'flux-fill' from the Foundry first."
                             ),
                         )
+        if pass_plan.controlnet:
+            for layer in pass_plan.controlnet:
+                if not os.path.isfile(layer.get("source_path") or ""):
+                    name = os.path.basename(layer.get("source_path") or "")
+                    raise HTTPException(
+                        status_code=422,
+                        detail=f"ControlNet source image '{name}' was not found on disk.",
+                    )
+            record = model_registry.get_record(gen_request.model) or {}
+            try:
+                resolve_controlnet_stack(
+                    pass_plan.controlnet,
+                    record.get("base_architecture"),
+                    model_registry.get_record,
+                )
+            except GuidedValidationError as exc:
+                raise HTTPException(status_code=422, detail=str(exc))
 
     job_id = str(uuid.uuid4())
 

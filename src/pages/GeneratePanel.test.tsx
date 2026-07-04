@@ -151,6 +151,22 @@ function videoModel(id: string, base: string): ModelRecord {
   };
 }
 
+function buildRecord(overrides: Partial<ModelRecord>): ModelRecord {
+  // Only the required (M1) ModelRecord fields; the M3+ fields are optional.
+  return {
+    id: 'record', name: 'Record', artifact_type: 'controlnet', capability: 'image',
+    base_architecture: 'sd15', source: 'huggingface', repo_id: null, revision: null,
+    aux_repo_id: null, size: 'Unknown', status: 'ready', tier: 'verified',
+    quality: 'balanced', runtime: 'local', hardware_class: 'laptop', vram: 'Unknown',
+    description: '', license: null, gated: false,
+    ...overrides,
+  };
+}
+
+function seedInstalledModels(records: ModelRecord[]) {
+  useAppStore.setState({ availableModels: records });
+}
+
 function seedDurableReferenceImage() {
   useAppStore.setState((state) => ({
     mediaAssets: [
@@ -729,6 +745,72 @@ describe('GeneratePanel', () => {
     await waitFor(() => {
       expect(window.electron.generation.generateImage).toHaveBeenCalledWith(
         expect.objectContaining({ denoising_strength: 0.75 }),
+      );
+    });
+  });
+
+  it('blocks generate with a Foundry hint when a ControlNet layer needs an uninstalled model', async () => {
+    seedCanvasControlLayerScene();
+    seedInstalledModels([
+      buildRecord({ id: 'sd-1-5', artifact_type: 'checkpoint', base_architecture: 'sd15' }),
+    ]);
+    render(<GeneratePanel />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Use SD 1.5' }));
+    fireEvent.change(screen.getByTestId('mock-prompt-input'), {
+      target: { value: 'cinematic portrait pass' },
+    });
+    fireEvent.click(screen.getByTestId('generate-button'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('generate-preflight-warning')).toHaveTextContent(
+        /controlnet-openpose-sd15/,
+      );
+    });
+    expect(window.electron.generation.generateImage).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Manage in Foundry' }));
+    expect(useAppStore.getState().activeTab).toBe('foundry');
+  });
+
+  it('blocks ControlNet layers on families without support yet', async () => {
+    seedCanvasControlLayerScene();
+    seedInstalledModels([
+      buildRecord({ id: 'flux-dev', artifact_type: 'checkpoint', base_architecture: 'flux' }),
+    ]);
+    render(<GeneratePanel />);
+
+    fireEvent.change(screen.getByTestId('mock-prompt-input'), {
+      target: { value: 'cinematic portrait pass' },
+    });
+    fireEvent.click(screen.getByTestId('generate-button'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('generate-preflight-warning')).toHaveTextContent(/#34 PR3/);
+    });
+    expect(window.electron.generation.generateImage).not.toHaveBeenCalled();
+  });
+
+  it('submits ControlNet layers when the records are installed', async () => {
+    seedCanvasControlLayerScene();
+    seedInstalledModels([
+      buildRecord({ id: 'sd-1-5', artifact_type: 'checkpoint', base_architecture: 'sd15' }),
+      buildRecord({ id: 'controlnet-openpose-sd15' }),
+      buildRecord({ id: 'annotator-openpose', artifact_type: 'annotator' }),
+    ]);
+    render(<GeneratePanel />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Use SD 1.5' }));
+    fireEvent.change(screen.getByTestId('mock-prompt-input'), {
+      target: { value: 'cinematic portrait pass' },
+    });
+    fireEvent.click(screen.getByTestId('generate-button'));
+
+    await waitFor(() => {
+      expect(window.electron.generation.generateImage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          controlnet: [expect.objectContaining({ preprocessor: 'openpose' })],
+        }),
       );
     });
   });

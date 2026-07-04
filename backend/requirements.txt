@@ -12,6 +12,7 @@ slowapi>=0.1.9
 # transformers>=4.35.0
 # accelerate>=0.24.0
 # peft>=0.11.0  # LoRA multi-adapter stacking (#136); install alongside torch/diffusers
+# controlnet_aux>=0.0.10  # ControlNet preprocessor annotators (#34); install alongside torch/diffusers
 # xformers>=0.0.22
 
 # Image/Video processing

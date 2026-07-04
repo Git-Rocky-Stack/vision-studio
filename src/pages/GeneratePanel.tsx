@@ -20,6 +20,7 @@ import {
   SVD_REFERENCE_ERROR,
 } from '@/features/generate/validation';
 import { resolveCanvasControlLayers } from '@/features/generation/resolveCanvasControlLayers';
+import { resolveControlNetPreflight } from '@/features/generation/controlnetSupport';
 import {
   fromAccelerationResult,
   toAccelerationRequestPayload,
@@ -352,6 +353,7 @@ export function GeneratePanel() {
   // #136: base_architecture of the selected image checkpoint, for LoRA
   // compatibility filtering in the mixer.
   const availableModels = useAppStore((s) => s.availableModels);
+  const setActiveTab = useAppStore((s) => s.setActiveTab);
   const selectedImageBaseArch =
     availableModels.find((m) => m.id === imageConfig.model)?.base_architecture ?? null;
   const selectedVideoBaseArch =
@@ -405,6 +407,19 @@ export function GeneratePanel() {
         baseImagePath: currentImageAssetPath,
       }),
     [activeScene, currentImageAssetPath, imageConfig.generationType, mediaAssets, referenceSets],
+  );
+  // #34 PR2: best-effort mirror of the backend ControlNet pre-flight - block
+  // with the same reason the backend 422 would give, plus a Foundry link.
+  const controlNetPreflight = useMemo(
+    () =>
+      imageConfig.generationType === 'image'
+        ? resolveControlNetPreflight(
+            resolvedCanvasControlLayers.controlnet,
+            selectedImageBaseArch,
+            availableModels,
+          )
+        : { errors: [], missingRecordIds: [] },
+    [availableModels, imageConfig.generationType, resolvedCanvasControlLayers.controlnet, selectedImageBaseArch],
   );
   const activeTimelineClip = useMemo(
     () => timelineClips.find((clip) => clip.id === activeTimelineClipId) ?? null,
@@ -823,6 +838,9 @@ export function GeneratePanel() {
       if (imageConfig.generationType === 'image') {
         if (resolvedCanvasControlLayers.errors.length > 0) {
           throw new Error(resolvedCanvasControlLayers.errors[0]);
+        }
+        if (controlNetPreflight.errors.length > 0) {
+          throw new Error(controlNetPreflight.errors[0]);
         }
 
         const imageRequest: ImageGenerationRequestPayload = {
@@ -1250,9 +1268,11 @@ export function GeneratePanel() {
       ? 'Backend offline. Start it from Settings before generating.'
       : imageConfig.generationType === 'image' && resolvedCanvasControlLayers.errors.length > 0
         ? resolvedCanvasControlLayers.errors[0]
-        : videoModelRequiresReference && !motionReferenceImage
-          ? 'Stable Video Diffusion requires a reference image.'
-          : null;
+        : imageConfig.generationType === 'image' && controlNetPreflight.errors.length > 0
+          ? controlNetPreflight.errors[0]
+          : videoModelRequiresReference && !motionReferenceImage
+            ? 'Stable Video Diffusion requires a reference image.'
+            : null;
   const footerStatusLabel = genStatus.isGenerating
     ? `Generating ${imageConfig.generationType}`
     : activeTimelineClip
@@ -1690,6 +1710,15 @@ export function GeneratePanel() {
           {footerWarning && (
             <p data-testid="generate-preflight-warning" className="mt-2 text-xs text-status-warning">
               {footerWarning}
+              {controlNetPreflight.missingRecordIds.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('foundry')}
+                  className="ml-2 underline underline-offset-2 text-status-warning hover:text-text-primary transition-colors"
+                >
+                  Manage in Foundry
+                </button>
+              )}
             </p>
           )}
         </div>

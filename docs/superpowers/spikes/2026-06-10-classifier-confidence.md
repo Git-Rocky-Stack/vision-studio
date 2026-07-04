@@ -206,3 +206,11 @@ no network, both CI OSes.
 - Probe scripts (snapshot / classify / header-replay / distill) were throwaway, run
   from a temp dir, not committed - per spike discipline. Their distilled outputs are
   the committed corpus.
+
+## 10. Ground-truth relabels (evidence-based, per the corpus discipline)
+
+- **2026-07-04 - `diffusers/controlnet-canny-sdxl-1.0`: compatible -> verified.**
+  Evidence: the repo became a verified-catalog member when #34 PR2 added the
+  `controlnet-canny-sdxl` record (guided-passes ControlNet cycle). Catalog
+  membership classifies as Verified by design (spec 5.2); the fixture's signal
+  snapshot is unchanged - only the catalog context moved.

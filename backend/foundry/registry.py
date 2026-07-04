@@ -200,4 +200,5 @@ _ARTIFACT_SUBDIR = {
     "vae": "vaes",
     "controlnet": "controlnet",
     "embedding": "embeddings",
+    "annotator": "annotators",
 }

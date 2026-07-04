@@ -48,7 +48,7 @@
       "reachable": true,
       "repo_id": "diffusers/controlnet-canny-sdxl-1.0",
       "stratum": "compatible-aux",
-      "tier": "compatible"
+      "tier": "verified"
     },
     {
       "file": "diffusers--stable-diffusion-xl-1.0-inpainting-0.1.json",

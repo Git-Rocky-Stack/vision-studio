@@ -306,15 +306,15 @@ class DownloadManager:
         the safetensors component tree; this filter keeps acquisition aligned
         with that judgment instead of pulling every sidecar in the repo.
         """
-        from utils.model_manager import _SINGLE_FILE_FILENAMES
+        from utils.model_manager import single_file_names
 
         repo_id = record.get("repo_id")
         revision = record.get("revision", "main")
         target_dir = self._target_dir(record)
 
-        single = _SINGLE_FILE_FILENAMES.get(model_id)
+        single = single_file_names(model_id)
         if single is not None:
-            paths = [single]
+            paths = list(single)
         else:
             infos = huggingface_hub.get_paths_info(repo_id, [], revision=revision)
             paths = [getattr(info, "path", None) or info["path"] for info in infos]
@@ -346,6 +346,11 @@ class DownloadManager:
         artifact_type = record.get("artifact_type", "checkpoint")
         if artifact_type in {"diffusers-pipeline", "motion-adapter"}:
             return os.path.join(self._models_dir, "diffusers", record["id"])
+        if artifact_type == "controlnet":
+            # Multi-file diffusers-format repos get a per-id dir so two
+            # ControlNet records can never collide on config.json. Matches
+            # registry._is_present, which already expects controlnet/<id>/.
+            return os.path.join(self._models_dir, "controlnet", record["id"])
         subdir = _ARTIFACT_SUBDIR.get(artifact_type, "checkpoints")
         return os.path.join(self._models_dir, subdir)
 
@@ -566,4 +571,5 @@ _ARTIFACT_SUBDIR = {
     "vae": "vaes",
     "controlnet": "controlnet",
     "embedding": "embeddings",
+    "annotator": "annotators",
 }

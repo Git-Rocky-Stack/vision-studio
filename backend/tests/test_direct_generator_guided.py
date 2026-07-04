@@ -27,10 +27,16 @@ class _FakePipeline:
     def __call__(self, prompt=None, negative_prompt=None, image=None,
                  mask_image=None, strength=0.75, width=None, height=None,
                  num_inference_steps=25, guidance_scale=7.5, generator=None,
-                 callback_on_step_end=None):
+                 callback_on_step_end=None, control_image=None,
+                 controlnet_conditioning_scale=None,
+                 control_guidance_start=None, control_guidance_end=None):
         self._calls.append({
             "prompt": prompt, "image": image, "mask_image": mask_image,
             "strength": strength, "width": width, "height": height,
+            "control_image": control_image,
+            "controlnet_conditioning_scale": controlnet_conditioning_scale,
+            "control_guidance_start": control_guidance_start,
+            "control_guidance_end": control_guidance_end,
         })
 
         class _Out:
@@ -48,6 +54,7 @@ def _generator(tmp_path, calls, monkeypatch, fake=None, family="sd15"):
     gen = dg.DirectGenerator.__new__(dg.DirectGenerator)
     gen.device = "cpu"
     gen.output_dir = str(tmp_path)
+    gen.models_dir = str(tmp_path)
     gen.applied_acceleration = {}
 
     fake = fake or _FakePipeline(calls, Image.new("RGB", (8, 8)))
@@ -56,10 +63,30 @@ def _generator(tmp_path, calls, monkeypatch, fake=None, family="sd15"):
                         lambda name, **k: loaded.append(name) or fake)
     monkeypatch.setattr(gen, "_configure_scheduler", lambda p, s: p)
     monkeypatch.setattr(dg, "_resolve_record",
-                        lambda _id: {"base_architecture": family})
+                        lambda _id: {"base_architecture": family, "status": "ready",
+                                     "id": _id, "name": _id})
     # Derivation returns the same fake (component sharing is diffusers' job).
-    monkeypatch.setattr(dg, "derive_variant", lambda base, kind: base)
-    return gen, loaded
+    monkeypatch.setattr(dg, "derive_variant",
+                        lambda base, kind, controlnet=None: base)
+
+    attached = []
+
+    class _FakeAttached:
+        def __init__(self, dirs, dtype, device):
+            attached.append({"dirs": list(dirs), "dtype": dtype,
+                             "device": device, "released": False})
+            self._entry = attached[-1]
+
+        def __enter__(self):
+            return ["cn-model"] * len(self._entry["dirs"])
+
+        def __exit__(self, *exc):
+            self._entry["released"] = True
+            return False
+
+    monkeypatch.setattr(dg, "controlnets_attached",
+                        lambda dirs, dtype, device: _FakeAttached(dirs, dtype, device))
+    return gen, loaded, attached
 
 
 def _base_image(tmp_path):
@@ -81,7 +108,7 @@ def _run(gen, tmp_path, guided):
 
 def test_txt2img_unchanged_when_no_guided(monkeypatch, tmp_path):
     calls = []
-    gen, _ = _generator(tmp_path, calls, monkeypatch)
+    gen, _, _ = _generator(tmp_path, calls, monkeypatch)
     result = _run(gen, tmp_path, guided=None)
     assert calls[0]["image"] is None
     assert calls[0]["width"] == 8
@@ -90,7 +117,7 @@ def test_txt2img_unchanged_when_no_guided(monkeypatch, tmp_path):
 
 def test_img2img_passes_init_image_and_strength(monkeypatch, tmp_path):
     calls = []
-    gen, _ = _generator(tmp_path, calls, monkeypatch)
+    gen, _, _ = _generator(tmp_path, calls, monkeypatch)
     guided = {"controlnet": [], "denoising_strength": 0.6, "inpaint": None,
               "reference_images": [{"layer_id": "r1", "source_path": _base_image(tmp_path),
                                     "mask": MASK, "strength": 1.0}]}
@@ -104,7 +131,7 @@ def test_img2img_passes_init_image_and_strength(monkeypatch, tmp_path):
 
 def test_inpaint_passes_image_and_rasterized_mask(monkeypatch, tmp_path):
     calls = []
-    gen, _ = _generator(tmp_path, calls, monkeypatch)
+    gen, _, _ = _generator(tmp_path, calls, monkeypatch)
     guided = {"controlnet": [], "denoising_strength": 0.9, "reference_images": [],
               "inpaint": {"layer_id": "i1", "image_path": _base_image(tmp_path),
                           "mask": MASK, "prompt": "a red door", "negative_prompt": None}}
@@ -118,7 +145,7 @@ def test_inpaint_passes_image_and_rasterized_mask(monkeypatch, tmp_path):
 
 def test_flux_inpaint_routes_to_flux_fill(monkeypatch, tmp_path):
     calls = []
-    gen, loaded = _generator(tmp_path, calls, monkeypatch, family="flux")
+    gen, loaded, _ = _generator(tmp_path, calls, monkeypatch, family="flux")
     guided = {"controlnet": [], "denoising_strength": 0.75, "reference_images": [],
               "inpaint": {"layer_id": "i1", "image_path": _base_image(tmp_path),
                           "mask": MASK, "prompt": None, "negative_prompt": None}}
@@ -130,7 +157,7 @@ def test_empty_mask_fails_the_job(monkeypatch, tmp_path):
     from guided.passes import GuidedValidationError
 
     calls = []
-    gen, _ = _generator(tmp_path, calls, monkeypatch)
+    gen, _, _ = _generator(tmp_path, calls, monkeypatch)
     empty_mask = dict(MASK, type="erase")
     guided = {"controlnet": [], "denoising_strength": 0.75, "reference_images": [],
               "inpaint": {"layer_id": "i1", "image_path": _base_image(tmp_path),
@@ -157,10 +184,102 @@ def test_dropped_params_are_reported(monkeypatch, tmp_path):
             return out
 
     fake = _NoStrength(Image.new("RGB", (8, 8)))
-    gen, _ = _generator(tmp_path, [], monkeypatch, fake=fake, family="flux")
+    gen, _, _ = _generator(tmp_path, [], monkeypatch, fake=fake, family="flux")
     guided = {"controlnet": [], "denoising_strength": 0.75, "reference_images": [],
               "inpaint": {"layer_id": "i1", "image_path": _base_image(tmp_path),
                           "mask": MASK, "prompt": None, "negative_prompt": None}}
     result = _run(gen, tmp_path, guided)
     assert fake.calls
     assert "strength" in result["guided"]["dropped_params"]
+
+
+# -- #34 PR2: ControlNet execution --------------------------------------------
+
+def _cn_source(tmp_path):
+    import numpy as np
+    from PIL import Image
+
+    array = np.zeros((16, 16, 3), dtype=np.uint8)
+    array[4:12, 4:12] = 255
+    path = tmp_path / "cn-source.png"
+    Image.fromarray(array).save(path)
+    return str(path)
+
+
+def _cn_layer(tmp_path, **overrides):
+    layer = {"layer_id": "c1", "layer_name": "Edges", "source_path": _cn_source(tmp_path),
+             "preprocessor": "canny", "strength": 1.4, "start_step": 0.2,
+             "end_step": 0.8, "mask": MASK, "prompt": None, "negative_prompt": None}
+    layer.update(overrides)
+    return layer
+
+
+def _cn_model_dir(tmp_path, record_id):
+    import os
+
+    path = tmp_path / "controlnet" / record_id
+    path.mkdir(parents=True)
+    (path / "config.json").write_text("{}")
+    return str(path)
+
+
+def test_controlnet_txt2img_threads_controls_and_scales(monkeypatch, tmp_path):
+    calls = []
+    gen, _, attached = _generator(tmp_path, calls, monkeypatch)
+    expected_dir = _cn_model_dir(tmp_path, "controlnet-canny-sd15")
+    guided = {"controlnet": [_cn_layer(tmp_path)], "reference_images": [],
+              "inpaint": None, "denoising_strength": 0.75}
+    result = _run(gen, tmp_path, guided)
+    call = calls[0]
+    assert isinstance(call["image"], list) and len(call["image"]) == 1
+    assert call["width"] == 8 and call["height"] == 8
+    assert call["controlnet_conditioning_scale"] == [1.4]
+    assert call["control_guidance_start"] == [0.2]
+    assert call["control_guidance_end"] == [0.8]
+    assert result["guided"]["pass"] == "none"
+    assert result["guided"]["controlnet"] == [
+        {"layer_id": "c1", "preprocessor": "canny", "record_id": "controlnet-canny-sd15"},
+    ]
+    assert attached[0]["dirs"] == [expected_dir]
+    assert attached[0]["released"] is True
+
+
+def test_controlnet_composes_with_img2img(monkeypatch, tmp_path):
+    calls = []
+    gen, _, _ = _generator(tmp_path, calls, monkeypatch)
+    _cn_model_dir(tmp_path, "controlnet-canny-sd15")
+    guided = {"controlnet": [_cn_layer(tmp_path)], "denoising_strength": 0.6,
+              "inpaint": None,
+              "reference_images": [{"layer_id": "r1", "source_path": _base_image(tmp_path),
+                                    "mask": MASK, "strength": 1.0}]}
+    result = _run(gen, tmp_path, guided)
+    call = calls[0]
+    assert call["image"] is not None and not isinstance(call["image"], list)  # init image
+    assert isinstance(call["control_image"], list)                            # control map
+    assert call["strength"] == 0.6
+    assert result["guided"]["pass"] == "img2img"
+
+
+def test_controlnet_missing_model_dir_fails_before_pipeline(monkeypatch, tmp_path):
+    from guided.passes import GuidedValidationError
+
+    calls = []
+    gen, _, _ = _generator(tmp_path, calls, monkeypatch)
+    guided = {"controlnet": [_cn_layer(tmp_path)], "reference_images": [],
+              "inpaint": None, "denoising_strength": 0.75}
+    with pytest.raises(GuidedValidationError) as excinfo:
+        _run(gen, tmp_path, guided)
+    assert calls == []
+    assert str(tmp_path) not in str(excinfo.value)  # no paths in the message
+
+
+def test_controlnet_on_flux_family_fails_loudly(monkeypatch, tmp_path):
+    from guided.passes import GuidedValidationError
+
+    calls = []
+    gen, _, _ = _generator(tmp_path, calls, monkeypatch, family="flux")
+    guided = {"controlnet": [_cn_layer(tmp_path)], "reference_images": [],
+              "inpaint": None, "denoising_strength": 0.75}
+    with pytest.raises(GuidedValidationError):
+        _run(gen, tmp_path, guided)
+    assert calls == []
