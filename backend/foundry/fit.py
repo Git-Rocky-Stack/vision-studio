@@ -42,6 +42,17 @@ _UNKNOWN_ACTIVATION_BAND = int(5.0 * _GIB)
 # CUDA context + cudnn/cublas workspaces. Estimated; calibration refines.
 RUNTIME_BAND_BYTES = int(0.7 * _GIB)
 
+# Guided-pass (ControlNet) activation overhead per family, in bytes - the
+# extra working memory a ControlNet forward adds beyond the base activation
+# band. Seeded estimates; tools/calibrate_vram.py refines as data edits.
+GUIDED_PASS_OVERHEAD_BYTES: Dict[str, int] = {
+    "sd15": int(0.3 * _GIB),
+    "sdxl": int(0.6 * _GIB),
+    "flux": int(1.0 * _GIB),
+    "sd35": int(1.0 * _GIB),
+    "default": int(1.0 * _GIB),
+}
+
 
 def weight_bytes_from_header(header: dict) -> int:
     """Exact bytes for the tensors a safetensors header describes."""
