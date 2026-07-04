@@ -91,3 +91,63 @@ def test_controlnet_installed_stack_enqueues(monkeypatch, tmp_path):
     response = client.post("/api/generate/image", json=_cn_request(tmp_path))
     assert response.status_code == 200
     assert response.json()["status"] == "pending"
+
+
+# -- #34 PR3: checkpoint/kind declines + the fit gate ---------------------------
+
+def test_controlnet_on_flux_schnell_preflights_422(monkeypatch, tmp_path):
+    client = _client(monkeypatch, _FakeRegistry(family="flux"))
+    body = _cn_request(tmp_path)
+    body["model"] = "flux-schnell"
+    response = client.post("/api/generate/image", json=body)
+    assert response.status_code == 422
+    assert "FLUX.1 [dev]" in response.json()["detail"]
+
+
+def test_controlnet_on_flux_dev_enqueues_via_union(monkeypatch, tmp_path):
+    client = _client(monkeypatch, _FakeRegistry(family="flux"))
+    body = _cn_request(tmp_path)
+    body["model"] = "flux-dev"
+    response = client.post("/api/generate/image", json=body)
+    assert response.status_code == 200
+    assert response.json()["status"] == "pending"
+
+
+def test_controlnet_composition_decline_preflights_422(monkeypatch, tmp_path):
+    from PIL import Image
+
+    client = _client(monkeypatch, _FakeRegistry(family="sd35"))
+    body = _cn_request(tmp_path)
+    body["model"] = "sd3.5-large"
+    base = tmp_path / "base.png"
+    Image.new("RGB", (8, 8)).save(base)
+    body["reference_images"] = [{
+        "layer_id": "r1", "layer_name": "Ref", "source_path": str(base),
+        "mask": MASK, "strength": 1.0,
+    }]
+    response = client.post("/api/generate/image", json=body)
+    assert response.status_code == 422
+    assert "SD 3.5" in response.json()["detail"]
+
+
+def test_over_budget_controlnet_stack_preflights_422(monkeypatch, tmp_path):
+    import main as main_module
+
+    client = _client(monkeypatch, _FakeRegistry())
+    monkeypatch.setattr(
+        main_module, "controlnet_fit_refusal",
+        lambda base_plan, dirs, family, profile: "does not fit (estimated basis)")
+    response = client.post("/api/generate/image", json=_cn_request(tmp_path))
+    assert response.status_code == 422
+    assert "does not fit" in response.json()["detail"]
+
+
+def test_fitting_controlnet_stack_still_enqueues(monkeypatch, tmp_path):
+    import main as main_module
+
+    client = _client(monkeypatch, _FakeRegistry())
+    monkeypatch.setattr(
+        main_module, "controlnet_fit_refusal",
+        lambda base_plan, dirs, family, profile: None)
+    response = client.post("/api/generate/image", json=_cn_request(tmp_path))
+    assert response.status_code == 200
