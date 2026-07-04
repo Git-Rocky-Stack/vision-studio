@@ -75,6 +75,8 @@ export interface GenerationMaskPayload {
   type: MaskType;
   points: Point[];
   bounds: BoundingBox;
+  /** Brush/erase stroke diameter in intrinsic image pixels (#34). */
+  brush_size?: number;
 }
 
 export interface GenerationControlNetLayerPayload {

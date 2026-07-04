@@ -19,6 +19,7 @@ interface RegionMaskDrawerProps {
     type: MaskType;
     points: Point[];
     bounds: BoundingBox;
+    brushSize?: number;
   }) => void;
 }
 
@@ -172,13 +173,14 @@ export const RegionMaskDrawer = memo(function RegionMaskDrawer({
           type: current.tool,
           points: current.points,
           bounds: computeBounds(current.points),
+          ...(current.tool !== 'polygon' ? { brushSize } : {}),
         });
       }
     }
 
     draftRef.current = null;
     setDraft(null);
-  }, [onMaskCommit]);
+  }, [onMaskCommit, brushSize]);
 
   const handlePointerUp = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {

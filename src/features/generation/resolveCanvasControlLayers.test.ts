@@ -126,6 +126,51 @@ const referenceSets: ReferenceSet[] = [
 ];
 
 describe('resolveCanvasControlLayers', () => {
+  it('projects mask brushSize into the payload as brush_size', () => {
+    const scene = buildScene([
+      buildLayer({
+        id: 'controlnet-layer',
+        name: 'Pose Guide',
+        type: 'controlnet',
+        sourceMediaAssetId: 'asset-controlnet',
+        preprocessor: 'canny',
+        mask: { ...buildMask(), type: 'brush', brushSize: 24 },
+      }),
+    ]);
+
+    const resolved = resolveCanvasControlLayers({
+      scene,
+      mediaAssets,
+      referenceSets,
+      generationType: 'image',
+      baseImagePath: 'C:/vision-studio-output/current/frame.png',
+    });
+
+    expect(resolved.errors).toEqual([]);
+    expect(resolved.controlnet[0].mask.brush_size).toBe(24);
+  });
+
+  it('omits brush_size when the mask has no recorded stroke width', () => {
+    const scene = buildScene([
+      buildLayer({
+        id: 'controlnet-layer',
+        type: 'controlnet',
+        sourceMediaAssetId: 'asset-controlnet',
+        preprocessor: 'canny',
+      }),
+    ]);
+
+    const resolved = resolveCanvasControlLayers({
+      scene,
+      mediaAssets,
+      referenceSets,
+      generationType: 'image',
+      baseImagePath: 'C:/vision-studio-output/current/frame.png',
+    });
+
+    expect(resolved.controlnet[0].mask.brush_size).toBeUndefined();
+  });
+
   it('resolves visible image control layers into generation payload fragments', () => {
     const scene = buildScene([
       buildLayer({

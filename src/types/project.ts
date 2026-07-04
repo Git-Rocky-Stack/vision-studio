@@ -169,6 +169,8 @@ export interface BoundingBox {
 
 export interface RegionMask {
   type: MaskType;
+  /** Brush/erase stroke diameter in intrinsic image pixels (#34). */
+  brushSize?: number;
   points: Point[];
   bounds: BoundingBox;
   featherRadius: number;   // 0-20px, default 2
