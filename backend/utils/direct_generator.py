@@ -13,6 +13,7 @@ from pathlib import Path
 from PIL import Image
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import ExitStack
 
 # These imports will fail if torch/diffusers not installed
 # The app should handle this gracefully
@@ -35,10 +36,12 @@ except ImportError as e:
 from foundry.accelerator import DEFAULT_ACCELERATION_SETTINGS, accelerate_pipeline
 from foundry.lora import loras_applied
 
-# #34 guided passes (all three modules import with no torch/diffusers).
+# #34 guided passes (all modules import with no torch/diffusers).
+from guided.controlnet_registry import resolve_controlnet_stack
 from guided.masks import mask_coverage, rasterize_mask
 from guided.passes import GuidedValidationError, resolve_guided_pass
-from guided.pipelines import derive_variant, filter_call_kwargs
+from guided.pipelines import controlnets_attached, derive_variant, filter_call_kwargs
+from guided.preprocessors import produce_control_image
 
 
 class ModelLoadRefusedError(RuntimeError):
@@ -414,6 +417,31 @@ class DirectGenerator:
             if record.get("base_architecture") == "flux":
                 model_for_pass = "flux-fill"
 
+        # #34 PR2: resolve the ControlNet stack through the same seam the
+        # endpoint 422s through, and build the control images on CPU before
+        # any weights move.
+        cn_stack = []
+        cn_model_dirs: List[str] = []
+        control_images: List[Any] = []
+        if pass_plan.controlnet:
+            base_record = _resolve_record(model_name) or {}
+            cn_stack = resolve_controlnet_stack(
+                pass_plan.controlnet, base_record.get("base_architecture"), _resolve_record,
+            )
+            for item in cn_stack:
+                model_dir = os.path.join(self.models_dir, "controlnet", item.record_id)
+                if not os.path.isdir(model_dir):
+                    raise GuidedValidationError(
+                        f"The ControlNet model '{item.record_id}' looks incomplete "
+                        "on disk - reinstall it from the Foundry."
+                    )
+                cn_model_dirs.append(model_dir)
+            annotators_dir = os.path.join(self.models_dir, "annotators")
+            control_images = [
+                produce_control_image(item.layer, width, height, annotators_dir)
+                for item in cn_stack
+            ]
+
         # Load pipeline
         pipeline = self.load_model(model_for_pass, acceleration_settings=acceleration_settings)
         pipeline = self._configure_scheduler(pipeline, scheduler)
@@ -452,7 +480,6 @@ class DirectGenerator:
         if pass_plan.kind == "none":
             call_kwargs["width"] = width
             call_kwargs["height"] = height
-            run_pipeline = pipeline
         else:
             init_image = Image.open(pass_plan.image_path).convert("RGB")
             base_size = init_image.size
@@ -469,29 +496,59 @@ class DirectGenerator:
                     (width, height), Image.Resampling.LANCZOS)
                 call_kwargs["width"] = width
                 call_kwargs["height"] = height
-            # flux-fill IS the inpaint pipeline - only derive for base models.
-            run_pipeline = (
-                pipeline if model_for_pass != model_name
-                else derive_variant(pipeline, pass_plan.kind)
-            )
 
-        call_kwargs, dropped_params = filter_call_kwargs(run_pipeline, call_kwargs)
-        if pass_plan.kind != "none":
-            guided_report = {
-                "pass": pass_plan.kind,
-                "notices": list(pass_plan.notices),
-                "dropped_params": dropped_params,
-            }
+        if cn_stack:
+            # txt2img ControlNet variants take the control map as `image`;
+            # img2img/inpaint variants keep `image` for the init and take the
+            # control map as `control_image`.
+            if pass_plan.kind == "none":
+                call_kwargs["image"] = control_images
+            else:
+                call_kwargs["control_image"] = control_images
+            call_kwargs["controlnet_conditioning_scale"] = [
+                float(item.layer.get("strength", 1.0)) for item in cn_stack]
+            call_kwargs["control_guidance_start"] = [
+                float(item.layer.get("start_step", 0.0)) for item in cn_stack]
+            call_kwargs["control_guidance_end"] = [
+                float(item.layer.get("end_step", 1.0)) for item in cn_stack]
 
-        with loras_applied(pipeline, loras or [], _resolve_lora_record) as lora_result:
-            with torch.inference_mode():
-                output = run_pipeline(**call_kwargs)
-        
-        # Save image
-        image = output.images[0]
-        output_path = os.path.join(output_dir, "generated.png")
-        image.save(output_path, "PNG")
-        
+        with ExitStack() as stack:
+            if cn_stack:
+                cn_models = stack.enter_context(controlnets_attached(
+                    cn_model_dirs, getattr(pipeline, "dtype", None), self.device))
+                run_pipeline = derive_variant(pipeline, pass_plan.kind, controlnet=cn_models)
+            elif pass_plan.kind == "none":
+                run_pipeline = pipeline
+            else:
+                # flux-fill IS the inpaint pipeline - only derive for base models.
+                run_pipeline = (
+                    pipeline if model_for_pass != model_name
+                    else derive_variant(pipeline, pass_plan.kind)
+                )
+
+            call_kwargs, dropped_params = filter_call_kwargs(run_pipeline, call_kwargs)
+            if pass_plan.kind != "none" or cn_stack:
+                guided_report = {
+                    "pass": pass_plan.kind,
+                    "notices": list(pass_plan.notices),
+                    "dropped_params": dropped_params,
+                    "controlnet": [
+                        {"layer_id": item.layer.get("layer_id"),
+                         "preprocessor": item.layer.get("preprocessor"),
+                         "record_id": item.record_id}
+                        for item in cn_stack
+                    ],
+                }
+
+            with loras_applied(pipeline, loras or [], _resolve_lora_record) as lora_result:
+                with torch.inference_mode():
+                    output = run_pipeline(**call_kwargs)
+
+            # Save the image before the ControlNet weights are released.
+            image = output.images[0]
+            output_path = os.path.join(output_dir, "generated.png")
+            image.save(output_path, "PNG")
+
         print(f"✅ Saved: {output_path}")
         
         return {
