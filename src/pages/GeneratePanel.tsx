@@ -848,6 +848,10 @@ export function GeneratePanel() {
                 inpaint: resolvedCanvasControlLayers.inpaint,
               }
             : {}),
+          ...(resolvedCanvasControlLayers.referenceImages.length > 0 ||
+          resolvedCanvasControlLayers.inpaint
+            ? { denoising_strength: refConfig.denoisingStrength }
+            : {}),
           ...(refConfig.loraConfigs.length > 0
             ? { loras: toLoraSelections(refConfig.loraConfigs) }
             : {}),
