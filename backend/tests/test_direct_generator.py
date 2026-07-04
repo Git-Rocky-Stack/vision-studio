@@ -33,7 +33,13 @@ except ImportError:
 
 
 def _plan(**kw):
-    """A MagicMock RuntimePlan with the loader-relevant fields pinned."""
+    """A MagicMock RuntimePlan with the loader-relevant fields pinned.
+
+    hardware_profile MUST be pinned: left as a MagicMock auto-child it reads
+    as gpu_available=truthy, resolve_acceleration then auto-enables
+    torch.compile, and dynamo tracing the mocked pipeline's unet allocates
+    unboundedly (observed: >25 GB RSS, an effective hang).
+    """
     base = dict(
         refusal=None,
         pipeline_class="StableDiffusionXLPipeline",
@@ -44,6 +50,7 @@ def _plan(**kw):
         single_file=False,
         config_catalog_id=None,
         fallback_ladder=[],
+        hardware_profile=None,
     )
     base.update(kw)
     return mock.MagicMock(**base)
