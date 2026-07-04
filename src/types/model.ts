@@ -65,6 +65,9 @@ export interface ModelRecord {
   // M5 Task 6: companion model IDs (e.g. VAE, text encoder) and measured VRAM.
   companions?: string[];
   measured_vram_bytes?: number | null;
+  // #136 LoRA metadata (best-effort; absent on older/loose-scanned records).
+  trigger_words?: string[];
+  default_weight?: number;
   // Optional legacy-compat fields some consumers read:
   type?: string;
   progress?: number;

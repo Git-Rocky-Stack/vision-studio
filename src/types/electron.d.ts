@@ -2,7 +2,7 @@
  * Type definitions for Electron API exposed via contextBridge
  */
 
-import type { AccelerationRequestPayload, ImageGenerationRequestPayload } from './generation';
+import type { AccelerationRequestPayload, ImageGenerationRequestPayload, LoraSelectionPayload } from './generation';
 import type {
   DownloadJob,
   ModelRecord,
@@ -37,6 +37,8 @@ export interface VideoGenerationParams {
   seed?: number;
   /** M9: optional per-request acceleration toggles (local generation only). */
   acceleration_settings?: AccelerationRequestPayload;
+  /** #136: local-only LoRA adapters to stack (Local route only). */
+  loras?: LoraSelectionPayload[];
 }
 
 export interface TimelineExportLayerParams {

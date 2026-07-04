@@ -8,7 +8,7 @@ try:
     import torch
 except ImportError:  # torch is optional and absent in the lightweight CI/test env
     torch = None
-from typing import Optional, Callable, Dict, Any
+from typing import Optional, Callable, Dict, Any, List
 from pathlib import Path
 from PIL import Image
 import asyncio
@@ -33,6 +33,7 @@ except ImportError as e:
 
 # M9 acceleration seam (import-safe: accelerator imports no torch at module load).
 from foundry.accelerator import DEFAULT_ACCELERATION_SETTINGS, accelerate_pipeline
+from foundry.lora import loras_applied
 
 
 class ModelLoadRefusedError(RuntimeError):
@@ -93,6 +94,12 @@ def resolve_plan(model_id: str, overrides: Optional[Dict[str, Any]] = None):
         plan.config_repo_id = (config_record or {}).get("repo_id")
     plan.adapter_repo_id = record.get("aux_repo_id")
     return plan
+
+
+def _resolve_lora_record(model_id: str):
+    """Registry record for an installed LoRA id (lazy main import, like resolve_plan)."""
+    from main import model_registry
+    return model_registry.get_record(model_id)
 
 
 # plan.precision -> torch dtype. Anything else is a plan bug we refuse loudly.
@@ -308,6 +315,7 @@ class DirectGenerator:
         scheduler: str = "Euler a",
         progress_callback: Optional[Callable[[float], None]] = None,
         acceleration_settings=None,
+        loras: Optional[List[Dict[str, Any]]] = None,
     ) -> Dict[str, Any]:
         """Generate an image"""
         
@@ -348,6 +356,7 @@ class DirectGenerator:
                 progress_callback_fn,
                 output_dir,
                 acceleration_settings,
+                loras,
             )
 
             return result
@@ -370,6 +379,7 @@ class DirectGenerator:
         progress_callback_fn: Callable,
         output_dir: str,
         acceleration_settings=None,
+        loras: Optional[List[Dict[str, Any]]] = None,
     ) -> Dict[str, Any]:
         """Synchronous generation (runs in thread pool)"""
 
@@ -392,17 +402,18 @@ class DirectGenerator:
             progress_callback_fn(step, timestep, callback_kwargs.get("latents"))
             return callback_kwargs
 
-        with torch.inference_mode():
-            output = pipeline(
-                prompt=prompt,
-                negative_prompt=negative_prompt if negative_prompt else None,
-                width=width,
-                height=height,
-                num_inference_steps=steps,
-                guidance_scale=cfg_scale,
-                generator=generator,
-                callback_on_step_end=_on_step_end,
-            )
+        with loras_applied(pipeline, loras or [], _resolve_lora_record) as lora_result:
+            with torch.inference_mode():
+                output = pipeline(
+                    prompt=prompt,
+                    negative_prompt=negative_prompt if negative_prompt else None,
+                    width=width,
+                    height=height,
+                    num_inference_steps=steps,
+                    guidance_scale=cfg_scale,
+                    generator=generator,
+                    callback_on_step_end=_on_step_end,
+                )
         
         # Save image
         image = output.images[0]
@@ -419,8 +430,9 @@ class DirectGenerator:
             "prompt": prompt,
             "model": model_name,
             "acceleration": _acceleration_payload(self.applied_acceleration.get(model_name)),
+            "loras": lora_result,
         }
-    
+
     def unload_model(self, model_name: str):
         """Unload a model to free VRAM"""
         if model_name in self.pipelines:

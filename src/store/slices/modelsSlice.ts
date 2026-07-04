@@ -218,6 +218,41 @@ export function selectModelsByCapability(
   return models.filter((model) => wanted.includes(model.capability));
 }
 
+/**
+ * #136: families a checkpoint of the given base architecture can load LoRAs
+ * from. 'sd-unet-family' is the classifier's label for sd15/sdxl non-DiT loras
+ * (kohya/diffusers unet- or te-targeting), so it is accepted by both bases and
+ * by AnimateDiff (SD1.5 spatial UNet).
+ */
+const LORA_COMPATIBILITY: Record<string, string[]> = {
+  flux: ['flux'],
+  sdxl: ['sdxl', 'sd-unet-family'],
+  sd15: ['sd15', 'sd-unet-family'],
+  sd35: ['sd35'],
+  animatediff: ['animatediff', 'sd15', 'sd-unet-family'],
+  ltx: ['ltx'],
+  svd: [],
+};
+
+/** True when a LoRA of `loraFamily` can stack on a `checkpointFamily` pipeline. */
+export function isLoraCompatible(
+  checkpointFamily: string | null,
+  loraFamily: string,
+): boolean {
+  if (!checkpointFamily) return false;
+  const allowed = LORA_COMPATIBILITY[checkpointFamily];
+  return allowed ? allowed.includes(loraFamily) : false;
+}
+
+/** Installed LoRA records (artifact_type 'lora'), present on disk. */
+export function selectInstalledLoras(models: ModelRecord[]): ModelRecord[] {
+  return models.filter(
+    (model) =>
+      model.artifact_type === 'lora' &&
+      (model.availability ?? 'available') !== 'unavailable',
+  );
+}
+
 /** Selector: the live download job for a model id, or null. */
 export function selectDownloadFor(state: AppState, modelId: string): DownloadJob | null {
   return state.downloads[modelId] ?? null;

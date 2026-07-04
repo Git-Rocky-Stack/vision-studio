@@ -11,7 +11,7 @@ from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from io import BytesIO
 from pathlib import Path
-from typing import Any, Callable, Dict, Iterator, Optional
+from typing import Any, Callable, Dict, Iterator, List, Optional
 
 import imageio.v2 as imageio
 import numpy as np
@@ -34,11 +34,13 @@ except ImportError:
 # is used: ``utils.direct_video_generator.resolve_plan``.
 from utils.direct_generator import (
     ModelLoadRefusedError,
+    _resolve_lora_record,
     apply_fallback_rung,
     dtype_for_precision,
     pipeline_class_for,
     resolve_plan,
 )
+from foundry.lora import loras_applied
 from foundry.accelerator import (
     DEFAULT_ACCELERATION_SETTINGS,
     accelerate_pipeline,
@@ -287,6 +289,7 @@ class DirectVideoGenerator:
         seed: int,
         output_dir: str,
         acceleration_settings=None,
+        loras: Optional[List[Dict[str, Any]]] = None,
     ) -> Dict[str, object]:
         frame_count = max(8, fps * duration)
         strategy = resolve_video_model_strategy(model_name, bool(image_path))
@@ -296,30 +299,33 @@ class DirectVideoGenerator:
         if torch is not None:
             generator = torch.Generator(device=self.device).manual_seed(seed)
 
-        if strategy == "text-to-video":
-            output = pipeline(
-                prompt=prompt,
-                negative_prompt="worst quality, blurry, distorted",
-                width=width,
-                height=height,
-                num_frames=frame_count,
-                num_inference_steps=steps,
-                generator=generator,
-            )
-        else:
-            with decode_data_url_to_image(image_path) as source_image:
-                source = source_image.convert("RGB").resize(
-                    (width, height),
-                    Image.Resampling.LANCZOS,
+        # svd (StableVideoDiffusionPipeline) has no text/LoRA conditioning path.
+        effective_loras = [] if model_name == "svd" else (loras or [])
+        with loras_applied(pipeline, effective_loras, _resolve_lora_record) as lora_result:
+            if strategy == "text-to-video":
+                output = pipeline(
+                    prompt=prompt,
+                    negative_prompt="worst quality, blurry, distorted",
+                    width=width,
+                    height=height,
+                    num_frames=frame_count,
+                    num_inference_steps=steps,
+                    generator=generator,
                 )
-            output = pipeline(
-                source,
-                height=height,
-                width=width,
-                num_frames=frame_count,
-                num_inference_steps=steps,
-                generator=generator,
-            )
+            else:
+                with decode_data_url_to_image(image_path) as source_image:
+                    source = source_image.convert("RGB").resize(
+                        (width, height),
+                        Image.Resampling.LANCZOS,
+                    )
+                output = pipeline(
+                    source,
+                    height=height,
+                    width=width,
+                    num_frames=frame_count,
+                    num_inference_steps=steps,
+                    generator=generator,
+                )
 
         frames = output.frames[0]
         output_path = os.path.join(output_dir, "video.mp4")
@@ -339,6 +345,7 @@ class DirectVideoGenerator:
                 "skipped": list(applied.skipped),
                 "fell_back": list(applied.fell_back),
             }
+        result["loras"] = lora_result
         return result
 
     async def generate_video(
@@ -355,6 +362,7 @@ class DirectVideoGenerator:
         seed: Optional[int] = None,
         progress_callback: Optional[Callable[[float], None]] = None,
         acceleration_settings=None,
+        loras: Optional[List[Dict[str, Any]]] = None,
     ) -> Dict[str, object]:
         output_dir = os.path.join(self.output_dir, job_id)
         Path(output_dir).mkdir(parents=True, exist_ok=True)
@@ -383,6 +391,7 @@ class DirectVideoGenerator:
             seed,
             output_dir,
             acceleration_settings,
+            loras,
         )
 
         if progress_callback:
