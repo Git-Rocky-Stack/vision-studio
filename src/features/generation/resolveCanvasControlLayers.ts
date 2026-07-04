@@ -148,6 +148,7 @@ function toMaskPayload(layer: CanvasControlLayer): GenerationMaskPayload {
     type: layer.mask.type,
     points: layer.mask.points.map((point) => ({ ...point })),
     bounds: { ...layer.mask.bounds },
+    ...(layer.mask.brushSize !== undefined ? { brush_size: layer.mask.brushSize } : {}),
   };
 }
 

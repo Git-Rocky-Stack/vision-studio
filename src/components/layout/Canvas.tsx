@@ -110,6 +110,7 @@ export const Canvas = memo(function Canvas() {
             type: update.type,
             points: update.points,
             bounds: update.bounds,
+            brushSize: update.brushSize,
           },
         });
         return;
@@ -122,6 +123,7 @@ export const Canvas = memo(function Canvas() {
             type: update.type,
             points: update.points,
             bounds: update.bounds,
+            brushSize: update.brushSize,
           },
         });
       }

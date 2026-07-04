@@ -113,6 +113,54 @@ describe('RegionMaskDrawer', () => {
     expect(getByTestId('region-mask-drawer')).toBeTruthy();
   });
 
+  it('includes brushSize in brush mask commits', () => {
+    const onCommit = vi.fn();
+    const { getByTestId } = render(
+      <RegionMaskDrawer
+        activeRegion={mockRegion}
+        canvasWidth={CANVAS_W}
+        canvasHeight={CANVAS_H}
+        tool="brush"
+        brushSize={20}
+        onMaskCommit={onCommit}
+      />
+    );
+    const surface = getByTestId('region-mask-drawer');
+    stubBoundingRect(surface);
+
+    fireEvent.pointerDown(surface, { clientX: 100, clientY: 150, button: 0, pointerId: 1 });
+    fireEvent.pointerMove(surface, { clientX: 200, clientY: 250, pointerId: 1 });
+    fireEvent.pointerUp(surface, { clientX: 200, clientY: 250, pointerId: 1 });
+
+    expect(onCommit).toHaveBeenCalledTimes(1);
+    expect(onCommit).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'brush', brushSize: 20 })
+    );
+  });
+
+  it('omits brushSize from polygon commits', () => {
+    const onCommit = vi.fn();
+    const { getByTestId } = render(
+      <RegionMaskDrawer
+        activeRegion={mockRegion}
+        canvasWidth={CANVAS_W}
+        canvasHeight={CANVAS_H}
+        tool="polygon"
+        brushSize={20}
+        onMaskCommit={onCommit}
+      />
+    );
+    const surface = getByTestId('region-mask-drawer');
+    stubBoundingRect(surface);
+
+    fireEvent.pointerDown(surface, { clientX: 100, clientY: 150, button: 0, pointerId: 1 });
+    fireEvent.pointerMove(surface, { clientX: 200, clientY: 250, pointerId: 1 });
+    fireEvent.pointerUp(surface, { clientX: 200, clientY: 250, pointerId: 1 });
+
+    expect(onCommit).toHaveBeenCalledTimes(1);
+    expect(onCommit.mock.calls[0][0].brushSize).toBeUndefined();
+  });
+
   it('commits rectangle mask with correct bounds from drag', () => {
     const onCommit = vi.fn();
     const { getByTestId } = render(

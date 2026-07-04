@@ -75,6 +75,8 @@ export interface GenerationMaskPayload {
   type: MaskType;
   points: Point[];
   bounds: BoundingBox;
+  /** Brush/erase stroke diameter in intrinsic image pixels (#34). */
+  brush_size?: number;
 }
 
 export interface GenerationControlNetLayerPayload {
@@ -150,6 +152,8 @@ export interface ImageGenerationRequestPayload {
   image_path?: string;
   mask?: GenerationMaskPayload;
   inpaint?: GenerationInpaintPayload;
+  /** #34: img2img/inpaint denoising strength (only sent with a guided pass). */
+  denoising_strength?: number;
   /** M6: per-request hosted provider override for over-budget fallback routing. */
   __providerOverride?: 'openrouter' | 'huggingface';
   /** M9: optional per-request acceleration toggles (local generation only). */

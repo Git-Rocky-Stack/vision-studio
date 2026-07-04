@@ -104,6 +104,7 @@ function normalizeRegionMask(mask: Partial<RegionMask> | undefined): RegionMask 
 
   return {
     type: source.type ?? DEFAULT_REGION_MASK.type,
+    brushSize: typeof source.brushSize === 'number' ? source.brushSize : undefined,
     points: Array.isArray(source.points)
       ? source.points.map((point) => ({
           x: typeof point?.x === 'number' ? point.x : 0,

@@ -102,6 +102,7 @@ from api.edit import router as edit_router
 from api.batch import router as batch_router
 from api.retrieval import router as retrieval_router
 from api.comfy_graph import router as comfy_graph_router, configure as configure_comfy_graph
+from guided.passes import GuidedValidationError, resolve_guided_pass
 
 try:
     from utils.comfy_client import ComfyUIClient
@@ -431,6 +432,47 @@ class LoraSelection(BaseModel):
     weight: float = Field(default=1.0, ge=0.0, le=2.0, description="Adapter weight (0-2)")
 
 
+class GuidedMaskPayload(BaseModel):
+    """#34: vector mask from the canvas drawer, in intrinsic image pixels."""
+    type: str = Field(..., description="rectangle | polygon | brush | erase")
+    points: List[Dict[str, float]] = Field(default_factory=list)
+    bounds: Dict[str, float] = Field(default_factory=dict)
+    brush_size: Optional[float] = Field(default=None, ge=1, le=512)
+
+
+class ControlNetLayerPayload(BaseModel):
+    """#34: accepted so the decline is honest (support lands in PR2)."""
+    layer_id: str
+    layer_name: str = ""
+    source_path: str
+    preprocessor: str
+    strength: float = Field(default=1.0, ge=0.0, le=2.0)
+    start_step: float = Field(default=0.0, ge=0.0, le=1.0)
+    end_step: float = Field(default=1.0, ge=0.0, le=1.0)
+    mask: GuidedMaskPayload
+    prompt: Optional[str] = None
+    negative_prompt: Optional[str] = None
+
+
+class ReferenceImageLayerPayload(BaseModel):
+    """#34: one visible reference layer -> img2img init (IP-Adapter in PR4)."""
+    layer_id: str
+    layer_name: str = ""
+    source_path: str
+    mask: GuidedMaskPayload
+    strength: float = Field(default=1.0, ge=0.0, le=2.0)
+
+
+class InpaintPassPayload(BaseModel):
+    """#34: masked edit of the canvas base image."""
+    layer_id: str
+    layer_name: str = ""
+    image_path: str
+    mask: GuidedMaskPayload
+    prompt: Optional[str] = None
+    negative_prompt: Optional[str] = None
+
+
 class ImageGenerationRequest(BaseModel):
     prompt: str = Field(..., description="Positive prompt for generation")
     negative_prompt: str = Field(default="", description="Negative prompt")
@@ -444,6 +486,26 @@ class ImageGenerationRequest(BaseModel):
     acceleration_settings: Optional[dict] = Field(
         default=None, description="M9 acceleration toggles (auto/on/off per optimization)")
     loras: List[LoraSelection] = Field(default_factory=list, description="#136 local LoRA adapters")
+    controlnet: List[ControlNetLayerPayload] = Field(
+        default_factory=list, description="#34 canvas ControlNet layers (declined until PR2)")
+    reference_images: List[ReferenceImageLayerPayload] = Field(
+        default_factory=list, description="#34 reference image layers (img2img)")
+    inpaint: Optional[InpaintPassPayload] = Field(
+        default=None, description="#34 inpaint pass (base image + mask)")
+    denoising_strength: float = Field(
+        default=0.75, ge=0.05, le=1.0, description="#34 img2img/inpaint strength")
+
+
+def _guided_payload(request: "ImageGenerationRequest") -> Optional[Dict[str, Any]]:
+    """#34: project the request's guided fields into the generator's dict seam."""
+    if not (request.controlnet or request.reference_images or request.inpaint):
+        return None
+    return {
+        "controlnet": [layer.dict() for layer in request.controlnet],
+        "reference_images": [layer.dict() for layer in request.reference_images],
+        "inpaint": request.inpaint.dict() if request.inpaint else None,
+        "denoising_strength": request.denoising_strength,
+    }
 
 
 class VideoGenerationRequest(BaseModel):
@@ -1158,6 +1220,37 @@ async def generate_image(
     }
     ```
     """
+    # #34 pre-flight: guided passes either resolve into a real pass or 422 -
+    # a job is never created for a request that would silently drop layers.
+    guided = _guided_payload(gen_request)
+    if guided is not None:
+        try:
+            pass_plan = resolve_guided_pass(
+                guided["controlnet"], guided["reference_images"],
+                guided["inpaint"], guided["denoising_strength"],
+            )
+        except GuidedValidationError as exc:
+            raise HTTPException(status_code=422, detail=str(exc))
+        if pass_plan.kind != "none":
+            if not os.path.isfile(pass_plan.image_path or ""):
+                name = os.path.basename(pass_plan.image_path or "")
+                raise HTTPException(
+                    status_code=422,
+                    detail=f"Guided-pass source image '{name}' was not found on disk.",
+                )
+            if pass_plan.kind == "inpaint":
+                record = model_registry.get_record(gen_request.model) or {}
+                if record.get("base_architecture") == "flux":
+                    fill = model_registry.get_record("flux-fill") or {}
+                    if not any(os.path.exists(loc) for loc in fill.get("locations") or []):
+                        raise HTTPException(
+                            status_code=422,
+                            detail=(
+                                "FLUX inpainting uses the FLUX.1 Fill model - "
+                                "install 'flux-fill' from the Foundry first."
+                            ),
+                        )
+
     job_id = str(uuid.uuid4())
 
     # Create job
@@ -1192,8 +1285,10 @@ async def process_image_generation(job_id: str, request: ImageGenerationRequest)
     try:
         job_manager.update_job(job_id, status=JobStatus.PROCESSING, progress=0.0)
 
-        # Try ComfyUI first, fallback to direct generation
-        if comfy_client and comfy_client.connected:
+        # Try ComfyUI first, fallback to direct generation. Guided passes
+        # (#34) run on the direct generator only - routing them to ComfyUI
+        # would silently drop the layers, so they force the direct path.
+        if comfy_client and comfy_client.connected and _guided_payload(request) is None:
             logger.info(f"[Job {job_id}] Using ComfyUI generator")
             result = await generate_with_comfyui(job_id, request)
         else:
@@ -1350,6 +1445,7 @@ async def generate_direct(job_id: str, request: ImageGenerationRequest) -> Dict:
         scheduler=request.scheduler,
         acceleration_settings=accel_settings,
         loras=[l.dict() for l in request.loras],
+        guided=_guided_payload(request),
         progress_callback=lambda p: job_manager.update_job(job_id, progress=p)
     )
     logger.info(f"[Job {job_id}] Direct generation completed")

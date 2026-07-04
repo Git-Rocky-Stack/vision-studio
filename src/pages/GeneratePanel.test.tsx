@@ -717,6 +717,37 @@ describe('GeneratePanel', () => {
     });
   });
 
+  it('threads denoising_strength into the payload when a guided pass is present', async () => {
+    seedCanvasControlLayerScene();
+    render(<GeneratePanel />);
+
+    fireEvent.change(screen.getByTestId('mock-prompt-input'), {
+      target: { value: 'cinematic portrait pass' },
+    });
+    fireEvent.click(screen.getByTestId('generate-button'));
+
+    await waitFor(() => {
+      expect(window.electron.generation.generateImage).toHaveBeenCalledWith(
+        expect.objectContaining({ denoising_strength: 0.75 }),
+      );
+    });
+  });
+
+  it('omits denoising_strength for plain txt2img', async () => {
+    render(<GeneratePanel />);
+
+    fireEvent.change(screen.getByTestId('mock-prompt-input'), {
+      target: { value: 'plain portrait' },
+    });
+    fireEvent.click(screen.getByTestId('generate-button'));
+
+    await waitFor(() => {
+      expect(window.electron.generation.generateImage).toHaveBeenCalled();
+    });
+    const payload = vi.mocked(window.electron.generation.generateImage).mock.calls[0][0];
+    expect(payload.denoising_strength).toBeUndefined();
+  });
+
   it('carries selected LoRAs in the image generation payload', async () => {
     useAppStore.setState((state) => ({
       layoutPreferences: {
