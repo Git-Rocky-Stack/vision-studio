@@ -35,6 +35,11 @@ except ImportError as e:
 from foundry.accelerator import DEFAULT_ACCELERATION_SETTINGS, accelerate_pipeline
 from foundry.lora import loras_applied
 
+# #34 guided passes (all three modules import with no torch/diffusers).
+from guided.masks import mask_coverage, rasterize_mask
+from guided.passes import GuidedValidationError, resolve_guided_pass
+from guided.pipelines import derive_variant, filter_call_kwargs
+
 
 class ModelLoadRefusedError(RuntimeError):
     """The runtime plan refused to load this model (security or capability).
@@ -98,6 +103,12 @@ def resolve_plan(model_id: str, overrides: Optional[Dict[str, Any]] = None):
 
 def _resolve_lora_record(model_id: str):
     """Registry record for an installed LoRA id (lazy main import, like resolve_plan)."""
+    from main import model_registry
+    return model_registry.get_record(model_id)
+
+
+def _resolve_record(model_id: str):
+    """Registry record for any installed model id (lazy main import)."""
     from main import model_registry
     return model_registry.get_record(model_id)
 
@@ -316,6 +327,7 @@ class DirectGenerator:
         progress_callback: Optional[Callable[[float], None]] = None,
         acceleration_settings=None,
         loras: Optional[List[Dict[str, Any]]] = None,
+        guided: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """Generate an image"""
         
@@ -357,6 +369,7 @@ class DirectGenerator:
                 output_dir,
                 acceleration_settings,
                 loras,
+                guided,
             )
 
             return result
@@ -380,16 +393,34 @@ class DirectGenerator:
         output_dir: str,
         acceleration_settings=None,
         loras: Optional[List[Dict[str, Any]]] = None,
+        guided: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """Synchronous generation (runs in thread pool)"""
 
+        # #34: one validated pass plan (same seam the endpoint 422s through).
+        pass_plan = resolve_guided_pass(
+            (guided or {}).get("controlnet"),
+            (guided or {}).get("reference_images"),
+            (guided or {}).get("inpaint"),
+            (guided or {}).get("denoising_strength", 0.75),
+        )
+
+        # FLUX inpaint runs on the dedicated FLUX.1 Fill model (a naive
+        # from_pipe latent blend on flux-dev is measurably worse - design
+        # decision in the PR1 spec). The endpoint pre-flighted availability.
+        model_for_pass = model_name
+        if pass_plan.kind == "inpaint":
+            record = _resolve_record(model_name) or {}
+            if record.get("base_architecture") == "flux":
+                model_for_pass = "flux-fill"
+
         # Load pipeline
-        pipeline = self.load_model(model_name, acceleration_settings=acceleration_settings)
+        pipeline = self.load_model(model_for_pass, acceleration_settings=acceleration_settings)
         pipeline = self._configure_scheduler(pipeline, scheduler)
-        
+
         # Set generator for reproducibility
         generator = torch.Generator(device=self.device).manual_seed(seed)
-        
+
         # Generate
         print(f"🎨 Generating: {width}x{height}, {steps} steps, seed={seed}")
 
@@ -402,18 +433,59 @@ class DirectGenerator:
             progress_callback_fn(step, timestep, callback_kwargs.get("latents"))
             return callback_kwargs
 
+        effective_prompt = pass_plan.prompt_override or prompt
+        effective_negative = (
+            pass_plan.negative_prompt_override
+            if pass_plan.negative_prompt_override is not None
+            else (negative_prompt if negative_prompt else None)
+        )
+        call_kwargs: Dict[str, Any] = {
+            "prompt": effective_prompt,
+            "negative_prompt": effective_negative,
+            "num_inference_steps": steps,
+            "guidance_scale": cfg_scale,
+            "generator": generator,
+            "callback_on_step_end": _on_step_end,
+        }
+
+        guided_report: Optional[Dict[str, Any]] = None
+        if pass_plan.kind == "none":
+            call_kwargs["width"] = width
+            call_kwargs["height"] = height
+            run_pipeline = pipeline
+        else:
+            init_image = Image.open(pass_plan.image_path).convert("RGB")
+            base_size = init_image.size
+            init_image = init_image.resize((width, height), Image.Resampling.LANCZOS)
+            call_kwargs["image"] = init_image
+            call_kwargs["strength"] = pass_plan.strength
+            if pass_plan.kind == "inpaint":
+                mask_image = rasterize_mask(pass_plan.mask or {}, base_size[0], base_size[1])
+                if mask_coverage(mask_image) == 0.0:
+                    raise GuidedValidationError(
+                        "The inpaint mask is empty - draw a mask region on the canvas first."
+                    )
+                call_kwargs["mask_image"] = mask_image.resize(
+                    (width, height), Image.Resampling.LANCZOS)
+                call_kwargs["width"] = width
+                call_kwargs["height"] = height
+            # flux-fill IS the inpaint pipeline - only derive for base models.
+            run_pipeline = (
+                pipeline if model_for_pass != model_name
+                else derive_variant(pipeline, pass_plan.kind)
+            )
+
+        call_kwargs, dropped_params = filter_call_kwargs(run_pipeline, call_kwargs)
+        if pass_plan.kind != "none":
+            guided_report = {
+                "pass": pass_plan.kind,
+                "notices": list(pass_plan.notices),
+                "dropped_params": dropped_params,
+            }
+
         with loras_applied(pipeline, loras or [], _resolve_lora_record) as lora_result:
             with torch.inference_mode():
-                output = pipeline(
-                    prompt=prompt,
-                    negative_prompt=negative_prompt if negative_prompt else None,
-                    width=width,
-                    height=height,
-                    num_inference_steps=steps,
-                    guidance_scale=cfg_scale,
-                    generator=generator,
-                    callback_on_step_end=_on_step_end,
-                )
+                output = run_pipeline(**call_kwargs)
         
         # Save image
         image = output.images[0]
@@ -429,8 +501,9 @@ class DirectGenerator:
             "height": height,
             "prompt": prompt,
             "model": model_name,
-            "acceleration": _acceleration_payload(self.applied_acceleration.get(model_name)),
+            "acceleration": _acceleration_payload(self.applied_acceleration.get(model_for_pass)),
             "loras": lora_result,
+            "guided": guided_report,
         }
 
     def unload_model(self, model_name: str):
