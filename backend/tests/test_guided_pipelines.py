@@ -140,3 +140,117 @@ def test_controlnets_attached_without_diffusers_raises(monkeypatch):
     with pytest.raises(RuntimeError):
         with gp.controlnets_attached(["dir-a"], None, "cpu"):
             pass
+
+
+# -- #34 PR3: loader-specific model classes + explicit variant classes ---------
+
+def _fake_diffusers_pr3():
+    module = _fake_diffusers()
+
+    class _FakeLoaderModel:
+        loads = []
+
+        def __init__(self, model_dir):
+            self.model_dir = model_dir
+
+        @classmethod
+        def from_pretrained(cls, model_dir, torch_dtype=None):
+            cls.loads.append((cls.__name__, model_dir, torch_dtype))
+            return cls(model_dir)
+
+        def to(self, device):
+            return self
+
+    for name in ("ControlNetModel", "ControlNetUnionModel",
+                 "FluxControlNetModel", "SD3ControlNetModel"):
+        setattr(module, name, type(name, (_FakeLoaderModel,), {"loads": []}))
+
+    class _FakeExplicitPipeline:
+        seen = None
+        seen_kwargs = None
+
+        @classmethod
+        def from_pipe(cls, base, **kwargs):
+            cls.seen = base
+            cls.seen_kwargs = kwargs
+            return (cls.__name__, base)
+
+    for name in ("StableDiffusionXLControlNetUnionPipeline",
+                 "StableDiffusionXLControlNetUnionImg2ImgPipeline",
+                 "StableDiffusionXLControlNetUnionInpaintPipeline",
+                 "FluxControlNetPipeline", "FluxControlNetImg2ImgPipeline",
+                 "StableDiffusion3ControlNetPipeline"):
+        setattr(module, name, type(name, (_FakeExplicitPipeline,), {}))
+
+    module.FluxMultiControlNetModel = lambda models: ("flux-multi", list(models))
+    module.SD3MultiControlNetModel = lambda models: ("sd3-multi", list(models))
+    return module
+
+
+def test_controlnets_attached_uses_loader_class(monkeypatch):
+    fake = _fake_diffusers_pr3()
+    monkeypatch.setattr(gp, "diffusers", fake)
+    with gp.controlnets_attached(["dir-u"], "dtype", "cpu", loader="controlnet-union") as models:
+        assert models[0].model_dir == "dir-u"
+    assert fake.ControlNetUnionModel.loads == [("ControlNetUnionModel", "dir-u", "dtype")]
+
+    with gp.controlnets_attached(["dir-f"], "dtype", "cpu", loader="flux-controlnet"):
+        pass
+    assert fake.FluxControlNetModel.loads == [("FluxControlNetModel", "dir-f", "dtype")]
+
+    with gp.controlnets_attached(["dir-s"], "dtype", "cpu", loader="sd3-controlnet"):
+        pass
+    assert fake.SD3ControlNetModel.loads == [("SD3ControlNetModel", "dir-s", "dtype")]
+
+
+def test_controlnets_attached_unknown_loader_raises(monkeypatch):
+    monkeypatch.setattr(gp, "diffusers", _fake_diffusers_pr3())
+    with pytest.raises(ValueError):
+        with gp.controlnets_attached(["d"], None, "cpu", loader="nope"):
+            pass
+
+
+def test_derive_variant_explicit_classes_per_loader(monkeypatch):
+    fake = _fake_diffusers_pr3()
+    monkeypatch.setattr(gp, "diffusers", fake)
+    base = object()
+
+    assert derive_variant(base, "none", controlnet="u", loader="controlnet-union") == \
+        ("StableDiffusionXLControlNetUnionPipeline", base)
+    assert fake.StableDiffusionXLControlNetUnionPipeline.seen_kwargs == {"controlnet": "u"}
+    assert derive_variant(base, "img2img", controlnet="u", loader="controlnet-union") == \
+        ("StableDiffusionXLControlNetUnionImg2ImgPipeline", base)
+    assert derive_variant(base, "inpaint", controlnet="u", loader="controlnet-union") == \
+        ("StableDiffusionXLControlNetUnionInpaintPipeline", base)
+    assert derive_variant(base, "none", controlnet="f", loader="flux-controlnet") == \
+        ("FluxControlNetPipeline", base)
+    assert derive_variant(base, "img2img", controlnet="f", loader="flux-controlnet") == \
+        ("FluxControlNetImg2ImgPipeline", base)
+    assert derive_variant(base, "none", controlnet="s", loader="sd3-controlnet") == \
+        ("StableDiffusion3ControlNetPipeline", base)
+
+
+def test_derive_variant_unshipped_combo_raises(monkeypatch):
+    monkeypatch.setattr(gp, "diffusers", _fake_diffusers_pr3())
+    # The registry declines these earlier; derive_variant is the backstop.
+    with pytest.raises(ValueError):
+        derive_variant(object(), "inpaint", controlnet="f", loader="flux-controlnet")
+    with pytest.raises(ValueError):
+        derive_variant(object(), "img2img", controlnet="s", loader="sd3-controlnet")
+
+
+def test_derive_variant_dedicated_loader_keeps_auto_path(monkeypatch):
+    fake = _fake_diffusers_pr3()
+    monkeypatch.setattr(gp, "diffusers", fake)
+    base = object()
+    assert derive_variant(base, "none", controlnet=["cn"], loader="controlnet") == ("derived", base)
+    assert fake.AutoPipelineForText2Image.seen_kwargs == {"controlnet": ["cn"]}
+
+
+def test_combine_controlnets_shapes_by_loader(monkeypatch):
+    fake = _fake_diffusers_pr3()
+    monkeypatch.setattr(gp, "diffusers", fake)
+    assert gp.combine_controlnets(["a", "b"], "controlnet") == ["a", "b"]
+    assert gp.combine_controlnets(["u"], "controlnet-union") == "u"
+    assert gp.combine_controlnets(["f"], "flux-controlnet") == ("flux-multi", ["f"])
+    assert gp.combine_controlnets(["s1", "s2"], "sd3-controlnet") == ("sd3-multi", ["s1", "s2"])
