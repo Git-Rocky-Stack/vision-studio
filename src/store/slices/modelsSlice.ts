@@ -34,6 +34,10 @@ export const modelsInitialState = {
   // between sessions (driver updates, eGPU, VRAM pressure), so a stale
   // profile is worse than none. The appStore partialize allowlist excludes it.
   hardwareProfile: null as HardwareProfile | null,
+  // #34 PR3: mirror of the GeneratePanel's live image-checkpoint selection
+  // (its default), so panels outside GeneratePanel can show honest
+  // per-checkpoint install/compat state. Session-only, never persisted.
+  selectedImageModelId: 'flux-dev',
 };
 
 export function createModelsActions(set: AppSet, get: AppGet) {
@@ -46,6 +50,7 @@ export function createModelsActions(set: AppSet, get: AppGet) {
 
   return {
     setAvailableModels: (models: ModelRecord[]) => set({ availableModels: models }),
+    setSelectedImageModelId: (modelId: string) => set({ selectedImageModelId: modelId }),
     loadModels: async () => {
       try {
         const models = await window.electron.models.list();

@@ -7,7 +7,6 @@ import { StylePresetsBar } from '@/components/generate/StylePresetsBar';
 import { ModelSelector } from '@/components/generate/ModelSelector';
 import { PreflightFooter } from '@/components/generate/PreflightFooter';
 import { AdvancedGenerationSettings } from '@/components/generate/AdvancedGenerationSettings';
-import { ControlNetPanel } from '@/components/generate/ControlNetPanel';
 import { LoRAMixer } from '@/components/generate/LoRAMixer';
 import { PromptHistory } from '@/components/generate/PromptHistory';
 import { AspectRatioPicker } from '@/components/generate/AspectRatioPicker';
@@ -32,7 +31,7 @@ import {
   recordPollError,
   recordPollSuccess,
 } from '@/features/generation/pollErrorBudget';
-import type { ControlNetConfig, ImageGenerationRequestPayload, LoRAConfig } from '@/types/generation';
+import type { ImageGenerationRequestPayload, LoRAConfig } from '@/types/generation';
 import { toLoraSelections, appendTrigger } from '@/utils/loraPayload';
 import { resolveRoute } from '../../shared/resolveRoute';
 import { buildRouteResolverInput } from '@/features/routing/buildRouteResolverInput';
@@ -78,14 +77,6 @@ const RANDOM_PROMPTS = [
   'A grand library with floating books and magical glowing orbs',
   'Dragon perched atop a mountain at sunrise, scales reflecting light',
 ];
-
-const DEFAULT_CONTROLNET: ControlNetConfig = {
-  enabled: false,
-  preprocessor: 'canny',
-  strength: 1.0,
-  startStep: 0,
-  endStep: 1,
-};
 
 function resolveOutputRoot(defaultOutputPath: string, userDataPath: string) {
   return (defaultOutputPath || `${userDataPath.replace(/\\/g, '/')}/outputs`).replace(/\\/g, '/');
@@ -339,12 +330,18 @@ export function GeneratePanel() {
     generationType: 'image' as GenerationType,
     prompt: '',
     negativePrompt: '',
-    model: 'flux-dev',
+    // #34 PR3: the store mirror is the cross-panel source of truth for the
+    // selected image checkpoint (canvas layer properties read it).
+    model: useAppStore.getState().selectedImageModelId,
     activeStylePresets: [] as string[],
     videoModel: 'ltx-video',
   });
+  const setSelectedImageModelId = useAppStore((s) => s.setSelectedImageModelId);
   const updateImageConfig = (patch: Partial<typeof imageConfig>) => {
     setImageConfig((prev) => ({ ...prev, ...patch }));
+    if (patch.model) {
+      setSelectedImageModelId(patch.model);
+    }
     if (patch.generationType) {
       updateAdvancedGeneration({ generationType: patch.generationType });
     }
@@ -382,8 +379,6 @@ export function GeneratePanel() {
 
   const [refConfig, setRefConfig] = useState({
     denoisingStrength: 0.75,
-    referenceMode: 'img2img' as 'img2img' | 'inpaint' | 'controlnet',
-    controlNetConfig: DEFAULT_CONTROLNET as ControlNetConfig,
     loraConfigs: [] as LoRAConfig[],
   });
   const updateRefConfig = (patch: Partial<typeof refConfig>) =>
@@ -408,8 +403,13 @@ export function GeneratePanel() {
       }),
     [activeScene, currentImageAssetPath, imageConfig.generationType, mediaAssets, referenceSets],
   );
-  // #34 PR2: best-effort mirror of the backend ControlNet pre-flight - block
-  // with the same reason the backend 422 would give, plus a Foundry link.
+  // #34 PR2/PR3: best-effort mirror of the backend ControlNet pre-flight -
+  // block with the same reason the backend 422 would give, plus a Foundry link.
+  const guidedKind = resolvedCanvasControlLayers.inpaint
+    ? ('inpaint' as const)
+    : resolvedCanvasControlLayers.referenceImages.length > 0
+      ? ('img2img' as const)
+      : ('none' as const);
   const controlNetPreflight = useMemo(
     () =>
       imageConfig.generationType === 'image'
@@ -417,9 +417,10 @@ export function GeneratePanel() {
             resolvedCanvasControlLayers.controlnet,
             selectedImageBaseArch,
             availableModels,
+            { modelId: imageConfig.model, kind: guidedKind },
           )
         : { errors: [], missingRecordIds: [] },
-    [availableModels, imageConfig.generationType, resolvedCanvasControlLayers.controlnet, selectedImageBaseArch],
+    [availableModels, guidedKind, imageConfig.generationType, imageConfig.model, resolvedCanvasControlLayers.controlnet, selectedImageBaseArch],
   );
   const activeTimelineClip = useMemo(
     () => timelineClips.find((clip) => clip.id === activeTimelineClipId) ?? null,
@@ -1253,7 +1254,7 @@ export function GeneratePanel() {
         : 'No reference media attached';
   const controlLayersSummary = resolvedCanvasControlLayers.visibleLayerCount > 0
     ? `${resolvedCanvasControlLayers.visibleLayerCount} canvas layer${resolvedCanvasControlLayers.visibleLayerCount === 1 ? '' : 's'}, ${resolvedCanvasControlLayers.controlnet.length} ControlNet, ${resolvedCanvasControlLayers.referenceImages.length} reference${resolvedCanvasControlLayers.referenceImages.length === 1 ? '' : 's'}${resolvedCanvasControlLayers.inpaint ? ', inpaint ready' : ''}${resolvedCanvasControlLayers.errors.length > 0 ? ', action needed' : ''}, ${refConfig.loraConfigs.length} LoRA${refConfig.loraConfigs.length === 1 ? '' : 's'}`
-    : `${refConfig.controlNetConfig.enabled ? 'ControlNet on' : 'ControlNet off'}, ${refConfig.loraConfigs.length} LoRA${refConfig.loraConfigs.length === 1 ? '' : 's'}`;
+    : `No canvas layers, ${refConfig.loraConfigs.length} LoRA${refConfig.loraConfigs.length === 1 ? '' : 's'}`;
   const advancedSummary = imageConfig.generationType === 'image'
     ? `${advancedGeneration.steps} steps, CFG ${advancedGeneration.cfgScale}, ${advancedGeneration.scheduler}`
     : `${advancedGeneration.duration}s duration, ${advancedGeneration.fps} fps`;
@@ -1512,24 +1513,7 @@ export function GeneratePanel() {
             ) : null}
 
             {imageConfig.generationType === 'image' ? (
-              <div className="recessed-well grid items-start gap-4 px-3 py-3 md:grid-cols-2">
-                <label className="space-y-1.5">
-                  <span className="text-label text-text-body">Reference routing</span>
-                  <select
-                    value={refConfig.referenceMode}
-                    onChange={(event) =>
-                      updateRefConfig({
-                        referenceMode: event.target.value as 'img2img' | 'inpaint' | 'controlnet',
-                      })
-                    }
-                    className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-text-primary"
-                  >
-                    <option value="img2img">Img2Img</option>
-                    <option value="inpaint">Inpaint</option>
-                    <option value="controlnet">ControlNet</option>
-                  </select>
-                </label>
-
+              <div className="recessed-well px-3 py-3">
                 <Slider
                   label="Denoising strength"
                   value={refConfig.denoisingStrength}
@@ -1602,10 +1586,6 @@ export function GeneratePanel() {
             onToggle={() => toggleGenerateSection('control-layers')}
           >
             <div className="space-y-4">
-              <ControlNetPanel
-                config={refConfig.controlNetConfig}
-                onChange={(value) => updateRefConfig({ controlNetConfig: value })}
-              />
               <LoRAMixer
                 configs={refConfig.loraConfigs}
                 onChange={(value) => updateRefConfig({ loraConfigs: value })}

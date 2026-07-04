@@ -357,6 +357,10 @@ export interface AppState {
   // Hardware snapshot (M5) - transient, never persisted (hardware can change
   // between sessions; the partialize allowlist excludes it)
   hardwareProfile: HardwareProfile | null;
+  // #34 PR3: the GeneratePanel's live image-checkpoint selection, mirrored so
+  // panels outside GeneratePanel (canvas layer properties) can show honest
+  // per-checkpoint install/compat state. Session-only, never persisted.
+  selectedImageModelId: string;
 
   // ─── Prompt Intelligence ─────────────────────────────────────────────────
   promptHistory: PromptHistoryEntry[];
@@ -530,6 +534,7 @@ export interface AppState {
   deleteCompletedJob: (jobId: string) => void;
   setSystemInfo: (info: AppState['systemInfo']) => void;
   setAvailableModels: (models: ModelRecord[]) => void;
+  setSelectedImageModelId: (modelId: string) => void;
   loadModels: () => Promise<void>;
   setDownloadJob: (job: DownloadJob) => void;
   refreshDownloads: () => Promise<void>;
