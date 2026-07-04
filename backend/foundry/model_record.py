@@ -14,7 +14,7 @@ class ModelRecord:
     # Identity
     id: str
     name: str
-    artifact_type: str          # checkpoint | diffusers-pipeline | lora | vae | controlnet | embedding | motion-adapter
+    artifact_type: str          # checkpoint | diffusers-pipeline | lora | vae | controlnet | embedding | motion-adapter | annotator
     capability: str             # image | video | edit | inpaint
     base_architecture: str      # flux | sdxl | sd15 | sd35 | ltx | svd | animatediff | unknown
     source: str                 # huggingface | civitai | local | linked

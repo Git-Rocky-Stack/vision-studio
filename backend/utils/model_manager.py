@@ -52,6 +52,7 @@ _ARTIFACT_TYPE_TO_LEGACY = {
     "vae": "vae",
     "controlnet": "controlnet",
     "embedding": "embedding",
+    "annotator": "annotator",
 }
 
 # Single-file artifacts that download via hf_hub_download need a filename.
@@ -64,7 +65,27 @@ _SINGLE_FILE_FILENAMES = {
     "sd-1-5": "v1-5-pruned-emaonly.safetensors",
     "sdxl-vae": "sdxl.vae.safetensors",
     "sd-vae-ft-mse": "diffusion_pytorch_model.safetensors",
+    # #34 PR2: ControlNet preprocessor annotators (lllyasviel/Annotators).
+    # OpenPose needs three files; the value may be a list.
+    "annotator-midas": "dpt_hybrid-midas-501f0c75.pt",
+    "annotator-openpose": ["body_pose_model.pth", "hand_pose_model.pth", "facenet.pth"],
+    "annotator-normalbae": "scannet.pt",
 }
+
+
+def single_file_names(model_id: str) -> Optional[List[str]]:
+    """Explicit file list for single/few-file artifacts, else None (repo pull)."""
+    value = _SINGLE_FILE_FILENAMES.get(model_id)
+    if value is None:
+        return None
+    return [value] if isinstance(value, str) else list(value)
+
+
+def _path_present(path: str) -> bool:
+    """A required artifact path: an existing file, or a NON-EMPTY directory."""
+    if os.path.isdir(path):
+        return bool(os.listdir(path))
+    return os.path.isfile(path)
 
 
 def _load_predefined_models() -> Dict[str, ModelInfo]:
@@ -81,7 +102,7 @@ def _load_predefined_models() -> Dict[str, ModelInfo]:
             source=entry["source"],
             repo_id=entry.get("repo_id"),
             aux_repo_id=entry.get("aux_repo_id"),
-            filename=_SINGLE_FILE_FILENAMES.get(model_id),
+            filename=(single_file_names(model_id) or [None])[0],
             size=entry.get("size", "Unknown"),
             description=entry.get("description", ""),
         )
@@ -114,6 +135,7 @@ class ModelManager:
             'lora': os.path.join(models_dir, 'loras'),
             'vae': os.path.join(models_dir, 'vaes'),
             'controlnet': os.path.join(models_dir, 'controlnet'),
+            'annotator': os.path.join(models_dir, 'annotators'),
             'embedding': os.path.join(models_dir, 'embeddings'),
             'clip': os.path.join(models_dir, 'clip'),
             'clip_vision': os.path.join(models_dir, 'clip_vision'),
@@ -130,12 +152,12 @@ class ModelManager:
         
         # Check predefined models
         for model_id, model_info in PREDEFINED_MODELS.items():
-            # Check if already downloaded
-            local_path = self._get_local_path(model_info)
-            if local_path and os.path.exists(local_path):
-                model_info.local_path = local_path
+            # Check if already downloaded (multi-file artifacts need EVERY file)
+            paths = self._get_local_paths(model_info)
+            if paths and all(_path_present(path) for path in paths):
+                model_info.local_path = paths[0]
                 model_info.status = "ready"
-            
+
             self.available_models[model_id] = model_info
         
         # Scan local models
@@ -167,16 +189,23 @@ class ModelManager:
                     
                     self.available_models[model_id] = model_info
     
-    def _get_local_path(self, model_info: ModelInfo) -> Optional[str]:
-        """Get expected local path for a model"""
-        if model_info.type == "diffusers":
-            return os.path.join(self.subdirs["diffusers"], model_info.id)
-
+    def _get_local_paths(self, model_info: ModelInfo) -> List[str]:
+        """Every path that must exist for the model to report ready."""
+        if model_info.type in ("diffusers", "controlnet"):
+            return [os.path.join(self.subdirs[model_info.type], model_info.id)]
+        names = single_file_names(model_info.id)
+        if names:
+            subdir = self.subdirs.get(model_info.type, self.models_dir)
+            return [os.path.join(subdir, name) for name in names]
         if not model_info.filename:
-            return None
-        
+            return []
         subdir = self.subdirs.get(model_info.type, self.models_dir)
-        return os.path.join(subdir, model_info.filename)
+        return [os.path.join(subdir, model_info.filename)]
+
+    def _get_local_path(self, model_info: ModelInfo) -> Optional[str]:
+        """First required path (legacy single-path callers)."""
+        paths = self._get_local_paths(model_info)
+        return paths[0] if paths else None
     
     def _detect_model_type(self, filename: str) -> str:
         """Detect model type from filename"""
