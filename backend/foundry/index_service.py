@@ -153,11 +153,14 @@ class IndexService:
         return records
 
     def _filename_reconciliation(self) -> Dict[str, str]:
-        from utils.model_manager import _SINGLE_FILE_FILENAMES
+        from utils.model_manager import _SINGLE_FILE_FILENAMES, single_file_names
 
+        # Values may be a single filename or a list (#34 PR2: the OpenPose
+        # annotator is three files); every file reconciles to its record id.
         return {
             filename: model_id
-            for model_id, filename in _SINGLE_FILE_FILENAMES.items()
+            for model_id in _SINGLE_FILE_FILENAMES
+            for filename in (single_file_names(model_id) or [])
             if filename not in _AMBIGUOUS_FILENAMES
         }
 

@@ -19,9 +19,9 @@
   },
   "gated": false,
   "ground_truth": {
-    "reason": "ControlNetModel sdxl",
+    "reason": "ControlNetModel sdxl; verified-catalog member since #34 PR2 (controlnet-canny-sdxl)",
     "stratum": "compatible-aux",
-    "tier": "compatible"
+    "tier": "verified"
   },
   "has_safetensors": true,
   "library_name": "diffusers",
