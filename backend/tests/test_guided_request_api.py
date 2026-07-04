@@ -59,11 +59,11 @@ def _cn_request(tmp_path, preprocessor="canny"):
     }
 
 
-def test_controlnet_on_flux_preflights_422(monkeypatch, tmp_path):
-    client = _client(monkeypatch, _FakeRegistry(family="flux"))
+def test_controlnet_on_unknown_family_preflights_422(monkeypatch, tmp_path):
+    client = _client(monkeypatch, _FakeRegistry(family="svd"))
     response = client.post("/api/generate/image", json=_cn_request(tmp_path))
     assert response.status_code == 422
-    assert "PR3" in response.json()["detail"]
+    assert "not supported" in response.json()["detail"]
 
 
 def test_controlnet_uninstalled_record_preflights_422(monkeypatch, tmp_path):

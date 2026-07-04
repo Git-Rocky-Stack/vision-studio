@@ -273,11 +273,11 @@ def test_controlnet_missing_model_dir_fails_before_pipeline(monkeypatch, tmp_pat
     assert str(tmp_path) not in str(excinfo.value)  # no paths in the message
 
 
-def test_controlnet_on_flux_family_fails_loudly(monkeypatch, tmp_path):
+def test_controlnet_on_unknown_family_fails_loudly(monkeypatch, tmp_path):
     from guided.passes import GuidedValidationError
 
     calls = []
-    gen, _, _ = _generator(tmp_path, calls, monkeypatch, family="flux")
+    gen, _, _ = _generator(tmp_path, calls, monkeypatch, family="svd")
     guided = {"controlnet": [_cn_layer(tmp_path)], "reference_images": [],
               "inpaint": None, "denoising_strength": 0.75}
     with pytest.raises(GuidedValidationError):
