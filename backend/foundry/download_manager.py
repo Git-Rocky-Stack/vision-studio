@@ -354,11 +354,11 @@ class DownloadManager:
         artifact_type = record.get("artifact_type", "checkpoint")
         if artifact_type in {"diffusers-pipeline", "motion-adapter"}:
             return os.path.join(self._models_dir, "diffusers", record["id"])
-        if artifact_type == "controlnet":
+        if artifact_type in {"controlnet", "ip-adapter"}:
             # Multi-file diffusers-format repos get a per-id dir so two
-            # ControlNet records can never collide on config.json. Matches
-            # registry._is_present, which already expects controlnet/<id>/.
-            return os.path.join(self._models_dir, "controlnet", record["id"])
+            # records can never collide on config.json. Matches
+            # registry._is_present, which already expects <type>/<id>/.
+            return os.path.join(self._models_dir, artifact_type, record["id"])
         subdir = _ARTIFACT_SUBDIR.get(artifact_type, "checkpoints")
         return os.path.join(self._models_dir, subdir)
 
@@ -578,6 +578,7 @@ _ARTIFACT_SUBDIR = {
     "lora": "loras",
     "vae": "vaes",
     "controlnet": "controlnet",
+    "ip-adapter": "ip-adapter",
     "embedding": "embeddings",
     "annotator": "annotators",
 }

@@ -283,5 +283,60 @@
     "license": "stabilityai-community", "gated": false, "format": "safetensors",
     "companions": ["annotator-midas"], "measured_vram_bytes": null,
     "files": ["config.json", "diffusion_pytorch_model.safetensors"]
+  },
+  "ip-adapter-sd15": {
+    "id": "ip-adapter-sd15", "name": "IP-Adapter (SD 1.5)", "artifact_type": "ip-adapter",
+    "capability": "image", "base_architecture": "sd15", "source": "huggingface",
+    "repo_id": "h94/IP-Adapter", "revision": "main", "aux_repo_id": null,
+    "size": "~45 MB", "status": "not_found", "tier": "verified", "quality": "balanced",
+    "runtime": "local", "hardware_class": "laptop", "vram": "~0.1 GB",
+    "description": "Image-prompt adapter for SD 1.5: masked multi-reference conditioning through the shared ViT-H image encoder.",
+    "license": "apache-2.0", "gated": false, "format": "safetensors",
+    "companions": ["ip-adapter-encoder-vit-h"], "measured_vram_bytes": null,
+    "files": ["models/ip-adapter_sd15.safetensors"]
+  },
+  "ip-adapter-sdxl": {
+    "id": "ip-adapter-sdxl", "name": "IP-Adapter (SDXL)", "artifact_type": "ip-adapter",
+    "capability": "image", "base_architecture": "sdxl", "source": "huggingface",
+    "repo_id": "h94/IP-Adapter", "revision": "main", "aux_repo_id": null,
+    "size": "~0.7 GB", "status": "not_found", "tier": "verified", "quality": "balanced",
+    "runtime": "local", "hardware_class": "creator", "vram": "~0.4 GB",
+    "description": "Image-prompt adapter for SDXL (ViT-H variant): masked multi-reference conditioning sharing the SD 1.5 image encoder.",
+    "license": "apache-2.0", "gated": false, "format": "safetensors",
+    "companions": ["ip-adapter-encoder-vit-h"], "measured_vram_bytes": null,
+    "files": ["sdxl_models/ip-adapter_sdxl_vit-h.safetensors"]
+  },
+  "ip-adapter-encoder-vit-h": {
+    "id": "ip-adapter-encoder-vit-h", "name": "IP-Adapter Image Encoder (ViT-H)", "artifact_type": "ip-adapter",
+    "capability": "image", "base_architecture": "unknown", "source": "huggingface",
+    "repo_id": "h94/IP-Adapter", "revision": "main", "aux_repo_id": null,
+    "size": "~2.5 GB", "status": "not_found", "tier": "verified", "quality": "balanced",
+    "runtime": "local", "hardware_class": "creator", "vram": "~1.3 GB",
+    "description": "CLIP ViT-H image encoder shared by the SD 1.5 and SDXL IP-Adapters.",
+    "license": "apache-2.0", "gated": false, "format": "safetensors",
+    "companions": [], "measured_vram_bytes": null,
+    "files": ["models/image_encoder/config.json", "models/image_encoder/model.safetensors"]
+  },
+  "ip-adapter-flux": {
+    "id": "ip-adapter-flux", "name": "IP-Adapter (FLUX.1 dev)", "artifact_type": "ip-adapter",
+    "capability": "image", "base_architecture": "flux", "source": "huggingface",
+    "repo_id": "XLabs-AI/flux-ip-adapter", "revision": "main", "aux_repo_id": null,
+    "size": "~1.0 GB", "status": "not_found", "tier": "verified", "quality": "balanced",
+    "runtime": "local", "hardware_class": "workstation", "vram": "~0.5 GB",
+    "description": "XLabs image-prompt adapter for FLUX.1 [dev]: references apply to the whole image (no per-layer masks on FLUX).",
+    "license": "flux-1-dev-non-commercial", "gated": false, "format": "safetensors",
+    "companions": ["ip-adapter-encoder-clip-vit-l"], "measured_vram_bytes": null,
+    "files": ["ip_adapter.safetensors"]
+  },
+  "ip-adapter-encoder-clip-vit-l": {
+    "id": "ip-adapter-encoder-clip-vit-l", "name": "IP-Adapter Image Encoder (CLIP ViT-L/14)", "artifact_type": "ip-adapter",
+    "capability": "image", "base_architecture": "unknown", "source": "huggingface",
+    "repo_id": "openai/clip-vit-large-patch14", "revision": "main", "aux_repo_id": null,
+    "size": "~1.7 GB", "status": "not_found", "tier": "verified", "quality": "balanced",
+    "runtime": "local", "hardware_class": "creator", "vram": "~0.9 GB",
+    "description": "OpenAI CLIP ViT-L/14 image encoder for the FLUX IP-Adapter.",
+    "license": null, "gated": false, "format": "safetensors",
+    "companions": [], "measured_vram_bytes": null,
+    "files": ["config.json", "preprocessor_config.json", "model.safetensors"]
   }
 }

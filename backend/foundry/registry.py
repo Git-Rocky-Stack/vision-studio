@@ -199,6 +199,7 @@ _ARTIFACT_SUBDIR = {
     "lora": "loras",
     "vae": "vaes",
     "controlnet": "controlnet",
+    "ip-adapter": "ip-adapter",
     "embedding": "embeddings",
     "annotator": "annotators",
 }
