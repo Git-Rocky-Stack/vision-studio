@@ -148,3 +148,83 @@ def resolve_ip_reference_stack(
         masked=spec["masked"],
         references=[dict(ref) for ref in references],
     )
+
+
+def ip_adapter_scales(stack: ResolvedIPAdapterStack) -> List[Any]:
+    """Layer strengths -> the exact shape set_ip_adapter_scale expects.
+
+    SD/SDXL: ONE adapter with a per-image scale list (list-of-lists - the
+    attention processor zips scale[i] per masked image). FLUX: one scalar
+    per adapter instance.
+    """
+    scales = [float(ref.get("strength", 1.0)) for ref in stack.references]
+    if stack.loader == LOADER_FLUX:
+        return scales
+    return [scales]
+
+
+def ip_adapter_mask_tensor(mask_images: List[Any], height: int, width: int) -> List[Any]:
+    """Rasterized PIL masks -> [tensor(1, N, H, W)] for ip_adapter_masks.
+
+    IPAdapterMaskProcessor.preprocess returns (N, 1, H, W); diffusers'
+    masking contract wants one (1, num_images, H, W) tensor per adapter.
+    """
+    from diffusers.image_processor import IPAdapterMaskProcessor
+
+    masks = IPAdapterMaskProcessor().preprocess(mask_images, height=height, width=width)
+    return [masks.reshape(1, masks.shape[0], masks.shape[2], masks.shape[3])]
+
+
+def _load_image_encoder(encoder_dir: str, torch_dtype: Any, device: str) -> Any:
+    """CLIPVisionModelWithProjection from an installed encoder record dir.
+
+    Module-level seam so unit tests can stub the heavy load. Both the ViT-H
+    (h94) and CLIP ViT-L (openai) records load through this class.
+    """
+    from transformers import CLIPVisionModelWithProjection
+
+    return CLIPVisionModelWithProjection.from_pretrained(
+        encoder_dir, torch_dtype=torch_dtype
+    ).to(device)
+
+
+@contextmanager
+def ip_adapter_applied(pipeline: Any, stack: ResolvedIPAdapterStack,
+                       adapter_dir: str, encoder_dir: str, device: str):
+    """Load adapter + encoder for ONE generation; ALWAYS restore afterward.
+
+    The encoder registers on the pipeline BEFORE load_ip_adapter so diffusers
+    skips its own hub-download path entirely (installed records are the only
+    weight source) and derives the feature extractor from the real encoder
+    config. unload_ip_adapter restores the original attention processors on
+    the SHARED unet/transformer - without it the cached base pipeline would
+    keep IP cross-attention wired on the next unguided job.
+    """
+    encoder = _load_image_encoder(encoder_dir, getattr(pipeline, "dtype", None), device)
+    weights = [stack.weight_name] * stack.instances
+    try:
+        pipeline.register_modules(image_encoder=encoder)
+        if stack.loader == LOADER_FLUX:
+            pipeline.load_ip_adapter(
+                adapter_dir,
+                weight_name=weights,
+                subfolder=stack.adapter_subfolder,
+            )
+        else:
+            pipeline.load_ip_adapter(
+                adapter_dir,
+                subfolder=stack.adapter_subfolder,
+                weight_name=weights,
+                image_encoder_folder=None,
+            )
+        pipeline.set_ip_adapter_scale(ip_adapter_scales(stack))
+        yield
+    finally:
+        pipeline.unload_ip_adapter()
+        try:
+            import torch
+
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+        except Exception:
+            pass

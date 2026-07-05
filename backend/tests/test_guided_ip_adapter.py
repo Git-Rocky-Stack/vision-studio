@@ -96,3 +96,98 @@ def test_missing_adapter_or_encoder_names_the_record():
         resolve_ip_reference_stack(REFS, "sd15", missing_encoder)
     assert "ip-adapter-encoder-vit-h" in str(exc.value)
     assert "Foundry" in str(exc.value)
+
+
+# -- apply half: scales, masks, always-restore context manager -----------------
+
+
+def test_sd_scales_are_one_adapter_with_per_image_scales():
+    from guided.ip_adapter import ip_adapter_scales
+
+    stack = resolve_ip_reference_stack(REFS, "sd15", _ready)
+    assert ip_adapter_scales(stack) == [[1.2, 0.8]]
+
+
+def test_flux_scales_are_one_scalar_per_instance():
+    from guided.ip_adapter import ip_adapter_scales
+
+    stack = resolve_ip_reference_stack(REFS, "flux", _ready, model_id="flux-dev")
+    assert ip_adapter_scales(stack) == [1.2, 0.8]
+
+
+class _FakeIPPipeline:
+    """Records the diffusers IP-Adapter mixin calls in order."""
+
+    dtype = "fp16"
+
+    def __init__(self):
+        self.events = []
+        self.image_encoder = None
+
+    def register_modules(self, **modules):
+        self.events.append(("register", sorted(modules)))
+        self.image_encoder = modules.get("image_encoder")
+
+    def load_ip_adapter(self, path, **kwargs):
+        self.events.append(("load", kwargs))
+
+    def set_ip_adapter_scale(self, scale):
+        self.events.append(("scale", scale))
+
+    def unload_ip_adapter(self):
+        self.events.append(("unload",))
+
+
+def _torch_available():
+    try:
+        import torch  # noqa: F401
+
+        return True
+    except Exception:
+        return False
+
+
+@pytest.mark.skipif(not _torch_available(), reason="requires torch")
+def test_mask_tensor_shape_matches_the_attention_contract():
+    from PIL import Image
+
+    from guided.ip_adapter import ip_adapter_mask_tensor
+
+    masks = [Image.new("L", (64, 64), 255), Image.new("L", (64, 64), 0)]
+    tensors = ip_adapter_mask_tensor(masks, height=128, width=128)
+    assert len(tensors) == 1  # one entry per adapter
+    assert tuple(tensors[0].shape) == (1, 2, 128, 128)
+
+
+def test_ip_adapter_applied_loads_scales_and_always_unloads(monkeypatch):
+    from guided import ip_adapter as ip_mod
+
+    monkeypatch.setattr(ip_mod, "_load_image_encoder",
+                        lambda encoder_dir, dtype, device: {"encoder": encoder_dir})
+    stack = resolve_ip_reference_stack(REFS, "sd15", _ready)
+    pipe = _FakeIPPipeline()
+    with ip_mod.ip_adapter_applied(pipe, stack, "adapter-dir", "encoder-dir", "cpu"):
+        pass
+    kinds = [event[0] for event in pipe.events]
+    assert kinds == ["register", "load", "scale", "unload"]
+    load_kwargs = pipe.events[1][1]
+    assert load_kwargs["weight_name"] == ["ip-adapter_sd15.safetensors"]
+    assert load_kwargs["subfolder"] == "models"
+    assert load_kwargs["image_encoder_folder"] is None
+    assert pipe.events[2][1] == [[1.2, 0.8]]
+
+
+def test_ip_adapter_applied_unloads_even_when_the_body_raises(monkeypatch):
+    from guided import ip_adapter as ip_mod
+
+    monkeypatch.setattr(ip_mod, "_load_image_encoder",
+                        lambda encoder_dir, dtype, device: object())
+    stack = resolve_ip_reference_stack(REFS, "flux", _ready, model_id="flux-dev")
+    pipe = _FakeIPPipeline()
+    with pytest.raises(RuntimeError):
+        with ip_mod.ip_adapter_applied(pipe, stack, "a", "e", "cpu"):
+            raise RuntimeError("boom")
+    assert ("unload",) in pipe.events
+    load_kwargs = [event for event in pipe.events if event[0] == "load"][0][1]
+    assert load_kwargs["weight_name"] == ["ip_adapter.safetensors"] * 2
+    assert "image_encoder_folder" not in load_kwargs
