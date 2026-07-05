@@ -21,6 +21,12 @@ import {
   requiredRecordsFor,
   supportedPreprocessors,
 } from '@/features/generation/controlnetSupport';
+import {
+  MSG_SD35_SINGLE_IMAGE,
+  NOTICE_REFERENCE_MASKS_GLOBAL,
+  REFERENCE_ADAPTERS,
+  requiredReferenceRecords,
+} from '@/features/generation/referenceSupport';
 import type { CanvasControlLayer, CanvasControlLayerType, MaskType } from '@/types/project';
 
 type MaskTool = MaskType | 'select';
@@ -75,8 +81,16 @@ export const CanvasControlLayerProperties = memo(function CanvasControlLayerProp
   const missingRecords = requiredRecords.filter(
     (recordId) => availableModels.find((model) => model.id === recordId)?.status !== 'ready',
   );
+  // #34 PR4: multi-reference (IP-Adapter) record needs for reference layers.
+  const referenceRecords =
+    layer.type === 'reference-image' ? requiredReferenceRecords(baseArchitecture) : [];
+  const missingReferenceRecords = referenceRecords.filter(
+    (recordId) => availableModels.find((model) => model.id === recordId)?.status !== 'ready',
+  );
 
   const supportsControlNetSettings = layer.type === 'controlnet';
+  // Weight doubles as the IP-Adapter reference strength (#34 PR4).
+  const supportsWeight = layer.type === 'controlnet' || layer.type === 'reference-image';
   // diffusers has no per-layer ControlNet prompting (#34 PR3): the override
   // fields are inpaint-only; the backend notices any legacy values it ignores.
   const supportsPromptOverrides = layer.type === 'inpaint-mask';
@@ -314,26 +328,82 @@ export const CanvasControlLayerProperties = memo(function CanvasControlLayerProp
                 )}
               </div>
             ) : null}
+          </>
+        )}
 
-            <label className="block">
-              <div className="mb-1.5 flex items-center justify-between">
-                <span className="type-caption font-medium">Weight</span>
-                <span className="type-ui text-text-primary">
-                  {(layer.weight ?? 1).toFixed(2)}
-                </span>
-              </div>
-              <input
-                type="range"
-                min={0}
-                max={2}
-                step={0.05}
-                value={layer.weight ?? 1}
-                onChange={(event) => onUpdate({ weight: Number(event.target.value) })}
-                className="w-full accent-[var(--color-accent-primary)]"
-                aria-label="Control layer weight"
-              />
-            </label>
+        {supportsWeight && (
+          <label className="block">
+            <div className="mb-1.5 flex items-center justify-between">
+              <span className="type-caption font-medium">Weight</span>
+              <span className="type-ui text-text-primary">
+                {(layer.weight ?? 1).toFixed(2)}
+              </span>
+            </div>
+            <input
+              type="range"
+              min={0}
+              max={2}
+              step={0.05}
+              value={layer.weight ?? 1}
+              onChange={(event) => onUpdate({ weight: Number(event.target.value) })}
+              className="w-full accent-[var(--color-accent-primary)]"
+              aria-label="Control layer weight"
+            />
+            {layer.type === 'reference-image' ? (
+              <p className="mt-1 type-caption text-text-body">
+                Reference strength - how strongly this image steers the IP-Adapter pass.
+              </p>
+            ) : null}
+          </label>
+        )}
 
+        {layer.type === 'reference-image' && baseArchitecture ? (
+          <div
+            className={cn(
+              'rounded-xl border px-3 py-3',
+              referenceRecords.length > 0 && missingReferenceRecords.length === 0
+                ? 'border-border bg-void'
+                : 'border-status-warning-border bg-status-warning-muted',
+            )}
+            data-testid="reference-record-status"
+          >
+            {baseArchitecture === 'sd35' ? (
+              <p className="type-caption text-text-body">{MSG_SD35_SINGLE_IMAGE}</p>
+            ) : referenceRecords.length === 0 ? (
+              <p className="type-caption text-text-body">
+                Multiple reference images are not supported on this checkpoint - a single
+                reference runs img2img.
+              </p>
+            ) : missingReferenceRecords.length === 0 ? (
+              <p className="type-caption text-text-body">
+                {REFERENCE_ADAPTERS[baseArchitecture]?.masked
+                  ? 'Models installed - two or more visible references run masked IP-Adapter passes; a single reference runs img2img.'
+                  : `Models installed - two or more visible references run IP-Adapter passes. ${NOTICE_REFERENCE_MASKS_GLOBAL}`}
+              </p>
+            ) : (
+              <>
+                <p className="type-caption text-text-body">
+                  Multi-reference passes need{' '}
+                  {missingReferenceRecords.map((id) => `'${id}'`).join(' and ')} on the
+                  current checkpoint.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('foundry')}
+                  className={cn(
+                    'mt-2 type-caption font-medium text-accent-primary underline underline-offset-2',
+                    'focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary',
+                  )}
+                >
+                  Manage in Foundry
+                </button>
+              </>
+            )}
+          </div>
+        ) : null}
+
+        {supportsControlNetSettings && (
+          <>
             <div className="grid grid-cols-2 gap-3">
               <label className="block">
                 <span className="mb-1.5 block type-caption font-medium">Start Step</span>

@@ -20,6 +20,7 @@ import {
 } from '@/features/generate/validation';
 import { resolveCanvasControlLayers } from '@/features/generation/resolveCanvasControlLayers';
 import { resolveControlNetPreflight } from '@/features/generation/controlnetSupport';
+import { resolveReferencePreflight } from '@/features/generation/referenceSupport';
 import {
   fromAccelerationResult,
   toAccelerationRequestPayload,
@@ -351,6 +352,7 @@ export function GeneratePanel() {
   // compatibility filtering in the mixer.
   const availableModels = useAppStore((s) => s.availableModels);
   const setActiveTab = useAppStore((s) => s.setActiveTab);
+  const lastGuidedNotices = useAppStore((s) => s.lastGuidedNotices);
   const selectedImageBaseArch =
     availableModels.find((m) => m.id === imageConfig.model)?.base_architecture ?? null;
   const selectedVideoBaseArch =
@@ -403,11 +405,13 @@ export function GeneratePanel() {
       }),
     [activeScene, currentImageAssetPath, imageConfig.generationType, mediaAssets, referenceSets],
   );
-  // #34 PR2/PR3: best-effort mirror of the backend ControlNet pre-flight -
+  // #34 PR2/PR3/PR4: best-effort mirror of the backend guided pre-flight -
   // block with the same reason the backend 422 would give, plus a Foundry link.
+  // 2+ references are an IP-Adapter pass on a txt2img base (kind "none",
+  // mirroring guided/passes.py); exactly one reference is img2img.
   const guidedKind = resolvedCanvasControlLayers.inpaint
     ? ('inpaint' as const)
-    : resolvedCanvasControlLayers.referenceImages.length > 0
+    : resolvedCanvasControlLayers.referenceImages.length === 1
       ? ('img2img' as const)
       : ('none' as const);
   const controlNetPreflight = useMemo(
@@ -421,6 +425,18 @@ export function GeneratePanel() {
           )
         : { errors: [], missingRecordIds: [] },
     [availableModels, guidedKind, imageConfig.generationType, imageConfig.model, resolvedCanvasControlLayers.controlnet, selectedImageBaseArch],
+  );
+  const referencePreflight = useMemo(
+    () =>
+      imageConfig.generationType === 'image'
+        ? resolveReferencePreflight(
+            resolvedCanvasControlLayers.referenceImages,
+            selectedImageBaseArch,
+            availableModels,
+            { modelId: imageConfig.model, hasInpaint: Boolean(resolvedCanvasControlLayers.inpaint) },
+          )
+        : { errors: [], missingRecordIds: [], notices: [] },
+    [availableModels, imageConfig.generationType, imageConfig.model, resolvedCanvasControlLayers.inpaint, resolvedCanvasControlLayers.referenceImages, selectedImageBaseArch],
   );
   const activeTimelineClip = useMemo(
     () => timelineClips.find((clip) => clip.id === activeTimelineClipId) ?? null,
@@ -786,6 +802,8 @@ export function GeneratePanel() {
       step: 0,
       errorMessage: '',
     });
+    // #34 PR4: a fresh run invalidates the previous run's pass notices.
+    useAppStore.getState().setLastGuidedNotices([]);
 
     addToPromptHistory({
       id: crypto.randomUUID(),
@@ -842,6 +860,9 @@ export function GeneratePanel() {
         }
         if (controlNetPreflight.errors.length > 0) {
           throw new Error(controlNetPreflight.errors[0]);
+        }
+        if (referencePreflight.errors.length > 0) {
+          throw new Error(referencePreflight.errors[0]);
         }
 
         const imageRequest: ImageGenerationRequestPayload = {
@@ -1001,6 +1022,11 @@ export function GeneratePanel() {
           useAppStore
             .getState()
             .setLastAppliedAcceleration(fromAccelerationResult(status.result?.acceleration));
+
+          // #34 PR4: surface guided-pass notices (e.g. FLUX global references).
+          const guidedNotices =
+            (status.result?.guided as { notices?: string[] } | undefined)?.notices ?? [];
+          useAppStore.getState().setLastGuidedNotices(guidedNotices);
 
           syncAssetsFromJobStatus({
             ...status,
@@ -1271,9 +1297,11 @@ export function GeneratePanel() {
         ? resolvedCanvasControlLayers.errors[0]
         : imageConfig.generationType === 'image' && controlNetPreflight.errors.length > 0
           ? controlNetPreflight.errors[0]
-          : videoModelRequiresReference && !motionReferenceImage
-            ? 'Stable Video Diffusion requires a reference image.'
-            : null;
+          : imageConfig.generationType === 'image' && referencePreflight.errors.length > 0
+            ? referencePreflight.errors[0]
+            : videoModelRequiresReference && !motionReferenceImage
+              ? 'Stable Video Diffusion requires a reference image.'
+              : null;
   const footerStatusLabel = genStatus.isGenerating
     ? `Generating ${imageConfig.generationType}`
     : activeTimelineClip
@@ -1690,7 +1718,8 @@ export function GeneratePanel() {
           {footerWarning && (
             <p data-testid="generate-preflight-warning" className="mt-2 text-xs text-status-warning">
               {footerWarning}
-              {controlNetPreflight.missingRecordIds.length > 0 && (
+              {(controlNetPreflight.missingRecordIds.length > 0 ||
+                referencePreflight.missingRecordIds.length > 0) && (
                 <button
                   type="button"
                   onClick={() => setActiveTab('foundry')}
@@ -1700,6 +1729,18 @@ export function GeneratePanel() {
                 </button>
               )}
             </p>
+          )}
+          {lastGuidedNotices.length > 0 && (
+            <div data-testid="guided-notices" className="recessed-well mt-2 px-3 py-2">
+              <span className="mono-label text-text-muted">Pass Notices</span>
+              <ul className="mt-1 space-y-1">
+                {lastGuidedNotices.map((notice) => (
+                  <li key={notice} className="type-caption text-text-body">
+                    {notice}
+                  </li>
+                ))}
+              </ul>
+            </div>
           )}
         </div>
 

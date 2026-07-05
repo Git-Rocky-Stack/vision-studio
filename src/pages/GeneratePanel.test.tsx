@@ -321,7 +321,13 @@ function seedTimelineTargetClip() {
   state.setActiveTimelineClip(clip?.id ?? null);
 }
 
-function seedCanvasControlLayerScene(options?: { invalidControlnet?: boolean }) {
+function seedCanvasControlLayerScene(options?: {
+  invalidControlnet?: boolean;
+  // The backend has declined inpaint + reference together since PR1
+  // (MSG_INPAINT_PLUS_REFERENCE) - valid scenes carry one or the other.
+  withReference?: boolean;
+  withInpaint?: boolean;
+}) {
   const state = useAppStore.getState();
   const project = state.createProject('Canvas Controls');
   const scene = state.addScene(project.id, { name: 'Canvas Shot' });
@@ -396,40 +402,44 @@ function seedCanvasControlLayerScene(options?: { invalidControlnet?: boolean }) 
       blendEdges: true,
     },
   });
-  latestState.createCanvasControlLayer(scene.id, {
-    name: 'Reference Area',
-    type: 'reference-image',
-    referenceSetId: 'canvas-reference-set',
-    mask: {
-      type: 'rectangle',
-      points: [
-        { x: 320, y: 64 },
-        { x: 512, y: 64 },
-        { x: 512, y: 240 },
-        { x: 320, y: 240 },
-      ],
-      bounds: { x: 320, y: 64, width: 192, height: 176 },
-      featherRadius: 2,
-      blendEdges: true,
-    },
-  });
-  latestState.createCanvasControlLayer(scene.id, {
-    name: 'Fill Mask',
-    type: 'inpaint-mask',
-    prompt: 'repair the missing sleeve',
-    mask: {
-      type: 'rectangle',
-      points: [
-        { x: 540, y: 120 },
-        { x: 680, y: 120 },
-        { x: 680, y: 280 },
-        { x: 540, y: 280 },
-      ],
-      bounds: { x: 540, y: 120, width: 140, height: 160 },
-      featherRadius: 2,
-      blendEdges: true,
-    },
-  });
+  if (options?.withReference ?? true) {
+    latestState.createCanvasControlLayer(scene.id, {
+      name: 'Reference Area',
+      type: 'reference-image',
+      referenceSetId: 'canvas-reference-set',
+      mask: {
+        type: 'rectangle',
+        points: [
+          { x: 320, y: 64 },
+          { x: 512, y: 64 },
+          { x: 512, y: 240 },
+          { x: 320, y: 240 },
+        ],
+        bounds: { x: 320, y: 64, width: 192, height: 176 },
+        featherRadius: 2,
+        blendEdges: true,
+      },
+    });
+  }
+  if (options?.withInpaint ?? true) {
+    latestState.createCanvasControlLayer(scene.id, {
+      name: 'Fill Mask',
+      type: 'inpaint-mask',
+      prompt: 'repair the missing sleeve',
+      mask: {
+        type: 'rectangle',
+        points: [
+          { x: 540, y: 120 },
+          { x: 680, y: 120 },
+          { x: 680, y: 280 },
+          { x: 540, y: 280 },
+        ],
+        bounds: { x: 540, y: 120, width: 140, height: 160 },
+        featherRadius: 2,
+        blendEdges: true,
+      },
+    });
+  }
 }
 
 describe('GeneratePanel', () => {
@@ -699,7 +709,9 @@ describe('GeneratePanel', () => {
   });
 
   it('resolves visible canvas control layers into the image generation payload', async () => {
-    seedCanvasControlLayerScene();
+    // Inpaint + reference together is a backend 422 (MSG_INPAINT_PLUS_REFERENCE,
+    // PR1) - the valid projection here is ControlNet + reference (img2img).
+    seedCanvasControlLayerScene({ withInpaint: false });
     render(<GeneratePanel />);
 
     fireEvent.change(screen.getByTestId('mock-prompt-input'), {
@@ -724,6 +736,23 @@ describe('GeneratePanel', () => {
               source_path: 'C:/vision-studio-inputs/reference-style.png',
             }),
           ],
+        }),
+      );
+    });
+  });
+
+  it('resolves the inpaint layer into the image generation payload', async () => {
+    seedCanvasControlLayerScene({ withReference: false });
+    render(<GeneratePanel />);
+
+    fireEvent.change(screen.getByTestId('mock-prompt-input'), {
+      target: { value: 'cinematic portrait pass' },
+    });
+    fireEvent.click(screen.getByTestId('generate-button'));
+
+    await waitFor(() => {
+      expect(window.electron.generation.generateImage).toHaveBeenCalledWith(
+        expect.objectContaining({
           image_path: 'C:/vision-studio-output/current/canvas-base.png',
           inpaint: expect.objectContaining({
             layer_name: 'Fill Mask',
@@ -734,7 +763,7 @@ describe('GeneratePanel', () => {
   });
 
   it('threads denoising_strength into the payload when a guided pass is present', async () => {
-    seedCanvasControlLayerScene();
+    seedCanvasControlLayerScene({ withReference: false });
     render(<GeneratePanel />);
 
     fireEvent.change(screen.getByTestId('mock-prompt-input'), {
@@ -807,7 +836,7 @@ describe('GeneratePanel', () => {
   });
 
   it('submits ControlNet layers when the records are installed', async () => {
-    seedCanvasControlLayerScene();
+    seedCanvasControlLayerScene({ withReference: false });
     seedInstalledModels([
       buildRecord({ id: 'sd-1-5', artifact_type: 'checkpoint', base_architecture: 'sd15' }),
       buildRecord({ id: 'controlnet-openpose-sd15' }),
@@ -1008,5 +1037,144 @@ describe('GeneratePanel', () => {
       );
     });
     expect(await screen.findByText('OpenRouter Still Image Route')).toBeInTheDocument();
+  });
+
+  // -- #34 PR4: IP-Adapter multi-reference pre-flight + result notices ----------
+
+  function seedMultiReferenceScene(options?: { withControlnet?: boolean }) {
+    const state = useAppStore.getState();
+    const project = state.createProject('Multi Reference');
+    const scene = state.addScene(project.id, { name: 'Reference Shot' });
+
+    state.setActiveProject(project.id);
+    state.setActiveScene(scene.id);
+
+    state.upsertMediaAsset({
+      id: 'multi-reference-source',
+      legacyAssetId: null,
+      jobId: null,
+      name: 'Style Frame',
+      type: 'image',
+      source: 'imported',
+      path: 'C:/vision-studio-inputs/style-frame.png',
+      previewUrl: 'file:///C:/vision-studio-inputs/style-frame.png',
+      thumbnailUrl: 'file:///C:/vision-studio-inputs/style-frame.png',
+      posterUrl: null,
+      width: 1024,
+      height: 1024,
+      metadata: {},
+      createdAt: '2026-04-23T00:00:00.000Z',
+    });
+
+    const latestState = useAppStore.getState();
+    const referenceMask = (offset: number) => ({
+      type: 'rectangle' as const,
+      points: [
+        { x: offset, y: 48 },
+        { x: offset + 128, y: 48 },
+        { x: offset + 128, y: 224 },
+        { x: offset, y: 224 },
+      ],
+      bounds: { x: offset, y: 48, width: 128, height: 176 },
+      featherRadius: 2,
+      blendEdges: true,
+    });
+    latestState.createCanvasControlLayer(scene.id, {
+      name: 'Face Reference',
+      type: 'reference-image',
+      sourceMediaAssetId: 'multi-reference-source',
+      mask: referenceMask(32),
+    });
+    latestState.createCanvasControlLayer(scene.id, {
+      name: 'Style Reference',
+      type: 'reference-image',
+      sourceMediaAssetId: 'multi-reference-source',
+      mask: referenceMask(320),
+    });
+    if (options?.withControlnet) {
+      latestState.createCanvasControlLayer(scene.id, {
+        name: 'Edge Guide',
+        type: 'controlnet',
+        sourceMediaAssetId: 'multi-reference-source',
+        preprocessor: 'canny',
+        mask: referenceMask(560),
+      });
+    }
+  }
+
+  it('treats two references as an IP-Adapter pass, not img2img (kind none)', async () => {
+    // Regression for the guidedKind fix: on SD 3.5 with two references AND a
+    // ControlNet layer, the old kind ('img2img' for any reference count) fired
+    // the "ControlNet with a reference image is not supported on SD 3.5"
+    // decline. With kind "none" the CN preflight passes and the honest SD 3.5
+    // single-image reference decline surfaces instead.
+    seedMultiReferenceScene({ withControlnet: true });
+    seedInstalledModels([
+      buildRecord({ id: 'sd3.5-large', artifact_type: 'checkpoint', base_architecture: 'sd35' }),
+      buildRecord({ id: 'controlnet-canny-sd35' }),
+    ]);
+    useAppStore.setState({ selectedImageModelId: 'sd3.5-large' });
+    render(<GeneratePanel />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('generate-preflight-warning')).toHaveTextContent(
+        /accepts a single image/,
+      );
+    });
+    expect(screen.getByTestId('generate-preflight-warning')).not.toHaveTextContent(
+      /ControlNet with a reference image/,
+    );
+  });
+
+  it('blocks generate when multi-reference records are missing, with Foundry link', async () => {
+    seedMultiReferenceScene();
+    seedInstalledModels([
+      buildRecord({ id: 'sd-1-5', artifact_type: 'checkpoint', base_architecture: 'sd15' }),
+    ]);
+    render(<GeneratePanel />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Use SD 1.5' }));
+    fireEvent.change(screen.getByTestId('mock-prompt-input'), {
+      target: { value: 'two styled regions' },
+    });
+    fireEvent.click(screen.getByTestId('generate-button'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('generate-preflight-warning')).toHaveTextContent(
+        /ip-adapter-sd15/,
+      );
+    });
+    expect(window.electron.generation.generateImage).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Manage in Foundry' }));
+    expect(useAppStore.getState().activeTab).toBe('foundry');
+  });
+
+  it('surfaces guided notices from a completed job result', async () => {
+    const fluxNotice =
+      'Reference masks are not supported on FLUX - every reference image was applied to the whole generation.';
+    window.electron.generation.getStatus = vi.fn().mockResolvedValue({
+      job_id: 'job-generate-image-1',
+      status: 'completed',
+      type: 'image',
+      created_at: '2026-04-23T00:00:00.000Z',
+      completed_at: '2026-04-23T00:00:03.000Z',
+      progress: 100,
+      result: {
+        images: ['/outputs/job-generate-image-1/frame.png'],
+        guided: { notices: [fluxNotice] },
+      },
+    });
+    render(<GeneratePanel />);
+
+    fireEvent.change(screen.getByTestId('mock-prompt-input'), {
+      target: { value: 'global reference pass' },
+    });
+    fireEvent.click(screen.getByTestId('generate-button'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('guided-notices')).toHaveTextContent(fluxNotice);
+    });
+    expect(screen.getByText('Pass Notices')).toBeInTheDocument();
   });
 });
