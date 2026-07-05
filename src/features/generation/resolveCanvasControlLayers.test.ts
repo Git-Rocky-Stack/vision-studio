@@ -219,6 +219,7 @@ describe('resolveCanvasControlLayers', () => {
       expect.objectContaining({
         layer_id: 'reference-layer',
         source_path: 'C:/vision-studio-inputs/style-frame.png',
+        strength: 1,
       }),
     ]);
     expect(resolved.inpaint).toEqual(
@@ -228,6 +229,28 @@ describe('resolveCanvasControlLayers', () => {
         prompt: 'restore the missing shoulder detail',
       }),
     );
+  });
+
+  it('threads layer weight into reference strength (#34 PR4 IP-Adapter scale)', () => {
+    const scene = buildScene([
+      buildLayer({
+        id: 'weighted-reference',
+        name: 'Weighted Reference',
+        type: 'reference-image',
+        sourceMediaAssetId: 'asset-reference',
+        weight: 1.4,
+      }),
+    ]);
+
+    const resolved = resolveCanvasControlLayers({
+      scene,
+      mediaAssets,
+      referenceSets,
+      generationType: 'image',
+      baseImagePath: null,
+    });
+
+    expect(resolved.referenceImages[0].strength).toBe(1.4);
   });
 
   it('reports invalid visible layers instead of silently ignoring them', () => {

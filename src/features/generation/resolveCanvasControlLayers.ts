@@ -131,6 +131,7 @@ export function resolveCanvasControlLayers({
       layer_name: layer.name,
       source_path: resolvedSourcePath,
       mask,
+      strength: layer.weight ?? 1,
     });
   }
 
