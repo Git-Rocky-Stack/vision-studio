@@ -135,8 +135,8 @@ def test_over_budget_controlnet_stack_preflights_422(monkeypatch, tmp_path):
 
     client = _client(monkeypatch, _FakeRegistry())
     monkeypatch.setattr(
-        main_module, "controlnet_fit_refusal",
-        lambda base_plan, dirs, family, profile: "does not fit (estimated basis)")
+        main_module, "guided_fit_refusal",
+        lambda base_plan, family, profile, **kwargs: "does not fit (estimated basis)")
     response = client.post("/api/generate/image", json=_cn_request(tmp_path))
     assert response.status_code == 422
     assert "does not fit" in response.json()["detail"]
@@ -147,7 +147,7 @@ def test_fitting_controlnet_stack_still_enqueues(monkeypatch, tmp_path):
 
     client = _client(monkeypatch, _FakeRegistry())
     monkeypatch.setattr(
-        main_module, "controlnet_fit_refusal",
-        lambda base_plan, dirs, family, profile: None)
+        main_module, "guided_fit_refusal",
+        lambda base_plan, family, profile, **kwargs: None)
     response = client.post("/api/generate/image", json=_cn_request(tmp_path))
     assert response.status_code == 200

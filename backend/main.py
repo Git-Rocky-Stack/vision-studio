@@ -102,7 +102,7 @@ from api.batch import router as batch_router
 from api.retrieval import router as retrieval_router
 from api.comfy_graph import router as comfy_graph_router, configure as configure_comfy_graph
 from guided.controlnet_registry import resolve_controlnet_stack
-from guided.fit import controlnet_fit_refusal
+from guided.fit import guided_fit_refusal
 from guided.passes import GuidedValidationError, resolve_guided_pass
 
 try:
@@ -1284,8 +1284,9 @@ async def generate_image(
                     cn_dir = os.path.join(MODELS_DIR, "controlnet", item.record_id)
                     if cn_dir not in cn_dirs:
                         cn_dirs.append(cn_dir)
-                refusal = controlnet_fit_refusal(
-                    base_plan, cn_dirs, record.get("base_architecture"), profile)
+                refusal = guided_fit_refusal(
+                    base_plan, record.get("base_architecture"), profile,
+                    cn_model_dirs=cn_dirs)
                 if refusal:
                     raise HTTPException(status_code=422, detail=refusal)
 
