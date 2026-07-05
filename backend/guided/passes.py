@@ -12,17 +12,14 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
 # User-facing decline messages (honesty rails - see the #34 spec).
-MSG_MULTI_REFERENCE_NOT_YET = (
-    "Multiple reference images need IP-Adapter support, which is not "
-    "available yet - keep one visible reference image layer (#34)."
-)
 MSG_INPAINT_PLUS_REFERENCE = (
     "Use either an inpaint mask or a reference image layer for a single "
     "generation - combining them is not supported yet (#34)."
 )
 NOTICE_REFERENCE_MASK_IGNORED = (
-    "Reference mask not applied: single-reference passes run full-image "
-    "img2img until IP-Adapter support lands (#34)."
+    "Reference mask not applied: a single reference image runs full-image "
+    "img2img - add a second visible reference layer to use masked "
+    "IP-Adapter referencing."
 )
 NOTICE_CONTROLNET_PROMPT_IGNORED = (
     "ControlNet layer prompts are not supported by the local engine - the "
@@ -46,6 +43,9 @@ class GuidedPassPlan:
     notices: List[str] = field(default_factory=list)
     # #34 PR2: validated ControlNet layers; composes with every kind above.
     controlnet: List[Dict[str, Any]] = field(default_factory=list)
+    # #34 PR4: 2+ reference layers -> IP-Adapter multi-reference (kind stays
+    # "none"; family/record validation lives in guided.ip_adapter).
+    ip_references: List[Dict[str, Any]] = field(default_factory=list)
 
 
 def _clean(text: Optional[str]) -> Optional[str]:
@@ -62,8 +62,6 @@ def resolve_guided_pass(
     controlnet = controlnet or []
     reference_images = reference_images or []
 
-    if len(reference_images) > 1:
-        raise GuidedValidationError(MSG_MULTI_REFERENCE_NOT_YET)
     if inpaint and reference_images:
         raise GuidedValidationError(MSG_INPAINT_PLUS_REFERENCE)
 
@@ -84,6 +82,14 @@ def resolve_guided_pass(
             negative_prompt_override=_clean(inpaint.get("negative_prompt")),
             notices=notices,
             controlnet=controlnet,
+        )
+
+    if len(reference_images) >= 2:
+        return GuidedPassPlan(
+            kind="none",
+            notices=notices,
+            controlnet=controlnet,
+            ip_references=[dict(ref) for ref in reference_images],
         )
 
     if reference_images:
