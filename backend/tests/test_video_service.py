@@ -81,7 +81,13 @@ class VideoServiceTests(unittest.TestCase):
 
 
 def _video_plan(**kw):
-    """A MagicMock RuntimePlan with the loader-relevant fields pinned."""
+    """A MagicMock RuntimePlan with the loader-relevant fields pinned.
+
+    hardware_profile MUST be pinned: left as a MagicMock auto-child it reads
+    as gpu_available=truthy, resolve_acceleration then auto-enables
+    torch.compile, and dynamo tracing the mocked pipeline allocates
+    unboundedly (an effective hang - same failure as test_direct_generator).
+    """
     base = dict(
         refusal=None,
         pipeline_class="LTXPipeline",
@@ -92,6 +98,7 @@ def _video_plan(**kw):
         single_file=False,
         config_catalog_id=None,
         fallback_ladder=[],
+        hardware_profile=None,
     )
     base.update(kw)
     return mock.MagicMock(**base)

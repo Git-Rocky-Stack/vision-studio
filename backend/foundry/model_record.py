@@ -60,6 +60,11 @@ class ModelRecord:
     companions: List[str] = field(default_factory=list)   # catalog ids required alongside this model
     measured_vram_bytes: Optional[int] = None              # null until calibration harness writes it
 
+    # Acquisition scoping (#34 PR3): explicit repo paths to download. Empty =
+    # the full filtered repo file list. Curated in the catalog, so entries are
+    # trusted the same way _SINGLE_FILE_FILENAMES entries are.
+    files: List[str] = field(default_factory=list)
+
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
 

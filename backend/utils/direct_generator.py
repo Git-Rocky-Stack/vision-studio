@@ -40,7 +40,12 @@ from foundry.lora import loras_applied
 from guided.controlnet_registry import resolve_controlnet_stack
 from guided.masks import mask_coverage, rasterize_mask
 from guided.passes import GuidedValidationError, resolve_guided_pass
-from guided.pipelines import controlnets_attached, derive_variant, filter_call_kwargs
+from guided.pipelines import (
+    combine_controlnets,
+    controlnets_attached,
+    derive_variant,
+    filter_call_kwargs,
+)
 from guided.preprocessors import produce_control_image
 
 
@@ -417,17 +422,21 @@ class DirectGenerator:
             if record.get("base_architecture") == "flux":
                 model_for_pass = "flux-fill"
 
-        # #34 PR2: resolve the ControlNet stack through the same seam the
+        # #34 PR2/PR3: resolve the ControlNet stack through the same seam the
         # endpoint 422s through, and build the control images on CPU before
-        # any weights move.
+        # any weights move. Union stacks resolve to ONE record - dedupe dirs
+        # so the shared weights load exactly once.
         cn_stack = []
         cn_model_dirs: List[str] = []
         control_images: List[Any] = []
+        cn_loader = "controlnet"
         if pass_plan.controlnet:
             base_record = _resolve_record(model_name) or {}
             cn_stack = resolve_controlnet_stack(
-                pass_plan.controlnet, base_record.get("base_architecture"), _resolve_record,
+                pass_plan.controlnet, base_record.get("base_architecture"),
+                _resolve_record, model_id=model_name, kind=pass_plan.kind,
             )
+            cn_loader = cn_stack[0].loader
             for item in cn_stack:
                 model_dir = os.path.join(self.models_dir, "controlnet", item.record_id)
                 if not os.path.isdir(model_dir):
@@ -435,7 +444,8 @@ class DirectGenerator:
                         f"The ControlNet model '{item.record_id}' looks incomplete "
                         "on disk - reinstall it from the Foundry."
                     )
-                cn_model_dirs.append(model_dir)
+                if model_dir not in cn_model_dirs:
+                    cn_model_dirs.append(model_dir)
             annotators_dir = os.path.join(self.models_dir, "annotators")
             control_images = [
                 produce_control_image(item.layer, width, height, annotators_dir)
@@ -498,10 +508,10 @@ class DirectGenerator:
                 call_kwargs["height"] = height
 
         if cn_stack:
-            # txt2img ControlNet variants take the control map as `image`;
-            # img2img/inpaint variants keep `image` for the init and take the
-            # control map as `control_image`.
-            if pass_plan.kind == "none":
+            # Dedicated SD/SDXL txt2img variants take the control map as
+            # `image`; every other ControlNet pipeline (img2img/inpaint
+            # variants, union, FLUX, SD3) takes `control_image`.
+            if pass_plan.kind == "none" and cn_loader == "controlnet":
                 call_kwargs["image"] = control_images
             else:
                 call_kwargs["control_image"] = control_images
@@ -511,12 +521,19 @@ class DirectGenerator:
                 float(item.layer.get("start_step", 0.0)) for item in cn_stack]
             call_kwargs["control_guidance_end"] = [
                 float(item.layer.get("end_step", 1.0)) for item in cn_stack]
+            modes = [item.control_mode for item in cn_stack]
+            if all(mode is not None for mode in modes):
+                call_kwargs["control_mode"] = modes
 
         with ExitStack() as stack:
             if cn_stack:
                 cn_models = stack.enter_context(controlnets_attached(
-                    cn_model_dirs, getattr(pipeline, "dtype", None), self.device))
-                run_pipeline = derive_variant(pipeline, pass_plan.kind, controlnet=cn_models)
+                    cn_model_dirs, getattr(pipeline, "dtype", None), self.device,
+                    loader=cn_loader))
+                run_pipeline = derive_variant(
+                    pipeline, pass_plan.kind,
+                    controlnet=combine_controlnets(cn_models, cn_loader),
+                    loader=cn_loader)
             elif pass_plan.kind == "none":
                 run_pipeline = pipeline
             else:
@@ -535,7 +552,8 @@ class DirectGenerator:
                     "controlnet": [
                         {"layer_id": item.layer.get("layer_id"),
                          "preprocessor": item.layer.get("preprocessor"),
-                         "record_id": item.record_id}
+                         "record_id": item.record_id,
+                         "control_mode": item.control_mode}
                         for item in cn_stack
                     ],
                 }

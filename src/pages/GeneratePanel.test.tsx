@@ -773,7 +773,7 @@ describe('GeneratePanel', () => {
     expect(useAppStore.getState().activeTab).toBe('foundry');
   });
 
-  it('blocks ControlNet layers on families without support yet', async () => {
+  it('blocks flux ControlNet + inpaint compositions with the Fill reason', async () => {
     seedCanvasControlLayerScene();
     seedInstalledModels([
       buildRecord({ id: 'flux-dev', artifact_type: 'checkpoint', base_architecture: 'flux' }),
@@ -786,9 +786,24 @@ describe('GeneratePanel', () => {
     fireEvent.click(screen.getByTestId('generate-button'));
 
     await waitFor(() => {
-      expect(screen.getByTestId('generate-preflight-warning')).toHaveTextContent(/#34 PR3/);
+      expect(screen.getByTestId('generate-preflight-warning')).toHaveTextContent(/FLUX.1 Fill/);
     });
     expect(window.electron.generation.generateImage).not.toHaveBeenCalled();
+  });
+
+  it('renders no dead reference-routing or ControlNet toggle controls', () => {
+    render(<GeneratePanel />);
+    expect(screen.queryByText('Reference routing')).not.toBeInTheDocument();
+    expect(screen.queryByRole('switch', { name: 'Enable ControlNet' })).not.toBeInTheDocument();
+    // The threaded denoising slider stays.
+    expect(screen.getByText('Denoising strength')).toBeInTheDocument();
+  });
+
+  it('summarizes control layers from the canvas, never from dead config', () => {
+    render(<GeneratePanel />);
+    // The card shows its summary only while collapsed.
+    fireEvent.click(screen.getByTestId('toggle-generate-section-control-layers'));
+    expect(screen.getByText(/No canvas layers, 0 LoRAs/)).toBeInTheDocument();
   });
 
   it('submits ControlNet layers when the records are installed', async () => {

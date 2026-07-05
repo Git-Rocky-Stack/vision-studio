@@ -31,8 +31,9 @@ interface AxeViolation {
 /**
  * Known a11y violations accepted as tech debt. EMPTY by design: the two former
  * exceptions are fixed and now actively guarded against regression -
- *   - nested-interactive: ControlNetPanel's collapsible header no longer nests
- *     the enable switch inside a div[role="button"] (sibling buttons now).
+ *   - nested-interactive: collapsible section headers keep interactive elements
+ *     as sibling buttons, never nested inside a div[role="button"] (the panel
+ *     that originally violated this was retired in #34 PR3).
  *   - color-contrast: the Settings "Beta Release" badge (and other text-muted/60
  *     usages) were raised to full text-muted (~5.2:1 on elevated surfaces).
  * Any new critical/serious violation on Generate or Settings now fails the suite.

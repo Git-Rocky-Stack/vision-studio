@@ -297,7 +297,9 @@ class DownloadManager:
 
         Single-file artifacts resolve to the one filename from the manager's
         _SINGLE_FILE_FILENAMES map; diffusers repos resolve to the repo file
-        list. Sizes come from huggingface_hub.get_paths_info (no download).
+        list. Records may carry an explicit ``files`` allowlist (curated in
+        the catalog) which wins over both maps. Sizes come from
+        huggingface_hub.get_paths_info (no download).
 
         Repo file lists are FILTERED (Codex M4 review H-2): repo-authored
         ``.py`` is never fetched (no loader executes repo code - M5 revisits
@@ -313,7 +315,13 @@ class DownloadManager:
         target_dir = self._target_dir(record)
 
         single = single_file_names(model_id)
-        if single is not None:
+        explicit = record.get("files") or []
+        if explicit:
+            # Catalog-curated allowlist (#34 PR3): fetch exactly these paths.
+            # Same trust anchor as _SINGLE_FILE_FILENAMES - the .py/pickle
+            # filters below guard DISCOVERED repo lists, not curated ones.
+            paths = list(explicit)
+        elif single is not None:
             paths = list(single)
         else:
             infos = huggingface_hub.get_paths_info(repo_id, [], revision=revision)

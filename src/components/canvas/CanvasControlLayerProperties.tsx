@@ -16,6 +16,11 @@ import {
 } from 'lucide-react';
 
 import { cn } from '@/utils/cn';
+import { useAppStore } from '@/store/appStore';
+import {
+  requiredRecordsFor,
+  supportedPreprocessors,
+} from '@/features/generation/controlnetSupport';
 import type { CanvasControlLayer, CanvasControlLayerType, MaskType } from '@/types/project';
 
 type MaskTool = MaskType | 'select';
@@ -57,8 +62,24 @@ export const CanvasControlLayerProperties = memo(function CanvasControlLayerProp
   onUpdate,
   onDelete,
 }: CanvasControlLayerPropertiesProps) {
+  const availableModels = useAppStore((s) => s.availableModels);
+  const activeModelId = useAppStore((s) => s.selectedImageModelId);
+  const setActiveTab = useAppStore((s) => s.setActiveTab);
+  const baseArchitecture =
+    availableModels.find((model) => model.id === activeModelId)?.base_architecture ?? null;
+  const preprocessorOptions = supportedPreprocessors(baseArchitecture);
+  const requiredRecords =
+    layer.type === 'controlnet' && layer.preprocessor
+      ? requiredRecordsFor(layer.preprocessor, baseArchitecture)
+      : [];
+  const missingRecords = requiredRecords.filter(
+    (recordId) => availableModels.find((model) => model.id === recordId)?.status !== 'ready',
+  );
+
   const supportsControlNetSettings = layer.type === 'controlnet';
-  const supportsPromptOverrides = layer.type !== 'reference-image';
+  // diffusers has no per-layer ControlNet prompting (#34 PR3): the override
+  // fields are inpaint-only; the backend notices any legacy values it ignores.
+  const supportsPromptOverrides = layer.type === 'inpaint-mask';
   const hasSource = Boolean(layer.sourcePath || layer.sourceMediaAssetId || layer.referenceSetId);
   const hasMask = layer.mask.points.length > 0;
   const hasValidStepRange =
@@ -234,19 +255,65 @@ export const CanvasControlLayerProperties = memo(function CanvasControlLayerProp
           <>
             <label className="block">
               <span className="mb-1.5 block type-caption font-medium">Preprocessor</span>
-              <input
-                type="text"
+              <select
                 value={layer.preprocessor ?? ''}
                 onChange={(event) => onUpdate({ preprocessor: event.target.value || undefined })}
                 className={cn(
                   'w-full rounded-md border border-border bg-void px-3 py-2',
-                  'type-ui text-text-primary placeholder:text-text-muted',
+                  'type-ui text-text-primary',
                   'transition-colors duration-150 focus:border-accent-primary focus:outline-none focus:ring-1 focus:ring-accent-primary',
                 )}
-                placeholder="e.g. canny"
                 aria-label="ControlNet preprocessor"
-              />
+              >
+                {!layer.preprocessor ? <option value="">Choose a preprocessor</option> : null}
+                {preprocessorOptions.map((name) => (
+                  <option key={name} value={name}>
+                    {name}
+                  </option>
+                ))}
+              </select>
             </label>
+
+            {layer.preprocessor && baseArchitecture ? (
+              <div
+                className={cn(
+                  'rounded-xl border px-3 py-3',
+                  requiredRecords.length > 0 && missingRecords.length === 0
+                    ? 'border-border bg-void'
+                    : 'border-status-warning-border bg-status-warning-muted',
+                )}
+                data-testid="controlnet-record-status"
+              >
+                {requiredRecords.length === 0 ? (
+                  // A legacy free-text value (e.g. "segmentation") that no
+                  // stack serves - never claim it is installed.
+                  <p className="type-caption text-text-body">
+                    {`'${layer.preprocessor}' is not available on the current checkpoint - choose one of: ${preprocessorOptions.join(', ')}.`}
+                  </p>
+                ) : missingRecords.length === 0 ? (
+                  <p className="type-caption text-text-body">
+                    Models installed - this layer can resolve on the current checkpoint.
+                  </p>
+                ) : (
+                  <>
+                    <p className="type-caption text-text-body">
+                      This layer needs {missingRecords.map((id) => `'${id}'`).join(' and ')} on the
+                      current checkpoint.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('foundry')}
+                      className={cn(
+                        'mt-2 type-caption font-medium text-accent-primary underline underline-offset-2',
+                        'focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary',
+                      )}
+                    >
+                      Manage in Foundry
+                    </button>
+                  </>
+                )}
+              </div>
+            ) : null}
 
             <label className="block">
               <div className="mb-1.5 flex items-center justify-between">

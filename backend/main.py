@@ -102,6 +102,7 @@ from api.batch import router as batch_router
 from api.retrieval import router as retrieval_router
 from api.comfy_graph import router as comfy_graph_router, configure as configure_comfy_graph
 from guided.controlnet_registry import resolve_controlnet_stack
+from guided.fit import controlnet_fit_refusal
 from guided.passes import GuidedValidationError, resolve_guided_pass
 
 try:
@@ -440,7 +441,7 @@ class GuidedMaskPayload(BaseModel):
 
 
 class ControlNetLayerPayload(BaseModel):
-    """#34: canvas ControlNet layer (SD 1.5 / SDXL real since PR2)."""
+    """#34: canvas ControlNet layer (SD 1.5 / SDXL / FLUX / SD 3.5 Large real since PR3)."""
     layer_id: str
     layer_name: str = ""
     source_path: str
@@ -1259,13 +1260,34 @@ async def generate_image(
                     )
             record = model_registry.get_record(gen_request.model) or {}
             try:
-                resolve_controlnet_stack(
+                cn_stack = resolve_controlnet_stack(
                     pass_plan.controlnet,
                     record.get("base_architecture"),
                     model_registry.get_record,
+                    model_id=gen_request.model,
+                    kind=pass_plan.kind,
                 )
             except GuidedValidationError as exc:
                 raise HTTPException(status_code=422, detail=str(exc))
+            # #34 PR3: refuse over-budget stacks up front with the labeled
+            # basis instead of letting the job OOM minutes into a run. The
+            # gate reads exact installed-header bytes; probe + plan run in
+            # the executor like /resolve-runtime does.
+            if record:
+                loop = asyncio.get_running_loop()
+                profile = await loop.run_in_executor(None, probe_hardware, MODELS_DIR)
+                base_plan = await loop.run_in_executor(
+                    None, resolve_model_runtime, record, profile,
+                    consent_store.get(gen_request.model))
+                cn_dirs = []
+                for item in cn_stack:
+                    cn_dir = os.path.join(MODELS_DIR, "controlnet", item.record_id)
+                    if cn_dir not in cn_dirs:
+                        cn_dirs.append(cn_dir)
+                refusal = controlnet_fit_refusal(
+                    base_plan, cn_dirs, record.get("base_architecture"), profile)
+                if refusal:
+                    raise HTTPException(status_code=422, detail=refusal)
 
     job_id = str(uuid.uuid4())
 
