@@ -224,4 +224,117 @@ describe('CanvasControlLayerProperties', () => {
     expect(screen.getByText(/draw a mask on the canvas/i)).toBeInTheDocument();
     expect(screen.getByText(/attach the reference image/i)).toBeInTheDocument();
   });
+
+  // -- #34 PR4: IP-Adapter reference-layer state --------------------------------
+
+  function referenceLayer(overrides: Partial<CanvasControlLayer> = {}) {
+    return buildLayer({
+      type: 'reference-image',
+      name: 'Style Board',
+      preprocessor: undefined,
+      prompt: undefined,
+      negativePrompt: undefined,
+      ...overrides,
+    });
+  }
+
+  it('shows the weight slider for reference layers and forwards edits', () => {
+    const onUpdate = vi.fn();
+    render(
+      <CanvasControlLayerProperties
+        layer={referenceLayer({ weight: 0.9 })}
+        activeMaskTool="select"
+        onMaskToolChange={vi.fn()}
+        onUpdate={onUpdate}
+        onDelete={vi.fn()}
+      />,
+    );
+    const slider = screen.getByLabelText(/control layer weight/i);
+    expect(slider).toBeInTheDocument();
+    fireEvent.change(slider, { target: { value: '1.35' } });
+    expect(onUpdate).toHaveBeenCalledWith({ weight: 1.35 });
+    expect(screen.getByText(/reference strength/i)).toBeInTheDocument();
+  });
+
+  it('shows installed state for reference layers on a masked family', () => {
+    seedModels('sd-1-5', [
+      buildRecord({ id: 'sd-1-5', artifact_type: 'checkpoint', base_architecture: 'sd15' }),
+      buildRecord({ id: 'ip-adapter-sd15', artifact_type: 'ip-adapter' }),
+      buildRecord({ id: 'ip-adapter-encoder-vit-h', artifact_type: 'ip-adapter' }),
+    ]);
+    render(
+      <CanvasControlLayerProperties
+        layer={referenceLayer()}
+        activeMaskTool="select"
+        onMaskToolChange={vi.fn()}
+        onUpdate={vi.fn()}
+        onDelete={vi.fn()}
+      />,
+    );
+    const status = screen.getByTestId('reference-record-status');
+    expect(status.textContent).toMatch(/models installed/i);
+    expect(status.textContent).toMatch(/masked IP-Adapter passes/i);
+  });
+
+  it('links to the Foundry when reference records are missing', () => {
+    const setActiveTab = vi.fn();
+    seedModels('sd-1-5', [
+      buildRecord({ id: 'sd-1-5', artifact_type: 'checkpoint', base_architecture: 'sd15' }),
+      buildRecord({ id: 'ip-adapter-sd15', artifact_type: 'ip-adapter' }),
+      buildRecord({
+        id: 'ip-adapter-encoder-vit-h', artifact_type: 'ip-adapter', status: 'not_found',
+      }),
+    ]);
+    useAppStore.setState({ setActiveTab } as never);
+    render(
+      <CanvasControlLayerProperties
+        layer={referenceLayer()}
+        activeMaskTool="select"
+        onMaskToolChange={vi.fn()}
+        onUpdate={vi.fn()}
+        onDelete={vi.fn()}
+      />,
+    );
+    const status = screen.getByTestId('reference-record-status');
+    expect(status.textContent).toMatch(/ip-adapter-encoder-vit-h/);
+    fireEvent.click(screen.getByRole('button', { name: /manage in foundry/i }));
+    expect(setActiveTab).toHaveBeenCalledWith('foundry');
+  });
+
+  it('tells the truth on sd35 (single reference only)', () => {
+    seedModels('sd3.5-large', [
+      buildRecord({ id: 'sd3.5-large', artifact_type: 'checkpoint', base_architecture: 'sd35' }),
+    ]);
+    render(
+      <CanvasControlLayerProperties
+        layer={referenceLayer()}
+        activeMaskTool="select"
+        onMaskToolChange={vi.fn()}
+        onUpdate={vi.fn()}
+        onDelete={vi.fn()}
+      />,
+    );
+    const status = screen.getByTestId('reference-record-status');
+    expect(status.textContent).toMatch(/accepts a single image/i);
+    expect(status.textContent).not.toMatch(/models installed/i);
+  });
+
+  it('notes global application on flux', () => {
+    seedModels('flux-dev', [
+      buildRecord({ id: 'flux-dev', artifact_type: 'checkpoint', base_architecture: 'flux' }),
+      buildRecord({ id: 'ip-adapter-flux', artifact_type: 'ip-adapter' }),
+      buildRecord({ id: 'ip-adapter-encoder-clip-vit-l', artifact_type: 'ip-adapter' }),
+    ]);
+    render(
+      <CanvasControlLayerProperties
+        layer={referenceLayer()}
+        activeMaskTool="select"
+        onMaskToolChange={vi.fn()}
+        onUpdate={vi.fn()}
+        onDelete={vi.fn()}
+      />,
+    );
+    const status = screen.getByTestId('reference-record-status');
+    expect(status.textContent).toMatch(/masks are not supported on FLUX/i);
+  });
 });

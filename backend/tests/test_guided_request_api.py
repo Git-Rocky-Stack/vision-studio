@@ -23,7 +23,7 @@ class _FakeRegistry:
         self.statuses = statuses or {}
 
     def get_record(self, model_id):
-        if model_id.startswith(("controlnet-", "annotator-")):
+        if model_id.startswith(("controlnet-", "annotator-", "ip-adapter-")):
             return {"id": model_id, "name": model_id,
                     "status": self.statuses.get(model_id, "ready")}
         return {"id": model_id, "base_architecture": self.family, "status": "ready"}
@@ -135,8 +135,8 @@ def test_over_budget_controlnet_stack_preflights_422(monkeypatch, tmp_path):
 
     client = _client(monkeypatch, _FakeRegistry())
     monkeypatch.setattr(
-        main_module, "controlnet_fit_refusal",
-        lambda base_plan, dirs, family, profile: "does not fit (estimated basis)")
+        main_module, "guided_fit_refusal",
+        lambda base_plan, family, profile, **kwargs: "does not fit (estimated basis)")
     response = client.post("/api/generate/image", json=_cn_request(tmp_path))
     assert response.status_code == 422
     assert "does not fit" in response.json()["detail"]
@@ -147,7 +147,77 @@ def test_fitting_controlnet_stack_still_enqueues(monkeypatch, tmp_path):
 
     client = _client(monkeypatch, _FakeRegistry())
     monkeypatch.setattr(
-        main_module, "controlnet_fit_refusal",
-        lambda base_plan, dirs, family, profile: None)
+        main_module, "guided_fit_refusal",
+        lambda base_plan, family, profile, **kwargs: None)
     response = client.post("/api/generate/image", json=_cn_request(tmp_path))
     assert response.status_code == 200
+
+
+# -- #34 PR4: multi-reference pre-flight ----------------------------------------
+
+def _ref_request(tmp_path, count=2, model="sd-1-5"):
+    from PIL import Image
+
+    refs = []
+    for index in range(count):
+        source = tmp_path / f"ref-{index}.png"
+        Image.new("RGB", (8, 8)).save(source)
+        refs.append({
+            "layer_id": f"r{index}", "layer_name": f"Ref {index}",
+            "source_path": str(source), "mask": MASK, "strength": 1.0,
+        })
+    return {"prompt": "a castle", "model": model, "reference_images": refs}
+
+
+def test_multi_reference_on_sd35_declines_422(monkeypatch, tmp_path):
+    client = _client(monkeypatch, _FakeRegistry(family="sd35"))
+    response = client.post("/api/generate/image",
+                           json=_ref_request(tmp_path, model="sd3.5-large"))
+    assert response.status_code == 422
+    assert "single image" in response.json()["detail"]
+
+
+def test_multi_reference_on_flux_schnell_declines_422(monkeypatch, tmp_path):
+    client = _client(monkeypatch, _FakeRegistry(family="flux"))
+    response = client.post("/api/generate/image",
+                           json=_ref_request(tmp_path, model="flux-schnell"))
+    assert response.status_code == 422
+    assert "distilled" in response.json()["detail"]
+
+
+def test_multi_reference_missing_adapter_names_the_record(monkeypatch, tmp_path):
+    registry = _FakeRegistry(family="sd15",
+                             statuses={"ip-adapter-sd15": "not_found"})
+    client = _client(monkeypatch, registry)
+    response = client.post("/api/generate/image", json=_ref_request(tmp_path))
+    assert response.status_code == 422
+    assert "ip-adapter-sd15" in response.json()["detail"]
+
+
+def test_multi_reference_ready_enqueues(monkeypatch, tmp_path):
+    client = _client(monkeypatch, _FakeRegistry(family="sd15"))
+    response = client.post("/api/generate/image", json=_ref_request(tmp_path))
+    assert response.status_code == 200
+    assert response.json()["status"] == "pending"
+
+
+def test_multi_reference_missing_source_file_422(monkeypatch, tmp_path):
+    body = _ref_request(tmp_path)
+    body["reference_images"][1]["source_path"] = str(tmp_path / "gone.png")
+    client = _client(monkeypatch, _FakeRegistry(family="sd15"))
+    response = client.post("/api/generate/image", json=body)
+    assert response.status_code == 422
+    assert "gone.png" in response.json()["detail"]
+    assert str(tmp_path) not in response.json()["detail"]
+
+
+def test_multi_reference_fit_refusal_422(monkeypatch, tmp_path):
+    import main as main_module
+
+    client = _client(monkeypatch, _FakeRegistry(family="sd15"))
+    monkeypatch.setattr(main_module, "guided_fit_refusal",
+                        lambda base_plan, family, profile, **kwargs:
+                            "too big (measured basis)")
+    response = client.post("/api/generate/image", json=_ref_request(tmp_path))
+    assert response.status_code == 422
+    assert "too big" in response.json()["detail"]

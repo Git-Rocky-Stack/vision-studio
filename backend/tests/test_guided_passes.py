@@ -48,14 +48,37 @@ def test_single_reference_resolves_img2img_with_mask_notice():
     assert any("mask" in n.lower() for n in plan.notices)
 
 
-def test_multiple_references_are_declined_until_pr4():
+def test_two_references_resolve_to_ip_adapter_plan():
+    refs = [
+        {"layer_id": "r1", "source_path": "a.png", "mask": MASK, "strength": 1.2},
+        {"layer_id": "r2", "source_path": "b.png", "mask": MASK, "strength": 0.8},
+    ]
+    plan = resolve_guided_pass([], refs, None, 0.75)
+    assert plan.kind == "none"
+    assert plan.image_path is None
+    assert [ref["layer_id"] for ref in plan.ip_references] == ["r1", "r2"]
+    assert plan.ip_references[0]["strength"] == 1.2
+
+
+def test_single_reference_notice_points_at_the_multi_reference_path():
+    from guided.passes import NOTICE_REFERENCE_MASK_IGNORED
+
+    ref = {"layer_id": "r1", "source_path": "ref.png", "mask": MASK}
+    plan = resolve_guided_pass([], [ref], None, 0.6)
+    assert plan.ip_references == []
+    assert NOTICE_REFERENCE_MASK_IGNORED in plan.notices
+    assert "second visible reference layer" in NOTICE_REFERENCE_MASK_IGNORED
+
+
+def test_multi_reference_composes_with_controlnet_layers():
     refs = [
         {"layer_id": "r1", "source_path": "a.png", "mask": MASK},
         {"layer_id": "r2", "source_path": "b.png", "mask": MASK},
     ]
-    with pytest.raises(GuidedValidationError) as ctx:
-        resolve_guided_pass([], refs, None, 0.75)
-    assert "reference" in str(ctx.value).lower()
+    plan = resolve_guided_pass([dict(CN_LAYER)], refs, None, 0.75)
+    assert plan.kind == "none"
+    assert plan.controlnet == [CN_LAYER]
+    assert len(plan.ip_references) == 2
 
 
 def test_inpaint_resolves_with_prompt_overrides():
@@ -84,10 +107,8 @@ def test_inpaint_plus_reference_is_declined():
 
 
 def test_error_messages_never_contain_paths():
-    refs = [
-        {"layer_id": "r1", "source_path": "C:/secret/a.png", "mask": MASK},
-        {"layer_id": "r2", "source_path": "C:/secret/b.png", "mask": MASK},
-    ]
+    ref = {"layer_id": "r1", "source_path": "C:/secret/a.png", "mask": MASK}
+    inpaint = {"layer_id": "i1", "image_path": "C:/secret/base.png", "mask": MASK}
     with pytest.raises(GuidedValidationError) as ctx:
-        resolve_guided_pass([], refs, None, 0.75)
+        resolve_guided_pass([], [ref], inpaint, 0.75)
     assert "secret" not in str(ctx.value)

@@ -28,6 +28,9 @@ export const generationInitialState = {
   comparisonImages: [] as string[],
   assetLibrary: [] as AssetRecord[],
   generationDraft: null as GenerationDraft | null,
+  // #34 PR4: guided-pass notices from the most recent completed job
+  // (session-only - never persisted).
+  lastGuidedNotices: [] as string[],
   advancedGeneration: {
     generationType: 'image' as const,
     steps: 25,
@@ -174,6 +177,7 @@ export function createGenerationActions(set: AppSet, _get: AppGet) {
       assetLibrary: createDerivedAssetRecord(state.assetLibrary, result, context),
     })),
     setGenerationDraft: (draft: GenerationDraft | null) => set({ generationDraft: draft }),
+    setLastGuidedNotices: (notices: string[]) => set({ lastGuidedNotices: notices }),
     updateAdvancedGeneration: (patch: Partial<AppState['advancedGeneration']>) => set((state) => ({
       advancedGeneration: { ...state.advancedGeneration, ...patch },
     })),

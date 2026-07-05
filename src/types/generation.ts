@@ -97,6 +97,8 @@ export interface GenerationReferenceImageLayerPayload {
   layer_name: string;
   source_path: string;
   mask: GenerationMaskPayload;
+  /** #34 PR4: IP-Adapter scale for this reference (threaded from layer.weight). */
+  strength?: number;
 }
 
 export interface GenerationInpaintPayload {

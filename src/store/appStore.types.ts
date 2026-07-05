@@ -421,6 +421,8 @@ export interface AppState {
     duration: number;
     fps: number;
   };
+  /** #34 PR4: guided-pass notices from the most recent completed job (session-only). */
+  lastGuidedNotices: string[];
 
   // ─── Acceleration (M9 Performance) ───────────────────────────────────────────
   accelerationSettings: AccelerationSettings;
@@ -744,6 +746,7 @@ export interface AppState {
   // Generation draft & advanced generation
   setGenerationDraft: (draft: GenerationDraft | null) => void;
   updateAdvancedGeneration: (patch: Partial<AppState['advancedGeneration']>) => void;
+  setLastGuidedNotices: (notices: string[]) => void;
 
   // Acceleration (M9 Performance)
   updateAccelerationSettings: (patch: Partial<AccelerationSettings>) => void;

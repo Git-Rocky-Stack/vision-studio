@@ -102,7 +102,8 @@ from api.batch import router as batch_router
 from api.retrieval import router as retrieval_router
 from api.comfy_graph import router as comfy_graph_router, configure as configure_comfy_graph
 from guided.controlnet_registry import resolve_controlnet_stack
-from guided.fit import controlnet_fit_refusal
+from guided.fit import guided_fit_refusal
+from guided.ip_adapter import resolve_ip_reference_stack
 from guided.passes import GuidedValidationError, resolve_guided_pass
 
 try:
@@ -455,7 +456,7 @@ class ControlNetLayerPayload(BaseModel):
 
 
 class ReferenceImageLayerPayload(BaseModel):
-    """#34: one visible reference layer -> img2img init (IP-Adapter in PR4)."""
+    """#34: reference layers - one = img2img init; 2+ = IP-Adapter multi-reference (real since PR4)."""
     layer_id: str
     layer_name: str = ""
     source_path: str
@@ -1250,6 +1251,7 @@ async def generate_image(
                                 "install 'flux-fill' from the Foundry first."
                             ),
                         )
+        cn_stack = []
         if pass_plan.controlnet:
             for layer in pass_plan.controlnet:
                 if not os.path.isfile(layer.get("source_path") or ""):
@@ -1269,10 +1271,34 @@ async def generate_image(
                 )
             except GuidedValidationError as exc:
                 raise HTTPException(status_code=422, detail=str(exc))
-            # #34 PR3: refuse over-budget stacks up front with the labeled
-            # basis instead of letting the job OOM minutes into a run. The
-            # gate reads exact installed-header bytes; probe + plan run in
-            # the executor like /resolve-runtime does.
+
+        # #34 PR4: 2+ reference layers resolve (or decline) BEFORE a job exists.
+        ip_stack = None
+        if pass_plan.ip_references:
+            for ref in pass_plan.ip_references:
+                if not os.path.isfile(ref.get("source_path") or ""):
+                    name = os.path.basename(ref.get("source_path") or "")
+                    raise HTTPException(
+                        status_code=422,
+                        detail=f"Reference source image '{name}' was not found on disk.",
+                    )
+            record = model_registry.get_record(gen_request.model) or {}
+            try:
+                ip_stack = resolve_ip_reference_stack(
+                    pass_plan.ip_references,
+                    record.get("base_architecture"),
+                    model_registry.get_record,
+                    model_id=gen_request.model,
+                )
+            except GuidedValidationError as exc:
+                raise HTTPException(status_code=422, detail=str(exc))
+
+        # #34 PR3/PR4: refuse over-budget guided stacks up front with the
+        # labeled basis instead of letting the job OOM minutes into a run.
+        # The gate reads exact installed-header bytes; probe + plan run in
+        # the executor like /resolve-runtime does.
+        if cn_stack or ip_stack:
+            record = model_registry.get_record(gen_request.model) or {}
             if record:
                 loop = asyncio.get_running_loop()
                 profile = await loop.run_in_executor(None, probe_hardware, MODELS_DIR)
@@ -1284,8 +1310,16 @@ async def generate_image(
                     cn_dir = os.path.join(MODELS_DIR, "controlnet", item.record_id)
                     if cn_dir not in cn_dirs:
                         cn_dirs.append(cn_dir)
-                refusal = controlnet_fit_refusal(
-                    base_plan, cn_dirs, record.get("base_architecture"), profile)
+                ip_dirs = []
+                if ip_stack:
+                    adapter_dir = os.path.join(
+                        MODELS_DIR, "ip-adapter", ip_stack.adapter_record_id)
+                    ip_dirs = [adapter_dir] * ip_stack.instances
+                    ip_dirs.append(os.path.join(
+                        MODELS_DIR, "ip-adapter", ip_stack.encoder_record_id))
+                refusal = guided_fit_refusal(
+                    base_plan, record.get("base_architecture"), profile,
+                    cn_model_dirs=cn_dirs, ip_model_dirs=ip_dirs)
                 if refusal:
                     raise HTTPException(status_code=422, detail=refusal)
 

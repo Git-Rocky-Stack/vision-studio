@@ -38,6 +38,12 @@ from foundry.lora import loras_applied
 
 # #34 guided passes (all modules import with no torch/diffusers).
 from guided.controlnet_registry import resolve_controlnet_stack
+from guided.ip_adapter import (
+    LOADER_FLUX as IP_LOADER_FLUX,
+    ip_adapter_applied,
+    ip_adapter_mask_tensor,
+    resolve_ip_reference_stack,
+)
 from guided.masks import mask_coverage, rasterize_mask
 from guided.passes import GuidedValidationError, resolve_guided_pass
 from guided.pipelines import (
@@ -452,6 +458,46 @@ class DirectGenerator:
                 for item in cn_stack
             ]
 
+        # #34 PR4: resolve 2+ reference layers through the IP-Adapter seam
+        # (same GuidedValidationError contract the endpoint 422s through),
+        # and prepare images + masks on CPU before any weights move.
+        ip_stack = None
+        ip_adapter_dir = ""
+        ip_encoder_dir = ""
+        ip_images: List[Any] = []
+        ip_masks: List[Any] = []
+        if pass_plan.ip_references:
+            base_record = _resolve_record(model_name) or {}
+            ip_stack = resolve_ip_reference_stack(
+                pass_plan.ip_references, base_record.get("base_architecture"),
+                _resolve_record, model_id=model_name)
+            ip_adapter_dir = os.path.join(
+                self.models_dir, "ip-adapter", ip_stack.adapter_record_id)
+            encoder_root = os.path.join(
+                self.models_dir, "ip-adapter", ip_stack.encoder_record_id)
+            ip_encoder_dir = (
+                os.path.join(encoder_root, ip_stack.encoder_subpath)
+                if ip_stack.encoder_subpath else encoder_root)
+            for record_id, model_dir in (
+                    (ip_stack.adapter_record_id, ip_adapter_dir),
+                    (ip_stack.encoder_record_id, ip_encoder_dir)):
+                if not os.path.isdir(model_dir):
+                    raise GuidedValidationError(
+                        f"The IP-Adapter model '{record_id}' looks incomplete "
+                        "on disk - reinstall it from the Foundry."
+                    )
+            for ref in ip_stack.references:
+                ip_images.append(Image.open(ref.get("source_path")).convert("RGB"))
+                if ip_stack.masked:
+                    mask_image = rasterize_mask(ref.get("mask") or {}, width, height)
+                    if mask_coverage(mask_image) == 0.0:
+                        name = ref.get("layer_name") or ref.get("layer_id") or "reference"
+                        raise GuidedValidationError(
+                            f"The mask on reference layer '{name}' is empty - "
+                            "draw a mask region on the canvas first."
+                        )
+                    ip_masks.append(mask_image)
+
         # Load pipeline
         pipeline = self.load_model(model_for_pass, acceleration_settings=acceleration_settings)
         pipeline = self._configure_scheduler(pipeline, scheduler)
@@ -525,6 +571,18 @@ class DirectGenerator:
             if all(mode is not None for mode in modes):
                 call_kwargs["control_mode"] = modes
 
+        if ip_stack:
+            if ip_stack.loader == IP_LOADER_FLUX:
+                # One image per adapter instance; masks are not supported on
+                # FLUX (the stack carries the explicit notice).
+                call_kwargs["ip_adapter_image"] = ip_images
+            else:
+                # ONE adapter with a list of images + per-image masks.
+                call_kwargs["ip_adapter_image"] = [ip_images]
+                call_kwargs["cross_attention_kwargs"] = {
+                    "ip_adapter_masks": ip_adapter_mask_tensor(ip_masks, height, width)
+                }
+
         with ExitStack() as stack:
             if cn_stack:
                 cn_models = stack.enter_context(controlnets_attached(
@@ -543,11 +601,23 @@ class DirectGenerator:
                     else derive_variant(pipeline, pass_plan.kind)
                 )
 
+            if ip_stack:
+                stack.enter_context(ip_adapter_applied(
+                    run_pipeline, ip_stack, ip_adapter_dir, ip_encoder_dir,
+                    self.device))
+
             call_kwargs, dropped_params = filter_call_kwargs(run_pipeline, call_kwargs)
-            if pass_plan.kind != "none" or cn_stack:
+            if ip_stack and "ip_adapter_image" in dropped_params:
+                # The registry is the primary gate; this backstop keeps a
+                # signature drift from silently degrading to unguided output.
+                raise GuidedValidationError(
+                    "This pipeline cannot accept IP-Adapter reference images - "
+                    "hide the extra reference layers or switch checkpoints."
+                )
+            if pass_plan.kind != "none" or cn_stack or ip_stack:
                 guided_report = {
                     "pass": pass_plan.kind,
-                    "notices": list(pass_plan.notices),
+                    "notices": list(pass_plan.notices) + (ip_stack.notices if ip_stack else []),
                     "dropped_params": dropped_params,
                     "controlnet": [
                         {"layer_id": item.layer.get("layer_id"),
@@ -555,6 +625,13 @@ class DirectGenerator:
                          "record_id": item.record_id,
                          "control_mode": item.control_mode}
                         for item in cn_stack
+                    ],
+                    "references": [
+                        {"layer_id": ref.get("layer_id"),
+                         "record_id": ip_stack.adapter_record_id,
+                         "masked": ip_stack.masked,
+                         "strength": float(ref.get("strength", 1.0))}
+                        for ref in (ip_stack.references if ip_stack else [])
                     ],
                 }
 
