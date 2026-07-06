@@ -1,4 +1,4 @@
-import { memo, useState, useCallback, useRef } from 'react';
+import { memo, useState, useCallback, useMemo, useRef } from 'react';
 import { useAppStore } from '@/store/appStore';
 import { ProgressiveStepOverlay } from './ProgressiveStepOverlay';
 
@@ -14,10 +14,11 @@ const OPACITY_TRANSITION_MS = 150;
  * ProgressivePreview renders a step-by-step preview image during generation.
  *
  * Features:
- * - Displays the latest step image with a smooth opacity transition
+ * - Displays the newest decoded step frame with a smooth opacity transition
  * - Shows ProgressiveStepOverlay with cancel and step counter
  * - Ctrl+scroll to zoom (0.25x to 8x) with percentage display
- * - Spinner state while waiting for the first step image
+ * - Spinner before the first step; an honest counter-only state when steps
+ *   tick without any decoded frames (decoder-less / hosted runs)
  */
 export const ProgressivePreview = memo(function ProgressivePreview() {
   const stepImages = useAppStore((s) => s.stepImages);
@@ -28,8 +29,18 @@ export const ProgressivePreview = memo(function ProgressivePreview() {
   const [zoom, setZoom] = useState(1);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Derive the latest step image URL
-  const latestStepImage = currentStep > 0 ? stepImages.get(currentStep) : undefined;
+  // #33: show the newest decoded frame. The poll-driven counter legitimately
+  // runs ahead of the 0.5s-throttled decoder, so an exact-key lookup would
+  // blank the image back to the spinner between frames.
+  const latestFrame = useMemo(() => {
+    let latest: { step: number; image: string } | null = null;
+    for (const [step, image] of stepImages) {
+      if (!latest || step > latest.step) {
+        latest = { step, image };
+      }
+    }
+    return latest;
+  }, [stepImages]);
 
   // --- Zoom handler (Ctrl+scroll) ---
   const handleWheel = useCallback(
@@ -48,6 +59,13 @@ export const ProgressivePreview = memo(function ProgressivePreview() {
 
   // --- Cancel handler ---
   const handleCancel = useCallback(() => {
+    // #33: actually stop the backend job the preview is tracking, then tear
+    // the preview down. Cancel errors are non-fatal - the poll loop settles
+    // the job record either way.
+    const jobId = useAppStore.getState().previewJobId;
+    if (jobId) {
+      void window.electron?.generation?.cancel(jobId)?.catch?.(() => undefined);
+    }
     clearPreview();
   }, [clearPreview]);
 
@@ -67,11 +85,11 @@ export const ProgressivePreview = memo(function ProgressivePreview() {
         onCancel={handleCancel}
       />
 
-      {latestStepImage ? (
+      {latestFrame ? (
         /* ---- Step image ---- */
         <img
-          src={latestStepImage}
-          alt={`Generation step ${currentStep}`}
+          src={latestFrame.image}
+          alt={`Generation step ${latestFrame.step}`}
           draggable={false}
           className="max-h-full max-w-full select-none object-contain"
           style={{
@@ -80,6 +98,13 @@ export const ProgressivePreview = memo(function ProgressivePreview() {
             transition: `opacity ${OPACITY_TRANSITION_MS}ms ease-out, transform 150ms ease-out`,
           }}
         />
+      ) : currentStep >= 2 ? (
+        /* ---- Decoder-less / hosted run: honest counter-only state ---- */
+        <div className="flex flex-col items-center gap-3">
+          <span className="text-sm text-text-body" role="status">
+            Rendering - step preview unavailable on this run.
+          </span>
+        </div>
       ) : (
         /* ---- Initializing spinner ---- */
         <div className="flex flex-col items-center gap-3">
