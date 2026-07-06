@@ -16,6 +16,18 @@ MSG_INPAINT_PLUS_REFERENCE = (
     "Use either an inpaint mask or a reference image layer for a single "
     "generation - combining them is not supported yet (#34)."
 )
+MSG_OUTPAINT_PLUS_INPAINT = (
+    "Use either an inpaint mask or AI Expand for a single generation - "
+    "not both."
+)
+MSG_OUTPAINT_PLUS_REFERENCE = (
+    "Use either AI Expand or a reference image layer for a single "
+    "generation - combining them is not supported yet (#34)."
+)
+MSG_BG_REPLACE_CONFLICT = (
+    "Use only one of background replacement, an inpaint mask, AI Expand, "
+    "or reference layers for a single generation."
+)
 NOTICE_REFERENCE_MASK_IGNORED = (
     "Reference mask not applied: a single reference image runs full-image "
     "img2img - add a second visible reference layer to use masked "
@@ -46,6 +58,12 @@ class GuidedPassPlan:
     # #34 PR4: 2+ reference layers -> IP-Adapter multi-reference (kind stays
     # "none"; family/record validation lives in guided.ip_adapter).
     ip_references: List[Dict[str, Any]] = field(default_factory=list)
+    # #34 PR2 (edit tools): AI Expand pre-step; only set when kind=="inpaint".
+    # The generator grows the canvas and computes the border mask itself.
+    outpaint: Optional[Dict[str, Any]] = None
+    # #34 PR2 (edit tools): background replacement - the generator computes an
+    # inverted U2-Net subject mask itself; only set when kind=="inpaint".
+    background_replace: bool = False
 
 
 def _clean(text: Optional[str]) -> Optional[str]:
@@ -58,12 +76,20 @@ def resolve_guided_pass(
     reference_images: Optional[List[Dict[str, Any]]],
     inpaint: Optional[Dict[str, Any]],
     denoising_strength: float,
+    outpaint: Optional[Dict[str, Any]] = None,
+    background_replace: Optional[Dict[str, Any]] = None,
 ) -> GuidedPassPlan:
     controlnet = controlnet or []
     reference_images = reference_images or []
 
     if inpaint and reference_images:
         raise GuidedValidationError(MSG_INPAINT_PLUS_REFERENCE)
+    if outpaint and inpaint:
+        raise GuidedValidationError(MSG_OUTPAINT_PLUS_INPAINT)
+    if outpaint and reference_images:
+        raise GuidedValidationError(MSG_OUTPAINT_PLUS_REFERENCE)
+    if background_replace and (inpaint or outpaint or reference_images):
+        raise GuidedValidationError(MSG_BG_REPLACE_CONFLICT)
 
     # diffusers has no per-layer ControlNet prompting; say so, don't pretend.
     notices: List[str] = []
@@ -82,6 +108,44 @@ def resolve_guided_pass(
             negative_prompt_override=_clean(inpaint.get("negative_prompt")),
             notices=notices,
             controlnet=controlnet,
+        )
+
+    if outpaint:
+        directions = list(outpaint.get("directions") or [])
+        if not directions or any(
+                d not in ("up", "down", "left", "right") for d in directions):
+            raise GuidedValidationError(
+                "AI Expand needs at least one valid direction "
+                "(up, down, left or right)."
+            )
+        pixels = int(outpaint.get("pixels") or 0)
+        if pixels <= 0:
+            raise GuidedValidationError(
+                "AI Expand needs a positive pixel amount."
+            )
+        return GuidedPassPlan(
+            kind="inpaint",
+            image_path=outpaint.get("image_path"),
+            mask=None,
+            strength=denoising_strength,
+            prompt_override=_clean(outpaint.get("prompt")),
+            negative_prompt_override=_clean(outpaint.get("negative_prompt")),
+            notices=notices,
+            controlnet=controlnet,
+            outpaint={"directions": directions, "pixels": pixels},
+        )
+
+    if background_replace:
+        return GuidedPassPlan(
+            kind="inpaint",
+            image_path=background_replace.get("image_path"),
+            mask=None,
+            strength=denoising_strength,
+            prompt_override=_clean(background_replace.get("prompt")),
+            negative_prompt_override=_clean(background_replace.get("negative_prompt")),
+            notices=notices,
+            controlnet=controlnet,
+            background_replace=True,
         )
 
     if len(reference_images) >= 2:

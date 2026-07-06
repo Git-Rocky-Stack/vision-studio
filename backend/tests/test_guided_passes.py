@@ -112,3 +112,79 @@ def test_error_messages_never_contain_paths():
     with pytest.raises(GuidedValidationError) as ctx:
         resolve_guided_pass([], [ref], inpaint, 0.75)
     assert "secret" not in str(ctx.value)
+
+
+OUTPAINT = {"image_path": "base.png", "directions": ["right", "up"], "pixels": 128}
+
+
+def test_outpaint_resolves_to_an_inpaint_plan_with_pre_step():
+    plan = resolve_guided_pass(None, None, None, 1.0,
+                               outpaint=dict(OUTPAINT, prompt="more sky"))
+    assert plan.kind == "inpaint"
+    assert plan.image_path == "base.png"
+    assert plan.mask is None
+    assert plan.outpaint == {"directions": ["right", "up"], "pixels": 128}
+    assert plan.prompt_override == "more sky"
+    assert plan.strength == 1.0
+
+
+def test_outpaint_plus_inpaint_is_refused():
+    with pytest.raises(GuidedValidationError):
+        resolve_guided_pass(
+            None, None,
+            {"image_path": "b.png", "mask": {"type": "brush", "points": []}},
+            0.8, outpaint=dict(OUTPAINT))
+
+
+def test_outpaint_plus_reference_is_refused():
+    with pytest.raises(GuidedValidationError):
+        resolve_guided_pass(
+            None, [{"layer_id": "r1", "source_path": "r.png"}], None,
+            0.8, outpaint=dict(OUTPAINT))
+
+
+def test_outpaint_direction_and_pixel_validation():
+    with pytest.raises(GuidedValidationError):
+        resolve_guided_pass(None, None, None, 1.0,
+                            outpaint=dict(OUTPAINT, directions=["diagonal"]))
+    with pytest.raises(GuidedValidationError):
+        resolve_guided_pass(None, None, None, 1.0,
+                            outpaint=dict(OUTPAINT, directions=[]))
+    with pytest.raises(GuidedValidationError):
+        resolve_guided_pass(None, None, None, 1.0,
+                            outpaint=dict(OUTPAINT, pixels=0))
+
+
+def test_no_outpaint_leaves_existing_plans_unchanged():
+    plan = resolve_guided_pass(None, None, None, 0.75)
+    assert plan.kind == "none"
+    assert plan.outpaint is None
+    assert plan.background_replace is False
+
+
+def test_background_replace_resolves_to_an_inpaint_plan():
+    plan = resolve_guided_pass(
+        None, None, None, 1.0,
+        background_replace={"image_path": "base.png"})
+    assert plan.kind == "inpaint"
+    assert plan.image_path == "base.png"
+    assert plan.mask is None
+    assert plan.background_replace is True
+    assert plan.outpaint is None
+
+
+def test_background_replace_conflicts_are_refused():
+    bg = {"image_path": "base.png"}
+    with pytest.raises(GuidedValidationError):
+        resolve_guided_pass(
+            None, None,
+            {"image_path": "b.png", "mask": {"type": "brush", "points": []}},
+            1.0, background_replace=bg)
+    with pytest.raises(GuidedValidationError):
+        resolve_guided_pass(
+            None, [{"layer_id": "r1", "source_path": "r.png"}], None,
+            1.0, background_replace=bg)
+    with pytest.raises(GuidedValidationError):
+        resolve_guided_pass(
+            None, None, None, 1.0, outpaint=dict(OUTPAINT),
+            background_replace=bg)
