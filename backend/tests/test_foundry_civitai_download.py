@@ -22,7 +22,7 @@ if str(BACKEND_ROOT) not in sys.path:
 
 from foundry.download_manager import (  # type: ignore[import-not-found]
     DownloadManager,
-    validate_civitai_url,
+    validate_direct_url,
 )
 from foundry.model_record import ModelRecord  # type: ignore[import-not-found]
 from foundry.registry import ModelRegistry  # type: ignore[import-not-found]
@@ -102,23 +102,23 @@ def _disk(free: int):
 
 class UrlValidationTests(unittest.TestCase):
     def test_https_civitai_ok(self):
-        validate_civitai_url("https://civitai.com/api/download/models/99")
+        validate_direct_url("https://civitai.com/api/download/models/99", "civitai")
 
     def test_http_rejected(self):
         with self.assertRaises(ValueError):
-            validate_civitai_url("http://civitai.com/api/download/models/99")
+            validate_direct_url("http://civitai.com/api/download/models/99", "civitai")
 
     def test_other_host_rejected(self):
         with self.assertRaises(ValueError):
-            validate_civitai_url("https://evil.example.com/file.safetensors")
+            validate_direct_url("https://evil.example.com/file.safetensors", "civitai")
 
     def test_userinfo_spoof_rejected(self):
         with self.assertRaises(ValueError):
-            validate_civitai_url("https://civitai.com@evil.example.com/x")
+            validate_direct_url("https://civitai.com@evil.example.com/x", "civitai")
 
     def test_subdomain_rejected(self):
         with self.assertRaises(ValueError):
-            validate_civitai_url("https://civitai.com.evil.example.com/x")
+            validate_direct_url("https://civitai.com.evil.example.com/x", "civitai")
 
 
 class CivitaiDownloadTests(unittest.IsolatedAsyncioTestCase):
