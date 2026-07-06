@@ -1,8 +1,14 @@
 import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useAppStore } from '@/store/appStore';
+
+vi.mock('@/features/studio/runStudioGeneration', () => ({
+  runStudioGeneration: vi.fn().mockResolvedValue({ ok: true, jobId: 'job-1' }),
+}));
+
+import { runStudioGeneration } from '@/features/studio/runStudioGeneration';
 
 import { CompositionPreview } from './CompositionPreview';
 
@@ -13,6 +19,7 @@ function resetStore() {
 describe('CompositionPreview', () => {
   beforeEach(() => {
     resetStore();
+    vi.clearAllMocks();
   });
 
   afterEach(cleanup);
@@ -120,5 +127,32 @@ describe('CompositionPreview', () => {
     // Default first visible layer is 'aspectFrame' which shows "Frame" label
     // The label appears as text content within the opacity control section
     expect(screen.getByText('Frame')).toBeInTheDocument();
+  });
+
+  it('Generate triggers the studio generation feature function', async () => {
+    const user = userEvent.setup();
+    render(<CompositionPreview />);
+
+    await user.click(screen.getByRole('button', { name: /generate/i }));
+
+    expect(runStudioGeneration).toHaveBeenCalledTimes(1);
+  });
+
+  it('renders the dismissible error strip when previewError is set', async () => {
+    const user = userEvent.setup();
+    useAppStore.setState({ previewError: 'The model refused to load.' });
+
+    render(<CompositionPreview />);
+
+    const strip = screen.getByTestId('studio-preview-error');
+    expect(strip).toHaveTextContent('The model refused to load.');
+
+    await user.click(screen.getByLabelText('Dismiss generation error'));
+    expect(useAppStore.getState().previewError).toBeNull();
+  });
+
+  it('does not render the error strip by default', () => {
+    render(<CompositionPreview />);
+    expect(screen.queryByTestId('studio-preview-error')).not.toBeInTheDocument();
   });
 });

@@ -44,10 +44,34 @@ function assertNativeBackend(platformName = process.platform) {
     );
   }
 
+  assertPreviewDecoders();
+
   console.log(
     `[assert-native-backend] OK: ${exeName} (${sizeGB.toFixed(2)} GB) is in resources/`
   );
   return bundlePath;
+}
+
+// #33: the Studio step-preview decoders (MIT, ~45 MB total) ship in every
+// installer alongside the backend bundle - same heavy-by-design rationale.
+const PREVIEW_DECODERS = ['taesd', 'taesdxl', 'taesd3', 'taef1'];
+const PREVIEW_DECODER_FILES = ['config.json', 'diffusion_pytorch_model.safetensors'];
+
+function assertPreviewDecoders() {
+  const root = path.join(__dirname, '..', 'resources', 'preview-decoders');
+  for (const name of PREVIEW_DECODERS) {
+    for (const file of PREVIEW_DECODER_FILES) {
+      const filePath = path.join(root, name, file);
+      if (!fs.existsSync(filePath)) {
+        throw new Error(
+          `Preview decoder missing: ${name}/${file}\n` +
+            'The installer always ships the Studio step-preview decoders ' +
+            '(heavy-by-design). Run `node scripts/fetch-preview-decoders.cjs`.'
+        );
+      }
+    }
+  }
+  console.log('[assert-native-backend] OK: preview decoders (taesd family) are in resources/');
 }
 
 // electron-builder beforePack hook signature: (context) => Promise<void>
@@ -56,6 +80,7 @@ module.exports = async function beforePack(context) {
   assertNativeBackend(platformName);
 };
 module.exports.assertNativeBackend = assertNativeBackend;
+module.exports.assertPreviewDecoders = assertPreviewDecoders;
 
 if (require.main === module) {
   assertNativeBackend();

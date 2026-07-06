@@ -7,9 +7,11 @@ import { ReferenceOverlay } from '@/components/studio/ReferenceOverlay';
 import { ControlNetVisualization } from '@/components/studio/ControlNetVisualization';
 import { RegionMaskPreview } from '@/components/studio/RegionMaskPreview';
 import { ProgressivePreview } from '@/components/studio/ProgressivePreview';
-import { ImagePlus } from 'lucide-react';
+import { AlertCircle, ImagePlus, X } from 'lucide-react';
 import { MediaPreview, isLikelyVideoPath } from '@/components/ui/MediaPreview';
 import { extractFrameToEdit } from '@/features/media/frameExtraction';
+import { runStudioGeneration } from '@/features/studio/runStudioGeneration';
+import { useStepImageSubscription } from '@/features/studio/useStepImageSubscription';
 
 /** Default zoom level for the composition canvas. */
 const DEFAULT_ZOOM = 1;
@@ -25,6 +27,11 @@ export const CompositionPreview = memo(function CompositionPreview() {
   const isPreviewActive = useAppStore((s) => s.isPreviewActive);
   const currentImage = useAppStore((s) => s.currentImage);
   const currentImageAssetPath = useAppStore((s) => s.currentImageAssetPath);
+  const previewError = useAppStore((s) => s.previewError);
+  const setPreviewError = useAppStore((s) => s.setPreviewError);
+
+  // #33: receive decoded step frames for the tracked run.
+  useStepImageSubscription();
 
   const [zoom, setZoom] = useState(DEFAULT_ZOOM);
   const [isExtractingFrame, setIsExtractingFrame] = useState(false);
@@ -45,8 +52,9 @@ export const CompositionPreview = memo(function CompositionPreview() {
   }, []);
 
   const handleGenerate = useCallback(() => {
-    // Full generation and step streaming is tracked post-3.1.0. Tracked: #33
-    useAppStore.getState().setPreviewActive(true);
+    // #33: submit the Studio prompt config as a real job; the feature
+    // function owns validation, the preview lifecycle, and error surfacing.
+    void runStudioGeneration();
   }, []);
   const hasReferenceImage = Boolean(currentImage || currentImageAssetPath);
   const isVideoSource = isLikelyVideoPath(currentImageAssetPath ?? currentImage);
@@ -99,6 +107,26 @@ export const CompositionPreview = memo(function CompositionPreview() {
           onResetView={handleResetView}
         />
       </div>
+
+      {/* #33: last run failure - dismissible, survives preview teardown */}
+      {previewError ? (
+        <div
+          role="alert"
+          data-testid="studio-preview-error"
+          className="mx-3 mt-2 flex items-start gap-2 rounded-sm border border-status-error-border bg-status-error-muted px-3 py-2"
+        >
+          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-status-error" aria-hidden="true" />
+          <p className="flex-1 type-caption text-status-error">{previewError}</p>
+          <button
+            type="button"
+            aria-label="Dismiss generation error"
+            onClick={() => setPreviewError(null)}
+            className="raised-control p-1 text-status-error hover:text-text-primary"
+          >
+            <X className="h-3.5 w-3.5" aria-hidden="true" />
+          </button>
+        </div>
+      ) : null}
 
       {/* Composition canvas area */}
       <div className={cn('relative flex-1 overflow-auto')}>

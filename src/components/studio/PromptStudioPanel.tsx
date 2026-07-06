@@ -81,6 +81,7 @@ export const PromptStudioPanel = memo(function PromptStudioPanel() {
     resolutionTier,
     customWidth,
     customHeight,
+    selectedImageModelId,
   } = useAppStore(
     useShallow((state) => ({
       generationDraft: state.generationDraft,
@@ -91,6 +92,7 @@ export const PromptStudioPanel = memo(function PromptStudioPanel() {
       resolutionTier: state.resolutionTier,
       customWidth: state.customWidth,
       customHeight: state.customHeight,
+      selectedImageModelId: state.selectedImageModelId,
     })),
   );
 
@@ -114,8 +116,9 @@ export const PromptStudioPanel = memo(function PromptStudioPanel() {
         resolutionTier,
         customWidth,
         customHeight,
+        selectedImageModelId,
       }),
-    [advancedGeneration, aspectRatio, customHeight, customWidth, generationDraft, resolutionTier],
+    [advancedGeneration, aspectRatio, customHeight, customWidth, generationDraft, resolutionTier, selectedImageModelId],
   );
   const promptRoute = resolvePromptEnhancementRoute(activeAccount);
   const featuredStylePresets = useMemo(
@@ -474,10 +477,15 @@ export const PromptStudioPanel = memo(function PromptStudioPanel() {
   );
 });
 
-function buildDefaultGenerationDraft(
+export function buildDefaultGenerationDraft(
   state: Pick<
     AppState,
-    'advancedGeneration' | 'aspectRatio' | 'resolutionTier' | 'customWidth' | 'customHeight'
+    | 'advancedGeneration'
+    | 'aspectRatio'
+    | 'resolutionTier'
+    | 'customWidth'
+    | 'customHeight'
+    | 'selectedImageModelId'
   >,
 ): GenerationDraft {
   const dimensions = computeDimensions(
@@ -495,7 +503,9 @@ function buildDefaultGenerationDraft(
     height: dimensions.height,
     steps: state.advancedGeneration.steps,
     cfgScale: state.advancedGeneration.cfgScale,
-    model: 'flux-dev',
+    // #33: carry the actually-selected checkpoint - a hardcoded id here made
+    // Studio drafts silently retarget flux-dev.
+    model: state.selectedImageModelId,
     scheduler: state.advancedGeneration.scheduler,
     seed: state.advancedGeneration.seed,
   };

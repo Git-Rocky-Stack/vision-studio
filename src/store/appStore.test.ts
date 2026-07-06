@@ -1926,6 +1926,47 @@ We only get one pass at this.
       useAppStore.getState().setPreviewActive(false);
       expect(useAppStore.getState().isPreviewActive).toBe(false);
     });
+
+    it('beginPreview arms the lifecycle and clears any prior error', () => {
+      useAppStore.getState().addStepImage(3, 'stale');
+      useAppStore.getState().setPreviewError('old failure');
+
+      useAppStore.getState().beginPreview('job-9', 25);
+
+      const state = useAppStore.getState();
+      expect(state.stepImages.size).toBe(0);
+      expect(state.currentStep).toBe(0);
+      expect(state.totalSteps).toBe(25);
+      expect(state.isPreviewActive).toBe(true);
+      expect(state.previewJobId).toBe('job-9');
+      expect(state.previewError).toBeNull();
+    });
+
+    it('setPreviewStep is monotonic', () => {
+      useAppStore.getState().beginPreview('job-9', 25);
+      useAppStore.getState().setPreviewStep(7);
+      useAppStore.getState().setPreviewStep(4);
+      expect(useAppStore.getState().currentStep).toBe(7);
+    });
+
+    it('addStepImage never steps the counter backwards', () => {
+      useAppStore.getState().setPreviewStep(9);
+      useAppStore.getState().addStepImage(6, 'late frame');
+      const state = useAppStore.getState();
+      expect(state.currentStep).toBe(9);
+      expect(state.stepImages.get(6)).toBe('late frame');
+    });
+
+    it('clearPreview resets tracking but preserves previewError', () => {
+      useAppStore.getState().beginPreview('job-9', 25);
+      useAppStore.getState().setPreviewError('it failed');
+      useAppStore.getState().clearPreview();
+
+      const state = useAppStore.getState();
+      expect(state.previewJobId).toBeNull();
+      expect(state.isPreviewActive).toBe(false);
+      expect(state.previewError).toBe('it failed');
+    });
   });
 
   // ── Iteration History ────────────────────────────────────────────────────

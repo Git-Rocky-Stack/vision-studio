@@ -100,6 +100,15 @@ export interface ImportedAssetFile {
   importedAt: string;
 }
 
+/** #33: one decoded step frame pushed during generation. */
+export interface StepImageEvent {
+  type: 'step_image';
+  job_id: string;
+  step: number;
+  total_steps: number;
+  image: string;
+}
+
 export interface JobStatus {
   job_id: string;
   status: 'pending' | 'processing' | 'completed' | 'failed' | 'cancelled';
@@ -381,6 +390,7 @@ export interface ElectronAPI {
     cancel: (jobId: string) => Promise<{ success: boolean }>;
     listJobs: (options?: { status?: string; limit?: number }) => Promise<{ jobs: any[] }>;
     onProgress: (callback: (data: any) => void) => () => void;
+    onStepImage: (callback: (data: StepImageEvent) => void) => () => void;
   };
   system: {
     getInfo: () => Promise<SystemInfo>;

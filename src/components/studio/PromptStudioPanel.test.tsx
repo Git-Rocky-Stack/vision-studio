@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useAppStore } from '@/store/appStore';
 import type { ElectronAPI } from '@/types/electron';
 
-import { PromptStudioPanel } from './PromptStudioPanel';
+import { buildDefaultGenerationDraft, PromptStudioPanel } from './PromptStudioPanel';
 
 function resetStore() {
   useAppStore.setState(useAppStore.getInitialState());
@@ -215,5 +215,27 @@ describe('PromptStudioPanel', () => {
 
     expect(await screen.findByText('OpenRouter Prompt Route')).toBeInTheDocument();
     expect(screen.getByText(/openai\/gpt-4o-mini/)).toBeInTheDocument();
+  });
+
+  it('buildDefaultGenerationDraft carries the selected image model, not a hardcoded id', () => {
+    const draft = buildDefaultGenerationDraft({
+      advancedGeneration: {
+        generationType: 'image',
+        steps: 25,
+        cfgScale: 7.5,
+        scheduler: 'Euler a',
+        clipSkip: 1,
+        seed: -1,
+        duration: 5,
+        fps: 24,
+      },
+      aspectRatio: '1:1',
+      resolutionTier: 'standard',
+      customWidth: 1024,
+      customHeight: 1024,
+      selectedImageModelId: 'sd-1-5',
+    });
+
+    expect(draft.model).toBe('sd-1-5');
   });
 });

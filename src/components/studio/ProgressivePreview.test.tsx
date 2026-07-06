@@ -1,5 +1,5 @@
 import { cleanup, render, screen } from '@testing-library/react';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useAppStore } from '@/store/appStore';
 
@@ -14,7 +14,10 @@ describe('ProgressivePreview', () => {
     resetStore();
   });
 
-  afterEach(cleanup);
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    cleanup();
+  });
 
   it('renders step counter when generation is in progress', () => {
     useAppStore.setState({
@@ -84,9 +87,8 @@ describe('ProgressivePreview', () => {
     expect(screen.getByLabelText('Cancel generation')).toBeInTheDocument();
   });
 
-  it('shows spinner when currentStep is greater than 0 but no image for that step', () => {
+  it('shows the latest available frame when the counter runs ahead of the decoder', () => {
     const images = new Map<number, string>();
-    // Images exist for step 1 but current step is 2 (no image yet)
     images.set(1, 'data:image/png;base64,step1');
 
     useAppStore.setState({
@@ -98,8 +100,59 @@ describe('ProgressivePreview', () => {
 
     render(<ProgressivePreview />);
 
-    // currentStep is 2, but no image at index 2, so spinner should show
+    // The step-1 frame stays visible instead of regressing to the spinner.
+    expect(screen.getByAltText('Generation step 1')).toBeInTheDocument();
+    expect(screen.queryByText('Initializing generation...')).not.toBeInTheDocument();
+  });
+
+  it('shows the honest decoder-less state once steps tick with no frames', () => {
+    useAppStore.setState({
+      currentStep: 3,
+      totalSteps: 10,
+      isPreviewActive: true,
+    });
+
+    render(<ProgressivePreview />);
+
+    expect(
+      screen.getByText('Rendering - step preview unavailable on this run.'),
+    ).toBeInTheDocument();
+    expect(screen.queryByText('Initializing generation...')).not.toBeInTheDocument();
+  });
+
+  it('keeps the initializing spinner before the first step', () => {
+    useAppStore.setState({
+      currentStep: 0,
+      totalSteps: 10,
+      isPreviewActive: true,
+    });
+
+    render(<ProgressivePreview />);
+
     expect(screen.getByText('Initializing generation...')).toBeInTheDocument();
+  });
+
+  it('cancel calls the backend for the tracked job before clearing', async () => {
+    const { default: userEvent } = await import('@testing-library/user-event');
+    const user = userEvent.setup();
+    const cancel = vi.fn().mockResolvedValue({ success: true });
+    vi.stubGlobal('window', Object.assign(window, {
+      electron: { generation: { cancel } },
+    }));
+
+    useAppStore.setState({
+      currentStep: 5,
+      totalSteps: 20,
+      isPreviewActive: true,
+      previewJobId: 'job-77',
+    });
+
+    render(<ProgressivePreview />);
+    await user.click(screen.getByLabelText('Cancel generation'));
+
+    expect(cancel).toHaveBeenCalledWith('job-77');
+    expect(useAppStore.getState().isPreviewActive).toBe(false);
+    expect(useAppStore.getState().previewJobId).toBeNull();
   });
 
   it('clears preview state when cancel button is clicked', async () => {

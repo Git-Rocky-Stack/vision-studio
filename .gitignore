@@ -31,6 +31,7 @@ backend/venv/
 *.asar
 *.blockmap
 resources/VisionStudio-Backend.exe
+resources/preview-decoders/
 
 # Acceleration caches (torch.compile inductor + TensorRT engines)
 **/.cache/inductor/

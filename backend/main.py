@@ -106,6 +106,9 @@ from guided.fit import guided_fit_refusal
 from guided.ip_adapter import resolve_ip_reference_stack
 from guided.passes import GuidedValidationError, resolve_guided_pass
 
+# #33 live step preview: per-job decoded frames streamed over the WS loop.
+from preview.step_preview import step_preview_service
+
 try:
     from utils.comfy_client import ComfyUIClient
     COMFY_CLIENT_IMPORT_ERROR: Optional[Exception] = None
@@ -1394,6 +1397,9 @@ async def process_image_generation(job_id: str, request: ImageGenerationRequest)
             error=str(e),
             completed_at=datetime.now()
         )
+    finally:
+        # #33: free the stored preview frame on every terminal path.
+        step_preview_service.discard(job_id)
 
 
 async def generate_with_comfyui(job_id: str, request: ImageGenerationRequest) -> Dict:
@@ -2307,23 +2313,45 @@ async def websocket_endpoint(websocket: WebSocket):
         update_task.cancel()
 
 
+def build_ws_updates(active_jobs, sent_revisions: Dict[str, int]) -> List[Dict[str, Any]]:
+    """One WS tick: a job_update per processing job, plus at most one new
+    step_image per job whose preview revision this connection has not sent
+    yet (#33). Mutates sent_revisions - the per-connection dedup state. The
+    500ms tick is what caps the stream at ~2 frames/sec."""
+    messages: List[Dict[str, Any]] = []
+    for job in active_jobs:
+        messages.append({
+            "type": "job_update",
+            "job_id": job.id,
+            "status": job.status.value,
+            "progress": job.progress,
+        })
+        preview = step_preview_service.latest(job.id)
+        if preview and sent_revisions.get(job.id) != preview.revision:
+            sent_revisions[job.id] = preview.revision
+            messages.append({
+                "type": "step_image",
+                "job_id": job.id,
+                "step": preview.step,
+                "total_steps": preview.total_steps,
+                "image": preview.image,
+            })
+    return messages
+
+
 async def send_job_updates(websocket: WebSocket):
     """Send periodic job updates"""
+    sent_revisions: Dict[str, int] = {}
     try:
         while True:
             # Send all active jobs status
             active_jobs = job_manager.list_jobs(status="processing")
-            
-            for job in active_jobs:
-                await websocket.send_json({
-                    "type": "job_update",
-                    "job_id": job.id,
-                    "status": job.status.value,
-                    "progress": job.progress
-                })
-            
+
+            for message in build_ws_updates(active_jobs, sent_revisions):
+                await websocket.send_json(message)
+
             await asyncio.sleep(0.5)  # Update every 500ms
-            
+
     except asyncio.CancelledError:
         pass
 
