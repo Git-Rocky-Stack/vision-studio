@@ -189,10 +189,12 @@ as the `/api/v1/lora` stub in ccbddbaf).
   typed signature.
 - **`src/features/edit/useEditTool.ts`** — hook owning the submit → poll → complete lifecycle
   (poll cadence and error budget mirroring `runStudioGeneration`): returns
-  `{run(operation, params), isRunning, progress, error, clearError}`. On completion:
-  `upsertDerivedAsset(result, {prompt: '', params: {sourceTab, tool, ...}})` then
-  `setCurrentImage(url, output_path)` — the exact crop-apply handoff. On failure: honest
-  error message (Foundry pointer preserved verbatim from the backend).
+  `{run(operation, params), isRunning, progress, error, clearError}`. On completion the
+  handoff mirrors the Studio job flow exactly: `syncAssetsFromJobStatus(status)` then
+  `setCurrentImage(toPreviewUrl(images[0]), resolveStoredAssetPath(images[0], ...))` — edit
+  jobs are ordinary jobs with `result.images`, so the renderer `GenerationJob.type` and
+  `AssetJobStatus.type` unions widen to include `'edit'`. On failure: honest error message
+  (Foundry pointer preserved verbatim from the backend).
 - **`AIToolsPanel.tsx`** — the `setTimeout` theater is deleted.
   - Real in PR1: `bg-removal` (Edge Refinement slider → `edge_refinement`), `upscale`
     (2×/4× + model select where `general`/`anime` map to the two records and `face` maps to
@@ -300,8 +302,10 @@ consent flow before the acceptance smokes.
 
 ## 8. Packaging
 
-- The three new Python deps ride the packaged venv; `scripts/assert-native-backend.cjs`
-  gains assertions for `onnxruntime`, `spandrel`, and `facexlib` so a build without them
-  fails loudly (heavy-by-design directive).
+- The three new Python deps ride the PyInstaller bundle: `backend/main.spec` declares
+  `onnxruntime`, `spandrel`, and `facexlib` as hidden imports, and the backend build script
+  (`build-backend.cjs`) gains an import preflight that refuses to bundle a venv missing any
+  of them (heavy-by-design directive). All heavy imports in `backend/edit_tools/` are
+  module-level and guarded so PyInstaller's static analysis sees them.
 - No weights ship in the installer; all six records arrive per-user through the Foundry with
   the pickle-consent gate. Installer size is unchanged.
