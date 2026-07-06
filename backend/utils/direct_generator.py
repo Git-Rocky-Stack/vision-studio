@@ -54,6 +54,9 @@ from guided.pipelines import (
 )
 from guided.preprocessors import produce_control_image
 
+# #33 live step preview (imports no torch/diffusers at module load).
+from preview.step_preview import step_preview_service
+
 
 class ModelLoadRefusedError(RuntimeError):
     """The runtime plan refused to load this model (security or capability).
@@ -360,7 +363,17 @@ class DirectGenerator:
         # call_soon_threadsafe hops the progress update back onto this loop.
         loop = asyncio.get_running_loop()
 
+        # #33: family for the step-preview decoder; None disables previews
+        # (the service fail-softs on unsupported families).
+        preview_family = (_resolve_record(model_name) or {}).get("base_architecture")
+
         def progress_callback_fn(step, timestep, latents):
+            # #33: decode + store the latest step frame (throttled, fail-soft,
+            # runs here in the worker thread so it never blocks the loop).
+            step_preview_service.submit(
+                job_id=job_id, step=step + 1, total_steps=steps,
+                latents=latents, family=preview_family,
+                width=width, height=height)
             if progress_callback:
                 progress = (step + 1) / steps * 100
                 loop.call_soon_threadsafe(progress_callback, progress)
