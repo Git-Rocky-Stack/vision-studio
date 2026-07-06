@@ -18,6 +18,7 @@ import { toOpenRouterRendererMessage } from './openRouterError';
 import { buildPromptContext } from '../services/promptAugmentation';
 import { createRetrievalClient } from '../services/retrievalClient';
 import { mergeJobsByCreatedAtDesc } from './jobListing';
+import { routeBackendWsMessage } from './backendWsRouting';
 import { BACKEND_DOWN_MESSAGE as _BACKEND_DOWN_MESSAGE, requestBackend } from './backendRequest';
 import {
   OPENROUTER_IMAGE_UNSUPPORTED_MESSAGE,
@@ -164,15 +165,9 @@ function connectWebSocket() {
   });
 
   ws.on('message', (data) => {
-    try {
-      const message = JSON.parse(data.toString());
-
-      if (message.type === 'job_update') {
-        mainWindow?.webContents.send('generation:progress', message);
-      }
-    } catch (e) {
-      console.error('Failed to parse WebSocket message:', e);
-    }
+    routeBackendWsMessage(data.toString(), (channel, payload) => {
+      mainWindow?.webContents.send(channel, payload);
+    });
   });
 
   ws.on('close', () => {

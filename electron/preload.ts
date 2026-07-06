@@ -267,6 +267,7 @@ export interface ElectronAPI {
     cancel: (jobId: string) => Promise<{ success: boolean }>;
     listJobs: (options?: { status?: string; limit?: number }) => Promise<any>;
     onProgress: (callback: (data: any) => void) => () => void;
+    onStepImage: (callback: (data: any) => void) => () => void;
   };
   workflow: {
     runGraph: (params: { graph: unknown; generationType: 'image' | 'video' }) => Promise<{
@@ -416,6 +417,11 @@ const electronAPI: ElectronAPI = {
       const handler = (_event: any, data: any) => callback(data);
       ipcRenderer.on('generation:progress', handler);
       return () => ipcRenderer.off('generation:progress', handler);
+    },
+    onStepImage: (callback) => {
+      const handler = (_event: any, data: any) => callback(data);
+      ipcRenderer.on('generation:step-image', handler);
+      return () => ipcRenderer.off('generation:step-image', handler);
     },
   },
   workflow: {
