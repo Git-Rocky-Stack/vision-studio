@@ -10,7 +10,7 @@ BACKEND_ROOT = pathlib.Path(__file__).resolve().parents[1]
 if str(BACKEND_ROOT) not in sys.path:
     sys.path.insert(0, str(BACKEND_ROOT))
 
-from utils.image_ops import apply_crop_and_transform, upscale_image_file  # type: ignore[import-not-found]
+from utils.image_ops import apply_crop_and_transform  # type: ignore[import-not-found]
 
 
 class ImageOpsTests(unittest.TestCase):
@@ -31,21 +31,6 @@ class ImageOpsTests(unittest.TestCase):
 
             with Image.open(result["output_path"]) as saved:
                 self.assertEqual(saved.size, (30, 40))
-
-    def test_upscale_image_file_doubles_image_size(self):
-        with tempfile.TemporaryDirectory() as temp_dir:
-            source_path = pathlib.Path(temp_dir) / "source.png"
-            output_path = pathlib.Path(temp_dir) / "upscaled.png"
-            Image.new("RGB", (32, 24), color="blue").save(source_path)
-
-            result = upscale_image_file(
-                str(source_path),
-                str(output_path),
-                scale_factor=2,
-            )
-
-            with Image.open(result["output_path"]) as saved:
-                self.assertEqual(saved.size, (64, 48))
 
 
 if __name__ == "__main__":

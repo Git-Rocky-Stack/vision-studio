@@ -52,23 +52,3 @@ def apply_crop_and_transform(
         "width": edited.width,
         "height": edited.height,
     }
-
-
-def upscale_image_file(
-    source_path: str,
-    output_path: str,
-    scale_factor: int = 2,
-) -> Dict[str, object]:
-    output = _ensure_parent_dir(output_path)
-
-    with Image.open(source_path) as image:
-        width = max(1, image.width * scale_factor)
-        height = max(1, image.height * scale_factor)
-        upscaled = image.resize((width, height), Image.Resampling.LANCZOS)
-        upscaled.save(output, "PNG")
-
-    return {
-        "output_path": str(output).replace("\\", "/"),
-        "width": width,
-        "height": height,
-    }
