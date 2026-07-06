@@ -138,7 +138,8 @@
     "runtime": "local", "hardware_class": "laptop", "vram": "~0.7 GB",
     "description": "Edge-map conditioning for SD 1.5 canvas ControlNet layers.",
     "license": "openrail", "gated": false, "format": "safetensors",
-    "companions": [], "measured_vram_bytes": null
+    "companions": [], "measured_vram_bytes": null,
+    "companions": [], "files": ["config.json", "diffusion_pytorch_model.safetensors"]
   },
   "controlnet-depth-sd15": {
     "id": "controlnet-depth-sd15", "name": "ControlNet Depth (SD 1.5)", "artifact_type": "controlnet",
@@ -148,7 +149,8 @@
     "runtime": "local", "hardware_class": "laptop", "vram": "~0.7 GB",
     "description": "Depth-map conditioning for SD 1.5 canvas ControlNet layers.",
     "license": "openrail", "gated": false, "format": "safetensors",
-    "companions": ["annotator-midas"], "measured_vram_bytes": null
+    "companions": ["annotator-midas"], "measured_vram_bytes": null,
+    "companions": ["annotator-midas"], "files": ["config.json", "diffusion_pytorch_model.safetensors"]
   },
   "controlnet-openpose-sd15": {
     "id": "controlnet-openpose-sd15", "name": "ControlNet OpenPose (SD 1.5)", "artifact_type": "controlnet",
@@ -158,7 +160,8 @@
     "runtime": "local", "hardware_class": "laptop", "vram": "~0.7 GB",
     "description": "Human-pose conditioning for SD 1.5 canvas ControlNet layers.",
     "license": "openrail", "gated": false, "format": "safetensors",
-    "companions": ["annotator-openpose"], "measured_vram_bytes": null
+    "companions": ["annotator-openpose"], "measured_vram_bytes": null,
+    "companions": ["annotator-openpose"], "files": ["config.json", "diffusion_pytorch_model.safetensors"]
   },
   "controlnet-scribble-sd15": {
     "id": "controlnet-scribble-sd15", "name": "ControlNet Scribble (SD 1.5)", "artifact_type": "controlnet",
@@ -168,7 +171,8 @@
     "runtime": "local", "hardware_class": "laptop", "vram": "~0.7 GB",
     "description": "Scribble/sketch conditioning for SD 1.5 canvas ControlNet layers.",
     "license": "openrail", "gated": false, "format": "safetensors",
-    "companions": [], "measured_vram_bytes": null
+    "companions": [], "measured_vram_bytes": null,
+    "companions": [], "files": ["config.json", "diffusion_pytorch_model.safetensors"]
   },
   "controlnet-normal-sd15": {
     "id": "controlnet-normal-sd15", "name": "ControlNet Normal (SD 1.5)", "artifact_type": "controlnet",
@@ -178,7 +182,8 @@
     "runtime": "local", "hardware_class": "laptop", "vram": "~0.7 GB",
     "description": "Surface-normal conditioning for SD 1.5 canvas ControlNet layers.",
     "license": "openrail", "gated": false, "format": "safetensors",
-    "companions": ["annotator-normalbae"], "measured_vram_bytes": null
+    "companions": ["annotator-normalbae"], "measured_vram_bytes": null,
+    "companions": ["annotator-normalbae"], "files": ["config.json", "diffusion_pytorch_model.safetensors"]
   },
   "controlnet-canny-sdxl": {
     "id": "controlnet-canny-sdxl", "name": "ControlNet Canny (SDXL)", "artifact_type": "controlnet",
@@ -188,7 +193,8 @@
     "runtime": "local", "hardware_class": "creator", "vram": "~2.5 GB",
     "description": "Edge-map conditioning for SDXL canvas ControlNet layers.",
     "license": "openrail++", "gated": false, "format": "safetensors",
-    "companions": [], "measured_vram_bytes": null
+    "companions": [], "measured_vram_bytes": null,
+    "companions": [], "files": ["config.json", "diffusion_pytorch_model.safetensors"]
   },
   "controlnet-depth-sdxl": {
     "id": "controlnet-depth-sdxl", "name": "ControlNet Depth (SDXL)", "artifact_type": "controlnet",
@@ -198,7 +204,8 @@
     "runtime": "local", "hardware_class": "creator", "vram": "~2.5 GB",
     "description": "Depth-map conditioning for SDXL canvas ControlNet layers.",
     "license": "openrail++", "gated": false, "format": "safetensors",
-    "companions": ["annotator-midas"], "measured_vram_bytes": null
+    "companions": ["annotator-midas"], "measured_vram_bytes": null,
+    "companions": ["annotator-midas"], "files": ["config.json", "diffusion_pytorch_model.safetensors"]
   },
   "controlnet-openpose-sdxl": {
     "id": "controlnet-openpose-sdxl", "name": "ControlNet OpenPose (SDXL)", "artifact_type": "controlnet",
@@ -208,7 +215,8 @@
     "runtime": "local", "hardware_class": "creator", "vram": "~2.5 GB",
     "description": "Human-pose conditioning for SDXL canvas ControlNet layers.",
     "license": "apache-2.0", "gated": false, "format": "safetensors",
-    "companions": ["annotator-openpose"], "measured_vram_bytes": null
+    "companions": ["annotator-openpose"], "measured_vram_bytes": null,
+    "companions": ["annotator-openpose"], "files": ["config.json", "diffusion_pytorch_model.safetensors"]
   },
   "annotator-midas": {
     "id": "annotator-midas", "name": "MiDaS Depth Annotator", "artifact_type": "annotator",

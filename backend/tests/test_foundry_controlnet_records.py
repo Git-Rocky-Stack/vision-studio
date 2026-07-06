@@ -45,8 +45,9 @@ def test_pr3_records_scope_their_downloads():
         assert catalog[record_id]["files"] == [
             "config.json", "diffusion_pytorch_model.safetensors",
         ]
-    # PR2 records keep the full-repo-list behavior (no files key or empty).
-    assert not catalog["controlnet-canny-sd15"].get("files")
+    # The PR2 records gained the same allowlists once the full-repo-list
+    # branch's latent 400 surfaced (see
+    # test_dedicated_controlnet_records_carry_files_allowlists).
 
 
 def test_sd35_depth_wires_midas_companion():
@@ -82,6 +83,53 @@ def test_resolve_files_honors_record_allowlist(monkeypatch):
     assert target_dir.endswith("controlnet-union-sdxl")
     # The repo file list was never enumerated - only the allowlist was sized.
     assert seen == [["config.json", "diffusion_pytorch_model.safetensors"]]
+
+
+def test_resolve_files_enumerates_repos_via_list_repo_files(monkeypatch):
+    """No allowlist + no single-file map -> the repo file LIST endpoint.
+
+    get_paths_info REQUIRES concrete paths (an empty list is an HTTP 400 -
+    the latent PR2 bug that broke every dedicated-ControlNet download);
+    enumeration must go through list_repo_files first.
+    """
+    import foundry.download_manager as dm_module
+    from foundry.download_manager import DownloadManager
+
+    def fake_list_repo_files(repo_id, revision=None):
+        return ["config.json", "diffusion_pytorch_model.safetensors",
+                "handler.py", "weights.bin"]
+
+    def fake_paths_info(repo_id, paths, revision=None):
+        assert paths, "get_paths_info must never be called with an empty list"
+        return [{"path": p, "size": 5} for p in paths]
+
+    monkeypatch.setattr(dm_module.huggingface_hub, "list_repo_files", fake_list_repo_files)
+    monkeypatch.setattr(dm_module.huggingface_hub, "get_paths_info", fake_paths_info)
+    dm = DownloadManager.__new__(DownloadManager)
+    dm._models_dir = "X"
+    dm._consent_lookup = None
+    record = {"id": "some-user-import", "artifact_type": "controlnet",
+              "repo_id": "someone/some-controlnet", "revision": "main"}
+    filenames, total, _target = dm._resolve_files("some-user-import", record)
+    # .py never fetched; pickle-bearing .bin filtered without consent.
+    assert filenames == ["config.json", "diffusion_pytorch_model.safetensors"]
+    assert total == 10
+
+
+def test_dedicated_controlnet_records_carry_files_allowlists():
+    """Every dedicated CN record scopes its download to config + fp32 weights
+    (skips fp16 duplicates and the xinsir _twins variant - and sidesteps
+    repo enumeration entirely)."""
+    catalog = load_catalog()
+    for record_id in [
+        "controlnet-canny-sd15", "controlnet-depth-sd15",
+        "controlnet-openpose-sd15", "controlnet-scribble-sd15",
+        "controlnet-normal-sd15", "controlnet-canny-sdxl",
+        "controlnet-depth-sdxl", "controlnet-openpose-sdxl",
+    ]:
+        assert catalog[record_id]["files"] == [
+            "config.json", "diffusion_pytorch_model.safetensors",
+        ], record_id
 
 
 def test_annotator_records_present_and_pickle_gated():

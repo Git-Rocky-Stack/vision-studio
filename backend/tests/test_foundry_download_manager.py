@@ -489,12 +489,19 @@ class DownloadFileFilterTests(unittest.TestCase):
                   "artifact_type": "diffusers-pipeline"}
         infos = [_path_info(path, size) for path, size in self.REPO_FILES]
 
+        def fake_list_repo_files(repo_id, revision=None):
+            # Enumeration rides list_repo_files; get_paths_info REQUIRES
+            # concrete paths (an empty list is an HTTP 400 on the real hub).
+            return [path for path, _size in self.REPO_FILES]
+
         def fake_paths_info(repo_id, paths, revision):
-            if not paths:
-                return infos
+            assert paths, "get_paths_info must never be called with an empty list"
             return [i for i in infos if i.path in paths]
 
         with mock.patch.object(
+            dm_module.huggingface_hub, "list_repo_files",
+            side_effect=fake_list_repo_files,
+        ), mock.patch.object(
             dm_module.huggingface_hub, "get_paths_info", side_effect=fake_paths_info
         ):
             return manager._resolve_files("m-repo", record)

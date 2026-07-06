@@ -324,8 +324,9 @@ class DownloadManager:
         elif single is not None:
             paths = list(single)
         else:
-            infos = huggingface_hub.get_paths_info(repo_id, [], revision=revision)
-            paths = [getattr(info, "path", None) or info["path"] for info in infos]
+            # get_paths_info REQUIRES concrete paths (an empty list is an
+            # HTTP 400) - enumeration goes through the repo file list.
+            paths = list(huggingface_hub.list_repo_files(repo_id, revision=revision))
             paths = [p for p in paths if not p.lower().endswith(".py")]
             if not self._pickle_allowed(model_id):
                 paths = [p for p in paths if not p.lower().endswith(_PICKLE_SUFFIXES)]
