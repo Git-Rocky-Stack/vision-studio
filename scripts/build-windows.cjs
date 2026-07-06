@@ -253,11 +253,15 @@ const steps = {
 
   async prepareResources() {
     log('[6/10] Preparing resources...', 'blue');
-    
+
     // Create resources directory
     if (!fs.existsSync(RESOURCES_DIR)) {
       fs.mkdirSync(RESOURCES_DIR, { recursive: true });
     }
+
+    // #33: the installer always ships the Tiny-VAE step-preview decoders
+    // (MIT - unlike checkpoint weights, redistribution is allowed).
+    exec('node scripts/fetch-preview-decoders.cjs', { cwd: ROOT_DIR });
     
     // Create license file if not exists
     const licensePath = path.join(ROOT_DIR, 'LICENSE.txt');
