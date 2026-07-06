@@ -119,9 +119,10 @@ data URI so the renderer assigns it straight to `img.src`.
   2. frozen (PyInstaller): `dirname(sys.executable)/preview-decoders`
      (the exe sits directly in electron `resourcesPath`, and
      `resources/preview-decoders/` ships beside it via `extraResources`);
-  3. source runs: `<backend>/../resources/preview-decoders` (dev checkout AND
-     the packaged `backend-source` fallback both land on the same
-     `resources/preview-decoders`);
+  3. source runs, probed in order: `<backend>/../resources/preview-decoders`
+     (dev checkout) then `<backend>/../preview-decoders` (the packaged
+     `backend-source` fallback sits at `resourcesPath/backend-source`, and the
+     decoders land at `resourcesPath/preview-decoders`);
   4. none exists -> `None`.
 - `load_decoder(family)` -> `diffusers.AutoencoderTiny.from_pretrained(dir)`,
   cached per family, moved to the caller-supplied device, `float32`. Raises
@@ -230,7 +231,9 @@ clearPreview()                  // existing reset + previewJobId null (previewEr
                                 // preview teardown so the user can read it)
 ```
 
-`addStepImage` behavior (10-image eviction, sets `currentStep`) is unchanged.
+`addStepImage` keeps its 10-image eviction; its `currentStep` write gains a
+monotonic guard (`Math.max(currentStep, step)`) so a frame that lands after a
+poll-driven `setPreviewStep` cannot step the counter backwards.
 
 ### `src/features/studio/runStudioGeneration.ts` (shared feature function)
 
