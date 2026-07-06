@@ -202,4 +202,5 @@ _ARTIFACT_SUBDIR = {
     "ip-adapter": "ip-adapter",
     "embedding": "embeddings",
     "annotator": "annotators",
+    "edit-model": "edit-model",
 }
