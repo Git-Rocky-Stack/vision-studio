@@ -15,6 +15,11 @@ directories:
   output: release
   buildResources: build
 
+# Heavy-by-design: every distributable ships the native PyInstaller backend
+# (PyTorch, diffusers, CUDA). Packaging aborts if the bundle is missing -
+# slim/frontend-only installers are never produced.
+beforePack: scripts/assert-native-backend.cjs
+
 # Files to include in the build
 files:
   - dist/**/*

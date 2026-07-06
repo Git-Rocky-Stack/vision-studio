@@ -163,15 +163,15 @@ const steps = {
 
   async buildBackend() {
     log('[5/10] Building Python backend...', 'blue');
-    log('  This step is OPTIONAL. Skip if you want smaller bundle.\n', 'yellow');
-    
+    log('  Heavy-by-design: the native backend bundle is REQUIRED in every package.\n', 'cyan');
+
     const backendPath = path.join(ROOT_DIR, 'backend');
     const venvPath = path.join(backendPath, 'venv');
-    
-    // Check if we should build backend
+
     if (!fs.existsSync(path.join(backendPath, 'main.py'))) {
-      log('  ⚠️  Backend source not found, skipping backend build', 'yellow');
-      return;
+      throw new Error(
+        'Backend source not found - cannot produce a distributable without the native backend.'
+      );
     }
     
     try {
@@ -235,14 +235,19 @@ const steps = {
         const sizeMB = (stats.size / 1024 / 1024).toFixed(2);
         log(`  ✅ Backend executable built (${sizeMB} MB)`, 'green');
       } else {
-        log('  ❌ Backend executable not found', 'red');
+        throw new Error(`Backend executable not found at ${exeSource}`);
       }
-      
+
     } catch (error) {
+      // A reusable bundle from a previous `npm run build:backend` still
+      // satisfies the gate; only a MISSING bundle aborts the build. Slim
+      // frontend-only packages are never produced.
+      const { assertNativeBackend } = require('./assert-native-backend.cjs');
       log(`  ⚠️  Backend build failed: ${error.message}`, 'yellow');
-      log('  Continuing with frontend-only build...', 'yellow');
+      log('  Checking for an existing native bundle in resources/...', 'yellow');
+      assertNativeBackend();
     }
-    
+
     log('');
   },
 

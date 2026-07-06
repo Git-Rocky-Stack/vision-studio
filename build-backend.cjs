@@ -275,64 +275,6 @@ async function copyToResources(distDir) {
   log(`✅ Copied to resources (${sizeMB} MB)`, 'green');
 }
 
-async function createModelDownloader() {
-  log('\n💾 Creating model downloader script...', 'blue');
-  
-  const downloaderScript = `#!/usr/bin/env node
-/**
- * First-time setup: Download AI models
- * This runs on first launch to download models (too large to bundle)
- */
-
-const fs = require('fs');
-const path = require('path');
-const https = require('https');
-const { execSync } = require('child_process');
-
-const MODELS_DIR = path.join(process.resourcesPath, 'models');
-
-const MODELS = [
-  {
-    id: 'sd-1-5',
-    name: 'Stable Diffusion 1.5',
-    repo: 'runwayml/stable-diffusion-v1-5',
-    file: 'v1-5-pruned-emaonly.safetensors',
-    size: '4.3 GB',
-    required: true
-  },
-  {
-    id: 'sdxl-base',
-    name: 'Stable Diffusion XL',
-    repo: 'stabilityai/stable-diffusion-xl-base-1.0',
-    file: 'sd_xl_base_1.0.safetensors',
-    size: '6.9 GB',
-    required: false
-  },
-];
-
-async function downloadModel(model, onProgress) {
-  console.log(\`Downloading \${model.name}...\`);
-  // Implementation would download from HuggingFace
-  // For now, just create directory structure
-  const modelDir = path.join(MODELS_DIR, 'checkpoints');
-  if (!fs.existsSync(modelDir)) {
-    fs.mkdirSync(modelDir, { recursive: true });
-  }
-}
-
-module.exports = { MODELS, downloadModel };
-`;
-  
-  const downloaderPath = path.join(__dirname, 'scripts', 'model-downloader.js');
-  
-  if (!fs.existsSync(path.dirname(downloaderPath))) {
-    fs.mkdirSync(path.dirname(downloaderPath), { recursive: true });
-  }
-  
-  fs.writeFileSync(downloaderPath, downloaderScript);
-  log('✅ Model downloader created', 'green');
-}
-
 async function main() {
   log('\n' + '='.repeat(60), 'magenta');
   log('  Vision Studio - Backend Build Script', 'magenta');
@@ -362,29 +304,27 @@ async function main() {
     
     // Build executable
     const distDir = await buildExecutable(venvPath);
-    
+
     // Copy to resources
     await copyToResources(distDir);
-    
-    // Create model downloader
-    await createModelDownloader();
-    
+
     log('\n' + '='.repeat(60), 'green');
     log('  ✅ Backend build complete!', 'green');
     log('='.repeat(60) + '\n', 'green');
-    
+
     log('Next steps:', 'cyan');
     log('  1. Run: npm run package', 'yellow');
     log('  2. Distribute the built app', 'yellow');
-    log('\nNote: AI models are downloaded on first run (not bundled)', 'yellow');
-    
+    log('\nNote: model WEIGHTS install per-user through the consent-gated Foundry;', 'yellow');
+    log('every runtime dependency (PyTorch, diffusers, CUDA) ships inside the bundle.', 'yellow');
+
   } catch (error) {
     log('\n❌ Build failed!', 'red');
     console.error(error);
     log('\n💡 Tips:', 'yellow');
-    log('   • Make sure Python 3.8-3.12 is installed', 'yellow');
-    log('   • You can skip backend bundling and use npm run build:windows instead', 'yellow');
-    log('   • The frontend-only installer will download PyTorch on first run', 'yellow');
+    log('   • Make sure Python 3.10-3.12 is installed', 'yellow');
+    log('   • The native backend bundle is REQUIRED - packaging refuses to', 'yellow');
+    log('     produce a slim installer without it (scripts/assert-native-backend.cjs)', 'yellow');
     process.exit(1);
   }
 }
