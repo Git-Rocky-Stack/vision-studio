@@ -1998,15 +1998,59 @@ async def enqueue_download(request: Request, model_id: str):
             revision=signals.revision,
         )
         record = model_registry.get_record(model_id)
-    # Spec 5.3 security rail: pickle weights and trust_remote_code are
-    # deny-by-default - downloads are blocked until per-model consent exists.
-    consent = consent_store.get(model_id)
+    # Complete-or-explain installs: a record's companions (shared encoders,
+    # annotators) download WITH it - a half-install fails at generation time.
+    # Every security gate runs for the WHOLE group BEFORE anything enqueues,
+    # so a blocked companion refuses the install up front naming itself.
+    companions = _companion_closure(record)
+    _raise_unless_consented(record)
+    for companion in companions:
+        _raise_unless_consented(companion, companion_of=model_id)
+    job = download_manager.enqueue(
+        model_id, token=_acquisition_token(request, record))
+    for companion in companions:
+        download_manager.enqueue(
+            companion["id"], token=_acquisition_token(request, companion))
+    return _job_to_dict(job)
+
+
+def _companion_closure(record: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Catalog companions this record needs installed - transitive, deduped,
+    cycle-safe, excluding records already ready on disk. A companions id that
+    resolves to no record is skipped (the catalog test guarantees none exist).
+    """
+    seen = {record["id"]}
+    queue = list(record.get("companions") or [])
+    resolved: List[Dict[str, Any]] = []
+    while queue:
+        companion_id = queue.pop(0)
+        if companion_id in seen:
+            continue
+        seen.add(companion_id)
+        companion = model_registry.get_record(companion_id)
+        if companion is None:
+            continue
+        queue.extend(companion.get("companions") or [])
+        if companion.get("status") == "ready":
+            continue
+        resolved.append(companion)
+    return resolved
+
+
+def _raise_unless_consented(record: Dict[str, Any], companion_of: Optional[str] = None) -> None:
+    """Spec 5.3 security rail: pickle weights and trust_remote_code are
+    deny-by-default - downloads are blocked until per-model consent exists.
+    """
+    prefix = (
+        f"Its companion '{record['id']}'" if companion_of else "This model"
+    )
+    consent = consent_store.get(record["id"])
     if record.get("format") == "pickle" and not consent["pickle"]:
         raise HTTPException(
             status_code=409,
             detail={
                 "error_code": "pickle-consent-required",
-                "message": "This model ships pickle weights. Explicit consent is required (Settings > Model Trust).",
+                "message": f"{prefix} ships pickle weights. Explicit consent is required (Settings > Model Trust).",
             },
         )
     if record.get("trust_remote_code") and not consent["trust_remote_code"]:
@@ -2014,12 +2058,9 @@ async def enqueue_download(request: Request, model_id: str):
             status_code=409,
             detail={
                 "error_code": "remote-code-consent-required",
-                "message": "This model requires running code authored by the repo. Explicit per-model consent is required.",
+                "message": f"{prefix} requires running code authored by the repo. Explicit per-model consent is required.",
             },
         )
-    token = _acquisition_token(request, record)
-    job = download_manager.enqueue(model_id, token=token)
-    return _job_to_dict(job)
 
 
 def _acquisition_token(request: Request, record: Optional[Dict[str, Any]]) -> Optional[str]:
