@@ -437,6 +437,8 @@ export interface AppState {
   currentStep: number;
   totalSteps: number;
   isPreviewActive: boolean;
+  previewJobId: string | null;
+  previewError: string | null;
 
   // ─── Iteration History ──────────────────────────────────────────────────────
   iterationNodes: Map<string, IterationNode>;
@@ -763,6 +765,9 @@ export interface AppState {
   // Generation Preview
   addStepImage: (step: number, imageData: string) => void;
   setTotalSteps: (total: number) => void;
+  beginPreview: (jobId: string, totalSteps: number) => void;
+  setPreviewStep: (step: number) => void;
+  setPreviewError: (message: string | null) => void;
   clearPreview: () => void;
   setPreviewActive: (active: boolean) => void;
 
