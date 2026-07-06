@@ -62,3 +62,45 @@ def test_guided_payload_projects_dicts():
     assert payload["inpaint"]["prompt"] == "door"
     assert payload["denoising_strength"] == 0.9
     assert payload["controlnet"] == []
+
+
+def test_image_request_accepts_outpaint():
+    req = ImageGenerationRequest(prompt="x", outpaint={
+        "image_path": "base.png", "directions": ["right"], "pixels": 128})
+    assert req.outpaint.pixels == 128
+    assert req.outpaint.directions == ["right"]
+
+
+def test_outpaint_pixel_bounds_enforced():
+    with pytest.raises(ValidationError):
+        ImageGenerationRequest(prompt="x", outpaint={
+            "image_path": "b.png", "directions": ["right"], "pixels": 32})
+    with pytest.raises(ValidationError):
+        ImageGenerationRequest(prompt="x", outpaint={
+            "image_path": "b.png", "directions": ["right"], "pixels": 1024})
+
+
+def test_guided_payload_includes_outpaint():
+    req = ImageGenerationRequest(prompt="x", outpaint={
+        "image_path": "b.png", "directions": ["up", "right"], "pixels": 64})
+    payload = _guided_payload(req)
+    assert payload is not None
+    assert payload["outpaint"]["directions"] == ["up", "right"]
+    assert payload["inpaint"] is None
+
+
+def test_guided_defaults_include_no_outpaint():
+    req = ImageGenerationRequest(prompt="x")
+    assert req.outpaint is None
+    assert req.background_replace is None
+    assert _guided_payload(req) is None
+
+
+def test_image_request_accepts_background_replace():
+    req = ImageGenerationRequest(prompt="a beach at sunset", background_replace={
+        "image_path": "base.png"})
+    assert req.background_replace.image_path == "base.png"
+    payload = _guided_payload(req)
+    assert payload is not None
+    assert payload["background_replace"]["image_path"] == "base.png"
+    assert payload["outpaint"] is None
