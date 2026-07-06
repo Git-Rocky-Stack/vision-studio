@@ -587,16 +587,17 @@ ipcMain.handle('generation:crop-image', async (_event, params) => {
   }
 });
 
-ipcMain.handle('generation:upscale-image', async (_event, params) => {
+ipcMain.handle('generation:edit-image', async (_event, params) => {
   try {
+    const { operation, ...body } = params ?? {};
     const response = await requestBackend(() =>
-      axios.post(`${BACKEND_URL}/api/images/upscale`, params, { headers: backendAuthHeaders() }),
+      axios.post(`${BACKEND_URL}/api/v1/edit/${operation}`, body, { headers: backendAuthHeaders() }),
     );
-    return response.data;
+    return { success: true, jobId: response.data.job_id };
   } catch (error: any) {
     return {
       success: false,
-      error: toSafeRendererError(error, 'Image upscale failed'),
+      error: toSafeRendererError(error, 'Edit operation failed'),
     };
   }
 });

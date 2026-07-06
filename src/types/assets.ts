@@ -22,7 +22,7 @@ export interface AssetRecord {
 export interface AssetJobStatus {
   job_id: string;
   status: 'pending' | 'processing' | 'completed' | 'failed' | 'cancelled';
-  type: 'image' | 'video';
+  type: 'image' | 'video' | 'edit';
   created_at: string;
   completed_at?: string;
   error?: string;

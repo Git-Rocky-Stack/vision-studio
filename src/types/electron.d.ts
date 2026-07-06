@@ -114,7 +114,7 @@ export interface JobStatus {
   status: 'pending' | 'processing' | 'completed' | 'failed' | 'cancelled';
   progress: number;
   step?: number;
-  type: 'image' | 'video';
+  type: 'image' | 'video' | 'edit';
   created_at: string;
   completed_at?: string;
   result?: {
@@ -382,10 +382,15 @@ export interface ElectronAPI {
       source_path: string;
       time_ms?: number;
     }) => Promise<any>;
-    upscaleImage: (params: {
+    editImage: (params: {
+      operation: 'remove-background' | 'upscale' | 'restore-faces';
       source_path: string;
-      scale_factor?: number;
-    }) => Promise<any>;
+      edge_refinement?: number;
+      scale?: 2 | 4;
+      model?: 'general' | 'anime';
+      face_enhance?: boolean;
+      strength?: number;
+    }) => Promise<{ success: boolean; jobId?: string; error?: string }>;
     getStatus: (jobId: string) => Promise<JobStatus>;
     cancel: (jobId: string) => Promise<{ success: boolean }>;
     listJobs: (options?: { status?: string; limit?: number }) => Promise<{ jobs: any[] }>;

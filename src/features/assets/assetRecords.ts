@@ -283,6 +283,8 @@ export function upsertAssetsFromJobStatus(
   }
 
   const params = jobStatus.params ?? {};
+  // Edit jobs (#34) produce images; only video jobs carry a video result.
+  const assetType: AssetRecord['type'] = jobStatus.type === 'video' ? 'video' : 'image';
   const outputPaths =
     jobStatus.type === 'video'
       ? jobStatus.result.video
@@ -318,18 +320,18 @@ export function upsertAssetsFromJobStatus(
     existingById.set(assetId, {
       id: assetId,
       jobId: jobStatus.job_id,
-      name: buildAssetName(jobStatus.type, jobStatus.job_id, index),
-      type: jobStatus.type,
+      name: buildAssetName(assetType, jobStatus.job_id, index),
+      type: assetType,
       path: resolveStoredAssetPath(outputPath, params),
       previewUrl: toPreviewUrl(outputPath, {
-        type: jobStatus.type,
-        label: buildAssetName(jobStatus.type, jobStatus.job_id, index),
+        type: assetType,
+        label: buildAssetName(assetType, jobStatus.job_id, index),
       }),
       thumbnail:
         previous?.thumbnail ??
         toPreviewUrl(outputPath, {
-          type: jobStatus.type,
-          label: buildAssetName(jobStatus.type, jobStatus.job_id, index),
+          type: assetType,
+          label: buildAssetName(assetType, jobStatus.job_id, index),
         }),
       createdAt: previous?.createdAt ?? jobStatus.created_at,
       prompt: typeof params.prompt === 'string' ? params.prompt : '',
@@ -349,7 +351,7 @@ export function upsertAssetsFromJobStatus(
       params: {
         ...params,
         source: 'generated',
-        reference_ready: jobStatus.type === 'image',
+        reference_ready: assetType === 'image',
         width,
         height,
         fps,
