@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import type { BatchResult } from '@/types/generation';
 import { toGenerationDraftFromResult } from '@/features/batch/resultActions';
+import { useEditTool } from '@/features/edit/useEditTool';
 
 interface ImagePreviewModalProps {
   result: BatchResult | null;
@@ -43,7 +44,6 @@ export function ImagePreviewModal({
     setGenerationDraft,
     removeBatchResults,
     removeAssetRecordsByPaths,
-    upsertDerivedAsset,
   } = useAppStore(
     useShallow((s) => ({
       setCurrentImage: s.setCurrentImage,
@@ -51,9 +51,10 @@ export function ImagePreviewModal({
       setGenerationDraft: s.setGenerationDraft,
       removeBatchResults: s.removeBatchResults,
       removeAssetRecordsByPaths: s.removeAssetRecordsByPaths,
-      upsertDerivedAsset: s.upsertDerivedAsset,
     }))
   );
+
+  const editTool = useEditTool();
 
   const currentIndex = result ? results.findIndex((r) => r.id === result.id) : -1;
   const hasPrev = currentIndex > 0;
@@ -191,35 +192,22 @@ export function ImagePreviewModal({
     onClose();
   };
 
+  // #34: real AI upscale (Real-ESRGAN job) - the LANCZOS resize masquerading
+  // as AI is gone. The run handles asset sync + setCurrentImage on completion.
   const handleUpscale = async () => {
-    if (!result?.assetPath) {
+    if (!result?.assetPath || editTool.isRunning) {
       return;
     }
 
-    const upscaleResult = await window.electron.generation.upscaleImage({
+    const outcome = await editTool.run('upscale', {
       source_path: result.assetPath,
-      scale_factor: 2,
+      scale: 2,
+      model: 'general',
     });
-
-    if (!upscaleResult?.image || !upscaleResult?.output_path) {
-      return;
+    if (!outcome.ok) {
+      return; // editTool.error carries the honest message (rendered below)
     }
 
-    upsertDerivedAsset(upscaleResult, {
-      prompt: result.prompt,
-      negativePrompt:
-        typeof result.params?.negativePrompt === 'string' ? result.params.negativePrompt : '',
-      model: typeof result.params?.model === 'string' ? result.params.model : undefined,
-      seed: result.seed,
-      params: result.params,
-    });
-
-    setCurrentImage(
-      upscaleResult.image.startsWith('http')
-        ? upscaleResult.image
-        : `http://localhost:8000${upscaleResult.image}`,
-      upscaleResult.output_path
-    );
     setActiveTab('canvas');
     useAppStore.getState().setActiveSubMode(null);
     useAppStore.getState().setCenterView('canvas');
@@ -392,6 +380,13 @@ export function ImagePreviewModal({
                     variant="ghost"
                     size="sm"
                     icon={Maximize2}
+                    isLoading={editTool.isRunning && editTool.runningOperation === 'upscale'}
+                    loadingLabel={
+                      editTool.progress > 0
+                        ? `Upscaling ${Math.round(editTool.progress)}%`
+                        : 'Upscaling...'
+                    }
+                    disabled={editTool.isRunning}
                     onClick={handleUpscale}
                   >
                     Upscale
@@ -405,6 +400,23 @@ export function ImagePreviewModal({
                     Export
                   </Button>
                 </div>
+                {editTool.error && (
+                  <div
+                    role="alert"
+                    data-testid="modal-upscale-error"
+                    className="flex items-start gap-2 rounded-sm border border-status-error-border bg-status-error-muted px-3 py-2"
+                  >
+                    <p className="flex-1 type-caption text-status-error">{editTool.error}</p>
+                    <button
+                      type="button"
+                      aria-label="Dismiss upscale error"
+                      onClick={editTool.clearFeedback}
+                      className="raised-control p-1 text-status-error hover:text-text-primary"
+                    >
+                      <X className="h-3.5 w-3.5" aria-hidden="true" />
+                    </button>
+                  </div>
+                )}
                 <Button
                   variant="ghost"
                   size="sm"

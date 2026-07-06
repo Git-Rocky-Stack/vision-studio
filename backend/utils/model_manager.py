@@ -8,7 +8,7 @@ import os
 import shutil
 import tempfile
 import urllib.request
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass, asdict, replace
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -53,6 +53,7 @@ _ARTIFACT_TYPE_TO_LEGACY = {
     "controlnet": "controlnet",
     "embedding": "embedding",
     "annotator": "annotator",
+    "edit-model": "edit-model",
 }
 
 # Single-file artifacts that download via hf_hub_download need a filename.
@@ -136,6 +137,7 @@ class ModelManager:
             'vae': os.path.join(models_dir, 'vaes'),
             'controlnet': os.path.join(models_dir, 'controlnet'),
             'annotator': os.path.join(models_dir, 'annotators'),
+            'edit-model': os.path.join(models_dir, 'edit-model'),
             'embedding': os.path.join(models_dir, 'embeddings'),
             'clip': os.path.join(models_dir, 'clip'),
             'clip_vision': os.path.join(models_dir, 'clip_vision'),
@@ -149,9 +151,13 @@ class ModelManager:
     async def scan_models(self):
         """Scan for available models"""
         self.available_models = {}
-        
-        # Check predefined models
+
+        # Check predefined models. Each scan works on a fresh copy of the
+        # catalog entry: mutating the shared PREDEFINED_MODELS objects would
+        # leak status across manager instances and pin a deleted model to
+        # "ready" on rescan (#34).
         for model_id, model_info in PREDEFINED_MODELS.items():
+            model_info = replace(model_info)
             # Check if already downloaded (multi-file artifacts need EVERY file)
             paths = self._get_local_paths(model_info)
             if paths and all(_path_present(path) for path in paths):
@@ -191,7 +197,7 @@ class ModelManager:
     
     def _get_local_paths(self, model_info: ModelInfo) -> List[str]:
         """Every path that must exist for the model to report ready."""
-        if model_info.type in ("diffusers", "controlnet"):
+        if model_info.type in ("diffusers", "controlnet", "edit-model"):
             return [os.path.join(self.subdirs[model_info.type], model_info.id)]
         names = single_file_names(model_info.id)
         if names:
@@ -249,10 +255,20 @@ class ModelManager:
         to its own on-disk detection. Bridges the manager status enum
         (not_downloaded|downloading|ready|error) to the record enum
         (not_found|downloading|ready|error).
+
+        A 'not_downloaded' verdict re-checks the disk first: this provider
+        shadows the registry's own on-disk fallback, so a Foundry install
+        that completes after the startup scan must flip to ready here, not
+        wait for a backend restart (#34).
         """
         model = self.available_models.get(model_id)
         if model is None:
             return None
+        if model.status == "not_downloaded":
+            paths = self._get_local_paths(model)
+            if paths and all(_path_present(path) for path in paths):
+                model.local_path = paths[0]
+                model.status = "ready"
         # The mapping is total over the ModelInfo.status enum; keep it in
         # lockstep with that enum. An unrecognized value (a future addition)
         # degrades to the conservative not_found rather than leaking a

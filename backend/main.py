@@ -63,7 +63,7 @@ from utils.comfy_workflows import build_image_workflow, build_video_workflow
 from utils.direct_video_generator import DirectVideoGenerator
 from utils.model_manager import ModelManager
 from utils.direct_generator import DirectGenerator, ModelLoadRefusedError
-from utils.image_ops import apply_crop_and_transform, upscale_image_file
+from utils.image_ops import apply_crop_and_transform
 from utils.prompt_service import enhance_prompt
 from db.migrate import run_migrations
 from middleware.rate_limit import limiter, rate_limit_exceeded_handler
@@ -97,7 +97,7 @@ from foundry.security_policy import ConsentStore
 # Initialize logging at module load time
 setup_logging(log_file=os.getenv("LOG_FILE"))
 logger = get_logger(__name__)
-from api.edit import router as edit_router
+from api.edit import router as edit_router, configure as configure_edit
 from api.batch import router as batch_router
 from api.retrieval import router as retrieval_router
 from api.comfy_graph import router as comfy_graph_router, configure as configure_comfy_graph
@@ -412,6 +412,13 @@ app.include_router(comfy_graph_router)
 # `lambda: comfy_client` reads the live module global, which is assigned when the
 # ComfyUI connection is established during startup (None until then).
 configure_comfy_graph(lambda: comfy_client, job_manager, OUTPUT_DIR)
+# #34 real edit tools: job manager + Foundry record resolution for /api/v1/edit.
+configure_edit(
+    job_manager=job_manager,
+    output_dir=OUTPUT_DIR,
+    models_dir=MODELS_DIR,
+    resolve_record=model_registry.get_record,
+)
 
 
 @app.get("/api/health", tags=["System"])
@@ -562,11 +569,6 @@ class ImageEditRequest(BaseModel):
     rotation: int = 0
     flip_horizontal: bool = False
     flip_vertical: bool = False
-
-
-class ImageUpscaleRequest(BaseModel):
-    source_path: str
-    scale_factor: int = Field(default=2, ge=2, le=4)
 
 
 class VideoFrameExtractRequest(BaseModel):
@@ -1060,37 +1062,6 @@ async def crop_image(request: Request, edit_request: ImageEditRequest):
         rotation=edit_request.rotation,
         flip_horizontal=edit_request.flip_horizontal,
         flip_vertical=edit_request.flip_vertical,
-    )
-    result["image"] = relative_path
-    return result
-
-
-@app.post("/api/images/upscale", response_model=Dict[str, Any], tags=["Images"])
-@limiter.limit("30/minute")
-async def upscale_image(request: Request, upscale_request: ImageUpscaleRequest):
-    """
-    Upscale an image using AI super-resolution.
-
-    ### Request Body
-    - `source_path`: Absolute path to source image (required)
-    - `scale_factor`: Upscale multiplier (2-4, default: 2)
-
-    ### Response
-    - `image`: Relative URL path to upscaled image
-    - `width`: Output image width in pixels
-    - `height`: Output image height in pixels
-
-    ### Errors
-    - `404`: Source image not found
-    """
-    if not os.path.exists(upscale_request.source_path):
-        raise HTTPException(status_code=404, detail="Source image not found")
-
-    output_path, relative_path = create_derived_output_path(upscale_request.source_path, "upscale")
-    result = upscale_image_file(
-        upscale_request.source_path,
-        output_path,
-        scale_factor=upscale_request.scale_factor,
     )
     result["image"] = relative_path
     return result

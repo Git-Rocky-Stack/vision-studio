@@ -1,329 +1,158 @@
-"""
-Edit API router for FastAPI.
+"""Edit API router: real AI edit tools as job submitters (#34 second half).
 
-Provides endpoints for AI-powered image editing:
-- Background removal (rembg)
-- Image upscaling (Real-ESRGAN)
-- Face restoration (GFPGAN)
+Each POST validates, registers a GenerationJob(type="edit"), schedules the
+synchronous edit pass on a worker thread, and answers 202 with the job id -
+the renderer polls GET /api/jobs/{job_id} exactly like generation jobs.
+Missing weights surface as a FAILED job carrying the Foundry-pointer copy,
+so the panel has one consistent error path. Cancellation flows through the
+existing cancel endpoint; the tool passes check it between tiles/faces.
 """
 
 from __future__ import annotations
 
+import asyncio
 import logging
-import time
-from typing import Optional, Union
+import os
+import uuid
+from datetime import datetime
+from typing import Any, Callable, Dict, Optional
 
-from fastapi import APIRouter, HTTPException, Request, status
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
 
+from edit_tools.service import run_edit_operation
+from edit_tools.weights import EditCancelled, EditModelUnavailable, EditToolError
 from middleware.rate_limit import LIMITS, limiter
 from schemas.edit import (  # type: ignore[import-not-found]
     BackgroundRemoveRequest,
-    BackgroundRemoveResponse,
-    UpscaleRequest,
-    UpscaleResponse,
+    EditJobResponse,
     FaceRestoreRequest,
-    FaceRestoreResponse,
-    EditErrorResponse,
+    UpscaleRequest,
 )
-from services.edit_service import (  # type: ignore[import-not-found]
-    EditService,
-    encode_image_base64,
-)
-from utils.sanitization import validate_base64
+from utils.job_manager import GenerationJob, JobStatus
 
 logger = logging.getLogger(__name__)
 
-# Create router with prefix
 router = APIRouter(prefix="/api/v1/edit", tags=["Edit"])
 
-# Global service instance (initialized on first use)
-_service: Optional[EditService] = None
+# Configured by main.py at startup (the api/comfy_graph.py pattern).
+_job_manager: Any = None
+_output_dir: str = "outputs"
+_models_dir: str = "models"
+_resolve_record: Optional[Callable[[str], Optional[Dict[str, Any]]]] = None
+
+# Tool -> every record it needs (upscale readiness = the general model;
+# anime and face_enhance surface their own refusals at run time).
+TOOL_RECORDS = {
+    "remove-background": ["edit-u2net"],
+    "upscale": ["edit-realesrgan-x4plus"],
+    "restore-faces": ["edit-gfpgan-v14", "edit-face-detection", "edit-face-parsing"],
+}
 
 
-def get_service() -> EditService:
-    """Get or create the Edit service instance."""
-    global _service
-    if _service is None:
-        import os
-        models_dir = os.getenv("EDIT_MODELS_DIR")
-        _service = EditService(models_dir=models_dir)
-    return _service
+def configure(job_manager: Any, output_dir: str, models_dir: str,
+              resolve_record: Callable[[str], Optional[Dict[str, Any]]]) -> None:
+    global _job_manager, _output_dir, _models_dir, _resolve_record
+    _job_manager = job_manager
+    _output_dir = output_dir
+    _models_dir = models_dir
+    _resolve_record = resolve_record
 
 
-@router.post(
-    "/remove-background",
-    response_model=Union[BackgroundRemoveResponse, EditErrorResponse],
-    responses={
-        200: {"model": BackgroundRemoveResponse, "description": "Background removed successfully"},
-        400: {"model": EditErrorResponse, "description": "Invalid input"},
-        500: {"model": EditErrorResponse, "description": "Internal server error"},
-    },
-)
-@limiter.limit(LIMITS["edit"])
-async def remove_background(request: Request, bg_request: BackgroundRemoveRequest) -> Union[BackgroundRemoveResponse, EditErrorResponse]:
-    """
-    Remove background from an image.
+async def _process(job_id: str, operation: str, params: Dict[str, Any]) -> None:
+    _job_manager.update_job(job_id, status=JobStatus.PROCESSING, progress=0.0)
 
-    Uses AI-powered background removal (rembg) to create a transparent background.
-    Optional alpha matting provides refined edge detection for better results.
+    def cancel_check() -> bool:
+        job = _job_manager.get_job(job_id)
+        return bool(job and job.status == JobStatus.CANCELLED)
 
-    ### Request Body
-    - `image`: Base64-encoded input image
-    - `alpha_matting`: Enable alpha matting for refined edges (default: false)
-    - `alpha_matting_foreground_threshold`: Foreground threshold 0-255 (default: 240)
-    - `alpha_matting_background_threshold`: Background threshold 0-255 (default: 10)
-
-    ### Response
-    - `success`: True if removal succeeded
-    - `image`: Base64-encoded image with alpha channel (PNG format)
-    - `processing_time_ms`: Time taken in milliseconds
-
-    ### Example
-    ```json
-    {
-      "image": "data:image/png;base64,iVBOR...",
-      "alpha_matting": true,
-      "alpha_matting_foreground_threshold": 240,
-      "alpha_matting_background_threshold": 10
-    }
-    ```
-    """
-    start_time = time.time()
-    service = get_service()
+    def progress_cb(done: int, total: int) -> None:
+        _job_manager.update_job(
+            job_id, progress=round(done * 100.0 / max(total, 1), 1))
 
     try:
-        # Validate base64 image
-        if not validate_base64(bg_request.image):
-            raise ValueError("Invalid base64 format for image")
-
-        # Remove background
-        result_image, processing_time_ms = await service.remove_background(
-            image=bg_request.image,
-            alpha_matting=bg_request.alpha_matting,
-            alpha_matting_foreground_threshold=bg_request.alpha_matting_foreground_threshold,
-            alpha_matting_background_threshold=bg_request.alpha_matting_background_threshold,
-        )
-
-        return BackgroundRemoveResponse(
-            success=True,
-            image=f"data:image/png;base64,{result_image}",
-            processing_time_ms=processing_time_ms,
-        )
-
-    except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail={"error": str(e), "error_code": "INVALID_INPUT"},
-        )
-    except RuntimeError as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail={"error": str(e), "error_code": "SERVICE_ERROR"},
-        )
-    except Exception as e:
-        logger.exception(f"Background removal failed: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail={"error": f"Background removal failed: {str(e)}", "error_code": "INTERNAL_ERROR"},
-        )
+        result = await asyncio.to_thread(
+            run_edit_operation, job_id, operation, params, _output_dir,
+            _models_dir, _resolve_record, progress_cb, cancel_check)
+        _job_manager.update_job(
+            job_id, status=JobStatus.COMPLETED, progress=100.0,
+            result=result, completed_at=datetime.now())
+    except EditCancelled:
+        _job_manager.update_job(
+            job_id, status=JobStatus.CANCELLED, completed_at=datetime.now())
+    except (EditModelUnavailable, EditToolError) as exc:
+        _job_manager.update_job(
+            job_id, status=JobStatus.FAILED, error=str(exc),
+            completed_at=datetime.now())
+    except Exception:
+        logger.exception(f"[Job {job_id}] edit operation '{operation}' failed")
+        _job_manager.update_job(
+            job_id, status=JobStatus.FAILED,
+            error=f"The {operation} operation failed unexpectedly - check the backend logs.",
+            completed_at=datetime.now())
 
 
-@router.post(
-    "/upscale",
-    response_model=Union[UpscaleResponse, EditErrorResponse],
-    responses={
-        200: {"model": UpscaleResponse, "description": "Image upscaled successfully"},
-        400: {"model": EditErrorResponse, "description": "Invalid input"},
-        500: {"model": EditErrorResponse, "description": "Internal server error"},
-    },
-)
+def _submit(operation: str, source_path: str, params: Dict[str, Any],
+            background_tasks: BackgroundTasks) -> EditJobResponse:
+    if not os.path.exists(source_path):  # the /api/images/crop convention
+        raise HTTPException(status_code=404, detail="Source image not found")
+
+    job_id = str(uuid.uuid4())
+    _job_manager.add_job(GenerationJob(
+        id=job_id,
+        type="edit",
+        status=JobStatus.PENDING,
+        params={"source": "edit-tool", "operation": operation, **params},
+        output_dir=os.path.join(_output_dir, job_id),
+    ))
+    background_tasks.add_task(
+        _process, job_id, operation, {"source_path": source_path, **params})
+    return EditJobResponse(job_id=job_id, status="pending",
+                           message=f"Edit job started: {operation}")
+
+
+@router.post("/remove-background", response_model=EditJobResponse, status_code=202)
 @limiter.limit(LIMITS["edit"])
-async def upscale_image(request: Request, upscale_request: UpscaleRequest) -> Union[UpscaleResponse, EditErrorResponse]:
-    """
-    Upscale an image using AI super-resolution.
-
-    Uses Real-ESRGAN for high-quality image upscaling with optional face enhancement.
-    Supports 2x, 4x, and 8x scaling factors.
-
-    ### Request Body
-    - `image`: Base64-encoded input image
-    - `scale`: Upscale factor: 2, 4, or 8 (default: 4)
-    - `face_enhance`: Enable face enhancement for portraits (default: false)
-
-    ### Response
-    - `success`: True if upscaling succeeded
-    - `image`: Base64-encoded upscaled image
-    - `original_size`: (width, height) of original image
-    - `new_size`: (width, height) of upscaled image
-    - `processing_time_ms`: Time taken in milliseconds
-
-    ### Example
-    ```json
-    {
-      "image": "data:image/png;base64,iVBOR...",
-      "scale": 4,
-      "face_enhance": false
-    }
-    ```
-    """
-    start_time = time.time()
-    service = get_service()
-
-    try:
-        # Validate base64 image
-        if not validate_base64(upscale_request.image):
-            raise ValueError("Invalid base64 format for image")
-
-        # Upscale image
-        result_image, original_size, new_size, processing_time_ms = await service.upscale(
-            image=upscale_request.image,
-            scale=upscale_request.scale,
-            face_enhance=upscale_request.face_enhance,
-        )
-
-        return UpscaleResponse(
-            success=True,
-            image=f"data:image/png;base64,{result_image}",
-            original_size=original_size,
-            new_size=new_size,
-            processing_time_ms=processing_time_ms,
-        )
-
-    except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail={"error": str(e), "error_code": "INVALID_INPUT"},
-        )
-    except RuntimeError as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail={"error": str(e), "error_code": "SERVICE_ERROR"},
-        )
-    except Exception as e:
-        logger.exception(f"Image upscaling failed: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail={"error": f"Upscaling failed: {str(e)}", "error_code": "INTERNAL_ERROR"},
-        )
+async def remove_background(request: Request, body: BackgroundRemoveRequest,
+                            background_tasks: BackgroundTasks) -> EditJobResponse:
+    """AI background removal (U^2-Net). Poll GET /api/jobs/{job_id}."""
+    return _submit("remove-background", body.source_path,
+                   {"edge_refinement": body.edge_refinement}, background_tasks)
 
 
-@router.post(
-    "/restore-faces",
-    response_model=Union[FaceRestoreResponse, EditErrorResponse],
-    responses={
-        200: {"model": FaceRestoreResponse, "description": "Faces restored successfully"},
-        400: {"model": EditErrorResponse, "description": "Invalid input"},
-        500: {"model": EditErrorResponse, "description": "Internal server error"},
-    },
-)
+@router.post("/upscale", response_model=EditJobResponse, status_code=202)
 @limiter.limit(LIMITS["edit"])
-async def restore_faces(request: Request, face_request: FaceRestoreRequest) -> Union[FaceRestoreResponse, EditErrorResponse]:
-    """
-    Restore and enhance faces in an image.
-
-    Uses GFPGAN for AI-powered face restoration, improving quality and detail
-    in detected faces. Adjustable fidelity controls how closely the output
-    matches the original.
-
-    ### Request Body
-    - `image`: Base64-encoded input image
-    - `fidelity`: Restoration fidelity 0.0-1.0 (default: 0.5)
-      - Higher values preserve more of the original appearance
-      - Lower values allow more AI enhancement
-
-    ### Response
-    - `success`: True if restoration succeeded
-    - `image`: Base64-encoded restored image
-    - `faces_detected`: Number of faces detected and restored
-    - `processing_time_ms`: Time taken in milliseconds
-
-    ### Example
-    ```json
-    {
-      "image": "data:image/png;base64,iVBOR...",
-      "fidelity": 0.5
-    }
-    ```
-    """
-    start_time = time.time()
-    service = get_service()
-
-    try:
-        # Validate base64 image
-        if not validate_base64(face_request.image):
-            raise ValueError("Invalid base64 format for image")
-
-        # Restore faces
-        result_image, faces_detected, processing_time_ms = await service.restore_faces(
-            image=face_request.image,
-            fidelity=face_request.fidelity,
-        )
-
-        return FaceRestoreResponse(
-            success=True,
-            image=f"data:image/png;base64,{result_image}",
-            faces_detected=faces_detected,
-            processing_time_ms=processing_time_ms,
-        )
-
-    except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail={"error": str(e), "error_code": "INVALID_INPUT"},
-        )
-    except RuntimeError as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail={"error": str(e), "error_code": "SERVICE_ERROR"},
-        )
-    except Exception as e:
-        logger.exception(f"Face restoration failed: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail={"error": f"Face restoration failed: {str(e)}", "error_code": "INTERNAL_ERROR"},
-        )
+async def upscale_image(request: Request, body: UpscaleRequest,
+                        background_tasks: BackgroundTasks) -> EditJobResponse:
+    """AI super-resolution (Real-ESRGAN, optional GFPGAN face pass)."""
+    return _submit("upscale", body.source_path,
+                   {"scale": body.scale, "model": body.model,
+                    "face_enhance": body.face_enhance}, background_tasks)
 
 
-@router.get(
-    "/models",
-    response_model=dict,
-)
+@router.post("/restore-faces", response_model=EditJobResponse, status_code=202)
+@limiter.limit(LIMITS["edit"])
+async def restore_faces(request: Request, body: FaceRestoreRequest,
+                        background_tasks: BackgroundTasks) -> EditJobResponse:
+    """AI face restoration (GFPGAN v1.4). faces_detected lands on the job result."""
+    return _submit("restore-faces", body.source_path,
+                   {"strength": body.strength}, background_tasks)
+
+
+@router.get("/models")
 @limiter.limit(LIMITS["default"])
 async def list_edit_models(request: Request) -> dict:
-    """
-    List available edit models and their status.
-
-    Returns information about the AI models used for editing operations.
-
-    ### Response
-    - `models`: Object with model names and their status
-    - `rembg`: Background removal model
-    - `realesrgan`: Upscaling model
-    - `gfpgan`: Face restoration model
-
-    ### Example
-    ```
-    GET /api/v1/edit/models
-    ```
-    """
-    service = get_service()
+    """Per-tool readiness from the Foundry registry (no fake 'loaded' flags)."""
+    def ready(record_ids):
+        if _resolve_record is None:
+            return False
+        return all(
+            (_resolve_record(record_id) or {}).get("status") == "ready"
+            for record_id in record_ids
+        )
 
     return {
-        "models": {
-            "rembg": {
-                "name": "Background Removal",
-                "description": "AI-powered background removal using U^2-Net",
-                "loaded": service.is_model_loaded("rembg"),
-            },
-            "realesrgan": {
-                "name": "Real-ESRGAN",
-                "description": "Super-resolution upscaling (2x, 4x, 8x)",
-                "loaded": service.is_model_loaded("realesrgan"),
-            },
-            "gfpgan": {
-                "name": "GFPGAN",
-                "description": "Face restoration and enhancement",
-                "loaded": service.is_model_loaded("gfpgan"),
-            },
-        },
+        "tools": {
+            operation: {"ready": ready(record_ids), "records": record_ids}
+            for operation, record_ids in TOOL_RECORDS.items()
+        }
     }

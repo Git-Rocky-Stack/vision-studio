@@ -14,7 +14,7 @@ class ModelRecord:
     # Identity
     id: str
     name: str
-    artifact_type: str          # checkpoint | diffusers-pipeline | lora | vae | controlnet | ip-adapter | embedding | motion-adapter | annotator
+    artifact_type: str          # checkpoint | diffusers-pipeline | lora | vae | controlnet | ip-adapter | embedding | motion-adapter | annotator | edit-model
     capability: str             # image | video | edit | inpaint
     base_architecture: str      # flux | sdxl | sd15 | sd35 | ltx | svd | animatediff | unknown
     source: str                 # huggingface | civitai | local | linked
@@ -48,7 +48,7 @@ class ModelRecord:
 
     # Classification + security (M4)
     tier_reason: Optional[str] = None       # one-line "why this tier" (spec 5.2)
-    format: Optional[str] = None            # safetensors | pickle | diffusers
+    format: Optional[str] = None            # safetensors | pickle | diffusers | onnx
     trust_remote_code: bool = False         # repo requires running its own code
     nsfw: bool = False                      # CivitAI channel; HF results always False
 

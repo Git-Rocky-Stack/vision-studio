@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useAppStore } from '../appStore';
+import { selectModelsByCapability } from './modelsSlice';
 import type { ModelRecord } from '@/types/model';
 
 function record(over: Partial<ModelRecord>): ModelRecord {
@@ -40,5 +41,31 @@ describe('modelsSlice', () => {
     await useAppStore.getState().loadModels();
 
     expect(useAppStore.getState().availableModels.map((m) => m.id)).toEqual(['keep']);
+  });
+});
+
+describe('selectModelsByCapability artifact-type allowlist (#34)', () => {
+  it('keeps auxiliary records out of the generation pickers', () => {
+    const models = [
+      record({ id: 'sd-1-5', artifact_type: 'checkpoint', capability: 'image' }),
+      record({ id: 'pipeline', artifact_type: 'diffusers-pipeline', capability: 'image' }),
+      record({ id: 'controlnet-canny-sd15', artifact_type: 'controlnet', capability: 'image' }),
+      record({ id: 'annotator-midas', artifact_type: 'annotator', capability: 'image' }),
+      record({ id: 'some-lora', artifact_type: 'lora', capability: 'image' }),
+      record({ id: 'ip-adapter-sd15', artifact_type: 'ip-adapter', capability: 'image' }),
+      record({ id: 'edit-u2net', artifact_type: 'edit-model', capability: 'edit', source: 'github' }),
+    ];
+    expect(selectModelsByCapability(models, 'image').map((m) => m.id)).toEqual([
+      'sd-1-5',
+      'pipeline',
+    ]);
+  });
+
+  it('video pickers stay checkpoint-only too', () => {
+    const models = [
+      record({ id: 'ltx-video', artifact_type: 'diffusers-pipeline', capability: 'video' }),
+      record({ id: 'video-lora', artifact_type: 'lora', capability: 'video' }),
+    ];
+    expect(selectModelsByCapability(models, 'video').map((m) => m.id)).toEqual(['ltx-video']);
   });
 });

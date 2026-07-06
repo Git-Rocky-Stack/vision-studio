@@ -112,6 +112,29 @@ class ModelManagerTests(unittest.IsolatedAsyncioTestCase):
         manager.available_models["flux-dev"].status = "some-future-state"
         self.assertEqual(manager.get_record_status("flux-dev"), "not_found")
 
+    async def test_edit_model_record_reports_ready_from_per_id_dir(self):
+        models_dir = tempfile.mkdtemp()
+        manager = ModelManager(models_dir)
+        target = os.path.join(models_dir, "edit-model", "edit-u2net")
+        os.makedirs(target, exist_ok=True)
+        with open(os.path.join(target, "edit-u2net.onnx"), "w", encoding="utf-8") as handle:
+            handle.write("stub")
+        await manager.scan_models()
+        self.assertEqual(manager.get_record_status("edit-u2net"), "ready")
+
+    async def test_get_record_status_self_heals_after_a_post_scan_install(self):
+        # Pre-existing wart fixed in #34: a Foundry install completing after
+        # the startup scan must flip to ready without a backend restart.
+        models_dir = tempfile.mkdtemp()
+        manager = ModelManager(models_dir)
+        await manager.scan_models()
+        self.assertEqual(manager.get_record_status("edit-u2net"), "not_found")
+        target = os.path.join(models_dir, "edit-model", "edit-u2net")
+        os.makedirs(target, exist_ok=True)
+        with open(os.path.join(target, "edit-u2net.onnx"), "w", encoding="utf-8") as handle:
+            handle.write("stub")
+        self.assertEqual(manager.get_record_status("edit-u2net"), "ready")
+
 
 if __name__ == "__main__":
     unittest.main()

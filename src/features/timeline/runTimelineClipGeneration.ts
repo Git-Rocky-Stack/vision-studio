@@ -1188,20 +1188,22 @@ function buildGeneratedMediaAsset(
     return null;
   }
 
+  // Edit jobs (#34) produce images; only video jobs carry a video result.
+  const assetType = status.type === 'video' ? ('video' as const) : ('image' as const);
   const storedPath = resolveStoredAssetPath(outputPath, params);
   const thumbnailUrl =
     assetRecord?.thumbnail ??
     toPreviewUrl(outputPath, {
-      type: status.type,
-      label: assetRecord?.name ?? (status.type === 'video' ? 'Generated Video' : 'Generated Image'),
+      type: assetType,
+      label: assetRecord?.name ?? (assetType === 'video' ? 'Generated Video' : 'Generated Image'),
     });
 
   return {
     id: `media::${storedPath}`,
     legacyAssetId: getOutputAssetId(status),
     jobId: status.job_id,
-    name: assetRecord?.name ?? (status.type === 'video' ? 'Generated Video' : 'Generated Image'),
-    type: status.type,
+    name: assetRecord?.name ?? (assetType === 'video' ? 'Generated Video' : 'Generated Image'),
+    type: assetType,
     source: 'generated' as const,
     path: storedPath,
     previewUrl: status.type === 'video' ? storedPath : storedPath,

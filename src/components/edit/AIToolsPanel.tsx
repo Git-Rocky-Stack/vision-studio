@@ -1,9 +1,13 @@
 import { useState } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import { cn } from '@/utils/cn';
 import { hexToRgba } from '@/utils/colorUtils';
 import { Button } from '@/components/ui/Button';
 import { Slider } from '@/components/ui/Slider';
-import { Switch } from '@/components/ui/Switch';
+import { isLikelyVideoPath } from '@/components/ui/MediaPreview';
+import { useAppStore } from '@/store/appStore';
+import { useEditTool } from '@/features/edit/useEditTool';
+import type { EditOperation } from '@/features/edit/runEditTool';
 import {
   Scissors,
   Maximize2,
@@ -15,6 +19,8 @@ import {
   ChevronDown,
   Loader2,
   Wand2,
+  AlertCircle,
+  X,
   ArrowUp,
   ArrowDown,
   ArrowLeft,
@@ -30,11 +36,11 @@ interface AITool {
 }
 
 const AI_TOOLS: AITool[] = [
-  { id: 'bg-removal', name: 'Background Removal', description: 'Remove or replace the background', icon: Scissors },
-  { id: 'upscale', name: 'AI Upscale', description: 'Enhance resolution with AI', icon: Maximize2 },
+  { id: 'bg-removal', name: 'Background Removal', description: 'Remove the background with U2-Net', icon: Scissors },
+  { id: 'upscale', name: 'AI Upscale', description: 'Enhance resolution with Real-ESRGAN', icon: Maximize2 },
   { id: 'style-transfer', name: 'Style Transfer', description: 'Apply artistic styles to your image', icon: Palette },
   { id: 'gen-fill', name: 'Generative Fill', description: 'Fill masked areas with AI content', icon: Paintbrush },
-  { id: 'face-enhance', name: 'Face Enhancement', description: 'Improve facial details and clarity', icon: User },
+  { id: 'face-enhance', name: 'Face Enhancement', description: 'Restore facial detail with GFPGAN', icon: User },
   { id: 'object-removal', name: 'Object Removal', description: 'Remove unwanted objects seamlessly', icon: Eraser },
   { id: 'outpaint', name: 'AI Expand', description: 'Extend image boundaries with AI', icon: Expand },
 ];
@@ -48,31 +54,68 @@ const STYLE_PRESETS = [
   { id: 'pencil', name: 'Pencil Sketch', color: '#636e72' },
 ];
 
+// The three PR1 model-backed tools; the other four route through the guided
+// passes and arrive with the next update (their Apply stays disabled - no
+// fake spinners, ever).
+const OPERATION_BY_TOOL: Record<string, EditOperation> = {
+  'bg-removal': 'remove-background',
+  upscale: 'upscale',
+  'face-enhance': 'restore-faces',
+};
+
+const GUIDED_TOOL_CAPTION = 'Ships with the guided-pass update.';
+
 export function AIToolsPanel() {
   const [expandedTool, setExpandedTool] = useState<string | null>(null);
-  const [processingTool, setProcessingTool] = useState<string | null>(null);
 
   // Tool-specific state
   const [edgeRefinement, setEdgeRefinement] = useState(50);
-  const [bgReplacePrompt, setBgReplacePrompt] = useState('');
   const [upscaleFactor, setUpscaleFactor] = useState<2 | 4>(2);
   const [upscaleModel, setUpscaleModel] = useState('general');
   const [stylePreset, setStylePreset] = useState('van-gogh');
   const [styleStrength, setStyleStrength] = useState(75);
   const [genFillPrompt, setGenFillPrompt] = useState('');
   const [faceStrength, setFaceStrength] = useState(50);
-  const [eyeEnhance, setEyeEnhance] = useState(true);
-  const [skinSmoothing, setSkinSmoothing] = useState(30);
   const [expandDirection, setExpandDirection] = useState<string[]>(['right']);
   const [expandPixels, setExpandPixels] = useState(256);
   const [expandPrompt, setExpandPrompt] = useState('');
 
+  const { currentImage, currentImageAssetPath, setActiveTab } = useAppStore(
+    useShallow((s) => ({
+      currentImage: s.currentImage,
+      currentImageAssetPath: s.currentImageAssetPath,
+      setActiveTab: s.setActiveTab,
+    })),
+  );
+  const { run, isRunning, runningOperation, progress, error, notice, clearFeedback } =
+    useEditTool();
+
+  const isVideoSource = isLikelyVideoPath(currentImageAssetPath ?? currentImage);
+  const canApply = Boolean(currentImageAssetPath) && !isVideoSource && !isRunning;
+
   const handleApply = (toolId: string) => {
-    setProcessingTool(toolId);
-    // Simulate processing
-    setTimeout(() => {
-      setProcessingTool(null);
-    }, 2000);
+    const operation = OPERATION_BY_TOOL[toolId];
+    if (!operation || !canApply || !currentImageAssetPath) {
+      return;
+    }
+    if (operation === 'remove-background') {
+      void run(operation, {
+        source_path: currentImageAssetPath,
+        edge_refinement: edgeRefinement,
+      });
+    } else if (operation === 'upscale') {
+      void run(operation, {
+        source_path: currentImageAssetPath,
+        scale: upscaleFactor,
+        model: upscaleModel === 'anime' ? 'anime' : 'general',
+        face_enhance: upscaleModel === 'face',
+      });
+    } else {
+      void run(operation, {
+        source_path: currentImageAssetPath,
+        strength: faceStrength,
+      });
+    }
   };
 
   const toggleTool = (toolId: string) => {
@@ -85,6 +128,14 @@ export function AIToolsPanel() {
     );
   };
 
+  const isToolProcessing = (toolId: string) => {
+    const operation = OPERATION_BY_TOOL[toolId];
+    return Boolean(isRunning && operation && runningOperation === operation);
+  };
+
+  // Real progress next to the spinner while a tool runs (Button loadingLabel).
+  const processingLabel = progress > 0 ? `${Math.round(progress)}%` : undefined;
+
   return (
     <div className="space-y-3">
       {/* Header */}
@@ -93,11 +144,58 @@ export function AIToolsPanel() {
         <span className="text-label text-text-primary">AI Tools</span>
       </div>
 
+      {/* Last run failed - honest message, Foundry pointer when installable */}
+      {error && (
+        <div
+          role="alert"
+          data-testid="edit-tool-error"
+          className="flex items-start gap-2 rounded-sm border border-status-error-border bg-status-error-muted px-3 py-2"
+        >
+          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-status-error" aria-hidden="true" />
+          <p className="flex-1 type-caption text-status-error">{error}</p>
+          {/install .* from the Foundry/i.test(error) && (
+            <button
+              type="button"
+              aria-label="Open Foundry"
+              onClick={() => setActiveTab('foundry')}
+              className="type-caption font-medium text-status-error underline underline-offset-2"
+            >
+              Open Foundry
+            </button>
+          )}
+          <button
+            type="button"
+            aria-label="Dismiss error"
+            onClick={clearFeedback}
+            className="raised-control p-1 text-status-error hover:text-text-primary"
+          >
+            <X className="h-3.5 w-3.5" aria-hidden="true" />
+          </button>
+        </div>
+      )}
+      {notice && !error && (
+        <div
+          role="status"
+          data-testid="edit-tool-notice"
+          className="flex items-start gap-2 rounded-sm border border-border bg-elevated px-3 py-2"
+        >
+          <p className="flex-1 type-caption text-text-body">{notice}</p>
+          <button
+            type="button"
+            aria-label="Dismiss notice"
+            onClick={clearFeedback}
+            className="raised-control p-1 text-text-muted hover:text-text-primary"
+          >
+            <X className="h-3.5 w-3.5" aria-hidden="true" />
+          </button>
+        </div>
+      )}
+
       {/* Tool Cards */}
       {AI_TOOLS.map((tool) => {
         const Icon = tool.icon;
         const isExpanded = expandedTool === tool.id;
-        const isProcessing = processingTool === tool.id;
+        const isProcessing = isToolProcessing(tool.id);
 
         return (
           <div
@@ -158,22 +256,13 @@ export function AIToolsPanel() {
                           fullWidth
                           icon={isProcessing ? Loader2 : Scissors}
                           isLoading={isProcessing}
+                          loadingLabel={processingLabel}
+                          disabled={!canApply}
                           onClick={() => handleApply(tool.id)}
                           aria-label="Process with Background Removal"
                         >
                           Remove Background
                         </Button>
-                        <div className="pt-2 border-t border-border">
-                          <label className="text-label text-text-body mb-1.5 block">
-                            Replace Background
-                          </label>
-                          <input
-                            value={bgReplacePrompt}
-                            onChange={(e) => setBgReplacePrompt(e.target.value)}
-                            placeholder="Describe new background..."
-                            className="w-full bg-surface border border-border rounded-md px-3 py-2 text-xs text-text-primary placeholder:text-text-muted focus:border-accent-primary transition-all"
-                          />
-                        </div>
                       </>
                     )}
 
@@ -217,6 +306,8 @@ export function AIToolsPanel() {
                           fullWidth
                           icon={isProcessing ? Loader2 : Maximize2}
                           isLoading={isProcessing}
+                          loadingLabel={processingLabel}
+                          disabled={!canApply}
                           onClick={() => handleApply(tool.id)}
                           aria-label="Process with AI Upscale"
                         >
@@ -225,7 +316,7 @@ export function AIToolsPanel() {
                       </>
                     )}
 
-                    {/* Style Transfer */}
+                    {/* Style Transfer (guided pass - PR2) */}
                     {tool.id === 'style-transfer' && (
                       <>
                         <div className="grid grid-cols-[repeat(auto-fill,minmax(80px,1fr))] gap-2">
@@ -265,17 +356,18 @@ export function AIToolsPanel() {
                           variant="primary"
                           size="sm"
                           fullWidth
-                          icon={isProcessing ? Loader2 : Palette}
-                          isLoading={isProcessing}
+                          icon={Palette}
+                          disabled
                           onClick={() => handleApply(tool.id)}
                           aria-label="Process with Style Transfer"
                         >
                           Apply Style
                         </Button>
+                        <p className="type-caption text-text-muted">{GUIDED_TOOL_CAPTION}</p>
                       </>
                     )}
 
-                    {/* Generative Fill */}
+                    {/* Generative Fill (guided pass - PR2) */}
                     {tool.id === 'gen-fill' && (
                       <>
                         <p className="text-xs text-text-muted">
@@ -291,14 +383,14 @@ export function AIToolsPanel() {
                           variant="primary"
                           size="sm"
                           fullWidth
-                          icon={isProcessing ? Loader2 : Paintbrush}
-                          isLoading={isProcessing}
+                          icon={Paintbrush}
+                          disabled
                           onClick={() => handleApply(tool.id)}
-                          disabled={!genFillPrompt.trim()}
                           aria-label="Process with Generative Fill"
                         >
                           Generate Fill
                         </Button>
+                        <p className="type-caption text-text-muted">{GUIDED_TOOL_CAPTION}</p>
                       </>
                     )}
 
@@ -312,29 +404,14 @@ export function AIToolsPanel() {
                           max={100}
                           onChange={setFaceStrength}
                         />
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs text-text-body">
-                            Eye Enhancement
-                          </span>
-                          <Switch
-                            label="Eye enhancement"
-                            checked={eyeEnhance}
-                            onChange={setEyeEnhance}
-                          />
-                        </div>
-                        <Slider
-                          label="Skin Smoothing"
-                          value={skinSmoothing}
-                          min={0}
-                          max={100}
-                          onChange={setSkinSmoothing}
-                        />
                         <Button
                           variant="primary"
                           size="sm"
                           fullWidth
                           icon={isProcessing ? Loader2 : User}
                           isLoading={isProcessing}
+                          loadingLabel={processingLabel}
+                          disabled={!canApply}
                           onClick={() => handleApply(tool.id)}
                           aria-label="Process with Face Enhancement"
                         >
@@ -343,7 +420,7 @@ export function AIToolsPanel() {
                       </>
                     )}
 
-                    {/* Object Removal */}
+                    {/* Object Removal (guided pass - PR2) */}
                     {tool.id === 'object-removal' && (
                       <>
                         <p className="text-xs text-text-muted">
@@ -353,17 +430,18 @@ export function AIToolsPanel() {
                           variant="primary"
                           size="sm"
                           fullWidth
-                          icon={isProcessing ? Loader2 : Eraser}
-                          isLoading={isProcessing}
+                          icon={Eraser}
+                          disabled
                           onClick={() => handleApply(tool.id)}
                           aria-label="Process with Object Removal"
                         >
                           Remove Object
                         </Button>
+                        <p className="type-caption text-text-muted">{GUIDED_TOOL_CAPTION}</p>
                       </>
                     )}
 
-                    {/* AI Expand */}
+                    {/* AI Expand (guided pass - PR2) */}
                     {tool.id === 'outpaint' && (
                       <>
                         <div className="space-y-1.5">
@@ -410,13 +488,14 @@ export function AIToolsPanel() {
                           variant="primary"
                           size="sm"
                           fullWidth
-                          icon={isProcessing ? Loader2 : Expand}
-                          isLoading={isProcessing}
+                          icon={Expand}
+                          disabled
                           onClick={() => handleApply(tool.id)}
                           aria-label="Process with AI Expand"
                         >
                           Expand Image
                         </Button>
+                        <p className="type-caption text-text-muted">{GUIDED_TOOL_CAPTION}</p>
                       </>
                     )}
                   </div>

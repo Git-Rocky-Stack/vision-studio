@@ -259,10 +259,15 @@ export interface ElectronAPI {
       source_path: string;
       time_ms?: number;
     }) => Promise<any>;
-    upscaleImage: (params: {
+    editImage: (params: {
+      operation: string;
       source_path: string;
-      scale_factor?: number;
-    }) => Promise<any>;
+      edge_refinement?: number;
+      scale?: number;
+      model?: string;
+      face_enhance?: boolean;
+      strength?: number;
+    }) => Promise<{ success: boolean; jobId?: string; error?: string }>;
     getStatus: (jobId: string) => Promise<any>;
     cancel: (jobId: string) => Promise<{ success: boolean }>;
     listJobs: (options?: { status?: string; limit?: number }) => Promise<any>;
@@ -409,7 +414,7 @@ const electronAPI: ElectronAPI = {
     suggestNegativePrompt: (params) => ipcRenderer.invoke('generation:suggest-negative-prompt', params),
     cropImage: (params) => ipcRenderer.invoke('generation:crop-image', params),
     extractVideoFrame: (params) => ipcRenderer.invoke('generation:extract-video-frame', params),
-    upscaleImage: (params) => ipcRenderer.invoke('generation:upscale-image', params),
+    editImage: (params) => ipcRenderer.invoke('generation:edit-image', params),
     getStatus: (jobId: string) => ipcRenderer.invoke('generation:get-status', jobId),
     cancel: (jobId: string) => ipcRenderer.invoke('generation:cancel', jobId),
     listJobs: (options) => ipcRenderer.invoke('generation:list-jobs', options),

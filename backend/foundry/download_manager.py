@@ -7,10 +7,12 @@ asyncio.Tasks keyed by model id, pause/resume/cancel lifecycle + intent, the
 fast/precise (Xet) toggle, per-call token injection (never stored/logged), and
 the live status the registry composes through its status_provider.
 
-CivitAI-source records (source="civitai") take the direct-URL branch instead:
+Records carrying a download_url (CivitAI search results, the #34 github
+release weights) take the direct-URL branch instead: first-hop
 host-allowlisted https GET, streamed to <target>.incomplete, sha256-verified
 against the record hash, then atomically moved into place (complete-or-absent,
-spec 3.5). The token is only ever a Bearer header on that one request.
+spec 3.5). The token is only ever a Bearer header while the hop host is
+civitai.com; github assets need no token.
 
 Telemetry (progress/speed/eta) lives on DownloadJob and is streamed via
 GET /models/downloads; it is deliberately NOT written onto ModelRecord.
@@ -61,31 +63,44 @@ _CIVITAI_MAX_REDIRECTS = 5
 _PICKLE_SUFFIXES = (".ckpt", ".pt", ".pth", ".bin", ".pkl")
 
 
-def validate_civitai_url(url: str) -> None:
-    """Supply-chain guard: only ``https://civitai.com/...`` download URLs.
+# First-hop host allowlist per record source (#34 generalized the civitai
+# branch to any direct-URL record). Delivery CDNs behind redirects are
+# deliberately NOT allowlisted (infrastructure-volatile) - integrity comes
+# from the mandatory sha256 over the final bytes.
+_DIRECT_URL_HOSTS = {"civitai": "civitai.com", "github": "github.com"}
+
+
+def validate_direct_url(url: str, source: str) -> None:
+    """Supply-chain guard for direct-URL records.
 
     ``urlparse(...).hostname`` strips any userinfo, so spoofs of the form
-    ``https://civitai.com@evil.example.com/x`` resolve to the REAL host and
+    ``https://github.com@evil.example.com/x`` resolve to the REAL host and
     are refused, as are subdomains and plain http.
     """
+    allowed = _DIRECT_URL_HOSTS.get(source or "")
+    if allowed is None:
+        raise ValueError(f"records from source '{source}' have no direct-download path")
     parsed = urlparse(url)
-    if parsed.scheme != "https" or parsed.hostname != "civitai.com":
-        raise ValueError(f"refusing non-civitai download url: {url[:80]}")
+    if parsed.scheme != "https" or parsed.hostname != allowed:
+        raise ValueError(f"refusing direct download url outside https://{allowed}: {url[:80]}")
 
 
-def _civitai_filename(model_id: str, record: dict) -> str:
-    """Deterministic on-disk name for a civitai single-file artifact.
+_FORMAT_EXTENSIONS = {"pickle": ".ckpt", "onnx": ".onnx"}
 
-    The registry/indexer key civitai records by record id, so the id is the
-    filename (HF single-file artifacts follow the same convention via
+
+def _direct_filename(model_id: str, record: dict) -> str:
+    """Deterministic on-disk name for a direct-URL single-file artifact.
+
+    The registry/indexer key direct-URL records by record id, so the id is
+    the filename (HF single-file artifacts follow the same convention via
     _SINGLE_FILE_FILENAMES). The extension MUST track the record format: a
-    pickle record downloaded after explicit consent is a real, live path,
-    and a .safetensors-named pickle would silently break the indexer's
-    header parse and the convert flow.
+    pickle record downloaded after explicit consent is a real, live path
+    (a .safetensors-named pickle would silently break the indexer's header
+    parse and the convert flow), and an .onnx must never masquerade as
+    safetensors.
     """
     fmt = (record.get("format") or "safetensors").lower()
-    extension = ".ckpt" if fmt == "pickle" else ".safetensors"
-    return f"{model_id}{extension}"
+    return f"{model_id}{_FORMAT_EXTENSIONS.get(fmt, '.safetensors')}"
 
 
 @dataclass
@@ -231,13 +246,15 @@ class DownloadManager:
         cancel_event = self._cancel_events[model_id]
 
         try:
-            if record.get("source") == "civitai":
-                # Direct-URL branch: stream + sha256 verify + atomic move all
-                # happen in the worker thread; then the same verifying -> ready
-                # transition the HF path uses.
-                await asyncio.to_thread(self._download_civitai, model_id, record, token)
+            if record.get("download_url") or record.get("source") in _DIRECT_URL_HOSTS:
+                # Direct-URL branch (civitai + github records): stream + sha256
+                # verify + atomic move all happen in the worker thread; then
+                # the same verifying -> ready transition the HF path uses.
+                # Source-routed even without a download_url so a malformed
+                # record refuses HERE instead of leaking into the HF path.
+                await asyncio.to_thread(self._download_direct, model_id, record, token)
                 job.status = "verifying"
-                self._verify([_civitai_filename(model_id, record)], self._target_dir(record))
+                self._verify([_direct_filename(model_id, record)], self._target_dir(record))
                 job.progress = 1.0
                 job.speed = 0.0
                 job.eta = 0.0
@@ -355,10 +372,11 @@ class DownloadManager:
         artifact_type = record.get("artifact_type", "checkpoint")
         if artifact_type in {"diffusers-pipeline", "motion-adapter"}:
             return os.path.join(self._models_dir, "diffusers", record["id"])
-        if artifact_type in {"controlnet", "ip-adapter"}:
+        if artifact_type in {"controlnet", "ip-adapter", "edit-model"}:
             # Multi-file diffusers-format repos get a per-id dir so two
             # records can never collide on config.json. Matches
             # registry._is_present, which already expects <type>/<id>/.
+            # edit-model single files ride the same per-id layout (#34).
             return os.path.join(self._models_dir, artifact_type, record["id"])
         subdir = _ARTIFACT_SUBDIR.get(artifact_type, "checkpoints")
         return os.path.join(self._models_dir, subdir)
@@ -389,49 +407,53 @@ class DownloadManager:
                 revision=revision,
             )
 
-    def _download_civitai(self, model_id: str, record: dict, token: Optional[str]) -> None:
-        """Blocking CivitAI direct-URL download (runs in a worker thread).
+    def _download_direct(self, model_id: str, record: dict, token: Optional[str]) -> None:
+        """Blocking direct-URL download (runs in a worker thread).
 
         Stream -> ``<target>.incomplete`` -> sha256 verify -> atomic
         ``os.replace``: the final file is complete-or-absent (spec 3.5). The
-        URL is never trusted (https + civitai.com host allowlist on the first
-        hop; redirects walked manually per _civitai_get) and the token is
-        used ONLY as a Bearer header while the hop host is civitai.com -
-        never stored, never logged, never on the job or in error text. A
-        hash mismatch deletes the partial so corrupt or tampered bytes can
-        never present as ready.
+        URL is never trusted (https + per-source first-hop host allowlist;
+        redirects walked manually per _direct_get) and the token is used
+        ONLY as a Bearer header while the hop host is civitai.com - never
+        stored, never logged, never on the job or in error text; github
+        release assets need no token. A hash mismatch deletes the partial so
+        corrupt or tampered bytes can never present as ready.
         """
         url = record.get("download_url")
         if not url:
-            raise DownloadFailedError("no download_url on civitai record")
+            raise DownloadFailedError("record has no download_url")
+        # Supply-chain guard first: a hostile URL is refused before the
+        # record earns any further consideration.
+        try:
+            validate_direct_url(url, record.get("source") or "")
+        except ValueError as exc:
+            raise DownloadFailedError(str(exc)) from exc
         # Fail closed: delivery is a CDN redirect, so the record's sha256 is
         # the ONLY integrity anchor. No hash -> no unverifiable download
         # (positive-signal discipline, same posture as the classifier).
         if not (record.get("sha256") or "").strip():
             raise DownloadFailedError(
-                "no sha256 on civitai record - refusing unverifiable download"
+                "no sha256 on direct-URL record - refusing unverifiable download"
             )
-        try:
-            validate_civitai_url(url)
-        except ValueError as exc:
-            raise DownloadFailedError(str(exc)) from exc
 
         import requests  # lazy: keep module import light (mirrors civitai_search)
 
         job = self._jobs[model_id]
         cancel_event = self._cancel_events[model_id]
         target_dir = self._target_dir(record)
-        target = os.path.join(target_dir, _civitai_filename(model_id, record))
+        target = os.path.join(target_dir, _direct_filename(model_id, record))
         incomplete = target + ".incomplete"
 
-        response = self._civitai_get(requests, url, token)
+        response = self._direct_get(requests, url, token)
         hasher = hashlib.sha256()
         try:
             status = getattr(response, "status_code", 200)
             if isinstance(status, int) and status >= 400:
-                # Typed HERE (not via map_hf_exception) so a civitai 401/403
-                # never surfaces a huggingface.co gate URL.
-                raise DownloadFailedError(f"civitai responded HTTP {status}")
+                # Typed HERE (not via map_hf_exception) so a direct-host
+                # 401/403 never surfaces a huggingface.co gate URL.
+                raise DownloadFailedError(
+                    f"{record.get('source') or 'direct'} responded HTTP {status}"
+                )
 
             total = int(response.headers.get("Content-Length") or 0)
             self._preflight_disk(total, target_dir)
@@ -467,23 +489,24 @@ class DownloadManager:
 
         os.replace(incomplete, target)  # atomic: complete-or-absent
 
-    def _civitai_get(self, requests_module, url: str, token: Optional[str]):
-        """Manual redirect walk for the CivitAI delivery chain (review M-1).
+    def _direct_get(self, requests_module, url: str, token: Optional[str]):
+        """Manual redirect walk for direct-URL delivery chains (review M-1).
 
         requests' automatic redirect following is disabled so the policy is
         explicit and testable: every hop must be https; the Bearer token is
         attached ONLY while the hop host is civitai.com (delivery CDNs must
-        never see it); the chain is capped. CDN hostnames are deliberately
-        NOT allowlisted by name - they are infrastructure-volatile - because
-        integrity comes from the mandatory sha256 over the final bytes and
-        confidentiality from confining the secret to the first-party host.
+        never see it; github assets need no token); the chain is capped. CDN
+        hostnames are deliberately NOT allowlisted by name - they are
+        infrastructure-volatile - because integrity comes from the mandatory
+        sha256 over the final bytes and confidentiality from confining the
+        secret to the first-party host.
         """
         current = url
         for _ in range(_CIVITAI_MAX_REDIRECTS):
             parsed = urlparse(current)
             if parsed.scheme != "https":
                 raise DownloadFailedError(
-                    "refusing non-https hop in civitai redirect chain"
+                    "refusing non-https hop in direct-download redirect chain"
                 )
             headers = (
                 {"Authorization": f"Bearer {token}"}
@@ -504,12 +527,12 @@ class DownloadManager:
                 if callable(close):
                     close()
                 if not location:
-                    raise DownloadFailedError("civitai redirect without a Location header")
+                    raise DownloadFailedError("direct download redirect without a Location header")
                 current = urljoin(current, location)
                 continue
             return response
         raise DownloadFailedError(
-            f"civitai redirect chain exceeded {_CIVITAI_MAX_REDIRECTS} hops"
+            f"direct download redirect chain exceeded {_CIVITAI_MAX_REDIRECTS} hops"
         )
 
     def _verify(self, filenames, target_dir) -> None:

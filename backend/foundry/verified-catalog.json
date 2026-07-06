@@ -139,7 +139,7 @@
     "description": "Edge-map conditioning for SD 1.5 canvas ControlNet layers.",
     "license": "openrail", "gated": false, "format": "safetensors",
     "companions": [], "measured_vram_bytes": null,
-    "companions": [], "files": ["config.json", "diffusion_pytorch_model.safetensors"]
+    "files": ["config.json", "diffusion_pytorch_model.safetensors"]
   },
   "controlnet-depth-sd15": {
     "id": "controlnet-depth-sd15", "name": "ControlNet Depth (SD 1.5)", "artifact_type": "controlnet",
@@ -150,7 +150,7 @@
     "description": "Depth-map conditioning for SD 1.5 canvas ControlNet layers.",
     "license": "openrail", "gated": false, "format": "safetensors",
     "companions": ["annotator-midas"], "measured_vram_bytes": null,
-    "companions": ["annotator-midas"], "files": ["config.json", "diffusion_pytorch_model.safetensors"]
+    "files": ["config.json", "diffusion_pytorch_model.safetensors"]
   },
   "controlnet-openpose-sd15": {
     "id": "controlnet-openpose-sd15", "name": "ControlNet OpenPose (SD 1.5)", "artifact_type": "controlnet",
@@ -161,7 +161,7 @@
     "description": "Human-pose conditioning for SD 1.5 canvas ControlNet layers.",
     "license": "openrail", "gated": false, "format": "safetensors",
     "companions": ["annotator-openpose"], "measured_vram_bytes": null,
-    "companions": ["annotator-openpose"], "files": ["config.json", "diffusion_pytorch_model.safetensors"]
+    "files": ["config.json", "diffusion_pytorch_model.safetensors"]
   },
   "controlnet-scribble-sd15": {
     "id": "controlnet-scribble-sd15", "name": "ControlNet Scribble (SD 1.5)", "artifact_type": "controlnet",
@@ -172,7 +172,7 @@
     "description": "Scribble/sketch conditioning for SD 1.5 canvas ControlNet layers.",
     "license": "openrail", "gated": false, "format": "safetensors",
     "companions": [], "measured_vram_bytes": null,
-    "companions": [], "files": ["config.json", "diffusion_pytorch_model.safetensors"]
+    "files": ["config.json", "diffusion_pytorch_model.safetensors"]
   },
   "controlnet-normal-sd15": {
     "id": "controlnet-normal-sd15", "name": "ControlNet Normal (SD 1.5)", "artifact_type": "controlnet",
@@ -183,7 +183,7 @@
     "description": "Surface-normal conditioning for SD 1.5 canvas ControlNet layers.",
     "license": "openrail", "gated": false, "format": "safetensors",
     "companions": ["annotator-normalbae"], "measured_vram_bytes": null,
-    "companions": ["annotator-normalbae"], "files": ["config.json", "diffusion_pytorch_model.safetensors"]
+    "files": ["config.json", "diffusion_pytorch_model.safetensors"]
   },
   "controlnet-canny-sdxl": {
     "id": "controlnet-canny-sdxl", "name": "ControlNet Canny (SDXL)", "artifact_type": "controlnet",
@@ -194,7 +194,7 @@
     "description": "Edge-map conditioning for SDXL canvas ControlNet layers.",
     "license": "openrail++", "gated": false, "format": "safetensors",
     "companions": [], "measured_vram_bytes": null,
-    "companions": [], "files": ["config.json", "diffusion_pytorch_model.safetensors"]
+    "files": ["config.json", "diffusion_pytorch_model.safetensors"]
   },
   "controlnet-depth-sdxl": {
     "id": "controlnet-depth-sdxl", "name": "ControlNet Depth (SDXL)", "artifact_type": "controlnet",
@@ -205,7 +205,7 @@
     "description": "Depth-map conditioning for SDXL canvas ControlNet layers.",
     "license": "openrail++", "gated": false, "format": "safetensors",
     "companions": ["annotator-midas"], "measured_vram_bytes": null,
-    "companions": ["annotator-midas"], "files": ["config.json", "diffusion_pytorch_model.safetensors"]
+    "files": ["config.json", "diffusion_pytorch_model.safetensors"]
   },
   "controlnet-openpose-sdxl": {
     "id": "controlnet-openpose-sdxl", "name": "ControlNet OpenPose (SDXL)", "artifact_type": "controlnet",
@@ -216,7 +216,7 @@
     "description": "Human-pose conditioning for SDXL canvas ControlNet layers.",
     "license": "apache-2.0", "gated": false, "format": "safetensors",
     "companions": ["annotator-openpose"], "measured_vram_bytes": null,
-    "companions": ["annotator-openpose"], "files": ["config.json", "diffusion_pytorch_model.safetensors"]
+    "files": ["config.json", "diffusion_pytorch_model.safetensors"]
   },
   "annotator-midas": {
     "id": "annotator-midas", "name": "MiDaS Depth Annotator", "artifact_type": "annotator",
@@ -346,5 +346,77 @@
     "license": null, "gated": false, "format": "safetensors",
     "companions": [], "measured_vram_bytes": null,
     "files": ["config.json", "preprocessor_config.json", "model.safetensors"]
+  },
+  "edit-u2net": {
+    "id": "edit-u2net", "name": "U2-Net Background Removal", "artifact_type": "edit-model",
+    "capability": "edit", "base_architecture": "unknown", "source": "github",
+    "repo_id": null, "revision": null, "aux_repo_id": null,
+    "size": "~168 MB", "status": "not_found", "tier": "verified", "quality": "balanced",
+    "runtime": "local", "hardware_class": "laptop", "vram": "Unknown",
+    "description": "Salient-object segmentation for the Edit page's Background Removal tool (ONNX, CPU-friendly).",
+    "license": "apache-2.0", "gated": false, "format": "onnx",
+    "download_url": "https://github.com/danielgatis/rembg/releases/download/v0.0.0/u2net.onnx",
+    "sha256": "8d10d2f3bb75ae3b6d527c77944fc5e7dcd94b29809d47a739a7a728a912b491",
+    "companions": [], "measured_vram_bytes": null
+  },
+  "edit-realesrgan-x4plus": {
+    "id": "edit-realesrgan-x4plus", "name": "Real-ESRGAN x4plus", "artifact_type": "edit-model",
+    "capability": "edit", "base_architecture": "unknown", "source": "github",
+    "repo_id": null, "revision": null, "aux_repo_id": null,
+    "size": "~64 MB", "status": "not_found", "tier": "verified", "quality": "balanced",
+    "runtime": "local", "hardware_class": "laptop", "vram": "Unknown",
+    "description": "General-purpose 4x super-resolution for the Edit page's AI Upscale tool (2x runs the 4x model and downsamples).",
+    "license": "bsd-3-clause", "gated": false, "format": "pickle",
+    "download_url": "https://github.com/xinntao/Real-ESRGAN/releases/download/v0.1.0/RealESRGAN_x4plus.pth",
+    "sha256": "4fa0d38905f75ac06eb49a7951b426670021be3018265fd191d2125df9d682f1",
+    "companions": [], "measured_vram_bytes": null
+  },
+  "edit-realesrgan-x4plus-anime": {
+    "id": "edit-realesrgan-x4plus-anime", "name": "Real-ESRGAN x4plus Anime", "artifact_type": "edit-model",
+    "capability": "edit", "base_architecture": "unknown", "source": "github",
+    "repo_id": null, "revision": null, "aux_repo_id": null,
+    "size": "~17 MB", "status": "not_found", "tier": "verified", "quality": "balanced",
+    "runtime": "local", "hardware_class": "laptop", "vram": "Unknown",
+    "description": "Anime-optimized 4x super-resolution variant for the Edit page's AI Upscale tool.",
+    "license": "bsd-3-clause", "gated": false, "format": "pickle",
+    "download_url": "https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.2.4/RealESRGAN_x4plus_anime_6B.pth",
+    "sha256": "f872d837d3c90ed2e05227bed711af5671a6fd1c9f7d7e91c911a61f155e99da",
+    "companions": [], "measured_vram_bytes": null
+  },
+  "edit-gfpgan-v14": {
+    "id": "edit-gfpgan-v14", "name": "GFPGAN v1.4", "artifact_type": "edit-model",
+    "capability": "edit", "base_architecture": "unknown", "source": "github",
+    "repo_id": null, "revision": null, "aux_repo_id": null,
+    "size": "~333 MB", "status": "not_found", "tier": "verified", "quality": "balanced",
+    "runtime": "local", "hardware_class": "laptop", "vram": "Unknown",
+    "description": "Face restoration for the Edit page's Face Enhancement tool. Installs its RetinaFace detection and ParseNet parsing companions automatically.",
+    "license": "apache-2.0", "gated": false, "format": "pickle",
+    "download_url": "https://github.com/TencentARC/GFPGAN/releases/download/v1.3.0/GFPGANv1.4.pth",
+    "sha256": "e2cd4703ab14f4d01fd1383a8a8b266f9a5833dacee8e6a79d3bf21a1b6be5ad",
+    "companions": ["edit-face-detection", "edit-face-parsing"], "measured_vram_bytes": null
+  },
+  "edit-face-detection": {
+    "id": "edit-face-detection", "name": "RetinaFace ResNet50 (face detection)", "artifact_type": "edit-model",
+    "capability": "edit", "base_architecture": "unknown", "source": "github",
+    "repo_id": null, "revision": null, "aux_repo_id": null,
+    "size": "~104 MB", "status": "not_found", "tier": "verified", "quality": "balanced",
+    "runtime": "local", "hardware_class": "laptop", "vram": "Unknown",
+    "description": "Face detection weights GFPGAN uses to find and align faces (facexlib companion).",
+    "license": "mit", "gated": false, "format": "pickle",
+    "download_url": "https://github.com/xinntao/facexlib/releases/download/v0.1.0/detection_Resnet50_Final.pth",
+    "sha256": "6d1de9c2944f2ccddca5f5e010ea5ae64a39845a86311af6fdf30841b0a5a16d",
+    "companions": [], "measured_vram_bytes": null
+  },
+  "edit-face-parsing": {
+    "id": "edit-face-parsing", "name": "ParseNet (face parsing)", "artifact_type": "edit-model",
+    "capability": "edit", "base_architecture": "unknown", "source": "github",
+    "repo_id": null, "revision": null, "aux_repo_id": null,
+    "size": "~81 MB", "status": "not_found", "tier": "verified", "quality": "balanced",
+    "runtime": "local", "hardware_class": "laptop", "vram": "Unknown",
+    "description": "Face-region parsing weights GFPGAN uses to paste restored faces back seamlessly (facexlib companion).",
+    "license": "mit", "gated": false, "format": "pickle",
+    "download_url": "https://github.com/xinntao/facexlib/releases/download/v0.2.2/parsing_parsenet.pth",
+    "sha256": "3d558d8d0e42c20224f13cf5a29c79eba2d59913419f945545d8cf7b72920de2",
+    "companions": [], "measured_vram_bytes": null
   }
 }

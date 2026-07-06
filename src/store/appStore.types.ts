@@ -228,7 +228,7 @@ export interface GenerationJobResult {
 
 export interface GenerationJob {
   id: string;
-  type: 'image' | 'video';
+  type: 'image' | 'video' | 'edit';
   status: 'pending' | 'processing' | 'completed' | 'failed' | 'cancelled';
   progress: number;
   params: GenerationJobParams;

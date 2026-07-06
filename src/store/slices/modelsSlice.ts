@@ -213,6 +213,12 @@ export function createModelsActions(set: AppSet, get: AppGet) {
   };
 }
 
+// Only records a generation pipeline can actually load belong in the model
+// pickers. Auxiliary records (loras, controlnets, annotators, ip-adapters,
+// #34 edit-model weights) are capability-tagged too, but they are not
+// checkpoints - listing them was a pre-existing leak fixed in #34.
+const SELECTABLE_ARTIFACT_TYPES = new Set(['checkpoint', 'diffusers-pipeline']);
+
 /** Filter helper: records routable for a given generation capability. */
 export function selectModelsByCapability(
   models: ModelRecord[],
@@ -220,7 +226,11 @@ export function selectModelsByCapability(
 ): ModelRecord[] {
   const wanted: ModelCapability[] =
     generationType === 'video' ? ['video'] : ['image', 'edit', 'inpaint'];
-  return models.filter((model) => wanted.includes(model.capability));
+  return models.filter(
+    (model) =>
+      SELECTABLE_ARTIFACT_TYPES.has(model.artifact_type) &&
+      wanted.includes(model.capability),
+  );
 }
 
 /**

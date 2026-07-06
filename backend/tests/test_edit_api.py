@@ -1,13 +1,10 @@
-"""
-Tests for Edit API endpoints.
-
-Note: These tests use a minimal FastAPI app with just the edit router
-to avoid dependencies on torch/imageio that main.py requires.
-"""
-
+"""#34: the edit API as job submitters (fake job manager, patched service)."""
 import pathlib
 import sys
+import tempfile
+import time
 import unittest
+from unittest import mock
 
 BACKEND_ROOT = pathlib.Path(__file__).resolve().parents[1]
 if str(BACKEND_ROOT) not in sys.path:
@@ -15,279 +12,135 @@ if str(BACKEND_ROOT) not in sys.path:
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from PIL import Image
 
-from api.edit import router as edit_router  # type: ignore[import-not-found]
-
-# Create minimal test app
-app = FastAPI()
-app.include_router(edit_router)
-
-# Sample base64 image for testing (1x1 pixel blue PNG)
-SAMPLE_BASE64_IMAGE = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGNgYPgPAAEDAQAIicLsAAAAAElFTkSuQmCC"
+import api.edit as edit_api  # type: ignore[import-not-found]
+from edit_tools.weights import EditModelUnavailable  # type: ignore[import-not-found]
+from utils.job_manager import JobStatus  # type: ignore[import-not-found]
 
 
-class RemoveBackgroundApiTests(unittest.TestCase):
-    """Tests for POST /api/v1/edit/remove-background endpoint."""
+class FakeJobManager:
+    def __init__(self):
+        self.jobs = {}
 
+    def add_job(self, job):
+        self.jobs[job.id] = job
+
+    def get_job(self, job_id):
+        return self.jobs.get(job_id)
+
+    def update_job(self, job_id, **updates):
+        job = self.jobs.get(job_id)
+        if job is None:
+            return
+        for key, value in updates.items():
+            setattr(job, key, value)
+
+
+def _make_client(tmp_path, resolve_record=lambda _record_id: {"status": "ready"}):
+    app = FastAPI()
+    app.include_router(edit_api.router)
+    manager = FakeJobManager()
+    edit_api.configure(manager, str(tmp_path / "outputs"), str(tmp_path / "models"),
+                       resolve_record)
+    return TestClient(app), manager
+
+
+class EditApiTests(unittest.TestCase):
     def setUp(self):
-        """Set up test client."""
-        self.client = TestClient(app)
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.tmp_path = pathlib.Path(self.tmp.name)
+        self.source = self.tmp_path / "source.png"
+        Image.new("RGB", (8, 8)).save(self.source)
 
-    def test_remove_background_success(self):
-        """Test successful background removal."""
-        response = self.client.post(
-            "/api/v1/edit/remove-background",
-            json={"image": SAMPLE_BASE64_IMAGE},
-        )
+    def _wait_terminal(self, manager, job_id, timeout=5.0):
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            job = manager.get_job(job_id)
+            if job is not None and job.status in (
+                    JobStatus.COMPLETED, JobStatus.FAILED, JobStatus.CANCELLED):
+                return job
+            time.sleep(0.01)
+        self.fail("job never reached a terminal state")
 
-        self.assertEqual(response.status_code, 200)
-        data = response.json()
-        self.assertTrue(data["success"])
-        self.assertIn("image", data)
-        self.assertIn("processing_time_ms", data)
-        self.assertTrue(data["image"].startswith("data:image/png;base64,"))
+    def test_submit_returns_202_with_a_pending_job(self):
+        client, manager = _make_client(self.tmp_path)
+        with mock.patch.object(edit_api, "run_edit_operation",
+                               return_value={"images": ["/outputs/x/edit.png"]}):
+            response = client.post("/api/v1/edit/remove-background",
+                                   json={"source_path": str(self.source)})
+        self.assertEqual(response.status_code, 202)
+        job_id = response.json()["job_id"]
+        job = self._wait_terminal(manager, job_id)
+        self.assertEqual(job.type, "edit")
+        self.assertEqual(job.status, JobStatus.COMPLETED)
+        self.assertEqual(job.result["images"], ["/outputs/x/edit.png"])
 
-    def test_remove_background_with_alpha_matting(self):
-        """Test background removal with alpha matting options."""
-        response = self.client.post(
-            "/api/v1/edit/remove-background",
-            json={
-                "image": SAMPLE_BASE64_IMAGE,
-                "alpha_matting": True,
-                "alpha_matting_foreground_threshold": 200,
-                "alpha_matting_background_threshold": 50,
-            },
-        )
+    def test_params_thread_through_to_the_service(self):
+        client, manager = _make_client(self.tmp_path)
+        with mock.patch.object(edit_api, "run_edit_operation",
+                               return_value={"images": []}) as run:
+            response = client.post("/api/v1/edit/upscale", json={
+                "source_path": str(self.source), "scale": 4,
+                "model": "anime", "face_enhance": True,
+            })
+        self._wait_terminal(manager, response.json()["job_id"])
+        args = run.call_args.args
+        self.assertEqual(args[1], "upscale")
+        self.assertEqual(args[2]["scale"], 4)
+        self.assertEqual(args[2]["model"], "anime")
+        self.assertTrue(args[2]["face_enhance"])
 
-        self.assertEqual(response.status_code, 200)
-        data = response.json()
-        self.assertTrue(data["success"])
+    def test_missing_weights_fail_the_job_with_foundry_copy(self):
+        client, manager = _make_client(self.tmp_path)
+        with mock.patch.object(
+                edit_api, "run_edit_operation",
+                side_effect=EditModelUnavailable(
+                    "The background removal weights are not installed - "
+                    "install 'edit-u2net' from the Foundry first.")):
+            response = client.post("/api/v1/edit/remove-background",
+                                   json={"source_path": str(self.source)})
+        job = self._wait_terminal(manager, response.json()["job_id"])
+        self.assertEqual(job.status, JobStatus.FAILED)
+        self.assertIn("install 'edit-u2net' from the Foundry", job.error)
 
-    def test_remove_background_empty_image_returns_422(self):
-        """Test that empty image returns 422 validation error."""
-        response = self.client.post(
-            "/api/v1/edit/remove-background",
-            json={"image": ""},
-        )
+    def test_unexpected_errors_fail_the_job_without_leaking_detail(self):
+        client, manager = _make_client(self.tmp_path)
+        with mock.patch.object(
+                edit_api, "run_edit_operation",
+                side_effect=RuntimeError("C:/secret/path/blew_up.py exploded")):
+            response = client.post("/api/v1/edit/restore-faces",
+                                   json={"source_path": str(self.source)})
+        job = self._wait_terminal(manager, response.json()["job_id"])
+        self.assertEqual(job.status, JobStatus.FAILED)
+        self.assertNotIn("secret", job.error)
 
-        self.assertEqual(response.status_code, 422)
+    def test_missing_source_is_404(self):
+        client, _manager = _make_client(self.tmp_path)
+        response = client.post("/api/v1/edit/restore-faces",
+                               json={"source_path": str(self.tmp_path / "nope.png")})
+        self.assertEqual(response.status_code, 404)
 
-    def test_remove_background_missing_image_returns_422(self):
-        """Test that missing image returns 422 validation error."""
-        response = self.client.post(
-            "/api/v1/edit/remove-background",
-            json={},
-        )
+    def test_invalid_params_are_422(self):
+        client, _manager = _make_client(self.tmp_path)
+        self.assertEqual(client.post("/api/v1/edit/upscale", json={
+            "source_path": str(self.source), "scale": 8}).status_code, 422)
+        self.assertEqual(client.post("/api/v1/edit/restore-faces", json={
+            "source_path": str(self.source), "strength": 101}).status_code, 422)
+        self.assertEqual(client.post("/api/v1/edit/remove-background", json={
+            "source_path": ""}).status_code, 422)
 
-        self.assertEqual(response.status_code, 422)
-
-    def test_remove_background_invalid_threshold_returns_422(self):
-        """Test that invalid threshold returns 422 validation error."""
-        response = self.client.post(
-            "/api/v1/edit/remove-background",
-            json={
-                "image": SAMPLE_BASE64_IMAGE,
-                "alpha_matting_foreground_threshold": 500,  # Out of range
-            },
-        )
-
-        self.assertEqual(response.status_code, 422)
-
-
-class UpscaleApiTests(unittest.TestCase):
-    """Tests for POST /api/v1/edit/upscale endpoint."""
-
-    def setUp(self):
-        """Set up test client."""
-        self.client = TestClient(app)
-
-    def test_upscale_success_default_scale(self):
-        """Test successful upscaling with default scale (4x)."""
-        response = self.client.post(
-            "/api/v1/edit/upscale",
-            json={"image": SAMPLE_BASE64_IMAGE},
-        )
-
-        self.assertEqual(response.status_code, 200)
-        data = response.json()
-        self.assertTrue(data["success"])
-        self.assertIn("image", data)
-        self.assertIn("original_size", data)
-        self.assertIn("new_size", data)
-        self.assertIn("processing_time_ms", data)
-
-    def test_upscale_scale_2(self):
-        """Test successful 2x upscaling."""
-        response = self.client.post(
-            "/api/v1/edit/upscale",
-            json={"image": SAMPLE_BASE64_IMAGE, "scale": 2},
-        )
-
-        self.assertEqual(response.status_code, 200)
-        data = response.json()
-        self.assertTrue(data["success"])
-
-    def test_upscale_scale_4(self):
-        """Test successful 4x upscaling."""
-        response = self.client.post(
-            "/api/v1/edit/upscale",
-            json={"image": SAMPLE_BASE64_IMAGE, "scale": 4},
-        )
-
-        self.assertEqual(response.status_code, 200)
-        data = response.json()
-        self.assertTrue(data["success"])
-
-    def test_upscale_scale_8(self):
-        """Test successful 8x upscaling."""
-        response = self.client.post(
-            "/api/v1/edit/upscale",
-            json={"image": SAMPLE_BASE64_IMAGE, "scale": 8},
-        )
-
-        self.assertEqual(response.status_code, 200)
-        data = response.json()
-        self.assertTrue(data["success"])
-
-    def test_upscale_with_face_enhance(self):
-        """Test upscaling with face enhancement enabled."""
-        response = self.client.post(
-            "/api/v1/edit/upscale",
-            json={
-                "image": SAMPLE_BASE64_IMAGE,
-                "scale": 4,
-                "face_enhance": True,
-            },
-        )
-
-        self.assertEqual(response.status_code, 200)
-        data = response.json()
-        self.assertTrue(data["success"])
-
-    def test_upscale_invalid_scale_returns_422(self):
-        """Test that invalid scale returns 422 validation error."""
-        response = self.client.post(
-            "/api/v1/edit/upscale",
-            json={"image": SAMPLE_BASE64_IMAGE, "scale": 3},
-        )
-
-        self.assertEqual(response.status_code, 422)
-
-    def test_upscale_missing_image_returns_422(self):
-        """Test that missing image returns 422 validation error."""
-        response = self.client.post(
-            "/api/v1/edit/upscale",
-            json={"scale": 4},
-        )
-
-        self.assertEqual(response.status_code, 422)
-
-
-class RestoreFacesApiTests(unittest.TestCase):
-    """Tests for POST /api/v1/edit/restore-faces endpoint."""
-
-    def setUp(self):
-        """Set up test client."""
-        self.client = TestClient(app)
-
-    def test_restore_faces_success_default_fidelity(self):
-        """Test successful face restoration with default fidelity."""
-        response = self.client.post(
-            "/api/v1/edit/restore-faces",
-            json={"image": SAMPLE_BASE64_IMAGE},
-        )
-
-        self.assertEqual(response.status_code, 200)
-        data = response.json()
-        self.assertTrue(data["success"])
-        self.assertIn("image", data)
-        self.assertIn("faces_detected", data)
-        self.assertIn("processing_time_ms", data)
-        self.assertIsInstance(data["faces_detected"], int)
-
-    def test_restore_faces_fidelity_zero(self):
-        """Test face restoration with fidelity=0.0."""
-        response = self.client.post(
-            "/api/v1/edit/restore-faces",
-            json={"image": SAMPLE_BASE64_IMAGE, "fidelity": 0.0},
-        )
-
-        self.assertEqual(response.status_code, 200)
-        data = response.json()
-        self.assertTrue(data["success"])
-
-    def test_restore_faces_fidelity_one(self):
-        """Test face restoration with fidelity=1.0."""
-        response = self.client.post(
-            "/api/v1/edit/restore-faces",
-            json={"image": SAMPLE_BASE64_IMAGE, "fidelity": 1.0},
-        )
-
-        self.assertEqual(response.status_code, 200)
-        data = response.json()
-        self.assertTrue(data["success"])
-
-    def test_restore_faces_fidelity_half(self):
-        """Test face restoration with fidelity=0.5."""
-        response = self.client.post(
-            "/api/v1/edit/restore-faces",
-            json={"image": SAMPLE_BASE64_IMAGE, "fidelity": 0.5},
-        )
-
-        self.assertEqual(response.status_code, 200)
-        data = response.json()
-        self.assertTrue(data["success"])
-
-    def test_restore_faces_invalid_fidelity_returns_422(self):
-        """Test that invalid fidelity returns 422 validation error."""
-        response = self.client.post(
-            "/api/v1/edit/restore-faces",
-            json={"image": SAMPLE_BASE64_IMAGE, "fidelity": 1.5},
-        )
-
-        self.assertEqual(response.status_code, 422)
-
-    def test_restore_faces_missing_image_returns_422(self):
-        """Test that missing image returns 422 validation error."""
-        response = self.client.post(
-            "/api/v1/edit/restore-faces",
-            json={"fidelity": 0.5},
-        )
-
-        self.assertEqual(response.status_code, 422)
-
-
-class ListModelsApiTests(unittest.TestCase):
-    """Tests for GET /api/v1/edit/models endpoint."""
-
-    def setUp(self):
-        """Set up test client."""
-        self.client = TestClient(app)
-
-    def test_list_models_success(self):
-        """Test successful model listing."""
-        response = self.client.get("/api/v1/edit/models")
-
-        self.assertEqual(response.status_code, 200)
-        data = response.json()
-        self.assertIn("models", data)
-        self.assertIn("rembg", data["models"])
-        self.assertIn("realesrgan", data["models"])
-        self.assertIn("gfpgan", data["models"])
-
-    def test_list_models_contains_required_fields(self):
-        """Test that model info contains required fields."""
-        response = self.client.get("/api/v1/edit/models")
-
-        self.assertEqual(response.status_code, 200)
-        data = response.json()
-
-        for model_name in ["rembg", "realesrgan", "gfpgan"]:
-            model_info = data["models"][model_name]
-            self.assertIn("name", model_info)
-            self.assertIn("description", model_info)
-            self.assertIn("loaded", model_info)
-            self.assertIsInstance(model_info["loaded"], bool)
+    def test_models_reports_registry_readiness(self):
+        ready_ids = {"edit-u2net"}
+        client, _manager = _make_client(
+            self.tmp_path,
+            resolve_record=lambda record_id: {
+                "status": "ready" if record_id in ready_ids else "not_found"})
+        payload = client.get("/api/v1/edit/models").json()["tools"]
+        self.assertTrue(payload["remove-background"]["ready"])
+        self.assertFalse(payload["upscale"]["ready"])
+        self.assertFalse(payload["restore-faces"]["ready"])
 
 
 if __name__ == "__main__":
