@@ -35,7 +35,7 @@ export interface ModelRecord {
   artifact_type: string;
   capability: ModelCapability;
   base_architecture: string;
-  source: 'huggingface' | 'civitai' | 'local' | 'linked';
+  source: 'huggingface' | 'civitai' | 'local' | 'linked' | 'github';
   repo_id: string | null;
   /** null = unpinned (M5 Task 2: backend changed Optional[str] = None). */
   revision: string | null;
