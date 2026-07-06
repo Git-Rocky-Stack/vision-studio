@@ -10,7 +10,7 @@ except ImportError:  # torch is optional and absent in the lightweight CI/test e
     torch = None
 from typing import Optional, Callable, Dict, Any, List
 from pathlib import Path
-from PIL import Image
+from PIL import Image, ImageOps
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import ExitStack
@@ -45,6 +45,7 @@ from guided.ip_adapter import (
     resolve_ip_reference_stack,
 )
 from guided.masks import mask_coverage, rasterize_mask
+from guided.outpaint import expand_canvas
 from guided.passes import GuidedValidationError, resolve_guided_pass
 from guided.pipelines import (
     combine_controlnets,
@@ -405,6 +406,25 @@ class DirectGenerator:
             print(f"❌ Generation failed: {e}")
             raise
     
+    def _background_replace_mask(self, image):
+        """#34 PR2: inverted U2-Net subject alpha = the background inpaint mask.
+
+        Lazy edit_tools imports keep the module attribute the seam tests
+        monkeypatch; refusals convert to the guided error contract verbatim.
+        """
+        from edit_tools import background as edit_background
+        from edit_tools import weights as edit_weights
+
+        try:
+            u2net_path = edit_weights.require_edit_weights(
+                "edit-u2net", _resolve_record, self.models_dir,
+                "background removal")
+            cutout = edit_background.remove_background(
+                image, 0, model_path=u2net_path)
+        except edit_weights.EditModelUnavailable as exc:
+            raise GuidedValidationError(str(exc))
+        return ImageOps.invert(cutout.split()[-1])
+
     def _generate_sync(
         self,
         prompt: str,
@@ -430,6 +450,8 @@ class DirectGenerator:
             (guided or {}).get("reference_images"),
             (guided or {}).get("inpaint"),
             (guided or {}).get("denoising_strength", 0.75),
+            outpaint=(guided or {}).get("outpaint"),
+            background_replace=(guided or {}).get("background_replace"),
         )
 
         # FLUX inpaint runs on the dedicated FLUX.1 Fill model (a naive
@@ -551,16 +573,34 @@ class DirectGenerator:
             call_kwargs["height"] = height
         else:
             init_image = Image.open(pass_plan.image_path).convert("RGB")
+            computed_mask = None
+            if pass_plan.outpaint:
+                # #34 PR2 AI Expand: grow the canvas; the computed border mask
+                # replaces the drawn vector mask and the pass is plain inpaint
+                # from here on.
+                init_image, computed_mask = expand_canvas(
+                    init_image,
+                    pass_plan.outpaint["directions"],
+                    pass_plan.outpaint["pixels"],
+                )
+            elif pass_plan.background_replace:
+                # #34 PR2 background replacement: the mask is the inverted
+                # U2-Net subject alpha - keep the subject, repaint the rest.
+                computed_mask = self._background_replace_mask(init_image)
             base_size = init_image.size
             init_image = init_image.resize((width, height), Image.Resampling.LANCZOS)
             call_kwargs["image"] = init_image
             call_kwargs["strength"] = pass_plan.strength
             if pass_plan.kind == "inpaint":
-                mask_image = rasterize_mask(pass_plan.mask or {}, base_size[0], base_size[1])
-                if mask_coverage(mask_image) == 0.0:
-                    raise GuidedValidationError(
-                        "The inpaint mask is empty - draw a mask region on the canvas first."
-                    )
+                if computed_mask is not None:
+                    mask_image = computed_mask
+                else:
+                    mask_image = rasterize_mask(
+                        pass_plan.mask or {}, base_size[0], base_size[1])
+                    if mask_coverage(mask_image) == 0.0:
+                        raise GuidedValidationError(
+                            "The inpaint mask is empty - draw a mask region on the canvas first."
+                        )
                 call_kwargs["mask_image"] = mask_image.resize(
                     (width, height), Image.Resampling.LANCZOS)
                 call_kwargs["width"] = width
@@ -629,7 +669,11 @@ class DirectGenerator:
                 )
             if pass_plan.kind != "none" or cn_stack or ip_stack:
                 guided_report = {
-                    "pass": pass_plan.kind,
+                    "pass": (
+                        "outpaint" if pass_plan.outpaint
+                        else "background-replace" if pass_plan.background_replace
+                        else pass_plan.kind
+                    ),
                     "notices": list(pass_plan.notices) + (ip_stack.notices if ip_stack else []),
                     "dropped_params": dropped_params,
                     "controlnet": [
@@ -647,6 +691,8 @@ class DirectGenerator:
                         for ref in (ip_stack.references if ip_stack else [])
                     ],
                 }
+                if pass_plan.outpaint:
+                    guided_report["outpaint"] = dict(pass_plan.outpaint)
 
             with loras_applied(pipeline, loras or [], _resolve_lora_record) as lora_result:
                 with torch.inference_mode():

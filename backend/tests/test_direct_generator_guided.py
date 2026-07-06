@@ -517,3 +517,97 @@ def test_missing_adapter_dir_fails_with_reinstall_message(monkeypatch, tmp_path)
     assert "ip-adapter-sd15" in str(exc.value)
     assert "reinstall" in str(exc.value)
     assert str(tmp_path) not in str(exc.value)  # no paths in the message
+
+
+# -- #34 PR2 (edit tools): outpaint + background replace ----------------------
+
+def test_outpaint_runs_inpaint_with_the_computed_border_mask(tmp_path, monkeypatch):
+    calls = []
+    gen, _loaded, _attached, derived, _ip = _generator(tmp_path, calls, monkeypatch)
+    base = _base_image(tmp_path)  # 16x16 source
+    result = _run(gen, tmp_path, {
+        "outpaint": {"image_path": base, "directions": ["right"], "pixels": 8},
+        "denoising_strength": 1.0,
+    })
+    # The pass derives the plain inpaint variant.
+    assert derived and derived[0]["kind"] == "inpaint"
+    call = calls[0]
+    # Expanded init + computed mask, both resized to the request dimensions.
+    assert call["image"].size == (8, 8)
+    assert call["mask_image"] is not None
+    assert call["mask_image"].size == (8, 8)
+    assert call["mask_image"].getextrema()[1] == 255
+    assert call["strength"] == 1.0
+    assert result["guided"]["pass"] == "outpaint"
+    assert result["guided"]["outpaint"] == {"directions": ["right"], "pixels": 8}
+
+
+def test_outpaint_on_flux_swaps_to_the_fill_model(tmp_path, monkeypatch):
+    calls = []
+    gen, loaded, _attached, _derived, _ip = _generator(
+        tmp_path, calls, monkeypatch, family="flux")
+    base = _base_image(tmp_path)
+    _run(gen, tmp_path, {
+        "outpaint": {"image_path": base, "directions": ["up"], "pixels": 8},
+        "denoising_strength": 1.0,
+    })
+    assert loaded == ["flux-fill"]
+
+
+def test_background_replace_runs_inpaint_with_the_inverted_subject_mask(
+        tmp_path, monkeypatch):
+    from PIL import Image
+
+    calls = []
+    gen, _loaded, _attached, derived, _ip = _generator(tmp_path, calls, monkeypatch)
+    base = _base_image(tmp_path)
+
+    # Fake the u2net stack: weights resolve, and the cutout keeps a 4px-wide
+    # subject stripe (alpha 255) so the inverted mask is background-white.
+    import edit_tools.background as bg
+    import edit_tools.weights as weights
+
+    def fake_remove_background(image, edge_refinement, model_path=None, run=None):
+        cutout = image.convert("RGBA")
+        alpha = Image.new("L", image.size, 0)
+        alpha.paste(255, (0, 0, 4, image.size[1]))
+        cutout.putalpha(alpha)
+        return cutout
+
+    monkeypatch.setattr(bg, "remove_background", fake_remove_background)
+    monkeypatch.setattr(
+        weights, "require_edit_weights",
+        lambda record_id, resolve_record, models_dir, label: "u2net.onnx")
+
+    result = _run(gen, tmp_path, {
+        "background_replace": {"image_path": base},
+        "denoising_strength": 1.0,
+    })
+    assert derived and derived[0]["kind"] == "inpaint"
+    call = calls[0]
+    assert call["mask_image"] is not None
+    extrema = call["mask_image"].getextrema()
+    assert extrema[0] == 0 and extrema[1] == 255, "subject kept, background repainted"
+    assert result["guided"]["pass"] == "background-replace"
+
+
+def test_background_replace_refuses_without_u2net_weights(tmp_path, monkeypatch):
+    from guided.passes import GuidedValidationError
+    import edit_tools.weights as weights
+
+    calls = []
+    gen, _loaded, _attached, _derived, _ip = _generator(tmp_path, calls, monkeypatch)
+    base = _base_image(tmp_path)
+
+    def refuse(record_id, resolve_record, models_dir, label):
+        raise weights.EditModelUnavailable(
+            "The background removal weights are not installed - "
+            "install 'edit-u2net' from the Foundry first.")
+
+    monkeypatch.setattr(weights, "require_edit_weights", refuse)
+    with pytest.raises(GuidedValidationError, match="edit-u2net"):
+        _run(gen, tmp_path, {
+            "background_replace": {"image_path": base},
+            "denoising_strength": 1.0,
+        })
+    assert calls == []
