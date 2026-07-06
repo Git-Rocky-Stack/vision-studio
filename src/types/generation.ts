@@ -110,6 +110,20 @@ export interface GenerationInpaintPayload {
   negative_prompt?: string;
 }
 
+/** #34 PR2: AI Expand - the backend grows the canvas and builds the border mask. */
+export interface GenerationOutpaintPayload {
+  image_path: string;
+  directions: Array<'up' | 'down' | 'left' | 'right'>;
+  pixels: number;
+  prompt?: string;
+  negative_prompt?: string;
+}
+
+/** #34 PR2: background replacement - inverted U2-Net subject mask inpaint. */
+export interface GenerationBackgroundReplacePayload {
+  image_path: string;
+}
+
 export type GenerationMode = 'image' | 'video';
 
 export interface VideoFrameInput {
@@ -154,6 +168,10 @@ export interface ImageGenerationRequestPayload {
   image_path?: string;
   mask?: GenerationMaskPayload;
   inpaint?: GenerationInpaintPayload;
+  /** #34 PR2: AI Expand pre-step (canvas growth + backend border mask). */
+  outpaint?: GenerationOutpaintPayload;
+  /** #34 PR2: background replacement (backend computes the inverted u2net mask). */
+  background_replace?: GenerationBackgroundReplacePayload;
   /** #34: img2img/inpaint denoising strength (only sent with a guided pass). */
   denoising_strength?: number;
   /** M6: per-request hosted provider override for over-budget fallback routing. */

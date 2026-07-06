@@ -93,6 +93,22 @@ describe('hasUnsupportedOpenRouterImageInputs', () => {
     expect(hasUnsupportedOpenRouterImageInputs({ image_path: 'C:/x.png' })).toBe(true);
   });
 
+  it('returns true when outpaint is set (#34 PR2 AI Expand)', () => {
+    expect(
+      hasUnsupportedOpenRouterImageInputs({
+        outpaint: { image_path: 'x.png', directions: ['right'], pixels: 128 },
+      }),
+    ).toBe(true);
+  });
+
+  it('returns true when background_replace is set (#34 PR2)', () => {
+    expect(
+      hasUnsupportedOpenRouterImageInputs({
+        background_replace: { image_path: 'x.png' },
+      }),
+    ).toBe(true);
+  });
+
   it('returns true when mask is set (inpaint mask)', () => {
     expect(hasUnsupportedOpenRouterImageInputs({ mask: 'C:/m.png' })).toBe(true);
   });
