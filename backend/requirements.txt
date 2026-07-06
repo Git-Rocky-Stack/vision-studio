@@ -13,6 +13,9 @@ slowapi>=0.1.9
 # accelerate>=0.24.0
 # peft>=0.11.0  # LoRA multi-adapter stacking (#136); install alongside torch/diffusers
 # controlnet_aux>=0.0.10  # ControlNet preprocessor annotators (#34); install alongside torch/diffusers
+# onnxruntime>=1.17  # u2net background removal (#34); CPU EP sufficient, no torch needed
+# spandrel>=0.4.0  # Real-ESRGAN / GFPGAN checkpoint loader (#34); install alongside torch
+# facexlib>=0.3.0  # RetinaFace detect + ParseNet parse for GFPGAN paste-back (#34)
 # xformers>=0.0.22
 
 # Image/Video processing

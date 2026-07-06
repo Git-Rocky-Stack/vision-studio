@@ -22,6 +22,7 @@ metadata_packages = [
     'transformers', 'diffusers', 'huggingface-hub', 'accelerate',
     'safetensors', 'pydantic', 'fastapi', 'uvicorn', 'numpy',
     'pillow', 'opencv-python', 'httpx', 'tqdm',
+    'onnxruntime', 'spandrel', 'facexlib',
 ]
 extra_datas = []
 for pkg in metadata_packages:
@@ -114,6 +115,14 @@ a = Analysis(
         'cv2',
         'safetensors',
         'huggingface_hub',
+
+        # #34 real edit tools (u2net / Real-ESRGAN / GFPGAN stack)
+        'onnxruntime',
+        'spandrel',
+        'facexlib',
+        'facexlib.utils.face_restoration_helper',
+        'facexlib.detection',
+        'facexlib.parsing',
 
         # WebSocket
         'websockets',

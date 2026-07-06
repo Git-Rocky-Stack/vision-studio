@@ -224,11 +224,39 @@ async function installPyInstaller(venvPath) {
   log('✅ PyInstaller installed', 'green');
 }
 
+// Heavy-by-design gate: the bundle must carry every runtime the app's
+// features need. torch installs via installPyTorch, but the rest of this set
+// is deliberately commented in requirements.txt (installed alongside torch by
+// hand) - a venv missing any of them would build a silently broken bundle.
+const REQUIRED_BUNDLE_IMPORTS = [
+  'torch', 'torchvision', 'diffusers', 'transformers', 'accelerate',
+  'peft', 'controlnet_aux',
+  // #34 real edit tools
+  'onnxruntime', 'spandrel', 'facexlib',
+];
+
+function assertBundleImports(venvPath) {
+  log('\n🔎 Verifying the venv carries every bundled runtime...', 'blue');
+  const probe = `${getVenvPython(venvPath)} -c "import ${REQUIRED_BUNDLE_IMPORTS.join(', ')}"`;
+  try {
+    exec(probe, { cwd: BACKEND_DIR });
+  } catch (error) {
+    log('❌ Backend venv is missing bundled runtimes.', 'red');
+    log(`   Required imports: ${REQUIRED_BUNDLE_IMPORTS.join(', ')}`, 'red');
+    log('   Install the missing packages into backend/venv before building', 'red');
+    log('   (see the commented AI/ML block in backend/requirements.txt).', 'red');
+    throw error;
+  }
+  log('✅ All bundled runtimes importable', 'green');
+}
+
 async function buildExecutable(venvPath) {
   log('\n🏗️  Building standalone executable...', 'blue');
-  
+
+  assertBundleImports(venvPath);
+
   const pyinstaller = `${getVenvPython(venvPath)} -m PyInstaller`;
-  
+
   const specPath = path.join(BACKEND_DIR, 'main.spec');
   
   // Clean previous builds
