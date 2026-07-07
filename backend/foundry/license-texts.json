@@ -1,0 +1,33 @@
+{
+  "_comment": "#34 installer: human-readable names + canonical URLs for every license id that can appear in the auto-set. Only redistribution-compatible licenses need entries (non-redistributable models never reach THIRD-PARTY-LICENSES).",
+  "licenses": {
+    "mit": {
+      "name": "MIT License",
+      "url": "https://opensource.org/license/mit"
+    },
+    "apache-2.0": {
+      "name": "Apache License 2.0",
+      "url": "https://www.apache.org/licenses/LICENSE-2.0"
+    },
+    "bsd-3-clause": {
+      "name": "BSD 3-Clause License",
+      "url": "https://opensource.org/license/bsd-3-clause"
+    },
+    "creativeml-openrail-m": {
+      "name": "CreativeML Open RAIL-M License",
+      "url": "https://huggingface.co/spaces/CompVis/stable-diffusion-license"
+    },
+    "openrail": {
+      "name": "Open RAIL-M License",
+      "url": "https://www.licenses.ai/"
+    },
+    "openrail++": {
+      "name": "CreativeML Open RAIL++-M License",
+      "url": "https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0/blob/main/LICENSE.md"
+    },
+    "stabilityai-community": {
+      "name": "Stability AI Community License",
+      "url": "https://stability.ai/community-license-agreement"
+    }
+  }
+}

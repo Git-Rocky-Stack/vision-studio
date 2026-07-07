@@ -86,6 +86,7 @@ def _entry(record: Dict[str, Any], overrides: Dict[str, Any]) -> Dict[str, Any]:
     repin = (overrides.get("repin") or {}).get(model_id, {})
     entry = {
         "id": model_id,
+        "name": record.get("name") or model_id,
         "artifact_type": record.get("artifact_type"),
         "license": (license_id or "").strip().lower() or None,
         "license_category": info.category,
