@@ -69,6 +69,19 @@ _TABLE: Dict[str, Tuple[str, bool, bool, Optional[str], Optional[str]]] = {
     "flux-1-dev-non-commercial": (
         NON_COMMERCIAL, False, False, None,
         "https://github.com/black-forest-labs/flux/blob/main/model_licenses/LICENSE-FLUX1-dev"),
+    # LTX-Video RAIL-M: the open-weights tier's Permitted Purpose is academic /
+    # research only (commercial gated behind a separate >=$10M-revenue
+    # agreement). Redistributable but not commercial-clean - kept out of the
+    # bundled set, Foundry-manual only.
+    "ltx-video-license": (
+        NON_COMMERCIAL, False, False, None,
+        "https://static.lightricks.com/legal/ltxv-09-railm-license.pdf"),
+    # OpenPose (CMU): the body/hand/face pose weights are academic / non-profit
+    # only; commercial use needs a paid CMU license. The lllyasviel/Annotators
+    # OpenRAIL-M repackaging cannot relicense CMU's weights - stays excluded.
+    "openpose-cmu-noncommercial": (
+        NON_COMMERCIAL, False, False, None,
+        "https://github.com/CMU-Perceptual-Computing-Lab/openpose/blob/master/LICENSE"),
 }
 
 

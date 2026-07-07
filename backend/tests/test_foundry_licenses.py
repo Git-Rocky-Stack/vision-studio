@@ -36,10 +36,15 @@ def test_stability_community_requires_the_powered_by_attribution():
     assert info.attribution == STABILITY_ATTRIBUTION
 
 
-def test_flux_dev_non_commercial_is_not_redistributable():
-    info = classify_license("flux-1-dev-non-commercial")
-    assert info.category == "non-commercial"
-    assert info.redistributable is False
+def test_explicitly_non_commercial_licenses_are_not_redistributable():
+    for lic in (
+        "flux-1-dev-non-commercial",
+        "ltx-video-license",
+        "openpose-cmu-noncommercial",
+    ):
+        info = classify_license(lic)
+        assert info.category == "non-commercial", lic
+        assert info.redistributable is False, lic
 
 
 def test_case_and_whitespace_are_normalized():
@@ -47,7 +52,7 @@ def test_case_and_whitespace_are_normalized():
 
 
 def test_unknown_and_absent_licenses_fail_closed():
-    for lic in (None, "", "totally-made-up-license", "ltx-video-license"):
+    for lic in (None, "", "totally-made-up-license"):
         info = classify_license(lic)
         assert info.category == "unknown"
         assert info.redistributable is False

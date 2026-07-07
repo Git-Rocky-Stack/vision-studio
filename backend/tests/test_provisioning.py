@@ -66,11 +66,23 @@ def test_flux_schnell_apache_is_included():
     assert "flux-schnell" in AUTO_IDS
 
 
-def test_unknown_license_models_drop_to_manual_only():
-    # Annotators + the CLIP-L encoder ship without a catalog license -> unknown
-    # -> fail-closed out of the auto-set until their license is verified.
-    for model_id in ("annotator-midas", "ip-adapter-encoder-clip-vit-l"):
-        assert model_id in MANUAL_IDS
+def test_verified_permissive_records_are_promoted_into_the_auto_set():
+    # MiDaS (MIT), NormalBae (OpenRAIL-M pack), CLIP ViT-L (OpenAI MIT) had a
+    # blank catalog license; known_licenses resolves them into the auto-set.
+    for model_id in (
+        "annotator-midas",
+        "annotator-normalbae",
+        "ip-adapter-encoder-clip-vit-l",
+    ):
+        assert model_id in AUTO_IDS
+        assert model_id not in MANUAL_IDS
+
+
+def test_non_commercial_annotator_and_video_stay_manual_only():
+    # OpenPose (CMU non-commercial) and LTX-Video (research-only free tier) are
+    # redistributable-restricted -> never in the bundled set.
+    assert MANUAL_IDS == {"annotator-openpose", "ltx-video"}, MANUAL_IDS
+    for model_id in ("annotator-openpose", "ltx-video"):
         assert model_id not in AUTO_IDS
 
 

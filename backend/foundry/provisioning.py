@@ -71,14 +71,23 @@ def _source(record: Dict[str, Any], repin: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+def _effective_license(
+    model_id: str, record: Dict[str, Any], overrides: Dict[str, Any]
+) -> Optional[str]:
+    """Verified upstream license (known_licenses) overrides a catalog gap."""
+    known = overrides.get("known_licenses") or {}
+    return known.get(model_id) or record.get("license")
+
+
 def _entry(record: Dict[str, Any], overrides: Dict[str, Any]) -> Dict[str, Any]:
     model_id = record["id"]
-    info = classify_license(record.get("license"))
+    license_id = _effective_license(model_id, record, overrides)
+    info = classify_license(license_id)
     repin = (overrides.get("repin") or {}).get(model_id, {})
     entry = {
         "id": model_id,
         "artifact_type": record.get("artifact_type"),
-        "license": (record.get("license") or "").strip().lower() or None,
+        "license": (license_id or "").strip().lower() or None,
         "license_category": info.category,
         "attribution": info.attribution,
         "gated": bool(record.get("gated")),
@@ -109,12 +118,13 @@ def build_provision_manifest(
         if model_id in EXCLUDED_NON_COMMERCIAL:
             excluded.append(model_id)
             continue
-        info = classify_license(record.get("license"))
+        license_id = _effective_license(model_id, record, overrides)
+        info = classify_license(license_id)
         if not info.redistributable:
             manual_only.append({
                 "id": model_id,
                 "artifact_type": record.get("artifact_type"),
-                "license": (record.get("license") or "").strip().lower() or None,
+                "license": (license_id or "").strip().lower() or None,
                 "reason": f"license-not-redistributable:{info.category}",
             })
             continue

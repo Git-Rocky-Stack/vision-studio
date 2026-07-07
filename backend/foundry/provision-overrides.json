@@ -1,10 +1,22 @@
 {
-  "_comment": "#34 installer PR1: provisioning deltas the catalog can't express. repin repoints fragile/dead upstreams to permanent sources; verified at provision time (HF LFS) and pinned to the Vision Studio R2 mirror in PR4.",
+  "_comment": "#34 installer PR1: provisioning deltas the catalog can't express. repin repoints fragile/dead upstreams to permanent sources; known_licenses fills catalog license gaps with verified upstream licenses (see repin/known_licenses reasons). All resolved via authoritative upstream license review, 2026-07-06.",
   "repin": {
     "sd-1-5": {
       "repo_id": "stable-diffusion-v1-5/stable-diffusion-v1-5",
       "revision": "main",
       "reason": "runwayml/stable-diffusion-v1-5 was deleted from HuggingFace; the community mirror is the permanent source."
     }
+  },
+  "known_licenses": {
+    "annotator-midas": "mit",
+    "annotator-normalbae": "creativeml-openrail-m",
+    "ip-adapter-encoder-clip-vit-l": "mit",
+    "annotator-openpose": "openpose-cmu-noncommercial"
+  },
+  "known_license_reasons": {
+    "annotator-midas": "MiDaS depth (Intel ISL, isl-org/MiDaS) is MIT.",
+    "annotator-normalbae": "Distributed via lllyasviel/Annotators under CreativeML-OpenRAIL-M; upstream Bae normal estimator is permissive.",
+    "ip-adapter-encoder-clip-vit-l": "OpenAI CLIP ViT-L/14 weights are MIT.",
+    "annotator-openpose": "OpenPose body/hand/face weights are CMU academic/non-profit only (commercial requires a paid CMU license); OpenRAIL-M repackaging cannot relicense them - kept Foundry-manual."
   }
 }
