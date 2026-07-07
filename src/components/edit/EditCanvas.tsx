@@ -4,11 +4,22 @@ import { useAppStore } from '@/store/appStore';
 import { useShallow } from 'zustand/react/shallow';
 import { cn } from '@/utils/cn';
 import { RegionLockToolbar } from '@/components/edit/RegionLockToolbar';
+import { RegionMaskDrawer } from '@/components/edit/RegionMaskDrawer';
 import { CanvasControlLayerRail } from '@/components/canvas/CanvasControlLayerRail';
 import type { RegionTool } from '@/components/edit/RegionLockToolbar';
+import type { RegionMask } from '@/types/project';
 import type Konva from 'konva';
 
 const CHECKERBOARD_SIZE = 16;
+
+// #34 PR2: blank AI-tool mask shown before the first stroke is drawn.
+const EMPTY_AI_MASK: RegionMask = {
+  type: 'brush',
+  points: [],
+  bounds: { x: 0, y: 0, width: 0, height: 0 },
+  featherRadius: 2,
+  blendEdges: true,
+};
 
 export function EditCanvas() {
   const {
@@ -23,6 +34,11 @@ export function EditCanvas() {
     setActiveMaskTool,
     setMaskBrushSize,
     toggleMaskInverted,
+    editAiMask,
+    editAiMaskTool,
+    editAiMaskBrushSize,
+    editAiMaskDrawing,
+    setEditAiMask,
   } = useAppStore(useShallow((s) => ({
     currentImage: s.currentImage,
       activeEditTool: s.activeEditTool,
@@ -35,6 +51,11 @@ export function EditCanvas() {
       setActiveMaskTool: s.setActiveMaskTool,
       setMaskBrushSize: s.setMaskBrushSize,
       toggleMaskInverted: s.toggleMaskInverted,
+      editAiMask: s.editAiMask,
+      editAiMaskTool: s.editAiMaskTool,
+      editAiMaskBrushSize: s.editAiMaskBrushSize,
+      editAiMaskDrawing: s.editAiMaskDrawing,
+      setEditAiMask: s.setEditAiMask,
     })));
 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -377,6 +398,33 @@ export function EditCanvas() {
           </Layer>
         </Stage>
       </div>
+
+      {/* #34 PR2: AI-tool inpaint mask surface (Generative Fill / Object
+          Removal). Overlays the displayed image exactly; while a mask tool is
+          open in the AI panel this surface owns the pointer. */}
+      {editAiMaskDrawing && loadedImage && (
+        <div
+          data-testid="edit-ai-mask-surface"
+          className="absolute"
+          style={{
+            left: stagePos.x,
+            top: stagePos.y,
+            width: loadedImage.width * stageScale,
+            height: loadedImage.height * stageScale,
+          }}
+        >
+          <RegionMaskDrawer
+            activeRegion={{ id: 'edit-ai-mask', mask: editAiMask ?? EMPTY_AI_MASK }}
+            canvasWidth={loadedImage.width}
+            canvasHeight={loadedImage.height}
+            tool={editAiMaskTool}
+            brushSize={editAiMaskBrushSize}
+            onMaskCommit={(update) =>
+              setEditAiMask({ ...update, featherRadius: 2, blendEdges: true })
+            }
+          />
+        </div>
+      )}
 
       {/* No image state */}
       {!currentImage && (

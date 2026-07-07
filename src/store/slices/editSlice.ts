@@ -1,5 +1,6 @@
 import type { Layer, EditHistoryEntry, ImageAdjustments } from '@/types/editor';
 import { DEFAULT_ADJUSTMENTS } from '@/types/editor';
+import type { RegionMask } from '@/types/project';
 import type { AppSet, AppGet, AppState } from '../appStore.types';
 
 function createBaseImageLayer(imagePath: string, assetPath?: string | null): Layer {
@@ -27,6 +28,13 @@ export const editInitialState = {
   currentImage: null as string | null,
   currentImageAssetPath: null as string | null,
   imageAdjustments: { ...DEFAULT_ADJUSTMENTS } as ImageAdjustments,
+  // #34 PR2: shared inpaint mask for the AI tools (Generative Fill / Object
+  // Removal). One mask at a time, in intrinsic image pixels; cleared whenever
+  // the edit image changes because its coordinates belong to the old image.
+  editAiMask: null as RegionMask | null,
+  editAiMaskTool: 'brush' as 'brush' | 'rectangle',
+  editAiMaskBrushSize: 40,
+  editAiMaskDrawing: false,
 };
 
 export function createEditActions(set: AppSet, _get: AppGet) {
@@ -79,7 +87,12 @@ export function createEditActions(set: AppSet, _get: AppGet) {
         editHistory: [],
         editHistoryIndex: -1,
         imageAdjustments: { ...DEFAULT_ADJUSTMENTS },
+        editAiMask: null,
       }),
+    setEditAiMask: (mask: RegionMask | null) => set({ editAiMask: mask }),
+    setEditAiMaskTool: (tool: AppState['editAiMaskTool']) => set({ editAiMaskTool: tool }),
+    setEditAiMaskBrushSize: (size: number) => set({ editAiMaskBrushSize: size }),
+    setEditAiMaskDrawing: (drawing: boolean) => set({ editAiMaskDrawing: drawing }),
     setImageAdjustments: (adjustments: Partial<ImageAdjustments>) => set((state) => ({
       imageAdjustments: { ...state.imageAdjustments, ...adjustments },
     })),

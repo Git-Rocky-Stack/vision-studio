@@ -10,7 +10,8 @@ import { toOpenRouterRendererMessage } from './openRouterError';
  *
  * - `hasUnsupportedOpenRouterImageInputs` enforces the current OpenRouter
  *   envelope: prompt-only generations only. ControlNet, reference images,
- *   img2img, masks, and inpaint must fall back to the local backend.
+ *   img2img, masks, inpaint, outpaint, and background replacement must fall
+ *   back to the local backend.
  *
  * - `isTerminalJobStatus` and `resolveOpenRouterFailureMessage` are the
  *   small predicates the cancel and error paths need.
@@ -44,6 +45,8 @@ export function hasUnsupportedOpenRouterImageInputs(params: unknown): boolean {
         image_path?: unknown;
         mask?: unknown;
         inpaint?: unknown;
+        outpaint?: unknown;
+        background_replace?: unknown;
       }
     | null
     | undefined;
@@ -52,7 +55,9 @@ export function hasUnsupportedOpenRouterImageInputs(params: unknown): boolean {
       candidate?.reference_images?.length ||
       candidate?.image_path ||
       candidate?.mask ||
-      candidate?.inpaint,
+      candidate?.inpaint ||
+      candidate?.outpaint ||
+      candidate?.background_replace,
   );
 }
 

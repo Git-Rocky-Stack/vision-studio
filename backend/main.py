@@ -484,6 +484,27 @@ class InpaintPassPayload(BaseModel):
     negative_prompt: Optional[str] = None
 
 
+class OutpaintPassPayload(BaseModel):
+    """#34 PR2: AI Expand - the backend grows the canvas and builds the mask.
+
+    Direction membership is validated in resolve_guided_pass (the single
+    honesty seam the endpoint pre-flights to 422).
+    """
+    image_path: str
+    directions: List[str] = Field(..., description="subset of up/down/left/right")
+    pixels: int = Field(..., ge=64, le=512)
+    prompt: Optional[str] = None
+    negative_prompt: Optional[str] = None
+
+
+class BackgroundReplacePayload(BaseModel):
+    """#34 PR2: background replacement - inverted U2-Net subject mask inpaint.
+
+    The prompt describing the new background rides the request's main prompt.
+    """
+    image_path: str
+
+
 class ImageGenerationRequest(BaseModel):
     prompt: str = Field(..., description="Positive prompt for generation")
     negative_prompt: str = Field(default="", description="Negative prompt")
@@ -503,18 +524,28 @@ class ImageGenerationRequest(BaseModel):
         default_factory=list, description="#34 reference image layers (img2img)")
     inpaint: Optional[InpaintPassPayload] = Field(
         default=None, description="#34 inpaint pass (base image + mask)")
+    outpaint: Optional[OutpaintPassPayload] = Field(
+        default=None,
+        description="#34 PR2 AI Expand pre-step (canvas growth + border mask)")
+    background_replace: Optional[BackgroundReplacePayload] = Field(
+        default=None,
+        description="#34 PR2 background replacement (inverted u2net mask inpaint)")
     denoising_strength: float = Field(
         default=0.75, ge=0.05, le=1.0, description="#34 img2img/inpaint strength")
 
 
 def _guided_payload(request: "ImageGenerationRequest") -> Optional[Dict[str, Any]]:
     """#34: project the request's guided fields into the generator's dict seam."""
-    if not (request.controlnet or request.reference_images or request.inpaint):
+    if not (request.controlnet or request.reference_images or request.inpaint
+            or request.outpaint or request.background_replace):
         return None
     return {
         "controlnet": [layer.dict() for layer in request.controlnet],
         "reference_images": [layer.dict() for layer in request.reference_images],
         "inpaint": request.inpaint.dict() if request.inpaint else None,
+        "outpaint": request.outpaint.dict() if request.outpaint else None,
+        "background_replace": (
+            request.background_replace.dict() if request.background_replace else None),
         "denoising_strength": request.denoising_strength,
     }
 
@@ -1203,6 +1234,8 @@ async def generate_image(
             pass_plan = resolve_guided_pass(
                 guided["controlnet"], guided["reference_images"],
                 guided["inpaint"], guided["denoising_strength"],
+                outpaint=guided["outpaint"],
+                background_replace=guided["background_replace"],
             )
         except GuidedValidationError as exc:
             raise HTTPException(status_code=422, detail=str(exc))
@@ -1223,6 +1256,19 @@ async def generate_image(
                             detail=(
                                 "FLUX inpainting uses the FLUX.1 Fill model - "
                                 "install 'flux-fill' from the Foundry first."
+                            ),
+                        )
+                # #34 PR2: background replacement additionally needs the
+                # U2-Net weights - refuse before a job exists.
+                if pass_plan.background_replace:
+                    u2net = model_registry.get_record("edit-u2net") or {}
+                    if not any(os.path.exists(loc)
+                               for loc in u2net.get("locations") or []):
+                        raise HTTPException(
+                            status_code=422,
+                            detail=(
+                                "Background replacement uses the U2-Net weights - "
+                                "install 'edit-u2net' from the Foundry first."
                             ),
                         )
         cn_stack = []

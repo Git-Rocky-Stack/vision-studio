@@ -30,8 +30,8 @@ export function routedJobProvider(jobId: string): Exclude<ProviderId, 'local'> |
  * The Inference Providers task API documents no ControlNet control_image and no
  * masked-inpaint mask_image parameter, and bare img2img / reference images
  * (IP-adapter) have no standard hosted contract either - so every guided pass
- * (ControlNet, inpaint, mask, img2img, reference images) stays on the local
- * backend (Codex M6 gate).
+ * (ControlNet, inpaint, mask, img2img, reference images, outpaint, background
+ * replacement) stays on the local backend (Codex M6 gate).
  */
 export function hasUnsupportedHuggingFaceImageInputs(params: unknown): boolean {
   const candidate = params as
@@ -41,6 +41,8 @@ export function hasUnsupportedHuggingFaceImageInputs(params: unknown): boolean {
         image_path?: unknown;
         mask?: unknown;
         inpaint?: unknown;
+        outpaint?: unknown;
+        background_replace?: unknown;
       }
     | null
     | undefined;
@@ -49,7 +51,9 @@ export function hasUnsupportedHuggingFaceImageInputs(params: unknown): boolean {
       candidate?.reference_images?.length ||
       candidate?.image_path ||
       candidate?.mask ||
-      candidate?.inpaint,
+      candidate?.inpaint ||
+      candidate?.outpaint ||
+      candidate?.background_replace,
   );
 }
 

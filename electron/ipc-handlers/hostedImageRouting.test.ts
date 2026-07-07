@@ -42,4 +42,20 @@ describe('hasUnsupportedHuggingFaceImageInputs', () => {
     expect(hasUnsupportedHuggingFaceImageInputs({ reference_images: [{ source_path: 'r.png' }] })).toBe(true);
     expect(hasUnsupportedHuggingFaceImageInputs({ image_path: 'init.png' })).toBe(true);
   });
+
+  it('routes outpaint passes back to the local backend (#34 PR2)', () => {
+    expect(
+      hasUnsupportedHuggingFaceImageInputs({
+        outpaint: { image_path: 'x.png', directions: ['right'], pixels: 128 },
+      }),
+    ).toBe(true);
+  });
+
+  it('routes background-replace passes back to the local backend (#34 PR2)', () => {
+    expect(
+      hasUnsupportedHuggingFaceImageInputs({
+        background_replace: { image_path: 'x.png' },
+      }),
+    ).toBe(true);
+  });
 });

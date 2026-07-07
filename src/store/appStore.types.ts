@@ -89,6 +89,7 @@ import type {
   CharacterRef,
   ImportDraft,
   RegionLock,
+  RegionMask,
   CanvasControlLayer,
   SceneStatus,
   GenerationConfig,
@@ -403,6 +404,11 @@ export interface AppState {
   currentImage: string | null;
   currentImageAssetPath: string | null;
   imageAdjustments: ImageAdjustments;
+  /** #34 PR2: shared AI-tool inpaint mask (Generative Fill / Object Removal). */
+  editAiMask: RegionMask | null;
+  editAiMaskTool: 'brush' | 'rectangle';
+  editAiMaskBrushSize: number;
+  editAiMaskDrawing: boolean;
   generationDraft: GenerationDraft | null;
 
   // ─── Batch View State ───────────────────────────────────────────────────
@@ -818,6 +824,10 @@ export interface AppState {
   setCurrentImage: (imagePath: string | null, assetPath?: string | null) => void;
   setImageAdjustments: (adjustments: Partial<ImageAdjustments>) => void;
   resetImageAdjustments: () => void;
+  setEditAiMask: (mask: RegionMask | null) => void;
+  setEditAiMaskTool: (tool: 'brush' | 'rectangle') => void;
+  setEditAiMaskBrushSize: (size: number) => void;
+  setEditAiMaskDrawing: (drawing: boolean) => void;
 
   // Project CRUD
   createProject: (name: string, dimensions?: { width: number; height: number }) => Project;
