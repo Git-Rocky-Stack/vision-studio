@@ -214,3 +214,20 @@ no network, both CI OSes.
   `controlnet-canny-sdxl` record (guided-passes ControlNet cycle). Catalog
   membership classifies as Verified by design (spec 5.2); the fixture's signal
   snapshot is unchanged - only the catalog context moved.
+
+- **2026-07-07 - the SD1.5 repo rename (paired relabel).** `runwayml/stable-diffusion-v1-5`
+  was deleted upstream (Runway removed it; the hub silently redirects to the
+  `stable-diffusion-v1-5/` mirror org - see the "Hub churn is real" finding). The
+  catalog's `sd-1-5` and `animatediff` records were repinned off the dead repo onto
+  the community mirror `stable-diffusion-v1-5/stable-diffusion-v1-5` (the manual
+  Foundry install `snapshot_download`ed the dead base and 404'd). Verified-membership
+  therefore moved between two fixtures, a clean swap that leaves the corpus tier mix
+  unchanged (verified 8 / compatible 13 / experimental 20):
+  - `stable-diffusion-v1-5/stable-diffusion-v1-5`: **compatible -> verified** (now the
+    catalog's SD1.5 source; Rule 1 catalog authority).
+  - `runwayml/stable-diffusion-v1-5`: **verified -> compatible** (no longer a catalog
+    member; the ladder classifies its reachable `StableDiffusionPipeline` +
+    component-safetensors tree as Compatible via Rule 5). The prior
+    `verified-unreachable` graceful-degrade stratum retires - the mirror is reachable.
+  Both fixtures' signal snapshots are unchanged; only catalog context moved. No
+  classifier code changed.
