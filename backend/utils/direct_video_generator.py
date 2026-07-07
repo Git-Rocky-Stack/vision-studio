@@ -103,7 +103,9 @@ def resolve_animatediff_sources(
             str(adapter_bundle).replace("\\", "/"),
         )
     return (
-        base_repo or "runwayml/stable-diffusion-v1-5",
+        # runwayml/stable-diffusion-v1-5 was deleted from HuggingFace; the
+        # community mirror is the permanent SD1.5 source (matches the catalog).
+        base_repo or "stable-diffusion-v1-5/stable-diffusion-v1-5",
         adapter_repo or "guoyww/animatediff-motion-adapter-v1-5-2",
     )
 

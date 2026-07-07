@@ -15,7 +15,7 @@ const MODELS = [
   {
     id: 'sd-1-5',
     name: 'Stable Diffusion 1.5',
-    repo: 'runwayml/stable-diffusion-v1-5',
+    repo: 'stable-diffusion-v1-5/stable-diffusion-v1-5',
     file: 'v1-5-pruned-emaonly.safetensors',
     size: '4.3 GB',
     required: true

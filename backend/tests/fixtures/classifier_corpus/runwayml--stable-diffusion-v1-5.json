@@ -18,9 +18,9 @@
   },
   "gated": false,
   "ground_truth": {
-    "reason": "verified-catalog sd-1-5; repo removed from hub - graceful-degrade case",
-    "stratum": "verified-unreachable",
-    "tier": "verified"
+    "reason": "StableDiffusionPipeline (sd15) - dropped from the catalog after upstream deletion; hub redirects to the community mirror",
+    "stratum": "compatible-core",
+    "tier": "compatible"
   },
   "has_safetensors": true,
   "library_name": "diffusers",

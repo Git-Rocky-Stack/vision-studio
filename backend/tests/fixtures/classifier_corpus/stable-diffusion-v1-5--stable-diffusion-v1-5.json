@@ -18,9 +18,9 @@
   },
   "gated": false,
   "ground_truth": {
-    "reason": "StableDiffusionPipeline (sd15 mirror)",
-    "stratum": "compatible-core",
-    "tier": "compatible"
+    "reason": "verified-catalog sd-1-5 + animatediff base (community mirror; canonical after the runwayml deletion)",
+    "stratum": "verified",
+    "tier": "verified"
   },
   "has_safetensors": true,
   "library_name": "diffusers",

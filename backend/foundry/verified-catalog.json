@@ -72,7 +72,7 @@
   "sd-1-5": {
     "id": "sd-1-5", "name": "Stable Diffusion 1.5", "artifact_type": "checkpoint",
     "capability": "image", "base_architecture": "sd15", "source": "huggingface",
-    "repo_id": "runwayml/stable-diffusion-v1-5", "revision": "main", "aux_repo_id": null,
+    "repo_id": "stable-diffusion-v1-5/stable-diffusion-v1-5", "revision": "main", "aux_repo_id": null,
     "size": "4.3 GB", "status": "not_found", "tier": "verified", "quality": "local",
     "runtime": "local", "hardware_class": "laptop", "vram": "4.0 GB",
     "description": "Original Stable Diffusion 1.5 with broad LoRA and ControlNet support.",
@@ -102,7 +102,7 @@
   "animatediff": {
     "id": "animatediff", "name": "AnimateDiff", "artifact_type": "motion-adapter",
     "capability": "video", "base_architecture": "animatediff", "source": "huggingface",
-    "repo_id": "runwayml/stable-diffusion-v1-5", "revision": "main",
+    "repo_id": "stable-diffusion-v1-5/stable-diffusion-v1-5", "revision": "main",
     "aux_repo_id": "guoyww/animatediff-motion-adapter-v1-5-2",
     "size": "1.6 GB", "status": "not_found", "tier": "verified", "quality": "balanced",
     "runtime": "local", "hardware_class": "creator", "vram": "8.0 GB",

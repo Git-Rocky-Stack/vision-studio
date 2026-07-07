@@ -166,8 +166,8 @@
       "file": "runwayml--stable-diffusion-v1-5.json",
       "reachable": true,
       "repo_id": "runwayml/stable-diffusion-v1-5",
-      "stratum": "verified-unreachable",
-      "tier": "verified"
+      "stratum": "compatible-core",
+      "tier": "compatible"
     },
     {
       "file": "segmind--SSD-1B.json",
@@ -236,8 +236,8 @@
       "file": "stable-diffusion-v1-5--stable-diffusion-v1-5.json",
       "reachable": true,
       "repo_id": "stable-diffusion-v1-5/stable-diffusion-v1-5",
-      "stratum": "compatible-core",
-      "tier": "compatible"
+      "stratum": "verified",
+      "tier": "verified"
     },
     {
       "file": "tencent--HunyuanVideo.json",
