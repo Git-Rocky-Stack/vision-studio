@@ -1,0 +1,522 @@
+{
+  "schema": 1,
+  "auto_set": [
+    {
+      "id": "animatediff",
+      "name": "AnimateDiff",
+      "artifact_type": "motion-adapter",
+      "license": "creativeml-openrail-m",
+      "license_category": "openrail",
+      "attribution": null,
+      "gated": false,
+      "source": {
+        "kind": "hf",
+        "repo_id": "guoyww/animatediff-motion-adapter-v1-5-2",
+        "revision": "main"
+      },
+      "approx_bytes": 1717986918
+    },
+    {
+      "id": "annotator-midas",
+      "name": "MiDaS Depth Annotator",
+      "artifact_type": "annotator",
+      "license": "mit",
+      "license_category": "permissive",
+      "attribution": null,
+      "gated": false,
+      "source": {
+        "kind": "hf",
+        "repo_id": "lllyasviel/Annotators",
+        "revision": "main"
+      },
+      "approx_bytes": 536870912
+    },
+    {
+      "id": "annotator-normalbae",
+      "name": "NormalBAE Annotator",
+      "artifact_type": "annotator",
+      "license": "creativeml-openrail-m",
+      "license_category": "openrail",
+      "attribution": null,
+      "gated": false,
+      "source": {
+        "kind": "hf",
+        "repo_id": "lllyasviel/Annotators",
+        "revision": "main"
+      },
+      "approx_bytes": 322122547
+    },
+    {
+      "id": "controlnet-canny-sd15",
+      "name": "ControlNet Canny (SD 1.5)",
+      "artifact_type": "controlnet",
+      "license": "openrail",
+      "license_category": "openrail",
+      "attribution": null,
+      "gated": false,
+      "source": {
+        "kind": "hf",
+        "repo_id": "lllyasviel/control_v11p_sd15_canny",
+        "revision": "main"
+      },
+      "approx_bytes": 2362232012
+    },
+    {
+      "id": "controlnet-canny-sd35",
+      "name": "ControlNet Canny (SD 3.5 Large)",
+      "artifact_type": "controlnet",
+      "license": "stabilityai-community",
+      "license_category": "stability-community",
+      "attribution": "Powered by Stability AI",
+      "gated": false,
+      "source": {
+        "kind": "hf",
+        "repo_id": "stabilityai/stable-diffusion-3.5-large-controlnet-canny",
+        "revision": "main"
+      },
+      "approx_bytes": 8697308774
+    },
+    {
+      "id": "controlnet-canny-sdxl",
+      "name": "ControlNet Canny (SDXL)",
+      "artifact_type": "controlnet",
+      "license": "openrail++",
+      "license_category": "openrail",
+      "attribution": null,
+      "gated": false,
+      "source": {
+        "kind": "hf",
+        "repo_id": "diffusers/controlnet-canny-sdxl-1.0",
+        "revision": "main"
+      },
+      "approx_bytes": 8053063680
+    },
+    {
+      "id": "controlnet-depth-sd15",
+      "name": "ControlNet Depth (SD 1.5)",
+      "artifact_type": "controlnet",
+      "license": "openrail",
+      "license_category": "openrail",
+      "attribution": null,
+      "gated": false,
+      "source": {
+        "kind": "hf",
+        "repo_id": "lllyasviel/control_v11f1p_sd15_depth",
+        "revision": "main"
+      },
+      "approx_bytes": 2362232012
+    },
+    {
+      "id": "controlnet-depth-sd35",
+      "name": "ControlNet Depth (SD 3.5 Large)",
+      "artifact_type": "controlnet",
+      "license": "stabilityai-community",
+      "license_category": "stability-community",
+      "attribution": "Powered by Stability AI",
+      "gated": false,
+      "source": {
+        "kind": "hf",
+        "repo_id": "stabilityai/stable-diffusion-3.5-large-controlnet-depth",
+        "revision": "main"
+      },
+      "approx_bytes": 8697308774
+    },
+    {
+      "id": "controlnet-depth-sdxl",
+      "name": "ControlNet Depth (SDXL)",
+      "artifact_type": "controlnet",
+      "license": "openrail++",
+      "license_category": "openrail",
+      "attribution": null,
+      "gated": false,
+      "source": {
+        "kind": "hf",
+        "repo_id": "diffusers/controlnet-depth-sdxl-1.0",
+        "revision": "main"
+      },
+      "approx_bytes": 8053063680
+    },
+    {
+      "id": "controlnet-normal-sd15",
+      "name": "ControlNet Normal (SD 1.5)",
+      "artifact_type": "controlnet",
+      "license": "openrail",
+      "license_category": "openrail",
+      "attribution": null,
+      "gated": false,
+      "source": {
+        "kind": "hf",
+        "repo_id": "lllyasviel/control_v11p_sd15_normalbae",
+        "revision": "main"
+      },
+      "approx_bytes": 2362232012
+    },
+    {
+      "id": "controlnet-openpose-sd15",
+      "name": "ControlNet OpenPose (SD 1.5)",
+      "artifact_type": "controlnet",
+      "license": "openrail",
+      "license_category": "openrail",
+      "attribution": null,
+      "gated": false,
+      "source": {
+        "kind": "hf",
+        "repo_id": "lllyasviel/control_v11p_sd15_openpose",
+        "revision": "main"
+      },
+      "approx_bytes": 2362232012
+    },
+    {
+      "id": "controlnet-openpose-sdxl",
+      "name": "ControlNet OpenPose (SDXL)",
+      "artifact_type": "controlnet",
+      "license": "apache-2.0",
+      "license_category": "permissive",
+      "attribution": null,
+      "gated": false,
+      "source": {
+        "kind": "hf",
+        "repo_id": "xinsir/controlnet-openpose-sdxl-1.0",
+        "revision": "main"
+      },
+      "approx_bytes": 2684354560
+    },
+    {
+      "id": "controlnet-scribble-sd15",
+      "name": "ControlNet Scribble (SD 1.5)",
+      "artifact_type": "controlnet",
+      "license": "openrail",
+      "license_category": "openrail",
+      "attribution": null,
+      "gated": false,
+      "source": {
+        "kind": "hf",
+        "repo_id": "lllyasviel/control_v11p_sd15_scribble",
+        "revision": "main"
+      },
+      "approx_bytes": 2362232012
+    },
+    {
+      "id": "controlnet-union-sdxl",
+      "name": "ControlNet Union (SDXL)",
+      "artifact_type": "controlnet",
+      "license": "apache-2.0",
+      "license_category": "permissive",
+      "attribution": null,
+      "gated": false,
+      "source": {
+        "kind": "hf",
+        "repo_id": "xinsir/controlnet-union-sdxl-1.0",
+        "revision": "main"
+      },
+      "approx_bytes": 2576980377
+    },
+    {
+      "id": "edit-face-detection",
+      "name": "RetinaFace ResNet50 (face detection)",
+      "artifact_type": "edit-model",
+      "license": "mit",
+      "license_category": "permissive",
+      "attribution": null,
+      "gated": false,
+      "source": {
+        "kind": "url",
+        "url": "https://github.com/xinntao/facexlib/releases/download/v0.1.0/detection_Resnet50_Final.pth",
+        "sha256": "6d1de9c2944f2ccddca5f5e010ea5ae64a39845a86311af6fdf30841b0a5a16d"
+      },
+      "approx_bytes": 109051904
+    },
+    {
+      "id": "edit-face-parsing",
+      "name": "ParseNet (face parsing)",
+      "artifact_type": "edit-model",
+      "license": "mit",
+      "license_category": "permissive",
+      "attribution": null,
+      "gated": false,
+      "source": {
+        "kind": "url",
+        "url": "https://github.com/xinntao/facexlib/releases/download/v0.2.2/parsing_parsenet.pth",
+        "sha256": "3d558d8d0e42c20224f13cf5a29c79eba2d59913419f945545d8cf7b72920de2"
+      },
+      "approx_bytes": 84934656
+    },
+    {
+      "id": "edit-gfpgan-v14",
+      "name": "GFPGAN v1.4",
+      "artifact_type": "edit-model",
+      "license": "apache-2.0",
+      "license_category": "permissive",
+      "attribution": null,
+      "gated": false,
+      "source": {
+        "kind": "url",
+        "url": "https://github.com/TencentARC/GFPGAN/releases/download/v1.3.0/GFPGANv1.4.pth",
+        "sha256": "e2cd4703ab14f4d01fd1383a8a8b266f9a5833dacee8e6a79d3bf21a1b6be5ad"
+      },
+      "approx_bytes": 349175808
+    },
+    {
+      "id": "edit-realesrgan-x4plus",
+      "name": "Real-ESRGAN x4plus",
+      "artifact_type": "edit-model",
+      "license": "bsd-3-clause",
+      "license_category": "permissive",
+      "attribution": null,
+      "gated": false,
+      "source": {
+        "kind": "url",
+        "url": "https://github.com/xinntao/Real-ESRGAN/releases/download/v0.1.0/RealESRGAN_x4plus.pth",
+        "sha256": "4fa0d38905f75ac06eb49a7951b426670021be3018265fd191d2125df9d682f1"
+      },
+      "approx_bytes": 67108864
+    },
+    {
+      "id": "edit-realesrgan-x4plus-anime",
+      "name": "Real-ESRGAN x4plus Anime",
+      "artifact_type": "edit-model",
+      "license": "bsd-3-clause",
+      "license_category": "permissive",
+      "attribution": null,
+      "gated": false,
+      "source": {
+        "kind": "url",
+        "url": "https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.2.4/RealESRGAN_x4plus_anime_6B.pth",
+        "sha256": "f872d837d3c90ed2e05227bed711af5671a6fd1c9f7d7e91c911a61f155e99da"
+      },
+      "approx_bytes": 17825792
+    },
+    {
+      "id": "edit-u2net",
+      "name": "U2-Net Background Removal",
+      "artifact_type": "edit-model",
+      "license": "apache-2.0",
+      "license_category": "permissive",
+      "attribution": null,
+      "gated": false,
+      "source": {
+        "kind": "url",
+        "url": "https://github.com/danielgatis/rembg/releases/download/v0.0.0/u2net.onnx",
+        "sha256": "8d10d2f3bb75ae3b6d527c77944fc5e7dcd94b29809d47a739a7a728a912b491"
+      },
+      "approx_bytes": 176160768
+    },
+    {
+      "id": "flux-schnell",
+      "name": "FLUX.1 [schnell]",
+      "artifact_type": "checkpoint",
+      "license": "apache-2.0",
+      "license_category": "permissive",
+      "attribution": null,
+      "gated": false,
+      "source": {
+        "kind": "hf",
+        "repo_id": "black-forest-labs/FLUX.1-schnell",
+        "revision": "main"
+      },
+      "approx_bytes": 25555055411
+    },
+    {
+      "id": "ip-adapter-encoder-clip-vit-l",
+      "name": "IP-Adapter Image Encoder (CLIP ViT-L/14)",
+      "artifact_type": "ip-adapter",
+      "license": "mit",
+      "license_category": "permissive",
+      "attribution": null,
+      "gated": false,
+      "source": {
+        "kind": "hf",
+        "repo_id": "openai/clip-vit-large-patch14",
+        "revision": "main"
+      },
+      "approx_bytes": 1825361100
+    },
+    {
+      "id": "ip-adapter-encoder-vit-h",
+      "name": "IP-Adapter Image Encoder (ViT-H)",
+      "artifact_type": "ip-adapter",
+      "license": "apache-2.0",
+      "license_category": "permissive",
+      "attribution": null,
+      "gated": false,
+      "source": {
+        "kind": "hf",
+        "repo_id": "h94/IP-Adapter",
+        "revision": "main"
+      },
+      "approx_bytes": 2684354560
+    },
+    {
+      "id": "ip-adapter-sd15",
+      "name": "IP-Adapter (SD 1.5)",
+      "artifact_type": "ip-adapter",
+      "license": "apache-2.0",
+      "license_category": "permissive",
+      "attribution": null,
+      "gated": false,
+      "source": {
+        "kind": "hf",
+        "repo_id": "h94/IP-Adapter",
+        "revision": "main"
+      },
+      "approx_bytes": 47185920
+    },
+    {
+      "id": "ip-adapter-sdxl",
+      "name": "IP-Adapter (SDXL)",
+      "artifact_type": "ip-adapter",
+      "license": "apache-2.0",
+      "license_category": "permissive",
+      "attribution": null,
+      "gated": false,
+      "source": {
+        "kind": "hf",
+        "repo_id": "h94/IP-Adapter",
+        "revision": "main"
+      },
+      "approx_bytes": 751619276
+    },
+    {
+      "id": "sd-1-5",
+      "name": "Stable Diffusion 1.5",
+      "artifact_type": "checkpoint",
+      "license": "creativeml-openrail-m",
+      "license_category": "openrail",
+      "attribution": null,
+      "gated": false,
+      "source": {
+        "kind": "hf",
+        "repo_id": "stable-diffusion-v1-5/stable-diffusion-v1-5",
+        "revision": "main"
+      },
+      "approx_bytes": 4617089843,
+      "repin_reason": "runwayml/stable-diffusion-v1-5 was deleted from HuggingFace; the community mirror is the permanent source."
+    },
+    {
+      "id": "sd-vae-ft-mse",
+      "name": "SD VAE FT MSE",
+      "artifact_type": "vae",
+      "license": "mit",
+      "license_category": "permissive",
+      "attribution": null,
+      "gated": false,
+      "source": {
+        "kind": "hf",
+        "repo_id": "stabilityai/sd-vae-ft-mse",
+        "revision": "main"
+      },
+      "approx_bytes": 351272960
+    },
+    {
+      "id": "sd3.5-large",
+      "name": "Stable Diffusion 3.5 Large",
+      "artifact_type": "diffusers-pipeline",
+      "license": "stabilityai-community",
+      "license_category": "stability-community",
+      "attribution": "Powered by Stability AI",
+      "gated": true,
+      "source": {
+        "kind": "hf",
+        "repo_id": "stabilityai/stable-diffusion-3.5-large",
+        "revision": "main"
+      },
+      "approx_bytes": 17179869184
+    },
+    {
+      "id": "sd3.5-medium",
+      "name": "Stable Diffusion 3.5 Medium",
+      "artifact_type": "diffusers-pipeline",
+      "license": "stabilityai-community",
+      "license_category": "stability-community",
+      "attribution": "Powered by Stability AI",
+      "gated": true,
+      "source": {
+        "kind": "hf",
+        "repo_id": "stabilityai/stable-diffusion-3.5-medium",
+        "revision": "main"
+      },
+      "approx_bytes": 5905580032
+    },
+    {
+      "id": "sdxl-base",
+      "name": "Stable Diffusion XL Base",
+      "artifact_type": "checkpoint",
+      "license": "openrail++",
+      "license_category": "openrail",
+      "attribution": null,
+      "gated": false,
+      "source": {
+        "kind": "hf",
+        "repo_id": "stabilityai/stable-diffusion-xl-base-1.0",
+        "revision": "main"
+      },
+      "approx_bytes": 7408818585
+    },
+    {
+      "id": "sdxl-refiner",
+      "name": "Stable Diffusion XL Refiner",
+      "artifact_type": "checkpoint",
+      "license": "openrail++",
+      "license_category": "openrail",
+      "attribution": null,
+      "gated": false,
+      "source": {
+        "kind": "hf",
+        "repo_id": "stabilityai/stable-diffusion-xl-refiner-1.0",
+        "revision": "main"
+      },
+      "approx_bytes": 6549825126
+    },
+    {
+      "id": "sdxl-vae",
+      "name": "SDXL VAE",
+      "artifact_type": "vae",
+      "license": "mit",
+      "license_category": "permissive",
+      "attribution": null,
+      "gated": false,
+      "source": {
+        "kind": "hf",
+        "repo_id": "madebyollin/sdxl-vae-fp16-fix",
+        "revision": "main"
+      },
+      "approx_bytes": 351272960
+    },
+    {
+      "id": "svd",
+      "name": "Stable Video Diffusion",
+      "artifact_type": "diffusers-pipeline",
+      "license": "stabilityai-community",
+      "license_category": "stability-community",
+      "attribution": "Powered by Stability AI",
+      "gated": false,
+      "source": {
+        "kind": "hf",
+        "repo_id": "stabilityai/stable-video-diffusion-img2vid-xt",
+        "revision": "main"
+      },
+      "approx_bytes": 10307921510
+    }
+  ],
+  "excluded_non_commercial": [
+    "controlnet-union-flux",
+    "flux-dev",
+    "flux-fill",
+    "ip-adapter-flux"
+  ],
+  "manual_only": [
+    {
+      "id": "annotator-openpose",
+      "artifact_type": "annotator",
+      "license": "openpose-cmu-noncommercial",
+      "reason": "license-not-redistributable:non-commercial"
+    },
+    {
+      "id": "ltx-video",
+      "artifact_type": "diffusers-pipeline",
+      "license": "ltx-video-license",
+      "reason": "license-not-redistributable:non-commercial"
+    }
+  ],
+  "total_approx_bytes": 137489704541
+}
