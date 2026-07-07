@@ -41,6 +41,7 @@ EXCLUDED_NON_COMMERCIAL = (
 _HERE = os.path.dirname(os.path.abspath(__file__))
 CATALOG_PATH = os.path.join(_HERE, "verified-catalog.json")
 OVERRIDES_PATH = os.path.join(_HERE, "provision-overrides.json")
+MANIFEST_PATH = os.path.join(_HERE, "provision-manifest.json")
 
 _UNIT = {"KB": 1024, "MB": 1024 ** 2, "GB": 1024 ** 3, "TB": 1024 ** 4}
 
@@ -64,9 +65,16 @@ def _source(record: Dict[str, Any], repin: Dict[str, Any]) -> Dict[str, Any]:
             "url": download_url,
             "sha256": (record.get("sha256") or "").strip().lower() or None,
         }
+    # aux_repo_id holds the actual adapter weights (e.g. AnimateDiff's motion
+    # module); repo_id there is only the base-model reference. Mirrors
+    # model_manager / direct_generator, which fetch adapters from aux_repo_id.
     return {
         "kind": "hf",
-        "repo_id": repin.get("repo_id") or record.get("repo_id"),
+        "repo_id": (
+            repin.get("repo_id")
+            or record.get("aux_repo_id")
+            or record.get("repo_id")
+        ),
         "revision": repin.get("revision") or record.get("revision") or "main",
     }
 
@@ -154,3 +162,19 @@ def load_provision_manifest() -> Dict[str, Any]:
     catalog = _load_json(CATALOG_PATH)
     overrides = _load_json(OVERRIDES_PATH) if os.path.exists(OVERRIDES_PATH) else {}
     return build_provision_manifest(catalog, overrides)
+
+
+def write_manifest() -> str:
+    """(Re)write the committed provision-manifest.json; returns its path.
+
+    Regenerate after any catalog / overrides change:
+        backend/venv/Scripts/python.exe -m foundry.provisioning
+    """
+    with open(MANIFEST_PATH, "w", encoding="utf-8", newline="\n") as handle:
+        json.dump(load_provision_manifest(), handle, indent=2, ensure_ascii=False)
+        handle.write("\n")
+    return MANIFEST_PATH
+
+
+if __name__ == "__main__":
+    print(f"wrote {write_manifest()}")

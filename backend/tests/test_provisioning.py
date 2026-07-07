@@ -50,6 +50,14 @@ def test_sd_1_5_is_repinned_off_the_deleted_runwayml_repo():
     assert "runwayml" not in source["repo_id"]
 
 
+def test_animatediff_resolves_to_the_adapter_weights_not_the_base_repo():
+    # The catalog's repo_id is the (dead) base SD1.5 repo; the real motion
+    # module lives in aux_repo_id.
+    source = _entry("animatediff")["source"]
+    assert source["repo_id"] == "guoyww/animatediff-motion-adapter-v1-5-2"
+    assert "runwayml" not in source["repo_id"]
+
+
 def test_stability_community_models_carry_the_attribution():
     for model_id in ("sd3.5-large", "svd"):
         assert _entry(model_id)["attribution"] == STABILITY_ATTRIBUTION
