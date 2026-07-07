@@ -1,0 +1,10 @@
+{
+  "_comment": "#34 installer PR1: provisioning deltas the catalog can't express. repin repoints fragile/dead upstreams to permanent sources; verified at provision time (HF LFS) and pinned to the Vision Studio R2 mirror in PR4.",
+  "repin": {
+    "sd-1-5": {
+      "repo_id": "stable-diffusion-v1-5/stable-diffusion-v1-5",
+      "revision": "main",
+      "reason": "runwayml/stable-diffusion-v1-5 was deleted from HuggingFace; the community mirror is the permanent source."
+    }
+  }
+}
