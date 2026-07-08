@@ -31,8 +31,11 @@ class ConsentStore:
         entry = self._consents.get(model_id, {})
         return {kind: bool(entry.get(kind)) for kind in CONSENT_KINDS}
 
-    def grant(self, model_id: str, kind: str) -> None:
-        self._set(model_id, kind, True, "grant")
+    def grant(self, model_id: str, kind: str, action: str = "grant") -> None:
+        """Grant consent for a model+kind. ``action`` labels the audit entry so
+        an automated first-run provisioning grant (``action="auto-provision"``)
+        is distinguishable from a manual user grant (the default)."""
+        self._set(model_id, kind, True, action)
 
     def revoke(self, model_id: str, kind: str) -> None:
         self._set(model_id, kind, False, "revoke")

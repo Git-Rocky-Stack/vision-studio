@@ -68,6 +68,23 @@ class ConsentStoreTests(unittest.TestCase):
         self.assertEqual(audit[1]["action"], "revoke")
         self.assertIn("at", audit[0])
 
+    def test_grant_records_custom_audit_action(self):
+        """Auto-provision grants are auditable distinctly from manual grants.
+
+        The first-run provisioner grants pickle consent for the curated,
+        sha256/LFS-pinned first-party auto-set; that provenance must be visible
+        in the audit trail (action='auto-provision') and never masquerade as a
+        manual 'grant'. The default action is unchanged for manual grants.
+        """
+        store = ConsentStore(self.path)
+        store.grant("m1", "pickle", action="auto-provision")
+        store.grant("m2", "pickle")  # default action preserved
+        self.assertTrue(store.get("m1")["pickle"])
+        audit = store.audit()
+        self.assertEqual(audit[0]["model_id"], "m1")
+        self.assertEqual(audit[0]["action"], "auto-provision")
+        self.assertEqual(audit[1]["action"], "grant")
+
     def test_malformed_audit_entries_stripped_on_load(self):
         """Non-dict audit entries are silently dropped; valid dict entries survive."""
         import json
