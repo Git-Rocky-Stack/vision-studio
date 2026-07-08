@@ -329,6 +329,13 @@ export interface ElectronAPI {
     convert: (modelId: string) => Promise<{ success: boolean; error?: string; [k: string]: unknown }>;
     resolveRuntime: (modelId: string) => Promise<any>;
   };
+  provisioning: {
+    status: () => Promise<any>;
+    start: () => Promise<any>;
+    pause: () => Promise<any>;
+    resume: () => Promise<any>;
+    cancel: () => Promise<any>;
+  };
   hardware: {
     get: () => Promise<any>;
   };
@@ -458,6 +465,13 @@ const electronAPI: ElectronAPI = {
       ipcRenderer.invoke('models:consent', modelId, kind, granted),
     convert: (modelId: string) => ipcRenderer.invoke('models:convert', modelId),
     resolveRuntime: (modelId: string) => ipcRenderer.invoke('models:resolveRuntime', modelId),
+  },
+  provisioning: {
+    status: () => ipcRenderer.invoke('provision:status'),
+    start: () => ipcRenderer.invoke('provision:start'),
+    pause: () => ipcRenderer.invoke('provision:pause'),
+    resume: () => ipcRenderer.invoke('provision:resume'),
+    cancel: () => ipcRenderer.invoke('provision:cancel'),
   },
   hardware: {
     get: () => ipcRenderer.invoke('hardware:get'),

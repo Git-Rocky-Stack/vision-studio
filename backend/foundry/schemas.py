@@ -64,6 +64,44 @@ class DownloadJobSchema(BaseModel):
     gate_url: Optional[str] = None
 
 
+class ProvisionModelSchema(BaseModel):
+    """One row of the first-run auto-provisioning status (#34 installer PR2)."""
+
+    id: str
+    name: str
+    license: Optional[str] = None
+    attribution: Optional[str] = None
+    approx_bytes: int = 0
+    # ready | missing | queued | downloading | paused | verifying | error | cancelled
+    status: str
+    progress: float = 0.0
+    error: Optional[str] = None
+    gate_url: Optional[str] = None
+
+
+class ProvisionStatusSchema(BaseModel):
+    """Aggregate + per-model snapshot of comprehensive auto-provisioning.
+
+    ``schema_version`` (not ``schema``) avoids shadowing pydantic's reserved
+    ``BaseModel.schema`` classmethod.
+    """
+
+    schema_version: int
+    overall_progress: float
+    total_bytes: int
+    present_bytes: int
+    remaining_bytes: int
+    speed: float = 0.0
+    eta: Optional[float] = None
+    total_count: int
+    ready_count: int
+    active_count: int
+    error_count: int
+    complete: bool
+    attribution: Optional[str] = None
+    models: List[ProvisionModelSchema] = []
+
+
 class LibraryRootSchema(BaseModel):
     id: str
     path: str

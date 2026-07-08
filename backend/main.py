@@ -83,6 +83,7 @@ from foundry.schemas import (
     HardwareProfileSchema,
     LibraryRootSchema,
     ModelRecordSchema,
+    ProvisionStatusSchema,
     RuntimePlanSchema,
     ScanResultSchema,
     SearchResponseSchema,
@@ -92,6 +93,8 @@ from foundry.convert import ConvertUnavailableError, convert_pickle_to_safetenso
 from foundry.download_manager import DownloadManager
 from foundry.library_roots import RootsStore
 from foundry.index_service import IndexService
+from foundry.provisioning import load_provision_manifest
+from foundry.provision_orchestrator import ProvisionOrchestrator
 from foundry.security_policy import ConsentStore
 
 # Initialize logging at module load time
@@ -189,6 +192,18 @@ consent_store = ConsentStore(os.path.join(_FOUNDRY_STATE_DIR, "consents.json"))
 # Routed through the module attribute so tests that swap main.consent_store
 # are honored.
 download_manager._consent_lookup = lambda model_id: consent_store.get(model_id)
+
+# #34 installer PR2: first-run auto-provisioning of the comprehensive auto-set.
+# Drives the manifest's models by id through the same consent-gated
+# download_manager the manual "Download" flow uses; owns only detection,
+# aggregate progress, and the idempotent/resumable start.
+provision_orchestrator = ProvisionOrchestrator(
+    manifest=load_provision_manifest(),
+    registry=model_registry,
+    download_manager=download_manager,
+    consent_store=consent_store,
+    models_dir=MODELS_DIR,
+)
 
 
 def _verified_repo_ids() -> set:
@@ -1839,6 +1854,48 @@ async def list_downloads(request: Request):
     'downloads' path is not captured as a model id.
     """
     return [_job_to_dict(job) for job in download_manager.list_jobs()]
+
+
+@app.get("/api/models/provision/status", response_model=ProvisionStatusSchema, tags=["Models"])
+@limiter.limit("60/minute")
+async def provision_status_endpoint(request: Request):
+    """Aggregate + per-model snapshot of comprehensive auto-provisioning.
+
+    Declared BEFORE the dynamic /api/models/{model_id} routes so the literal
+    'provision' segment is never captured as a model id (mirrors the
+    'downloads' ordering guard above).
+    """
+    return provision_orchestrator.status()
+
+
+@app.post("/api/models/provision/start", response_model=ProvisionStatusSchema, status_code=202, tags=["Models"])
+@limiter.limit("30/minute")
+async def provision_start_endpoint(request: Request):
+    """One-click provision of the comprehensive auto-set (202 Accepted).
+
+    Missing models enqueue/resume through the existing download_manager;
+    pickle-format curated members are granted consent with recorded provenance
+    (spec 5.3; informed auto-consent, 2026-07-07). The optional X-HF-Token
+    header (Electron safeStorage) is forwarded for the gated SD3.5 pipelines,
+    never persisted and never logged.
+    """
+    hf_token = request.headers.get("X-HF-Token")
+    return provision_orchestrator.start(hf_token=hf_token)
+
+
+@app.post("/api/models/provision/{action}", response_model=ProvisionStatusSchema, tags=["Models"])
+@limiter.limit("30/minute")
+async def provision_control_endpoint(request: Request, action: str):
+    """Set-wide pause / resume / cancel over the auto-set's active jobs.
+
+    'resume' re-runs start (resuming paused/errored jobs + enqueuing any still
+    missing), so it also forwards the HF token.
+    """
+    if action not in {"pause", "resume", "cancel"}:
+        raise HTTPException(status_code=404, detail=f"Unknown action '{action}'")
+    if action == "resume":
+        return provision_orchestrator.start(hf_token=request.headers.get("X-HF-Token"))
+    return getattr(provision_orchestrator, action)()
 
 
 @app.post("/api/models/import", response_model=LibraryRootSchema, status_code=201, tags=["Models"])
