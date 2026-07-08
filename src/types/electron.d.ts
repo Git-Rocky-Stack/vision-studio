@@ -14,6 +14,7 @@ import type {
   ConsentKind,
   HardwareProfile,
   RuntimePlan,
+  ProvisionStatus,
 } from './model';
 
 export type GenerationParams = ImageGenerationRequestPayload;
@@ -430,6 +431,18 @@ export interface ElectronAPI {
     ) => Promise<{ success: boolean; error?: string; [k: string]: unknown }>;
     convert: (modelId: string) => Promise<{ success: boolean; error?: string; [k: string]: unknown }>;
     resolveRuntime: (modelId: string) => Promise<RuntimePlan | { success: false; error: string }>;
+  };
+  /**
+   * #34 installer PR2: comprehensive first-run auto-provisioning. Each call
+   * returns a ProvisionStatus snapshot, or a {success:false,error} envelope on
+   * a backend/bridge failure (same shape as models.resolveRuntime).
+   */
+  provisioning: {
+    status: () => Promise<ProvisionStatus | { success: false; error: string }>;
+    start: () => Promise<ProvisionStatus | { success: false; error: string }>;
+    pause: () => Promise<ProvisionStatus | { success: false; error: string }>;
+    resume: () => Promise<ProvisionStatus | { success: false; error: string }>;
+    cancel: () => Promise<ProvisionStatus | { success: false; error: string }>;
   };
   hardware: {
     /** GET /api/hardware. Returns HardwareProfile on success. */

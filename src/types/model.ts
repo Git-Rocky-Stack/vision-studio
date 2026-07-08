@@ -219,3 +219,52 @@ export interface RuntimePlan {
   readiness: string;
   refusal: string | null;
 }
+
+// ── #34 installer PR2: first-run auto-provisioning wire types ─────────────
+
+export type ProvisionModelStatus =
+  | 'ready'
+  | 'missing'
+  | 'queued'
+  | 'downloading'
+  | 'paused'
+  | 'verifying'
+  | 'error'
+  | 'cancelled';
+
+/**
+ * One row of the comprehensive auto-provisioning status.
+ * Mirrors backend ProvisionModelSchema (installer PR2). Snake_case wire format.
+ */
+export interface ProvisionModel {
+  id: string;
+  name: string;
+  license: string | null;
+  attribution: string | null;
+  approx_bytes: number;
+  status: ProvisionModelStatus;
+  progress: number;
+  error: string | null;
+  gate_url: string | null;
+}
+
+/**
+ * Aggregate + per-model snapshot of comprehensive first-run auto-provisioning.
+ * Mirrors backend ProvisionStatusSchema (installer PR2). Snake_case wire format.
+ */
+export interface ProvisionStatus {
+  schema_version: number;
+  overall_progress: number;
+  total_bytes: number;
+  present_bytes: number;
+  remaining_bytes: number;
+  speed: number;
+  eta: number | null;
+  total_count: number;
+  ready_count: number;
+  active_count: number;
+  error_count: number;
+  complete: boolean;
+  attribution: string | null;
+  models: ProvisionModel[];
+}

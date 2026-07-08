@@ -1059,6 +1059,78 @@ ipcMain.handle('models:downloads:subscribe', async () => {
   }
 });
 
+// #34 installer PR2: first-run comprehensive auto-provisioning. Forwards to the
+// backend orchestrator, which drives the manifest's auto-set through the same
+// consent-gated download queue the manual "Download" button uses.
+ipcMain.handle('provision:status', async () => {
+  try {
+    const response = await requestBackend(() =>
+      axios.get(`${BACKEND_URL}/api/models/provision/status`, { headers: backendAuthHeaders() }),
+    );
+    return response.data;
+  } catch (error: any) {
+    console.error('Provision status error:', error instanceof Error ? error.message : error);
+    return { success: false, error: toSafeRendererError(error, 'Provision status failed') };
+  }
+});
+
+ipcMain.handle('provision:start', async () => {
+  try {
+    const response = await requestBackend(() =>
+      axios.post(`${BACKEND_URL}/api/models/provision/start`, undefined, {
+        // X-HF-Token is forwarded for the gated SD3.5 pipelines in the auto-set.
+        headers: { ...backendAuthHeaders(), ...hfTokenHeaders() },
+      }),
+    );
+    return response.data;
+  } catch (error: any) {
+    console.error('Provision start error:', error instanceof Error ? error.message : error);
+    return { success: false, error: toSafeRendererError(error, 'Provisioning could not start') };
+  }
+});
+
+ipcMain.handle('provision:pause', async () => {
+  try {
+    const response = await requestBackend(() =>
+      axios.post(`${BACKEND_URL}/api/models/provision/pause`, undefined, {
+        headers: backendAuthHeaders(),
+      }),
+    );
+    return response.data;
+  } catch (error: any) {
+    console.error('Provision pause error:', error instanceof Error ? error.message : error);
+    return { success: false, error: toSafeRendererError(error, 'Provision pause failed') };
+  }
+});
+
+ipcMain.handle('provision:resume', async () => {
+  try {
+    const response = await requestBackend(() =>
+      axios.post(`${BACKEND_URL}/api/models/provision/resume`, undefined, {
+        headers: { ...backendAuthHeaders(), ...hfTokenHeaders() },
+      }),
+    );
+    return response.data;
+  } catch (error: any) {
+    console.error('Provision resume error:', error instanceof Error ? error.message : error);
+    return { success: false, error: toSafeRendererError(error, 'Provision resume failed') };
+  }
+});
+
+ipcMain.handle('provision:cancel', async () => {
+  try {
+    const response = await requestBackend(() =>
+      axios.post(`${BACKEND_URL}/api/models/provision/cancel`, undefined, {
+        headers: backendAuthHeaders(),
+      }),
+    );
+    return response.data;
+  } catch (error: any) {
+    console.error('Provision cancel error:', error instanceof Error ? error.message : error);
+    return { success: false, error: toSafeRendererError(error, 'Provision cancel failed') };
+  }
+});
+
 ipcMain.handle('models:get-status', async (_event, modelId: string) => {
   try {
     const response = await requestBackend(() =>
