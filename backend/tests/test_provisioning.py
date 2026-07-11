@@ -209,7 +209,19 @@ def test_mirror_file_names_refuse_traversal_and_absolute_paths():
             build_provision_manifest(_MIRROR_CATALOG, {"mirrors": {"sd-1-5": mirror}})
 
 
-def test_shipping_overrides_carry_no_mirrors_yet():
-    # Mirror stanzas land at R2 go-live (docs/R2-DELIVERY.md) with REAL hashes;
-    # until then the committed manifest must not change shape.
-    assert all("mirror" not in e for e in MANIFEST["auto_set"])
+def test_shipping_manifest_carries_the_sd15_mirror():
+    # R2 mirror go-live 2026-07-11 (docs/R2-DELIVERY.md section 5): sd-1-5 -
+    # the once-deleted runwayml upstream - is the first mirrored model. The
+    # hash is the canonical v1-5-pruned-emaonly.safetensors digest, computed
+    # from the uploaded file (never fabricated).
+    mirrored = {e["id"]: e["mirror"] for e in MANIFEST["auto_set"] if "mirror" in e}
+    assert set(mirrored) == {"sd-1-5"}
+    sd15 = mirrored["sd-1-5"]
+    # The custom domain serves the bucket ROOT, so the models/ key prefix is
+    # part of the URL path (verified live: HEAD 200, exact byte length).
+    assert sd15["base_url"] == "https://models.vision-studio-x.com/models/sd-1-5"
+    assert sd15["files"] == [{
+        "name": "v1-5-pruned-emaonly.safetensors",
+        "sha256": "6ce0161689b3853acaa03779ec93eafe75a02f4ced659bee03f50797806fa2fa",
+        "bytes": 4265146304,
+    }]
