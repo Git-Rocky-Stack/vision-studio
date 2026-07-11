@@ -4,6 +4,13 @@
  *
  * Usage:
  *   node scripts/publish-r2.cjs [--dir release] [--prefix win/] [--dry-run]
+ *   node scripts/publish-r2.cjs --mirror --dir <staging> --prefix models/<id>/ [--dry-run]
+ *
+ * --mirror publishes model weights for the VS mirror (docs/R2-DELIVERY.md
+ * section 5): every staged file uploads (recursive), because weights are
+ * .safetensors/.onnx/.ckpt - names the release filter rightly excludes.
+ * Mirror mode requires explicit --dir and --prefix so weights can never
+ * land under the update feed by accident.
  *
  * Environment (all required unless --dry-run):
  *   R2_ACCOUNT_ID         Cloudflare account id (bucket endpoint host)
@@ -18,13 +25,14 @@
  */
 const fs = require('fs');
 const path = require('path');
-const { planUploads, orderForFeedSafety } = require('./publish-r2-core.cjs');
+const { planUploads, planMirrorUploads, orderForFeedSafety } = require('./publish-r2-core.cjs');
 
 function parseArgs(argv) {
-  const args = { dir: 'release', prefix: 'win/', dryRun: false };
+  const args = { dir: null, prefix: null, dryRun: false, mirror: false };
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
     if (arg === '--dry-run') args.dryRun = true;
+    else if (arg === '--mirror') args.mirror = true;
     else if (arg === '--dir') args.dir = argv[++i];
     else if (arg === '--prefix') args.prefix = argv[++i];
     else {
@@ -32,8 +40,25 @@ function parseArgs(argv) {
       process.exit(1);
     }
   }
+  if (args.mirror && (!args.dir || !args.prefix)) {
+    console.error('--mirror requires explicit --dir and --prefix (models/<id>/).');
+    process.exit(1);
+  }
+  if (!args.dir) args.dir = 'release';
+  if (!args.prefix) args.prefix = 'win/';
   if (!args.prefix.endsWith('/')) args.prefix += '/';
   return args;
+}
+
+/** Dir-relative paths of every file under root, recursive (mirror mode). */
+function walkFiles(root, rel = '') {
+  const out = [];
+  for (const entry of fs.readdirSync(path.join(root, rel), { withFileTypes: true })) {
+    const entryRel = rel ? path.join(rel, entry.name) : entry.name;
+    if (entry.isDirectory()) out.push(...walkFiles(root, entryRel));
+    else if (entry.isFile()) out.push(entryRel);
+  }
+  return out;
 }
 
 function requireEnv() {
@@ -63,17 +88,22 @@ async function main() {
     process.exit(args.dryRun ? 0 : 1);
   }
 
-  const names = fs.readdirSync(args.dir).filter((name) => {
-    try {
-      return fs.statSync(path.join(args.dir, name)).isFile();
-    } catch {
-      return false;
-    }
-  });
-  const plan = orderForFeedSafety(planUploads(names, { dir: args.dir, prefix: args.prefix }));
+  let plan;
+  if (args.mirror) {
+    plan = planMirrorUploads(walkFiles(args.dir), { dir: args.dir, prefix: args.prefix });
+  } else {
+    const names = fs.readdirSync(args.dir).filter((name) => {
+      try {
+        return fs.statSync(path.join(args.dir, name)).isFile();
+      } catch {
+        return false;
+      }
+    });
+    plan = orderForFeedSafety(planUploads(names, { dir: args.dir, prefix: args.prefix }));
+  }
 
   if (!plan.length) {
-    console.warn(`No release artifacts found in ${args.dir}/ - nothing to publish.`);
+    console.warn(`No ${args.mirror ? 'files' : 'release artifacts'} found in ${args.dir}/ - nothing to publish.`);
     process.exit(args.dryRun ? 0 : 1);
   }
 

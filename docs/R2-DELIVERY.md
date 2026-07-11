@@ -16,9 +16,9 @@ One R2 bucket (suggested name `vision-studio-delivery`):
 
 ```
 win/                                  <- update feed + Windows artifacts
-  Vision-Studio-<ver>-Setup.exe
-  Vision-Studio-<ver>-Setup.exe.blockmap
-  vision-studio-<ver>-win.zip
+  Vision-Studio-<ver>-Setup.exe       <- nsis-web stub (~1 MB)
+  vision-studio-<ver>-x64.nsis.7z     <- app package the stub downloads (blockmap embedded)
+  vision-studio-<ver>-win.zip         <- portable
   latest.yml                          <- electron-updater feed (uploaded LAST)
 models/<model-id>/<file-path>         <- VS mirror weights (see section 5)
 ```
@@ -54,17 +54,21 @@ release-workflow publish step.
 ```powershell
 npm run build:backend          # PyInstaller backend -> resources/ (heavy-by-design gate)
 npm run build                  # renderer + main
-npm run package:win:signed     # NSIS + zip + latest.yml + blockmap into release/
-npm run release:publish:r2 -- --dry-run   # review the ordered plan
-npm run release:publish:r2                # upload
+npm run package:win:signed     # nsis-web stub + .nsis.7z + latest.yml (release/nsis-web/) + zip (release/)
+npm run release:publish:r2 -- --dry-run   # review the ordered plan (zip)
+npm run release:publish:r2                             # 1) portable zip from release/
+npm run release:publish:r2 -- --dir release/nsis-web   # 2) stub + .nsis.7z + latest.yml
 gh release create v<ver> --notes-file <notes>   # notes + pointer, NO >2GB assets
 ```
 
+electron-builder writes the nsis-web artifacts into `release/nsis-web/`, so
+the publish is **two invocations in this order** — the feed (`latest.yml`)
+rides the second call and still uploads absolutely last. Within each call
 `scripts/publish-r2.cjs` uploads **sequentially, binaries first and
 `latest.yml` last**, so a client polling the feed mid-publish can never
 resolve an update whose installer is missing. Any failure aborts before the
-feed flips. Multipart uploads (`@aws-sdk/lib-storage`) handle the 6 GB
-installer; re-running the script simply overwrites the objects.
+feed flips. Multipart uploads (`@aws-sdk/lib-storage`) handle the multi-GB
+app package; re-running the script simply overwrites the objects.
 
 ### Signing prerequisite (read before flipping the feed live)
 
@@ -124,7 +128,11 @@ cost, full resilience where it matters.
 To put a model on the mirror:
 
 1. Stage the exact files locally (the same paths the primary serves).
-2. Upload: `node scripts/publish-r2.cjs --dir <staging-dir> --prefix models/<model-id>/`
+2. Upload: `node scripts/publish-r2.cjs --mirror --dir <staging-dir> --prefix models/<model-id>/`
+   (`--mirror` uploads every staged file recursively — weights are
+   `.safetensors`/`.onnx`/`.ckpt`, which the release-artifact filter
+   deliberately excludes — and requires explicit `--dir`/`--prefix` so
+   weights can never land under the `win/` feed by accident.)
 3. Hash every uploaded file: `Get-FileHash -Algorithm SHA256 <file>`.
 4. Add the stanza to `backend/foundry/provision-overrides.json`:
 
@@ -151,14 +159,26 @@ infrastructure failure — never for license gates, disk refusals, or user
 cancellation — and verifies every mirrored file's sha256 before it can land.
 **Never fabricate hashes; they come from the files you uploaded.**
 
-## 6. Web-installer stub — DEFERRED
+## 6. Web-installer stub — IMPLEMENTED (2026-07-11, by necessity)
 
-The spec lists an optional <2 GB NSIS web-installer stub whose only purpose is
-dodging GitHub's asset cap for users reluctant to download 6 GB from a release
-page. With the full installer hosted on R2 behind a normal https link, that
-constraint is gone; a stub would add a second installer artifact, a second
-signing path, and a second failure mode for no measurable gain. Revisit only
-if distribution analytics show download-abandonment worth engineering against.
+Originally deferred, then made mandatory by reality: the app payload
+(~2.5 GB PyInstaller backend + app) exceeds the 32-bit `makensis` mmap
+ceiling, so a single-file NSIS installer **physically cannot build**
+(`File: failed creating mmap of ...nsis.7z`). The Windows target is now
+`nsis-web`:
+
+- `Vision-Studio-<ver>-Setup.exe` — tiny stub, safe to build and sign.
+- `vision-studio-<ver>-x64.nsis.7z` — the app package; the stub downloads it
+  at install time from `nsisWeb.appPackageUrl`
+  (`https://updates.vision-studio-x.com/win`) — the same zero-egress R2
+  prefix as the update feed. `scripts/publish-r2.cjs` ships it automatically
+  (the `.nsis.7z` pattern is a pinned release artifact, uploaded before
+  `latest.yml`).
+- electron-updater consumes nsis-web feeds natively; nothing changes for the
+  updater service.
+
+The portable zip remains the offline-friendly alternative for users who
+cannot download during install.
 
 ## 7. Real-provision smoke gate (spec §9)
 
