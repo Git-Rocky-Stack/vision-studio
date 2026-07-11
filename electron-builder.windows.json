@@ -24,7 +24,7 @@
     {
       "from": "backend/",
       "to": "backend-source/",
-      "filter": ["**/*", "!venv/**/*", "!build/**/*", "!dist/**/*", "!__pycache__/**/*", "!*.pyc"]
+      "filter": ["**/*", "!venv/**/*", "!build/**/*", "!dist/**/*", "!__pycache__/**/*", "!*.pyc", "!models/**/*", "!data/**/*", "!outputs/**/*", "!.pytest_cache/**/*"]
     }
   ],
   "win": {

@@ -23,6 +23,30 @@ describe('packaging config honesty rails', () => {
     expect(config.win.verifyUpdateCodeSignature).toBe(true);
   });
 
+  it('never packages user-side backend state into backend-source', () => {
+    // Provisioned model weights are multi-GB AND unlicensed redistribution
+    // (weights install per-user through the consent-gated Foundry); the local
+    // DB is private user data. A missing exclusion once ballooned the app
+    // payload to ~12 GB and broke the NSIS build outright (makensis mmap).
+    type ExtraResource = { from: string; to?: string; filter?: string[] };
+    const entries: ExtraResource[] = config.extraResources ?? [];
+    const backendSource = entries.find((e) => e.to === 'backend-source/');
+    expect(backendSource).toBeDefined();
+    for (const excluded of ['!models/**/*', '!data/**/*', '!outputs/**/*']) {
+      expect(backendSource!.filter).toContain(excluded);
+    }
+    const windowsConfig = JSON.parse(
+      readFileSync(resolve(ROOT, 'electron-builder.windows.json'), 'utf8'),
+    );
+    const winBackendSource = (windowsConfig.extraResources ?? []).find(
+      (e: ExtraResource) => e.to === 'backend-source/',
+    );
+    expect(winBackendSource).toBeDefined();
+    for (const excluded of ['!models/**/*', '!data/**/*', '!outputs/**/*']) {
+      expect(winBackendSource.filter).toContain(excluded);
+    }
+  });
+
   it('keeps the heavy-by-design beforePack gate wired and present', () => {
     expect(config.beforePack).toBe('scripts/assert-native-backend.cjs');
     expect(() => readFileSync(resolve(ROOT, config.beforePack))).not.toThrow();
