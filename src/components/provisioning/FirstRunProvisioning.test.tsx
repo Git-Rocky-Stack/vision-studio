@@ -69,6 +69,41 @@ describe('FirstRunProvisioning visibility', () => {
   });
 });
 
+describe('welcome band', () => {
+  beforeEach(() => {
+    window.electron = { app: { openExternal: vi.fn() } } as unknown as Window['electron'];
+  });
+
+  it('greets on the chrome plate in place of the old native dialog', () => {
+    seed(snapshot());
+    render(<FirstRunProvisioning />);
+    expect(screen.getByText('Welcome to Vision Studio')).toBeInTheDocument();
+  });
+
+  it('reports the detected GPU from the live hardware profile', () => {
+    seed(snapshot(), {
+      hardwareProfile: { ...hardware(500 * GB), gpu_available: true, gpu_name: 'RTX 4090' },
+    });
+    render(<FirstRunProvisioning />);
+    expect(screen.getByText('GPU detected: RTX 4090')).toBeInTheDocument();
+  });
+
+  it('states plainly when no dedicated GPU is present', () => {
+    seed(snapshot(), {
+      hardwareProfile: { ...hardware(500 * GB), gpu_available: false, gpu_name: null },
+    });
+    render(<FirstRunProvisioning />);
+    expect(screen.getByText('No dedicated GPU detected')).toBeInTheDocument();
+  });
+
+  it('claims nothing about the GPU before the profile loads', () => {
+    seed(snapshot(), { hardwareProfile: null });
+    render(<FirstRunProvisioning />);
+    expect(screen.queryByText(/GPU detected/)).toBeNull();
+    expect(screen.queryByText(/No dedicated GPU/)).toBeNull();
+  });
+});
+
 describe('pre-start view', () => {
   beforeEach(() => {
     window.electron = { app: { openExternal: vi.fn() } } as unknown as Window['electron'];

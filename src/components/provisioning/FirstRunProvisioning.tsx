@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import {
-  AlertTriangle, Check, Download, ExternalLink, HardDrive, Loader2, Pause, Play,
+  AlertTriangle, Check, Cpu, Download, ExternalLink, HardDrive, Loader2, Pause, Play,
   RefreshCw, ShieldCheck, X,
 } from 'lucide-react';
 import { useAppStore } from '@/store/appStore';
@@ -211,12 +211,19 @@ export function FirstRunProvisioning() {
       <div
         ref={panelRef}
         tabIndex={-1}
-        className="raised-panel my-auto w-full max-w-3xl rounded-sm p-8 outline-none"
+        className="raised-panel my-auto w-full max-w-3xl overflow-hidden rounded-sm outline-none"
       >
-        <p className="mono-label text-text-muted">First-run setup</p>
-        <h1 className="mt-2 text-2xl font-semibold text-text-primary">
+        {/* Polished-silver identity band - replaces the old unstyleable native
+            Windows welcome dialog (electron dialog.showMessageBox). */}
+        <div className="chrome-plate px-8 py-5">
+          <p className="mono-label text-void/60">First-run setup</p>
+          <h1 className="mt-1 text-2xl font-semibold text-void">Welcome to Vision Studio</h1>
+        </div>
+
+        <div className="p-8">
+        <h2 className="text-lg font-semibold text-text-primary">
           Install the model library
-        </h1>
+        </h2>
         <p className="mt-2 max-w-[65ch] text-sm leading-relaxed text-text-body">
           Vision Studio runs entirely on your machine. One click installs the complete
           verified model set - every image, video, and edit capability works out of the box.
@@ -228,6 +235,19 @@ export function FirstRunProvisioning() {
           <span className="mono-label text-text-body">
             {provisionStatus.total_count} models
           </span>
+          {hardwareProfile !== null && (
+            <span
+              className={cn(
+                'mono-label inline-flex items-center gap-1.5',
+                hardwareProfile.gpu_available ? 'text-text-body' : 'text-status-warning',
+              )}
+            >
+              <Cpu aria-hidden="true" className="h-3.5 w-3.5" />
+              {hardwareProfile.gpu_available
+                ? `GPU detected: ${hardwareProfile.gpu_name ?? 'Unknown GPU'}`
+                : 'No dedicated GPU detected'}
+            </span>
+          )}
           <span className="mono-label text-text-body">
             {formatBytes(provisionStatus.remaining_bytes)} to download
           </span>
@@ -434,6 +454,7 @@ export function FirstRunProvisioning() {
           Features that need a specific model stay honestly disabled until that model is
           installed. You can resume, verify, or add models anytime from the Foundry.
         </p>
+        </div>
       </div>
 
       <ConfirmDialog
