@@ -37,6 +37,11 @@ extraResources:
     to: .
     filter:
       - '**/*'
+  # Spec 2026-07-06 §7: every installer carries the generated third-party
+  # license/attribution compliance doc as a plain file (the About screen
+  # renders the same content from the renderer bundle).
+  - from: THIRD-PARTY-LICENSES.md
+    to: THIRD-PARTY-LICENSES.md
   - from: backend/
     to: backend-source/
     filter:
@@ -123,12 +128,16 @@ linux:
   description: Professional AI-powered image and video generation desktop application
 
 # =============================================================================
-# Auto-Update Configuration (GitHub)
+# Auto-Update Feed (Cloudflare R2, generic provider)
 # =============================================================================
+# GitHub caps release assets at 2 GB - the heavy installer cannot ship there.
+# latest.yml + installer + blockmap are published to R2 (scripts/publish-r2.cjs,
+# binaries first, feed last) behind the updates.visionstudio.app custom domain.
+# R2/S3 serve a single range per request, so multi-range differential
+# downloads must be disabled or blockmap updates fail. Auto-update installs
+# only signed builds (win.verifyUpdateCodeSignature) - see docs/R2-DELIVERY.md
+# for the signing prerequisite before the feed goes live.
 publish:
-  provider: github
-  owner: Git-Rocky-Stack
-  repo: vision-studio
-  releaseType: release
-  # Auto-update will only install signed builds
-  vPrefixedTagName: true
+  provider: generic
+  url: https://updates.visionstudio.app/win/
+  useMultipleRangeRequest: false
