@@ -1,5 +1,6 @@
 import { memo } from 'react';
 import { useAppStore } from '@/store/appStore';
+import { hasLiveProvisionJob } from '@/store/slices/provisioningSlice';
 import { ProjectDropdown } from './ProjectDropdown';
 import { Led } from '@/components/hardware';
 import type { LedColor } from '@/components/hardware';
@@ -40,8 +41,9 @@ function getBackendStatusPresentation(params: {
   activeJobs: ReturnType<typeof useAppStore.getState>['activeJobs'];
   generationQueue: ReturnType<typeof useAppStore.getState>['generationQueue'];
   availableModels: ReturnType<typeof useAppStore.getState>['availableModels'];
+  provisionStatus: ReturnType<typeof useAppStore.getState>['provisionStatus'];
 }): HeaderStatusPresentation {
-  const { systemInfo, activeJobs, generationQueue, availableModels } = params;
+  const { systemInfo, activeJobs, generationQueue, availableModels, provisionStatus } = params;
   const runningCount = activeJobs.length;
   const queuedCount = generationQueue.length;
   const downloadingCount = availableModels.filter((model) => model.status === 'downloading').length;
@@ -59,6 +61,17 @@ function getBackendStatusPresentation(params: {
       tone: 'accent',
       pulse: true,
       ariaLabel: 'Generation queue active',
+    };
+  }
+
+  // #34 installer PR3: background auto-provisioning outranks the generic
+  // download counter (its jobs would otherwise read as plain model downloads).
+  if (provisionStatus && !provisionStatus.complete && hasLiveProvisionJob(provisionStatus)) {
+    return {
+      label: `Provisioning models: ${Math.round(provisionStatus.overall_progress * 100)}% (${provisionStatus.ready_count}/${provisionStatus.total_count})`,
+      tone: 'accent',
+      pulse: true,
+      ariaLabel: 'Model provisioning in progress',
     };
   }
 
@@ -123,12 +136,14 @@ export const Header = memo(function Header() {
   const availableModels = useAppStore((s) => s.availableModels);
   const activeJobs = useAppStore((s) => s.activeJobs);
   const generationQueue = useAppStore((s) => s.generationQueue);
+  const provisionStatus = useAppStore((s) => s.provisionStatus);
 
   const backendStatus = getBackendStatusPresentation({
     systemInfo,
     availableModels,
     activeJobs,
     generationQueue,
+    provisionStatus,
   });
 
   const projectStatus = currentProject
