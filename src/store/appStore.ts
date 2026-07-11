@@ -41,6 +41,7 @@ import { uiInitialState, createUIActions } from './slices/uiSlice';
 import { editInitialState, createEditActions } from './slices/editSlice';
 import { generationInitialState, createGenerationActions } from './slices/generationSlice';
 import { modelsInitialState, createModelsActions } from './slices/modelsSlice';
+import { provisioningInitialState, createProvisioningActions } from './slices/provisioningSlice';
 import { projectInitialState, createProjectActions } from './slices/projectSlice';
 import { workflowInitialState, createWorkflowActions } from './slices/workflowSlice';
 import { promptStudioInitialState, createPromptStudioActions } from './slices/promptStudioSlice';
@@ -988,6 +989,8 @@ export const useAppStore = create<AppState>()(
       ...createGenerationActions(set, get),
       ...modelsInitialState,
       ...createModelsActions(set, get),
+      ...provisioningInitialState,
+      ...createProvisioningActions(set, get),
       ...projectInitialState,
       ...createProjectActions(set, get),
       ...workflowInitialState,
@@ -1134,6 +1137,8 @@ export const useAppStore = create<AppState>()(
         activeTab: state.activeTab,
         activeSubMode: state.activeSubMode,
         centerView: state.centerView,
+        // #34 installer PR3: first-run overlay dismissal survives restarts.
+        firstRunProvisionDismissed: state.firstRunProvisionDismissed,
         layoutPreferences: state.layoutPreferences,
         aspectRatio: state.aspectRatio,
         resolutionTier: state.resolutionTier,
