@@ -335,6 +335,7 @@ export interface ElectronAPI {
     pause: () => Promise<any>;
     resume: () => Promise<any>;
     cancel: () => Promise<any>;
+    reverify: () => Promise<any>;
   };
   hardware: {
     get: () => Promise<any>;
@@ -472,6 +473,7 @@ const electronAPI: ElectronAPI = {
     pause: () => ipcRenderer.invoke('provision:pause'),
     resume: () => ipcRenderer.invoke('provision:resume'),
     cancel: () => ipcRenderer.invoke('provision:cancel'),
+    reverify: () => ipcRenderer.invoke('provision:reverify'),
   },
   hardware: {
     get: () => ipcRenderer.invoke('hardware:get'),

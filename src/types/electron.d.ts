@@ -436,6 +436,8 @@ export interface ElectronAPI {
    * #34 installer PR2: comprehensive first-run auto-provisioning. Each call
    * returns a ProvisionStatus snapshot, or a {success:false,error} envelope on
    * a backend/bridge failure (same shape as models.resolveRuntime).
+   * PR3 adds reverify - the repair path: re-hash present direct-URL weights
+   * against the manifest sha256 and re-fetch any corrupt copy.
    */
   provisioning: {
     status: () => Promise<ProvisionStatus | { success: false; error: string }>;
@@ -443,6 +445,7 @@ export interface ElectronAPI {
     pause: () => Promise<ProvisionStatus | { success: false; error: string }>;
     resume: () => Promise<ProvisionStatus | { success: false; error: string }>;
     cancel: () => Promise<ProvisionStatus | { success: false; error: string }>;
+    reverify: () => Promise<ProvisionStatus | { success: false; error: string }>;
   };
   hardware: {
     /** GET /api/hardware. Returns HardwareProfile on success. */
