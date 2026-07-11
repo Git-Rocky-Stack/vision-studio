@@ -4,6 +4,7 @@ import { cn } from '@/utils/cn';
 import { useAppStore } from '@/store/appStore';
 import type { DownloadStatus } from '@/types/model';
 import { FoundryHeaderBar } from '@/components/foundry/FoundryHeaderBar';
+import { ProvisioningCard } from '@/components/foundry/ProvisioningCard';
 import { DiscoverSection } from '@/components/foundry/DiscoverSection';
 import { LibrarySection } from '@/components/foundry/LibrarySection';
 import { HardwareSection } from '@/components/foundry/HardwareSection';
@@ -88,6 +89,8 @@ export function FoundryPage() {
         <div className="mt-6">
           <FoundryHeaderBar />
         </div>
+
+        <ProvisioningCard />
 
         <div role="tablist" aria-label="Foundry sections" className="mt-6 flex gap-2">
           {SECTIONS.map((s) => (
