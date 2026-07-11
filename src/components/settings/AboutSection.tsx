@@ -1,5 +1,5 @@
-import { useMemo } from 'react';
-import { ExternalLink } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { ExternalLink, RefreshCw } from 'lucide-react';
 import packageJson from '../../../package.json';
 import licensesMarkdown from '../../../THIRD-PARTY-LICENSES.md?raw';
 import { useAppStore } from '@/store/appStore';
@@ -7,6 +7,7 @@ import {
   parseLicensesMarkdown,
   type LicenseSpan,
 } from '@/features/licenses/parseLicensesMarkdown';
+import type { UpdaterStatus } from '@/types/electron';
 
 function Spans({ spans }: { spans: LicenseSpan[] }) {
   return (
@@ -38,6 +39,98 @@ function Spans({ spans }: { spans: LicenseSpan[] }) {
         return <span key={index}>{span.text}</span>;
       })}
     </>
+  );
+}
+
+/** Human copy for each live updater state - values come only from the
+ * pushed UpdaterStatus, never from local animation. */
+function updateStatusLine(status: UpdaterStatus | null): string {
+  if (status === null) return 'Automatic updates run in the installed app.';
+  switch (status.state) {
+    case 'disabled':
+      return 'Automatic updates run in the installed app.';
+    case 'checking':
+      return 'Checking for updates...';
+    case 'available':
+      return `Update ${status.version ?? ''} found. Downloading in the background.`.replace('  ', ' ');
+    case 'downloading':
+      return `Downloading update: ${Math.round(status.percent ?? 0)}%`;
+    case 'downloaded':
+      return `Update ${status.version ?? ''} ready. Restart to apply.`.replace('  ', ' ');
+    case 'not-available':
+      return 'You are on the latest version.';
+    case 'error':
+      return `Update check failed: ${status.message ?? 'unknown error'}`;
+    case 'idle':
+    default:
+      return 'Updates are checked automatically.';
+  }
+}
+
+/**
+ * #34 installer PR4: live auto-update status + actions. State is fed by the
+ * main-process updater service (real electron-updater events over
+ * updater:status); the manual check and restart actions round-trip through
+ * the same service. Without the bridge (dev/web) the block degrades to the
+ * disabled explanation.
+ */
+function UpdatesBlock() {
+  const [status, setStatus] = useState<UpdaterStatus | null>(null);
+  const updater = window.electron?.updater;
+
+  useEffect(() => {
+    if (!updater) return;
+    let mounted = true;
+    void updater.getStatus().then((snapshot) => {
+      if (mounted) setStatus(snapshot);
+    });
+    const unsubscribe = updater.onStatus((snapshot) => {
+      setStatus(snapshot);
+    });
+    return () => {
+      mounted = false;
+      unsubscribe();
+    };
+    // The bridge is fixed for the lifetime of the window.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const checkDisabled =
+    !updater ||
+    status === null ||
+    status.state === 'disabled' ||
+    status.state === 'checking' ||
+    status.state === 'downloading';
+
+  return (
+    <div data-testid="about-updates">
+      <p className="mono-label text-text-muted">Updates</p>
+      <p className="mt-2 max-w-[65ch] text-sm leading-relaxed text-text-body">
+        {updateStatusLine(status)}
+      </p>
+      <div className="mt-3 flex items-center gap-3">
+        <button
+          type="button"
+          data-testid="about-updates-check"
+          disabled={checkDisabled}
+          onClick={() => void updater?.check()}
+          className="inline-flex items-center gap-1.5 rounded border border-border px-3 py-1.5 text-sm text-text-body transition-all hover:border-border-hover hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <RefreshCw aria-hidden="true" className="h-3.5 w-3.5" />
+          Check for updates
+        </button>
+        {status?.state === 'downloaded' && (
+          <button
+            type="button"
+            data-testid="about-updates-install"
+            onClick={() => void updater?.install()}
+            className="btn-chrome vx-btn-chrome px-3 py-1.5 text-sm"
+          >
+            Restart to update
+          </button>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -81,6 +174,8 @@ export function AboutSection() {
           </p>
         )}
       </div>
+
+      <UpdatesBlock />
 
       <div data-testid="about-licenses" className="recessed-well rounded-md p-5">
         <div className="flex max-w-[75ch] flex-col gap-2">
