@@ -26,6 +26,29 @@ export interface OpenRouterUsageSnapshot {
   cost: number | null;
 }
 
+/**
+ * Auto-update status snapshot (#34 installer PR4). Mirrors the wire shape of
+ * electron/services/updater.ts UpdaterStatus - every value originates from a
+ * real electron-updater event.
+ */
+export interface UpdaterStatus {
+  state:
+    | 'disabled'
+    | 'idle'
+    | 'checking'
+    | 'available'
+    | 'not-available'
+    | 'downloading'
+    | 'downloaded'
+    | 'error';
+  version?: string;
+  percent?: number;
+  bytesPerSecond?: number;
+  transferred?: number;
+  total?: number;
+  message?: string;
+}
+
 export interface VideoGenerationParams {
   prompt: string;
   image_path?: string;
@@ -454,6 +477,17 @@ export interface ElectronAPI {
   auth: {
     setHfToken: (token: string) => Promise<{ success: boolean }>;
     setCivitaiToken: (token: string) => Promise<{ success: boolean }>;
+  };
+  /**
+   * #34 installer PR4: auto-update over the R2 generic feed. Every field is a
+   * real electron-updater event value (no synthetic progress). 'disabled'
+   * covers dev builds and VISION_STUDIO_DISABLE_UPDATES=1.
+   */
+  updater: {
+    getStatus: () => Promise<UpdaterStatus>;
+    check: () => Promise<UpdaterStatus>;
+    install: () => Promise<void>;
+    onStatus: (callback: (status: UpdaterStatus) => void) => () => void;
   };
   notifications: {
     notify: (

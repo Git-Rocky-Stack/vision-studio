@@ -26,6 +26,7 @@ import {
 import { createUserAccountsService, DEFAULT_USER_ACCOUNTS_STATE } from './userAccounts';
 import { createOpenRouterService } from './openRouter';
 import { createHuggingFaceInferenceService } from './huggingfaceInference';
+import { createUpdaterService, type AutoUpdaterLike } from './updater';
 
 type BrowserWindowConstructor = new (options: BrowserWindowConstructorOptions) => BrowserWindow;
 
@@ -41,6 +42,7 @@ type MainProcessDependencies = {
   dirname: string;
   devServerUrl?: string;
   resourcesPath: string;
+  autoUpdater: AutoUpdaterLike;
   logger?: Console;
 };
 
@@ -56,6 +58,7 @@ export function createMainProcessServices({
   dirname,
   devServerUrl,
   resourcesPath,
+  autoUpdater,
   logger = console,
 }: MainProcessDependencies) {
   const store = createSecureStore<StoreSchema>({
@@ -121,6 +124,16 @@ export function createMainProcessServices({
     outputRoots,
   });
 
+  // #34 installer PR4: auto-update over the R2 generic feed. Disabled in dev
+  // builds; every status it reports is a real electron-updater event.
+  const updater = createUpdaterService({
+    autoUpdater,
+    isPackaged: app.isPackaged,
+    env: process.env,
+    getMainWindow: () => mainWindow.getWindow(),
+    logger,
+  });
+
   function registerIpc() {
     registerMainIpcHandlers({
       app,
@@ -133,6 +146,7 @@ export function createMainProcessServices({
       backend,
       userAccounts,
       openRouter,
+      updater,
       getMainWindow: () => mainWindow.getWindow(),
       logger,
     });
@@ -164,6 +178,10 @@ export function createMainProcessServices({
         });
       }
     }
+
+    // After the backend autostart settles - the updater's own initial delay
+    // additionally keeps the first check clear of launch I/O.
+    updater.start();
   }
 
   function createWindowIfNeeded() {
