@@ -3,7 +3,7 @@
  * tests/publish-r2-core.test.ts). The CLI wrapper is scripts/publish-r2.cjs.
  *
  * Key layout MUST match electron-builder's generic publish URL
- * (https://updates.visionstudio.app/win/ -> objects under win/) - the pair is
+ * (https://updates.vision-studio-x.com/win/ -> objects under win/) - the pair is
  * pinned by tests/packaging-config.test.ts + tests/publish-r2-core.test.ts.
  */
 const path = require('path');

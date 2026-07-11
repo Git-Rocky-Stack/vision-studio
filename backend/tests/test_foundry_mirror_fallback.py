@@ -29,7 +29,7 @@ from utils.model_manager import ModelManager  # type: ignore[import-not-found]
 CATALOG_PATH = str(BACKEND_ROOT / "foundry" / "verified-catalog.json")
 
 MODEL_ID = "sd-1-5"
-BASE_URL = "https://models.visionstudio.app/sd-1-5"
+BASE_URL = "https://models.vision-studio-x.com/sd-1-5"
 
 _INDEX_BYTES = b'{"_class_name": "StableDiffusionPipeline"}'
 _UNET_BYTES = b"unet-tensor-bytes" * 4096
@@ -277,7 +277,7 @@ class MirrorIntegrityTests(unittest.IsolatedAsyncioTestCase):
             get.assert_not_called()
 
     async def test_non_https_mirror_is_refused_before_any_request(self):
-        manager = make_manager(mirror=_mirror(base_url="http://models.visionstudio.app/sd-1-5"))
+        manager = make_manager(mirror=_mirror(base_url="http://models.vision-studio-x.com/sd-1-5"))
 
         with _hub_failure(ConnectionError("hub unreachable")), mock.patch("requests.get") as get, \
              mock.patch("shutil.disk_usage", return_value=_disk(free=10 ** 12)):

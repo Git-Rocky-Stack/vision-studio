@@ -56,7 +56,7 @@ New `backend/foundry/provision-manifest.json`, validated against `verified-catal
       "files": [{ "name": "v1-5-pruned-emaonly.safetensors",
                   "sha256": "…", "bytes": 4265146304 }],
       "primary": { "kind": "hf", "repo_id": "stable-diffusion-v1-5/stable-diffusion-v1-5", "revision": "<pinned-sha>" },
-      "mirror":  { "kind": "url", "url": "https://cdn.visionstudio.app/models/sd-1-5/v1-5-pruned-emaonly.safetensors" },
+      "mirror":  { "kind": "url", "url": "https://models.vision-studio-x.com/sd-1-5/v1-5-pruned-emaonly.safetensors" },
       "license": "creativeml-openrail-m",
       "attribution": null
     }

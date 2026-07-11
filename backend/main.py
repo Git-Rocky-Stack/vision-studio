@@ -343,7 +343,7 @@ Rate limiting is enabled to prevent abuse:
     lifespan=lifespan,
     contact={
         "name": "Vision Studio Team",
-        "email": "hello@visionstudio.app",
+        "email": "hello@vision-studio-x.com",
     },
     license_info={
         "name": "MIT",

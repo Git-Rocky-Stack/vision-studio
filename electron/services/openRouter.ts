@@ -110,7 +110,7 @@ type CreateOpenRouterServiceOptions = {
 };
 
 const DEFAULT_BASE_URL = 'https://openrouter.ai/api/v1';
-const DEFAULT_REFERER = 'https://visionstudio.app';
+const DEFAULT_REFERER = 'https://vision-studio-x.com';
 const DEFAULT_TITLE = 'Vision Studio';
 
 /**

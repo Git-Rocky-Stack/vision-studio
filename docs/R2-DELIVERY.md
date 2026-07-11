@@ -5,8 +5,8 @@
 
 Vision Studio's heavy installer (~6 GB) cannot ship as a GitHub release asset
 (2 GB/asset cap). Delivery runs on Cloudflare R2 instead: the installer + the
-`electron-updater` feed live behind `updates.visionstudio.app`, and permitted
-model weights can be mirrored behind `models.visionstudio.app` as a fallback
+`electron-updater` feed live behind `updates.vision-studio-x.com`, and permitted
+model weights can be mirrored behind `models.vision-studio-x.com` as a fallback
 for fragile upstreams. GitHub Releases still carry the notes and a download
 pointer — never the multi-GB binaries.
 
@@ -24,14 +24,14 @@ models/<model-id>/<file-path>         <- VS mirror weights (see section 5)
 ```
 
 The `win/` prefix must match the electron-builder `publish.url` path
-(`https://updates.visionstudio.app/win/`) — `tests/packaging-config.test.ts`
+(`https://updates.vision-studio-x.com/win/`) — `tests/packaging-config.test.ts`
 and `tests/publish-r2-core.test.ts` pin the pair.
 
 ## 2. One-time setup (Cloudflare account)
 
 1. **Create the bucket** (dashboard → R2 → Create bucket, or `wrangler r2 bucket create vision-studio-delivery`).
 2. **Custom domains** (bucket → Settings → Custom Domains): attach
-   `updates.visionstudio.app` (and `models.visionstudio.app` at mirror
+   `updates.vision-studio-x.com` (and `models.vision-studio-x.com` at mirror
    go-live). R2 custom domains are served through Cloudflare — **zero egress
    fees** and normal CDN caching. Do not use the `r2.dev` development URL for
    production (rate-limited, no cache).
@@ -131,7 +131,7 @@ To put a model on the mirror:
 ```jsonc
 "mirrors": {
   "sd-1-5": {
-    "base_url": "https://models.visionstudio.app/sd-1-5",
+    "base_url": "https://models.vision-studio-x.com/sd-1-5",
     "files": [
       { "name": "model_index.json", "sha256": "<real hash>", "bytes": 541 },
       { "name": "unet/diffusion_pytorch_model.safetensors", "sha256": "<real hash>", "bytes": 3438167540 }

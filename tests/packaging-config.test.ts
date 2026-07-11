@@ -12,7 +12,7 @@ describe('packaging config honesty rails', () => {
     // ship there. The electron-updater feed (latest.yml + blockmap) lives on
     // the R2 custom domain.
     expect(config.publish.provider).toBe('generic');
-    expect(config.publish.url).toBe('https://updates.visionstudio.app/win/');
+    expect(config.publish.url).toBe('https://updates.vision-studio-x.com/win/');
   });
 
   it('disables multi-range differential requests (unsupported by R2/S3)', () => {
