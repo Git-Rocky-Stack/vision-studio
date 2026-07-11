@@ -51,6 +51,14 @@ extraResources:
       - '!dist/**/*'
       - '!__pycache__/**/*'
       - '!*.pyc'
+      # NEVER ship user-side state: provisioned model weights (multi-GB AND
+      # unlicensed redistribution - weights install per-user through the
+      # consent-gated Foundry), the local database, and generated outputs.
+      # tests/packaging-config.test.ts pins these exclusions.
+      - '!models/**/*'
+      - '!data/**/*'
+      - '!outputs/**/*'
+      - '!.pytest_cache/**/*'
 
 # =============================================================================
 # Windows Configuration
