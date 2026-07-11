@@ -64,9 +64,14 @@ extraResources:
 # Windows Configuration
 # =============================================================================
 win:
-  # Target formats: NSIS installer + portable ZIP
+  # Target formats: NSIS *web* installer + portable ZIP.
+  # nsis-web (not nsis): the app payload (~2.5 GB backend bundle) exceeds the
+  # 32-bit makensis mmap ceiling, so a single-file NSIS installer physically
+  # cannot build. The web stub is tiny; it pulls the .nsis.7z app package from
+  # the R2 delivery host (appPackageUrl below) at install time - same
+  # zero-egress host that serves the update feed.
   target:
-    - target: nsis
+    - target: nsis-web
       arch:
         - x64
     - target: zip
@@ -89,7 +94,7 @@ win:
   # Use `npm run package:win:signed` for production artifacts.
   # Local unsigned development packaging can still use `npm run package:win`.
 
-# NSIS Installer Configuration
+# NSIS Installer Configuration (applies to the nsis-web target)
 nsis:
   # Create desktop shortcut
   createDesktopShortcut: always
@@ -103,6 +108,14 @@ nsis:
   perMachine: true
   # Include custom NSIS hooks
   include: installer.nsh
+
+# NSIS web-installer specifics: where the stub downloads the app package
+# from. scripts/publish-r2.cjs uploads release/ artifacts (including the
+# .nsis.7z, before latest.yml) to the win/ prefix behind this host.
+# Hyphenated artifactName keeps the public download URL space-free.
+nsisWeb:
+  appPackageUrl: https://updates.vision-studio-x.com/win
+  artifactName: 'Vision-Studio-${version}-Setup.${ext}'
 
 # =============================================================================
 # macOS Configuration

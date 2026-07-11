@@ -15,6 +15,18 @@ describe('packaging config honesty rails', () => {
     expect(config.publish.url).toBe('https://updates.vision-studio-x.com/win/');
   });
 
+  it('builds the web installer whose package URL matches the publish host', () => {
+    // The app payload exceeds the 32-bit makensis mmap ceiling - a single
+    // file NSIS installer cannot build. The nsis-web stub must fetch its
+    // .nsis.7z from the exact prefix scripts/publish-r2.cjs uploads to, or
+    // every install 404s halfway through.
+    const winTargets = config.win.target.map((t: { target: string }) => t.target);
+    expect(winTargets).toContain('nsis-web');
+    expect(winTargets).not.toContain('nsis');
+    expect(config.nsisWeb.appPackageUrl).toBe('https://updates.vision-studio-x.com/win');
+    expect(config.nsisWeb.artifactName).toBe('Vision-Studio-${version}-Setup.${ext}');
+  });
+
   it('disables multi-range differential requests (unsupported by R2/S3)', () => {
     expect(config.publish.useMultipleRangeRequest).toBe(false);
   });
