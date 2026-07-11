@@ -35,8 +35,8 @@ _SNAPSHOT = {
     "attribution": "Powered by Stability AI",
     "models": [{
         "id": "sd-1-5", "name": "Stable Diffusion 1.5", "license": "creativeml-openrail-m",
-        "attribution": None, "approx_bytes": 50, "status": "ready", "progress": 1.0,
-        "error": None, "gate_url": None,
+        "attribution": None, "approx_bytes": 50, "format": None, "gated": False,
+        "status": "ready", "progress": 1.0, "error": None, "gate_url": None,
     }],
 }
 
@@ -88,6 +88,21 @@ class ProvisionApiTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         _args, kwargs = start.call_args
         self.assertEqual(kwargs.get("hf_token"), "hf_TT")
+
+    def test_reverify_calls_start_with_reverify_true(self):
+        with mock.patch.object(main.provision_orchestrator, "start", return_value=_SNAPSHOT) as start:
+            response = client.post(
+                "/api/models/provision/reverify", headers={"X-HF-Token": "hf_TT"})
+        self.assertEqual(response.status_code, 200)
+        _args, kwargs = start.call_args
+        self.assertTrue(kwargs.get("reverify"))
+        self.assertEqual(kwargs.get("hf_token"), "hf_TT")
+
+    def test_resume_does_not_reverify(self):
+        with mock.patch.object(main.provision_orchestrator, "start", return_value=_SNAPSHOT) as start:
+            client.post("/api/models/provision/resume")
+        _args, kwargs = start.call_args
+        self.assertFalse(kwargs.get("reverify", False))
 
     def test_unknown_action_returns_404(self):
         response = client.post("/api/models/provision/frobnicate")

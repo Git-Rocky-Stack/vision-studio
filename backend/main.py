@@ -1886,15 +1886,20 @@ async def provision_start_endpoint(request: Request):
 @app.post("/api/models/provision/{action}", response_model=ProvisionStatusSchema, tags=["Models"])
 @limiter.limit("30/minute")
 async def provision_control_endpoint(request: Request, action: str):
-    """Set-wide pause / resume / cancel over the auto-set's active jobs.
+    """Set-wide pause / resume / cancel / reverify over the auto-set's jobs.
 
     'resume' re-runs start (resuming paused/errored jobs + enqueuing any still
-    missing), so it also forwards the HF token.
+    missing), so it also forwards the HF token. 'reverify' is the PR3 repair
+    path: re-hash present direct-URL entries against the manifest sha256 and
+    re-fetch any corrupt copy (spec 6, PR2-deferred capability).
     """
-    if action not in {"pause", "resume", "cancel"}:
+    if action not in {"pause", "resume", "cancel", "reverify"}:
         raise HTTPException(status_code=404, detail=f"Unknown action '{action}'")
     if action == "resume":
         return provision_orchestrator.start(hf_token=request.headers.get("X-HF-Token"))
+    if action == "reverify":
+        return provision_orchestrator.start(
+            hf_token=request.headers.get("X-HF-Token"), reverify=True)
     return getattr(provision_orchestrator, action)()
 
 
