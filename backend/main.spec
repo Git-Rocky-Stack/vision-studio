@@ -16,13 +16,17 @@ sys.path.insert(0, backend_dir)
 
 block_cipher = None
 
-# Collect package metadata needed at runtime by importlib.metadata.version()
+# Collect package metadata needed at runtime by importlib.metadata.version().
+# transformers' import-time dependency_versions_check requires metadata for
+# EVERY package in its core requirement set - a missing one (e.g. requests)
+# makes transformers/diffusers fail to import and silently disables generation.
 metadata_packages = [
     'imageio', 'imageio-ffmpeg', 'torch', 'torchvision', 'torchaudio',
     'transformers', 'diffusers', 'huggingface-hub', 'accelerate',
     'safetensors', 'pydantic', 'fastapi', 'uvicorn', 'numpy',
     'pillow', 'opencv-python', 'httpx', 'tqdm',
     'onnxruntime', 'spandrel', 'facexlib',
+    'requests', 'regex', 'packaging', 'filelock', 'pyyaml', 'tokenizers',
 ]
 extra_datas = []
 for pkg in metadata_packages:
@@ -77,6 +81,19 @@ a = Analysis(
         ('.env.example', '.'),
         # Include db/migrations directory
         ('db/migrations', 'db/migrations'),
+        # Foundry runtime data - modules resolve these relative to __file__
+        # (-> sys._MEIPASS/foundry/ when frozen). model_manager loads the
+        # verified catalog at IMPORT time: missing files crash startup.
+        # Explicit entries (not a glob) so a moved/renamed file fails the
+        # build loudly instead of silently shipping a broken bundle.
+        ('foundry/verified-catalog.json', 'foundry'),
+        ('foundry/provision-manifest.json', 'foundry'),
+        ('foundry/provision-overrides.json', 'foundry'),
+        ('foundry/license-texts.json', 'foundry'),
+        ('foundry/runtime-licenses.json', 'foundry'),
+        # M7 AI Director cold-start knowledge base (knowledge_base.py
+        # DEFAULT_KB_DIR resolves next to its own module).
+        ('services/retrieval/prompting_kb', 'services/retrieval/prompting_kb'),
     ] + all_datas,
     hiddenimports=[
         # FastAPI & Uvicorn
