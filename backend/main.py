@@ -197,8 +197,21 @@ download_manager._consent_lookup = lambda model_id: consent_store.get(model_id)
 # Drives the manifest's models by id through the same consent-gated
 # download_manager the manual "Download" flow uses; owns only detection,
 # aggregate progress, and the idempotent/resumable start.
+_provision_manifest = load_provision_manifest()
+
+# #34 PR4: late-bind the VS-mirror lookup (like the registry/consent above).
+# A manifest entry carrying a license-gated `mirror` stanza gives the manager
+# an R2 fallback for infrastructure failures; entries without one keep
+# today's behavior exactly.
+_provision_mirrors = {
+    entry["id"]: entry["mirror"]
+    for entry in _provision_manifest.get("auto_set", [])
+    if entry.get("mirror")
+}
+download_manager._mirror_lookup = _provision_mirrors.get
+
 provision_orchestrator = ProvisionOrchestrator(
-    manifest=load_provision_manifest(),
+    manifest=_provision_manifest,
     registry=model_registry,
     download_manager=download_manager,
     consent_store=consent_store,

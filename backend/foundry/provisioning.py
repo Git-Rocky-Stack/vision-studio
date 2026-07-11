@@ -87,6 +87,48 @@ def _effective_license(
     return known.get(model_id) or record.get("license")
 
 
+_SHA256_HEX = re.compile(r"[0-9a-f]{64}")
+
+
+def _validate_mirror(model_id: str, mirror: Dict[str, Any]) -> Dict[str, Any]:
+    """Normalize + validate one VS-mirror stanza (#34 PR4). Fail closed.
+
+    The mirror is a first-party R2 origin serving exact copies of the primary
+    files, so: https only, every file named with a safe relative path, and a
+    mandatory per-file sha256 - the DownloadManager's fallback refuses
+    anything unverifiable, and the build refuses to emit it in the first
+    place. Hosting on the mirror is redistribution; the caller only reaches
+    here for redistributable auto-set members.
+    """
+    base_url = (mirror.get("base_url") or "").strip()
+    if not base_url.startswith("https://"):
+        raise ValueError(f"mirror for {model_id}: base_url must be https ({base_url!r})")
+    files = mirror.get("files") or []
+    if not files:
+        raise ValueError(f"mirror for {model_id}: needs at least one file")
+    normalized = []
+    for file in files:
+        name = (file.get("name") or "").strip()
+        if (
+            not name
+            or "\\" in name
+            or ":" in name
+            or name.startswith("/")
+            or ".." in name.split("/")
+        ):
+            raise ValueError(f"mirror for {model_id}: unsafe file name {name!r}")
+        sha256 = (file.get("sha256") or "").strip().lower()
+        if not _SHA256_HEX.fullmatch(sha256):
+            raise ValueError(
+                f"mirror for {model_id}: file {name!r} needs a sha256 hex digest"
+            )
+        size = file.get("bytes")
+        if not isinstance(size, int) or size <= 0:
+            raise ValueError(f"mirror for {model_id}: file {name!r} needs positive bytes")
+        normalized.append({"name": name, "sha256": sha256, "bytes": size})
+    return {"base_url": base_url.rstrip("/"), "files": normalized}
+
+
 def _entry(record: Dict[str, Any], overrides: Dict[str, Any]) -> Dict[str, Any]:
     model_id = record["id"]
     license_id = _effective_license(model_id, record, overrides)
@@ -105,6 +147,11 @@ def _entry(record: Dict[str, Any], overrides: Dict[str, Any]) -> Dict[str, Any]:
     }
     if repin.get("reason"):
         entry["repin_reason"] = repin["reason"]
+    mirror = (overrides.get("mirrors") or {}).get(model_id)
+    if mirror is not None:
+        # Only reached for redistributable records (build partitions first);
+        # unknown/non-auto mirror keys are refused in build_provision_manifest.
+        entry["mirror"] = _validate_mirror(model_id, mirror)
     return entry
 
 
@@ -142,6 +189,16 @@ def build_provision_manifest(
     auto_set.sort(key=lambda e: e["id"])
     manual_only.sort(key=lambda e: e["id"])
     total = sum(e["approx_bytes"] or 0 for e in auto_set)
+
+    # A mirror stanza for anything outside the redistributable auto-set is a
+    # licensing error, not a no-op: hosting those weights on the VS mirror
+    # would be unlicensed redistribution (FLUX-nc, CMU OpenPose, typos alike).
+    unknown_mirrors = set(overrides.get("mirrors") or {}) - {e["id"] for e in auto_set}
+    if unknown_mirrors:
+        raise ValueError(
+            "mirror overrides exist for models outside the redistributable "
+            f"auto-set: {sorted(unknown_mirrors)}"
+        )
 
     return {
         "schema": SCHEMA,

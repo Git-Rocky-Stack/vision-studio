@@ -79,6 +79,9 @@ jobs:
     needs: test-full
     runs-on: windows-latest
     timeout-minutes: 30
+    env:
+      # `secrets` is not readable from step-level `if`; surface presence here.
+      R2_SECRETS_PRESENT: ${{ secrets.R2_ACCESS_KEY_ID != '' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -140,6 +143,20 @@ jobs:
             release/*.yml
             release/*.blockmap
           retention-days: 90
+
+      # #34 installer PR4: publish the update feed + installer to Cloudflare R2
+      # (GitHub caps release assets at 2 GB - the heavy installer lives on R2).
+      # Runs only on version tags AND only once the R2 secrets exist; binaries
+      # upload first and latest.yml last (see scripts/publish-r2.cjs), so a
+      # failed publish never flips clients to a missing installer.
+      - name: Publish update feed to R2
+        if: ${{ startsWith(github.ref, 'refs/tags/v') && env.R2_SECRETS_PRESENT == 'true' }}
+        run: npm run release:publish:r2
+        env:
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
 
   build-linux:
     name: Build Linux

@@ -94,6 +94,12 @@ type OpenRouterServiceLike = {
   listImageModels: (apiKey: string) => Promise<OpenRouterModelSummary[]>;
 };
 
+type UpdaterServiceLike = {
+  getStatus: () => unknown;
+  check: () => Promise<unknown>;
+  install: () => void;
+};
+
 type MainIpcOptions = {
   app: Pick<App, 'getVersion' | 'getPath'>;
   ipcMain: Pick<IpcMain, 'handle'>;
@@ -107,6 +113,7 @@ type MainIpcOptions = {
   backend: BackendServiceLike;
   userAccounts: UserAccountsServiceLike;
   openRouter: OpenRouterServiceLike;
+  updater: UpdaterServiceLike;
   getMainWindow: () => Electron.BrowserWindow | null;
   logger?: Pick<Console, 'warn'>;
 };
@@ -164,10 +171,17 @@ export function registerMainIpcHandlers({
   backend,
   userAccounts,
   openRouter,
+  updater,
   getMainWindow,
   logger = console,
 }: MainIpcOptions) {
   ipcMain.handle('app:get-version', () => app.getVersion());
+
+  // #34 installer PR4: auto-update surface. Status pushes arrive separately
+  // over 'updater:status' (see services/updater.ts).
+  ipcMain.handle('updater:get-status', () => updater.getStatus());
+  ipcMain.handle('updater:check', () => updater.check());
+  ipcMain.handle('updater:install', () => updater.install());
 
   ipcMain.handle('app:open-external', (_event, url: string) => {
     if (!isSafeExternalUrl(url)) {

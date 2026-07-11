@@ -1,7 +1,13 @@
-"""#34 installer PR1: comprehensive auto-provision manifest builder."""
+"""#34 installer PR1: comprehensive auto-provision manifest builder.
+
+PR4 adds the optional per-model VS mirror stanza (Cloudflare R2 fallback):
+license-gated, https-only, per-file sha256 mandatory - all fail closed.
+"""
 import json
 import pathlib
 import sys
+
+import pytest
 
 BACKEND_ROOT = pathlib.Path(__file__).resolve().parents[1]
 if str(BACKEND_ROOT) not in sys.path:
@@ -119,3 +125,91 @@ def test_builder_is_deterministic():
     first = build_provision_manifest(catalog, overrides)
     second = build_provision_manifest(catalog, overrides)
     assert json.dumps(first, sort_keys=True) == json.dumps(second, sort_keys=True)
+
+
+# -- PR4: VS mirror stanzas ---------------------------------------------------
+
+_MIRROR_CATALOG = {
+    "sd-1-5": {
+        "id": "sd-1-5",
+        "name": "Stable Diffusion 1.5",
+        "artifact_type": "checkpoint",
+        "license": "creativeml-openrail-m",
+        "repo_id": "stable-diffusion-v1-5/stable-diffusion-v1-5",
+        "size": "~4.3 GB",
+    },
+    "annotator-openpose": {
+        "id": "annotator-openpose",
+        "name": "OpenPose Annotator",
+        "artifact_type": "annotator",
+        "license": "openpose-cmu-noncommercial",
+        "repo_id": "lllyasviel/Annotators",
+        "size": "~1 GB",
+    },
+}
+
+_GOOD_MIRROR = {
+    "base_url": "https://models.visionstudio.app/sd-1-5",
+    "files": [
+        {
+            "name": "v1-5-pruned-emaonly.safetensors",
+            "sha256": "a" * 64,
+            "bytes": 4265146304,
+        }
+    ],
+}
+
+
+def test_mirror_stanza_is_emitted_verbatim_for_a_redistributable_entry():
+    manifest = build_provision_manifest(
+        _MIRROR_CATALOG, {"mirrors": {"sd-1-5": _GOOD_MIRROR}}
+    )
+    entry = next(e for e in manifest["auto_set"] if e["id"] == "sd-1-5")
+    assert entry["mirror"]["base_url"] == "https://models.visionstudio.app/sd-1-5"
+    assert entry["mirror"]["files"] == _GOOD_MIRROR["files"]
+
+
+def test_entries_without_a_mirror_override_carry_no_mirror_key():
+    manifest = build_provision_manifest(_MIRROR_CATALOG, {})
+    entry = next(e for e in manifest["auto_set"] if e["id"] == "sd-1-5")
+    assert "mirror" not in entry
+
+
+def test_mirror_for_a_non_redistributable_model_is_refused():
+    # Hosting weights on the VS mirror IS redistribution - the same legal
+    # boundary as bundling. OpenPose is CMU non-commercial (manual_only).
+    with pytest.raises(ValueError, match="annotator-openpose"):
+        build_provision_manifest(
+            _MIRROR_CATALOG, {"mirrors": {"annotator-openpose": _GOOD_MIRROR}}
+        )
+
+
+def test_mirror_file_without_sha256_is_refused():
+    mirror = {
+        "base_url": "https://models.visionstudio.app/sd-1-5",
+        "files": [{"name": "model.safetensors", "bytes": 10}],
+    }
+    with pytest.raises(ValueError, match="sha256"):
+        build_provision_manifest(_MIRROR_CATALOG, {"mirrors": {"sd-1-5": mirror}})
+
+
+def test_mirror_base_url_must_be_https():
+    mirror = dict(_GOOD_MIRROR, base_url="http://models.visionstudio.app/sd-1-5")
+    with pytest.raises(ValueError, match="https"):
+        build_provision_manifest(_MIRROR_CATALOG, {"mirrors": {"sd-1-5": mirror}})
+
+
+def test_mirror_file_names_refuse_traversal_and_absolute_paths():
+    for name in ("../evil.bin", "/etc/passwd", "C:/evil.bin", "a\\b.bin"):
+        mirror = {
+            "base_url": "https://models.visionstudio.app/sd-1-5",
+            "files": [{"name": name, "sha256": "b" * 64, "bytes": 10}],
+        }
+        with pytest.raises(ValueError, match="file name"):
+            build_provision_manifest(_MIRROR_CATALOG, {"mirrors": {"sd-1-5": mirror}})
+
+
+def test_shipping_overrides_carry_no_mirrors_yet():
+    # Mirror stanzas land at R2 go-live (docs/R2-DELIVERY.md) with REAL hashes;
+    # until then the committed manifest must not change shape.
+    assert all("mirror" not in e for e in MANIFEST["auto_set"])

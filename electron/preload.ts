@@ -357,6 +357,12 @@ export interface ElectronAPI {
     checkBundled: () => Promise<{ exists: boolean; path?: string | null }>;
     onStatusChange: (callback: (status: { running: boolean }) => void) => () => void;
   };
+  updater: {
+    getStatus: () => Promise<any>;
+    check: () => Promise<any>;
+    install: () => Promise<void>;
+    onStatus: (callback: (status: any) => void) => () => void;
+  };
 }
 
 // Expose the API to the renderer process
@@ -494,6 +500,16 @@ const electronAPI: ElectronAPI = {
       const handler = (_event: any, data: any) => callback(data);
       ipcRenderer.on('backend:status', handler);
       return () => ipcRenderer.off('backend:status', handler);
+    },
+  },
+  updater: {
+    getStatus: () => ipcRenderer.invoke('updater:get-status'),
+    check: () => ipcRenderer.invoke('updater:check'),
+    install: () => ipcRenderer.invoke('updater:install'),
+    onStatus: (callback) => {
+      const handler = (_event: any, status: any) => callback(status);
+      ipcRenderer.on('updater:status', handler);
+      return () => ipcRenderer.off('updater:status', handler);
     },
   },
 };

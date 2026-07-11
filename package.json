@@ -39,6 +39,7 @@
     "package:linux": "electron-builder --linux",
     "package:signed": "npm run build && npm run package:win:signed",
     "release:signing:check": "node scripts/verify-release-signing.cjs",
+    "release:publish:r2": "node scripts/publish-r2.cjs",
     "postinstall": "electron-builder install-app-deps",
     "clean": "npx rimraf dist dist-electron release resources",
     "clean:all": "npx rimraf dist dist-electron release resources node_modules backend/venv backend/build backend/dist",
@@ -83,6 +84,8 @@
     "zustand": "^5.0.3"
   },
   "devDependencies": {
+    "@aws-sdk/client-s3": "^3.1085.0",
+    "@aws-sdk/lib-storage": "^3.1085.0",
     "@axe-core/playwright": "^4.11.1",
     "@eslint/js": "^10.0.1",
     "@playwright/test": "^1.58.2",
@@ -114,6 +117,7 @@
     "vite": "^6.1.0",
     "vite-plugin-electron": "^0.29.0",
     "vite-plugin-electron-renderer": "^0.14.6",
-    "vitest": "^4.1.8"
+    "vitest": "^4.1.8",
+    "yaml": "^2.9.0"
   }
 }

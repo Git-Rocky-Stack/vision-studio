@@ -106,8 +106,8 @@ New `backend/foundry/provision-manifest.json`, validated against `verified-catal
 
 ## 10. Open questions / approvals needed
 
-1. **Object storage** — confirm Cloudflare R2 vs Backblaze B2 (cost/egress). Hosting ~60 GB of weights + a 6 GB installer implies real egress cost at scale; a bandwidth/cost model is part of PR4.
+1. **Object storage** — confirm Cloudflare R2 vs Backblaze B2 (cost/egress). Hosting ~60 GB of weights + a 6 GB installer implies real egress cost at scale; a bandwidth/cost model is part of PR4. **Resolved (PR4): Cloudflare R2** — egress dominates at any adoption level and R2's custom-domain egress is $0; see the worked cost model in `docs/R2-DELIVERY.md` §4.
 2. **Default provisioning behavior** — one-click "provision everything now" vs "provision recommended core, background the rest." Recommend the latter as the default *presentation* (fastest time-to-first-generation) while still pulling the full set.
-3. **VS mirror vs pinned upstream** — host all permitted weights on R2 for maximum reliability (higher cost/control), or pin to upstream + R2-fallback only for fragile ones (lower cost). Recommend the latter to start.
+3. **VS mirror vs pinned upstream** — host all permitted weights on R2 for maximum reliability (higher cost/control), or pin to upstream + R2-fallback only for fragile ones (lower cost). Recommend the latter to start. **Resolved (PR4): upstream-primary + license-gated R2 mirror fallback for fragile upstreams** (first candidate `sd-1-5`); mechanism shipped dark, go-live procedure in `docs/R2-DELIVERY.md` §5.
 4. **Unknown-license models** (annotators, clip-vit-l) — resolve exact licenses in PR1; include only if redistribution-compatible, else keep Foundry-manual.
 ```

@@ -20,13 +20,14 @@ GET /models/downloads; it is deliberately NOT written onto ModelRecord.
 
 import asyncio
 import hashlib
+import logging
 import os
 import shutil
 import threading
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from typing import Callable, Dict, List, Literal, Optional
-from urllib.parse import urljoin, urlparse
+from urllib.parse import quote, urljoin, urlparse
 
 import huggingface_hub
 
@@ -39,6 +40,8 @@ from foundry.download_errors import (
     map_hf_exception,
 )
 from foundry.download_telemetry import ProgressSink, make_tqdm_class
+
+logger = logging.getLogger(__name__)
 
 JobStatus = Literal[
     "queued", "downloading", "paused", "verifying", "ready", "error", "cancelled"
@@ -126,6 +129,7 @@ class DownloadManager:
         concurrency: int = 2,
         mode: str = "fast",
         consent_lookup: Optional[Callable[[str], Dict[str, bool]]] = None,
+        mirror_lookup: Optional[Callable[[str], Optional[Dict]]] = None,
     ):
         self._registry = registry
         self._model_manager = model_manager
@@ -133,6 +137,9 @@ class DownloadManager:
         # Per-model consent oracle (ConsentStore.get). None or any failure
         # reads as "no consent" - the filter in _resolve_files fails closed.
         self._consent_lookup = consent_lookup
+        # #34 PR4: model_id -> manifest mirror stanza ({base_url, files}) for
+        # the VS R2 fallback, or None. Absent lookup/stanza = today's behavior.
+        self._mirror_lookup = mirror_lookup
         self._concurrency = max(1, min(int(concurrency), 6))
         self.mode = mode if mode in {"fast", "precise"} else "fast"
 
@@ -242,7 +249,6 @@ class DownloadManager:
             return
 
         repo_id = record.get("repo_id")
-        revision = record.get("revision", "main")
         cancel_event = self._cancel_events[model_id]
 
         try:
@@ -261,27 +267,15 @@ class DownloadManager:
                 job.status = "ready"
                 return
 
-            filenames, total_bytes, target_dir = self._resolve_files(model_id, record)
-            job.total_bytes = total_bytes
-
-            self._preflight_disk(total_bytes, target_dir)
-
-            job.status = "downloading"
-            sink = ProgressSink(total_bytes, cancel_event=cancel_event)
-            self._sinks[model_id] = sink
-
-            for filename in filenames:
-                await asyncio.to_thread(
-                    self._download_file, repo_id, filename, target_dir, token, sink, revision
-                )
-                job.progress = sink.progress
-                job.speed = sink.speed
-                job.eta = sink.eta
+            filenames = await self._download_hf_with_mirror_fallback(
+                model_id, record, token, cancel_event
+            )
 
             job.status = "verifying"
-            # The library already did per-file size-consistency + atomic move;
-            # the repo-level verify is the presence of every target file.
-            self._verify(filenames, target_dir)
+            # The library already did per-file size-consistency + atomic move
+            # (the mirror path its own sha256 + atomic replace); the repo-level
+            # verify is the presence of every target file.
+            self._verify(filenames, self._target_dir(record))
 
             job.progress = 1.0
             job.speed = 0.0
@@ -307,6 +301,175 @@ class DownloadManager:
                 job.gate_url = mapped.gate_url
         finally:
             self._cleanup_task(model_id)
+
+    async def _download_hf(self, model_id: str, record: dict, token: Optional[str],
+                           cancel_event: threading.Event) -> List[str]:
+        """The primary HuggingFace fetch: resolve -> preflight -> per-file
+        download. Returns the filenames for the repo-level verify."""
+        job = self._jobs[model_id]
+        repo_id = record.get("repo_id")
+        revision = record.get("revision", "main")
+
+        filenames, total_bytes, target_dir = self._resolve_files(model_id, record)
+        job.total_bytes = total_bytes
+
+        self._preflight_disk(total_bytes, target_dir)
+
+        job.status = "downloading"
+        sink = ProgressSink(total_bytes, cancel_event=cancel_event)
+        self._sinks[model_id] = sink
+
+        for filename in filenames:
+            await asyncio.to_thread(
+                self._download_file, repo_id, filename, target_dir, token, sink, revision
+            )
+            job.progress = sink.progress
+            job.speed = sink.speed
+            job.eta = sink.eta
+        return filenames
+
+    async def _download_hf_with_mirror_fallback(
+        self, model_id: str, record: dict, token: Optional[str],
+        cancel_event: threading.Event,
+    ) -> List[str]:
+        """Primary HF fetch with the VS-mirror fallback (#34 PR4).
+
+        The mirror is tried ONLY on infrastructure failure. It never routes
+        around a trust boundary: cancellation/pause and the disk refusal
+        propagate untouched, and a license gate needs the USER's acceptance -
+        serving gated weights from the mirror would defeat the gate. If both
+        legs fail, the surfaced error carries the mapped PRIMARY cause (the
+        actionable one) with the mirror failure noted for debugging.
+        """
+        try:
+            return await self._download_hf(model_id, record, token, cancel_event)
+        except (DownloadCancelledError, DiskSpaceError):
+            raise
+        except Exception as primary_exc:
+            mapped = (
+                primary_exc
+                if isinstance(primary_exc, DownloadError)
+                else map_hf_exception(
+                    primary_exc, repo_id=record.get("repo_id") or model_id
+                )
+            )
+            if isinstance(mapped, GatedModelError):
+                raise mapped
+            mirror = self._mirror_lookup(model_id) if self._mirror_lookup else None
+            if not mirror:
+                raise mapped
+            logger.warning(
+                "primary fetch failed for %s (%s); falling back to VS mirror",
+                model_id, mapped,
+            )
+            try:
+                return await asyncio.to_thread(
+                    self._download_from_mirror, model_id, record, mirror
+                )
+            except (DownloadCancelledError, DiskSpaceError):
+                raise
+            except Exception as mirror_exc:
+                raise DownloadFailedError(
+                    f"{mapped}; VS mirror fallback also failed: {mirror_exc}"
+                ) from primary_exc
+
+    def _download_from_mirror(self, model_id: str, record: dict, mirror: Dict) -> List[str]:
+        """Blocking VS-mirror download (runs in a worker thread).
+
+        Every file streams to ``<target>.incomplete``, is sha256-verified
+        against the manifest stanza (mandatory - no hash, no download), and
+        lands via atomic ``os.replace``: complete-or-absent, the same
+        discipline as the direct-URL path. The mirror is first-party R2 behind
+        a fixed https host, so redirects are unexpected and refused, and no
+        auth header is ever attached.
+        """
+        base_url = (mirror.get("base_url") or "").rstrip("/")
+        parsed = urlparse(base_url)
+        if parsed.scheme != "https" or not parsed.hostname:
+            raise DownloadFailedError(
+                f"refusing non-https VS mirror for {model_id}: {base_url[:80]!r}"
+            )
+        files = mirror.get("files") or []
+        if not files:
+            raise DownloadFailedError(f"VS mirror for {model_id} lists no files")
+        # Validate the WHOLE stanza before the first byte moves (fail closed;
+        # defense in depth over the manifest build's own validation).
+        for file in files:
+            name = (file.get("name") or "").strip()
+            if (
+                not name
+                or "\\" in name
+                or ":" in name
+                or name.startswith("/")
+                or ".." in name.split("/")
+            ):
+                raise DownloadFailedError(f"unsafe VS mirror file name {name!r}")
+            if not (file.get("sha256") or "").strip():
+                raise DownloadFailedError(
+                    f"VS mirror file {name!r} has no sha256 - refusing "
+                    "unverifiable download"
+                )
+
+        import requests  # lazy: keep module import light (mirrors _download_direct)
+
+        job = self._jobs[model_id]
+        cancel_event = self._cancel_events[model_id]
+        target_dir = self._target_dir(record)
+        total = sum(int(f.get("bytes") or 0) for f in files)
+        self._preflight_disk(total, target_dir)
+        job.total_bytes = total
+        job.status = "downloading"
+        sink = ProgressSink(total, cancel_event=cancel_event)
+        self._sinks[model_id] = sink
+
+        names: List[str] = []
+        for file in files:
+            name = file["name"].strip()
+            expected = file["sha256"].strip().lower()
+            url = f"{base_url}/{quote(name)}"
+            target = os.path.join(target_dir, *name.split("/"))
+            os.makedirs(os.path.dirname(target), exist_ok=True)
+            incomplete = target + ".incomplete"
+
+            response = requests.get(
+                url, stream=True, timeout=_CIVITAI_TIMEOUT, allow_redirects=False
+            )
+            hasher = hashlib.sha256()
+            try:
+                status = getattr(response, "status_code", 200)
+                if isinstance(status, int) and status >= 300:
+                    raise DownloadFailedError(
+                        f"VS mirror responded HTTP {status} for {name}"
+                    )
+                sink.start_file(expected_size=int(file.get("bytes") or 0))
+                with open(incomplete, "wb") as handle:
+                    for chunk in response.iter_content(chunk_size=_CIVITAI_CHUNK_BYTES):
+                        if not chunk:
+                            continue
+                        sink.add(len(chunk))  # raises DownloadCancelledError on signal
+                        handle.write(chunk)
+                        hasher.update(chunk)
+                        job.progress = sink.progress
+                        job.speed = sink.speed
+                        job.eta = sink.eta
+                sink.finish_file()
+            finally:
+                close = getattr(response, "close", None)
+                if callable(close):
+                    close()
+
+            if hasher.hexdigest() != expected:
+                try:
+                    os.remove(incomplete)
+                except OSError:
+                    pass
+                raise DownloadFailedError(
+                    f"VS mirror sha256 mismatch for {name} - corrupt or "
+                    "tampered download"
+                )
+            os.replace(incomplete, target)  # atomic: complete-or-absent
+            names.append(name)
+        return names
 
     # -- resolution / preflight / per-file download ------------------------
     def _resolve_files(self, model_id: str, record: dict):
