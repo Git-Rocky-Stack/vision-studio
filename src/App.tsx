@@ -6,6 +6,8 @@ import { DockviewLayout } from '@/components/layout/DockviewLayout';
 import { FilmGrainOverlay } from '@/components/effects/FilmGrainOverlay';
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
 import { KeyboardShortcuts } from '@/components/ui/KeyboardShortcuts';
+import { FirstRunProvisioning } from '@/components/provisioning/FirstRunProvisioning';
+import { useProvisioningStatus } from '@/hooks/useProvisioningStatus';
 import { applyThemeToDocument, type ThemePreference } from '@/features/theme/theme';
 import { AI_DIRECTOR_DEFAULTS } from '../shared/retrieval';
 import { buildIngestRecords } from '@/features/director/buildIngestRecords';
@@ -20,6 +22,10 @@ function App() {
   );
 
   const [showShortcuts, setShowShortcuts] = useState(false);
+
+  // #34 installer PR3: keep the auto-set provisioning snapshot current so the
+  // first-run overlay, Header pill, and Foundry card render live state.
+  useProvisioningStatus();
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -171,6 +177,7 @@ function App() {
         </div>
       </div>
       <KeyboardShortcuts open={showShortcuts} onClose={() => setShowShortcuts(false)} />
+      <FirstRunProvisioning />
       <FilmGrainOverlay opacity={0.025} />
     </>
   );

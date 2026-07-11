@@ -11,7 +11,7 @@ type MainWindowServiceOptions = {
   BrowserWindow: BrowserWindowConstructor;
   dirname: string;
   devServerUrl?: string;
-  onReadyToShow: () => void | Promise<void>;
+  onReadyToShow?: () => void | Promise<void>;
 };
 
 export function createBrowserWindowOptions(preloadPath: string): BrowserWindowConstructorOptions {
@@ -82,7 +82,7 @@ export function createMainWindowService({
     mainWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
 
     mainWindow.once('ready-to-show', () => {
-      void onReadyToShow();
+      void onReadyToShow?.();
     });
 
     mainWindow.on('closed', () => {

@@ -16,7 +16,6 @@ type NotificationConstructor = typeof import('electron').Notification;
 import { createSecureStore } from './secureStore';
 import { createOutputRootService, DEFAULT_SETTINGS, type StoreSchema } from './outputRoots';
 import { createBackendProcessService } from './backendProcess';
-import { createFirstRunService } from './firstRun';
 import { createMainWindowService } from './mainWindow';
 import { registerMainIpcHandlers } from './mainIpc';
 import { registerContentSecurityPolicy } from './contentSecurityPolicy';
@@ -82,13 +81,6 @@ export function createMainProcessServices({
     exists: (candidatePath) => fs.existsSync(candidatePath),
   });
 
-  const firstRun = createFirstRunService({
-    store,
-    dialog,
-    getMainWindow: () => mainWindow.getWindow(),
-    logger,
-  });
-
   const userAccounts = createUserAccountsService({
     store,
     safeStorage,
@@ -98,11 +90,13 @@ export function createMainProcessServices({
   const openRouter = createOpenRouterService();
   const huggingFace = createHuggingFaceInferenceService();
 
+  // #34 installer PR3: the old native 'Welcome to Vision Studio' messageBox
+  // (firstRun service) is replaced by the in-app, Carbon Pro-styled first-run
+  // provisioning overlay - native dialogs cannot be themed to the app.
   const mainWindow = createMainWindowService({
     BrowserWindow,
     dirname,
     devServerUrl,
-    onReadyToShow: () => firstRun.checkFirstRun(),
   });
 
   const backend = createBackendProcessService({

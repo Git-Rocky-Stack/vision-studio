@@ -2,32 +2,12 @@ import { Pause, Play, X, ExternalLink, AlertTriangle, Check, Loader2 } from 'luc
 import { useShallow } from 'zustand/react/shallow';
 import { useAppStore } from '@/store/appStore';
 import { cn } from '@/utils/cn';
+import { formatEta, formatSpeed } from '@/utils/formatUtils';
 import type { DownloadJob } from '@/types/model';
 
 interface DownloadRowProps {
   job: DownloadJob;
   modelName: string;
-}
-
-/** Format a bytes/second rate as a human string, e.g. "12.4 MB/s". */
-function formatSpeed(bytesPerSecond: number): string {
-  if (!bytesPerSecond || bytesPerSecond <= 0) return '';
-  const units = ['B/s', 'KB/s', 'MB/s', 'GB/s'];
-  let value = bytesPerSecond;
-  let unit = 0;
-  while (value >= 1024 && unit < units.length - 1) {
-    value /= 1024;
-    unit += 1;
-  }
-  return `${value.toFixed(1)} ${units[unit]}`;
-}
-
-/** Format a seconds ETA as "m:ss" (or "<1m" / "" when unknown). */
-function formatEta(seconds: number | null): string {
-  if (seconds === null || !Number.isFinite(seconds) || seconds <= 0) return '';
-  const mins = Math.floor(seconds / 60);
-  const secs = Math.floor(seconds % 60);
-  return `${mins}:${secs.toString().padStart(2, '0')} left`;
 }
 
 const ACTIVE_STATUSES = new Set<DownloadJob['status']>([

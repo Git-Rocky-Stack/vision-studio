@@ -242,6 +242,10 @@ export interface ProvisionModel {
   license: string | null;
   attribution: string | null;
   approx_bytes: number;
+  /** Registry weight format (e.g. 'pickle' | 'safetensors' | 'onnx'); null when unknown. */
+  format: string | null;
+  /** Upstream repo is license-gated (needs an HF account/token). */
+  gated: boolean;
   status: ProvisionModelStatus;
   progress: number;
   error: string | null;

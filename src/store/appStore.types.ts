@@ -143,6 +143,7 @@ import type {
   SearchSource,
   ConsentKind,
   HardwareProfile,
+  ProvisionStatus,
   RuntimePlan,
 } from '@/types/model';
 
@@ -363,6 +364,16 @@ export interface AppState {
   // per-checkpoint install/compat state. Session-only, never persisted.
   selectedImageModelId: string;
 
+  // ─── Provisioning (#34 installer PR3) ────────────────────────────────────
+  // Last-known auto-set snapshot from the backend orchestrator. Transient.
+  provisionStatus: ProvisionStatus | null;
+  // One in-flight provisioning user action at a time.
+  provisionBusy: boolean;
+  // Surfaced envelope failure from a provisioning user action.
+  provisionActionError: string | null;
+  // First-run overlay dismissal; persisted so a restart does not re-take-over.
+  firstRunProvisionDismissed: boolean;
+
   // ─── Prompt Intelligence ─────────────────────────────────────────────────
   promptHistory: PromptHistoryEntry[];
   favoritePrompts: string[];
@@ -576,6 +587,17 @@ export interface AppState {
   // consent/convert above).
   loadHardwareProfile: () => Promise<void>;
   resolveRuntime: (modelId: string) => Promise<RuntimePlan>;
+  // Provisioning (#34 installer PR3). refresh is local-first (keeps the
+  // last-known snapshot on failure); the user actions surface envelope
+  // failures via provisionActionError (a lost start/cancel must never vanish).
+  refreshProvisionStatus: () => Promise<void>;
+  startProvisioning: () => Promise<void>;
+  pauseProvisioning: () => Promise<void>;
+  resumeProvisioning: () => Promise<void>;
+  cancelProvisioning: () => Promise<void>;
+  reverifyProvisioning: () => Promise<void>;
+  dismissFirstRunProvisioning: () => void;
+  openFirstRunProvisioning: () => void;
   addBatchJob: (batchJob: BatchJob) => void;
   updateBatchJob: (batchId: string, updates: Partial<BatchJob>) => void;
 

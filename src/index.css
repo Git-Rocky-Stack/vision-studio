@@ -1008,6 +1008,19 @@ input[type="range"]::-webkit-slider-thumb:hover {
   box-shadow: inset 0 -1px 0 rgba(255,255,255,0.04);
 }
 
+/* Chrome plate - polished-silver identity band (first-run welcome header).
+   The same metal-cap material as .btn-chrome, sans the control affordances:
+   silver gradient, machined bevel, black engraving. */
+.chrome-plate {
+  background: linear-gradient(180deg, #FFF 0%, #E6E6E6 50%, #C8C8C8 100%);
+  color: #000;
+  border-bottom: 1px solid rgba(0,0,0,0.5);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.9),
+    inset 0 -1px 0 rgba(0,0,0,0.3),
+    0 1px 2px rgba(0,0,0,0.6);
+}
+
 /* Hex socket cap bolt - stout machined chassis cue. */
 .hex-bolt {
   position: absolute;

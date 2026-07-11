@@ -1131,6 +1131,22 @@ ipcMain.handle('provision:cancel', async () => {
   }
 });
 
+ipcMain.handle('provision:reverify', async () => {
+  try {
+    const response = await requestBackend(() =>
+      axios.post(`${BACKEND_URL}/api/models/provision/reverify`, undefined, {
+        // Reverify re-runs start(): the HF token is forwarded for any gated
+        // auto-set model a repair re-fetch may need.
+        headers: { ...backendAuthHeaders(), ...hfTokenHeaders() },
+      }),
+    );
+    return response.data;
+  } catch (error: any) {
+    console.error('Provision reverify error:', error instanceof Error ? error.message : error);
+    return { success: false, error: toSafeRendererError(error, 'Provision verify failed') };
+  }
+});
+
 ipcMain.handle('models:get-status', async (_event, modelId: string) => {
   try {
     const response = await requestBackend(() =>

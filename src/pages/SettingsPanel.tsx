@@ -9,6 +9,7 @@ import { AI_DIRECTOR_DEFAULTS, type AiDirectorSettings } from '../../shared/retr
 import { buildIngestRecords } from '@/features/director/buildIngestRecords';
 import { UserGuidePage } from '@/pages/UserGuidePage';
 import { PerformancePanel } from '@/components/settings/PerformancePanel';
+import { AboutSection } from '@/components/settings/AboutSection';
 import type { DownloadStatus } from '@/types/model';
 import type {
   OpenRouterKeyInfo,
@@ -38,10 +39,11 @@ import {
   UserPlus,
   Users,
   Sparkles,
+  Info,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-type SettingsTab = 'general' | 'ai' | 'performance' | 'appearance' | 'notifications' | 'guide';
+type SettingsTab = 'general' | 'ai' | 'performance' | 'appearance' | 'notifications' | 'guide' | 'about';
 
 interface SettingsSection {
   id: SettingsTab;
@@ -72,6 +74,7 @@ const sections: SettingsSection[] = [
   { id: 'appearance', label: 'Appearance', icon: Palette },
   { id: 'notifications', label: 'Notifications', icon: Bell },
   { id: 'guide', label: 'User Guide', icon: HelpCircle },
+  { id: 'about', label: 'About', icon: Info },
 ];
 
 const defaultSettingsState: SettingsState = {
@@ -1924,6 +1927,8 @@ export function SettingsPanel() {
             )}
 
             {activeTab === 'guide' && <UserGuidePage />}
+
+            {activeTab === 'about' && <AboutSection />}
           </motion.div>
         </AnimatePresence>
       </div>

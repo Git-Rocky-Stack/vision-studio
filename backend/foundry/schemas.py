@@ -72,6 +72,11 @@ class ProvisionModelSchema(BaseModel):
     license: Optional[str] = None
     attribution: Optional[str] = None
     approx_bytes: int = 0
+    # Registry weight format (pickle/safetensors/onnx); None when unknown. The
+    # first-run disclosure derives the informed-auto-consent list from this.
+    format: Optional[str] = None
+    # Upstream repo is license-gated (needs an HF account/token).
+    gated: bool = False
     # ready | missing | queued | downloading | paused | verifying | error | cancelled
     status: str
     progress: float = 0.0
