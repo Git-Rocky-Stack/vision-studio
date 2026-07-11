@@ -139,7 +139,7 @@ To put a model on the mirror:
 ```jsonc
 "mirrors": {
   "sd-1-5": {
-    "base_url": "https://models.vision-studio-x.com/sd-1-5",
+    "base_url": "https://models.vision-studio-x.com/models/sd-1-5",
     "files": [
       { "name": "model_index.json", "sha256": "<real hash>", "bytes": 541 },
       { "name": "unet/diffusion_pytorch_model.safetensors", "sha256": "<real hash>", "bytes": 3438167540 }

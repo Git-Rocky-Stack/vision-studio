@@ -390,7 +390,17 @@
         "revision": "main"
       },
       "approx_bytes": 4617089843,
-      "repin_reason": "runwayml/stable-diffusion-v1-5 was deleted from HuggingFace; the community mirror is the permanent source."
+      "repin_reason": "runwayml/stable-diffusion-v1-5 was deleted from HuggingFace; the community mirror is the permanent source.",
+      "mirror": {
+        "base_url": "https://models.vision-studio-x.com/models/sd-1-5",
+        "files": [
+          {
+            "name": "v1-5-pruned-emaonly.safetensors",
+            "sha256": "6ce0161689b3853acaa03779ec93eafe75a02f4ced659bee03f50797806fa2fa",
+            "bytes": 4265146304
+          }
+        ]
+      }
     },
     {
       "id": "sd-vae-ft-mse",

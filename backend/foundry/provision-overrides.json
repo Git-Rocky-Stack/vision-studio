@@ -13,8 +13,19 @@
     "ip-adapter-encoder-clip-vit-l": "mit",
     "annotator-openpose": "openpose-cmu-noncommercial"
   },
-  "mirrors": {},
-  "_mirrors_comment": "#34 PR4: optional per-model VS mirror (Cloudflare R2 fallback). Shape: {\"<id>\": {\"base_url\": \"https://models.vision-studio-x.com/<id>\", \"files\": [{\"name\": ..., \"sha256\": ..., \"bytes\": ...}]}}. Only redistributable auto-set members may carry one - the build refuses anything else. Populate at mirror go-live per docs/R2-DELIVERY.md with real uploaded-file hashes; never fabricate.",
+  "mirrors": {
+    "sd-1-5": {
+      "base_url": "https://models.vision-studio-x.com/models/sd-1-5",
+      "files": [
+        {
+          "name": "v1-5-pruned-emaonly.safetensors",
+          "sha256": "6ce0161689b3853acaa03779ec93eafe75a02f4ced659bee03f50797806fa2fa",
+          "bytes": 4265146304
+        }
+      ]
+    }
+  },
+  "_mirrors_comment": "#34 PR4: optional per-model VS mirror (Cloudflare R2 fallback). Shape: {\"<id>\": {\"base_url\": \"https://models.vision-studio-x.com/models/<id>\", \"files\": [{\"name\": ..., \"sha256\": ..., \"bytes\": ...}]}}. Only redistributable auto-set members may carry one - the build refuses anything else. Populate at mirror go-live per docs/R2-DELIVERY.md with real uploaded-file hashes; never fabricate.",
   "known_license_reasons": {
     "annotator-midas": "MiDaS depth (Intel ISL, isl-org/MiDaS) is MIT.",
     "annotator-normalbae": "Distributed via lllyasviel/Annotators under CreativeML-OpenRAIL-M; upstream Bae normal estimator is permissive.",
