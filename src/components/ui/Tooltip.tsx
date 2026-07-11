@@ -1,4 +1,4 @@
-import { useState, cloneElement, type ReactElement, useCallback } from 'react';
+import { useState, cloneElement, type HTMLProps, type ReactElement, type Ref } from 'react';
 import {
   useFloating,
   autoUpdate,
@@ -10,6 +10,7 @@ import {
   useDismiss,
   useRole,
   useInteractions,
+  useMergeRefs,
   FloatingPortal,
   type Placement,
 } from '@floating-ui/react';
@@ -51,31 +52,22 @@ export function Tooltip({
     role,
   ]);
 
-  // Keyboard trigger for tooltip (Enter/Space to toggle)
-  const handleReferenceKeyDown = useCallback(
-    (event: React.KeyboardEvent) => {
-      if (event.key === 'Enter' || event.key === ' ') {
-        event.preventDefault();
-        setIsOpen((prev) => !prev);
-      }
-      if (event.key === 'Escape') {
-        setIsOpen(false);
-      }
-    },
-    []
-  );
+  // WAI-ARIA tooltip pattern: open on focus/hover, dismiss on blur/Escape
+  // (useFocus/useHover/useDismiss above). Enter and Space must stay with the
+  // wrapped control - capturing them breaks keyboard activation of every
+  // tooltip-wrapped button. getReferenceProps composes the trigger's own
+  // handlers with the tooltip's instead of clobbering them.
+  const triggerRef = useMergeRefs([
+    refs.setReference,
+    children.props.ref as Ref<Element> | undefined,
+  ]);
 
   return (
     <>
-      {cloneElement(children, {
-        ref: refs.setReference,
-        ...getReferenceProps(),
-        onKeyDown: (event: React.KeyboardEvent) => {
-          (getReferenceProps().onKeyDown as ((e: React.KeyboardEvent) => void) | undefined)?.(event);
-          handleReferenceKeyDown(event);
-          (children.props.onKeyDown as ((e: React.KeyboardEvent) => void) | undefined)?.(event);
-        },
-      })}
+      {cloneElement(
+        children,
+        getReferenceProps({ ref: triggerRef, ...children.props } as HTMLProps<Element>)
+      )}
       <FloatingPortal>
         <AnimatePresence>
           {isOpen && (

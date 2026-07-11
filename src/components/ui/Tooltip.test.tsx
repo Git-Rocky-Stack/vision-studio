@@ -1,4 +1,4 @@
-import { describe, expect, it, afterEach } from 'vitest';
+import { describe, expect, it, afterEach, vi } from 'vitest';
 import { render, screen, waitFor, cleanup } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Tooltip } from './Tooltip';
@@ -71,7 +71,8 @@ describe('Tooltip', () => {
         </Tooltip>
       );
 
-      await user.click(screen.getByRole('button'));
+      await user.tab();
+      expect(screen.getByRole('button')).toHaveFocus();
       await waitFor(() => {
         expect(screen.getByText('Helpful info')).toBeInTheDocument();
       });
@@ -134,38 +135,52 @@ describe('Tooltip', () => {
   });
 
   describe('keyboard interaction', () => {
-    it('Enter key toggles tooltip', async () => {
+    // WAI-ARIA tooltip pattern: Enter/Space belong to the wrapped control.
+    // The tooltip must never capture them, or keyboard users lose activation
+    // of every tooltip-wrapped button (e.g. the NavBar workspace tabs).
+    it('Enter activates the wrapped control instead of being captured', async () => {
       const user = userEvent.setup();
+      const onActivate = vi.fn();
       render(
         <Tooltip content="Helpful info" delay={0}>
-          <button>Trigger me</button>
+          <button onClick={onActivate}>Trigger me</button>
         </Tooltip>
       );
 
-      const button = screen.getByRole('button');
-      button.focus();
+      await user.tab();
       await user.keyboard('{Enter}');
 
-      await waitFor(() => {
-        expect(screen.getByText('Helpful info')).toBeInTheDocument();
-      });
+      expect(onActivate).toHaveBeenCalledTimes(1);
     });
 
-    it('Space key toggles tooltip', async () => {
+    it('Space activates the wrapped control instead of being captured', async () => {
       const user = userEvent.setup();
+      const onActivate = vi.fn();
       render(
         <Tooltip content="Helpful info" delay={0}>
-          <button>Trigger me</button>
+          <button onClick={onActivate}>Trigger me</button>
         </Tooltip>
       );
 
-      const button = screen.getByRole('button');
-      button.focus();
+      await user.tab();
       await user.keyboard(' ');
 
-      await waitFor(() => {
-        expect(screen.getByText('Helpful info')).toBeInTheDocument();
-      });
+      expect(onActivate).toHaveBeenCalledTimes(1);
+    });
+
+    it('preserves the wrapped control keyboard handlers', async () => {
+      const user = userEvent.setup();
+      const onKeyDown = vi.fn();
+      render(
+        <Tooltip content="Helpful info" delay={0}>
+          <button onKeyDown={onKeyDown}>Trigger me</button>
+        </Tooltip>
+      );
+
+      await user.tab();
+      await user.keyboard('{ArrowDown}');
+
+      expect(onKeyDown).toHaveBeenCalledTimes(1);
     });
 
     it('Escape key closes tooltip', async () => {
