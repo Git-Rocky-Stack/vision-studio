@@ -411,7 +411,7 @@ Mockups, examples, or references.
 ### Where to Report
 
 - **Bugs** - [GitHub Issues](https://github.com/Git-Rocky-Stack/vision-studio/issues)
-- **Security** - Email: security@visionstudio.app (do not use public issues)
+- **Security** - Email: security@vision-studio-x.com (do not use public issues)
 - **Questions** - [Discussions](https://github.com/Git-Rocky-Stack/vision-studio/discussions)
 
 ---

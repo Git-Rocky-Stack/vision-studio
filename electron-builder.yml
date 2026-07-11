@@ -132,12 +132,12 @@ linux:
 # =============================================================================
 # GitHub caps release assets at 2 GB - the heavy installer cannot ship there.
 # latest.yml + installer + blockmap are published to R2 (scripts/publish-r2.cjs,
-# binaries first, feed last) behind the updates.visionstudio.app custom domain.
+# binaries first, feed last) behind the updates.vision-studio-x.com custom domain.
 # R2/S3 serve a single range per request, so multi-range differential
 # downloads must be disabled or blockmap updates fail. Auto-update installs
 # only signed builds (win.verifyUpdateCodeSignature) - see docs/R2-DELIVERY.md
 # for the signing prerequisite before the feed goes live.
 publish:
   provider: generic
-  url: https://updates.visionstudio.app/win/
+  url: https://updates.vision-studio-x.com/win/
   useMultipleRangeRequest: false

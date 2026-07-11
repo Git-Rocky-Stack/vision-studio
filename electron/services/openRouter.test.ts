@@ -15,13 +15,13 @@ describe('createOpenRouterService', () => {
 
     const service = createOpenRouterService({
       axiosInstance,
-      appReferer: 'https://visionstudio.app',
+      appReferer: 'https://vision-studio-x.com',
       appTitle: 'Vision Studio',
     });
     await service.getKeyInfo('sk-or-v1-test-key');
 
     const headers = axiosInstance.get.mock.calls[0][1].headers;
-    expect(headers['HTTP-Referer']).toBe('https://visionstudio.app');
+    expect(headers['HTTP-Referer']).toBe('https://vision-studio-x.com');
     expect(headers['X-Title']).toBe('Vision Studio');
     expect(headers['X-OpenRouter-Title']).toBeUndefined();
   });

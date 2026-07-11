@@ -149,7 +149,7 @@ _MIRROR_CATALOG = {
 }
 
 _GOOD_MIRROR = {
-    "base_url": "https://models.visionstudio.app/sd-1-5",
+    "base_url": "https://models.vision-studio-x.com/sd-1-5",
     "files": [
         {
             "name": "v1-5-pruned-emaonly.safetensors",
@@ -165,7 +165,7 @@ def test_mirror_stanza_is_emitted_verbatim_for_a_redistributable_entry():
         _MIRROR_CATALOG, {"mirrors": {"sd-1-5": _GOOD_MIRROR}}
     )
     entry = next(e for e in manifest["auto_set"] if e["id"] == "sd-1-5")
-    assert entry["mirror"]["base_url"] == "https://models.visionstudio.app/sd-1-5"
+    assert entry["mirror"]["base_url"] == "https://models.vision-studio-x.com/sd-1-5"
     assert entry["mirror"]["files"] == _GOOD_MIRROR["files"]
 
 
@@ -186,7 +186,7 @@ def test_mirror_for_a_non_redistributable_model_is_refused():
 
 def test_mirror_file_without_sha256_is_refused():
     mirror = {
-        "base_url": "https://models.visionstudio.app/sd-1-5",
+        "base_url": "https://models.vision-studio-x.com/sd-1-5",
         "files": [{"name": "model.safetensors", "bytes": 10}],
     }
     with pytest.raises(ValueError, match="sha256"):
@@ -194,7 +194,7 @@ def test_mirror_file_without_sha256_is_refused():
 
 
 def test_mirror_base_url_must_be_https():
-    mirror = dict(_GOOD_MIRROR, base_url="http://models.visionstudio.app/sd-1-5")
+    mirror = dict(_GOOD_MIRROR, base_url="http://models.vision-studio-x.com/sd-1-5")
     with pytest.raises(ValueError, match="https"):
         build_provision_manifest(_MIRROR_CATALOG, {"mirrors": {"sd-1-5": mirror}})
 
@@ -202,7 +202,7 @@ def test_mirror_base_url_must_be_https():
 def test_mirror_file_names_refuse_traversal_and_absolute_paths():
     for name in ("../evil.bin", "/etc/passwd", "C:/evil.bin", "a\\b.bin"):
         mirror = {
-            "base_url": "https://models.visionstudio.app/sd-1-5",
+            "base_url": "https://models.vision-studio-x.com/sd-1-5",
             "files": [{"name": name, "sha256": "b" * 64, "bytes": 10}],
         }
         with pytest.raises(ValueError, match="file name"):
