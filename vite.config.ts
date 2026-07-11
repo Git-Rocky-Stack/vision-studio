@@ -56,7 +56,16 @@ export default defineConfig({
           build: {
             outDir: 'dist-electron',
             rollupOptions: {
-              external: ['electron', 'electron-store', 'bufferutil', 'utf-8-validate'],
+              external: [
+                'electron',
+                'electron-store',
+                // Main-process runtime dep (like electron-store): resolved
+                // from node_modules at runtime, packed by electron-builder.
+                // Inlining it breaks its own package.json/version resolution.
+                'electron-updater',
+                'bufferutil',
+                'utf-8-validate',
+              ],
               output: {
                 format: 'es',
                 entryFileNames: '[name].mjs',
