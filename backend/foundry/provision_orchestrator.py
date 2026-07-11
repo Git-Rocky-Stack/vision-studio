@@ -151,8 +151,10 @@ def model_rows(
     entries: List[Dict[str, Any]],
     jobs_by_id: Dict[str, Any],
     present_ids: Set[str],
+    formats_by_id: Optional[Dict[str, Optional[str]]] = None,
 ) -> List[Dict[str, Any]]:
     """Per-model status rows for the first-run screen."""
+    formats = formats_by_id or {}
     rows: List[Dict[str, Any]] = []
     for entry in entries:
         job = jobs_by_id.get(entry["id"])
@@ -162,6 +164,11 @@ def model_rows(
             "license": entry.get("license"),
             "attribution": entry.get("attribution"),
             "approx_bytes": int(entry.get("approx_bytes") or 0),
+            # Registry-known weight format (pickle/safetensors/onnx) so the
+            # first-run disclosure derives the informed-auto-consent list from
+            # data, and manifest 'gated' so HF-account needs surface pre-start.
+            "format": formats.get(entry["id"]),
+            "gated": bool(entry.get("gated", False)),
             "status": _status_for(entry, job, present_ids),
             "progress": round(_fraction_done(entry, job, present_ids), 6),
             "error": getattr(job, "error", None) if job is not None else None,
@@ -218,13 +225,21 @@ class ProvisionOrchestrator:
             if job.model_id in auto_ids
         }
 
+    def _formats_by_id(self) -> Dict[str, Optional[str]]:
+        formats: Dict[str, Optional[str]] = {}
+        for entry in self._entries:
+            record = self._registry.get_record(entry["id"]) or {}
+            formats[entry["id"]] = record.get("format")
+        return formats
+
     def status(self) -> Dict[str, Any]:
         present = self.present_ids()
         jobs = self._jobs_by_id()
         payload = aggregate(self._entries, jobs, present)
         payload["schema_version"] = SCHEMA
         payload["attribution"] = set_attribution(self._entries)
-        payload["models"] = model_rows(self._entries, jobs, present)
+        payload["models"] = model_rows(
+            self._entries, jobs, present, formats_by_id=self._formats_by_id())
         return payload
 
     def start(self, hf_token: Optional[str] = None, reverify: bool = False) -> Dict[str, Any]:

@@ -37,6 +37,7 @@ def _entry(model_id, approx_bytes=100, **kw):
         "license": kw.get("license"),
         "attribution": kw.get("attribution"),
         "artifact_type": kw.get("artifact_type", "checkpoint"),
+        "gated": kw.get("gated", False),
         "source": kw.get("source", {"kind": "hf", "repo_id": "o/r", "revision": "main"}),
     }
 
@@ -169,6 +170,24 @@ class ModelRowsTests(unittest.TestCase):
         self.assertEqual(po.set_attribution(entries), "Powered by Stability AI")
         self.assertIsNone(po.set_attribution([_entry("x")]))
 
+    def test_rows_carry_format_and_gated(self):
+        entries = [
+            _entry("edit-gfpgan-v14", gated=False),
+            _entry("sd3.5-large", gated=True),
+            _entry("plain"),
+        ]
+        formats = {"edit-gfpgan-v14": "pickle", "sd3.5-large": "safetensors"}
+        rows = {r["id"]: r for r in po.model_rows(entries, {}, set(), formats_by_id=formats)}
+        self.assertEqual(rows["edit-gfpgan-v14"]["format"], "pickle")
+        self.assertFalse(rows["edit-gfpgan-v14"]["gated"])
+        self.assertTrue(rows["sd3.5-large"]["gated"])
+        self.assertIsNone(rows["plain"]["format"])  # unknown format -> None
+
+    def test_rows_default_format_none_without_map(self):
+        rows = po.model_rows([_entry("a")], {}, set())
+        self.assertIsNone(rows[0]["format"])
+        self.assertFalse(rows[0]["gated"])
+
 
 # -- orchestration ----------------------------------------------------------
 
@@ -255,6 +274,14 @@ class OrchestratorTests(unittest.TestCase):
         orch.pause()
         paused = sorted(mid for (verb, mid, _t) in manager.calls if verb == "pause")
         self.assertEqual(paused, ["a", "b"])  # not the ready one
+
+    def test_status_rows_carry_registry_format(self):
+        entries = [_entry("edit-gfpgan-v14")]
+        records = {"edit-gfpgan-v14": {
+            "id": "edit-gfpgan-v14", "status": "not_found", "format": "pickle"}}
+        orch, *_ = self._orch(entries, records)
+        row = orch.status()["models"][0]
+        self.assertEqual(row["format"], "pickle")
 
     def test_status_payload_shape(self):
         entries = [_entry("a", 100, attribution="Powered by Stability AI"), _entry("b", 300)]
