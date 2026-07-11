@@ -7,7 +7,7 @@
 # For more info: https://www.electron.build/configuration/configuration
 # =============================================================================
 
-appId: com.visionstudio.app
+appId: com.vision-studio-x.app
 productName: Vision Studio
 copyright: Copyright © 2024 Vision Studio Team
 

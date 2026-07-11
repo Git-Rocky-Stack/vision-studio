@@ -184,8 +184,8 @@ parts:
 
 **Flatpak:**
 ```yaml
-# com.visionstudio.app.yml
-app-id: com.visionstudio.app
+# com.vision-studio-x.app.yml
+app-id: com.vision-studio-x.app
 runtime: org.freedesktop.Platform
 runtime-version: '23.08'
 sdk: org.freedesktop.Sdk

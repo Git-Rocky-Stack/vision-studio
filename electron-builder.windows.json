@@ -1,6 +1,6 @@
 {
   "$schema": "https://raw.githubusercontent.com/electron-userland/electron-builder/master/packages/app-builder-lib/scheme.json",
-  "appId": "com.visionstudio.app",
+  "appId": "com.vision-studio-x.app",
   "productName": "Vision Studio",
   "directories": {
     "output": "release",
