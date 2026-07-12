@@ -23,6 +23,11 @@ function createBaseImageLayer(imagePath: string, assetPath?: string | null): Lay
 export const editInitialState = {
   activeEditTool: 'move' as const,
   editLayers: [] as Layer[],
+  // #32: layer selection shared by EditCanvas, LayerPanel, and TextControls.
+  selectedEditLayerId: null as string | null,
+  // #32: intrinsic pixel size of the loaded edit image, recorded by EditCanvas
+  // so new text layers can be placed at the image center.
+  currentImageSize: null as { width: number; height: number } | null,
   editHistory: [] as EditHistoryEntry[],
   editHistoryIndex: -1,
   currentImage: null as string | null,
@@ -50,7 +55,12 @@ export function createEditActions(set: AppSet, _get: AppGet) {
     })),
     removeEditLayer: (id: string) => set((state) => ({
       editLayers: state.editLayers.filter((l) => l.id !== id),
+      // A removed layer must never stay selected (#32).
+      selectedEditLayerId: state.selectedEditLayerId === id ? null : state.selectedEditLayerId,
     })),
+    setSelectedEditLayerId: (id: string | null) => set({ selectedEditLayerId: id }),
+    setCurrentImageSize: (size: { width: number; height: number } | null) =>
+      set({ currentImageSize: size }),
     reorderEditLayers: (layerIds: string[]) => set((state) => {
       const layerMap = new Map(state.editLayers.map((l) => [l.id, l]));
       return {
@@ -84,6 +94,10 @@ export function createEditActions(set: AppSet, _get: AppGet) {
         currentImage: imagePath,
         currentImageAssetPath: assetPath ?? null,
         editLayers: imagePath ? [createBaseImageLayer(imagePath, assetPath)] : [],
+        // Layers were replaced, so the selection and the recorded intrinsic
+        // size belong to the old image (#32).
+        selectedEditLayerId: null,
+        currentImageSize: null,
         editHistory: [],
         editHistoryIndex: -1,
         imageAdjustments: { ...DEFAULT_ADJUSTMENTS },

@@ -410,6 +410,10 @@ export interface AppState {
   // ─── Edit Mode ──────────────────────────────────────────────────────────
   activeEditTool: EditTool;
   editLayers: Layer[];
+  /** #32: layer selection shared by EditCanvas, LayerPanel, and TextControls. */
+  selectedEditLayerId: string | null;
+  /** #32: intrinsic pixel size of the loaded edit image (text placement). */
+  currentImageSize: { width: number; height: number } | null;
   editHistory: EditHistoryEntry[];
   editHistoryIndex: number; // Current position in history (-1 = no history)
   currentImage: string | null;
@@ -838,6 +842,8 @@ export interface AppState {
   updateEditLayer: (id: string, updates: Partial<Layer>) => void;
   removeEditLayer: (id: string) => void;
   reorderEditLayers: (layerIds: string[]) => void;
+  setSelectedEditLayerId: (id: string | null) => void;
+  setCurrentImageSize: (size: { width: number; height: number } | null) => void;
   pushEditHistory: (entry: EditHistoryEntry) => void;
   undo: () => void;
   redo: () => void;

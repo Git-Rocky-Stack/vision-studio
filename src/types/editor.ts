@@ -15,6 +15,37 @@ export interface Layer {
   data: Record<string, any>;
 }
 
+/** Styling shared by every canvas text layer; also the panel's draft style. */
+export interface TextStyle {
+  fontFamily: string;
+  fontSize: number;
+  fontWeight: number;
+  italic: boolean;
+  underline: boolean;
+  align: 'left' | 'center' | 'right';
+  fill: string;
+  shadowEnabled: boolean;
+  shadowOffsetX: number;
+  shadowOffsetY: number;
+  shadowBlur: number;
+  shadowColor: string;
+  strokeEnabled: boolean;
+  strokeWidth: number;
+  strokeColor: string;
+  letterSpacing: number;
+  lineHeight: number;
+}
+
+/** `Layer.data` payload for `type: 'text'` layers (#32). */
+export interface TextLayerData extends TextStyle {
+  text: string;
+  x: number;
+  y: number;
+  rotation: number;
+  scaleX: number;
+  scaleY: number;
+}
+
 export interface EditHistoryEntry {
   id: string;
   action: string;

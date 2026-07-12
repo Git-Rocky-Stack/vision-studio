@@ -1,9 +1,20 @@
 import { useState, useRef, useEffect } from 'react';
 import { cn } from '@/utils/cn';
+import { useAppStore } from '@/store/appStore';
+import { useShallow } from 'zustand/react/shallow';
 import { Button } from '@/components/ui/Button';
 import { Slider } from '@/components/ui/Slider';
 import { Switch } from '@/components/ui/Switch';
 import { ColorPicker } from '@/components/edit/ColorPicker';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
+import {
+  CANVAS_TEXT_FONTS,
+  TEXT_LAYER_DEFAULT_STYLE,
+  createTextLayer,
+  isTextLayer,
+  textLayerName,
+} from '@/features/edit/textLayers';
+import type { TextStyle } from '@/types/editor';
 import {
   Type,
   AlignLeft,
@@ -17,19 +28,6 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-const FONTS = [
-  'DM Sans',
-  'Instrument Sans',
-  'JetBrains Mono',
-  'Playfair Display',
-  'Bebas Neue',
-  'Montserrat',
-  'Oswald',
-  'Roboto Slab',
-  'Merriweather',
-  'Fira Code',
-];
-
 const FONT_WEIGHTS = [
   { value: 300, label: 'Light' },
   { value: 400, label: 'Regular' },
@@ -38,33 +36,85 @@ const FONT_WEIGHTS = [
   { value: 700, label: 'Bold' },
 ];
 
+const DEFAULT_TEXT_CONTENT = 'New text';
+
 export function TextControls() {
-  const [fontFamily, setFontFamily] = useState('DM Sans');
-  const [fontSize, setFontSize] = useState(48);
-  const [fontWeight, setFontWeight] = useState(400);
-  const [isItalic, setIsItalic] = useState(false);
-  const [isUnderline, setIsUnderline] = useState(false);
-  const [textAlign, setTextAlign] = useState<'left' | 'center' | 'right'>('center');
-  const [textColor, setTextColor] = useState('#FFFFFF');
-  const [shadowEnabled, setShadowEnabled] = useState(false);
-  const [shadowOffsetX, setShadowOffsetX] = useState(2);
-  const [shadowOffsetY, setShadowOffsetY] = useState(2);
-  const [shadowBlur, setShadowBlur] = useState(4);
-  const [shadowColor, setShadowColor] = useState('#000000');
-  const [strokeEnabled, setStrokeEnabled] = useState(false);
-  const [strokeWidth, setStrokeWidth] = useState(1);
-  const [strokeColor, setStrokeColor] = useState('#000000');
-  const [letterSpacing, setLetterSpacing] = useState(0);
-  const [lineHeight, setLineHeight] = useState(1.4);
-  const [opacity, setOpacity] = useState(100);
-  const [hasSelection] = useState(false);
+  const {
+    editLayers,
+    selectedEditLayerId,
+    currentImageSize,
+    addEditLayer,
+    updateEditLayer,
+    removeEditLayer,
+    setSelectedEditLayerId,
+    pushEditHistory,
+  } = useAppStore(
+    useShallow((s) => ({
+      editLayers: s.editLayers,
+      selectedEditLayerId: s.selectedEditLayerId,
+      currentImageSize: s.currentImageSize,
+      addEditLayer: s.addEditLayer,
+      updateEditLayer: s.updateEditLayer,
+      removeEditLayer: s.removeEditLayer,
+      setSelectedEditLayerId: s.setSelectedEditLayerId,
+      pushEditHistory: s.pushEditHistory,
+    }))
+  );
+
+  const selectedLayer = editLayers.find((l) => l.id === selectedEditLayerId);
+  const selectedTextLayer = selectedLayer && isTextLayer(selectedLayer) ? selectedLayer : null;
+
+  // Draft style + content: seeds new layers, and mirrors the selected text
+  // layer so every control below writes through to it (#32).
+  const [style, setStyle] = useState<TextStyle>(TEXT_LAYER_DEFAULT_STYLE);
+  const [content, setContent] = useState('');
+  const [opacityPercent, setOpacityPercent] = useState(100);
 
   const [recentColors, setRecentColors] = useState<string[]>([]);
   const [showFontDropdown, setShowFontDropdown] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const fontDropdownRef = useRef<HTMLDivElement>(null);
 
+  // When the selection moves to a text layer, mirror its state in the panel.
+  const selectedTextLayerId = selectedTextLayer?.id ?? null;
+  useEffect(() => {
+    if (!selectedTextLayerId) return;
+    const layer = useAppStore.getState().editLayers.find((l) => l.id === selectedTextLayerId);
+    if (!layer || !isTextLayer(layer)) return;
+    const { text, x: _x, y: _y, rotation: _r, scaleX: _sx, scaleY: _sy, ...layerStyle } = layer.data;
+    setStyle(layerStyle);
+    setContent(text);
+    setOpacityPercent(Math.round(layer.opacity * 100));
+  }, [selectedTextLayerId]);
+
+  const applyStyle = (patch: Partial<TextStyle>) => {
+    setStyle((prev) => ({ ...prev, ...patch }));
+    if (selectedTextLayer) {
+      updateEditLayer(selectedTextLayer.id, {
+        data: { ...selectedTextLayer.data, ...patch },
+      });
+    }
+  };
+
+  const handleContentChange = (text: string) => {
+    setContent(text);
+    if (selectedTextLayer) {
+      updateEditLayer(selectedTextLayer.id, {
+        name: textLayerName(text),
+        data: { ...selectedTextLayer.data, text },
+      });
+    }
+  };
+
+  const handleOpacityChange = (value: number) => {
+    setOpacityPercent(value);
+    if (selectedTextLayer) {
+      updateEditLayer(selectedTextLayer.id, { opacity: value / 100 });
+    }
+  };
+
   const handleColorChange = (color: string) => {
-    setTextColor(color);
+    applyStyle({ fill: color });
     setRecentColors((prev) => {
       const filtered = prev.filter((c) => c !== color);
       return [color, ...filtered].slice(0, 8);
@@ -72,11 +122,31 @@ export function TextControls() {
   };
 
   const handleAddText = () => {
-    // Canvas text-layer integration is tracked post-3.1.0. Tracked: #32
+    const text = content.trim() ? content : DEFAULT_TEXT_CONTENT;
+    const position = currentImageSize
+      ? { x: currentImageSize.width / 2, y: currentImageSize.height / 2 }
+      : { x: 64, y: 64 };
+    const layer = createTextLayer({ text, position, style, opacity: opacityPercent / 100 });
+
+    addEditLayer(layer);
+    setSelectedEditLayerId(layer.id);
+    pushEditHistory({
+      id: crypto.randomUUID(),
+      action: `Add text layer "${layer.name}"`,
+      timestamp: new Date(),
+    });
   };
 
-  const handleDeleteSelected = () => {
-    // Canvas text-layer deletion is tracked post-3.1.0. Tracked: #32
+  const confirmDeleteSelected = () => {
+    if (!selectedTextLayer) return;
+    const { id, name } = selectedTextLayer;
+    removeEditLayer(id);
+    pushEditHistory({
+      id: crypto.randomUUID(),
+      action: `Delete text layer "${name}"`,
+      timestamp: new Date(),
+    });
+    setShowDeleteConfirm(false);
   };
 
   useEffect(() => {
@@ -90,12 +160,35 @@ export function TextControls() {
     return () => document.removeEventListener('mousedown', handleClick);
   }, [showFontDropdown]);
 
+  const hasSelection = Boolean(selectedTextLayer);
+
   return (
     <div className="space-y-4">
       {/* Header */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 min-w-0">
         <Type className="w-3.5 h-3.5 text-accent-primary" />
         <span className="text-label text-text-primary">Text</span>
+        {selectedTextLayer && (
+          <span className="data-mono text-text-muted truncate">
+            {selectedTextLayer.name}
+          </span>
+        )}
+      </div>
+
+      {/* Content */}
+      <div className="space-y-1.5">
+        <label className="text-label text-text-body" htmlFor="text-layer-content">
+          Content
+        </label>
+        <textarea
+          id="text-layer-content"
+          aria-label="Text content"
+          value={content}
+          onChange={(e) => handleContentChange(e.target.value)}
+          placeholder={DEFAULT_TEXT_CONTENT}
+          rows={2}
+          className="w-full bg-elevated border border-border rounded-md px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent-primary focus:outline-none transition-all resize-y"
+        />
       </div>
 
       {/* Font Family */}
@@ -107,8 +200,8 @@ export function TextControls() {
           aria-haspopup="listbox"
           className="w-full flex items-center justify-between px-3 py-2 rounded-md bg-elevated border border-border hover:border-border-hover transition-all text-left"
         >
-          <span className="text-sm text-text-primary" style={{ fontFamily }}>
-            {fontFamily}
+          <span className="text-sm text-text-primary" style={{ fontFamily: style.fontFamily }}>
+            {style.fontFamily}
           </span>
           <ChevronDown className={cn('w-3.5 h-3.5 text-text-muted transition-transform', showFontDropdown && 'rotate-180')} />
         </button>
@@ -122,18 +215,18 @@ export function TextControls() {
               exit={{ opacity: 0, y: -4 }}
               className="absolute z-50 left-0 right-0 top-full mt-1 bg-elevated border border-border rounded-xl shadow-cinematic overflow-hidden max-h-48 overflow-y-auto"
             >
-              {FONTS.map((font) => (
+              {CANVAS_TEXT_FONTS.map((font) => (
                 <button
                   key={font}
                   role="option"
-                  aria-selected={fontFamily === font}
+                  aria-selected={style.fontFamily === font}
                   onClick={() => {
-                    setFontFamily(font);
+                    applyStyle({ fontFamily: font });
                     setShowFontDropdown(false);
                   }}
                   className={cn(
                     'w-full px-3 py-2 text-left text-sm transition-all',
-                    fontFamily === font
+                    style.fontFamily === font
                       ? 'bg-accent-primary-muted text-accent-primary'
                       : 'text-text-primary hover:bg-surface'
                   )}
@@ -153,7 +246,7 @@ export function TextControls() {
           <label className="text-label text-text-body mb-1 block">Size</label>
           <div className="flex items-center gap-1">
             <button
-              onClick={() => setFontSize(Math.max(12, fontSize - 2))}
+              onClick={() => applyStyle({ fontSize: Math.max(12, style.fontSize - 2) })}
               aria-label="Decrease font size"
               className="p-2 rounded bg-elevated border border-border text-text-body hover:text-text-primary transition-all text-xs"
             >
@@ -161,12 +254,15 @@ export function TextControls() {
             </button>
             <input
               type="number"
-              value={fontSize}
-              onChange={(e) => setFontSize(Math.max(12, Math.min(200, Number(e.target.value))))}
+              value={style.fontSize}
+              aria-label="Font size"
+              onChange={(e) =>
+                applyStyle({ fontSize: Math.max(12, Math.min(200, Number(e.target.value))) })
+              }
               className="w-full bg-elevated border border-border rounded-md px-2 py-2 data-mono text-text-primary text-center focus:border-accent-primary transition-all"
             />
             <button
-              onClick={() => setFontSize(Math.min(200, fontSize + 2))}
+              onClick={() => applyStyle({ fontSize: Math.min(200, style.fontSize + 2) })}
               aria-label="Increase font size"
               className="p-2 rounded bg-elevated border border-border text-text-body hover:text-text-primary transition-all text-xs"
             >
@@ -177,8 +273,9 @@ export function TextControls() {
         <div>
           <label className="text-label text-text-body mb-1 block">Weight</label>
           <select
-            value={fontWeight}
-            onChange={(e) => setFontWeight(Number(e.target.value))}
+            value={style.fontWeight}
+            aria-label="Font weight"
+            onChange={(e) => applyStyle({ fontWeight: Number(e.target.value) })}
             className="w-full bg-elevated border border-border rounded-md px-2 py-2 text-sm text-text-primary focus:border-accent-primary transition-all"
           >
             {FONT_WEIGHTS.map((w) => (
@@ -193,10 +290,11 @@ export function TextControls() {
       {/* Style Toggles */}
       <div className="flex gap-2">
         <button
-          onClick={() => setIsItalic(!isItalic)}
+          onClick={() => applyStyle({ italic: !style.italic })}
+          aria-pressed={style.italic}
           className={cn(
             'flex-1 flex items-center justify-center gap-2 py-2 rounded-md border text-xs transition-all',
-            isItalic
+            style.italic
               ? 'border-accent-primary-border bg-accent-primary-muted text-accent-primary'
               : 'border-border bg-elevated text-text-body hover:border-border-hover'
           )}
@@ -205,10 +303,11 @@ export function TextControls() {
           Italic
         </button>
         <button
-          onClick={() => setIsUnderline(!isUnderline)}
+          onClick={() => applyStyle({ underline: !style.underline })}
+          aria-pressed={style.underline}
           className={cn(
             'flex-1 flex items-center justify-center gap-2 py-2 rounded-md border text-xs transition-all',
-            isUnderline
+            style.underline
               ? 'border-accent-primary-border bg-accent-primary-muted text-accent-primary'
               : 'border-border bg-elevated text-text-body hover:border-border-hover'
           )}
@@ -229,10 +328,12 @@ export function TextControls() {
           ] as const).map(({ id, icon: Icon }) => (
             <button
               key={id}
-              onClick={() => setTextAlign(id)}
+              onClick={() => applyStyle({ align: id })}
+              aria-label={`Align ${id}`}
+              aria-pressed={style.align === id}
               className={cn(
                 'flex-1 flex items-center justify-center py-2 rounded-md border transition-all',
-                textAlign === id
+                style.align === id
                   ? 'border-accent-primary-border bg-accent-primary-muted text-accent-primary'
                   : 'border-border bg-elevated text-text-body hover:border-border-hover'
               )}
@@ -247,7 +348,7 @@ export function TextControls() {
       <div className="space-y-1.5">
         <label className="text-label text-text-body">Color</label>
         <ColorPicker
-          value={textColor}
+          value={style.fill}
           onChange={handleColorChange}
           recentColors={recentColors}
         />
@@ -259,18 +360,18 @@ export function TextControls() {
           <span className="text-label text-text-body">Text Shadow</span>
           <Switch
             label="Text shadow"
-            checked={shadowEnabled}
-            onChange={setShadowEnabled}
+            checked={style.shadowEnabled}
+            onChange={(checked) => applyStyle({ shadowEnabled: checked })}
           />
         </div>
-        {shadowEnabled && (
+        {style.shadowEnabled && (
           <div className="space-y-3 pl-1">
-            <Slider label="X Offset" value={shadowOffsetX} min={-20} max={20} onChange={setShadowOffsetX} />
-            <Slider label="Y Offset" value={shadowOffsetY} min={-20} max={20} onChange={setShadowOffsetY} />
-            <Slider label="Blur" value={shadowBlur} min={0} max={30} onChange={setShadowBlur} />
+            <Slider label="X Offset" value={style.shadowOffsetX} min={-20} max={20} onChange={(v) => applyStyle({ shadowOffsetX: v })} />
+            <Slider label="Y Offset" value={style.shadowOffsetY} min={-20} max={20} onChange={(v) => applyStyle({ shadowOffsetY: v })} />
+            <Slider label="Blur" value={style.shadowBlur} min={0} max={30} onChange={(v) => applyStyle({ shadowBlur: v })} />
             <div className="space-y-1">
               <label className="text-label text-text-body">Shadow Color</label>
-              <ColorPicker value={shadowColor} onChange={setShadowColor} recentColors={recentColors} />
+              <ColorPicker value={style.shadowColor} onChange={(color) => applyStyle({ shadowColor: color })} recentColors={recentColors} />
             </div>
           </div>
         )}
@@ -282,16 +383,16 @@ export function TextControls() {
           <span className="text-label text-text-body">Text Stroke</span>
           <Switch
             label="Text stroke"
-            checked={strokeEnabled}
-            onChange={setStrokeEnabled}
+            checked={style.strokeEnabled}
+            onChange={(checked) => applyStyle({ strokeEnabled: checked })}
           />
         </div>
-        {strokeEnabled && (
+        {style.strokeEnabled && (
           <div className="space-y-3 pl-1">
-            <Slider label="Width" value={strokeWidth} min={0} max={10} step={0.5} onChange={setStrokeWidth} />
+            <Slider label="Width" value={style.strokeWidth} min={0} max={10} step={0.5} onChange={(v) => applyStyle({ strokeWidth: v })} />
             <div className="space-y-1">
               <label className="text-label text-text-body">Stroke Color</label>
-              <ColorPicker value={strokeColor} onChange={setStrokeColor} recentColors={recentColors} />
+              <ColorPicker value={style.strokeColor} onChange={(color) => applyStyle({ strokeColor: color })} recentColors={recentColors} />
             </div>
           </div>
         )}
@@ -299,9 +400,9 @@ export function TextControls() {
 
       {/* Spacing */}
       <div className="space-y-3 border-t border-border pt-3">
-        <Slider label="Letter Spacing" value={letterSpacing} min={-5} max={20} onChange={setLetterSpacing} />
-        <Slider label="Line Height" value={lineHeight} min={0.8} max={3} step={0.1} onChange={setLineHeight} />
-        <Slider label="Opacity" value={opacity} min={0} max={100} onChange={setOpacity} valueFormatter={(v) => `${v}%`} />
+        <Slider label="Letter Spacing" value={style.letterSpacing} min={-5} max={20} onChange={(v) => applyStyle({ letterSpacing: v })} />
+        <Slider label="Line Height" value={style.lineHeight} min={0.8} max={3} step={0.1} onChange={(v) => applyStyle({ lineHeight: v })} />
+        <Slider label="Opacity" value={opacityPercent} min={0} max={100} onChange={handleOpacityChange} valueFormatter={(v) => `${v}%`} />
       </div>
 
       {/* Action Buttons */}
@@ -310,11 +411,21 @@ export function TextControls() {
           Add Text
         </Button>
         {hasSelection && (
-          <Button variant="danger" size="sm" icon={Trash2} onClick={handleDeleteSelected}>
+          <Button variant="danger" size="sm" icon={Trash2} onClick={() => setShowDeleteConfirm(true)}>
             Delete
           </Button>
         )}
       </div>
+
+      <ConfirmDialog
+        open={showDeleteConfirm}
+        title="Delete Text Layer"
+        message={`Are you sure you want to delete "${selectedTextLayer?.name ?? 'this text layer'}"?`}
+        confirmLabel="Delete Text Layer"
+        variant="danger"
+        onConfirm={confirmDeleteSelected}
+        onCancel={() => setShowDeleteConfirm(false)}
+      />
     </div>
   );
 }
