@@ -76,6 +76,213 @@ describe('resolveWorkflowGenerationRequest', () => {
   });
 });
 
+describe('resolveWorkflowGenerationRequest LoRA chains (#43)', () => {
+  const INSTALLED_MODELS = [
+    {
+      id: 'flux-dev',
+      name: 'FLUX.1 dev',
+      artifact_type: 'checkpoint',
+      base_architecture: 'flux',
+      locations: ['C:/models/checkpoints/flux-dev.safetensors'],
+    },
+    {
+      id: 'flux-ink',
+      name: 'Flux Ink',
+      artifact_type: 'lora',
+      base_architecture: 'flux',
+      locations: ['C:/models/loras/flux-ink.safetensors'],
+    },
+    {
+      id: 'flux-glow',
+      name: 'Flux Glow',
+      artifact_type: 'lora',
+      base_architecture: 'flux',
+      locations: ['C:/models/loras/flux-glow.safetensors'],
+    },
+    {
+      id: 'detail-tweaker',
+      name: 'Detail Tweaker',
+      artifact_type: 'lora',
+      base_architecture: 'sdxl',
+      locations: ['C:/models/loras/detail-tweaker-xl.safetensors'],
+    },
+  ];
+
+  it('resolves the checkpoint through a LoRA chain and maps the selection to the installed record', () => {
+    const workflow = makeWorkflowWithLoraChain([
+      { id: 'lora-1', lora_name: 'flux-ink.safetensors', strength_model: 0.8 },
+    ]);
+
+    const result = resolveWorkflowGenerationRequest(
+      workflow,
+      makeWorkflowExecutionContext({ availableModels: INSTALLED_MODELS }),
+    );
+
+    expect(result.issues.filter((issue) => issue.severity === 'error')).toEqual([]);
+    expect(result.request?.model).toBe('flux-dev.safetensors');
+    expect(result.request?.loras).toEqual([{ id: 'flux-ink', weight: 0.8 }]);
+  });
+
+  it('stacks chained LoRAs checkpoint-first', () => {
+    const workflow = makeWorkflowWithLoraChain([
+      { id: 'lora-1', lora_name: 'flux-ink.safetensors', strength_model: 0.8 },
+      { id: 'lora-2', lora_name: 'flux-glow.safetensors', strength_model: 1.2 },
+    ]);
+
+    const result = resolveWorkflowGenerationRequest(
+      workflow,
+      makeWorkflowExecutionContext({ availableModels: INSTALLED_MODELS }),
+    );
+
+    expect(result.request?.loras).toEqual([
+      { id: 'flux-ink', weight: 0.8 },
+      { id: 'flux-glow', weight: 1.2 },
+    ]);
+  });
+
+  it('defaults the strength to 1 when the node has none', () => {
+    const workflow = makeWorkflowWithLoraChain([{ id: 'lora-1', lora_name: 'flux-ink.safetensors' }]);
+
+    const result = resolveWorkflowGenerationRequest(
+      workflow,
+      makeWorkflowExecutionContext({ availableModels: INSTALLED_MODELS }),
+    );
+
+    expect(result.request?.loras).toEqual([{ id: 'flux-ink', weight: 1 }]);
+  });
+
+  it('errors when a LoRA Loader has no selection', () => {
+    const workflow = makeWorkflowWithLoraChain([{ id: 'lora-1', lora_name: '' }]);
+
+    const result = resolveWorkflowGenerationRequest(
+      workflow,
+      makeWorkflowExecutionContext({ availableModels: INSTALLED_MODELS }),
+    );
+
+    expect(result.request).toBeNull();
+    expect(result.issues).toContainEqual(
+      expect.objectContaining({ severity: 'error', code: 'missing-lora', nodeId: 'lora-1' }),
+    );
+  });
+
+  it('errors when the selection is not in the installed library', () => {
+    const workflow = makeWorkflowWithLoraChain([
+      { id: 'lora-1', lora_name: 'never-installed.safetensors' },
+    ]);
+
+    const result = resolveWorkflowGenerationRequest(
+      workflow,
+      makeWorkflowExecutionContext({ availableModels: INSTALLED_MODELS }),
+    );
+
+    expect(result.request).toBeNull();
+    expect(result.issues).toContainEqual(
+      expect.objectContaining({ severity: 'error', code: 'unknown-lora', nodeId: 'lora-1' }),
+    );
+  });
+
+  it('errors when the LoRA family cannot load on the checkpoint family', () => {
+    const workflow = makeWorkflowWithLoraChain([
+      { id: 'lora-1', lora_name: 'detail-tweaker-xl.safetensors' },
+    ]);
+
+    const result = resolveWorkflowGenerationRequest(
+      workflow,
+      makeWorkflowExecutionContext({ availableModels: INSTALLED_MODELS }),
+    );
+
+    expect(result.request).toBeNull();
+    expect(result.issues).toContainEqual(
+      expect.objectContaining({ severity: 'error', code: 'incompatible-lora', nodeId: 'lora-1' }),
+    );
+  });
+
+  it('errors on a non-numeric strength', () => {
+    const workflow = makeWorkflowWithLoraChain([
+      { id: 'lora-1', lora_name: 'flux-ink.safetensors', strength_model: 'strong' },
+    ]);
+
+    const result = resolveWorkflowGenerationRequest(
+      workflow,
+      makeWorkflowExecutionContext({ availableModels: INSTALLED_MODELS }),
+    );
+
+    expect(result.request).toBeNull();
+    expect(result.issues).toContainEqual(
+      expect.objectContaining({ severity: 'error', code: 'invalid-lora-strength', nodeId: 'lora-1' }),
+    );
+  });
+
+  it('skips the compatibility check when the checkpoint is not an indexed record', () => {
+    const workflow = makeWorkflowWithLoraChain(
+      [{ id: 'lora-1', lora_name: 'flux-ink.safetensors', strength_model: 0.5 }],
+      'mystery-checkpoint.safetensors',
+    );
+
+    const result = resolveWorkflowGenerationRequest(
+      workflow,
+      makeWorkflowExecutionContext({ availableModels: INSTALLED_MODELS }),
+    );
+
+    expect(result.issues.filter((issue) => issue.severity === 'error')).toEqual([]);
+    expect(result.request?.loras).toEqual([{ id: 'flux-ink', weight: 0.5 }]);
+  });
+
+  it('omits loras entirely for graphs without LoRA Loader nodes', () => {
+    const result = resolveWorkflowGenerationRequest(
+      makeWorkflow(),
+      makeWorkflowExecutionContext({ availableModels: INSTALLED_MODELS }),
+    );
+
+    expect(result.request?.loras).toBeUndefined();
+  });
+});
+
+/**
+ * Builds checkpoint -> lora-1 [-> lora-2] -> sampler.model, mirroring how
+ * ComfyUI stacks LoraLoader nodes between the loader and the sampler.
+ */
+function makeWorkflowWithLoraChain(
+  loraNodes: Array<{ id: string; lora_name: string; strength_model?: string | number }>,
+  ckptName = 'flux-dev.safetensors',
+): WorkflowRecord {
+  const graph = makeBaseGraph();
+  const nodes = { ...graph.nodes };
+
+  nodes.model = {
+    ...nodes.model,
+    inputs: { ckpt_name: { kind: 'literal', value: ckptName } },
+  };
+
+  let upstreamId = 'model';
+  for (const lora of loraNodes) {
+    nodes[lora.id] = {
+      id: lora.id,
+      classType: 'LoraLoader',
+      label: 'LoRA Loader',
+      position: { x: 200, y: 300 },
+      inputs: {
+        model: { kind: 'link', nodeId: upstreamId, output: 'MODEL' },
+        lora_name: { kind: 'literal', value: lora.lora_name },
+        ...(lora.strength_model !== undefined
+          ? { strength_model: { kind: 'literal', value: lora.strength_model } }
+          : {}),
+      },
+    };
+    upstreamId = lora.id;
+  }
+
+  nodes.sampler = {
+    ...nodes.sampler,
+    inputs: {
+      ...nodes.sampler.inputs,
+      model: { kind: 'link', nodeId: upstreamId, output: 'MODEL' },
+    },
+  };
+
+  return makeWorkflow({ nodes });
+}
+
 function makeWorkflow(graphOverride?: Partial<WorkflowGraph>): WorkflowRecord {
   const graph = makeBaseGraph();
   return {

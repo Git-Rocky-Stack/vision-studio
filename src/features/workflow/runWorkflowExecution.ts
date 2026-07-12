@@ -391,6 +391,16 @@ function applyWorkflowExecutionRoute({
   }
 
   if (hostedRoute) {
+    if (nextRequest?.loras?.length) {
+      // #43/#42: hosted still-image routes are prompt-only; no provider has a
+      // documented adapter contract, so LoRA-bearing runs stay Local (M6 gate).
+      const providerName = stillImageRoute.provider === 'openrouter' ? 'OpenRouter' : 'HuggingFace';
+      nextIssues = appendWorkflowIssue(nextIssues, {
+        severity: 'error',
+        code: 'provider-config',
+        message: `${providerName} still-image routing supports prompt-only generations. Switch the active account back to Local to use LoRAs.`,
+      });
+    }
     if (stillImageRoute.error) {
       // Misconfigured hosted route: surface the config error instead of
       // letting an unresolved/local model id reach the hosted dispatcher.
