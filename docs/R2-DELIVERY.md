@@ -25,7 +25,7 @@ mac/                                  <- macOS feed + artifacts (Apple Silicon o
   Vision-Studio-<ver>-arm64.zip       <- electron-updater updates from the zip
   latest-mac.yml                      <- feed (uploaded LAST)
 linux/                                <- Linux feed + artifacts
-  Vision-Studio-<ver>-x64.AppImage
+  Vision-Studio-<ver>-x86_64.AppImage <- electron-builder renders ${arch} as x86_64 for AppImage
   latest-linux.yml                    <- feed (uploaded LAST)
 models/<model-id>/<file-path>         <- VS mirror weights (see section 5)
 ```

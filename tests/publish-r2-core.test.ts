@@ -77,12 +77,14 @@ describe('publish-r2 core', () => {
   });
 
   it('plans the Linux release set (AppImage + feed)', () => {
-    const linuxFiles = ['Vision-Studio-3.1.1-x64.AppImage', 'latest-linux.yml'];
+    // Real artifact name: electron-builder renders ${arch} as x86_64 for
+    // the AppImage target (AppImage naming convention), not x64.
+    const linuxFiles = ['Vision-Studio-3.1.1-x86_64.AppImage', 'latest-linux.yml'];
     const plan = orderForFeedSafety(
       planUploads(linuxFiles, { dir: 'release', prefix: 'linux/' }),
     );
     expect(plan.map((u) => u.key)).toEqual([
-      'linux/Vision-Studio-3.1.1-x64.AppImage',
+      'linux/Vision-Studio-3.1.1-x86_64.AppImage',
       'linux/latest-linux.yml',
     ]);
     expect(plan[0].contentType).toBe('application/octet-stream');
