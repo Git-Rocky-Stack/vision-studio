@@ -30,6 +30,7 @@ import {
   Copy,
   Trash2,
   Layers,
+  Type,
 } from 'lucide-react';
 import type { Layer } from '@/types/editor';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
@@ -163,6 +164,10 @@ function SortableLayerRow({
             className="w-full h-full object-cover"
             fallbackClassName="w-full h-full"
           />
+        ) : layer.type === 'text' ? (
+          <div className="w-full h-full flex items-center justify-center bg-elevated">
+            <Type className="w-3 h-3 text-text-muted" />
+          </div>
         ) : (
           <div className="w-full h-full bg-gradient-to-br from-elevated to-surface" />
         )}
@@ -228,6 +233,8 @@ function SortableLayerRow({
 export function LayerPanel() {
   const {
     editLayers,
+    selectedLayerId,
+    setSelectedLayerId,
     addEditLayer,
     updateEditLayer,
     removeEditLayer,
@@ -235,6 +242,9 @@ export function LayerPanel() {
   } = useAppStore(
     useShallow((s) => ({
       editLayers: s.editLayers,
+      // #32: selection is shared with EditCanvas and TextControls.
+      selectedLayerId: s.selectedEditLayerId,
+      setSelectedLayerId: s.setSelectedEditLayerId,
       addEditLayer: s.addEditLayer,
       updateEditLayer: s.updateEditLayer,
       removeEditLayer: s.removeEditLayer,
@@ -242,7 +252,6 @@ export function LayerPanel() {
     }))
   );
 
-  const [selectedLayerId, setSelectedLayerId] = useState<string | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const sensors = useSensors(
@@ -303,8 +312,8 @@ export function LayerPanel() {
 
   const confirmDeleteLayer = () => {
     if (!selectedLayerId) return;
+    // removeEditLayer clears the shared selection for the removed layer (#32).
     removeEditLayer(selectedLayerId);
-    setSelectedLayerId(null);
     setShowDeleteConfirm(false);
   };
 

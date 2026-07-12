@@ -1,11 +1,12 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { Stage, Layer, Rect, Image as KonvaImage, Line, Transformer } from 'react-konva';
+import { Stage, Layer, Rect, Image as KonvaImage, Line, Text, Transformer } from 'react-konva';
 import { useAppStore } from '@/store/appStore';
 import { useShallow } from 'zustand/react/shallow';
 import { cn } from '@/utils/cn';
 import { RegionLockToolbar } from '@/components/edit/RegionLockToolbar';
 import { RegionMaskDrawer } from '@/components/edit/RegionMaskDrawer';
 import { CanvasControlLayerRail } from '@/components/canvas/CanvasControlLayerRail';
+import { isTextLayer, konvaBlendMode, konvaFontStyle } from '@/features/edit/textLayers';
 import type { RegionTool } from '@/components/edit/RegionLockToolbar';
 import type { RegionMask } from '@/types/project';
 import type Konva from 'konva';
@@ -27,6 +28,10 @@ export function EditCanvas() {
     activeEditTool,
     imageAdjustments,
     editLayers,
+    selectedEditLayerId,
+    setSelectedEditLayerId,
+    updateEditLayer,
+    setCurrentImageSize,
     regionMode,
     activeMaskTool,
     maskBrushSize,
@@ -44,6 +49,10 @@ export function EditCanvas() {
       activeEditTool: s.activeEditTool,
       imageAdjustments: s.imageAdjustments,
       editLayers: s.editLayers,
+      selectedEditLayerId: s.selectedEditLayerId,
+      setSelectedEditLayerId: s.setSelectedEditLayerId,
+      updateEditLayer: s.updateEditLayer,
+      setCurrentImageSize: s.setCurrentImageSize,
       regionMode: s.regionMode,
       activeMaskTool: s.activeMaskTool,
       maskBrushSize: s.maskBrushSize,
@@ -91,23 +100,29 @@ export function EditCanvas() {
     return () => observer.disconnect();
   }, []);
 
-  // Load image with cleanup and error handling
+  // Load image with cleanup and error handling. The intrinsic size is shared
+  // through the store so TextControls can center new text layers (#32).
   useEffect(() => {
     if (!currentImage) {
       setLoadedImage(null);
+      setCurrentImageSize(null);
       return;
     }
     let cancelled = false;
     const img = new window.Image();
     img.onload = () => {
-      if (!cancelled) setLoadedImage(img);
+      if (cancelled) return;
+      setLoadedImage(img);
+      setCurrentImageSize({ width: img.width, height: img.height });
     };
     img.onerror = () => {
-      if (!cancelled) setLoadedImage(null);
+      if (cancelled) return;
+      setLoadedImage(null);
+      setCurrentImageSize(null);
     };
     img.src = currentImage;
     return () => { cancelled = true; };
-  }, [currentImage]);
+  }, [currentImage, setCurrentImageSize]);
 
   // Fit image to container
   useEffect(() => {
@@ -122,14 +137,19 @@ export function EditCanvas() {
     });
   }, [loadedImage, containerSize]);
 
-  // Attach transformer to selected node
+  // Attach transformer to the selected node. Text layers select through the
+  // shared store id; the base image keeps its local id (#32). The rotate tool
+  // attaches too so its rotateEnabled handle is reachable.
+  const activeNodeId = selectedEditLayerId ?? selectedId;
   useEffect(() => {
     const transformer = transformerRef.current;
     const stage = stageRef.current;
     if (!transformer || !stage) return;
 
-    if (selectedId && (activeEditTool === 'move' || activeEditTool === 'scale')) {
-      const node = stage.findOne(`#${selectedId}`);
+    const transformTool =
+      activeEditTool === 'move' || activeEditTool === 'scale' || activeEditTool === 'rotate';
+    if (activeNodeId && transformTool) {
+      const node = stage.findOne(`#${activeNodeId}`);
       if (node) {
         transformer.nodes([node]);
         transformer.getLayer()?.batchDraw();
@@ -138,7 +158,7 @@ export function EditCanvas() {
     }
     transformer.nodes([]);
     transformer.getLayer()?.batchDraw();
-  }, [selectedId, activeEditTool]);
+  }, [activeNodeId, activeEditTool, editLayers]);
 
   // Wheel zoom
   const handleWheel = useCallback(
@@ -157,13 +177,14 @@ export function EditCanvas() {
     (e: Konva.KonvaEventObject<MouseEvent>) => {
       if (e.target === stageRef.current) {
         setSelectedId(null);
+        setSelectedEditLayerId(null);
       }
       if (activeEditTool === 'zoom') {
         const scaleBy = e.evt.shiftKey ? 0.9 : 1.15;
         setStageScale((s) => Math.max(0.1, Math.min(5, s * scaleBy)));
       }
     },
-    [activeEditTool]
+    [activeEditTool, setSelectedEditLayerId]
   );
 
   // Drawing handlers - use ref for in-progress line to avoid array copy on every mouse move
@@ -335,10 +356,78 @@ export function EditCanvas() {
                 draggable={
                   activeEditTool === 'move' || activeEditTool === 'scale'
                 }
-                onClick={() => setSelectedId('main-image')}
-                onTap={() => setSelectedId('main-image')}
+                onClick={() => {
+                  setSelectedId('main-image');
+                  setSelectedEditLayerId(null);
+                }}
+                onTap={() => {
+                  setSelectedId('main-image');
+                  setSelectedEditLayerId(null);
+                }}
               />
             )}
+          </Layer>
+
+          {/* Text layers (#32): rendered from the shared layer model. */}
+          <Layer>
+            {editLayers.filter(isTextLayer).filter((layer) => layer.visible).map((layer) => {
+              const selectText = () => {
+                setSelectedEditLayerId(layer.id);
+                setSelectedId(null);
+              };
+              const persistTransform = (e: Konva.KonvaEventObject<Event>) => {
+                const node = e.target;
+                updateEditLayer(layer.id, {
+                  data: {
+                    ...layer.data,
+                    x: node.x(),
+                    y: node.y(),
+                    rotation: node.rotation(),
+                    scaleX: node.scaleX(),
+                    scaleY: node.scaleY(),
+                  },
+                });
+              };
+              return (
+                <Text
+                  key={layer.id}
+                  id={layer.id}
+                  text={layer.data.text}
+                  x={layer.data.x}
+                  y={layer.data.y}
+                  rotation={layer.data.rotation}
+                  scaleX={layer.data.scaleX}
+                  scaleY={layer.data.scaleY}
+                  fontFamily={layer.data.fontFamily}
+                  fontSize={layer.data.fontSize}
+                  fontStyle={konvaFontStyle(layer.data)}
+                  textDecoration={layer.data.underline ? 'underline' : ''}
+                  align={layer.data.align}
+                  fill={layer.data.fill}
+                  letterSpacing={layer.data.letterSpacing}
+                  lineHeight={layer.data.lineHeight}
+                  opacity={layer.opacity}
+                  globalCompositeOperation={konvaBlendMode(layer.blendMode)}
+                  shadowEnabled={layer.data.shadowEnabled}
+                  shadowColor={layer.data.shadowColor}
+                  shadowBlur={layer.data.shadowBlur}
+                  shadowOffsetX={layer.data.shadowOffsetX}
+                  shadowOffsetY={layer.data.shadowOffsetY}
+                  strokeEnabled={layer.data.strokeEnabled}
+                  stroke={layer.data.strokeColor}
+                  strokeWidth={layer.data.strokeWidth}
+                  fillAfterStrokeEnabled
+                  listening={!layer.locked}
+                  draggable={
+                    !layer.locked && (activeEditTool === 'move' || activeEditTool === 'scale')
+                  }
+                  onClick={selectText}
+                  onTap={selectText}
+                  onDragEnd={persistTransform}
+                  onTransformEnd={persistTransform}
+                />
+              );
+            })}
           </Layer>
 
           {/* Drawing layer */}
