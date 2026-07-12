@@ -18,28 +18,30 @@ const fs = require('fs');
 const path = require('path');
 
 function assertNativeBackend(platformName = process.platform) {
-  const exeName =
-    platformName === 'win32' || platformName === 'windows'
-      ? 'VisionStudio-Backend.exe'
-      : 'VisionStudio-Backend';
+  const isWindows = platformName === 'win32' || platformName === 'windows';
+  const isMac = platformName === 'darwin' || platformName === 'mac';
+  const exeName = isWindows ? 'VisionStudio-Backend.exe' : 'VisionStudio-Backend';
   const bundlePath = path.join(__dirname, '..', 'resources', exeName);
 
   if (!fs.existsSync(bundlePath)) {
     throw new Error(
       `Native backend bundle missing: ${bundlePath}\n` +
         'The installer must ship the full PyInstaller backend (PyTorch, ' +
-        'diffusers, CUDA) - slim/frontend-only packages are not produced. ' +
+        'diffusers, CUDA/MPS) - slim/frontend-only packages are not produced. ' +
         'Run `npm run build:backend` first.'
     );
   }
 
   const stats = fs.statSync(bundlePath);
   const sizeGB = stats.size / 1024 ** 3;
-  // A real bundle with torch + diffusers is multi-GB; a truncated or
-  // placeholder file must not pass the gate.
-  if (sizeGB < 0.5) {
+  // A truncated or placeholder file must not pass the gate. The floor is
+  // platform-calibrated: Windows/Linux torch bundles CUDA and lands well
+  // over 2 GB, while the macOS arm64 MPS wheel has no CUDA payload - a
+  // real, verified-healthy mac bundle measures ~0.33 GB (2026-07 CI run).
+  const minSizeGB = isMac ? 0.25 : 0.5;
+  if (sizeGB < minSizeGB) {
     throw new Error(
-      `Native backend bundle looks truncated (${sizeGB.toFixed(2)} GB): ${bundlePath}\n` +
+      `Native backend bundle looks truncated (${sizeGB.toFixed(2)} GB < ${minSizeGB} GB floor for ${platformName}): ${bundlePath}\n` +
         'Rebuild it with `npm run build:backend`.'
     );
   }

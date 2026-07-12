@@ -240,6 +240,9 @@ const BUNDLED_RUNTIME_PACKAGES = [
   'onnxruntime>=1.17',
   'spandrel>=0.4.0',
   'facexlib>=0.3.0',
+  // ComfyUI client transport - main.spec collect_all('aiohttp') ships it;
+  // a venv without it builds a bundle whose ComfyUI mode silently dies.
+  'aiohttp>=3.9',
 ];
 
 async function installBundledRuntimes(venvPath) {
@@ -261,6 +264,8 @@ const REQUIRED_BUNDLE_IMPORTS = [
   'peft', 'controlnet_aux',
   // #34 real edit tools
   'onnxruntime', 'spandrel', 'facexlib',
+  // ComfyUI client transport
+  'aiohttp',
 ];
 
 function assertBundleImports(venvPath) {
