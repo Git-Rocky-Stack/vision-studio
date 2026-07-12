@@ -1,3 +1,4 @@
+import { isLoraCompatible } from '@/store/slices/modelsSlice';
 import type {
   WorkflowExecutionContext,
   WorkflowExecutionIssue,
@@ -6,6 +7,7 @@ import type {
   WorkflowGraphNode,
   WorkflowRecord,
 } from '@/types/workflow';
+import { resolveCheckpointRecord, resolveLoraByComfyName } from './workflowLoras';
 
 interface WorkflowGenerationResolution {
   request: WorkflowGenerationRequest | null;
@@ -32,7 +34,9 @@ export function resolveWorkflowGenerationRequest(
   }
 
   const promptNode = getLinkedNode(workflow, samplerNode, 'positive', 'CLIPTextEncode');
-  const modelNode = getLinkedNode(workflow, samplerNode, 'model', 'CheckpointLoaderSimple');
+  // #43: the sampler's model input may chain through LoraLoader nodes before
+  // reaching the checkpoint, mirroring how ComfyUI stacks adapters.
+  const { modelNode, loraNodes } = walkModelChain(workflow, samplerNode);
 
   const prompt = getPrompt(promptNode, context);
   if (!prompt) {
@@ -53,6 +57,8 @@ export function resolveWorkflowGenerationRequest(
       nodeId: samplerNode.id,
     });
   }
+
+  const loras = resolveLoraSelections(loraNodes, model, context, issues);
 
   const steps = readPositiveNumberInput(
     samplerNode,
@@ -99,10 +105,125 @@ export function resolveWorkflowGenerationRequest(
       steps: summary.steps,
       cfg_scale: summary.cfgScale,
       ...(summary.seed !== undefined ? { seed: summary.seed } : {}),
+      ...(loras.length > 0 ? { loras } : {}),
     },
     summary,
     issues,
   };
+}
+
+/**
+ * Follow the sampler's model input upstream: collect LoraLoader nodes until
+ * the CheckpointLoaderSimple terminates the chain. Returned LoRA nodes are
+ * checkpoint-first, matching ComfyUI stacking order. A broken or cyclic chain
+ * returns modelNode null (the draft-model fallback then applies).
+ */
+function walkModelChain(workflow: WorkflowRecord, samplerNode: WorkflowGraphNode) {
+  const loraNodes: WorkflowGraphNode[] = [];
+  const visited = new Set<string>();
+  let input = samplerNode.inputs.model;
+
+  while (input?.kind === 'link') {
+    const node = workflow.graph.nodes[input.nodeId];
+    if (!node || visited.has(node.id)) break;
+    visited.add(node.id);
+
+    if (node.classType === 'CheckpointLoaderSimple') {
+      return { modelNode: node, loraNodes: loraNodes.reverse() };
+    }
+    if (node.classType !== 'LoraLoader') {
+      break;
+    }
+    loraNodes.push(node);
+    input = node.inputs.model;
+  }
+
+  return { modelNode: null, loraNodes: loraNodes.reverse() };
+}
+
+/**
+ * Map each LoRA Loader selection onto the installed library (#136 contract:
+ * { id, weight }), validating presence, library membership, base-architecture
+ * compatibility against the resolved checkpoint, and strength.
+ */
+function resolveLoraSelections(
+  loraNodes: WorkflowGraphNode[],
+  model: string | null,
+  context: WorkflowExecutionContext,
+  issues: WorkflowExecutionIssue[],
+): Array<{ id: string; weight: number }> {
+  if (loraNodes.length === 0) {
+    return [];
+  }
+
+  const checkpointFamily = model
+    ? (resolveCheckpointRecord(model, context.availableModels)?.base_architecture ?? null)
+    : null;
+  const selections: Array<{ id: string; weight: number }> = [];
+
+  for (const node of loraNodes) {
+    const nameInput = node.inputs.lora_name;
+    const loraName =
+      nameInput?.kind === 'literal' && typeof nameInput.value === 'string'
+        ? nameInput.value.trim()
+        : '';
+
+    if (!loraName) {
+      issues.push({
+        severity: 'error',
+        code: 'missing-lora',
+        message: 'LoRA Loader node needs a LoRA selected from the installed library.',
+        nodeId: node.id,
+      });
+      continue;
+    }
+
+    const record = resolveLoraByComfyName(loraName, context.availableModels);
+    if (!record?.id) {
+      issues.push({
+        severity: 'error',
+        code: 'unknown-lora',
+        message: `"${loraName}" is not in the installed LoRA library. Pull it from the Foundry first.`,
+        nodeId: node.id,
+      });
+      continue;
+    }
+
+    // Known incompatibility is refused up front; an unresolved checkpoint
+    // skips the check and defers to the backend's fail-soft loader (#136).
+    if (
+      checkpointFamily &&
+      record.base_architecture &&
+      !isLoraCompatible(checkpointFamily, record.base_architecture)
+    ) {
+      issues.push({
+        severity: 'error',
+        code: 'incompatible-lora',
+        message: `${record.name ?? record.id} (${record.base_architecture}) cannot load on a ${checkpointFamily} checkpoint.`,
+        nodeId: node.id,
+      });
+      continue;
+    }
+
+    const strengthInput = node.inputs.strength_model;
+    let weight = 1;
+    if (strengthInput && strengthInput.kind === 'literal' && strengthInput.value !== null) {
+      if (typeof strengthInput.value !== 'number' || !Number.isFinite(strengthInput.value)) {
+        issues.push({
+          severity: 'error',
+          code: 'invalid-lora-strength',
+          message: 'LoRA model strength must be a finite number.',
+          nodeId: node.id,
+        });
+        continue;
+      }
+      weight = strengthInput.value;
+    }
+
+    selections.push({ id: record.id, weight });
+  }
+
+  return selections;
 }
 
 function getLinkedNode(

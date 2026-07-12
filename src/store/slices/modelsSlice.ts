@@ -259,8 +259,14 @@ export function isLoraCompatible(
   return allowed ? allowed.includes(loraFamily) : false;
 }
 
-/** Installed LoRA records (artifact_type 'lora'), present on disk. */
-export function selectInstalledLoras(models: ModelRecord[]): ModelRecord[] {
+/**
+ * Installed LoRA records (artifact_type 'lora'), present on disk. Generic so
+ * narrower model projections (e.g. the workflow execution context, #43) reuse
+ * the same installed-LoRA rule as the mixer.
+ */
+export function selectInstalledLoras<
+  T extends { artifact_type?: string; availability?: string },
+>(models: T[]): T[] {
   return models.filter(
     (model) =>
       model.artifact_type === 'lora' &&

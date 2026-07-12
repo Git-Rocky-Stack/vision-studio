@@ -27,4 +27,11 @@ describe('node registry (M8 first-class set)', () => {
     const node = createWorkflowNodeFromClassType('CheckpointLoaderSimple', 0);
     expect(node.inputs.ckpt_name).toEqual({ kind: 'literal', value: 'flux1-dev.safetensors' });
   });
+
+  it('defaults a LoRA Loader node to an unselected adapter at full strength (#43)', () => {
+    const node = createWorkflowNodeFromClassType('LoraLoader', 0);
+    expect(node.inputs.lora_name).toEqual({ kind: 'literal', value: '' });
+    expect(node.inputs.strength_model).toEqual({ kind: 'literal', value: 1 });
+    expect(node.inputs.strength_clip).toEqual({ kind: 'literal', value: 1 });
+  });
 });

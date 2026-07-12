@@ -7,6 +7,7 @@ import {
   getDefaultOutputForClassType,
   getDefaultInputForConnection,
 } from '@/features/workflow/nodeDefaults';
+import type { WorkflowLoraOption } from '@/features/workflow/workflowLoras';
 import { cn } from '@/utils/cn';
 
 const NODE_WIDTH = 180;
@@ -20,6 +21,10 @@ interface WorkflowGraphEditorProps {
   onAddNode: (classType: string) => void;
   onConnectNodes: (edge: Omit<WorkflowGraphEdge, 'id'>) => void;
   onDeleteSelection: (selection: GraphSelection) => void;
+  /** #43: installed-LoRA options for the LoRA Loader node inspector. */
+  loraOptions?: WorkflowLoraOption[];
+  /** #43: writes a literal node input (LoRA selection, strengths). */
+  onUpdateNodeInput?: (nodeId: string, inputName: string, value: string | number) => void;
 }
 
 interface DragState {
@@ -53,6 +58,8 @@ export function WorkflowGraphEditor({
   onAddNode,
   onConnectNodes,
   onDeleteSelection,
+  loraOptions = [],
+  onUpdateNodeInput,
 }: WorkflowGraphEditorProps) {
   const [selection, setSelection] = useState<GraphSelection | null>(null);
   const [connectionSourceId, setConnectionSourceId] = useState<string | null>(null);
@@ -306,6 +313,13 @@ export function WorkflowGraphEditor({
             <p className="mt-2 type-ui text-text-muted">
               Position {selectedNode.position.x}, {selectedNode.position.y}
             </p>
+            {selectedNode.classType === 'LoraLoader' && (
+              <LoraLoaderInspector
+                node={selectedNode}
+                loraOptions={loraOptions}
+                onUpdateNodeInput={onUpdateNodeInput}
+              />
+            )}
           </div>
         ) : selectedEdge ? (
           <div>
@@ -320,5 +334,76 @@ export function WorkflowGraphEditor({
         )}
       </aside>
     </section>
+  );
+}
+
+/**
+ * LoRA Loader node inspector (#43): selection from the installed-LoRA library
+ * (base-arch-incompatible entries stay visible but disabled) plus the model
+ * strength that maps onto the stack weight at execution.
+ */
+function LoraLoaderInspector({
+  node,
+  loraOptions,
+  onUpdateNodeInput,
+}: {
+  node: WorkflowGraphNode;
+  loraOptions: WorkflowLoraOption[];
+  onUpdateNodeInput?: (nodeId: string, inputName: string, value: string | number) => void;
+}) {
+  const nameInput = node.inputs.lora_name;
+  const currentLoraName =
+    nameInput?.kind === 'literal' && typeof nameInput.value === 'string' ? nameInput.value : '';
+  const strengthInput = node.inputs.strength_model;
+  const currentStrength =
+    strengthInput?.kind === 'literal' && typeof strengthInput.value === 'number'
+      ? strengthInput.value
+      : 1;
+
+  if (loraOptions.length === 0) {
+    return (
+      <p className="mt-3 type-caption">
+        No LoRAs installed. Pull one from the Foundry library to use this node.
+      </p>
+    );
+  }
+
+  return (
+    <div className="mt-3 grid gap-3 md:grid-cols-2">
+      <label className="space-y-1">
+        <span className="type-caption text-text-muted">LoRA</span>
+        <select
+          aria-label="LoRA selection"
+          value={currentLoraName}
+          onChange={(event) => onUpdateNodeInput?.(node.id, 'lora_name', event.target.value)}
+          className="w-full rounded-md border border-border bg-elevated px-2 py-1.5 text-sm text-text-primary focus:border-accent-primary focus:outline-none transition-all"
+        >
+          <option value="">Select a LoRA</option>
+          {loraOptions.map((option) => (
+            <option key={option.value} value={option.value} disabled={!option.compatible}>
+              {option.compatible ? option.label : `${option.label} (incompatible base)`}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label className="space-y-1">
+        <span className="type-caption text-text-muted">Model strength</span>
+        <input
+          aria-label="LoRA model strength"
+          type="number"
+          min={0}
+          max={2}
+          step={0.05}
+          value={currentStrength}
+          onChange={(event) => {
+            const value = Number(event.target.value);
+            if (Number.isFinite(value)) {
+              onUpdateNodeInput?.(node.id, 'strength_model', value);
+            }
+          }}
+          className="w-full rounded-md border border-border bg-elevated px-2 py-1.5 data-mono text-text-primary focus:border-accent-primary focus:outline-none transition-all"
+        />
+      </label>
+    </div>
   );
 }

@@ -3,6 +3,81 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useAppStore } from '@/store/appStore';
 import { runWorkflowExecution } from './runWorkflowExecution';
 
+/** Seed the installed library with the baseline checkpoint + one flux LoRA. */
+function seedInstalledLoraModels() {
+  useAppStore.setState({
+    availableModels: [
+      {
+        id: 'flux-dev',
+        name: 'FLUX.1 dev',
+        artifact_type: 'checkpoint',
+        capability: 'image',
+        base_architecture: 'flux',
+        source: 'local',
+        repo_id: null,
+        revision: null,
+        aux_repo_id: null,
+        size: '23 GB',
+        status: 'ready',
+        tier: 'verified',
+        quality: 'pro',
+        runtime: 'local',
+        hardware_class: 'workstation',
+        vram: '24 GB',
+        description: '',
+        license: null,
+        gated: false,
+        locations: ['C:/models/checkpoints/flux-dev.safetensors'],
+      },
+      {
+        id: 'flux-ink',
+        name: 'Flux Ink',
+        artifact_type: 'lora',
+        capability: 'image',
+        base_architecture: 'flux',
+        source: 'local',
+        repo_id: null,
+        revision: null,
+        aux_repo_id: null,
+        size: '200 MB',
+        status: 'ready',
+        tier: 'verified',
+        quality: 'balanced',
+        runtime: 'local',
+        hardware_class: 'creator',
+        vram: '0 GB',
+        description: '',
+        license: null,
+        gated: false,
+        locations: ['C:/models/loras/flux-ink.safetensors'],
+      },
+    ],
+  });
+}
+
+/** Splice a LoraLoader between the baseline checkpoint and sampler. */
+function seedWorkflowLoraChain(loraName: string, strength: number) {
+  const state = useAppStore.getState();
+  const workflow = state.workflowRecords[0];
+  const loraNode = state.addWorkflowNode(workflow.id, {
+    classType: 'LoraLoader',
+    label: 'LoRA Loader',
+    position: { x: 200, y: 300 },
+    inputs: {
+      model: { kind: 'link', nodeId: 'model', output: 'MODEL' },
+      lora_name: { kind: 'literal', value: loraName },
+      strength_model: { kind: 'literal', value: strength },
+    },
+  });
+  if (!loraNode) throw new Error('failed to seed LoraLoader node');
+  state.connectWorkflowNodes(workflow.id, {
+    sourceNodeId: loraNode.id,
+    sourceOutput: 'MODEL',
+    targetNodeId: 'sampler',
+    targetInput: 'model',
+  });
+}
+
 describe('runWorkflowExecution', () => {
   beforeEach(() => {
     useAppStore.setState(useAppStore.getInitialState(), true);
@@ -82,6 +157,72 @@ describe('runWorkflowExecution', () => {
     const runtime = useAppStore.getState().workflowRuntimeById['image-generation-baseline'];
     expect(runtime?.lastFailureMessage).toBe('Backend offline');
     expect(useAppStore.getState().workflowRecords[0].runHistory[0]?.status).toBe('failed');
+  });
+
+  it('forwards resolved LoRA selections to the local generation request (#43)', async () => {
+    seedInstalledLoraModels();
+    seedWorkflowLoraChain('flux-ink.safetensors', 0.8);
+
+    const electron = makeElectronGenerationMock({
+      submit: { success: true, jobId: 'job-lora-1' },
+      statuses: [
+        {
+          job_id: 'job-lora-1',
+          status: 'completed',
+          type: 'image',
+          created_at: '2026-07-12T20:00:00.000Z',
+          completed_at: '2026-07-12T20:00:05.000Z',
+          progress: 100,
+          result: {
+            images: ['/outputs/job-lora-1/image-1.png'],
+          },
+        },
+      ],
+    });
+
+    await runWorkflowExecution({
+      workflowId: 'image-generation-baseline',
+      electron,
+      store: useAppStore,
+      pollIntervalMs: 0,
+    });
+
+    expect(electron.generation.generateImage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        loras: [{ id: 'flux-ink', weight: 0.8 }],
+      }),
+    );
+    expect(useAppStore.getState().workflowRecords[0].runHistory[0]).toMatchObject({
+      status: 'complete',
+    });
+  });
+
+  it('declines LoRA-bearing runs on hosted still-image routes with a clear reason (#43)', async () => {
+    seedInstalledLoraModels();
+    seedWorkflowLoraChain('flux-ink.safetensors', 1);
+
+    const electron = makeElectronGenerationMock({
+      openRouterImageEnabled: true,
+      submit: { success: true, jobId: 'job-should-not-run' },
+    });
+
+    await runWorkflowExecution({
+      workflowId: 'image-generation-baseline',
+      electron,
+      store: useAppStore,
+      pollIntervalMs: 0,
+    });
+
+    expect(electron.generation.generateImage).not.toHaveBeenCalled();
+    const runtime = useAppStore.getState().workflowRuntimeById['image-generation-baseline'];
+    expect(
+      runtime?.issues.some(
+        (issue) =>
+          issue.severity === 'error' &&
+          issue.code === 'provider-config' &&
+          /prompt-only/i.test(issue.message),
+      ),
+    ).toBe(true);
   });
 
   it('allows hosted still-image workflow execution when the backend is offline', async () => {

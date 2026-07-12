@@ -14,6 +14,8 @@ const SUPPORTED_WORKFLOW_NODE_TYPES = new Set([
   'KSampler',
   'PreviewImage',
   'SaveImage',
+  // #43: LoraLoader chains resolve into the request's loras payload.
+  'LoraLoader',
 ]);
 
 export function validateWorkflowExecution(

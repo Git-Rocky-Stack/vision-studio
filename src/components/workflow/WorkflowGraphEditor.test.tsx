@@ -241,4 +241,102 @@ describe('WorkflowGraphEditor', () => {
 
     expect(screen.getByRole('button', { name: 'Delete selection' })).toBeDisabled();
   });
+
+  describe('LoRA Loader inspector (#43)', () => {
+    const loraGraph: WorkflowGraph = {
+      nodes: {
+        ...graph.nodes,
+        'lora-1': {
+          id: 'lora-1',
+          classType: 'LoraLoader',
+          label: 'LoRA Loader',
+          position: { x: 200, y: 220 },
+          inputs: {
+            model: { kind: 'link', nodeId: 'model', output: 'MODEL' },
+            lora_name: { kind: 'literal', value: 'flux-ink.safetensors' },
+            strength_model: { kind: 'literal', value: 0.8 },
+          },
+        },
+      },
+      edges: graph.edges,
+    };
+
+    const loraOptions = [
+      { value: 'flux-ink.safetensors', label: 'Flux Ink', compatible: true },
+      { value: 'detail-tweaker-xl.safetensors', label: 'Detail Tweaker', compatible: false },
+    ];
+
+    function renderLoraEditor(onUpdateNodeInput = vi.fn()) {
+      render(
+        <WorkflowGraphEditor
+          graph={loraGraph}
+          onMoveNode={() => {}}
+          onAddNode={() => {}}
+          onConnectNodes={() => {}}
+          onDeleteSelection={() => {}}
+          loraOptions={loraOptions}
+          onUpdateNodeInput={onUpdateNodeInput}
+        />
+      );
+      fireEvent.click(screen.getByRole('button', { name: 'LoRA Loader node' }));
+      return onUpdateNodeInput;
+    }
+
+    it('offers the installed-LoRA library with the current selection applied', () => {
+      renderLoraEditor();
+
+      const select = screen.getByLabelText('LoRA selection') as HTMLSelectElement;
+      expect(select.value).toBe('flux-ink.safetensors');
+      const optionLabels = Array.from(select.options).map((option) => option.textContent);
+      expect(optionLabels).toContain('Flux Ink');
+      expect(optionLabels.some((label) => label?.startsWith('Detail Tweaker'))).toBe(true);
+    });
+
+    it('disables base-architecture-incompatible LoRAs', () => {
+      renderLoraEditor();
+
+      const select = screen.getByLabelText('LoRA selection') as HTMLSelectElement;
+      const incompatible = Array.from(select.options).find(
+        (option) => option.value === 'detail-tweaker-xl.safetensors',
+      );
+      expect(incompatible?.disabled).toBe(true);
+    });
+
+    it('writes the selection through onUpdateNodeInput', () => {
+      const onUpdateNodeInput = renderLoraEditor();
+
+      fireEvent.change(screen.getByLabelText('LoRA selection'), {
+        target: { value: 'flux-ink.safetensors' },
+      });
+
+      expect(onUpdateNodeInput).toHaveBeenCalledWith('lora-1', 'lora_name', 'flux-ink.safetensors');
+    });
+
+    it('writes the model strength through onUpdateNodeInput as a number', () => {
+      const onUpdateNodeInput = renderLoraEditor();
+
+      fireEvent.change(screen.getByLabelText('LoRA model strength'), {
+        target: { value: '1.25' },
+      });
+
+      expect(onUpdateNodeInput).toHaveBeenCalledWith('lora-1', 'strength_model', 1.25);
+    });
+
+    it('explains the empty state when no LoRAs are installed', () => {
+      render(
+        <WorkflowGraphEditor
+          graph={loraGraph}
+          onMoveNode={() => {}}
+          onAddNode={() => {}}
+          onConnectNodes={() => {}}
+          onDeleteSelection={() => {}}
+          loraOptions={[]}
+          onUpdateNodeInput={() => {}}
+        />
+      );
+      fireEvent.click(screen.getByRole('button', { name: 'LoRA Loader node' }));
+
+      expect(screen.getByText(/no loras installed/i)).toBeInTheDocument();
+    });
+  });
 });

@@ -14,6 +14,11 @@ import { evaluateGraphSafety } from '@/features/workflow/comfyImportSafety';
 import { createWorkflowNodeFromClassType } from '@/features/workflow/nodeDefaults';
 import { runWorkflowExecution } from '@/features/workflow/runWorkflowExecution';
 import { validateWorkflowExecution } from '@/features/workflow/validateWorkflowExecution';
+import {
+  buildLoraNodeOptions,
+  graphCheckpointName,
+  resolveCheckpointRecord,
+} from '@/features/workflow/workflowLoras';
 import { useShallow } from 'zustand/react/shallow';
 import { useAppStore } from '@/store/appStore';
 import { cn } from '@/utils/cn';
@@ -31,6 +36,7 @@ export function WorkflowWorkbench() {
     connectWorkflowNodes,
     deleteWorkflowNode,
     deleteWorkflowEdge,
+    updateWorkflowNode,
     workflowRuntimeById,
     setWorkflowRuntimeState,
     systemInfo,
@@ -50,6 +56,7 @@ export function WorkflowWorkbench() {
       connectWorkflowNodes: s.connectWorkflowNodes,
       deleteWorkflowNode: s.deleteWorkflowNode,
       deleteWorkflowEdge: s.deleteWorkflowEdge,
+      updateWorkflowNode: s.updateWorkflowNode,
       workflowRuntimeById: s.workflowRuntimeById,
       setWorkflowRuntimeState: s.setWorkflowRuntimeState,
       systemInfo: s.systemInfo,
@@ -82,6 +89,15 @@ export function WorkflowWorkbench() {
   const stillImageRoute = resolveStillImageRoute(activeAccount);
   const workflowCanRunWithoutBackend =
     isHostedStillImageRoute(stillImageRoute) && stillImageRoute.configured;
+  // #43: LoRA Loader node options from the installed library, compat-flagged
+  // against the graph's checkpoint family.
+  const workflowLoraOptions = useMemo(() => {
+    const checkpointName = graphCheckpointName(activeWorkflow.graph);
+    const checkpointFamily = checkpointName
+      ? (resolveCheckpointRecord(checkpointName, availableModels)?.base_architecture ?? null)
+      : null;
+    return buildLoraNodeOptions(availableModels, checkpointFamily);
+  }, [activeWorkflow.graph, availableModels]);
 
   useEffect(() => {
     setExportedJson(null);
@@ -365,6 +381,17 @@ export function WorkflowWorkbench() {
           onDeleteSelection={(selection) => {
             if (selection.type === 'node') deleteWorkflowNode(activeWorkflow.id, selection.id);
             if (selection.type === 'edge') deleteWorkflowEdge(activeWorkflow.id, selection.id);
+          }}
+          loraOptions={workflowLoraOptions}
+          onUpdateNodeInput={(nodeId, inputName, value) => {
+            const node = activeWorkflow.graph.nodes[nodeId];
+            if (!node) return;
+            updateWorkflowNode(activeWorkflow.id, nodeId, {
+              inputs: {
+                ...node.inputs,
+                [inputName]: { kind: 'literal', value },
+              },
+            });
           }}
         />
 

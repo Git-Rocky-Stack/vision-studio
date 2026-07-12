@@ -31,7 +31,12 @@ export interface WorkflowExecutionIssue {
     | 'missing-model'
     | 'invalid-sampler-value'
     | 'backend-unavailable'
-    | 'provider-config';
+    | 'provider-config'
+    // #43 LoRA Loader node resolution:
+    | 'missing-lora'
+    | 'unknown-lora'
+    | 'incompatible-lora'
+    | 'invalid-lora-strength';
   message: string;
   nodeId?: string;
 }
@@ -56,6 +61,8 @@ export interface WorkflowGenerationRequest {
   steps: number;
   cfg_scale: number;
   seed?: number;
+  /** #43: LoRA Loader chain selections mapped to installed records, checkpoint-first. */
+  loras?: Array<{ id: string; weight: number }>;
 }
 
 export interface WorkflowRuntimeState {
@@ -81,7 +88,18 @@ export interface WorkflowExecutionContext {
     seed: number;
     generationType: 'image' | 'video';
   } | null;
-  availableModels: Array<{ id?: string; name?: string }>;
+  /**
+   * Installed-library projection. The optional fields beyond id/name feed the
+   * #43 LoRA Loader resolution (record mapping + base-arch compatibility).
+   */
+  availableModels: Array<{
+    id?: string;
+    name?: string;
+    artifact_type?: string;
+    base_architecture?: string;
+    locations?: string[];
+    availability?: string;
+  }>;
 }
 
 export interface WorkflowExecutionValidationResult {

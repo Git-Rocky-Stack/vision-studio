@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import type { WorkflowGraph, WorkflowRecord } from '@/types/workflow';
+import type { WorkflowExecutionContext, WorkflowGraph, WorkflowRecord } from '@/types/workflow';
 import { validateWorkflowExecution } from './validateWorkflowExecution';
 
 describe('validateWorkflowExecution', () => {
@@ -37,6 +37,42 @@ describe('validateWorkflowExecution', () => {
     expect(result.issues.map((issue) => issue.code)).toEqual(
       expect.arrayContaining(['missing-prompt', 'missing-model'])
     );
+  });
+
+  it('accepts LoRA Loader nodes as executable (#43)', () => {
+    const workflow = makeWorkflow({
+      nodes: {
+        ...makeBaseGraph().nodes,
+        'lora-1': {
+          id: 'lora-1',
+          classType: 'LoraLoader',
+          label: 'LoRA Loader',
+          position: { x: 200, y: 300 },
+          inputs: {
+            model: { kind: 'link', nodeId: 'model', output: 'MODEL' },
+            lora_name: { kind: 'literal', value: 'flux-ink.safetensors' },
+            strength_model: { kind: 'literal', value: 1 },
+          },
+        },
+      },
+    });
+
+    const result = validateWorkflowExecution(
+      workflow,
+      makeWorkflowExecutionContext({
+        availableModels: [
+          {
+            id: 'flux-ink',
+            name: 'Flux Ink',
+            artifact_type: 'lora',
+            base_architecture: 'flux',
+            locations: ['C:/models/loras/flux-ink.safetensors'],
+          },
+        ],
+      }),
+    );
+
+    expect(result.issues.map((issue) => issue.code)).not.toContain('unsupported-node');
   });
 });
 
@@ -185,11 +221,14 @@ function makeWorkflowWithoutSamplerLinks(): WorkflowRecord {
   });
 }
 
-function makeWorkflowExecutionContext() {
+function makeWorkflowExecutionContext(
+  overrides?: Partial<WorkflowExecutionContext>
+): WorkflowExecutionContext {
   return {
     activeScenePrompt: null,
     activeSceneNegativePrompt: null,
     generationDraft: null,
     availableModels: [],
+    ...overrides,
   };
 }

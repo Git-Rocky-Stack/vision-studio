@@ -143,6 +143,22 @@ export function createWorkflowNodeFromClassType(
         description: 'Queue the image generation run.',
       },
     },
+    LoraLoader: {
+      classType: 'LoraLoader',
+      label,
+      position: { x: 220 + offset, y: 280 + offset },
+      inputs: {
+        // #43: filled from the installed-LoRA library in the node inspector;
+        // strengths mirror ComfyUI's LoraLoader defaults.
+        lora_name: { kind: 'literal', value: '' },
+        strength_model: { kind: 'literal', value: 1 },
+        strength_clip: { kind: 'literal', value: 1 },
+      },
+      metadata: {
+        state: 'pending',
+        description: 'Stack an installed LoRA onto the model.',
+      },
+    },
     PreviewImage: {
       classType: 'PreviewImage',
       label,
