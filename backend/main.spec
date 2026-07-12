@@ -151,8 +151,9 @@ a = Analysis(
         'aiohttp.web',
         'aiohttp.client',
 
-        # Utils
-        'python-dotenv',
+        # Utils ('dotenv' is python-dotenv's import name - the pip name here
+        # never resolved and PyInstaller logged it as a missing hidden import)
+        'dotenv',
         'aiofiles',
         'httpx',
         'tqdm',
