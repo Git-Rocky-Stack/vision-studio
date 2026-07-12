@@ -14,6 +14,7 @@ from typing import Callable, Dict, Optional, Tuple
 from PIL import Image
 
 from edit_tools.weights import EditCancelled, EditModelUnavailable
+from utils.device import resolve_device
 
 try:  # stub CI / slim install
     import torch
@@ -48,7 +49,7 @@ def _make_runner(model_path: str) -> Tuple[RunTile, int]:
     if model_path in _RUNNERS:
         return _RUNNERS[model_path]
 
-    device = "cuda" if torch.cuda.is_available() else "cpu"
+    device = resolve_device(torch)
     descriptor = ModelLoader().load_from_file(model_path).to(device).eval()
 
     def run(tile: Image.Image) -> Image.Image:

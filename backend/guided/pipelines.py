@@ -95,10 +95,9 @@ def controlnets_attached(model_dirs: List[str], torch_dtype: Any, device: str,
     finally:
         models.clear()
         try:
-            import torch
+            from utils.device import empty_device_cache
 
-            if torch.cuda.is_available():
-                torch.cuda.empty_cache()
+            empty_device_cache()
         except Exception:
             pass
 

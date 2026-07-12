@@ -31,6 +31,51 @@ describe('packaging config honesty rails', () => {
     expect(config.publish.useMultipleRangeRequest).toBe(false);
   });
 
+  it('feeds each platform from its own R2 prefix', () => {
+    // publish resolves per-platform (platform block wins over top-level). A
+    // missing mac/linux override would bake the WINDOWS feed URL into the
+    // mac/linux app-update.yml and every update check would 404 or, worse,
+    // resolve a Windows installer.
+    expect(config.mac.publish.provider).toBe('generic');
+    expect(config.mac.publish.url).toBe('https://updates.vision-studio-x.com/mac/');
+    expect(config.mac.publish.useMultipleRangeRequest).toBe(false);
+    expect(config.linux.publish.provider).toBe('generic');
+    expect(config.linux.publish.url).toBe('https://updates.vision-studio-x.com/linux/');
+    expect(config.linux.publish.useMultipleRangeRequest).toBe(false);
+  });
+
+  it('builds macOS for Apple Silicon only, as dmg + updater zip', () => {
+    // PyTorch dropped macOS x64 wheels at 2.3 - an Intel app would ship
+    // without its backend. The zip target must ride along: electron-updater
+    // on macOS updates from the zip, never the dmg.
+    const targets = config.mac.target as { target: string; arch: string[] }[];
+    const names = targets.map((t) => t.target);
+    expect(names).toContain('dmg');
+    expect(names).toContain('zip');
+    for (const target of targets) {
+      expect(target.arch).toEqual(['arm64']);
+    }
+    expect(config.mac.artifactName).toBe('Vision-Studio-${version}-${arch}.${ext}');
+  });
+
+  it('builds Linux as x64 AppImage (the auto-updatable format)', () => {
+    const targets = config.linux.target as { target: string; arch: string[] }[];
+    expect(targets.map((t) => t.target)).toEqual(['AppImage']);
+    expect(targets[0].arch).toEqual(['x64']);
+    expect(config.linux.artifactName).toBe('Vision-Studio-${version}-${arch}.${ext}');
+  });
+
+  it('ships a real >=512px PNG icon source for the mac/linux builds', () => {
+    // electron-builder derives .icns and the AppImage icon set from this
+    // file at build time; a missing/placeholder file fails packaging on the
+    // CI runners only after the ~40 minute backend build has already run.
+    expect(config.mac.icon).toBe('build/icon.png');
+    expect(config.linux.icon).toBe('build/icon.png');
+    const icon = readFileSync(resolve(ROOT, 'build/icon.png'));
+    expect(icon.length).toBeGreaterThan(100_000);
+    expect(icon.subarray(1, 4).toString('ascii')).toBe('PNG');
+  });
+
   it('keeps update signature verification on', () => {
     expect(config.win.verifyUpdateCodeSignature).toBe(true);
   });

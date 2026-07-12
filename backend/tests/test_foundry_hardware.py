@@ -14,13 +14,19 @@ from foundry.hardware import HardwareProfile, probe_hardware  # type: ignore[imp
 
 
 def _torch(available=True, free=8 * 2**30, total=12 * 2**30, cap=(8, 6),
-           name="NVIDIA GeForce RTX 3060", cuda="12.1"):
+           name="NVIDIA GeForce RTX 3060", cuda="12.1",
+           mps_available=False, mps_total=24 * 2**30, mps_allocated=4 * 2**30):
     t = mock.MagicMock()
     t.cuda.is_available.return_value = available
     t.cuda.mem_get_info.return_value = (free, total)
     t.cuda.get_device_capability.return_value = cap
     t.cuda.get_device_name.return_value = name
     t.version.cuda = cuda
+    # Pinned explicitly: a MagicMock auto-child would read as MPS-available
+    # and silently flip every no-CUDA test onto the MPS branch.
+    t.backends.mps.is_available.return_value = mps_available
+    t.mps.recommended_max_memory.return_value = mps_total
+    t.mps.driver_allocated_memory.return_value = mps_allocated
     return t
 
 
@@ -74,6 +80,35 @@ class ProbeTests(unittest.TestCase):
         t.cuda.mem_get_info.side_effect = RuntimeError("driver wedged")
         profile = self._probe(t, _psutil())
         self.assertFalse(profile.gpu_available)
+
+    def test_mps_profile_reports_unified_memory_budget(self):
+        # macOS arm64 bundle: no CUDA, Metal/MPS active. "VRAM" is the
+        # recommended working-set budget minus what the driver already holds.
+        t = _torch(available=False, mps_available=True,
+                   mps_total=24 * 2**30, mps_allocated=4 * 2**30)
+        profile = self._probe(t, _psutil())
+        self.assertTrue(profile.gpu_available)
+        self.assertIn("(MPS)", profile.gpu_name)
+        self.assertEqual(profile.vram_total_bytes, 24 * 2**30)
+        self.assertEqual(profile.vram_free_bytes, 20 * 2**30)
+        # CUDA-capability gates stay conservatively closed on MPS.
+        self.assertEqual((profile.compute_major, profile.compute_minor), (0, 0))
+        self.assertIsNone(profile.cuda_version)
+        self.assertFalse(profile.supports_bf16)
+        self.assertFalse(profile.supports_fp8)
+
+    def test_cuda_wins_over_mps_when_both_report_available(self):
+        t = _torch(available=True, mps_available=True)
+        profile = self._probe(t, _psutil())
+        self.assertEqual(profile.gpu_name, "NVIDIA GeForce RTX 3060")
+        self.assertEqual(profile.cuda_version, "12.1")
+
+    def test_mps_query_failure_degrades_to_no_gpu(self):
+        t = _torch(available=False, mps_available=True)
+        t.mps.recommended_max_memory.side_effect = RuntimeError("Metal wedged")
+        profile = self._probe(t, _psutil())
+        self.assertFalse(profile.gpu_available)
+        self.assertIsNone(profile.gpu_name)
 
 
 if __name__ == "__main__":

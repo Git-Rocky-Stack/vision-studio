@@ -30,6 +30,15 @@ def safe_print(*args: Any, **kwargs: Any) -> None:
 builtins.print = safe_print
 # ---------------------------------------------------------------------------
 
+# --- macOS/MPS: individual ops Metal has not implemented yet fall back to
+# CPU instead of aborting the whole generation. Must be set BEFORE torch is
+# first imported anywhere in this process (torch reads it at init). ---------
+if sys.platform == "darwin":
+    import os as _early_os
+
+    _early_os.environ.setdefault("PYTORCH_ENABLE_MPS_FALLBACK", "1")
+# ---------------------------------------------------------------------------
+
 import asyncio
 import json
 import logging
@@ -721,18 +730,20 @@ async def get_system_info(request: Request):
 
     **Use Case:** Check system capabilities before starting generation jobs.
     """
-    import torch
+    # One truthful probe for every backend (CUDA on Windows/Linux, Apple MPS
+    # on macOS) - foundry.hardware degrades to no-GPU instead of raising.
+    from foundry.hardware import probe_hardware
 
-    gpu_available = torch.cuda.is_available()
-    gpu_name = torch.cuda.get_device_name(0) if gpu_available else None
-    gpu_vram = f"{torch.cuda.get_device_properties(0).total_memory / 1e9:.1f} GB" if gpu_available else None
-    cuda_version = torch.version.cuda
+    profile = probe_hardware(MODELS_DIR)
+    gpu_vram = (
+        f"{profile.vram_total_bytes / 1e9:.1f} GB" if profile.gpu_available else None
+    )
 
     return SystemInfo(
-        gpu_available=gpu_available,
-        gpu_name=gpu_name,
+        gpu_available=profile.gpu_available,
+        gpu_name=profile.gpu_name,
         gpu_vram=gpu_vram,
-        cuda_version=cuda_version,
+        cuda_version=profile.cuda_version,
         comfyui_connected=comfy_client is not None and comfy_client.connected,
         models_count=len(model_manager.available_models)
     )

@@ -134,13 +134,16 @@ jobs:
           AZURE_TRUSTED_SIGNING_CERTIFICATE_PROFILE_NAME: ${{ secrets.AZURE_TRUSTED_SIGNING_CERTIFICATE_PROFILE_NAME }}
 
       - name: Upload release artifact
+        # nsis-web writes the stub + .nsis.7z + latest.yml into
+        # release/nsis-web/. Only the small files ride GitHub artifacts; the
+        # multi-GB zip and .nsis.7z are delivered from R2.
         uses: actions/upload-artifact@v4
         with:
           name: vision-studio-windows-x64
           path: |
-            release/*.exe
-            release/*.zip
-            release/*.yml
+            release/nsis-web/*.exe
+            release/nsis-web/latest*.yml
+            release/latest*.yml
             release/*.blockmap
           retention-days: 90
 
@@ -151,46 +154,25 @@ jobs:
       # failed publish never flips clients to a missing installer.
       - name: Publish update feed to R2
         if: ${{ startsWith(github.ref, 'refs/tags/v') && env.R2_SECRETS_PRESENT == 'true' }}
-        run: npm run release:publish:r2
+        # Two invocations by design (docs/R2-DELIVERY.md section 3): the
+        # portable zip lives in release/, the nsis-web stub + .nsis.7z +
+        # latest.yml in release/nsis-web/ - and the feed still uploads
+        # absolutely last, on the second call.
+        run: npm run release:publish:r2 && npm run release:publish:r2 -- --dir release/nsis-web
         env:
           R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
           R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
           R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
           R2_BUCKET: ${{ secrets.R2_BUCKET }}
 
-  build-linux:
-    name: Build Linux
-    needs: test-full
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
-
-      - run: npm ci
-
-      - name: Build frontend
-        run: npm run build
-
-      - name: Package for Linux
-        run: npm run package:linux
-
-      - name: Upload release artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: vision-studio-linux
-          path: |
-            release/*.AppImage
-            release/*.deb
-          retention-days: 90
+  # macOS + Linux builds live in release-mac-linux.yml: they need the full
+  # native backend build (PyInstaller cannot cross-compile), which the old
+  # frontend-only linux job here never did - it died at the heavy-by-design
+  # beforePack gate every time.
 
   publish-release:
     name: Publish GitHub Release
-    needs: [build-windows, build-linux]
+    needs: build-windows
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     permissions:
@@ -204,9 +186,13 @@ jobs:
           path: artifacts
 
       - name: Create GitHub Release
+        # Notes + small metadata only. GitHub caps assets at 2 GB; every
+        # multi-GB installer (win/mac/linux) is delivered from R2 behind
+        # updates.vision-studio-x.com - see docs/R2-DELIVERY.md.
         uses: softprops/action-gh-release@v2
         with:
           generate_release_notes: true
           files: |
-            artifacts/vision-studio-windows-x64/*
-            artifacts/vision-studio-linux/*
+            artifacts/vision-studio-windows-x64/**/*.exe
+            artifacts/vision-studio-windows-x64/**/*.yml
+            artifacts/vision-studio-windows-x64/**/*.blockmap
