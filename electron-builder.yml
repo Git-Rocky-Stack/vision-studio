@@ -120,40 +120,69 @@ nsisWeb:
 # =============================================================================
 # macOS Configuration
 # =============================================================================
+# Apple Silicon ONLY: PyTorch dropped macOS x64 wheels at 2.3, so an Intel
+# backend bundle cannot be built - an x64 app would ship without its brain.
+# Unsigned-but-runnable: with no Developer ID identity configured,
+# electron-builder ad-hoc signs the bundle (mandatory for arm64 to launch at
+# all); PyInstaller ad-hoc signs the backend binary the same way. Gatekeeper
+# will require right-click-Open on first launch until real signing lands -
+# same honest posture as the unsigned Windows build.
 mac:
-  category: public.app-category.video
+  category: public.app-category.graphics-design
   target:
     - target: dmg
       arch:
-        - x64
         - arm64
-  icon: build/icon.icns
-  hardenedRuntime: true
+    # electron-updater on macOS consumes the zip (dmg is for humans); both
+    # ride latest-mac.yml. Dormant until signed builds, like Windows.
+    - target: zip
+      arch:
+        - arm64
+  # 1024px PNG source; electron-builder derives the .icns at build time.
+  icon: build/icon.png
+  hardenedRuntime: false
   gatekeeperAssess: false
-  entitlements: build/entitlements.mac.plist
-  entitlementsInherit: build/entitlements.mac.plist
+  artifactName: 'Vision-Studio-${version}-${arch}.${ext}'
+  publish:
+    provider: generic
+    url: https://updates.vision-studio-x.com/mac/
+    useMultipleRangeRequest: false
 
 # =============================================================================
 # Linux Configuration
 # =============================================================================
+# AppImage only: it is the one Linux format electron-updater can auto-update,
+# it runs on every distro without a package manager, and the multi-GB payload
+# makes per-distro deb/rpm variants pure storage cost with no delivery win.
 linux:
   target:
-    - AppImage
-    - deb
-    - rpm
-  category: AudioVideo
-  icon: build/icons
+    - target: AppImage
+      arch:
+        - x64
+  category: Graphics
+  icon: build/icon.png
   maintainer: Vision Studio Team
   vendor: Vision Studio Team
   synopsis: AI Image & Video Generation
   description: Professional AI-powered image and video generation desktop application
+  artifactName: 'Vision-Studio-${version}-${arch}.${ext}'
+  publish:
+    provider: generic
+    url: https://updates.vision-studio-x.com/linux/
+    useMultipleRangeRequest: false
 
 # =============================================================================
 # Auto-Update Feed (Cloudflare R2, generic provider)
 # =============================================================================
 # GitHub caps release assets at 2 GB - the heavy installer cannot ship there.
-# latest.yml + installer + blockmap are published to R2 (scripts/publish-r2.cjs,
-# binaries first, feed last) behind the updates.vision-studio-x.com custom domain.
+# Feed + installers are published to R2 (scripts/publish-r2.cjs, binaries
+# first, feed last) behind the updates.vision-studio-x.com custom domain,
+# one prefix per platform mirroring each platform's publish.url:
+#   win/   latest.yml       (nsis-web stub + .nsis.7z + portable zip)
+#   mac/   latest-mac.yml   (dmg + zip)
+#   linux/ latest-linux.yml (AppImage)
+# publish is declared PER-PLATFORM (win/mac/linux blocks) - a single
+# top-level feed URL would point every platform at the Windows prefix.
 # R2/S3 serve a single range per request, so multi-range differential
 # downloads must be disabled or blockmap updates fail. Auto-update installs
 # only signed builds (win.verifyUpdateCodeSignature) - see docs/R2-DELIVERY.md

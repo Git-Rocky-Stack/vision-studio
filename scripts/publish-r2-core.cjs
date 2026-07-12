@@ -8,16 +8,21 @@
  */
 const path = require('path');
 
-// What a release publish ships: the web-installer stub .exe, the .nsis.7z
-// app package it downloads at install time, blockmaps, the portable zip,
-// and the electron-updater feed. builder-debug.yml, READMEs, and any other
-// build noise are never published. A missing .7z pattern would publish a
-// stub that 404s mid-install - tests pin it.
+// What a release publish ships, across all three platforms:
+//   win/   stub .exe + the .nsis.7z app package it downloads + portable zip
+//   mac/   .dmg (humans) + .zip (electron-updater updates from the zip)
+//   linux/ .AppImage
+// plus every .blockmap differential and the platform's electron-updater
+// feed (latest.yml / latest-mac.yml / latest-linux.yml). builder-debug.yml,
+// READMEs, and any other build noise are never published. A missing .7z
+// pattern would publish a stub that 404s mid-install - tests pin it.
 const RELEASE_ARTIFACT_PATTERNS = [
   /\.exe$/i,
-  /\.exe\.blockmap$/i,
   /\.nsis\.7z$/i,
   /\.zip$/i,
+  /\.dmg$/i,
+  /\.appimage$/i,
+  /\.blockmap$/i,
   /^latest[^/\\]*\.yml$/i,
 ];
 
@@ -29,6 +34,7 @@ const CONTENT_TYPES = [
   [/\.yml$/i, 'text/yaml'],
   [/\.json$/i, 'application/json'],
   [/\.zip$/i, 'application/zip'],
+  [/\.dmg$/i, 'application/x-apple-diskimage'],
   [/./, 'application/octet-stream'],
 ];
 

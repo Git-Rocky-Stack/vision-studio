@@ -216,12 +216,40 @@ async function installPythonDependencies(venvPath) {
 
 async function installPyInstaller(venvPath) {
   log('\n🔧 Installing PyInstaller...', 'blue');
-  
+
   const pip = `${getVenvPython(venvPath)} -m pip`;
-  
+
   exec(`${pip} install pyinstaller`, { cwd: BACKEND_DIR, shell: true });
-  
+
   log('✅ PyInstaller installed', 'green');
+}
+
+/**
+ * The heavy AI/ML stack REQUIRED_BUNDLE_IMPORTS asserts. Deliberately
+ * commented out in requirements.txt (the lightweight CI test env must not
+ * install it), historically hand-installed into the local venv - which a
+ * fresh CI build runner cannot reproduce. Version floors mirror the
+ * requirements.txt comments; pip name != import name for controlnet-aux.
+ */
+const BUNDLED_RUNTIME_PACKAGES = [
+  'diffusers>=0.25.0',
+  'transformers>=4.35.0',
+  'accelerate>=0.24.0',
+  'peft>=0.11.0',
+  'controlnet-aux>=0.0.10',
+  'onnxruntime>=1.17',
+  'spandrel>=0.4.0',
+  'facexlib>=0.3.0',
+];
+
+async function installBundledRuntimes(venvPath) {
+  log('\n📦 Installing bundled AI runtimes (diffusers stack)...', 'blue');
+
+  const pip = `${getVenvPython(venvPath)} -m pip`;
+  const packages = BUNDLED_RUNTIME_PACKAGES.map((spec) => `"${spec}"`).join(' ');
+  exec(`${pip} install ${packages}`, { cwd: BACKEND_DIR });
+
+  log('✅ Bundled AI runtimes installed', 'green');
 }
 
 // Heavy-by-design gate: the bundle must carry every runtime the app's
@@ -295,7 +323,13 @@ async function copyToResources(distDir) {
   
   // Copy with overwrite
   fs.copyFileSync(sourcePath, destPath);
-  
+
+  // POSIX: the backend must stay spawnable after the copy (copyFileSync
+  // gives no execute-bit guarantee) - Electron spawns this binary directly.
+  if (!isWindows) {
+    fs.chmodSync(destPath, 0o755);
+  }
+
   // Get file size
   const stats = fs.statSync(destPath);
   const sizeMB = (stats.size / 1024 / 1024).toFixed(2);
@@ -328,6 +362,7 @@ async function main() {
 
     await installPyTorch(venvPath, pythonUnsupported);
     await installPythonDependencies(venvPath);
+    await installBundledRuntimes(venvPath);
     await installPyInstaller(venvPath);
     
     // Build executable
@@ -367,6 +402,7 @@ module.exports = {
   setupVirtualEnv,
   installPyTorch,
   installPythonDependencies,
+  installBundledRuntimes,
   buildExecutable,
   copyToResources
 };

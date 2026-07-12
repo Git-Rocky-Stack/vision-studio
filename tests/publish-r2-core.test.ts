@@ -55,6 +55,39 @@ describe('publish-r2 core', () => {
     );
   });
 
+  it('plans the macOS release set (dmg for humans, zip + feed for the updater)', () => {
+    const macFiles = [
+      'Vision-Studio-3.1.1-arm64.dmg',
+      'Vision-Studio-3.1.1-arm64.dmg.blockmap',
+      'Vision-Studio-3.1.1-arm64.zip',
+      'Vision-Studio-3.1.1-arm64.zip.blockmap',
+      'latest-mac.yml',
+      'builder-debug.yml',
+    ];
+    const plan = orderForFeedSafety(planUploads(macFiles, { dir: 'release', prefix: 'mac/' }));
+    const keys = plan.map((u) => u.key);
+    expect(keys).toContain('mac/Vision-Studio-3.1.1-arm64.dmg');
+    expect(keys).toContain('mac/Vision-Studio-3.1.1-arm64.zip');
+    expect(keys).toContain('mac/Vision-Studio-3.1.1-arm64.zip.blockmap');
+    expect(keys).not.toContain('mac/builder-debug.yml');
+    // latest-mac.yml is a feed: it must match the feed pattern AND upload last.
+    expect(plan[plan.length - 1].key).toBe('mac/latest-mac.yml');
+    const dmg = plan.find((u) => u.key.endsWith('.dmg'));
+    expect(dmg?.contentType).toBe('application/x-apple-diskimage');
+  });
+
+  it('plans the Linux release set (AppImage + feed)', () => {
+    const linuxFiles = ['Vision-Studio-3.1.1-x64.AppImage', 'latest-linux.yml'];
+    const plan = orderForFeedSafety(
+      planUploads(linuxFiles, { dir: 'release', prefix: 'linux/' }),
+    );
+    expect(plan.map((u) => u.key)).toEqual([
+      'linux/Vision-Studio-3.1.1-x64.AppImage',
+      'linux/latest-linux.yml',
+    ]);
+    expect(plan[0].contentType).toBe('application/octet-stream');
+  });
+
   it('falls back to octet-stream for unknown types', () => {
     expect(contentTypeFor('something.bin')).toBe('application/octet-stream');
   });

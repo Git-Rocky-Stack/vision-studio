@@ -35,6 +35,7 @@ except ImportError as e:
 # M9 acceleration seam (import-safe: accelerator imports no torch at module load).
 from foundry.accelerator import DEFAULT_ACCELERATION_SETTINGS, accelerate_pipeline
 from foundry.lora import loras_applied
+from utils.device import empty_device_cache, is_out_of_memory, resolve_device
 
 # #34 guided passes (all modules import with no torch/diffusers).
 from guided.controlnet_registry import resolve_controlnet_stack
@@ -192,20 +193,23 @@ class DirectGenerator:
         # Acceleration settings the cached pipeline was built with, per model.
         # A changed request must evict+rebuild (in-place accel is irreversible).
         self._loaded_acceleration: Dict[str, Any] = {}
-        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        self.device = resolve_device(torch)
         self.executor = ThreadPoolExecutor(max_workers=1)
 
         from foundry.accelerator import configure_inductor_cache
         configure_inductor_cache(os.path.join(models_dir, ".cache", "inductor"))
-        
+
         if not DIFFUSERS_AVAILABLE:
             raise RuntimeError("diffusers library not available")
-        
+
         print(f"🖥️ DirectGenerator using device: {self.device}")
-        
+
         if self.device == "cuda":
             print(f"   GPU: {torch.cuda.get_device_name(0)}")
             print(f"   VRAM: {torch.cuda.get_device_properties(0).total_memory / 1e9:.1f} GB")
+        elif self.device == "mps":
+            print(f"   GPU: Apple Silicon (Metal/MPS), "
+                  f"{torch.mps.recommended_max_memory() / 1e9:.1f} GB unified memory budget")
     
     def load_model(self, model_name: str, overrides: Optional[Dict[str, Any]] = None,
                    acceleration_settings=None):
@@ -240,14 +244,19 @@ class DirectGenerator:
             try:
                 pipeline = self._load_from_plan(model_name, plan, slicing_max)
                 break
-            except torch.cuda.OutOfMemoryError:
+            # CUDA raises torch.cuda.OutOfMemoryError; MPS raises a plain
+            # RuntimeError - is_out_of_memory tells OOM apart from real
+            # failures (ModelLoadRefusedError et al. re-raise untouched).
+            except RuntimeError as exc:
+                if not is_out_of_memory(exc):
+                    raise
                 if not ladder:
                     print(f"OOM loading {model_name}: fallback ladder exhausted")
                     raise
                 rung = ladder.pop(0)
                 print(f"OOM loading {model_name}: stepping fallback rung '{rung}'")
                 slicing_max = apply_fallback_rung(plan, rung) or slicing_max
-                torch.cuda.empty_cache()
+                empty_device_cache(torch)
 
         applied = accelerate_pipeline(
             pipeline, plan, requested_acceleration, slicing_max=slicing_max)
@@ -290,9 +299,12 @@ class DirectGenerator:
                 use_safetensors=True,
             )
 
-        if plan.offload:
+        if plan.offload and self.device != "cpu":
             # Offload manages device placement itself - no manual .to(device).
-            pipeline.enable_model_cpu_offload()
+            # The accelerator device is passed explicitly: diffusers defaults
+            # to CUDA, which would break the MPS bundle. On a cpu-only box
+            # offload is meaningless - plain .to("cpu") below.
+            pipeline.enable_model_cpu_offload(device=self.device)
         else:
             pipeline = pipeline.to(self.device)
 
@@ -723,16 +735,27 @@ class DirectGenerator:
             del self.pipelines[model_name]
             self._loaded_acceleration.pop(model_name, None)
             self.applied_acceleration.pop(model_name, None)
-            torch.cuda.empty_cache()
+            empty_device_cache(torch)
             print(f"🗑️ Unloaded model: {model_name}")
-    
+
     def get_memory_usage(self) -> Dict[str, float]:
         """Get GPU memory usage"""
         if self.device == "cuda":
             allocated = torch.cuda.memory_allocated() / 1e9
             reserved = torch.cuda.memory_reserved() / 1e9
             total = torch.cuda.get_device_properties(0).total_memory / 1e9
-            
+
+            return {
+                "allocated_gb": round(allocated, 2),
+                "reserved_gb": round(reserved, 2),
+                "total_gb": round(total, 2),
+                "free_gb": round(total - allocated, 2)
+            }
+        if self.device == "mps":
+            allocated = torch.mps.current_allocated_memory() / 1e9
+            reserved = torch.mps.driver_allocated_memory() / 1e9
+            total = torch.mps.recommended_max_memory() / 1e9
+
             return {
                 "allocated_gb": round(allocated, 2),
                 "reserved_gb": round(reserved, 2),

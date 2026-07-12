@@ -32,6 +32,7 @@ except ImportError:
 # Plan seam + typed refusal shared with the image generator so main.py maps
 # ONE error type to its job-failure envelope. Tests patch the seam where it
 # is used: ``utils.direct_video_generator.resolve_plan``.
+from utils.device import empty_device_cache, is_out_of_memory, resolve_device
 from utils.direct_generator import (
     ModelLoadRefusedError,
     _resolve_lora_record,
@@ -127,7 +128,7 @@ class DirectVideoGenerator:
     def __init__(self, models_dir: str, output_dir: str):
         self.models_dir = models_dir
         self.output_dir = output_dir
-        self.device = "cuda" if torch and torch.cuda.is_available() else "cpu"
+        self.device = resolve_device(torch)
         self.executor = ThreadPoolExecutor(max_workers=1)
         self.pipelines: Dict[str, Any] = {}
         self.applied_acceleration: Dict[str, Any] = {}
@@ -158,8 +159,7 @@ class DirectVideoGenerator:
             del self.pipelines[model_name]
             self._loaded_acceleration.pop(model_name, None)
             self.applied_acceleration.pop(model_name, None)
-            if torch is not None:
-                torch.cuda.empty_cache()
+            empty_device_cache(torch)
 
         plan = resolve_plan(model_name, overrides)
         if plan.refusal:
@@ -171,14 +171,19 @@ class DirectVideoGenerator:
             try:
                 pipeline = self._load_from_plan(model_name, plan, slicing_max)
                 break
-            except torch.cuda.OutOfMemoryError:
+            # CUDA raises torch.cuda.OutOfMemoryError; MPS raises a plain
+            # RuntimeError - is_out_of_memory tells OOM apart from real
+            # failures (ModelLoadRefusedError et al. re-raise untouched).
+            except RuntimeError as exc:
+                if not is_out_of_memory(exc):
+                    raise
                 if not ladder:
                     print(f"OOM loading {model_name}: fallback ladder exhausted")
                     raise
                 rung = ladder.pop(0)
                 print(f"OOM loading {model_name}: stepping fallback rung '{rung}'")
                 slicing_max = apply_fallback_rung(plan, rung) or slicing_max
-                torch.cuda.empty_cache()
+                empty_device_cache(torch)
 
         applied = accelerate_pipeline(
             pipeline, plan, requested_acceleration, slicing_max=slicing_max)
@@ -253,9 +258,11 @@ class DirectVideoGenerator:
 
     def _apply_plan_runtime_flags(self, pipeline, plan, slicing_max: bool):
         """Post-load flags from the plan - shared by both load branches."""
-        if plan.offload:
+        if plan.offload and self.device != "cpu":
             # Offload manages device placement itself - no manual .to(device).
-            pipeline.enable_model_cpu_offload()
+            # Device passed explicitly: diffusers defaults to CUDA, which
+            # would break the MPS bundle; on cpu-only offload is meaningless.
+            pipeline.enable_model_cpu_offload(device=self.device)
         else:
             pipeline = pipeline.to(self.device)
 

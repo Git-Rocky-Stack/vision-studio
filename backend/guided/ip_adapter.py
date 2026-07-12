@@ -222,9 +222,8 @@ def ip_adapter_applied(pipeline: Any, stack: ResolvedIPAdapterStack,
     finally:
         pipeline.unload_ip_adapter()
         try:
-            import torch
+            from utils.device import empty_device_cache
 
-            if torch.cuda.is_available():
-                torch.cuda.empty_cache()
+            empty_device_cache()
         except Exception:
             pass

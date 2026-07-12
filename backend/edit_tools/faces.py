@@ -20,6 +20,7 @@ import numpy as np
 from PIL import Image
 
 from edit_tools.weights import EditCancelled, EditModelUnavailable
+from utils.device import resolve_device
 
 try:  # stub CI / slim install
     import torch
@@ -71,7 +72,7 @@ def _staging_dir(detection_path: str, parsing_path: str) -> str:
 
 def _make_helper(detection_path: str, parsing_path: str) -> Any:
     _require_runtime()
-    device = "cuda" if torch.cuda.is_available() else "cpu"
+    device = resolve_device(torch)
     staging = _staging_dir(detection_path, parsing_path)
     return FaceRestoreHelper(
         upscale_factor=1,
@@ -89,7 +90,7 @@ def _make_gfpgan_runner(gfpgan_path: str) -> RestoreCrop:
     _require_runtime()
     if gfpgan_path in _GFPGAN_RUNNERS:
         return _GFPGAN_RUNNERS[gfpgan_path]
-    device = "cuda" if torch.cuda.is_available() else "cpu"
+    device = resolve_device(torch)
     descriptor = ModelLoader().load_from_file(gfpgan_path).to(device).eval()
 
     def restore(crop_bgr: np.ndarray) -> np.ndarray:

@@ -112,14 +112,51 @@ class PlanConsumptionTests(unittest.TestCase):
             offload=True, vae_tiling=True,
         )
         pipeline = mock.MagicMock()
+        generator = self._generator()
+        generator.device = "cuda"  # hermetic: independent of THIS host's GPU
         with mock.patch("utils.direct_generator.resolve_plan", return_value=plan), \
                 mock.patch.object(diffusers.StableDiffusionPipeline,
                                   "from_pretrained", return_value=pipeline):
-            self._generator().load_model("sd-1-5")
-        pipeline.enable_model_cpu_offload.assert_called_once()
+            generator.load_model("sd-1-5")
+        # The accelerator device rides along explicitly - diffusers defaults
+        # to CUDA, which would break the macOS/MPS bundle.
+        pipeline.enable_model_cpu_offload.assert_called_once_with(device="cuda")
         pipeline.vae.enable_tiling.assert_called_once()
         # Offload manages device placement - the manual .to(device) must not run.
         pipeline.to.assert_not_called()
+
+    def test_offload_plan_on_mps_offloads_to_mps(self):
+        plan = _plan(
+            pipeline_class="StableDiffusionPipeline", precision="fp16",
+            offload=True,
+        )
+        pipeline = mock.MagicMock()
+        generator = self._generator()
+        generator.device = "mps"
+        with mock.patch("utils.direct_generator.resolve_plan", return_value=plan), \
+                mock.patch.object(diffusers.StableDiffusionPipeline,
+                                  "from_pretrained", return_value=pipeline):
+            generator.load_model("sd-1-5")
+        pipeline.enable_model_cpu_offload.assert_called_once_with(device="mps")
+        pipeline.to.assert_not_called()
+
+    def test_offload_plan_on_cpu_only_machine_places_on_cpu(self):
+        # Offload is meaningless without an accelerator: everything already
+        # lives in host RAM. The load must not call into accelerate's
+        # offload hooks (which assume a GPU device exists).
+        plan = _plan(
+            pipeline_class="StableDiffusionPipeline", precision="fp16",
+            offload=True,
+        )
+        pipeline = mock.MagicMock()
+        generator = self._generator()
+        generator.device = "cpu"
+        with mock.patch("utils.direct_generator.resolve_plan", return_value=plan), \
+                mock.patch.object(diffusers.StableDiffusionPipeline,
+                                  "from_pretrained", return_value=pipeline):
+            generator.load_model("sd-1-5")
+        pipeline.enable_model_cpu_offload.assert_not_called()
+        pipeline.to.assert_called_once_with("cpu")
 
     def test_single_file_plan_uses_from_single_file_with_pinned_config(self):
         plan = _plan(

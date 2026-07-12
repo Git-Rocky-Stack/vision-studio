@@ -222,7 +222,11 @@ exe = EXE(
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,
+    # macOS: PyInstaller ad-hoc signs the binary when codesign_identity is
+    # None - required for the bundle to spawn at all on Apple Silicon.
     codesign_identity=None,
     entitlements_file=None,
-    icon='../build/icon.ico' if os.path.exists('../build/icon.ico') else None,
+    # .ico is Windows-only; macOS would need .icns and Linux ELF binaries
+    # carry no icon. The backend is a headless child process either way.
+    icon='../build/icon.ico' if sys.platform == 'win32' and os.path.exists('../build/icon.ico') else None,
 )

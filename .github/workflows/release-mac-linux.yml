@@ -1,0 +1,157 @@
+# macOS + Linux release builds.
+#
+# The PyInstaller backend CANNOT cross-compile - each platform's bundle must
+# be built on that platform. These jobs run the full heavy pipeline on native
+# runners: per-OS torch (CUDA wheels on Linux, MPS-capable arm64 wheel on
+# macOS), the diffusers stack, PyInstaller, a live /api/health smoke gate on
+# the built bundle, then electron-builder packaging.
+#
+# macOS is Apple Silicon ONLY (PyTorch dropped macOS x64 wheels at 2.3).
+# Multi-GB artifacts are delivered via Cloudflare R2 (GitHub caps release
+# assets at 2 GB) - publish runs here when the R2 secrets exist, on version
+# tags or when dispatched with publish_r2. Binaries upload before the
+# latest-*.yml feed (scripts/publish-r2.cjs) so clients can never resolve an
+# update whose installer is missing.
+
+name: Release macOS + Linux
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      publish_r2:
+        description: "Publish artifacts + update feed to R2"
+        type: boolean
+        default: false
+
+concurrency:
+  group: release-mac-linux-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-14
+            platform: mac
+            r2_prefix: mac/
+          - os: ubuntu-22.04
+            platform: linux
+            r2_prefix: linux/
+    name: Build ${{ matrix.platform }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 150
+    env:
+      # `secrets` is not readable from step-level `if`; surface presence here.
+      R2_SECRETS_PRESENT: ${{ secrets.R2_ACCESS_KEY_ID != '' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Free runner disk space (Linux)
+        # CUDA torch + nvidia wheels (~10 GB venv) + the PyInstaller work tree
+        # + linux-unpacked + the AppImage do not fit the stock runner. The
+        # preinstalled toolchains we never touch free ~35 GB.
+        if: matrix.platform == 'linux'
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc \
+            /opt/hostedtoolcache/CodeQL /usr/local/share/boost
+          sudo docker image prune --all --force > /dev/null 2>&1 || true
+          df -h /
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - run: npm ci
+
+      - name: Build backend bundle (torch + diffusers stack + PyInstaller)
+        # build-backend.cjs: venv, torch install ladder (cu121 -> cu118 -> the
+        # default index, which on macOS arm64 is the MPS-capable wheel), the
+        # bundled AI runtimes, import gate, PyInstaller onefile, copy to
+        # resources/ with the executable bit asserted.
+        run: npm run build:backend
+
+      - name: Prune backend build intermediates
+        # The venv (~10 GB with CUDA torch) and PyInstaller work dirs are
+        # dead weight once resources/ holds the bundle - reclaim the disk
+        # before electron-builder needs it.
+        run: |
+          rm -rf backend/venv backend/build backend/dist
+          df -h .
+
+      - name: Fetch preview decoders (taesd family)
+        run: node scripts/fetch-preview-decoders.cjs
+
+      - name: Smoke-test the backend bundle (live /api/health)
+        # The gate that catches silently-broken bundles (missing metadata or
+        # data files disable generation without crashing - the exact failure
+        # #60 fixed). generation_available MUST be true, not just HTTP 200.
+        run: |
+          ./resources/VisionStudio-Backend > backend-smoke.log 2>&1 &
+          BACKEND_PID=$!
+          HEALTH=""
+          for i in $(seq 1 90); do
+            HEALTH=$(curl -fsS http://127.0.0.1:8000/api/health 2>/dev/null) && break
+            sleep 5
+          done
+          echo "health: $HEALTH"
+          kill "$BACKEND_PID" 2>/dev/null || true
+          echo "$HEALTH" | grep -q '"status":[[:space:]]*"ok"'
+          echo "$HEALTH" | grep -q '"generation_available":[[:space:]]*true'
+
+      - name: Print backend log on smoke failure
+        if: failure()
+        run: tail -n 200 backend-smoke.log || true
+
+      - name: Build frontend
+        run: npm run build
+
+      - name: Package (${{ matrix.platform }})
+        run: npm run package:${{ matrix.platform }}
+
+      - name: Verify macOS bundle (ad-hoc signature + feed URL)
+        if: matrix.platform == 'mac'
+        # arm64 refuses to launch unsigned binaries: the .app must carry at
+        # least an ad-hoc signature end to end. The baked app-update.yml must
+        # point at the mac/ feed prefix - the Windows URL here would 404
+        # every future update check.
+        run: |
+          APP="release/mac-arm64/Vision Studio.app"
+          codesign --verify --deep --strict "$APP"
+          grep -q "updates.vision-studio-x.com/mac/" "$APP/Contents/Resources/app-update.yml"
+          ls -lh release/*.dmg release/*.zip release/latest-mac.yml
+
+      - name: Verify Linux artifacts (feed URL + AppImage)
+        if: matrix.platform == 'linux'
+        run: |
+          ls -lh release/*.AppImage release/latest-linux.yml
+          grep -q "updates.vision-studio-x.com/linux/" release/linux-unpacked/resources/app-update.yml
+
+      - name: Publish to R2 (binaries first, feed last)
+        if: ${{ env.R2_SECRETS_PRESENT == 'true' && (startsWith(github.ref, 'refs/tags/v') || inputs.publish_r2) }}
+        run: node scripts/publish-r2.cjs --dir release --prefix ${{ matrix.r2_prefix }}
+        env:
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+
+      - name: Upload feed metadata artifact
+        # Only the small files: the multi-GB binaries live on R2, and GitHub
+        # artifact storage is not the delivery channel.
+        uses: actions/upload-artifact@v4
+        with:
+          name: vision-studio-${{ matrix.platform }}-meta
+          path: |
+            release/latest*.yml
+            release/*.blockmap
+          retention-days: 30
