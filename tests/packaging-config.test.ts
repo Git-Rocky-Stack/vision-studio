@@ -109,6 +109,14 @@ describe('packaging config honesty rails', () => {
     expect(() => readFileSync(resolve(ROOT, config.beforePack))).not.toThrow();
   });
 
+  it('keeps the macOS ad-hoc reseal hook wired and present', () => {
+    // Skipped signing leaves Electron's prebuilt ad-hoc seal broken after
+    // packaging modifies the bundle; Apple Silicon refuses to launch a
+    // broken seal, so an un-resealed dmg is dead on arrival for every user.
+    expect(config.afterPack).toBe('scripts/adhoc-sign-mac.cjs');
+    expect(() => readFileSync(resolve(ROOT, config.afterPack))).not.toThrow();
+  });
+
   it('ships the third-party license compliance doc as an extra resource', () => {
     const entries = (config.extraResources ?? []).map((e: { from: string }) => e.from);
     expect(entries).toContain('THIRD-PARTY-LICENSES.md');

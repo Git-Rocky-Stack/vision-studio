@@ -20,6 +20,11 @@ directories:
 # slim/frontend-only installers are never produced.
 beforePack: scripts/assert-native-backend.cjs
 
+# macOS only (no-op elsewhere): reseal the packaged .app with the ad-hoc
+# identity before the dmg/zip wrap. Skipped signing leaves Electron's
+# prebuilt seal broken, and Apple Silicon refuses to launch a broken seal.
+afterPack: scripts/adhoc-sign-mac.cjs
+
 # Files to include in the build
 files:
   - dist/**/*
