@@ -49,7 +49,7 @@ export function GenerateGuideSection() {
           {
             title: 'Add references, ControlNet, or LoRA when the run needs them',
             description:
-              'Use Reference Media for composition or character continuity, ControlNet for structural guidance, and LoRA Mixer for style fine-tunes. These advanced inputs require the Local still-image route -- see the routing callout below.',
+              'Use Reference Media for composition or character continuity, ControlNet for structural guidance, and LoRA Mixer for style fine-tunes. These advanced inputs require the Local still-image route, with one narrow exception: a single FLUX LoRA from the HuggingFace Hub at weight 1.0 can ride the HuggingFace route -- see the routing callout below.',
           },
           {
             title: 'Generate and review',
@@ -206,8 +206,15 @@ export function GenerateGuideSection() {
               local image path.
             </span>,
             <span>
-              <strong>Video generation is always local</strong> regardless of provider routing.
-              OpenRouter has no video equivalent today.
+              <strong>LoRAs are Local-first.</strong> The one hosted exception: exactly one
+              FLUX-family LoRA with a HuggingFace Hub repo, at weight 1.0, can run on the
+              HuggingFace still-image route. Multiple LoRAs, custom weights, local-only files,
+              and non-FLUX families all stay Local, and OpenRouter has no LoRA contract at all.
+            </span>,
+            <span>
+              <strong>Video generation runs locally or through HuggingFace</strong> depending on
+              the active account&apos;s video provider. OpenRouter has no video equivalent today,
+              and hosted video runs are prompt-only.
             </span>,
             <span>
               If those controls matter for the current run, switch the active account&apos;s

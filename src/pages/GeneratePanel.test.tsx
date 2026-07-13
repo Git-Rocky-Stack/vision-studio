@@ -87,6 +87,27 @@ vi.mock('@/components/generate/LoRAMixer', () => ({
       >
         Add Test LoRA
       </button>
+      <button
+        type="button"
+        onClick={() =>
+          onChange([
+            { id: 'lora-hub-flux', name: 'Hub Flux', triggerWord: '', weight: 1, color: '#000' },
+          ])
+        }
+      >
+        Add Hub Flux LoRA
+      </button>
+      <button
+        type="button"
+        onClick={() =>
+          onChange([
+            { id: 'lora-hub-flux', name: 'Hub Flux', triggerWord: '', weight: 1, color: '#000' },
+            { id: 'lora-test', name: 'Test LoRA', triggerWord: 'trg', weight: 1, color: '#000' },
+          ])
+        }
+      >
+        Add Two Hub LoRAs
+      </button>
       <button type="button" onClick={() => onInsertTrigger?.('trg')}>
         Insert Test Trigger
       </button>
@@ -1176,5 +1197,199 @@ describe('GeneratePanel', () => {
       expect(screen.getByTestId('guided-notices')).toHaveTextContent(fluxNotice);
     });
     expect(screen.getByText('Pass Notices')).toBeInTheDocument();
+  });
+
+  describe('hosted LoRA routing (#42)', () => {
+    function seedHostedStillImageAccount(provider: 'huggingface' | 'openrouter') {
+      (window.electron.accounts.list as ReturnType<typeof vi.fn>).mockResolvedValue({
+        activeAccountId: 'account-primary',
+        accounts: [
+          {
+            id: 'account-primary',
+            name: 'Primary',
+            createdAt: '2026-04-24T00:00:00.000Z',
+            updatedAt: '2026-04-24T00:00:00.000Z',
+            preferences: {
+              promptEnhancementProvider: 'local',
+              openRouterModel: '',
+              imageGenerationProvider: provider,
+              videoGenerationProvider: 'local',
+              openRouterImageModel: provider === 'openrouter' ? 'google/gemini-2.5-flash-image' : '',
+              huggingFaceModel: '',
+              huggingFaceImageModel:
+                provider === 'huggingface' ? 'black-forest-labs/FLUX.1-schnell' : '',
+              huggingFaceVideoModel: '',
+              fallbackProvider: null,
+            },
+            openRouter: {
+              apiKeyStored: provider === 'openrouter',
+              keyLabel: null,
+              lastValidatedAt: null,
+            },
+            huggingFace: {
+              tokenStored: provider === 'huggingface',
+              keyLabel: null,
+              lastValidatedAt: null,
+            },
+          },
+        ],
+      });
+    }
+
+    function hubFluxLoraRecord(overrides: Partial<ModelRecord> = {}) {
+      return buildRecord({
+        id: 'lora-hub-flux',
+        name: 'Hub Flux',
+        artifact_type: 'lora',
+        base_architecture: 'flux',
+        source: 'huggingface',
+        repo_id: 'XLabs-AI/flux-RealismLora',
+        ...overrides,
+      });
+    }
+
+    it('routes an eligible single flux Hub LoRA at weight 1.0 with the resolved adapter', async () => {
+      seedHostedStillImageAccount('huggingface');
+      seedInstalledModels([hubFluxLoraRecord()]);
+      render(<GeneratePanel />);
+
+      fireEvent.click(screen.getByRole('button', { name: 'Add Hub Flux LoRA' }));
+      fireEvent.change(screen.getByTestId('mock-prompt-input'), {
+        target: { value: 'a realism portrait' },
+      });
+      fireEvent.click(screen.getByTestId('generate-button'));
+
+      await waitFor(() => {
+        expect(window.electron.generation.generateImage).toHaveBeenCalledWith(
+          expect.objectContaining({
+            loras: [{ id: 'lora-hub-flux', weight: 1 }],
+            __huggingFaceLoraAdapter: 'XLabs-AI/flux-RealismLora',
+          }),
+        );
+      });
+    });
+
+    it('declines a non-1.0 weight with the specific weight condition', async () => {
+      seedHostedStillImageAccount('huggingface');
+      seedInstalledModels([
+        buildRecord({
+          id: 'lora-test',
+          name: 'Test LoRA',
+          artifact_type: 'lora',
+          base_architecture: 'flux',
+          repo_id: 'org/test-lora',
+        }),
+      ]);
+      render(<GeneratePanel />);
+
+      fireEvent.click(screen.getByRole('button', { name: 'Add Test LoRA' }));
+      fireEvent.change(screen.getByTestId('mock-prompt-input'), {
+        target: { value: 'a weighted portrait' },
+      });
+      fireEvent.click(screen.getByTestId('generate-button'));
+
+      expect((await screen.findAllByText(/weight 1\.0 only/)).length).toBeGreaterThan(0);
+      expect(window.electron.generation.generateImage).not.toHaveBeenCalled();
+    });
+
+    it('declines a LoRA with no HuggingFace repo, naming the Hub-hosted condition', async () => {
+      seedHostedStillImageAccount('huggingface');
+      seedInstalledModels([hubFluxLoraRecord({ source: 'civitai', repo_id: null })]);
+      render(<GeneratePanel />);
+
+      fireEvent.click(screen.getByRole('button', { name: 'Add Hub Flux LoRA' }));
+      fireEvent.change(screen.getByTestId('mock-prompt-input'), {
+        target: { value: 'a local-only portrait' },
+      });
+      fireEvent.click(screen.getByTestId('generate-button'));
+
+      expect((await screen.findAllByText(/Hub-hosted LoRAs only/)).length).toBeGreaterThan(0);
+      expect(window.electron.generation.generateImage).not.toHaveBeenCalled();
+    });
+
+    it('declines a non-flux family, naming the FLUX-family condition', async () => {
+      seedHostedStillImageAccount('huggingface');
+      seedInstalledModels([
+        hubFluxLoraRecord({ base_architecture: 'sdxl', repo_id: 'org/sdxl-lora' }),
+      ]);
+      render(<GeneratePanel />);
+
+      fireEvent.click(screen.getByRole('button', { name: 'Add Hub Flux LoRA' }));
+      fireEvent.change(screen.getByTestId('mock-prompt-input'), {
+        target: { value: 'an sdxl portrait' },
+      });
+      fireEvent.click(screen.getByTestId('generate-button'));
+
+      expect((await screen.findAllByText(/FLUX-family only/)).length).toBeGreaterThan(0);
+      expect(window.electron.generation.generateImage).not.toHaveBeenCalled();
+    });
+
+    it('declines a multi-LoRA mix, naming the exactly-one condition', async () => {
+      seedHostedStillImageAccount('huggingface');
+      seedInstalledModels([hubFluxLoraRecord()]);
+      render(<GeneratePanel />);
+
+      fireEvent.click(screen.getByRole('button', { name: 'Add Two Hub LoRAs' }));
+      fireEvent.change(screen.getByTestId('mock-prompt-input'), {
+        target: { value: 'a stacked portrait' },
+      });
+      fireEvent.click(screen.getByTestId('generate-button'));
+
+      expect((await screen.findAllByText(/exactly one LoRA/)).length).toBeGreaterThan(0);
+      expect(window.electron.generation.generateImage).not.toHaveBeenCalled();
+    });
+
+    it('keeps the OpenRouter LoRA decline permanent, naming the missing contract', async () => {
+      seedHostedStillImageAccount('openrouter');
+      render(<GeneratePanel />);
+
+      fireEvent.click(screen.getByRole('button', { name: 'Add Hub Flux LoRA' }));
+      fireEvent.change(screen.getByTestId('mock-prompt-input'), {
+        target: { value: 'an openrouter portrait' },
+      });
+      fireEvent.click(screen.getByTestId('generate-button'));
+
+      expect((await screen.findAllByText(/no LoRA contract/)).length).toBeGreaterThan(0);
+      expect(window.electron.generation.generateImage).not.toHaveBeenCalled();
+    });
+
+    it('mirrors an ineligible LoRA mix in the footer preflight before any click', async () => {
+      seedHostedStillImageAccount('huggingface');
+      seedInstalledModels([
+        buildRecord({
+          id: 'lora-test',
+          name: 'Test LoRA',
+          artifact_type: 'lora',
+          base_architecture: 'flux',
+          repo_id: 'org/test-lora',
+        }),
+      ]);
+      render(<GeneratePanel />);
+
+      fireEvent.click(screen.getByRole('button', { name: 'Add Test LoRA' }));
+
+      // The footer must never show the route ready when generate would decline.
+      await waitFor(() => {
+        expect(screen.getByTestId('generate-preflight-warning')).toHaveTextContent(
+          /weight 1\.0 only/,
+        );
+      });
+    });
+
+    it('shows no LoRA warning for an eligible mix in the footer preflight', async () => {
+      seedHostedStillImageAccount('huggingface');
+      seedInstalledModels([hubFluxLoraRecord()]);
+      render(<GeneratePanel />);
+
+      fireEvent.click(screen.getByRole('button', { name: 'Add Hub Flux LoRA' }));
+
+      // Give the account sync a tick, then confirm the route reads as ready.
+      await waitFor(() => {
+        expect(screen.getByTestId('generate-preflight-summary')).toHaveTextContent(
+          'black-forest-labs/FLUX.1-schnell',
+        );
+      });
+      expect(screen.queryByTestId('generate-preflight-warning')).not.toBeInTheDocument();
+    });
   });
 });

@@ -178,8 +178,18 @@ export interface ImageGenerationRequestPayload {
   __providerOverride?: 'openrouter' | 'huggingface';
   /** M9: optional per-request acceleration toggles (local generation only). */
   acceleration_settings?: AccelerationRequestPayload;
-  /** #136: local-only LoRA adapters to stack (Local route only). */
+  /**
+   * #136: LoRA adapters to stack. Local runs stack any mix; the HuggingFace
+   * route accepts exactly one flux Hub-hosted LoRA at weight 1.0 (#42), and
+   * OpenRouter has no LoRA contract (permanent decline).
+   */
   loras?: LoraSelectionPayload[];
+  /**
+   * #42: renderer-resolved Hub repo id for HuggingFace adapter-by-model-id
+   * dispatch. Required alongside `loras` on the HuggingFace route; the main
+   * process revalidates shape and refuses LoRA-bearing jobs without it.
+   */
+  __huggingFaceLoraAdapter?: string;
 }
 
 export const BUILT_IN_STYLE_PRESETS: StylePreset[] = [

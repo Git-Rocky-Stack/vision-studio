@@ -4,7 +4,7 @@ import { useAppStore } from '@/store/appStore';
 import { runWorkflowExecution } from './runWorkflowExecution';
 
 /** Seed the installed library with the baseline checkpoint + one flux LoRA. */
-function seedInstalledLoraModels() {
+function seedInstalledLoraModels({ loraRepoId = null as string | null } = {}) {
   useAppStore.setState({
     availableModels: [
       {
@@ -35,8 +35,8 @@ function seedInstalledLoraModels() {
         artifact_type: 'lora',
         capability: 'image',
         base_architecture: 'flux',
-        source: 'local',
-        repo_id: null,
+        source: loraRepoId ? 'huggingface' : 'local',
+        repo_id: loraRepoId,
         revision: null,
         aux_repo_id: null,
         size: '200 MB',
@@ -197,7 +197,7 @@ describe('runWorkflowExecution', () => {
     });
   });
 
-  it('declines LoRA-bearing runs on hosted still-image routes with a clear reason (#43)', async () => {
+  it('declines LoRA-bearing runs on OpenRouter permanently, naming the missing contract (#42)', async () => {
     seedInstalledLoraModels();
     seedWorkflowLoraChain('flux-ink.safetensors', 1);
 
@@ -220,7 +220,106 @@ describe('runWorkflowExecution', () => {
         (issue) =>
           issue.severity === 'error' &&
           issue.code === 'provider-config' &&
-          /prompt-only/i.test(issue.message),
+          /no LoRA contract/.test(issue.message),
+      ),
+    ).toBe(true);
+  });
+
+  it('routes an eligible single flux Hub LoRA chain to HuggingFace with the adapter (#42)', async () => {
+    seedInstalledLoraModels({ loraRepoId: 'XLabs-AI/flux-RealismLora' });
+    seedWorkflowLoraChain('flux-ink.safetensors', 1);
+
+    const electron = makeElectronGenerationMock({
+      huggingFaceImageEnabled: true,
+      huggingFaceImageModel: 'black-forest-labs/FLUX.1-schnell',
+      submit: { success: true, jobId: 'job-hf-lora-1' },
+      statuses: [
+        {
+          job_id: 'job-hf-lora-1',
+          status: 'completed',
+          type: 'image',
+          created_at: '2026-07-12T20:00:00.000Z',
+          completed_at: '2026-07-12T20:00:05.000Z',
+          progress: 100,
+          result: {
+            images: ['/outputs/job-hf-lora-1/image-1.png'],
+          },
+        },
+      ],
+    });
+
+    await runWorkflowExecution({
+      workflowId: 'image-generation-baseline',
+      electron,
+      store: useAppStore,
+      pollIntervalMs: 0,
+    });
+
+    expect(electron.generation.generateImage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        loras: [{ id: 'flux-ink', weight: 1 }],
+        __huggingFaceLoraAdapter: 'XLabs-AI/flux-RealismLora',
+      }),
+    );
+    expect(useAppStore.getState().workflowRecords[0].runHistory[0]).toMatchObject({
+      status: 'complete',
+    });
+  });
+
+  it('declines an ineligible LoRA strength on HuggingFace, naming the weight condition (#42)', async () => {
+    seedInstalledLoraModels({ loraRepoId: 'XLabs-AI/flux-RealismLora' });
+    seedWorkflowLoraChain('flux-ink.safetensors', 0.8);
+
+    const electron = makeElectronGenerationMock({
+      huggingFaceImageEnabled: true,
+      huggingFaceImageModel: 'black-forest-labs/FLUX.1-schnell',
+      submit: { success: true, jobId: 'job-should-not-run' },
+    });
+
+    await runWorkflowExecution({
+      workflowId: 'image-generation-baseline',
+      electron,
+      store: useAppStore,
+      pollIntervalMs: 0,
+    });
+
+    expect(electron.generation.generateImage).not.toHaveBeenCalled();
+    const runtime = useAppStore.getState().workflowRuntimeById['image-generation-baseline'];
+    expect(
+      runtime?.issues.some(
+        (issue) =>
+          issue.severity === 'error' &&
+          issue.code === 'provider-config' &&
+          /weight 1\.0/.test(issue.message),
+      ),
+    ).toBe(true);
+  });
+
+  it('declines a LoRA with no Hub repo on HuggingFace, naming the Hub-hosted condition (#42)', async () => {
+    seedInstalledLoraModels();
+    seedWorkflowLoraChain('flux-ink.safetensors', 1);
+
+    const electron = makeElectronGenerationMock({
+      huggingFaceImageEnabled: true,
+      huggingFaceImageModel: 'black-forest-labs/FLUX.1-schnell',
+      submit: { success: true, jobId: 'job-should-not-run' },
+    });
+
+    await runWorkflowExecution({
+      workflowId: 'image-generation-baseline',
+      electron,
+      store: useAppStore,
+      pollIntervalMs: 0,
+    });
+
+    expect(electron.generation.generateImage).not.toHaveBeenCalled();
+    const runtime = useAppStore.getState().workflowRuntimeById['image-generation-baseline'];
+    expect(
+      runtime?.issues.some(
+        (issue) =>
+          issue.severity === 'error' &&
+          issue.code === 'provider-config' &&
+          /Hub-hosted/.test(issue.message),
       ),
     ).toBe(true);
   });

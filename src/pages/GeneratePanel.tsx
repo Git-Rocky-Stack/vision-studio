@@ -35,6 +35,10 @@ import {
 import type { ImageGenerationRequestPayload, LoRAConfig } from '@/types/generation';
 import { toLoraSelections, appendTrigger } from '@/utils/loraPayload';
 import { resolveRoute } from '../../shared/resolveRoute';
+import {
+  OPENROUTER_LORA_UNSUPPORTED_MESSAGE,
+  resolveHuggingFaceLoraAdapter,
+} from '../../shared/hostedLoraRouting';
 import { buildRouteResolverInput } from '@/features/routing/buildRouteResolverInput';
 import { OverBudgetFallbackDialog } from '@/components/generate/OverBudgetFallbackDialog';
 import type { ProviderId, FitVerdict } from '../../shared/providerRouting';
@@ -640,20 +644,19 @@ export function GeneratePanel() {
         resolvedCanvasControlLayers.controlnet.length > 0 ||
         resolvedCanvasControlLayers.referenceImages.length > 0 ||
         Boolean(resolvedCanvasControlLayers.inpaint) ||
-        resolvedCanvasControlLayers.errors.length > 0 ||
-        refConfig.loraConfigs.length > 0);
-    // HuggingFace hosted still-image routing is prompt-only: the Inference
-    // Providers API documents no ControlNet/inpaint contract, so any guided
-    // pass (ControlNet, inpaint, reference images, or misconfigured layers)
-    // must stay on the local backend - mirrors the OpenRouter envelope.
+        resolvedCanvasControlLayers.errors.length > 0);
+    // HuggingFace hosted still-image routing is prompt-only for guided passes:
+    // the Inference Providers API documents no ControlNet/inpaint contract, so
+    // ControlNet, inpaint, reference images, and misconfigured layers must stay
+    // on the local backend - mirrors the OpenRouter envelope. LoRAs are gated
+    // separately below via the #42 adapter slice.
     const huggingFaceUnsupportedInputs =
       imageConfig.generationType === 'image' &&
       (resolvedCanvasControlLayers.visibleLayerCount > 0 ||
         resolvedCanvasControlLayers.controlnet.length > 0 ||
         resolvedCanvasControlLayers.referenceImages.length > 0 ||
         Boolean(resolvedCanvasControlLayers.inpaint) ||
-        resolvedCanvasControlLayers.errors.length > 0 ||
-        refConfig.loraConfigs.length > 0);
+        resolvedCanvasControlLayers.errors.length > 0);
 
     if (useOpenRouterImage && !latestActiveAccount?.openRouter.apiKeyStored) {
       updateGenStatus({
@@ -742,6 +745,35 @@ export function GeneratePanel() {
         status: 'error',
         errorMessage:
           'HuggingFace still-image routing supports prompt-only generations. Switch the active account back to Local for ControlNet, inpaint, or reference-image passes.',
+        isGenerating: false,
+      });
+      isGeneratingRef.current = false;
+      return;
+    }
+
+    // #42: OpenRouter's documented image API has no adapter key, so its LoRA
+    // decline is permanent and named as such.
+    if (useOpenRouterImage && refConfig.loraConfigs.length > 0) {
+      updateGenStatus({
+        status: 'error',
+        errorMessage: OPENROUTER_LORA_UNSUPPORTED_MESSAGE,
+        isGenerating: false,
+      });
+      isGeneratingRef.current = false;
+      return;
+    }
+
+    // #42: HuggingFace runs the narrow adapter-by-model-id slice - exactly one
+    // flux Hub-hosted LoRA at weight 1.0 - and declines everything else with
+    // the specific unmet condition instead of a blanket prompt-only message.
+    const hostedLoraDecision =
+      useHuggingFaceImage && refConfig.loraConfigs.length > 0
+        ? resolveHuggingFaceLoraAdapter(toLoraSelections(refConfig.loraConfigs), availableModels)
+        : null;
+    if (hostedLoraDecision && !hostedLoraDecision.ok) {
+      updateGenStatus({
+        status: 'error',
+        errorMessage: hostedLoraDecision.reason,
         isGenerating: false,
       });
       isGeneratingRef.current = false;
@@ -894,6 +926,9 @@ export function GeneratePanel() {
             : {}),
           ...(refConfig.loraConfigs.length > 0
             ? { loras: toLoraSelections(refConfig.loraConfigs) }
+            : {}),
+          ...(hostedLoraDecision?.ok
+            ? { __huggingFaceLoraAdapter: hostedLoraDecision.adapterRepoId }
             : {}),
           ...(forcedRoute && forcedRoute !== 'local' ? { __providerOverride: forcedRoute } : {}),
           acceleration_settings: toAccelerationRequestPayload(
@@ -1197,6 +1232,13 @@ export function GeneratePanel() {
   const openRouterImageModel = activeAccount?.preferences.openRouterImageModel.trim() ?? '';
   const huggingFaceImageModel = activeAccount?.preferences.huggingFaceImageModel?.trim() ?? '';
   const huggingFaceVideoModel = activeAccount?.preferences.huggingFaceVideoModel?.trim() ?? '';
+  // #42: footer mirror of the click-time hosted LoRA gate - the HuggingFace
+  // route runs exactly one flux Hub-hosted LoRA at weight 1.0; anything else
+  // surfaces its specific unmet condition here before the click.
+  const huggingFaceLoraDecision =
+    huggingFaceImageEnabled && refConfig.loraConfigs.length > 0
+      ? resolveHuggingFaceLoraAdapter(toLoraSelections(refConfig.loraConfigs), availableModels)
+      : null;
   const openRouterImageWarning = openRouterImageEnabled
     ? !activeAccount?.openRouter.apiKeyStored
       ? 'OpenRouter is selected for still images, but no API key is stored for the active account.'
@@ -1208,14 +1250,16 @@ export function GeneratePanel() {
             Boolean(resolvedCanvasControlLayers.inpaint) ||
             resolvedCanvasControlLayers.errors.length > 0
           ? 'OpenRouter still-image routing currently supports prompt-only generations. Switch the active account back to Local for ControlNet, inpaint, or reference-image passes.'
-          : null
+          : refConfig.loraConfigs.length > 0
+            ? OPENROUTER_LORA_UNSUPPORTED_MESSAGE
+            : null
     : null;
-  // HuggingFace hosted still-image routing is prompt-only: the Inference
-  // Providers API documents no ControlNet/inpaint contract, so any guided pass
-  // (ControlNet, inpaint, reference images, or misconfigured layers) must stay
-  // on the local backend. This footer predicate mirrors the click-time guard
-  // (huggingFaceUnsupportedInputs) so the route is never shown ready when it
-  // would be rejected at generate time.
+  // HuggingFace hosted still-image routing is prompt-only for guided passes:
+  // the Inference Providers API documents no ControlNet/inpaint contract, so
+  // ControlNet, inpaint, reference images, and misconfigured layers must stay
+  // on the local backend. This footer predicate mirrors the click-time guards
+  // (huggingFaceUnsupportedInputs + the #42 LoRA gate) so the route is never
+  // shown ready when it would be rejected at generate time.
   const huggingFaceImageWarning = huggingFaceImageEnabled
     ? !activeAccount?.huggingFace?.tokenStored
       ? 'HuggingFace is selected for still images, but no token is stored for the active account.'
@@ -1227,7 +1271,9 @@ export function GeneratePanel() {
             Boolean(resolvedCanvasControlLayers.inpaint) ||
             resolvedCanvasControlLayers.errors.length > 0
           ? 'HuggingFace still-image routing supports prompt-only generations. Switch the active account back to Local for ControlNet, inpaint, or reference-image passes.'
-          : null
+          : huggingFaceLoraDecision && !huggingFaceLoraDecision.ok
+            ? huggingFaceLoraDecision.reason
+            : null
     : null;
   const huggingFaceVideoWarning = huggingFaceVideoEnabled
     ? !activeAccount?.huggingFace?.tokenStored

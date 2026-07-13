@@ -26,7 +26,14 @@ export function delay(ms: number, signal?: AbortSignal): Promise<void> {
 const RETRYABLE_STATUS = new Set([429, 500, 502, 503, 504]);
 
 function responseStatus(error: unknown): number | null {
-  const status = (error as { response?: { status?: unknown } } | null)?.response?.status;
+  const candidate = error as
+    | { response?: { status?: unknown }; httpResponse?: { status?: unknown } }
+    | null;
+  // Axios errors carry response.status; the @huggingface/inference client's
+  // InferenceClientProviderApiError carries httpResponse.status (#42). Both
+  // must classify identically or client 4xx failures get retried as if they
+  // were network blips.
+  const status = candidate?.response?.status ?? candidate?.httpResponse?.status;
   return typeof status === 'number' ? status : null;
 }
 

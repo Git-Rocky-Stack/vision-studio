@@ -103,8 +103,10 @@ export function WorkflowsGuideSection() {
               provider, validation will surface the conflict before submission.
             </span>,
             <span>
-              ControlNet, LoRA, and other guided-graph nodes still require the Local route -- they
-              fail validation under OpenRouter.
+              ControlNet and other guided-graph nodes still require the Local route -- they fail
+              validation under OpenRouter. LoRA Loader chains follow the same rule with one
+              exception: a single FLUX Hub-hosted LoRA at strength 1.0 validates on the
+              HuggingFace route.
             </span>,
           ]}
         />

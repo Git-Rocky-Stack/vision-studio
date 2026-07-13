@@ -204,6 +204,123 @@ describe('createHuggingFaceInferenceService.generateImage', () => {
   });
 });
 
+describe('createHuggingFaceInferenceService.generateImage adapter-by-model-id (#42)', () => {
+  const PNG_BLOB = new Blob([PNG_MAGIC]);
+
+  it('dispatches through the official-client seam with the LoRA repo id AS the model', async () => {
+    const axiosInstance = { get: vi.fn(), post: vi.fn() };
+    const adapterTextToImage = vi.fn().mockResolvedValue(PNG_BLOB);
+    const service = createHuggingFaceInferenceService({ axiosInstance, adapterTextToImage });
+
+    const result = await service.generateImage({
+      token: 'hf_token',
+      model: 'black-forest-labs/FLUX.1-schnell',
+      adapterRepoId: 'XLabs-AI/flux-RealismLora',
+      prompt: 'a tree',
+      negativePrompt: 'blurry',
+      width: 1024,
+      height: 768,
+      seed: 7,
+    });
+
+    expect(adapterTextToImage).toHaveBeenCalledWith(
+      {
+        accessToken: 'hf_token',
+        model: 'XLabs-AI/flux-RealismLora',
+        provider: 'auto',
+        inputs: 'a tree',
+        parameters: { negative_prompt: 'blurry', width: 1024, height: 768, seed: 7 },
+      },
+      expect.objectContaining({ retry_on_error: false }),
+    );
+    // The adapter IS the model on this contract: the pinned hf-inference
+    // router must never be hit, and the result reports the adapter id.
+    expect(axiosInstance.post).not.toHaveBeenCalled();
+    expect(result.model).toBe('XLabs-AI/flux-RealismLora');
+    expect(result.images[0].mimeType).toBe('image/png');
+    expect(result.images[0].dataUrl.startsWith('data:image/png;base64,')).toBe(true);
+  });
+
+  it('rejects a non-image adapter payload (sanitization)', async () => {
+    const adapterTextToImage = vi.fn().mockResolvedValue(new Blob(['{"error":"nope"}']));
+    const service = createHuggingFaceInferenceService({
+      axiosInstance: { get: vi.fn(), post: vi.fn() },
+      adapterTextToImage,
+    });
+    await expect(
+      service.generateImage({
+        token: 'hf_token',
+        model: 'm/x',
+        adapterRepoId: 'org/lora',
+        prompt: 'a tree',
+        width: 512,
+        height: 512,
+      }),
+    ).rejects.toThrow(/did not return a valid image|failed/i);
+  });
+
+  it('rejects an unsafe or non-namespaced adapter repo id before any call', async () => {
+    const adapterTextToImage = vi.fn();
+    const service = createHuggingFaceInferenceService({
+      axiosInstance: { get: vi.fn(), post: vi.fn() },
+      adapterTextToImage,
+    });
+    for (const bad of ['../../etc/passwd', 'org/model/extra', 'single-segment']) {
+      await expect(
+        service.generateImage({
+          token: 'hf_token',
+          model: 'm/x',
+          adapterRepoId: bad,
+          prompt: 'a tree',
+          width: 512,
+          height: 512,
+        }),
+      ).rejects.toThrow(/Invalid HuggingFace LoRA adapter/);
+    }
+    expect(adapterTextToImage).not.toHaveBeenCalled();
+  });
+
+  it('sanitizes a client 401 to the token message without echoing the token', async () => {
+    const clientError = new Error('Provider rejected the call') as Error & { httpResponse: unknown };
+    clientError.httpResponse = { requestId: 'req-1', status: 401, body: {} };
+    const adapterTextToImage = vi.fn().mockRejectedValue(clientError);
+    const service = createHuggingFaceInferenceService({
+      axiosInstance: { get: vi.fn(), post: vi.fn() },
+      adapterTextToImage,
+    });
+    await expect(
+      service.generateImage({
+        token: 'hf_token',
+        model: 'm/x',
+        adapterRepoId: 'org/lora',
+        prompt: 'a tree',
+        width: 512,
+        height: 512,
+      }),
+    ).rejects.toThrow(/rejected the token/i);
+  });
+
+  it('prompt-only requests still ride the pinned hf-inference router, never the adapter seam', async () => {
+    const axiosInstance = {
+      get: vi.fn(),
+      post: vi.fn().mockResolvedValue({ data: PNG_MAGIC, headers: { 'content-type': 'image/png' } }),
+    };
+    const adapterTextToImage = vi.fn();
+    const service = createHuggingFaceInferenceService({ axiosInstance, adapterTextToImage });
+
+    await service.generateImage({
+      token: 'hf_token',
+      model: 'black-forest-labs/FLUX.1-schnell',
+      prompt: 'a tree',
+      width: 512,
+      height: 512,
+    });
+
+    expect(axiosInstance.post).toHaveBeenCalledOnce();
+    expect(adapterTextToImage).not.toHaveBeenCalled();
+  });
+});
+
 const MP4_BYTES = Buffer.concat([Buffer.from([0x00, 0x00, 0x00, 0x18]), Buffer.from('ftypmp42'), Buffer.alloc(8)]);
 
 describe('createHuggingFaceInferenceService.listVideoModels', () => {

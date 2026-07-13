@@ -92,7 +92,6 @@ function UpdatesBlock() {
       unsubscribe();
     };
     // The bridge is fixed for the lifetime of the window.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const checkDisabled =
