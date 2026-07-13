@@ -31,6 +31,10 @@ import { suggestNegativePromptFromHeuristics } from './negativePromptHeuristics'
 import { runOpenRouterImageJob } from './runOpenRouterImageJob';
 import { createHuggingFaceImageJobStore } from './huggingfaceImageJobs';
 import { runHuggingFaceImageJob } from './runHuggingFaceImageJob';
+import {
+  OPENROUTER_LORA_UNSUPPORTED_MESSAGE,
+  validateHuggingFaceLoraDispatch,
+} from '../../shared/hostedLoraRouting';
 import { createHuggingFaceVideoJobStore } from './huggingfaceVideoJobs';
 import { runHuggingFaceVideoJob } from './runHuggingFaceVideoJob';
 import {
@@ -211,6 +215,12 @@ ipcMain.handle('generation:generate-image', async (_event, params) => {
       };
     }
 
+    // #42: OpenRouter's documented image API has no adapter key - the LoRA
+    // decline is permanent, and the request must never be silently degraded.
+    if (Array.isArray(params?.loras) && params.loras.length > 0) {
+      return { success: false, error: OPENROUTER_LORA_UNSUPPORTED_MESSAGE };
+    }
+
     if (!activeAccount.openRouter.apiKeyStored) {
       return {
         success: false,
@@ -256,6 +266,17 @@ ipcMain.handle('generation:generate-image', async (_event, params) => {
         error:
           'HuggingFace still-image routing supports prompt-only generations. Switch the active account back to Local for ControlNet, inpaint, or reference-image passes.',
       };
+    }
+
+    // #42: LoRA-bearing jobs must satisfy the narrow adapter contract
+    // (exactly one selection, weight 1.0, renderer-resolved Hub repo id) -
+    // refused here with the specific unmet condition, never silently dropped.
+    const loraDispatch = validateHuggingFaceLoraDispatch(
+      params?.loras,
+      params?.__huggingFaceLoraAdapter,
+    );
+    if (!loraDispatch.ok) {
+      return { success: false, error: loraDispatch.reason };
     }
 
     if (!activeAccount.huggingFace.tokenStored) {
@@ -660,6 +681,11 @@ ipcMain.handle('generation:batch', async (_event, params) => {
       };
     }
 
+    // #42: same permanent OpenRouter LoRA decline as the single-image handler.
+    if (Array.isArray(params?.loras) && params.loras.length > 0) {
+      return { success: false, error: OPENROUTER_LORA_UNSUPPORTED_MESSAGE };
+    }
+
     if (!activeAccount.openRouter.apiKeyStored) {
       return {
         success: false,
@@ -712,6 +738,15 @@ ipcMain.handle('generation:batch', async (_event, params) => {
         error:
           'HuggingFace still-image routing currently supports prompt-only generations. Switch the active account back to Local for ControlNet, inpaint, or reference-image passes.',
       };
+    }
+
+    // #42: same narrow adapter contract as the single-image handler above.
+    const loraDispatch = validateHuggingFaceLoraDispatch(
+      params?.loras,
+      params?.__huggingFaceLoraAdapter,
+    );
+    if (!loraDispatch.ok) {
+      return { success: false, error: loraDispatch.reason };
     }
 
     if (!activeAccount.huggingFace.tokenStored) {

@@ -63,6 +63,12 @@ export interface WorkflowGenerationRequest {
   seed?: number;
   /** #43: LoRA Loader chain selections mapped to installed records, checkpoint-first. */
   loras?: Array<{ id: string; weight: number }>;
+  /**
+   * #42: Hub repo id for HuggingFace adapter-by-model-id dispatch, attached by
+   * the workflow route step when the chain satisfies the narrow hosted
+   * contract (exactly one flux Hub-hosted LoRA at strength 1.0).
+   */
+  __huggingFaceLoraAdapter?: string;
 }
 
 export interface WorkflowRuntimeState {

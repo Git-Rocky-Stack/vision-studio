@@ -1,5 +1,6 @@
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
+import { validateHuggingFaceLoraDispatch } from '../../shared/hostedLoraRouting';
 import type { HuggingFaceImageJobStore } from './huggingfaceImageJobs';
 
 type HuggingFaceImageGenResult = {
@@ -34,6 +35,8 @@ type RunDeps = {
     generateImage: (args: {
       token: string;
       model: string;
+      /** #42: Hub LoRA repo id for adapter-by-model-id dispatch. */
+      adapterRepoId?: string;
       prompt: string;
       negativePrompt?: string;
       width: number;
@@ -117,6 +120,16 @@ export async function runHuggingFaceImageJob(
       return;
     }
 
+    // #42 authoritative backstop: a LoRA-bearing job must satisfy the narrow
+    // adapter contract (exactly one selection, weight 1.0, resolved Hub repo
+    // id) or fail outright - never silently degrade to a prompt-only run that
+    // discards the user's LoRA.
+    const loraDispatch = validateHuggingFaceLoraDispatch(params.loras, params.__huggingFaceLoraAdapter);
+    if (!loraDispatch.ok) {
+      failJob(store, jobId, loraDispatch.reason);
+      return;
+    }
+
     const controller = new AbortController();
     store.patch(jobId, { status: 'processing', progress: 12, abortController: controller });
 
@@ -130,6 +143,7 @@ export async function runHuggingFaceImageJob(
     const result = await huggingFace.generateImage({
       token,
       model,
+      ...(loraDispatch.adapterRepoId ? { adapterRepoId: loraDispatch.adapterRepoId } : {}),
       prompt,
       negativePrompt,
       width,

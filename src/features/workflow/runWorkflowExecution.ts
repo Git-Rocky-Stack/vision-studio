@@ -9,6 +9,11 @@ import {
   resolveStillImageRoute,
 } from '@/features/accounts/providerRouting';
 import type { WorkflowExecutionIssue, WorkflowExecutionSummary, WorkflowGenerationRequest } from '@/types/workflow';
+import {
+  OPENROUTER_LORA_UNSUPPORTED_MESSAGE,
+  resolveHuggingFaceLoraAdapter,
+  type HostedLoraRecordLike,
+} from '../../../shared/hostedLoraRouting';
 import { resolveWorkflowGenerationRequest } from './resolveWorkflowGenerationRequest';
 import { validateWorkflowExecution } from './validateWorkflowExecution';
 
@@ -96,6 +101,7 @@ export async function runWorkflowExecution({
     summary: validation.summary,
     stillImageRoute,
     backendConnected: state.systemInfo.backendConnected,
+    availableModels: state.availableModels,
   });
 
   state.setWorkflowRuntimeState(workflowId, {
@@ -116,6 +122,7 @@ export async function runWorkflowExecution({
     summary: resolution.summary,
     stillImageRoute,
     backendConnected: state.systemInfo.backendConnected,
+    availableModels: state.availableModels,
   });
 
   if (!routedResolution.request || routedResolution.issues.some((issue) => issue.severity === 'error')) {
@@ -367,12 +374,14 @@ function applyWorkflowExecutionRoute({
   summary,
   stillImageRoute,
   backendConnected,
+  availableModels,
 }: {
   issues: WorkflowExecutionIssue[];
   request?: WorkflowGenerationRequest | null;
   summary?: WorkflowExecutionSummary | null;
   stillImageRoute: ReturnType<typeof resolveStillImageRoute>;
   backendConnected: boolean;
+  availableModels: HostedLoraRecordLike[];
 }) {
   let nextIssues = [...issues];
   let nextRequest = request ?? null;
@@ -392,14 +401,32 @@ function applyWorkflowExecutionRoute({
 
   if (hostedRoute) {
     if (nextRequest?.loras?.length) {
-      // #43/#42: hosted still-image routes are prompt-only; no provider has a
-      // documented adapter contract, so LoRA-bearing runs stay Local (M6 gate).
-      const providerName = stillImageRoute.provider === 'openrouter' ? 'OpenRouter' : 'HuggingFace';
-      nextIssues = appendWorkflowIssue(nextIssues, {
-        severity: 'error',
-        code: 'provider-config',
-        message: `${providerName} still-image routing supports prompt-only generations. Switch the active account back to Local to use LoRAs.`,
-      });
+      if (stillImageRoute.provider === 'openrouter') {
+        // #42: OpenRouter's documented image API has no adapter key - the
+        // LoRA decline is permanent (M6 gate).
+        nextIssues = appendWorkflowIssue(nextIssues, {
+          severity: 'error',
+          code: 'provider-config',
+          message: OPENROUTER_LORA_UNSUPPORTED_MESSAGE,
+        });
+      } else {
+        // #42: HuggingFace runs the narrow adapter-by-model-id slice -
+        // exactly one flux Hub-hosted LoRA at strength 1.0 - and everything
+        // else declines with the specific unmet condition.
+        const decision = resolveHuggingFaceLoraAdapter(nextRequest.loras, availableModels);
+        if (decision.ok) {
+          nextRequest = {
+            ...nextRequest,
+            __huggingFaceLoraAdapter: decision.adapterRepoId,
+          };
+        } else {
+          nextIssues = appendWorkflowIssue(nextIssues, {
+            severity: 'error',
+            code: 'provider-config',
+            message: decision.reason,
+          });
+        }
+      }
     }
     if (stillImageRoute.error) {
       // Misconfigured hosted route: surface the config error instead of

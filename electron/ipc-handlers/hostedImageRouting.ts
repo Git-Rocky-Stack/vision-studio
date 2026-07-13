@@ -26,12 +26,14 @@ export function routedJobProvider(jobId: string): Exclude<ProviderId, 'local'> |
 }
 
 /**
- * HuggingFace hosted still-image routing supports prompt-only generations only.
- * The Inference Providers task API documents no ControlNet control_image and no
- * masked-inpaint mask_image parameter, and bare img2img / reference images
- * (IP-adapter) have no standard hosted contract either - so every guided pass
- * (ControlNet, inpaint, mask, img2img, reference images, outpaint, background
- * replacement) stays on the local backend (Codex M6 gate).
+ * HuggingFace hosted still-image routing supports prompt-only generations plus
+ * the narrow #42 LoRA adapter slice (validated separately via
+ * shared/hostedLoraRouting.ts). The Inference Providers task API documents no
+ * ControlNet control_image and no masked-inpaint mask_image parameter, and
+ * bare img2img / reference images (IP-adapter) have no standard hosted
+ * contract either - so every guided pass (ControlNet, inpaint, mask, img2img,
+ * reference images, outpaint, background replacement) stays on the local
+ * backend (Codex M6 gate).
  */
 export function hasUnsupportedHuggingFaceImageInputs(params: unknown): boolean {
   const candidate = params as

@@ -91,6 +91,93 @@ describe('runHuggingFaceImageJob', () => {
     expect(h.huggingFace.generateImage).not.toHaveBeenCalled();
   });
 
+  it('forwards a valid single weight-1.0 LoRA as the adapter repo id (#42)', async () => {
+    const h = setup();
+    h.store.set({ job_id: 'huggingface-image-lora', status: 'pending', progress: 0, type: 'image', created_at: '2026-07-12T00:00:00.000Z' });
+    await runHuggingFaceImageJob(
+      'huggingface-image-lora',
+      {
+        prompt: 'a tree',
+        width: 512,
+        height: 512,
+        __huggingFaceAccountId: 'account-1',
+        loras: [{ id: 'flux-realism', weight: 1 }],
+        __huggingFaceLoraAdapter: 'XLabs-AI/flux-RealismLora',
+      },
+      h.deps,
+    );
+    const job = h.store.get('huggingface-image-lora');
+    expect(job?.status).toBe('completed');
+    expect(h.huggingFace.generateImage).toHaveBeenCalledWith(
+      expect.objectContaining({ adapterRepoId: 'XLabs-AI/flux-RealismLora' }),
+    );
+  });
+
+  it('rejects a LoRA weight other than 1.0 instead of silently running it at default (#42)', async () => {
+    const h = setup();
+    h.store.set({ job_id: 'huggingface-image-lora-w', status: 'pending', progress: 0, type: 'image', created_at: '2026-07-12T00:00:00.000Z' });
+    await runHuggingFaceImageJob(
+      'huggingface-image-lora-w',
+      {
+        prompt: 'a tree',
+        width: 512,
+        height: 512,
+        __huggingFaceAccountId: 'account-1',
+        loras: [{ id: 'flux-realism', weight: 0.8 }],
+        __huggingFaceLoraAdapter: 'XLabs-AI/flux-RealismLora',
+      },
+      h.deps,
+    );
+    const job = h.store.get('huggingface-image-lora-w');
+    expect(job?.status).toBe('failed');
+    expect(job?.error).toMatch(/weight 1\.0/);
+    expect(h.huggingFace.generateImage).not.toHaveBeenCalled();
+  });
+
+  it('rejects a LoRA-bearing job with no resolved adapter instead of dropping the LoRA (#42)', async () => {
+    const h = setup();
+    h.store.set({ job_id: 'huggingface-image-lora-na', status: 'pending', progress: 0, type: 'image', created_at: '2026-07-12T00:00:00.000Z' });
+    await runHuggingFaceImageJob(
+      'huggingface-image-lora-na',
+      {
+        prompt: 'a tree',
+        width: 512,
+        height: 512,
+        __huggingFaceAccountId: 'account-1',
+        loras: [{ id: 'flux-ink', weight: 1 }],
+      },
+      h.deps,
+    );
+    const job = h.store.get('huggingface-image-lora-na');
+    expect(job?.status).toBe('failed');
+    expect(job?.error).toMatch(/back to Local/i);
+    expect(h.huggingFace.generateImage).not.toHaveBeenCalled();
+  });
+
+  it('rejects a multi-LoRA job: the adapter contract carries exactly one (#42)', async () => {
+    const h = setup();
+    h.store.set({ job_id: 'huggingface-image-lora-m', status: 'pending', progress: 0, type: 'image', created_at: '2026-07-12T00:00:00.000Z' });
+    await runHuggingFaceImageJob(
+      'huggingface-image-lora-m',
+      {
+        prompt: 'a tree',
+        width: 512,
+        height: 512,
+        __huggingFaceAccountId: 'account-1',
+        loras: [
+          { id: 'flux-realism', weight: 1 },
+          { id: 'flux-ink', weight: 1 },
+        ],
+        __huggingFaceLoraAdapter: 'XLabs-AI/flux-RealismLora',
+      },
+      h.deps,
+    );
+    const job = h.store.get('huggingface-image-lora-m');
+    expect(job?.status).toBe('failed');
+    expect(job?.error).toMatch(/exactly one LoRA/);
+    expect(h.huggingFace.generateImage).not.toHaveBeenCalled();
+  });
+
   it('rejects an inpaint pass: HuggingFace has no documented hosted mask contract', async () => {
     const h = setup();
     h.store.set({ job_id: 'huggingface-image-ip', status: 'pending', progress: 0, type: 'image', created_at: '2026-06-16T00:00:00.000Z' });

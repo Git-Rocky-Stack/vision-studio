@@ -12,12 +12,29 @@ function httpError(status: number, headers: Record<string, string> = {}) {
   return error;
 }
 
+/**
+ * The @huggingface/inference client's InferenceClientProviderApiError exposes
+ * the status as httpResponse.status (not axios's response.status) - #42.
+ */
+function clientHttpError(status: number) {
+  const error = new Error(`Provider HTTP ${status}`) as Error & { httpResponse: unknown };
+  (error as { httpResponse: unknown }).httpResponse = { requestId: 'req-1', status, body: {} };
+  return error;
+}
+
 describe('isRetryableError', () => {
   it('retries 429 and 5xx, not 4xx (except 429)', () => {
     expect(isRetryableError(httpError(429))).toBe(true);
     expect(isRetryableError(httpError(503))).toBe(true);
     expect(isRetryableError(httpError(400))).toBe(false);
     expect(isRetryableError(httpError(401))).toBe(false);
+  });
+
+  it('classifies inference-client errors by httpResponse.status the same way (#42)', () => {
+    expect(isRetryableError(clientHttpError(429))).toBe(true);
+    expect(isRetryableError(clientHttpError(503))).toBe(true);
+    expect(isRetryableError(clientHttpError(400))).toBe(false);
+    expect(isRetryableError(clientHttpError(401))).toBe(false);
   });
 
   it('does not retry an AbortError', () => {
