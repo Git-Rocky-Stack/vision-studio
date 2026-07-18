@@ -88,6 +88,7 @@ export const UI_STRINGS = {
     imageCorrupted: 'The file may be corrupted or missing',
     somethingWentWrong: 'Something went wrong',
     unexpectedError: 'An unexpected error occurred',
+    technicalDetails: 'Technical details',
   },
 } as const;
 

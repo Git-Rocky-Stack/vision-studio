@@ -37,8 +37,18 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
             {this.props.fallbackLabel || UI_STRINGS.errors.somethingWentWrong}
           </h3>
           <p className="type-meta text-text-muted mb-4 max-w-xs text-center">
-            {this.state.error?.message || UI_STRINGS.errors.unexpectedError}
+            {UI_STRINGS.errors.unexpectedError}
           </p>
+          {this.state.error?.message ? (
+            <details className="mb-4 max-w-xs">
+              <summary className="type-meta text-text-muted cursor-pointer text-center">
+                {UI_STRINGS.errors.technicalDetails}
+              </summary>
+              <p className="mt-1.5 type-caption text-text-muted break-words text-center">
+                {this.state.error.message}
+              </p>
+            </details>
+          ) : null}
           <button
             onClick={this.handleRetry}
             className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-elevated border border-border type-ui text-text-primary hover:bg-surface transition-all"
