@@ -12,14 +12,13 @@
       previews are blocked even though the header allows them. The
       meta-matches-header consistency is locked by contentSecurityPolicy.test.ts.
     -->
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: file: http://localhost:* http://127.0.0.1:*; connect-src 'self' http://localhost:* http://127.0.0.1:* ws://localhost:* ws://127.0.0.1:*; media-src 'self' blob: file: http://localhost:* http://127.0.0.1:*" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: blob: file: http://localhost:* http://127.0.0.1:*; connect-src 'self' http://localhost:* http://127.0.0.1:* ws://localhost:* ws://127.0.0.1:*; media-src 'self' blob: file: http://localhost:* http://127.0.0.1:*" />
     <title>Vision Studio - AI Image & Video Generation</title>
     <meta name="description" content="Professional AI-powered image and video generation for content creators" />
-    
-    <!-- Preconnect to Google Fonts -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700&family=Instrument+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+    <!-- Fonts are bundled locally via @fontsource (src/fonts.ts), never a runtime
+         CDN: Vision Studio is local-first/offline-capable and must not phone home to
+         Google Fonts on launch. See DESIGN.md, Typography section. -->
 
     <!-- Prevent FOUC — colors match @theme --color-void tokens -->
     <style>

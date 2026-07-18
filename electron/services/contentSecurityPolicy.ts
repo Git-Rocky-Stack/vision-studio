@@ -3,8 +3,11 @@ import type { Session } from 'electron';
 export const CONTENT_SECURITY_POLICY = [
   "default-src 'self'",
   "script-src 'self' 'unsafe-inline'",
-  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-  "font-src 'self' https://fonts.gstatic.com",
+  // Fonts are bundled locally via @fontsource (src/fonts.ts); no runtime font CDN,
+  // so style-src/font-src need only 'self'. Kept in sync with the index.html meta CSP
+  // (contentSecurityPolicy.test.ts locks the two together).
+  "style-src 'self' 'unsafe-inline'",
+  "font-src 'self'",
   // Generated media is served by the local backend (http://localhost:8000/outputs/...) and
   // imported assets resolve to file:// URLs. Both render into <img>/<video> elements, whose
   // loads are governed by img-src/media-src (NOT connect-src) - so the backend origins and the
