@@ -1,33 +1,38 @@
 # Vision Studio-X
 
 [![PR Gate](https://github.com/Git-Rocky-Stack/vision-studio/actions/workflows/pr-gate.yml/badge.svg)](https://github.com/Git-Rocky-Stack/vision-studio/actions/workflows/pr-gate.yml)
-[![Release](https://github.com/Git-Rocky-Stack/vision-studio/actions/workflows/release.yml/badge.svg)](https://github.com/Git-Rocky-Stack/vision-studio/actions/workflows/release.yml)
+[![Release macOS + Linux](https://github.com/Git-Rocky-Stack/vision-studio/actions/workflows/release-mac-linux.yml/badge.svg)](https://github.com/Git-Rocky-Stack/vision-studio/actions/workflows/release-mac-linux.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg)](#-system-requirements)
+[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20(Apple%20Silicon)%20%7C%20Linux-lightgrey.svg)](#-system-requirements)
 
 A professional AI-powered desktop application for image and video generation. No cloud required - everything runs locally on your machine.
 
+> **Current release: v3.2.0** — see [`CHANGELOG.md`](CHANGELOG.md) for what's new. Download at **[vision-studio-x.com/download](https://vision-studio-x.com/download)**.
+
 ## Features
 
-- **Image Generation** - FLUX.1, Stable Diffusion XL, SD 1.5
+- **Image Generation** - FLUX.1, Stable Diffusion XL, SD 3.5, SD 1.5
 - **Video Generation** - LTX Video, Stable Video Diffusion, AnimateDiff
+- **Guided Edit Tools** - background removal, AI upscale, face enhancement, generative fill, object removal, AI expand, background replace, and style transfer
+- **Editor with Text Layers** - timeline + canvas + effects, with real text layers (font, color, shadow, stroke, blend) rendered on the canvas
+- **LoRA, End to End** - install LoRAs through the Model Foundry, stack them in generation and in the workflow graph's LoRA Loader node; hosted flux LoRA via HuggingFace where the contract supports it
+- **Model Foundry** - consent-gated, license-aware download and management of model weights
+- **Workflow Graph** - import and run ComfyUI API-format graphs inside the workbench
 - **Provider Routing** - run fully local or bring your own OpenRouter key (BYOK); route prompt tools and still images per account, with graceful over-budget fallback
 - **AI Director** - retrieval-augmented prompt assistance grounded in your own project context
-- **ComfyUI Interop** - import and run ComfyUI API-format graphs inside the workbench
 - **GPU Acceleration** - per-optimization Performance panel (SDPA, channels-last, torch.compile, quantization; TensorRT opt-in) tuned to your hardware
-- **Batch Processing** - Generate multiple images at once
-- **Templates** - YouTube, TikTok, Instagram presets
-- **Professional Editor** - Timeline, canvas, effects
-- **Privacy First** - Everything runs locally
+- **Batch Processing** - generate multiple images at once
+- **Export Templates** - platform presets for YouTube, TikTok, Instagram, X, LinkedIn, and more
+- **Privacy First** - everything runs locally; no telemetry, nothing leaves your machine
 
 ## Quick Start (End Users)
 
 ### Option 1: Download Pre-built App (Easiest)
 
-1. Download the latest release for your platform from [Releases](../../releases)
-2. Run the installer
-3. On first launch, the app will download PyTorch (~2-3 GB)
-4. Start creating!
+1. Download for your platform from **[vision-studio-x.com/download](https://vision-studio-x.com/download)** — Windows x64, macOS on Apple Silicon, or Linux x64
+2. Run the installer. The AI backend (PyTorch, diffusers, CUDA/MPS) is bundled — there is nothing extra to install
+3. Builds are not yet code-signed: on Windows click **More info -> Run anyway**; on macOS **right-click -> Open** the first time
+4. On first launch, download the model weights you want through the in-app **Foundry** (~2-24 GB per model, consent-gated) — then start creating
 
 ### Option 2: Build from Source
 
@@ -48,25 +53,25 @@ npm run dev
 
 ### Prerequisites
 
-- **Node.js** 18+ ([Download](https://nodejs.org/))
-- **Python** 3.10+ (for backend development)
-- **CUDA 12.1** (optional, for GPU acceleration)
+- **Node.js** 20+ ([Download](https://nodejs.org/))
+- **Python** 3.10-3.12 (for backend development; PyTorch has no 3.13+ wheels yet)
+- **CUDA 12.1** (optional, for NVIDIA GPU acceleration)
 
 ### Setup Options
 
-#### Option A: Bundled Backend (Recommended for Distribution)
+#### Option A: Bundled Backend (the distribution build)
 
-Bundle PyTorch + CUDA into the app:
+Build the native backend and package the app:
 
 ```bash
 # Install frontend dependencies
 npm install
 
-# Build Python backend executable (4-6 GB bundle)
+# Build the native backend bundle (heavy-by-design; ~30-60 min)
 npm run build:backend
 
 # Package the full app
-npm run package:win    # or :mac, :linux
+npm run package:win    # macOS/Linux are built in CI (PyInstaller can't cross-compile)
 ```
 
 #### Option B: System Python (Development)
@@ -99,37 +104,21 @@ COMFYUI_URL=http://127.0.0.1:8188
 ```
 3. Start ComfyUI, then run `npm run dev`
 
-## Bundling Python Backend
+## Bundling the Python Backend
 
-We support multiple approaches for bundling the Python backend:
-
-### Full Bundle (PyInstaller) Recommended
-
-Everything included in one package:
-
-```bash
-npm run build:backend   # Build Python executable
-npm run package         # Package with Electron
-```
-
-**Size:** ~4-6 GB  
-**Pros:** Works offline, no setup  
-**Cons:** Large download
-
-### Hybrid (Download on First Run)
-
-Small initial download, PyTorch downloaded on first run:
+Vision Studio is **heavy-by-design**: every package ships the native backend
+(PyTorch + diffusers + CUDA/MPS). Packaging aborts if the bundle is missing —
+there is no slim or "download on first run" variant. Model *weights* are the only
+thing fetched later, through the consent-gated in-app Foundry.
 
 ```bash
-# Skip PyTorch in build
-npm run package
+npm run build:backend   # PyInstaller bundle -> resources/ (only if backend/ changed)
+npm run build           # frontend -> dist/
+npm run package:win     # nsis-web installer + portable zip
 ```
 
-**Size:** ~200 MB initial, +2-3 GB download  
-**Pros:** Fast initial download  
-**Cons:** Needs internet on first run
-
-See [BUNDLING.md](BUNDLING.md) for detailed documentation.
+See [BUNDLING.md](BUNDLING.md) for how the bundle is produced and
+[DEPLOYMENT.md](DEPLOYMENT.md) for cross-platform build + R2 delivery.
 
 ## Project Structure
 
@@ -169,24 +158,27 @@ vision-studio/
 
 ### Backend
 - **FastAPI** - API framework
-- **PyTorch 2.1+** - ML framework
-- **CUDA 12.1** - GPU acceleration
+- **PyTorch 2.5** (CUDA 12.1, or Metal/MPS on Apple Silicon) - ML runtime
 - **Diffusers** - HuggingFace pipelines
 - **WebSocket** - Real-time progress
 
 ## System Requirements
 
 ### Minimum
-- Windows 10 / macOS 12 / Ubuntu 20.04
+- Windows 10 x64 / macOS 13 (Apple Silicon) / Ubuntu 22.04 x64
 - 8 GB RAM
 - 10 GB free disk space
-- Internet connection (first run)
+- Internet connection (first-run model downloads)
 
 ### Recommended
-- Windows 11 / macOS 14 / Ubuntu 22.04
-- NVIDIA GPU with 8GB+ VRAM
+- Windows 11 / macOS 14 / Ubuntu 24.04
+- NVIDIA GPU with 8GB+ VRAM, or Apple M-series (runs on Metal/MPS)
 - 16 GB RAM
-- 50 GB free disk space (for models)
+- 50 GB free disk space (for model weights)
+
+macOS builds are **Apple Silicon (arm64) only** — PyTorch dropped macOS x64
+wheels at 2.3. On Apple Silicon the engine runs on Metal (MPS); on Windows/Linux
+it runs on NVIDIA CUDA, and falls back to CPU (slowly) when no GPU is present.
 
 ### GPU Support
 | GPU | VRAM | Performance |
@@ -196,6 +188,7 @@ vision-studio/
 | RTX 4070 | 12 GB | ⭐⭐⭐ Good |
 | RTX 3060 | 12 GB | ⭐⭐⭐ Good |
 | GTX 1080 Ti | 11 GB | ⭐⭐ Fair |
+| Apple M-series | unified | ⭐⭐⭐ Metal/MPS |
 | CPU Only | - | ⭐ Slow |
 
 ## API
@@ -268,7 +261,7 @@ cd backend && python -m unittest discover -s tests -v
 
 | Layer | Framework | What it covers |
 |-------|-----------|----------------|
-| Unit + Component + Integration | Vitest 4 | 1,400+ frontend tests - pure logic, Zustand store, Electron services, React components, API/workflow contracts |
+| Unit + Component + Integration | Vitest 4 | 1,800+ frontend tests - pure logic, Zustand store, Electron services, React components, API/workflow contracts |
 | E2E + Visual | Playwright | Electron end-to-end, accessibility, and Windows visual-regression suites |
 | Backend | pytest / unittest | FastAPI + foundry + services; import-safe collection on CI, real model runs are local |
 
@@ -284,6 +277,8 @@ Full technical documentation lives in [`docs/`](docs/). Start with the index:
 | [`docs/DATABASE_SCHEMA.md`](docs/DATABASE_SCHEMA.md) | SQLite schema, ER diagram, migration runner, how to add a migration |
 | [`docs/api/openapi.json`](docs/api/openapi.json) | Machine-readable OpenAPI 3.0 spec (paste into Swagger UI / Redoc) |
 | [`docs/diagrams/diagrams.md`](docs/diagrams/diagrams.md) | Standalone Mermaid diagram library for slides and presentations |
+
+Build & release: [`BUNDLING.md`](BUNDLING.md) · [`WINDOWS_BUILD.md`](WINDOWS_BUILD.md) · [`DEPLOYMENT.md`](DEPLOYMENT.md)
 
 The running backend also serves a live, fully introspectable spec at:
 
