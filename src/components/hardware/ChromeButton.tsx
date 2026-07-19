@@ -23,7 +23,11 @@ const BASE: CSSProperties = {
 
 const CHROME: CSSProperties = {
   background: 'linear-gradient(180deg, #FFF 0%, #E6E6E6 50%, #C8C8C8 100%)',
-  color: 'var(--color-void)',
+  // The metal-cap fill is theme-independent (always light), so the engraved label
+  // must be a fixed dark, not var(--color-void): that token flips to #f4f4f4 in the
+  // light theme, rendering the label near-white on the light cap (~1.03:1 contrast).
+  // Matches the .btn-chrome CSS recipe (index.css), which hardcodes #000.
+  color: '#000',
   boxShadow:
     'inset 0 1px 0 rgba(255,255,255,0.9),' +
     'inset 0 -1px 0 rgba(0,0,0,0.3),' +

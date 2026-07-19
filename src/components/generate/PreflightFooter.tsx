@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Loader2, PackageX, ShieldAlert } from 'lucide-react';
 import { useAppStore } from '@/store/appStore';
 import { Led } from '@/components/hardware';
+import { UI_STRINGS } from '@/constants/strings';
 import type { RuntimePlan } from '@/types/model';
 
 interface PreflightFooterProps {
@@ -114,10 +115,17 @@ export function PreflightFooter({ modelId }: PreflightFooterProps) {
       )}
 
       {status === 'error' && (
-        <p data-testid="preflight-error" className="mt-1.5 text-xs text-text-muted">
-          Preflight unavailable. Run readiness could not be verified
-          {errorDetail ? ` - ${errorDetail}` : '.'}
-        </p>
+        <div data-testid="preflight-error" className="mt-1.5 text-xs text-text-muted">
+          <p>Preflight unavailable. Run readiness could not be verified.</p>
+          {errorDetail ? (
+            <details className="mt-1">
+              <summary className="cursor-pointer text-text-muted">
+                {UI_STRINGS.errors.technicalDetails}
+              </summary>
+              <p className="mt-1 break-words text-text-muted">{errorDetail}</p>
+            </details>
+          ) : null}
+        </div>
       )}
 
       {refusal && (

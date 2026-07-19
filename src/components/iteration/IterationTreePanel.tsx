@@ -2,6 +2,7 @@ import { memo, useMemo } from 'react';
 import { GitBranch } from 'lucide-react';
 import { cn } from '@/utils/cn';
 import { useAppStore } from '@/store/appStore';
+import { MonoLabel } from '@/components/hardware';
 import { IterationInspectorPanel } from './IterationInspectorPanel';
 import { IterationNode } from './IterationNode';
 import { IterationViewSelector } from './IterationViewSelector';
@@ -29,8 +30,8 @@ export const IterationTreePanel = memo(function IterationTreePanel({ className }
   if (tree.roots.length === 0) {
     return (
       <div className={cn('flex flex-col h-full', className)}>
-        <div className="flex items-center gap-2 px-3 py-2 border-b border-border">
-          <h2 className="type-body-sm font-semibold text-text-primary flex-1">History</h2>
+        <div className="faceplate-stripe flex h-9 flex-shrink-0 items-center px-3">
+          <MonoLabel as="h2" tone="chrome">History</MonoLabel>
         </div>
         <div className="flex-1 flex flex-col items-center justify-center text-text-muted type-body-sm p-4">
           <GitBranch className="w-8 h-8 mb-2 opacity-30" />
@@ -43,8 +44,8 @@ export const IterationTreePanel = memo(function IterationTreePanel({ className }
   return (
     <div className={cn('flex flex-col h-full', className)}>
       {/* Header */}
-      <div className="flex items-center gap-2 px-3 py-2 border-b border-border">
-        <h2 className="type-body-sm font-semibold text-text-primary flex-1">History</h2>
+      <div className="faceplate-stripe flex h-9 flex-shrink-0 items-center gap-2 px-3">
+        <MonoLabel as="h2" tone="chrome" className="flex-1">History</MonoLabel>
         <IterationViewSelector />
       </div>
 
