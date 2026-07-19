@@ -1,417 +1,204 @@
 # Vision Studio - Deployment Guide
 
-Complete guide for building and distributing Vision Studio on different platforms.
+How Vision Studio is built, packaged, and delivered for Windows, macOS, and Linux.
 
-## 📋 Pre-Deployment Checklist
+Current release: **v3.2.0**. Version history lives in [`CHANGELOG.md`](CHANGELOG.md).
 
-- [ ] Test the app in development mode
-- [ ] Choose bundling approach (Full / Hybrid / Minimal)
-- [ ] Update version number in `package.json`
-- [ ] Create app icons (in `build/` folder)
-- [ ] Code signing certificates (optional, for distribution)
-- [ ] Update README with latest info
+## Heavy-by-design: one build shape
 
-## 🔨 Build Process
+Every distributable ships the **native PyInstaller backend** (PyTorch, diffusers,
+transformers, and the CUDA/MPS runtime). There is no slim, frontend-only, or
+"download PyTorch on first run" variant — `scripts/assert-native-backend.cjs`
+runs as electron-builder's `beforePack` hook and **aborts packaging** if the
+backend bundle is missing or truncated. What a user downloads on first run is
+model *weights* (consent-gated through the in-app Foundry), never the runtime.
 
-### Step 1: Prepare Assets
+See [`BUNDLING.md`](BUNDLING.md) for how the backend bundle itself is produced.
 
-```bash
-# Create build directory
-mkdir -p build
+## Where builds run
 
-# Add icons (required for all platforms)
-# Windows: icon.ico (256x256)
-# macOS: icon.icns (multiple sizes)
-# Linux: icon.png (512x512)
-```
+| Platform | Where it's built | Why |
+|----------|------------------|-----|
+| Windows x64 | **Locally** (`npm run package:win`) | The signed-CI path is gated on secrets; the local build is the delivery build. |
+| macOS arm64 | **CI only** (`release-mac-linux.yml`) | PyInstaller can't cross-compile; the macOS bundle must be built on macOS (Apple Silicon). |
+| Linux x64 | **CI only** (`release-mac-linux.yml`) | Same — the Linux CUDA bundle must be built on Linux. |
 
-### Step 2: Build Frontend
+macOS is **Apple Silicon only** — PyTorch dropped macOS x64 wheels at 2.3, so an
+Intel build would ship without its backend.
 
-```bash
-npm install
-npm run build
-```
+## Pre-release checklist
 
-### Step 3: Build Python Backend (Optional)
+- [ ] Work is merged to `main` and green (`npm run typecheck`, `npm test`, `npm run build`)
+- [ ] Bump the version in lockstep: `npm version X.Y.Z --no-git-tag-version`
+      (updates `package.json` + `package-lock.json`), then `scripts/installer.iss`
+      (`MyAppVersion`) and add a `CHANGELOG.md` entry
+- [ ] Only rebuild the backend bundle if `backend/` actually changed since the last
+      release (`git diff <last-release-commit>..HEAD -- backend/`) — otherwise the
+      existing `resources/VisionStudio-Backend.exe` is reused as-is
 
-**For Full Bundle:**
-```bash
-npm run build:backend
-# This creates resources/VisionStudio-Backend[.exe]
-```
+## Build process
 
-**For Hybrid/Minimal:** Skip this step
-
-### Step 4: Package App
+### 1. Backend bundle (only if `backend/` changed)
 
 ```bash
-# Current platform
-npm run package
-
-# Specific platform
-npm run package:win
-npm run package:mac
-npm run package:linux
+npm run build:backend          # PyInstaller onefile -> resources/VisionStudio-Backend[.exe]
 ```
 
-Output will be in `release/` folder.
+~30-60 min (installs the CUDA torch stack + diffusers, then runs PyInstaller).
+If `backend/` is unchanged since the last release, skip this — the packaged
+bundle is identical and the existing one is reused.
 
-## 🪟 Windows Deployment
-
-### Using NSIS Installer
+### 2. Frontend
 
 ```bash
-npm run package:win
+npm run build                  # Vite -> dist/ + dist-electron/
 ```
 
-Creates:
-- `Vision Studio Setup 3.1.1.exe` - NSIS installer
-- `Vision Studio-3.1.1-win.zip` - portable ZIP archive
-- `Vision Studio.exe` - unpacked app (in win-unpacked/)
-
-### Code Signing (Recommended)
-
-Vision Studio gates release signing through `scripts/verify-release-signing.cjs`.
-Use `npm run package:win` for local unsigned development builds and
-`npm run package:win:signed` for production artifacts (it preflights the signing
-setup, then packages signed). Configure one signing mode via environment
-variables - CSC/PFX (`WIN_CSC_LINK` + `WIN_CSC_KEY_PASSWORD`), a Windows
-certificate-store token (`WIN_CSC_SUBJECT_NAME` / `WIN_CSC_SHA1`), or Azure
-Trusted Signing. Signing config lives in `electron-builder.yml`
-(`publisherName`, `verifyUpdateCodeSignature: true`), not in `package.json`.
-
-### Windows Store (MSIX)
+### 3. Package (Windows, local)
 
 ```bash
-npm run package:win
-# Then use Windows Store submission portal
+rm -rf release                 # clear stale artifacts so publish can't re-upload them
+npm run package:win            # electron-builder (electron-builder.yml)
 ```
 
-### Distribution Options
+Produces, in `release/` and `release/nsis-web/`:
 
-1. **GitHub Releases** - Upload `.exe` to GitHub
-2. **Website** - Self-host installer
-3. **Windows Store** - Microsoft Store
-4. **Chocolatey** - Package manager
+| Artifact | Approx size | Role |
+|----------|-------------|------|
+| `Vision-Studio-<ver>-Setup.exe` | ~1 MB | **nsis-web stub** — downloads the app package at install time |
+| `vision-studio-<ver>-x64.nsis.7z` | ~2.56 GB | app package the stub pulls from the R2 host |
+| `Vision Studio-<ver>-win.zip` | ~2.6 GB | portable ZIP (no install) |
+| `latest.yml` | <1 KB | electron-updater feed |
 
-## 🍎 macOS Deployment
+**Why nsis-web, not a single-file NSIS installer:** the ~2.5 GB payload exceeds
+the 32-bit `makensis` mmap ceiling, so a monolithic NSIS `.exe` physically cannot
+build. The tiny web stub downloads `nsis-web/appPackageUrl`
+(`https://updates.vision-studio-x.com/win`) at install time — the same zero-egress
+host that serves the update feed.
 
-### Building
+### macOS + Linux (CI)
+
+These are built and published by `.github/workflows/release-mac-linux.yml`
+(`macos-14` arm64, `ubuntu-22.04`). It builds the native backend, runs a live
+`/api/health` smoke gate (asserting `generation_available: true`), packages, and
+publishes to R2. Trigger it by **pushing a `v*` tag** (auto-publishes when the R2
+secrets are present) or manually:
 
 ```bash
-npm run package:mac
+gh workflow run release-mac-linux.yml --ref main -f publish_r2=true
 ```
 
-Creates:
-- `Vision Studio.dmg` - Disk image
-- `Vision Studio.app` - Application bundle
+macOS output: `Vision-Studio-<ver>-arm64.dmg` (~527 MB) + `.zip` (~519 MB, the
+format electron-updater consumes) + blockmaps + `latest-mac.yml`.
+Linux output: `Vision-Studio-<ver>-x86_64.AppImage` (~3.3 GB) + `latest-linux.yml`.
 
-### Code Signing & Notarization (Required for distribution)
+## Delivery: Cloudflare R2
+
+GitHub caps release assets at 2 GB, so the heavy installers ship from an R2
+bucket (`vision-studio-delivery`) behind `updates.vision-studio-x.com`, one prefix
+per platform mirroring each platform's electron-updater feed URL:
+
+```
+win/     latest.yml        stub .exe + .nsis.7z + portable zip
+mac/     latest-mac.yml    dmg + zip + blockmaps
+linux/   latest-linux.yml  AppImage
+```
+
+### Publishing
+
+`scripts/publish-r2.cjs` uploads sequentially **binaries first, feed last** (a
+client polling mid-publish can never resolve an update whose installer is not yet
+up). It needs `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, and
+`R2_BUCKET` in the environment.
+
+Windows is **two invocations** (the artifacts are split across `release/` and
+`release/nsis-web/`), both into the `win/` prefix:
 
 ```bash
-# 1. Get Apple Developer certificate
-# 2. Install certificate to Keychain
-
-# 3. Add to package.json:
-{
-  "build": {
-    "mac": {
-      "hardenedRuntime": true,
-      "gatekeeperAssess": false,
-      "entitlements": "build/entitlements.mac.plist",
-      "entitlementsInherit": "build/entitlements.mac.plist"
-    }
-  }
-}
-
-# 4. Create entitlements file: build/entitlements.mac.plist
+node scripts/publish-r2.cjs --dir release --prefix win/          # portable zip
+node scripts/publish-r2.cjs --dir release/nsis-web --prefix win/ # stub + 7z + latest.yml (feed last)
 ```
 
-### Notarization
+macOS and Linux are published by the CI job (`--prefix mac/` / `--prefix linux/`).
+
+After any publish, verify each object is live and complete — HEAD it and confirm
+`Content-Length` matches the local file (catches a silently truncated multi-GB
+upload):
 
 ```bash
-# Using electron-notarize (automated)
-# Add to package.json:
-{
-  "build": {
-    "afterSign": "scripts/notarize.js"
-  }
-}
+curl -sI https://updates.vision-studio-x.com/win/vision-studio-<ver>-x64.nsis.7z
 ```
 
-### Distribution Options
+### GitHub release
 
-1. **GitHub Releases** - Download `.dmg`
-2. **Mac App Store** - Requires sandboxing
-3. **Homebrew** - `brew install --cask vision-studio`
-
-## 🐧 Linux Deployment
-
-### Building
+The GitHub release is a version marker + notes; only the ~1 MB Windows stub is
+attached (everything else exceeds the 2 GB cap). Point users at the R2 links or
+the download page:
 
 ```bash
-npm run package:linux
+gh release create v<ver> --title "Vision Studio v<ver>" --notes-file notes.md \
+  "release/nsis-web/Vision-Studio-<ver>-Setup.exe"
 ```
 
-Creates:
-- `Vision Studio.AppImage` - Universal package
-- `vision-studio.deb` - Debian package
-- `vision-studio.rpm` - RedHat package
-- `vision-studio.tar.gz` - Portable archive
+## Auto-updates
 
-### AppImage (Recommended)
+`electron/services/updater.ts` (electron-updater, generic provider) reads the
+per-platform R2 feed. It is **dormant until builds are signed**:
+`electron-builder.yml` sets `verifyUpdateCodeSignature: true`, so the updater
+refuses to install an unsigned package. Kill-switch: `VISION_STUDIO_DISABLE_UPDATES=1`;
+staging override: `VISION_STUDIO_UPDATE_URL`.
 
-Most universal format:
-```bash
-chmod +x "Vision Studio.AppImage"
-./Vision\ Studio.AppImage
-```
+## Code signing (not yet configured)
 
-### Package Managers
+Builds currently ship **unsigned** (Windows) and **ad-hoc signed** (macOS — the
+minimum for Apple Silicon to launch; `scripts/adhoc-sign-mac.cjs` reseals the
+bundle in `afterPack`). Until real signing lands, Windows shows a SmartScreen
+warning ("More info" -> "Run anyway") and macOS requires right-click -> Open on
+first launch.
 
-**Snap:**
-```yaml
-# snap/snapcraft.yaml
-name: vision-studio
-version: '3.1.1'
-grade: stable
-confinement: strict
-parts:
-  vision-studio:
-    plugin: dump
-    source: ./release/
-```
+### Windows
 
-**Flatpak:**
-```yaml
-# com.vision-studio-x.app.yml
-app-id: com.vision-studio-x.app
-runtime: org.freedesktop.Platform
-runtime-version: '23.08'
-sdk: org.freedesktop.Sdk
-command: vision-studio
-```
+Release signing is gated by `scripts/verify-release-signing.cjs`. Use
+`npm run package:win` for unsigned local builds and `npm run package:win:signed`
+for production (it fails fast unless one signing mode is configured). Modes:
 
-**AUR (Arch):**
-```bash
-# PKGBUILD
-pkgname=vision-studio
-pkgver=3.1.1
-source=("$pkgname-$pkgver.AppImage")
-```
+1. **CSC / PFX** — `WIN_CSC_LINK` (or `CSC_LINK`) + `WIN_CSC_KEY_PASSWORD`.
+2. **Windows certificate store** — `WIN_CSC_SUBJECT_NAME` or `WIN_CSC_SHA1`.
+3. **Azure Trusted Signing** — `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`,
+   `AZURE_TRUSTED_SIGNING_ENDPOINT`, `AZURE_TRUSTED_SIGNING_ACCOUNT_NAME`,
+   `AZURE_TRUSTED_SIGNING_CERTIFICATE_PROFILE_NAME`, plus an auth secret.
 
-## ☁️ Distribution Platforms
+Once a mode is configured, re-enable the signed-CI release: `gh workflow enable release.yml`.
 
-### GitHub Releases (Recommended)
+### macOS
 
-```bash
-# 1. Create tag
-git tag -a v3.1.1 -m "Release v3.1.1"
-git push origin v3.1.1
+Real distribution needs an Apple **Developer ID** identity plus notarization;
+electron-updater on macOS refuses updates until the build is Developer-ID-signed.
+Set `CSC_LINK`/`CSC_KEY_PASSWORD` (or a Keychain identity) and enable
+`hardenedRuntime` + notarization, then the ad-hoc reseal step is superseded.
 
-# 2. GitHub Actions will build and upload
-# Or manually upload from release/ folder
-```
+## File sizes (v3.2.0)
 
-### Website Distribution
+| Platform | Installer / package | Notes |
+|----------|--------------------|-------|
+| Windows | ~1 MB stub + ~2.56 GB app package (or ~2.6 GB portable zip) | nsis-web |
+| macOS (Apple Silicon) | ~527 MB dmg | MPS wheel, no CUDA payload |
+| Linux x64 | ~3.3 GB AppImage | real CUDA 12.1 torch |
 
-```html
-<!-- Download page -->
-<div class="downloads">
-  <a href="/download/win" class="btn">Windows</a>
-  <a href="/download/mac" class="btn">macOS</a>
-  <a href="/download/linux" class="btn">Linux</a>
-</div>
-```
-
-### Auto-Updater
-
-Enable auto-updates with electron-updater:
-
-```json
-// package.json
-{
-  "dependencies": {
-    "electron-updater": "^6.3.0"
-  },
-  "build": {
-    "publish": {
-      "provider": "github",
-      "owner": "Git-Rocky-Stack",
-      "repo": "vision-studio"
-    }
-  }
-}
-```
-
-```typescript
-// electron/main.ts
-import { autoUpdater } from 'electron-updater';
-
-// Check for updates
-autoUpdater.checkForUpdatesAndNotify();
-
-// Handle events
-autoUpdater.on('update-available', () => {
-  dialog.showMessageBox({
-    type: 'info',
-    title: 'Update available',
-    message: 'A new version is available. Downloading...'
-  });
-});
-
-autoUpdater.on('update-downloaded', () => {
-  dialog.showMessageBox({
-    type: 'info',
-    title: 'Update ready',
-    message: 'Update downloaded. Restart to install?',
-    buttons: ['Restart', 'Later']
-  }).then(({ response }) => {
-    if (response === 0) autoUpdater.quitAndInstall();
-  });
-});
-```
-
-## 📊 File Sizes by Platform
-
-### Full Bundle (With PyTorch)
-
-| Platform | Size | Format |
-|----------|------|--------|
-| Windows | 4.5 GB | .exe |
-| macOS | 4.8 GB | .dmg |
-| Linux | 4.6 GB | .AppImage |
-
-### Hybrid (Without PyTorch)
-
-| Platform | Size | Format |
-|----------|------|--------|
-| Windows | 200 MB | .exe |
-| macOS | 220 MB | .dmg |
-| Linux | 210 MB | .AppImage |
-
-## 🔐 Security Considerations
-
-### Code Signing
-
-**Why:** Prevents "Unknown Publisher" warnings
-
-**Cost:**
-- Windows: $70-300/year
-- macOS: $99/year (Apple Developer)
-- Linux: Free (GPG signing)
-
-### Sandboxing
-
-**macOS:**
-```xml
-<!-- entitlements.mac.plist -->
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN">
-<plist version="1.0">
-<dict>
-  <key>com.apple.security.cs.allow-jit</key>
-  <true/>
-  <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
-  <true/>
-</dict>
-</plist>
-```
-
-## 🚀 CI/CD with GitHub Actions
-
-```yaml
-# .github/workflows/build.yml
-name: Build and Release
-
-on:
-  push:
-    tags:
-      - 'v*'
-
-jobs:
-  build-windows:
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-      
-      - run: npm ci
-      - run: npm run build:backend  # Optional
-      - run: npm run package:win
-      
-      - uses: actions/upload-artifact@v4
-        with:
-          name: windows
-          path: release/*.exe
-
-  build-macos:
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-      
-      - run: npm ci
-      - run: npm run package:mac
-      
-      - uses: actions/upload-artifact@v4
-        with:
-          name: macos
-          path: release/*.dmg
-
-  release:
-    needs: [build-windows, build-macos]
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/download-artifact@v4
-      - uses: softprops/action-gh-release@v1
-        with:
-          files: |
-            windows/*.exe
-            macos/*.dmg
-```
-
-## 📈 Analytics (Optional)
-
-Track usage (respecting privacy):
-
-```typescript
-// Track events
-import { ipcRenderer } from 'electron';
-
-ipcRenderer.send('analytics', {
-  event: 'generation_started',
-  params: { model: 'flux-dev', type: 'image' }
-});
-```
-
-## 🐛 Debugging Production Builds
+## Debugging production builds
 
 ```bash
 # Windows
-Vision\ Studio.exe --enable-logging
-
+"Vision Studio.exe" --enable-logging
 # macOS
-/Applications/Vision\ Studio.app/Contents/MacOS/Vision\ Studio --enable-logging
-
+"/Applications/Vision Studio.app/Contents/MacOS/Vision Studio" --enable-logging
 # Linux
-./Vision\ Studio.AppImage --enable-logging
+./Vision-Studio-<ver>-x86_64.AppImage --enable-logging
 ```
 
-## 📚 Resources
+## Resources
 
-- [Electron Builder Docs](https://www.electron.build/)
-- [Code Signing Guide](https://www.electron.build/code-signing)
-- [Apple Notarization](https://developer.apple.com/documentation/security/notarizing_macos_software_before_distribution)
-- [PyInstaller Docs](https://pyinstaller.org/)
-
-## 🆘 Support
-
-Need help? Open an [issue](../../issues) or join our [Discord]().
+- [Electron Builder](https://www.electron.build/)
+- [electron-builder code signing](https://www.electron.build/code-signing)
+- [Apple notarization](https://developer.apple.com/documentation/security/notarizing_macos_software_before_distribution)
+- [PyInstaller](https://pyinstaller.org/)
