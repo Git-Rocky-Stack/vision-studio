@@ -2,6 +2,61 @@
 
 All notable changes to Vision Studio will be documented in this file.
 
+## [3.2.0] - 2026-07-18
+
+Feature + design release on top of 3.1.1. Real canvas text layers in the Edit
+workspace, the workflow LoRA Loader node wired to the installed-LoRA library,
+the hosted HuggingFace LoRA slice, and full Carbon Pro design conformance.
+Additive - no known breaking changes.
+
+### Added
+- **Canvas text layers (Edit workspace)** - the Text panel now drives the real
+  layer model end to end: add, edit, and delete text layers with live styling
+  (font, size, weight, color, shadow, stroke, blend mode, opacity), rendered on
+  the canvas via Konva with click-to-select and drag/transform persistence. A
+  single shared selection keeps the canvas, layer list, and Text panel in
+  agreement, and every mutation records a history entry. The font list offers
+  only the bundled IBM Plex families plus OS-safe stacks, so a layer can never
+  silently fall back to a missing pre-Plex font
+- **Workflow LoRA Loader node** - the graph's LoraLoader is now first-class: a
+  node-inspector LoRA picker fed from the installed-LoRA library (incompatible
+  entries shown but disabled), a model-strength control, and ComfyUI-faithful
+  defaults so graphs export cleanly. The sampler's model input walks
+  checkpoint -> LoraLoader chains (cycle-guarded) and validates each selection
+  with per-node issues (missing, unknown, incompatible base architecture, or
+  invalid strength)
+- **Hosted HuggingFace LoRA** - a flux-family Hub-hosted LoRA at full weight now
+  dispatches through HuggingFace adapter-by-model-id via the official
+  `@huggingface/inference` client, which resolves the live provider mapping
+  (fal-ai / replicate / wavespeed) and per-provider payload. Combinations
+  outside that verified contract decline with the specific unmet condition
+  instead of a blanket prompt-only message
+
+### Changed
+- **Carbon Pro design conformance** - the app now fully matches the Carbon Pro
+  design language:
+  - Removed the runtime Google Fonts CDN (IBM Plex is bundled locally, so the
+    load was dead weight) and tightened the CSP `style-src`/`font-src` to
+    `'self'`, restoring the zero-CDN, offline-first guarantee
+  - Aligned the right-rail History dock header with its Gallery and Boards
+    siblings (faceplate-stripe strip + chrome mono label) so the three docks
+    read as one unit
+
+### Fixed
+- The chrome **Generate** call-to-action label is now legible in the light
+  theme: it was pinned to a token the light theme remaps to near-white,
+  rendering the engraving at ~1.03:1 on the theme-independent metal cap. It is
+  now pinned dark in both themes
+- Error surfaces lead with friendly copy and tuck the raw exception behind a
+  collapsed "Technical details" disclosure (the generic ErrorBoundary and the
+  run-readiness PreflightFooter), instead of showing a raw JS exception string
+  as the headline
+- Removed a stale, hardcoded `<html class="dark">` that never tracked theme
+  changes; `data-theme` is now the single source of truth for theming
+- Hosted still-image routes now refuse a LoRA-bearing job that fails the hosted
+  contract outright, instead of silently dropping the adapter and generating a
+  prompt-only image
+
 ## [3.1.1] - 2026-06-27
 
 Security hardening patch on top of 3.1.0, from an independent review of the
