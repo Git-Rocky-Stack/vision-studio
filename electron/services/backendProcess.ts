@@ -44,6 +44,7 @@ type BackendEnvironmentOptions = {
   userDataPath: string;
   outputDirectory: string;
   backendAuthToken: string;
+  appVersion: string;
 };
 
 export function resolveBundledBackendPath({
@@ -122,6 +123,7 @@ export function buildBackendEnvironment({
   userDataPath,
   outputDirectory,
   backendAuthToken,
+  appVersion,
 }: BackendEnvironmentOptions): NodeJS.ProcessEnv {
   return {
     ...baseEnv,
@@ -131,6 +133,10 @@ export function buildBackendEnvironment({
     DATABASE_PATH: join(userDataPath, 'data', 'vision_studio.db'),
     LOG_FILE: join(userDataPath, 'logs', 'backend.log'),
     VISION_STUDIO_BACKEND_AUTH_TOKEN: backendAuthToken,
+    // The shell owns the version number. A packaged backend is a PyInstaller
+    // binary with no package.json in reach, so without this it can only guess -
+    // which is how it ended up reporting 3.1.1 from a 3.2.0 install.
+    VISION_STUDIO_VERSION: appVersion,
   };
 }
 
@@ -196,6 +202,8 @@ type BackendProcessServiceOptions = {
   appPaths: {
     getPath: (name: 'userData') => string;
     resourcesPath: string;
+    /** `app.getVersion()`. Passed to the backend so it stops guessing. */
+    getVersion: () => string;
   };
   dialog: Pick<Dialog, 'showErrorBox' | 'showMessageBox'>;
   getMainWindow: () => BrowserWindow | null;
@@ -314,6 +322,7 @@ export function createBackendProcessService({
           userDataPath: appPaths.getPath('userData'),
           outputDirectory,
           backendAuthToken: getBackendAuthToken(),
+          appVersion: appPaths.getVersion(),
         }),
         detached: false,
       });

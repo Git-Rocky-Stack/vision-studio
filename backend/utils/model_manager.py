@@ -12,6 +12,8 @@ from dataclasses import dataclass, asdict, replace
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from version import USER_AGENT
+
 try:
     from huggingface_hub import hf_hub_download
     from huggingface_hub import snapshot_download
@@ -405,7 +407,7 @@ class ModelManager:
             raise
 
     def _build_civitai_headers(self) -> Dict[str, str]:
-        headers = {"User-Agent": "VisionStudio/3.1.1"}
+        headers = {"User-Agent": USER_AGENT}
         token = os.getenv("CIVITAI_API_TOKEN")
         if token:
             headers["Authorization"] = f"Bearer {token}"

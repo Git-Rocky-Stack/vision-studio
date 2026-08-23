@@ -8,7 +8,7 @@
 
 A professional AI-powered desktop application for image and video generation. No cloud required - everything runs locally on your machine.
 
-> **Current release: v3.2.0** — see [`CHANGELOG.md`](CHANGELOG.md) for what's new. Download at **[vision-studio-x.com/download](https://vision-studio-x.com/download)**.
+> **Current release: v3.3.0** — see [`CHANGELOG.md`](CHANGELOG.md) for what's new. Download at **[vision-studio-x.com/download](https://vision-studio-x.com/download)**.
 
 ## Features
 
