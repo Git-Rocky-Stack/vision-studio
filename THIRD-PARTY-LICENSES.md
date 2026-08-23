@@ -1,6 +1,6 @@
 # Third-Party Licenses
 
-Vision Studio's own source code is released under the MIT License (see `LICENSE.txt`). The application additionally bundles the runtime dependencies and provisions the AI models listed below; each retains its own license, linked here in accordance with its terms.
+Vision Studio's own source code is released under the MIT License (see `LICENSE`, shipped alongside this file). The application additionally bundles the runtime dependencies and provisions the AI models listed below; each retains its own license, linked here in accordance with its terms.
 
 Models under the FLUX.1 [dev] non-commercial license, and other redistribution-restricted weights (e.g. OpenPose, LTX-Video), are NOT bundled - they remain optional, user-initiated installs through the in-app Foundry.
 

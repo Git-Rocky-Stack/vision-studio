@@ -3,6 +3,7 @@
 [![PR Gate](https://github.com/Git-Rocky-Stack/vision-studio/actions/workflows/pr-gate.yml/badge.svg)](https://github.com/Git-Rocky-Stack/vision-studio/actions/workflows/pr-gate.yml)
 [![Release macOS + Linux](https://github.com/Git-Rocky-Stack/vision-studio/actions/workflows/release-mac-linux.yml/badge.svg)](https://github.com/Git-Rocky-Stack/vision-studio/actions/workflows/release-mac-linux.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Security Policy](https://img.shields.io/badge/security-policy-brightgreen.svg)](SECURITY.md)
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20(Apple%20Silicon)%20%7C%20Linux-lightgrey.svg)](#-system-requirements)
 
 A professional AI-powered desktop application for image and video generation. No cloud required - everything runs locally on your machine.
@@ -266,7 +267,7 @@ cd backend && python -m unittest discover -s tests -v
 
 | Layer | Framework | What it covers |
 |-------|-----------|----------------|
-| Unit + Component + Integration | Vitest 4 | 1,900+ frontend tests - pure logic, Zustand store, Electron services, React components, API/workflow contracts, plus design-system guards (Carbon Pro tokens, palette discipline, UI glyphs) |
+| Unit + Component + Integration | Vitest 4 | 1,950+ frontend tests - pure logic, Zustand store, Electron services, React components, API/workflow contracts, plus design-system guards (Carbon Pro tokens, palette discipline, UI glyphs) |
 | E2E + Visual | Playwright | Electron end-to-end, accessibility, and Windows visual-regression suites |
 | Backend | pytest / unittest | FastAPI + foundry + services; import-safe collection on CI, real model runs are local |
 
@@ -293,7 +294,9 @@ The running backend also serves a live, fully introspectable spec at:
 
 ## Contributing
 
-Contributions welcome! See [CONTRIBUTING.md](CONTRIBUTING.md)
+Contributions welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) for the workflow
+and coding standards, and [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) for what is
+expected of everyone taking part.
 
 ```bash
 # Fork and clone
@@ -309,9 +312,24 @@ git push origin feature/amazing-feature
 # Open Pull Request
 ```
 
+## Security
+
+Vision Studio runs models on your own hardware and downloads weights from
+third-party hosts, so its security surface is unusual for a desktop app.
+[SECURITY.md](SECURITY.md) sets out what counts as a vulnerability, what is
+explicitly out of scope (unsigned installers are a known, documented state), and
+how to report one privately.
+
+**Do not open a public issue for a vulnerability.** Email
+[security@vision-studio-x.com](mailto:security@vision-studio-x.com) or open a
+[private advisory](https://github.com/Git-Rocky-Stack/vision-studio/security/advisories/new).
+
 ## License
 
-MIT License - see [LICENSE](LICENSE)
+MIT License - see [LICENSE](LICENSE). Vision Studio bundles third-party runtime
+dependencies and provisions AI models under their own terms; every one is listed
+in [THIRD-PARTY-LICENSES.md](THIRD-PARTY-LICENSES.md), which ships inside each
+installer alongside the MIT text.
 
 ## Acknowledgments
 
