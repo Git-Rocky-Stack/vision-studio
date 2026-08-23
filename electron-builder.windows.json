@@ -35,7 +35,9 @@
       }
     ],
     "icon": "build/icon.ico",
-    "publisherName": "Vision Studio Team",
+    "signtoolOptions": {
+      "publisherName": "Vision Studio Team"
+    },
     "verifyUpdateCodeSignature": false,
     "requestedExecutionLevel": "asInvoker"
   },

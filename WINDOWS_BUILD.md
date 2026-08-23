@@ -111,8 +111,11 @@ Configure exactly one mode via environment variables:
    `AZURE_TRUSTED_SIGNING_ENDPOINT`, `AZURE_TRUSTED_SIGNING_ACCOUNT_NAME`,
    `AZURE_TRUSTED_SIGNING_CERTIFICATE_PROFILE_NAME`, plus an auth secret.
 
-`electron-builder.yml` sets `publisherName` and `verifyUpdateCodeSignature: true`,
-so auto-update only installs signed builds.
+`electron-builder.yml` sets `win.signtoolOptions.publisherName` and
+`verifyUpdateCodeSignature: true`, so auto-update only installs signed builds.
+electron-builder 26 moved every signtool option under `signtoolOptions`; the
+Azure path ignores that block, so `scripts/verify-release-signing.cjs` mirrors
+the same publisher name into `azureSignOptions` when it selects Azure.
 
 ## Troubleshooting
 
