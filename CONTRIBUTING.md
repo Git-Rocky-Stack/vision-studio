@@ -2,6 +2,15 @@
 
 Thank you for your interest in contributing to Vision Studio! This guide will help you set up your development environment, run tests, and submit contributions.
 
+Before you start, two documents govern how we work together:
+
+- [**Code of Conduct**](CODE_OF_CONDUCT.md) - what is expected of everyone taking
+  part. Note the project-specific clause: this app generates images, and issue
+  attachments are public.
+- [**Security Policy**](SECURITY.md) - **never report a vulnerability in a public
+  issue.** It sets out what counts as one, what is explicitly out of scope, and
+  how to disclose privately.
+
 ## Table of Contents
 
 - [Development Setup](#development-setup)
@@ -10,6 +19,8 @@ Thank you for your interest in contributing to Vision Studio! This guide will he
 - [Code Style & Conventions](#code-style--conventions)
 - [Pull Request Process](#pull-request-process)
 - [Issue Reporting](#issue-reporting)
+- [Code of Conduct](CODE_OF_CONDUCT.md)
+- [Security Policy](SECURITY.md)
 
 ---
 
@@ -411,7 +422,9 @@ Mockups, examples, or references.
 ### Where to Report
 
 - **Bugs** - [GitHub Issues](https://github.com/Git-Rocky-Stack/vision-studio/issues)
-- **Security** - Email: security@vision-studio-x.com (do not use public issues)
+- **Security** - Email: security@vision-studio-x.com, or open a
+  [private advisory](https://github.com/Git-Rocky-Stack/vision-studio/security/advisories/new).
+  Never use public issues - see [SECURITY.md](SECURITY.md) for scope and disclosure timelines
 - **Questions** - [Discussions](https://github.com/Git-Rocky-Stack/vision-studio/discussions)
 
 ---
