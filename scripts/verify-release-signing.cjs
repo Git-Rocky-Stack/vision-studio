@@ -1,6 +1,9 @@
 #!/usr/bin/env node
 
 const { spawnSync } = require('node:child_process');
+const { readFileSync } = require('node:fs');
+const { resolve } = require('node:path');
+const { parse } = require('yaml');
 
 const CSC_LINK_KEYS = ['WIN_CSC_LINK', 'CSC_LINK'];
 const CSC_PASSWORD_KEYS = ['WIN_CSC_KEY_PASSWORD', 'CSC_KEY_PASSWORD'];
@@ -18,6 +21,23 @@ const AZURE_REQUIRED_KEYS = [
   'AZURE_TRUSTED_SIGNING_ACCOUNT_NAME',
   'AZURE_TRUSTED_SIGNING_CERTIFICATE_PROFILE_NAME',
 ];
+
+/**
+ * The publisher name lives in electron-builder.yml under the signtool block.
+ * app-builder-lib reads it from whichever signing manager is active, and the
+ * Azure manager ignores `signtoolOptions` entirely - so the Azure path has to
+ * mirror the value across rather than let it resolve to nothing. Reading it
+ * back from the config keeps a single source of truth: the name stamped into
+ * the installer and the name electron-updater verifies against cannot drift.
+ */
+function readPublisherName() {
+  const config = parse(readFileSync(resolve(__dirname, '..', 'electron-builder.yml'), 'utf8'));
+  const publisherName = config?.win?.signtoolOptions?.publisherName;
+  if (!publisherName) {
+    throw new Error('electron-builder.yml is missing win.signtoolOptions.publisherName');
+  }
+  return publisherName;
+}
 
 function hasAny(env, keys) {
   return keys.some((key) => Boolean(env[key]));
@@ -93,7 +113,8 @@ function buildWindowsPackageArgs(env = process.env) {
     args.push(
       `-c.win.azureSignOptions.endpoint=${env.AZURE_TRUSTED_SIGNING_ENDPOINT}`,
       `-c.win.azureSignOptions.codeSigningAccountName=${env.AZURE_TRUSTED_SIGNING_ACCOUNT_NAME}`,
-      `-c.win.azureSignOptions.certificateProfileName=${env.AZURE_TRUSTED_SIGNING_CERTIFICATE_PROFILE_NAME}`
+      `-c.win.azureSignOptions.certificateProfileName=${env.AZURE_TRUSTED_SIGNING_CERTIFICATE_PROFILE_NAME}`,
+      `-c.win.azureSignOptions.publisherName=${readPublisherName()}`
     );
   }
 

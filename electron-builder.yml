@@ -86,11 +86,20 @@ win:
   # App icon
   icon: build/icon.ico
 
-  # Publisher name (must match certificate subject)
-  publisherName: Vision Studio Team
-
   # Verify code signature on updates. Release builds must be signed.
   verifyUpdateCodeSignature: true
+
+  # electron-builder 26 moved every signtool.exe option (publisher name and
+  # certificate selection alike) out of `win` and into this block. The
+  # publisher name must match the certificate subject: with
+  # verifyUpdateCodeSignature on, electron-updater refuses any update whose
+  # signature does not resolve to this name.
+  # NOTE: app-builder-lib picks the Azure signing manager whenever
+  # `win.azureSignOptions` exists and then ignores this block entirely, so
+  # scripts/verify-release-signing.cjs mirrors this name into the Azure block
+  # when it adds one. Do not declare azureSignOptions statically here.
+  signtoolOptions:
+    publisherName: Vision Studio Team
 
   # Run as current user (admin not needed for normal operation)
   requestedExecutionLevel: asInvoker

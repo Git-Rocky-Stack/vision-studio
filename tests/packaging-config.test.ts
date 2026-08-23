@@ -80,6 +80,24 @@ describe('packaging config honesty rails', () => {
     expect(config.win.verifyUpdateCodeSignature).toBe(true);
   });
 
+  it('declares the publisher name where the signing manager reads it', () => {
+    // electron-builder 26 removed the flat `win.publisherName`: the value is
+    // now resolved from whichever signing block is active. With
+    // verifyUpdateCodeSignature on, electron-updater refuses an update whose
+    // certificate subject does not match this name - if it resolves to
+    // nothing the check silently degrades to "extract from the certificate".
+    expect(config.win.publisherName).toBeUndefined();
+    expect(config.win.signtoolOptions.publisherName).toBe('Vision Studio Team');
+  });
+
+  it('does not pin a static azure signing block that would shadow signtool', () => {
+    // app-builder-lib picks the Azure manager whenever `azureSignOptions` is
+    // present and logs "ignoring signtool options". The release script adds
+    // that block only when Azure credentials are actually configured, so the
+    // checked-in config must leave it absent.
+    expect(config.win.azureSignOptions).toBeUndefined();
+  });
+
   it('never packages user-side backend state into backend-source', () => {
     // Provisioned model weights are multi-GB AND unlicensed redistribution
     // (weights install per-user through the consent-gated Foundry); the local
