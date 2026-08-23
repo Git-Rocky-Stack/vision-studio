@@ -139,4 +139,13 @@ describe('packaging config honesty rails', () => {
     const entries = (config.extraResources ?? []).map((e: { from: string }) => e.from);
     expect(entries).toContain('THIRD-PARTY-LICENSES.md');
   });
+
+  it('ships our own MIT license alongside the third-party notices', () => {
+    // The MIT terms require the copyright notice to travel with every copy of
+    // the Software, and an installer is a copy. THIRD-PARTY-LICENSES.md covers
+    // everyone else's terms and points the reader at `LICENSE` for ours - which
+    // means `LICENSE` has to actually be in the package.
+    const entries = (config.extraResources ?? []).map((e: { from: string }) => e.from);
+    expect(entries).toContain('LICENSE');
+  });
 });

@@ -51,3 +51,20 @@ def test_committed_notices_match_a_fresh_render():
     committed = pathlib.Path(NOTICES_PATH).read_text(encoding="utf-8")
     assert committed == RENDERED, (
         "THIRD-PARTY-LICENSES.md is stale - run `python -m foundry.notices`")
+
+
+def test_preamble_points_at_the_license_file_that_actually_ships():
+    # The notices doc is the one licence file inside every installer, and its
+    # first line tells the reader where Vision Studio's own MIT terms live. It
+    # named `LICENSE.txt`, a duplicate that no longer exists and was never
+    # packaged - so the pointer resolved to nothing on a user's machine.
+    preamble = RENDERED.split("## ", 1)[0]
+    assert "`LICENSE`" in preamble
+    # Scoped to the preamble on purpose: several third-party entries link to a
+    # LICENSE.txt in someone else's repository, and those are correct.
+    assert "LICENSE.txt" not in preamble
+
+
+def test_shipped_license_file_exists_at_the_named_path():
+    repo_root = pathlib.Path(NOTICES_PATH).parent
+    assert (repo_root / "LICENSE").is_file()

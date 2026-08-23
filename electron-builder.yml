@@ -47,6 +47,11 @@ extraResources:
   # renders the same content from the renderer bundle).
   - from: THIRD-PARTY-LICENSES.md
     to: THIRD-PARTY-LICENSES.md
+  # The MIT terms require the copyright notice to travel with every copy of the
+  # Software, and an installer is a copy. THIRD-PARTY-LICENSES.md points the
+  # reader here for Vision Studio's own terms, so this file has to be present.
+  - from: LICENSE
+    to: LICENSE
   - from: backend/
     to: backend-source/
     filter:

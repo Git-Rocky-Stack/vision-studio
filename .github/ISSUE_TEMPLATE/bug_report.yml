@@ -1,0 +1,90 @@
+name: Bug report
+description: Something in Vision Studio does not work as documented.
+labels: ['bug', 'needs triage']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to file this. The two fields that decide
+        whether a bug is fixable are **reproduction steps** and **your GPU** -
+        most generation bugs are hardware- or VRAM-specific.
+
+        Found a security vulnerability? Do not file it here. See
+        [SECURITY.md](https://github.com/Git-Rocky-Stack/vision-studio/blob/main/SECURITY.md).
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What went wrong
+      description: What did you expect, and what happened instead?
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      value: |
+        1.
+        2.
+        3.
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Vision Studio version
+      description: Settings -> About, or the installer filename.
+      placeholder: 3.3.0
+    validations:
+      required: true
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - Windows 11
+        - Windows 10
+        - macOS (Apple Silicon)
+        - Linux
+    validations:
+      required: true
+
+  - type: input
+    id: gpu
+    attributes:
+      label: GPU and VRAM
+      description: Or "CPU only". Settings -> Performance reports what was detected.
+      placeholder: RTX 4070, 12 GB
+    validations:
+      required: true
+
+  - type: input
+    id: model
+    attributes:
+      label: Model in use
+      description: Only if the bug involves generation.
+      placeholder: sdxl-base
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: >
+        From Settings -> Diagnostics, or the backend console. Redact any API
+        keys, tokens, and personal paths before pasting - this issue is public.
+      render: shell
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I am on the latest release, or I have confirmed the bug still exists there.
+          required: true
+        - label: I searched existing issues for this.
+          required: true
+        - label: Any logs or screenshots I attached contain no credentials and no NSFW content.
+          required: true

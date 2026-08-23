@@ -1,0 +1,54 @@
+name: Feature request
+description: Suggest a capability Vision Studio does not have yet.
+labels: ['enhancement', 'needs triage']
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: >
+        What are you trying to do today, and where does it break down? Describe
+        the pain point rather than the solution - it often has more than one.
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: What you would like instead
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives you have considered
+      description: Including any workaround you are using now.
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Image generation
+        - Video generation
+        - Editing and layers
+        - Storyboard and animation
+        - Model Foundry
+        - Workflow graph
+        - Collections and assets
+        - Performance and GPU
+        - Packaging, install, or updates
+        - Other
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: local
+    attributes:
+      label: Scope
+      options:
+        - label: >
+            This works without a cloud service, or is opt-in bring-your-own-key.
+            Vision Studio is local-first and ships no mandatory cloud dependency.
+          required: true

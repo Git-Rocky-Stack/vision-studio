@@ -263,29 +263,12 @@ const steps = {
     // (MIT - unlike checkpoint weights, redistribution is allowed).
     exec('node scripts/fetch-preview-decoders.cjs', { cwd: ROOT_DIR });
     
-    // Create license file if not exists
-    const licensePath = path.join(ROOT_DIR, 'LICENSE.txt');
-    if (!fs.existsSync(licensePath)) {
-      fs.writeFileSync(licensePath, `MIT License
+    // No licence is synthesised here. This block used to write a LICENSE.txt
+    // whenever one was absent, and the text it wrote named the wrong holder and
+    // stopped short of the liability clause - a materially different licence
+    // from the repo's. `LICENSE` is the single source and ships as an
+    // extraResource; tests/license-integrity.test.ts keeps it that way.
 
-Copyright (c) 2024 Vision Studio Team
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.`);
-      log('  ✅ Created LICENSE.txt', 'green');
-    }
-    
     // Ensure the Windows icon is regenerated from the canonical PNG source when needed
     const iconSourcePath = path.join(ROOT_DIR, 'icons', 'vision.png');
     const iconPath = path.join(BUILD_DIR, 'icon.ico');
