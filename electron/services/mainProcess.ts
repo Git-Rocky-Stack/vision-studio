@@ -106,6 +106,7 @@ export function createMainProcessServices({
     appPaths: {
       getPath: (name) => app.getPath(name),
       resourcesPath,
+      getVersion: () => app.getVersion(),
     },
     dialog,
     getMainWindow: () => mainWindow.getWindow(),

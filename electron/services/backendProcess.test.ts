@@ -73,6 +73,7 @@ describe('backend process helpers', () => {
       userDataPath: 'C:/Users/User/AppData/Roaming/Vision Studio',
       outputDirectory: 'D:/Vision Studio/Outputs',
       backendAuthToken: 'session-token',
+      appVersion: '3.3.0',
     });
 
     expect(env).toMatchObject({
@@ -84,6 +85,22 @@ describe('backend process helpers', () => {
       LOG_FILE: path.join('C:/Users/User/AppData/Roaming/Vision Studio', 'logs', 'backend.log'),
       VISION_STUDIO_BACKEND_AUTH_TOKEN: 'session-token',
     });
+  });
+
+  it('tells the backend which app version it belongs to', () => {
+    // The backend used to hardcode its own version string, and it drifted two
+    // releases behind - it served a stale number in its OpenAPI spec and sent
+    // one as its User-Agent to Hugging Face and CivitAI. The shell knows the
+    // real version; it has to pass it down.
+    const env = buildBackendEnvironment({
+      baseEnv: {},
+      userDataPath: 'C:/data',
+      outputDirectory: 'C:/out',
+      backendAuthToken: 'token',
+      appVersion: '9.9.9',
+    });
+
+    expect(env.VISION_STUDIO_VERSION).toBe('9.9.9');
   });
 });
 

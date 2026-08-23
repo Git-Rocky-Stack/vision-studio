@@ -66,6 +66,7 @@ from pydantic import BaseModel, Field
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
+from version import APP_VERSION
 from utils.job_manager import JobManager, JobStatus, GenerationJob
 from utils.logging_config import setup_logging, get_logger
 from utils.comfy_workflows import build_image_workflow, build_video_workflow
@@ -345,7 +346,7 @@ Rate limiting is enabled to prevent abuse:
 - Batch endpoints: 5 requests/minute
 - Default: 60 requests/minute
     """,
-    version="3.1.1",
+    version=APP_VERSION,
     docs_url="/api/docs",      # Swagger UI
     redoc_url="/api/redoc",    # ReDoc
     openapi_url="/api/openapi.json",
@@ -711,7 +712,7 @@ async def root(request: Request):
 
     Returns a simple message confirming the API is running.
     """
-    return {"message": "Vision Studio API", "version": "3.1.1"}
+    return {"message": "Vision Studio API", "version": APP_VERSION}
 
 
 @app.get("/api/system/info", response_model=SystemInfo, tags=["System"])

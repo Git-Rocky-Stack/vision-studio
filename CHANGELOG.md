@@ -2,11 +2,12 @@
 
 All notable changes to Vision Studio will be documented in this file.
 
-## [Unreleased]
+## [3.3.0] - 2026-08-23
 
 Codebase audit release: five shipped-but-hollow features made real, three dead
-modules removed, and the whole class of design-system colour drift closed off
-with a guard test. Additive - no known breaking changes.
+modules removed, the whole class of design-system colour drift closed off with a
+guard test, and every known dependency advisory cleared. Additive - no known
+breaking changes.
 
 ### Added
 - **Model Foundry acquire flow** - Discover results now render the full result
@@ -90,6 +91,41 @@ with a guard test. Additive - no known breaking changes.
 - `MonoLabel` forwards an `id`, so a region can name itself via `aria-labelledby`
 - `FrameFilmstrip` takes `addLabel`/`addDisabled`/`addTitle`, so a host can name
   and gate its add control instead of always saying "Add frame"
+- The backend no longer carries its own version literal. It had drifted two
+  releases behind, reporting `3.1.1` from a 3.2.0 install in its OpenAPI spec, on
+  its root endpoint, and in the User-Agent it sent to Hugging Face and CivitAI.
+  Electron now passes `app.getVersion()` down when it spawns the process, and
+  `backend/version.py` resolves that single number
+
+### Security
+- **All 19 known dependency advisories cleared.** Seven in the shipped tree,
+  including an `electron-updater` flaw that leaked `PRIVATE-TOKEN` and
+  `Authorization` credentials across a cross-origin redirect
+  ([GHSA-p2f4-r6v6-j797](https://github.com/advisories/GHSA-p2f4-r6v6-j797)), and
+  twelve in the build toolchain - a `node-tar` chain under electron-builder 25
+  carrying path-traversal, symlink-poisoning and DoS advisories
+  ([GHSA-34x7-hfp2-rc4v](https://github.com/advisories/GHSA-34x7-hfp2-rc4v),
+  [GHSA-23hp-3jrh-7fpw](https://github.com/advisories/GHSA-23hp-3jrh-7fpw), and
+  others). `npm audit` and `npm audit --omit=dev` both report zero
+- **Installers now carry Vision Studio's own MIT notice.** `LICENSE` was never
+  packaged, and `THIRD-PARTY-LICENSES.md` - the one licence document inside an
+  installer - pointed readers at a `LICENSE.txt` that was not there either. MIT
+  requires the notice to travel with every copy
+- `scripts/build-windows.cjs` no longer synthesises licence text. It used to
+  write its own `LICENSE.txt` when one was absent, naming the wrong copyright
+  holder and stopping short of the entire liability limitation
+- Published a security policy ([`SECURITY.md`](SECURITY.md)) with private
+  reporting, disclosure timelines, an explicit scope, and safe harbour
+
+### Build
+- **electron-builder 25 -> 26.** The major moved every signtool option under
+  `win.signtoolOptions`; `tests/packaging-schema.test.ts` now validates both
+  packaging configs against the installed electron-builder schema, so a removed
+  option fails as a unit test instead of aborting a 40-minute CI package run
+- `verify-release-signing.cjs` mirrors the publisher name into the Azure signing
+  block, read back from `electron-builder.yml`. app-builder-lib ignores
+  `signtoolOptions` entirely when Azure signing is active, which would have left
+  update-signature verification resolving against no publisher name at all
 
 ## [3.2.0] - 2026-07-18
 
