@@ -68,4 +68,33 @@ describe('OnionSkinOverlay', () => {
     );
     expect(container.querySelector('[data-testid="onion-skin-overlay"]')).toBeNull();
   });
+
+  it('skips a frame slot that has no image instead of ghosting a blank', () => {
+    useAppStore.setState({
+      onionSkinEnabled: true,
+      onionSkinFrameCount: 1,
+      onionSkinDirection: 'both',
+      onionSkinOpacity: 0.4,
+    });
+
+    render(<OnionSkinOverlay frames={['', 'b.png', 'c.png']} currentFrameIndex={1} />);
+
+    const sources = Array.from(
+      screen.getByTestId('onion-skin-overlay').querySelectorAll('img'),
+    ).map((img) => img.getAttribute('src'));
+
+    expect(sources).toEqual(['c.png']);
+  });
+
+  it('renders nothing when every neighbouring slot is empty', () => {
+    useAppStore.setState({
+      onionSkinEnabled: true,
+      onionSkinFrameCount: 1,
+      onionSkinDirection: 'both',
+    });
+
+    render(<OnionSkinOverlay frames={['', 'b.png', '']} currentFrameIndex={1} />);
+
+    expect(screen.queryByTestId('onion-skin-overlay')).not.toBeInTheDocument();
+  });
 });

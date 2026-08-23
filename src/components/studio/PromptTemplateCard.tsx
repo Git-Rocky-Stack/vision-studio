@@ -9,15 +9,20 @@ interface PromptTemplateCardProps {
   onToggleFavorite: (id: string) => void;
 }
 
-/** Category badge color mapping. */
-const CATEGORY_COLORS: Record<PromptTemplateCategory, string> = {
-  portrait: 'bg-blue-500/15 text-blue-300 border-blue-500/30',
-  landscape: 'bg-green-500/15 text-green-300 border-green-500/30',
-  product: 'bg-orange-500/15 text-orange-300 border-orange-500/30',
-  abstract: 'bg-purple-500/15 text-purple-300 border-purple-500/30',
-  cinematic: 'bg-red-500/15 text-red-300 border-red-500/30',
-  artistic: 'bg-pink-500/15 text-pink-300 border-pink-500/30',
-  custom: 'bg-gray-500/15 text-gray-300 border-gray-500/30',
+/**
+ * Category badge styling. Carbon Pro carries one accent, so categories are
+ * separated by surface depth and text weight rather than by hue (see
+ * DESIGN.md) - the label already names the category, the styling only has to
+ * keep the badges distinguishable at a glance.
+ */
+const CATEGORY_STYLES: Record<PromptTemplateCategory, string> = {
+  portrait: 'bg-accent-primary-muted text-accent-primary border-accent-primary-border',
+  landscape: 'bg-elevated text-text-primary border-border-hover',
+  product: 'bg-surface text-text-primary border-border-hover',
+  abstract: 'bg-elevated text-text-body border-border',
+  cinematic: 'bg-surface text-text-body border-border-hover',
+  artistic: 'bg-canvas text-text-body border-border',
+  custom: 'bg-void text-text-muted border-border',
 };
 
 const CATEGORY_LABELS: Record<PromptTemplateCategory, string> = {
@@ -53,7 +58,7 @@ export const PromptTemplateCard = memo(function PromptTemplateCard({
             'shrink-0 rounded p-0.5 transition-colors duration-normal',
             'hover:bg-elevated focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary/30',
             template.isFavorite
-              ? 'text-yellow-400'
+              ? 'text-accent-primary'
               : 'text-text-muted/40 hover:text-text-muted',
           )}
           aria-label={
@@ -78,7 +83,7 @@ export const PromptTemplateCard = memo(function PromptTemplateCard({
       <span
         className={cn(
           'mt-auto inline-block w-fit rounded border px-1.5 py-0.5 mono-label',
-          CATEGORY_COLORS[template.category],
+          CATEGORY_STYLES[template.category],
         )}
       >
         {CATEGORY_LABELS[template.category]}

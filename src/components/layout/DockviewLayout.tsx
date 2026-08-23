@@ -3,6 +3,8 @@ import { useAppStore } from '@/store/appStore';
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
 import { NavBar } from '@/components/layout/NavBar';
 import { Canvas } from '@/components/layout/Canvas';
+import { EditCanvas } from '@/components/edit/EditCanvas';
+import { LaunchpadPanel } from '@/components/layout/LaunchpadPanel';
 import { Timeline } from '@/components/layout/Timeline';
 import { WorkbenchViewer } from '@/components/layout/WorkbenchViewer';
 import { WorkflowWorkbench } from '@/components/workflow/WorkflowWorkbench';
@@ -21,7 +23,7 @@ import { IterationWorkspacePanel } from '@/components/iteration/IterationWorkspa
 import { getLayoutPreset } from '@/components/layout/layoutPresets';
 import { MonoLabel } from '@/components/hardware';
 import { cn } from '@/utils/cn';
-import type { CenterView } from '@/types/navigation';
+import type { ActiveTab, CenterView } from '@/types/navigation';
 
 // Selected deck-tab cap: chrome edge-ring + machined depth (DESIGN.md §depth system).
 const CENTER_TAB_ACTIVE_SHADOW =
@@ -46,20 +48,26 @@ import {
 /*  Center content renderer                                                   */
 /* -------------------------------------------------------------------------- */
 
-function CenterContent({ centerView }: { centerView: CenterView }) {
+function CenterContent({
+  centerView,
+  activeTab,
+}: {
+  centerView: CenterView;
+  activeTab: ActiveTab;
+}) {
   switch (centerView) {
     case 'canvas':
-      return <Canvas />;
+      // The canvas tab IS the layer editor: its docks are ToolStrip +
+      // EditPropertiesPanel + LayerPanel, all of which operate on `editLayers`.
+      // EditCanvas is the only surface that renders and transforms those
+      // layers, so it - not the generation Canvas - belongs in the centre here.
+      return activeTab === 'canvas' ? <EditCanvas /> : <Canvas />;
     case 'viewer':
       return <WorkbenchViewer />;
     case 'workflow':
       return <WorkflowWorkbench />;
     case 'launchpad':
-      return (
-        <div className="flex h-full items-center justify-center text-text-muted type-body">
-          Launchpad
-        </div>
-      );
+      return <LaunchpadPanel />;
     default:
       return (
         <div className="flex h-full items-center justify-center text-text-muted type-body">
@@ -444,7 +452,7 @@ export const DockviewLayout = memo(function DockviewLayout() {
                   <Timeline />
                 </div>
               ) : (
-                <CenterContent centerView={centerView} />
+                <CenterContent centerView={centerView} activeTab={activeTab} />
               )}
             </ErrorBoundary>
           </section>

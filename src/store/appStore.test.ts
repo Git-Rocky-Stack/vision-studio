@@ -1998,14 +1998,14 @@ We only get one pass at this.
       expect(useAppStore.getState().iterationNodes.get('iter-1')?.childrenIds).toContain('iter-2');
     });
 
-    it('forks a new branch when re-rolling from a node with existing children', () => {
+    it('opens a second branch when a child lands on a new branch id', () => {
       const job1 = makeIterationJob('iter-1');
       useAppStore.getState().addIteration({ job: job1, parentId: null, thumbnail: 'thumb1' });
       const branchId = useAppStore.getState().iterationBranches[0].id;
       const job2 = makeIterationJob('iter-2');
       useAppStore.getState().addIteration({ job: job2, parentId: 'iter-1', thumbnail: 'thumb2', branchId });
       const job3 = makeIterationJob('iter-3');
-      useAppStore.getState().forkIteration({ job: job3, parentId: 'iter-1', thumbnail: 'thumb3' });
+      useAppStore.getState().addIteration({ job: job3, parentId: 'iter-1', thumbnail: 'thumb3', branchId: 'branch-2' });
       expect(useAppStore.getState().iterationBranches).toHaveLength(2);
     });
 
@@ -2079,7 +2079,7 @@ We only get one pass at this.
       useAppStore.getState().addIteration({ job: job2, parentId: 'iter-1', thumbnail: 'thumb2', branchId: branch1Id });
       // Fork creates a new branch
       const job3 = makeIterationJob('iter-3');
-      useAppStore.getState().forkIteration({ job: job3, parentId: 'iter-1', thumbnail: 'thumb3' });
+      useAppStore.getState().addIteration({ job: job3, parentId: 'iter-1', thumbnail: 'thumb3', branchId: 'branch-2' });
       // iter-1 should have both iter-2 and iter-3 as children
       expect(useAppStore.getState().iterationNodes.get('iter-1')?.childrenIds).toContain('iter-2');
       expect(useAppStore.getState().iterationNodes.get('iter-1')?.childrenIds).toContain('iter-3');
@@ -2102,7 +2102,7 @@ We only get one pass at this.
       const job2 = makeIterationJob('iter-2');
       useAppStore.getState().addIteration({ job: job2, parentId: 'iter-1', thumbnail: 'thumb2', branchId: branch1Id });
       const job3 = makeIterationJob('iter-3');
-      useAppStore.getState().forkIteration({ job: job3, parentId: 'iter-1', thumbnail: 'thumb3' });
+      useAppStore.getState().addIteration({ job: job3, parentId: 'iter-1', thumbnail: 'thumb3', branchId: 'branch-2' });
 
       useAppStore.getState().toggleIterationComparison('iter-2');
       useAppStore.getState().toggleIterationComparison('iter-3');

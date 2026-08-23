@@ -38,3 +38,15 @@ describe('hardware primitives', () => {
     expect(screen.getByText('panel body')).toBeInTheDocument();
   });
 });
+
+describe('MonoLabel: labelling a region', () => {
+  it('forwards an id so a section can be aria-labelledby it', () => {
+    render(
+      <section aria-labelledby="section-heading">
+        <MonoLabel as="h2" id="section-heading">Recent renders</MonoLabel>
+      </section>,
+    );
+
+    expect(screen.getByRole('region', { name: 'Recent renders' })).toBeInTheDocument();
+  });
+});

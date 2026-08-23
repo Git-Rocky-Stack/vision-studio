@@ -2,6 +2,95 @@
 
 All notable changes to Vision Studio will be documented in this file.
 
+## [Unreleased]
+
+Codebase audit release: five shipped-but-hollow features made real, three dead
+modules removed, and the whole class of design-system colour drift closed off
+with a guard test. Additive - no known breaking changes.
+
+### Added
+- **Model Foundry acquire flow** - Discover results now render the full result
+  card (tier, security badges, downloads/likes/size, license) with a working
+  **Acquire** action, live download-job status, and the license-gate hand-off.
+  Pickle and `trust_remote_code` results route through the security consent
+  dialog and only download once consent is granted. Search previously listed
+  nothing but a model name, so there was no way to install what you found
+- **Layer canvas mounted in the Edit workspace** - the Konva surface that draws
+  and transforms `editLayers` now renders in the centre of the Canvas tab. The
+  tool strip, layer list, and text controls already wrote to that model; nothing
+  had been drawing it
+- **Real asset tagging** - `assetAnalysis` derives style, subject, colour, and
+  mood tags from the positive prompt by whole-word lexicon match, longest term
+  first. Confidence is the term's positional weight in the prompt (earlier
+  tokens carry more), colour tags resolve to their real sRGB hex, and the
+  negative prompt is excluded. Nothing is guessed or fabricated
+- **Tagging modes wired** - the Settings tagging control now governs behaviour:
+  `on-generation` analyses as renders land, `background-batch` and `on-demand`
+  queue for the Analyze control, `off` does nothing. The queue is drained, and
+  smart collections re-evaluate whenever new metadata arrives
+- **Keyframe authoring** - the animation editor can add a keyframe at the
+  playhead for the selected layer, retime via the filmstrip, edit interpolation
+  and easing, and delete. `addKeyframe`/`updateKeyframe`/`deleteKeyframe` had no
+  callers, so the editor could only ever show its empty state
+- **Onion-skin controls** - depth, opacity, and direction controls, with the
+  overlay mounted over the active storyboard scene. The toolbar toggle
+  previously flipped a flag nothing consumed
+- **Scene camera moves** - a `SceneCameraPanel` in the storyboard inspector adds,
+  selects, retimes, and deletes `Scene.camera` keyframes through the existing
+  camera editor. Playback already badged a scene "CAM", but nothing could
+  author one
+- **Launchpad workspace** - the Launchpad centre view is now a real entry
+  surface: quick actions into Generate/Quick/Batch/Storyboard, the most recent
+  renders (click to open in the viewer), and the project list. It previously
+  rendered the word "Launchpad"
+- **Character-to-scene assignment** - character cards assign and unassign on the
+  active scene and reflect selection; they were inert with `isSelected={false}`
+- **Collection cards** - real asset thumbnails (cover asset first), working
+  activation, and the query terms a smart collection matches on. The Tagged and
+  Untagged filters now filter
+- **Palette guard test** - `carbon-pro-palette.test.ts` fails on any stock
+  Tailwind hue class in `src/`, so single-accent discipline cannot drift again
+
+### Fixed
+- **Iteration tree could corrupt itself** - "Fork" passed the node's own job, so
+  the node became its own parent *and* its own child, producing a cycle that
+  made the tree unwalkable. `addIteration` now rejects a self-parent and a
+  parent id that names no node
+- **Fork and re-roll fabricated renders** - both minted a tree node carrying the
+  previous render's thumbnail without generating anything. They now load the
+  iteration's real settings into the generator (fork keeps the seed, re-roll
+  releases it) and record the node as the parent of whatever renders next
+- **Iteration lineage was never recorded** - completed jobs were always attached
+  as roots, so branches and settings diffs could never appear
+- **Onion skin ghosted empty frames** - a frame slot with no image rendered
+  `<img src="">`, which draws nothing and makes the browser re-request the
+  current document. Blank slots are now skipped
+- **Filmstrip reported a fixed 100ms** under every frame regardless of the real
+  keyframe spacing; durations are now measured gaps
+- **Analyze control did nothing** - it called `analyzeAssets([])` and disabled
+  itself whenever the queue was non-empty. It now reports and drains the real
+  untagged count, and explains itself when tagging is off
+- **Dead interactions announced as controls** - collection cards
+  (`role="button"`), character cards, and pipeline step dots all carried
+  accessible names and pressed state while doing nothing. Each is now wired, and
+  the pipeline dots degrade to plain status indicators when no handler is passed
+- **Design-system colour drift** - 54 stock Tailwind palette classes across six
+  files moved onto Carbon Pro tokens: region-lock and prompt-syntax states onto
+  `--color-status-*`, category badges onto surface depth, theme swatches onto
+  literal preview values
+
+### Removed
+- `CollectionsPanel.tsx` - a divergent duplicate of the mounted `CollectionsPage`
+- `ScenePlaybackStrip.tsx` - superseded by the store-integrated `StoryboardPlayback`
+- `hostedControlAssets.ts` - built for hosted ControlNet/inpaint, then superseded
+  by the authoritative decision to reject those passes (HuggingFace documents no
+  such contract)
+
+### Changed
+- `MonoLabel` forwards an `id`, so a region can name itself via `aria-labelledby`
+- `FrameFilmstrip` takes `addLabel`/`addDisabled`/`addTitle`, so a host can name
+  and gate its add control instead of always saying "Add frame"
+
 ## [3.2.0] - 2026-07-18
 
 Feature + design release on top of 3.1.1. Real canvas text layers in the Edit

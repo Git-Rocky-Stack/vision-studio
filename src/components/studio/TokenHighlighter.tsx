@@ -34,20 +34,20 @@ export const TokenHighlighter = memo(function TokenHighlighter({
               'rounded-sm px-0.5',
               // Normal tokens: invisible, just occupy space
               isNormal && 'text-transparent',
-              // Weighted > 1.5: strong red-orange highlight
+              // Weighted > 1.5: heavy weighting is a caution, not an error
               token.syntaxType === 'weighted' &&
                 token.weight > 1.5 &&
-                'bg-red-500/20 text-red-300',
+                'bg-status-warning-muted text-status-warning',
               // Weighted 1.0-1.5: subtle accent highlight
               token.syntaxType === 'weighted' &&
                 token.weight <= 1.5 &&
                 'bg-accent-primary-muted text-accent-primary-hover',
-              // Emphasis: green/success highlight
+              // Emphasis: additive weighting
               token.syntaxType === 'emphasis' &&
-                'bg-emerald-500/15 text-emerald-300',
-              // Deemphasis: blue highlight
+                'bg-status-success-muted text-status-success',
+              // De-emphasis: informational, reduces the token's pull
               token.syntaxType === 'deemphasis' &&
-                'bg-blue-500/15 text-blue-300',
+                'bg-status-info-muted text-status-info',
             )}
           >
             {token.text}

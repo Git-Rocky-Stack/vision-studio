@@ -12,12 +12,23 @@ interface CharacterLibraryProps {
 }
 
 export function CharacterLibrary({ projectId }: CharacterLibraryProps) {
-  const { projects, addCharacter, deleteCharacter, updateCharacter } = useAppStore(
+  const {
+    projects,
+    addCharacter,
+    deleteCharacter,
+    updateCharacter,
+    activeSceneId,
+    assignCharacterToScene,
+    removeCharacterFromScene,
+  } = useAppStore(
     useShallow((s) => ({
       projects: s.projects,
       addCharacter: s.addCharacter,
       deleteCharacter: s.deleteCharacter,
       updateCharacter: s.updateCharacter,
+      activeSceneId: s.activeSceneId,
+      assignCharacterToScene: s.assignCharacterToScene,
+      removeCharacterFromScene: s.removeCharacterFromScene,
     }))
   );
 
@@ -55,6 +66,23 @@ export function CharacterLibrary({ projectId }: CharacterLibraryProps) {
     setDeleteTarget(null);
   };
 
+  const activeScene = project.scenes.find((s) => s.id === activeSceneId) ?? null;
+
+  /**
+   * A character card toggles that character on the scene currently being
+   * worked on - the only assignment gesture the storyboard offers. Without an
+   * active scene there is nothing to assign to, so the cards stay inert and
+   * say so rather than pretending to act.
+   */
+  const handleCharacterClick = (charId: string) => {
+    if (!activeScene) return;
+    if (activeScene.characterRefs.includes(charId)) {
+      removeCharacterFromScene(projectId, activeScene.id, charId);
+    } else {
+      assignCharacterToScene(projectId, activeScene.id, charId);
+    }
+  };
+
   const handleAddCharacter = () => {
     addCharacter(projectId, {
       name: `Character ${characters.length + 1}`,
@@ -88,6 +116,14 @@ export function CharacterLibrary({ projectId }: CharacterLibraryProps) {
         </Button>
       </div>
 
+      {characters.length > 0 && !activeScene ? (
+        <div className="px-4 pb-2">
+          <p className="type-caption text-text-body">
+            Select a scene to assign characters to it.
+          </p>
+        </div>
+      ) : null}
+
       {importedCharacterElementCount > 0 ? (
         <div className="px-4 pb-2">
           <p className="type-caption text-text-body">
@@ -114,9 +150,9 @@ export function CharacterLibrary({ projectId }: CharacterLibraryProps) {
             <CharacterRefCard
               key={char.id}
               character={char}
-              isSelected={false}
+              isSelected={activeScene?.characterRefs.includes(char.id) ?? false}
               sceneCount={getSceneCount(char.id)}
-              onClick={() => {}}
+              onClick={() => handleCharacterClick(char.id)}
               onDelete={() => setDeleteTarget(char)}
               onToggleFeature={(feature) => handleToggleFeature(char.id, feature)}
             />

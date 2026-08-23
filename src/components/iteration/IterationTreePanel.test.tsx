@@ -26,7 +26,12 @@ describe('IterationTreePanel', () => {
   it('shows branch tabs when multiple branches exist', () => {
     const job1 = { id: 'iter-1', type: 'image' as const, status: 'completed' as const, progress: 100, params: {}, createdAt: new Date() };
     useAppStore.getState().addIteration({ job: job1, parentId: null, thumbnail: '' });
-    useAppStore.getState().forkIteration({ job: { id: 'iter-2', type: 'image' as const, status: 'completed' as const, progress: 100, params: {}, createdAt: new Date() }, parentId: 'iter-1', thumbnail: '' });
+    useAppStore.getState().addIteration({
+      job: { id: 'iter-2', type: 'image' as const, status: 'completed' as const, progress: 100, params: {}, createdAt: new Date() },
+      parentId: 'iter-1',
+      thumbnail: '',
+      branchId: 'branch-2',
+    });
 
     render(<IterationTreePanel />);
     // Should have branch tabs visible

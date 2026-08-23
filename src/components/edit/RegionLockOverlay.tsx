@@ -20,7 +20,7 @@ const AI_TOOL_LABELS: Record<AITool, string> = {
 const AI_TOOL_COLORS: Record<AITool, string> = {
   'generative-fill': '#22c55e',
   'style-transfer': '#6c5ce7',
-  upscale: '#38bdf8',
+  upscale: 'var(--color-status-info)',
   remove: '#ef4444',
 };
 
@@ -107,16 +107,16 @@ const RegionMask = memo(function RegionMask({
         className={cn(
           'absolute inset-0 rounded-sm',
           isEraseMask
-            ? 'bg-sky-400/10'
+            ? 'bg-status-info/10'
             : invertMask
-              ? 'bg-red-500/10'
-              : 'bg-green-500/10',
+              ? 'bg-status-error/10'
+              : 'bg-status-success/10',
           isActive && isEraseMask
-            ? 'bg-sky-400/20'
+            ? 'bg-status-info/20'
             : isActive && invertMask
-              ? 'bg-red-500/20'
+              ? 'bg-status-error/20'
               : isActive && !invertMask
-                ? 'bg-green-500/20' : ''
+                ? 'bg-status-success/20' : ''
         )}
       />
 
@@ -170,14 +170,14 @@ const RegionMask = memo(function RegionMask({
 
       {/* Erase indicator */}
       {isEraseMask && (
-        <div className="absolute -top-5 -right-1 px-1 py-0.5 rounded-sm bg-sky-400 type-ui text-white font-bold pointer-events-none">
+        <div className="absolute -top-5 -right-1 px-1 py-0.5 rounded-sm bg-status-info type-ui text-white font-bold pointer-events-none">
           ERASE
         </div>
       )}
 
       {/* Invert indicator */}
       {invertMask && (
-        <div className="absolute -top-5 -right-1 px-1 py-0.5 rounded-sm bg-red-500 type-ui text-white font-bold pointer-events-none">
+        <div className="absolute -top-5 -right-1 px-1 py-0.5 rounded-sm bg-status-error type-ui text-white font-bold pointer-events-none">
           INV
         </div>
       )}
@@ -187,19 +187,19 @@ const RegionMask = memo(function RegionMask({
         <>
           <div
             className="absolute w-2 h-2 -top-1 -left-1 rounded-full border-2 border-white"
-            style={{ backgroundColor: isEraseMask ? '#38bdf8' : toolColor }}
+            style={{ backgroundColor: isEraseMask ? 'var(--color-status-info)' : toolColor }}
           />
           <div
             className="absolute w-2 h-2 -top-1 -right-1 rounded-full border-2 border-white"
-            style={{ backgroundColor: isEraseMask ? '#38bdf8' : toolColor }}
+            style={{ backgroundColor: isEraseMask ? 'var(--color-status-info)' : toolColor }}
           />
           <div
             className="absolute w-2 h-2 -bottom-1 -left-1 rounded-full border-2 border-white"
-            style={{ backgroundColor: isEraseMask ? '#38bdf8' : toolColor }}
+            style={{ backgroundColor: isEraseMask ? 'var(--color-status-info)' : toolColor }}
           />
           <div
             className="absolute w-2 h-2 -bottom-1 -right-1 rounded-full border-2 border-white"
-            style={{ backgroundColor: isEraseMask ? '#38bdf8' : toolColor }}
+            style={{ backgroundColor: isEraseMask ? 'var(--color-status-info)' : toolColor }}
           />
         </>
       )}

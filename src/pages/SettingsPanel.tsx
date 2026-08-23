@@ -1781,9 +1781,12 @@ export function SettingsPanel() {
                           className={cn(
                             'w-8 h-8 mx-auto rounded-full mb-2',
                             themeOption === 'dark' && 'bg-void border border-border',
-                            themeOption === 'light' && 'bg-white border border-gray-200',
+                            // These swatches preview the themes themselves, so
+                            // their colours are literal sample values rather
+                            // than tokens of the theme currently rendering.
+                            themeOption === 'light' && 'bg-white border border-[#e4e4e4]',
                             themeOption === 'system' &&
-                              'bg-gradient-to-br from-void to-white border border-gray-300',
+                              'bg-gradient-to-br from-void to-white border border-[#c9c9c9]',
                           )}
                         />
                         <span
