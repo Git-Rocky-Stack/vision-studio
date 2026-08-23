@@ -329,8 +329,13 @@ const steps = {
     }
 
     log(`  Using: ${isccPath}`, 'cyan');
-    // Both isccPath and issPath are derived from hardcoded constants, not user input
-    exec(`"${isccPath}" "${issPath}"`, { cwd: ROOT_DIR });
+    // The version is defined on the command line rather than in the .iss, so
+    // package.json stays the single source. installer.iss #errors without it.
+    const appVersion = require('./../package.json').version;
+    log(`  Stamping version: ${appVersion}`, 'cyan');
+    // isccPath and issPath derive from hardcoded constants; appVersion comes
+    // from our own manifest - no user input reaches this command.
+    exec(`"${isccPath}" /DMyAppVersion=${appVersion} "${issPath}"`, { cwd: ROOT_DIR });
 
     // Move ALL Inno Setup output files (.exe + .bin disk slices) to release/
     const innoOutputDir = path.join(ROOT_DIR, 'scripts', 'Output');

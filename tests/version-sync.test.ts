@@ -49,6 +49,23 @@ describe('version sync', () => {
     expect(headings[0]).toBe(`## [${packageVersion}] - 2026-08-23`);
   });
 
+  it('never hardcodes a version in the Inno Setup installer script', () => {
+    // scripts/installer.iss stamps AppVersion AND the output filename
+    // (Vision-Studio-{version}-Setup). Left as a literal it silently went two
+    // releases stale, so `npm run build:windows` would have produced a
+    // 3.2.0-named installer from a 3.3.0 tree. The version arrives as an ISCC
+    // /D define instead, sourced from package.json.
+    const iss = readFileSync(resolve(ROOT, 'scripts/installer.iss'), 'utf8');
+
+    expect(iss).not.toMatch(/#define\s+MyAppVersion\s+"\d+\.\d+\.\d+/);
+    expect(iss, 'installer.iss must refuse to build without the define').toContain('#ifndef MyAppVersion');
+  });
+
+  it('passes the package version into the Inno Setup build', () => {
+    const script = readFileSync(resolve(ROOT, 'scripts/build-windows.cjs'), 'utf8');
+    expect(script).toContain('/DMyAppVersion=');
+  });
+
   it('states a supported version range covering the current release in SECURITY.md', () => {
     const [major, minor] = packageVersion.split('.');
     const policy = readFileSync(resolve(ROOT, 'SECURITY.md'), 'utf8');

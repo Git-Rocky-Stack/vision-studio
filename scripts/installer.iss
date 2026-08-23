@@ -2,7 +2,15 @@
 ; Handles large payloads (>2GB) that NSIS cannot support
 
 #define MyAppName "Vision Studio"
-#define MyAppVersion "3.2.0"
+
+; MyAppVersion is supplied by scripts/build-windows.cjs as an ISCC define,
+; sourced from package.json:  ISCC /DMyAppVersion=x.y.z installer.iss
+; It is deliberately NOT defaulted here. A literal went two releases stale
+; without anyone noticing, and it stamps both AppVersion and the output
+; filename - so a wrong value ships an installer that lies about what it is.
+#ifndef MyAppVersion
+  #error MyAppVersion is not defined. Build via `npm run build:windows`, or pass /DMyAppVersion=<version> to ISCC.
+#endif
 #define MyAppPublisher "Vision Studio Team"
 #define MyAppURL "https://github.com/Git-Rocky-Stack/vision-studio"
 #define MyAppExeName "Vision Studio.exe"
