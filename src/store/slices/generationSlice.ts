@@ -65,8 +65,19 @@ export function createGenerationActions(set: AppSet, _get: AppGet) {
       // Timeline-native jobs stay attached to clips instead of polluting the iteration tree.
       if (updatedJob.status === 'completed' && updatedJob.params.source !== 'timeline') {
         const thumbnail = (updatedJob.result?.images?.[0]) ?? '';
-        const parentId = null; // Root iteration for now; can be wired to re-roll parent later
-        state.addIteration({ job: updatedJob, parentId, thumbnail });
+        // Lineage: a run started by forking or re-rolling an existing iteration
+        // records that node as its parent. The pending pointer is consumed here
+        // so a later, unrelated run still records as a root.
+        const parentId = state.pendingIterationParentId;
+        state.addIteration({
+          job: updatedJob,
+          parentId,
+          thumbnail,
+          ...(parentId && state.pendingIterationNewBranch
+            ? { branchId: crypto.randomUUID() }
+            : {}),
+        });
+        if (parentId) state.clearPendingIterationParent();
       }
 
       set((s) => {
@@ -140,9 +151,19 @@ export function createGenerationActions(set: AppSet, _get: AppGet) {
     })),
     setComparisonMode: (mode: AppState['comparisonMode']) => set({ comparisonMode: mode }),
     setComparisonImages: (images: string[]) => set({ comparisonImages: images }),
-    syncAssetsFromJobStatus: (status: AssetJobStatus) => set((state) => ({
-      assetLibrary: upsertAssetsFromJobStatus(state.assetLibrary, status),
-    })),
+    syncAssetsFromJobStatus: (status: AssetJobStatus) => {
+      const before = new Set(_get().assetLibrary.map((asset) => asset.id));
+      set((state) => ({
+        assetLibrary: upsertAssetsFromJobStatus(state.assetLibrary, status),
+      }));
+      // Feed genuinely-new assets to the tagger, which routes them by the
+      // user's taggingMode. Without this the Settings tagging control writes a
+      // preference nothing ever acts on.
+      const arrived = _get()
+        .assetLibrary.filter((asset) => !before.has(asset.id))
+        .map((asset) => asset.id);
+      if (arrived.length > 0) _get().enqueueForTagging(arrived);
+    },
     deleteAssetRecord: (assetId: string) => set((state) => ({
       assetLibrary: state.assetLibrary.filter((asset) => asset.id !== assetId),
     })),

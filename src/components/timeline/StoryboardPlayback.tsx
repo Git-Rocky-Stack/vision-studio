@@ -2,6 +2,7 @@ import { memo, useMemo, useCallback } from 'react';
 import { useAppStore } from '@/store/appStore';
 import { cn } from '@/utils/cn';
 import { Play, Pause, SkipBack, SkipForward, Repeat, ChevronRight } from 'lucide-react';
+import { OnionSkinOverlay } from '@/components/timeline/OnionSkinOverlay';
 
 // ---------------------------------------------------------------------------
 // StoryboardPlayback - Scene-based timeline view with playback controls
@@ -29,6 +30,13 @@ export const StoryboardPlayback = memo(function StoryboardPlayback({
   const seekTo = useAppStore((s) => s.seekTo);
   const toggleTimelineLoop = useAppStore((s) => s.toggleTimelineLoop);
   const setTimelineSpeed = useAppStore((s) => s.setTimelineSpeed);
+  const onionSkinEnabled = useAppStore((s) => s.onionSkinEnabled);
+  const onionSkinFrameCount = useAppStore((s) => s.onionSkinFrameCount);
+  const onionSkinOpacity = useAppStore((s) => s.onionSkinOpacity);
+  const onionSkinDirection = useAppStore((s) => s.onionSkinDirection);
+  const setOnionSkinFrameCount = useAppStore((s) => s.setOnionSkinFrameCount);
+  const setOnionSkinOpacity = useAppStore((s) => s.setOnionSkinOpacity);
+  const setOnionSkinDirection = useAppStore((s) => s.setOnionSkinDirection);
 
   // ── Derived data ───────────────────────────────────────────────────────
   const activeProject = projects.find((p) => p.id === activeProjectId);
@@ -47,6 +55,16 @@ export const StoryboardPlayback = memo(function StoryboardPlayback({
     }
     return scenes.length - 1;
   }, [currentTime, scenes]);
+
+  /**
+   * Real thumbnails for the onion-skin ghosts, in scene order. A scene with no
+   * thumbnail contributes an empty slot so neighbour offsets stay aligned to
+   * the scene index; the overlay drops the blanks rather than ghosting nothing.
+   */
+  const sceneThumbnails = useMemo(
+    () => scenes.map((scene) => scene.thumbnail ?? ''),
+    [scenes],
+  );
 
   // ── Handlers ───────────────────────────────────────────────────────────
 
@@ -188,6 +206,64 @@ export const StoryboardPlayback = memo(function StoryboardPlayback({
           ))}
         </div>
 
+        {onionSkinEnabled && (
+          <>
+            <div className="w-px h-4 bg-border mx-0.5" />
+            <div className="flex items-center gap-2">
+              <label htmlFor="onion-skin-frames" className="type-micro text-text-muted">
+                Frames
+              </label>
+              <input
+                id="onion-skin-frames"
+                type="number"
+                min={1}
+                max={5}
+                step={1}
+                value={onionSkinFrameCount}
+                onChange={(e) => {
+                  const next = Number.parseInt(e.target.value, 10);
+                  if (Number.isFinite(next)) setOnionSkinFrameCount(Math.min(5, Math.max(1, next)));
+                }}
+                aria-label="Onion skin frames"
+                className="w-12 rounded-md border border-border bg-canvas px-1 py-0.5 data-mono text-text-primary"
+              />
+              <label htmlFor="onion-skin-opacity" className="type-micro text-text-muted">
+                Opacity
+              </label>
+              <input
+                id="onion-skin-opacity"
+                type="range"
+                min={5}
+                max={100}
+                step={5}
+                value={Math.round(onionSkinOpacity * 100)}
+                onChange={(e) => {
+                  const next = Number.parseInt(e.target.value, 10);
+                  if (Number.isFinite(next)) setOnionSkinOpacity(next / 100);
+                }}
+                aria-label="Onion skin opacity"
+                className="w-20"
+              />
+              <label htmlFor="onion-skin-direction" className="sr-only">
+                Onion skin direction
+              </label>
+              <select
+                id="onion-skin-direction"
+                value={onionSkinDirection}
+                onChange={(e) =>
+                  setOnionSkinDirection(e.target.value as 'prev' | 'next' | 'both')
+                }
+                aria-label="Onion skin direction"
+                className="rounded-md border border-border bg-canvas px-1 py-0.5 type-micro text-text-primary"
+              >
+                <option value="both">Both</option>
+                <option value="prev">Previous</option>
+                <option value="next">Next</option>
+              </select>
+            </div>
+          </>
+        )}
+
         <div className="flex-1" />
 
         {/* Scene counter */}
@@ -255,6 +331,16 @@ export const StoryboardPlayback = memo(function StoryboardPlayback({
                       {(sceneDuration / 1000).toFixed(1)}s
                     </span>
                   </div>
+
+                  {/* Onion skin: ghosts of the neighbouring scenes, drawn over
+                      the active card only so the reference stays where the eye
+                      already is. */}
+                  {isActive && (
+                    <OnionSkinOverlay
+                      frames={sceneThumbnails}
+                      currentFrameIndex={index}
+                    />
+                  )}
 
                   {/* Camera keyframe indicator */}
                   {scene.camera && scene.camera.length > 0 && (

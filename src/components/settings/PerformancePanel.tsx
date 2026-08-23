@@ -89,7 +89,7 @@ export function PerformancePanel() {
           ) : null}
           <AppliedGroup title="Applied" items={applied.applied} tone="text-accent-primary" />
           <AppliedGroup title="Skipped" items={applied.skipped} tone="text-text-muted" />
-          <AppliedGroup title="Fell Back" items={applied.fellBack} tone="text-amber-400" />
+          <AppliedGroup title="Fell Back" items={applied.fellBack} tone="text-status-warning" />
         </section>
       ) : (
         <p className="text-xs text-text-muted">

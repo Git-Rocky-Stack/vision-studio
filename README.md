@@ -14,9 +14,14 @@ A professional AI-powered desktop application for image and video generation. No
 - **Image Generation** - FLUX.1, Stable Diffusion XL, SD 3.5, SD 1.5
 - **Video Generation** - LTX Video, Stable Video Diffusion, AnimateDiff
 - **Guided Edit Tools** - background removal, AI upscale, face enhancement, generative fill, object removal, AI expand, background replace, and style transfer
-- **Editor with Text Layers** - timeline + canvas + effects, with real text layers (font, color, shadow, stroke, blend) rendered on the canvas
+- **Layer Editor** - a Konva canvas with real text layers (font, color, shadow, stroke, blend), click-to-select and drag/transform, kept in sync with the tool strip, layer list, and properties panel
+- **Keyframe Animation** - key a layer at the playhead, retime it on the filmstrip, and shape each keyframe's interpolation and easing; frame durations are measured from the keyframes themselves
+- **Onion Skin** - ghost the neighbouring storyboard scenes over the active one, with adjustable depth, opacity, and direction
+- **Scene Camera Moves** - author per-scene camera keyframes (pan, zoom, rotation, interpolation, easing) directly in the storyboard inspector
+- **Iteration Tree** - every render is a node; fork or re-roll from one to load its exact settings into the generator and record the new run as its child, with a settings diff against the parent
+- **Smart Collections + Tagging** - assets are tagged deterministically from the prompt you actually wrote (style, subject, colour, mood), and smart collections re-evaluate themselves as the library changes. Tagging runs on generation, in the background, on demand, or not at all
 - **LoRA, End to End** - install LoRAs through the Model Foundry, stack them in generation and in the workflow graph's LoRA Loader node; hosted flux LoRA via HuggingFace where the contract supports it
-- **Model Foundry** - consent-gated, license-aware download and management of model weights
+- **Model Foundry** - search Hugging Face and CivitAI, then acquire straight into your local library: per-result tier, security badges, license, and live download status, with pickle and `trust_remote_code` hits gated behind an explicit consent step
 - **Workflow Graph** - import and run ComfyUI API-format graphs inside the workbench
 - **Provider Routing** - run fully local or bring your own OpenRouter key (BYOK); route prompt tools and still images per account, with graceful over-budget fallback
 - **AI Director** - retrieval-augmented prompt assistance grounded in your own project context
@@ -261,7 +266,7 @@ cd backend && python -m unittest discover -s tests -v
 
 | Layer | Framework | What it covers |
 |-------|-----------|----------------|
-| Unit + Component + Integration | Vitest 4 | 1,800+ frontend tests - pure logic, Zustand store, Electron services, React components, API/workflow contracts |
+| Unit + Component + Integration | Vitest 4 | 1,900+ frontend tests - pure logic, Zustand store, Electron services, React components, API/workflow contracts, plus design-system guards (Carbon Pro tokens, palette discipline, UI glyphs) |
 | E2E + Visual | Playwright | Electron end-to-end, accessibility, and Windows visual-regression suites |
 | Backend | pytest / unittest | FastAPI + foundry + services; import-safe collection on CI, real model runs are local |
 

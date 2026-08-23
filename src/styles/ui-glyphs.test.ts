@@ -53,7 +53,6 @@ const shellTypographyFiles = [
   'src/components/storyboard/ElementLibrary.tsx',
   'src/components/storyboard/ImportDraftReview.tsx',
   'src/components/storyboard/SceneCard.tsx',
-  'src/components/storyboard/ScenePlaybackStrip.tsx',
   'src/components/storyboard/ScriptImportDialog.tsx',
   'src/components/storyboard/TransitionIndicator.tsx',
   'src/components/ui/ConfirmDialog.tsx',

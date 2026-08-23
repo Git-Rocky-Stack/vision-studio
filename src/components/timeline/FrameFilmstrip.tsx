@@ -14,6 +14,12 @@ interface FrameFilmstripProps {
   activeFrameId: string | null;
   onFrameSelect: (frameId: string) => void;
   onFrameAdd: () => void;
+  /** Accessible name for the add control; hosts override it to match their domain. */
+  addLabel?: string;
+  /** Disable the add control when the host has nothing valid to add to. */
+  addDisabled?: boolean;
+  /** Tooltip for the add control, usually explaining a disabled state. */
+  addTitle?: string;
   className?: string;
 }
 
@@ -22,6 +28,9 @@ export const FrameFilmstrip = memo(function FrameFilmstrip({
   activeFrameId,
   onFrameSelect,
   onFrameAdd,
+  addLabel = 'Add frame',
+  addDisabled = false,
+  addTitle,
   className,
 }: FrameFilmstripProps) {
   const handleKeyDown = useCallback(
@@ -70,10 +79,17 @@ export const FrameFilmstrip = memo(function FrameFilmstrip({
 
       {/* Add frame button */}
       <button
+        type="button"
         onClick={onFrameAdd}
-        className="flex-shrink-0 w-14 h-10 rounded border border-dashed border-border flex items-center justify-center text-text-muted hover:text-text-body hover:border-border-hover hover:bg-elevated/30 transition-all"
-        aria-label="Add frame"
-        title="Add frame"
+        disabled={addDisabled}
+        className={cn(
+          'flex-shrink-0 w-14 h-10 rounded border border-dashed border-border flex items-center justify-center text-text-muted transition-all',
+          addDisabled
+            ? 'cursor-not-allowed opacity-40'
+            : 'hover:text-text-body hover:border-border-hover hover:bg-elevated/30',
+        )}
+        aria-label={addLabel}
+        title={addTitle ?? addLabel}
       >
         <Plus className="w-4 h-4" />
       </button>

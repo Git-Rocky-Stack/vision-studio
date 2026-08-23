@@ -98,6 +98,10 @@ vi.mock('@/features/workflow/nodeDefaults', () => ({
   createWorkflowNodeFromClassType: vi.fn(() => ({})),
 }));
 
+vi.mock('@/components/edit/EditCanvas', () => ({
+  EditCanvas: () => <div data-testid="mock-edit-canvas">EditCanvas</div>,
+}));
+
 vi.mock('react-konva', () => ({
   Stage: () => <div data-testid="mock-konva-stage">Stage</div>,
   Layer: () => <div data-testid="mock-konva-layer">Layer</div>,
@@ -121,6 +125,23 @@ describe('DockviewLayout', () => {
   });
 
   afterEach(cleanup);
+
+  it('renders the layer-editing canvas on the canvas tab', () => {
+    // EditCanvas is the only renderer of `editLayers`. Without it mounted, a
+    // user can add a text layer from TextControls, see it listed in
+    // LayerPanel, and never have it drawn or be able to move it.
+    useAppStore.setState({ activeTab: 'canvas' });
+    render(<DockviewLayout />);
+
+    expect(screen.getByTestId('mock-edit-canvas')).toBeInTheDocument();
+  });
+
+  it('keeps the generate tab on the generation canvas, not the layer editor', () => {
+    useAppStore.setState({ activeTab: 'generate' });
+    render(<DockviewLayout />);
+
+    expect(screen.queryByTestId('mock-edit-canvas')).not.toBeInTheDocument();
+  });
 
   it('renders NavBar', () => {
     render(<DockviewLayout />);
@@ -268,15 +289,14 @@ describe('DockviewLayout', () => {
     expect(screen.getByTestId('mock-settings')).toBeInTheDocument();
   });
 
-  it('renders Launchpad placeholder for launchpad center view', () => {
+  it('renders the Launchpad workspace for the launchpad center view', () => {
     useAppStore.setState({ activeTab: 'generate', centerView: 'launchpad' });
+
     render(<DockviewLayout />);
 
-    // The Launchpad text appears in both the center tab button and the content area.
-    // Verify the content placeholder specifically by checking multiple Launchpad elements exist.
-    const launchpadElements = screen.getAllByText('Launchpad');
-    // At least one is the tab button, and one is the content placeholder
-    expect(launchpadElements.length).toBeGreaterThanOrEqual(2);
+    // The real surface, not a name placeholder: its quick actions must be there.
+    expect(screen.getByRole('button', { name: /new generation/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /quick generate/i })).toBeInTheDocument();
   });
 
   it('marks the active center view with aria-selected', () => {

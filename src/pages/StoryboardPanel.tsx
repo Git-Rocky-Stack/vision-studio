@@ -3,6 +3,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { useAppStore } from '@/store/appStore';
 import { SceneCard } from '@/components/storyboard/SceneCard';
 import { CharacterLibrary } from '@/components/storyboard/CharacterLibrary';
+import { SceneCameraPanel } from '@/components/storyboard/SceneCameraPanel';
 import { ElementLibrary } from '@/components/storyboard/ElementLibrary';
 import { CharacterAssignmentChip } from '@/components/storyboard/CharacterAssignmentChip';
 import { TransitionIndicator } from '@/components/storyboard/TransitionIndicator';
@@ -633,14 +634,17 @@ export function StoryboardPanel() {
           />
 
           {activeScene ? (
-            <ReferenceMediaPanel
-              testId="storyboard-scene-reference-panel"
-              title={`${activeScene.name} Scene References`}
-              description="Attach shot-specific references to the currently selected scene."
-              scope="scene"
-              projectId={activeProject.id}
-              sceneId={activeScene.id}
-            />
+            <>
+              <ReferenceMediaPanel
+                testId="storyboard-scene-reference-panel"
+                title={`${activeScene.name} Scene References`}
+                description="Attach shot-specific references to the currently selected scene."
+                scope="scene"
+                projectId={activeProject.id}
+                sceneId={activeScene.id}
+              />
+              <SceneCameraPanel projectId={activeProject.id} sceneId={activeScene.id} />
+            </>
           ) : (
             <div className="rounded-md border border-dashed border-border px-4 py-4 text-center">
               <p className="text-sm text-text-body">

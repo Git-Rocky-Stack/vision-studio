@@ -258,6 +258,7 @@ export const PipelineBuilder = memo(function PipelineBuilder({
               <PipelinePreview
                 execution={execution}
                 stepIndex={selectedStepIndex}
+                onStepSelect={setSelectedStepIndex}
               />
             </div>
           </div>

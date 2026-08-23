@@ -61,7 +61,14 @@ describe('ComparisonPanel', () => {
     useAppStore.getState().addIteration({ job: rootJob, parentId: null, thumbnail: 'thumb1' });
     const branchId = useAppStore.getState().iterationBranches[0].id;
     useAppStore.getState().addIteration({ job: childJob, parentId: 'iter-1', thumbnail: 'thumb2', branchId });
-    useAppStore.getState().forkIteration({ job: forkJob, parentId: 'iter-1', thumbnail: 'thumb3' });
+    // A sibling on its own branch - what a forked generation produces once it
+    // actually completes.
+    useAppStore.getState().addIteration({
+      job: forkJob,
+      parentId: 'iter-1',
+      thumbnail: 'thumb3',
+      branchId: 'branch-2',
+    });
 
     render(<ComparisonPanel leftId="iter-2" rightId="iter-3" />);
 

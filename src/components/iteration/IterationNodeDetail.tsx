@@ -1,8 +1,9 @@
-import { memo } from 'react';
+import { memo, useCallback } from 'react';
 import { GitBranch, GitCompare, Pin, Repeat2 } from 'lucide-react';
 import { cn } from '@/utils/cn';
 import { useAppStore } from '@/store/appStore';
 import { SettingsDiffPanel } from './SettingsDiffPanel';
+import { toGenerationDraftFromIteration } from '@/features/generation/iterationDraft';
 import type { IterationNode as IterationNodeType } from '@/types/iteration';
 
 interface IterationNodeDetailProps {
@@ -16,10 +17,28 @@ export const IterationNodeDetail = memo(function IterationNodeDetail({
 }: IterationNodeDetailProps) {
   const pinIteration = useAppStore((s) => s.pinIteration);
   const setIterationNote = useAppStore((s) => s.setIterationNote);
-  const forkIteration = useAppStore((s) => s.forkIteration);
+  const setPendingIterationParent = useAppStore((s) => s.setPendingIterationParent);
+  const setGenerationDraft = useAppStore((s) => s.setGenerationDraft);
   const comparisonIds = useAppStore((s) => s.comparisonIds);
   const toggleIterationComparison = useAppStore((s) => s.toggleIterationComparison);
   const isCompared = comparisonIds?.includes(node.id) ?? false;
+
+  /**
+   * Fork and re-roll both prime the generator from this iteration and record it
+   * as the parent of whatever renders next. Neither mints a node here: a node
+   * stands for a render that actually happened, so cloning one would put a
+   * stale thumbnail in the tree as if it were new output.
+   *
+   * Fork keeps the seed (explore the same point on a new branch); re-roll
+   * releases it (`-1` = random) so the run genuinely differs from its parent.
+   */
+  const startFrom = useCallback(
+    (mode: 'fork' | 're-roll') => {
+      setGenerationDraft(toGenerationDraftFromIteration(node, mode));
+      setPendingIterationParent(node.id, { newBranch: mode === 'fork' });
+    },
+    [node, setGenerationDraft, setPendingIterationParent],
+  );
 
   return (
     <div className={cn('flex flex-col gap-3 p-3', className)}>
@@ -73,7 +92,7 @@ export const IterationNodeDetail = memo(function IterationNodeDetail({
         </button>
         <button
           type="button"
-          onClick={() => forkIteration({ job: node.generationJob, parentId: node.id, thumbnail: node.thumbnail })}
+          onClick={() => startFrom('fork')}
           className="flex items-center gap-1.5 px-2 py-1 rounded-md type-body-sm text-text-muted hover:text-text-primary hover:bg-elevated transition-colors"
           aria-label="Fork from this iteration"
         >
@@ -82,7 +101,7 @@ export const IterationNodeDetail = memo(function IterationNodeDetail({
         </button>
         <button
           type="button"
-          onClick={() => forkIteration({ job: { ...node.generationJob, id: crypto.randomUUID() }, parentId: node.id, thumbnail: node.thumbnail })}
+          onClick={() => startFrom('re-roll')}
           className="flex items-center gap-1.5 px-2 py-1 rounded-md type-body-sm text-text-muted hover:text-text-primary hover:bg-elevated transition-colors"
           aria-label="Re-roll from this iteration"
         >

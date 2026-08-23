@@ -1,6 +1,20 @@
 import type { AppSet, AppGet } from '../appStore.types';
 import type { Collection, SmartQuery, AssetTag, AssetMetadata, TaggingMode } from '@/types/collections';
 import { evaluateSmartQuery } from '@/utils/smartQueryEvaluator';
+import { analyzeAssetRecord } from '@/features/assets/assetAnalysis';
+
+/** Coerce an AssetRecord timestamp (ISO string, or epoch ms) to epoch ms. */
+function toEpochMs(value: unknown): number | undefined {
+  if (typeof value === 'number') return value;
+  if (typeof value !== 'string') return undefined;
+  const parsed = new Date(value).getTime();
+  return Number.isNaN(parsed) ? undefined : parsed;
+}
+
+/** Order-sensitive id comparison, used to skip no-op smart-collection writes. */
+function sameIds(a: readonly string[], b: readonly string[]): boolean {
+  return a.length === b.length && a.every((id, i) => id === b[i]);
+}
 
 export const collectionsInitialState = {
   collections: [] as Collection[],
@@ -67,18 +81,12 @@ export function createCollectionsActions(set: AppSet, get: AppGet) {
       const metadata = get().assetMetadata;
 
       for (const asset of get().assetLibrary) {
-        const assetMeta = metadata.get(asset.id);
         const generationContext = {
           prompt: asset.prompt,
           model: asset.model,
-          createdAt:
-            typeof asset.createdAt === 'string'
-              ? new Date(asset.createdAt).getTime()
-              : typeof asset.createdAt === 'number'
-                ? asset.createdAt
-                : undefined,
+          createdAt: toEpochMs(asset.createdAt),
         };
-        if (evaluateSmartQuery(collection.smartQuery!, generationContext, assetMeta)) {
+        if (evaluateSmartQuery(collection.smartQuery!, generationContext, metadata.get(asset.id))) {
           matchedAssetIds.push(asset.id);
         }
       }
@@ -90,10 +98,122 @@ export function createCollectionsActions(set: AppSet, get: AppGet) {
       }));
     },
 
+    /**
+     * Re-evaluate every smart collection against the current library and
+     * metadata. Manual collections are hand-curated and are never touched.
+     */
+    refreshAllSmartCollections: () => {
+      const { collections, assetLibrary, assetMetadata } = get();
+      if (!collections.some((c) => c.type === 'smart')) return;
+
+      const now = Date.now();
+      set({
+        collections: collections.map((collection) => {
+          if (collection.type !== 'smart' || !collection.smartQuery) return collection;
+
+          const matchedAssetIds = assetLibrary
+            .filter((asset) =>
+              evaluateSmartQuery(
+                collection.smartQuery!,
+                {
+                  prompt: asset.prompt,
+                  model: asset.model,
+                  createdAt: toEpochMs(asset.createdAt),
+                },
+                assetMetadata.get(asset.id),
+              ),
+            )
+            .map((asset) => asset.id);
+
+          return sameIds(collection.assetIds, matchedAssetIds)
+            ? collection
+            : { ...collection, assetIds: matchedAssetIds, updatedAt: now };
+        }),
+      });
+    },
+
+    /**
+     * Analyse the given assets now, storing the derived metadata, publishing the
+     * new tags to `availableTags`, clearing them from the backlog, and
+     * re-evaluating smart collections against the fresh metadata.
+     *
+     * Analysis is deterministic and synchronous (see `assetAnalysis`), so there
+     * is no in-flight phase to model - an asset is either analysed or queued.
+     */
     analyzeAssets: (assetIds: string[]) => {
+      const { assetLibrary, assetMetadata, availableTags } = get();
+      const targets = assetIds
+        .map((id) => assetLibrary.find((asset) => asset.id === id))
+        .filter((asset): asset is NonNullable<typeof asset> => Boolean(asset));
+
+      if (targets.length === 0) {
+        // Still clear the requested ids from the backlog: an id with no asset
+        // behind it (deleted mid-queue) must not wedge the queue forever.
+        const requested = new Set(assetIds);
+        set((state) => ({
+          taggingQueue: state.taggingQueue.filter((id) => !requested.has(id)),
+        }));
+        return;
+      }
+
+      const nextMetadata = new Map(assetMetadata);
+      const knownTagIds = new Set(availableTags.map((tag) => tag.id));
+      const newTags: AssetTag[] = [];
+
+      for (const asset of targets) {
+        const metadata = analyzeAssetRecord(asset);
+        nextMetadata.set(asset.id, metadata);
+        for (const tag of metadata.tags) {
+          if (knownTagIds.has(tag.id)) continue;
+          knownTagIds.add(tag.id);
+          // The registry entry is the tag itself, not its per-asset weight.
+          newTags.push({ ...tag, confidence: 1 });
+        }
+      }
+
+      const analyzed = new Set(targets.map((asset) => asset.id));
       set((state) => ({
-        taggingQueue: [...state.taggingQueue, ...assetIds.filter(id => !state.taggingQueue.includes(id))],
+        assetMetadata: nextMetadata,
+        availableTags: newTags.length > 0 ? [...state.availableTags, ...newTags] : state.availableTags,
+        taggingQueue: state.taggingQueue.filter((id) => !analyzed.has(id)),
       }));
+
+      get().refreshAllSmartCollections();
+    },
+
+    /** Analyse every library asset that has no metadata yet. */
+    analyzeUntaggedAssets: () => {
+      const { assetLibrary, assetMetadata } = get();
+      const untagged = assetLibrary
+        .filter((asset) => !assetMetadata.has(asset.id))
+        .map((asset) => asset.id);
+      if (untagged.length === 0) return;
+      get().analyzeAssets(untagged);
+    },
+
+    /**
+     * Route newly-arrived assets according to the user's tagging mode. This is
+     * the single entry point generation uses, so the Settings choice actually
+     * governs behaviour instead of being written and never read.
+     */
+    enqueueForTagging: (assetIds: string[]) => {
+      const { taggingMode, assetMetadata, taggingQueue } = get();
+      if (taggingMode === 'off') return;
+
+      const pending = assetIds.filter((id) => !assetMetadata.has(id));
+      if (pending.length === 0) return;
+
+      if (taggingMode === 'on-generation') {
+        get().analyzeAssets(pending);
+        return;
+      }
+
+      // 'on-demand' and 'background-batch' both defer; the difference is who
+      // drains the backlog (the Analyze control vs. the background pass).
+      const queued = new Set(taggingQueue);
+      const additions = pending.filter((id) => !queued.has(id));
+      if (additions.length === 0) return;
+      set((state) => ({ taggingQueue: [...state.taggingQueue, ...additions] }));
     },
 
     setTaggingMode: (mode: TaggingMode) => set({ taggingMode: mode }),

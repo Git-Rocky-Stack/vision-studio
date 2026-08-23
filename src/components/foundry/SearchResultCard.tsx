@@ -120,7 +120,7 @@ export function SearchResultCard({ result }: SearchResultCardProps) {
   };
 
   return (
-    <div className="raised-panel flex flex-col gap-3 rounded-md p-3">
+    <div className="raised-panel flex flex-1 flex-col gap-3 rounded-md p-3">
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <p className="truncate text-sm font-medium text-text-primary" title={result.name}>

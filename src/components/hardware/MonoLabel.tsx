@@ -9,6 +9,8 @@ interface MonoLabelProps {
   tone?: 'chrome' | 'silver' | 'muted';
   className?: string;
   style?: CSSProperties;
+  /** DOM id, so a region can name itself via `aria-labelledby`. */
+  id?: string;
 }
 
 const TONE: Record<NonNullable<MonoLabelProps['tone']>, string> = {
@@ -28,9 +30,10 @@ export function MonoLabel({
   tone = 'silver',
   className,
   style,
+  id,
 }: MonoLabelProps) {
   return (
-    <Tag className={cn('mono-label', className)} style={{ color: TONE[tone], ...style }}>
+    <Tag id={id} className={cn('mono-label', className)} style={{ color: TONE[tone], ...style }}>
       {children}
     </Tag>
   );

@@ -107,6 +107,49 @@ describe('DiscoverSection', () => {
     expect(screen.getByText('SDXL Turbo')).toBeInTheDocument();
   });
 
+  it('renders the full acquire card for each result, not a bare name', () => {
+    useAppStore.setState({
+      searchStatus: 'ready',
+      searchResults: [makeResult({ id: 'r1', name: 'SDXL Turbo' })],
+    } as never);
+    render(<DiscoverSection />);
+
+    // The rich SearchResultCard surfaces the tier, the popularity counts, the
+    // license and - critically - the Acquire action. A bare <li>{name}</li> has
+    // none of these, so a user can search but never install what they find.
+    expect(screen.getByText('SDXL Turbo')).toBeInTheDocument();
+    expect(screen.getByText('verified')).toBeInTheDocument();
+    expect(screen.getByText('openrail')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /acquire/i })).toBeInTheDocument();
+  });
+
+  it('enqueues a download when a clean result is acquired', () => {
+    const enqueueDownload = vi.fn();
+    useAppStore.setState({
+      enqueueDownload,
+      searchStatus: 'ready',
+      searchResults: [makeResult({ id: 'r1', format: 'safetensors', trust_remote_code: false })],
+    } as never);
+    render(<DiscoverSection />);
+
+    fireEvent.click(screen.getByRole('button', { name: /acquire/i }));
+    expect(enqueueDownload).toHaveBeenCalledWith('r1');
+  });
+
+  it('gates a pickle result behind the consent dialog instead of downloading', () => {
+    const enqueueDownload = vi.fn();
+    useAppStore.setState({
+      enqueueDownload,
+      searchStatus: 'ready',
+      searchResults: [makeResult({ id: 'r1', format: 'pickle' })],
+    } as never);
+    render(<DiscoverSection />);
+
+    fireEvent.click(screen.getByRole('button', { name: /acquire/i }));
+    expect(enqueueDownload).not.toHaveBeenCalled();
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+  });
+
   it('shows an empty state when ready with no results', () => {
     useAppStore.setState({ searchStatus: 'ready', searchResults: [] } as never);
     render(<DiscoverSection />);
@@ -137,5 +180,25 @@ describe('DiscoverSection', () => {
     } as never);
     render(<DiscoverSection />);
     expect(screen.getByRole('button', { name: /previous/i })).toBeDisabled();
+  });
+
+  it('shows result-shaped placeholders while a search is in flight', () => {
+    useAppStore.setState({ searchStatus: 'loading' } as never);
+    render(<DiscoverSection />);
+
+    // A grid of placeholders shaped like the cards that are coming reads far
+    // better than one small spinner over an empty pane.
+    const placeholders = screen.getAllByRole('progressbar', { name: /loading/i });
+    expect(placeholders.length).toBeGreaterThan(1);
+  });
+
+  it('drops the placeholders once results land', () => {
+    useAppStore.setState({
+      searchStatus: 'ready',
+      searchResults: [makeResult({ id: 'r1' })],
+    } as never);
+    render(<DiscoverSection />);
+
+    expect(screen.queryByRole('progressbar', { name: /loading/i })).not.toBeInTheDocument();
   });
 });

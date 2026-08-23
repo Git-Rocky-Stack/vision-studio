@@ -11,6 +11,7 @@ type CategoryFilter = 'all' | 'smart' | 'manual' | 'tagged' | 'untagged';
 
 export const CollectionsPage = memo(function CollectionsPage() {
   const collections = useAppStore((s) => s.collections);
+  const assetMetadata = useAppStore((s) => s.assetMetadata);
   const createCollection = useAppStore((s) => s.createCollection);
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState<CategoryFilter>('all');
@@ -20,6 +21,15 @@ export const CollectionsPage = memo(function CollectionsPage() {
 
     if (category === 'smart') result = result.filter((c) => c.type === 'smart');
     else if (category === 'manual') result = result.filter((c) => c.type === 'manual');
+    else if (category === 'tagged') {
+      // Fully analysed: holds assets, and every one of them has metadata.
+      result = result.filter(
+        (c) => c.assetIds.length > 0 && c.assetIds.every((id) => assetMetadata.has(id)),
+      );
+    } else if (category === 'untagged') {
+      // Still has analysis outstanding on at least one member asset.
+      result = result.filter((c) => c.assetIds.some((id) => !assetMetadata.has(id)));
+    }
 
     if (search) {
       const q = search.toLowerCase();
@@ -27,7 +37,7 @@ export const CollectionsPage = memo(function CollectionsPage() {
     }
 
     return result;
-  }, [collections, category, search]);
+  }, [collections, category, search, assetMetadata]);
 
   const categories: { id: CategoryFilter; label: string }[] = [
     { id: 'all', label: 'All' },

@@ -3,12 +3,17 @@ import { X } from 'lucide-react';
 import { cn } from '@/utils/cn';
 import type { AssetTag } from '@/types/collections';
 
-const CATEGORY_COLORS: Record<AssetTag['category'], string> = {
-  style: 'bg-purple-500/20 text-purple-300 border-purple-500/30',
-  subject: 'bg-blue-500/20 text-blue-300 border-blue-500/30',
-  color: 'bg-pink-500/20 text-pink-300 border-pink-500/30',
-  mood: 'bg-amber-500/20 text-amber-300 border-amber-500/30',
-  custom: 'bg-teal-500/20 text-teal-300 border-teal-500/30',
+/**
+ * Carbon Pro has one chrome accent, so tag categories are separated by surface
+ * depth and weight rather than by hue (see DESIGN.md). The category still reads
+ * distinctly without importing a second palette into the design system.
+ */
+const CATEGORY_STYLES: Record<AssetTag['category'], string> = {
+  style: 'bg-accent-primary-muted text-accent-primary border-accent-primary-border',
+  subject: 'bg-elevated text-text-primary border-border-hover',
+  color: 'bg-surface text-text-body border-border',
+  mood: 'bg-elevated text-text-body border-border-hover',
+  custom: 'bg-void text-text-muted border-border',
 };
 
 interface TagBadgeProps {
@@ -22,7 +27,7 @@ export const TagBadge = memo(function TagBadge({ tag, onRemove, className }: Tag
     <span
       className={cn(
         'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 type-micro',
-        CATEGORY_COLORS[tag.category],
+        CATEGORY_STYLES[tag.category],
         tag.source === 'ai' && 'opacity-80',
         className,
       )}

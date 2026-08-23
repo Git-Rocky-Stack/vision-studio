@@ -48,7 +48,7 @@ export function AssetsGuideSection() {
           {
             title: 'Tag and analyze',
             description:
-              'Pick a tagging mode that fits your workflow (see the modes callout below). Use the Analyze action on individual assets or selections to extract dominant colors, detected style, subject, and mood. Tags can be edited and reassigned at any time.',
+              'Pick a tagging mode that fits your workflow (see the modes callout below). Analyze derives style, subject, color, and mood tags from the prompt you wrote for that asset -- no cloud call, no separate model, and identical every time. Use Analyze on the Collections page to clear the untagged backlog.',
           },
           {
             title: 'Export, reveal, or delete',
@@ -76,14 +76,14 @@ export function AssetsGuideSection() {
               extra clicks.
             </span>,
             <span>
-              <strong>Background Batch</strong> -- new assets queue for analysis and process during
-              idle time. Best when you generate in bursts and don&apos;t want each generation to
-              spend extra GPU on tagging.
+              <strong>Background Batch</strong> -- new assets queue instead of being tagged as
+              they land, and the backlog is cleared in one pass. Best when you generate in bursts
+              and would rather tag the whole run at once.
             </span>,
             <span>
-              <strong>On Demand</strong> -- nothing is tagged automatically; you trigger Analyze
-              per asset or per selection. Best for low-VRAM machines or when most of your work
-              never needs tags.
+              <strong>On Demand</strong> -- nothing is tagged automatically; the Analyze control
+              on the Collections page reports how many assets are still untagged and tags them
+              when you ask. Best when most of your work never needs tags.
             </span>,
             <span>
               <strong>Off</strong> -- tagging is fully disabled. The library still works normally
@@ -122,24 +122,24 @@ export function AssetsGuideSection() {
         <GuideList
           items={[
             <span>
-              <strong>Style</strong> -- visual style detected from the image (photorealistic,
+              <strong>Style</strong> -- the visual style named in the prompt (photorealistic,
               anime, watercolor, etc.).
             </span>,
             <span>
-              <strong>Subject</strong> -- what&apos;s in the image (portrait, landscape, product,
-              object, character).
+              <strong>Subject</strong> -- the subject named in the prompt (portrait, landscape,
+              product, character).
             </span>,
             <span>
-              <strong>Color</strong> -- dominant colors and named palette entries; smart
-              collections can target these directly.
+              <strong>Color</strong> -- color terms named in the prompt, each resolved to its
+              real hex; smart collections can target these directly.
             </span>,
             <span>
-              <strong>Mood</strong> -- emotional register (calm, dramatic, energetic) inferred
-              from composition and palette.
+              <strong>Mood</strong> -- the emotional register named in the prompt (calm,
+              dramatic, energetic).
             </span>,
             <span>
-              <strong>Custom</strong> -- your own tags. Custom tags coexist with AI tags and never
-              get overwritten by re-analysis.
+              <strong>Custom</strong> -- your own tags. Custom tags coexist with derived tags and
+              never get overwritten by re-analysis.
             </span>,
           ]}
         />

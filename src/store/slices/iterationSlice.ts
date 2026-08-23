@@ -51,14 +51,30 @@ export const iterationInitialState = {
   iterationView: 'panel' as IterationView,
   iterationComparisonMode: 'side-by-side' as IterationComparisonMode,
   comparisonIds: null as ComparisonIds,
+  /**
+   * The iteration the *next* generation descends from, set when the user forks
+   * or re-rolls from a node. Consumed by the first generation that completes
+   * afterwards, so an unrelated run started later still records as a root.
+   */
+  pendingIterationParentId: null as string | null,
+  /** Whether that next generation should open its own branch. */
+  pendingIterationNewBranch: false,
 };
 
 export function createIterationActions(set: AppSet, get: AppGet) {
   return {
     addIteration: (params: { job: GenerationJob; parentId: string | null; thumbnail: string; branchId?: string }) => {
-      const { job, parentId, thumbnail, branchId } = params;
+      const { job, thumbnail, branchId } = params;
       const nodes = get().iterationNodes;
       const branches = get().iterationBranches;
+
+      // Tree integrity: a node can never be its own parent, and a parent that
+      // names no existing node is no parent at all. Either would produce a
+      // cycle or a dangling edge that makes the tree unwalkable.
+      const parentId =
+        params.parentId && params.parentId !== job.id && nodes.has(params.parentId)
+          ? params.parentId
+          : null;
 
       const parentNode = parentId ? nodes.get(parentId) : undefined;
       const settingsDiff = parentNode
@@ -119,11 +135,22 @@ export function createIterationActions(set: AppSet, get: AppGet) {
       });
     },
 
-    forkIteration: (params: { job: GenerationJob; parentId: string; thumbnail: string }) => {
-      const { job, parentId, thumbnail } = params;
-      const newBranchId = crypto.randomUUID();
-      get().addIteration({ job, parentId, thumbnail, branchId: newBranchId });
-    },
+    /**
+     * Record which iteration the next generation descends from. This does not
+     * create a node: a node represents a render that actually happened, so it
+     * is minted only when a real job completes.
+     */
+    setPendingIterationParent: (
+      parentId: string | null,
+      options?: { newBranch?: boolean },
+    ) =>
+      set({
+        pendingIterationParentId: parentId,
+        pendingIterationNewBranch: options?.newBranch ?? false,
+      }),
+
+    clearPendingIterationParent: () =>
+      set({ pendingIterationParentId: null, pendingIterationNewBranch: false }),
 
     pinIteration: (id: string) => {
       const nodes = get().iterationNodes;

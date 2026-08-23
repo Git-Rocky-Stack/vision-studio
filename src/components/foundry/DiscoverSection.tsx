@@ -5,6 +5,8 @@ import { Button } from '@/components/ui/Button';
 import { Switch } from '@/components/ui/Switch';
 import { useAppStore } from '@/store/appStore';
 import { cn } from '@/utils/cn';
+import { SearchResultCard } from './SearchResultCard';
+import { SkeletonGrid } from '@/components/ui/Skeleton';
 import type { SearchSource } from '@/types/model';
 
 const SOURCES: { id: SearchSource; label: string }[] = [
@@ -17,8 +19,9 @@ const SOURCES: { id: SearchSource; label: string }[] = [
  * opt-in (CivitAI-only, session-only), and pagination, driving the shared
  * `searchModels` store action. The query and source are local state seeded from
  * the store so reopening Discover preserves the last browse; the results,
- * status, and warning come from the store. Renders one entry per `SearchResult`
- * (the rich `SearchResultCard` with the acquire flow lands in Task 5).
+ * status, and warning come from the store. Renders one `SearchResultCard` per
+ * `SearchResult`, which carries the full acquire flow (security consent gate,
+ * license gate, and live download-job status).
  */
 export function DiscoverSection() {
   const {
@@ -136,9 +139,18 @@ export function DiscoverSection() {
       )}
 
       {isLoading && (
-        <div className="flex items-center gap-2 py-8 text-sm text-text-muted">
-          <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" />
-          Searching {source === 'hf' ? 'Hugging Face' : 'CivitAI'}...
+        <div className="space-y-3">
+          <div className="flex items-center gap-2 text-sm text-text-muted">
+            <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" />
+            Searching {source === 'hf' ? 'Hugging Face' : 'CivitAI'}...
+          </div>
+          {/* Placeholders shaped like the result cards that are coming, so the
+              pane keeps its layout instead of collapsing to a single line. */}
+          <SkeletonGrid
+            cols={3}
+            rows={2}
+            className="grid-cols-1 md:grid-cols-2 xl:grid-cols-3"
+          />
         </div>
       )}
 
@@ -166,11 +178,8 @@ export function DiscoverSection() {
             className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3"
           >
             {searchResults.map((result) => (
-              <li
-                key={result.id}
-                className="raised-panel rounded-md p-3 text-sm text-text-primary"
-              >
-                {result.name}
+              <li key={result.id} className="flex">
+                <SearchResultCard result={result} />
               </li>
             ))}
           </ul>

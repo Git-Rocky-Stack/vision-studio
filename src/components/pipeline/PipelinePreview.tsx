@@ -7,12 +7,19 @@ import { Eye, Loader2 } from 'lucide-react';
 interface PipelinePreviewProps {
   execution: PipelineExecution | null;
   stepIndex: number | null;
+  /**
+   * Move the preview to another step. When omitted the dots degrade to plain
+   * status indicators rather than announcing themselves as buttons that do
+   * nothing.
+   */
+  onStepSelect?: (index: number) => void;
   className?: string;
 }
 
 export const PipelinePreview = memo(function PipelinePreview({
   execution,
   stepIndex,
+  onStepSelect,
   className,
 }: PipelinePreviewProps) {
   if (!execution) {
@@ -44,17 +51,26 @@ export const PipelinePreview = memo(function PipelinePreview({
           };
           const color = colors[step.status];
 
+          const label = `Step ${i + 1}: ${step.status}`;
+          const dotClass = cn(
+            'w-3 h-3 rounded-full border transition-all',
+            color,
+            isActive && 'ring-2 ring-accent-primary/40 ring-offset-1 ring-offset-void'
+          );
+
+          if (!onStepSelect) {
+            return <span key={step.stepId} aria-label={label} className={dotClass} />;
+          }
+
           return (
             <button
               key={step.stepId}
               type="button"
-              aria-label={`Step ${i + 1}: ${step.status}${isActive ? ' (selected)' : ''}`}
-              onClick={() => {}}
-              className={cn(
-                'w-3 h-3 rounded-full border transition-all',
-                color,
-                isActive && 'ring-2 ring-accent-primary/40 ring-offset-1 ring-offset-void'
-              )}
+              aria-label={label}
+              aria-pressed={isActive}
+              title={label}
+              onClick={() => onStepSelect(i)}
+              className={cn(dotClass, 'hover:scale-125 focus-visible:ring-2 focus-visible:ring-accent-primary')}
             />
           );
         })}

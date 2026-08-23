@@ -25,26 +25,20 @@ export const OnionSkinOverlay = memo(function OnionSkinOverlay({
 
   const ghostFrames: { url: string; opacity: number; label: string }[] = [];
 
+  // A slot with no image is skipped rather than ghosted: an <img src=""> both
+  // shows nothing and makes the browser re-request the current document.
+  const pushGhost = (index: number, opacity: number) => {
+    if (index < 0 || index >= frames.length) return;
+    const url = frames[index];
+    if (!url) return;
+    ghostFrames.push({ url, opacity, label: `Frame ${index + 1}` });
+  };
+
   for (let i = 1; i <= onionSkinFrameCount; i++) {
-    const prevIdx = currentFrameIndex - i;
-    const nextIdx = currentFrameIndex + i;
     const frameOpacity = onionSkinOpacity * (1 - (i - 1) / onionSkinFrameCount);
 
-    if (onionSkinDirection !== 'next' && prevIdx >= 0 && prevIdx < frames.length) {
-      ghostFrames.push({
-        url: frames[prevIdx],
-        opacity: frameOpacity,
-        label: `Frame ${prevIdx + 1}`,
-      });
-    }
-
-    if (onionSkinDirection !== 'prev' && nextIdx >= 0 && nextIdx < frames.length) {
-      ghostFrames.push({
-        url: frames[nextIdx],
-        opacity: frameOpacity,
-        label: `Frame ${nextIdx + 1}`,
-      });
-    }
+    if (onionSkinDirection !== 'next') pushGhost(currentFrameIndex - i, frameOpacity);
+    if (onionSkinDirection !== 'prev') pushGhost(currentFrameIndex + i, frameOpacity);
   }
 
   if (ghostFrames.length === 0) return null;
