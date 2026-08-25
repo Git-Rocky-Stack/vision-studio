@@ -44,9 +44,26 @@ describe('version sync', () => {
       .filter((line) => line.startsWith('## '));
 
     expect(headings.some((line) => line.startsWith(`## [${packageVersion}]`))).toBe(true);
+
     // The newest release heads the file; a stale "Unreleased" above it means
     // the promotion never happened.
-    expect(headings[0]).toBe(`## [${packageVersion}] - 2026-08-23`);
+    //
+    // The date is matched by shape, not by literal. Pinning it made this test a
+    // hand-edit on every release -- and one that fails for the wrong reason: a
+    // release that slips a day is not a version-sync defect, but it failed here
+    // as one. What must hold is that the top heading names the current version
+    // and carries a real ISO date, so `## [Unreleased]`, a stale version, or a
+    // heading with no date all still fail.
+    const [newest] = headings;
+    const match = /^## \[(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)\] - (\d{4}-\d{2}-\d{2})$/.exec(newest ?? '');
+    expect(match, `the newest changelog heading is not a dated release heading: ${newest}`).not.toBeNull();
+    expect(match?.[1], 'the newest changelog heading is not the current release').toBe(packageVersion);
+
+    // A shape-matching date can still be nonsense (2026-13-45). Round-tripping
+    // through Date rejects that without pinning a value.
+    const released = new Date(`${match?.[2]}T00:00:00Z`);
+    expect(Number.isNaN(released.getTime()), `not a real calendar date: ${match?.[2]}`).toBe(false);
+    expect(released.toISOString().slice(0, 10)).toBe(match?.[2]);
   });
 
   it('never hardcodes a version in the Inno Setup installer script', () => {

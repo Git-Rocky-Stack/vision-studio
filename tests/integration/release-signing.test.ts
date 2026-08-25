@@ -3,16 +3,10 @@ import { readFileSync } from 'fs';
 import { resolve } from 'path';
 import { parse } from 'yaml';
 
-const loadSigningModule = async () => (
-  await import('../../scripts/verify-release-signing.cjs') as {
-    getSigningReadiness: (env: Record<string, string | undefined>) => {
-      ok: boolean;
-      mode: string | null;
-      missing: string[];
-    };
-    buildWindowsPackageArgs: (env: Record<string, string | undefined>) => string[];
-  }
-);
+// Shape comes from scripts/verify-release-signing.d.cts. It used to be restated
+// as an inline cast here, which meant two hand-maintained copies of the same
+// claim that could disagree with each other and with the .cjs.
+const loadSigningModule = async () => await import('../../scripts/verify-release-signing.cjs');
 
 const AZURE_ENV = {
   AZURE_TENANT_ID: 'tenant',

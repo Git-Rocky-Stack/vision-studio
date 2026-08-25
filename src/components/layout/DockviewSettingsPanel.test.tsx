@@ -72,7 +72,9 @@ describe('DockviewSettingsPanel', () => {
 
     render(<DockviewSettingsPanel />);
 
-    expect(screen.getByTestId('mock-iteration-timeline')).toBeInTheDocument();
+    // h-16 is the footer slot's sizing. Asserting only that the timeline exists
+    // would pass if it were mounted in the main body instead of the footer.
+    expect(screen.getByTestId('mock-iteration-timeline')).toHaveClass('h-16');
   });
 
   it('hides the footer timeline when iteration timeline mode is active', () => {

@@ -5,7 +5,7 @@
  * deserializes state, enforces size caps on persisted collections, and
  * handles storage unavailability gracefully.
  */
-import { describe, expect, it, beforeEach, vi } from 'vitest';
+import { describe, expect, it, beforeEach } from 'vitest';
 import { useAppStore } from '@/store/appStore';
 import type { PromptHistoryEntry, BatchResult, StylePreset } from '@/types/generation';
 import type { AssetRecord } from '@/types/assets';
@@ -14,12 +14,51 @@ function resetStore() {
   useAppStore.setState(useAppStore.getInitialState());
 }
 
+/**
+ * The persist middleware's `partialize`, which every test below depends on.
+ *
+ * These call sites used to read the accessor and `return` early when it came
+ * back undefined. That turned a zustand API change into eight green tests that
+ * asserted nothing - the suite would report full persistence coverage while
+ * verifying none of it. An unreachable accessor is a failure, so throw.
+ */
+/**
+ * Reads a persisted collection, refusing to compare the length of something
+ * that is not there.
+ *
+ * `persisted.promptHistory.length` read `unknown` until tests/ was brought
+ * under a tsconfig (tsconfig.tests.json), and a partialize that stopped
+ * persisting the key entirely would have failed with "cannot read properties
+ * of undefined" rather than naming the defect. This narrows for the compiler
+ * and names it for the reader.
+ */
+function persistedArray(persisted: Record<string, unknown>, key: string): unknown[] {
+  const value = persisted[key];
+  if (!Array.isArray(value)) {
+    throw new Error(
+      `persisted.${key} is ${value === undefined ? 'absent' : `a ${typeof value}`}, not an array - ` +
+        'partialize no longer persists this collection, so its size cap is untested.'
+    );
+  }
+  return value;
+}
+
+function getPartialize(): (state: unknown) => Record<string, unknown> {
+  const partialize = (useAppStore as any).persist?.getOptions?.()?.partialize;
+  if (typeof partialize !== 'function') {
+    throw new Error(
+      'zustand persist partialize is unreachable - the persist API shape changed. ' +
+        'Fix this accessor; do not let the persistence tests pass vacuously.'
+    );
+  }
+  return partialize;
+}
+
 describe('store persistence partialize', () => {
   beforeEach(resetStore);
 
   it('only persists the designated slices', () => {
-    const partialize = (useAppStore as any).persist?.getOptions?.()?.partialize;
-    if (!partialize) return; // skip if persist API unavailable
+    const partialize = getPartialize();
 
     const state = useAppStore.getState();
     const persisted = partialize(state);
@@ -64,8 +103,7 @@ describe('persistence caps', () => {
   beforeEach(resetStore);
 
   it('caps promptHistory at 50 items in persisted state', () => {
-    const partialize = (useAppStore as any).persist?.getOptions?.()?.partialize;
-    if (!partialize) return;
+    const partialize = getPartialize();
 
     // Add 60 entries
     for (let i = 0; i < 60; i++) {
@@ -73,24 +111,22 @@ describe('persistence caps', () => {
     }
 
     const persisted = partialize(useAppStore.getState());
-    expect(persisted.promptHistory.length).toBeLessThanOrEqual(50);
+    expect(persistedArray(persisted, 'promptHistory').length).toBeLessThanOrEqual(50);
   });
 
   it('caps batchResults at 200 items in persisted state', () => {
-    const partialize = (useAppStore as any).persist?.getOptions?.()?.partialize;
-    if (!partialize) return;
+    const partialize = getPartialize();
 
     for (let i = 0; i < 210; i++) {
       useAppStore.getState().addBatchResult(makeBatchResult(`br-${i}`));
     }
 
     const persisted = partialize(useAppStore.getState());
-    expect(persisted.batchResults.length).toBeLessThanOrEqual(200);
+    expect(persistedArray(persisted, 'batchResults').length).toBeLessThanOrEqual(200);
   });
 
   it('caps assetLibrary at 500 items in persisted state', () => {
-    const partialize = (useAppStore as any).persist?.getOptions?.()?.partialize;
-    if (!partialize) return;
+    const partialize = getPartialize();
 
     // Directly inject 510 assets (bypassing upsert for speed)
     const assets: AssetRecord[] = Array.from({ length: 510 }, (_, i) => ({
@@ -111,7 +147,7 @@ describe('persistence caps', () => {
     useAppStore.setState({ assetLibrary: assets });
 
     const persisted = partialize(useAppStore.getState());
-    expect(persisted.assetLibrary.length).toBeLessThanOrEqual(500);
+    expect(persistedArray(persisted, 'assetLibrary').length).toBeLessThanOrEqual(500);
   });
 });
 
@@ -119,8 +155,7 @@ describe('persistence serialization round-trip', () => {
   beforeEach(resetStore);
 
   it('serializes and deserializes promptHistory without data loss', () => {
-    const partialize = (useAppStore as any).persist?.getOptions?.()?.partialize;
-    if (!partialize) return;
+    const partialize = getPartialize();
 
     useAppStore.getState().addToPromptHistory({
       id: 'ph-1',
@@ -142,8 +177,7 @@ describe('persistence serialization round-trip', () => {
   });
 
   it('serializes and deserializes customStylePresets without data loss', () => {
-    const partialize = (useAppStore as any).persist?.getOptions?.()?.partialize;
-    if (!partialize) return;
+    const partialize = getPartialize();
 
     const preset: StylePreset = {
       id: 'custom-1',
@@ -163,8 +197,7 @@ describe('persistence serialization round-trip', () => {
   });
 
   it('serializes and deserializes batchResults including Date fields', () => {
-    const partialize = (useAppStore as any).persist?.getOptions?.()?.partialize;
-    if (!partialize) return;
+    const partialize = getPartialize();
 
     useAppStore.getState().addBatchResult({
       id: 'br-1',
@@ -189,8 +222,7 @@ describe('persistence serialization round-trip', () => {
   });
 
   it('serializes and deserializes assetLibrary with all metadata', () => {
-    const partialize = (useAppStore as any).persist?.getOptions?.()?.partialize;
-    if (!partialize) return;
+    const partialize = getPartialize();
 
     const asset: AssetRecord = {
       id: 'a-1',
@@ -234,14 +266,10 @@ describe('store storage key', () => {
     const name =
       persistApi?.getOptions?.()?.name ??  // zustand 4 API
       persistApi?.options?.name;            // fallback: direct access
-    // If neither accessor works, verify the key is configured in source
-    if (name !== undefined) {
-      expect(name).toBe('vision-studio-storage');
-    } else {
-      // Verify by checking the store source code has the right key
-      // (This test documents the expected key even if we can't extract it at runtime)
-      expect(true).toBe(true);
-    }
+    // If NEITHER accessor resolves, that is a failure, not a pass. This used to
+    // fall back to `expect(true).toBe(true)`, so a zustand API change would have
+    // turned the test green while it verified nothing at all.
+    expect(name).toBe('vision-studio-storage');
   });
 });
 

@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/Button';
 import { useShallow } from 'zustand/react/shallow';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { useAppStore } from '@/store/appStore';
+import { getElectronBridge } from '@/utils/electronBridge';
 import { AI_DIRECTOR_DEFAULTS, type AiDirectorSettings } from '../../shared/retrieval';
 import { buildIngestRecords } from '@/features/director/buildIngestRecords';
 import { UserGuidePage } from '@/pages/UserGuidePage';
@@ -193,9 +194,17 @@ export function SettingsPanel() {
 
   useEffect(() => {
     const loadInitialState = async () => {
+      // Mount path: this runs before anything could have noticed the preload is
+      // missing, and outside Electron `window.electron` is undefined despite the
+      // type declaring it required (see @/utils/electronBridge). Unguarded, this
+      // threw "Cannot read properties of undefined (reading 'settings')" and
+      // rendered the panel's ErrorBoundary instead of the panel.
+      const electron = getElectronBridge();
+      if (!electron) return;
+
       const [loadedSettings, loadedAccounts] = await Promise.all([
-        window.electron.settings.get(),
-        window.electron.accounts.list(),
+        electron.settings.get(),
+        electron.accounts.list(),
       ]);
 
       setSettings({
@@ -219,7 +228,9 @@ export function SettingsPanel() {
 
   // Hydrate the over-budget auto-routing preference from the app settings store.
   useEffect(() => {
-    void window.electron.settings.get().then((s) => setAutoRouteOnOverBudget(Boolean(s.autoRouteOnOverBudget)));
+    const electron = getElectronBridge();
+    if (!electron) return;
+    void electron.settings.get().then((s) => setAutoRouteOnOverBudget(Boolean(s.autoRouteOnOverBudget)));
   }, []);
 
   // Hydrate the AI Director (RAG) settings + index stats (M7). Guarded so the
@@ -275,9 +286,17 @@ export function SettingsPanel() {
       void (async () => {
         await loadModels();
         const installed = useAppStore.getState().availableModels;
+        // Desktop notifications are an Electron-only affordance; outside it
+        // there is nothing to notify, and reaching through the absent bridge
+        // would reject inside an un-awaited async IIFE (an unhandled rejection).
+        // The models above are still loaded either way - only the notification
+        // is skipped.
+        const electron = getElectronBridge();
+        if (!electron) return;
+
         for (const id of becameReady) {
           const model = installed.find((entry) => entry.id === id);
-          await window.electron.notifications.notify('model_download', {
+          await electron.notifications.notify('model_download', {
             title: 'Model Ready',
             body: `${model?.name ?? 'Model'} is installed and ready to use.`,
           });
@@ -311,11 +330,23 @@ export function SettingsPanel() {
     }
 
     const syncOpenRouterModels = async () => {
+      const electron = getElectronBridge();
+      if (!electron) {
+        // Leave both lists empty and both spinners off: without the bridge the
+        // catalogue can never arrive, and a spinner that never resolves reads
+        // as a hang rather than as an unavailable feature.
+        setIsLoadingOpenRouterModels(false);
+        setIsLoadingOpenRouterImageModels(false);
+        setOpenRouterModels([]);
+        setOpenRouterImageModels([]);
+        return;
+      }
+
       setIsLoadingOpenRouterModels(true);
       setIsLoadingOpenRouterImageModels(true);
       const [textModelsResult, imageModelsResult] = await Promise.all([
-        window.electron.openrouter.listModels(activeAccount.id),
-        window.electron.openrouter.listImageModels(activeAccount.id),
+        electron.openrouter.listModels(activeAccount.id),
+        electron.openrouter.listImageModels(activeAccount.id),
       ]);
       setIsLoadingOpenRouterModels(false);
       setIsLoadingOpenRouterImageModels(false);
@@ -415,8 +446,23 @@ export function SettingsPanel() {
   };
 
   async function loadOpenRouterKeyInfo(accountId: string, silentError = false) {
+    // Reached from a mount path as well as from a click: the account effect
+    // above calls this directly (SettingsPanel.tsx:358). Outside Electron that
+    // effect returns before getting here, because no account can have been
+    // hydrated without the bridge - but that is a chain of reasoning through
+    // three scopes, not a guarantee, and it would break silently the day
+    // accounts arrive from anywhere else. Guarded at the point of use instead.
+    const electron = getElectronBridge();
+    if (!electron) {
+      // Same end state as a failed lookup: no key info, spinner off. The
+      // banner stays suppressed because an absent bridge is not a user error.
+      setIsLoadingOpenRouterKeyInfo(false);
+      setOpenRouterKeyInfo(null);
+      return null;
+    }
+
     setIsLoadingOpenRouterKeyInfo(true);
-    const result = await window.electron.openrouter.getKeyInfo(accountId);
+    const result = await electron.openrouter.getKeyInfo(accountId);
     setIsLoadingOpenRouterKeyInfo(false);
 
     if (result.success) {

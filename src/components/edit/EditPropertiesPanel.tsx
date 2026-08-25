@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { cn } from '@/utils/cn';
 import { useAppStore } from '@/store/appStore';
+import { selectActiveRegionLock, selectActiveScene } from '@/store/slices/projectSlice';
 import { useShallow } from 'zustand/react/shallow';
 import { Slider } from '@/components/ui/Slider';
 import { FilterGrid } from './FilterGrid';
@@ -100,7 +101,8 @@ export function EditPropertiesPanel() {
     regionMode,
     activeRegionId,
     activeMaskTool,
-    projects,
+    activeRegionLock,
+    activeScene,
     activeProjectId,
     activeSceneId,
     activeTimelineClipId,
@@ -128,7 +130,15 @@ export function EditPropertiesPanel() {
       regionMode: s.regionMode,
       activeRegionId: s.activeRegionId,
       activeMaskTool: s.activeMaskTool,
-      projects: s.projects,
+      // Resolved in the selectors, never as a `state.projects` subscription.
+      // Every project writer rebuilds the `projects` array wholesale
+      // (projectSlice.ts:715), so subscribing to the array re-rendered this
+      // whole inspector -- filter grid, every slider -- on writes to other
+      // scenes and other projects. The resolved lock and scene keep their
+      // identity through those writes, which is what lets useShallow compare
+      // them by reference (see projectSlice.ts:940).
+      activeRegionLock: selectActiveRegionLock(s),
+      activeScene: selectActiveScene(s),
       activeProjectId: s.activeProjectId,
       activeSceneId: s.activeSceneId,
       activeTimelineClipId: s.activeTimelineClipId,
@@ -150,18 +160,6 @@ export function EditPropertiesPanel() {
   const [promotionSlot, setPromotionSlot] = useState<ReferenceSlotType>('composition');
   const [promotionStatus, setPromotionStatus] = useState<string | null>(null);
 
-  // Find the active region lock
-  const activeRegionLock = (() => {
-    if (!activeProjectId || !activeSceneId || !activeRegionId) return null;
-    const project = projects.find((p) => p.id === activeProjectId);
-    const scene = project?.scenes.find((s) => s.id === activeSceneId);
-    return scene?.regionLocks.find((l) => l.id === activeRegionId) ?? null;
-  })();
-  const activeScene = (() => {
-    if (!activeProjectId || !activeSceneId) return null;
-    const project = projects.find((p) => p.id === activeProjectId);
-    return project?.scenes.find((s) => s.id === activeSceneId) ?? null;
-  })();
   const activeCanvasControlLayer = (() => {
     if (!activeScene?.activeCanvasControlLayerId) {
       return null;
@@ -747,10 +745,8 @@ export function EditPropertiesPanel() {
                     disabled={!activeSceneId}
                     onClick={() => {
                       if (!activeSceneId) return;
-                      const project = projects.find((p) => p.id === activeProjectId);
-                      const scene = project?.scenes.find((s) => s.id === activeSceneId);
-                      const frameId = scene?.frames[0]?.id ?? `${activeSceneId}-frame-default`;
-                      const index = (scene?.regionLocks.length ?? 0) + 1;
+                      const frameId = activeScene?.frames[0]?.id ?? `${activeSceneId}-frame-default`;
+                      const index = (activeScene?.regionLocks.length ?? 0) + 1;
                       const lock = createRegionLock(activeSceneId, frameId, {
                         name: `Region ${index}`,
                       });

@@ -275,3 +275,67 @@ describe('SettingsPanel', () => {
     expect(useAppStore.getState().activeTab).toBe('foundry');
   });
 });
+
+/**
+ * The renderer is loaded outside Electron in two places that matter: the
+ * `vite preview` bundle the performance suite measures, and the dev server used
+ * for headless design review. There is no preload there, so `window.electron`
+ * is undefined despite `src/types/electron.d.ts:509` declaring it required.
+ *
+ * This panel's mount effects called `window.electron.settings.get()` and
+ * `window.electron.accounts.list()` with no guard, so it threw
+ * "Cannot read properties of undefined (reading 'settings')" before first paint
+ * and rendered its ErrorBoundary instead - measured as the single pageerror in
+ * a browser run, and the reason tests/e2e/performance/performance.spec.ts had
+ * to exclude `settings` from its panel matrix.
+ */
+describe('SettingsPanel outside Electron', () => {
+  const original = Reflect.getOwnPropertyDescriptor(window, 'electron');
+
+  beforeEach(() => {
+    useAppStore.setState(useAppStore.getInitialState(), true);
+    Reflect.deleteProperty(window, 'electron');
+  });
+
+  afterEach(() => {
+    cleanup();
+    if (original) {
+      Object.defineProperty(window, 'electron', original);
+    } else {
+      Reflect.deleteProperty(window, 'electron');
+    }
+  });
+
+  it('mounts without throwing when the preload bridge is absent', () => {
+    expect(() => render(<SettingsPanel />)).not.toThrow();
+  });
+
+  it('renders the panel surface rather than an error boundary', async () => {
+    render(<SettingsPanel />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('settings-panel')).toBeInTheDocument();
+    });
+  });
+
+  it('raises no unhandled rejection from its mount effects', async () => {
+    const rejections: unknown[] = [];
+    const onRejection = (event: PromiseRejectionEvent) => {
+      rejections.push(event.reason);
+      event.preventDefault();
+    };
+    window.addEventListener('unhandledrejection', onRejection);
+
+    try {
+      render(<SettingsPanel />);
+      // Let every mount effect's promise chain settle.
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      await waitFor(() => {
+        expect(screen.getByTestId('settings-panel')).toBeInTheDocument();
+      });
+      expect(rejections).toEqual([]);
+    } finally {
+      window.removeEventListener('unhandledrejection', onRejection);
+    }
+  });
+});

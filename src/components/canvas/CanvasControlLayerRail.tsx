@@ -1,4 +1,4 @@
-import { memo, useMemo } from 'react';
+import { memo } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import {
   Copy,
@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 
 import { useAppStore } from '@/store/appStore';
+import { selectActiveScene } from '@/store/slices/projectSlice';
 import type { CanvasControlLayer, CanvasControlLayerType } from '@/types/project';
 import { cn } from '@/utils/cn';
 
@@ -50,21 +51,6 @@ const LAYER_META: Record<
     accentClassName: 'text-accent-primary',
   },
 };
-
-function findActiveScene(
-  projects: ReturnType<typeof useAppStore.getState>['projects'],
-  activeProjectId: string | null,
-  activeSceneId: string | null,
-) {
-  if (!activeProjectId || !activeSceneId) {
-    return null;
-  }
-
-  return (
-    projects.find((project) => project.id === activeProjectId)?.scenes.find((scene) => scene.id === activeSceneId) ??
-    null
-  );
-}
 
 function LayerRow({
   sceneId,
@@ -181,24 +167,21 @@ export const CanvasControlLayerRail = memo(function CanvasControlLayerRail({
   className,
 }: CanvasControlLayerRailProps) {
   const {
-    projects,
-    activeProjectId,
-    activeSceneId,
+    scene,
     createCanvasControlLayer,
     setActiveRegionId,
   } = useAppStore(
     useShallow((state) => ({
-      projects: state.projects,
-      activeProjectId: state.activeProjectId,
-      activeSceneId: state.activeSceneId,
+      // Resolved in the selector rather than subscribed as `state.projects`.
+      // This rail renders inside the Konva canvas subtree, and every project
+      // writer rebuilds the `projects` array wholesale, so an array
+      // subscription re-rendered the rail on writes to other scenes and other
+      // projects. The resolved scene keeps its identity through those writes
+      // (see selectActiveScene in projectSlice.ts).
+      scene: selectActiveScene(state),
       createCanvasControlLayer: state.createCanvasControlLayer,
       setActiveRegionId: state.setActiveRegionId,
     })),
-  );
-
-  const scene = useMemo(
-    () => findActiveScene(projects, activeProjectId, activeSceneId),
-    [projects, activeProjectId, activeSceneId],
   );
 
   if (!scene) {

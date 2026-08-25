@@ -34,7 +34,21 @@ describe('Header provisioning pill', () => {
   it('reports live provisioning with percent and counts', () => {
     useAppStore.setState({ provisionStatus: snapshot() });
     render(<Header />);
-    expect(screen.getByText('Provisioning models: 42% (14/33)')).toBeInTheDocument();
+    // The pill is derived arithmetic (0.42 -> 42%, ready/total -> 14/33), so
+    // assert the rendered string rather than that a pill merely exists.
+    expect(screen.getByText(/Provisioning models/)).toHaveTextContent(
+      'Provisioning models: 42% (14/33)'
+    );
+  });
+
+  it('recomputes the percent and counts from the snapshot it is given', () => {
+    useAppStore.setState({
+      provisionStatus: snapshot({ overall_progress: 0.07, ready_count: 2, total_count: 9 }),
+    });
+    render(<Header />);
+    expect(screen.getByText(/Provisioning models/)).toHaveTextContent(
+      'Provisioning models: 7% (2/9)'
+    );
   });
 
   it('stays silent for a paused set', () => {

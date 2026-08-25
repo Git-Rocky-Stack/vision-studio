@@ -21,6 +21,7 @@ import {
 } from '@/features/workflow/workflowLoras';
 import { useShallow } from 'zustand/react/shallow';
 import { useAppStore } from '@/store/appStore';
+import { getElectronBridge } from '@/utils/electronBridge';
 import { cn } from '@/utils/cn';
 import { formatLabel, formatTimestamp } from '@/utils/formatUtils';
 import { WorkflowGraphEditor } from './WorkflowGraphEditor';
@@ -105,9 +106,19 @@ export function WorkflowWorkbench() {
   }, [activeWorkflow.id]);
 
   useEffect(() => {
+    // Mount path: outside Electron `window.electron` is undefined despite the
+    // type declaring it required (see @/utils/electronBridge), and this threw
+    // before first paint. With no bridge there is no account to hydrate, which
+    // is the same end state the .catch below already handles.
+    const electron = getElectronBridge();
+    if (!electron) {
+      setActiveAccount(null);
+      return;
+    }
+
     let cancelled = false;
 
-    void window.electron.accounts
+    void electron.accounts
       .list()
       .then((snapshot) => {
         if (!cancelled) {
