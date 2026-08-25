@@ -8,7 +8,7 @@
 
 A professional AI-powered desktop application for image and video generation. No cloud required - everything runs locally on your machine.
 
-> **Current release: v3.3.0** — see [`CHANGELOG.md`](CHANGELOG.md) for what's new. Download at **[vision-studio-x.com/download](https://vision-studio-x.com/download)**.
+> **Current release: v3.4.0** — see [`CHANGELOG.md`](CHANGELOG.md) for what's new. Download at **[vision-studio-x.com/download](https://vision-studio-x.com/download)**.
 
 ## Features
 
@@ -21,7 +21,7 @@ A professional AI-powered desktop application for image and video generation. No
 - **Scene Camera Moves** - author per-scene camera keyframes (pan, zoom, rotation, interpolation, easing) directly in the storyboard inspector
 - **Iteration Tree** - every render is a node; fork or re-roll from one to load its exact settings into the generator and record the new run as its child, with a settings diff against the parent
 - **Smart Collections + Tagging** - assets are tagged deterministically from the prompt you actually wrote (style, subject, colour, mood), and smart collections re-evaluate themselves as the library changes. Tagging runs on generation, in the background, on demand, or not at all
-- **LoRA, End to End** - install LoRAs through the Model Foundry, stack them in generation and in the workflow graph's LoRA Loader node; hosted flux LoRA via HuggingFace where the contract supports it
+- **LoRA, End to End** - install LoRAs through the Model Foundry, then stack them with per-LoRA weights in generation and in the workflow graph's `LoraLoader` node. Hosted routing is deliberately narrower than local: HuggingFace serves one FLUX LoRA per generation at weight 1.0, and OpenRouter has no LoRA contract at all - the app tells you which, rather than silently dropping the LoRA
 - **Model Foundry** - search Hugging Face and CivitAI, then acquire straight into your local library: per-result tier, security badges, license, and live download status, with pickle and `trust_remote_code` hits gated behind an explicit consent step
 - **Workflow Graph** - import and run ComfyUI API-format graphs inside the workbench
 - **Provider Routing** - run fully local or bring your own OpenRouter key (BYOK); route prompt tools and still images per account, with graceful over-budget fallback

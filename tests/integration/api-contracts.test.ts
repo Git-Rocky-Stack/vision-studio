@@ -7,7 +7,7 @@
  * the IPC layer (requestBackend, error mapping) and validate the request/
  * response schemas against the real backend API contract.
  */
-import { describe, expect, it, vi, beforeEach } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 // ── Backend API request schemas ──────────────────────────────────────────
 

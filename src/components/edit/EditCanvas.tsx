@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { Stage, Layer, Rect, Image as KonvaImage, Line, Text, Transformer } from 'react-konva';
 import { useAppStore } from '@/store/appStore';
+import { selectActiveRegionLock } from '@/store/slices/projectSlice';
 import { useShallow } from 'zustand/react/shallow';
 import { cn } from '@/utils/cn';
 import { RegionLockToolbar } from '@/components/edit/RegionLockToolbar';
@@ -44,6 +45,9 @@ export function EditCanvas() {
     editAiMaskBrushSize,
     editAiMaskDrawing,
     setEditAiMask,
+    activeRegion,
+    activeSceneId,
+    updateRegionLock,
   } = useAppStore(useShallow((s) => ({
     currentImage: s.currentImage,
       activeEditTool: s.activeEditTool,
@@ -65,7 +69,33 @@ export function EditCanvas() {
       editAiMaskBrushSize: s.editAiMaskBrushSize,
       editAiMaskDrawing: s.editAiMaskDrawing,
       setEditAiMask: s.setEditAiMask,
+      // Resolved inside the selector, never as a `projects` subscription.
+      // EditCanvas mounts the Konva stage, so a re-render here is one of the
+      // most expensive in the app; subscribing to the array would re-render it
+      // on every unrelated project write, because updateRegionLock and friends
+      // rebuild `projects` wholesale. useShallow compares the resolved lock by
+      // identity instead, and the slice actions preserve the identity of locks
+      // they do not touch (projectSlice.ts:715).
+      activeRegion: selectActiveRegionLock(s),
+      activeSceneId: s.activeSceneId,
+      updateRegionLock: s.updateRegionLock,
     })));
+
+  const handleRegionMaskCommit = useCallback(
+    (update: Parameters<Parameters<typeof RegionMaskDrawer>[0]['onMaskCommit']>[0]) => {
+      if (!activeSceneId || !activeRegion) return;
+      updateRegionLock(activeSceneId, activeRegion.id, {
+        mask: {
+          ...activeRegion.mask,
+          type: update.type,
+          points: update.points,
+          bounds: update.bounds,
+          brushSize: update.brushSize,
+        },
+      });
+    },
+    [activeSceneId, activeRegion, updateRegionLock],
+  );
 
   const containerRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<Konva.Stage>(null);
@@ -511,6 +541,33 @@ export function EditCanvas() {
             onMaskCommit={(update) =>
               setEditAiMask({ ...update, featherRadius: 2, blendEdges: true })
             }
+          />
+        </div>
+      )}
+
+      {/* Region-lock mask surface. Mirrors the AI mask surface geometry so the
+          drawer overlays the displayed image exactly and scales with the stage;
+          an `absolute inset-0` surface would size to the whole editor instead.
+          The AI mask takes precedence: while it is open it owns the pointer,
+          and two stacked drawers would both claim the same drag. */}
+      {regionMode && activeRegion && !editAiMaskDrawing && loadedImage && (
+        <div
+          data-testid="edit-region-mask-surface"
+          className="absolute"
+          style={{
+            left: stagePos.x,
+            top: stagePos.y,
+            width: loadedImage.width * stageScale,
+            height: loadedImage.height * stageScale,
+          }}
+        >
+          <RegionMaskDrawer
+            activeRegion={{ id: activeRegion.id, mask: activeRegion.mask }}
+            canvasWidth={loadedImage.width}
+            canvasHeight={loadedImage.height}
+            tool={activeMaskTool}
+            brushSize={maskBrushSize}
+            onMaskCommit={handleRegionMaskCommit}
           />
         </div>
       )}

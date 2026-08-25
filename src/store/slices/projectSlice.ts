@@ -926,3 +926,36 @@ export function createProjectActions(set: AppSet, _get: AppGet) {
     },
   };
 }
+
+/**
+ * Selector: the region lock currently targeted by the region tools, or null.
+ *
+ * Resolving this inside a Zustand selector rather than from a `projects`
+ * subscription is what keeps heavy consumers (EditCanvas mounts the Konva
+ * stage) off the re-render path of unrelated project writes: `updateRegionLock`
+ * and its siblings rebuild the whole `projects` array on every call, but leave
+ * the identity of individual locks they do not touch intact, so `useShallow`
+ * can compare the resolved lock by reference.
+ */
+export function selectActiveRegionLock(state: AppState): RegionLock | null {
+  const { activeProjectId, activeSceneId, activeRegionId } = state;
+  if (!activeProjectId || !activeSceneId || !activeRegionId) return null;
+  const project = state.projects.find((p) => p.id === activeProjectId);
+  const scene = project?.scenes.find((s) => s.id === activeSceneId);
+  return scene?.regionLocks.find((lock) => lock.id === activeRegionId) ?? null;
+}
+
+/**
+ * Selector: the scene currently open on the canvas, or null.
+ *
+ * Same identity contract as {@link selectActiveRegionLock}: the scene-level
+ * writers rebuild the `projects` array but return untouched scenes by
+ * reference, so consumers can subscribe to the resolved scene and stay off the
+ * re-render path of writes to other scenes and other projects.
+ */
+export function selectActiveScene(state: AppState): Scene | null {
+  const { activeProjectId, activeSceneId } = state;
+  if (!activeProjectId || !activeSceneId) return null;
+  const project = state.projects.find((p) => p.id === activeProjectId);
+  return project?.scenes.find((s) => s.id === activeSceneId) ?? null;
+}

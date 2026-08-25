@@ -13,8 +13,8 @@ branches.
 
 | Version | Supported |
 | ------- | --------- |
-| 3.3.x   | Yes |
-| < 3.3   | No — update to the latest release |
+| 3.4.x   | Yes |
+| < 3.4   | No — update to the latest release |
 
 Check your version in **Settings -> About**, or update through the in-app
 updater.

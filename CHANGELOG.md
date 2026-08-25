@@ -2,9 +2,191 @@
 
 All notable changes to Vision Studio will be documented in this file.
 
+## [3.4.0] - 2026-08-24
+
+Canvas and measurement release: the region tools on the Canvas tab can draw
+again, the Konva stage and the edit inspector stop re-rendering on project
+writes that have nothing to do with them, two panels stop crashing when the
+renderer runs outside Electron, and the performance suite measures the shipped
+bundle - and the page rather than its own harness - instead of the dev server it
+had been benchmarking. Additive - no known breaking changes.
+
+### Fixed
+- **Settings and the workflow workbench no longer crash outside Electron** -
+  `src/types/electron.d.ts:509` declares `window.electron` as a required
+  property. That holds inside the shipping app and nowhere else, so the compiler
+  could not flag mount-path code that assumed it, and there is no preload in the
+  two hosts this bundle is also loaded into: the `vite preview` build the
+  performance suite measures and the dev server used for headless design review.
+  `SettingsPanel` evaluated `window.electron.settings.get()` synchronously in a
+  mount effect, throwing "Cannot read properties of undefined (reading
+  'settings')" before first paint and rendering its ErrorBoundary instead of the
+  panel; a second effect produced an unhandled rejection; `WorkflowWorkbench`
+  did the same with `accounts.list()`. All six mount-path call sites now resolve
+  the bridge through `getElectronBridge()`
+  (`src/utils/electronBridge.ts:30`, used at `src/pages/SettingsPanel.tsx:202`,
+  `:231`, `:294`, `:333`, `:455` and
+  `src/components/workflow/WorkflowWorkbench.tsx:113`) and degrade to an empty
+  state instead of throwing. A browser run against the shipped bundle now
+  reports zero page errors across all five panels, against one before. Event
+  handlers are deliberately untouched: they only run in a window Electron
+  opened. Covered by `src/utils/electronBridge.test.ts`,
+  `src/pages/SettingsPanel.test.tsx:292`,
+  `src/components/workflow/WorkflowWorkbench.test.tsx:316` and, structurally,
+  by `tests/electron-bridge-mount-paths.test.ts`
+- **Node tests get the test timeout the config says they get** -
+  `vitest.config.ts` set `testTimeout: 20000` with a comment explaining that
+  full-suite runs under the pre-commit hook saturate CPU and flake on the
+  default. That value never reached the `unit` project: a project declaring its
+  own `test` block does not inherit it, so every node test - most of the suite -
+  ran against the 5s default. Demonstrated directly: a 6s test fails with "Test
+  timed out in 5000ms" without a project-level value and passes with one. The
+  `unit` project now restates it (`vitest.config.ts:28`), as the `component`
+  project already did. Found when a new whole-repo scan test passed in isolation
+  and failed in the pre-commit gate
+- **The edit inspector no longer re-renders on unrelated project writes** - the
+  same defect the Konva stage was fixed for, in a fourth component:
+  `EditPropertiesPanel` derived the active region lock and the active scene by
+  hand from a `projects` array subscription, so a write to another project or
+  another scene re-rendered the whole inspector, filter grid and sliders
+  included. It now subscribes through the same identity-preserving selectors
+  (`src/components/edit/EditPropertiesPanel.tsx:140`), which also removes the
+  duplicated derivations. Covered by Profiler commit-count tests
+  (`src/components/edit/EditPropertiesPanel.test.tsx:46`)
+- **Region-lock masks can be drawn on the Canvas tab** - the Canvas tab renders
+  `EditCanvas`, not the generation `Canvas`
+  (`src/components/layout/DockviewLayout.tsx:64`), and `EditCanvas` mounted the
+  region mask toolbar without any drawing surface behind it. Selecting Rectangle
+  and dragging could never reach a region lock, so a lock's mask stayed at its
+  default bounds. `EditCanvas` now renders the mask surface over the displayed
+  image (`src/components/edit/EditCanvas.tsx:553`), scaled to the stage and
+  bound to the active lock; the AI inpaint mask still takes precedence while it
+  is open, so only one surface ever owns the pointer
+- **The Konva canvas no longer re-renders on unrelated project writes** - the
+  region-lock work above resolved the active lock from a `projects` array
+  subscription, and `CanvasControlLayerRail` resolved the active scene the same
+  way. Every project writer rebuilds `projects` wholesale
+  (`src/store/slices/projectSlice.ts:715`), so renaming a project or writing a
+  region on another scene re-rendered the whole Konva stage. Both now subscribe
+  through selectors that resolve the object and preserve its identity -
+  `selectActiveRegionLock` (`src/store/slices/projectSlice.ts:940`, used at
+  `src/components/edit/EditCanvas.tsx:79`) and `selectActiveScene`
+  (`src/store/slices/projectSlice.ts:956`, used at
+  `src/components/canvas/CanvasControlLayerRail.tsx:181`). Covered by a Profiler
+  commit-count test (`src/components/edit/EditCanvas.test.tsx:218`) and selector
+  identity tests (`src/store/slices/projectSelectors.test.ts`)
+
+### Added
+- **A gate on unguarded mount-path uses of the preload bridge** - the rule that
+  mount paths must reach `window.electron` through `getElectronBridge()` while
+  event handlers need not was carried by an argument in a comment, so nothing
+  stopped the next unguarded mount-path call from being added. It is now
+  enforced by `tests/electron-bridge-mount-paths.test.ts`, which builds a
+  per-file call graph over `src` - module scope, component and hook render
+  bodies, and effect callbacks as roots - and reports any bare `window.electron`
+  dereference reachable from one. Optional-chained access and a guard that
+  precedes the dereference are both accepted; 15 fixtures pin the classifier in
+  both directions so a scanner that silently stops finding anything is not
+  mistaken for a clean repo. It found one call site the earlier scan had missed
+  (`src/pages/SettingsPanel.tsx:455`, reached from the account effect at `:358`),
+  now guarded
+
+### Changed
+- **The performance suite measures the shipped bundle, not the dev server** -
+  `tests/e2e/performance/performance.spec.ts` ran against `vite dev`, so its
+  numbers described Vite: a cold dev server reported 250 resource entries
+  against a `< 250` budget and timed out the page-load test, where the
+  production bundle reports 17 and loads in ~0.7s. Playwright now starts a
+  second web server on :4273 serving a fresh production build
+  (`playwright.config.ts:72`, `npm run preview:web`) and the performance specs
+  point there; every other spec still uses the dev server on :5173. Three
+  further measurement defects are fixed with it: panel switches are measured
+  warm, because the first visit to a code-split panel pays a one-time chunk
+  download; clicks skip Playwright actionability waits, which were timing the
+  settle of a 150ms CSS transition rather than the 11ms panel render. No budget
+  was loosened
+- **The settings panel now has a switch-time budget** - it had functional
+  coverage (`tests/e2e/accessibility.spec.ts:107` and the visual suite, both on
+  the Electron fixture) but no performance budget anywhere, because it could not
+  mount outside Electron. With its mount paths guarded it mounts in a browser,
+  so it joins the panel matrix
+  (`tests/e2e/performance/performance.spec.ts:99`) and is measured against the
+  same budget as every other panel; the switch into it measured 13.2-20.7ms
+  once the measurement moved into the page (see below)
+- **The page-load budget measures the page, not the harness** - the test wrapped
+  a Node-side stopwatch around `waitForLoadState('networkidle')`, so it measured
+  Playwright RPC and a 500ms no-request debounce on top of the load. Broken down
+  on the shipped bundle: the page's own navigationStart to loadEventEnd is
+  40-86ms and `networkidle` adds a further 410-620ms, which is how a 3000ms
+  budget came to report 700-769ms idle and 2499ms on a contended run - a 3.5x
+  swing in a number the app never moved. It now reads
+  `PerformanceNavigationTiming.duration` inside the page
+  (`tests/e2e/performance/performance.spec.ts:352`). Re-measured with 7 of 8
+  cores saturated, the new figure moved 40-82ms to 47-86ms where the old form
+  went 545-590ms to 627-967ms, so the budget is tightened to 1000ms and no
+  longer fails for a busy runner
+- **The panel-switch and time-to-interactive budgets measure the page, not the
+  harness** - the last two Node-side stopwatches in the suite. Panel switching
+  wrapped `Date.now()` around a Playwright click and a `waitForSelector`, so it
+  timed two RPC round trips and the runner's scheduling alongside the app: the
+  same switches read 198-419ms run to run and produced 448ms and 593ms outliers
+  under load, which `retries: 1` absorbed rather than reported. Time to
+  Interactive started its clock after `page.goto` had already resolved, so it
+  measured neither the navigation nor the mount cleanly. Both now take both
+  endpoints inside the page - a capture-phase click listener and a
+  MutationObserver plus frame pump on the target selector
+  (`tests/e2e/performance/performance.spec.ts:168`). Measured across 9 full
+  matrices, 45 switches: 12.5-90.8ms idle and 10.9-62.1ms with 7 of 8 cores
+  saturated, so the contended run is no longer the slower one. The panel-switch
+  budget is tightened 350ms to 250ms on that evidence
+  (`tests/e2e/performance/performance.spec.ts:51`); the TTI budget is held at
+  2000ms because the figure it guards now covers strictly more work than before
+  (568-912ms measured). Proven capable of failing: a 300ms stall injected into
+  `GeneratePanel`'s render took `settings -> generate` from ~50ms to 344.3ms and
+  tripped the budget, while the four switches that do not render that panel
+  stayed at 14-22ms
+- **The performance suite can no longer measure a different application** -
+  `vite preview` defaults to :4173 and Playwright's `reuseExistingServer` probes
+  the URL before running its own command, so whatever answered first was
+  measured. That port was found serving an unrelated project's preview build
+  (title "WealthWise OS") while this work was in progress. The performance
+  server moves to a port no other Vite project claims by default
+  (`playwright.config.ts:20`) and no longer reuses an existing server, which is
+  what makes the config's long-standing claim that the numbers describe the
+  current source actually true - previously a stale build from an earlier run
+  was adopted as-is. The dev server stays on :5173, where the port is
+  load-bearing for the backend CORS allow-list (`backend/main.py:436`) and the
+  documented workflow (`CONTRIBUTING.md:92`), and where a foreign app fails the
+  behavioural specs loudly instead of yielding a plausible wrong number. Guarded
+  by `tests/playwright-config.test.ts`
+- **Everything under `tests/` is typechecked** - `tsconfig.app.json` covered
+  only `src`, `shared` and `tests/setup.ts`, so no integration test and no e2e
+  spec was ever seen by `tsc`. A new `tsconfig.tests.json` covers the tree and
+  runs in `npm run typecheck` (`package.json:33`); it found 20 errors on first
+  run, including five in `tests/vite-config.test.ts` where a
+  `ManualChunksOption` union was called without narrowing. Two release scripts
+  gained declaration files (`scripts/publish-r2-core.d.cts`,
+  `scripts/verify-release-signing.d.cts`) rather than enabling `allowJs`, which
+  measured 27s against 10s on a config the pre-commit hook runs
+- **The version-sync test no longer pins a release date** -
+  `tests/version-sync.test.ts:57` compared the newest changelog heading against
+  a hardcoded `2026-08-24`, so a release that slipped a day failed as a
+  version-sync defect and every release needed a hand-edit. It now matches the
+  heading by shape and validates the date by round-tripping it through `Date`,
+  which still fails on a stale `## [Unreleased]`, a stale version, a missing
+  date, and an impossible one like `2026-13-45`
+- **Frame rate and heap growth are recorded, not gated** - both measured the
+  runner rather than the app: a headless runner does not drive
+  `requestAnimationFrame` from a real compositor (the same idle production page
+  measured 35.4fps and 56.8fps on consecutive runs against a `>= 55` gate) and
+  exposes no dependable GC hook. Both tests now record their measurement as a
+  Playwright annotation and assert only that the probe returned a usable
+  reading. The 55fps threshold was not lowered - it was removed as a gate. These
+  two tests are explicitly not coverage of frame rate or of memory leaks
+
 ## [3.3.0] - 2026-08-23
 
-Codebase audit release: five shipped-but-hollow features made real, three dead
+Codebase audit release: ten shipped-but-hollow features made real, three dead
 modules removed, the whole class of design-system colour drift closed off with a
 guard test, and every known dependency advisory cleared. Additive - no known
 breaking changes.
@@ -140,9 +322,10 @@ Additive - no known breaking changes.
   (font, size, weight, color, shadow, stroke, blend mode, opacity), rendered on
   the canvas via Konva with click-to-select and drag/transform persistence. A
   single shared selection keeps the canvas, layer list, and Text panel in
-  agreement, and every mutation records a history entry. The font list offers
-  only the bundled IBM Plex families plus OS-safe stacks, so a layer can never
-  silently fall back to a missing pre-Plex font
+  agreement, and every mutation records a history entry. The font list
+  (`src/features/edit/textLayers.ts`) offers only the bundled IBM Plex families
+  plus OS-safe stacks, so a layer can never silently fall back to a missing
+  pre-Plex font
 - **Workflow LoRA Loader node** - the graph's LoraLoader is now first-class: a
   node-inspector LoRA picker fed from the installed-LoRA library (incompatible
   entries shown but disabled), a model-strength control, and ComfyUI-faithful
@@ -235,6 +418,9 @@ breaking changes.
 
 First public release. Vision Studio-X is now open source under the MIT license,
 with the full source available at https://github.com/Git-Rocky-Stack/vision-studio.
+No application code changed at 3.0.0 - the release commit touched only packaging
+and metadata - so what became public here is the codebase as it stood at 2.5.0.
+Every entry below this one is pre-public development history, kept for lineage.
 
 ### Added
 - Public, MIT-licensed source release of the full application (Electron 33 + React 19 + Python FastAPI/PyTorch)
@@ -242,8 +428,6 @@ with the full source available at https://github.com/Git-Rocky-Stack/vision-stud
 ### Changed
 - Renamed project to Vision Studio-X
 - Pointed repository, homepage, and installer metadata at the public GitHub repository
-
-This release includes every feature developed through 2.5.0 (detailed below).
 
 ## [2.5.0] - 2026-04-23
 
@@ -277,7 +461,7 @@ This release includes every feature developed through 2.5.0 (detailed below).
   - Canvas mode: Keyframe markers and integration tests
   - Onion skin overlay compositor
 - **Refinement Pipeline** with visual builder
-  - 6 built-in pipeline presets
+  - 6 built-in pipeline presets (`src/store/slices/pipelineSlice.ts`)
   - Visual PipelineBuilder with node palette, configuration panel, and preview
   - Refine context menu for quick access
   - Pipelines sub-mode in Workflows tab

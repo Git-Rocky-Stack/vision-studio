@@ -18,6 +18,14 @@ export default defineConfig({
           include: ['src/**/*.test.ts', 'electron/**/*.test.ts', 'shared/**/*.test.ts', 'tests/**/*.test.ts'],
           environment: 'node',
           name: 'unit',
+          // Restated rather than inherited. The `testTimeout: 20000` above does
+          // not reach a project that declares its own `test` block, so every
+          // node test was running against the 5s default and the headroom the
+          // comment above describes was not in effect for any of them. Found
+          // when a whole-repo scan test passed in isolation and then failed in
+          // the pre-commit gate with "Test timed out in 5000ms" - the exact
+          // full-suite-under-load case that ceiling exists for.
+          testTimeout: 20000,
         },
         resolve: { alias: { '@': resolve(__dirname, 'src') } },
       },

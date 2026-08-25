@@ -77,22 +77,22 @@ describe('LibrarySection', () => {
     } as never);
     render(<LibrarySection />);
 
-    expect(screen.getByTestId('foundry-downloads')).toBeInTheDocument();
-    expect(screen.getByTestId('foundry-installed')).toBeInTheDocument();
-    expect(screen.getByTestId('foundry-roots')).toBeInTheDocument();
-
-    // Download job maps to its catalog name; the still-downloading model is not
-    // listed as installed.
-    expect(screen.getByText('Downloading One')).toBeInTheDocument();
-    expect(screen.getByText('Installed One')).toBeInTheDocument();
-    expect(screen.getByText('/models')).toBeInTheDocument();
+    // The download job maps to its catalog name, and the still-downloading
+    // model must NOT also appear as installed. Asserting each name is present
+    // somewhere on the page passes even when a half-downloaded model is listed
+    // as ready to use, which is the bug this subsection exists to prevent - so
+    // assert per-subsection instead.
+    expect(screen.getByTestId('foundry-downloads')).toHaveTextContent('Downloading One');
+    expect(screen.getByTestId('foundry-installed')).toHaveTextContent('Installed One');
+    expect(screen.getByTestId('foundry-installed')).not.toHaveTextContent('Downloading One');
+    expect(screen.getByTestId('foundry-roots')).toHaveTextContent('/models');
   });
 
   it('shows empty states when there are no downloads or installed models', () => {
     useAppStore.setState({ downloads: {}, availableModels: [], libraryRoots: [] } as never);
     render(<LibrarySection />);
 
-    expect(screen.getByText(/no active downloads/i)).toBeInTheDocument();
-    expect(screen.getByText(/no models installed/i)).toBeInTheDocument();
+    expect(screen.getByTestId('foundry-downloads')).toHaveTextContent(/no active downloads/i);
+    expect(screen.getByTestId('foundry-installed')).toHaveTextContent(/no models installed/i);
   });
 });

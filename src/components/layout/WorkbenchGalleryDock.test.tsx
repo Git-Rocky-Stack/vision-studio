@@ -38,7 +38,16 @@ describe('WorkbenchGalleryDock', () => {
     render(<WorkbenchGalleryDock />);
 
     const reviewButton = screen.getByRole('button', { name: 'Review Storyboard clip' });
-    expect(reviewButton.querySelector('video')).not.toBeNull();
-    expect(screen.getByText('Video')).toBeInTheDocument();
+
+    // The card must play THIS asset. A <video> element that exists but points at
+    // the poster, or at a neighbouring asset, renders a plausible-looking card
+    // for the wrong clip - which presence alone cannot distinguish.
+    const video = reviewButton.querySelector('video');
+    expect(video).not.toBeNull();
+    expect(video).toHaveAttribute('src', expect.stringContaining('storyboard.mp4'));
+    expect(video).toHaveAttribute('aria-label', 'Storyboard clip');
+
+    expect(screen.getByText('Video')).toHaveTextContent('Video');
+    expect(reviewButton).toHaveTextContent('Storyboard clip prompt');
   });
 });

@@ -304,3 +304,50 @@ describe('WorkflowWorkbench', () => {
     expect(screen.getByRole('button', { name: /run on comfyui/i })).toBeDisabled();
   });
 });
+
+/**
+ * Same defect class as SettingsPanel: this workbench's account-hydration effect
+ * called `window.electron.accounts.list()` with no guard, so in a host without a
+ * preload - the `vite preview` bundle the performance suite measures, the dev
+ * server used for headless design review - it threw before first paint.
+ * `src/types/electron.d.ts:509` declares the property required, which is true
+ * inside Electron and nowhere else, so the compiler could never flag this.
+ */
+describe('WorkflowWorkbench outside Electron', () => {
+  const original = Reflect.getOwnPropertyDescriptor(window, 'electron');
+
+  beforeEach(() => {
+    useAppStore.setState(useAppStore.getInitialState(), true);
+    Reflect.deleteProperty(window, 'electron');
+  });
+
+  afterEach(() => {
+    cleanup();
+    if (original) {
+      Object.defineProperty(window, 'electron', original);
+    } else {
+      Reflect.deleteProperty(window, 'electron');
+    }
+  });
+
+  it('mounts without throwing when the preload bridge is absent', () => {
+    expect(() => render(<WorkflowWorkbench />)).not.toThrow();
+  });
+
+  it('raises no unhandled rejection from its account-hydration effect', async () => {
+    const rejections: unknown[] = [];
+    const onRejection = (event: PromiseRejectionEvent) => {
+      rejections.push(event.reason);
+      event.preventDefault();
+    };
+    window.addEventListener('unhandledrejection', onRejection);
+
+    try {
+      render(<WorkflowWorkbench />);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      expect(rejections).toEqual([]);
+    } finally {
+      window.removeEventListener('unhandledrejection', onRejection);
+    }
+  });
+});
