@@ -75,6 +75,29 @@ had been benchmarking. Additive - no known breaking changes.
   `src/components/canvas/CanvasControlLayerRail.tsx:181`). Covered by a Profiler
   commit-count test (`src/components/edit/EditCanvas.test.tsx:218`) and selector
   identity tests (`src/store/slices/projectSelectors.test.ts`)
+- **CI's TypeScript job type-checked nothing** - both gating workflows ran
+  `npx tsc --noEmit`. `tsconfig.json` is a solution file (`"files": []` plus
+  `references`), and TypeScript only follows references under `--build`, so that
+  command compiled zero files and the job passed by construction - on every pull
+  request and on every release. Measured rather than reasoned about: with a
+  deliberate `TS2322` in `src/utils/electronBridge.ts`,
+  `npx tsc --noEmit --listFiles` lists 0 files and exits 0, while
+  `npm run typecheck` exits 2 and names the error. Both workflows now run
+  `npm run typecheck` (`.github/workflows/pr-gate.yml:35`,
+  `.github/workflows/release.yml:46`). Note that this gate had been inert since
+  the solution-style `tsconfig.json` was introduced, so a type error could have
+  reached `main` at any point before now
+- **Public documentation stated test counts, commands and CI gates that were no
+  longer true** - the README told contributors to run the backend suite with
+  `python -m unittest discover`, which `CONTRIBUTING.md` separately and
+  correctly forbids because it silently skips the pytest-style suites;
+  `CONTRIBUTING.md` documented `npm run dev:frontend` and `npm run dev:backend`,
+  neither of which exists in `package.json`; and `docs/ARCHITECTURE.md` §10
+  listed Vitest 3 with 16 files / 119 tests, a `unittest` backend of 7 files, a
+  `happy-dom` environment the repo does not depend on, and `npm run lint` as a
+  CI gate that no workflow runs. Every count in the README, `CONTRIBUTING.md`
+  and `ARCHITECTURE.md` is now the measured v3.4.0 figure and names the command
+  that reproduces it
 
 ### Added
 - **A gate on unguarded mount-path uses of the preload bridge** - the rule that
@@ -90,6 +113,13 @@ had been benchmarking. Additive - no known breaking changes.
   mistaken for a clean repo. It found one call site the earlier scan had missed
   (`src/pages/SettingsPanel.tsx:455`, reached from the account effect at `:358`),
   now guarded
+- **A gate on the CI type-check gate** - `tests/ci-typecheck-gate.test.ts` fails
+  the suite if either gating workflow reverts to a bare `tsc --noEmit`, and -
+  the part that keeps this fixed rather than fixed-once - if a project is added
+  to `tsconfig.json`'s `references` without being added to the `typecheck`
+  script, which would reopen the same blind spot on a narrower surface. That is
+  not hypothetical: `tsconfig.tests.json` was added to both in this release, and
+  nothing but review would have caught it if it had not been
 
 ### Changed
 - **The performance suite measures the shipped bundle, not the dev server** -

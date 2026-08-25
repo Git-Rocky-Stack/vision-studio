@@ -1,6 +1,6 @@
 # Vision Studio — System Architecture
 
-> Version: tracks `package.json` (currently **2.5.0**)
+> Version: tracks `package.json` (currently **3.4.0**)
 > Audience: contributors, integrators, security reviewers
 > Companion docs: [`API_ENDPOINTS.md`](./API_ENDPOINTS.md), [`DATABASE_SCHEMA.md`](./DATABASE_SCHEMA.md), [`api/openapi.json`](./api/openapi.json)
 
@@ -19,7 +19,7 @@ graph TB
             Dock["dockview workspace"]
         end
 
-        subgraph Main["Electron Main Process — Node.js<br/>electron 33"]
+        subgraph Main["Electron Main Process — Node.js<br/>electron 42"]
             IPC["ipcMain handlers<br/>(mainIpc + ipc-handlers/generation)"]
             SecStore["electron-store<br/>(safeStorage encrypted)"]
             Spawn["BackendProcessService<br/>spawns + supervises Python"]
@@ -72,8 +72,8 @@ Three OS processes, never co-mingled:
 | Process | Runtime | Trust | Lifetime |
 |---------|---------|-------|----------|
 | **Renderer** | Chromium + V8 (sandboxed) | UNTRUSTED — handles user input | per `BrowserWindow` |
-| **Main** | Node.js (Electron 33) | TRUSTED — file system, OS, processes | app lifetime |
-| **Backend** | CPython 3.10+ (PyInstaller-frozen in prod) | TRUSTED — GPU, torch, downloads | child of Main; auto-restart on settings change |
+| **Main** | Node.js (Electron 42) | TRUSTED — file system, OS, processes | app lifetime |
+| **Backend** | CPython 3.12 (PyInstaller-frozen in prod) | TRUSTED — GPU, torch, downloads | child of Main; auto-restart on settings change |
 
 The renderer never opens a TCP socket. All renderer→backend traffic is brokered through `ipcMain.handle(...)` in the Main process.
 
@@ -121,7 +121,8 @@ vision-studio/
 │   ├── utils/                       # job_manager, model_manager, comfy_*,
 │   │                                # direct_generator, direct_video_generator,
 │   │                                # image_ops, prompt_service, sanitization
-│   ├── tests/                       # unittest suites (28 active + 7 skipped)
+│   ├── tests/                       # pytest suites: 118 files, 1108 tests
+│   ├── pytest.ini                   # testpaths, pythonpath, benchmark exclusion
 │   ├── requirements.txt
 │   └── main.spec                    # PyInstaller spec
 │
@@ -129,17 +130,22 @@ vision-studio/
 │   ├── App.tsx                      # Top-level shell + global keybinds
 │   ├── main.tsx                     # ReactDOM.createRoot
 │   ├── pages/                       # One panel per workspace tab
-│   ├── components/                  # ~20 component categories (canvas, edit, …)
+│   ├── components/                  # 22 component categories (canvas, edit, …)
 │   ├── features/                    # Domain logic per area (assets, generate, …)
 │   ├── store/
-│   │   ├── appStore.ts              # Zustand root store (slices composed)
+│   │   ├── appStore.ts              # Zustand root store (slices composed :40-54)
 │   │   ├── appStore.types.ts        # AppState shape
-│   │   └── slices/                  # 13 feature slices
+│   │   └── slices/                  # 15 feature slices
 │   ├── hooks/                       # Cross-cutting hooks
 │   ├── types/                       # Domain TypeScript types
 │   └── utils/
+│       └── electronBridge.ts        # getElectronBridge() — the only safe way to
+│                                    # reach window.electron on a mount path
 │
-├── tests/                           # Vitest integration + Playwright E2E
+├── tests/                           # Vitest integration + repo gates, Playwright E2E
+│   ├── e2e/                         # Playwright specs + fixtures + page objects
+│   ├── integration/                 # API contracts, store persistence
+│   └── support/                     # Test-only helpers (never imported by src/)
 └── docs/                            # ← you are here
 ```
 
@@ -672,21 +678,60 @@ State is split across **four** stores. Knowing where each lives is essential.
 
 ## 10. Testing strategy
 
+Counts measured at v3.4.0 with the command in each row.
+
 | Layer | Framework | Files | Tests | Notes |
 |-------|-----------|-------|-------|-------|
-| Unit + integration | Vitest 3 | 16 | 119 | Pure logic, store, Electron services with happy-dom mocks |
-| Component | Vitest + Testing Library | (overlaps above) | — | jsdom; covers React panels |
-| E2E | Playwright + Electron | 3 | 13 | Headed/headless; spawns built app |
-| Accessibility | `@axe-core/playwright` | (within E2E) | smoke | `npm run test:a11y` |
-| Backend | unittest | 7 | 35 (28 + 7 skipped) | `backend/tests`; some skipped without GPU |
+| Unit + integration + component | Vitest 4.1 | 232 | 2034 | Two projects in `vitest.config.ts`: `unit` (node environment) and `component` (jsdom 28 + Testing Library). `npx vitest run` |
+| E2E | Playwright 1.58 + Electron | 9 | 36 | 8 of 9 specs launch the real app — 7 through `tests/e2e/fixtures/electron.fixture`, and `generate-completion.spec.ts:60` via a direct `electron.launch`. Only `performance/performance.spec.ts` uses a plain browser against `vite preview`, because Electron serves the renderer over `file://`, which yields no resource or paint timing to measure |
+| Accessibility | axe-core, injected | (within E2E) | smoke | `tests/e2e/accessibility.spec.ts:49` reads `node_modules/axe-core/axe.min.js` and injects it. `@axe-core/playwright`'s `AxeBuilder` calls `context.newPage()`, which Electron's `BrowserContext` does not support |
+| Visual regression | Playwright snapshots | (within E2E) | — | `npm run test:visual`. Snapshots are Windows-authored; only that platform compares meaningfully |
+| Backend | pytest | 118 | 1108 | `backend/pytest.ini` sets testpaths and excludes the benchmark tier. `cd backend && python -m pytest` |
+| Backend benchmarks | pytest-benchmark | 1 | 1 | Opt-in; needs the GPU/model stack |
 
-CI gates fail if:
+### Repo gates
 
-- `npm run lint` reports any warning (max-warnings=0)
-- `npm run typecheck` finds any TypeScript error
-- `npm test` (Vitest) has any failing test
-- `npm run test:e2e` regresses on the smoke suite
-- `npm run release:signing:check` rejects an unsigned binary
+Tests that pin an invariant rather than a behaviour. Each exists because the
+thing it checks failed silently at least once.
+
+| Gate | Guards against |
+|------|----------------|
+| `tests/electron-bridge-mount-paths.test.ts` | A `window.electron` dereference on a mount path. `src/types/electron.d.ts:509` declares the bridge required, so the compiler cannot see that it is absent under `vite preview` and the dev server |
+| `tests/ci-typecheck-gate.test.ts` | A CI type-check that compiles zero files (see below) |
+| `tests/playwright-config.test.ts` | The E2E preview server binding a shared Vite default port, where `reuseExistingServer` can adopt an unrelated project's build |
+| `tests/version-sync.test.ts` | `package.json`, the OpenAPI spec, the README release line, and the CHANGELOG heading drifting apart |
+| `tests/docs-links.test.ts` | A dead relative link in a public doc — checked case-exactly, because NTFS/APFS resolve what GitHub 404s |
+| `src/**/carbon-pro-tokens.test.ts`, `ui-glyphs.test.ts` | Design-token and glyph drift from `DESIGN.md` |
+
+### CI gates
+
+**PR gate** — [`.github/workflows/pr-gate.yml`](../.github/workflows/pr-gate.yml), four
+parallel jobs, all required:
+
+| Job | Command | Line |
+|-----|---------|------|
+| TypeScript | `npm run typecheck` | `:35` |
+| Dependency Audit (shipped) | `npm run audit:prod` | `:55` |
+| Frontend Tests | `npx vitest run` | `:72` |
+| Backend Tests | `python -m pytest` | `:109` |
+
+> The TypeScript job ran `npx tsc --noEmit` until v3.4.0. `tsconfig.json` is a
+> solution file (`"files": []` plus `references`), and TypeScript only follows
+> references under `--build` — so that command compiled **zero** files and the job
+> was green by construction. Measured, not inferred: with a deliberate
+> `TS2322` in `src/utils/electronBridge.ts`, `npx tsc --noEmit` exits 0 and
+> `npm run typecheck` exits 2. `tests/ci-typecheck-gate.test.ts` now fails the
+> suite if either gating workflow reverts to the bare form, or if a project is
+> added to `references` without being added to the `typecheck` script.
+
+**Release gate** — [`.github/workflows/release.yml`](../.github/workflows/release.yml)
+runs the PR-gate commands plus `npm run build` (`:58`), the Playwright E2E suite
+(`:66`), `npm run release:signing:check` (`:102`), and `npm run package:win:signed`
+(`:121`).
+
+`npm run lint` is **not** run by any workflow. The script exists
+(`eslint src electron --max-warnings=0`) and is worth running locally, but it does
+not gate a merge; do not read a green PR Gate as a lint pass.
 
 ---
 
@@ -752,4 +797,12 @@ Local rehearsal: `npm run test:build` (= `build:windows` + a sanity message).
 
 ---
 
-_Last verified against the codebase on 2026-05-03. Canonical source: `package.json` v2.5.0, `backend/main.py`, `electron/services/mainProcess.ts`, `electron/preload.ts`, `backend/db/migrations/001_initial_schema.py`._
+_Whole-document verification against the codebase: 2026-05-03, at v2.5.0._
+
+_Partially re-verified 2026-08-24 at v3.4.0 — §1 (runtime versions), §2 (source
+layout, slice and category counts, backend suite), and §10 (testing strategy, repo
+gates, CI gates) were each re-measured against the tree and are current. The
+sections not named here still carry their 2026-05-03 date: treat §4-§9 and §11-§13
+as accurate as of v2.5.0 and re-check before relying on a specific claim._
+
+_Canonical source: `package.json`, `backend/main.py`, `electron/services/mainProcess.ts`, `electron/preload.ts`, `backend/db/migrations/001_initial_schema.py`._

@@ -32,13 +32,19 @@ Install the following software before getting started:
 
 #### Required
 
-- **Node.js 18+** - [Download](https://nodejs.org/)
-  - Verify: `node --version` (should be v18.x or higher)
+- **Node.js 20** - [Download](https://nodejs.org/)
+  - Verify: `node --version`
+  - CI builds and tests on Node 20 (`.github/workflows/pr-gate.yml:23`); other
+    versions are untested here
   - npm is included with Node.js
 
-- **Python 3.10+** - [Download](https://www.python.org/downloads/)
+- **Python 3.12** - [Download](https://www.python.org/downloads/)
   - Verify: `python --version` or `python3 --version`
   - Required for backend development and AI generation features
+  - Every workflow that builds or tests the backend pins 3.12
+    (`.github/workflows/pr-gate.yml:91`, `release.yml:33`,
+    `release-mac-linux.yml:72`). The torch build this pairs with — 2.5.1+cu121 —
+    publishes no cp313 wheels, so a 3.13 interpreter fails at `pip install torch`
 
 #### Optional (GPU Acceleration)
 
@@ -100,15 +106,30 @@ This command:
 
 ### Separate Processes
 
-Run frontend and backend separately for debugging:
+There is no `dev:frontend` / `dev:backend` script — `npm run dev` starts Vite,
+which launches Electron through `vite-plugin-electron` (`vite.config.ts:52`), and
+Electron spawns the backend (`electron/services/backendProcess.ts:318`). To run the
+backend yourself instead, start it standalone and tell the shell not to spawn its
+own:
 
 ```bash
-# Terminal 1 - Frontend only
-npm run dev:frontend
+# Terminal 1 - backend only (uvicorn; backend/main.py __main__)
+cd backend
+python main.py
 
-# Terminal 2 - Backend only
-npm run dev:backend
+# Terminal 2 - shell, using the backend you started
+VISION_STUDIO_SKIP_BACKEND=1 \
+VISION_STUDIO_BACKEND_EXTERNAL=1 \
+VISION_STUDIO_BACKEND_AUTH_TOKEN=<same-token-in-both-terminals> \
+npm run dev
 ```
+
+| Variable | Read at | Effect |
+|----------|---------|--------|
+| `VISION_STUDIO_SKIP_BACKEND` | `electron/services/mainProcess.ts:164` | Electron does not autostart a backend child |
+| `VISION_STUDIO_BACKEND_EXTERNAL` | `electron/services/backendProcess.ts:158` | Probe an out-of-process backend over HTTP so it reads as connected. Any value except `0`, `false`, `off`, `no`, or empty enables it |
+| `VISION_STUDIO_BACKEND_AUTH_TOKEN` | `electron/services/backendProcess.ts:135` | **Must match in both terminals.** Otherwise each side mints its own token and every authenticated request fails with HTTP 403 while `/health` still succeeds — the app reads as "disconnected" with the backend plainly up |
+| `VISION_STUDIO_BACKEND_HOST` | `backend/main.py:268` | Bind address; defaults to `127.0.0.1` |
 
 ### Building for Production
 
@@ -201,12 +222,19 @@ python -m pytest tests/benchmarks -o addopts="" --benchmark-only
 
 ### Test Coverage
 
-| Layer | Framework | Files | Tests |
-|-------|-----------|-------|-------|
-| Frontend (unit + component + integration) | Vitest 4.1 | 142 | 1239 |
-| E2E | Playwright 1.58 | 8 | 35 |
-| Backend (unit + integration) | pytest | 33 | 424 |
-| Backend (benchmark, opt-in) | pytest-benchmark | 1 | 10 |
+Measured at v3.4.0. Each row names the command that reproduces its numbers, so a
+stale figure here is one command away from being caught.
+
+| Layer | Framework | Files | Tests | Reproduce with |
+|-------|-----------|-------|-------|----------------|
+| Frontend (unit + component + integration) | Vitest 4.1 | 232 | 2034 | `npx vitest run` |
+| E2E | Playwright 1.58 | 9 | 36 | `npx playwright test --list` |
+| Backend (unit + integration) | pytest | 118 | 1108 | `cd backend && python -m pytest --collect-only -q` |
+| Backend (benchmark, opt-in) | pytest-benchmark | 1 | 1 | `cd backend && python -m pytest tests/benchmarks -o addopts="" --benchmark-only --collect-only -q` |
+
+The E2E figure counts every spec Playwright can collect, including the
+Windows-authored visual-regression suite. Snapshot comparisons are only
+meaningful on the platform that authored them.
 
 ### TypeScript Type Check
 
