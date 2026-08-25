@@ -59,8 +59,9 @@ npm run dev
 
 ### Prerequisites
 
-- **Node.js** 20+ ([Download](https://nodejs.org/))
-- **Python** 3.10-3.12 (for backend development; PyTorch has no 3.13+ wheels yet)
+- **Node.js** 20 ([Download](https://nodejs.org/)) — the version CI builds and tests on
+- **Python** 3.12 (for backend development) — the version every backend workflow
+  pins, and the one the shipped torch build (2.5.1+cu121) has wheels for
 - **CUDA 12.1** (optional, for NVIDIA GPU acceleration)
 
 ### Setup Options
@@ -142,10 +143,17 @@ vision-studio/
 │   └── utils/            # Job manager, model manager
 │
 ├── src/                   # React frontend
-│   ├── components/       # UI components
+│   ├── components/       # UI components (22 categories)
 │   ├── pages/            # Panel views
-│   ├── store/            # Zustand state
+│   ├── features/         # Domain logic per area
+│   ├── store/            # Zustand state (15 slices)
+│   ├── utils/            # Shared helpers, incl. the guarded bridge accessor
 │   └── App.tsx           # Main app
+│
+├── tests/                 # Vitest integration + repo gates, Playwright E2E
+│   ├── e2e/              # Playwright specs (a11y, performance, visual)
+│   ├── integration/      # API contracts, store persistence
+│   └── support/          # Test-only helpers (not shipped)
 │
 ├── build-backend.cjs      # Build script
 ├── quickstart.bat         # Windows quick start
@@ -260,16 +268,25 @@ npm run typecheck
 npm run test:e2e           # Playwright + Electron
 npm run test:e2e:headed    # With visible browser window
 npm run test:a11y          # Accessibility smoke tests only
+npm run test:perf          # Performance budgets (in-page measurement)
+npm run test:visual        # Visual regression (snapshots are Windows-authored)
 
 # Backend tests
-cd backend && python -m unittest discover -s tests -v
+cd backend && python -m pytest
 ```
 
-| Layer | Framework | What it covers |
-|-------|-----------|----------------|
-| Unit + Component + Integration | Vitest 4 | 1,950+ frontend tests - pure logic, Zustand store, Electron services, React components, API/workflow contracts, plus design-system guards (Carbon Pro tokens, palette discipline, UI glyphs) |
-| E2E + Visual | Playwright | Electron end-to-end, accessibility, and Windows visual-regression suites |
-| Backend | pytest / unittest | FastAPI + foundry + services; import-safe collection on CI, real model runs are local |
+> Run the backend suite with **pytest**, not `python -m unittest discover` — the
+> latter silently skips the pytest-style suites (security sanitization, DB
+> migrations). CI runs `python -m pytest` ([`.github/workflows/pr-gate.yml:109`](.github/workflows/pr-gate.yml)).
+
+Counts below were measured at v3.4.0; re-run the command in each row to confirm.
+
+| Layer | Framework | Files | Tests | What it covers |
+|-------|-----------|-------|-------|----------------|
+| Unit + Component + Integration (`npx vitest run`) | Vitest 4.1 | 232 | 2034 | Pure logic, Zustand store, Electron services, React components, API/workflow contracts, plus repo gates: Carbon Pro tokens, palette discipline, UI glyphs, preload-bridge mount paths, Playwright port, CI type-check |
+| E2E + Visual (`npx playwright test --list`) | Playwright 1.58 | 9 | 36 | Electron end-to-end, accessibility (axe-core), performance budgets, and the Windows visual-regression suite |
+| Backend (`cd backend && python -m pytest`) | pytest | 118 | 1108 | FastAPI + foundry + services; import-safe collection on CI, real model runs are local |
+| Backend benchmarks (opt-in) | pytest-benchmark | 1 | 1 | Excluded from the default run by `backend/pytest.ini`; needs the GPU/model stack |
 
 ## Documentation
 

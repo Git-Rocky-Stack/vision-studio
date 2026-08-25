@@ -2,7 +2,8 @@
 
 How Vision Studio is built, packaged, and delivered for Windows, macOS, and Linux.
 
-Current release: **v3.2.0**. Version history lives in [`CHANGELOG.md`](CHANGELOG.md).
+Current version in the tree: **v3.4.0**; the most recent tagged GitHub release is
+**v3.3.0**. Version history lives in [`CHANGELOG.md`](CHANGELOG.md).
 
 ## Heavy-by-design: one build shape
 

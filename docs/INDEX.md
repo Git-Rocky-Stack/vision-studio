@@ -19,9 +19,15 @@
 | [`../README.md`](../README.md) | Install, quickstart, supported GPUs, troubleshooting. |
 | [`../CONTRIBUTING.md`](../CONTRIBUTING.md) | Dev environment, local commands, code style, PR process. |
 | [`../CHANGELOG.md`](../CHANGELOG.md) | Versioned release notes. |
+| [`../DESIGN.md`](../DESIGN.md) | Carbon Pro design system — type, colour, radius, motion, depth. Read before any visual work. |
+| [`../SECURITY.md`](../SECURITY.md) | What counts as a vulnerability, what is out of scope, how to disclose privately. |
+| [`../CODE_OF_CONDUCT.md`](../CODE_OF_CONDUCT.md) | Expected conduct, including the project-specific clause on generated-image attachments. |
 | [`../BUNDLING.md`](../BUNDLING.md) | Packaging the Python backend with PyInstaller. |
 | [`../DEPLOYMENT.md`](../DEPLOYMENT.md) | Distribution and updater notes. |
 | [`../WINDOWS_BUILD.md`](../WINDOWS_BUILD.md) | Windows-specific build steps. |
+| [`../LICENSE`](../LICENSE) | MIT — the licence covering Vision Studio's own source. |
+| [`../THIRD-PARTY-LICENSES.md`](../THIRD-PARTY-LICENSES.md) | Bundled runtime dependencies and provisioned models, each under its own terms. Ships inside every installer. |
+| [`../THIRD-PARTY-NOTICES.md`](../THIRD-PARTY-NOTICES.md) | Curated notices for the major shipped runtime dependencies, plus the `license-checker` / `pip-licenses` commands that reproduce the complete list. |
 
 ## Audits & strategy (point-in-time snapshots)
 

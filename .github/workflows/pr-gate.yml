@@ -26,7 +26,13 @@ jobs:
       - run: npm ci
 
       - name: TypeScript type-check
-        run: npx tsc --noEmit
+        # `npm run typecheck`, not a bare `tsc --noEmit`. tsconfig.json is a
+        # solution file ("files": [] plus references), and TypeScript only
+        # follows references under --build - so `tsc --noEmit` compiled zero
+        # files here and this job was green by construction. The script runs
+        # each referenced project explicitly. Pinned by
+        # tests/ci-typecheck-gate.test.ts.
+        run: npm run typecheck
 
   audit-prod:
     name: Dependency Audit (shipped)

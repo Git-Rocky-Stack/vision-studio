@@ -1,7 +1,16 @@
 # Vision Studio - QA Testing Strategy
 
 > Risk-based quality engineering strategy for a three-tier Electron desktop application
-> Created: 2026-03-13 | Status: Active
+> Created: 2026-03-13 | Status: strategy still current, baseline figures superseded
+
+> [!NOTE]
+> **The "Current state" paragraph below describes 2026-03-13, not today.** It is
+> kept because the strategy that follows was derived from it, and editing the
+> premise out would make the reasoning unreadable. Every target it sets has since
+> been met or exceeded. For the numbers that hold now, see
+> [`ARCHITECTURE.md` §10](./ARCHITECTURE.md#10-testing-strategy) — as of v3.4.0:
+> 232 Vitest files / 2034 tests, 9 Playwright specs / 36 tests, 118 pytest files /
+> 1108 tests, and a four-job CI gate on every pull request.
 
 ---
 
@@ -142,7 +151,9 @@ describe('validateGenerationParams', () => {
 
 **Fix import errors:**
 - Backend tests that import `main.py` or heavy dependencies should mock those imports or use conditional imports
-- Alternatively, run backend tests inside the venv: `backend/venv/Scripts/python -m unittest discover -s tests`
+- Alternatively, run backend tests inside the venv: `backend/venv/Scripts/python -m pytest`
+  (**not** `unittest discover` — it silently skips the pytest-style suites; see
+  [`CONTRIBUTING.md`](../CONTRIBUTING.md) "Backend Tests")
 
 **New backend unit tests to add:**
 
