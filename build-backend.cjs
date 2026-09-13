@@ -132,31 +132,67 @@ async function setupVirtualEnv(pythonPath) {
   return venvPath;
 }
 
+/**
+ * The torch stack is pinned, and has to stay pinned.
+ *
+ * These versions used to float. On the CUDA rungs that was invisible, because
+ * the cu121 index stopped at torch 2.5.1 and so pinned them by accident. macOS
+ * has no CUDA wheels, falls through to the `cpu` rung, and that index tracks
+ * latest - so macOS was the one platform whose torch version moved on its own.
+ *
+ * It moved. The v3.4.0 macOS build resolved torch 2.14.0 / torchvision 0.29.0
+ * against the same spec that shipped v3.3.0 in August, and the bundle died on
+ * startup with `RuntimeError: operator torchvision::nms does not exist`,
+ * cascading through transformers' image_utils into diffusers. Linux, never
+ * leaving cu121, built and published from the identical commit. The backend
+ * source had not changed at all between the two releases (`git diff v3.3.0..
+ * HEAD -- backend/` was empty); only the resolved dependency set had.
+ *
+ * 2.5.1 / 0.20.1 is not a guess: it is the set Linux built, smoke-tested and
+ * shipped on the same run, against transformers 5.17.0 and diffusers 0.40.0.
+ * Pinning here puts every platform on it, and makes the "PyTorch 2.5" the
+ * README and docs/ARCHITECTURE.md already advertise a fact rather than
+ * whatever the index served that morning.
+ *
+ * tests/torch-pins.test.ts fails if these drift apart or lose their `==`.
+ * Bump deliberately, together, and re-run the macOS smoke gate.
+ */
+const TORCH_PIN = '2.5.1';
+const TORCHVISION_PIN = '0.20.1';
+const TORCHAUDIO_PIN = '2.5.1';
+const TORCH_SPEC =
+  `torch==${TORCH_PIN} torchvision==${TORCHVISION_PIN} torchaudio==${TORCHAUDIO_PIN}`;
+
 async function installPyTorch(venvPath, useCPU = false) {
   log('\n⬇️  Installing PyTorch...', 'blue');
-  
+
   const pip = `${getVenvPython(venvPath)} -m pip`;
-  
-  // Try different PyTorch installation methods
+
+  // Every rung installs the SAME pinned versions - only the wheel flavour
+  // (cu121 / cu118 / cpu) differs. A rung that resolved its own versions would
+  // reintroduce exactly the drift documented above.
   const installMethods = [
     {
       name: 'CUDA 12.1',
-      command: `${pip} install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121`,
+      command: `${pip} install ${TORCH_SPEC} --index-url https://download.pytorch.org/whl/cu121`,
       enabled: !useCPU
     },
     {
       name: 'CUDA 11.8',
-      command: `${pip} install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118`,
+      command: `${pip} install ${TORCH_SPEC} --index-url https://download.pytorch.org/whl/cu118`,
       enabled: !useCPU
     },
     {
       name: 'CPU only',
-      command: `${pip} install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu`,
+      command: `${pip} install ${TORCH_SPEC} --index-url https://download.pytorch.org/whl/cpu`,
       enabled: true
     },
     {
-      name: 'Latest (no index)',
-      command: `${pip} install torch torchvision torchaudio`,
+      // macOS arm64 lands here in practice: PyPI carries
+      // torch-2.5.1-cp312-none-macosx_11_0_arm64.whl and the matching
+      // torchvision/torchaudio, and that wheel is the MPS-capable one.
+      name: 'Default index (pinned)',
+      command: `${pip} install ${TORCH_SPEC}`,
       enabled: true
     }
   ];
@@ -403,6 +439,10 @@ if (require.main === module) {
 }
 
 module.exports = {
+  TORCH_PIN,
+  TORCHVISION_PIN,
+  TORCHAUDIO_PIN,
+  TORCH_SPEC,
   checkPython,
   setupVirtualEnv,
   installPyTorch,
