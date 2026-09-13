@@ -2,14 +2,41 @@
 
 All notable changes to Vision Studio will be documented in this file.
 
-## [3.4.0] - 2026-08-24
+## [3.4.0] - 2026-09-13
 
 Canvas and measurement release: the region tools on the Canvas tab can draw
 again, the Konva stage and the edit inspector stop re-rendering on project
 writes that have nothing to do with them, two panels stop crashing when the
 renderer runs outside Electron, and the performance suite measures the shipped
 bundle - and the page rather than its own harness - instead of the dev server it
-had been benchmarking. Additive - no known breaking changes.
+had been benchmarking. Carries a HIGH advisory fix on the shipped auto-update
+path. Additive - no known breaking changes.
+
+### Security
+- **[GHSA-2883-xcg3-v3hh](https://github.com/advisories/GHSA-2883-xcg3-v3hh)
+  cleared from the shipped update path.** js-yaml
+  4.0.0-4.3.1 does not bound CPU use in `maxTotalMergeKeys` for empty merge
+  sources, so a crafted document can pin the parsing thread. It reached the
+  shipped tree through one package: `electron-updater` calls `load()` at three
+  sites, one of them `out/providers/Provider.js:97` - the parse of the update
+  feed fetched over the network. There was no upstream release to move to
+  (js-yaml shipped no 4.x fix, and `electron-updater@6.8.9`, the latest stable,
+  still declares `js-yaml: ^4.1.0`), so it is resolved with an override scoped
+  to `electron-updater` alone, leaving the non-shipped packaging toolchain on
+  4.3.1. Verified by parsing the three live production feeds under both versions
+  and diffing: identical. `tests/dependency-overrides.test.ts` asserts the
+  override is declared and scoped, that the *installed* tree resolves outside
+  the advisory range, and that the substituted parser still round-trips a real
+  feed with numeric scalars intact
+- **Four dev-tree advisories taken rather than documented as exceptions** -
+  `vitest`/`@vitest/mocker` 4.1.8 -> 4.1.11
+  ([GHSA-82fw-gwwq-j7x9](https://github.com/advisories/GHSA-82fw-gwwq-j7x9)),
+  `browserslist` 4.28.1 -> 4.28.9
+  ([GHSA-c83g-rgw3-j3cx](https://github.com/advisories/GHSA-c83g-rgw3-j3cx),
+  [GHSA-73wf-gq98-2v4g](https://github.com/advisories/GHSA-73wf-gq98-2v4g)) and
+  `baseline-browser-mapping` 2.10.0 -> 2.11.23
+  ([GHSA-w5vr-8v7q-w6rv](https://github.com/advisories/GHSA-w5vr-8v7q-w6rv)).
+  `npm audit` and `npm audit --omit=dev` both report zero
 
 ### Fixed
 - **Settings and the workflow workbench no longer crash outside Electron** -
@@ -122,6 +149,37 @@ had been benchmarking. Additive - no known breaking changes.
   nothing but review would have caught it if it had not been
 
 ### Changed
+- **The archived design records declare their own provenance.** `docs/plans/`
+  and `docs/superpowers/` ship in a public repository, and `docs/INDEX.md`
+  framed them correctly as historical - but only for a reader who arrived
+  through the index. A reader landing on one file from a search engine got no
+  framing at all, and a plan written in the present tense read as a description
+  of the shipped product. Every dated record now opens with a blockquote banner
+  naming its date and its status as a record of intent, and each archive
+  directory has a README saying what it holds and what it is not.
+  `tests/docs-provenance.test.ts` enforces both, and asserts it found >50
+  documents first so a sweep that silently matched nothing cannot pass
+- **The README shows the application.** Seven screenshots captured from the
+  running app by [`scripts/capture-screenshots.mjs`](scripts/capture-screenshots.mjs),
+  which drives the real navigation against a throwaway profile - no mock-ups and
+  no seeded fixture data, so the genuine empty states and hardware readout are
+  what appear. Re-running the script is how they stay true
+- **`WINDOWS_BUILD.md` no longer advertises an NSIS licence page.**
+  app-builder-lib emits one only for `nsis.license` or a `license.*`/`eula.*`
+  file in `build/`; Vision Studio sets neither, and the synthesised
+  `LICENSE.txt` was deliberately removed in 3.3.0. The doc went on describing
+  the page after it stopped existing. Two `tests/packaging-config.test.ts` cases
+  now assert in both directions, so wiring a real licence page fails the test
+  rather than silently re-stranding the doc
+- **`docs/API_ENDPOINTS.md` anchors what `POST /api/models/scan` merges** to
+  `backend/foundry/index_service.py`, and the test checks each advertised feed
+  against `IndexService.scan` itself
+- **`docs/dependency-security.md` no longer carries a resolved exception.** Its
+  table still described the `electron-builder@25` `tar` tree against a deferred
+  "upgrade 25 -> 26" remediation; that upgrade had already landed (the repo
+  builds on `electron-builder@26.15.3`) and none of those packages appear in the
+  audit any more. A stale exception reads as a live accepted risk, so the table
+  is deleted rather than left standing
 - **The performance suite measures the shipped bundle, not the dev server** -
   `tests/e2e/performance/performance.spec.ts` ran against `vite dev`, so its
   numbers described Vite: a cold dev server reported 250 resource entries
