@@ -121,5 +121,10 @@
     "vite-plugin-electron-renderer": "^0.14.6",
     "vitest": "^4.1.8",
     "yaml": "^2.9.0"
+  },
+  "overrides": {
+    "electron-updater": {
+      "js-yaml": "^5.4.2"
+    }
   }
 }
