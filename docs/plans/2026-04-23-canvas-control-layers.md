@@ -1,5 +1,8 @@
 # Canvas Control Layers Implementation Plan
 
+> **Historical design record - 2026-04-23.** Describes intent at that
+> date, not current behaviour. See `docs/INDEX.md` for what is authoritative.
+
 > **For Codex:** Execute this plan milestone-by-milestone. Keep the scope image-only for this first pass.
 
 **Goal:** Add image-first canvas-native control layers for ControlNet, reference images, and inpaint masks.

@@ -1,5 +1,8 @@
 # Finalize Production Integrations Implementation Plan
 
+> **Historical design record - 2026-03-11.** Describes intent at that
+> date, not current behaviour. See `docs/INDEX.md` for what is authoritative.
+
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Finish all currently stubbed and partial production features in Vision Studio so generation, editing, model downloads, export flows, notifications, and theme behavior are fully implemented.

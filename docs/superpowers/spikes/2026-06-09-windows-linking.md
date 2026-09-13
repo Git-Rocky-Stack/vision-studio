@@ -1,5 +1,8 @@
 # Spike B - Windows Linking + Library Indexing (Model Foundry M3)
 
+> **Historical design record - 2026-06-09.** Describes intent at that
+> date, not current behaviour. See `docs/INDEX.md` for what is authoritative.
+
 > Time-boxed throwaway exploration mandated by the Model Foundry spec
 > (`docs/superpowers/specs/2026-05-30-model-foundry-design.md`, section 8.1, spike B)
 > before any M3 (Indexer + import/link) production code. Exploration code is throwaway

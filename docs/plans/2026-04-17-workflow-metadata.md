@@ -1,5 +1,8 @@
 # Workflow Metadata Implementation Plan
 
+> **Historical design record - 2026-04-17.** Describes intent at that
+> date, not current behaviour. See `docs/INDEX.md` for what is authoritative.
+
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Add description, tags, and notes to workflow records and render them in the Workflow workbench.

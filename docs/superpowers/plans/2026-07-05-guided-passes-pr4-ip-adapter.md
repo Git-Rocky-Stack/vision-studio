@@ -1,5 +1,8 @@
 # Guided Passes PR4: IP-Adapter Masked Multi-Reference Implementation Plan
 
+> **Historical design record - 2026-07-05.** Describes intent at that
+> date, not current behaviour. See `docs/INDEX.md` for what is authoritative.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Two or more visible reference-image layers become real IP-Adapter multi-reference conditioning: per-layer masks honored on SD 1.5 / SDXL (`ip_adapter_masks`), FLUX applies references globally with an explicit surfaced notice, SD 3.5 declines honestly, and all adapter + encoder weights arrive through consent-gated Foundry records.

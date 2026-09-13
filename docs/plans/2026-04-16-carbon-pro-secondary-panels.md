@@ -1,5 +1,8 @@
 # Carbon Pro Secondary Panels Implementation Plan
 
+> **Historical design record - 2026-04-16.** Describes intent at that
+> date, not current behaviour. See `docs/INDEX.md` for what is authoritative.
+
 **Goal:** Bring Assets, Batch, Templates, and Settings into the Carbon Pro visual language so secondary panels no longer snap back to the old red-glow Dark Cinema treatment.
 
 **Architecture:** Keep behavior unchanged and migrate styling through existing Tailwind utility classes and CSS tokens. Treat red as status/destructive only, use chrome accent tokens for focus/selection/primary states, and keep changes limited to secondary panels plus direct child components rendered inside them.

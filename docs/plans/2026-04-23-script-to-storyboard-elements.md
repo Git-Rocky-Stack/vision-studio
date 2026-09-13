@@ -1,5 +1,8 @@
 # Script To Storyboard And Elements Implementation Plan
 
+> **Historical design record - 2026-04-23.** Describes intent at that
+> date, not current behaviour. See `docs/INDEX.md` for what is authoritative.
+
 > **For Codex:** Execute this plan milestone-by-milestone. Keep the first pass storyboard-first and compatibility-safe.
 
 **Goal:** Add project-scoped Elements and a reviewed script-to-storyboard import flow that turns pasted text into scenes, beat candidates, and reusable continuity objects.

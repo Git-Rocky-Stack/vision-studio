@@ -5,7 +5,8 @@ How to build and publish the Windows installer. For the cross-platform picture
 the backend bundle is produced see [`BUNDLING.md`](BUNDLING.md).
 
 Windows is built **locally** — it is the delivery build. (macOS and Linux are
-built in CI because PyInstaller can't cross-compile.)
+built in CI by [`release-mac-linux.yml`](.github/workflows/release-mac-linux.yml)
+because PyInstaller can't cross-compile.)
 
 ## Prerequisites
 
@@ -68,9 +69,13 @@ installation — the same zero-egress host that serves the update feed. The stub
 and the `.nsis.7z` must be published together (see Publishing below), or the
 installer 404s mid-install.
 
-The installer still provides the full NSIS experience: license page (auto-uses
-`LICENSE.txt`), install-directory choice, per-machine install, desktop + Start
-Menu shortcuts, and a proper uninstaller (`installer.nsh`).
+The installer still runs the full NSIS wizard (`oneClick: false`):
+install-directory choice, per-machine install, desktop + Start Menu shortcuts,
+and a proper uninstaller (`installer.nsh`). There is no licence step —
+`computeLicensePage` in app-builder-lib emits one only for a `license.*` or
+`eula.*` file in `build/` (`directories.buildResources`), or an explicit
+`nsis.license`, and Vision Studio sets neither; the MIT terms ship as the root
+`LICENSE` extraResource instead.
 
 ## Publishing to R2
 

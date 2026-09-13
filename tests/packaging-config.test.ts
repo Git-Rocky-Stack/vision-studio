@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { readFileSync } from 'fs';
+import { readdirSync, readFileSync } from 'fs';
 import { resolve } from 'path';
 import { parse } from 'yaml';
 
@@ -147,5 +147,54 @@ describe('packaging config honesty rails', () => {
     // means `LICENSE` has to actually be in the package.
     const entries = (config.extraResources ?? []).map((e: { from: string }) => e.from);
     expect(entries).toContain('LICENSE');
+  });
+  it('claims no NSIS licence page, because the installer has none to show', () => {
+    // app-builder-lib emits the licence page from computeLicensePage
+    // (out/targets/nsis/nsisLicense.js): it resolves `nsis.license`, else looks
+    // in buildResources for license/eula .rtf/.txt/.html plus localized
+    // `license_<lang>.*` variants (out/util/license.js), and returns without
+    // emitting the macro when it finds none. Vision Studio sets no key and
+    // ships no such file, so there is no licence page.
+    //
+    // scripts/build-windows.cjs used to synthesise a LICENSE.txt and that
+    // synthesis was deliberately removed - the text it wrote named the wrong
+    // holder and stopped short of the liability clause - while
+    // tests/license-integrity.test.ts pins `LICENSE` as the one licence file.
+    // WINDOWS_BUILD.md went on describing the page after it stopped existing.
+    //
+    // Asserted in both directions on purpose. If someone wires a real licence
+    // page, the first two expectations fail and this doc claim has to come back.
+    const buildResources = resolve(ROOT, config.directories.buildResources);
+    expect(config.nsis.license).toBeUndefined();
+    expect(
+      readdirSync(buildResources).filter((f) =>
+        /^(license|eula)(_[^.]+)?\.(rtf|txt|html)$/i.test(f),
+      ),
+    ).toEqual([]);
+
+    const doc = readFileSync(resolve(ROOT, 'WINDOWS_BUILD.md'), 'utf8').toLowerCase();
+    expect(doc).not.toContain('license page');
+    expect(doc).not.toContain('licence page');
+  });
+
+  it('backs every installer feature WINDOWS_BUILD.md advertises with a real NSIS setting', () => {
+    // Whitespace-normalised: the feature list wraps mid-phrase, so matching the
+    // raw file would fail on a reflow rather than on the drift being guarded.
+    const doc = readFileSync(resolve(ROOT, 'WINDOWS_BUILD.md'), 'utf8').replace(/\s+/g, ' ');
+    // oneClick:false is what makes this a wizard at all: a one-click installer
+    // shows none of the pages below, whatever the other keys say.
+    expect(config.nsis.oneClick).toBe(false);
+
+    const advertised: [string, unknown, unknown][] = [
+      ['install-directory choice', config.nsis.allowToChangeInstallationDirectory, true],
+      ['per-machine install', config.nsis.perMachine, true],
+      ['desktop + Start Menu shortcuts', config.nsis.createDesktopShortcut, 'always'],
+      ['installer.nsh', config.nsis.include, 'installer.nsh'],
+    ];
+    for (const [phrase, actual, expected] of advertised) {
+      expect(doc, `WINDOWS_BUILD.md no longer advertises "${phrase}"`).toContain(phrase);
+      expect(actual, `"${phrase}" is advertised but not configured`).toBe(expected);
+    }
+    expect(config.nsis.createStartMenuShortcut).toBe(true);
   });
 });

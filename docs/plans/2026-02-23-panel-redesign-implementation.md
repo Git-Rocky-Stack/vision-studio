@@ -1,5 +1,8 @@
 # Vision Studio Panel Redesign: Dark Cinema Edition - Implementation Plan
 
+> **Historical design record - 2026-02-23.** Describes intent at that
+> date, not current behaviour. See `docs/INDEX.md` for what is authoritative.
+
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Transform all four main panels (Generate, Edit, Batch, Templates) into a showpiece-quality application with contextual workspace modes, cinematic "Dark Cinema" aesthetic, and comprehensive functionality including AI-powered editing, prompt intelligence, and full canvas editing.

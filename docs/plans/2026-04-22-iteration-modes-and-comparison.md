@@ -1,5 +1,8 @@
 # Iteration Modes And Comparison Implementation Plan
 
+> **Historical design record - 2026-04-22.** Describes intent at that
+> date, not current behaviour. See `docs/INDEX.md` for what is authoritative.
+
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Make iteration mode selection change the real mounted UI and fully wire compare selection plus `ComparisonPanel` into the shipped workbench.

@@ -1,5 +1,8 @@
 # Self-Contained Installer — PR1: Provisioning Manifest + Licensing Foundation
 
+> **Historical design record - 2026-07-06.** Describes intent at that
+> date, not current behaviour. See `docs/INDEX.md` for what is authoritative.
+
 > Executes the foundation slice of `docs/superpowers/specs/2026-07-06-self-contained-installer-design.md` (§5, §4, §8·PR1). Pure Python + data + tests. Stub-CI-safe (no torch), CI-green, no heavy build. TDD, commit per task. Branch: `feat/installer-provisioning-manifest`.
 
 **Goal:** a validated, license-clean provisioning manifest for the comprehensive auto-set (entire `verified-catalog.json` minus the FLUX-dev non-commercial family), plus a license-classification module and a generated `THIRD-PARTY-LICENSES.md` — all guarded by honesty-rail tests. This is the source of truth every later PR (backend orchestrator, first-run UX, delivery) builds on.

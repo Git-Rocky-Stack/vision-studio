@@ -1,5 +1,8 @@
 # Vision Studio - M7 AI Director: RAG + Context Optimization (Design Spec)
 
+> **Historical design record - 2026-06-18.** Describes intent at that
+> date, not current behaviour. See `docs/INDEX.md` for what is authoritative.
+
 > **Status:** Approved design (2026-06-18). Elaborates the M7 section of the
 > Path-to-v1 Program Roadmap
 > (`docs/superpowers/specs/2026-06-15-vision-studio-path-to-v1-roadmap-design.md`).

@@ -1,5 +1,8 @@
 # Workflow Comfy Graph Design
 
+> **Historical design record - 2026-04-17.** Describes intent at that
+> date, not current behaviour. See `docs/INDEX.md` for what is authoritative.
+
 ## Goal
 
 Replace the Workflow workbench's linear run-plan surface with an editable graph editor whose source of truth is a ComfyUI-style JSON model. The first implementation must support editable nodes and edges immediately, and it must include an exporter that converts the stored graph into ComfyUI API JSON.

@@ -1,5 +1,8 @@
 # Vision Studio - M9 Accelerator + Inference Enhancement (Design Spec)
 
+> **Historical design record - 2026-06-19.** Describes intent at that
+> date, not current behaviour. See `docs/INDEX.md` for what is authoritative.
+
 > **Status:** Approved design (2026-06-19). Elaborates the M9 section of the
 > Path-to-v1 Program Roadmap
 > (`docs/superpowers/specs/2026-06-15-vision-studio-path-to-v1-roadmap-design.md`).

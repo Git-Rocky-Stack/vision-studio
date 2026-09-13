@@ -1,5 +1,8 @@
 # Invoke-Exact Layout Template Implementation Plan
 
+> **Historical design record - 2026-04-17.** Describes intent at that
+> date, not current behaviour. See `docs/INDEX.md` for what is authoritative.
+
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Refactor the workbench shell so Generate, Quick, and Edit follow InvokeAI's exact spatial template: left settings, center work mini-tabs, and right Boards/Gallery/Layers context.

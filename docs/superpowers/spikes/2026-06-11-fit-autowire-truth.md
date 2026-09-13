@@ -1,5 +1,8 @@
 # Spike D - Fit & Auto-Wire Truth (Model Foundry M5)
 
+> **Historical design record - 2026-06-11.** Describes intent at that
+> date, not current behaviour. See `docs/INDEX.md` for what is authoritative.
+
 > Time-boxed throwaway exploration mandated by the Model Foundry spec
 > (`docs/superpowers/specs/2026-05-30-model-foundry-design.md`, section 8.1, spike D)
 > before any M5 (Hardware-fit + auto-wiring) production code. Exploration code is

@@ -1,5 +1,8 @@
 # Self-Contained Installer — PR2: Backend Provisioning Orchestrator + API
 
+> **Historical design record - 2026-07-07.** Describes intent at that
+> date, not current behaviour. See `docs/INDEX.md` for what is authoritative.
+
 > Executes spec `docs/superpowers/specs/2026-07-06-self-contained-installer-design.md` §6, §8·PR2, §9. Backend orchestrator over the existing `DownloadManager` + FastAPI endpoints + IPC bridge. Stub-CI-safe (no torch), CI-green, no heavy build. TDD, commit per task. Branch: `feat/installer-provisioning-orchestrator` (from `main` @ `ae2d74f7`, PR1 #53 + catalog fix #54 merged).
 
 **Goal:** a first-run auto-provisioning engine. The renderer asks the backend which comprehensive auto-set models are present; a one-call `start` drives every missing model through the **existing** consent-gated `DownloadManager` (which already owns filename resolution, resumable fetch, and integrity), streams aggregate + per-model progress, and is idempotent + resumable across restarts. The React first-run screen + Licenses UI (PR3) and delivery/hosting (PR4) build on this.

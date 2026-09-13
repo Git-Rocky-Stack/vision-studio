@@ -1,5 +1,8 @@
 # Iteration History + Smart Collections — Implementation Plan
 
+> **Historical design record - 2026-04-18.** Describes intent at that
+> date, not current behaviour. See `docs/INDEX.md` for what is authoritative.
+
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Add generation iteration trees with branching/forking, three visualization modes, three comparison modes, and smart collections with AI auto-tagging and configurable tagging modes.

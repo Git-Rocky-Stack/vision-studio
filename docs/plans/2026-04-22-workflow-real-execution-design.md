@@ -1,5 +1,8 @@
 # Workflow Real Execution Design
 
+> **Historical design record - 2026-04-22.** Describes intent at that
+> date, not current behaviour. See `docs/INDEX.md` for what is authoritative.
+
 ## Goal
 
 Make the existing Workflow workbench execute real text-to-image workflows through the shipped generation pipeline instead of stopping at graph editing and ComfyUI export. The first execution slice should validate the supported graph subset, resolve a real generation request from workflow graph plus current app context, run the job through Electron generation IPC, and hand the result back into the existing Viewer and asset flow.

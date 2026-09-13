@@ -1,5 +1,8 @@
 # Model Foundry M2 — Acquisition Engine Implementation Plan
 
+> **Historical design record - 2026-06-01.** Describes intent at that
+> date, not current behaviour. See `docs/INDEX.md` for what is authoritative.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking. Each task is a fresh-implementer-sized unit under two-stage review.
 
 **Goal:** Build the Model Foundry acquisition engine on top of the M1 backend-owned `ModelRegistry`: a `DownloadManager` that drives real byte-granular progress/speed/ETA from `huggingface_hub` 1.10.1 (via a headless `tqdm_class` + `get_paths_info` totals), a bounded-concurrency queue keyed by model id (default 2, clamp 1–6), full pause/resume/cancel lifecycle, an aggregate disk preflight, typed error mapping (disk-full, gated-license, integrity, cancellation), per-call HF token injection with zero persistence/logging, and a `HF_HUB_DISABLE_XET` fast/precise toggle — surfaced over `POST /api/models/{id}/download[/pause|resume|cancel]` + `GET /api/models/downloads`, mirrored IPC channels, and a frontend `downloads` map on `modelsSlice`. The milestone ends with a Codex security review.

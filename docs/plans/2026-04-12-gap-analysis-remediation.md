@@ -1,5 +1,8 @@
 # Vision Studio Gap Analysis Remediation Plan
 
+> **Historical design record - 2026-04-12.** Describes intent at that
+> date, not current behaviour. See `docs/INDEX.md` for what is authoritative.
+
 **Date:** 2026-04-12  
 **Author:** Claude (Elite Partner)  
 **Source:** Gap Analysis Audit (`AUDIT_2026-04-12.md`)  

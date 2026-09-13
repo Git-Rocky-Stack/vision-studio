@@ -1,5 +1,8 @@
 # Timeline Audio Foundation Implementation Plan
 
+> **Historical design record - 2026-04-24.** Describes intent at that
+> date, not current behaviour. See `docs/INDEX.md` for what is authoritative.
+
 > **For Codex:** Execute this plan in compact verified slices. Keep playback and export aligned through one shared resolver, and keep the first milestone editorial rather than mixer-heavy.
 
 **Goal:** Add managed audio import, real audio track editing, synchronized playback, and MP4 export with audio for Vision Studio's AI-native timeline.

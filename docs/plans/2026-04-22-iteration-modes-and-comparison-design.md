@@ -1,5 +1,8 @@
 # Iteration Modes And Comparison Design
 
+> **Historical design record - 2026-04-22.** Describes intent at that
+> date, not current behaviour. See `docs/INDEX.md` for what is authoritative.
+
 ## Goal
 
 Turn the existing iteration selector into a real mounted-shell behavior in Vision Studio. The first product-depth slice should make `panel`, `timeline`, and `overlay` mode selections change the live UI, and it should wire `ComparisonPanel` into the shipped workbench instead of leaving comparison state half-connected.

@@ -1,5 +1,8 @@
 # Enhanced Timeline, Video Inputs, Resolution Picker & Refinement Pipeline — Design Spec
 
+> **Historical design record - 2026-04-19.** Describes intent at that
+> date, not current behaviour. See `docs/INDEX.md` for what is authoritative.
+
 **Date:** 2026-04-19
 **Phases:** 4 (Enhanced Timeline) + 5 (Refinement Pipeline) + Deferred Features (Video, Aspect Ratio, Resolution)
 **Status:** Approved

@@ -1,5 +1,8 @@
 # Video Retake Design
 
+> **Historical design record - 2026-04-24.** Describes intent at that
+> date, not current behaviour. See `docs/INDEX.md` for what is authoritative.
+
 ## Goal
 
 Add clip-local, range-scoped video retake so Vision Studio can revise part of an AI-generated shot without destructively replacing the original media during generation.

@@ -1,5 +1,8 @@
 # M9 Accelerator + Inference Enhancement Implementation Plan
 
+> **Historical design record - 2026-06-19.** Describes intent at that
+> date, not current behaviour. See `docs/INDEX.md` for what is authoritative.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Make the Local route run as fast as the silicon allows by adding a decision-then-apply acceleration layer downstream of the M5 `RuntimePlan` (torch.compile, SDPA, channels-last, proven-safe quantization, TensorRT, plus a fix for the always-on attention-slicing perf bug), each behind a non-fatal fallback, surfaced honestly through a dedicated Performance panel and a CUDA-gated benchmark+correctness sweep.

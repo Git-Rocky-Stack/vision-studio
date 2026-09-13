@@ -1,5 +1,8 @@
 # Self-Contained Installer — PR3: First-Run Provisioning UX + About > Licenses
 
+> **Historical design record - 2026-07-10.** Describes intent at that
+> date, not current behaviour. See `docs/INDEX.md` for what is authoritative.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task (inline execution — no subagents, per Rocky's standing instruction). Steps use checkbox (`- [ ]`) syntax for tracking.
 
 > Executes spec `docs/superpowers/specs/2026-07-06-self-contained-installer-design.md` §6 (UX), §4 (compliance screen), §8·PR3, §9 (UX honesty rails). Builds directly on PR2 (#55): `ProvisionOrchestrator` + `/api/models/provision/*` + `window.electron.provisioning.*` + `ProvisionStatus`/`ProvisionModel` wire types.

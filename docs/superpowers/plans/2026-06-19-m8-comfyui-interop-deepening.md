@@ -1,5 +1,8 @@
 # M8 ComfyUI Interop Deepening Implementation Plan
 
+> **Historical design record - 2026-06-19.** Describes intent at that
+> date, not current behaviour. See `docs/INDEX.md` for what is authoritative.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Make Vision Studio a first-class ComfyUI companion: import external Comfy graphs into the internal `WorkflowGraph` with structural round-trip fidelity, fix the export so its links are genuinely ComfyUI-loadable, run the user's authored first-class graph on a connected Comfy server (image and video), and treat every imported graph as untrusted input behind a hard safety gate.

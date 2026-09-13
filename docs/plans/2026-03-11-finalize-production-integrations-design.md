@@ -1,5 +1,8 @@
 # Finalize Production Integrations Design
 
+> **Historical design record - 2026-03-11.** Describes intent at that
+> date, not current behaviour. See `docs/INDEX.md` for what is authoritative.
+
 ## Goal
 
 Close the remaining stubbed and partial features in Vision Studio so image/video generation, model downloads, edit actions, batch operations, theme behavior, and user notifications are real production flows rather than placeholders.

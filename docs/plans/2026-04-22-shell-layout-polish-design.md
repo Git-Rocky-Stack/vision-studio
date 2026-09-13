@@ -1,5 +1,8 @@
 # Shell Layout And Chrome Polish Design
 
+> **Historical design record - 2026-04-22.** Describes intent at that
+> date, not current behaviour. See `docs/INDEX.md` for what is authoritative.
+
 ## Goal
 
 Repair the broken shell-height chain on the main workspace, restore draggable custom window chrome for the Electron build, and use the same pass to clean up the most obvious shell-level styling issues on the primary panes.

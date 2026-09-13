@@ -1,5 +1,8 @@
 # Storyboard To Timeline Derivation Design
 
+> **Historical design record - 2026-04-23.** Describes intent at that
+> date, not current behaviour. See `docs/INDEX.md` for what is authoritative.
+
 ## Goal
 
 Add an explicit `Build Timeline From Storyboard` flow that turns approved storyboard scenes into real timeline clips without letting import heuristics take over the edit.

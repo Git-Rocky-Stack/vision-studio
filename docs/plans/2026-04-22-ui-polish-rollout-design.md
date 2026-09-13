@@ -1,5 +1,8 @@
 # UI Polish Rollout Design
 
+> **Historical design record - 2026-04-22.** Describes intent at that
+> date, not current behaviour. See `docs/INDEX.md` for what is authoritative.
+
 ## Goal
 
 Systematically improve the main Vision Studio shell and workbench experience in small, verifiable desktop-focused slices. The rollout should make the app feel more intentional and more efficient to use without turning the current workbench into a broad redesign project.

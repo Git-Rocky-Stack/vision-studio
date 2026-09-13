@@ -1,5 +1,8 @@
 # Vision Studio Panel Redesign: Dark Cinema Edition
 
+> **Historical design record - 2026-02-23.** Describes intent at that
+> date, not current behaviour. See `docs/INDEX.md` for what is authoritative.
+
 **Date:** 2026-02-23
 **Scope:** Generate Panel, Edit Panel, Batch Panel, Templates Panel
 **Approach:** Contextual Workspace Modes (Approach 2)

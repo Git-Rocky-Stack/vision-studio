@@ -1,5 +1,8 @@
 # Canvas Control Layers Design
 
+> **Historical design record - 2026-04-23.** Describes intent at that
+> date, not current behaviour. See `docs/INDEX.md` for what is authoritative.
+
 ## Goal
 
 Add canvas-native control layers for image workflows so ControlNet, reference images, and inpaint masks can be placed, edited, and reviewed directly on the canvas instead of living primarily in panel-only state.

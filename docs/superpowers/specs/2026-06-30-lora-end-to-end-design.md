@@ -1,5 +1,8 @@
 # LoRA End-to-End - Design Spec
 
+> **Historical design record - 2026-06-30.** Describes intent at that
+> date, not current behaviour. See `docs/INDEX.md` for what is authoritative.
+
 **Date:** 2026-06-30
 **Task:** #136 (Phase 1 / P1, launch-readiness plan)
 **Status:** Approved (design)

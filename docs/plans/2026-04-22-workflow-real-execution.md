@@ -1,5 +1,8 @@
 # Workflow Real Execution Implementation Plan
 
+> **Historical design record - 2026-04-22.** Describes intent at that
+> date, not current behaviour. See `docs/INDEX.md` for what is authoritative.
+
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Make `WorkflowWorkbench` validate and execute the supported text-to-image workflow subset through the existing Electron generation pipeline, then hand successful outputs into the shared Viewer and asset flow.

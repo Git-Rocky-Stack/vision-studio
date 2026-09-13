@@ -1,5 +1,8 @@
 # M10 - Release Hardening, Cleanup & Documentation (3.1.0) - Design Spec
 
+> **Historical design record - 2026-06-20.** Describes intent at that
+> date, not current behaviour. See `docs/INDEX.md` for what is authoritative.
+
 **Status:** Approved (brainstorm 2026-06-20). Ready for the writing-plans skill.
 
 **Milestone:** M10, the final milestone of the Path-to-v1 roadmap

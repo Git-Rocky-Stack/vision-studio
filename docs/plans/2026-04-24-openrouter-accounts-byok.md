@@ -1,5 +1,8 @@
 # 2026-04-24 OpenRouter, Local Accounts, and BYOK
 
+> **Historical design record - 2026-04-24.** Describes intent at that
+> date, not current behaviour. See `docs/INDEX.md` for what is authoritative.
+
 ## Goal
 
 Add a local-first account layer to Vision Studio so each user profile can keep its own OpenRouter configuration and bring its own API key without introducing mandatory cloud login.

@@ -1,5 +1,8 @@
 # Vision Studio Phase 1: Storyboard & Surgical AI — Design Spec
 
+> **Historical design record - 2026-04-13.** Describes intent at that
+> date, not current behaviour. See `docs/INDEX.md` for what is authoritative.
+
 **Date:** 2026-04-13
 **Author:** Claude (Elite Partner) + Rocky Elsalaymeh
 **Status:** Approved for implementation planning

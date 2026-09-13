@@ -1,5 +1,8 @@
 # Model Foundry M3 — Library Indexer + Import/Link Implementation Plan
 
+> **Historical design record - 2026-06-09.** Describes intent at that
+> date, not current behaviour. See `docs/INDEX.md` for what is authoritative.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking. Each task is a fresh-implementer-sized unit under two-stage review.
 
 **Goal:** Build the Model Foundry library indexer on top of the M1 `ModelRegistry` + M2 `DownloadManager`: three index feeds (app-managed tree, real HF cache via `scan_cache_dir`, user-linked external roots with ComfyUI/A1111/generic layout hints) merged into the registry by cheap identity; safetensors-header type detection; reference-never-copy import with a junction/hardlink/copy-fallback linker (validated by Spike B, `docs/superpowers/spikes/2026-06-09-windows-linking.md`); incremental `(mtime_ns, size)` re-scans; safe removal that never touches user bytes; and first-run detection of existing installs — surfaced over `POST /api/models/import`, `POST /api/models/scan`, `GET /api/models/libraries`, `DELETE /api/models/libraries/{root_id}`, `GET /api/models/libraries/detect`, mirrored IPC channels, and `libraryRoots`/`detectedRoots` state on `modelsSlice`.
