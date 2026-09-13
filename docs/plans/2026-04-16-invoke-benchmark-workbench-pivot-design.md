@@ -1,5 +1,8 @@
 # Invoke-Benchmark Workbench Pivot Design
 
+> **Historical design record - 2026-04-16.** Describes intent at that
+> date, not current behaviour. See `docs/INDEX.md` for what is authoritative.
+
 Date: 2026-04-16
 
 ## Status

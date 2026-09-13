@@ -1,5 +1,8 @@
 # Model Foundry M5 - Hardware-Fit + Auto-Wiring Implementation Plan
 
+> **Historical design record - 2026-06-11.** Describes intent at that
+> date, not current behaviour. See `docs/INDEX.md` for what is authoritative.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** The Foundry decides what a model needs, whether it runs HERE, and how it should load: a truthful `HardwareProfile`, an exact-weights VRAM estimator with honest estimated-vs-measured labeling, `resolve_model_runtime(model_id, hardware)` replacing the generators' hardcoded branching, single-file checkpoint loading via `from_single_file` (config-pinned, SVD excluded), run-readiness preflight for the GeneratePanel footer, and a recorded fallback ladder - plus the M4 gate residuals (loader-side security enforcement, revision pinning, family-field promotion).

@@ -1,5 +1,8 @@
 # M4 Codex Supply-Chain Review - Gate Record
 
+> **Historical design record - 2026-06-11.** Describes intent at that
+> date, not current behaviour. See `docs/INDEX.md` for what is authoritative.
+
 > Spec 8.4 gate: independent second-model review after M4 (pickle consent,
 > `trust_remote_code`, NSFW defaults, classifier safety). Reviewer: OpenAI
 > Codex CLI 0.136.0 (gpt-5.5, reasoning effort high), run read-only against

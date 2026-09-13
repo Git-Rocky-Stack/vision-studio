@@ -1,5 +1,8 @@
 # Guided Passes PR1: img2img + inpaint Implementation Plan
 
+> **Historical design record - 2026-07-04.** Describes intent at that
+> date, not current behaviour. See `docs/INDEX.md` for what is authoritative.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Make the img2img (reference image) and inpaint (masked edit) passes the frontend already sends real on the local generator - consumed by real diffusers pipeline variants instead of silently dropped at the schema boundary.

@@ -1,5 +1,8 @@
 # UI Polish Rollout Implementation Plan
 
+> **Historical design record - 2026-04-22.** Describes intent at that
+> date, not current behaviour. See `docs/INDEX.md` for what is authoritative.
+
 ## Execution Strategy
 
 Ship the approved UI polish program as five narrow milestones. Each milestone ends with focused verification, a commit, and a short dated progress note if the rollout spans multiple sessions.

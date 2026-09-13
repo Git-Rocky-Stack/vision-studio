@@ -1,5 +1,8 @@
 # Vision Studio Carbon Pro Implementation Plan
 
+> **Historical design record - 2026-04-16.** Describes intent at that
+> date, not current behaviour. See `docs/INDEX.md` for what is authoritative.
+
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Replace the current Dark Cinema/red-glow interface with the first Carbon Pro pass: a serious canvas-first creative workstation shell with refined chrome, compact mode rail, premium canvas stage, and an initial model-router visual language.

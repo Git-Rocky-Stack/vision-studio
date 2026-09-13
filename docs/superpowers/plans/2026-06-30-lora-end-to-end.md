@@ -1,5 +1,8 @@
 # LoRA End-to-End Implementation Plan
 
+> **Historical design record - 2026-06-30.** Describes intent at that
+> date, not current behaviour. See `docs/INDEX.md` for what is authoritative.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Wire the existing multi-LoRA mixer end-to-end — real installed-LoRA library, a `loras` field carried through the request, and real diffusers load/stack/unload on the local image **and** video pipelines — with compatibility safety, trigger-word insert, Local-only routing, and retirement of the orphaned LoRA stub.

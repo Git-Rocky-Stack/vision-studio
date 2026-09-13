@@ -1,5 +1,8 @@
 # Real Edit Tools — Design (#34 second half)
 
+> **Historical design record - 2026-07-05.** Describes intent at that
+> date, not current behaviour. See `docs/INDEX.md` for what is authoritative.
+
 **Date:** 2026-07-05
 **Issue:** #34 (edit_service half — the ControlNet half shipped as PRs 1-4 of the guided-passes cycle)
 **Status:** Approved (design presented and approved in-session; scope decisions made by Rocky:

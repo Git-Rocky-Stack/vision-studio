@@ -1,5 +1,8 @@
 # Self-Contained Installer — Design
 
+> **Historical design record - 2026-07-06.** Describes intent at that
+> date, not current behaviour. See `docs/INDEX.md` for what is authoritative.
+
 **Status:** Draft for review
 **Date:** 2026-07-06
 **Owner:** Rocky (approver) / implementation TBD

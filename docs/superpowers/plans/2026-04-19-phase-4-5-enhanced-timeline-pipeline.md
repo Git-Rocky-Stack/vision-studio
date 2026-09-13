@@ -1,5 +1,8 @@
 # Enhanced Timeline, Video Inputs, Resolution Picker & Refinement Pipeline — Implementation Plan
 
+> **Historical design record - 2026-04-19.** Describes intent at that
+> date, not current behaviour. See `docs/INDEX.md` for what is authoritative.
+
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Build four features sequentially: Aspect Ratio + Resolution Picker, Video Generation Inputs, Enhanced Timeline (3 modes with keyframes/playback/onion-skin/CameraKeyframe wiring), and Refinement Pipeline (presets + visual builder). Clean up all known TODOs and placeholders.

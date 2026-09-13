@@ -1,5 +1,8 @@
 # M6 Provider Routing Fabric Implementation Plan
 
+> **Historical design record - 2026-06-16.** Describes intent at that
+> date, not current behaviour. See `docs/INDEX.md` for what is authoritative.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** One coherent routing layer that decides where a generation or prompt-assist job runs (Local / OpenRouter / HuggingFace Inference), with an honest provider x modality capability matrix, local->hosted over-budget fallback, BYOK HF Inference at OpenRouter parity (image + LLM), hosted video + ControlNet + inpaint, and pre-commit usage surfacing.

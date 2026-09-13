@@ -1,5 +1,8 @@
 # Model Foundry UI - Design Spec
 
+> **Historical design record - 2026-06-28.** Describes intent at that
+> date, not current behaviour. See `docs/INDEX.md` for what is authoritative.
+
 **Date:** 2026-06-28
 **Task:** #135 (Phase 1, launch-readiness plan)
 **Status:** Approved (design)

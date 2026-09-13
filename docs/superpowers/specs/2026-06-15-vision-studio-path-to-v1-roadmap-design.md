@@ -1,5 +1,8 @@
 # Vision Studio - Path-to-v1 Program Roadmap (Design of Record)
 
+> **Historical design record - 2026-06-15.** Describes intent at that
+> date, not current behaviour. See `docs/INDEX.md` for what is authoritative.
+
 > **Status:** Approved baseline (2026-06-15). This is the definitive plan for the
 > balance of work after Model Foundry M5. It LOCKS scope boundaries, gates,
 > dependencies, sequence, and acceptance criteria for milestones **M6 through

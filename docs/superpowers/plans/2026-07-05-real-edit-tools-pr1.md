@@ -1,5 +1,8 @@
 # Real Edit Tools PR1 Implementation Plan (#34 second half)
 
+> **Historical design record - 2026-07-05.** Describes intent at that
+> date, not current behaviour. See `docs/INDEX.md` for what is authoritative.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Make the three model-backed Edit tools real — Background Removal (U²-Net), AI Upscale (Real-ESRGAN), Face Enhancement (GFPGAN) — end-to-end: six Foundry weight records, job-based backend execution, honest panel wiring, and retirement of every fake surface they replace.

@@ -1,5 +1,8 @@
 # Prompt Studio + Live Preview — Design Spec
 
+> **Historical design record - 2026-04-18.** Describes intent at that
+> date, not current behaviour. See `docs/INDEX.md` for what is authoritative.
+
 **Date:** 2026-04-18
 **Phase:** 2 of 5 (Prompt Studio + Live Preview)
 **Status:** Approved

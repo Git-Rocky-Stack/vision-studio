@@ -1,5 +1,8 @@
 # Dockview Layout Migration — Implementation Plan
 
+> **Historical design record - 2026-04-17.** Describes intent at that
+> date, not current behaviour. See `docs/INDEX.md` for what is authoritative.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Replace Vision Studio's layout layer with an InvokeAI-style three-panel dockable system using `@mathuo/dockview`, while retaining all existing features, content components, and business logic.

@@ -1,5 +1,8 @@
 # Model Foundry UI Implementation Plan
 
+> **Historical design record - 2026-06-28.** Describes intent at that
+> date, not current behaviour. See `docs/INDEX.md` for what is authoritative.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Build the renderer Model Foundry - a first-class `foundry` tab for discovering, acquiring, and managing local AI models - by wiring the existing (tested) `modelsSlice` + `window.electron.models/hardware/auth` IPC into UI.

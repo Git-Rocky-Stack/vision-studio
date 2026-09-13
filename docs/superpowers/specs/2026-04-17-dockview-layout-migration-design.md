@@ -1,5 +1,8 @@
 # Dockview Layout Migration — Design Spec
 
+> **Historical design record - 2026-04-17.** Describes intent at that
+> date, not current behaviour. See `docs/INDEX.md` for what is authoritative.
+
 **Date:** 2026-04-17
 **Phase:** 1 of 5 (Dockview Layout Migration)
 **Status:** Approved

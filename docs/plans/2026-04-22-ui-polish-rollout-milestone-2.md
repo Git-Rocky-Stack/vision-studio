@@ -1,5 +1,8 @@
 # UI Polish Rollout Milestone 2
 
+> **Historical design record - 2026-04-22.** Describes intent at that
+> date, not current behaviour. See `docs/INDEX.md` for what is authoritative.
+
 ## Completed
 
 Left-pane hierarchy pass.

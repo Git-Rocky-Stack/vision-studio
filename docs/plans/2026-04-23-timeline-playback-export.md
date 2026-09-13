@@ -1,5 +1,8 @@
 # Timeline Playback And Export Implementation Plan
 
+> **Historical design record - 2026-04-23.** Describes intent at that
+> date, not current behaviour. See `docs/INDEX.md` for what is authoritative.
+
 > **For Codex:** REQUIRED SUB-SKILL: Use `executing-plans` to implement this plan milestone-by-milestone.
 
 **Goal:** Add real silent sequence playback and local MP4 export for the AI-native timeline.

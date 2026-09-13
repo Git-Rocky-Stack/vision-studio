@@ -1,5 +1,8 @@
 # Script To Storyboard And Elements Design
 
+> **Historical design record - 2026-04-23.** Describes intent at that
+> date, not current behaviour. See `docs/INDEX.md` for what is authoritative.
+
 ## Goal
 
 Add a project-scoped `Element` model and a staged script-to-storyboard import flow so Vision Studio can turn pasted story text into reviewable storyboard structure without breaking the current `characters`, `scenes`, or reference workflows.

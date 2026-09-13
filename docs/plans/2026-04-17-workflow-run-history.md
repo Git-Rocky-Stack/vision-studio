@@ -1,5 +1,8 @@
 # Workflow Run History Implementation Plan
 
+> **Historical design record - 2026-04-17.** Describes intent at that
+> date, not current behaviour. See `docs/INDEX.md` for what is authoritative.
+
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Add recent run history to workflow records and show it in the Workflow workbench.

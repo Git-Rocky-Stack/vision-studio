@@ -1,5 +1,8 @@
 # Phase 3 Viewer Review Implementation Plan
 
+> **Historical design record - 2026-04-16.** Describes intent at that
+> date, not current behaviour. See `docs/INDEX.md` for what is authoritative.
+
 **Goal:** Replace the temporary Viewer alias with a real output review surface for recent assets and batch results.
 
 **Architecture:** Add a reusable `WorkbenchViewer` component that derives recent reviewable outputs from `assetLibrary` and `batchResults`. `WorkspaceLayout` will use it for Generate, Quick, and Edit Viewer tabs while Canvas and Workflow remain unchanged. Viewer actions should use existing Zustand actions: `setCurrentImage`, `setActivePanel`, `comparisonImages`, and `setComparisonImages`.

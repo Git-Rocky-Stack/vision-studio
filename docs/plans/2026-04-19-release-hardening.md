@@ -1,5 +1,8 @@
 # Release Hardening Implementation Plan
 
+> **Historical design record - 2026-04-19.** Describes intent at that
+> date, not current behaviour. See `docs/INDEX.md` for what is authoritative.
+
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Turn the remaining release risks into explicit release gates, a safe encrypted store migration, and quiet passing tests.

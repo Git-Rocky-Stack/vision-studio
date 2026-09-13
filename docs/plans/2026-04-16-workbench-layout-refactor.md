@@ -1,5 +1,8 @@
 # Workbench Layout Refactor Implementation Plan
 
+> **Historical design record - 2026-04-16.** Describes intent at that
+> date, not current behaviour. See `docs/INDEX.md` for what is authoritative.
+
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Refactor the app shell into an Invoke-benchmark creative workbench with center mini-tabs, a visible Workflow placeholder, optional mode tool rail, and a right context dock.

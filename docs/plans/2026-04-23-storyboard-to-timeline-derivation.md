@@ -1,5 +1,8 @@
 # Storyboard To Timeline Derivation Implementation Plan
 
+> **Historical design record - 2026-04-23.** Describes intent at that
+> date, not current behaviour. See `docs/INDEX.md` for what is authoritative.
+
 > **For Codex:** Execute this plan in compact verified slices. Keep derivation explicit, idempotent, and additive.
 
 **Goal:** Add a safe `Build Timeline From Storyboard` flow that derives one primary timeline clip per approved scene, preserves shot beats as beat markers, and keeps existing manual timeline edits stable.

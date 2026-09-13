@@ -1,5 +1,8 @@
 # Guided Passes PR3: FLUX/SD3.5 ControlNet + SDXL Union + Fit Gating + UI Reconciliation
 
+> **Historical design record - 2026-07-04.** Describes intent at that
+> date, not current behaviour. See `docs/INDEX.md` for what is authoritative.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task (subagents are disabled for this project - execute inline). Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Land the third staged PR of issue #34: real ControlNet on FLUX and SD 3.5 Large, scribble/normal on SDXL via the xinsir union model, a hardware-fit pre-flight gate for ControlNet stacks, and the GeneratePanel/layer-properties UI reconciliation (no dead controls remain).

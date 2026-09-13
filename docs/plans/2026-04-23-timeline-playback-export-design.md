@@ -1,5 +1,8 @@
 # Timeline Playback And Export Design
 
+> **Historical design record - 2026-04-23.** Describes intent at that
+> date, not current behaviour. See `docs/INDEX.md` for what is authoritative.
+
 ## Goal
 
 Add real silent sequence playback and local MP4 export to Vision Studio's AI-native timeline without replacing the existing timeline/editor model that just landed.

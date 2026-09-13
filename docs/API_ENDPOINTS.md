@@ -780,7 +780,7 @@ Returns `201 LibraryRoot` on success. `400` if the path is invalid or `layout_hi
 
 #### `POST /api/models/scan` — `tags=[Models]`, limit `30/min`
 
-Re-index all feeds (built-in app tree, HF cache, and every registered library root). Returns:
+Re-index all feeds (built-in app tree, HF cache, and every registered library root) via `IndexService.scan` in `backend/foundry/index_service.py`. Returns:
 
 ```json
 { "records_indexed": 42, "warnings": [] }

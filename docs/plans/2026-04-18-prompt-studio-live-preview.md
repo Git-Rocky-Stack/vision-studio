@@ -1,5 +1,8 @@
 # Prompt Studio + Live Preview — Implementation Plan
 
+> **Historical design record - 2026-04-18.** Describes intent at that
+> date, not current behaviour. See `docs/INDEX.md` for what is authoritative.
+
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Add a Prompt Studio sub-mode with token-weighted editing, template library, and enhancement tools, plus composition preview and progressive generation preview.

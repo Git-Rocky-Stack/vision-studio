@@ -1,5 +1,8 @@
 # Guided Passes PR2: ControlNet SD1.5/SDXL Implementation Plan
 
+> **Historical design record - 2026-07-04.** Describes intent at that
+> date, not current behaviour. See `docs/INDEX.md` for what is authoritative.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Make canvas ControlNet layers real on SD 1.5 and SDXL — preprocessed control images, Foundry-record model acquisition, MultiControlNet stacking, per-layer strength + step range — and retire the orphaned `/api/v1/controlnet` stub.

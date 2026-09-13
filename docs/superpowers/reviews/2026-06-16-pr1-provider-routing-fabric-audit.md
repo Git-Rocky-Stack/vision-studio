@@ -1,5 +1,8 @@
 # PR1 Provider Routing Fabric Audit - 2026-06-16
 
+> **Historical design record - 2026-06-16.** Describes intent at that
+> date, not current behaviour. See `docs/INDEX.md` for what is authoritative.
+
 ## Scope
 
 Reviewed branch `feat/routing-m6-provider-routing-fabric` against `origin/main` as the PR1 gate before PR2. The audit focused on the changed routing fabric, HuggingFace BYOK integration, Electron IPC boundaries, account/settings persistence, generation UI behavior, job lifecycle handling, tests, and release-readiness validation.

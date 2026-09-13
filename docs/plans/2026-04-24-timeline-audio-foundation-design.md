@@ -1,5 +1,8 @@
 # Timeline Audio Foundation Design
 
+> **Historical design record - 2026-04-24.** Describes intent at that
+> date, not current behaviour. See `docs/INDEX.md` for what is authoritative.
+
 ## Goal
 
 Add first-class timeline audio to Vision Studio so imported sound becomes part of the same editing, playback, and export flow as image and video clips.

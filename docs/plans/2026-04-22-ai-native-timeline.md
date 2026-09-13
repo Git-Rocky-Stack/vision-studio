@@ -1,5 +1,8 @@
 # AI-Native Timeline Implementation Plan
 
+> **Historical design record - 2026-04-22.** Describes intent at that
+> date, not current behaviour. See `docs/INDEX.md` for what is authoritative.
+
 > **For Codex:** REQUIRED SUB-SKILL: Use `executing-plans` to implement this plan milestone-by-milestone.
 
 **Goal:** Add first-class imported media, reusable reference media, real timeline editing, and timeline-native AI clip operations to Vision Studio without discarding the current scene and board model.

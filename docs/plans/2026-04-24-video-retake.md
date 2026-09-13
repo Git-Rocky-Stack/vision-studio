@@ -1,5 +1,8 @@
 # Video Retake Implementation Plan
 
+> **Historical design record - 2026-04-24.** Describes intent at that
+> date, not current behaviour. See `docs/INDEX.md` for what is authoritative.
+
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
 **Goal:** Add clip-local, range-scoped video retake with candidate takes, approval flow, and playback/export resolution for accepted retakes.

@@ -1,5 +1,8 @@
 # Model Foundry — Design Spec
 
+> **Historical design record - 2026-05-30.** Describes intent at that
+> date, not current behaviour. See `docs/INDEX.md` for what is authoritative.
+
 **Project:** Vision Studio
 **Pillar:** 1 of 6 — *The Model Foundry (Hugging Face, native)*
 **Date:** 2026-05-30

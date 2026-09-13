@@ -1,5 +1,8 @@
 # AI-Native Timeline Design
 
+> **Historical design record - 2026-04-22.** Describes intent at that
+> date, not current behaviour. See `docs/INDEX.md` for what is authoritative.
+
 ## Goal
 
 Evolve Vision Studio from an image-first generator with partial video support into an AI-native editor where imported media, generated media, reusable references, and timeline editing all operate inside one coherent workflow.
