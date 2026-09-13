@@ -56,7 +56,8 @@
     "test:visual": "npx playwright test tests/e2e/visual",
     "test:visual:update": "npx playwright test tests/e2e/visual --update-snapshots",
     "test:perf": "playwright test tests/e2e/performance",
-    "prepare": "husky"
+    "prepare": "husky",
+    "screenshots": "node scripts/capture-screenshots.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

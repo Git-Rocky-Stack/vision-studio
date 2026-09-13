@@ -10,6 +10,58 @@ A professional AI-powered desktop application for image and video generation. No
 
 > **Current release: v3.4.0** — see [`CHANGELOG.md`](CHANGELOG.md) for what's new. Download at **[vision-studio-x.com/download](https://vision-studio-x.com/download)**.
 
+## Screenshots
+
+![The Vision Studio workbench: prompt, style and model controls on the left, the canvas and timeline in the centre, and the gallery, boards and iteration history docked on the right](docs/images/hero.png)
+
+<table>
+<tr>
+<td width="50%">
+
+![The Model Foundry, showing the local model library with installed count and remaining disk, and a Hugging Face / CivitAI search tab](docs/images/foundry.png)
+
+**Model Foundry** — search Hugging Face and CivitAI, then acquire straight into your local library. Per-result tier, security badges and license, with pickle and `trust_remote_code` hits gated behind explicit consent.
+
+</td>
+<td width="50%">
+
+![The Performance settings pane, with tri-state Auto / On / Off controls for compile, quantization, SDPA, channels-last, attention slicing and TensorRT](docs/images/performance.png)
+
+**Per-optimization acceleration** — Auto lets the engine pick the fastest safe path for your hardware; On and Off override a single optimization. The panel reports what was applied, skipped, or fell back.
+
+</td>
+</tr>
+<tr>
+<td width="50%">
+
+![The AI and Models settings pane, showing hardware detection and Local / OpenRouter / HuggingFace routing selectors for prompt enhancement, still images and video](docs/images/routing.png)
+
+**Provider routing (BYOK)** — run fully local, or bring your own OpenRouter / Hugging Face key and route prompt tools, still images and video independently. Keys stay in the main process, encrypted with OS secure storage.
+
+</td>
+<td width="50%">
+
+![The Story panel, with a storyboard scene list, project board references, continuity elements, and the boards dock](docs/images/story.png)
+
+**Storyboard and timeline** — scenes, board references and project-wide continuity elements, derived into an AI-native timeline with keyframes, camera moves and onion skin.
+
+</td>
+</tr>
+</table>
+
+<details>
+<summary>One more — the Canvas layer editor</summary>
+
+![The Canvas panel: the full editing tool strip on the left, an empty editing surface awaiting an image, the Adjust / Filters / Crop / Text / AI Tools / Control / Region inspector below it, and the layer list on the right](docs/images/canvas.png)
+
+</details>
+
+> Captured from the running application by
+> [`scripts/capture-screenshots.mjs`](scripts/capture-screenshots.mjs) — no
+> mock-ups and no seeded fixture data, which is why several panels show genuine
+> empty states and this machine's honest "CPU mode, no CUDA" hardware readout.
+> Re-run it after a UI change to keep them true.
+
 ## Features
 
 - **Image Generation** - FLUX.1, Stable Diffusion XL, SD 3.5, SD 1.5
@@ -283,9 +335,9 @@ Counts below were measured at v3.4.0; re-run the command in each row to confirm.
 
 | Layer | Framework | Files | Tests | What it covers |
 |-------|-----------|-------|-------|----------------|
-| Unit + Component + Integration (`npx vitest run`) | Vitest 4.1 | 232 | 2034 | Pure logic, Zustand store, Electron services, React components, API/workflow contracts, plus repo gates: Carbon Pro tokens, palette discipline, UI glyphs, preload-bridge mount paths, Playwright port, CI type-check |
+| Unit + Component + Integration (`npx vitest run`) | Vitest 4.1 | 234 | 2043 | Pure logic, Zustand store, Electron services, React components, API/workflow contracts, plus repo gates: Carbon Pro tokens, palette discipline, UI glyphs, preload-bridge mount paths, Playwright port, CI type-check, archived-doc provenance, shipped dependency overrides |
 | E2E + Visual (`npx playwright test --list`) | Playwright 1.58 | 9 | 36 | Electron end-to-end, accessibility (axe-core), performance budgets, and the Windows visual-regression suite |
-| Backend (`cd backend && python -m pytest`) | pytest | 118 | 1108 | FastAPI + foundry + services; import-safe collection on CI, real model runs are local |
+| Backend (`cd backend && python -m pytest`) | pytest | 124 | 1108 | FastAPI + foundry + services; import-safe collection on CI, real model runs are local |
 | Backend benchmarks (opt-in) | pytest-benchmark | 1 | 1 | Excluded from the default run by `backend/pytest.ini`; needs the GPU/model stack |
 
 ## Documentation
