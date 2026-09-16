@@ -39,6 +39,28 @@ path. Additive - no known breaking changes.
   `npm audit` and `npm audit --omit=dev` both report zero
 
 ### Fixed
+- **The torch stack is pinned, so macOS stops resolving its own version** -
+  `installPyTorch` installed bare `torch torchvision torchaudio`, unpinned. On
+  the CUDA rungs that was invisible, because the cu121 index stops at torch
+  2.5.1 and so pinned them by accident. macOS has no CUDA wheels, falls through
+  to the `cpu` rung, and that index tracks latest - so macOS was the one
+  platform whose torch version could move on its own, and it moved. The v3.4.0
+  macOS release build resolved `torch-2.14.0 torchaudio-2.11.0
+  torchvision-0.29.0` from the same spec that shipped 3.3.0 in August, and the
+  bundle died on startup: `transformers/image_utils.py:54` raised
+  `RuntimeError: operator torchvision::nms does not exist`, cascading into
+  `diffusers.loaders.peft` and then `diffusers.models.unets.unet_motion_model`,
+  so the macOS job failed its backend smoke gate. Linux, never leaving cu121,
+  built and published from the identical commit, and the backend source had not
+  changed between the two releases at all - only the resolved dependency set
+  had. All four install rungs now install one pinned triple - torch==2.5.1,
+  torchvision==0.20.1, torchaudio==2.5.1 - with only the wheel flavour differing
+  (`build-backend.cjs:160`, spec at `:163`, applied at `:177`, `:182`, `:187`
+  and `:195`). Those versions are not a guess: they are the set Linux built,
+  smoke-tested and published on that same run. `tests/torch-pins.test.ts:37`
+  holds all three to `==` with torchaudio in lockstep, `:50` refuses a rung that
+  resolves its own version, and `:66` ties the pin to the PyTorch version
+  `README.md:227` advertises
 - **Settings and the workflow workbench no longer crash outside Electron** -
   `src/types/electron.d.ts:509` declares `window.electron` as a required
   property. That holds inside the shipping app and nowhere else, so the compiler
