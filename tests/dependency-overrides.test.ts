@@ -15,11 +15,15 @@ const pkg = JSON.parse(readFileSync(resolve(ROOT, 'package.json'), 'utf8'));
  * (the latest stable; 7.x is alpha) - and 4.3.2 satisfies that range, so a
  * plain install already resolves the shipped path outside the advisory.
  *
- * The `package.json` override to 5.x is therefore broader than the advisory
- * requires; `docs/dependency-security.md` records why it is retained rather
- * than narrowed. This file is what keeps that override honest:
- * an override is a claim that a substituted version still works, and nothing
- * else in the build would notice if it stopped being true.
+ * The override is therefore not a substitution - it is a floor. It is scoped to
+ * `electron-updater` and set to `^4.3.2`, which stops a future resolution from
+ * drifting back below the patch while keeping the shipped path on the 4.x line
+ * the package actually declares. Because the root tree is on 4.3.2 too,
+ * electron-updater dedupes onto it and there is one js-yaml in the tree.
+ *
+ * This file is what keeps that honest: an override is a claim about what the
+ * install actually resolves, and nothing else in the build would notice if it
+ * stopped being true.
  *
  * electron-updater parses the update feed it fetches over the network
  * (`out/providers/Provider.js:97`), so this is the parser standing between a
@@ -59,10 +63,10 @@ function jsYamlAsElectronUpdaterSeesIt() {
 
 describe('the js-yaml override on the shipped update path', () => {
   it('is declared, and scoped to electron-updater rather than the whole tree', () => {
-    // Scoping is the point. A bare top-level `overrides["js-yaml"]` would also
-    // drag app-builder-lib and the rest of the electron-builder packaging
-    // toolchain onto 5.x - build-time code that is not shipped, is not covered
-    // by this advisory, and whose NSIS/dmg pipeline nothing here exercises.
+    // Scoping is still deliberate: the override exists to guarantee the floor on
+    // the path that parses a network-fetched feed, not to pin the whole tree.
+    // A bare top-level override would also bind app-builder-lib and the rest of
+    // the electron-builder packaging toolchain, which nothing here exercises.
     expect(pkg.overrides?.['js-yaml'], 'the override must not be global').toBeUndefined();
     expect(pkg.overrides?.['electron-updater']?.['js-yaml']).toBeDefined();
   });
@@ -80,9 +84,9 @@ describe('the js-yaml override on the shipped update path', () => {
   it('still parses an update feed through the API electron-updater calls', () => {
     // `load` is the only js-yaml export electron-updater uses, at all three of
     // its call sites (AppUpdater.js:486, providers/Provider.js:97,
-    // providers/PrivateGitHubProvider.js:34). If the substituted major dropped
-    // or changed it, auto-update would break at runtime in a shipped build and
-    // no other test in this repo would fail.
+    // providers/PrivateGitHubProvider.js:34). If the resolved version dropped or
+    // changed it, auto-update would break at runtime in a shipped build and no
+    // other test in this repo would fail.
     const { module: yaml } = jsYamlAsElectronUpdaterSeesIt();
     expect(typeof yaml.load).toBe('function');
 
@@ -123,15 +127,20 @@ describe('the js-yaml override on the shipped update path', () => {
     expect(parsed.releaseDate).toBe('2026-09-13T00:00:00.000Z');
   });
 
-  it('leaves the non-shipped packaging toolchain on its own js-yaml', () => {
-    // The counterpart to the scoping assertion above, checked against the
-    // installed tree: app-builder-lib resolves independently of the override.
-    // This documents the deliberate split rather than enforcing a version -
-    // dev-tree advisories are tracked in docs/dependency-security.md, not here.
+  it('leaves no js-yaml in the tree inside the advisory range', () => {
+    // This assertion used to be `parseVersion(v).length === 3`, which is true of
+    // every semver string and stayed green with the advisory range broken. It
+    // proved nothing. Now the override is a 4.x floor rather than a 5.x
+    // substitution, electron-updater dedupes onto the root copy, so the
+    // packaging toolchain and the shipped path share one js-yaml and a single
+    // range check covers both.
     const req = createRequire(resolve(ROOT, 'package.json'));
-    const builderJsYaml = JSON.parse(
+    const rootJsYaml = JSON.parse(
       readFileSync(req.resolve('js-yaml/package.json'), 'utf8'),
     ).version as string;
-    expect(parseVersion(builderJsYaml).length).toBe(3);
+    expect(
+      inVulnerableRange(rootJsYaml),
+      `the root tree resolves js-yaml@${rootJsYaml}, inside GHSA-2883-xcg3-v3hh (4.0.0 - 4.3.1)`,
+    ).toBe(false);
   });
 });

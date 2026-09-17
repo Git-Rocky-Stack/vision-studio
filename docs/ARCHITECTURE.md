@@ -1,6 +1,6 @@
 # Vision Studio — System Architecture
 
-> Version: tracks `package.json` (currently **3.4.0**)
+> Version: tracks `package.json` (currently **3.4.1**)
 > Audience: contributors, integrators, security reviewers
 > Companion docs: [`API_ENDPOINTS.md`](./API_ENDPOINTS.md), [`DATABASE_SCHEMA.md`](./DATABASE_SCHEMA.md), [`api/openapi.json`](./api/openapi.json)
 
