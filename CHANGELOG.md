@@ -2,6 +2,34 @@
 
 All notable changes to Vision Studio will be documented in this file.
 
+## [3.4.1] - 2026-09-16
+
+### Security
+- **The js-yaml override is narrowed from the 5.x line to `^4.3.2`, the actual
+  patch.** 3.4.0 cleared
+  [GHSA-2883-xcg3-v3hh](https://github.com/advisories/GHSA-2883-xcg3-v3hh) by
+  overriding `electron-updater`'s `js-yaml` to `^5.4.2`. That was broader than
+  the advisory required: the fix shipped on the 4.x line as 4.3.2, and
+  `electron-updater@6.8.9` declares `js-yaml: ^4.1.0`, which 4.3.2 satisfies.
+  The override is now `^4.3.2` - still scoped to `electron-updater`, but a floor
+  on the line the package actually declares rather than a substituted major
+  sitting on the code path that parses a network-fetched update feed. The tree
+  resolves a single js-yaml 4.3.2, shared by the shipped path and the packaging
+  toolchain; the nested 5.4.2 copy is gone. `npm audit` and
+  `npm audit --omit=dev` both report zero, and the three live production feeds
+  (`win/latest.yml`, `mac/latest-mac.yml`, `linux/latest-linux.yml`) were
+  fetched and parsed through the resolved 4.3.2 - all three return version
+  3.4.0 with the expected keys
+
+### Fixed
+- **A test that asserted nothing now asserts what its name claims** -
+  `tests/dependency-overrides.test.ts` ended with
+  `expect(parseVersion(v).length).toBe(3)`, which is true of every semver
+  string. It stayed green with the advisory range deliberately broken, so it
+  was coverage in name only. It now range-checks the js-yaml the root tree
+  resolves; break-checking by widening the range fails two assertions where it
+  previously failed one
+
 ## [3.4.0] - 2026-09-13
 
 Canvas and measurement release: the region tools on the Canvas tab can draw

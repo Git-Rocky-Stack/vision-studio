@@ -52,32 +52,40 @@ js-yaml published the 4.x patch as **4.3.2** on 2026-08-26, under dist-tag
 `v4-legacy`; the advisory's own range is `>=4.0.0 <4.3.2`. Because
 `electron-updater@6.8.9` — the latest stable, 7.x being alpha — declares
 `js-yaml: ^4.1.0`, and 4.3.2 satisfies that range, a plain install already
-resolves the shipped path to a patched parser. **No override is required to
-clear this advisory.** The scoped override below predates that understanding
-and is broader than the fix needs; it is retained for now because it is
-harmless (5.4.2 is also outside the range and the parse is proven below), and
-narrowing it touches a shipped dependency on the network-facing update path:
+resolves the shipped path to a patched parser. **No override is strictly
+required to clear this advisory.** One is kept anyway, as a floor rather than a
+substitution, so a future resolution cannot drift back below the patch on the
+one code path that parses a network-fetched feed:
 
 ```json
-"overrides": { "electron-updater": { "js-yaml": "^5.4.2" } }
+"overrides": { "electron-updater": { "js-yaml": "^4.3.2" } }
 ```
 
-The scoping is deliberate. A bare top-level `js-yaml` override would also drag
-`app-builder-lib` and the rest of the electron-builder packaging toolchain onto
-5.x — build-time code that is not shipped and not covered by this advisory.
+3.4.0 shipped this as `^5.4.2`. That cleared the advisory, but it substituted a
+major version of a YAML parser on the update path for no security gain, on the
+mistaken basis that no 4.x fix existed. It was narrowed to the 4.x line once
+4.3.2 was confirmed to be the patch.
 
-An override is a claim that a substituted major still works, and nothing else in
-the build would notice if that stopped being true. So
-`tests/dependency-overrides.test.ts` holds the claim up: the override is
-declared and scoped, the **installed** tree (not merely the declaration)
-resolves outside the advisory range, and the substituted parser still
-round-trips a real electron-updater feed through `load()` with numeric scalars
-intact.
+The scoping is still deliberate: the override guarantees the floor where it
+matters rather than binding `app-builder-lib` and the rest of the
+electron-builder packaging toolchain, which is build-time code nothing here
+exercises. In practice the root tree is on 4.3.2 as well, so electron-updater
+dedupes onto it and there is exactly one js-yaml in the tree.
+
+An override is a claim about what the install actually resolves, and nothing
+else in the build would notice if that stopped being true. So
+`tests/dependency-overrides.test.ts` holds it up: the override is declared and
+scoped, the **installed** tree (not merely the declaration) resolves outside
+the advisory range on the shipped path and at the root, and the resolved parser
+still round-trips a real electron-updater feed through `load()` with numeric
+scalars intact.
 
 Checked against production: the three live feeds (`win/latest.yml`,
-`mac/latest-mac.yml`, `linux/latest-linux.yml`) were fetched and parsed under
-both the installed 4.3.2 and 5.4.2 and the results deep-diffed — identical on
-all three (re-run 2026-09-16).
+`mac/latest-mac.yml`, `linux/latest-linux.yml`) were fetched and parsed through
+the resolved 4.3.2 — all three return version 3.4.0 with the expected keys
+(re-run 2026-09-17). The 4.3.2-vs-5.4.2 deep-diff taken before the narrowing
+was identical on all three, which is why dropping the 5.x copy carried no
+behavioural risk.
 
 ### Dev: vitest and browserslist patch bumps
 
@@ -105,7 +113,7 @@ Verify the current classification at any time:
 ```bash
 npm run audit:prod      # shipped tree; the CI gate
 npm run audit:full      # whole tree, dev tooling included
-npm ls js-yaml --all    # 5.4.2 under electron-updater, 4.3.2 for dev tooling
+npm ls js-yaml --all    # one copy: 4.3.2, shared by the shipped path and dev
 ```
 
 ## Review Cadence
