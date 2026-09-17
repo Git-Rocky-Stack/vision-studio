@@ -19,12 +19,17 @@ path. Additive - no known breaking changes.
   sources, so a crafted document can pin the parsing thread. It reached the
   shipped tree through one package: `electron-updater` calls `load()` at three
   sites, one of them `out/providers/Provider.js:97` - the parse of the update
-  feed fetched over the network. There was no upstream release to move to
-  (js-yaml shipped no 4.x fix, and `electron-updater@6.8.9`, the latest stable,
-  still declares `js-yaml: ^4.1.0`), so it is resolved with an override scoped
-  to `electron-updater` alone, leaving the non-shipped packaging toolchain on
-  4.3.1. Verified by parsing the three live production feeds under both versions
-  and diffing: identical. `tests/dependency-overrides.test.ts` asserts the
+  feed fetched over the network. js-yaml published the 4.x patch as 4.3.2 on
+  2026-08-26 under dist-tag `v4-legacy` - the advisory range is
+  `>=4.0.0 <4.3.2` - and `electron-updater@6.8.9` declares `js-yaml: ^4.1.0`,
+  which 4.3.2 satisfies, so a plain install already resolves the shipped path
+  to a patched parser. It is additionally pinned by an override scoped to
+  `electron-updater` alone, putting that subtree on 5.4.2 and leaving the
+  non-shipped packaging toolchain on 4.3.2. The override is broader than the
+  advisory required; it is retained for now and tracked in
+  `docs/dependency-security.md`. Verified by parsing the three live production
+  feeds under 4.3.2 and 5.4.2 and diffing: identical.
+  `tests/dependency-overrides.test.ts` asserts the
   override is declared and scoped, that the *installed* tree resolves outside
   the advisory range, and that the substituted parser still round-trips a real
   feed with numeric scalars intact

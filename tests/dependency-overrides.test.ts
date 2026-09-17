@@ -9,14 +9,15 @@ const pkg = JSON.parse(readFileSync(resolve(ROOT, 'package.json'), 'utf8'));
 /**
  * GHSA-2883-xcg3-v3hh (HIGH) lands on js-yaml 4.0.0 - 4.3.1: `maxTotalMergeKeys`
  * does not bound CPU for empty merge sources, so a crafted document can pin the
- * parsing thread. js-yaml shipped no 4.x fix - the patch exists only on the 5.x
- * line - and `electron-updater`, the one shipped package that pulls it, still
- * declares `js-yaml: ^4.1.0` as of 6.8.9 (the latest stable; 7.x is alpha).
+ * parsing thread. js-yaml shipped the 4.x patch as 4.3.2 (2026-08-26, dist-tag
+ * `v4-legacy`); the advisory's range is `>=4.0.0 <4.3.2`. `electron-updater`,
+ * the one shipped package that pulls it, declares `js-yaml: ^4.1.0` as of 6.8.9
+ * (the latest stable; 7.x is alpha) - and 4.3.2 satisfies that range, so a
+ * plain install already resolves the shipped path outside the advisory.
  *
- * There is therefore no upstream release to upgrade to, and
- * `docs/dependency-security.md` is explicit that an advisory on a *shipped*
- * package "is a release blocker, not an exception". So the resolution is a
- * `package.json` override, and this file is what keeps that override honest:
+ * The `package.json` override to 5.x is therefore broader than the advisory
+ * requires; `docs/dependency-security.md` records why it is retained rather
+ * than narrowed. This file is what keeps that override honest:
  * an override is a claim that a substituted version still works, and nothing
  * else in the build would notice if it stopped being true.
  *

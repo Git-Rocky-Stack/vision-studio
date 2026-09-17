@@ -48,11 +48,15 @@ thread. It reaches the shipped tree through exactly one package,
 `out/providers/Provider.js:97`, the parse of the **update feed fetched over the
 network** — the parser standing between a hostile feed and the updater.
 
-There is no upstream release to move to. js-yaml shipped no 4.x fix (the patch
-exists only on the 5.x line), and `electron-updater@6.8.9` — the latest stable,
-7.x being alpha — still declares `js-yaml: ^4.1.0`. Policy above is explicit
-that an advisory on a shipped package is a blocker rather than an exception, so
-the resolution is a scoped override in `package.json`:
+js-yaml published the 4.x patch as **4.3.2** on 2026-08-26, under dist-tag
+`v4-legacy`; the advisory's own range is `>=4.0.0 <4.3.2`. Because
+`electron-updater@6.8.9` — the latest stable, 7.x being alpha — declares
+`js-yaml: ^4.1.0`, and 4.3.2 satisfies that range, a plain install already
+resolves the shipped path to a patched parser. **No override is required to
+clear this advisory.** The scoped override below predates that understanding
+and is broader than the fix needs; it is retained for now because it is
+harmless (5.4.2 is also outside the range and the parse is proven below), and
+narrowing it touches a shipped dependency on the network-facing update path:
 
 ```json
 "overrides": { "electron-updater": { "js-yaml": "^5.4.2" } }
@@ -70,9 +74,10 @@ resolves outside the advisory range, and the substituted parser still
 round-trips a real electron-updater feed through `load()` with numeric scalars
 intact.
 
-Checked against production before adoption: the three live feeds
-(`win/latest.yml`, `mac/latest-mac.yml`, `linux/latest-linux.yml`) were parsed
-under both 4.3.1 and 5.4.2 and the results diffed — identical.
+Checked against production: the three live feeds (`win/latest.yml`,
+`mac/latest-mac.yml`, `linux/latest-linux.yml`) were fetched and parsed under
+both the installed 4.3.2 and 5.4.2 and the results deep-diffed — identical on
+all three (re-run 2026-09-16).
 
 ### Dev: vitest and browserslist patch bumps
 
@@ -100,7 +105,7 @@ Verify the current classification at any time:
 ```bash
 npm run audit:prod      # shipped tree; the CI gate
 npm run audit:full      # whole tree, dev tooling included
-npm ls js-yaml --all    # 5.4.2 under electron-updater, 4.3.1 for dev tooling
+npm ls js-yaml --all    # 5.4.2 under electron-updater, 4.3.2 for dev tooling
 ```
 
 ## Review Cadence
