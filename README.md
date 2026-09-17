@@ -80,7 +80,7 @@ A professional AI-powered desktop application for image and video generation. No
 - **AI Director** - retrieval-augmented prompt assistance grounded in your own project context
 - **GPU Acceleration** - per-optimization Performance panel (SDPA, channels-last, torch.compile, quantization; TensorRT opt-in) tuned to your hardware
 - **Batch Processing** - generate multiple images at once
-- **Export Templates** - platform presets for YouTube, TikTok, Instagram, X, LinkedIn, and more
+- **Export Templates** - eight built-in presets: YouTube thumbnail, TikTok/Reels, Instagram post, stories, cinematic wide, product showcase, AI portrait, and 4K wallpaper
 - **Privacy First** - everything runs locally; no telemetry, nothing leaves your machine
 
 ## Quick Start (End Users)
@@ -335,7 +335,7 @@ Counts below were measured at v3.4.0; re-run the command in each row to confirm.
 
 | Layer | Framework | Files | Tests | What it covers |
 |-------|-----------|-------|-------|----------------|
-| Unit + Component + Integration (`npx vitest run`) | Vitest 4.1 | 234 | 2043 | Pure logic, Zustand store, Electron services, React components, API/workflow contracts, plus repo gates: Carbon Pro tokens, palette discipline, UI glyphs, preload-bridge mount paths, Playwright port, CI type-check, archived-doc provenance, shipped dependency overrides |
+| Unit + Component + Integration (`npx vitest run`) | Vitest 4.1 | 235 | 2046 | Pure logic, Zustand store, Electron services, React components, API/workflow contracts, plus repo gates: Carbon Pro tokens, palette discipline, UI glyphs, preload-bridge mount paths, Playwright port, CI type-check, archived-doc provenance, shipped dependency overrides, pinned torch stack |
 | E2E + Visual (`npx playwright test --list`) | Playwright 1.58 | 9 | 36 | Electron end-to-end, accessibility (axe-core), performance budgets, and the Windows visual-regression suite |
 | Backend (`cd backend && python -m pytest`) | pytest | 124 | 1108 | FastAPI + foundry + services; import-safe collection on CI, real model runs are local |
 | Backend benchmarks (opt-in) | pytest-benchmark | 1 | 1 | Excluded from the default run by `backend/pytest.ini`; needs the GPU/model stack |

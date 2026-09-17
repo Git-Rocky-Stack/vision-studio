@@ -147,6 +147,19 @@ path. Additive - no known breaking changes.
   CI gate that no workflow runs. Every count in the README, `CONTRIBUTING.md`
   and `ARCHITECTURE.md` is now the measured v3.4.0 figure and names the command
   that reproduces it
+- **The Windows installer stops stamping a hardcoded version** -
+  `scripts/installer.iss` carried `#define MyAppVersion "3.2.0"` as a literal and
+  it had already gone stale: at 3.3.0 `npm run build:windows` would have produced
+  `Vision-Studio-3.2.0-Setup.exe`, carrying AppVersion 3.2.0 into Add/Remove
+  Programs - an installer that misreports which release it contains, and that
+  overwrites the real 3.2.0 artifact if published. The define now arrives on the
+  ISCC command line sourced from `package.json`
+  (`scripts/build-windows.cjs:338`), and the script `#error`s when it is absent
+  (`scripts/installer.iss:11`) rather than defaulting to a value that could go
+  stale again; `AppVersion`, `AppVerName` and `OutputBaseFilename` all read the
+  define (`scripts/installer.iss:23`, `:24`, `:33`).
+  `tests/version-sync.test.ts:69` fails on a reintroduced literal, and `:81`
+  fails if the build ever stops passing the define
 
 ### Added
 - **A gate on unguarded mount-path uses of the preload bridge** - the rule that
@@ -181,7 +194,7 @@ path. Additive - no known breaking changes.
   directory has a README saying what it holds and what it is not.
   `tests/docs-provenance.test.ts` enforces both, and asserts it found >50
   documents first so a sweep that silently matched nothing cannot pass
-- **The README shows the application.** Seven screenshots captured from the
+- **The README shows the application.** Six screenshots captured from the
   running app by [`scripts/capture-screenshots.mjs`](scripts/capture-screenshots.mjs),
   which drives the real navigation against a throwaway profile - no mock-ups and
   no seeded fixture data, so the genuine empty states and hardware readout are
@@ -293,6 +306,17 @@ path. Additive - no known breaking changes.
   Playwright annotation and assert only that the probe returned a usable
   reading. The 55fps threshold was not lowered - it was removed as a gate. These
   two tests are explicitly not coverage of frame rate or of memory leaks
+
+- **CONTRIBUTING links the policy documents** - a contributor lands on
+  `CONTRIBUTING.md`, not on the README badge row, and it linked neither the code
+  of conduct nor the security policy. The security gap was the one that mattered:
+  "Where to Report" gave an email address with no route to a private advisory and
+  no statement of scope, so the fastest path for someone who had found a
+  vulnerability was to open a public issue - which is itself the disclosure. Both
+  policies are now linked from the top of the document (`CONTRIBUTING.md:7`,
+  `:10`, and again in the index at `:22`, `:23`), and the reporting section routes
+  to a GitHub private advisory (`CONTRIBUTING.md:454`) with `SECURITY.md` named
+  for scope and disclosure timelines (`:455`)
 
 ## [3.3.0] - 2026-08-23
 
