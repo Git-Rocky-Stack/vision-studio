@@ -120,7 +120,7 @@ sequenceDiagram
     U->>E: generation.generateImage(params)
     E->>UA: getActiveAccount()
     UA-->>E: { provider:"openrouter", model:"...", apiKeyStored:true }
-    E->>E: validate (prompt-only: no ControlNet, reference, mask, inpaint, outpaint or background inputs; model selected)
+    E->>E: validate (prompt-only, no ControlNet, reference, mask, inpaint, outpaint or background inputs, model selected)
     E->>E: setOpenRouterJob(pending)
     E-->>U: { success, jobId: openrouter-image-<uuid> }
     E->>UA: getOpenRouterApiKey(accountId)  (decrypts via safeStorage)
