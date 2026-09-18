@@ -14,7 +14,7 @@ branches.
 | Version | Supported |
 | ------- | --------- |
 | 3.4.x   | Yes |
-| < 3.4   | No — update to the latest release |
+| < 3.4   | No - update to the latest release |
 
 Check your version in **Settings -> About**, or update through the in-app
 updater.
@@ -27,7 +27,7 @@ Do not open a public issue.**
 Please include:
 
 - The version, OS, and GPU you reproduced on
-- What an attacker gains — code execution, file read/write outside the app,
+- What an attacker gains - code execution, file read/write outside the app,
   credential disclosure, or bypass of a consent gate
 - Reproduction steps or a proof of concept
 - Any logs from **Settings -> Diagnostics** (redact paths and tokens first)
@@ -39,14 +39,14 @@ disclosure, or less by agreement if a fix ships sooner.
 
 If you would rather use GitHub, open a
 [private security advisory](https://github.com/Git-Rocky-Stack/vision-studio/security/advisories/new)
-— it is private to maintainers until published.
+- it is private to maintainers until published.
 
 ## In Scope
 
 - Remote code execution, privilege escalation, or path traversal in the
   Electron main process, the preload IPC bridge, or the Python backend
 - A renderer reaching capabilities the preload bridge is not supposed to expose
-- Bypassing the **model consent gate** — anything that lets a pickle-format or
+- Bypassing the **model consent gate** - anything that lets a pickle-format or
   `trust_remote_code` model load without the explicit consent step
 - Bypassing **update signature verification**, or getting the updater to
   install an artifact from an unintended origin
@@ -54,7 +54,7 @@ If you would rather use GitHub, open a
   tokens, or the local SQLite database
 - Backend endpoints reachable from outside `localhost`, or exploitable by a
   web page in the user's browser (DNS rebinding, CSRF against `127.0.0.1:8000`)
-- Supply-chain issues in what we actually ship — see
+- Supply-chain issues in what we actually ship - see
   [`THIRD-PARTY-LICENSES.md`](THIRD-PARTY-LICENSES.md)
 
 ## Out of Scope
@@ -65,7 +65,7 @@ If you would rather use GitHub, open a
 - **Model weights themselves.** Vision Studio does not redistribute weights.
   What a third-party checkpoint generates, and any licence attached to it, is
   between you and its publisher. Malicious weights loaded *after* you granted
-  consent at the security gate are working as designed — a bypass of that gate
+  consent at the security gate are working as designed - a bypass of that gate
   is not.
 - Vulnerabilities that require an attacker who already has code execution as
   your user account. A local process that can run arbitrary code can already
@@ -78,14 +78,15 @@ If you would rather use GitHub, open a
 
 - **Dependencies.** `npm audit --omit=dev --audit-level=high` gates every pull
   request; the shipped tree is kept at zero known high or critical advisories.
-  Development-only advisories are tracked and cleared separately — they never
+  Development-only advisories are tracked and cleared separately - they never
   reach your machine, but they build what does.
 - **Signature verification.** Releases publish through a generic update feed
   with `verifyUpdateCodeSignature` enabled, so the updater refuses an artifact
   whose signature does not resolve to the expected publisher.
-- **No telemetry.** Vision Studio sends nothing anywhere on its own. Network
-  traffic is limited to model downloads you initiate, the update check, and any
-  hosted provider you configure with your own key.
+- **No telemetry.** Vision Studio has no analytics, telemetry or crash
+  reporting. Its network traffic is limited to model searches and downloads you
+  initiate, the automatic update check (set `VISION_STUDIO_DISABLE_UPDATES=1` to
+  turn it off), and any hosted provider you configure with your own key.
 
 ## Safe Harbour
 

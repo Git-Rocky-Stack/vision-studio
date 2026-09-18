@@ -1,4 +1,4 @@
-# Vision Studio — System Architecture
+# Vision Studio - System Architecture
 
 > Version: tracks `package.json` (currently **3.4.1**)
 > Audience: contributors, integrators, security reviewers
@@ -13,13 +13,13 @@ Vision Studio is a local-first, Electron-shelled desktop app that drives an out-
 ```mermaid
 graph TB
     subgraph User["User Machine"]
-        subgraph Renderer["Renderer Process — chromium sandbox<br/>contextIsolation: true · nodeIntegration: false"]
+        subgraph Renderer["Renderer Process - chromium sandbox<br/>contextIsolation: true · nodeIntegration: false"]
             UI["React 19 UI<br/>Vite 6 dev server :5173 (dev)<br/>file:// (prod)"]
             Store["Zustand store<br/>localStorage persist"]
             Dock["dockview workspace"]
         end
 
-        subgraph Main["Electron Main Process — Node.js<br/>electron 42"]
+        subgraph Main["Electron Main Process - Node.js<br/>electron 42"]
             IPC["ipcMain handlers<br/>(mainIpc + ipc-handlers/generation)"]
             SecStore["electron-store<br/>(safeStorage encrypted)"]
             Spawn["BackendProcessService<br/>spawns + supervises Python"]
@@ -27,10 +27,11 @@ graph TB
             Notif["System notifications"]
         end
 
-        subgraph Backend["Python Backend — FastAPI / Uvicorn :8000<br/>localhost-only bind"]
-            REST["REST routers<br/>main + controlnet + lora + edit + batch"]
+        subgraph Backend["Python Backend - FastAPI / Uvicorn :8000<br/>localhost-only bind"]
+            REST["REST routers<br/>main + edit + batch + retrieval + comfy"]
             JobMgr["JobManager<br/>(thread-safe in-memory)"]
-            ModelMgr["ModelManager<br/>(disk scan + downloader)"]
+            ModelMgr["ModelManager<br/>(catalog + disk scan)"]
+            DLM["Foundry DownloadManager"]
             DG["DirectGenerator<br/>diffusers / torch"]
             DVG["DirectVideoGenerator<br/>diffusers / torch"]
             CC["ComfyUIClient (optional)"]
@@ -41,6 +42,7 @@ graph TB
         subgraph External["Optional external services"]
             Comfy["ComfyUI :8188"]
             OR["OpenRouter REST API<br/>(BYO API key per account)"]
+            HFI["HuggingFace Inference Providers<br/>(BYO token per account)"]
             HF["HuggingFace model hub"]
         end
     end
@@ -49,18 +51,22 @@ graph TB
     Store -- "persist" --> Browser["browser localStorage"]
     IPC -- "axios HTTP + x-vision-studio-token" --> REST
     WSClient -- "ws + token query param" --> REST
+    UI -- "media loads: /outputs/* (no token)" --> REST
     REST --> JobMgr
     REST --> ModelMgr
+    REST --> DLM
     JobMgr --> DG
     JobMgr --> DVG
-    DG --> CC
+    JobMgr -- "when connected" --> CC
     DG --> FS
     DVG --> FS
     ModelMgr --> FS
+    DLM --> FS
     REST --> DB
     CC -- "HTTP + WS" --> Comfy
     IPC -- "axios direct (BYO key)" --> OR
-    ModelMgr -- "downloads" --> HF
+    IPC -- "@huggingface/inference (BYO token)" --> HFI
+    DLM -- "downloads" --> HF
     Notif -- "OS toast" --> User
 
     classDef boundary stroke-dasharray: 4 3, stroke-width:2px;
@@ -71,11 +77,11 @@ Three OS processes, never co-mingled:
 
 | Process | Runtime | Trust | Lifetime |
 |---------|---------|-------|----------|
-| **Renderer** | Chromium + V8 (sandboxed) | UNTRUSTED — handles user input | per `BrowserWindow` |
-| **Main** | Node.js (Electron 42) | TRUSTED — file system, OS, processes | app lifetime |
-| **Backend** | CPython 3.12 (PyInstaller-frozen in prod) | TRUSTED — GPU, torch, downloads | child of Main; auto-restart on settings change |
+| **Renderer** | Chromium + V8 (sandboxed) | UNTRUSTED - handles user input | per `BrowserWindow` |
+| **Main** | Node.js (Electron 42) | TRUSTED - file system, OS, processes | app lifetime |
+| **Backend** | CPython 3.12 (PyInstaller-frozen in prod) | TRUSTED - GPU, torch, downloads | child of Main; auto-restart on settings change |
 
-The renderer never opens a TCP socket. All renderer→backend traffic is brokered through `ipcMain.handle(...)` in the Main process.
+API calls from the renderer never go to the backend directly: they are brokered through `ipcMain.handle(...)` in the Main process, which adds the auth token. The one direct path is media: the renderer loads `/outputs/*` images and videos from `http://localhost:8000` (`src/components/ui/MediaPreview.tsx`, `src/features/assets/assetRecords.ts`; the CSP allows `img-src` from localhost), and `/outputs/*` needs no token.
 
 ---
 
@@ -86,12 +92,12 @@ vision-studio/
 ├── electron/                        # Main + preload (TypeScript, ESM)
 │   ├── main.ts                      # Bootstrap: createMainProcessServices + lifecycle
 │   ├── preload.ts                   # contextBridge.exposeInMainWorld('electron', …)
-│   ├── ipc-guard.ts                 # Loaded FIRST — guards ipcMain registrations
+│   ├── ipc-guard.ts                 # Loaded FIRST - guards ipcMain registrations
 │   ├── ipc-handlers/
-│   │   └── generation.ts            # Backend proxy + OpenRouter image fan-out
+│   │   └── generation.ts            # Backend proxy, OpenRouter + HF routing, models, provisioning
 │   └── services/                    # Composable main-process services (DI)
 │       ├── mainProcess.ts           # Composition root
-│       ├── mainIpc.ts               # Most ipcMain.handle(...) registrations
+│       ├── mainIpc.ts               # App, settings, accounts, assets, backend, updater IPC
 │       ├── mainWindow.ts            # BrowserWindow lifecycle
 │       ├── backendProcess.ts        # spawn/restart/health-check Python
 │       ├── backendAuth.ts           # x-vision-studio-token mint + headers
@@ -102,17 +108,21 @@ vision-studio/
 │       ├── openRouter.ts            # OpenRouter API client
 │       ├── security.ts              # URL/path/store-key validation
 │       ├── contentSecurityPolicy.ts # CSP header injection
-│       └── firstRun.ts              # Onboarding dialog
+│       └── updater.ts               # Update check: 15 s after launch, then every 4 h
 │
 ├── backend/                         # Python FastAPI server
 │   ├── main.py                      # FastAPI app, lifespan, REST + WS
 │   ├── api/                         # APIRouters mounted under /api/v1/*
-│   │   ├── controlnet.py
-│   │   ├── lora.py
 │   │   ├── edit.py
-│   │   └── batch.py
-│   ├── schemas/                     # Pydantic request/response models
-│   ├── services/                    # Domain services (controlnet/lora/edit/batch)
+│   │   ├── batch.py
+│   │   ├── retrieval.py
+│   │   └── comfy_graph.py
+│   ├── schemas/                     # Pydantic request/response models (edit, batch, retrieval)
+│   ├── services/                    # Domain services (batch_service.py, retrieval/)
+│   ├── edit_tools/                  # Edit engine behind /api/v1/edit (u2net, Real-ESRGAN, GFPGAN)
+│   ├── foundry/                     # Model catalog, registry, fit, downloads, acceleration
+│   ├── guided/                      # ControlNet, IP-Adapter and guided-pass plumbing
+│   ├── preview/                     # Tiny-VAE step previews
 │   ├── middleware/rate_limit.py     # slowapi limiter + handler
 │   ├── db/
 │   │   ├── migrate.py               # version-numbered migration runner
@@ -121,7 +131,7 @@ vision-studio/
 │   ├── utils/                       # job_manager, model_manager, comfy_*,
 │   │                                # direct_generator, direct_video_generator,
 │   │                                # image_ops, prompt_service, sanitization
-│   ├── tests/                       # pytest suites: 118 files, 1108 tests
+│   ├── tests/                       # pytest suites (counts in §10)
 │   ├── pytest.ini                   # testpaths, pythonpath, benchmark exclusion
 │   ├── requirements.txt
 │   └── main.spec                    # PyInstaller spec
@@ -133,13 +143,13 @@ vision-studio/
 │   ├── components/                  # 22 component categories (canvas, edit, …)
 │   ├── features/                    # Domain logic per area (assets, generate, …)
 │   ├── store/
-│   │   ├── appStore.ts              # Zustand root store (slices composed :40-54)
+│   │   ├── appStore.ts              # Zustand root store (slices composed :984-1013)
 │   │   ├── appStore.types.ts        # AppState shape
 │   │   └── slices/                  # 15 feature slices
 │   ├── hooks/                       # Cross-cutting hooks
 │   ├── types/                       # Domain TypeScript types
 │   └── utils/
-│       └── electronBridge.ts        # getElectronBridge() — the only safe way to
+│       └── electronBridge.ts        # getElectronBridge() - the only safe way to
 │                                    # reach window.electron on a mount path
 │
 ├── tests/                           # Vitest integration + repo gates, Playwright E2E
@@ -159,7 +169,7 @@ vision-studio/
 |-------|--------|-------|
 | Framework | **React 19** | Concurrent renderer, function components only |
 | Build | **Vite 6** + `@vitejs/plugin-react` | HMR in dev; static `dist/` in prod |
-| Routing | **react-router-dom 7** | Used inside the dockview workspace |
+| Routing | - | `react-router-dom` 7 is declared in `package.json` but nothing imports it; tab and view switching is store state (`activeTab`, `centerView`) |
 | Workspace | **dockview 5** | Resizable, dockable panels for the studio |
 | State | **Zustand 5** + `useShallow` | One root store; sliced by feature |
 | Persist | `zustand/middleware/persist` → `localStorage` | Whitelisted, capped slices (see below) |
@@ -170,11 +180,11 @@ vision-studio/
 | Virtual | `@tanstack/react-virtual` | Asset grids + timeline tracks |
 | Floating | `@floating-ui/react` | Tooltips, popovers, menus |
 | Icons | **lucide-react** | Stroke-only icon set |
-| Net | **axios 1** | Used in `electron/` only — renderer talks via IPC |
+| Net | **axios 1** | Used in `electron/` only - renderer talks via IPC |
 
 ### 3.2 State architecture
 
-`src/store/appStore.ts` composes 13 slices into one Zustand store:
+`src/store/appStore.ts` composes 15 slices into one Zustand store:
 
 | Slice | Owns |
 |-------|------|
@@ -190,28 +200,37 @@ vision-studio/
 | `promptStudioSlice` | Prompt templates + composition layers |
 | `timelineSlice` | Sequences, tracks, clips, transitions, beats |
 | `workflowSlice` | Workflow graph + runs |
+| `modelsSlice` | Foundry catalog, downloads, library roots, Hub search |
+| `provisioningSlice` | First-run starter-set status and whether the overlay was dismissed |
+| `accelerationSlice` | Acceleration settings and the last applied readout |
 
-Persistence is opt-in per field (see `appStore.ts` `partialize`) and capped — e.g. `promptHistory.slice(0, 50)`, `assetLibrary.slice(0, 500)`. This prevents `localStorage` blowup as users iterate on prompts.
+Persistence is opt-in per field (see `appStore.ts` `partialize`) and capped - e.g. `promptHistory.slice(0, 50)`, `assetLibrary.slice(0, 500)`. This prevents `localStorage` blowup as users iterate on prompts.
 
 ### 3.3 Renderer ↔ main contract
 
-The renderer NEVER imports `electron`, `fs`, `path`, or `child_process`. It only sees `window.electron`, defined in `electron/preload.ts` and exposed via `contextBridge.exposeInMainWorld('electron', electronAPI)`. The `ElectronAPI` TypeScript interface is the single source of truth — every IPC channel has a matching method here.
+The renderer NEVER imports `electron`, `fs`, `path`, or `child_process`. It only sees `window.electron`, defined in `electron/preload.ts` and exposed via `contextBridge.exposeInMainWorld('electron', electronAPI)`. The `ElectronAPI` TypeScript interface is the single source of truth - every IPC channel has a matching method here.
 
 Top-level namespaces on `window.electron`:
 
-- `app` — version, paths, open external/path
-- `dialog` — folder/media/save pickers
-- `store` — generic key/value (whitelisted by `isAllowedStoreKey`)
-- `settings` — typed `AppSettings` get/update/reset
-- `accounts` + `openrouter` — multi-account preferences and OpenRouter API client
-- `assets` — import/export/delete/reveal/clear-cache
-- `generation` — image/video/timeline/batch/enhance/crop/upscale/extract + status/cancel/list/onProgress
-- `system` — GPU + backend info (one call combines both)
-- `models` — list/download/status/delete
-- `notifications` — `notify(type, payload)` (gated by user settings)
-- `backend` — start/stop/status/checkBundled + onStatusChange
+- `app` - version, paths, open external/path
+- `dialog` - folder/media/save pickers
+- `store` - generic key/value (whitelisted by `isAllowedStoreKey`)
+- `settings` - typed `AppSettings` get/update/reset
+- `accounts` + `openrouter` - multi-account preferences and OpenRouter API client
+- `assets` - import/export/delete/reveal/clear-cache
+- `generation` - image/video/timeline/batch/enhance/negative-prompt/crop/extract-frame/`editImage` + status/cancel/list/onProgress/onStepImage
+- `director` - AI Director retrieval index: sync, ingest, clear, stats
+- `workflow` - `runGraph` for an imported ComfyUI graph
+- `system` - GPU + backend info (one call combines both)
+- `hardware` - hardware profile used for model fit
+- `models` - Foundry catalog, downloads, library roots, Hub search, consent, conversion
+- `provisioning` - first-run starter set: status, start, pause, resume, cancel, reverify
+- `auth` - session Hugging Face and CivitAI tokens (held in Main, never returned)
+- `notifications` - `notify(type, payload)` (gated by user settings)
+- `backend` - start/stop/status/checkBundled + onStatusChange
+- `updater` - status, check, install + onStatus
 
-`onProgress` and `onStatusChange` are the only push channels — they wrap `ipcRenderer.on(...)` and return an unsubscribe function.
+Four push channels wrap `ipcRenderer.on(...)` and return an unsubscribe function: `generation.onProgress` (`generation:progress`), `generation.onStepImage` (`generation:step-image`), `backend.onStatusChange` (`backend:status`) and `updater.onStatus` (`updater:status`).
 
 ### 3.4 Top-level UI flow
 
@@ -220,24 +239,31 @@ flowchart LR
     boot["main.tsx"] --> app["App.tsx"]
     app --> header["Header"]
     app --> dock["DockviewLayout"]
-    dock --> generate["GeneratePanel"]
-    dock --> quick["QuickGeneratePanel"]
-    dock --> edit["EditPanel"]
-    dock --> assets["AssetsPanel"]
-    dock --> batch["BatchPanel"]
-    dock --> templates["TemplatesPanel"]
-    dock --> story["StoryboardPanel"]
-    dock --> settings["SettingsPanel"]
-    dock --> guide["UserGuidePage"]
-    dock --> coll["CollectionsPage"]
-    dock --> sec["SecondaryPanelsCarbon (effects/iteration/pipeline/timeline)"]
+    app --> frp["FirstRunProvisioning overlay"]
+    dock --> full["Full-width tabs"]
+    full --> assets["AssetsPanel"]
+    full --> coll["CollectionsPage"]
+    full --> foundry["FoundryPage"]
+    full --> settings["SettingsPanel (includes UserGuidePage)"]
+    dock --> left["Left dock: DockviewSettingsPanel"]
+    left --> generate["GeneratePanel"]
+    left --> quick["QuickGeneratePanel"]
+    left --> batch["BatchPanel"]
+    left --> templates["TemplatesPanel"]
+    left --> story["StoryboardPanel"]
+    dock --> center["Center view"]
+    center --> canvas["EditCanvas on the Canvas tab, else Canvas"]
+    center --> viewer["WorkbenchViewer"]
+    center --> wf["WorkflowWorkbench"]
+    center --> launch["LaunchpadPanel"]
+    dock --> panels["Dock panels: layers, gallery, boards, iteration, composition preview, timeline"]
 ```
 
 `App.tsx` wires three lifecycle effects:
 
-1. **Global keybinds** — `?` toggles `KeyboardShortcuts` overlay; Ctrl/Cmd+Z and Ctrl/Cmd+Y route to `appStore.undo()` / `redo()`.
-2. **System info polling** — calls `electron.system.getInfo()` and `electron.backend.getStatus()` on mount, then every 30 s, plus an event subscription so a backend restart triggers an immediate refresh.
-3. **Generation progress** — subscribes to `electron.generation.onProgress`; each push calls `updateJob(jobId, {progress, status})`.
+1. **Global keybinds** - `?` toggles `KeyboardShortcuts` overlay; Ctrl/Cmd+Z and Ctrl/Cmd+Y route to `appStore.undo()` / `redo()`.
+2. **System info polling** - calls `electron.system.getInfo()` and `electron.backend.getStatus()` on mount, then every 30 s, plus an event subscription so a backend restart triggers an immediate refresh.
+3. **Generation progress** - subscribes to `electron.generation.onProgress`; each push calls `updateJob(jobId, {progress, status})`.
 
 ---
 
@@ -245,43 +271,47 @@ flowchart LR
 
 ### 4.1 Composition root
 
-`electron/main.ts` is intentionally thin (45 LOC). It instantiates `createMainProcessServices(...)` from `electron/services/mainProcess.ts`, which wires every collaborator:
+`electron/main.ts` is intentionally thin (64 lines). It registers the two `auth:*` handlers, which hold the Hugging Face and CivitAI tokens for the session, and instantiates `createMainProcessServices(...)` from `electron/services/mainProcess.ts`, which wires every collaborator:
 
 ```mermaid
 graph LR
     Boot["main.ts"] --> CMS["createMainProcessServices()"]
     CMS --> SS[secureStore]
     CMS --> OR2[outputRoots]
-    CMS --> FR[firstRun]
     CMS --> UA[userAccounts]
     CMS --> ORS[openRouterService]
+    CMS --> HFS[huggingFaceInferenceService]
     CMS --> MW[mainWindow]
     CMS --> BP[backendProcess]
     CMS --> CGHS[configureGenerationHandlerServices]
+    CMS --> UPD[updaterService]
     CMS --> RIH[registerMainIpcHandlers]
     CMS --> SGH[setupGenerationHandlers]
     CMS --> RCSP[registerContentSecurityPolicy]
 ```
 
-This dependency-injected design is what keeps every `services/*.ts` testable in isolation — see the `*.test.ts` files alongside each service.
+This dependency-injected design is what keeps every `services/*.ts` testable in isolation - see the `*.test.ts` files alongside each service.
 
 ### 4.2 IPC contract
 
-Two registration sites:
+Three registration sites:
 
-1. **`mainIpc.ts`** — app, dialog, store, settings, accounts, openrouter, assets, notifications, system, backend, app:get-path. ~30 channels.
-2. **`ipc-handlers/generation.ts`** — generation, models, plus the OpenRouter image fan-out and the WebSocket client. ~17 channels and one push event (`generation:progress`).
+1. **`services/mainIpc.ts`** - 41 channels: app, dialog, store, settings, accounts, openrouter, assets, notifications, system, backend and updater.
+2. **`ipc-handlers/generation.ts`** - 43 channels: generation, models, director, provision, hardware and `workflow:run-graph`, plus the OpenRouter and Hugging Face routes and the backend WebSocket client. It forwards two push events, `generation:progress` and `generation:step-image` (`backendWsRouting.ts`).
+3. **`main.ts`** - the two `auth:*` channels.
 
-`electron/ipc-guard.ts` is loaded **first** in `main.ts` — before any module that may register an `ipcMain.handle`. It rejects duplicate handler registration so a stale or stray handler can never silently shadow the real one. This is one of the rare cases in this codebase where load order is load-bearing; do not move that import.
+The other two push events come from `backendProcess.ts` (`backend:status`) and `updater.ts` (`updater:status`).
+
+`electron/ipc-guard.ts` is loaded **first** in `main.ts` - before any module that may register an `ipcMain.handle`. It rejects duplicate handler registration so a stale or stray handler can never silently shadow the real one. This is one of the rare cases in this codebase where load order is load-bearing; do not move that import.
 
 ### 4.3 Backend supervision
 
 `backendProcess.ts` is the single owner of the Python child process:
 
-- In **dev**, spawns `python backend/main.py` against the system venv.
-- In **prod**, spawns the PyInstaller-frozen exe extracted from `extraResources` (path: `backendProcess.getBundledBackendPath()`).
+- In **dev**, runs `backend/dist/VisionStudio-Backend` if a built backend exists; otherwise spawns `<pythonPath> main.py` in `backend/` (the `pythonPath` setting, default `python`).
+- In **prod**, spawns the PyInstaller one-file exe that electron-builder copies into `resources/` (`extraResources`; path: `backendProcess.getBundledBackendPath()`). A one-file exe unpacks itself to a temporary folder every time it starts.
 - Mints a per-launch auth token via `backendAuth.ts`, sets it as `VISION_STUDIO_BACKEND_AUTH_TOKEN` in the child env, and passes it on every HTTP and WebSocket request via the `x-vision-studio-token` header (HTTP) or `?token=…` query (WS). The token never reaches the renderer.
-- Polls `/api/health` to determine readiness; surfaces a friendly modal if the backend fails to start.
+- Polls `GET /` on `127.0.0.1:8000`, then `localhost:8000`, to determine readiness; shows a "Backend Not Started" dialog if the backend fails to start.
 - Restarts on settings changes that affect backend behavior (`shouldRestartBackend(prev, next)` in `settings.ts`).
 - Kills the child on `window-all-closed` and `before-quit` to guarantee no orphaned Uvicorn process.
 
@@ -291,7 +321,7 @@ Two registration sites:
 |----------|--------|
 | `VISION_STUDIO_BACKEND_HOST` | Host the FastAPI backend binds to. Defaults to loopback `127.0.0.1`; set to `0.0.0.0` only for deliberate LAN/debug exposure. Read in `backend/main.py`. |
 | `VISION_STUDIO_SKIP_BACKEND` | When set (truthy), the app does **not** spawn the bundled Python backend (`mainProcess.start()`). Used by E2E so a test can manage the backend itself. |
-| `VISION_STUDIO_BACKEND_EXTERNAL` | When set (truthy), `getSystemInfo()` probes the backend over HTTP **even though the app did not spawn it** — so a manually-run (`python main.py`) or test-mocked backend is detected as connected. Pairs with `VISION_STUDIO_SKIP_BACKEND`. Opt-in; off by default. **In this mode you must set the same `VISION_STUDIO_BACKEND_AUTH_TOKEN` in both this app and the external backend** — otherwise each process mints its own token and authenticated requests fail with HTTP 403 (the app logs a `[backend-auth]` warning at startup and reads as disconnected). |
+| `VISION_STUDIO_BACKEND_EXTERNAL` | When set (truthy), `getSystemInfo()` probes the backend over HTTP **even though the app did not spawn it** - so a manually-run (`python main.py`) or test-mocked backend is detected as connected. Pairs with `VISION_STUDIO_SKIP_BACKEND`. Opt-in; off by default. **In this mode you must set the same `VISION_STUDIO_BACKEND_AUTH_TOKEN` in both this app and the external backend** - otherwise each process mints its own token and authenticated requests fail with HTTP 403 (the app logs a `[backend-auth]` warning at startup and reads as disconnected). |
 | `VISION_STUDIO_BACKEND_AUTH_TOKEN` | Shared per-launch auth token for the local backend. When the app **spawns** the backend it generates this and injects it into the child env automatically (`backendAuth.ts` → `buildBackendEnvironment`). When the backend runs **externally**, set it yourself to the *same* value in both processes. If unset on a bare `python main.py`, the backend fails closed by generating an ephemeral token (logged once) rather than disabling auth. |
 
 ### 4.4 Trust boundary enforcement
@@ -300,9 +330,9 @@ Two registration sites:
 
 | Function | Purpose |
 |----------|---------|
-| `isSafeExternalUrl(url)` | Whitelist `http(s)`/`mailto`; rejects `javascript:`, `file:`, custom schemes |
-| `isAllowedStoreKey(key)` | Whitelists `recentProjects`, `settings`, `firstRun`, `modelsDownloaded`, `managedOutputRoots`, `userAccounts` |
-| `resolveSafeExportDestination(dest, allowedRoots)` | Confines export targets to home/desktop/documents/downloads/pictures/videos |
+| `isSafeExternalUrl(url)` | Allows `http:` and `https:` only; rejects `mailto:`, `javascript:`, `file:` and custom schemes |
+| `isAllowedStoreKey(key)` | Whitelists `settings`, `recentProjects`, `firstRun`, `modelsDownloaded`. Accounts and managed output roots are not reachable through the generic store API |
+| `resolveSafeExportDestination(dest, allowedRoots)` | Confines export targets to desktop/documents/downloads/pictures/videos (deliberately not the whole home folder) |
 | `toSafeRendererError(error, fallback)` | Strips paths, stack traces, and tokens before returning errors to the renderer |
 
 `outputRoots.ts`:
@@ -313,18 +343,18 @@ Two registration sites:
 | `getManagedOutputRoots()` | Returns the set of accepted roots: bundled outputs dir + user-configured + remembered |
 | `rememberOutputRoot(root)` | Records a new managed root after a settings change so old assets remain reachable |
 
-Every renderer-supplied path passes through `resolveManagedAssetPath` (read) or `resolveSafeExportDestination` (write) before any `fs.*` call.
+Renderer-supplied paths to read, open or export pass through `resolveManagedAssetPath` or `resolveSafeExportDestination` before any `fs.*` call, and opening an executable is refused. The exception is `assets:import-files`: it accepts any source path whose extension is a supported image, video or audio type and copies it into `<outputRoot>/imports/`.
 
-`secureStore.ts` wraps `electron-store` with `safeStorage.encryptString` for sensitive fields (e.g. OpenRouter API keys), falling back to plaintext storage with a logged warning if the OS keychain is unavailable.
+`secureStore.ts` encrypts the whole `electron-store` file with a random key and keeps that key encrypted by `safeStorage`. If OS encryption is unavailable, or the key cannot be decrypted, the store stays plaintext for that launch and logs a warning. BYOK secrets (OpenRouter keys and Hugging Face account tokens) are encrypted again with `safeStorage` in `userAccounts.ts`, which refuses to store them when OS encryption is unavailable.
 
 ### 4.5 OpenRouter integration
 
 `openRouter.ts` is a typed client for the [OpenRouter](https://openrouter.ai) REST API. It supports two routes:
 
-- **Prompt enhancement / negative-prompt suggestion** — used when the active account's `promptEnhancementProvider === 'openrouter'`.
-- **Still-image generation** — used when `imageGenerationProvider === 'openrouter'`. Generated images are written to `<outputRoot>/openrouter/YYYY-MM-DD/<jobId>-<n>.<ext>` and surfaced as if they came from a local job.
+- **Prompt enhancement / negative-prompt suggestion** - used when the active account's `promptEnhancementProvider === 'openrouter'`.
+- **Still-image generation** - used when `imageGenerationProvider === 'openrouter'`. Generated images are written to `<outputRoot>/openrouter/YYYY-MM-DD/<jobId>-<n>.<ext>` and surfaced as if they came from a local job.
 
-OpenRouter jobs run **entirely in the Main process**. They get their own job IDs (`openrouter-image-<uuid>`), their own in-memory map (`openRouterImageJobs`), and they emit `generation:progress` events themselves — the renderer cannot tell whether a job is local or routed. The Python backend is bypassed for these flows.
+OpenRouter jobs run **entirely in the Main process**. They get their own job IDs (`openrouter-image-<uuid>`), their own in-memory map (`openRouterImageJobs`), and they emit `generation:progress` events themselves - the renderer cannot tell whether a job is local or routed. The Python backend is bypassed for these flows.
 
 If the OpenRouter account is misconfigured for a particular request (no key, no model, ControlNet/inpaint inputs which OpenRouter doesn't support yet) the handler returns a structured `{ success: false, error }` rather than failing silently.
 
@@ -339,7 +369,7 @@ If the OpenRouter account is misconfigured for a particular request (no key, no 
 ```python
 app = FastAPI(
     title="Vision Studio API",
-    version="3.1.1",
+    version=APP_VERSION,                                  # backend/version.py
     docs_url="/api/docs",
     redoc_url="/api/redoc",
     openapi_url="/api/openapi.json",
@@ -360,19 +390,19 @@ app.add_middleware(CORSMiddleware,
 
 app.mount("/outputs", StaticFiles(directory=OUTPUT_DIR), name="outputs")
 
-app.include_router(controlnet_router)   # /api/v1/controlnet/*
-app.include_router(lora_router)         # /api/v1/lora/*
 app.include_router(edit_router)         # /api/v1/edit/*
 app.include_router(batch_router)        # /api/v1/batch/*
+app.include_router(retrieval_router)    # /api/v1/retrieval/*
+app.include_router(comfy_graph_router)  # /api/v1/comfy/*
 ```
 
 Notable invariants:
 
-- **Bind address**: Uvicorn listens on `0.0.0.0:8000`, but Electron only ever connects to `127.0.0.1`. If you change the bind, also update the firewall/CSP story — the assumption "only this machine talks to this backend" is load-bearing.
-- **Auth**: When `VISION_STUDIO_BACKEND_AUTH_TOKEN` is set (always set by Electron in prod), every request must carry `x-vision-studio-token: <token>`. Exempt paths: `/`, `/api/health`, `/api/docs`, `/api/redoc`, `/api/openapi.json`, `/outputs/*`. The WebSocket accepts the token as a query parameter and closes with code 1008 on mismatch.
-- **CORS**: Restricted to the Vite dev origins only. Production renderer uses the `file://` protocol and goes through Electron-proxied IPC, so it never appears as a browser origin.
-- **Rate limiting**: `slowapi` limiter, keyed by client IP. Categories: `generate` 10/min, `edit` 30/min, `batch` 5/min, `default` 60/min.
-- **Static serving**: `/outputs/*` is mounted directly so the renderer can render generated assets via `<img src="http://127.0.0.1:8000/outputs/...">` without a separate IPC round-trip.
+- **Bind address**: Uvicorn binds `127.0.0.1:8000` (`VISION_STUDIO_BACKEND_HOST` overrides the host), and Electron connects to `127.0.0.1`. If you change the bind, also update the firewall/CSP story - the assumption "only this machine talks to this backend" is load-bearing.
+- **Auth**: every request must carry `x-vision-studio-token: <token>`. Electron generates the token and passes it as `VISION_STUDIO_BACKEND_AUTH_TOKEN`; a backend started without it generates an ephemeral token and logs it, so auth fails closed. Exempt paths: `/`, `/api/health`, `/api/docs`, `/api/redoc`, `/api/openapi.json`, `/outputs/*`. The WebSocket accepts the token as a query parameter and closes with code 1008 on mismatch.
+- **CORS**: Restricted to the Vite dev origins only. The production renderer loads from `file://` and sends API calls through Electron-proxied IPC; its only direct requests to the backend are media loads from `/outputs/*`.
+- **Rate limiting**: `slowapi` limiter, keyed by client IP. Categories: `generate` 10/min, `edit` 30/min, `batch` 5/min, `default` 60/min. `/api/health`, the `/ws` WebSocket and the `/api/v1/retrieval` routes are not limited.
+- **Static serving**: `/outputs/*` is mounted directly so the renderer can render generated assets via `<img src="http://localhost:8000/outputs/...">` without a separate IPC round-trip.
 
 ### 5.2 Generation pipeline (image)
 
@@ -397,20 +427,21 @@ sequenceDiagram
     Note over U: optimistic UI: store.activeJobs[jobId] = pending
 
     T->>J: update_job(processing, progress=0)
-    alt ComfyUI connected
+    alt ComfyUI connected and no guided fields
         T->>CC: queue_prompt(workflow)
         loop streaming
             CC-->>T: progress callback
             T->>J: update_job(progress=p)
         end
         CC-->>T: outputs[]
-        T->>FS: write outputs to OUTPUT_DIR/<job_id>/image_NNN.png
+        T->>FS: write outputs to OUTPUT_DIR/<job_id>/image_NNN.<ext>
     else direct fallback
         T->>DG: generate_image(...)
         loop streaming
             DG-->>T: progress callback
             T->>J: update_job(progress=p)
         end
+        DG->>FS: OUTPUT_DIR/<job_id>/generated.png
         DG-->>T: { images: [...], seed, ... }
     end
     T->>J: update_job(completed, result)
@@ -424,7 +455,7 @@ sequenceDiagram
 
 Notes:
 
-- **ComfyUI is optional.** If the `ComfyUIClient` import fails or `connect()` fails at startup, `comfy_client` stays `None` and every job goes through `DirectGenerator`. Both paths are tested.
+- **ComfyUI is optional.** If the `ComfyUIClient` import fails, `comfy_client` stays `None`; if `connect()` fails at startup, the client exists but reports disconnected. Either way every job goes through `DirectGenerator`. Requests with guided fields (ControlNet, reference images, inpaint, outpaint, background replace) use `DirectGenerator` even when ComfyUI is connected. Both paths are tested.
 - **Outputs are namespaced by `job_id`** so concurrent jobs cannot collide on filenames.
 - **Seed handling**: `-1` is a sentinel meaning "random" and gets resolved (and reported) by the generator so the user can re-roll deterministically.
 
@@ -432,9 +463,8 @@ Notes:
 
 Same shape as image, but:
 
-- Always uses `DirectVideoGenerator` (no ComfyUI fallback yet).
-- Output is one MP4 per job (via `imageio` writers); no per-frame static files.
-- Typical durations 2–10 minutes depending on resolution, fps, steps, and GPU.
+- Uses ComfyUI whenever it is connected (`generate_video_with_comfyui`): a fixed SVD-XT image-to-video workflow of 14 frames that ignores the model, prompt, duration and LoRAs. Each output file is saved as `OUTPUT_DIR/<job_id>/video_NNN.<ext>` (`.webp` by default) and returned as `videos`.
+- Otherwise uses `DirectVideoGenerator`, which writes one `video.mp4` per job via `imageio`.
 
 ### 5.4 Timeline export
 
@@ -450,7 +480,7 @@ Same shape as image, but:
    - and either passes through (1 audio layer) or `amix`es (2+) into the final track.
 4. Mux is `-c:v copy -c:a aac -b:a 192k -movflags +faststart` for fast scrubbing in viewers.
 
-The job is registered in `JobManager` and reports progress via the same WebSocket channel (renderer poll/streaming reads via `generation:progress`). Failures are surfaced through `update_job(status=FAILED, error=...)` rather than an HTTP error — the HTTP request only kicks off the background task.
+The job is registered in `JobManager` and reports progress via the same WebSocket channel (renderer poll/streaming reads via `generation:progress`). Failures are surfaced through `update_job(status=FAILED, error=...)` rather than an HTTP error - the HTTP request only kicks off the background task.
 
 ### 5.5 Job lifecycle
 
@@ -461,31 +491,30 @@ stateDiagram-v2
     processing --> completed: success → result
     processing --> failed: exception → error
     processing --> cancelled: POST /api/jobs/{id}/cancel
-    pending --> cancelled
     completed --> [*]
     failed --> [*]
     cancelled --> [*]
 
     note right of completed
         cleanup_old_jobs(max_age_hours=24)
-        prunes terminal jobs
+        exists but is never called
     end note
 ```
 
-The current `JobManager` is **in-memory only** — a `Dict[str, GenerationJob]` guarded by a `threading.Lock`. Restarting the backend wipes job state. The `jobs` SQLite table exists (see [`DATABASE_SCHEMA.md`](./DATABASE_SCHEMA.md)) but is not yet wired to the manager; persisting through restarts is a known follow-up.
+The current `JobManager` is **in-memory only** - a `Dict[str, GenerationJob]` guarded by a `threading.Lock`. Nothing prunes it, so finished jobs stay until the backend restarts, which wipes job state. Cancel acts only on a `processing` job; any other status gets `Job is already <status>`. The `jobs` SQLite table exists (see [`DATABASE_SCHEMA.md`](./DATABASE_SCHEMA.md)) but is not yet wired to the manager; persisting through restarts is a known follow-up.
 
 ### 5.6 Module-level routers
 
-Each `/api/v1/*` router lives in `backend/api/<area>.py`, depends on a Pydantic schema in `backend/schemas/<area>.py`, and delegates to a service in `backend/services/<area>_service.py`.
+Each `/api/v1/*` router lives in `backend/api/<area>.py` and delegates to the implementation below. ControlNet and LoRA no longer have routers: they are fields of `POST /api/generate/image` (and `loras` of `/api/generate/video`).
 
-| Router | Tag | Service | Notes |
-|--------|-----|---------|-------|
-| `controlnet.py` | `ControlNet` | `ControlNetService` | 8 control modes (canny, depth, normal, openpose, segmentation, mlsd, lineart, softedge); base64 in/out |
-| `lora.py` | `LoRA` | `LoRAService` | LoRA mixer over any base model; scale 0–2; safetensors / .pt |
-| `edit.py` | `Edit` | `EditService` | rembg (BG), Real-ESRGAN (2x/4x/8x), GFPGAN (face restore) |
-| `batch.py` | `Batch` | `BatchService` | ZIP export, format conversion (png/jpg/webp), optional resize |
+| Router | Prefix | Tag | Implementation | Notes |
+|--------|--------|-----|----------------|-------|
+| `edit.py` | `/api/v1/edit` | `Edit` | `backend/edit_tools/service.py` (`run_edit_operation`) | U2-Net background removal on onnxruntime, Real-ESRGAN upscale (2x/4x, general or anime), GFPGAN face restore |
+| `batch.py` | `/api/v1/batch` | `Batch` | `backend/services/batch_service.py` | ZIP export, format conversion (png/jpg/webp), optional resize |
+| `retrieval.py` | `/api/v1/retrieval` | `Retrieval` | `backend/services/retrieval/` | AI Director index: ingest, query, clear, stats |
+| `comfy_graph.py` | `/api/v1/comfy` | `ComfyUI Interop` | `backend/utils/comfy_graph_guard.py` + `comfy_client.py` | Forwards an allow-listed API-format graph to a connected ComfyUI (409 when none) |
 
-Every router uses `slowapi`'s `@limiter.limit(LIMITS["..."])` and converts service exceptions into structured `{error, error_code}` HTTPExceptions.
+The edit, batch and comfy routers apply `slowapi` limits (`@limiter.limit(LIMITS["..."])`); the retrieval router has none. Batch and retrieval raise structured `{error, error_code}` details; edit and comfy raise plain-string details.
 
 ### 5.7 Sanitization
 
@@ -493,11 +522,12 @@ Every router uses `slowapi`'s `@limiter.limit(LIMITS["..."])` and converts servi
 
 | Function | Used for |
 |----------|----------|
-| `sanitize_prompt(text)` | All user-supplied text prompts |
-| `sanitize_path(path)` | Path-traversal prevention on `image_id` parameters in batch |
-| `validate_base64(data)` | Sanity-check base64 image inputs to controlnet/edit before passing to PIL |
+| `sanitize_path(path)` | Path-traversal prevention on batch `image_ids` and on ComfyUI graph string inputs |
+| `sanitize_model_name(name)` | Model-name inputs in imported ComfyUI graphs (`comfy_graph_guard.py`) |
+| `sanitize_prompt(text)` | Defined and unit-tested, but no route calls it: prompts reach the generators as typed |
+| `validate_base64(data)` | Defined and unit-tested, but no route calls it (edit requests take file paths, not base64) |
 
-Even though the backend is local-only, these are non-optional — a malicious renderer extension or a hijacked OpenRouter response could otherwise feed unsanitized data straight into `PIL.Image.open` or the filesystem.
+Only the path and model-name validators are wired into routes today.
 
 ---
 
@@ -509,32 +539,27 @@ Even though the backend is local-only, these are non-optional — a malicious re
 sequenceDiagram
     autonumber
     participant App as Electron App
-    participant FR as FirstRunService
+    participant Win as MainWindow
+    participant UI as Renderer
     participant BP as BackendProcessService
     participant Py as Python Backend
     participant FS as Filesystem
-    participant Win as MainWindow
 
     App->>Win: createWindow()
-    Win->>FR: ready-to-show → checkFirstRun()
-    FR->>FR: read electron-store key 'firstRun'
-    alt firstRun === true
-        FR->>App: dialog.showMessageBox(welcome)
-        FR->>FS: ensure userData dirs
-        FR->>FR: store.set('firstRun', false)
-    end
-    App->>BP: start()
+    Win->>UI: load the renderer
+    UI->>UI: FirstRunProvisioning overlay while the starter set is incomplete and not dismissed
+    App->>BP: start() (when backendAutostart is on)
     BP->>FS: locate bundled backend exe
-    BP->>Py: spawn child process (env: token, OUTPUT_DIR, MODELS_DIR)
-    Py->>FS: extract PyInstaller bundle to TEMP (~2.4 GB, slow first time)
+    BP->>Py: spawn child process (env: token, OUTPUT_DIR, MODELS_DIR, DATABASE_PATH)
+    Py->>FS: one-file bundle unpacks to a temp folder (every launch)
     Py->>Py: run_migrations(DATABASE_PATH)
-    Py->>Py: lifespan: ComfyUI? → fallback DirectGenerator
+    Py->>Py: lifespan: connect ComfyUI if reachable, create DirectGenerator + DirectVideoGenerator
     Py->>Py: ModelManager.scan_models()
-    Py-->>BP: HTTP /api/health 200
+    BP->>Py: poll GET / until it answers
     BP-->>App: ready
 ```
 
-Why this matters: the first launch can take **several minutes** because PyInstaller has to extract the bundle to `%TEMP%`. The Main process surfaces a "Backend Not Started" dialog with a hint about extraction time if the readiness probe times out — do not race past it.
+Why this matters: startup can take **minutes**, because the one-file backend unpacks itself to a temporary folder every time it starts. If the readiness probe times out, the Main process shows a "Backend Not Started" dialog (`mainProcess.ts`) that mentions extraction time - do not race past it.
 
 ### 6.2 Settings update with backend restart
 
@@ -554,33 +579,33 @@ sequenceDiagram
     E->>E: shouldRestartBackend(current, merged)?
     alt restart needed (e.g. pythonPath, defaultOutputPath)
         E->>BP: restartIfRunning()
-        BP->>BP: stop child, spawn fresh, await /api/health
+        BP->>BP: stop child, spawn fresh, await GET /
         BP-->>E: true
     end
     E-->>U: nextSettings
 ```
 
-`shouldRestartBackend` returns `true` only when a setting actually affects backend behavior — purely cosmetic settings (theme) skip the restart. Renderers receive the merged settings synchronously from the IPC reply.
+`shouldRestartBackend` returns `true` only when a setting actually affects backend behavior - purely cosmetic settings (theme) skip the restart. Renderers receive the merged settings synchronously from the IPC reply.
 
 ### 6.3 Asset import vs export (security paths)
 
 ```mermaid
 flowchart TD
     UImp["Renderer assets.importFiles(paths[])"] --> EImp["mainIpc 'assets:import-files'"]
-    EImp --> Type["resolveImportedMediaType(ext) — image/video/audio/null"]
+    EImp --> Type["resolveImportedMediaType(ext) - image/video/audio/null"]
     EImp --> Mkdir["mkdir <outputRoot>/imports"]
     EImp --> Cp["fs.copyFile(source → outputRoot/imports/<safeName>)"]
     Cp --> Result["{success, files: [{originalPath, importedPath, name, type, importedAt}]}"]
 
     UExp["Renderer assets.export(src, dest)"] --> EExp["mainIpc 'assets:export'"]
     EExp --> RM["outputRoots.resolveManagedAssetPath(src)<br/>→ throws if outside managed roots"]
-    EExp --> RD["resolveSafeExportDestination(dest, allowedExportRoots)<br/>→ null if outside home/desktop/documents/downloads/pictures/videos"]
+    EExp --> RD["resolveSafeExportDestination(dest, allowedExportRoots)<br/>→ null if outside desktop/documents/downloads/pictures/videos"]
     EExp --> Mkdir2["mkdir parent of dest"]
     EExp --> CpE["fs.copyFile(resolvedSrc → resolvedDest)"]
     CpE --> ResE["{success, destinationPath}"]
 ```
 
-Key invariant: **read paths are confined to managed output roots** and **write paths are confined to OS user directories**. Cross-direction escapes return structured errors rather than throwing; the renderer treats both as recoverable.
+Key invariant: **export sources are confined to managed output roots** and **export destinations to OS user directories**. Import is the exception: its sources are checked only by file extension, then copied into the managed `imports/` folder. Cross-direction escapes return structured errors rather than throwing; the renderer treats both as recoverable.
 
 ---
 
@@ -591,17 +616,17 @@ State is split across **four** stores. Knowing where each lives is essential.
 | Store | Backed by | Owner | Lifetime | Examples |
 |-------|-----------|-------|----------|----------|
 | **Renderer Zustand persist** | `localStorage` | Renderer | Per-window-profile | UI prefs, prompt history (capped 50), custom style presets, recent projects, batch results (capped 200), asset library cache (capped 500) |
-| **electron-store** | JSON file in `userData` (sensitive fields encrypted via `safeStorage`) | Main | Per-OS-user-install | App settings, recent projects, first-run flag, downloaded models registry, managed output roots, **multi-account preferences and OpenRouter API keys** |
+| **electron-store** | JSON file in `userData` (whole file encrypted with a `safeStorage`-protected key when OS encryption is available; BYOK secrets encrypted again) | Main | Per-OS-user-install | App settings, recent projects, first-run flag, downloaded models registry, managed output roots, **multi-account preferences and OpenRouter API keys** |
 | **In-memory `JobManager`** | Python dict + lock | Backend | Per-backend-process | Active and recent jobs, progress, results |
-| **SQLite (`vision_studio.db`)** | File in `<userData>/data/vision_studio.db` | Backend | Per-OS-user-install | `images`, `jobs`, `settings`, `schema_version` (see [`DATABASE_SCHEMA.md`](./DATABASE_SCHEMA.md)). Schema is provisioned by migrations but **most fields are not yet populated by the running app** — they exist for future job-history persistence. |
+| **SQLite (`vision_studio.db`)** | File in `<userData>/data/vision_studio.db` | Backend | Per-OS-user-install | `images`, `jobs`, `settings`, `schema_version` (see [`DATABASE_SCHEMA.md`](./DATABASE_SCHEMA.md)). Schema is provisioned by migrations but **most fields are not yet populated by the running app** - they exist for future job-history persistence. |
 
 **Filesystem state** sits underneath all of this:
 
 | Path | Created by | Contains |
 |------|------------|----------|
-| `<userData>/output/` | Backend (default `OUTPUT_DIR`) | `<job_id>/image_NNN.png`, video MP4s, derivative crops/upscales/frames |
-| `<userData>/output/imports/` | Main (`assets:import-files`) | User-imported media |
-| `<userData>/output/openrouter/YYYY-MM-DD/` | Main (OpenRouter image fan-out) | Images returned by OpenRouter |
+| `<userData>/outputs/` | Main default (`settings.ts`), passed to the backend as `OUTPUT_DIR` | `<job_id>/generated.png` (built-in engine), `<job_id>/image_NNN.<ext>` (ComfyUI), video files, derivative crops/upscales/frames |
+| `<userData>/outputs/imports/` | Main (`assets:import-files`) | User-imported media |
+| `<userData>/outputs/openrouter/YYYY-MM-DD/` | Main (OpenRouter image fan-out) | Images returned by OpenRouter |
 | `<userData>/models/` | Backend (`ModelManager`) | Downloaded model weights (multi-GB) |
 | `<userData>/data/vision_studio.db` | Backend (migrations) | SQLite database |
 
@@ -613,10 +638,10 @@ State is split across **four** stores. Knowing where each lives is essential.
 
 | Layer | Trust | Hardening |
 |-------|-------|-----------|
-| Renderer | Untrusted — arbitrary user input, web technology | `contextIsolation: true`, `nodeIntegration: false`, no remote module, CSP via `contentSecurityPolicy.ts` |
+| Renderer | Untrusted - arbitrary user input, web technology | `contextIsolation: true`, `nodeIntegration: false`, no remote module, CSP via `contentSecurityPolicy.ts` |
 | Preload | Mediator | Exposes ONLY the typed `electron` namespace; no `process`, `require`, or `electron` re-exports |
-| Main | Trusted | Path/URL/store-key validation on every untrusted input; uses `fs.promises` not sync APIs |
-| Backend | Trusted | Localhost-only; per-launch token; Pydantic validation; rate-limited; sanitized inputs |
+| Main | Trusted | Path/URL/store-key validation on untrusted input (import paths are extension-checked only); mostly `fs.promises`, with a few sync calls (`secureStore.ts`, `backendProcess.ts`, the import name check) |
+| Backend | Trusted | Localhost-only; per-launch token; Pydantic validation; rate-limited (not `/api/health`, `/ws` or retrieval); path and model-name inputs sanitized |
 
 ### 8.2 Threat model summary
 
@@ -625,23 +650,23 @@ State is split across **four** stores. Knowing where each lives is essential.
 | Malicious paths in IPC (`../../etc/passwd`) | `resolveManagedAssetPath` + `resolveSafeExportDestination` confine I/O |
 | Malicious `open-external` URL | `isSafeExternalUrl` whitelist |
 | Malicious store key write | `isAllowedStoreKey` whitelist |
-| Local user runs another HTTP client against `:8000` | `x-vision-studio-token` per-launch auth (the renderer learns the token only via IPC headers prepared by Main) |
+| Local user runs another HTTP client against `:8000` | `x-vision-studio-token` per-launch auth (the renderer never holds the token; Main adds it to every backend request). `/outputs/*` is exempt, so any local process can fetch generated media, which is also on disk |
 | OpenRouter key disclosure | Stored encrypted via OS keychain; never returned to the renderer in plaintext |
 | Backend stack traces leaking to renderer | `toSafeRendererError` strips paths/stacks; Pydantic + `HTTPException` deliver structured errors |
-| FFmpeg shell injection (timeline export) | Audio command built as `argv` array with `subprocess.run(check=True, capture_output=True)` — no shell |
-| Rate-limit-bypassed expensive endpoints | `slowapi` `@limiter.limit` on every router; defaults are per-IP, conservative for a single-user box |
-| Migration data loss | Migrations are append-only, version-numbered; runner stops on first failure |
+| FFmpeg shell injection (timeline export) | Audio command built as `argv` array with `subprocess.run(check=True, capture_output=True)` - no shell |
+| Rate-limit-bypassed expensive endpoints | `slowapi` `@limiter.limit` on every `main.py` HTTP route except `/api/health`, and on the edit, batch and comfy routers; the retrieval router is not limited. Limits are per-IP |
+| Migration data loss | Migrations are append-only and version-numbered. A failed migration is logged and skipped, and later ones still run (`db/migrate.py`) |
 
 ### 8.3 Files to read for security work
 
-- `electron/services/security.ts` — URL/path/key validators
-- `electron/services/outputRoots.ts` — managed roots
-- `electron/services/secureStore.ts` — `safeStorage` fallback behavior
-- `electron/services/contentSecurityPolicy.ts` — CSP headers
-- `backend/middleware/rate_limit.py` — limiter
-- `backend/utils/sanitization.py` — text/path/base64 validators
-- `backend/main.py` — auth middleware (`require_local_auth_token`)
-- `SECURITY-AUDIT-2026-04-18.md` (root) — most recent audit findings
+- `electron/services/security.ts` - URL/path/key validators
+- `electron/services/outputRoots.ts` - managed roots
+- `electron/services/secureStore.ts` - `safeStorage` fallback behavior
+- `electron/services/contentSecurityPolicy.ts` - CSP headers
+- `backend/middleware/rate_limit.py` - limiter
+- `backend/utils/sanitization.py` - text/path/base64 validators
+- `backend/main.py` - auth middleware (`require_local_auth_token`)
+- `SECURITY-AUDIT-2026-04-18.md` (root) - the April 2026 audit findings
 
 ---
 
@@ -649,12 +674,12 @@ State is split across **four** stores. Knowing where each lives is essential.
 
 | Stage | Tool | Output | Notes |
 |-------|------|--------|-------|
-| Backend build | PyInstaller (`build-backend.cjs` → `backend/main.spec`) | `backend/dist/VisionStudio-Backend.exe` (~2.4 GB) | One-file mode; PyInstaller extracts to `%TEMP%` on first run |
+| Backend build | PyInstaller (`build-backend.cjs` → `backend/main.spec`) | `backend/dist/VisionStudio-Backend(.exe)` | One-file mode: unpacks to a temporary folder every time it starts |
 | Renderer build | Vite | `dist/index.html` + assets | Hashed file names; Tailwind purged to used classes |
-| Main build | `vite-plugin-electron` | `dist-electron/main.mjs`, `dist-electron/preload.mjs` | ESM; preload remapped to `.cjs` if needed by the platform |
-| Packaging | electron-builder (`electron-builder.yml`, `electron-builder.windows.json`) | NSIS installer + portable + MSI; `extraResources` copies the backend exe | Code-signing handled by `scripts/verify-release-signing.cjs` |
-| Test gates | Vitest, Playwright, Python `unittest` | CI artefacts + JUnit | See `package.json` `test:*` scripts |
-| Lint gates | ESLint (`--max-warnings=0`), `tsc --noEmit` | — | Both wired in `pr-gate.yml` |
+| Main build | `vite-plugin-electron` | `dist-electron/main.mjs`, `dist-electron/preload.cjs` | Main is ESM; the preload is always CommonJS (`vite.config.ts`) |
+| Packaging | electron-builder (`electron-builder.yml`, `electron-builder.windows.json`) | Windows: NSIS web installer + portable ZIP (x64). macOS: DMG + ZIP (arm64). Linux: AppImage (x64). `extraResources` copies the backend exe | Signing checks: `scripts/verify-release-signing.cjs` |
+| Test gates | Vitest, Playwright, pytest | CI artefacts + JUnit | See `package.json` `test:*` scripts |
+| Type and lint gates | `npm run typecheck`; ESLint (`npm run lint`, `--max-warnings=0`) | - | Only the type check runs in CI (`pr-gate.yml`, `release.yml`); lint is local |
 
 ### Production layout (Windows example)
 
@@ -668,7 +693,7 @@ State is split across **four** stores. Knowing where each lives is essential.
 
 %APPDATA%\vision-studio\           ← per-user state
 ├── config.json                     ← electron-store
-├── output\                         ← OUTPUT_DIR
+├── outputs\                        ← OUTPUT_DIR
 ├── models\                         ← MODELS_DIR
 └── data\
     └── vision_studio.db
@@ -683,9 +708,9 @@ Counts measured at v3.4.0 with the command in each row.
 | Layer | Framework | Files | Tests | Notes |
 |-------|-----------|-------|-------|-------|
 | Unit + integration + component | Vitest 4.1 | 232 | 2034 | Two projects in `vitest.config.ts`: `unit` (node environment) and `component` (jsdom 28 + Testing Library). `npx vitest run` |
-| E2E | Playwright 1.58 + Electron | 9 | 36 | 8 of 9 specs launch the real app — 7 through `tests/e2e/fixtures/electron.fixture`, and `generate-completion.spec.ts:60` via a direct `electron.launch`. Only `performance/performance.spec.ts` uses a plain browser against `vite preview`, because Electron serves the renderer over `file://`, which yields no resource or paint timing to measure |
+| E2E | Playwright 1.58 + Electron | 9 | 36 | 8 of 9 specs launch the real app - 7 through `tests/e2e/fixtures/electron.fixture`, and `generate-completion.spec.ts:60` via a direct `electron.launch`. Only `performance/performance.spec.ts` uses a plain browser against `vite preview`, because Electron serves the renderer over `file://`, which yields no resource or paint timing to measure |
 | Accessibility | axe-core, injected | (within E2E) | smoke | `tests/e2e/accessibility.spec.ts:49` reads `node_modules/axe-core/axe.min.js` and injects it. `@axe-core/playwright`'s `AxeBuilder` calls `context.newPage()`, which Electron's `BrowserContext` does not support |
-| Visual regression | Playwright snapshots | (within E2E) | — | `npm run test:visual`. Snapshots are Windows-authored; only that platform compares meaningfully |
+| Visual regression | Playwright snapshots | (within E2E) | - | `npm run test:visual`. Snapshots are Windows-authored; only that platform compares meaningfully |
 | Backend | pytest | 118 | 1108 | `backend/pytest.ini` sets testpaths and excludes the benchmark tier. `cd backend && python -m pytest` |
 | Backend benchmarks | pytest-benchmark | 1 | 1 | Opt-in; needs the GPU/model stack |
 
@@ -700,12 +725,12 @@ thing it checks failed silently at least once.
 | `tests/ci-typecheck-gate.test.ts` | A CI type-check that compiles zero files (see below) |
 | `tests/playwright-config.test.ts` | The E2E preview server binding a shared Vite default port, where `reuseExistingServer` can adopt an unrelated project's build |
 | `tests/version-sync.test.ts` | `package.json`, the OpenAPI spec, the README release line, and the CHANGELOG heading drifting apart |
-| `tests/docs-links.test.ts` | A dead relative link in a public doc — checked case-exactly, because NTFS/APFS resolve what GitHub 404s |
+| `tests/docs-links.test.ts` | A dead relative link in a public doc - checked case-exactly, because NTFS/APFS resolve what GitHub 404s |
 | `src/**/carbon-pro-tokens.test.ts`, `ui-glyphs.test.ts` | Design-token and glyph drift from `DESIGN.md` |
 
 ### CI gates
 
-**PR gate** — [`.github/workflows/pr-gate.yml`](../.github/workflows/pr-gate.yml), four
+**PR gate** - [`.github/workflows/pr-gate.yml`](../.github/workflows/pr-gate.yml), four
 parallel jobs, all required:
 
 | Job | Command | Line |
@@ -717,15 +742,16 @@ parallel jobs, all required:
 
 > The TypeScript job ran `npx tsc --noEmit` until v3.4.0. `tsconfig.json` is a
 > solution file (`"files": []` plus `references`), and TypeScript only follows
-> references under `--build` — so that command compiled **zero** files and the job
+> references under `--build` - so that command compiled **zero** files and the job
 > was green by construction. Measured, not inferred: with a deliberate
 > `TS2322` in `src/utils/electronBridge.ts`, `npx tsc --noEmit` exits 0 and
 > `npm run typecheck` exits 2. `tests/ci-typecheck-gate.test.ts` now fails the
 > suite if either gating workflow reverts to the bare form, or if a project is
 > added to `references` without being added to the `typecheck` script.
 
-**Release gate** — [`.github/workflows/release.yml`](../.github/workflows/release.yml)
-runs the PR-gate commands plus `npm run build` (`:58`), the Playwright E2E suite
+**Release gate** - [`.github/workflows/release.yml`](../.github/workflows/release.yml)
+runs the PR gate's type check, Vitest and pytest (not the dependency audit), plus
+`npm run build` (`:58`), the Playwright E2E suite
 (`:66`), `npm run release:signing:check` (`:102`), and `npm run package:win:signed`
 (`:121`).
 
@@ -741,23 +767,25 @@ not gate a merge; do not read a green PR Gate as a lint pass.
 sequenceDiagram
     autonumber
     participant Dev as Developer
-    participant CI as PR Gate (CI)
-    participant Rel as Release Workflow
-    participant Sign as Signing
-    participant CDN as GitHub Releases
+    participant CI as PR Gate (pr-gate.yml)
+    participant Rel as release.yml (Windows)
+    participant RML as release-mac-linux.yml
+    participant R2 as Cloudflare R2 (updates.vision-studio-x.com)
+    participant GH as GitHub Release
 
     Dev->>CI: Push to feature branch / PR
-    CI->>CI: lint + typecheck + test + test:e2e
+    CI->>CI: typecheck + audit:prod + vitest + pytest
     CI-->>Dev: ✅/❌
-    Dev->>CI: Merge to main
-    CI->>CI: Bump version, update CHANGELOG
-    Dev->>Rel: Tag vX.Y.Z (or workflow_dispatch)
-    Rel->>Rel: build:backend → package:win → package:mac → package:linux
-    Rel->>Sign: verify-release-signing.cjs --package-win
-    Sign-->>Rel: ✅
-    Rel->>CDN: Upload installers + latest.yml + RELEASES manifests
-    CDN-->>Dev: Release published
-    Note over CDN: electron-updater clients pick up next launch
+    Dev->>Dev: Bump version + CHANGELOG (no workflow does this), merge to main
+    Dev->>Rel: Push tag vX.Y.Z (or workflow_dispatch)
+    Dev->>RML: same tag (or workflow_dispatch)
+    Rel->>Rel: typecheck + vitest + pytest + build + Playwright E2E
+    Rel->>Rel: release:signing:check, then package:win:signed
+    Rel->>R2: release:publish:r2 (installers, then the update feed)
+    Rel->>GH: notes + small metadata only (GitHub caps assets at 2 GB)
+    RML->>RML: build:backend, then package:mac / package:linux
+    RML->>R2: publish when the R2 secrets are set
+    Note over R2: clients check the feed 15 s after launch, then every 4 h
 ```
 
 Local rehearsal: `npm run test:build` (= `build:windows` + a sanity message).
@@ -768,12 +796,12 @@ Local rehearsal: `npm run test:build` (= `build:windows` + a sanity message).
 
 | Task | Command |
 |------|---------|
-| Dev (renderer + main + system Python backend) | `npm run dev` |
+| Dev (renderer + main; backend from `backend/dist` or `pythonPath`) | `npm run dev` |
 | Run backend manually | `cd backend && python main.py` |
 | Build Python bundle | `npm run build:backend` |
 | Package signed Windows installer | `npm run package:signed` |
 | Run all Vitest | `npm test` |
-| Backend tests | `cd backend && python -m unittest discover -s tests -v` |
+| Backend tests | `cd backend && python -m pytest` |
 | E2E (requires built app) | `npm run build && npm run test:e2e` |
 | Type check | `npm run typecheck` |
 | Lint | `npm run lint` |
@@ -785,7 +813,7 @@ Local rehearsal: `npm run test:build` (= `build:windows` + a sanity message).
 ## 13. Where to start as a new contributor
 
 1. **Read this doc end-to-end.** Then [`API_ENDPOINTS.md`](./API_ENDPOINTS.md) and [`DATABASE_SCHEMA.md`](./DATABASE_SCHEMA.md).
-2. **Wire the dev loop:** `npm install && setup-python.bat && npm run dev`.
+2. **Wire the dev loop:** `npm install`, then set up the backend as in the README's [Option B](../README.md#option-b-system-python-development) (`setup-python.bat` installs only `requirements.txt`, which leaves the generation stack commented out), then `npm run dev`.
 3. **Open a panel and trace one feature end-to-end.** A great first read is the image-generation flow:
    - `src/pages/GeneratePanel.tsx` (entry point UI)
    - `src/store/slices/generationSlice.ts` (action + state)
@@ -793,16 +821,14 @@ Local rehearsal: `npm run test:build` (= `build:windows` + a sanity message).
    - `electron/ipc-handlers/generation.ts` → `generation:generate-image` handler
    - `backend/main.py` → `POST /api/generate/image` → `process_image_generation` → `DirectGenerator`
 4. **Run the relevant tests** for whatever you change. CI will not be merciful.
-5. **Update this doc** if your change moves a boundary — modules, processes, or stores.
+5. **Update this doc** if your change moves a boundary - modules, processes, or stores.
 
 ---
 
 _Whole-document verification against the codebase: 2026-05-03, at v2.5.0._
 
-_Partially re-verified 2026-08-24 at v3.4.0 — §1 (runtime versions), §2 (source
-layout, slice and category counts, backend suite), and §10 (testing strategy, repo
-gates, CI gates) were each re-measured against the tree and are current. The
-sections not named here still carry their 2026-05-03 date: treat §4-§9 and §11-§13
-as accurate as of v2.5.0 and re-check before relying on a specific claim._
+_Re-checked 2026-09-18 at v3.4.1: the present-tense claims in every section were
+compared with the tree and corrected where they had drifted. The §10 file and
+test counts are still the ones measured at v3.4.0._
 
 _Canonical source: `package.json`, `backend/main.py`, `electron/services/mainProcess.ts`, `electron/preload.ts`, `backend/db/migrations/001_initial_schema.py`._

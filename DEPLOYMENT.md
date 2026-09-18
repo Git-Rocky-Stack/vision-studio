@@ -9,7 +9,7 @@ Current version in the tree: **v3.4.1**; the most recent tagged GitHub release i
 
 Every distributable ships the **native PyInstaller backend** (PyTorch, diffusers,
 transformers, and the CUDA/MPS runtime). There is no slim, frontend-only, or
-"download PyTorch on first run" variant — `scripts/assert-native-backend.cjs`
+"download PyTorch on first run" variant - `scripts/assert-native-backend.cjs`
 runs as electron-builder's `beforePack` hook and **aborts packaging** if the
 backend bundle is missing or truncated. What a user downloads on first run is
 model *weights* (consent-gated through the in-app Foundry), never the runtime.
@@ -22,9 +22,9 @@ See [`BUNDLING.md`](BUNDLING.md) for how the backend bundle itself is produced.
 |----------|------------------|-----|
 | Windows x64 | **Locally** (`npm run package:win`) | The signed-CI path is gated on secrets; the local build is the delivery build. |
 | macOS arm64 | **CI only** (`release-mac-linux.yml`) | PyInstaller can't cross-compile; the macOS bundle must be built on macOS (Apple Silicon). |
-| Linux x64 | **CI only** (`release-mac-linux.yml`) | Same — the Linux CUDA bundle must be built on Linux. |
+| Linux x64 | **CI only** (`release-mac-linux.yml`) | Same - the Linux CUDA bundle must be built on Linux. |
 
-macOS is **Apple Silicon only** — PyTorch dropped macOS x64 wheels at 2.3, so an
+macOS is **Apple Silicon only** - PyTorch dropped macOS x64 wheels at 2.3, so an
 Intel build would ship without its backend.
 
 ## Pre-release checklist
@@ -34,7 +34,7 @@ Intel build would ship without its backend.
       (updates `package.json` + `package-lock.json`), then `scripts/installer.iss`
       (`MyAppVersion`) and add a `CHANGELOG.md` entry
 - [ ] Only rebuild the backend bundle if `backend/` actually changed since the last
-      release (`git diff <last-release-commit>..HEAD -- backend/`) — otherwise the
+      release (`git diff <last-release-commit>..HEAD -- backend/`) - otherwise the
       existing `resources/VisionStudio-Backend.exe` is reused as-is
 
 ## Build process
@@ -46,7 +46,7 @@ npm run build:backend          # PyInstaller onefile -> resources/VisionStudio-B
 ```
 
 ~30-60 min (installs the CUDA torch stack + diffusers, then runs PyInstaller).
-If `backend/` is unchanged since the last release, skip this — the packaged
+If `backend/` is unchanged since the last release, skip this - the packaged
 bundle is identical and the existing one is reused.
 
 ### 2. Frontend
@@ -66,7 +66,7 @@ Produces, in `release/` and `release/nsis-web/`:
 
 | Artifact | Approx size | Role |
 |----------|-------------|------|
-| `Vision-Studio-<ver>-Setup.exe` | ~1 MB | **nsis-web stub** — downloads the app package at install time |
+| `Vision-Studio-<ver>-Setup.exe` | ~1 MB | **nsis-web stub** - downloads the app package at install time |
 | `vision-studio-<ver>-x64.nsis.7z` | ~2.56 GB | app package the stub pulls from the R2 host |
 | `Vision Studio-<ver>-win.zip` | ~2.6 GB | portable ZIP (no install) |
 | `latest.yml` | <1 KB | electron-updater feed |
@@ -74,7 +74,7 @@ Produces, in `release/` and `release/nsis-web/`:
 **Why nsis-web, not a single-file NSIS installer:** the ~2.5 GB payload exceeds
 the 32-bit `makensis` mmap ceiling, so a monolithic NSIS `.exe` physically cannot
 build. The tiny web stub downloads `nsis-web/appPackageUrl`
-(`https://updates.vision-studio-x.com/win`) at install time — the same zero-egress
+(`https://updates.vision-studio-x.com/win`) at install time - the same zero-egress
 host that serves the update feed.
 
 ### macOS + Linux (CI)
@@ -122,7 +122,7 @@ node scripts/publish-r2.cjs --dir release/nsis-web --prefix win/ # stub + 7z + l
 
 macOS and Linux are published by the CI job (`--prefix mac/` / `--prefix linux/`).
 
-After any publish, verify each object is live and complete — HEAD it and confirm
+After any publish, verify each object is live and complete - HEAD it and confirm
 `Content-Length` matches the local file (catches a silently truncated multi-GB
 upload):
 
@@ -151,11 +151,13 @@ staging override: `VISION_STUDIO_UPDATE_URL`.
 
 ## Code signing (not yet configured)
 
-Builds currently ship **unsigned** (Windows) and **ad-hoc signed** (macOS — the
+Builds currently ship **unsigned** (Windows) and **ad-hoc signed** (macOS - the
 minimum for Apple Silicon to launch; `scripts/adhoc-sign-mac.cjs` reseals the
 bundle in `afterPack`). Until real signing lands, Windows shows a SmartScreen
-warning ("More info" -> "Run anyway") and macOS requires right-click -> Open on
-first launch.
+warning ("More info" -> "Run anyway"). On macOS 15 and later the app has to be
+allowed once under System Settings > Privacy & Security ("Open Anyway"), because
+Sequoia removed the right-click -> Open override; macOS 13 and 14 still accept
+right-click -> Open.
 
 ### Windows
 
@@ -163,9 +165,9 @@ Release signing is gated by `scripts/verify-release-signing.cjs`. Use
 `npm run package:win` for unsigned local builds and `npm run package:win:signed`
 for production (it fails fast unless one signing mode is configured). Modes:
 
-1. **CSC / PFX** — `WIN_CSC_LINK` (or `CSC_LINK`) + `WIN_CSC_KEY_PASSWORD`.
-2. **Windows certificate store** — `WIN_CSC_SUBJECT_NAME` or `WIN_CSC_SHA1`.
-3. **Azure Trusted Signing** — `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`,
+1. **CSC / PFX** - `WIN_CSC_LINK` (or `CSC_LINK`) + `WIN_CSC_KEY_PASSWORD`.
+2. **Windows certificate store** - `WIN_CSC_SUBJECT_NAME` or `WIN_CSC_SHA1`.
+3. **Azure Trusted Signing** - `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`,
    `AZURE_TRUSTED_SIGNING_ENDPOINT`, `AZURE_TRUSTED_SIGNING_ACCOUNT_NAME`,
    `AZURE_TRUSTED_SIGNING_CERTIFICATE_PROFILE_NAME`, plus an auth secret.
 
