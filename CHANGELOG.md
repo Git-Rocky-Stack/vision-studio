@@ -379,8 +379,10 @@ breaking changes.
   queue for the Analyze control, `off` does nothing. The queue is drained, and
   smart collections re-evaluate whenever new metadata arrives
 - **Keyframe authoring** - the animation editor can add a keyframe at the
-  playhead for the selected layer, retime via the filmstrip, edit interpolation
-  and easing, and delete. `addKeyframe`/`updateKeyframe`/`deleteKeyframe` had no
+  playhead for the selected layer, edit its interpolation and easing, and
+  delete it. (Corrected: this entry originally also said keyframes could be
+  retimed via the filmstrip. They cannot - the filmstrip only selects and adds
+  keyframes, and no caller updates a keyframe's time.) `addKeyframe`/`updateKeyframe`/`deleteKeyframe` had no
   callers, so the editor could only ever show its empty state
 - **Onion-skin controls** - depth, opacity, and direction controls, with the
   overlay mounted over the active storyboard scene. The toolbar toggle
