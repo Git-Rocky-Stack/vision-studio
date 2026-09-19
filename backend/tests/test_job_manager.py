@@ -155,7 +155,6 @@ class JobManagerListingTests(unittest.TestCase):
             status=JobStatus.COMPLETED,
             params={},
             output_dir="/tmp/outputs/old-completed",
-            created_at=datetime.now() - timedelta(hours=25),
         )
         old_processing = GenerationJob(
             id="old-processing",
@@ -163,7 +162,6 @@ class JobManagerListingTests(unittest.TestCase):
             status=JobStatus.PROCESSING,
             params={},
             output_dir="/tmp/outputs/old-processing",
-            created_at=datetime.now() - timedelta(hours=25),
         )
         recent_failed = GenerationJob(
             id="recent-failed",
@@ -171,13 +169,16 @@ class JobManagerListingTests(unittest.TestCase):
             status=JobStatus.FAILED,
             params={},
             output_dir="/tmp/outputs/recent-failed",
-            created_at=datetime.now(),
         )
 
         manager = JobManager()
         manager.add_job(old_completed)
         manager.add_job(old_processing)
         manager.add_job(recent_failed)
+        # Jobs are added fresh and age while they sit in the manager (add_job
+        # itself prunes, so a job cannot be inserted already past the cutoff).
+        old_completed.created_at = datetime.now() - timedelta(hours=25)
+        old_processing.created_at = datetime.now() - timedelta(hours=25)
 
         removed_count = manager.cleanup_old_jobs(max_age_hours=24)
 
@@ -185,6 +186,41 @@ class JobManagerListingTests(unittest.TestCase):
         self.assertIsNone(manager.get_job("old-completed"))
         self.assertIsNotNone(manager.get_job("old-processing"))
         self.assertIsNotNone(manager.get_job("recent-failed"))
+
+
+class JobManagerRetentionTests(unittest.TestCase):
+    """The job table is in memory for the life of the backend. cleanup_old_jobs
+    existed but nothing called it, so every finished job stayed until restart."""
+
+    def _job(self, job_id, status):
+        return GenerationJob(
+            id=job_id,
+            type="image",
+            status=status,
+            params={},
+            output_dir=f"/tmp/outputs/{job_id}",
+        )
+
+    def test_adding_a_job_drops_finished_jobs_older_than_a_day(self):
+        manager = JobManager()
+        ages = {"old-completed": (JobStatus.COMPLETED, 25),
+                "old-cancelled": (JobStatus.CANCELLED, 30),
+                "old-processing": (JobStatus.PROCESSING, 25),
+                "recent-failed": (JobStatus.FAILED, 1)}
+        jobs = {job_id: self._job(job_id, status) for job_id, (status, _) in ages.items()}
+        for job in jobs.values():
+            manager.add_job(job)
+        # A day passes for the older ones.
+        for job_id, (_, hours) in ages.items():
+            jobs[job_id].created_at = datetime.now() - timedelta(hours=hours)
+
+        manager.add_job(self._job("new", JobStatus.PENDING))
+
+        self.assertIsNone(manager.get_job("old-completed"))
+        self.assertIsNone(manager.get_job("old-cancelled"))
+        self.assertIsNotNone(manager.get_job("old-processing"))
+        self.assertIsNotNone(manager.get_job("recent-failed"))
+        self.assertIsNotNone(manager.get_job("new"))
 
 
 class JobManagerSerializationTests(unittest.TestCase):

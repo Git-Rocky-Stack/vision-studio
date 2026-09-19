@@ -36,6 +36,7 @@ except ImportError as e:
 from foundry.accelerator import DEFAULT_ACCELERATION_SETTINGS, accelerate_pipeline
 from foundry.lora import loras_applied
 from utils.device import empty_device_cache, is_out_of_memory, resolve_device
+from utils.job_manager import GenerationCancelled
 
 # #34 guided passes (all modules import with no torch/diffusers).
 from guided.controlnet_registry import resolve_controlnet_stack
@@ -358,8 +359,13 @@ class DirectGenerator:
         acceleration_settings=None,
         loras: Optional[List[Dict[str, Any]]] = None,
         guided: Optional[Dict[str, Any]] = None,
+        should_cancel: Optional[Callable[[], bool]] = None,
     ) -> Dict[str, Any]:
-        """Generate an image"""
+        """Generate an image.
+
+        should_cancel is polled at the end of every denoising step; once it
+        returns True the run stops there with GenerationCancelled.
+        """
         
         output_dir = os.path.join(self.output_dir, job_id)
         os.makedirs(output_dir, exist_ok=True)
@@ -381,6 +387,10 @@ class DirectGenerator:
         preview_family = (_resolve_record(model_name) or {}).get("base_architecture")
 
         def progress_callback_fn(step, timestep, latents):
+            # Raising here, in the worker thread, unwinds the diffusers call:
+            # the remaining steps never run.
+            if should_cancel is not None and should_cancel():
+                raise GenerationCancelled(job_id)
             # #33: decode + store the latest step frame (throttled, fail-soft,
             # runs here in the worker thread so it never blocks the loop).
             step_preview_service.submit(
@@ -413,7 +423,9 @@ class DirectGenerator:
             )
 
             return result
-            
+
+        except GenerationCancelled:
+            raise
         except Exception as e:
             print(f"❌ Generation failed: {e}")
             raise

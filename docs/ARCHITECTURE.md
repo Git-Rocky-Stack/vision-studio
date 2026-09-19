@@ -271,7 +271,7 @@ flowchart LR
 
 ### 4.1 Composition root
 
-`electron/main.ts` is intentionally thin (64 lines). It registers the two `auth:*` handlers, which hold the Hugging Face and CivitAI tokens for the session, and instantiates `createMainProcessServices(...)` from `electron/services/mainProcess.ts`, which wires every collaborator:
+`electron/main.ts` is intentionally thin. It instantiates `createMainProcessServices(...)` from `electron/services/mainProcess.ts`, which wires every collaborator, then registers the two `auth:*` handlers with `registerDownloadTokenIpc` (`electron/services/downloadTokens.ts`). That service keeps the Hugging Face and CivitAI download tokens encrypted with `safeStorage` across launches and restores them in `start()`, after the app is ready, since `safeStorage` cannot decrypt before the ready event on Windows and Linux:
 
 ```mermaid
 graph LR
@@ -279,6 +279,7 @@ graph LR
     CMS --> SS[secureStore]
     CMS --> OR2[outputRoots]
     CMS --> UA[userAccounts]
+    CMS --> DT[downloadTokens]
     CMS --> ORS[openRouterService]
     CMS --> HFS[huggingFaceInferenceService]
     CMS --> MW[mainWindow]
@@ -298,7 +299,7 @@ Three registration sites:
 
 1. **`services/mainIpc.ts`** - 41 channels: app, dialog, store, settings, accounts, openrouter, assets, notifications, system, backend and updater.
 2. **`ipc-handlers/generation.ts`** - 43 channels: generation, models, director, provision, hardware and `workflow:run-graph`, plus the OpenRouter and Hugging Face routes and the backend WebSocket client. It forwards two push events, `generation:progress` and `generation:step-image` (`backendWsRouting.ts`).
-3. **`main.ts`** - the two `auth:*` channels.
+3. **`services/downloadTokens.ts`** (`registerDownloadTokenIpc`, called by `main.ts`) - the two `auth:*` channels.
 
 The other two push events come from `backendProcess.ts` (`backend:status`) and `updater.ts` (`updater:status`).
 
@@ -488,20 +489,21 @@ The job is registered in `JobManager` and reports progress via the same WebSocke
 stateDiagram-v2
     [*] --> pending: add_job
     pending --> processing: BackgroundTasks dequeues
+    pending --> cancelled: cancel before it starts
     processing --> completed: success → result
     processing --> failed: exception → error
-    processing --> cancelled: POST /api/jobs/{id}/cancel
+    processing --> cancelled: cancel, stops at next checkpoint
     completed --> [*]
     failed --> [*]
     cancelled --> [*]
 
     note right of completed
-        cleanup_old_jobs(max_age_hours=24)
-        exists but is never called
+        add_job drops finished jobs
+        created over 24 h earlier
     end note
 ```
 
-The current `JobManager` is **in-memory only** - a `Dict[str, GenerationJob]` guarded by a `threading.Lock`. Nothing prunes it, so finished jobs stay until the backend restarts, which wipes job state. Cancel acts only on a `processing` job; any other status gets `Job is already <status>`. The `jobs` SQLite table exists (see [`DATABASE_SCHEMA.md`](./DATABASE_SCHEMA.md)) but is not yet wired to the manager; persisting through restarts is a known follow-up.
+The current `JobManager` is **in-memory only** - a `Dict[str, GenerationJob]` guarded by a `threading.Lock`. `add_job` drops finished jobs (completed, failed, cancelled) created more than `JOB_RETENTION_HOURS` (24) earlier; queued and running jobs are never dropped, and a backend restart still wipes job state. `POST /api/jobs/{id}/cancel` cancels a `pending` or `processing` job of any kind. Workers write their status through `update_unless_cancelled`, so a cancel is never overwritten, and running work stops at its next checkpoint: a denoising step (`GenerationCancelled` from the diffusers step callback), an edit tile or face, a timeline-export frame, or the next ComfyUI poll, which deletes the prompt from ComfyUI's queue and interrupts it if it is running. Any other status gets `Job is already <status>`. The `jobs` SQLite table exists (see [`DATABASE_SCHEMA.md`](./DATABASE_SCHEMA.md)) but is not yet wired to the manager; persisting through restarts is a known follow-up.
 
 ### 5.6 Module-level routers
 
@@ -813,7 +815,7 @@ Local rehearsal: `npm run test:build` (= `build:windows` + a sanity message).
 ## 13. Where to start as a new contributor
 
 1. **Read this doc end-to-end.** Then [`API_ENDPOINTS.md`](./API_ENDPOINTS.md) and [`DATABASE_SCHEMA.md`](./DATABASE_SCHEMA.md).
-2. **Wire the dev loop:** `npm install`, then set up the backend as in the README's [Option B](../README.md#option-b-system-python-development) (`setup-python.bat` installs only `requirements.txt`, which leaves the generation stack commented out), then `npm run dev`.
+2. **Wire the dev loop:** `npm install`, then set up the backend as in the README's [Option B](../README.md#option-b-system-python-development) (on Windows, `setup-python.bat` runs `scripts/setup-dev-backend.cjs`, which installs the pinned torch, `requirements.txt` and the generation stack with the release build's own steps), then `npm run dev`.
 3. **Open a panel and trace one feature end-to-end.** A great first read is the image-generation flow:
    - `src/pages/GeneratePanel.tsx` (entry point UI)
    - `src/store/slices/generationSlice.ts` (action + state)

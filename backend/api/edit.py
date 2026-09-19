@@ -59,7 +59,9 @@ def configure(job_manager: Any, output_dir: str, models_dir: str,
 
 
 async def _process(job_id: str, operation: str, params: Dict[str, Any]) -> None:
-    _job_manager.update_job(job_id, status=JobStatus.PROCESSING, progress=0.0)
+    # A job cancelled while it was still queued never starts.
+    if not _job_manager.update_unless_cancelled(job_id, status=JobStatus.PROCESSING, progress=0.0):
+        return
 
     def cancel_check() -> bool:
         job = _job_manager.get_job(job_id)
@@ -73,19 +75,20 @@ async def _process(job_id: str, operation: str, params: Dict[str, Any]) -> None:
         result = await asyncio.to_thread(
             run_edit_operation, job_id, operation, params, _output_dir,
             _models_dir, _resolve_record, progress_cb, cancel_check)
-        _job_manager.update_job(
+        # A cancel that landed after the last tile still wins over the result.
+        _job_manager.update_unless_cancelled(
             job_id, status=JobStatus.COMPLETED, progress=100.0,
             result=result, completed_at=datetime.now())
     except EditCancelled:
         _job_manager.update_job(
             job_id, status=JobStatus.CANCELLED, completed_at=datetime.now())
     except (EditModelUnavailable, EditToolError) as exc:
-        _job_manager.update_job(
+        _job_manager.update_unless_cancelled(
             job_id, status=JobStatus.FAILED, error=str(exc),
             completed_at=datetime.now())
     except Exception:
         logger.exception(f"[Job {job_id}] edit operation '{operation}' failed")
-        _job_manager.update_job(
+        _job_manager.update_unless_cancelled(
             job_id, status=JobStatus.FAILED,
             error=f"The {operation} operation failed unexpectedly - check the backend logs.",
             completed_at=datetime.now())

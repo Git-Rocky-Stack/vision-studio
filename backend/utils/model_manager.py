@@ -242,11 +242,11 @@ class ModelManager:
         """Get list of all models"""
         return [model.to_dict() for model in self.available_models.values()]
     
-    def get_model_status(self, model_id: str) -> Dict[str, Any]:
-        """Get model status"""
+    def get_model_status(self, model_id: str) -> Optional[Dict[str, Any]]:
+        """Get model status, or None for an id this manager does not know."""
         model = self.available_models.get(model_id)
         if not model:
-            return {"error": "Model not found"}
+            return None
         return model.to_dict()
 
     def get_record_status(self, model_id: str) -> Optional[str]:

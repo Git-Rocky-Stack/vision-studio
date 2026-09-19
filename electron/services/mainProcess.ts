@@ -24,6 +24,7 @@ import {
   setupGenerationHandlers,
 } from '../ipc-handlers/generation';
 import { createUserAccountsService, DEFAULT_USER_ACCOUNTS_STATE } from './userAccounts';
+import { createDownloadTokensService } from './downloadTokens';
 import { createOpenRouterService } from './openRouter';
 import { createHuggingFaceInferenceService } from './huggingfaceInference';
 import { createUpdaterService, type AutoUpdaterLike } from './updater';
@@ -74,9 +75,14 @@ export function createMainProcessServices({
         modelsDownloaded: [],
         managedOutputRoots: [],
         userAccounts: DEFAULT_USER_ACCOUNTS_STATE,
+        downloadTokens: {},
       },
     },
   });
+
+  // The Foundry's download tokens. Restored in start(): safeStorage cannot
+  // decrypt before the app's ready event on Windows and Linux.
+  const downloadTokens = createDownloadTokensService({ store, safeStorage, logger });
 
   const outputRoots = createOutputRootService({
     userDataPath: app.getPath('userData'),
@@ -154,6 +160,8 @@ export function createMainProcessServices({
   }
 
   async function start() {
+    // Before the window or backend exist, so no download can go out without them.
+    downloadTokens.restore();
     registerContentSecurityPolicy(session.defaultSession);
     outputRoots.rememberOutputRoot(outputRoots.getInternalOutputDirectory());
     outputRoots.rememberOutputRoot(outputRoots.getResolvedOutputDirectory());
@@ -197,5 +205,6 @@ export function createMainProcessServices({
     start,
     createWindowIfNeeded,
     stopBackend: backend.stop,
+    downloadTokens,
   };
 }

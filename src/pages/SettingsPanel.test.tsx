@@ -244,6 +244,16 @@ describe('SettingsPanel', () => {
     });
   });
 
+  it('says what AI Director sends when prompt assist runs on a cloud route', async () => {
+    // generation.ts passes the retrieved context to OpenRouter / Hugging Face
+    // prompt enhancement, so "nothing leaves your machine" was false there.
+    render(<SettingsPanel />);
+    fireEvent.click(screen.getByRole('button', { name: /AI & Models/i }));
+
+    expect(await screen.findByText(/retrieved excerpts are sent to that provider/i)).toBeInTheDocument();
+    expect(screen.queryByText(/nothing leaves your machine/i)).toBeNull();
+  });
+
   it('exposes the Performance acceleration panel', async () => {
     render(<SettingsPanel />);
 

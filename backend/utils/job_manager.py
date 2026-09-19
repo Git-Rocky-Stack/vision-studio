@@ -17,6 +17,15 @@ class JobStatus(Enum):
     CANCELLED = "cancelled"
 
 
+class GenerationCancelled(Exception):
+    """Raised inside a generator to stop a job whose status is CANCELLED."""
+
+
+# Finished jobs (completed, failed, cancelled) are dropped this long after
+# they were created. Running and queued jobs are never dropped.
+JOB_RETENTION_HOURS = 24
+
+
 @dataclass
 class GenerationJob:
     id: str
@@ -53,8 +62,13 @@ class JobManager:
         self._callbacks: Dict[str, List[Callable]] = {}
     
     def add_job(self, job: GenerationJob):
-        """Add a new job"""
+        """Add a new job, first dropping finished jobs older than JOB_RETENTION_HOURS.
+
+        Jobs live only in this dict, so pruning on every add keeps it bounded
+        by recent activity rather than by how long the backend has been up.
+        """
         with self._lock:
+            self._prune_locked(JOB_RETENTION_HOURS)
             self._jobs[job.id] = job
     
     def get_job(self, job_id: str) -> Optional[GenerationJob]:
@@ -65,20 +79,54 @@ class JobManager:
     def update_job(self, job_id: str, **kwargs):
         """Update job fields"""
         with self._lock:
+            self._update_locked(job_id, kwargs)
+
+    def cancel(self, job_id: str) -> bool:
+        """Cancel a pending or processing job. False when it is unknown or already finished."""
+        with self._lock:
             job = self._jobs.get(job_id)
-            if job:
-                for key, value in kwargs.items():
-                    if hasattr(job, key):
-                        setattr(job, key, value)
-                
-                # Notify callbacks
-                if job_id in self._callbacks:
-                    for callback in self._callbacks[job_id]:
-                        try:
-                            callback(job)
-                        except Exception as e:
-                            print(f"Callback error: {e}")
-    
+            if job is None or job.status not in (JobStatus.PENDING, JobStatus.PROCESSING):
+                return False
+            self._update_locked(
+                job_id, {"status": JobStatus.CANCELLED, "completed_at": datetime.now()})
+            return True
+
+    def is_cancelled(self, job_id: str) -> bool:
+        with self._lock:
+            job = self._jobs.get(job_id)
+            return job is not None and job.status == JobStatus.CANCELLED
+
+    def update_unless_cancelled(self, job_id: str, **kwargs) -> bool:
+        """update_job, except a cancelled job keeps its cancellation.
+
+        The worker's status writes (processing, completed, failed) go through
+        here so a cancel that lands mid-run is never overwritten. The check and
+        the write share one lock hold, so a cancel cannot slip between them.
+        Returns False only when the job is cancelled.
+        """
+        with self._lock:
+            job = self._jobs.get(job_id)
+            if job is not None and job.status == JobStatus.CANCELLED:
+                return False
+            self._update_locked(job_id, kwargs)
+            return True
+
+    def _update_locked(self, job_id: str, fields: Dict[str, Any]):
+        """Apply fields and notify subscribers. Caller holds self._lock."""
+        job = self._jobs.get(job_id)
+        if job:
+            for key, value in fields.items():
+                if hasattr(job, key):
+                    setattr(job, key, value)
+
+            # Notify callbacks
+            if job_id in self._callbacks:
+                for callback in self._callbacks[job_id]:
+                    try:
+                        callback(job)
+                    except Exception as e:
+                        print(f"Callback error: {e}")
+
     def list_jobs(self, status: Optional[str] = None, limit: int = 50) -> List[GenerationJob]:
         """List jobs with optional filtering"""
         with self._lock:
@@ -101,19 +149,23 @@ class JobManager:
                 return True
             return False
     
-    def cleanup_old_jobs(self, max_age_hours: int = 24):
+    def cleanup_old_jobs(self, max_age_hours: int = JOB_RETENTION_HOURS):
         """Remove jobs older than specified hours"""
         with self._lock:
-            cutoff = datetime.now() - timedelta(hours=max_age_hours)
-            to_delete = [
-                job_id for job_id, job in self._jobs.items()
-                if job.created_at < cutoff and job.status in [
-                    JobStatus.COMPLETED, JobStatus.FAILED, JobStatus.CANCELLED
-                ]
+            return self._prune_locked(max_age_hours)
+
+    def _prune_locked(self, max_age_hours: int) -> int:
+        """Drop finished jobs created more than max_age_hours ago. Caller holds self._lock."""
+        cutoff = datetime.now() - timedelta(hours=max_age_hours)
+        to_delete = [
+            job_id for job_id, job in self._jobs.items()
+            if job.created_at < cutoff and job.status in [
+                JobStatus.COMPLETED, JobStatus.FAILED, JobStatus.CANCELLED
             ]
-            for job_id in to_delete:
-                del self._jobs[job_id]
-            return len(to_delete)
+        ]
+        for job_id in to_delete:
+            del self._jobs[job_id]
+        return len(to_delete)
     
     def subscribe(self, job_id: str, callback: Callable):
         """Subscribe to job updates"""

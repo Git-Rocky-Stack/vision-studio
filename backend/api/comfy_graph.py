@@ -21,7 +21,7 @@ from pydantic import BaseModel, Field
 
 from middleware.rate_limit import LIMITS, limiter
 from utils.comfy_graph_guard import GraphValidationError, validate_comfy_graph
-from utils.job_manager import GenerationJob, JobStatus
+from utils.job_manager import GenerationCancelled, GenerationJob, JobStatus
 
 logger = logging.getLogger(__name__)
 
@@ -56,25 +56,37 @@ def _kinds_for(generation_type: str) -> tuple[str, ...]:
     return ("images", "gifs", "videos") if generation_type == "video" else ("images",)
 
 
-def _update(job_id: str, **kwargs) -> None:
-    if _job_manager is not None:
-        _job_manager.update_job(job_id, **kwargs)
+def _update(job_id: str, **kwargs) -> bool:
+    """Write job fields unless the job was cancelled. False when it was."""
+    if _job_manager is None:
+        return True
+    return _job_manager.update_unless_cancelled(job_id, **kwargs)
 
 
-async def execute_comfy_graph(job_id: str, graph: Dict, generation_type: str) -> Dict:
-    """Queue a validated user graph on Comfy, collect outputs, and save them."""
+def _cancelled(job_id: str) -> bool:
+    return _job_manager is not None and _job_manager.is_cancelled(job_id)
+
+
+async def execute_comfy_graph(job_id: str, graph: Dict, generation_type: str) -> Optional[Dict]:
+    """Queue a validated user graph on Comfy, collect outputs, and save them.
+
+    Returns None when the job is cancelled, before or while it runs.
+    """
     try:
         validate_comfy_graph(graph)  # defense-in-depth: never trust the caller
         client = _comfy_client_getter() if _comfy_client_getter else None
         if client is None or not getattr(client, "connected", False):
             raise RuntimeError("ComfyUI is not connected.")
 
-        _update(job_id, status=JobStatus.PROCESSING, progress=0.0)
+        # A job cancelled while it was still queued is never sent to ComfyUI.
+        if not _update(job_id, status=JobStatus.PROCESSING, progress=0.0):
+            return None
         prompt_id = await client.queue_prompt(graph)
         outputs = await client.wait_for_prompt_completion(
             prompt_id,
             progress_callback=lambda progress: _update(job_id, progress=progress),
             kinds=_kinds_for(generation_type),
+            should_cancel=lambda: _cancelled(job_id),
         )
 
         output_dir = Path(_output_dir) / job_id
@@ -91,8 +103,12 @@ async def execute_comfy_graph(job_id: str, graph: Dict, generation_type: str) ->
 
         key = "videos" if generation_type == "video" else "images"
         result = {key: saved, "generation_type": generation_type}
-        _update(job_id, status=JobStatus.COMPLETED, progress=100.0, result=result, completed_at=datetime.now())
+        if not _update(job_id, status=JobStatus.COMPLETED, progress=100.0, result=result, completed_at=datetime.now()):
+            return None
         return result
+    except GenerationCancelled:
+        logger.info(f"[Job {job_id}] ComfyUI graph stopped by cancel")
+        return None
     except GraphValidationError as exc:
         # User-facing, leak-free refusal string from the gate.
         _update(job_id, status=JobStatus.FAILED, error=str(exc), completed_at=datetime.now())

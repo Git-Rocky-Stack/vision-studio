@@ -448,6 +448,7 @@ module.exports = {
   installPyTorch,
   installPythonDependencies,
   installBundledRuntimes,
+  assertBundleImports,
   buildExecutable,
   copyToResources
 };

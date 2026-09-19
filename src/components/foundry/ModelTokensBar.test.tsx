@@ -38,6 +38,30 @@ describe('ModelTokensBar', () => {
     expect(setCivitaiToken).toHaveBeenCalledWith('cv_x');
   });
 
+  it('says a token is kept only until you quit when it could not be saved encrypted', async () => {
+    const setHfToken = vi.fn().mockResolvedValue({ success: true, persisted: false });
+    window.electron = {
+      auth: { setHfToken, setCivitaiToken: vi.fn() },
+    } as unknown as typeof window.electron;
+    render(<ModelTokensBar />);
+
+    fireEvent.change(screen.getByLabelText(/hugging face token/i), {
+      target: { value: 'hf_x' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /save hugging face/i }));
+
+    expect(await screen.findByText(/saved until you quit/i)).toBeInTheDocument();
+  });
+
+  it('describes how tokens are kept', () => {
+    window.electron = {
+      auth: { setHfToken: vi.fn(), setCivitaiToken: vi.fn() },
+    } as unknown as typeof window.electron;
+    render(<ModelTokensBar />);
+
+    expect(screen.getByText(/saved encrypted on this computer/i)).toBeInTheDocument();
+  });
+
   it('does not save an empty token', () => {
     const setHfToken = vi.fn();
     window.electron = {

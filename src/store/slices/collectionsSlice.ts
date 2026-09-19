@@ -209,7 +209,8 @@ export function createCollectionsActions(set: AppSet, get: AppGet) {
       }
 
       // 'on-demand' and 'background-batch' both defer; the difference is who
-      // drains the backlog (the Analyze control vs. the background pass).
+      // drains the backlog (the Analyze control vs. the background pass in
+      // src/features/assets/backgroundTagging.ts, started by App).
       const queued = new Set(taggingQueue);
       const additions = pending.filter((id) => !queued.has(id));
       if (additions.length === 0) return;

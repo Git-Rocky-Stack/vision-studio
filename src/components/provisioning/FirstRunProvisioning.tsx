@@ -319,8 +319,8 @@ export function FirstRunProvisioning() {
               {derived.gated.length > 0 && (
                 <li>
                   {derived.gated.length} of them ({derived.gated.map((m) => m.name).join(', ')})
-                  are gated upstream and need a free Hugging Face account: add your token in
-                  Settings, then accept each model's license when prompted here.
+                  are gated upstream and need a free Hugging Face account: add your token at
+                  the top of the Foundry, then accept each model's license when prompted here.
                 </li>
               )}
               <li>

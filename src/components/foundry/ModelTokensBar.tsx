@@ -3,13 +3,14 @@ import { Check } from 'lucide-react';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 
-type TokenSetter = (token: string) => Promise<{ success: boolean }>;
+type TokenSetter = (token: string) => Promise<{ success: boolean; persisted?: boolean }>;
 
 /**
- * One provider's write-only token field. The token is sent to the main process
- * and stored in the OS credential vault; it is never read back, so the field
- * clears on a successful save and shows a transient "Saved" confirmation rather
- * than echoing the value.
+ * One provider's write-only token field. The main process encrypts the token
+ * with the OS and keeps it for the next launch (electron/services/
+ * downloadTokens.ts); without OS encryption it is held until the app quits, and
+ * the reply says so. It is never read back, so the field clears on a successful
+ * save and shows a confirmation rather than echoing the value.
  */
 function TokenRow({
   provider,
@@ -22,16 +23,16 @@ function TokenRow({
 }) {
   const [token, setToken] = useState('');
   const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
+  const [saved, setSaved] = useState<null | 'saved' | 'session'>(null);
 
   const save = async () => {
     if (!token.trim() || !onSave) return;
     setSaving(true);
-    setSaved(false);
+    setSaved(null);
     try {
       const result = await onSave(token);
       if (result?.success) {
-        setSaved(true);
+        setSaved(result.persisted === false ? 'session' : 'saved');
         setToken('');
       }
     } finally {
@@ -50,7 +51,7 @@ function TokenRow({
           placeholder={placeholder}
           onChange={(event) => {
             setToken(event.target.value);
-            setSaved(false);
+            setSaved(null);
           }}
         />
       </div>
@@ -65,7 +66,8 @@ function TokenRow({
       </Button>
       {saved && (
         <span className="inline-flex items-center gap-1 pb-2 text-xs text-status-success">
-          <Check aria-hidden="true" className="h-3.5 w-3.5" /> Saved
+          <Check aria-hidden="true" className="h-3.5 w-3.5" />{' '}
+          {saved === 'session' ? 'Saved until you quit' : 'Saved'}
         </span>
       )}
     </div>
@@ -74,16 +76,16 @@ function TokenRow({
 
 /**
  * Hugging Face + CivitAI access tokens for gated/rate-limited hub access.
- * Tokens are write-only: stored in the OS credential vault via the auth IPC and
- * never surfaced back to the renderer.
+ * Tokens are write-only: encrypted by the main process (auth IPC ->
+ * downloadTokens.ts) and never surfaced back to the renderer.
  */
 export function ModelTokensBar() {
   const auth = window.electron?.auth;
   return (
     <div className="space-y-3">
       <p className="text-xs text-text-muted">
-        Add access tokens for gated or rate-limited downloads. Tokens are stored securely and
-        cannot be read back.
+        Add access tokens for gated or rate-limited downloads. Tokens are saved encrypted on this
+        computer and cannot be read back.
       </p>
       <TokenRow
         provider="Hugging Face"

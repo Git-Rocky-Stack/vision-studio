@@ -15,6 +15,7 @@ except ModuleNotFoundError:  # CI stub omits aiohttp; keep the module import-saf
     aiohttp = None  # type: ignore[assignment]
 
 from .comfy_workflows import extract_history_outputs
+from .job_manager import GenerationCancelled
 
 
 class ComfyUIClient:
@@ -163,10 +164,18 @@ class ComfyUIClient:
         poll_interval: float = 1.0,
         progress_callback: Optional[Callable[[float], None]] = None,
         kinds: tuple[str, ...] = ("images",),
+        should_cancel: Optional[Callable[[], bool]] = None,
     ) -> List[Dict[str, str]]:
         start = asyncio.get_running_loop().time()
 
         while True:
+            if should_cancel is not None and should_cancel():
+                try:
+                    await self.cancel_prompt(prompt_id)
+                except Exception as exc:  # noqa: BLE001 - the job is cancelled regardless
+                    print(f"⚠️ ComfyUI did not accept the cancel for {prompt_id}: {exc}")
+                raise GenerationCancelled(prompt_id)
+
             history = await self.get_history(prompt_id)
             outputs = extract_history_outputs(history, prompt_id, kinds=kinds)
             if outputs:
@@ -203,7 +212,32 @@ class ComfyUIClient:
         """Interrupt current generation"""
         async with self._session.post(f"{self.http_url}/interrupt") as resp:
             return resp.status == 200
-    
+
+    async def cancel_prompt(self, prompt_id: str) -> None:
+        """Stop one prompt: drop it from the queue, and interrupt it if running.
+
+        ComfyUI's POST /queue {"delete": [...]} removes a queued prompt. An
+        interrupt is sent only when GET /queue lists this prompt as running:
+        servers that predate targeted interrupts (e.g. v0.3.0) ignore the
+        {"prompt_id": ...} body and stop whatever is running, which could be
+        another client's prompt.
+        """
+        async with self._session.post(
+            f"{self.http_url}/queue", json={"delete": [prompt_id]}
+        ):
+            pass
+        if prompt_id in await self._running_prompt_ids():
+            async with self._session.post(
+                f"{self.http_url}/interrupt", json={"prompt_id": prompt_id}
+            ):
+                pass
+
+    async def _running_prompt_ids(self) -> List[str]:
+        """Prompt ids ComfyUI is executing (queue items are (number, prompt_id, ...))."""
+        async with self._session.get(f"{self.http_url}/queue") as resp:
+            queue = await resp.json()
+        return [item[1] for item in queue.get("queue_running", []) if len(item) > 1]
+
     async def free_memory(self, unload_models: bool = True, free_memory: bool = True):
         """Free VRAM"""
         data = {
