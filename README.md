@@ -88,7 +88,7 @@ A professional AI-powered desktop application for image and video generation. No
 
 1. Download for your platform from **[vision-studio-x.com/download](https://vision-studio-x.com/download)** - Windows x64, macOS on Apple Silicon, or Linux x64
 2. Run the installer. The AI backend (PyTorch, diffusers, CUDA/MPS) is bundled - there is nothing extra to install. It unpacks itself to a temporary folder each time the app starts, which can take a few minutes
-3. Builds are not yet code-signed. On Windows click **More info -> Run anyway**. On macOS 15 or later, try to open the app once, then choose **Open Anyway** under **System Settings > Privacy & Security**; on macOS 13 and 14, **right-click -> Open**. On Linux, `chmod +x` the AppImage
+3. Builds are not yet code-signed. On Windows click **More info -> Run anyway**. On macOS 15 or later, try to open the app once, then choose **Open Anyway** under **System Settings > Privacy & Security**; on macOS 14, **right-click -> Open**. On Linux, `chmod +x` the AppImage
 4. On first launch, install the one-click starter set (33 models, about 137 GB) or skip it and download only the models you want through the in-app **Foundry** (~2-24 GB per model, consent-gated) - then start creating
 
 ### Option 2: Build from Source
@@ -162,6 +162,10 @@ cd ..
 npm install
 npm run dev
 ```
+
+`npm run dev` starts the engine with `backend/venv`'s Python whenever that
+venv exists and the app's stored settings name no `pythonPath`, so the venv
+does not have to be activated in the shell that runs it.
 
 `requirements.txt` holds the server and test dependencies only. The second
 `pip install` is the generation stack the release build bundles
@@ -258,7 +262,7 @@ vision-studio/
 ## System Requirements
 
 ### Minimum
-- Windows 10 x64 / macOS 13 (Apple Silicon) / Ubuntu 22.04 x64
+- Windows 10 x64 / macOS 14 (Apple Silicon) / Ubuntu 22.04 x64
 - 8 GB RAM
 - 10 GB free disk space
 - Internet connection (first-run model downloads)
@@ -270,7 +274,10 @@ vision-studio/
 - 50 GB free disk space (for model weights)
 
 macOS builds are **Apple Silicon (arm64) only** - PyTorch dropped macOS x64
-wheels at 2.3. On Apple Silicon the engine runs on Metal (MPS); on Windows/Linux
+wheels at 2.3 - and need **macOS 14 or later**: the release is built on
+macOS 14 and bundles NumPy, SciPy and ONNX Runtime wheels built for
+macOS 14. Linux builds are made on Ubuntu 22.04 and need its glibc or newer.
+On Apple Silicon the engine runs on Metal (MPS); on Windows/Linux
 it runs on NVIDIA CUDA, and falls back to CPU (slowly) when no GPU is present.
 
 ### GPU Support
