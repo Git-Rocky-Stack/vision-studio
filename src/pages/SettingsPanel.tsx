@@ -1709,7 +1709,9 @@ export function SettingsPanel() {
                   </h3>
                   <p className="text-xs text-text-body mb-3">
                     Augment prompt-assist with your prior prompts, your assets, and a curated
-                    model-prompting knowledge base. Everything is indexed locally; nothing leaves your machine.
+                    model-prompting knowledge base. Everything is indexed on this machine. When prompt
+                    assist runs on a cloud route (OpenRouter or Hugging Face), the retrieved excerpts
+                    are sent to that provider with your prompt.
                   </p>
                   <label className="flex items-center justify-between py-2 cursor-pointer">
                     <span className="text-sm font-medium text-text-primary">Enable retrieval-augmented assist</span>

@@ -127,6 +127,18 @@ describe('pre-start view', () => {
     expect(screen.getByTestId('provision-disclosure')).toHaveTextContent(/Hugging Face/);
   });
 
+  it('sends gated-model users to the token field downloads read', () => {
+    // Downloads send the Foundry token (backendAuth X-HF-Token). The Settings
+    // token is a different one - the per-account key for cloud inference.
+    seed(snapshot({
+      models: [model(), model({ id: 'sd3.5-large', name: 'SD 3.5 Large', gated: true })],
+    }), { hardwareProfile: hardware(500 * GB) });
+    render(<FirstRunProvisioning />);
+    const disclosure = screen.getByTestId('provision-disclosure');
+    expect(disclosure).toHaveTextContent(/token at the top of the Foundry/);
+    expect(disclosure).not.toHaveTextContent(/token in\s+Settings/);
+  });
+
   it('Install starts provisioning', () => {
     const startProvisioning = vi.fn();
     useAppStore.setState({ startProvisioning });

@@ -8,6 +8,7 @@ import {
 } from './settings';
 import { AI_DIRECTOR_DEFAULTS } from '../../shared/retrieval';
 import type { UserAccountsState } from './userAccounts';
+import type { DownloadTokensState } from './downloadTokens';
 
 export interface StoreSchema {
   recentProjects: string[];
@@ -16,6 +17,7 @@ export interface StoreSchema {
   modelsDownloaded: string[];
   managedOutputRoots: string[];
   userAccounts: UserAccountsState;
+  downloadTokens: DownloadTokensState;
 }
 
 export const DEFAULT_SETTINGS: Required<Omit<AppSettings, 'pythonPath'>> = {

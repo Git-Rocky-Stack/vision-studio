@@ -475,8 +475,8 @@ export interface ElectronAPI {
     get: () => Promise<HardwareProfile | { success: false; error: string }>;
   };
   auth: {
-    setHfToken: (token: string) => Promise<{ success: boolean }>;
-    setCivitaiToken: (token: string) => Promise<{ success: boolean }>;
+    setHfToken: (token: string) => Promise<{ success: boolean; persisted?: boolean }>;
+    setCivitaiToken: (token: string) => Promise<{ success: boolean; persisted?: boolean }>;
   };
   /**
    * #34 installer PR4: auto-update over the R2 generic feed. Every field is a

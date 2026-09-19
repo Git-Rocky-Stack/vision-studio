@@ -33,6 +33,7 @@ except ImportError:
 # ONE error type to its job-failure envelope. Tests patch the seam where it
 # is used: ``utils.direct_video_generator.resolve_plan``.
 from utils.device import empty_device_cache, is_out_of_memory, resolve_device
+from utils.job_manager import GenerationCancelled
 from utils.direct_generator import (
     ModelLoadRefusedError,
     _resolve_lora_record,
@@ -299,6 +300,7 @@ class DirectVideoGenerator:
         output_dir: str,
         acceleration_settings=None,
         loras: Optional[List[Dict[str, Any]]] = None,
+        should_cancel: Optional[Callable[[], bool]] = None,
     ) -> Dict[str, object]:
         frame_count = max(8, fps * duration)
         strategy = resolve_video_model_strategy(model_name, bool(image_path))
@@ -307,6 +309,13 @@ class DirectVideoGenerator:
         generator = None
         if torch is not None:
             generator = torch.Generator(device=self.device).manual_seed(seed)
+
+        # LTX, SVD and AnimateDiff all call callback_on_step_end after every
+        # denoising step; raising there stops a cancelled job at that step.
+        def _on_step_end(_pipe, _step, _timestep, callback_kwargs):
+            if should_cancel is not None and should_cancel():
+                raise GenerationCancelled(os.path.basename(output_dir))
+            return callback_kwargs
 
         # svd (StableVideoDiffusionPipeline) has no text/LoRA conditioning path.
         effective_loras = [] if model_name == "svd" else (loras or [])
@@ -320,6 +329,7 @@ class DirectVideoGenerator:
                     num_frames=frame_count,
                     num_inference_steps=steps,
                     generator=generator,
+                    callback_on_step_end=_on_step_end,
                 )
             else:
                 with decode_data_url_to_image(image_path) as source_image:
@@ -334,6 +344,7 @@ class DirectVideoGenerator:
                     num_frames=frame_count,
                     num_inference_steps=steps,
                     generator=generator,
+                    callback_on_step_end=_on_step_end,
                 )
 
         frames = output.frames[0]
@@ -372,6 +383,7 @@ class DirectVideoGenerator:
         progress_callback: Optional[Callable[[float], None]] = None,
         acceleration_settings=None,
         loras: Optional[List[Dict[str, Any]]] = None,
+        should_cancel: Optional[Callable[[], bool]] = None,
     ) -> Dict[str, object]:
         output_dir = os.path.join(self.output_dir, job_id)
         Path(output_dir).mkdir(parents=True, exist_ok=True)
@@ -401,6 +413,7 @@ class DirectVideoGenerator:
             output_dir,
             acceleration_settings,
             loras,
+            should_cancel,
         )
 
         if progress_callback:

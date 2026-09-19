@@ -1,6 +1,6 @@
 # Vision Studio - Agent Guide
 
-Vision Studio is a professional, local-first AI image and video generation desktop app: Electron 42 + React 19 + TypeScript + Vite + Tailwind CSS v4, with a Python (FastAPI/PyTorch) backend. Everything runs on the user's GPU. No cloud, no subscription.
+Vision Studio is a professional, local-first AI image and video generation desktop app: Electron 42 + React 19 + TypeScript + Vite + Tailwind CSS v4, with a Python (FastAPI/PyTorch) backend. Generation runs on the user's GPU by default; the OpenRouter and Hugging Face routes are opt-in, with the user's own key. No subscription.
 
 ## Design System
 

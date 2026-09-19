@@ -287,12 +287,12 @@ Truthful hardware probe for run-readiness preflight (M5). `HardwareProfile` mirr
 
 ### 1.11 `electron.auth`
 
-Session-scoped hub credentials. Tokens are held **only in Main-process memory** - never persisted by the Python backend, never returned to the renderer, never logged. The Main process injects them per-request as headers on the backend calls noted above: `X-HF-Token` for Hugging Face (search + downloads of HF-source records), `X-Civitai-Token` for CivitAI (search + direct-URL downloads/resume of `civitai`-source records). An empty or whitespace-only token clears the stored value.
+Hub credentials, kept by the Main process (`electron/services/downloadTokens.ts`). Each token is encrypted with the OS (`safeStorage`) into the app's store and restored on the next launch, once the app is ready; where the OS offers no encryption it is held in Main-process memory until the app quits and is never written in plain text. Tokens are never persisted by the Python backend, never returned to the renderer, never logged. The Main process injects them per-request as headers on the backend calls noted above: `X-HF-Token` for Hugging Face (search + downloads of HF-source records), `X-Civitai-Token` for CivitAI (search + direct-URL downloads/resume of `civitai`-source records). An empty or whitespace-only token clears the stored value. (3.4.1 and earlier held tokens in memory only, and answered `{ success: true }`.)
 
 | Method | IPC channel | Returns |
 |--------|-------------|---------|
-| `setHfToken(token)` | `auth:setHfToken` | `Promise<{ success: true }>` |
-| `setCivitaiToken(token)` | `auth:setCivitaiToken` | `Promise<{ success: true }>` |
+| `setHfToken(token)` | `auth:setHfToken` | `Promise<{ success: true; persisted: boolean }>` - `persisted: false` means kept until quit |
+| `setCivitaiToken(token)` | `auth:setCivitaiToken` | `Promise<{ success: true; persisted: boolean }>` |
 
 ### 1.12 `electron.notifications`
 
@@ -504,7 +504,7 @@ Body - `VideoGenerationRequest`:
 | `acceleration_settings` | object \| null | `null` | M9 acceleration toggles ([same shape as image](#acceleration-settings)); `null` = all defaults |
 | `loras` | array | `[]` | as for images; applied to `ltx-video` and `animatediff`, ignored for `svd` |
 
-On the built-in engine, clip length is `fps` x `duration` frames (minimum 8). With ComfyUI connected, every video job goes to ComfyUI's SVD-XT image-to-video workflow instead: it receives `image_path`, size, `fps`, `steps` and `seed`, renders 14 frames, and ignores `model`, `prompt`, `duration` and `loras` (`backend/utils/comfy_workflows.py`).
+On the built-in engine, clip length is `fps` x `duration` frames (minimum 8). With ComfyUI connected, an image-to-video job (one with `image_path`) goes to ComfyUI's SVD-XT workflow instead: it receives `image_path`, size, `fps`, `steps` and `seed`, renders 14 frames, and ignores `model`, `prompt`, `duration` and `loras` (`backend/utils/comfy_workflows.py`). Text-to-video always runs on the built-in engine; if that engine is unavailable while ComfyUI is connected, the job fails with an error saying ComfyUI runs image-to-video only. (3.4.1 and earlier sent every video job to ComfyUI, where text-to-video failed for want of an input image.)
 
 Returns `JobResponse`.
 
@@ -549,7 +549,7 @@ For local diffusers generations (M9), the result also carries `acceleration` - t
 
 #### `POST /api/jobs/{job_id}/cancel` - `tags=[Jobs]`, limit `30/min`
 
-Sets status to `cancelled` only if the job is `processing`. For any other status it answers `{ "message": "Job is already <status>" }` and changes nothing, so a `pending` job cannot be cancelled. `404` if not found.
+Cancels a `pending` or `processing` job of any kind (generation, edit, timeline export, ComfyUI graph) and answers `{ "message": "Job cancelled" }`. A pending job never starts. A running job stops at its next checkpoint - the built-in engine after its current denoising step, edit tools between tiles or faces, a timeline export after its current frame (its partial file is deleted) - and a ComfyUI prompt is removed from ComfyUI's queue, or interrupted if it is the one running. A cancelled job stays `cancelled` and keeps no result, even if its work finishes first. For a `completed`, `failed` or `cancelled` job it answers `{ "message": "Job is already <status>" }` and changes nothing. `404` if not found. (3.4.1 and earlier cancelled only `processing` jobs, and only by relabelling them: the work ran on and the job was then marked `completed`.)
 
 #### `GET /api/jobs?status=&limit=` - `tags=[Jobs]`, limit `60/min`
 
@@ -824,7 +824,7 @@ Errors: `404` - unknown `model_id` (the only error case).
 
 #### `GET /api/models/{model_id}/status` - `tags=[Models]`, limit `60/min`
 
-Returns the legacy `ModelManager` record: `{ id, name, type, source, repo_id, aux_repo_id, filename, local_path, size, status, description, download_url, progress }`. An unknown id returns `200` with `{ "error": "Model not found" }`, not a `404`.
+Returns the legacy `ModelManager` record: `{ id, name, type, source, repo_id, aux_repo_id, filename, local_path, size, status, description, download_url, progress }`, where `status` is `not_downloaded | downloading | ready | error`. `404` `{ "detail": "Model not found" }` for an id the manager does not know. (3.4.1 and earlier answered an unknown id with `200` `{ "error": "Model not found" }`.)
 
 #### `DELETE /api/models/{model_id}` - `tags=[Models]`, limit `30/min`
 

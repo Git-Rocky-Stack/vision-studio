@@ -55,6 +55,7 @@ graph LR
     CMS --> SS[secureStore]
     CMS --> OR[outputRoots]
     CMS --> UA[userAccounts]
+    CMS --> DT[downloadTokens]
     CMS --> ORS[openRouterService]
     CMS --> HFS[huggingFaceInferenceService]
     CMS --> MW[mainWindow]
@@ -184,16 +185,17 @@ flowchart TD
 stateDiagram-v2
     [*] --> pending: add_job
     pending --> processing: BackgroundTasks dequeues
+    pending --> cancelled: cancel before it starts
     processing --> completed: success -> result
     processing --> failed: exception -> error
-    processing --> cancelled: POST /api/jobs/{id}/cancel
+    processing --> cancelled: cancel, stops at next checkpoint
     completed --> [*]
     failed --> [*]
     cancelled --> [*]
 
     note right of completed
-        cleanup_old_jobs(max_age_hours=24)
-        exists but is never called
+        add_job drops finished jobs
+        created over 24 h earlier
     end note
 ```
 

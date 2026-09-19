@@ -137,7 +137,8 @@ npm run package:win    # macOS/Linux are built in CI (PyInstaller can't cross-co
 Use your system Python installation:
 
 ```bash
-# Windows (installs torch and requirements.txt)
+# Windows - one step: the pinned PyTorch, requirements.txt and the generation
+# stack, using the release build's own install steps (needs Python 3.10-3.12)
 setup-python.bat
 
 # Linux (NVIDIA)
@@ -154,7 +155,7 @@ source venv/bin/activate
 pip install torch==2.5.1 torchvision==0.20.1 torchaudio==2.5.1
 pip install -r requirements.txt
 
-# Then, on every platform, the generation stack
+# Then, on Linux and macOS, the generation stack
 pip install "diffusers>=0.25.0" "transformers>=4.35.0" "accelerate>=0.24.0" "peft>=0.11.0" \
   "controlnet-aux>=0.0.10" "onnxruntime>=1.17" "spandrel>=0.4.0" "facexlib>=0.3.0" "aiohttp>=3.9"
 cd ..
@@ -165,7 +166,11 @@ npm run dev
 `requirements.txt` holds the server and test dependencies only. The second
 `pip install` is the generation stack the release build bundles
 (`BUNDLED_RUNTIME_PACKAGES` in [`build-backend.cjs`](build-backend.cjs));
-without it the backend starts but cannot generate.
+without it the backend starts but cannot generate. On Windows,
+`setup-python.bat` runs
+[`scripts/setup-dev-backend.cjs`](scripts/setup-dev-backend.cjs), which calls
+those same `build-backend.cjs` steps and finishes with the import check the
+release build runs.
 
 #### Option C: External ComfyUI (Advanced)
 
@@ -174,13 +179,16 @@ Vision Studio can hand work to a ComfyUI server you already run:
 1. Install [ComfyUI](https://github.com/comfyanonymous/ComfyUI) separately and start it
 2. Start Vision Studio. At startup the backend connects to `http://127.0.0.1:8188`,
    or to the address in the `COMFYUI_URL` environment variable (no `.env` file is read)
-3. While connected, plain image jobs and all video jobs run on ComfyUI; image jobs
-   with ControlNet, reference, inpaint or other canvas layers stay on the built-in engine
+3. While connected, plain image jobs and image-to-video jobs run on ComfyUI;
+   text-to-video jobs, and image jobs with ControlNet, reference, inpaint or other
+   canvas layers, stay on the built-in engine
 
 The hand-off uses fixed checkpoint file names (for example `flux1-dev.safetensors`)
-and does not pass LoRAs. Every video job becomes ComfyUI's SVD-XT image-to-video
-workflow (14 frames), which does not receive the model, prompt or duration. Start
-Vision Studio without ComfyUI running to keep every job on the built-in engine.
+and does not pass LoRAs. Every image-to-video job becomes ComfyUI's SVD-XT
+workflow (14 frames), which does not receive the model, prompt or duration.
+(3.4.1 and earlier also sent text-to-video jobs there, where they failed for want
+of an input image.) Start Vision Studio without ComfyUI running to keep every job
+on the built-in engine.
 
 ## Bundling the Python Backend
 
@@ -305,7 +313,7 @@ ws://127.0.0.1:8000/ws?token=<token>
 
 ### "Backend not found"
 - The bundled backend unpacks itself to a temporary folder each time it starts, which can take several minutes; restart the app and give it time, or start it from **Settings > AI & Models**
-- From source: build the backend with `npm run build:backend`, or use system Python (`setup-python.bat`, then the generation stack under Developer Setup)
+- From source: build the backend with `npm run build:backend`, or use system Python (`setup-python.bat` on Windows; on Linux and macOS, the steps under Developer Setup)
 
 ### "CUDA out of memory"
 - Reduce image resolution
@@ -320,7 +328,7 @@ ws://127.0.0.1:8000/ws?token=<token>
 
 ### Models not downloading
 - Check internet connection
-- Gated models (FLUX.1 [dev], Stable Diffusion 3.5): accept the license on Hugging Face (the Foundry's **Accept license** link opens it) and paste an access token into the Foundry header; the token is held for the session only
+- Gated models (FLUX.1 [dev], Stable Diffusion 3.5): accept the license on Hugging Face (the Foundry's **Accept license** link opens it) and paste an access token into the Foundry header. It is saved encrypted and kept across launches, or kept until you quit where the OS offers no encryption (3.4.1 and earlier keep it only until you quit)
 - Or download the files yourself and add their folder with **Add folder** in the Foundry's library roots
 
 ## Testing

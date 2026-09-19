@@ -8,26 +8,10 @@ import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 
 import { createMainProcessServices } from './services/mainProcess';
-import { setHfToken, setCivitaiToken } from './services/backendAuth';
+import { registerDownloadTokenIpc } from './services/downloadTokens';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
-
-ipcMain.handle('auth:setHfToken', async (_event, token: string) => {
-  // Hold the token in the main process for the session. It is injected per
-  // download request as X-HF-Token and never returned to the renderer, never
-  // logged. (safeStorage-backed persistence can be layered via secureStore.)
-  setHfToken(typeof token === 'string' ? token : undefined);
-  return { success: true };
-});
-
-ipcMain.handle('auth:setCivitaiToken', async (_event, token: string) => {
-  // Hold the token in the main process for the session. It is injected per
-  // search/download request as X-Civitai-Token and never returned to the
-  // renderer, never logged.
-  setCivitaiToken(typeof token === 'string' ? token : undefined);
-  return { success: true };
-});
 
 const services = createMainProcessServices({
   app,
@@ -45,6 +29,8 @@ const services = createMainProcessServices({
 });
 
 services.registerIpc();
+// Foundry download tokens: encrypted, kept across launches (downloadTokens.ts).
+registerDownloadTokenIpc(ipcMain, services.downloadTokens);
 
 app.whenReady().then(() => services.start());
 

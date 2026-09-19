@@ -36,6 +36,13 @@ class FakeJobManager:
         for key, value in updates.items():
             setattr(job, key, value)
 
+    def update_unless_cancelled(self, job_id, **updates):
+        job = self.jobs.get(job_id)
+        if job is not None and job.status == JobStatus.CANCELLED:
+            return False
+        self.update_job(job_id, **updates)
+        return True
+
 
 def _make_client(tmp_path, resolve_record=lambda _record_id: {"status": "ready"}):
     app = FastAPI()

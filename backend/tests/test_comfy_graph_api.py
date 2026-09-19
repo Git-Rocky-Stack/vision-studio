@@ -32,6 +32,13 @@ class FakeJobManager:
         if isinstance(self.jobs[job_id], dict):
             self.jobs[job_id].update(kwargs)
 
+    def update_unless_cancelled(self, job_id, **kwargs):
+        self.update_job(job_id, **kwargs)
+        return True
+
+    def is_cancelled(self, job_id):
+        return False
+
 
 class FakeClient:
     def __init__(self, connected=True):
@@ -42,7 +49,8 @@ class FakeClient:
         self.queued = workflow
         return "prompt-1"
 
-    async def wait_for_prompt_completion(self, prompt_id, progress_callback=None, kinds=("images",)):
+    async def wait_for_prompt_completion(self, prompt_id, progress_callback=None, kinds=("images",),
+                                         should_cancel=None):
         return [{"filename": "image_001.png", "subfolder": "", "type": "output"}]
 
     async def get_image(self, filename, subfolder="", folder_type="output"):

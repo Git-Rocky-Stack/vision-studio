@@ -67,7 +67,7 @@ from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
 from version import APP_VERSION
-from utils.job_manager import JobManager, JobStatus, GenerationJob
+from utils.job_manager import JobManager, JobStatus, GenerationJob, GenerationCancelled
 from utils.logging_config import setup_logging, get_logger
 from utils.comfy_workflows import build_image_workflow, build_video_workflow
 from utils.direct_video_generator import DirectVideoGenerator
@@ -320,31 +320,39 @@ async def lifespan(app: FastAPI):
         await comfy_client.disconnect()
 
 
+# The auth section is built from the constants require_local_auth_token
+# enforces, so the served description cannot drift from the middleware.
+_AUTH_EXEMPT_DOC = ", ".join(f"`{path}`" for path in sorted(AUTH_EXEMPT_PATHS))
+
 # Create FastAPI app with OpenAPI/Swagger enabled
 app = FastAPI(
     title="Vision Studio API",
-    description="""
+    description=f"""
 ## AI Image and Video Generation Backend
 
 Professional-grade API for AI-powered creative content generation.
 
 ### Features
-- **Image Generation** - FLUX.1, Stable Diffusion XL, SD 1.5
+- **Image Generation** - FLUX.1, Stable Diffusion 3.5, Stable Diffusion XL, SD 1.5
 - **Video Generation** - LTX Video, Stable Video Diffusion, AnimateDiff
-- **Image Editing** - Crop, upscale, transform, filters
-- **Batch Processing** - Queue-based multi-prompt generation
+- **Image Editing** - crop, rotate and flip; background removal, upscaling and face restoration (`/api/v1/edit`)
+- **Batch Export** - process a set of images and return them as one ZIP (`/api/v1/batch/export-zip`)
 - **Model Management** - Download, install, and manage AI models
 - **Real-time Updates** - WebSocket-based progress streaming
 
 ### Authentication
-Currently no authentication required (local-only deployment).
+Every HTTP request must send the backend's token in the `{BACKEND_AUTH_HEADER}` header,
+or it is refused with 403 Forbidden; the `/ws` WebSocket takes it as `?token=` and
+closes with code 1008 without it. The desktop app sets the token
+(`VISION_STUDIO_BACKEND_AUTH_TOKEN`) when it starts the backend; a bare
+`python main.py` generates one for that run and logs it once.
+Exempt: {_AUTH_EXEMPT_DOC}, and files under `/outputs/`.
 
 ### Rate Limiting
-Rate limiting is enabled to prevent abuse:
-- Generation endpoints: 10 requests/minute
-- Edit endpoints: 30 requests/minute
-- Batch endpoints: 5 requests/minute
-- Default: 60 requests/minute
+Limits are per client address and set on each route: generation 10 requests/minute,
+edit tools 30/minute, batch export 5/minute. Other routes allow 30 or 60 per minute;
+`/api/health`, `/ws` and the `/api/v1/retrieval` routes are not limited. Set
+`VISION_STUDIO_DISABLE_RATE_LIMIT=1` to turn limiting off.
     """,
     version=APP_VERSION,
     docs_url="/api/docs",      # Swagger UI
@@ -1054,10 +1062,33 @@ def mux_timeline_audio_file(
     return normalize_local_path(output_path)
 
 
+def _remove_export_files(*paths: Optional[str]) -> None:
+    """Delete what a cancelled export wrote; a partial MP4 is not a file anyone wants."""
+    for path in dict.fromkeys(p for p in paths if p):
+        try:
+            os.remove(path)
+        except FileNotFoundError:
+            pass
+        except OSError:
+            logger.warning("Could not remove cancelled export file: %s", path)
+
+
 def process_timeline_export(job_id: str, export_request: TimelineExportRequest):
     """Render and encode a resolved timeline frame stream into an MP4."""
+    output_path: Optional[str] = None
+    silent_video_path: Optional[str] = None
+
+    def on_frame_encoded(progress: float) -> None:
+        # Runs after every encoded frame: a cancelled export stops here.
+        if job_manager.is_cancelled(job_id):
+            raise GenerationCancelled(job_id)
+        job_manager.update_job(job_id, progress=progress)
+
     try:
-        job_manager.update_job(job_id, status=JobStatus.PROCESSING, progress=0.0)
+        # An export cancelled while it was still queued never starts.
+        if not job_manager.update_unless_cancelled(job_id, status=JobStatus.PROCESSING, progress=0.0):
+            logger.info(f"[Job {job_id}] Cancelled before it started")
+            return
         output_path = normalize_local_path(export_request.output_path)
         silent_video_path = (
             output_path
@@ -1067,7 +1098,7 @@ def process_timeline_export(job_id: str, export_request: TimelineExportRequest):
         result = export_timeline_video_file(
             export_request,
             output_path_override=silent_video_path,
-            progress_callback=lambda progress: job_manager.update_job(job_id, progress=progress),
+            progress_callback=on_frame_encoded,
         )
         if export_request.audio_layers:
             job_manager.update_job(job_id, progress=96.0)
@@ -1084,16 +1115,21 @@ def process_timeline_export(job_id: str, export_request: TimelineExportRequest):
                 os.remove(silent_video_path)
             except OSError:
                 logger.warning("Could not remove temporary silent export: %s", silent_video_path)
-        job_manager.update_job(
+        # A cancel that landed after the last frame still wins: no result, no file.
+        if not job_manager.update_unless_cancelled(
             job_id,
             status=JobStatus.COMPLETED,
             progress=100.0,
             result=result,
             completed_at=datetime.now(),
-        )
+        ):
+            _remove_export_files(output_path, silent_video_path)
+    except GenerationCancelled:
+        logger.info(f"[Job {job_id}] Export stopped by cancel")
+        _remove_export_files(output_path, silent_video_path)
     except Exception as e:
         logger.error(f"Timeline export failed: {e}", exc_info=True)
-        job_manager.update_job(
+        job_manager.update_unless_cancelled(
             job_id,
             status=JobStatus.FAILED,
             error=str(e),
@@ -1415,7 +1451,10 @@ async def process_image_generation(job_id: str, request: ImageGenerationRequest)
     """Process image generation job"""
     logger.info(f"[Job {job_id}] Starting image generation with model={request.model}, steps={request.steps}")
     try:
-        job_manager.update_job(job_id, status=JobStatus.PROCESSING, progress=0.0)
+        # A job cancelled while it was still queued never starts.
+        if not job_manager.update_unless_cancelled(job_id, status=JobStatus.PROCESSING, progress=0.0):
+            logger.info(f"[Job {job_id}] Cancelled before it started")
+            return
 
         # Try ComfyUI first, fallback to direct generation. Guided passes
         # (#34) run on the direct generator only - routing them to ComfyUI
@@ -1428,7 +1467,8 @@ async def process_image_generation(job_id: str, request: ImageGenerationRequest)
             result = await generate_direct(job_id, request)
 
         logger.info(f"[Job {job_id}] Generation completed, result keys={list(result.keys()) if isinstance(result, dict) else result}")
-        job_manager.update_job(
+        # A cancel that landed mid-run wins over the result.
+        job_manager.update_unless_cancelled(
             job_id,
             status=JobStatus.COMPLETED,
             progress=100.0,
@@ -1436,11 +1476,13 @@ async def process_image_generation(job_id: str, request: ImageGenerationRequest)
             completed_at=datetime.now()
         )
 
+    except GenerationCancelled:
+        logger.info(f"[Job {job_id}] Generation stopped by cancel")
     except ModelLoadRefusedError as e:
         # 409-style: the request was fine - the model refuses to load. The
         # refusal string is user-facing (no paths, no tokens); no traceback.
         logger.warning(f"[Job {job_id}] Model refused to load: {e}")
-        job_manager.update_job(
+        job_manager.update_unless_cancelled(
             job_id,
             status=JobStatus.FAILED,
             error=str(e),
@@ -1448,7 +1490,7 @@ async def process_image_generation(job_id: str, request: ImageGenerationRequest)
         )
     except Exception as e:
         logger.error(f"Image generation failed: {e}", exc_info=True)
-        job_manager.update_job(
+        job_manager.update_unless_cancelled(
             job_id,
             status=JobStatus.FAILED,
             error=str(e),
@@ -1484,6 +1526,7 @@ async def generate_with_comfyui(job_id: str, request: ImageGenerationRequest) ->
     outputs = await comfy_client.wait_for_prompt_completion(
         prompt_id,
         progress_callback=lambda progress: job_manager.update_job(job_id, progress=progress),
+        should_cancel=lambda: job_manager.is_cancelled(job_id),
     )
     logger.info(f"[Job {job_id}] ComfyUI returned {len(outputs)} output(s)")
 
@@ -1540,6 +1583,7 @@ async def generate_video_with_comfyui(job_id: str, request: VideoGenerationReque
         prompt_id,
         progress_callback=lambda progress: job_manager.update_job(job_id, progress=progress),
         kinds=("images", "gifs", "videos"),
+        should_cancel=lambda: job_manager.is_cancelled(job_id),
     )
 
     output_dir = Path(OUTPUT_DIR) / job_id
@@ -1581,7 +1625,8 @@ async def generate_direct(job_id: str, request: ImageGenerationRequest) -> Dict:
         acceleration_settings=accel_settings,
         loras=[l.dict() for l in request.loras],
         guided=_guided_payload(request),
-        progress_callback=lambda p: job_manager.update_job(job_id, progress=p)
+        progress_callback=lambda p: job_manager.update_job(job_id, progress=p),
+        should_cancel=lambda: job_manager.is_cancelled(job_id),
     )
     logger.info(f"[Job {job_id}] Direct generation completed")
     return result
@@ -1666,13 +1711,26 @@ async def generate_video(
 async def process_video_generation(job_id: str, request: VideoGenerationRequest):
     """Process video generation job"""
     try:
-        job_manager.update_job(job_id, status=JobStatus.PROCESSING, progress=0.0)
+        # A job cancelled while it was still queued never starts.
+        if not job_manager.update_unless_cancelled(job_id, status=JobStatus.PROCESSING, progress=0.0):
+            logger.info(f"[Job {job_id}] Cancelled before it started")
+            return
 
-        if comfy_client and comfy_client.connected:
+        comfy_connected = bool(comfy_client and comfy_client.connected)
+        # ComfyUI only has the fixed SVD image-to-video workflow
+        # (build_video_workflow); a text-to-video job sent there would get an
+        # empty input image and fail, so it stays on the built-in engine.
+        if comfy_connected and request.image_path:
             logger.info(f"[Job {job_id}] Using ComfyUI video generator")
             result = await generate_video_with_comfyui(job_id, request)
         else:
             if not direct_video_generator:
+                if comfy_connected:
+                    raise RuntimeError(
+                        "Text-to-video needs the built-in video engine, which is not available. "
+                        "The connected ComfyUI server only runs image-to-video: add an input "
+                        "image to run this job there."
+                    )
                 raise RuntimeError(
                     "No video generation backend available. Install the required libraries "
                     "(pip install diffusers torch) for direct video generation."
@@ -1694,20 +1752,24 @@ async def process_video_generation(job_id: str, request: VideoGenerationRequest)
                 acceleration_settings=accel_settings,
                 loras=[l.dict() for l in request.loras],
                 progress_callback=lambda progress: job_manager.update_job(job_id, progress=progress),
+                should_cancel=lambda: job_manager.is_cancelled(job_id),
             )
 
-        job_manager.update_job(
+        # A cancel that landed mid-run wins over the result.
+        job_manager.update_unless_cancelled(
             job_id,
             status=JobStatus.COMPLETED,
             progress=100.0,
             result=result,
             completed_at=datetime.now()
         )
-        
+
+    except GenerationCancelled:
+        logger.info(f"[Job {job_id}] Generation stopped by cancel")
     except ModelLoadRefusedError as e:
         # 409-style: the request was fine - the model refuses to load.
         logger.warning(f"[Job {job_id}] Model refused to load: {e}")
-        job_manager.update_job(
+        job_manager.update_unless_cancelled(
             job_id,
             status=JobStatus.FAILED,
             error=str(e),
@@ -1715,7 +1777,7 @@ async def process_video_generation(job_id: str, request: VideoGenerationRequest)
         )
     except Exception as e:
         logger.error(f"Video generation failed: {e}", exc_info=True)
-        job_manager.update_job(
+        job_manager.update_unless_cancelled(
             job_id,
             status=JobStatus.FAILED,
             error=str(e),
@@ -1780,7 +1842,10 @@ async def cancel_job(request: Request, job_id: str):
     - `job_id`: The unique job identifier
 
     ### Behavior
-    - If job is `processing` or `pending`: Sets status to `cancelled` and stops generation
+    - If job is `pending`: Sets status to `cancelled`; the job never starts
+    - If job is `processing`: Sets status to `cancelled`; the built-in engine stops
+      at the end of its current step, and a ComfyUI prompt is removed from the
+      queue or interrupted. The job stays `cancelled` and keeps no result.
     - If job is already `completed`, `failed`, or `cancelled`: Returns message indicating current status
 
     ### Response
@@ -1793,12 +1858,7 @@ async def cancel_job(request: Request, job_id: str):
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
 
-    if job.status == JobStatus.PROCESSING:
-        job_manager.update_job(
-            job_id,
-            status=JobStatus.CANCELLED,
-            completed_at=datetime.now()
-        )
+    if job_manager.cancel(job_id):
         return {"message": "Job cancelled"}
 
     return {"message": f"Job is already {job.status.value}"}
@@ -2264,7 +2324,7 @@ async def resolve_runtime(request: Request, model_id: str):
 @limiter.limit("60/minute")
 async def get_model_status(request: Request, model_id: str):
     """
-    Get detailed status of a model download.
+    Get the legacy model manager's record for a model.
 
     ### Path Parameters
     - `model_id`: The unique model identifier
@@ -2272,16 +2332,24 @@ async def get_model_status(request: Request, model_id: str):
     ### Response Fields
     - `id`: Model identifier
     - `name`: Model name
-    - `status`: Current status (pending, downloading, completed, failed)
+    - `type`: Model kind (checkpoint, lora, vae, controlnet, ...)
+    - `source`: Where it comes from (huggingface, civitai, local)
+    - `repo_id`: Hugging Face repository, if any
+    - `aux_repo_id`: Second repository some models need, if any
+    - `filename`: Single-file weight name, if any
+    - `local_path`: Where it is installed, once it is
+    - `size`: Human-readable size
+    - `status`: not_downloaded, downloading, ready or error
+    - `description`: Short description
+    - `download_url`: Direct download URL, if any
     - `progress`: Download progress (0.0 - 100.0)
-    - `downloaded_bytes`: Bytes downloaded so far
-    - `total_bytes`: Total model size in bytes
-    - `error`: Error message if download failed
 
     ### Errors
     - `404`: Model ID not found
     """
     status = model_manager.get_model_status(model_id)
+    if status is None:
+        raise HTTPException(status_code=404, detail="Model not found")
     return status
 
 
@@ -2351,8 +2419,9 @@ async def websocket_endpoint(websocket: WebSocket):
 
     ### Connection
     ```
-    ws://localhost:8000/ws
+    ws://localhost:8000/ws?token=<backend auth token>
     ```
+    Without the token the server closes the socket with code 1008.
 
     ### Client Messages
     Send JSON objects with the following structure:
@@ -2382,7 +2451,7 @@ async def websocket_endpoint(websocket: WebSocket):
 
     ### Example (JavaScript)
     ```javascript
-    const ws = new WebSocket("ws://localhost:8000/ws");
+    const ws = new WebSocket(`ws://localhost:8000/ws?token=${token}`);
     ws.onmessage = (event) => {
       const update = JSON.parse(event.data);
       console.log(`Job ${update.job_id}: ${update.progress}%`);

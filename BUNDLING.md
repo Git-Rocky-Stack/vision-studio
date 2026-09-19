@@ -22,8 +22,9 @@ Turning backend autostart off (or setting `VISION_STUDIO_SKIP_BACKEND`) makes th
 app use a backend you run yourself on `127.0.0.1:8000` instead of launching the
 bundled one. Separately, the bundled backend connects at startup to a ComfyUI
 server at `http://127.0.0.1:8188` (or the `COMFYUI_URL` environment variable)
-and, while connected, sends it plain image jobs and all video jobs. The shipped
-package is identical either way.
+and, while connected, sends it plain image jobs and image-to-video jobs
+(text-to-video stays on the built-in engine; 3.4.1 and earlier sent every video
+job). The shipped package is identical either way.
 
 ## Building the bundle
 

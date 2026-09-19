@@ -170,7 +170,7 @@
     "/api/jobs/{job_id}/cancel": {
       "post": {
         "tags": ["Jobs"],
-        "summary": "Cancel a processing job; any other status gets the message Job is already <status>",
+        "summary": "Cancel a pending or processing job (it never starts, or stops at its next checkpoint, and keeps no result); a finished job gets the message Job is already <status>",
         "operationId": "cancelJob",
         "parameters": [{ "in": "path", "name": "job_id", "required": true, "schema": { "type": "string" } }],
         "responses": {
@@ -357,11 +357,12 @@
     "/api/models/{model_id}/status": {
       "get": {
         "tags": ["Models"],
-        "summary": "Legacy ModelManager record for a model id. An unknown id returns 200 with an error field (Model not found), not a 404",
+        "summary": "Legacy ModelManager record for a model id; 404 for an id the manager does not know",
         "operationId": "getModelStatus",
         "parameters": [{ "in": "path", "name": "model_id", "required": true, "schema": { "type": "string" } }],
         "responses": {
-          "200": { "description": "Model status", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ModelStatus" } } } }
+          "200": { "description": "Model status", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ModelStatus" } } } },
+          "404": { "$ref": "#/components/responses/NotFound" }
         }
       }
     },
@@ -961,7 +962,7 @@
         }
       },
       "ModelStatus": {
-        "description": "Legacy ModelManager record (backend/utils/model_manager.py ModelInfo). An unknown id returns only the error field.",
+        "description": "Legacy ModelManager record (backend/utils/model_manager.py ModelInfo).",
         "type": "object",
         "properties": {
           "id": { "type": "string" },
@@ -976,8 +977,7 @@
           "status": { "type": "string", "enum": ["not_downloaded", "downloading", "ready", "error"] },
           "description": { "type": "string", "default": "" },
           "download_url": { "type": "string", "nullable": true },
-          "progress": { "type": "number", "default": 0 },
-          "error": { "type": "string", "description": "Only for an unknown id: Model not found" }
+          "progress": { "type": "number", "default": 0 }
         }
       },
       "PromptEnhancementRequest": {

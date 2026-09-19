@@ -341,8 +341,8 @@ export interface ElectronAPI {
     get: () => Promise<any>;
   };
   auth: {
-    setHfToken: (token: string) => Promise<{ success: boolean }>;
-    setCivitaiToken: (token: string) => Promise<{ success: boolean }>;
+    setHfToken: (token: string) => Promise<{ success: boolean; persisted?: boolean }>;
+    setCivitaiToken: (token: string) => Promise<{ success: boolean; persisted?: boolean }>;
   };
   notifications: {
     notify: (

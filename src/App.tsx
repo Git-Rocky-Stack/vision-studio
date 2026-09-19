@@ -9,6 +9,7 @@ import { KeyboardShortcuts } from '@/components/ui/KeyboardShortcuts';
 import { FirstRunProvisioning } from '@/components/provisioning/FirstRunProvisioning';
 import { useProvisioningStatus } from '@/hooks/useProvisioningStatus';
 import { applyThemeToDocument, type ThemePreference } from '@/features/theme/theme';
+import { startBackgroundTagging } from '@/features/assets/backgroundTagging';
 import { AI_DIRECTOR_DEFAULTS } from '../shared/retrieval';
 import { buildIngestRecords } from '@/features/director/buildIngestRecords';
 
@@ -45,6 +46,9 @@ function App() {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
+
+  // Background Batch tagging: tag the queued assets in one pass once the app is idle.
+  useEffect(() => startBackgroundTagging(useAppStore), []);
 
   // M7: sync the local corpus into the retrieval index on startup (when AI Director
   // is enabled) so prompt-assist augmentation has the user's prompts/assets. The
