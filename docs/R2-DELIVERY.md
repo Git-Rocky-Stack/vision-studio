@@ -112,8 +112,8 @@ app package; re-running the script simply overwrites the objects.
   identity is configured (mandatory for arm64 to launch at all; the CI job
   verifies with `codesign --verify --deep --strict`). Until real signing +
   notarization land, macOS 15 and later require allowing the app once under
-  **System Settings > Privacy & Security** ("Open Anyway"); macOS 13 and 14
-  accept **right-click → Open** (or clear the flag with
+  **System Settings > Privacy & Security** ("Open Anyway"); macOS 14 accepts
+  **right-click → Open** (or clear the flag with
   `xattr -d com.apple.quarantine`).
 - **Linux**: no signing gate; users `chmod +x` the AppImage and run.
 

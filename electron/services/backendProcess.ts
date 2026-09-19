@@ -28,7 +28,9 @@ type ResolveBackendCommandOptions = {
   dirname: string;
   resourcesPath: string;
   isDev: boolean;
-  pythonPath: string;
+  /** The Python named in Settings; empty or absent means the default. */
+  pythonPath?: string;
+  platform?: Platform;
   exists: (candidatePath: string) => boolean;
   logger: Logger;
 };
@@ -82,6 +84,7 @@ export function resolveBackendCommand({
   resourcesPath,
   isDev,
   pythonPath,
+  platform = process.platform,
   exists,
   logger,
 }: ResolveBackendCommandOptions): BackendCommand | null {
@@ -98,13 +101,14 @@ export function resolveBackendCommand({
     ? join(electronDirname, '../backend')
     : join(resourcesPath, 'backend-source');
 
-  if (!isSafePythonCommand(pythonPath)) {
-    logger.error(`Invalid pythonPath rejected: ${pythonPath}`);
+  const python = pythonPath?.trim() || defaultPython(backendPath, isDev, platform, exists);
+  if (!isSafePythonCommand(python)) {
+    logger.error(`Invalid pythonPath rejected: ${python}`);
     return null;
   }
 
   const mainPy = join(backendPath, 'main.py');
-  logger.log(`Fallback to system Python: ${pythonPath}, main.py at: ${mainPy} (exists: ${exists(mainPy)})`);
+  logger.log(`Fallback to system Python: ${python}, main.py at: ${mainPy} (exists: ${exists(mainPy)})`);
 
   if (!exists(mainPy)) {
     logger.error('Neither bundled backend nor backend source found');
@@ -112,10 +116,34 @@ export function resolveBackendCommand({
   }
 
   return {
-    command: pythonPath,
+    command: python,
     args: ['main.py'],
     cwd: backendPath,
   };
+}
+
+/**
+ * The Python that runs main.py when Settings names none. In development that
+ * is the venv the setup steps create in backend/ (setup-python.bat, or the
+ * README's Linux and macOS commands), when it exists: nothing activates it for
+ * `npm run dev`, and the PATH `python` is often a different install without
+ * the generation stack.
+ */
+function defaultPython(
+  backendPath: string,
+  isDev: boolean,
+  platform: Platform,
+  exists: (candidatePath: string) => boolean,
+): string {
+  if (isDev) {
+    const venvPython = platform === 'win32'
+      ? join(backendPath, 'venv', 'Scripts', 'python.exe')
+      : join(backendPath, 'venv', 'bin', 'python');
+    if (exists(venvPython)) {
+      return venvPython;
+    }
+  }
+  return 'python';
 }
 
 export function buildBackendEnvironment({
@@ -258,7 +286,8 @@ export function createBackendProcessService({
       dirname: electronDirname,
       resourcesPath: appPaths.resourcesPath,
       isDev: isDev(),
-      pythonPath: getSettings().pythonPath || 'python',
+      pythonPath: getSettings().pythonPath,
+      platform: process.platform,
       exists: (candidatePath) => fs.existsSync(candidatePath),
       logger,
     });
@@ -494,5 +523,6 @@ export function createBackendProcessService({
     getStatus,
     getSystemInfo,
     getBundledBackendPath,
+    getBackendCommand,
   };
 }

@@ -1,8 +1,11 @@
+import fs from 'fs';
+import os from 'os';
 import path from 'path';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 
 import {
   buildBackendEnvironment,
+  createBackendProcessService,
   externalBackendTokenWarning,
   isExternalBackendEnabled,
   resolveBackendCommand,
@@ -65,6 +68,135 @@ describe('backend process helpers', () => {
         logger: { error: () => undefined, log: () => undefined },
       })
     ).toBeNull();
+  });
+
+  // setup-python.bat (and the README's Linux/macOS steps) create backend/venv,
+  // but nothing activates it for `npm run dev`, so the PATH `python` - often
+  // a different install without the generation stack - used to start main.py.
+  describe('development Python when Settings names none', () => {
+    const electronDir = 'C:/vision-studio/dist-electron';
+    const backendDir = path.join(electronDir, '../backend');
+    const mainPy = path.join(backendDir, 'main.py');
+    const quiet = { error: () => undefined, log: () => undefined };
+
+    it("uses backend/venv's python on Windows when the setup created it", () => {
+      const venvPython = path.join(backendDir, 'venv', 'Scripts', 'python.exe');
+      const command = resolveBackendCommand({
+        bundledBackendPath: null,
+        dirname: electronDir,
+        resourcesPath: 'C:/vision-studio/resources',
+        isDev: true,
+        platform: 'win32',
+        pythonPath: '',
+        exists: (candidate) => candidate === mainPy || candidate === venvPython,
+        logger: quiet,
+      });
+
+      expect(command).toEqual({ command: venvPython, args: ['main.py'], cwd: backendDir });
+    });
+
+    it("uses backend/venv/bin/python on Linux and macOS", () => {
+      const venvPython = path.join(backendDir, 'venv', 'bin', 'python');
+      const command = resolveBackendCommand({
+        bundledBackendPath: null,
+        dirname: electronDir,
+        resourcesPath: 'C:/vision-studio/resources',
+        isDev: true,
+        platform: 'linux',
+        pythonPath: undefined,
+        exists: (candidate) => candidate === mainPy || candidate === venvPython,
+        logger: quiet,
+      });
+
+      expect(command?.command).toBe(venvPython);
+    });
+
+    it('keeps a Python path set in Settings ahead of the venv', () => {
+      const command = resolveBackendCommand({
+        bundledBackendPath: null,
+        dirname: electronDir,
+        resourcesPath: 'C:/vision-studio/resources',
+        isDev: true,
+        platform: 'win32',
+        pythonPath: 'C:/Python312/python.exe',
+        exists: () => true,
+        logger: quiet,
+      });
+
+      expect(command?.command).toBe('C:/Python312/python.exe');
+    });
+
+    it('falls back to the PATH python when there is no venv', () => {
+      const command = resolveBackendCommand({
+        bundledBackendPath: null,
+        dirname: electronDir,
+        resourcesPath: 'C:/vision-studio/resources',
+        isDev: true,
+        platform: 'win32',
+        pythonPath: '',
+        exists: (candidate) => candidate === mainPy,
+        logger: quiet,
+      });
+
+      expect(command?.command).toBe('python');
+    });
+
+    it('never looks for a venv outside development', () => {
+      const sourceDir = path.join('C:/vision-studio/resources', 'backend-source');
+      const command = resolveBackendCommand({
+        bundledBackendPath: null,
+        dirname: electronDir,
+        resourcesPath: 'C:/vision-studio/resources',
+        isDev: false,
+        platform: 'win32',
+        pythonPath: '',
+        exists: () => true,
+        logger: quiet,
+      });
+
+      expect(command).toEqual({ command: 'python', args: ['main.py'], cwd: sourceDir });
+    });
+  });
+
+  describe('the service passes the Settings value through, not a default', () => {
+    let root: string | null = null;
+    afterEach(() => {
+      if (root) fs.rmSync(root, { recursive: true, force: true });
+      root = null;
+    });
+
+    function serviceIn(settings: { pythonPath?: string }) {
+      root = fs.mkdtempSync(path.join(os.tmpdir(), 'vs-backend-'));
+      const backendDir = path.join(root, 'backend');
+      const venvPython = process.platform === 'win32'
+        ? path.join(backendDir, 'venv', 'Scripts', 'python.exe')
+        : path.join(backendDir, 'venv', 'bin', 'python');
+      fs.mkdirSync(path.dirname(venvPython), { recursive: true });
+      fs.writeFileSync(path.join(backendDir, 'main.py'), '');
+      fs.writeFileSync(venvPython, '');
+      const service = createBackendProcessService({
+        appPaths: { getPath: () => root!, resourcesPath: path.join(root, 'resources'), getVersion: () => '0.0.0' },
+        dialog: { showErrorBox: () => undefined, showMessageBox: async () => ({ response: 0, checkboxChecked: false }) },
+        getMainWindow: () => null,
+        getSettings: () => settings,
+        getResolvedOutputDirectory: () => path.join(root!, 'out'),
+        rememberOutputRoot: () => undefined,
+        isDev: () => true,
+        dirname: path.join(root, 'dist-electron'),
+        logger: { error: () => undefined, log: () => undefined },
+      });
+      return { service, venvPython };
+    }
+
+    it("starts main.py with backend/venv's python when Settings names none", () => {
+      const { service, venvPython } = serviceIn({});
+      expect(service.getBackendCommand()?.command).toBe(path.normalize(venvPython));
+    });
+
+    it('starts main.py with the Python named in Settings when there is one', () => {
+      const { service } = serviceIn({ pythonPath: 'C:/Python312/python.exe' });
+      expect(service.getBackendCommand()?.command).toBe('C:/Python312/python.exe');
+    });
   });
 
   it('builds the backend environment from app paths, output roots, and auth token', () => {

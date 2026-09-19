@@ -156,8 +156,8 @@ minimum for Apple Silicon to launch; `scripts/adhoc-sign-mac.cjs` reseals the
 bundle in `afterPack`). Until real signing lands, Windows shows a SmartScreen
 warning ("More info" -> "Run anyway"). On macOS 15 and later the app has to be
 allowed once under System Settings > Privacy & Security ("Open Anyway"), because
-Sequoia removed the right-click -> Open override; macOS 13 and 14 still accept
-right-click -> Open.
+Sequoia removed the right-click -> Open override; macOS 14, the oldest release
+the build supports, still accepts right-click -> Open.
 
 ### Windows
 
