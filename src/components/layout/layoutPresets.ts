@@ -97,3 +97,18 @@ const presets: Record<ActiveTab, LayoutPreset> = {
 export function getLayoutPreset(tab: ActiveTab): LayoutPreset {
   return presets[tab];
 }
+
+/**
+ * The center view a tab actually shows.
+ *
+ * `centerView` is one store field shared by every tab, but only Generate offers
+ * a choice of views. Read raw, a view picked there followed the user into a tab
+ * that cannot show it: Story opened on the Launchpad with no tab bar to leave
+ * it, and Workflows opened on the story canvas instead of the workflow editor.
+ * Resolving against the preset keeps the stored choice for Generate and gives
+ * every other tab its own view.
+ */
+export function resolveCenterView(tab: ActiveTab, centerView: CenterView): CenterView {
+  const { centerViews } = getLayoutPreset(tab);
+  return centerViews.includes(centerView) ? centerView : centerViews[0];
+}

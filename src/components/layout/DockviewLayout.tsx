@@ -20,7 +20,7 @@ import { CompositionPreview } from '@/components/studio/CompositionPreview';
 import { TimelinePlaybackPreview } from '@/components/timeline/TimelinePlaybackPreview';
 import { IterationViewSelector } from '@/components/iteration/IterationViewSelector';
 import { IterationWorkspacePanel } from '@/components/iteration/IterationWorkspacePanel';
-import { getLayoutPreset } from '@/components/layout/layoutPresets';
+import { getLayoutPreset, resolveCenterView } from '@/components/layout/layoutPresets';
 import { MonoLabel } from '@/components/hardware';
 import { cn } from '@/utils/cn';
 import type { ActiveTab, CenterView } from '@/types/navigation';
@@ -157,7 +157,7 @@ function ResizeHandle({
 
 export const DockviewLayout = memo(function DockviewLayout() {
   const activeTab = useAppStore((s) => s.activeTab);
-  const centerView = useAppStore((s) => s.centerView);
+  const storedCenterView = useAppStore((s) => s.centerView);
   const activeSubMode = useAppStore((s) => s.activeSubMode);
   const iterationView = useAppStore((s) => s.iterationView);
   const layoutPreferences = useAppStore((s) => s.layoutPreferences);
@@ -168,6 +168,8 @@ export const DockviewLayout = memo(function DockviewLayout() {
   const setRightDockDualRatios = useAppStore((s) => s.setRightDockDualRatios);
   const setRightDockTripleRatios = useAppStore((s) => s.setRightDockTripleRatios);
 
+  // The stored view is shared by every tab; show one this tab actually offers.
+  const centerView = resolveCenterView(activeTab, storedCenterView);
   const isCanvasTab = activeTab === 'canvas';
   const isStudioMode = activeTab === 'generate' && activeSubMode === 'studio';
   const showTimelineWorkspace = activeTab === 'generate' && centerView === 'canvas' && !isStudioMode;
