@@ -19,7 +19,7 @@ export function Switch({ checked, onChange, label, disabled, className }: Switch
       className={cn(
         // The border is present in both states (transparent when on) so the knob's
         // containing box never changes size between them.
-        'w-9 h-5 rounded-full border transition-colors relative flex-shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary focus-visible:ring-offset-2 focus-visible:ring-offset-void',
+        'w-9 h-5 rounded-full border transition-colors relative flex-shrink-0',
         checked ? 'bg-accent-primary border-transparent' : 'bg-surface border-border',
         disabled && 'opacity-40 cursor-not-allowed',
         className

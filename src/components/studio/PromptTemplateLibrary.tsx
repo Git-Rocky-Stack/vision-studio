@@ -80,7 +80,7 @@ export const PromptTemplateLibrary = memo(function PromptTemplateLibrary({
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search templates..."
           aria-label="Search templates"
-          className="w-full rounded-md border border-border bg-void py-1.5 pl-8 pr-3 text-xs text-text-primary placeholder:text-text-muted/40 transition-colors duration-normal hover:border-border-hover focus:border-accent-primary-border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary/30"
+          className="w-full rounded-md border border-border bg-void py-1.5 pl-8 pr-3 text-xs text-text-primary placeholder:text-text-muted/40 transition-colors duration-normal hover:border-border-hover focus:border-accent-primary-border"
         />
       </div>
 

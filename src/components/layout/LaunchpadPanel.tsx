@@ -134,7 +134,6 @@ export const LaunchpadPanel = memo(function LaunchpadPanel() {
                 className={cn(
                   'raised-panel flex items-start gap-3 rounded-md p-3 text-left transition',
                   'hover:border-border-hover hover:shadow-accent-subtle',
-                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary/40',
                 )}
               >
                 <action.icon
@@ -174,7 +173,7 @@ export const LaunchpadPanel = memo(function LaunchpadPanel() {
                     title={asset.prompt || asset.name}
                     className={cn(
                       'group block w-full overflow-hidden rounded-md border border-border bg-canvas transition',
-                      'hover:border-border-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary/40',
+                      'hover:border-border-hover',
                     )}
                   >
                     <span className="block aspect-square overflow-hidden bg-void">
@@ -207,7 +206,6 @@ export const LaunchpadPanel = memo(function LaunchpadPanel() {
               className={cn(
                 'ml-auto inline-flex items-center gap-1.5 rounded-md border border-border px-2 py-1',
                 'type-micro text-text-body transition hover:border-border-hover hover:bg-elevated hover:text-text-primary',
-                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary/40',
               )}
             >
               <FolderPlus className="h-3.5 w-3.5" aria-hidden="true" />
@@ -230,7 +228,6 @@ export const LaunchpadPanel = memo(function LaunchpadPanel() {
                     className={cn(
                       'flex w-full items-center justify-between gap-3 rounded-md border border-border bg-surface px-3 py-2 text-left transition',
                       'hover:border-border-hover hover:bg-elevated',
-                      'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary/40',
                     )}
                   >
                     <span className="truncate type-body-sm text-text-primary">{project.name}</span>

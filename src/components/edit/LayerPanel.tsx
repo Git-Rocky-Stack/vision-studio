@@ -123,7 +123,7 @@ function SortableLayerRow({
       style={style}
       onClick={onSelect}
       className={cn(
-        'flex items-center gap-2 px-2 py-1.5 rounded-md transition-all',
+        'flex items-center gap-2 px-2 py-1.5 rounded-md transition',
         isDragging && 'opacity-50 z-50',
         isSelected
           ? 'bg-accent-primary-muted border-l-2 border-accent-primary'
@@ -146,7 +146,7 @@ function SortableLayerRow({
       <button
         onClick={(e) => { e.stopPropagation(); onToggleVisibility(); }}
         aria-label={layer.visible ? 'Hide layer' : 'Show layer'}
-        className="p-0.5 min-w-[44px] min-h-[44px] text-text-muted hover:text-text-primary transition-all"
+        className="p-0.5 min-w-[44px] min-h-[44px] text-text-muted hover:text-text-primary transition"
       >
         {layer.visible ? (
           <Eye className="w-3 h-3" />
@@ -181,7 +181,7 @@ function SortableLayerRow({
             onChange={(e) => setEditName(e.target.value)}
             onBlur={handleNameSubmit}
             onKeyDown={(e) => e.key === 'Enter' && handleNameSubmit()}
-            className="w-full bg-surface border border-accent-primary rounded px-1 py-0.5 text-xs text-text-primary focus:outline-none"
+            className="w-full bg-surface border border-accent-primary rounded px-1 py-0.5 text-xs text-text-primary"
             autoFocus
             onClick={(e) => e.stopPropagation()}
           />
@@ -201,7 +201,7 @@ function SortableLayerRow({
             value={layer.blendMode || 'Normal'}
             onChange={(e) => { e.stopPropagation(); onBlendModeChange(e.target.value); }}
             onClick={(e) => e.stopPropagation()}
-            className="appearance-none bg-elevated/50 border border-border rounded px-1.5 py-0.5 text-xs text-text-body cursor-pointer focus:outline-none focus:border-accent-primary transition-all"
+            className="appearance-none bg-elevated/50 border border-border rounded px-1.5 py-0.5 text-xs text-text-body cursor-pointer focus:border-accent-primary transition"
           >
             {BLEND_MODES.map((mode) => (
               <option key={mode} value={mode}>
@@ -216,7 +216,7 @@ function SortableLayerRow({
       <button
         onClick={(e) => { e.stopPropagation(); onToggleLock(); }}
         aria-label={layer.locked ? 'Unlock layer' : 'Lock layer'}
-        className="p-0.5 min-w-[44px] min-h-[44px] text-text-muted hover:text-text-primary transition-all"
+        className="p-0.5 min-w-[44px] min-h-[44px] text-text-muted hover:text-text-primary transition"
       >
         {layer.locked ? (
           <Lock className="w-3 h-3 text-status-warning" />
@@ -334,7 +334,7 @@ export function LayerPanel() {
           <button
             onClick={handleAddLayer}
             aria-label="New layer"
-            className="p-1 rounded text-text-muted hover:text-text-primary hover:bg-elevated transition-all"
+            className="p-1 rounded text-text-muted hover:text-text-primary hover:bg-elevated transition"
             title="New Layer"
           >
             <Plus className="w-3.5 h-3.5" />
@@ -343,7 +343,7 @@ export function LayerPanel() {
             onClick={handleDuplicateLayer}
             disabled={!selectedLayerId}
             className={cn(
-              'p-1 rounded transition-all',
+              'p-1 rounded transition',
               selectedLayerId
                 ? 'text-text-muted hover:text-text-primary hover:bg-elevated'
                 : 'text-text-muted/30 cursor-not-allowed'
@@ -357,7 +357,7 @@ export function LayerPanel() {
             onClick={handleDeleteLayer}
             disabled={!selectedLayerId}
             className={cn(
-              'p-1 rounded transition-all',
+              'p-1 rounded transition',
               selectedLayerId
                 ? 'text-text-muted hover:text-status-error hover:bg-status-error-muted'
                 : 'text-text-muted/30 cursor-not-allowed'

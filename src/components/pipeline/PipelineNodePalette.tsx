@@ -106,7 +106,7 @@ export const PipelineNodePalette = memo(function PipelineNodePalette({
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search steps..."
-          className="w-full rounded-md border border-border bg-canvas px-2 py-1.5 text-sm text-text-body placeholder:text-text-muted focus:outline-none focus:border-accent-primary-border"
+          className="w-full rounded-md border border-border bg-canvas px-2 py-1.5 text-sm text-text-body placeholder:text-text-muted focus:border-accent-primary-border"
         />
       </div>
 

@@ -706,7 +706,7 @@ export function SettingsPanel() {
                 onClick={() => setActiveTab(section.id)}
                 aria-current={activeTab === section.id ? 'page' : undefined}
                 className={cn(
-                  'w-full flex items-center gap-3 px-3 py-2 rounded-md transition-all text-left',
+                  'w-full flex items-center gap-3 px-3 py-2 rounded-md transition text-left',
                   activeTab === section.id
                     ? 'bg-accent-primary-muted text-accent-primary border border-accent-primary-border'
                     : 'text-text-body hover:text-text-primary hover:bg-surface',
@@ -1037,7 +1037,7 @@ export function SettingsPanel() {
                                     })
                                   }
                                   className={cn(
-                                    'rounded-md border px-3 py-3 text-left transition-all',
+                                    'rounded-md border px-3 py-3 text-left transition',
                                     activeAccount.preferences.promptEnhancementProvider ===
                                       provider.value
                                       ? 'border-accent-primary-border bg-accent-primary-muted'
@@ -1100,7 +1100,7 @@ export function SettingsPanel() {
                                     })
                                   }
                                   className={cn(
-                                    'rounded-md border px-3 py-3 text-left transition-all',
+                                    'rounded-md border px-3 py-3 text-left transition',
                                     activeAccount.preferences.imageGenerationProvider === provider.value
                                       ? 'border-accent-primary-border bg-accent-primary-muted'
                                       : 'border-border bg-surface hover:border-border-hover',
@@ -1162,7 +1162,7 @@ export function SettingsPanel() {
                                     })
                                   }
                                   className={cn(
-                                    'rounded-md border px-3 py-3 text-left transition-all',
+                                    'rounded-md border px-3 py-3 text-left transition',
                                     activeAccount.preferences.videoGenerationProvider === provider.value
                                       ? 'border-accent-primary-border bg-accent-primary-muted'
                                       : 'border-border bg-surface hover:border-border-hover',
@@ -1788,7 +1788,7 @@ export function SettingsPanel() {
                         key={themeOption}
                         onClick={() => persistSettings({ theme: themeOption })}
                         className={cn(
-                          'p-4 rounded-md border transition-all text-center capitalize',
+                          'p-4 rounded-md border transition text-center capitalize',
                           settings.theme === themeOption
                             ? 'border-accent-primary-border bg-accent-primary-muted'
                             : 'border-border bg-elevated hover:border-border-hover',

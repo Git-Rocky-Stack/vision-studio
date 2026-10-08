@@ -15,6 +15,7 @@ import { Tooltip } from '@/components/ui/Tooltip';
 import { Led } from '@/components/hardware';
 import { cn } from '@/utils/cn';
 import type { ActiveTab } from '@/types/navigation';
+import { WORKSPACE_TAB_LABELS } from './workspaceTabs';
 
 // Active workspace pad: a lit carbon cap with a chrome edge-ring and glow,
 // matching PadButton's selected recipe (DESIGN.md section four-layer depth system).
@@ -32,15 +33,22 @@ interface NavBarTabDef {
   cluster: 'top' | 'bottom';
 }
 
+const defineTab = (id: ActiveTab, icon: ElementType, cluster: NavBarTabDef['cluster']): NavBarTabDef => ({
+  id,
+  label: WORKSPACE_TAB_LABELS[id],
+  icon,
+  cluster,
+});
+
 const navBarTabs: NavBarTabDef[] = [
-  { id: 'generate', label: 'Generate', icon: Wand2, cluster: 'top' },
-  { id: 'canvas', label: 'Canvas', icon: Palette, cluster: 'top' },
-  { id: 'story', label: 'Story', icon: Clapperboard, cluster: 'top' },
-  { id: 'workflows', label: 'Workflows', icon: GitBranch, cluster: 'top' },
-  { id: 'assets', label: 'Assets', icon: FolderOpen, cluster: 'bottom' },
-  { id: 'collections', label: 'Collections', icon: Layers, cluster: 'bottom' },
-  { id: 'foundry', label: 'Foundry', icon: Boxes, cluster: 'bottom' },
-  { id: 'settings', label: 'Settings', icon: Settings, cluster: 'bottom' },
+  defineTab('generate', Wand2, 'top'),
+  defineTab('canvas', Palette, 'top'),
+  defineTab('story', Clapperboard, 'top'),
+  defineTab('workflows', GitBranch, 'top'),
+  defineTab('assets', FolderOpen, 'bottom'),
+  defineTab('collections', Layers, 'bottom'),
+  defineTab('foundry', Boxes, 'bottom'),
+  defineTab('settings', Settings, 'bottom'),
 ];
 
 const topTabs = navBarTabs.filter((t) => t.cluster === 'top');
@@ -110,9 +118,8 @@ export const NavBar = memo(function NavBar() {
         onKeyDown={(event) => handleTabKeyDown(event, tab)}
         aria-label={tab.label}
         className={cn(
-          'relative flex h-10 w-10 items-center justify-center rounded-md transition-all duration-150',
+          'relative flex h-10 w-10 items-center justify-center rounded-md transition duration-150',
           'min-w-[44px] min-h-[44px]', // touch target
-          'focus-visible:ring-2 focus-visible:ring-accent-primary focus-visible:ring-offset-1 focus-visible:outline-none',
           isActive
             ? 'raised-control vx-pad text-accent-primary'
             : 'text-text-muted hover:bg-elevated/60 hover:text-text-primary'
@@ -156,13 +163,16 @@ export const NavBar = memo(function NavBar() {
         style={{ background: 'linear-gradient(180deg, transparent, rgba(255,255,255,0.10), transparent)' }}
       />
 
-      {/* Maker's-mark badge - recessed instrument port */}
+      {/* Maker's-mark badge - recessed instrument port. The product monogram,
+          engraved: it must not borrow a tab's icon, or it reads as a tab. */}
       <div className="mb-4 flex-shrink-0">
         <div
+          role="img"
+          aria-label="Vision Studio"
           className="recessed-well flex h-9 w-9 items-center justify-center"
           style={{ borderRadius: 'var(--radius-control)' }}
         >
-          <Wand2 className="h-4 w-4 text-accent-primary" aria-hidden="true" />
+          <span className="mono-label text-accent-primary" aria-hidden="true">VS</span>
         </div>
       </div>
 

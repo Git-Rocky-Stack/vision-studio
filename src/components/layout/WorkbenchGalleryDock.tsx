@@ -131,7 +131,7 @@ export function WorkbenchGalleryDock() {
                   setCenterView('viewer');
                 }}
                 className={cn(
-                  'min-w-0 overflow-hidden rounded-sm border bg-elevated text-left transition-all',
+                  'min-w-0 overflow-hidden rounded-sm border bg-elevated text-left transition',
                   activeViewerItemId === item.id
                     ? 'border-accent-primary-border ring-1 ring-accent-primary-border'
                     : 'border-border hover:border-border-hover',

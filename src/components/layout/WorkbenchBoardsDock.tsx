@@ -118,7 +118,7 @@ export function WorkbenchBoardsDock() {
                   type="button"
                   onClick={() => setActiveProject(project.id)}
                   className={cn(
-                    'rounded-md px-3 py-2 text-left transition-all',
+                    'rounded-md px-3 py-2 text-left transition',
                     isActive
                       ? 'raised-control text-text-primary'
                       : 'border border-transparent hover:border-border-hover hover:bg-elevated'
@@ -152,7 +152,7 @@ export function WorkbenchBoardsDock() {
                               aria-pressed={isSceneActive}
                               onClick={() => setActiveScene(scene.id)}
                               className={cn(
-                                'flex min-w-0 items-center gap-2 rounded-md border px-2.5 py-1.5 text-left type-ui transition-all',
+                                'flex min-w-0 items-center gap-2 rounded-md border px-2.5 py-1.5 text-left type-ui transition',
                                 isSceneActive
                                   ? 'border-accent-primary-border bg-elevated text-accent-primary'
                                   : 'border-transparent text-text-body hover:border-border-hover hover:bg-elevated hover:text-text-primary'

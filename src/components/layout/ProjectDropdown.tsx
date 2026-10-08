@@ -77,8 +77,7 @@ export const ProjectDropdown = memo(function ProjectDropdown() {
         className={cn(
           'flex items-center gap-2 px-3 py-1.5 rounded-md raised-control vx-switch',
           'type-ui',
-          'transition-all duration-200',
-          'focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary',
+          'transition duration-200',
           isOpen ? 'text-accent-primary' : 'text-text-primary'
         )}
         style={isOpen ? { boxShadow: OPEN_RING_SHADOW } : undefined}
@@ -128,7 +127,7 @@ export const ProjectDropdown = memo(function ProjectDropdown() {
                     'w-full flex items-center gap-3 px-4 py-2.5 text-left',
                     'transition-colors duration-150',
                     'hover:bg-surface hover:text-text-primary',
-                    'focus:outline-none focus-visible:bg-surface',
+                    'focus-visible:bg-surface',
                     project.id === activeProjectId
                       ? 'bg-accent-primary-muted text-accent-primary'
                       : 'text-text-body'
@@ -162,7 +161,6 @@ export const ProjectDropdown = memo(function ProjectDropdown() {
                 'type-ui text-text-body',
                 'transition-colors duration-150',
                 'hover:bg-surface hover:text-text-primary',
-                'focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary'
               )}
             >
               <Plus className="w-4 h-4 text-accent-primary" aria-hidden="true" />

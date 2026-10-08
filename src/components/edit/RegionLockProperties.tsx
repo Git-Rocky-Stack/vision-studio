@@ -53,7 +53,6 @@ export const RegionLockProperties = memo(function RegionLockProperties({
             'p-1.5 rounded-md text-text-muted',
             'hover:text-status-error hover:bg-status-error-muted',
             'transition-colors duration-150',
-            'focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary'
           )}
           aria-label="Delete region lock"
         >
@@ -73,7 +72,7 @@ export const RegionLockProperties = memo(function RegionLockProperties({
           className={cn(
             'w-full px-3 py-2 rounded-md bg-void border border-border',
             'type-ui text-text-primary',
-            'focus:outline-none focus:border-accent-primary focus:ring-1 focus:ring-accent-primary',
+            'focus:border-accent-primary',
             'transition-colors duration-150',
             'placeholder:text-text-muted'
           )}
@@ -95,7 +94,7 @@ export const RegionLockProperties = memo(function RegionLockProperties({
             className={cn(
               'w-full px-3 py-2 rounded-md bg-void border border-border',
               'type-ui text-text-primary resize-y',
-              'focus:outline-none focus:border-accent-primary focus:ring-1 focus:ring-accent-primary',
+              'focus:border-accent-primary',
               'transition-colors duration-150',
               'placeholder:text-text-muted'
             )}
@@ -126,8 +125,7 @@ export const RegionLockProperties = memo(function RegionLockProperties({
                 onClick={() => onUpdate({ aiTool: tool.id })}
                 className={cn(
                   'flex items-center gap-1.5 px-2.5 py-2 rounded-md text-left',
-                  'transition-all duration-150',
-                  'focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary',
+                  'transition duration-150',
                   isActive
                     ? 'bg-accent-primary-muted text-accent-primary border border-accent-primary-border'
                     : 'bg-void text-text-body border border-border hover:border-border-hover hover:text-text-primary'
@@ -203,7 +201,6 @@ export const RegionLockProperties = memo(function RegionLockProperties({
           }
           className={cn(
             'relative w-10 h-5 rounded-full transition-colors duration-200',
-            'focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary',
             mask.blendEdges ? 'bg-accent-primary' : 'bg-elevated border border-border'
           )}
           role="switch"
@@ -233,7 +230,6 @@ export const RegionLockProperties = memo(function RegionLockProperties({
           onClick={() => onUpdate({ invertMask: !invertMask })}
           className={cn(
             'relative w-10 h-5 rounded-full transition-colors duration-200',
-            'focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary',
             invertMask ? 'bg-accent-primary' : 'bg-elevated border border-border'
           )}
           role="switch"

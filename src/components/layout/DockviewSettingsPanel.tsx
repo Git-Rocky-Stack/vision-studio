@@ -102,7 +102,7 @@ function SegmentedControl({ options, value, onChange }: SegmentedControlProps) {
             aria-selected={isActive}
             onClick={() => onChange(option.value)}
             className={cn(
-              'flex-1 rounded-md px-2.5 py-1.5 text-center transition-all',
+              'flex-1 rounded-md px-2.5 py-1.5 text-center transition',
               isActive
                 ? 'raised-control text-accent-primary'
                 : 'text-text-body hover:text-text-primary'

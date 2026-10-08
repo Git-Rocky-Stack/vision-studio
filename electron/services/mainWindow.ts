@@ -22,11 +22,14 @@ export function createBrowserWindowOptions(preloadPath: string): BrowserWindowCo
     minHeight: 800,
     titleBarStyle: 'hidden',
     titleBarOverlay: {
+      // Not the chassis colour: the strip sits over the right end of the
+      // header, whose top edge is lit 4% above the void (Header.tsx).
       color: '#0a0a0a',
       symbolColor: '#e5e5e5',
       height: 56,
     },
-    backgroundColor: '#0a0a0a',
+    // Painted before the renderer's first frame: the void token, true black.
+    backgroundColor: '#000000',
     webPreferences: {
       preload: preloadPath,
       contextIsolation: true,

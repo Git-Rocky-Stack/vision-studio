@@ -367,7 +367,7 @@ export function ReferenceMediaPanel({
           <button
             type="button"
             onClick={() => deleteReferenceSet(referenceSet.id)}
-            className="inline-flex items-center gap-1 rounded-md border border-border px-2.5 py-1.5 type-ui text-text-body transition-all hover:border-border-hover hover:bg-surface hover:text-text-primary"
+            className="inline-flex items-center gap-1 rounded-md border border-border px-2.5 py-1.5 type-ui text-text-body transition hover:border-border-hover hover:bg-surface hover:text-text-primary"
           >
             <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
             Clear
@@ -402,7 +402,7 @@ export function ReferenceMediaPanel({
                   type="button"
                   onClick={() => handleRemoveReference(item.id)}
                   aria-label={`Remove ${item.label}`}
-                  className="rounded-md border border-border p-2 text-text-body transition-all hover:border-border-hover hover:bg-elevated hover:text-text-primary"
+                  className="rounded-md border border-border p-2 text-text-body transition hover:border-border-hover hover:bg-elevated hover:text-text-primary"
                 >
                   <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
                 </button>
@@ -515,7 +515,7 @@ export function ReferenceMediaPanel({
                       type="button"
                       aria-label={`Unlink ${element.name}`}
                       onClick={() => handleUnlinkElement(element.id)}
-                      className="rounded-full border border-border p-1 text-text-body transition-all hover:border-border-hover hover:bg-surface hover:text-text-primary"
+                      className="rounded-full border border-border p-1 text-text-body transition hover:border-border-hover hover:bg-surface hover:text-text-primary"
                     >
                       <Unlink className="h-3 w-3" aria-hidden="true" />
                     </button>

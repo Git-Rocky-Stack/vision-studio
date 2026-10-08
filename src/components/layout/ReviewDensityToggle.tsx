@@ -32,7 +32,7 @@ export function ReviewDensityToggle({
             aria-pressed={isActive}
             onClick={() => onChange(option.id)}
             className={cn(
-              'rounded-md px-2.5 py-1 transition-all',
+              'rounded-md px-2.5 py-1 transition',
               isActive
                 ? 'raised-control text-accent-primary'
                 : 'text-text-body hover:text-text-primary',

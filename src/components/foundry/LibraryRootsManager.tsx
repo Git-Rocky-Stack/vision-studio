@@ -78,7 +78,7 @@ export function LibraryRootsManager() {
             aria-label="New root layout"
             value={hint}
             onChange={(event) => setHint(event.target.value as LayoutHint)}
-            className="rounded-md border border-border bg-elevated px-2 py-1.5 text-sm text-text-primary focus:border-accent-primary focus:outline-none"
+            className="rounded-md border border-border bg-elevated px-2 py-1.5 text-sm text-text-primary focus:border-accent-primary"
           >
             {HINTS.map((h) => (
               <option key={h.id} value={h.id}>

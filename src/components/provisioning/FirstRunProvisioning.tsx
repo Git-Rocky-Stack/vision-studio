@@ -103,7 +103,7 @@ function ModelRow({ row }: { row: ProvisionModel }) {
       >
         <div
           className={cn(
-            'h-full rounded-full transition-all duration-300',
+            'h-full rounded-full transition-[width,background-color] duration-300',
             row.status === 'error' ? 'bg-status-error' : 'bg-accent-primary',
           )}
           style={{ width: `${progress}%` }}
@@ -342,7 +342,7 @@ export function FirstRunProvisioning() {
               aria-label="Overall provisioning progress"
             >
               <div
-                className="h-full rounded-full bg-accent-primary transition-all duration-300"
+                className="h-full rounded-full bg-accent-primary transition-[width] duration-300"
                 style={{ width: `${overallPct}%` }}
               />
             </div>

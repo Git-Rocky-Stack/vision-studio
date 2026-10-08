@@ -118,7 +118,7 @@ export const StoryboardPlayback = memo(function StoryboardPlayback({
         {/* Step back */}
         <button
           onClick={handleStepBack}
-          className="p-1 rounded-md text-text-body hover:text-text-primary hover:bg-surface transition-all"
+          className="p-1 rounded-md text-text-body hover:text-text-primary hover:bg-surface transition"
           aria-label="Previous scene"
           title="Previous scene"
         >
@@ -132,7 +132,7 @@ export const StoryboardPlayback = memo(function StoryboardPlayback({
             else timelinePlay();
           }}
           className={cn(
-            'p-1.5 rounded-md transition-all',
+            'p-1.5 rounded-md transition',
             playState === 'playing'
               ? 'bg-accent-primary text-void shadow-accent-subtle'
               : 'bg-accent-primary-muted text-accent-primary border border-accent-primary-border'
@@ -150,7 +150,7 @@ export const StoryboardPlayback = memo(function StoryboardPlayback({
         {/* Step forward */}
         <button
           onClick={handleStepForward}
-          className="p-1 rounded-md text-text-body hover:text-text-primary hover:bg-surface transition-all"
+          className="p-1 rounded-md text-text-body hover:text-text-primary hover:bg-surface transition"
           aria-label="Next scene"
           title="Next scene"
         >
@@ -160,7 +160,7 @@ export const StoryboardPlayback = memo(function StoryboardPlayback({
         {/* Stop */}
         <button
           onClick={() => timelineStop()}
-          className="p-1 rounded-md text-text-body hover:text-text-primary hover:bg-surface transition-all"
+          className="p-1 rounded-md text-text-body hover:text-text-primary hover:bg-surface transition"
           aria-label="Stop"
           title="Stop"
         >
@@ -173,7 +173,7 @@ export const StoryboardPlayback = memo(function StoryboardPlayback({
         <button
           onClick={toggleTimelineLoop}
           className={cn(
-            'p-1 rounded-md transition-all',
+            'p-1 rounded-md transition',
             timelineLoop
               ? 'text-accent-primary'
               : 'text-text-muted hover:text-text-body'
@@ -194,7 +194,7 @@ export const StoryboardPlayback = memo(function StoryboardPlayback({
               key={speed}
               onClick={() => setTimelineSpeed(speed)}
               className={cn(
-                'px-1.5 py-0.5 rounded data-mono transition-all',
+                'px-1.5 py-0.5 rounded data-mono transition',
                 timelineSpeed === speed
                   ? 'bg-accent-primary-muted text-accent-primary'
                   : 'text-text-muted hover:text-text-body'
@@ -285,7 +285,7 @@ export const StoryboardPlayback = memo(function StoryboardPlayback({
                 <button
                   onClick={() => handleSceneClick(scene.id, index)}
                   className={cn(
-                    'relative rounded-md border overflow-hidden transition-all flex-shrink-0',
+                    'relative rounded-md border overflow-hidden transition flex-shrink-0',
                     'w-32 h-20',
                     isActive
                       ? 'border-accent-primary ring-1 ring-accent-primary/50'
@@ -313,7 +313,7 @@ export const StoryboardPlayback = memo(function StoryboardPlayback({
                   {/* Active / default overlay */}
                   <div
                     className={cn(
-                      'absolute inset-0 transition-all',
+                      'absolute inset-0 transition',
                       isActive ? 'bg-accent-primary/10' : 'bg-void/20'
                     )}
                   />

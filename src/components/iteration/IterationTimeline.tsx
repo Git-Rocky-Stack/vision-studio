@@ -238,8 +238,7 @@ export const IterationTimeline = memo(function IterationTimeline({ className }: 
                       }}
                       onKeyDown={(event) => handleTimelineKeyDown(event, index)}
                       className={cn(
-                        'group relative h-9 w-9 overflow-hidden rounded-md border transition-all duration-150',
-                        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary/40',
+                        'group relative h-9 w-9 overflow-hidden rounded-md border transition duration-150',
                         isActive
                           ? 'border-accent-primary bg-elevated shadow-accent-subtle -translate-y-px'
                           : isCompared

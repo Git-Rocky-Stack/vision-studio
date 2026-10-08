@@ -34,7 +34,7 @@ export function Button({
   disabled,
   ...props
 }: ButtonProps) {
-  const baseStyles = 'inline-flex items-center justify-center font-mono font-medium transition-all duration-200 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary focus-visible:ring-offset-2 focus-visible:ring-offset-void disabled:opacity-40 disabled:cursor-not-allowed';
+  const baseStyles = 'inline-flex items-center justify-center font-mono font-medium transition duration-200 rounded-md disabled:opacity-40 disabled:cursor-not-allowed';
 
   const variants = {
     // Primary + cinema render as polished chrome metal caps - the website's

@@ -77,7 +77,7 @@ export const PipelineNode = memo(function PipelineNode({
           }
         }}
         className={cn(
-          'relative flex items-center gap-2 rounded-md border px-3 py-2.5 min-w-[140px] max-w-[180px] transition-all cursor-pointer group',
+          'relative flex items-center gap-2 rounded-md border px-3 py-2.5 min-w-[140px] max-w-[180px] transition cursor-pointer group',
           isSelected
             ? 'border-accent-primary bg-accent-primary-muted shadow-accent-subtle'
             : 'border-border bg-elevated hover:border-border-hover',

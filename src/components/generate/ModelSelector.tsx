@@ -144,7 +144,7 @@ export function ModelSelector({ value, onChange, generationType }: ModelSelector
           data-testid="model-selector-trigger"
           type="button"
           onClick={() => setActiveTab('foundry')}
-          className="w-full flex items-center gap-3 px-3 py-3 rounded-md border border-border bg-panel-raised text-left transition-all hover:border-border-hover hover:bg-elevated"
+          className="w-full flex items-center gap-3 px-3 py-3 rounded-md border border-border bg-panel-raised text-left transition hover:border-border-hover hover:bg-elevated"
         >
           <Boxes className="w-4 h-4 text-text-muted" />
           <span className="type-meta text-text-muted">
@@ -168,7 +168,7 @@ export function ModelSelector({ value, onChange, generationType }: ModelSelector
         aria-haspopup="listbox"
         aria-expanded={isOpen}
         className={cn(
-          'w-full flex items-start gap-3 px-3 py-3 rounded-md border transition-all text-left bg-panel-raised',
+          'w-full flex items-start gap-3 px-3 py-3 rounded-md border transition text-left bg-panel-raised',
           isOpen
             ? 'border-accent-primary-border shadow-accent-subtle'
             : 'border-border hover:border-border-hover'
@@ -239,7 +239,7 @@ export function ModelSelector({ value, onChange, generationType }: ModelSelector
                     role="option"
                     aria-selected={isSelected}
                     className={cn(
-                      'w-full flex items-start gap-3 rounded-md border px-2.5 py-3 text-left transition-all',
+                      'w-full flex items-start gap-3 rounded-md border px-2.5 py-3 text-left transition',
                       isSelected
                         ? 'border-accent-primary-border bg-accent-primary-muted'
                         : 'border-transparent hover:border-border hover:bg-surface'

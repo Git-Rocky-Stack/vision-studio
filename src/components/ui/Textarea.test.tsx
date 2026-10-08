@@ -104,7 +104,8 @@ describe('Textarea', () => {
     render(<Textarea />);
     const textarea = screen.getByRole('textbox');
     expect(textarea).toHaveClass('focus:border-accent-primary');
-    expect(textarea).toHaveClass('focus:ring-accent-primary/35');
+    // The ring is the system outline (index.css); a private one would double it.
+    expect(textarea.className).not.toMatch(/focus(-visible)?:ring/);
   });
 
   it('displays error message when error prop provided', () => {

@@ -79,7 +79,7 @@ export function CropControls({
               key={aspect.id}
               onClick={() => onCropAspectChange(aspect.id)}
               className={cn(
-                'py-2 px-3 rounded-md border text-xs font-medium transition-all text-center',
+                'py-2 px-3 rounded-md border text-xs font-medium transition text-center',
                 cropAspect === aspect.id
                   ? 'border-accent-primary-border bg-accent-primary-muted text-accent-primary'
                   : 'border-border bg-elevated text-text-body hover:border-border-hover'
@@ -100,7 +100,7 @@ export function CropControls({
               type="number"
               value={customWidth}
               onChange={(e) => onCustomWidthChange(Number(e.target.value))}
-              className="w-full bg-elevated border border-border rounded-md px-3 py-2 data-mono text-text-primary focus:border-accent-primary focus:ring-1 focus:ring-accent-primary/40 transition-all"
+              className="w-full bg-elevated border border-border rounded-md px-3 py-2 data-mono text-text-primary focus:border-accent-primary transition"
             />
           </div>
           <div>
@@ -109,7 +109,7 @@ export function CropControls({
               type="number"
               value={customHeight}
               onChange={(e) => onCustomHeightChange(Number(e.target.value))}
-              className="w-full bg-elevated border border-border rounded-md px-3 py-2 data-mono text-text-primary focus:border-accent-primary focus:ring-1 focus:ring-accent-primary/40 transition-all"
+              className="w-full bg-elevated border border-border rounded-md px-3 py-2 data-mono text-text-primary focus:border-accent-primary transition"
             />
           </div>
         </div>
@@ -139,7 +139,7 @@ export function CropControls({
           <button
             onClick={() => onFlipHChange(!flipH)}
             className={cn(
-              'flex-1 flex items-center justify-center gap-2 py-3 rounded-md border text-xs font-medium transition-all',
+              'flex-1 flex items-center justify-center gap-2 py-3 rounded-md border text-xs font-medium transition',
               flipH
                 ? 'border-accent-primary-border bg-accent-primary-muted text-accent-primary'
                 : 'border-border bg-elevated text-text-body hover:border-border-hover'
@@ -151,7 +151,7 @@ export function CropControls({
           <button
             onClick={() => onFlipVChange(!flipV)}
             className={cn(
-              'flex-1 flex items-center justify-center gap-2 py-3 rounded-md border text-xs font-medium transition-all',
+              'flex-1 flex items-center justify-center gap-2 py-3 rounded-md border text-xs font-medium transition',
               flipV
                 ? 'border-accent-primary-border bg-accent-primary-muted text-accent-primary'
                 : 'border-border bg-elevated text-text-body hover:border-border-hover'

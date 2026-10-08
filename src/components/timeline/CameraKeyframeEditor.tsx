@@ -126,7 +126,7 @@ export const CameraKeyframeEditor = memo(function CameraKeyframeEditor({
           aria-label="Interpolation"
           value={keyframe.interpolation}
           onChange={handleInterpolation}
-          className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-accent-primary focus:ring-offset-2 focus:ring-offset-void"
+          className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm text-text-primary"
         >
           {INTERPOLATION_OPTIONS.map((opt) => (
             <option key={opt.value} value={opt.value}>

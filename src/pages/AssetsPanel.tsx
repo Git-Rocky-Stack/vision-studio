@@ -278,7 +278,7 @@ export function AssetsPanel() {
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search assets..."
-            className="recessed-well w-full pl-10 pr-4 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent-primary focus:ring-1 focus:ring-accent-primary/40 transition-all"
+            className="recessed-well w-full pl-10 pr-4 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent-primary transition"
           />
         </div>
 
@@ -290,7 +290,7 @@ export function AssetsPanel() {
                   key={type}
                   onClick={() => setFilter(type)}
                   className={cn(
-                    'px-3 py-1 rounded text-sm font-medium transition-all capitalize',
+                    'px-3 py-1 rounded text-sm font-medium transition capitalize',
                     filter === type
                       ? 'raised-control text-text-primary'
                       : 'text-text-body hover:text-text-primary'
@@ -317,7 +317,7 @@ export function AssetsPanel() {
               aria-label="Grid view"
               aria-pressed={viewMode === 'grid'}
               className={cn(
-                'p-2 rounded-md transition-all',
+                'p-2 rounded-md transition',
                 viewMode === 'grid'
                   ? 'raised-control text-text-primary'
                   : 'text-text-body hover:text-text-primary'
@@ -330,7 +330,7 @@ export function AssetsPanel() {
               aria-label="List view"
               aria-pressed={viewMode === 'list'}
               className={cn(
-                'p-2 rounded-md transition-all',
+                'p-2 rounded-md transition',
                 viewMode === 'list'
                   ? 'raised-control text-text-primary'
                   : 'text-text-body hover:text-text-primary'
@@ -405,7 +405,7 @@ export function AssetsPanel() {
                       transition={{ delay: (startIdx + colIdx) * 0.03 }}
                       onClick={() => toggleSelection(asset.id)}
                       className={cn(
-                        'group relative rounded-md border cursor-pointer transition-all overflow-hidden',
+                        'group relative rounded-md border cursor-pointer transition overflow-hidden',
                         viewMode === 'grid' ? 'aspect-square' : 'flex items-center gap-3 p-2',
                         selectedAssets.has(asset.id)
                           ? 'border-accent-primary-border bg-accent-primary-muted'
@@ -472,7 +472,7 @@ export function AssetsPanel() {
                             e.stopPropagation();
                             toggleAssetFavorite(asset.id);
                           }}
-                          className="p-2 rounded bg-surface/80 text-text-body hover:text-status-warning hover:bg-surface transition-all focus-visible:opacity-100"
+                          className="p-2 rounded bg-surface/80 text-text-body hover:text-status-warning hover:bg-surface transition focus-visible:opacity-100"
                         >
                           <Star className={cn('w-3.5 h-3.5', asset.favorite && 'fill-status-warning text-status-warning')} />
                         </button>
@@ -483,7 +483,7 @@ export function AssetsPanel() {
                               e.stopPropagation();
                               handlePreview(asset);
                             }}
-                            className="p-2 rounded bg-surface/80 text-text-body hover:text-text-primary hover:bg-surface transition-all focus-visible:opacity-100"
+                            className="p-2 rounded bg-surface/80 text-text-body hover:text-text-primary hover:bg-surface transition focus-visible:opacity-100"
                           >
                             <ExternalLink className="w-3.5 h-3.5" />
                           </button>
@@ -503,7 +503,7 @@ export function AssetsPanel() {
                               void handleExtractFrame(asset);
                             }}
                             disabled={extractingAssetId === asset.id}
-                            className="p-2 rounded bg-surface/80 text-text-body hover:text-text-primary hover:bg-surface transition-all focus-visible:opacity-100 disabled:cursor-not-allowed disabled:opacity-50"
+                            className="p-2 rounded bg-surface/80 text-text-body hover:text-text-primary hover:bg-surface transition focus-visible:opacity-100 disabled:cursor-not-allowed disabled:opacity-50"
                           >
                             <ImagePlus className="w-3.5 h-3.5" />
                           </button>
@@ -514,7 +514,7 @@ export function AssetsPanel() {
                             e.stopPropagation();
                             handleExport(asset);
                           }}
-                          className="p-2 rounded bg-surface/80 text-text-body hover:text-text-primary hover:bg-surface transition-all focus-visible:opacity-100"
+                          className="p-2 rounded bg-surface/80 text-text-body hover:text-text-primary hover:bg-surface transition focus-visible:opacity-100"
                         >
                           <Download className="w-3.5 h-3.5" />
                         </button>
@@ -524,7 +524,7 @@ export function AssetsPanel() {
                             e.stopPropagation();
                             handleDelete(asset);
                           }}
-                          className="p-2 rounded bg-surface/80 text-text-body hover:text-status-error hover:bg-status-error-muted transition-all focus-visible:opacity-100"
+                          className="p-2 rounded bg-surface/80 text-text-body hover:text-status-error hover:bg-status-error-muted transition focus-visible:opacity-100"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>

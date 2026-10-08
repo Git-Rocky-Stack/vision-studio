@@ -33,9 +33,9 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
           aria-describedby={describedBy}
           className={cn(
             'w-full bg-elevated border border-border rounded-md text-text-primary placeholder:text-text-muted',
-            'focus:border-accent-primary focus:ring-1 focus:ring-accent-primary/35 transition-all duration-200 resize-none',
+            'focus:border-accent-primary transition duration-200 resize-none',
             'disabled:opacity-50 disabled:cursor-not-allowed p-3 text-sm',
-            error && 'border-status-error focus:border-status-error focus:ring-status-error',
+            error && 'border-status-error focus:border-status-error',
             className
           )}
           {...props}

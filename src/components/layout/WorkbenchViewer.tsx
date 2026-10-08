@@ -339,14 +339,14 @@ export function WorkbenchViewer() {
           <button
             type="button"
             onClick={() => setActiveTab('generate')}
-            className="inline-flex items-center rounded-md border border-accent-primary-border bg-accent-primary-muted px-3 py-2 type-ui text-accent-primary transition-all hover:bg-elevated"
+            className="inline-flex items-center rounded-md border border-accent-primary-border bg-accent-primary-muted px-3 py-2 type-ui text-accent-primary transition hover:bg-elevated"
           >
             Open Generate
           </button>
           <button
             type="button"
             onClick={() => setActiveTab('assets')}
-            className="inline-flex items-center rounded-md border border-border px-3 py-2 type-ui text-text-body transition-all hover:border-border-hover hover:bg-elevated hover:text-text-primary"
+            className="inline-flex items-center rounded-md border border-border px-3 py-2 type-ui text-text-body transition hover:border-border-hover hover:bg-elevated hover:text-text-primary"
           >
             Open Assets
           </button>
@@ -408,7 +408,7 @@ export function WorkbenchViewer() {
                 type="button"
                 onClick={addToBoard}
                 disabled={!activeProject}
-                className="inline-flex items-center gap-2 rounded-md border border-border px-3 py-2 type-ui text-text-body transition-all hover:border-border-hover hover:bg-elevated hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-40"
+                className="inline-flex items-center gap-2 rounded-md border border-border px-3 py-2 type-ui text-text-body transition hover:border-border-hover hover:bg-elevated hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-40"
               >
                 <Plus className="h-3.5 w-3.5" />
                 Add to Board
@@ -416,7 +416,7 @@ export function WorkbenchViewer() {
               <button
                 type="button"
                 onClick={branchVariant}
-                className="inline-flex items-center gap-2 rounded-md border border-border px-3 py-2 type-ui text-text-body transition-all hover:border-border-hover hover:bg-elevated hover:text-text-primary"
+                className="inline-flex items-center gap-2 rounded-md border border-border px-3 py-2 type-ui text-text-body transition hover:border-border-hover hover:bg-elevated hover:text-text-primary"
               >
                 <GitBranch className="h-3.5 w-3.5" />
                 Branch Variant
@@ -425,7 +425,7 @@ export function WorkbenchViewer() {
                 type="button"
                 onClick={toggleComparePin}
                 className={cn(
-                  'inline-flex items-center gap-2 rounded-md border px-3 py-2 type-ui transition-all',
+                  'inline-flex items-center gap-2 rounded-md border px-3 py-2 type-ui transition',
                   isPinned
                     ? 'border-accent-primary-border bg-accent-primary-muted text-accent-primary'
                     : 'border-border text-text-body hover:border-border-hover hover:bg-elevated hover:text-text-primary'
@@ -438,7 +438,7 @@ export function WorkbenchViewer() {
                 type="button"
                 onClick={() => void sendToEdit()}
                 disabled={isExtractingFrame}
-                className="inline-flex items-center gap-2 rounded-md border border-accent-primary-border bg-accent-primary-muted px-3 py-2 type-ui text-accent-primary transition-all hover:bg-elevated"
+                className="inline-flex items-center gap-2 rounded-md border border-accent-primary-border bg-accent-primary-muted px-3 py-2 type-ui text-accent-primary transition hover:bg-elevated"
               >
                 {activeItem.generationType === 'video' ? (
                   <ImagePlus className="h-3.5 w-3.5" />
@@ -532,7 +532,7 @@ export function WorkbenchViewer() {
                   aria-label={`Review ${item.label}`}
                   onClick={() => setActiveViewerItemId(item.id)}
                   className={cn(
-                    'shrink-0 overflow-hidden rounded-md border bg-void transition-all',
+                    'shrink-0 overflow-hidden rounded-md border bg-void transition',
                     isCompact ? 'h-16 w-16' : 'h-20 w-20',
                     isActive
                       ? 'border-accent-primary-border ring-1 ring-accent-primary-border'
@@ -601,7 +601,7 @@ function CompareReview({
                   aria-pressed={isActive}
                   onClick={() => onModeChange(compareMode.id)}
                   className={cn(
-                    'inline-flex items-center gap-2 rounded px-2.5 py-1.5 type-ui transition-all',
+                    'inline-flex items-center gap-2 rounded px-2.5 py-1.5 type-ui transition',
                     isActive
                       ? 'bg-accent-primary-muted text-accent-primary'
                       : 'text-text-body hover:bg-elevated hover:text-text-primary'
@@ -616,7 +616,7 @@ function CompareReview({
           <button
             type="button"
             onClick={onClear}
-            className="inline-flex items-center gap-2 rounded-md border border-border px-3 py-2 type-ui text-text-body transition-all hover:border-border-hover hover:bg-elevated hover:text-text-primary"
+            className="inline-flex items-center gap-2 rounded-md border border-border px-3 py-2 type-ui text-text-body transition hover:border-border-hover hover:bg-elevated hover:text-text-primary"
           >
             Clear Compare
           </button>
@@ -830,7 +830,7 @@ function SideBySideCompare({
               type="button"
               aria-label={`Remove ${item.label} from compare`}
               onClick={() => onRemove(item.imagePath)}
-              className="rounded-md border border-border bg-void/70 p-1.5 text-text-muted transition-all hover:border-border-hover hover:text-text-primary"
+              className="rounded-md border border-border bg-void/70 p-1.5 text-text-muted transition hover:border-border-hover hover:text-text-primary"
             >
               <X className="h-3.5 w-3.5" />
             </button>

@@ -44,7 +44,7 @@ export const KeyframeDiamond = memo(function KeyframeDiamond({
     >
       <div
         className={cn(
-          'w-3 h-3 rotate-45 transition-all cursor-pointer',
+          'w-3 h-3 rotate-45 transition cursor-pointer',
           INTERPOLATION_COLORS[interpolation] || 'bg-text-body',
           isSelected
             ? 'ring-2 ring-accent-primary ring-offset-1 ring-offset-surface scale-125'

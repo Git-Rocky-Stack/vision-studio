@@ -1271,7 +1271,7 @@ export const Timeline = memo(function Timeline() {
       transition={{ duration: 0.2 }}
       className="flex flex-col overflow-hidden border-t border-border bg-surface shadow-cinematic"
     >
-      <div className="flex min-h-12 items-center justify-between gap-3 border-b border-border bg-elevated/90 px-3 py-1.5 backdrop-blur-sm">
+      <div className="flex min-h-12 items-center justify-between gap-3 border-b border-border bg-elevated/90 px-3 py-1.5">
         {/* Wraps to a second row when the workspace is narrow. It used to scroll
             sideways, which hid the edit-mode switch at the default window size. */}
         <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1">

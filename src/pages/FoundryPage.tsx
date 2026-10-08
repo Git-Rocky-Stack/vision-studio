@@ -101,7 +101,7 @@ export function FoundryPage() {
               aria-selected={section === s.id}
               onClick={() => setSection(s.id)}
               className={cn(
-                'rounded-md border px-3 py-1.5 text-sm transition-all',
+                'rounded-md border px-3 py-1.5 text-sm transition',
                 section === s.id
                   ? 'border-border-hover bg-elevated text-text-primary'
                   : 'border-border text-text-body hover:border-border-hover hover:text-text-primary',

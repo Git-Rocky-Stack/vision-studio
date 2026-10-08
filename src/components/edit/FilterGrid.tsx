@@ -76,7 +76,7 @@ export function FilterGrid({
             onClick={() => setActiveCategory(cat.id)}
             aria-pressed={activeCategory === cat.id}
             className={cn(
-              'px-2.5 py-1 rounded-full border text-xs font-medium transition-all',
+              'px-2.5 py-1 rounded-full border text-xs font-medium transition',
               activeCategory === cat.id
                 ? 'border-accent-primary-border bg-accent-primary-muted text-accent-primary'
                 : 'border-transparent bg-elevated text-text-body hover:text-text-primary'
@@ -98,7 +98,7 @@ export function FilterGrid({
               aria-pressed={isSelected}
               aria-label={`Filter: ${filter.name}`}
               className={cn(
-                'rounded-md border overflow-hidden transition-all text-left',
+                'rounded-md border overflow-hidden transition text-left',
                 isSelected
                   ? 'border-accent-primary shadow-accent-subtle'
                   : 'border-border hover:border-border-hover'
@@ -179,13 +179,13 @@ export function FilterGrid({
           aria-label="Toggle stack filters"
           onClick={() => onStackModeChange(!stackMode)}
           className={cn(
-            'w-9 h-5 rounded-full transition-all relative',
+            'w-9 h-5 rounded-full transition relative',
             stackMode ? 'bg-accent-primary' : 'bg-elevated border border-border'
           )}
         >
           <span
             className={cn(
-              'absolute top-0.5 w-4 h-4 rounded-full transition-all',
+              'absolute top-0.5 w-4 h-4 rounded-full transition-[left,background-color]',
               stackMode ? 'left-[18px] bg-void' : 'left-0.5 bg-text-primary'
             )}
           />

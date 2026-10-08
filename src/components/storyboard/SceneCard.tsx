@@ -179,7 +179,7 @@ export const SceneCard = memo(function SceneCard({
         transition={{ duration: 0.15 }}
         className={cn(
           'group flex gap-3 p-3 rounded-md border cursor-pointer select-none',
-          'transition-all duration-200 min-h-[88px]',
+          'transition duration-200 min-h-[88px]',
           'bg-elevated border-border hover:border-accent-primary/40',
           // The selected card reserves a row at the bottom for its action buttons,
           // so they sit under the status line instead of on top of it.
@@ -299,12 +299,11 @@ export const SceneCard = memo(function SceneCard({
             disabled={!canMoveUp}
             aria-label="Move scene up"
             className={cn(
-              'flex h-7 w-7 items-center justify-center rounded-md transition-all duration-150',
+              'flex h-7 w-7 items-center justify-center rounded-md transition duration-150',
               'bg-elevated/90 backdrop-blur-sm border border-border',
               canMoveUp
                 ? 'text-text-muted hover:text-text-primary hover:bg-surface'
                 : 'text-text-muted/30 cursor-not-allowed',
-              'focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary'
             )}
           >
             <ArrowUp className="w-3.5 h-3.5" aria-hidden="true" />
@@ -319,12 +318,11 @@ export const SceneCard = memo(function SceneCard({
             disabled={!canMoveDown}
             aria-label="Move scene down"
             className={cn(
-              'flex h-7 w-7 items-center justify-center rounded-md transition-all duration-150',
+              'flex h-7 w-7 items-center justify-center rounded-md transition duration-150',
               'bg-elevated/90 backdrop-blur-sm border border-border',
               canMoveDown
                 ? 'text-text-muted hover:text-text-primary hover:bg-surface'
                 : 'text-text-muted/30 cursor-not-allowed',
-              'focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary'
             )}
           >
             <ArrowDown className="w-3.5 h-3.5" aria-hidden="true" />
@@ -338,9 +336,8 @@ export const SceneCard = memo(function SceneCard({
             }}
             aria-label="Send scene to timeline"
             className={cn(
-              'flex h-7 w-7 items-center justify-center rounded-md transition-all duration-150',
+              'flex h-7 w-7 items-center justify-center rounded-md transition duration-150',
               'bg-elevated/90 backdrop-blur-sm text-text-muted hover:text-text-primary hover:bg-surface',
-              'focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary',
               'border border-border'
             )}
           >
@@ -355,9 +352,8 @@ export const SceneCard = memo(function SceneCard({
             }}
             aria-label="Duplicate scene"
             className={cn(
-              'flex h-7 w-7 items-center justify-center rounded-md transition-all duration-150',
+              'flex h-7 w-7 items-center justify-center rounded-md transition duration-150',
               'bg-elevated/90 backdrop-blur-sm text-text-muted hover:text-text-primary hover:bg-surface',
-              'focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary',
               'border border-border'
             )}
           >
@@ -372,9 +368,8 @@ export const SceneCard = memo(function SceneCard({
             }}
             aria-label="Delete scene"
             className={cn(
-              'flex h-7 w-7 items-center justify-center rounded-md transition-all duration-150',
+              'flex h-7 w-7 items-center justify-center rounded-md transition duration-150',
               'bg-elevated/90 backdrop-blur-sm text-text-muted hover:text-status-error hover:bg-status-error-muted',
-              'focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary',
               'border border-border'
             )}
           >

@@ -54,7 +54,7 @@ function SelectInput({
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full rounded-md border border-border bg-canvas px-2 py-1.5 text-sm text-text-body focus:outline-none focus:border-accent-primary-border"
+        className="w-full rounded-md border border-border bg-canvas px-2 py-1.5 text-sm text-text-body focus:border-accent-primary-border"
       >
         {options.map((opt) => (
           <option key={opt} value={opt}>{opt}</option>
@@ -249,7 +249,7 @@ export const PipelineNodeConfig = memo(function PipelineNodeConfig({
                       value={String(p.referencePath ?? '')}
                       onChange={(e) => setParam('referencePath', e.target.value)}
                       placeholder="Path or URL..."
-                      className="w-full rounded-md border border-border bg-canvas px-2 py-1.5 text-sm text-text-body placeholder:text-text-muted focus:outline-none focus:border-accent-primary-border"
+                      className="w-full rounded-md border border-border bg-canvas px-2 py-1.5 text-sm text-text-body placeholder:text-text-muted focus:border-accent-primary-border"
                     />
                   </div>
                 </>
@@ -287,7 +287,7 @@ export const PipelineNodeConfig = memo(function PipelineNodeConfig({
                         onChange={(e) => setParam('width', Number(e.target.value))}
                         min={64}
                         max={4096}
-                        className="w-full rounded-md border border-border bg-canvas px-2 py-1.5 text-sm text-text-body focus:outline-none focus:border-accent-primary-border"
+                        className="w-full rounded-md border border-border bg-canvas px-2 py-1.5 text-sm text-text-body focus:border-accent-primary-border"
                       />
                     </div>
                     <div className="flex-1">
@@ -298,7 +298,7 @@ export const PipelineNodeConfig = memo(function PipelineNodeConfig({
                         onChange={(e) => setParam('height', Number(e.target.value))}
                         min={64}
                         max={4096}
-                        className="w-full rounded-md border border-border bg-canvas px-2 py-1.5 text-sm text-text-body focus:outline-none focus:border-accent-primary-border"
+                        className="w-full rounded-md border border-border bg-canvas px-2 py-1.5 text-sm text-text-body focus:border-accent-primary-border"
                       />
                     </div>
                   </div>
@@ -320,7 +320,7 @@ export const PipelineNodeConfig = memo(function PipelineNodeConfig({
                     value={String(p.endpoint ?? '')}
                     onChange={(e) => setParam('endpoint', e.target.value)}
                     placeholder="https://..."
-                    className="w-full rounded-md border border-border bg-canvas px-2 py-1.5 text-sm text-text-body placeholder:text-text-muted focus:outline-none focus:border-accent-primary-border"
+                    className="w-full rounded-md border border-border bg-canvas px-2 py-1.5 text-sm text-text-body placeholder:text-text-muted focus:border-accent-primary-border"
                   />
                 </div>
               )}

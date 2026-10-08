@@ -53,7 +53,7 @@ export const FrameFilmstrip = memo(function FrameFilmstrip({
               onClick={() => onFrameSelect(frame.id)}
               onKeyDown={(e) => handleKeyDown(e, frame.id)}
               className={cn(
-                'relative w-14 h-10 rounded border overflow-hidden transition-all',
+                'relative w-14 h-10 rounded border overflow-hidden transition',
                 isActive
                   ? 'border-accent-primary ring-1 ring-accent-primary/50'
                   : 'border-border hover:border-border-hover'
@@ -83,7 +83,7 @@ export const FrameFilmstrip = memo(function FrameFilmstrip({
         onClick={onFrameAdd}
         disabled={addDisabled}
         className={cn(
-          'flex-shrink-0 w-14 h-10 rounded border border-dashed border-border flex items-center justify-center text-text-muted transition-all',
+          'flex-shrink-0 w-14 h-10 rounded border border-dashed border-border flex items-center justify-center text-text-muted transition',
           addDisabled
             ? 'cursor-not-allowed opacity-40'
             : 'hover:text-text-body hover:border-border-hover hover:bg-elevated/30',

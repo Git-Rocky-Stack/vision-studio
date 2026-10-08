@@ -84,7 +84,7 @@ function SortableLoRACard({
       ref={setNodeRef}
       style={style}
       className={cn(
-        'relative flex items-start gap-2 p-2.5 rounded-md bg-elevated border transition-all',
+        'relative flex items-start gap-2 p-2.5 rounded-md bg-elevated border transition',
         isDragging
           ? 'border-accent-primary/40 shadow-cinematic z-10'
           : 'border-border hover:border-border-hover'
@@ -115,7 +115,7 @@ function SortableLoRACard({
           <button
             onClick={onRemove}
             aria-label={`Remove ${config.name}`}
-            className="p-0.5 rounded text-text-muted hover:text-status-error hover:bg-status-error-muted transition-all"
+            className="p-0.5 rounded text-text-muted hover:text-status-error hover:bg-status-error-muted transition"
           >
             <X className="w-3 h-3" />
           </button>
@@ -133,7 +133,7 @@ function SortableLoRACard({
             type="button"
             onClick={onInsertTrigger}
             aria-label={`Insert trigger ${config.triggerWord}`}
-            className="mt-2 inline-flex items-center gap-1 rounded px-1.5 py-0.5 type-badge text-text-muted hover:text-text-primary hover:bg-elevated transition-all"
+            className="mt-2 inline-flex items-center gap-1 rounded px-1.5 py-0.5 type-badge text-text-muted hover:text-text-primary hover:bg-elevated transition"
           >
             <Plus className="w-3 h-3" />
             {config.triggerWord}
@@ -235,7 +235,7 @@ export function LoRAMixer({
         }}
         aria-expanded={isExpanded}
         aria-controls="lora-mixer-panel"
-        className="flex items-center gap-2 w-full py-3 px-3 rounded-md border border-dashed border-border text-text-body hover:text-text-primary hover:border-border-hover transition-all text-sm"
+        className="flex items-center gap-2 w-full py-3 px-3 rounded-md border border-dashed border-border text-text-body hover:text-text-primary hover:border-border-hover transition text-sm"
       >
         <Layers className="w-4 h-4" />
         Add LoRA Models
@@ -300,7 +300,7 @@ export function LoRAMixer({
                     onChange={(e) => setSearchQuery(e.target.value)}
                     placeholder="Search LoRAs..."
                     autoFocus
-                    className="w-full bg-elevated border border-border rounded-md pl-8 pr-3 py-1.5 text-xs text-text-primary placeholder:text-text-muted focus:border-accent-primary focus:ring-1 focus:ring-accent-primary/40 transition-all"
+                    className="w-full bg-elevated border border-border rounded-md pl-8 pr-3 py-1.5 text-xs text-text-primary placeholder:text-text-muted focus:border-accent-primary transition"
                   />
                 </div>
 
@@ -312,7 +312,7 @@ export function LoRAMixer({
                       <button
                         key={record.id}
                         onClick={() => addLoRA(record)}
-                        className="w-full flex items-center justify-between px-2.5 py-2 rounded-md hover:bg-elevated transition-all text-left"
+                        className="w-full flex items-center justify-between px-2.5 py-2 rounded-md hover:bg-elevated transition text-left"
                       >
                         <div>
                           <p className="text-xs font-medium text-text-primary">
@@ -361,7 +361,7 @@ export function LoRAMixer({
           ) : (
             <button
               onClick={() => setShowBrowser(true)}
-              className="flex items-center gap-2 w-full py-2 px-2.5 rounded-md border border-dashed border-border text-text-body hover:text-text-primary hover:border-border-hover transition-all text-xs"
+              className="flex items-center gap-2 w-full py-2 px-2.5 rounded-md border border-dashed border-border text-text-body hover:text-text-primary hover:border-border-hover transition text-xs"
             >
               <Plus className="w-3 h-3" />
               Add LoRA

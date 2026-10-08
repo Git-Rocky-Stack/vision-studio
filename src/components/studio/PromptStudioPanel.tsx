@@ -54,7 +54,7 @@ function CollapsibleSection({
       <button
         type="button"
         onClick={() => setIsOpen((prev) => !prev)}
-        className="mono-label flex w-full items-center gap-1.5 py-1 text-text-muted transition-colors duration-normal hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary/30"
+        className="mono-label flex w-full items-center gap-1.5 py-1 text-text-muted transition-colors duration-normal hover:text-text-primary"
         aria-expanded={isOpen}
       >
         <ChevronDown
@@ -458,7 +458,7 @@ export const PromptStudioPanel = memo(function PromptStudioPanel() {
                       onClick={() => handleToggleStylePreset(preset)}
                       aria-pressed={isActive}
                       className={cn(
-                        'rounded-md border px-3 py-2 type-ui transition-all',
+                        'rounded-md border px-3 py-2 type-ui transition',
                         isActive
                           ? 'border-accent-primary-border bg-accent-primary-muted text-accent-primary'
                           : 'border-border bg-surface text-text-body hover:border-border-hover hover:text-text-primary',

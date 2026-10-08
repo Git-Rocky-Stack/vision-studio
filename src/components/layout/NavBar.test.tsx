@@ -29,6 +29,22 @@ describe('NavBar', () => {
     expect(screen.getByLabelText('Settings')).toBeInTheDocument();
   });
 
+  // The badge above the tabs drew the same wand as the Generate tab directly
+  // under it, so it read as a second, dead Generate button.
+  it('marks the maker with the product monogram, not a tab icon', () => {
+    const { container } = render(<NavBar />);
+
+    const mark = screen.getByRole('img', { name: 'Vision Studio' });
+    expect(mark).toHaveTextContent('VS');
+    expect(mark.querySelector('svg')).toBeNull();
+
+    const generateIcon = screen.getByLabelText('Generate').querySelector('svg');
+    const sameGlyph = [...container.querySelectorAll('svg')].filter(
+      (svg) => svg.getAttribute('class')?.split(' ')[1] === generateIcon?.getAttribute('class')?.split(' ')[1],
+    );
+    expect(sameGlyph).toHaveLength(1);
+  });
+
   it('highlights the active tab with data-active="true"', () => {
     useAppStore.setState({ activeTab: 'canvas' });
     render(<NavBar />);

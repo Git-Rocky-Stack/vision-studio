@@ -289,7 +289,7 @@ export const TimelinePlaybackPreview = memo(function TimelinePlaybackPreview({
       data-testid="timeline-playback-preview"
       className={cn('flex h-full min-h-0 flex-col overflow-hidden bg-void', className)}
     >
-      <div className="flex items-center justify-between gap-3 border-b border-border bg-elevated/75 px-4 py-2 backdrop-blur-sm">
+      <div className="flex items-center justify-between gap-3 border-b border-border bg-elevated/75 px-4 py-2">
         <div className="min-w-0">
           <p className="truncate text-sm text-text-primary">{activeSequence.name}</p>
           <p className="mt-0.5 data-mono text-text-muted">
@@ -339,7 +339,7 @@ export const TimelinePlaybackPreview = memo(function TimelinePlaybackPreview({
                     <button
                       key={`${layer.clipId}-${index}`}
                       type="button"
-                      className="absolute inset-0 block h-full w-full overflow-hidden bg-black text-left transition focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary"
+                      className="absolute inset-0 block h-full w-full overflow-hidden bg-black text-left transition"
                       style={{ opacity: layer.opacity }}
                       onClick={() => setActiveTimelineClip(layer.clipId)}
                       aria-label={`Timeline playback layer ${index + 1}`}

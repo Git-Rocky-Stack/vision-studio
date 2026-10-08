@@ -98,12 +98,14 @@ describe('Switch', () => {
     expect(switchEl).toHaveAttribute('aria-label', 'Enable notifications');
   });
 
-  it('focus ring appears on focus (focus-visible)', () => {
+  // The system outline in index.css rings every button. The switch used to
+  // ask for that outline to be removed (it cannot be: the rule is unlayered)
+  // and add a ring of its own, so it drew two.
+  it('leaves the focus ring to the system outline', () => {
     render(<Switch checked={false} onChange={() => {}} label="Toggle" />);
     const switchEl = screen.getByRole('switch');
-    expect(switchEl).toHaveClass('focus-visible:outline-none');
-    expect(switchEl).toHaveClass('focus-visible:ring-2');
-    expect(switchEl).toHaveClass('focus-visible:ring-accent-primary');
+    expect(switchEl.tagName).toBe('BUTTON');
+    expect(switchEl.className).not.toMatch(/focus(-visible)?:(ring|outline-none)/);
   });
 
   it('label association works - clicking label toggles switch when wrapped', async () => {

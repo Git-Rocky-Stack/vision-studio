@@ -30,7 +30,7 @@ function ToolbarButton({ icon: Icon, title, onClick, active, activeColor }: Tool
     <button
       onClick={onClick}
       className={cn(
-        'w-7 h-7 flex items-center justify-center rounded-md transition-all',
+        'w-7 h-7 flex items-center justify-center rounded-md transition',
         active
           ? 'text-accent-primary bg-accent-primary-muted'
           : 'text-text-muted hover:text-text-primary hover:bg-elevated'

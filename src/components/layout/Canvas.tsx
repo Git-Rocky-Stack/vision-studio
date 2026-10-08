@@ -465,7 +465,7 @@ export const Canvas = memo(function Canvas() {
         <div className="flex items-center gap-1.5 px-2 py-1.5 raised-panel">
           <button
             onClick={handleZoomOut}
-            className="p-2 rounded-md text-text-body hover:text-text-primary hover:bg-elevated transition-all disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:text-text-body disabled:hover:bg-transparent"
+            className="p-2 rounded-md text-text-body hover:text-text-primary hover:bg-elevated transition disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:text-text-body disabled:hover:bg-transparent"
             aria-label="Zoom out"
             disabled={zoom <= 25}
           >
@@ -476,7 +476,7 @@ export const Canvas = memo(function Canvas() {
           </span>
           <button
             onClick={handleZoomIn}
-            className="p-2 rounded-md text-text-body hover:text-text-primary hover:bg-elevated transition-all disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:text-text-body disabled:hover:bg-transparent"
+            className="p-2 rounded-md text-text-body hover:text-text-primary hover:bg-elevated transition disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:text-text-body disabled:hover:bg-transparent"
             aria-label="Zoom in"
             disabled={zoom >= 200}
           >
@@ -485,7 +485,7 @@ export const Canvas = memo(function Canvas() {
           <div className="w-px h-4 bg-border mx-1" />
           <button
             onClick={handleResetZoom}
-            className="p-2 rounded-md text-text-body hover:text-text-primary hover:bg-elevated transition-all"
+            className="p-2 rounded-md text-text-body hover:text-text-primary hover:bg-elevated transition"
             aria-label="Reset view"
           >
             <Maximize className="w-4 h-4" />
@@ -494,7 +494,7 @@ export const Canvas = memo(function Canvas() {
           <button
             onClick={() => setShowGrid(!showGrid)}
             className={cn(
-              'p-2 rounded-md transition-all',
+              'p-2 rounded-md transition',
               showGrid
                 ? 'text-accent-primary bg-accent-primary-muted border border-accent-primary-border'
                 : 'text-text-body hover:text-text-primary hover:bg-elevated'
@@ -607,35 +607,35 @@ export const Canvas = memo(function Canvas() {
                       type="button"
                       onClick={() => void handleExtractFrame()}
                       disabled={isExtractingFrame}
-                      className="inline-flex items-center rounded-md border border-accent-primary-border bg-accent-primary-muted px-3 py-2 type-ui text-accent-primary transition-all hover:bg-elevated disabled:cursor-not-allowed disabled:opacity-50"
+                      className="inline-flex items-center rounded-md border border-accent-primary-border bg-accent-primary-muted px-3 py-2 type-ui text-accent-primary transition hover:bg-elevated disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       {isExtractingFrame ? 'Extracting...' : 'Extract frame'}
                     </button>
                     <button
                       type="button"
                       onClick={() => void handleOpenVideoSource()}
-                      className="inline-flex items-center rounded-md border border-border px-3 py-2 type-ui text-text-body transition-all hover:border-border-hover hover:bg-elevated hover:text-text-primary"
+                      className="inline-flex items-center rounded-md border border-border px-3 py-2 type-ui text-text-body transition hover:border-border-hover hover:bg-elevated hover:text-text-primary"
                     >
                       Open file
                     </button>
                     <button
                       type="button"
                       onClick={() => void handleRevealVideoSource()}
-                      className="inline-flex items-center rounded-md border border-border px-3 py-2 type-ui text-text-body transition-all hover:border-border-hover hover:bg-elevated hover:text-text-primary"
+                      className="inline-flex items-center rounded-md border border-border px-3 py-2 type-ui text-text-body transition hover:border-border-hover hover:bg-elevated hover:text-text-primary"
                     >
                       Show in folder
                     </button>
                     <button
                       type="button"
                       onClick={openViewer}
-                      className="inline-flex items-center rounded-md border border-accent-primary-border bg-accent-primary-muted px-3 py-2 type-ui text-accent-primary transition-all hover:bg-elevated"
+                      className="inline-flex items-center rounded-md border border-accent-primary-border bg-accent-primary-muted px-3 py-2 type-ui text-accent-primary transition hover:bg-elevated"
                     >
                       Return to Viewer
                     </button>
                     <button
                       type="button"
                       onClick={openStoryboard}
-                      className="inline-flex items-center rounded-md border border-border px-3 py-2 type-ui text-text-body transition-all hover:border-border-hover hover:bg-elevated hover:text-text-primary"
+                      className="inline-flex items-center rounded-md border border-border px-3 py-2 type-ui text-text-body transition hover:border-border-hover hover:bg-elevated hover:text-text-primary"
                     >
                       Open Storyboard
                     </button>
@@ -686,21 +686,21 @@ export const Canvas = memo(function Canvas() {
                     <button
                       type="button"
                       onClick={openGenerate}
-                      className="inline-flex items-center rounded-md border border-accent-primary-border bg-accent-primary-muted px-3 py-2 type-ui text-accent-primary transition-all hover:bg-elevated"
+                      className="inline-flex items-center rounded-md border border-accent-primary-border bg-accent-primary-muted px-3 py-2 type-ui text-accent-primary transition hover:bg-elevated"
                     >
                       Generate from prompt
                     </button>
                     <button
                       type="button"
                       onClick={openViewer}
-                      className="inline-flex items-center rounded-md border border-border px-3 py-2 type-ui text-text-body transition-all hover:border-border-hover hover:bg-elevated hover:text-text-primary"
+                      className="inline-flex items-center rounded-md border border-border px-3 py-2 type-ui text-text-body transition hover:border-border-hover hover:bg-elevated hover:text-text-primary"
                     >
                       Open Viewer
                     </button>
                     <button
                       type="button"
                       onClick={openStoryboard}
-                      className="inline-flex items-center rounded-md border border-border px-3 py-2 type-ui text-text-body transition-all hover:border-border-hover hover:bg-elevated hover:text-text-primary"
+                      className="inline-flex items-center rounded-md border border-border px-3 py-2 type-ui text-text-body transition hover:border-border-hover hover:bg-elevated hover:text-text-primary"
                     >
                       Open Storyboard
                     </button>

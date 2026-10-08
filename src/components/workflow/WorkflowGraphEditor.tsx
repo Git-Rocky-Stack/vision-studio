@@ -184,7 +184,7 @@ export function WorkflowGraphEditor({
             key={action.classType}
             type="button"
             onClick={() => onAddNode(action.classType)}
-            className="rounded-md border border-border bg-elevated px-3 py-1.5 type-ui text-text-body transition-all hover:border-border-hover hover:text-text-primary"
+            className="rounded-md border border-border bg-elevated px-3 py-1.5 type-ui text-text-body transition hover:border-border-hover hover:text-text-primary"
           >
             {action.label}
           </button>
@@ -195,7 +195,7 @@ export function WorkflowGraphEditor({
           onClick={() => {
             if (selection?.type === 'node') setConnectionSourceId(selection.id);
           }}
-          className="rounded-md border border-border bg-elevated px-3 py-1.5 type-ui text-text-body transition-all hover:border-border-hover hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-50"
+          className="rounded-md border border-border bg-elevated px-3 py-1.5 type-ui text-text-body transition hover:border-border-hover hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-50"
         >
           Start connection from selected node
         </button>
@@ -211,7 +211,7 @@ export function WorkflowGraphEditor({
             }
             setSelection(null);
           }}
-          className="rounded-md border border-border bg-elevated px-3 py-1.5 type-ui text-text-body transition-all hover:border-border-hover hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-50"
+          className="rounded-md border border-border bg-elevated px-3 py-1.5 type-ui text-text-body transition hover:border-border-hover hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-50"
         >
           Delete selection
         </button>
@@ -282,7 +282,7 @@ export function WorkflowGraphEditor({
                 onKeyDown={(event) => handleNodeKeyDown(event, node)}
                 onPointerDown={(event) => startDrag(event, node)}
                 className={cn(
-                  'absolute flex flex-col items-start rounded-md border bg-surface px-3 py-3 text-left shadow-sm transition-all',
+                  'absolute flex flex-col items-start rounded-md border bg-surface px-3 py-3 text-left shadow-sm transition',
                   isSelected
                     ? 'border-accent-primary-border text-accent-primary'
                     : 'border-border text-text-primary',
@@ -376,7 +376,7 @@ function LoraLoaderInspector({
           aria-label="LoRA selection"
           value={currentLoraName}
           onChange={(event) => onUpdateNodeInput?.(node.id, 'lora_name', event.target.value)}
-          className="w-full rounded-md border border-border bg-elevated px-2 py-1.5 text-sm text-text-primary focus:border-accent-primary focus:outline-none transition-all"
+          className="w-full rounded-md border border-border bg-elevated px-2 py-1.5 text-sm text-text-primary focus:border-accent-primary transition"
         >
           <option value="">Select a LoRA</option>
           {loraOptions.map((option) => (
@@ -401,7 +401,7 @@ function LoraLoaderInspector({
               onUpdateNodeInput?.(node.id, 'strength_model', value);
             }
           }}
-          className="w-full rounded-md border border-border bg-elevated px-2 py-1.5 data-mono text-text-primary focus:border-accent-primary focus:outline-none transition-all"
+          className="w-full rounded-md border border-border bg-elevated px-2 py-1.5 data-mono text-text-primary focus:border-accent-primary transition"
         />
       </label>
     </div>

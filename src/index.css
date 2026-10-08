@@ -860,31 +860,33 @@ p, li, dd, blockquote {
   border: 1px solid rgba(255, 255, 255, 0.06);
 }
 
-/* ---- Gradient Text ---- */
-.gradient-text {
-  background: linear-gradient(135deg, var(--color-text-primary) 0%, var(--color-text-body) 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-
-.gradient-text-red {
-  background: linear-gradient(135deg, var(--color-red-highlight) 0%, var(--color-red-primary) 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-
 /* ---- Focus Styles ---- */
+/* This is the only focus ring. The rule is unlayered, so it outranks every
+   utility: a component cannot remove it with focus-visible:outline-none, and
+   one that adds focus-visible:ring-* draws a second ring inside it.
+   focus-ring.test.ts keeps both out of the source.
+
+   tabindex="-1" is excluded on purpose. It takes an element out of the tab
+   order, so only script can focus it - a dialog panel, so the keyboard lands
+   inside it - and ringing the whole panel just draws a heavy frame. The items
+   of a roving-tabindex widget also hold -1 and ARE keyboard targets, which is
+   why each such role is named here rather than left to the tabindex selector. */
 a:focus-visible,
 summary:focus-visible,
 button:focus-visible,
 input:focus-visible,
 textarea:focus-visible,
 select:focus-visible,
-[tabindex]:focus-visible,
+[tabindex]:not([tabindex="-1"]):focus-visible,
 [role="button"]:focus-visible,
-[role="tab"]:focus-visible {
+[role="tab"]:focus-visible,
+[role="option"]:focus-visible,
+[role="menuitem"]:focus-visible,
+[role="radio"]:focus-visible,
+[role="checkbox"]:focus-visible,
+[role="switch"]:focus-visible,
+[role="slider"]:focus-visible,
+[role="treeitem"]:focus-visible {
   outline: 2px solid var(--color-accent-primary);
   outline-offset: 2px;
 }
@@ -931,7 +933,7 @@ input[type="range"]::-webkit-slider-thumb {
   width: 16px;
   border-radius: 50%;
   margin-top: -7px;
-  transition: all 0.2s ease;
+  transition: background-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
 }
 
 input[type="range"]::-webkit-slider-thumb:hover {

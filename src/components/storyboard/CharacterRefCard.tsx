@@ -56,7 +56,7 @@ export const CharacterRefCard = memo(function CharacterRefCard({
       transition={{ duration: 0.15 }}
       className={cn(
         'group flex items-center gap-3 p-2.5 rounded-md border cursor-pointer select-none',
-        'transition-all duration-200',
+        'transition duration-200',
         'bg-elevated border-border hover:border-accent-primary/40',
         isSelected && 'ring-2 ring-accent-primary bg-accent-primary-muted/10 border-accent-primary/60'
       )}
@@ -106,7 +106,7 @@ export const CharacterRefCard = memo(function CharacterRefCard({
               }}
               aria-label={`Delete ${character.name}`}
               className={cn(
-                'p-1 rounded-md transition-all duration-150',
+                'p-1 rounded-md transition duration-150',
                 'text-text-muted hover:text-status-error hover:bg-status-error-muted',
                 'opacity-0 pointer-events-none',
                 (isHovered || isSelected) && 'opacity-100 pointer-events-auto'

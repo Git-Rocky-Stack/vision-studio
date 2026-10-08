@@ -17,11 +17,9 @@ vi.mock('./ProjectDropdown', () => ({
 }));
 
 const baseStore = {
-  currentProject: null as null | {
-    id: string;
-    name: string;
-    updatedAt?: string;
-  },
+  activeTab: 'generate',
+  activeProjectId: null as string | null,
+  projects: [] as Array<{ id: string; name: string; modified: string }>,
   systemInfo: {
     gpuAvailable: false,
     comfyuiConnected: false,
@@ -50,11 +48,8 @@ describe('Header', () => {
 
   it('renders GPU ready status with model detail', () => {
     mockStore({
-      currentProject: {
-        id: 'project-1',
-        name: 'Project',
-        updatedAt: '2026-04-22T12:34:00.000Z',
-      },
+      activeProjectId: 'project-1',
+      projects: [{ id: 'project-1', name: 'Project', modified: '2026-04-22T12:34:00.000Z' }],
       systemInfo: {
         ...baseStore.systemInfo,
         gpuAvailable: true,
@@ -67,7 +62,7 @@ describe('Header', () => {
     render(<Header />);
 
     expect(screen.getByRole('button', { name: 'Project' })).toBeInTheDocument();
-    expect(screen.getByRole('img', { name: 'Vision Studio' })).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'Strategia-X' })).toBeInTheDocument();
     expect(screen.getByTestId('header-right-actions')).toBeInTheDocument();
     expect(screen.getByTestId('app-header')).toHaveClass('app-region-drag', 'h-14', 'pr-36');
     expect(screen.getByTestId('header-right-actions')).toHaveClass('app-region-no-drag');
@@ -116,5 +111,63 @@ describe('Header', () => {
 
     expect(screen.getByLabelText('Backend not ready')).toBeInTheDocument();
     expect(screen.getByText('Backend offline')).toBeInTheDocument();
+  });
+
+  // The nav rail is icons only, so the header is where the current workspace
+  // is named. It used to read "Workspace" on every tab.
+  it.each([
+    ['generate', 'Generate'],
+    ['canvas', 'Canvas'],
+    ['story', 'Story'],
+    ['workflows', 'Workflows'],
+    ['assets', 'Assets'],
+    ['collections', 'Collections'],
+    ['foundry', 'Foundry'],
+    ['settings', 'Settings'],
+  ])('titles the bar with the active workspace (%s)', (activeTab, label) => {
+    mockStore({ activeTab });
+
+    render(<Header />);
+
+    expect(screen.getByTestId('header-workspace-title')).toHaveTextContent(label);
+    expect(screen.queryByText('Workspace')).not.toBeInTheDocument();
+  });
+
+  // The status line read a legacy field nothing sets when a project is opened,
+  // so an open project showed the no-project tagline.
+  it('reads the status line from the project that is actually open', () => {
+    mockStore({
+      activeProjectId: 'project-2',
+      projects: [
+        { id: 'project-1', name: 'Other', modified: '2026-04-20T09:00:00.000Z' },
+        { id: 'project-2', name: 'Open one', modified: '2026-04-22T12:34:00.000Z' },
+      ],
+    });
+
+    render(<Header />);
+
+    const expected = new Date('2026-04-22T12:34:00.000Z').toLocaleTimeString([], {
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+    expect(screen.getByTestId('header-project-status')).toHaveTextContent(`Edited ${expected}`);
+  });
+
+  it('says no project is open rather than showing a tagline', () => {
+    mockStore();
+
+    render(<Header />);
+
+    expect(screen.getByTestId('header-project-status')).toHaveTextContent('No project open');
+    expect(screen.queryByText(/Build images, scenes, and workflows/)).not.toBeInTheDocument();
+  });
+
+  // The header is a row above the workspace; nothing scrolls behind it.
+  it('does not blur a backdrop it has nothing behind', () => {
+    mockStore();
+
+    render(<Header />);
+
+    expect(screen.getByTestId('app-header').className).not.toContain('backdrop-blur');
   });
 });

@@ -75,6 +75,19 @@ describe('Timeline integration', () => {
     expect(screen.getByLabelText('Add track')).toBeInTheDocument();
   });
 
+  // The transport bar is a row in the timeline's own column, not an overlay.
+  it('does not blur the transport bar, which overlays nothing', () => {
+    seedProjectAndMedia();
+    render(<Timeline />);
+
+    let bar: HTMLElement | null = screen.getByLabelText('Skip to beginning');
+    while (bar && !bar.classList.contains('border-b')) bar = bar.parentElement;
+
+    expect(bar).not.toBeNull();
+    expect(bar?.className).toContain('bg-elevated');
+    expect(bar?.className).not.toContain('backdrop-blur');
+  });
+
   it('can switch between timeline modes', async () => {
     const user = userEvent.setup();
     seedProjectAndMedia();

@@ -54,8 +54,7 @@ export const RegionLockToolbar = memo(function RegionLockToolbar({
               onClick={() => onToolChange(tool.id)}
               className={cn(
                 'relative flex items-center justify-center w-9 h-9 rounded-md',
-                'transition-all duration-150',
-                'focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary',
+                'transition duration-150',
                 isActive
                   ? 'bg-accent-primary-muted text-accent-primary'
                   : 'text-text-body hover:text-text-primary hover:bg-elevated'
@@ -77,8 +76,7 @@ export const RegionLockToolbar = memo(function RegionLockToolbar({
           onClick={onInvertToggle}
           className={cn(
             'relative flex items-center justify-center w-9 h-9 rounded-md',
-            'transition-all duration-150',
-            'focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary',
+            'transition duration-150',
             isInverted
               ? 'bg-accent-primary-muted text-accent-primary'
               : 'text-text-body hover:text-text-primary hover:bg-elevated'

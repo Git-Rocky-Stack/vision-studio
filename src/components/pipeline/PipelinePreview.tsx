@@ -53,7 +53,7 @@ export const PipelinePreview = memo(function PipelinePreview({
 
           const label = `Step ${i + 1}: ${step.status}`;
           const dotClass = cn(
-            'w-3 h-3 rounded-full border transition-all',
+            'w-3 h-3 rounded-full border transition',
             color,
             isActive && 'ring-2 ring-accent-primary/40 ring-offset-1 ring-offset-void'
           );
@@ -70,7 +70,7 @@ export const PipelinePreview = memo(function PipelinePreview({
               aria-pressed={isActive}
               title={label}
               onClick={() => onStepSelect(i)}
-              className={cn(dotClass, 'hover:scale-125 focus-visible:ring-2 focus-visible:ring-accent-primary')}
+              className={cn(dotClass, 'hover:scale-125')}
             />
           );
         })}

@@ -200,7 +200,7 @@ export const CompositionPreview = memo(function CompositionPreview() {
                 type="button"
                 onClick={() => void handleExtractFrame()}
                 disabled={isExtractingFrame}
-                className="inline-flex items-center rounded-md border border-accent-primary-border bg-accent-primary-muted px-3 py-2 type-ui text-accent-primary transition-all hover:bg-elevated disabled:cursor-not-allowed disabled:opacity-50"
+                className="inline-flex items-center rounded-md border border-accent-primary-border bg-accent-primary-muted px-3 py-2 type-ui text-accent-primary transition hover:bg-elevated disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {isExtractingFrame ? 'Extracting...' : 'Extract frame to Edit'}
               </button>

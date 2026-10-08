@@ -183,7 +183,7 @@ export function TemplatesPanel() {
         {/* Wraps: in the 320px dock the search field takes its own row instead
             of collapsing to a single character beside the sort and view pads. */}
         <div className="mb-4 flex flex-wrap items-center gap-2">
-          <RecessedWell padding={0} className="flex min-w-[180px] flex-1 items-center focus-within:ring-1 focus-within:ring-accent-primary">
+          <RecessedWell padding={0} className="flex min-w-[180px] flex-1 items-center">
             <Search className="ml-3 w-4 h-4 text-text-muted flex-shrink-0" />
             <input
               value={searchQuery}

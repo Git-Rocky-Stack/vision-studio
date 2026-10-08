@@ -214,7 +214,7 @@ export function CanvasContextMenu({ x, y, onClose }: CanvasContextMenuProps) {
                 role="menuitem"
                 aria-disabled={menuItem.disabled}
                 className={cn(
-                  'w-full flex items-center gap-3 px-3 py-2 text-left transition-all',
+                  'w-full flex items-center gap-3 px-3 py-2 text-left transition',
                   menuItem.disabled
                     ? 'text-text-muted cursor-not-allowed opacity-50'
                     : 'text-text-primary hover:bg-accent-primary-muted hover:text-accent-primary'

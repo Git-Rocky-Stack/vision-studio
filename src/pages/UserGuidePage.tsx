@@ -41,7 +41,7 @@ export function UserGuidePage() {
               <a
                 key={link.href}
                 href={link.href}
-                className="rounded-xl border border-border bg-surface px-3 py-2 text-sm text-text-body transition-all hover:border-border-hover hover:text-text-primary"
+                className="rounded-xl border border-border bg-surface px-3 py-2 text-sm text-text-body transition hover:border-border-hover hover:text-text-primary"
               >
                 {link.label}
               </a>

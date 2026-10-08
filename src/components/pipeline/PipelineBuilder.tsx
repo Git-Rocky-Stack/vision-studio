@@ -119,7 +119,7 @@ export const PipelineBuilder = memo(function PipelineBuilder({
               }
             }}
             autoFocus
-            className="flex-1 text-sm text-text-primary bg-canvas rounded px-2 py-0.5 border border-border focus:outline-none focus:border-accent-primary-border"
+            className="flex-1 text-sm text-text-primary bg-canvas rounded px-2 py-0.5 border border-border focus:border-accent-primary-border"
           />
         ) : (
           <button

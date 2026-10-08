@@ -75,7 +75,7 @@ export function DiscoverSection() {
             aria-pressed={source === s.id}
             onClick={() => setSource(s.id)}
             className={cn(
-              'mono-label rounded-md border px-3 py-1.5 transition-all',
+              'mono-label rounded-md border px-3 py-1.5 transition',
               source === s.id
                 ? 'border-border-hover bg-elevated text-text-primary'
                 : 'border-border text-text-body hover:border-border-hover hover:text-text-primary',
@@ -105,7 +105,7 @@ export function DiscoverSection() {
             placeholder={`Search ${source === 'hf' ? 'Hugging Face' : 'CivitAI'} models...`}
             className={cn(
               'w-full rounded-md border border-border bg-elevated py-2 pl-10 pr-3 text-sm text-text-primary placeholder:text-text-muted',
-              'focus:border-accent-primary focus:ring-1 focus:ring-accent-primary/35 transition-all duration-200',
+              'focus:border-accent-primary transition duration-200',
             )}
           />
         </div>

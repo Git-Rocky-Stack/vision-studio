@@ -118,7 +118,7 @@ export function DownloadRow({ job, modelName }: DownloadRowProps) {
       >
         <div
           className={cn(
-            'h-full rounded-full transition-all duration-300',
+            'h-full rounded-full transition-[width,background-color] duration-300',
             job.status === 'error' ? 'bg-status-error' : 'bg-accent-primary',
           )}
           style={{ width: `${progress}%` }}

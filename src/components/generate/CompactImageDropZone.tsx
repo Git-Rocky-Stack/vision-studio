@@ -62,7 +62,7 @@ export const CompactImageDropZone = memo(function CompactImageDropZone({
           <button
             onClick={handleRemove}
             aria-label={`Remove ${label}`}
-            className="absolute top-1.5 right-1.5 p-1 rounded-md bg-void/80 text-text-primary hover:bg-status-error transition-all"
+            className="absolute top-1.5 right-1.5 p-1 rounded-md bg-void/80 text-text-primary hover:bg-status-error transition"
           >
             <X className="w-3.5 h-3.5" />
           </button>
@@ -83,7 +83,7 @@ export const CompactImageDropZone = memo(function CompactImageDropZone({
             }
           }}
           className={cn(
-            'flex flex-col items-center justify-center gap-1 rounded-md border border-dashed py-4 cursor-pointer transition-all',
+            'flex flex-col items-center justify-center gap-1 rounded-md border border-dashed py-4 cursor-pointer transition',
             isDragOver
               ? 'border-accent-primary bg-accent-primary-muted/20'
               : 'border-border hover:border-border-hover hover:bg-elevated/30'

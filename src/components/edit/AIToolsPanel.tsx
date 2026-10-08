@@ -221,7 +221,7 @@ export function AIToolsPanel() {
               type="button"
               onClick={() => setEditAiMaskTool(id)}
               className={cn(
-                'flex-1 py-2 rounded-md border text-sm font-medium transition-all',
+                'flex-1 py-2 rounded-md border text-sm font-medium transition',
                 editAiMaskTool === id
                   ? 'border-accent-primary-border bg-accent-primary-muted text-accent-primary'
                   : 'border-border bg-surface text-text-body'
@@ -322,7 +322,7 @@ export function AIToolsPanel() {
           <div
             key={tool.id}
             className={cn(
-              'rounded-md border transition-all overflow-hidden',
+              'rounded-md border transition overflow-hidden',
               isExpanded
                 ? 'border-border-hover bg-elevated'
                 : 'border-border bg-elevated/50 hover:border-border-hover'
@@ -392,7 +392,7 @@ export function AIToolsPanel() {
                           onChange={(e) => setBgReplacePrompt(e.target.value)}
                           placeholder="Describe the new background..."
                           aria-label="Replacement background description"
-                          className="w-full bg-surface border border-border rounded-md px-3 py-2 text-xs text-text-primary placeholder:text-text-muted focus:border-accent-primary transition-all"
+                          className="w-full bg-surface border border-border rounded-md px-3 py-2 text-xs text-text-primary placeholder:text-text-muted focus:border-accent-primary transition"
                         />
                         <Button
                           variant="secondary"
@@ -431,7 +431,7 @@ export function AIToolsPanel() {
                                 key={factor}
                                 onClick={() => setUpscaleFactor(factor)}
                                 className={cn(
-                                  'flex-1 py-2 rounded-md border text-sm font-medium transition-all',
+                                  'flex-1 py-2 rounded-md border text-sm font-medium transition',
                                   upscaleFactor === factor
                                     ? 'border-accent-primary-border bg-accent-primary-muted text-accent-primary'
                                     : 'border-border bg-surface text-text-body'
@@ -447,7 +447,7 @@ export function AIToolsPanel() {
                           <select
                             value={upscaleModel}
                             onChange={(e) => setUpscaleModel(e.target.value)}
-                            className="w-full appearance-none bg-elevated border border-border rounded-md px-3 py-2 text-xs text-text-primary focus:border-accent-primary focus:ring-1 focus:ring-accent-primary/40 transition-all"
+                            className="w-full appearance-none bg-elevated border border-border rounded-md px-3 py-2 text-xs text-text-primary focus:border-accent-primary transition"
                           >
                             <option value="general">General</option>
                             <option value="face">Face</option>
@@ -479,7 +479,7 @@ export function AIToolsPanel() {
                               key={style.id}
                               onClick={() => setStylePreset(style.id)}
                               className={cn(
-                                'py-2 rounded-md text-xs font-medium transition-all text-center',
+                                'py-2 rounded-md text-xs font-medium transition text-center',
                                 stylePreset === style.id
                                   ? 'text-text-primary'
                                   : 'bg-surface text-text-body border border-border'
@@ -511,7 +511,7 @@ export function AIToolsPanel() {
                           onChange={(e) => setStylePrompt(e.target.value)}
                           placeholder="Add extra description (optional)"
                           aria-label="Style transfer description"
-                          className="w-full bg-surface border border-border rounded-md px-3 py-2 text-xs text-text-primary placeholder:text-text-muted focus:border-accent-primary transition-all"
+                          className="w-full bg-surface border border-border rounded-md px-3 py-2 text-xs text-text-primary placeholder:text-text-muted focus:border-accent-primary transition"
                         />
                         <Button
                           variant="primary"
@@ -537,7 +537,7 @@ export function AIToolsPanel() {
                           value={genFillPrompt}
                           onChange={(e) => setGenFillPrompt(e.target.value)}
                           placeholder="Describe fill content..."
-                          className="w-full bg-surface border border-border rounded-md px-3 py-2 text-xs text-text-primary placeholder:text-text-muted focus:border-accent-primary transition-all"
+                          className="w-full bg-surface border border-border rounded-md px-3 py-2 text-xs text-text-primary placeholder:text-text-muted focus:border-accent-primary transition"
                         />
                         <Button
                           variant="primary"
@@ -621,7 +621,7 @@ export function AIToolsPanel() {
                                 key={id}
                                 onClick={() => toggleDirection(id)}
                                 className={cn(
-                                  'flex flex-col items-center gap-1 py-2 rounded-md border text-xs transition-all',
+                                  'flex flex-col items-center gap-1 py-2 rounded-md border text-xs transition',
                                   expandDirection.includes(id)
                                     ? 'border-accent-primary-border bg-accent-primary-muted text-accent-primary'
                                     : 'border-border bg-surface text-text-body'
@@ -641,14 +641,14 @@ export function AIToolsPanel() {
                             min={64}
                             max={512}
                             onChange={(e) => setExpandPixels(Number(e.target.value))}
-                            className="w-full bg-surface border border-border rounded-md px-3 py-2 data-mono text-text-primary focus:border-accent-primary transition-all"
+                            className="w-full bg-surface border border-border rounded-md px-3 py-2 data-mono text-text-primary focus:border-accent-primary transition"
                           />
                         </div>
                         <input
                           value={expandPrompt}
                           onChange={(e) => setExpandPrompt(e.target.value)}
                           placeholder="Describe expanded area..."
-                          className="w-full bg-surface border border-border rounded-md px-3 py-2 text-xs text-text-primary placeholder:text-text-muted focus:border-accent-primary transition-all"
+                          className="w-full bg-surface border border-border rounded-md px-3 py-2 text-xs text-text-primary placeholder:text-text-muted focus:border-accent-primary transition"
                         />
                         <Button
                           variant="primary"

@@ -367,7 +367,7 @@ export function EditPropertiesPanel() {
           <button
             disabled={undoCount === 0}
             className={cn(
-              'relative p-2 rounded-md transition-all',
+              'relative p-2 rounded-md transition',
               undoCount > 0
                 ? 'text-text-body hover:text-text-primary hover:bg-surface'
                 : 'text-text-muted/40 cursor-not-allowed'
@@ -394,13 +394,13 @@ export function EditPropertiesPanel() {
 
         <div className="flex items-center gap-1">
           <button
-            className="p-2 rounded-md text-text-body hover:text-text-primary hover:bg-surface transition-all"
+            className="p-2 rounded-md text-text-body hover:text-text-primary hover:bg-surface transition"
             title="Before/After"
           >
             <SplitSquareHorizontal className="w-4 h-4" />
           </button>
           <button
-            className="p-2 rounded-md text-text-body hover:text-text-primary hover:bg-surface transition-all"
+            className="p-2 rounded-md text-text-body hover:text-text-primary hover:bg-surface transition"
             title="History"
           >
             <History className="w-4 h-4" />
@@ -423,7 +423,7 @@ export function EditPropertiesPanel() {
                 aria-controls={`tabpanel-${tab.id}`}
                 onClick={() => setActiveTab(tab.id)}
                 className={cn(
-                  'flex-1 flex flex-col items-center gap-1 py-2 rounded-md transition-all type-caption',
+                  'flex-1 flex flex-col items-center gap-1 py-2 rounded-md transition type-caption',
                   isActive
                     ? 'bg-accent-primary-muted text-accent-primary'
                     : 'text-text-body hover:text-text-primary hover:bg-elevated'
@@ -472,7 +472,7 @@ export function EditPropertiesPanel() {
                 <button
                   type="button"
                   onClick={handlePromoteReference}
-                  className="inline-flex items-center rounded-md border border-accent-primary-border bg-accent-primary-muted px-3 py-2 type-ui text-accent-primary transition-all hover:bg-elevated"
+                  className="inline-flex items-center rounded-md border border-accent-primary-border bg-accent-primary-muted px-3 py-2 type-ui text-accent-primary transition hover:bg-elevated"
                 >
                   {activeTimelineClipId
                     ? 'Add as clip reference'
@@ -486,7 +486,7 @@ export function EditPropertiesPanel() {
                   <button
                     type="button"
                     onClick={handlePromoteClipPoster}
-                    className="inline-flex items-center rounded-md border border-border px-3 py-2 type-ui text-text-body transition-all hover:border-border-hover hover:bg-surface hover:text-text-primary"
+                    className="inline-flex items-center rounded-md border border-border px-3 py-2 type-ui text-text-body transition hover:border-border-hover hover:bg-surface hover:text-text-primary"
                   >
                     Set selected clip poster
                   </button>
@@ -560,7 +560,7 @@ export function EditPropertiesPanel() {
               <div className="pt-4 border-t border-border">
                 <button
                   onClick={resetImageAdjustments}
-                  className="flex items-center gap-2 w-full py-2 type-ui text-text-muted hover:text-text-primary transition-all justify-center"
+                  className="flex items-center gap-2 w-full py-2 type-ui text-text-muted hover:text-text-primary transition justify-center"
                 >
                   <RotateCcw className="w-3.5 h-3.5" />
                   Reset All Adjustments
@@ -753,7 +753,7 @@ export function EditPropertiesPanel() {
                       setActiveRegionId(lock.id);
                       setActiveMaskTool('rectangle');
                     }}
-                    className="btn-chrome vx-btn-chrome px-4 py-2 type-ui transition-colors disabled:opacity-40 disabled:cursor-not-allowed focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary"
+                    className="btn-chrome vx-btn-chrome px-4 py-2 type-ui transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                   >
                     Create Region Lock
                   </button>

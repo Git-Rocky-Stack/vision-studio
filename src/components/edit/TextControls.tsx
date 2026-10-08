@@ -187,7 +187,7 @@ export function TextControls() {
           onChange={(e) => handleContentChange(e.target.value)}
           placeholder={DEFAULT_TEXT_CONTENT}
           rows={2}
-          className="w-full bg-elevated border border-border rounded-md px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent-primary focus:outline-none transition-all resize-y"
+          className="w-full bg-elevated border border-border rounded-md px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent-primary transition resize-y"
         />
       </div>
 
@@ -198,7 +198,7 @@ export function TextControls() {
           onClick={() => setShowFontDropdown(!showFontDropdown)}
           aria-expanded={showFontDropdown}
           aria-haspopup="listbox"
-          className="w-full flex items-center justify-between px-3 py-2 rounded-md bg-elevated border border-border hover:border-border-hover transition-all text-left"
+          className="w-full flex items-center justify-between px-3 py-2 rounded-md bg-elevated border border-border hover:border-border-hover transition text-left"
         >
           <span className="text-sm text-text-primary" style={{ fontFamily: style.fontFamily }}>
             {style.fontFamily}
@@ -225,7 +225,7 @@ export function TextControls() {
                     setShowFontDropdown(false);
                   }}
                   className={cn(
-                    'w-full px-3 py-2 text-left text-sm transition-all',
+                    'w-full px-3 py-2 text-left text-sm transition',
                     style.fontFamily === font
                       ? 'bg-accent-primary-muted text-accent-primary'
                       : 'text-text-primary hover:bg-surface'
@@ -248,7 +248,7 @@ export function TextControls() {
             <button
               onClick={() => applyStyle({ fontSize: Math.max(12, style.fontSize - 2) })}
               aria-label="Decrease font size"
-              className="p-2 rounded bg-elevated border border-border text-text-body hover:text-text-primary transition-all text-xs"
+              className="p-2 rounded bg-elevated border border-border text-text-body hover:text-text-primary transition text-xs"
             >
               -
             </button>
@@ -259,12 +259,12 @@ export function TextControls() {
               onChange={(e) =>
                 applyStyle({ fontSize: Math.max(12, Math.min(200, Number(e.target.value))) })
               }
-              className="w-full bg-elevated border border-border rounded-md px-2 py-2 data-mono text-text-primary text-center focus:border-accent-primary transition-all"
+              className="w-full bg-elevated border border-border rounded-md px-2 py-2 data-mono text-text-primary text-center focus:border-accent-primary transition"
             />
             <button
               onClick={() => applyStyle({ fontSize: Math.min(200, style.fontSize + 2) })}
               aria-label="Increase font size"
-              className="p-2 rounded bg-elevated border border-border text-text-body hover:text-text-primary transition-all text-xs"
+              className="p-2 rounded bg-elevated border border-border text-text-body hover:text-text-primary transition text-xs"
             >
               +
             </button>
@@ -276,7 +276,7 @@ export function TextControls() {
             value={style.fontWeight}
             aria-label="Font weight"
             onChange={(e) => applyStyle({ fontWeight: Number(e.target.value) })}
-            className="w-full bg-elevated border border-border rounded-md px-2 py-2 text-sm text-text-primary focus:border-accent-primary transition-all"
+            className="w-full bg-elevated border border-border rounded-md px-2 py-2 text-sm text-text-primary focus:border-accent-primary transition"
           >
             {FONT_WEIGHTS.map((w) => (
               <option key={w.value} value={w.value}>
@@ -293,7 +293,7 @@ export function TextControls() {
           onClick={() => applyStyle({ italic: !style.italic })}
           aria-pressed={style.italic}
           className={cn(
-            'flex-1 flex items-center justify-center gap-2 py-2 rounded-md border text-xs transition-all',
+            'flex-1 flex items-center justify-center gap-2 py-2 rounded-md border text-xs transition',
             style.italic
               ? 'border-accent-primary-border bg-accent-primary-muted text-accent-primary'
               : 'border-border bg-elevated text-text-body hover:border-border-hover'
@@ -306,7 +306,7 @@ export function TextControls() {
           onClick={() => applyStyle({ underline: !style.underline })}
           aria-pressed={style.underline}
           className={cn(
-            'flex-1 flex items-center justify-center gap-2 py-2 rounded-md border text-xs transition-all',
+            'flex-1 flex items-center justify-center gap-2 py-2 rounded-md border text-xs transition',
             style.underline
               ? 'border-accent-primary-border bg-accent-primary-muted text-accent-primary'
               : 'border-border bg-elevated text-text-body hover:border-border-hover'
@@ -332,7 +332,7 @@ export function TextControls() {
               aria-label={`Align ${id}`}
               aria-pressed={style.align === id}
               className={cn(
-                'flex-1 flex items-center justify-center py-2 rounded-md border transition-all',
+                'flex-1 flex items-center justify-center py-2 rounded-md border transition',
                 style.align === id
                   ? 'border-accent-primary-border bg-accent-primary-muted text-accent-primary'
                   : 'border-border bg-elevated text-text-body hover:border-border-hover'

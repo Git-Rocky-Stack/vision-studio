@@ -108,7 +108,6 @@ export const CompositionLayerBar = memo(function CompositionLayerBar({
               onClick={() => setCompositionLayerVisibility(key, !isVisible)}
               className={cn(
                 'flex items-center gap-1 rounded px-1.5 py-1 text-xs transition-colors',
-                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary/30',
                 isVisible
                   ? 'bg-accent-primary/20 text-text-primary'
                   : 'text-text-muted hover:text-text-body',
@@ -158,7 +157,6 @@ export const CompositionLayerBar = memo(function CompositionLayerBar({
           onClick={handleZoomOut}
           className={cn(
             'rounded p-1 text-text-muted transition-colors hover:bg-surface hover:text-text-body',
-            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary/30',
             zoom <= ZOOM_MIN && 'pointer-events-none opacity-40',
           )}
           disabled={zoom <= ZOOM_MIN}
@@ -177,7 +175,6 @@ export const CompositionLayerBar = memo(function CompositionLayerBar({
           onClick={handleZoomIn}
           className={cn(
             'rounded p-1 text-text-muted transition-colors hover:bg-surface hover:text-text-body',
-            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary/30',
             zoom >= ZOOM_MAX && 'pointer-events-none opacity-40',
           )}
           disabled={zoom >= ZOOM_MAX}
@@ -190,7 +187,7 @@ export const CompositionLayerBar = memo(function CompositionLayerBar({
         <button
           type="button"
           onClick={onResetView}
-          className={cn('rounded p-1 text-text-muted transition-colors hover:bg-surface hover:text-text-body focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary/30')}
+          className={cn('rounded p-1 text-text-muted transition-colors hover:bg-surface hover:text-text-body')}
           aria-label="Reset view"
           title="Reset view"
         >
@@ -200,7 +197,7 @@ export const CompositionLayerBar = memo(function CompositionLayerBar({
         <button
           type="button"
           onClick={handleZoom1x}
-          className={cn('rounded p-1 text-text-muted transition-colors hover:bg-surface hover:text-text-body focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary/30')}
+          className={cn('rounded p-1 text-text-muted transition-colors hover:bg-surface hover:text-text-body')}
           aria-label="Zoom to 100%"
           title="Zoom to 100%"
         >
@@ -218,7 +215,6 @@ export const CompositionLayerBar = memo(function CompositionLayerBar({
         className={cn(
           'rounded bg-accent-primary px-3 py-1 text-xs font-medium text-void',
           'transition-colors hover:bg-accent-primary-pressed',
-          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary/50',
         )}
       >
         Generate

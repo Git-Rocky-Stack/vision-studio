@@ -124,7 +124,6 @@ export const CanvasControlLayerProperties = memo(function CanvasControlLayerProp
           className={cn(
             'rounded-md p-1.5 text-text-muted transition-colors duration-150',
             'hover:bg-status-error-muted hover:text-status-error',
-            'focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary',
           )}
           aria-label="Delete control layer"
         >
@@ -175,7 +174,7 @@ export const CanvasControlLayerProperties = memo(function CanvasControlLayerProp
             className={cn(
               'w-full rounded-md border border-border bg-void px-3 py-2',
               'type-ui text-text-primary placeholder:text-text-muted',
-              'transition-colors duration-150 focus:border-accent-primary focus:outline-none focus:ring-1 focus:ring-accent-primary',
+              'transition-colors duration-150 focus:border-accent-primary',
             )}
             placeholder="Layer name"
             aria-label="Control layer name"
@@ -194,8 +193,7 @@ export const CanvasControlLayerProperties = memo(function CanvasControlLayerProp
                   type="button"
                   onClick={() => onUpdate({ type: option.id })}
                   className={cn(
-                    'flex items-center justify-center gap-1.5 rounded-md border px-2.5 py-2 text-center transition-all duration-150',
-                    'focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary',
+                    'flex items-center justify-center gap-1.5 rounded-md border px-2.5 py-2 text-center transition duration-150',
                     isActive
                       ? 'border-accent-primary-border bg-accent-primary-muted text-accent-primary'
                       : 'border-border bg-void text-text-body hover:border-border-hover hover:text-text-primary',
@@ -232,8 +230,7 @@ export const CanvasControlLayerProperties = memo(function CanvasControlLayerProp
                   type="button"
                   onClick={() => onMaskToolChange(tool.id)}
                   className={cn(
-                    'flex items-center justify-center rounded-md border px-2 py-2 transition-all duration-150',
-                    'focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary',
+                    'flex items-center justify-center rounded-md border px-2 py-2 transition duration-150',
                     isActive
                       ? 'border-accent-primary-border bg-accent-primary-muted text-accent-primary'
                       : 'border-border bg-void text-text-body hover:border-border-hover hover:text-text-primary',
@@ -258,7 +255,7 @@ export const CanvasControlLayerProperties = memo(function CanvasControlLayerProp
             className={cn(
               'w-full rounded-md border border-border bg-void px-3 py-2',
               'type-ui text-text-primary placeholder:text-text-muted',
-              'transition-colors duration-150 focus:border-accent-primary focus:outline-none focus:ring-1 focus:ring-accent-primary',
+              'transition-colors duration-150 focus:border-accent-primary',
             )}
             placeholder="C:/path/to/source.png"
             aria-label="Control layer source path"
@@ -275,7 +272,7 @@ export const CanvasControlLayerProperties = memo(function CanvasControlLayerProp
                 className={cn(
                   'w-full rounded-md border border-border bg-void px-3 py-2',
                   'type-ui text-text-primary',
-                  'transition-colors duration-150 focus:border-accent-primary focus:outline-none focus:ring-1 focus:ring-accent-primary',
+                  'transition-colors duration-150 focus:border-accent-primary',
                 )}
                 aria-label="ControlNet preprocessor"
               >
@@ -319,7 +316,6 @@ export const CanvasControlLayerProperties = memo(function CanvasControlLayerProp
                       onClick={() => setActiveTab('foundry')}
                       className={cn(
                         'mt-2 type-caption font-medium text-accent-primary underline underline-offset-2',
-                        'focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary',
                       )}
                     >
                       Manage in Foundry
@@ -392,7 +388,6 @@ export const CanvasControlLayerProperties = memo(function CanvasControlLayerProp
                   onClick={() => setActiveTab('foundry')}
                   className={cn(
                     'mt-2 type-caption font-medium text-accent-primary underline underline-offset-2',
-                    'focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary',
                   )}
                 >
                   Manage in Foundry
@@ -421,7 +416,7 @@ export const CanvasControlLayerProperties = memo(function CanvasControlLayerProp
                   className={cn(
                     'w-full rounded-md border border-border bg-void px-3 py-2',
                     'type-ui text-text-primary placeholder:text-text-muted',
-                    'transition-colors duration-150 focus:border-accent-primary focus:outline-none focus:ring-1 focus:ring-accent-primary',
+                    'transition-colors duration-150 focus:border-accent-primary',
                   )}
                   placeholder="0"
                   aria-label="Control layer start step"
@@ -443,7 +438,7 @@ export const CanvasControlLayerProperties = memo(function CanvasControlLayerProp
                   className={cn(
                     'w-full rounded-md border border-border bg-void px-3 py-2',
                     'type-ui text-text-primary placeholder:text-text-muted',
-                    'transition-colors duration-150 focus:border-accent-primary focus:outline-none focus:ring-1 focus:ring-accent-primary',
+                    'transition-colors duration-150 focus:border-accent-primary',
                   )}
                   placeholder="100"
                   aria-label="Control layer end step"
@@ -464,7 +459,7 @@ export const CanvasControlLayerProperties = memo(function CanvasControlLayerProp
                 className={cn(
                   'w-full rounded-md border border-border bg-void px-3 py-2',
                   'type-ui text-text-primary placeholder:text-text-muted resize-y',
-                  'transition-colors duration-150 focus:border-accent-primary focus:outline-none focus:ring-1 focus:ring-accent-primary',
+                  'transition-colors duration-150 focus:border-accent-primary',
                 )}
                 placeholder="Optional prompt override for this layer"
                 aria-label="Control layer prompt override"
@@ -482,7 +477,7 @@ export const CanvasControlLayerProperties = memo(function CanvasControlLayerProp
                 className={cn(
                   'w-full rounded-md border border-border bg-void px-3 py-2',
                   'type-ui text-text-primary placeholder:text-text-muted resize-y',
-                  'transition-colors duration-150 focus:border-accent-primary focus:outline-none focus:ring-1 focus:ring-accent-primary',
+                  'transition-colors duration-150 focus:border-accent-primary',
                 )}
                 placeholder="Optional negative override"
                 aria-label="Control layer negative prompt override"
@@ -502,8 +497,7 @@ export const CanvasControlLayerProperties = memo(function CanvasControlLayerProp
             type="button"
             onClick={() => onUpdate({ visible: !layer.visible })}
             className={cn(
-              'relative flex h-9 min-w-20 items-center justify-center gap-1.5 rounded-md px-3 transition-all duration-150',
-              'focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary',
+              'relative flex h-9 min-w-20 items-center justify-center gap-1.5 rounded-md px-3 transition duration-150',
               layer.visible
                 ? 'bg-accent-primary-muted text-accent-primary'
                 : 'border border-border bg-surface text-text-body',
@@ -550,7 +544,7 @@ export const CanvasControlLayerProperties = memo(function CanvasControlLayerProp
               className={cn(
                 'w-full rounded-md border border-border bg-void px-3 py-2',
                 'type-ui text-text-primary placeholder:text-text-muted',
-                'transition-colors duration-150 focus:border-accent-primary focus:outline-none focus:ring-1 focus:ring-accent-primary',
+                'transition-colors duration-150 focus:border-accent-primary',
               )}
               placeholder="#d1d5db"
               aria-label="Preview tint value"

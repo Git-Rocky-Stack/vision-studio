@@ -334,7 +334,7 @@ export function QuickGeneratePanel() {
               className={cn(
                 'recessed-well w-full resize-none',
                 'px-3 py-2.5 text-sm text-text-primary placeholder:text-text-muted/50',
-                'focus:outline-none focus:ring-2 focus:ring-accent-primary/40 focus:border-accent-primary'
+                'focus:border-accent-primary'
               )}
               disabled={genStatus.isGenerating}
             />
@@ -354,7 +354,7 @@ export function QuickGeneratePanel() {
               className={cn(
                 'recessed-well w-full resize-none',
                 'px-3 py-2.5 text-sm text-text-primary placeholder:text-text-muted/50',
-                'focus:outline-none focus:ring-2 focus:ring-accent-primary/40 focus:border-accent-primary'
+                'focus:border-accent-primary'
               )}
               disabled={genStatus.isGenerating}
             />

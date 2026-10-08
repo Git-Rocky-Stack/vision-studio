@@ -63,8 +63,8 @@ export function PerformancePanel() {
                   aria-label={`${label} ${value}`}
                   className={
                     settings[key] === value
-                      ? 'flex-1 py-1.5 rounded-md data-mono text-xs font-medium transition-all bg-accent-primary text-void shadow-accent-subtle disabled:cursor-not-allowed'
-                      : 'flex-1 py-1.5 rounded-md data-mono text-xs font-medium transition-all bg-elevated text-text-body border border-border hover:border-border-hover disabled:cursor-not-allowed disabled:hover:border-border'
+                      ? 'flex-1 py-1.5 rounded-md data-mono text-xs font-medium transition bg-accent-primary text-void shadow-accent-subtle disabled:cursor-not-allowed'
+                      : 'flex-1 py-1.5 rounded-md data-mono text-xs font-medium transition bg-elevated text-text-body border border-border hover:border-border-hover disabled:cursor-not-allowed disabled:hover:border-border'
                   }
                 >
                   {value.toUpperCase()}

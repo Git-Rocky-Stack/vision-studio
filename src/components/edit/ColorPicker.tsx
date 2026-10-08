@@ -50,7 +50,7 @@ export function ColorPicker({ value, onChange, recentColors }: ColorPickerProps)
         onClick={() => setIsOpen(!isOpen)}
         aria-expanded={isOpen}
         aria-haspopup="listbox"
-        className="flex items-center gap-2 px-2.5 py-1.5 rounded-md bg-elevated border border-border hover:border-border-hover transition-all"
+        className="flex items-center gap-2 px-2.5 py-1.5 rounded-md bg-elevated border border-border hover:border-border-hover transition"
       >
         <div
           className="w-5 h-5 rounded border border-border"
@@ -87,7 +87,7 @@ export function ColorPicker({ value, onChange, recentColors }: ColorPickerProps)
                     onChange(e.target.value);
                   }
                 }}
-                className="flex-1 bg-surface border border-border rounded-md px-2 py-1 data-mono text-text-primary focus:border-accent-primary transition-all"
+                className="flex-1 bg-surface border border-border rounded-md px-2 py-1 data-mono text-text-primary focus:border-accent-primary transition"
                 placeholder="#ffffff"
               />
             </div>
@@ -106,7 +106,7 @@ export function ColorPicker({ value, onChange, recentColors }: ColorPickerProps)
                       setHexInput(color);
                     }}
                     className={cn(
-                      'w-6 h-6 rounded border transition-all',
+                      'w-6 h-6 rounded border transition',
                       value === color
                         ? 'border-accent-primary ring-1 ring-accent-primary/40 scale-110'
                         : 'border-border hover:scale-110'
@@ -131,7 +131,7 @@ export function ColorPicker({ value, onChange, recentColors }: ColorPickerProps)
                         onChange(color);
                         setHexInput(color);
                       }}
-                      className="w-6 h-6 rounded border border-border hover:scale-110 transition-all"
+                      className="w-6 h-6 rounded border border-border hover:scale-110 transition"
                       style={{ backgroundColor: color }}
                     />
                   ))}

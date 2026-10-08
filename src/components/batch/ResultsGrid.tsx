@@ -279,14 +279,14 @@ export function ResultsGrid({
             <div className="flex-1" />
             <button
               onClick={handleBulkFavorite}
-              className="flex items-center gap-2 px-3 py-2 rounded-md text-xs text-text-body hover:text-status-warning hover:bg-status-warning-muted transition-all"
+              className="flex items-center gap-2 px-3 py-2 rounded-md text-xs text-text-body hover:text-status-warning hover:bg-status-warning-muted transition"
             >
               <Heart className="w-3.5 h-3.5" />
               Favorite
             </button>
             <button
               onClick={handleExportAll}
-              className="flex items-center gap-2 px-3 py-2 rounded-md text-xs text-text-body hover:text-text-primary hover:bg-surface transition-all"
+              className="flex items-center gap-2 px-3 py-2 rounded-md text-xs text-text-body hover:text-text-primary hover:bg-surface transition"
             >
               <Download className="w-3.5 h-3.5" />
               Export
@@ -295,14 +295,14 @@ export function ResultsGrid({
               onClick={() => {
                 selectedIds.forEach((id) => handleSendToEdit(id));
               }}
-              className="flex items-center gap-2 px-3 py-2 rounded-md text-xs text-text-body hover:text-text-primary hover:bg-surface transition-all"
+              className="flex items-center gap-2 px-3 py-2 rounded-md text-xs text-text-body hover:text-text-primary hover:bg-surface transition"
             >
               <Pencil className="w-3.5 h-3.5" />
               Edit
             </button>
             <button
               onClick={handleBulkDelete}
-              className="flex items-center gap-2 px-3 py-2 rounded-md text-xs text-status-error hover:bg-status-error-muted transition-all"
+              className="flex items-center gap-2 px-3 py-2 rounded-md text-xs text-status-error hover:bg-status-error-muted transition"
             >
               <Trash2 className="w-3.5 h-3.5" />
               Delete

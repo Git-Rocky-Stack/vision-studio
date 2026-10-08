@@ -114,7 +114,7 @@ export function PromptHistory({
             </div>
             <button
               onClick={onClose}
-              className="p-1 rounded-md text-text-muted hover:text-text-primary hover:bg-surface transition-all"
+              className="p-1 rounded-md text-text-muted hover:text-text-primary hover:bg-surface transition"
             >
               <X className="w-3.5 h-3.5" />
             </button>
@@ -128,7 +128,7 @@ export function PromptHistory({
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search prompts..."
-                className="w-full bg-surface border border-border rounded-md pl-8 pr-3 py-2 text-xs text-text-primary placeholder:text-text-muted focus:border-accent-primary focus:ring-1 focus:ring-accent-primary/40 focus:outline-none"
+                className="w-full bg-surface border border-border rounded-md pl-8 pr-3 py-2 text-xs text-text-primary placeholder:text-text-muted focus:border-accent-primary"
                 autoFocus
               />
             </div>
@@ -137,7 +137,7 @@ export function PromptHistory({
                 onClick={() => setFilter('all')}
                 aria-pressed={filter === 'all'}
                 className={cn(
-                  'px-2.5 py-2 rounded-md type-ui transition-all',
+                  'px-2.5 py-2 rounded-md type-ui transition',
                   filter === 'all'
                     ? 'bg-accent-primary-muted text-accent-primary'
                     : 'text-text-muted hover:text-text-primary hover:bg-surface'
@@ -149,7 +149,7 @@ export function PromptHistory({
                 onClick={() => setFilter('favorites')}
                 aria-pressed={filter === 'favorites'}
                 className={cn(
-                  'px-2.5 py-2 rounded-md type-ui flex items-center gap-1 transition-all',
+                  'px-2.5 py-2 rounded-md type-ui flex items-center gap-1 transition',
                   filter === 'favorites'
                     ? 'bg-accent-primary-muted text-accent-primary'
                     : 'text-text-muted hover:text-text-primary hover:bg-surface'
@@ -215,7 +215,7 @@ function PromptHistoryRow({
 }) {
   return (
     <div
-      className="group flex items-start gap-3 px-4 py-3 hover:bg-surface/60 transition-all border-b border-border/50 last:border-b-0"
+      className="group flex items-start gap-3 px-4 py-3 hover:bg-surface/60 transition border-b border-border/50 last:border-b-0"
     >
       {/* Thumbnail */}
       {entry.result ? (
@@ -237,7 +237,7 @@ function PromptHistoryRow({
       {/* Content - clickable area */}
       <button
         onClick={onSelect}
-        className="flex-1 min-w-0 text-left bg-transparent border-0 p-0 cursor-pointer hover:text-text-primary transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary rounded"
+        className="flex-1 min-w-0 text-left bg-transparent border-0 p-0 cursor-pointer hover:text-text-primary transition-colors rounded"
       >
         <p className="text-xs text-text-primary line-clamp-2 leading-relaxed">
           {entry.prompt}
@@ -265,7 +265,7 @@ function PromptHistoryRow({
             onToggleFavorite();
           }}
           className={cn(
-            'p-1 rounded-md transition-all focus-visible:opacity-100',
+            'p-1 rounded-md transition focus-visible:opacity-100',
             isFavorite
               ? 'text-accent-primary'
               : 'text-text-muted hover:text-accent-primary'
@@ -283,7 +283,7 @@ function PromptHistoryRow({
             e.stopPropagation();
             onSelect();
           }}
-          className="p-1 rounded-md text-text-muted hover:text-text-primary transition-all focus-visible:opacity-100"
+          className="p-1 rounded-md text-text-muted hover:text-text-primary transition focus-visible:opacity-100"
           title="Use this prompt"
           aria-label="Use this prompt"
         >

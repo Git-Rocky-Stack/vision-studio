@@ -344,7 +344,7 @@ export function WorkflowWorkbench() {
               type="button"
               onClick={handleValidate}
               disabled={isRunning}
-              className="inline-flex items-center gap-2 whitespace-nowrap rounded-md border border-border bg-elevated px-3 py-1.5 type-ui text-text-body transition-all hover:border-border-hover hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-50"
+              className="inline-flex items-center gap-2 whitespace-nowrap rounded-md border border-border bg-elevated px-3 py-1.5 type-ui text-text-body transition hover:border-border-hover hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-50"
             >
               <ShieldCheck className="h-4 w-4" />
               Validate
@@ -358,7 +358,7 @@ export function WorkflowWorkbench() {
                 (!systemInfo.backendConnected && !workflowCanRunWithoutBackend) ||
                 Boolean(stillImageRoute.error)
               }
-              className="inline-flex items-center gap-2 whitespace-nowrap rounded-md border border-accent-primary-border bg-accent-primary-muted px-3 py-1.5 type-ui text-accent-primary transition-all hover:border-accent-primary disabled:cursor-not-allowed disabled:opacity-50"
+              className="inline-flex items-center gap-2 whitespace-nowrap rounded-md border border-accent-primary-border bg-accent-primary-muted px-3 py-1.5 type-ui text-accent-primary transition hover:border-accent-primary disabled:cursor-not-allowed disabled:opacity-50"
             >
               {isRunning ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
               {isRunning ? 'Running workflow...' : 'Run Workflow'}
@@ -367,14 +367,14 @@ export function WorkflowWorkbench() {
               type="button"
               onClick={handleRunOnComfy}
               disabled={!runnableOnComfy}
-              className="inline-flex items-center gap-2 rounded-md border border-border bg-elevated px-3 py-1.5 type-ui text-text-body transition-all hover:border-border-hover hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-50"
+              className="inline-flex items-center gap-2 rounded-md border border-border bg-elevated px-3 py-1.5 type-ui text-text-body transition hover:border-border-hover hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-50"
             >
               Run on ComfyUI
             </button>
             <button
               type="button"
               onClick={handleExportComfyJson}
-              className="rounded-md border border-border bg-elevated px-3 py-1.5 type-ui text-text-body transition-all hover:border-border-hover hover:text-text-primary"
+              className="rounded-md border border-border bg-elevated px-3 py-1.5 type-ui text-text-body transition hover:border-border-hover hover:text-text-primary"
             >
               Export ComfyUI JSON
             </button>
@@ -432,7 +432,7 @@ export function WorkflowWorkbench() {
             <button
               type="button"
               onClick={handleImportGraph}
-              className="rounded-md border border-border bg-elevated px-3 py-1.5 type-ui text-text-body transition-all hover:border-border-hover hover:text-text-primary"
+              className="rounded-md border border-border bg-elevated px-3 py-1.5 type-ui text-text-body transition hover:border-border-hover hover:text-text-primary"
             >
               Import graph
             </button>
@@ -509,7 +509,7 @@ export function WorkflowWorkbench() {
                     type="button"
                     onClick={() => setActiveWorkflow(workflow.id)}
                     className={cn(
-                      'rounded-md border px-3 py-2 text-left type-ui transition-all hover:border-border-hover hover:text-text-primary',
+                      'rounded-md border px-3 py-2 text-left type-ui transition hover:border-border-hover hover:text-text-primary',
                       isActive
                         ? 'border-accent-primary-border bg-accent-primary-muted text-accent-primary'
                         : 'border-border bg-elevated text-text-body'

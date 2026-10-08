@@ -37,7 +37,7 @@ export const GenerationQueue = memo(function GenerationQueue() {
               onMouseLeave={() => setHoveredItem(null)}
               aria-label={`View generation ${index + 1}`}
               className={cn(
-                'w-12 h-12 rounded-md border overflow-hidden transition-all',
+                'w-12 h-12 rounded-md border overflow-hidden transition',
                 hoveredItem === item.id
                   ? 'border-accent-primary-border ring-1 ring-accent-primary-border scale-110'
                   : 'border-border hover:border-border-hover'

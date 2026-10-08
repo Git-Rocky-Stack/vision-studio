@@ -85,7 +85,7 @@ export const VideoControls = memo(function VideoControls({
                       data-active={opt === fps}
                       onClick={() => onFpsChange?.(opt)}
                       className={cn(
-                        'flex-1 rounded-md border py-1 type-ui transition-all',
+                        'flex-1 rounded-md border py-1 type-ui transition',
                         opt === fps
                           ? 'border-accent-primary-border bg-accent-primary-muted text-accent-primary'
                           : 'border-border text-text-body hover:border-border-hover hover:bg-elevated'

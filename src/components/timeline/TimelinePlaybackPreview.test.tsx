@@ -154,6 +154,18 @@ describe('TimelinePlaybackPreview', () => {
     expect(loopedTime).toBeLessThan(1200);
   });
 
+  // The title bar is the first row of a column, not an overlay: there is
+  // nothing behind it for a backdrop filter to blur.
+  it('does not blur the title bar, which overlays nothing', () => {
+    const { state, sequence } = seedSequence();
+    state.setActiveTimelineSequence(sequence.id);
+
+    render(<TimelinePlaybackPreview />);
+
+    const titleBar = screen.getByTestId('timeline-playback-preview').firstElementChild;
+    expect(titleBar?.className).not.toContain('backdrop-blur');
+  });
+
   it('does not raise a playback warning on a timeline that has no clips', () => {
     const { state, sequence } = seedSequence();
     state.setActiveTimelineSequence(sequence.id);

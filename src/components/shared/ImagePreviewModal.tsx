@@ -252,7 +252,7 @@ export function ImagePreviewModal({
             <button
               onClick={onClose}
               aria-label="Close preview"
-              className="absolute top-4 right-4 z-10 p-2 rounded-md bg-surface/80 backdrop-blur-sm text-text-muted hover:text-text-primary hover:bg-elevated transition-all"
+              className="absolute top-4 right-4 z-10 p-2 rounded-md bg-surface/80 backdrop-blur-sm text-text-muted hover:text-text-primary hover:bg-elevated transition"
             >
               <X className="w-5 h-5" />
             </button>
@@ -264,7 +264,7 @@ export function ImagePreviewModal({
                 <button
                   onClick={goToPrev}
                   aria-label="Previous image"
-                  className="absolute left-4 top-1/2 -translate-y-1/2 p-3 rounded-xl bg-surface/80 backdrop-blur-sm text-text-muted hover:text-text-primary hover:bg-elevated transition-all"
+                  className="absolute left-4 top-1/2 -translate-y-1/2 p-3 rounded-xl bg-surface/80 backdrop-blur-sm text-text-muted hover:text-text-primary hover:bg-elevated transition"
                 >
                   <ChevronLeft className="w-6 h-6" />
                 </button>
@@ -286,7 +286,7 @@ export function ImagePreviewModal({
                 <button
                   onClick={goToNext}
                   aria-label="Next image"
-                  className="absolute right-[340px] top-1/2 -translate-y-1/2 p-3 rounded-xl bg-surface/80 backdrop-blur-sm text-text-muted hover:text-text-primary hover:bg-elevated transition-all"
+                  className="absolute right-[340px] top-1/2 -translate-y-1/2 p-3 rounded-xl bg-surface/80 backdrop-blur-sm text-text-muted hover:text-text-primary hover:bg-elevated transition"
                 >
                   <ChevronRight className="w-6 h-6" />
                 </button>

@@ -51,7 +51,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
           ) : null}
           <button
             onClick={this.handleRetry}
-            className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-elevated border border-border type-ui text-text-primary hover:bg-surface transition-all"
+            className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-elevated border border-border type-ui text-text-primary hover:bg-surface transition"
           >
             <RefreshCw className="w-3.5 h-3.5" />
             {UI_STRINGS.actions.retry}

@@ -95,7 +95,6 @@ export const SceneCameraPanel = memo(function SceneCameraPanel({
           className={cn(
             'inline-flex items-center gap-1 rounded-md border border-border px-2 py-1',
             'type-micro text-text-body transition hover:border-border-hover hover:bg-elevated hover:text-text-primary',
-            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary/40',
           )}
         >
           <Plus className="h-3 w-3" aria-hidden="true" />

@@ -118,7 +118,7 @@ export const IterationNodeDetail = memo(function IterationNodeDetail({
           onChange={(e) => setIterationNote(node.id, e.target.value)}
           placeholder="Add a note..."
           rows={2}
-          className="w-full rounded-md border border-border bg-void px-2 py-1.5 type-body-sm text-text-primary placeholder:text-text-muted focus:border-accent-primary focus:outline-none focus:ring-1 focus:ring-accent-primary resize-none"
+          className="w-full rounded-md border border-border bg-void px-2 py-1.5 type-body-sm text-text-primary placeholder:text-text-muted focus:border-accent-primary resize-none"
         />
       </div>
     </div>

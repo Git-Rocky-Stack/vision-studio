@@ -85,7 +85,7 @@ function LayerRow({
   return (
     <div
       className={cn(
-        'rounded-xl border transition-all',
+        'rounded-xl border transition',
         isActive ? 'border-accent-primary-border bg-accent-primary-muted shadow-accent-subtle' : 'border-border bg-surface/75',
       )}
     >
@@ -220,7 +220,7 @@ export const CanvasControlLayerRail = memo(function CanvasControlLayerRail({
               setActiveRegionId(null);
               createCanvasControlLayer(scene.id, { type });
             }}
-            className="inline-flex flex-col items-center justify-center gap-1 rounded-xl border border-border bg-canvas px-2 py-2 text-center text-text-body transition-all hover:border-border-hover hover:bg-elevated hover:text-text-primary"
+            className="inline-flex flex-col items-center justify-center gap-1 rounded-xl border border-border bg-canvas px-2 py-2 text-center text-text-body transition hover:border-border-hover hover:bg-elevated hover:text-text-primary"
             aria-label={label}
             title={label}
           >

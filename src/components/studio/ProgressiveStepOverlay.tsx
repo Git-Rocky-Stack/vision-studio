@@ -35,7 +35,7 @@ export const ProgressiveStepOverlay = memo(function ProgressiveStepOverlay({
             text-text-body backdrop-blur-sm
             transition-colors duration-150
             hover:border-status-error hover:text-status-error
-            focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-status-error
+
           "
         >
           <X size={14} strokeWidth={2.5} />

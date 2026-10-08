@@ -127,7 +127,7 @@ export function Slider({
         aria-valuemax={max}
         aria-valuenow={value}
         aria-valuetext={valueFormatter(value)}
-        className="relative h-5 flex items-center cursor-pointer select-none touch-none rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary focus-visible:ring-offset-2 focus-visible:ring-offset-void"
+        className="relative h-5 flex items-center cursor-pointer select-none touch-none rounded-md"
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}

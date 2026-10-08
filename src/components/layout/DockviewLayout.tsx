@@ -415,7 +415,7 @@ export const DockviewLayout = memo(function DockviewLayout() {
                     data-testid={`center-tab-${tab.id}`}
                     onClick={() => handleCenterTabClick(tab.id)}
                     className={cn(
-                      'rounded-md px-3 py-1.5 transition-all duration-150',
+                      'rounded-md px-3 py-1.5 transition duration-150',
                       centerView === tab.id
                         ? 'raised-control vx-pad text-accent-primary'
                         : 'text-text-body hover:bg-elevated/60 hover:text-text-primary',

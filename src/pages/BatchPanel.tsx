@@ -514,7 +514,7 @@ export function BatchPromptQueue() {
                   onClick={() => setBatchViewMode(opt.value)}
                   aria-label={opt.label}
                   className={cn(
-                    'p-2 rounded-md transition-all',
+                    'p-2 rounded-md transition',
                     batchViewMode === opt.value
                       ? 'bg-accent-primary-muted text-accent-primary border border-accent-primary-border'
                       : 'text-text-muted hover:text-text-primary'
@@ -532,7 +532,7 @@ export function BatchPromptQueue() {
             <select
               value={batchSortBy}
               onChange={(e) => setBatchSortBy(e.target.value as SortBy)}
-              className="bg-elevated border border-border rounded-md px-2 py-1 text-xs text-text-primary focus:border-accent-primary focus:ring-1 focus:ring-accent-primary/40 transition-all"
+              className="bg-elevated border border-border rounded-md px-2 py-1 text-xs text-text-primary focus:border-accent-primary transition"
             >
               {SORT_OPTIONS.map((opt) => (
                 <option key={opt.value} value={opt.value}>
@@ -550,7 +550,7 @@ export function BatchPromptQueue() {
               key={opt.value}
               onClick={() => setBatchFilterBy(opt.value)}
               className={cn(
-                'px-2.5 py-1 rounded-md text-xs transition-all',
+                'px-2.5 py-1 rounded-md text-xs transition',
                 batchFilterBy === opt.value
                   ? 'bg-accent-primary-muted text-accent-primary border border-accent-primary-border'
                   : 'bg-elevated text-text-body border border-border hover:border-border-hover hover:text-text-primary'
@@ -570,7 +570,7 @@ export function BatchPromptQueue() {
           <button
             onClick={handleBulkExportAll}
             disabled={batchResults.length === 0}
-            className="flex items-center gap-2 px-2.5 py-1 rounded-md text-xs text-text-body hover:text-text-primary hover:bg-elevated transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+            className="flex items-center gap-2 px-2.5 py-1 rounded-md text-xs text-text-body hover:text-text-primary hover:bg-elevated transition disabled:opacity-30 disabled:cursor-not-allowed"
           >
             <Download className="w-3.5 h-3.5" />
             Export All
@@ -578,7 +578,7 @@ export function BatchPromptQueue() {
           <button
             onClick={() => setShowDeleteConfirm(true)}
             disabled={batchResults.length === 0}
-            className="flex items-center gap-2 px-2.5 py-1 rounded-md text-xs text-status-error hover:bg-status-error-muted transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+            className="flex items-center gap-2 px-2.5 py-1 rounded-md text-xs text-status-error hover:bg-status-error-muted transition disabled:opacity-30 disabled:cursor-not-allowed"
           >
             <Trash2 className="w-3.5 h-3.5" />
             Delete All
@@ -687,7 +687,7 @@ export function BatchPromptQueue() {
                 animate={{ opacity: 1, height: 'auto' }}
                 exit={{ opacity: 0, height: 0 }}
                 className={cn(
-                  'relative p-3 rounded-md border transition-all',
+                  'relative p-3 rounded-md border transition',
                   prompt.status === 'generating' &&
                     'border-status-warning-border bg-status-warning-muted',
                   prompt.status === 'completed' &&
@@ -714,7 +714,7 @@ export function BatchPromptQueue() {
                       placeholder="Enter prompt..."
                       disabled={isGenerating}
                       rows={2}
-                      className="recessed-well w-full resize-none px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent-primary focus:ring-1 focus:ring-accent-primary/40 disabled:opacity-50"
+                      className="recessed-well w-full resize-none px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent-primary disabled:opacity-50"
                     />
                   </div>
 
@@ -733,7 +733,7 @@ export function BatchPromptQueue() {
                     {!isGenerating && (
                       <button
                         onClick={() => removePrompt(prompt.id)}
-                        className="p-1 rounded-md text-text-muted hover:text-status-error hover:bg-status-error-muted transition-all"
+                        className="p-1 rounded-md text-text-muted hover:text-status-error hover:bg-status-error-muted transition"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
@@ -772,7 +772,7 @@ export function BatchPromptQueue() {
           onClick={() => setShowSettings(!showSettings)}
           aria-expanded={showSettings}
           aria-controls="batch-settings-panel"
-          className="w-full flex items-center justify-between p-4 text-sm text-text-body hover:text-text-primary transition-all"
+          className="w-full flex items-center justify-between p-4 text-sm text-text-body hover:text-text-primary transition"
         >
           <span className="flex items-center gap-2">
             <Sparkles className="w-4 h-4" />

@@ -17,7 +17,8 @@ const BASE: CSSProperties = {
   borderRadius: 'var(--radius-control)',
   cursor: 'pointer',
   border: 'none',
-  transition: 'all var(--duration-click) var(--ease-click)',
+  transition:
+    'background var(--duration-click) var(--ease-click), box-shadow var(--duration-click) var(--ease-click), transform var(--duration-click) var(--ease-click)',
   position: 'relative',
 };
 

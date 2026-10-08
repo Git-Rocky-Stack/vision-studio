@@ -109,7 +109,8 @@ describe('Input', () => {
     render(<Input />);
     const input = screen.getByRole('textbox');
     expect(input).toHaveClass('focus:border-accent-primary');
-    expect(input).toHaveClass('focus:ring-accent-primary/35');
+    // The ring is the system outline (index.css); a private one would double it.
+    expect(input.className).not.toMatch(/focus(-visible)?:ring/);
   });
 
   it('displays error message when error prop provided', () => {

@@ -88,7 +88,7 @@ const RegionMask = memo(function RegionMask({
   return (
     <div
       className={cn(
-        'absolute cursor-pointer pointer-events-auto transition-all duration-150',
+        'absolute cursor-pointer pointer-events-auto transition duration-150',
         isActive ? 'z-10' : 'z-0'
       )}
       style={{

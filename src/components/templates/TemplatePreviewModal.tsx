@@ -118,7 +118,7 @@ export function TemplatePreviewModal({
             <button
               onClick={onClose}
               aria-label="Close template preview"
-              className="absolute top-4 right-4 z-10 p-2 rounded-md bg-elevated/80 backdrop-blur-sm text-text-muted hover:text-text-primary hover:bg-elevated transition-all"
+              className="absolute top-4 right-4 z-10 p-2 rounded-md bg-elevated/80 backdrop-blur-sm text-text-muted hover:text-text-primary hover:bg-elevated transition"
             >
               <X className="w-4 h-4" />
             </button>

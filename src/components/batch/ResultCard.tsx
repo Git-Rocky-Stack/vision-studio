@@ -50,7 +50,7 @@ export const ResultCard = memo(function ResultCard({
           }
         }}
         className={cn(
-          'flex items-center gap-4 p-3 rounded-md border transition-all cursor-pointer',
+          'flex items-center gap-4 p-3 rounded-md border transition cursor-pointer',
           isSelected
             ? 'border-accent-primary-border ring-2 ring-accent-primary-border bg-accent-primary-muted'
             : 'border-border bg-elevated/50 hover:border-border-hover hover:bg-elevated'
@@ -96,7 +96,7 @@ export const ResultCard = memo(function ResultCard({
             onClick={(e) => { e.stopPropagation(); onToggleFavorite(result.id); }}
             aria-label={result.isFavorite ? 'Remove from favorites' : 'Add to favorites'}
             className={cn(
-              'p-2 rounded-md transition-all',
+              'p-2 rounded-md transition',
               result.isFavorite
                 ? 'text-status-warning bg-status-warning-muted'
                 : 'text-text-muted hover:text-text-primary hover:bg-surface'
@@ -107,14 +107,14 @@ export const ResultCard = memo(function ResultCard({
           <button
             onClick={(e) => { e.stopPropagation(); onDownload(result.id); }}
             aria-label="Download image"
-            className="p-2 rounded-md text-text-muted hover:text-text-primary hover:bg-surface transition-all"
+            className="p-2 rounded-md text-text-muted hover:text-text-primary hover:bg-surface transition"
           >
             <Download className="w-3.5 h-3.5" />
           </button>
           <button
             onClick={(e) => { e.stopPropagation(); onSendToEdit(result.id); }}
             aria-label="Send to edit"
-            className="p-2 rounded-md text-text-muted hover:text-text-primary hover:bg-surface transition-all"
+            className="p-2 rounded-md text-text-muted hover:text-text-primary hover:bg-surface transition"
           >
             <Pencil className="w-3.5 h-3.5" />
           </button>
@@ -144,7 +144,7 @@ export const ResultCard = memo(function ResultCard({
         }
       }}
       className={cn(
-        'rounded-md border overflow-hidden transition-all cursor-pointer group',
+        'rounded-md border overflow-hidden transition cursor-pointer group',
         isSelected
           ? 'border-accent-primary-border ring-2 ring-accent-primary-border'
           : 'border-border hover:border-border-hover',
@@ -215,7 +215,7 @@ export const ResultCard = memo(function ResultCard({
                 onClick={(e) => { e.stopPropagation(); onToggleFavorite(result.id); }}
                 aria-label={result.isFavorite ? 'Remove from favorites' : 'Add to favorites'}
                 className={cn(
-                  'p-2 rounded-md backdrop-blur-sm transition-all focus-visible:opacity-100',
+                  'p-2 rounded-md backdrop-blur-sm transition focus-visible:opacity-100',
                   result.isFavorite
                     ? 'bg-status-warning-muted text-status-warning'
                     : 'bg-void/40 text-text-primary hover:bg-void/60'
@@ -226,14 +226,14 @@ export const ResultCard = memo(function ResultCard({
               <button
                 onClick={(e) => { e.stopPropagation(); onDownload(result.id); }}
                 aria-label="Download image"
-                className="p-2 rounded-md bg-void/40 text-text-primary hover:bg-void/60 backdrop-blur-sm transition-all focus-visible:opacity-100"
+                className="p-2 rounded-md bg-void/40 text-text-primary hover:bg-void/60 backdrop-blur-sm transition focus-visible:opacity-100"
               >
                 <Download className="w-3.5 h-3.5" />
               </button>
               <button
                 onClick={(e) => { e.stopPropagation(); onSendToEdit(result.id); }}
                 aria-label="Send to edit"
-                className="p-2 rounded-md bg-void/40 text-text-primary hover:bg-void/60 backdrop-blur-sm transition-all focus-visible:opacity-100"
+                className="p-2 rounded-md bg-void/40 text-text-primary hover:bg-void/60 backdrop-blur-sm transition focus-visible:opacity-100"
               >
                 <Pencil className="w-3.5 h-3.5" />
               </button>

@@ -42,7 +42,7 @@ export const AspectRatioPicker = memo(function AspectRatioPicker() {
               title={opt.description}
               onClick={() => setAspectRatio(opt.id)}
               className={cn(
-                'flex flex-col items-center justify-center rounded-md border py-2 px-1 transition-all',
+                'flex flex-col items-center justify-center rounded-md border py-2 px-1 transition',
                 isActive
                   ? 'border-accent-primary-border bg-accent-primary-muted text-accent-primary'
                   : 'border-border text-text-body hover:border-border-hover hover:bg-elevated hover:text-text-primary'
@@ -71,7 +71,7 @@ export const AspectRatioPicker = memo(function AspectRatioPicker() {
           data-active={aspectRatio === 'custom'}
           onClick={() => setAspectRatio('custom')}
           className={cn(
-            'flex flex-col items-center justify-center rounded-md border py-2 px-1 transition-all',
+            'flex flex-col items-center justify-center rounded-md border py-2 px-1 transition',
             aspectRatio === 'custom'
               ? 'border-accent-primary-border bg-accent-primary-muted text-accent-primary'
               : 'border-border text-text-body hover:border-border-hover hover:bg-elevated hover:text-text-primary'
@@ -94,7 +94,7 @@ export const AspectRatioPicker = memo(function AspectRatioPicker() {
               data-active={isActive}
               onClick={() => setResolutionTier(tier.id)}
               className={cn(
-                'flex-1 rounded-md border py-1.5 text-center transition-all',
+                'flex-1 rounded-md border py-1.5 text-center transition',
                 isActive
                   ? 'border-accent-primary-border bg-accent-primary-muted text-accent-primary'
                   : 'border-border text-text-body hover:border-border-hover hover:bg-elevated hover:text-text-primary'
@@ -126,7 +126,7 @@ export const AspectRatioPicker = memo(function AspectRatioPicker() {
               min={256}
               max={2048}
               step={64}
-              className="w-full rounded-md border border-border bg-surface px-2 py-1.5 type-ui text-text-primary focus:border-accent-primary focus:outline-none"
+              className="w-full rounded-md border border-border bg-surface px-2 py-1.5 type-ui text-text-primary focus:border-accent-primary"
             />
           </div>
           <div className="flex-1">
@@ -139,7 +139,7 @@ export const AspectRatioPicker = memo(function AspectRatioPicker() {
               min={256}
               max={2048}
               step={64}
-              className="w-full rounded-md border border-border bg-surface px-2 py-1.5 type-ui text-text-primary focus:border-accent-primary focus:outline-none"
+              className="w-full rounded-md border border-border bg-surface px-2 py-1.5 type-ui text-text-primary focus:border-accent-primary"
             />
           </div>
         </div>

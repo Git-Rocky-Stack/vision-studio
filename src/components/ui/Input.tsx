@@ -40,12 +40,12 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
             aria-describedby={describedBy}
             className={cn(
               'w-full bg-elevated border border-border rounded-md text-text-primary placeholder:text-text-muted',
-              'focus:border-accent-primary focus:ring-1 focus:ring-accent-primary/35 transition-all duration-200',
+              'focus:border-accent-primary transition duration-200',
               'disabled:opacity-50 disabled:cursor-not-allowed',
               'px-3 py-2 text-sm',
               Icon && 'pl-10',
               isNumeric && 'font-mono',
-              error && 'border-status-error focus:border-status-error focus:ring-status-error',
+              error && 'border-status-error focus:border-status-error',
               className
             )}
             {...props}

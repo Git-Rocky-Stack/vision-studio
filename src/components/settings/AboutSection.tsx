@@ -120,7 +120,7 @@ function UpdatesBlock() {
           data-testid="about-updates-check"
           disabled={checkDisabled}
           onClick={() => void updater?.check()}
-          className="inline-flex items-center gap-1.5 rounded border border-border px-3 py-1.5 text-sm text-text-body transition-all hover:border-border-hover hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-50"
+          className="inline-flex items-center gap-1.5 rounded border border-border px-3 py-1.5 text-sm text-text-body transition hover:border-border-hover hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-50"
         >
           <RefreshCw aria-hidden="true" className="h-3.5 w-3.5" />
           Check for updates

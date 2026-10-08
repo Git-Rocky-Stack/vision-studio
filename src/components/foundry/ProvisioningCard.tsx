@@ -124,7 +124,7 @@ export function ProvisioningCard() {
           aria-label="Model library provisioning progress"
         >
           <div
-            className="h-full rounded-full bg-accent-primary transition-all duration-300"
+            className="h-full rounded-full bg-accent-primary transition-[width] duration-300"
             style={{ width: `${pct}%` }}
           />
         </div>

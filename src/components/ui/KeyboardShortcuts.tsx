@@ -97,7 +97,7 @@ export function KeyboardShortcuts({ open, onClose }: KeyboardShortcutsProps) {
               <button
                 onClick={onClose}
                 aria-label="Close shortcuts"
-                className="p-2 rounded-md text-text-muted hover:text-text-primary hover:bg-surface transition-all"
+                className="p-2 rounded-md text-text-muted hover:text-text-primary hover:bg-surface transition"
               >
                 <X className="w-4 h-4" />
               </button>

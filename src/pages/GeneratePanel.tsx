@@ -1839,7 +1839,7 @@ export function GeneratePanel() {
                   type="button"
                   onClick={handleCancel}
                   disabled={!genStatus.isGenerating}
-                  className="flex items-center gap-2 rounded-md bg-void/40 px-3 py-1 type-ui text-text-body transition-all hover:bg-void/60 hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-30"
+                  className="flex items-center gap-2 rounded-md bg-void/40 px-3 py-1 type-ui text-text-body transition hover:bg-void/60 hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-30"
                 >
                   <X className="h-3 w-3" />
                   Cancel
