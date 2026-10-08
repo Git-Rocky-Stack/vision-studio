@@ -277,7 +277,12 @@ export const TimelinePlaybackPreview = memo(function TimelinePlaybackPreview({
     );
   }
 
-  const primaryIssue = frame?.issues[0] ?? null;
+  // An empty timeline is where every project starts, and the centre surface
+  // already says how to fill it. Nothing under the playhead is only worth a
+  // warning once the timeline has clips to miss.
+  const primaryIssue =
+    frame?.issues.find((issue) => issue.code !== 'no-active-clip' || sequenceClips.length > 0) ??
+    null;
 
   return (
     <div

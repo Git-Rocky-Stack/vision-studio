@@ -153,4 +153,48 @@ describe('TimelinePlaybackPreview', () => {
     expect(loopedTime).toBeGreaterThanOrEqual(1000);
     expect(loopedTime).toBeLessThan(1200);
   });
+
+  it('does not raise a playback warning on a timeline that has no clips', () => {
+    const { state, sequence } = seedSequence();
+    state.setActiveTimelineSequence(sequence.id);
+
+    render(<TimelinePlaybackPreview />);
+
+    // An empty timeline is the starting state of every project, not a fault.
+    expect(screen.getByText('No active program output')).toBeInTheDocument();
+    expect(screen.queryByText('Playback warning')).not.toBeInTheDocument();
+  });
+
+  it('still warns when the timeline has clips but none sits under the playhead', () => {
+    const { state, sequence, track } = seedSequence();
+
+    state.upsertMediaAsset({
+      id: 'image-late',
+      name: 'Late still',
+      type: 'image',
+      source: 'generated',
+      path: 'C:/vision-studio/outputs/late.png',
+      previewUrl: 'C:/vision-studio/outputs/late.png',
+      thumbnailUrl: 'C:/vision-studio/outputs/late-thumb.png',
+      posterUrl: 'C:/vision-studio/outputs/late.png',
+      metadata: {},
+      createdAt: '2026-04-23T00:00:00.000Z',
+    });
+    state.createTimelineClip({
+      trackId: track.id,
+      mediaAssetId: 'image-late',
+      startMs: 2000,
+      durationMs: 2000,
+      label: 'Late still',
+    });
+    state.setActiveTimelineSequence(sequence.id);
+    state.seekTo(0);
+
+    render(<TimelinePlaybackPreview />);
+
+    expect(screen.getByText('Playback warning')).toBeInTheDocument();
+    expect(
+      screen.getByText('No visible clip is active at the requested playhead time.'),
+    ).toBeInTheDocument();
+  });
 });
