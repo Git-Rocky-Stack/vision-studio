@@ -12,6 +12,7 @@ import { ImportDraftReview } from '@/components/storyboard/ImportDraftReview';
 import { ReferenceMediaPanel } from '@/components/reference/ReferenceMediaPanel';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { Button } from '@/components/ui/Button';
+import { EmptyState } from '@/components/ui/EmptyState';
 import { Led } from '@/components/hardware';
 import type { StoryboardTimelineDerivationResult } from '@/store/appStore.types';
 import {
@@ -378,22 +379,19 @@ export function StoryboardPanel() {
 
   if (!activeProject) {
     return (
-      <div className="flex flex-col items-center justify-center h-full text-center p-8">
+      <>
         <h1 className="sr-only">Storyboard</h1>
-        <div className="w-16 h-16 recessed-well flex items-center justify-center mb-4">
-          <Film className="w-8 h-8 text-text-muted" aria-hidden="true" />
-        </div>
-        <h2 className="mb-2 type-title">
-          No Project Open
-        </h2>
-        <p className="mb-6 max-w-xs type-caption">
-          Create a new project to start building your storyboard with scenes, characters, and AI-generated frames.
-        </p>
-        <Button variant="primary" onClick={handleNewProject}>
-          <Plus className="w-4 h-4" aria-hidden="true" />
-          New Project
-        </Button>
-      </div>
+        <EmptyState
+          icon={Film}
+          title="No Project Open"
+          titleAs="h2"
+          description="Create a new project to start building your storyboard with scenes, characters, and AI-generated frames."
+        >
+          <Button variant="primary" size="sm" icon={Plus} onClick={handleNewProject}>
+            New Project
+          </Button>
+        </EmptyState>
+      </>
     );
   }
 

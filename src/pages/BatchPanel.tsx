@@ -733,7 +733,7 @@ export function BatchPromptQueue() {
                     {!isGenerating && (
                       <button
                         onClick={() => removePrompt(prompt.id)}
-                        className="p-1 rounded-md text-text-muted hover:text-status-error hover:bg-status-error-muted transition"
+                        className="icon-button p-1 rounded-md text-text-muted hover:text-status-error hover:bg-status-error-muted transition"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
@@ -914,9 +914,15 @@ export function BatchPromptQueue() {
           </Button>
         ) : (
           <>
-            <Button variant="secondary" icon={FileJson} onClick={handleExport}>
-              Export
-            </Button>
+            {/* Icon only: spelled out beside Start Batch, the two labels do not
+                fit the dock and the primary one broke onto two lines. */}
+            <Button
+              variant="secondary"
+              icon={FileJson}
+              onClick={handleExport}
+              aria-label="Export batch"
+              title="Export batch"
+            />
             <ChromeButton
               variant="chrome"
               onClick={handleStartBatch}

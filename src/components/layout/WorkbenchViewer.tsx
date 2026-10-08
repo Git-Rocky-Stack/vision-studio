@@ -17,6 +17,8 @@ import {
 import { useAppStore, type AppState } from '@/store/appStore';
 import { useShallow } from 'zustand/react/shallow';
 import { MediaPreview } from '@/components/ui/MediaPreview';
+import { Button } from '@/components/ui/Button';
+import { EmptyState } from '@/components/ui/EmptyState';
 import type { GenerationDraft } from '@/types/generation';
 import { DEFAULT_GENERATION_CONFIG } from '@/types/project';
 import { cn } from '@/utils/cn';
@@ -58,6 +60,7 @@ export function WorkbenchViewer() {
   const {
     assetLibrary,
     activeProjectId,
+    activeTab,
     activeViewerItemId,
     activeTimelineClipId,
     batchResults,
@@ -81,6 +84,7 @@ export function WorkbenchViewer() {
   } = useAppStore(useShallow(s => ({
     assetLibrary: s.assetLibrary,
     activeProjectId: s.activeProjectId,
+    activeTab: s.activeTab,
     activeViewerItemId: s.activeViewerItemId,
     activeTimelineClipId: s.activeTimelineClipId,
     batchResults: s.batchResults,
@@ -329,29 +333,24 @@ export function WorkbenchViewer() {
 
   if (!activeItem) {
     return (
-      <div className="flex h-full flex-col items-center justify-center bg-void px-6 text-center">
-        <ImageIcon className="h-9 w-9 text-text-muted opacity-40" />
-        <h2 className="mt-4 type-title">Outputs will appear here.</h2>
-        <p className="mt-2 max-w-sm text-sm text-text-body">
-          Generate or import an image or video to review it beside Canvas and Workflow.
-        </p>
-        <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
-          <button
-            type="button"
-            onClick={() => setActiveTab('generate')}
-            className="inline-flex items-center rounded-md border border-accent-primary-border bg-accent-primary-muted px-3 py-2 type-ui text-accent-primary transition hover:bg-elevated"
-          >
+      <EmptyState
+        className="bg-void"
+        icon={ImageIcon}
+        title="Outputs will appear here."
+        titleAs="h2"
+        description="Generate or import an image or video to review it beside Canvas and Workflow."
+      >
+        {/* The viewer is a Generate view, so this only shows when it is
+            hosted somewhere else; there it would switch to its own tab. */}
+        {activeTab !== 'generate' ? (
+          <Button variant="primary" size="sm" onClick={() => setActiveTab('generate')}>
             Open Generate
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab('assets')}
-            className="inline-flex items-center rounded-md border border-border px-3 py-2 type-ui text-text-body transition hover:border-border-hover hover:bg-elevated hover:text-text-primary"
-          >
-            Open Assets
-          </button>
-        </div>
-      </div>
+          </Button>
+        ) : null}
+        <Button variant="secondary" size="sm" onClick={() => setActiveTab('assets')}>
+          Open Assets
+        </Button>
+      </EmptyState>
     );
   }
 

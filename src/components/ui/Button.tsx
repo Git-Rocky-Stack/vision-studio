@@ -11,7 +11,7 @@ interface ButtonProps
     'onDrag' | 'onDragStart' | 'onDragEnd' | 'onAnimationStart' | 'onAnimationEnd'
   > {
   variant?: 'primary' | 'secondary' | 'ghost' | 'danger' | 'cinema';
-  size?: 'sm' | 'md' | 'lg';
+  size?: 'xs' | 'sm' | 'md' | 'lg';
   icon?: React.ComponentType<{ className?: string }>;
   iconPosition?: 'left' | 'right';
   isLoading?: boolean;
@@ -34,7 +34,9 @@ export function Button({
   disabled,
   ...props
 }: ButtonProps) {
-  const baseStyles = 'inline-flex items-center justify-center font-mono font-medium transition duration-200 rounded-md disabled:opacity-40 disabled:cursor-not-allowed';
+  // whitespace-nowrap: a label is one phrase. In a narrow dock it holds its
+  // line and the row of buttons wraps, instead of the label breaking in two.
+  const baseStyles = 'inline-flex items-center justify-center whitespace-nowrap font-mono font-medium transition duration-200 rounded-md disabled:opacity-40 disabled:cursor-not-allowed';
 
   const variants = {
     // Primary + cinema render as polished chrome metal caps - the website's
@@ -50,6 +52,8 @@ export function Button({
   };
 
   const sizes = {
+    // Dock toolbars: three actions have to share a 335px row.
+    xs: 'px-2 py-1.5 text-xs gap-1.5',
     sm: 'px-3 py-2 text-sm gap-2',
     md: 'px-4 py-2 text-sm gap-2',
     lg: 'px-6 py-3 text-base gap-2',

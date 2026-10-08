@@ -96,4 +96,24 @@ describe('DockviewSettingsPanel', () => {
 
     expect(screen.queryByTestId('mock-iteration-timeline')).not.toBeInTheDocument();
   });
+
+  // The Workflows tab used to dock the Storyboard panel: scenes and board
+  // references beside a graph editor that has nothing to do with them.
+  it('docks the workflow library on the Workflows tab, not the storyboard', async () => {
+    useAppStore.getState().setActiveTab('workflows');
+
+    render(<DockviewSettingsPanel />);
+
+    expect(await screen.findByRole('heading', { name: 'Workflow Library' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Image generation baseline' })).toBeInTheDocument();
+    expect(screen.queryByTestId('mock-storyboard')).not.toBeInTheDocument();
+  });
+
+  it('still docks the storyboard on the Story tab', async () => {
+    useAppStore.getState().setActiveTab('story');
+
+    render(<DockviewSettingsPanel />);
+
+    expect(await screen.findByTestId('mock-storyboard')).toBeInTheDocument();
+  });
 });

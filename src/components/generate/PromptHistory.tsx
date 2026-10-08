@@ -114,7 +114,7 @@ export function PromptHistory({
             </div>
             <button
               onClick={onClose}
-              className="p-1 rounded-md text-text-muted hover:text-text-primary hover:bg-surface transition"
+              className="icon-button p-1 rounded-md text-text-muted hover:text-text-primary hover:bg-surface transition"
             >
               <X className="w-3.5 h-3.5" />
             </button>
@@ -265,7 +265,7 @@ function PromptHistoryRow({
             onToggleFavorite();
           }}
           className={cn(
-            'p-1 rounded-md transition focus-visible:opacity-100',
+            'icon-button p-1 rounded-md transition focus-visible:opacity-100',
             isFavorite
               ? 'text-accent-primary'
               : 'text-text-muted hover:text-accent-primary'
@@ -283,7 +283,7 @@ function PromptHistoryRow({
             e.stopPropagation();
             onSelect();
           }}
-          className="p-1 rounded-md text-text-muted hover:text-text-primary transition focus-visible:opacity-100"
+          className="icon-button p-1 rounded-md text-text-muted hover:text-text-primary transition focus-visible:opacity-100"
           title="Use this prompt"
           aria-label="Use this prompt"
         >

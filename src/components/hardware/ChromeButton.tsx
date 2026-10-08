@@ -13,6 +13,7 @@ const BASE: CSSProperties = {
   fontWeight: 600,
   textTransform: 'uppercase',
   letterSpacing: '1px',
+  whiteSpace: 'nowrap',
   padding: '12px 22px',
   borderRadius: 'var(--radius-control)',
   cursor: 'pointer',

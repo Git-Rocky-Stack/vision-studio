@@ -36,7 +36,7 @@ function Spans({ spans }: { spans: LicenseSpan[] }) {
                 event.preventDefault();
                 void window.electron?.app?.openExternal(span.url);
               }}
-              className="inline-flex items-center gap-0.5 text-accent-primary underline decoration-border underline-offset-2 hover:text-accent-primary-hover"
+              className="inline-flex min-h-6 items-center gap-0.5 text-accent-primary underline decoration-border underline-offset-2 hover:text-accent-primary-hover"
             >
               {span.text}
               <ExternalLink aria-hidden="true" className="h-3 w-3" />

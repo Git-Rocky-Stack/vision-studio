@@ -27,6 +27,11 @@ describe('hardware primitives', () => {
     expect(btn).toHaveClass('vx-btn-chrome');
   });
 
+  it('never wraps a ChromeButton label', () => {
+    render(<ChromeButton variant="chrome">Start Batch (0)</ChromeButton>);
+    expect(screen.getByRole('button', { name: 'Start Batch (0)' }).style.whiteSpace).toBe('nowrap');
+  });
+
   it('renders a Faceplate with its kicker and children', () => {
     render(
       <Faceplate kicker="GENERATE" stateLed="play" stateLabel="READY">

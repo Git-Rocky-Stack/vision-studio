@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@/components/generate/PromptArea', () => ({
@@ -505,6 +505,43 @@ describe('GeneratePanel', () => {
     await waitFor(() => {
       expect(screen.getByText('Advanced Settings Content')).toBeInTheDocument();
     });
+  });
+
+  // Every section used to print a three or four line instruction under its
+  // title, in a column about 270px wide. On an instrument panel that is noise:
+  // the hint moves to the header's tooltip and to assistive tech.
+  it('keeps section instructions off the faceplate', () => {
+    render(<GeneratePanel />);
+
+    const section = screen.getByTestId('generate-section-prompt');
+    const hint = within(section).getByText(/Set the creative direction first/);
+
+    expect(hint).toHaveClass('sr-only');
+    expect(section).toHaveAttribute('aria-describedby', hint.id);
+    expect(within(section).getByRole('heading', { name: 'Prompt' }).closest('[title]')).toHaveAttribute(
+      'title',
+      hint.textContent,
+    );
+  });
+
+  it('shows a collapsed section its current values, not an instruction', () => {
+    render(<GeneratePanel />);
+
+    // Advanced starts collapsed (first test in this file).
+    const section = screen.getByTestId('generate-section-advanced');
+    const visibleCaptions = [...section.querySelectorAll('p')].filter(
+      (p) => !p.classList.contains('sr-only'),
+    );
+
+    expect(visibleCaptions).toHaveLength(1);
+    expect(visibleCaptions[0].textContent).not.toMatch(/Tune sampler behavior/);
+    expect(visibleCaptions[0].textContent?.trim().length).toBeGreaterThan(0);
+  });
+
+  it('does not instruct the user above the mode switch', () => {
+    render(<GeneratePanel />);
+
+    expect(screen.queryByText(/Choose the generation lane/)).not.toBeInTheDocument();
   });
 
   it('persists collapsed reference inputs across remounts', () => {

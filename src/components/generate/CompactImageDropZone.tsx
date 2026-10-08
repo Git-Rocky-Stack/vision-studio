@@ -62,7 +62,7 @@ export const CompactImageDropZone = memo(function CompactImageDropZone({
           <button
             onClick={handleRemove}
             aria-label={`Remove ${label}`}
-            className="absolute top-1.5 right-1.5 p-1 rounded-md bg-void/80 text-text-primary hover:bg-status-error transition"
+            className="absolute top-1.5 right-1.5 icon-button p-1 rounded-md bg-void/80 text-text-primary hover:bg-status-error transition"
           >
             <X className="w-3.5 h-3.5" />
           </button>

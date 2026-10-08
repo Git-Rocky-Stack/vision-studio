@@ -1,4 +1,4 @@
-import { Plus } from 'lucide-react';
+import { LayoutGrid, Plus } from 'lucide-react';
 
 import { useAppStore } from '@/store/appStore';
 import { useShallow } from 'zustand/react/shallow';
@@ -6,6 +6,7 @@ import type { Project, Scene } from '@/types/project';
 import type { ReferenceSet } from '@/types/media';
 import { ImageWithFallback } from '@/components/ui/ImageWithFallback';
 import { Button } from '@/components/ui/Button';
+import { EmptyState } from '@/components/ui/EmptyState';
 import { cn } from '@/utils/cn';
 
 const boardDateFormatter = new Intl.DateTimeFormat('en-US', {
@@ -23,6 +24,7 @@ const sceneGroupDefinitions: { label: string; statuses: Scene['status'][] }[] = 
 
 export function WorkbenchBoardsDock() {
   const {
+    activeTab,
     projects,
     referenceSets,
     activeProjectId,
@@ -34,6 +36,7 @@ export function WorkbenchBoardsDock() {
     setActiveProject,
     setActiveScene,
   } = useAppStore(useShallow(s => ({
+    activeTab: s.activeTab,
     projects: s.projects,
     referenceSets: s.referenceSets,
     activeProjectId: s.activeProjectId,
@@ -67,22 +70,21 @@ export function WorkbenchBoardsDock() {
 
   if (projects.length === 0) {
     return (
-      <div className="flex h-full items-center p-4">
-        <div className="recessed-well w-full px-5 py-8 text-center">
-          <h3 className="type-section text-text-primary">Boards keep approved ideas together.</h3>
-          <p className="mt-2 text-xs text-text-muted">
-            Create a board, then pull in scenes from Generate and Viewer as you refine the story.
-          </p>
-          <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
-            <Button variant="primary" size="sm" icon={Plus} onClick={handleCreateBoard}>
-              New Board
-            </Button>
-            <Button variant="secondary" size="sm" onClick={() => setActiveTab('generate')}>
-              Open Generate
-            </Button>
-          </div>
-        </div>
-      </div>
+      <EmptyState
+        icon={LayoutGrid}
+        title="Boards keep approved ideas together."
+        description="Create a board, then pull in scenes from Generate and Viewer as you refine the story."
+      >
+        <Button variant="primary" size="sm" icon={Plus} onClick={handleCreateBoard}>
+          New Board
+        </Button>
+        {/* On the Generate tab this button would switch to the tab it is on. */}
+        {activeTab !== 'generate' ? (
+          <Button variant="secondary" size="sm" onClick={() => setActiveTab('generate')}>
+            Open Generate
+          </Button>
+        ) : null}
+      </EmptyState>
     );
   }
 
@@ -94,14 +96,23 @@ export function WorkbenchBoardsDock() {
             {projects.length} active {projects.length === 1 ? 'board' : 'boards'}
           </p>
         </div>
-        <div className="flex items-center gap-1.5">
-          <Button variant="secondary" size="sm" onClick={handleOpenStoryboard} disabled={!activeProjectId}>
-            Open Storyboard
+        {/* Whole buttons wrap when the dock is narrowed; a label never does. */}
+        <div className="flex flex-wrap items-center gap-1">
+          {/* "Storyboard" on the cap so all three fit one row of the default
+              dock; the full action stays the button's name. */}
+          <Button
+            variant="secondary"
+            size="xs"
+            aria-label="Open Storyboard"
+            onClick={handleOpenStoryboard}
+            disabled={!activeProjectId}
+          >
+            Storyboard
           </Button>
-          <Button variant="secondary" size="sm" onClick={handleAddScene} disabled={!activeProject}>
+          <Button variant="secondary" size="xs" onClick={handleAddScene} disabled={!activeProject}>
             Add Scene
           </Button>
-          <Button variant="secondary" size="sm" icon={Plus} onClick={handleCreateBoard}>
+          <Button variant="secondary" size="xs" icon={Plus} onClick={handleCreateBoard}>
             New Board
           </Button>
         </div>

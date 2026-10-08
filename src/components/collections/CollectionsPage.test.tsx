@@ -35,6 +35,13 @@ describe('CollectionsPage', () => {
     expect(screen.getByText('Collections')).toBeInTheDocument();
   });
 
+  // The title carried a class that no stylesheet defines, so it rendered as
+  // unstyled body text beside pages whose titles are 18px semibold.
+  it('titles the page with the shared page-title treatment', () => {
+    render(<CollectionsPage />);
+    expect(screen.getByRole('heading', { level: 1, name: 'Collections' })).toHaveClass('type-title');
+  });
+
   it('shows empty state when no collections', () => {
     render(<CollectionsPage />);
     expect(screen.getByText('No collections yet')).toBeInTheDocument();

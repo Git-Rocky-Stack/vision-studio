@@ -356,6 +356,17 @@ select {
     cursor: not-allowed;
   }
 
+  /* An icon-only button is at least 24px on a side with its glyph centred
+     (WCAG 2.5.8 Target Size). A 14px glyph in 4px of padding made 22px. In the
+     base layer so a layout utility on the button still wins. */
+  .icon-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 1.5rem;
+    min-height: 1.5rem;
+  }
+
   /* A native control with no accent-color takes the operating system's accent,
      which on Windows is whatever hue the user picked (a violet check, on a
      machine with a violet accent). Carbon Pro has one accent: chrome. */
@@ -904,7 +915,15 @@ select:focus-visible,
 .bg-status-info-muted { background-color: var(--color-status-info-muted); }
 .text-status-info { color: var(--color-status-info); }
 .border-status-info-border { border-color: var(--color-status-info-border); }
-.bg-accent-primary-muted { background-color: var(--color-accent-primary-muted); }
+/* A selected tile is the accent at 10% over its surface, which lifts the
+   ground under the tile's caption until the muted tone falls below 4.5:1
+   (4.1:1 on the elevated surface, 3.8:1 on the raised one). Inside a selected
+   tile the muted tone therefore steps up to the body tone.
+   selected-tile-contrast.test.ts computes the result for every surface. */
+.bg-accent-primary-muted {
+  background-color: var(--color-accent-primary-muted);
+  --color-text-muted: var(--color-text-body);
+}
 .text-accent-primary { color: var(--color-accent-primary); }
 .border-accent-primary-border { border-color: var(--color-accent-primary-border); }
 .shadow-accent { box-shadow: var(--shadow-accent); }

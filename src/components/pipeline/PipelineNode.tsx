@@ -77,7 +77,9 @@ export const PipelineNode = memo(function PipelineNode({
           }
         }}
         className={cn(
-          'relative flex items-center gap-2 rounded-md border px-3 py-2.5 min-w-[140px] max-w-[180px] transition cursor-pointer group',
+          // Wide enough for the longest built-in step name beside the grip, icon,
+          // switch and remove button; at 180px "Upscale 4x" was cut to "Upsc...".
+          'relative flex items-center gap-2 rounded-md border px-3 py-2.5 min-w-[140px] max-w-[280px] transition cursor-pointer group',
           isSelected
             ? 'border-accent-primary bg-accent-primary-muted shadow-accent-subtle'
             : 'border-border bg-elevated hover:border-border-hover',
@@ -122,7 +124,7 @@ export const PipelineNode = memo(function PipelineNode({
               onRemove();
             }}
             aria-label={`Remove ${step.label}`}
-            className="p-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity hover:bg-surface"
+            className="icon-button rounded opacity-0 group-hover:opacity-100 transition-opacity hover:bg-surface"
           >
             <X className="w-3 h-3 text-text-muted hover:text-status-error" />
           </button>

@@ -20,6 +20,9 @@ export function Switch({ checked, onChange, label, disabled, className }: Switch
         // The border is present in both states (transparent when on) so the knob's
         // containing box never changes size between them.
         'w-9 h-5 rounded-full border transition-colors relative flex-shrink-0',
+        // The track is drawn 20px tall; this extends what can be clicked to 24px
+        // (WCAG 2.5.8) without changing the knob-to-track geometry.
+        "after:absolute after:inset-x-0 after:inset-y-[-3px] after:content-['']",
         checked ? 'bg-accent-primary border-transparent' : 'bg-surface border-border',
         disabled && 'opacity-40 cursor-not-allowed',
         className

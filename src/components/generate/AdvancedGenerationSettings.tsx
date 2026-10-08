@@ -89,7 +89,7 @@ export function AdvancedGenerationSettings() {
               <label className="text-label text-text-body">Seed</label>
               <button
                 onClick={randomizeSeed}
-                className="p-1 rounded text-text-muted hover:text-accent-primary transition"
+                className="icon-button p-1 rounded text-text-muted hover:text-accent-primary transition"
                 title="Randomize"
               >
                 <Dice5 className="w-4 h-4" />

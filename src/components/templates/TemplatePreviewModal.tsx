@@ -2,7 +2,6 @@ import { useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/Button';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  X,
   ArrowRight,
   Pencil,
   Monitor,
@@ -13,6 +12,7 @@ import {
   MessageSquareX,
 } from 'lucide-react';
 import type { ProjectTemplate } from '@/types/template';
+import { DialogCloseButton } from '@/components/ui/DialogCloseButton';
 
 const categoryLabels: Record<string, string> = {
   youtube: 'YouTube',
@@ -115,13 +115,11 @@ export function TemplatePreviewModal({
             className="relative w-full max-w-[720px] max-h-[80vh] bg-surface rounded-xl border border-border shadow-cinematic overflow-hidden flex flex-col"
           >
             {/* Close Button */}
-            <button
+            <DialogCloseButton
+              label="Close template preview"
               onClick={onClose}
-              aria-label="Close template preview"
-              className="absolute top-4 right-4 z-10 p-2 rounded-md bg-elevated/80 backdrop-blur-sm text-text-muted hover:text-text-primary hover:bg-elevated transition"
-            >
-              <X className="w-4 h-4" />
-            </button>
+              className="absolute top-4 right-4 z-10"
+            />
 
             {/* Header. The category is named by its label; it carries no hue
                 of its own (one accent - see category-hue.test.ts). */}

@@ -3,6 +3,7 @@ import { Search, Plus, FolderOpen, Layers } from 'lucide-react';
 import { AnimatePresence } from 'framer-motion';
 import { cn } from '@/utils/cn';
 import { Button } from '@/components/ui/Button';
+import { EmptyState } from '@/components/ui/EmptyState';
 import { useAppStore } from '@/store/appStore';
 import { CollectionCard } from '@/components/collections/CollectionCard';
 import { AnalyzeButton } from '@/components/collections/AnalyzeButton';
@@ -101,11 +102,12 @@ export const CollectionsPage = memo(function CollectionsPage() {
       {/* Collection grid */}
       <div className="flex-1 overflow-y-auto p-6">
         {filtered.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full text-text-muted">
-            <FolderOpen className="w-12 h-12 mb-3 opacity-30" />
-            <p className="type-body">No collections yet</p>
-            <p className="type-body-sm mt-1">Create a collection to organize your assets</p>
-          </div>
+          // No action here: New Collection is in the header directly above.
+          <EmptyState
+            icon={FolderOpen}
+            title="No collections yet"
+            description="Create a collection to organize your assets."
+          />
         ) : (
           <div className="grid grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-4">
             <AnimatePresence mode="popLayout">

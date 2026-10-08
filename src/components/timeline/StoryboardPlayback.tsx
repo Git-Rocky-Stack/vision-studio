@@ -118,7 +118,7 @@ export const StoryboardPlayback = memo(function StoryboardPlayback({
         {/* Step back */}
         <button
           onClick={handleStepBack}
-          className="p-1 rounded-md text-text-body hover:text-text-primary hover:bg-surface transition"
+          className="icon-button p-1 rounded-md text-text-body hover:text-text-primary hover:bg-surface transition"
           aria-label="Previous scene"
           title="Previous scene"
         >
@@ -150,7 +150,7 @@ export const StoryboardPlayback = memo(function StoryboardPlayback({
         {/* Step forward */}
         <button
           onClick={handleStepForward}
-          className="p-1 rounded-md text-text-body hover:text-text-primary hover:bg-surface transition"
+          className="icon-button p-1 rounded-md text-text-body hover:text-text-primary hover:bg-surface transition"
           aria-label="Next scene"
           title="Next scene"
         >
@@ -160,7 +160,7 @@ export const StoryboardPlayback = memo(function StoryboardPlayback({
         {/* Stop */}
         <button
           onClick={() => timelineStop()}
-          className="p-1 rounded-md text-text-body hover:text-text-primary hover:bg-surface transition"
+          className="icon-button p-1 rounded-md text-text-body hover:text-text-primary hover:bg-surface transition"
           aria-label="Stop"
           title="Stop"
         >
@@ -173,7 +173,7 @@ export const StoryboardPlayback = memo(function StoryboardPlayback({
         <button
           onClick={toggleTimelineLoop}
           className={cn(
-            'p-1 rounded-md transition',
+            'icon-button p-1 rounded-md transition',
             timelineLoop
               ? 'text-accent-primary'
               : 'text-text-muted hover:text-text-body'

@@ -5,6 +5,7 @@ import { FileText, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Textarea } from '@/components/ui/Textarea';
+import { DialogCloseButton } from '@/components/ui/DialogCloseButton';
 
 interface ScriptImportDialogProps {
   open: boolean;
@@ -119,14 +120,7 @@ export function ScriptImportDialog({
                 </p>
               </div>
 
-              <button
-                type="button"
-                onClick={onClose}
-                disabled={isGenerating}
-                className="rounded-full border border-border bg-surface px-3 py-1.5 text-xs text-text-body transition hover:bg-canvas hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                Close
-              </button>
+              <DialogCloseButton label="Close script import" onClick={onClose} disabled={isGenerating} />
             </div>
           </div>
 

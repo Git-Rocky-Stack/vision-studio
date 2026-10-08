@@ -296,7 +296,7 @@ export const AnimationTrackEditor = memo(function AnimationTrackEditor({
             onClick={handleDeleteKeyframe}
             aria-label="Delete keyframe"
             title="Delete keyframe"
-            className="ml-auto rounded-md p-1 text-text-muted transition hover:bg-surface hover:text-status-error"
+            className="ml-auto icon-button rounded-md p-1 text-text-muted transition hover:bg-surface hover:text-status-error"
           >
             <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
           </button>

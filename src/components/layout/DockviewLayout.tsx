@@ -1,4 +1,5 @@
-import { memo, useCallback, useEffect, useRef } from 'react';
+import { memo, useCallback, useEffect, useRef, useState } from 'react';
+import { PanelRightClose, PanelRightOpen } from 'lucide-react';
 import { useAppStore } from '@/store/appStore';
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
 import { NavBar } from '@/components/layout/NavBar';
@@ -24,6 +25,9 @@ import { getLayoutPreset, resolveCenterView } from '@/components/layout/layoutPr
 import { MonoLabel } from '@/components/hardware';
 import { cn } from '@/utils/cn';
 import type { ActiveTab, CenterView } from '@/types/navigation';
+
+/** Ties the review dock to the control that opens it below the xl breakpoint. */
+const REVIEW_DOCK_ID = 'review-dock';
 
 // Selected deck-tab cap: chrome edge-ring + machined depth (DESIGN.md section depth system).
 const CENTER_TAB_ACTIVE_SHADOW =
@@ -65,7 +69,9 @@ function CenterContent({
     case 'viewer':
       return <WorkbenchViewer />;
     case 'workflow':
-      return <WorkflowWorkbench />;
+      // The Workflows tab docks the library on the left (DockviewSettingsPanel).
+      // On the Generate tab that dock holds the Generate settings instead.
+      return <WorkflowWorkbench library={activeTab === 'workflows' ? 'docked' : 'inline'} />;
     case 'launchpad':
       return <LaunchpadPanel />;
     default:
@@ -179,6 +185,26 @@ export const DockviewLayout = memo(function DockviewLayout() {
   const preset = getLayoutPreset(activeTab);
   const workspaceRef = useRef<HTMLDivElement>(null);
   const rightDockStackRef = useRef<HTMLDivElement>(null);
+
+  // Below the xl breakpoint the review dock is collapsed so the centre stays
+  // usable, and the window may be as narrow as 1200px. This is the way back to
+  // it: the dock opens over the workspace as a drawer. At xl and above the
+  // dock is always shown and the state is not consulted.
+  const [reviewDockOpen, setReviewDockOpen] = useState(false);
+
+  useEffect(() => {
+    if (!reviewDockOpen) {
+      return;
+    }
+
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setReviewDockOpen(false);
+      }
+    };
+    window.addEventListener('keydown', closeOnEscape);
+    return () => window.removeEventListener('keydown', closeOnEscape);
+  }, [reviewDockOpen]);
 
   useEffect(() => {
     if (showIterationView && iterationView === 'overlay' && centerView !== 'canvas') {
@@ -368,7 +394,7 @@ export const DockviewLayout = memo(function DockviewLayout() {
     <div className="flex h-full min-h-0">
       <NavBar />
 
-      <div ref={workspaceRef} className="flex min-h-0 flex-1 min-w-0">
+      <div ref={workspaceRef} className="relative flex min-h-0 flex-1 min-w-0">
         {/* Left dock - settings panel */}
         <aside
           data-testid="left-dock"
@@ -473,12 +499,35 @@ export const DockviewLayout = memo(function DockviewLayout() {
           dataTestId="splitter-right-dock"
           className="hidden xl:flex"
         />
+        <button
+          type="button"
+          data-testid="review-dock-toggle"
+          aria-expanded={reviewDockOpen}
+          aria-controls={REVIEW_DOCK_ID}
+          aria-label={reviewDockOpen ? 'Hide review dock' : 'Show review dock'}
+          title={reviewDockOpen ? 'Hide review dock' : 'Show review dock'}
+          onClick={() => setReviewDockOpen((open) => !open)}
+          // A rail in the row, not a floating tab: it takes 24px of its own, so
+          // it never sits on top of a control at the edge of the centre.
+          className="flex w-6 flex-shrink-0 items-center justify-center border-l border-border bg-surface text-text-muted transition-colors hover:bg-elevated hover:text-text-primary xl:hidden"
+        >
+          {reviewDockOpen ? (
+            <PanelRightClose className="h-4 w-4" aria-hidden="true" />
+          ) : (
+            <PanelRightOpen className="h-4 w-4" aria-hidden="true" />
+          )}
+        </button>
         <aside
+          id={REVIEW_DOCK_ID}
           data-testid="right-dock"
           role="complementary"
           aria-label="Gallery panel"
           className={cn(
-            'hidden h-full flex-shrink-0 overflow-hidden border-l border-border bg-surface xl:flex xl:flex-col',
+            'h-full flex-shrink-0 overflow-hidden border-l border-border bg-surface xl:static xl:flex xl:flex-col xl:shadow-none',
+            // The drawer opens beside the rail (right-6), which stays put.
+            reviewDockOpen
+              ? 'absolute inset-y-0 right-6 z-20 flex max-w-[calc(100%-1.5rem)] flex-col shadow-[var(--shadow-cinematic)]'
+              : 'hidden',
           )}
           style={{ width: layoutPreferences.rightDockWidth }}
         >

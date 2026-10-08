@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Keyboard, X } from 'lucide-react';
+import { Keyboard } from 'lucide-react';
+import { DialogCloseButton } from '@/components/ui/DialogCloseButton';
 
 interface ShortcutGroup {
   title: string;
@@ -94,13 +95,7 @@ export function KeyboardShortcuts({ open, onClose }: KeyboardShortcutsProps) {
                   Keyboard Shortcuts
                 </h2>
               </div>
-              <button
-                onClick={onClose}
-                aria-label="Close shortcuts"
-                className="p-2 rounded-md text-text-muted hover:text-text-primary hover:bg-surface transition"
-              >
-                <X className="w-4 h-4" />
-              </button>
+              <DialogCloseButton label="Close shortcuts" onClick={onClose} />
             </div>
 
             {/* Content */}

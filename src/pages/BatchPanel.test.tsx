@@ -98,6 +98,20 @@ describe('BatchPromptQueue', () => {
     expect(screen.getByText(/google\/gemini-2.5-flash-image/)).toBeInTheDocument();
   });
 
+  // Export and Start Batch do not fit side by side in the dock with both
+  // labels spelled out, which is what broke "START BATCH (0)" onto two lines.
+  // The secondary action yields: an icon button that still has its name.
+  it('keeps Export reachable by name without spending the footer on its label', () => {
+    installElectronMock({});
+
+    render(<BatchPromptQueue />);
+
+    const exportButton = screen.getByRole('button', { name: 'Export batch' });
+    expect(exportButton).toHaveAttribute('title', 'Export batch');
+    expect(exportButton.textContent?.trim()).toBe('');
+    expect(screen.getByRole('button', { name: /Start Batch/i })).toBeInTheDocument();
+  });
+
   it('allows OpenRouter batches to start while the local backend is offline', async () => {
     installElectronMock({
       backendConnected: false,

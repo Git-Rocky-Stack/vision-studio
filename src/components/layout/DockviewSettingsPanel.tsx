@@ -4,6 +4,7 @@ import { cn } from '@/utils/cn';
 import { MonoLabel } from '@/components/hardware';
 import { GeneratePanel } from '@/pages/GeneratePanel';
 import { IterationTimeline } from '@/components/iteration/IterationTimeline';
+import { WorkflowLibraryPanel } from '@/components/workflow/WorkflowLibraryPanel';
 import type { ActiveSubMode, GenerateSubMode, StorySubMode, WorkflowsSubMode } from '@/types/navigation';
 
 // GeneratePanel is the startup surface and stays in the initial chunk. The other
@@ -164,7 +165,9 @@ function SettingsContent({
           </div>
         );
       }
-      return <StoryboardPanel />;
+      // The workbench in the centre leaves its library out on this tab
+      // (DockviewLayout passes library="docked"), so this is the only copy.
+      return <WorkflowLibraryPanel docked />;
     }
 
     default:

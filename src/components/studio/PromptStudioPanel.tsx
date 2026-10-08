@@ -54,7 +54,7 @@ function CollapsibleSection({
       <button
         type="button"
         onClick={() => setIsOpen((prev) => !prev)}
-        className="mono-label flex w-full items-center gap-1.5 py-1 text-text-muted transition-colors duration-normal hover:text-text-primary"
+        className="mono-label flex min-h-6 w-full items-center gap-1.5 py-1 text-text-muted transition-colors duration-normal hover:text-text-primary"
         aria-expanded={isOpen}
       >
         <ChevronDown

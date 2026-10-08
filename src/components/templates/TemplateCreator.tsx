@@ -8,7 +8,6 @@ import type { ProjectTemplate } from '@/types/template';
 import type { ModelRecord } from '@/types/model';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  X,
   ChevronRight,
   ChevronLeft,
   Check,
@@ -22,6 +21,7 @@ import {
   Sliders,
   MessageSquare,
 } from 'lucide-react';
+import { DialogCloseButton } from '@/components/ui/DialogCloseButton';
 
 const CATEGORIES: {
   id: ProjectTemplate['category'];
@@ -213,13 +213,11 @@ export function TemplateCreator({ onClose, editingTemplate }: TemplateCreatorPro
         className="relative w-full max-w-[600px] max-h-[80vh] bg-surface rounded-md border border-border shadow-cinematic overflow-hidden flex flex-col"
       >
         {/* Close */}
-        <button
+        <DialogCloseButton
+          label="Close template creator"
           onClick={onClose}
-          aria-label="Close template creator"
-          className="absolute top-4 right-4 z-10 p-2 rounded-md bg-elevated/80 text-text-muted hover:text-text-primary hover:bg-elevated transition"
-        >
-          <X className="w-4 h-4" />
-        </button>
+          className="absolute top-4 right-4 z-10"
+        />
 
         {/* Header */}
         <div className="p-6 pb-4 border-b border-border">

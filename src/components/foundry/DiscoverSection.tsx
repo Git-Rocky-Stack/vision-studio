@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { Search, Loader2, WifiOff, PackageSearch, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useShallow } from 'zustand/react/shallow';
 import { Button } from '@/components/ui/Button';
+import { EmptyState } from '@/components/ui/EmptyState';
 import { Switch } from '@/components/ui/Switch';
 import { useAppStore } from '@/store/appStore';
 import { cn } from '@/utils/cn';
@@ -155,13 +156,12 @@ export function DiscoverSection() {
       )}
 
       {searchStatus === 'idle' && (
-        <div className="flex flex-col items-center gap-2 py-12 text-center text-text-muted">
-          <PackageSearch aria-hidden="true" className="h-8 w-8" />
-          <p className="text-sm">
-            Search Hugging Face and CivitAI for image and video models, then acquire them
-            straight into your local library.
-          </p>
-        </div>
+        <EmptyState
+          className="h-auto py-12"
+          icon={PackageSearch}
+          title="Search for a model"
+          description="Search Hugging Face and CivitAI for image and video models, then acquire them straight into your local library."
+        />
       )}
 
       {searchStatus === 'ready' && searchResults.length === 0 && (

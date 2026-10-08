@@ -144,6 +144,17 @@ describe('WorkflowWorkbench', () => {
     expect(screen.getByText('No run output yet.')).toBeInTheDocument();
   });
 
+  // On the Workflows tab the library lives in the left dock, so the workbench
+  // must not draw a second copy and can give that column to the graph.
+  it('leaves the library to the dock when told it is docked', () => {
+    render(<WorkflowWorkbench library="docked" />);
+
+    expect(screen.queryByRole('heading', { name: 'Workflow Library' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Run Output' })).not.toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Workflow graph editor' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Workflow', level: 2 })).toBeInTheDocument();
+  });
+
   it('renders recent workflow run history', () => {
     useAppStore.getState().recordWorkflowRun('image-generation-baseline', {
       id: 'run-1',

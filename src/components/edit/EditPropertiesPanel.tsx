@@ -526,7 +526,7 @@ export function EditPropertiesPanel() {
                   <div key={group.title}>
                     <button
                       onClick={() => toggleGroup(group.title)}
-                      className="flex items-center gap-2 w-full text-left mb-3"
+                      className="flex min-h-6 items-center gap-2 w-full text-left mb-3"
                       aria-expanded={isExpanded}
                     >
                       <Icon className="w-3.5 h-3.5 text-accent-primary" />

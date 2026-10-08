@@ -23,14 +23,31 @@ import { useShallow } from 'zustand/react/shallow';
 import { useAppStore } from '@/store/appStore';
 import { getElectronBridge } from '@/utils/electronBridge';
 import { cn } from '@/utils/cn';
-import { formatLabel, formatTimestamp } from '@/utils/formatUtils';
+import { formatLabel } from '@/utils/formatUtils';
 import { WorkflowGraphEditor } from './WorkflowGraphEditor';
+import { WorkflowLibraryPanel } from './WorkflowLibraryPanel';
 
-export function WorkflowWorkbench() {
+interface WorkflowWorkbenchProps {
+  /**
+   * Where the workflow library is shown. 'inline' draws it as the workbench's
+   * third column. 'docked' means the host already shows it (the Workflows tab's
+   * left dock), so the workbench leaves it out and the graph gets the room.
+   */
+  library?: 'inline' | 'docked';
+}
+
+// The side columns take a share of the workbench instead of a fixed 280/320px:
+// in the 840px centre of the default window those fixed widths left the graph
+// editor a 240px strip.
+const GRID_COLUMNS = {
+  inline: 'grid-cols-[minmax(180px,min(22%,280px))_minmax(0,1fr)_minmax(180px,min(24%,320px))]',
+  docked: 'grid-cols-[minmax(180px,min(26%,280px))_minmax(0,1fr)]',
+} as const;
+
+export function WorkflowWorkbench({ library = 'inline' }: WorkflowWorkbenchProps = {}) {
   const {
     workflowRecords,
     activeWorkflowId,
-    setActiveWorkflow,
     createWorkflowFromGraph,
     addWorkflowNode,
     moveWorkflowNode,
@@ -50,7 +67,6 @@ export function WorkflowWorkbench() {
     useShallow((s) => ({
       workflowRecords: s.workflowRecords,
       activeWorkflowId: s.activeWorkflowId,
-      setActiveWorkflow: s.setActiveWorkflow,
       createWorkflowFromGraph: s.createWorkflowFromGraph,
       addWorkflowNode: s.addWorkflowNode,
       moveWorkflowNode: s.moveWorkflowNode,
@@ -86,7 +102,6 @@ export function WorkflowWorkbench() {
   };
   const hasBlockingIssues = runtime.issues.some((issue) => issue.severity === 'error');
   const isRunning = activeWorkflow.status === 'running' || Boolean(runtime.activeJobId);
-  const showRunOutputRail = activeWorkflow.runHistory.length > 0 || isRunning;
   const stillImageRoute = resolveStillImageRoute(activeAccount);
   const workflowCanRunWithoutBackend =
     isHostedStillImageRoute(stillImageRoute) && stillImageRoute.configured;
@@ -207,7 +222,7 @@ export function WorkflowWorkbench() {
   }
 
   return (
-    <div className="grid h-full min-h-0 grid-cols-[minmax(220px,280px)_minmax(0,1fr)_minmax(260px,320px)] bg-void">
+    <div className={cn('grid h-full min-h-0 bg-void', GRID_COLUMNS[library])}>
       <aside className="flex min-h-0 flex-col border-r border-border bg-surface">
         <div className="border-b border-border px-4 py-3">
           <h2 className="type-title">Workflow</h2>
@@ -493,89 +508,11 @@ export function WorkflowWorkbench() {
         </section>
       </main>
 
-      <aside className="flex min-h-0 flex-col border-l border-border bg-surface">
-        <section className="flex min-h-0 flex-1 flex-col border-b border-border">
-          <div className="border-b border-border px-4 py-3">
-            <h3 className="type-section">Workflow Library</h3>
-          </div>
-          <div className="min-h-0 flex-1 overflow-auto p-3">
-            <div className="flex flex-col gap-2">
-              {workflowRecords.map((workflow) => {
-                const isActive = workflow.id === activeWorkflow.id;
-
-                return (
-                  <button
-                    key={workflow.id}
-                    type="button"
-                    onClick={() => setActiveWorkflow(workflow.id)}
-                    className={cn(
-                      'rounded-md border px-3 py-2 text-left type-ui transition hover:border-border-hover hover:text-text-primary',
-                      isActive
-                        ? 'border-accent-primary-border bg-accent-primary-muted text-accent-primary'
-                        : 'border-border bg-elevated text-text-body'
-                    )}
-                  >
-                    {workflow.name}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        </section>
-
-        <section className="flex min-h-0 flex-1 flex-col">
-          <div className="border-b border-border px-4 py-3">
-            <h3 className="type-section">Run Output</h3>
-          </div>
-          <div
-            className={cn(
-              'min-h-0 flex-1',
-              showRunOutputRail
-                ? 'overflow-auto p-3'
-                : 'flex items-center justify-center px-4 text-center'
-            )}
-          >
-            {showRunOutputRail ? (
-              <div className="flex flex-col gap-2">
-                {isRunning ? (
-                  <div className="rounded-md border border-accent-primary-border bg-accent-primary-muted px-3 py-2">
-                    <div className="flex items-start justify-between gap-3">
-                      <p className="min-w-0 type-ui text-accent-primary">
-                        Workflow run in progress
-                      </p>
-                      <span className="shrink-0 rounded-md border border-accent-primary-border bg-surface px-2 py-1 type-ui text-accent-primary">
-                        Running
-                      </span>
-                    </div>
-                    {runtime.activeJobId ? (
-                      <p className="mt-2 type-caption text-text-body">Job {runtime.activeJobId}</p>
-                    ) : null}
-                  </div>
-                ) : null}
-                {activeWorkflow.runHistory.length > 0 ? (
-                  <ul aria-label="Workflow run history" className="flex flex-col gap-2">
-                    {activeWorkflow.runHistory.map((run) => (
-                      <li key={run.id} className="rounded-md border border-border bg-elevated px-3 py-2">
-                        <div className="flex items-start justify-between gap-3">
-                          <p className="min-w-0 type-ui text-text-primary">{run.summary}</p>
-                          <span className="shrink-0 rounded-md border border-border bg-surface px-2 py-1 type-ui text-text-body">
-                            {formatLabel(run.status)}
-                          </span>
-                        </div>
-                        <time dateTime={run.createdAt} className="mt-2 block type-caption">
-                          {formatTimestamp(run.createdAt)}
-                        </time>
-                      </li>
-                    ))}
-                  </ul>
-                ) : null}
-              </div>
-            ) : (
-              <p className="type-caption">No run output yet.</p>
-            )}
-          </div>
-        </section>
-      </aside>
+      {library === 'inline' ? (
+        <aside className="flex min-h-0 flex-col border-l border-border">
+          <WorkflowLibraryPanel />
+        </aside>
+      ) : null}
     </div>
   );
 }

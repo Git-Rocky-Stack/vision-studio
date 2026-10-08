@@ -130,7 +130,7 @@ export const PipelineBuilder = memo(function PipelineBuilder({
                 setNameValue(pipeline.name);
               }
             }}
-            className="flex-1 text-sm text-text-primary text-left truncate hover:text-accent-primary transition-colors"
+            className="min-h-6 flex-1 text-sm text-text-primary text-left truncate hover:text-accent-primary transition-colors"
           >
             {pipeline.name}
           </button>

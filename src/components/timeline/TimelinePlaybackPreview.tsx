@@ -1,8 +1,9 @@
 import { memo, useEffect, useMemo, useRef } from 'react';
-import { AlertTriangle, AudioLines, Film, ImageIcon, Repeat, TimerReset } from 'lucide-react';
+import { AlertTriangle, AudioLines, Clapperboard, Film, ImageIcon, Repeat, TimerReset } from 'lucide-react';
 import { useShallow } from 'zustand/react/shallow';
 
 import { resolveSequenceComposition, resolveTimelinePlayRange } from '@/features/timeline/sequenceComposition';
+import { EmptyState } from '@/components/ui/EmptyState';
 import { resolveMediaSourceUrl } from '@/components/ui/MediaPreview';
 import { TimelineRetakeCompare } from '@/components/timeline/TimelineRetakeCompare';
 import { useAppStore } from '@/store/appStore';
@@ -267,12 +268,11 @@ export const TimelinePlaybackPreview = memo(function TimelinePlaybackPreview({
           className,
         )}
       >
-        <div className="max-w-md space-y-2 text-center">
-          <p className="text-lg text-text-primary">Sequence preview unavailable</p>
-          <p className="text-sm text-text-muted">
-            Create or select a project timeline to drive the center playback surface.
-          </p>
-        </div>
+        <EmptyState
+          icon={Clapperboard}
+          title="Sequence preview unavailable"
+          description="Create or select a project timeline to drive the center playback surface."
+        />
       </div>
     );
   }
@@ -399,14 +399,11 @@ export const TimelinePlaybackPreview = memo(function TimelinePlaybackPreview({
             </div>
           </div>
         ) : (
-          <div className="flex h-full items-center justify-center px-6 py-10">
-            <div className="max-w-md space-y-2 text-center">
-              <p className="text-lg text-text-primary">No active program output</p>
-              <p className="text-sm text-text-muted">
-                Add clips to the active timeline and use the playhead to resolve the program frame.
-              </p>
-            </div>
-          </div>
+          <EmptyState
+            icon={Clapperboard}
+            title="No active program output"
+            description="Add clips to the active timeline and use the playhead to resolve the program frame."
+          />
         )}
 
         {primaryIssue ? (

@@ -78,6 +78,45 @@ describe('EditCanvas', () => {
     expect(screen.getByText(/Active tool:/)).toBeInTheDocument();
   });
 
+  // The empty canvas used to say "drag one onto the canvas". Nothing handles
+  // a drop here, so the state now offers the two routes that do load an image.
+  describe('with no image loaded', () => {
+    it('offers real ways to get an image instead of a drag it cannot take', () => {
+      render(<EditCanvas />);
+
+      const state = screen.getByTestId('empty-state');
+      expect(state).toHaveTextContent('Load an image to start editing');
+      expect(state).not.toHaveTextContent(/drag/i);
+    });
+
+    it('opens Generate from the empty canvas', () => {
+      useAppStore.getState().setActiveTab('canvas');
+      render(<EditCanvas />);
+
+      fireEvent.click(screen.getByRole('button', { name: 'Open Generate' }));
+
+      expect(useAppStore.getState().activeTab).toBe('generate');
+    });
+
+    it('opens the Viewer, where a result can be sent to the canvas', () => {
+      useAppStore.getState().setActiveTab('canvas');
+      render(<EditCanvas />);
+
+      fireEvent.click(screen.getByRole('button', { name: 'Open Viewer' }));
+
+      expect(useAppStore.getState().activeTab).toBe('generate');
+      expect(useAppStore.getState().centerView).toBe('viewer');
+    });
+
+    it('lets pointer events through to the canvas around the card', () => {
+      render(<EditCanvas />);
+
+      const state = screen.getByTestId('empty-state');
+      expect(state).toHaveClass('pointer-events-auto');
+      expect(state.parentElement).toHaveClass('pointer-events-none');
+    });
+  });
+
   describe('AI mask surface (#34 PR2)', () => {
     async function renderWithImage() {
       useAppStore.setState({

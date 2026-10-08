@@ -24,6 +24,7 @@ import {
 import type { BatchResult } from '@/types/generation';
 import { toGenerationDraftFromResult } from '@/features/batch/resultActions';
 import { useEditTool } from '@/features/edit/useEditTool';
+import { DialogCloseButton } from '@/components/ui/DialogCloseButton';
 
 interface ImagePreviewModalProps {
   result: BatchResult | null;
@@ -249,13 +250,13 @@ export function ImagePreviewModal({
             onClick={(e) => e.stopPropagation()}
           >
             {/* Close Button */}
-            <button
+            {/* Sits over the image, so it keeps a backing the header-row
+                version does not need. */}
+            <DialogCloseButton
+              label="Close preview"
               onClick={onClose}
-              aria-label="Close preview"
-              className="absolute top-4 right-4 z-10 p-2 rounded-md bg-surface/80 backdrop-blur-sm text-text-muted hover:text-text-primary hover:bg-elevated transition"
-            >
-              <X className="w-5 h-5" />
-            </button>
+              className="absolute top-4 right-4 z-10 bg-surface/80 backdrop-blur-sm"
+            />
 
             {/* Image Area */}
             <div className="flex-1 flex items-center justify-center relative px-16">

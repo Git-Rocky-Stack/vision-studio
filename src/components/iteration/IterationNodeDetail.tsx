@@ -51,7 +51,7 @@ export const IterationNodeDetail = memo(function IterationNodeDetail({
           type="button"
           onClick={() => pinIteration(node.id)}
           className={cn(
-            'p-1 rounded-md transition-colors',
+            'icon-button p-1 rounded-md transition-colors',
             node.isPinned
               ? 'text-accent-primary bg-accent-primary-muted'
               : 'text-text-muted hover:text-text-primary hover:bg-elevated',

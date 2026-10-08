@@ -6,12 +6,13 @@ import { cn } from '@/utils/cn';
 import { TemplatePreviewModal } from '@/components/templates/TemplatePreviewModal';
 import { TemplateCreator } from '@/components/templates/TemplateCreator';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
+import { Button } from '@/components/ui/Button';
+import { EmptyState } from '@/components/ui/EmptyState';
 import {
   Faceplate,
   RecessedWell,
   PadButton,
   MonoLabel,
-  Led,
   Lcd,
   ChromeButton,
 } from '@/components/hardware';
@@ -30,6 +31,7 @@ import {
   ArrowUpDown,
   User,
   Trash2,
+  LayoutTemplate,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -271,29 +273,29 @@ export function TemplatesPanel() {
       <RecessedWell padding={16} className="flex-1 min-h-0 overflow-y-auto scrollbar-hide">
         {sortedTemplates.length === 0 ? (
           /* Empty state */
-          <div className="h-full flex flex-col items-center justify-center text-center gap-3 py-16">
-            <Led color="cue" size={10} pulse />
-            <MonoLabel tone="silver" style={{ fontSize: 13 }}>
-              {selectedCategory === 'mine' ? 'No custom templates yet' : 'No templates found'}
-            </MonoLabel>
-            <p className="text-xs text-text-muted max-w-xs">
-              {selectedCategory === 'mine'
-                ? 'Create your first custom template to get started'
-                : 'Try a different search or category'}
-            </p>
-            {selectedCategory === 'mine' && (
-              <ChromeButton
+          <EmptyState
+            icon={LayoutTemplate}
+            title={selectedCategory === 'mine' ? 'No custom templates yet' : 'No templates found'}
+            description={
+              selectedCategory === 'mine'
+                ? 'Create your first custom template to get started.'
+                : 'Try a different search or category.'
+            }
+          >
+            {selectedCategory === 'mine' ? (
+              <Button
+                variant="primary"
+                size="sm"
+                icon={Plus}
                 onClick={() => {
                   setEditingTemplate(null);
                   setShowCreator(true);
                 }}
-                style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '10px 18px', fontSize: 12, marginTop: 8 }}
               >
-                <Plus className="w-3.5 h-3.5" />
                 Create Template
-              </ChromeButton>
-            )}
-          </div>
+              </Button>
+            ) : null}
+          </EmptyState>
         ) : viewMode === 'compact' ? (
           /* Compact list view */
           <div className="flex flex-col gap-2">

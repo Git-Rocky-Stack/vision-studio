@@ -272,7 +272,7 @@ const ZoomControls = memo(function ZoomControls({
         type="button"
         onClick={() => onZoomChange(Math.max(MIN_ZOOM, zoom - ZOOM_STEP))}
         disabled={zoom <= MIN_ZOOM}
-        className="rounded p-1 text-text-body transition disabled:cursor-not-allowed disabled:text-text-muted/40 hover:bg-surface hover:text-text-primary"
+        className="icon-button rounded p-1 text-text-body transition disabled:cursor-not-allowed disabled:text-text-muted/40 hover:bg-surface hover:text-text-primary"
         aria-label="Zoom out"
       >
         <ZoomOut className="h-3.5 w-3.5" />
@@ -285,13 +285,15 @@ const ZoomControls = memo(function ZoomControls({
         step={ZOOM_STEP}
         value={zoom}
         onChange={(event) => onZoomChange(Number(event.target.value))}
-        className="timeline-zoom-slider h-2 w-28 cursor-pointer appearance-none rounded-full"
+        // Drawn 8px tall inside a 24px box: the transparent border is part of the
+        // control, so the slider can be grabbed across the whole band (WCAG 2.5.8).
+        className="timeline-zoom-slider h-6 w-28 cursor-pointer appearance-none rounded-full border-y-8 border-transparent bg-clip-padding"
       />
       <button
         type="button"
         onClick={() => onZoomChange(Math.min(MAX_ZOOM, zoom + ZOOM_STEP))}
         disabled={zoom >= MAX_ZOOM}
-        className="rounded p-1 text-text-body transition disabled:cursor-not-allowed disabled:text-text-muted/40 hover:bg-surface hover:text-text-primary"
+        className="icon-button rounded p-1 text-text-body transition disabled:cursor-not-allowed disabled:text-text-muted/40 hover:bg-surface hover:text-text-primary"
         aria-label="Zoom in"
       >
         <ZoomIn className="h-3.5 w-3.5" />
@@ -426,7 +428,7 @@ const TrackHeader = memo(function TrackHeader({
               event.stopPropagation();
               onToggleMute();
             }}
-            className="rounded p-1 text-text-muted transition hover:bg-canvas hover:text-text-primary"
+            className="icon-button rounded p-1 text-text-muted transition hover:bg-canvas hover:text-text-primary"
             aria-label={track.muted ? 'Unmute track' : 'Mute track'}
           >
             {track.muted ? <VolumeX className="h-3.5 w-3.5" /> : <Volume2 className="h-3.5 w-3.5" />}
@@ -456,7 +458,7 @@ const TrackHeader = memo(function TrackHeader({
             event.stopPropagation();
             onToggleHidden();
           }}
-          className="rounded p-1 text-text-muted transition hover:bg-canvas hover:text-text-primary"
+          className="icon-button rounded p-1 text-text-muted transition hover:bg-canvas hover:text-text-primary"
           aria-label={track.hidden ? 'Show track' : 'Hide track'}
         >
           {track.hidden ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
@@ -467,7 +469,7 @@ const TrackHeader = memo(function TrackHeader({
             event.stopPropagation();
             onToggleLocked();
           }}
-          className="rounded p-1 text-text-muted transition hover:bg-canvas hover:text-text-primary"
+          className="icon-button rounded p-1 text-text-muted transition hover:bg-canvas hover:text-text-primary"
           aria-label={track.locked ? 'Unlock track' : 'Lock track'}
         >
           {track.locked ? <Lock className="h-3.5 w-3.5" /> : <Unlock className="h-3.5 w-3.5" />}
@@ -1213,7 +1215,7 @@ export const Timeline = memo(function Timeline() {
         <button
           type="button"
           onClick={() => setIsCollapsed(false)}
-          className="rounded p-1 text-text-muted transition hover:text-text-primary"
+          className="icon-button rounded p-1 text-text-muted transition hover:text-text-primary"
           aria-label="Expand timeline"
         >
           <ChevronUp className="h-3.5 w-3.5" />

@@ -19,7 +19,11 @@ vi.mock('@/components/layout/WorkbenchViewer', () => ({
 }));
 
 vi.mock('@/components/workflow/WorkflowWorkbench', () => ({
-  WorkflowWorkbench: () => <div data-testid="mock-workflow">Workflow</div>,
+  WorkflowWorkbench: ({ library = 'inline' }: { library?: string }) => (
+    <div data-testid="mock-workflow" data-library={library}>
+      Workflow
+    </div>
+  ),
 }));
 
 vi.mock('@/pages/AssetsPanel', () => ({
@@ -161,6 +165,85 @@ describe('DockviewLayout', () => {
     render(<DockviewLayout />);
 
     expect(screen.getByTestId('right-dock')).toBeInTheDocument();
+  });
+
+  // The Workflows tab docks the library on the left; the Generate tab's
+  // workflow view has the Generate panel there and keeps the library inline.
+  it('tells the workbench where its library is shown', () => {
+    useAppStore.setState({ activeTab: 'workflows' });
+    const workflows = render(<DockviewLayout />);
+    expect(screen.getByTestId('mock-workflow')).toHaveAttribute('data-library', 'docked');
+    workflows.unmount();
+
+    useAppStore.setState({ activeTab: 'generate', centerView: 'workflow' });
+    render(<DockviewLayout />);
+    expect(screen.getByTestId('mock-workflow')).toHaveAttribute('data-library', 'inline');
+  });
+
+  // Below 1280px the review dock is collapsed so the centre stays usable, and
+  // the window may be as narrow as 1200px. There was no control to bring the
+  // dock back, so Gallery, Boards and History were unreachable at that size.
+  describe('review dock toggle', () => {
+    it.each(['generate', 'canvas', 'story', 'workflows'] as const)(
+      'offers a control for the collapsed review dock on the %s tab',
+      (activeTab) => {
+        useAppStore.setState({ activeTab });
+        render(<DockviewLayout />);
+
+        const dock = screen.getByTestId('right-dock');
+        const toggle = screen.getByRole('button', { name: 'Show review dock' });
+
+        expect(toggle).toHaveAttribute('aria-expanded', 'false');
+        expect(toggle).toHaveAttribute('aria-controls', dock.id);
+        expect(dock.id).not.toBe('');
+        // Collapsed below the xl breakpoint, always shown at and above it.
+        expect(dock).toHaveClass('hidden', 'xl:flex');
+        // The control itself is only needed while the dock is collapsed.
+        expect(toggle).toHaveClass('xl:hidden');
+      },
+    );
+
+    it('opens the dock over the workspace and says so', async () => {
+      const user = userEvent.setup();
+      render(<DockviewLayout />);
+
+      await user.click(screen.getByRole('button', { name: 'Show review dock' }));
+
+      const dock = screen.getByTestId('right-dock');
+      const toggle = screen.getByRole('button', { name: 'Hide review dock' });
+      expect(toggle).toHaveAttribute('aria-expanded', 'true');
+      expect(dock).not.toHaveClass('hidden');
+      expect(dock).toHaveClass('absolute', 'flex');
+      expect(within(dock).getByTestId('mock-gallery-dock')).toBeInTheDocument();
+    });
+
+    it('closes again from the same control', async () => {
+      const user = userEvent.setup();
+      render(<DockviewLayout />);
+
+      await user.click(screen.getByRole('button', { name: 'Show review dock' }));
+      await user.click(screen.getByRole('button', { name: 'Hide review dock' }));
+
+      expect(screen.getByTestId('right-dock')).toHaveClass('hidden');
+      expect(screen.getByRole('button', { name: 'Show review dock' })).toHaveAttribute('aria-expanded', 'false');
+    });
+
+    it('closes on Escape', async () => {
+      const user = userEvent.setup();
+      render(<DockviewLayout />);
+
+      await user.click(screen.getByRole('button', { name: 'Show review dock' }));
+      await user.keyboard('{Escape}');
+
+      expect(screen.getByTestId('right-dock')).toHaveClass('hidden');
+    });
+
+    it('offers no review dock control on a tab without one', () => {
+      useAppStore.setState({ activeTab: 'settings' });
+      render(<DockviewLayout />);
+
+      expect(screen.queryByRole('button', { name: /review dock/i })).not.toBeInTheDocument();
+    });
   });
 
   it('renders the expanded iteration timeline when timeline mode is selected', () => {

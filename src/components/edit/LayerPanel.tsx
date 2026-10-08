@@ -334,7 +334,7 @@ export function LayerPanel() {
           <button
             onClick={handleAddLayer}
             aria-label="New layer"
-            className="p-1 rounded text-text-muted hover:text-text-primary hover:bg-elevated transition"
+            className="icon-button p-1 rounded text-text-muted hover:text-text-primary hover:bg-elevated transition"
             title="New Layer"
           >
             <Plus className="w-3.5 h-3.5" />
@@ -343,7 +343,7 @@ export function LayerPanel() {
             onClick={handleDuplicateLayer}
             disabled={!selectedLayerId}
             className={cn(
-              'p-1 rounded transition',
+              'icon-button p-1 rounded transition',
               selectedLayerId
                 ? 'text-text-muted hover:text-text-primary hover:bg-elevated'
                 : 'text-text-muted/30 cursor-not-allowed'
@@ -357,7 +357,7 @@ export function LayerPanel() {
             onClick={handleDeleteLayer}
             disabled={!selectedLayerId}
             className={cn(
-              'p-1 rounded transition',
+              'icon-button p-1 rounded transition',
               selectedLayerId
                 ? 'text-text-muted hover:text-status-error hover:bg-status-error-muted'
                 : 'text-text-muted/30 cursor-not-allowed'

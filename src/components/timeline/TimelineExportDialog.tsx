@@ -8,6 +8,7 @@ import { useAppStore } from '@/store/appStore';
 import { cn } from '@/utils/cn';
 import { resolveTimelinePlayRange } from '@/features/timeline/sequenceComposition';
 import { exportTimelineSequence, type TimelineExportStatusPatch } from '@/features/timeline/exportTimelineSequence';
+import { DialogCloseButton } from '@/components/ui/DialogCloseButton';
 
 interface TimelineExportDialogProps {
   open: boolean;
@@ -242,14 +243,11 @@ export function TimelineExportDialog({
                 </p>
               </div>
 
-              <button
-                type="button"
+              <DialogCloseButton
+                label="Close timeline export"
                 onClick={handleClose}
                 disabled={uiState.status === 'exporting'}
-                className="rounded-full border border-border bg-surface px-3 py-1.5 text-xs text-text-body transition hover:bg-canvas hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                Close
-              </button>
+              />
             </div>
           </div>
 

@@ -112,13 +112,19 @@ function GenerateSectionCard({
   onToggle,
   children,
 }: GenerateSectionCardProps) {
+  const hintId = `generate-section-hint-${sectionId}`;
+
   return (
     <section
       data-testid={`generate-section-${sectionId}`}
       className="raised-panel"
+      aria-describedby={hintId}
     >
-      <div className="flex items-start gap-3 px-4 py-3">
-        <div className="raised-control mt-0.5 flex h-9 w-9 flex-shrink-0 items-center justify-center text-text-body">
+      {/* The description is a hint, not a label: it rides the header as a
+          tooltip and stays readable to assistive tech. Printed under every
+          title it cost three or four lines per section in a 270px column. */}
+      <div className="flex items-center gap-3 px-4 py-3" title={description}>
+        <div className="raised-control flex h-9 w-9 flex-shrink-0 items-center justify-center text-text-body">
           <Icon className="h-4 w-4" />
         </div>
 
@@ -131,9 +137,12 @@ function GenerateSectionCard({
               </span>
             ) : null}
           </div>
-          <p className="mt-1 type-caption">
-            {collapsible && collapsed && summary ? summary : description}
+          <p id={hintId} className="sr-only">
+            {description}
           </p>
+          {collapsible && collapsed && summary ? (
+            <p className="mt-1 type-caption">{summary}</p>
+          ) : null}
         </div>
 
         {collapsible && onToggle ? (
@@ -1395,61 +1404,59 @@ export function GeneratePanel() {
         onCancel={handleOverBudgetCancel}
       />
 
-      <div className="border-b border-border bg-panel px-3 py-3">
-        <div className="raised-panel px-3 py-2.5">
-          <div className="mb-2 flex items-center justify-between gap-2">
-            <div>
+      <div className="h-0 flex-1 overflow-y-auto p-4 space-y-4">
+        {/* Pinned inside the scroller rather than above it: here the mode card
+            sits in the same content box as the section cards, so the two share
+            edges whatever width the scrollbar takes. The negative margins undo
+            the scroller's padding so the band spans the dock. */}
+        <div className="sticky top-0 z-10 -mx-4 -mt-4 border-b border-border bg-panel px-4 py-3">
+          <div className="raised-panel px-3 py-2.5">
+            <div className="mb-2 flex items-center justify-between gap-2">
               <p className="type-section text-text-primary">Workflow</p>
-              <p className="mt-1 type-caption text-text-muted">
-                Choose the generation lane before you tune the rest of the pass.
-              </p>
+              <Lcd color={imageConfig.generationType === 'image' ? 'jog' : 'time'} size="sm">
+                {imageConfig.generationType === 'image' ? 'Still' : 'Motion'}
+              </Lcd>
             </div>
-            <Lcd color={imageConfig.generationType === 'image' ? 'jog' : 'time'} size="sm">
-              {imageConfig.generationType === 'image' ? 'Still' : 'Motion'}
-            </Lcd>
-          </div>
 
-          <div className="recessed-well relative flex p-1">
-            <motion.div
-              layoutId="modeGlow"
-              className="absolute top-1 bottom-1 rounded-md border border-accent-primary-border bg-accent-primary-muted"
-              style={{ width: 'calc(50% - 4px)' }}
-              animate={{
-                x: imageConfig.generationType === 'image' ? 0 : 'calc(100% + 4px)',
-              }}
-              transition={reduced ? { duration: 0 } : { type: 'spring', stiffness: 400, damping: 30 }}
-            />
-            <button
-              type="button"
-              onClick={() => updateImageConfig({ generationType: 'image' })}
-              className={cn(
-                'relative z-10 flex flex-1 items-center justify-center gap-1.5 rounded-md py-1.5 transition-colors',
-                imageConfig.generationType === 'image'
-                  ? 'text-accent-primary'
-                  : 'text-text-muted hover:text-text-body'
-              )}
-            >
-              <ImageIcon className="h-3.5 w-3.5" />
-              <span className="text-xs font-semibold leading-none">Image</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => updateImageConfig({ generationType: 'video' })}
-              className={cn(
-                'relative z-10 flex flex-1 items-center justify-center gap-1.5 rounded-md py-1.5 transition-colors',
-                imageConfig.generationType === 'video'
-                  ? 'text-accent-primary'
-                  : 'text-text-muted hover:text-text-body'
-              )}
-            >
-              <Film className="h-3.5 w-3.5" />
-              <span className="text-xs font-semibold leading-none">Video</span>
-            </button>
+            <div className="recessed-well relative flex p-1">
+              <motion.div
+                layoutId="modeGlow"
+                className="absolute top-1 bottom-1 rounded-md border border-accent-primary-border bg-accent-primary-muted"
+                style={{ width: 'calc(50% - 4px)' }}
+                animate={{
+                  x: imageConfig.generationType === 'image' ? 0 : 'calc(100% + 4px)',
+                }}
+                transition={reduced ? { duration: 0 } : { type: 'spring', stiffness: 400, damping: 30 }}
+              />
+              <button
+                type="button"
+                onClick={() => updateImageConfig({ generationType: 'image' })}
+                className={cn(
+                  'relative z-10 flex flex-1 items-center justify-center gap-1.5 rounded-md py-1.5 transition-colors',
+                  imageConfig.generationType === 'image'
+                    ? 'text-accent-primary'
+                    : 'text-text-muted hover:text-text-body'
+                )}
+              >
+                <ImageIcon className="h-3.5 w-3.5" />
+                <span className="text-xs font-semibold leading-none">Image</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => updateImageConfig({ generationType: 'video' })}
+                className={cn(
+                  'relative z-10 flex flex-1 items-center justify-center gap-1.5 rounded-md py-1.5 transition-colors',
+                  imageConfig.generationType === 'video'
+                    ? 'text-accent-primary'
+                    : 'text-text-muted hover:text-text-body'
+                )}
+              >
+                <Film className="h-3.5 w-3.5" />
+                <span className="text-xs font-semibold leading-none">Video</span>
+              </button>
+            </div>
           </div>
         </div>
-      </div>
-
-      <div className="h-0 flex-1 overflow-y-auto p-4 space-y-4">
         <GenerateSectionCard
           sectionId="prompt"
           title="Prompt"

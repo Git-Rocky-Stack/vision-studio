@@ -5,6 +5,7 @@ import { useAppStore } from '@/store/appStore';
 import { useShallow } from 'zustand/react/shallow';
 import { MediaPreview } from '@/components/ui/MediaPreview';
 import { Button } from '@/components/ui/Button';
+import { EmptyState } from '@/components/ui/EmptyState';
 import { cn } from '@/utils/cn';
 import { ReviewDensityToggle } from './ReviewDensityToggle';
 
@@ -21,6 +22,7 @@ interface GalleryItem {
 
 export function WorkbenchGalleryDock() {
   const {
+    activeTab,
     activeViewerItemId,
     assetLibrary,
     batchResults,
@@ -31,6 +33,7 @@ export function WorkbenchGalleryDock() {
     setReviewDensity,
   } = useAppStore(
     useShallow((state) => ({
+      activeTab: state.activeTab,
       activeViewerItemId: state.activeViewerItemId,
       assetLibrary: state.assetLibrary,
       batchResults: state.batchResults,
@@ -77,28 +80,21 @@ export function WorkbenchGalleryDock() {
   return (
     <div className="flex h-full min-h-0 flex-col bg-surface">
       {items.length === 0 ? (
-        <div className="flex flex-1 items-center p-4">
-          <div className="recessed-well w-full px-5 py-8 text-center">
-            <div
-              className="raised-control mx-auto flex h-12 w-12 items-center justify-center text-text-muted"
-              style={{ borderRadius: 'var(--radius-control)' }}
-            >
-              <ImageIcon className="h-5 w-5" />
-            </div>
-            <p className="mt-4 type-section text-text-primary">Review captures will appear here.</p>
-            <p className="mx-auto mt-2 max-w-60 text-xs text-text-muted">
-              Generate a result or open Assets to start a tighter review loop.
-            </p>
-            <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
-              <Button variant="primary" size="sm" onClick={() => setActiveTab('generate')}>
-                Open Generate
-              </Button>
-              <Button variant="secondary" size="sm" onClick={() => setActiveTab('assets')}>
-                Open Assets
-              </Button>
-            </div>
-          </div>
-        </div>
+        <EmptyState
+          icon={ImageIcon}
+          title="Review captures will appear here."
+          description="Generate a result or open Assets to start a tighter review loop."
+        >
+          {/* On the Generate tab this button would switch to the tab it is on. */}
+          {activeTab !== 'generate' ? (
+            <Button variant="primary" size="sm" onClick={() => setActiveTab('generate')}>
+              Open Generate
+            </Button>
+          ) : null}
+          <Button variant="secondary" size="sm" onClick={() => setActiveTab('assets')}>
+            Open Assets
+          </Button>
+        </EmptyState>
       ) : (
         <>
           <div className="flex items-center justify-between gap-3 border-b border-border px-3 py-2">

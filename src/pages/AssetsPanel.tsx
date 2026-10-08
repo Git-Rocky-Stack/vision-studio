@@ -3,6 +3,7 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { cn } from '@/utils/cn';
 import { Button } from '@/components/ui/Button';
+import { EmptyState } from '@/components/ui/EmptyState';
 import { useShallow } from 'zustand/react/shallow';
 import { useAppStore } from '@/store/appStore';
 import type { AssetRecord } from '@/types/assets';
@@ -366,20 +367,15 @@ export function AssetsPanel() {
 
       <div ref={parentRef} className="flex-1 overflow-y-auto p-4">
         {filteredAssets.length === 0 ? (
-          <div className="h-full flex flex-col items-center justify-center text-text-muted">
-            <div className="w-16 h-16 recessed-well flex items-center justify-center mb-4">
-              <FolderPlus className="w-8 h-8" />
-            </div>
-            <p className="text-sm">No assets yet</p>
-            <p className="text-xs text-text-muted mt-1">
-              Generate some content to see it here
-            </p>
-            <div className="mt-4">
-              <Button variant="secondary" size="sm" icon={FolderPlus} onClick={handleImport}>
-                Import media
-              </Button>
-            </div>
-          </div>
+          <EmptyState
+            icon={FolderPlus}
+            title="No assets yet"
+            description="Generate some content to see it here."
+          >
+            <Button variant="secondary" size="sm" icon={FolderPlus} onClick={handleImport}>
+              Import media
+            </Button>
+          </EmptyState>
         ) : (
           <div style={{ height: `${rowVirtualizer.getTotalSize()}px`, position: 'relative' }}>
             {rowVirtualizer.getVirtualItems().map((virtualRow) => {

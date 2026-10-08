@@ -1,9 +1,12 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { Stage, Layer, Rect, Image as KonvaImage, Line, Text, Transformer } from 'react-konva';
+import { ImageIcon } from 'lucide-react';
 import { useAppStore } from '@/store/appStore';
 import { selectActiveRegionLock } from '@/store/slices/projectSlice';
 import { useShallow } from 'zustand/react/shallow';
 import { cn } from '@/utils/cn';
+import { Button } from '@/components/ui/Button';
+import { EmptyState } from '@/components/ui/EmptyState';
 import { RegionLockToolbar } from '@/components/edit/RegionLockToolbar';
 import { RegionMaskDrawer } from '@/components/edit/RegionMaskDrawer';
 import { CanvasControlLayerRail } from '@/components/canvas/CanvasControlLayerRail';
@@ -48,7 +51,11 @@ export function EditCanvas() {
     activeRegion,
     activeSceneId,
     updateRegionLock,
+    setActiveTab,
+    setCenterView,
   } = useAppStore(useShallow((s) => ({
+    setActiveTab: s.setActiveTab,
+    setCenterView: s.setCenterView,
     currentImage: s.currentImage,
       activeEditTool: s.activeEditTool,
       imageAdjustments: s.imageAdjustments,
@@ -572,17 +579,31 @@ export function EditCanvas() {
         </div>
       )}
 
-      {/* No image state */}
+      {/* No image state. The canvas has no drop handler, so the copy points at
+          the two places an image can actually be sent here from. The overlay
+          lets pointer events through; only the card itself takes them. */}
       {!currentImage && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-          <div className="text-center">
-            <p className="text-sm text-text-muted">
-              Load an image to start editing
-            </p>
-            <p className="text-xs text-text-muted mt-1">
-              Generate an image or drag one onto the canvas
-            </p>
-          </div>
+          <EmptyState
+            className="pointer-events-auto h-auto"
+            icon={ImageIcon}
+            title="Load an image to start editing"
+            description="Generate one, or pick a result in the Viewer and send it to the canvas."
+          >
+            <Button variant="primary" size="sm" onClick={() => setActiveTab('generate')}>
+              Open Generate
+            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => {
+                setActiveTab('generate');
+                setCenterView('viewer');
+              }}
+            >
+              Open Viewer
+            </Button>
+          </EmptyState>
         </div>
       )}
     </div>

@@ -59,7 +59,7 @@ export function StylePresetsBar({ activePresets, onTogglePreset }: StylePresetsB
               <button
                 type="button"
                 onClick={() => toggleGroup(cat)}
-                className="flex w-full items-center gap-1.5 px-1 py-1 type-ui text-text-body hover:text-text-primary transition-colors"
+                className="flex min-h-6 w-full items-center gap-1.5 px-1 py-1 type-ui text-text-body hover:text-text-primary transition-colors"
                 aria-expanded={!isCollapsed}
                 aria-label={`${CATEGORY_LABELS[cat] ?? cat} styles`}
               >

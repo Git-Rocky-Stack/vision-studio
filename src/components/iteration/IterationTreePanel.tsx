@@ -3,6 +3,7 @@ import { GitBranch } from 'lucide-react';
 import { cn } from '@/utils/cn';
 import { useAppStore } from '@/store/appStore';
 import { MonoLabel } from '@/components/hardware';
+import { EmptyState } from '@/components/ui/EmptyState';
 import { IterationInspectorPanel } from './IterationInspectorPanel';
 import { IterationNode } from './IterationNode';
 import { IterationViewSelector } from './IterationViewSelector';
@@ -33,10 +34,7 @@ export const IterationTreePanel = memo(function IterationTreePanel({ className }
         <div className="faceplate-stripe flex h-9 flex-shrink-0 items-center px-3">
           <MonoLabel as="h2" tone="chrome">History</MonoLabel>
         </div>
-        <div className="flex-1 flex flex-col items-center justify-center text-text-muted type-body-sm p-4">
-          <GitBranch className="w-8 h-8 mb-2 opacity-30" />
-          No iterations yet
-        </div>
+        <EmptyState className="flex-1" icon={GitBranch} title="No iterations yet" />
       </div>
     );
   }

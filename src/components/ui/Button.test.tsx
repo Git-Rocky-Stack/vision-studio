@@ -74,6 +74,20 @@ describe('Button', () => {
     expect(screen.getByRole('button', { name: 'Generate' })).toHaveClass('text-void');
   });
 
+  // A button label is one phrase. Squeezed in a dock it used to break into
+  // "OPEN / STORYBOARD"; it should hold its line and let the row wrap instead.
+  it('never wraps its label', () => {
+    render(<Button>Open Storyboard</Button>);
+    expect(screen.getByRole('button', { name: 'Open Storyboard' })).toHaveClass('whitespace-nowrap');
+  });
+
+  it('offers a compact size for dock toolbars', () => {
+    render(<Button size="xs">Add Scene</Button>);
+    const button = screen.getByRole('button', { name: 'Add Scene' });
+    expect(button).toHaveClass('text-xs');
+    expect(button).not.toHaveClass('text-sm');
+  });
+
   it('keeps danger actions on the status error color', () => {
     render(<Button variant="danger">Delete</Button>);
     expect(screen.getByRole('button', { name: 'Delete' })).toHaveClass('text-status-error');

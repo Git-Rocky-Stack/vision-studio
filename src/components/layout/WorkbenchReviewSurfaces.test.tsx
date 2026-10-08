@@ -109,4 +109,71 @@ describe('Workbench review surfaces', () => {
 
     expect(useAppStore.getState().activeTab).toBe('generate');
   });
+
+  // These docks and the viewer all sit on the Generate tab, where a button
+  // that switches to the Generate tab does nothing when pressed.
+  describe('on the Generate tab', () => {
+    beforeEach(() => {
+      useAppStore.getState().setActiveTab('generate');
+    });
+
+    it('offers no Open Generate button in the gallery', () => {
+      render(<WorkbenchGalleryDock />);
+
+      expect(screen.queryByRole('button', { name: 'Open Generate' })).not.toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Open Assets' })).toBeInTheDocument();
+    });
+
+    it('offers no Open Generate button in the boards dock', () => {
+      render(<WorkbenchBoardsDock />);
+
+      expect(screen.queryByRole('button', { name: 'Open Generate' })).not.toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'New Board' })).toBeInTheDocument();
+    });
+
+    it('offers no Open Generate button in the viewer', () => {
+      render(<WorkbenchViewer />);
+
+      expect(screen.queryByRole('button', { name: 'Open Generate' })).not.toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Open Assets' })).toBeInTheDocument();
+    });
+  });
+
+  it('draws the boards toolbar with the compact dock button', () => {
+    const project = useAppStore.getState().createProject('Board One');
+    useAppStore.getState().setActiveProject(project.id);
+
+    render(<WorkbenchBoardsDock />);
+
+    for (const name of ['Open Storyboard', 'Add Scene', 'New Board']) {
+      expect(screen.getByRole('button', { name })).toHaveClass('text-xs');
+    }
+  });
+
+  it('routes the gallery empty state to Generate from another tab', () => {
+    useAppStore.getState().setActiveTab('canvas');
+
+    render(<WorkbenchGalleryDock />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open Generate' }));
+
+    expect(useAppStore.getState().activeTab).toBe('generate');
+  });
+
+  // The viewer and the gallery offer the same pair of actions. The gallery drew
+  // them as mono instrument buttons, the viewer as small sans ones.
+  it.each(['Open Generate', 'Open Assets'])('draws %s the same in the viewer and the gallery', (name) => {
+    useAppStore.getState().setActiveTab('assets');
+    const viewer = render(<WorkbenchViewer />);
+    const viewerButton = screen.getByRole('button', { name });
+    const viewerClasses = viewerButton.className;
+    const viewerLabelStyle = viewerButton.style.textTransform;
+    viewer.unmount();
+
+    render(<WorkbenchGalleryDock />);
+    const galleryButton = screen.getByRole('button', { name });
+
+    expect(viewerLabelStyle).toBe('uppercase');
+    expect(viewerClasses).toBe(galleryButton.className);
+  });
 });

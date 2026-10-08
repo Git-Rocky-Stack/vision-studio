@@ -106,7 +106,7 @@ export const CharacterRefCard = memo(function CharacterRefCard({
               }}
               aria-label={`Delete ${character.name}`}
               className={cn(
-                'p-1 rounded-md transition duration-150',
+                'icon-button p-1 rounded-md transition duration-150',
                 'text-text-muted hover:text-status-error hover:bg-status-error-muted',
                 'opacity-0 pointer-events-none',
                 (isHovered || isSelected) && 'opacity-100 pointer-events-auto'
