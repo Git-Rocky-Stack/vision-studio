@@ -186,6 +186,16 @@ describe('Carbon Pro secondary panels', () => {
     expect(skippedHeadingLevels()).toEqual([]);
   });
 
+  // The compact rows are a second rendering of the same templates, with a
+  // heading element of their own.
+  it('keeps an unbroken heading order on Templates in the compact view', () => {
+    render(<TemplatesPanel />);
+    fireEvent.click(screen.getByRole('button', { name: 'Compact view' }));
+
+    expect(screen.getAllByRole('heading').length).toBeGreaterThan(1);
+    expect(skippedHeadingLevels()).toEqual([]);
+  });
+
   it('renders Settings idle controls with accent selection and no legacy primary red', async () => {
     const { container } = render(<SettingsPanel />);
 

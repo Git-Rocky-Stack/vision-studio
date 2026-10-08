@@ -332,6 +332,28 @@ describe('SettingsPanel', () => {
     expect(skippedHeadingLevels()).toEqual([]);
   });
 
+  // With no backend the tab adds an offline card beside the system card. The
+  // two are siblings, so they sit at one level and the outline still holds.
+  it('keeps the offline card at the level of the system card beside it', async () => {
+    useAppStore.setState({
+      systemInfo: {
+        ...useAppStore.getState().systemInfo,
+        backendConnected: false,
+        gpuAvailable: false,
+        gpuName: '',
+      },
+    });
+    render(<SettingsPanel />);
+    fireEvent.click(screen.getByRole('button', { name: /AI & Models/i }));
+
+    await screen.findByText('Key Usage');
+    const levels = ['GPU not detected', 'AI Backend Offline'].map(
+      (name) => screen.getByRole('heading', { name }).tagName,
+    );
+    expect(levels).toEqual(['H3', 'H3']);
+    expect(skippedHeadingLevels()).toEqual([]);
+  });
+
   // The guide is a Settings tab, so it sits under the Settings h1 like every
   // other tab. Its own h1 gave the page two top-level headings.
   it('nests the User Guide under the single Settings h1', async () => {
