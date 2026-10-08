@@ -181,7 +181,9 @@ export const SceneCard = memo(function SceneCard({
           'group flex gap-3 p-3 rounded-md border cursor-pointer select-none',
           'transition-all duration-200 min-h-[88px]',
           'bg-elevated border-border hover:border-accent-primary/40',
-          isSelected && 'ring-2 ring-accent-primary bg-accent-primary-muted/10 border-accent-primary/60 shadow-accent-subtle'
+          // The selected card reserves a row at the bottom for its action buttons,
+          // so they sit under the status line instead of on top of it.
+          isSelected && 'ring-2 ring-accent-primary bg-accent-primary-muted/10 border-accent-primary/60 shadow-accent-subtle pb-11'
         )}
       >
         {/* Thumbnail */}
@@ -281,7 +283,9 @@ export const SceneCard = memo(function SceneCard({
 
       {/* Action buttons - duplicate + delete */}
       <div className={cn(
-        'absolute top-2 right-2 z-10 flex items-center gap-1',
+        // Bottom-right, over the meta line: five actions do not fit beside the
+        // title in a 300px rail, and at the top they covered the scene name.
+        'absolute bottom-2 right-2 z-10 flex items-center gap-1',
         'transition-opacity duration-150',
         'opacity-0 pointer-events-none focus-within:opacity-100 focus-within:pointer-events-auto',
         (isHovered || isSelected) && 'opacity-100 pointer-events-auto'
@@ -295,7 +299,7 @@ export const SceneCard = memo(function SceneCard({
             disabled={!canMoveUp}
             aria-label="Move scene up"
             className={cn(
-              'p-1.5 min-w-[44px] min-h-[44px] rounded-md transition-all duration-150',
+              'flex h-7 w-7 items-center justify-center rounded-md transition-all duration-150',
               'bg-elevated/90 backdrop-blur-sm border border-border',
               canMoveUp
                 ? 'text-text-muted hover:text-text-primary hover:bg-surface'
@@ -315,7 +319,7 @@ export const SceneCard = memo(function SceneCard({
             disabled={!canMoveDown}
             aria-label="Move scene down"
             className={cn(
-              'p-1.5 min-w-[44px] min-h-[44px] rounded-md transition-all duration-150',
+              'flex h-7 w-7 items-center justify-center rounded-md transition-all duration-150',
               'bg-elevated/90 backdrop-blur-sm border border-border',
               canMoveDown
                 ? 'text-text-muted hover:text-text-primary hover:bg-surface'
@@ -334,7 +338,7 @@ export const SceneCard = memo(function SceneCard({
             }}
             aria-label="Send scene to timeline"
             className={cn(
-              'p-1.5 min-w-[44px] min-h-[44px] rounded-md transition-all duration-150',
+              'flex h-7 w-7 items-center justify-center rounded-md transition-all duration-150',
               'bg-elevated/90 backdrop-blur-sm text-text-muted hover:text-text-primary hover:bg-surface',
               'focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary',
               'border border-border'
@@ -351,7 +355,7 @@ export const SceneCard = memo(function SceneCard({
             }}
             aria-label="Duplicate scene"
             className={cn(
-              'p-1.5 min-w-[44px] min-h-[44px] rounded-md transition-all duration-150',
+              'flex h-7 w-7 items-center justify-center rounded-md transition-all duration-150',
               'bg-elevated/90 backdrop-blur-sm text-text-muted hover:text-text-primary hover:bg-surface',
               'focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary',
               'border border-border'
@@ -368,7 +372,7 @@ export const SceneCard = memo(function SceneCard({
             }}
             aria-label="Delete scene"
             className={cn(
-              'p-1.5 min-w-[44px] min-h-[44px] rounded-md transition-all duration-150',
+              'flex h-7 w-7 items-center justify-center rounded-md transition-all duration-150',
               'bg-elevated/90 backdrop-blur-sm text-text-muted hover:text-status-error hover:bg-status-error-muted',
               'focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary',
               'border border-border'

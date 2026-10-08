@@ -401,19 +401,19 @@ export function StoryboardPanel() {
     <div className="flex flex-col h-full bg-surface">
       <h1 className="sr-only">Storyboard</h1>
       {/* Header */}
-      <div className="px-4 py-3 border-b border-border flex items-center justify-between flex-shrink-0">
-        <div className="flex items-center gap-2">
+      <div className="flex flex-shrink-0 flex-wrap items-center justify-between gap-x-3 gap-y-2 border-b border-border px-4 py-3">
+        <div className="flex min-w-0 items-center gap-2">
           <div className="raised-control flex h-8 w-8 flex-shrink-0 items-center justify-center text-accent-primary">
             <Film className="w-4 h-4" aria-hidden="true" />
           </div>
-          <h2 className="type-section text-text-primary">
+          <h2 className="min-w-0 truncate type-section text-text-primary">
             {activeProject.name}
           </h2>
           <span className="type-caption">
             {sortedScenes.length} scene{sortedScenes.length !== 1 ? 's' : ''}
           </span>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {activeImportDraft ? (
             <Button
               variant="secondary"
@@ -544,7 +544,7 @@ export function StoryboardPanel() {
 
       {/* Scene list */}
       {sortedScenes.length === 0 ? (
-        <div className="flex flex-col items-center justify-center flex-1 text-center p-8">
+        <div className="flex min-h-0 flex-[3] flex-col items-center justify-center overflow-y-auto p-8 text-center">
           <div className="w-14 h-14 recessed-well flex items-center justify-center mb-3">
             <Film className="w-6 h-6 text-text-muted" aria-hidden="true" />
           </div>
@@ -557,7 +557,7 @@ export function StoryboardPanel() {
           </Button>
         </div>
       ) : (
-        <div className="flex-1 overflow-y-auto min-h-0">
+        <div className="min-h-0 flex-[3] overflow-y-auto">
           <DndContext
             sensors={sensors}
             collisionDetection={closestCenter}
@@ -623,8 +623,11 @@ export function StoryboardPanel() {
         </div>
       )}
 
-      <div className="shrink-0 border-t border-border bg-panel/40 px-3 py-3">
-        <div className="max-h-[320px] space-y-3 overflow-y-auto pr-1">
+      {/* References and the element and character libraries are secondary to the
+          scene list, so they share one scroller under it. Each used to claim a
+          fixed height, which left the scenes a single row. */}
+      <div className="min-h-0 flex-[2] overflow-y-auto border-t border-border">
+        <div className="space-y-3 bg-panel/40 px-3 py-3">
           <ReferenceMediaPanel
             testId="storyboard-project-reference-panel"
             title={`${activeProject.name} Board References`}
@@ -653,12 +656,12 @@ export function StoryboardPanel() {
             </div>
           )}
         </div>
+
+        <ElementLibrary projectId={activeProject.id} />
+
+        {/* Character Library */}
+        <CharacterLibrary projectId={activeProject.id} />
       </div>
-
-      <ElementLibrary projectId={activeProject.id} />
-
-      {/* Character Library */}
-      <CharacterLibrary projectId={activeProject.id} />
 
       {/* Delete confirmation */}
       <ConfirmDialog
