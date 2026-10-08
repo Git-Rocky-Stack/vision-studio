@@ -36,6 +36,10 @@ export function Tooltip({
     open: isOpen,
     onOpenChange: setIsOpen,
     placement,
+    // Position with left/top, not a translate: framer-motion owns `transform`
+    // on the animated tooltip below and would discard floating-ui's offset,
+    // leaving every tooltip at the window origin.
+    transform: false,
     whileElementsMounted: autoUpdate,
     middleware: [offset(8), flip(), shift({ padding: 8 })],
   });
