@@ -109,6 +109,17 @@ describe('DockviewSettingsPanel', () => {
     expect(screen.queryByTestId('mock-storyboard')).not.toBeInTheDocument();
   });
 
+  // Every other workspace tab carries a page heading for assistive tech; the
+  // Canvas tab had none, so its outline started at the Layers panel's h2.
+  it('gives the Canvas tab a page heading', async () => {
+    useAppStore.getState().setActiveTab('canvas');
+
+    render(<DockviewSettingsPanel />);
+
+    const heading = await screen.findByRole('heading', { level: 1, name: 'Canvas' });
+    expect(heading).toHaveClass('sr-only');
+  });
+
   it('still docks the storyboard on the Story tab', async () => {
     useAppStore.getState().setActiveTab('story');
 

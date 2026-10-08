@@ -140,6 +140,7 @@ function SettingsContent({
     case 'canvas':
       return (
         <div className="flex min-h-0 flex-1 flex-col gap-0 overflow-hidden">
+          <h1 className="sr-only">Canvas</h1>
           <ToolStrip />
           <div className="min-h-0 flex-1 overflow-y-auto">
             <EditPropertiesPanel />

@@ -1730,7 +1730,14 @@ export const Timeline = memo(function Timeline() {
                       Track
                     </button>
                   </div>
-                  <div className="timeline-detail-scroll h-[calc(100%-36px)] overflow-y-auto">
+                  {/* A scrolling region must be a keyboard stop of its own: with no
+                      tracks it holds only a message, and nothing inside takes focus. */}
+                  <div
+                    role="region"
+                    aria-label="Timeline tracks"
+                    tabIndex={0}
+                    className="timeline-detail-scroll h-[calc(100%-36px)] overflow-y-auto"
+                  >
                     {sequenceTracks.map((track) => (
                       <TrackHeader
                         key={track.id}

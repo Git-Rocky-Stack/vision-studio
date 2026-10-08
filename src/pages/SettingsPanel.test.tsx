@@ -361,6 +361,20 @@ describe('SettingsPanel', () => {
     expect(heading).toHaveClass('type-title');
   });
 
+  // The 70ch cap is for Settings descriptions. About sets its own measures,
+  // and under the cap each licence entry (12px type) broke onto two lines.
+  it('caps the measure of Settings copy but leaves About to its own', async () => {
+    render(<SettingsPanel />);
+
+    const general = (await screen.findByText(/Changing the output folder/)).closest('.max-w-2xl');
+    expect(general?.className).toContain('[&_p]:max-w-[70ch]');
+
+    fireEvent.click(screen.getByRole('button', { name: /^About/ }));
+    const about = (await screen.findByTestId('settings-about')).closest('.max-w-2xl');
+    expect(about).not.toBeNull();
+    expect(about?.className).not.toContain('[&_p]:max-w-[70ch]');
+  });
+
   it('links model management to the Foundry', async () => {
     // Model discovery/download/management moved to the Foundry; Settings now shows a
     // count summary plus a button that navigates to the Foundry tab.

@@ -734,7 +734,9 @@ export function SettingsPanel() {
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: -10 }}
             transition={{ duration: 0.2 }}
-            className="max-w-2xl [&_p]:max-w-[70ch]"
+            // Settings descriptions hold a 70ch measure. About sets its own
+            // (65ch prose, 75ch licence list), so the cap stays off it.
+            className={cn('max-w-2xl', activeTab !== 'about' && '[&_p]:max-w-[70ch]')}
           >
             {activeTab === 'general' && (
               <div className="space-y-8">

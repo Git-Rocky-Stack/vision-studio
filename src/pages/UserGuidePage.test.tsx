@@ -21,6 +21,14 @@ describe('UserGuidePage', () => {
     expect(screen.getByText(/OpenRouter BYOK/i)).toBeInTheDocument();
   });
 
+  // Step descriptions ran about 95 characters per line in the 670px column.
+  it('holds guide step descriptions to a readable measure', () => {
+    render(<UserGuidePage />);
+
+    const description = screen.getByText(/Open Settings > AI & Models, then use User Accounts/);
+    expect(description.className).toMatch(/max-w-\[\d+ch\]/);
+  });
+
   it('exposes stable section anchors for deep links', () => {
     render(<UserGuidePage />);
 

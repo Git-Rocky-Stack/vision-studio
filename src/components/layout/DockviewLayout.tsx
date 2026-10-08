@@ -55,9 +55,12 @@ import {
 function CenterContent({
   centerView,
   activeTab,
+  workflowLibraryDocked,
 }: {
   centerView: CenterView;
   activeTab: ActiveTab;
+  /** True while the left dock is showing the workflow library. */
+  workflowLibraryDocked: boolean;
 }) {
   switch (centerView) {
     case 'canvas':
@@ -69,9 +72,9 @@ function CenterContent({
     case 'viewer':
       return <WorkbenchViewer />;
     case 'workflow':
-      // The Workflows tab docks the library on the left (DockviewSettingsPanel).
-      // On the Generate tab that dock holds the Generate settings instead.
-      return <WorkflowWorkbench library={activeTab === 'workflows' ? 'docked' : 'inline'} />;
+      // The workbench leaves its library out only while the left dock is
+      // showing it; anywhere else it has to draw the library itself.
+      return <WorkflowWorkbench library={workflowLibraryDocked ? 'docked' : 'inline'} />;
     case 'launchpad':
       return <LaunchpadPanel />;
     default:
@@ -181,6 +184,9 @@ export const DockviewLayout = memo(function DockviewLayout() {
   const showTimelineWorkspace = activeTab === 'generate' && centerView === 'canvas' && !isStudioMode;
   const showIterationView = activeTab === 'generate' || activeTab === 'canvas';
   const usesTripleRightDock = !isCanvasTab && showIterationView;
+  // DockviewSettingsPanel docks the workflow library on the Workflows tab,
+  // except in the Pipelines sub-mode, where the dock holds the pipeline builder.
+  const workflowLibraryDocked = activeTab === 'workflows' && activeSubMode !== 'pipelines';
 
   const preset = getLayoutPreset(activeTab);
   const workspaceRef = useRef<HTMLDivElement>(null);
@@ -480,7 +486,11 @@ export const DockviewLayout = memo(function DockviewLayout() {
                   <Timeline />
                 </div>
               ) : (
-                <CenterContent centerView={centerView} activeTab={activeTab} />
+                <CenterContent
+                  centerView={centerView}
+                  activeTab={activeTab}
+                  workflowLibraryDocked={workflowLibraryDocked}
+                />
               )}
             </ErrorBoundary>
           </section>
@@ -507,9 +517,11 @@ export const DockviewLayout = memo(function DockviewLayout() {
           aria-label={reviewDockOpen ? 'Hide review dock' : 'Show review dock'}
           title={reviewDockOpen ? 'Hide review dock' : 'Show review dock'}
           onClick={() => setReviewDockOpen((open) => !open)}
+          // Not drawn under 640px: the window cannot be that narrow (minimum 1200),
+          // and at that width the centre has no 24px to spare.
           // A rail in the row, not a floating tab: it takes 24px of its own, so
           // it never sits on top of a control at the edge of the centre.
-          className="flex w-6 flex-shrink-0 items-center justify-center border-l border-border bg-surface text-text-muted transition-colors hover:bg-elevated hover:text-text-primary xl:hidden"
+          className="hidden w-6 flex-shrink-0 items-center justify-center border-l border-border bg-surface text-text-muted transition-colors hover:bg-elevated hover:text-text-primary sm:flex xl:hidden"
         >
           {reviewDockOpen ? (
             <PanelRightClose className="h-4 w-4" aria-hidden="true" />

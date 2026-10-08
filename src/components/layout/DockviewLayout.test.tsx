@@ -180,6 +180,15 @@ describe('DockviewLayout', () => {
     expect(screen.getByTestId('mock-workflow')).toHaveAttribute('data-library', 'inline');
   });
 
+  // In the Pipelines sub-mode the left dock holds the pipeline builder, so the
+  // library is not docked anywhere and the workbench has to show it itself.
+  it('keeps the library in the workbench while the dock shows pipelines', () => {
+    useAppStore.setState({ activeTab: 'workflows', activeSubMode: 'pipelines' });
+    render(<DockviewLayout />);
+
+    expect(screen.getByTestId('mock-workflow')).toHaveAttribute('data-library', 'inline');
+  });
+
   // Below 1280px the review dock is collapsed so the centre stays usable, and
   // the window may be as narrow as 1200px. There was no control to bring the
   // dock back, so Gallery, Boards and History were unreachable at that size.

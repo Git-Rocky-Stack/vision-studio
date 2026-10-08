@@ -88,6 +88,18 @@ describe('Timeline integration', () => {
     expect(bar?.className).not.toContain('backdrop-blur');
   });
 
+  // A region that scrolls has to be reachable from the keyboard, or its
+  // overflow cannot be read without a pointer (axe: scrollable-region-focusable).
+  // With no tracks the list holds only a message, so nothing inside it takes focus.
+  it('makes the scrolling track list a keyboard stop', () => {
+    seedProjectAndMedia();
+    render(<Timeline />);
+
+    const trackList = screen.getByRole('region', { name: 'Timeline tracks' });
+    expect(trackList).toHaveAttribute('tabindex', '0');
+    expect(trackList).toHaveClass('overflow-y-auto');
+  });
+
   it('can switch between timeline modes', async () => {
     const user = userEvent.setup();
     seedProjectAndMedia();

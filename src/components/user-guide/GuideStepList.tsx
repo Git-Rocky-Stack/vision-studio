@@ -19,7 +19,7 @@ export function GuideStepList({ steps }: GuideStepListProps) {
           </div>
           <div className="min-w-0">
             <p className="type-ui text-text-primary">{step.title}</p>
-            <div className="mt-1 text-sm text-text-body">{step.description}</div>
+            <div className="mt-1 max-w-[70ch] text-sm text-text-body">{step.description}</div>
           </div>
         </li>
       ))}
