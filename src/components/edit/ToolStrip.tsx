@@ -1,6 +1,7 @@
 import { memo } from 'react';
 import { cn } from '@/utils/cn';
 import { useAppStore } from '@/store/appStore';
+import { Tooltip } from '@/components/ui/Tooltip';
 import type { EditTool } from '@/types/editor';
 import {
   Move,
@@ -59,43 +60,41 @@ export const ToolStrip = memo(function ToolStrip() {
   const activeEditTool = useAppStore(s => s.activeEditTool);
   const setActiveEditTool = useAppStore(s => s.setActiveEditTool);
 
+  // A wrapping toolbar, not a single column: the strip lives at the top of a
+  // 320px dock above the properties panel, and fourteen stacked tools pushed
+  // every adjustment control below the fold.
   return (
-    <div className="h-full flex flex-col items-center py-3 gap-1">
+    <div
+      role="toolbar"
+      aria-label="Edit tools"
+      className="flex flex-shrink-0 flex-wrap items-center gap-x-3 gap-y-1 border-b border-border px-3 py-2"
+    >
       {toolGroups.map((group, groupIdx) => (
-        <div key={groupIdx}>
-          {groupIdx > 0 && (
-            <div className="w-6 h-px bg-border mx-auto my-2" />
-          )}
-          <div className="flex flex-col items-center gap-1">
-            {group.map((tool) => {
-              const Icon = tool.icon;
-              const isActive = activeEditTool === tool.id;
-              return (
+        // Each group wraps as a unit, so a row never ends on an orphaned tool.
+        <div key={groupIdx} role="group" className="flex items-center gap-1">
+          {group.map((tool) => {
+            const Icon = tool.icon;
+            const isActive = activeEditTool === tool.id;
+            const name = tool.shortcut ? `${tool.label} (${tool.shortcut})` : tool.label;
+            return (
+              <Tooltip key={tool.id} content={name} placement="bottom">
                 <button
-                  key={tool.id}
+                  type="button"
                   onClick={() => setActiveEditTool(tool.id)}
-                  aria-label={`${tool.label}${tool.shortcut ? ` (${tool.shortcut})` : ''}`}
+                  aria-label={name}
                   aria-pressed={isActive}
-                  aria-describedby={`tooltip-${tool.id}`}
                   className={cn(
-                    'w-10 h-10 flex items-center justify-center rounded-md transition-all group relative',
+                    'flex h-10 w-10 items-center justify-center rounded-md transition-colors',
                     isActive
                       ? 'bg-accent-primary-muted text-accent-primary'
-                      : 'text-text-body hover:text-text-primary hover:bg-elevated'
+                      : 'text-text-body hover:bg-elevated hover:text-text-primary'
                   )}
                 >
-                  <Icon className="w-4 h-4" />
-                  {/* Tooltip */}
-                  <div id={`tooltip-${tool.id}`} role="tooltip" className="absolute left-full ml-2 px-2.5 py-1.5 bg-elevated border border-border rounded-md text-xs text-text-primary opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 pointer-events-none whitespace-nowrap z-50 shadow-cinematic">
-                    {tool.label}
-                    {tool.shortcut && (
-                      <span className="ml-2 text-text-muted data-mono">{tool.shortcut}</span>
-                    )}
-                  </div>
+                  <Icon className="h-4 w-4" aria-hidden="true" />
                 </button>
-              );
-            })}
-          </div>
+              </Tooltip>
+            );
+          })}
         </div>
       ))}
     </div>
