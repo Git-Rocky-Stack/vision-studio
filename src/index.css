@@ -393,16 +393,18 @@ body[data-theme='light'] {
   --color-text-muted: #616161;
   --color-border: rgba(0, 0, 0, 0.09);
   --color-border-hover: rgba(0, 0, 0, 0.18);
-  --color-status-success: #16a34a;
+  /* Status hues are used as text on these light surfaces, so each one is the
+     shade that clears 4.5:1 on #f7f7f7 (the lighter LED shades did not). */
+  --color-status-success: #15803d;
   --color-status-success-muted: rgba(22, 163, 74, 0.08);
   --color-status-success-border: rgba(22, 163, 74, 0.2);
-  --color-status-warning: #ca8a04;
+  --color-status-warning: #a16207;
   --color-status-warning-muted: rgba(202, 138, 4, 0.08);
   --color-status-warning-border: rgba(202, 138, 4, 0.2);
-  --color-status-error: #dc2626;
+  --color-status-error: #b91c1c;
   --color-status-error-muted: rgba(220, 38, 38, 0.08);
   --color-status-error-border: rgba(220, 38, 38, 0.2);
-  --color-status-info: #0284c7;
+  --color-status-info: #0369a1;
   --color-status-info-muted: rgba(2, 132, 199, 0.08);
   --color-status-info-border: rgba(2, 132, 199, 0.2);
   --color-red-primary: var(--color-status-error);
