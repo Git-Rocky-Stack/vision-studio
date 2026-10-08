@@ -328,21 +328,23 @@ export function WorkflowWorkbench() {
         </div>
       </aside>
 
-      <main className="flex min-h-0 flex-col">
-        <div className="flex items-center justify-between gap-3 border-b border-border bg-surface px-5 py-3">
-          <div>
+      {/* min-w-0: without it the header's min-content width pushed the run
+          buttons out of this column and over the library beside it. */}
+      <main className="flex min-h-0 min-w-0 flex-col">
+        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 border-b border-border bg-surface px-5 py-3">
+          <div className="min-w-0">
             <p className="type-caption">Graph Editor</p>
             <h3 className="mt-1 type-section">ComfyUI prompt graph</h3>
           </div>
-          <div className="flex items-center gap-2">
-            <span className="rounded-md border border-border bg-elevated px-2.5 py-1 type-ui text-text-body">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="whitespace-nowrap rounded-md border border-border bg-elevated px-2.5 py-1 type-ui text-text-body">
               {isRunning ? 'Workflow running' : formatLabel(activeWorkflow.status)}
             </span>
             <button
               type="button"
               onClick={handleValidate}
               disabled={isRunning}
-              className="inline-flex items-center gap-2 rounded-md border border-border bg-elevated px-3 py-1.5 type-ui text-text-body transition-all hover:border-border-hover hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-50"
+              className="inline-flex items-center gap-2 whitespace-nowrap rounded-md border border-border bg-elevated px-3 py-1.5 type-ui text-text-body transition-all hover:border-border-hover hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-50"
             >
               <ShieldCheck className="h-4 w-4" />
               Validate
@@ -356,7 +358,7 @@ export function WorkflowWorkbench() {
                 (!systemInfo.backendConnected && !workflowCanRunWithoutBackend) ||
                 Boolean(stillImageRoute.error)
               }
-              className="inline-flex items-center gap-2 rounded-md border border-accent-primary-border bg-accent-primary-muted px-3 py-1.5 type-ui text-accent-primary transition-all hover:border-accent-primary disabled:cursor-not-allowed disabled:opacity-50"
+              className="inline-flex items-center gap-2 whitespace-nowrap rounded-md border border-accent-primary-border bg-accent-primary-muted px-3 py-1.5 type-ui text-accent-primary transition-all hover:border-accent-primary disabled:cursor-not-allowed disabled:opacity-50"
             >
               {isRunning ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
               {isRunning ? 'Running workflow...' : 'Run Workflow'}
