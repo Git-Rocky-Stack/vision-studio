@@ -216,7 +216,7 @@ export const CompositionLayerBar = memo(function CompositionLayerBar({
         type="button"
         onClick={onGenerate}
         className={cn(
-          'rounded bg-accent-primary px-3 py-1 text-xs font-medium text-white',
+          'rounded bg-accent-primary px-3 py-1 text-xs font-medium text-void',
           'transition-colors hover:bg-accent-primary-pressed',
           'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary/50',
         )}

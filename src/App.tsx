@@ -168,7 +168,7 @@ function App() {
     <>
       <a
         href="#main-content"
-        className="sr-only focus:not-sr-only focus:absolute focus:z-[9999] focus:p-4 focus:bg-accent-primary focus:text-white focus:rounded-md focus:m-2"
+        className="sr-only focus:not-sr-only focus:absolute focus:z-[9999] focus:p-4 focus:bg-accent-primary focus:text-void focus:rounded-md focus:m-2"
       >
         Skip to main content
       </a>
