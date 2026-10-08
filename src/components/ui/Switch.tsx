@@ -17,8 +17,10 @@ export function Switch({ checked, onChange, label, disabled, className }: Switch
       disabled={disabled}
       onClick={() => onChange(!checked)}
       className={cn(
-        'w-9 h-5 rounded-full transition-colors relative flex-shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary focus-visible:ring-offset-2 focus-visible:ring-offset-void',
-        checked ? 'bg-accent-primary' : 'bg-surface border border-border',
+        // The border is present in both states (transparent when on) so the knob's
+        // containing box never changes size between them.
+        'w-9 h-5 rounded-full border transition-colors relative flex-shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary focus-visible:ring-offset-2 focus-visible:ring-offset-void',
+        checked ? 'bg-accent-primary border-transparent' : 'bg-surface border-border',
         disabled && 'opacity-40 cursor-not-allowed',
         className
       )}
@@ -31,15 +33,15 @@ export function Switch({ checked, onChange, label, disabled, className }: Switch
     >
       <span
         className={cn(
-          'absolute top-0.5 w-4 h-4 rounded-full transition-transform',
-          checked ? 'translate-x-4' : 'translate-x-0.5'
+          // Anchored to the left edge: an absolutely positioned child of a button
+          // with no inset takes the button's centred static position, which put
+          // the off knob mid-track and pushed the on knob out past the end.
+          'absolute left-px top-px w-4 h-4 rounded-full transition-transform',
+          // Raised knob that inverts against its track in both themes: the accent
+          // flips between themes, and void is the token that flips opposite it.
+          checked ? 'translate-x-4 bg-void' : 'translate-x-0 bg-accent-primary'
         )}
         style={{
-          // Raised knob that inverts for contrast: carbon cap on the lit track,
-          // chrome cap on the dark track.
-          background: checked
-            ? 'linear-gradient(180deg, #2A2A2A 0%, #161616 100%)'
-            : 'linear-gradient(180deg, #FFFFFF 0%, #E6E6E6 55%, #C8C8C8 100%)',
           boxShadow: '0 1px 2px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.5)',
         }}
       />

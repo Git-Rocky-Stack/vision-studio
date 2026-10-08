@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import packageJson from '../../package.json';
 import { cn } from '@/utils/cn';
 import { Button } from '@/components/ui/Button';
+import { Switch } from '@/components/ui/Switch';
 import { useShallow } from 'zustand/react/shallow';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { useAppStore } from '@/store/appStore';
@@ -781,25 +782,11 @@ export function SettingsPanel() {
                       Automatically save local project state as you work
                     </p>
                   </div>
-                  <button
-                    role="switch"
-                    aria-checked={settings.autoSave}
-                    aria-label="Toggle auto save"
-                    onClick={() => persistSettings({ autoSave: !settings.autoSave })}
-                    className={cn(
-                      'w-9 h-5 rounded-full transition-colors relative flex-shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary focus-visible:ring-offset-2 focus-visible:ring-offset-void',
-                      settings.autoSave
-                        ? 'bg-accent-primary'
-                        : 'bg-surface border border-border',
-                    )}
-                  >
-                    <span
-                      className={cn(
-                        'absolute top-0.5 w-4 h-4 rounded-full bg-text-primary transition-transform',
-                        settings.autoSave ? 'translate-x-4' : 'translate-x-0.5',
-                      )}
-                    />
-                  </button>
+                  <Switch
+                    checked={settings.autoSave}
+                    onChange={(next) => persistSettings({ autoSave: next })}
+                    label="Toggle auto save"
+                  />
                 </div>
 
                 <div className="flex items-center justify-between py-3 border-b border-border">
@@ -811,27 +798,11 @@ export function SettingsPanel() {
                       Start the local AI backend automatically when the app opens
                     </p>
                   </div>
-                  <button
-                    role="switch"
-                    aria-checked={settings.backendAutostart}
-                    aria-label="Toggle backend autostart"
-                    onClick={() =>
-                      persistSettings({ backendAutostart: !settings.backendAutostart })
-                    }
-                    className={cn(
-                      'w-9 h-5 rounded-full transition-colors relative flex-shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary focus-visible:ring-offset-2 focus-visible:ring-offset-void',
-                      settings.backendAutostart
-                        ? 'bg-accent-primary'
-                        : 'bg-surface border border-border',
-                    )}
-                  >
-                    <span
-                      className={cn(
-                        'absolute top-0.5 w-4 h-4 rounded-full bg-text-primary transition-transform',
-                        settings.backendAutostart ? 'translate-x-4' : 'translate-x-0.5',
-                      )}
-                    />
-                  </button>
+                  <Switch
+                    checked={settings.backendAutostart}
+                    onChange={(next) => persistSettings({ backendAutostart: next })}
+                    label="Toggle backend autostart"
+                  />
                 </div>
 
                 <div className="space-y-3">
@@ -1875,31 +1846,11 @@ export function SettingsPanel() {
                         Show a desktop notification when a render finishes.
                       </p>
                     </div>
-                    <button
-                      role="switch"
-                      aria-checked={settings.notifyOnGenerationComplete}
-                      aria-label="Toggle generation complete notifications"
-                      onClick={() =>
-                        persistSettings({
-                          notifyOnGenerationComplete: !settings.notifyOnGenerationComplete,
-                        })
-                      }
-                      className={cn(
-                        'w-9 h-5 rounded-full transition-colors relative flex-shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary focus-visible:ring-offset-2 focus-visible:ring-offset-void',
-                        settings.notifyOnGenerationComplete
-                          ? 'bg-accent-primary'
-                          : 'bg-surface border border-border',
-                      )}
-                    >
-                      <span
-                        className={cn(
-                          'absolute top-0.5 w-4 h-4 rounded-full bg-text-primary transition-transform',
-                          settings.notifyOnGenerationComplete
-                            ? 'translate-x-4'
-                            : 'translate-x-0.5',
-                        )}
-                      />
-                    </button>
+                    <Switch
+                      checked={settings.notifyOnGenerationComplete}
+                      onChange={(next) => persistSettings({ notifyOnGenerationComplete: next })}
+                      label="Toggle generation complete notifications"
+                    />
                   </div>
 
                   <div className="flex items-center justify-between py-3 border-b border-border">
@@ -1911,31 +1862,11 @@ export function SettingsPanel() {
                         Show a desktop notification when a render fails.
                       </p>
                     </div>
-                    <button
-                      role="switch"
-                      aria-checked={settings.notifyOnGenerationFailed}
-                      aria-label="Toggle generation failed notifications"
-                      onClick={() =>
-                        persistSettings({
-                          notifyOnGenerationFailed: !settings.notifyOnGenerationFailed,
-                        })
-                      }
-                      className={cn(
-                        'w-9 h-5 rounded-full transition-colors relative flex-shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary focus-visible:ring-offset-2 focus-visible:ring-offset-void',
-                        settings.notifyOnGenerationFailed
-                          ? 'bg-accent-primary'
-                          : 'bg-surface border border-border',
-                      )}
-                    >
-                      <span
-                        className={cn(
-                          'absolute top-0.5 w-4 h-4 rounded-full bg-text-primary transition-transform',
-                          settings.notifyOnGenerationFailed
-                            ? 'translate-x-4'
-                            : 'translate-x-0.5',
-                        )}
-                      />
-                    </button>
+                    <Switch
+                      checked={settings.notifyOnGenerationFailed}
+                      onChange={(next) => persistSettings({ notifyOnGenerationFailed: next })}
+                      label="Toggle generation failed notifications"
+                    />
                   </div>
 
                   <div className="flex items-center justify-between py-3 border-b border-border">
@@ -1947,31 +1878,11 @@ export function SettingsPanel() {
                         Show a desktop notification when model downloads complete.
                       </p>
                     </div>
-                    <button
-                      role="switch"
-                      aria-checked={settings.notifyOnModelDownloads}
-                      aria-label="Toggle model download notifications"
-                      onClick={() =>
-                        persistSettings({
-                          notifyOnModelDownloads: !settings.notifyOnModelDownloads,
-                        })
-                      }
-                      className={cn(
-                        'w-9 h-5 rounded-full transition-colors relative flex-shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary focus-visible:ring-offset-2 focus-visible:ring-offset-void',
-                        settings.notifyOnModelDownloads
-                          ? 'bg-accent-primary'
-                          : 'bg-surface border border-border',
-                      )}
-                    >
-                      <span
-                        className={cn(
-                          'absolute top-0.5 w-4 h-4 rounded-full bg-text-primary transition-transform',
-                          settings.notifyOnModelDownloads
-                            ? 'translate-x-4'
-                            : 'translate-x-0.5',
-                        )}
-                      />
-                    </button>
+                    <Switch
+                      checked={settings.notifyOnModelDownloads}
+                      onChange={(next) => persistSettings({ notifyOnModelDownloads: next })}
+                      label="Toggle model download notifications"
+                    />
                   </div>
                 </div>
               </div>
