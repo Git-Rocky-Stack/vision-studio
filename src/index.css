@@ -628,30 +628,6 @@ p, li, dd, blockquote {
   background: var(--color-text-muted);
 }
 
-.timeline-toolbar-scroll {
-  scrollbar-width: thin;
-  scrollbar-color: var(--color-accent-primary-border) var(--color-canvas);
-}
-
-.timeline-toolbar-scroll::-webkit-scrollbar {
-  height: 8px;
-}
-
-.timeline-toolbar-scroll::-webkit-scrollbar-track {
-  background: var(--color-canvas);
-  border-radius: 999px;
-}
-
-.timeline-toolbar-scroll::-webkit-scrollbar-thumb {
-  background: var(--color-accent-primary-border);
-  border: 2px solid var(--color-canvas);
-  border-radius: 999px;
-}
-
-.timeline-toolbar-scroll::-webkit-scrollbar-thumb:hover {
-  background: var(--color-text-muted);
-}
-
 .timeline-scroll-area,
 .timeline-detail-scroll {
   scrollbar-width: thin;

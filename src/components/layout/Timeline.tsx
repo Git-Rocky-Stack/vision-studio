@@ -1271,7 +1271,9 @@ export const Timeline = memo(function Timeline() {
       className="flex flex-col overflow-hidden border-t border-border bg-surface shadow-cinematic"
     >
       <div className="flex min-h-12 items-center justify-between gap-3 border-b border-border bg-elevated/90 px-3 py-1.5 backdrop-blur-sm">
-        <div className="timeline-toolbar-scroll flex min-w-0 flex-1 items-center gap-2 overflow-x-auto overflow-y-hidden pb-1">
+        {/* Wraps to a second row when the workspace is narrow. It used to scroll
+            sideways, which hid the edit-mode switch at the default window size. */}
+        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1">
           <TransportControls
             isPlaying={playState === 'playing'}
             currentTime={currentTime}
@@ -1555,7 +1557,9 @@ export const Timeline = memo(function Timeline() {
           {showTimelineDetailsDeck ? (
             <div
               className={cn(
-                'grid flex-none grid-rows-[40px_minmax(0,1fr)] border-t border-border bg-panel/95 shadow-inner',
+                // The tools row sizes to its content so it can wrap; a fixed 40px row
+                // let a wrapped second line spill over the track header below it.
+                'grid flex-none grid-rows-[auto_minmax(0,1fr)] border-t border-border bg-panel/95 shadow-inner',
                 !isTrackSidebarCollapsed && !isInspectorCollapsed
                   ? 'grid-cols-[minmax(240px,0.36fr)_minmax(0,0.64fr)]'
                   : 'grid-cols-1',
@@ -1563,7 +1567,7 @@ export const Timeline = memo(function Timeline() {
               style={{ height: DETAILS_DECK_HEIGHT }}
               data-testid="timeline-details-deck"
             >
-              <div className="timeline-toolbar-scroll col-span-full flex min-w-0 items-center gap-2 overflow-x-auto overflow-y-hidden border-b border-border bg-elevated/60 px-3 py-1">
+              <div className="col-span-full flex min-h-10 min-w-0 flex-wrap items-center gap-x-2 gap-y-1 border-b border-border bg-elevated/60 px-3 py-1">
                 <span className="mr-1 flex-none text-xs text-text-muted">Clip & Range Tools</span>
                 <select
                   aria-label="Media asset for timeline"
