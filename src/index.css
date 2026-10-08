@@ -340,6 +340,29 @@ select {
   font: inherit;
 }
 
+/* Tailwind v4 resets buttons to cursor: default. Sliders and a handful of
+   one-off controls set their own pointer, so the app answered a hover with two
+   different cursors. Restore the pointer for everything clickable, in the base
+   layer so cursor-not-allowed, cursor-grab and the resize cursors still win. */
+@layer base {
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]),
+  [role="tab"],
+  [role="switch"],
+  [role="option"],
+  [role="menuitem"],
+  summary,
+  select:not(:disabled),
+  label[for] {
+    cursor: pointer;
+  }
+
+  button:disabled,
+  select:disabled {
+    cursor: not-allowed;
+  }
+}
+
 :root[data-theme='light'],
 body[data-theme='light'] {
   --color-void: #f4f4f4;
