@@ -12,7 +12,8 @@ interface LcdProps {
 }
 
 const SIZE: Record<NonNullable<LcdProps['size']>, CSSProperties> = {
-  sm: { fontSize: 10, padding: '3px 8px' },
+  // 11px is the floor for functional text (the .mono-label size).
+  sm: { fontSize: 11, padding: '3px 8px' },
   md: { fontSize: 11, padding: '4px 10px' },
   lg: { fontSize: 13, padding: '6px 14px' },
 };

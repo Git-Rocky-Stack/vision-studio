@@ -526,7 +526,7 @@ function ThumbWell({ template, color, size }: { template: ProjectTemplate; color
 function SpecCell({ label, value }: { label: string; value: string }) {
   return (
     <span className="inline-flex items-baseline gap-1.5 min-w-0">
-      <MonoLabel tone="muted" style={{ fontSize: 9 }}>{label}</MonoLabel>
+      <MonoLabel tone="muted">{label}</MonoLabel>
       <span className="data-mono text-text-body truncate">{value}</span>
     </span>
   );
