@@ -20,10 +20,10 @@
          CDN: Vision Studio is local-first/offline-capable and must not phone home to
          Google Fonts on launch. See DESIGN.md, Typography section. -->
 
-    <!-- Prevent FOUC — colors match @theme --color-void tokens -->
+    <!-- Prevent FOUC: these two values are --color-void in each theme (src/index.css) -->
     <style>
-      :root { --fouc-bg: #050507; }
-      :root[data-theme='light'] { --fouc-bg: #f2efe8; }
+      :root { --fouc-bg: #000000; }
+      :root[data-theme='light'] { --fouc-bg: #f4f4f4; }
       html, body, #root {
         margin: 0;
         padding: 0;
