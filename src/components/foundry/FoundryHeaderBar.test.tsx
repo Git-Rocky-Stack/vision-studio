@@ -74,15 +74,49 @@ describe('FoundryHeaderBar', () => {
     });
   });
 
-  it('shows a detecting state when no profile is loaded', () => {
+  it('shows a detecting state while a connected backend has not answered yet', () => {
     window.electron = {
       auth: { setHfToken: vi.fn(), setCivitaiToken: vi.fn() },
     } as unknown as typeof window.electron;
-    useAppStore.setState({ hardwareProfile: null } as never);
+    useAppStore.setState({
+      hardwareProfile: null,
+      systemInfo: { ...useAppStore.getState().systemInfo, backendConnected: true },
+    } as never);
     const { container } = render(<FoundryHeaderBar />);
 
     expect(screen.getByText(/detecting/i)).toHaveTextContent('Detecting...');
     // No profile means no verdict to report, so no LED is lit either way.
     expect(container.querySelector('span[aria-hidden="true"][style]')).toBeNull();
+  });
+
+  // The profile is read through the backend (hardware:get -> /api/hardware).
+  // With the backend down no answer is coming, so "Detecting..." never ends.
+  it('says the backend is offline instead of detecting forever', () => {
+    window.electron = {
+      auth: { setHfToken: vi.fn(), setCivitaiToken: vi.fn() },
+    } as unknown as typeof window.electron;
+    useAppStore.setState({
+      hardwareProfile: null,
+      systemInfo: { ...useAppStore.getState().systemInfo, backendConnected: false },
+    } as never);
+    const { container } = render(<FoundryHeaderBar />);
+
+    expect(screen.getByText('Backend offline')).toBeInTheDocument();
+    expect(screen.queryByText(/detecting/i)).not.toBeInTheDocument();
+    expect(container.querySelector('span[aria-hidden="true"][style]')).toBeNull();
+  });
+
+  it('keeps showing the last-known GPU when the backend drops', () => {
+    window.electron = {
+      auth: { setHfToken: vi.fn(), setCivitaiToken: vi.fn() },
+    } as unknown as typeof window.electron;
+    useAppStore.setState({
+      hardwareProfile: makeProfile({ gpu_name: 'RTX 4090' }),
+      systemInfo: { ...useAppStore.getState().systemInfo, backendConnected: false },
+    } as never);
+    render(<FoundryHeaderBar />);
+
+    expect(screen.getByText('RTX 4090')).toBeInTheDocument();
+    expect(screen.queryByText('Backend offline')).not.toBeInTheDocument();
   });
 });

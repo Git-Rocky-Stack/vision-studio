@@ -10,10 +10,14 @@ import { ModelTokensBar } from './ModelTokensBar';
  */
 export function FoundryHeaderBar() {
   const hardwareProfile = useAppStore((s) => s.hardwareProfile);
+  const backendConnected = useAppStore((s) => s.systemInfo.backendConnected);
 
+  // The profile is read through the backend, so with the backend down no
+  // answer is coming: say so rather than promise a detection that never ends.
+  const pendingLabel = backendConnected ? 'Detecting...' : 'Backend offline';
   const gpuLabel = hardwareProfile
     ? (hardwareProfile.gpu_name ?? (hardwareProfile.gpu_available ? 'GPU detected' : 'CPU only'))
-    : 'Detecting...';
+    : pendingLabel;
   const ready = Boolean(hardwareProfile?.gpu_available);
 
   return (
