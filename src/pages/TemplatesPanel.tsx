@@ -167,33 +167,31 @@ export function TemplatesPanel() {
       {/* ── Control deck faceplate ─────────────────────────────────── */}
       <Faceplate
         kicker="MOD - TEMPLATES - 01"
-        serial="S/N - VX-TPL-0001"
         stateLed="play"
         stateLabel="READY"
         bodyPadding={16}
         className="flex-shrink-0"
       >
         {/* Title row */}
-        <div className="flex items-center justify-between gap-3 mb-2">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
           <Lcd color="play" size="lg">{sortedTemplates.length} LOADED</Lcd>
           <ChromeButton
+            className="whitespace-nowrap"
             onClick={() => {
               setEditingTemplate(null);
               setShowCreator(true);
             }}
-            style={{ padding: '10px 18px', fontSize: 12 }}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '10px 18px', fontSize: 12 }}
           >
             <Plus className="w-3.5 h-3.5" />
             Create Template
           </ChromeButton>
         </div>
-        <p className="text-sm text-text-body mb-4">
-          Jumpstart your creation with optimized presets
-        </p>
-
         {/* Search + Sort + View */}
-        <div className="flex items-center gap-3 mb-4">
-          <RecessedWell padding={0} className="flex-1 flex items-center focus-within:ring-1 focus-within:ring-accent-primary">
+        {/* Wraps: in the 320px dock the search field takes its own row instead
+            of collapsing to a single character beside the sort and view pads. */}
+        <div className="mb-4 flex flex-wrap items-center gap-2">
+          <RecessedWell padding={0} className="flex min-w-[180px] flex-1 items-center focus-within:ring-1 focus-within:ring-accent-primary">
             <Search className="ml-3 w-4 h-4 text-text-muted flex-shrink-0" />
             <input
               value={searchQuery}
@@ -239,7 +237,8 @@ export function TemplatesPanel() {
         </div>
 
         {/* Category pad bank */}
-        <div className="flex flex-wrap gap-2">
+        {/* Bottom padding clears the faceplate's lower corner bolts. */}
+        <div className="flex flex-wrap gap-2 pb-5">
           {CATEGORY_TABS.map((tab) => {
             const Icon = tab.icon;
             const color = categoryColors[tab.id];
@@ -299,7 +298,7 @@ export function TemplatesPanel() {
                   setEditingTemplate(null);
                   setShowCreator(true);
                 }}
-                style={{ padding: '10px 18px', fontSize: 12, marginTop: 8 }}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '10px 18px', fontSize: 12, marginTop: 8 }}
               >
                 <Plus className="w-3.5 h-3.5" />
                 Create Template
