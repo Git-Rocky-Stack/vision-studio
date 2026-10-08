@@ -162,6 +162,19 @@ describe('Header', () => {
     expect(screen.queryByText(/Build images, scenes, and workflows/)).not.toBeInTheDocument();
   });
 
+  // The wordmark is light silver. Hardware surfaces stay carbon in both themes
+  // (DESIGN.md, Theme policy), so framing it on one keeps it readable when the
+  // header itself turns light.
+  it('frames the wordmark on a hardware surface so it reads in both themes', () => {
+    mockStore();
+
+    render(<Header />);
+
+    const frame = screen.getByRole('img', { name: 'Strategia-X' }).closest('.recessed-well');
+    expect(frame).not.toBeNull();
+    expect(frame).toHaveTextContent('Vision Studio');
+  });
+
   // The header is a row above the workspace; nothing scrolls behind it.
   it('does not blur a backdrop it has nothing behind', () => {
     mockStore();

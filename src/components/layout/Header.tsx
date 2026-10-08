@@ -193,7 +193,10 @@ export const Header = memo(function Header() {
           <span className="min-w-0 truncate type-ui select-none">{backendStatus.label}</span>
         </div>
 
-        <div className="hidden h-11 items-center gap-2 rounded-md border border-border bg-elevated/80 px-3 sm:flex">
+        {/* A recessed well, like the status pill beside it: hardware surfaces stay
+            carbon in both themes, and the wordmark is light silver. On the
+            light header it was all but invisible. */}
+        <div className="recessed-well hidden h-11 items-center gap-2 px-3 sm:flex">
           {/* The wordmark's letters fill the middle 116px of a 300px-tall image.
               Shown whole at this height they were about 14px tall and too thin
               to read, so the image is drawn larger and its empty margins are
