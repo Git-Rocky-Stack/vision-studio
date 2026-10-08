@@ -9,12 +9,12 @@ const CLIP_TOKEN_LIMIT = 75;
  * Parses A1111-style prompt syntax into structured tokens with computed weights.
  *
  * Supported syntax:
- * - Plain text → weight 1.0, syntaxType 'normal'
- * - `(word:1.5)` → explicit weight, syntaxType 'weighted', clamped to [0.1, 2.0]
- * - `(word)` → emphasis (+0.1 per layer), syntaxType 'emphasis'
- * - `((word))` → nested emphasis (1.1 * 1.1 = 1.21)
- * - `[word]` → deemphasis (-0.1 per layer), syntaxType 'deemphasis'
- * - `[[word]]` → nested deemphasis (0.9 * 0.9 = 0.81)
+ * - Plain text -> weight 1.0, syntaxType 'normal'
+ * - `(word:1.5)` -> explicit weight, syntaxType 'weighted', clamped to [0.1, 2.0]
+ * - `(word)` -> emphasis (+0.1 per layer), syntaxType 'emphasis'
+ * - `((word))` -> nested emphasis (1.1 * 1.1 = 1.21)
+ * - `[word]` -> deemphasis (-0.1 per layer), syntaxType 'deemphasis'
+ * - `[[word]]` -> nested deemphasis (0.9 * 0.9 = 0.81)
  *
  * Malformed syntax (unclosed parens, unmatched brackets) is treated as plain text.
  */
@@ -126,7 +126,7 @@ function tryParseWeighted(text: string, pos: number): TokenParseResult | null {
 /**
  * Tries to parse emphasis syntax `(text)` with nesting support.
  * Each nesting level multiplies weight by 1.1.
- * `((word))` → 1.1 * 1.1 = 1.21
+ * `((word))` -> 1.1 * 1.1 = 1.21
  */
 function tryParseEmphasis(text: string, pos: number): TokenParseResult | null {
   if (text[pos] !== '(') return null;
@@ -173,7 +173,7 @@ function tryParseEmphasis(text: string, pos: number): TokenParseResult | null {
 /**
  * Tries to parse deemphasis syntax `[text]` with nesting support.
  * Each nesting level multiplies weight by 0.9.
- * `[[word]]` → 0.9 * 0.9 = 0.81
+ * `[[word]]` -> 0.9 * 0.9 = 0.81
  */
 function tryParseDeemphasis(text: string, pos: number): TokenParseResult | null {
   if (text[pos] !== '[') return null;

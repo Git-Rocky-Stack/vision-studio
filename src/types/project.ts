@@ -8,7 +8,7 @@ import type { LoRAConfig, ControlNetConfig } from './generation';
 import type { Layer } from './editor';
 import type { KeyframeInterpolation } from '@/types/timeline';
 
-// ─── Generation Config ──────────────────────────────────────────────────────
+// --- Generation Config ------------------------------------------------------
 
 export interface GenerationConfig {
   model: string;
@@ -28,7 +28,7 @@ export interface GenerationConfig {
   loopVideo?: boolean;          // default false
 }
 
-// ─── Project ────────────────────────────────────────────────────────────────
+// --- Project ----------------------------------------------------------------
 
 export interface Project {
   id: string;
@@ -45,7 +45,7 @@ export interface Project {
   metadata: Record<string, unknown>;
 }
 
-// ─── Scene ──────────────────────────────────────────────────────────────────
+// --- Scene ------------------------------------------------------------------
 
 export type SceneStatus = 'draft' | 'queued' | 'generating' | 'complete' | 'error';
 
@@ -86,7 +86,7 @@ export interface Scene {
   thumbnail?: string;        // file path or data URL
 }
 
-// ─── Frame ──────────────────────────────────────────────────────────────────
+// --- Frame ------------------------------------------------------------------
 
 export interface Frame {
   id: string;
@@ -101,7 +101,7 @@ export interface Frame {
   } | null;
 }
 
-// ─── Character Reference ────────────────────────────────────────────────────
+// --- Character Reference ----------------------------------------------------
 
 export type LockedFeature = 'face' | 'body' | 'style' | 'pose';
 
@@ -118,7 +118,7 @@ export interface CharacterRef {
   color: string;                 // hex, for UI identification
 }
 
-// ─── Elements ──────────────────────────────────────────────────────────────
+// --- Elements --------------------------------------------------------------
 
 export type ElementType = 'character' | 'object' | 'location' | 'style';
 export type ElementStatus = 'draft' | 'approved' | 'archived';
@@ -150,7 +150,7 @@ export interface SceneShotBeat {
   metadata: Record<string, unknown>;
 }
 
-// ─── Region Lock ────────────────────────────────────────────────────────────
+// --- Region Lock ------------------------------------------------------------
 
 export type MaskType = 'rectangle' | 'polygon' | 'brush' | 'erase';
 export type AITool = 'generative-fill' | 'style-transfer' | 'upscale' | 'remove';
@@ -216,7 +216,7 @@ export interface RegionLock {
   invertMask: boolean;          // default false
 }
 
-// ─── Reference Image ────────────────────────────────────────────────────────
+// --- Reference Image --------------------------------------------------------
 
 export interface ReferenceImage {
   id: string;
@@ -227,7 +227,7 @@ export interface ReferenceImage {
   referenceSetId?: string;
 }
 
-// ─── Storyboard Import Drafts ──────────────────────────────────────────────
+// --- Storyboard Import Drafts ----------------------------------------------
 
 export type ImportDraftStatus = 'draft' | 'reviewing' | 'approved';
 export type ImportDraftIssueSeverity = 'info' | 'warning' | 'error';
@@ -283,7 +283,7 @@ export interface ImportDraft {
   metadata: Record<string, unknown>;
 }
 
-// ─── Camera Keyframe ────────────────────────────────────────────────────────
+// --- Camera Keyframe --------------------------------------------------------
 
 export interface CameraKeyframe {
   id: string;
@@ -295,7 +295,7 @@ export interface CameraKeyframe {
   easingStrength: number;
 }
 
-// ─── Default Values ──────────────────────────────────────────────────────────
+// --- Default Values ----------------------------------------------------------
 
 export const DEFAULT_GENERATION_CONFIG: GenerationConfig = {
   model: 'stable-diffusion-xl',

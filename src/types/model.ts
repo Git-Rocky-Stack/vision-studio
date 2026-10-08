@@ -166,7 +166,7 @@ export function isImageCapability(record: Pick<ModelRecord, 'capability'>): bool
   return record.capability !== 'video';
 }
 
-// ── M5 hardware + runtime plan wire types ────────────────────────────────
+// -- M5 hardware + runtime plan wire types --------------------------------
 
 /**
  * GPU/CPU snapshot from GET /api/hardware.
@@ -220,7 +220,7 @@ export interface RuntimePlan {
   refusal: string | null;
 }
 
-// ── #34 installer PR2: first-run auto-provisioning wire types ─────────────
+// -- #34 installer PR2: first-run auto-provisioning wire types -------------
 
 export type ProvisionModelStatus =
   | 'ready'

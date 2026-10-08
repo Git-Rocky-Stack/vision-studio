@@ -164,7 +164,7 @@ export function TemplatesPanel() {
     >
       <h1 className="sr-only">Templates</h1>
 
-      {/* ── Control deck faceplate ─────────────────────────────────── */}
+      {/* -- Control deck faceplate ----------------------------------- */}
       <Faceplate
         kicker="MOD - TEMPLATES - 01"
         stateLed="play"
@@ -278,7 +278,7 @@ export function TemplatesPanel() {
         )}
       </Faceplate>
 
-      {/* ── Template grid bay (recessed) ───────────────────────────── */}
+      {/* -- Template grid bay (recessed) ----------------------------- */}
       <RecessedWell padding={16} className="flex-1 min-h-0 overflow-y-auto scrollbar-hide">
         {sortedTemplates.length === 0 ? (
           /* Empty state */

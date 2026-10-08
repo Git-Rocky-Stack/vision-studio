@@ -16,7 +16,7 @@ interface RecessedWellProps {
  * the `.recessed-well` recipe (inset top shadow where light doesn't reach +
  * faint bottom highlight). Use for any inner data surface - grids, tables, LCD
  * wells, thumbnail viewports, fader slots, spec strips. See DESIGN.md
- * §Raised Hardware Depth System.
+ * section Raised Hardware Depth System.
  */
 export function RecessedWell({
   children,

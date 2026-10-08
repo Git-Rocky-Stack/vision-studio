@@ -277,7 +277,7 @@ export interface StoryboardTimelineDerivationResult {
 // ---------------------------------------------------------------------------
 
 export interface AppState {
-  // ─── UI State ────────────────────────────────────────────────────────────
+  // --- UI State ------------------------------------------------------------
   activeViewerItemId: string | null;
   darkMode: boolean;
   layoutPreferences: LayoutPreferences;
@@ -293,44 +293,44 @@ export interface AppState {
   customWidth: number;
   customHeight: number;
 
-  // ─── Workflow ────────────────────────────────────────────────────────────
+  // --- Workflow ------------------------------------------------------------
   workflowRecords: WorkflowRecord[];
   activeWorkflowId: string;
   workflowRuntimeById: Record<string, WorkflowRuntimeState>;
 
-  // ─── Recent Projects (file-system level, not storyboard) ────────────────
+  // --- Recent Projects (file-system level, not storyboard) ----------------
   currentProject: RecentProject | null;
   recentProjects: RecentProject[];
 
-  // ─── Projects (Storyboard) ───────────────────────────────────────────────
+  // --- Projects (Storyboard) -----------------------------------------------
   projects: Project[];
   activeProjectId: string | null;
   activeSceneId: string | null;
   storyboardImportDrafts: ImportDraft[];
   activeStoryboardImportDraftId: string | null;
 
-  // ─── Region Lock ─────────────────────────────────────────────────────────
+  // --- Region Lock ---------------------------------------------------------
   regionMode: boolean;
   activeRegionId: string | null;
   activeMaskTool: MaskType | 'select';
   maskBrushSize: number;
   maskInverted: boolean;
 
-  // ─── Migration ───────────────────────────────────────────────────────────
+  // --- Migration -----------------------------------------------------------
   migrationStatus: 'idle' | 'running' | 'complete' | 'error';
   migrationProgress: number; // 0-100
 
-  // ─── Generation ──────────────────────────────────────────────────────────
+  // --- Generation ----------------------------------------------------------
   generationMode: GenerationMode;
   startFrameImage: string | null;
   endFrameImage: string | null;
   activeJobs: GenerationJob[];
   completedJobs: GenerationJob[];
 
-  // ─── Batch ──────────────────────────────────────────────────────────────
+  // --- Batch --------------------------------------------------------------
   batchJobs: BatchJob[];
 
-  // ─── System ──────────────────────────────────────────────────────────────
+  // --- System --------------------------------------------------------------
   systemInfo: {
     gpuAvailable: boolean;
     gpuName?: string;
@@ -343,7 +343,7 @@ export interface AppState {
     bundledBackend?: boolean;
   };
 
-  // ─── Models ──────────────────────────────────────────────────────────────
+  // --- Models --------------------------------------------------------------
   availableModels: ModelRecord[];
   downloads: Record<string, DownloadJob>;
   libraryRoots: LibraryRoot[];
@@ -364,7 +364,7 @@ export interface AppState {
   // per-checkpoint install/compat state. Session-only, never persisted.
   selectedImageModelId: string;
 
-  // ─── Provisioning (#34 installer PR3) ────────────────────────────────────
+  // --- Provisioning (#34 installer PR3) ------------------------------------
   // Last-known auto-set snapshot from the backend orchestrator. Transient.
   provisionStatus: ProvisionStatus | null;
   // One in-flight provisioning user action at a time.
@@ -374,27 +374,27 @@ export interface AppState {
   // First-run overlay dismissal; persisted so a restart does not re-take-over.
   firstRunProvisionDismissed: boolean;
 
-  // ─── Prompt Intelligence ─────────────────────────────────────────────────
+  // --- Prompt Intelligence -------------------------------------------------
   promptHistory: PromptHistoryEntry[];
   favoritePrompts: string[];
   stylePresets: StylePreset[];
   customStylePresets: StylePreset[];
 
-  // ─── Templates ───────────────────────────────────────────────────────────
+  // --- Templates -----------------------------------------------------------
   userTemplates: ProjectTemplate[];
 
-  // ─── Generation Queue & Batch Results ────────────────────────────────────
+  // --- Generation Queue & Batch Results ------------------------------------
   generationQueue: GenerationQueueItem[];
   batchResults: BatchResult[];
 
-  // ─── Comparison ──────────────────────────────────────────────────────────
+  // --- Comparison ----------------------------------------------------------
   comparisonMode: 'off' | 'side-by-side' | 'slider' | 'onion' | 'grid';
   comparisonImages: string[];
 
-  // ─── Assets ──────────────────────────────────────────────────────────────
+  // --- Assets --------------------------------------------------------------
   assetLibrary: AssetRecord[];
 
-  // ─── Media Timeline Domain ───────────────────────────────────────────────
+  // --- Media Timeline Domain -----------------------------------------------
   mediaAssets: MediaAsset[];
   referenceSets: ReferenceSet[];
   timelineSequences: TimelineSequence[];
@@ -407,7 +407,7 @@ export interface AppState {
   activeTimelineRetakeRangeId: string | null;
   activeTimelineRetakeTakeId: string | null;
 
-  // ─── Edit Mode ──────────────────────────────────────────────────────────
+  // --- Edit Mode ----------------------------------------------------------
   activeEditTool: EditTool;
   editLayers: Layer[];
   /** #32: layer selection shared by EditCanvas, LayerPanel, and TextControls. */
@@ -426,12 +426,12 @@ export interface AppState {
   editAiMaskDrawing: boolean;
   generationDraft: GenerationDraft | null;
 
-  // ─── Batch View State ───────────────────────────────────────────────────
+  // --- Batch View State ---------------------------------------------------
   batchViewMode: 'grid' | 'list' | 'large';
   batchSortBy: 'created' | 'prompt' | 'status';
   batchFilterBy: 'all' | 'completed' | 'failed' | 'favorites';
 
-  // ─── Advanced Generation ─────────────────────────────────────────────────
+  // --- Advanced Generation -------------------------------------------------
   advancedGeneration: {
     generationType: 'image' | 'video';
     steps: number;
@@ -445,15 +445,15 @@ export interface AppState {
   /** #34 PR4: guided-pass notices from the most recent completed job (session-only). */
   lastGuidedNotices: string[];
 
-  // ─── Acceleration (M9 Performance) ───────────────────────────────────────────
+  // --- Acceleration (M9 Performance) -------------------------------------------
   accelerationSettings: AccelerationSettings;
   lastAppliedAcceleration: AppliedAcceleration | null;
 
-  // ─── Prompt Studio ──────────────────────────────────────────────────────────
+  // --- Prompt Studio ----------------------------------------------------------
   promptTemplates: PromptTemplate[];
   compositionLayers: CompositionLayerState;
 
-  // ─── Generation Preview ──────────────────────────────────────────────────────
+  // --- Generation Preview ------------------------------------------------------
   stepImages: Map<number, string>;
   currentStep: number;
   totalSteps: number;
@@ -461,7 +461,7 @@ export interface AppState {
   previewJobId: string | null;
   previewError: string | null;
 
-  // ─── Iteration History ──────────────────────────────────────────────────────
+  // --- Iteration History ------------------------------------------------------
   iterationNodes: Map<string, IterationNode>;
   iterationBranches: IterationBranch[];
   activeIterationId: string | null;
@@ -473,7 +473,7 @@ export interface AppState {
   /** Whether that next generation opens its own branch. */
   pendingIterationNewBranch: boolean;
 
-  // ─── Collections ──────────────────────────────────────────────────────────
+  // --- Collections ----------------------------------------------------------
   collections: Collection[];
   assetMetadata: Map<string, AssetMetadata>;
   availableTags: AssetTag[];
@@ -481,7 +481,7 @@ export interface AppState {
   taggingQueue: string[];
   activeCollectionId: string | null;
 
-  // ─── Timeline ──────────────────────────────────────────────────────────
+  // --- Timeline ----------------------------------------------------------
   timelineMode: TimelineMode;
   playState: PlayState;
   currentTime: number;
@@ -495,13 +495,13 @@ export interface AppState {
   keyframes: Keyframe[];
   activeKeyframeId: string | null;
 
-  // ─── Pipeline ──────────────────────────────────────────────────────────
+  // --- Pipeline ----------------------------------------------------------
   pipelines: PipelineDefinition[];
   activePipelineId: string | null;
   pipelineExecutions: PipelineExecution[];
   isPipelineBuilderOpen: boolean;
 
-  // ─── Actions ─────────────────────────────────────────────────────────────
+  // --- Actions -------------------------------------------------------------
 
   // UI
   setActiveViewerItemId: (itemId: string | null) => void;

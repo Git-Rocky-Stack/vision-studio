@@ -10,7 +10,7 @@
  */
 
 export const UI_STRINGS = {
-  // ─── Common actions ───────────────────────────────────────────────────────
+  // --- Common actions -------------------------------------------------------
   actions: {
     generate: 'Generate',
     cancel: 'Cancel',
@@ -27,7 +27,7 @@ export const UI_STRINGS = {
     deselectAll: 'Deselect all',
   },
 
-  // ─── Status messages ──────────────────────────────────────────────────────
+  // --- Status messages ------------------------------------------------------
   status: {
     loading: 'Loading...',
     generating: 'Generating...',
@@ -38,7 +38,7 @@ export const UI_STRINGS = {
     ready: 'Ready',
   },
 
-  // ─── Empty states ─────────────────────────────────────────────────────────
+  // --- Empty states ---------------------------------------------------------
   empty: {
     noAssets: 'No assets yet',
     noAssetsHint: 'Generate some content to see it here',
@@ -53,7 +53,7 @@ export const UI_STRINGS = {
     editHint: 'Generate an image or drag one onto the canvas',
   },
 
-  // ─── Panel titles (sidebar navigation labels) ─────────────────────────────
+  // --- Panel titles (sidebar navigation labels) -----------------------------
   panels: {
     generate: 'Generate',
     edit: 'Edit',
@@ -63,7 +63,7 @@ export const UI_STRINGS = {
     batch: 'Batch',
   },
 
-  // ─── Settings section titles and descriptions ─────────────────────────────
+  // --- Settings section titles and descriptions -----------------------------
   settings: {
     generalTitle: 'General Settings',
     generalDescription: 'Manage your project and output preferences',
@@ -75,14 +75,14 @@ export const UI_STRINGS = {
     notificationsDescription: 'Control desktop alerts for generation and model events.',
   },
 
-  // ─── Prompt textarea placeholders ─────────────────────────────────────────
+  // --- Prompt textarea placeholders -----------------------------------------
   prompts: {
     imagePlaceholder: 'Describe the image you want to create...',
     videoPlaceholder: 'Describe the video you want to create...',
     negativePlaceholder: 'Things to avoid in the generation...',
   },
 
-  // ─── Error messages ───────────────────────────────────────────────────────
+  // --- Error messages -------------------------------------------------------
   errors: {
     imageLoadFailed: 'Failed to load image',
     imageCorrupted: 'The file may be corrupted or missing',

@@ -1,7 +1,7 @@
 /**
  * Carbon Pro Workshop hardware primitives - mirrored from the Vision Studio-X
  * website (src/components/hardware). Each primitive must drive real state, never
- * pure decoration. See DESIGN.md §Component Vocabulary.
+ * pure decoration. See DESIGN.md section Component Vocabulary.
  */
 export { Led } from './Led';
 export { Lcd } from './Lcd';

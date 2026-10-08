@@ -7,7 +7,7 @@ import {
   type RetrievalSnippet,
 } from '../../shared/retrieval';
 
-/** Conservative token estimate — rounds up so an assembled block never under-counts the budget. */
+/** Conservative token estimate - rounds up so an assembled block never under-counts the budget. */
 export function estimateTokens(text: string): number {
   return Math.max(1, Math.ceil(text.length / CHARS_PER_TOKEN));
 }

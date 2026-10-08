@@ -4,7 +4,7 @@
   /* ============================================================
      IBM Plex type system - mirrors Vision Studio-X website.
      Fonts are bundled locally in src/fonts.ts (no Google CDN).
-     Display ≥48px → Condensed - Body/headings → Sans - Data/labels → Mono
+     Display >=48px -> Condensed - Body/headings -> Sans - Data/labels -> Mono
      ============================================================ */
   --font-cond: "IBM Plex Sans Condensed", "IBM Plex Sans", sans-serif;
   --font-sans: "IBM Plex Sans", -apple-system, "Segoe UI", sans-serif;
@@ -297,7 +297,7 @@
 
 /* Fonts are bundled locally via @fontsource and imported in src/fonts.ts
    (IBM Plex Sans Condensed / Sans / Mono). No runtime CDN - this is a
-   local-first desktop app. See DESIGN.md §Typography. */
+   local-first desktop app. See DESIGN.md section Typography. */
 
 /* Global Styles */
 * {
@@ -520,7 +520,7 @@ body[data-theme='light'] {
 /* Typography utilities */
 :root {
   --font-family-ui: var(--font-sans);    /* IBM Plex Sans */
-  --font-family-cond: var(--font-cond);  /* IBM Plex Sans Condensed - display ≥48px */
+  --font-family-cond: var(--font-cond);  /* IBM Plex Sans Condensed - display >=48px */
   --font-family-mono: var(--font-mono);  /* IBM Plex Mono */
 }
 
@@ -958,7 +958,7 @@ input[type="range"]::-webkit-slider-thumb:hover {
    ===== VISION STUDIO-X HARDWARE LANGUAGE =================================
    Mirrors the Vision-Studio-X website (Carbon Pro Workshop). The app is the
    instrument; the website is the showroom. Typography, depth, motion and the
-   hardware primitive vocabulary are shared. See DESIGN.md §Component Vocabulary.
+   hardware primitive vocabulary are shared. See DESIGN.md section Component Vocabulary.
    ========================================================================= */
 
 /* ---- Typography discipline -------------------------------------------- */
@@ -983,7 +983,7 @@ input[type="range"]::-webkit-slider-thumb:hover {
   letter-spacing: 0;
 }
 
-/* Condensed display - every type ≥48px. */
+/* Condensed display - every type >=48px. */
 .cond-display {
   font-family: var(--font-cond);
   font-weight: var(--font-weight-semibold);

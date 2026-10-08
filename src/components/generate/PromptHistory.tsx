@@ -198,7 +198,7 @@ export function PromptHistory({
   );
 }
 
-/* ─── Row ─────────────────────────────────────────────── */
+/* --- Row ----------------------------------------------- */
 
 function PromptHistoryRow({
   entry,

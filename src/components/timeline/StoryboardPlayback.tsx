@@ -16,7 +16,7 @@ interface StoryboardPlaybackProps {
 export const StoryboardPlayback = memo(function StoryboardPlayback({
   className,
 }: StoryboardPlaybackProps) {
-  // ── Store selectors ────────────────────────────────────────────────────
+  // -- Store selectors ----------------------------------------------------
   const projects = useAppStore((s) => s.projects);
   const activeProjectId = useAppStore((s) => s.activeProjectId);
   const setActiveScene = useAppStore((s) => s.setActiveScene);
@@ -38,7 +38,7 @@ export const StoryboardPlayback = memo(function StoryboardPlayback({
   const setOnionSkinOpacity = useAppStore((s) => s.setOnionSkinOpacity);
   const setOnionSkinDirection = useAppStore((s) => s.setOnionSkinDirection);
 
-  // ── Derived data ───────────────────────────────────────────────────────
+  // -- Derived data -------------------------------------------------------
   const activeProject = projects.find((p) => p.id === activeProjectId);
   const scenes = useMemo(
     () => (activeProject?.scenes ?? []).sort((a, b) => a.orderIndex - b.orderIndex),
@@ -66,7 +66,7 @@ export const StoryboardPlayback = memo(function StoryboardPlayback({
     [scenes],
   );
 
-  // ── Handlers ───────────────────────────────────────────────────────────
+  // -- Handlers -----------------------------------------------------------
 
   const handleSceneClick = useCallback(
     (sceneId: string, index: number) => {
@@ -94,7 +94,7 @@ export const StoryboardPlayback = memo(function StoryboardPlayback({
     }
   }, [currentSceneIndex, scenes, handleSceneClick]);
 
-  // ── Empty state ────────────────────────────────────────────────────────
+  // -- Empty state --------------------------------------------------------
 
   if (scenes.length === 0) {
     return (
@@ -109,11 +109,11 @@ export const StoryboardPlayback = memo(function StoryboardPlayback({
     );
   }
 
-  // ── Render ─────────────────────────────────────────────────────────────
+  // -- Render -------------------------------------------------------------
 
   return (
     <div className={cn('flex flex-col h-full', className)}>
-      {/* ── Transport bar ────────────────────────────────────────────────── */}
+      {/* -- Transport bar -------------------------------------------------- */}
       <div className="flex items-center gap-1.5 px-2 py-1.5 border-b border-border bg-elevated/50 flex-shrink-0">
         {/* Step back */}
         <button
@@ -272,7 +272,7 @@ export const StoryboardPlayback = memo(function StoryboardPlayback({
         </span>
       </div>
 
-      {/* ── Scene strip ─────────────────────────────────────────────────── */}
+      {/* -- Scene strip --------------------------------------------------- */}
       <div className="flex-1 overflow-x-auto scrollbar-hide p-2">
         <div className="flex gap-2 h-full items-stretch">
           {scenes.map((scene, index) => {

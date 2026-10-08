@@ -81,7 +81,7 @@ export const AnimationTrackEditor = memo(function AnimationTrackEditor({
     })),
   );
 
-  // ── Derived data ───────────────────────────────────────────────────────
+  // -- Derived data -------------------------------------------------------
 
   const layerNames = useMemo(
     () => new Map(editLayers.map((layer) => [layer.id, layer.name])),
@@ -135,7 +135,7 @@ export const AnimationTrackEditor = memo(function AnimationTrackEditor({
   const targetLayerId = selectedEditLayerId ?? tracks[0]?.id ?? null;
   const canAddKeyframe = Boolean(targetLayerId);
 
-  // ── Handlers ───────────────────────────────────────────────────────────
+  // -- Handlers -----------------------------------------------------------
 
   /**
    * Add a keyframe at the playhead for the selected edit layer. A layer already
@@ -186,7 +186,7 @@ export const AnimationTrackEditor = memo(function AnimationTrackEditor({
     ? 'Add a keyframe at the playhead for the selected layer'
     : 'Select a layer in the Layers panel to key it';
 
-  // ── Empty state ────────────────────────────────────────────────────────
+  // -- Empty state --------------------------------------------------------
 
   if (keyframes.length === 0) {
     return (
@@ -220,7 +220,7 @@ export const AnimationTrackEditor = memo(function AnimationTrackEditor({
     );
   }
 
-  // ── Render ─────────────────────────────────────────────────────────────
+  // -- Render -------------------------------------------------------------
 
   return (
     <div className={cn('flex flex-col h-full', className)}>

@@ -67,10 +67,10 @@ function toPreviewUrl(assetPath: string) {
     : `${BACKEND_ASSET_BASE_URL}/${assetPath}`;
 }
 
-/* ───────────────────────────────────────────────────────────
+/* -----------------------------------------------------------
    BatchPromptQueue - The right panel (400px) in batch mode
    Contains results toolbar + batch generation controls
-   ─────────────────────────────────────────────────────────── */
+   ----------------------------------------------------------- */
 
 const VIEW_MODE_OPTIONS: { value: ViewMode; icon: React.ElementType; label: string }[] = [
   { value: 'grid', icon: Grid3X3, label: 'Grid view' },
@@ -944,10 +944,10 @@ export function BatchPromptQueue() {
   );
 }
 
-/* ───────────────────────────────────────────────────────────
+/* -----------------------------------------------------------
    BatchResultsPanel - The left main area in batch mode
    Wraps ResultsGrid and ImagePreviewModal together
-   ─────────────────────────────────────────────────────────── */
+   ----------------------------------------------------------- */
 
 export function BatchResultsPanel() {
   const { batchResults, batchViewMode, batchSortBy, batchFilterBy } = useAppStore(
@@ -982,10 +982,10 @@ export function BatchResultsPanel() {
   );
 }
 
-/* ───────────────────────────────────────────────────────────
+/* -----------------------------------------------------------
    BatchPanel - Legacy export for backward compatibility.
    App.tsx now uses BatchPromptQueue + BatchResultsPanel directly.
-   ─────────────────────────────────────────────────────────── */
+   ----------------------------------------------------------- */
 
 export function BatchPanel() {
   return (

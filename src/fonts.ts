@@ -1,14 +1,14 @@
 /**
  * IBM Plex type system - bundled locally via @fontsource.
  *
- * Mirrors the Vision Studio-X website typography (DESIGN.md §Typography).
+ * Mirrors the Vision Studio-X website typography (DESIGN.md section Typography).
  * We bundle the fonts instead of pulling Google Fonts at runtime: Vision Studio
  * is a local-first, privacy-first desktop app - it must render correctly offline
  * and never phone home to a CDN on launch.
  *
- *   Display (heroes, instrument labels) → IBM Plex Sans Condensed  400/500/600/700
- *   Body & UI                           → IBM Plex Sans            300/400/500/600/700
- *   Mono / data / UI labels             → IBM Plex Mono            400/500/600
+ *   Display (heroes, instrument labels) -> IBM Plex Sans Condensed  400/500/600/700
+ *   Body & UI                           -> IBM Plex Sans            300/400/500/600/700
+ *   Mono / data / UI labels             -> IBM Plex Mono            400/500/600
  *
  * Only the `latin` + `latin-ext` subsets are imported (Western European coverage
  * for UI chrome and user prompts); mono stays latin-only since data/labels are ASCII.

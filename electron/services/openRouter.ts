@@ -116,7 +116,7 @@ const DEFAULT_TITLE = 'Vision Studio';
 /**
  * Hoisted as a module constant so the byte-identical prefix can be cached
  * by OpenRouter / Anthropic when sent with `cache_control: { type: 'ephemeral' }`.
- * Update with care — any byte change invalidates the cache for all users.
+ * Update with care - any byte change invalidates the cache for all users.
  *
  * Includes few-shot exemplars for cinematic and concise modes (the two
  * highest-variance modes per audit) so the model has anchored examples of
@@ -147,7 +147,7 @@ function buildCachedSystemMessage(text: string) {
 /**
  * Wrap user-message text in OpenRouter's multipart `content` array form.
  * Mirrors the system-message shape so all messages we send share the same
- * structure — and leaves room to append `image_url` parts in the future
+ * structure - and leaves room to append `image_url` parts in the future
  * (e.g., reference-image guided enhance / negative suggestion / image gen)
  * without restructuring the call sites.
  */
@@ -249,7 +249,7 @@ function isRetryableError(error: unknown): boolean {
   }
   const status = getResponseStatus(error);
   if (status === null) {
-    // Network-level failure with no HTTP response (e.g. ECONNRESET, EAI_AGAIN) — retry.
+    // Network-level failure with no HTTP response (e.g. ECONNRESET, EAI_AGAIN) - retry.
     const code = (error as { code?: unknown })?.code;
     if (code === 'ECONNRESET' || code === 'ECONNREFUSED' || code === 'EAI_AGAIN' || code === 'ENOTFOUND') {
       return true;
@@ -444,8 +444,8 @@ function extractMessageContent(content: unknown) {
 
 /**
  * Zod schemas validating LLM-generated JSON payloads. We use `.passthrough()`
- * so additional/unknown keys don't fail the parse — LLMs sometimes add chatter
- * we want to ignore — but required fields and array element types are enforced
+ * so additional/unknown keys don't fail the parse - LLMs sometimes add chatter
+ * we want to ignore - but required fields and array element types are enforced
  * strictly (catches model misbehavior immediately rather than silently coercing).
  */
 const promptEnhancementContentSchema = z
@@ -858,7 +858,7 @@ export function createOpenRouterService({
     } catch (parseError) {
       // API call succeeded, but the LLM ignored response_format or returned a
       // shape we don't recognize. Fall back to the user's original prompt so
-      // the workflow keeps moving — surface usage so cost is still tracked.
+      // the workflow keeps moving - surface usage so cost is still tracked.
       logger.warn(
         '[openRouter] enhancePrompt: parse failed, returning original prompt unchanged',
         parseError instanceof Error ? parseError.message : parseError,

@@ -5,7 +5,7 @@ import { cn } from '@/utils/cn';
 import { ChevronDown, FolderOpen, Plus } from 'lucide-react';
 import { Led } from '@/components/hardware';
 
-// Open-state trigger cap: chrome edge-ring + glow (DESIGN.md §depth system).
+// Open-state trigger cap: chrome edge-ring + glow (DESIGN.md section depth system).
 const OPEN_RING_SHADOW =
   'inset 0 1px 0 rgba(255,255,255,0.12), inset 0 -1px 0 rgba(0,0,0,0.6), 0 0 0 1px var(--color-chrome-edge), 0 0 10px rgba(230,230,230,0.18), 0 4px 8px rgba(0,0,0,0.5)';
 

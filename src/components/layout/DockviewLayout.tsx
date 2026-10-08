@@ -25,7 +25,7 @@ import { MonoLabel } from '@/components/hardware';
 import { cn } from '@/utils/cn';
 import type { ActiveTab, CenterView } from '@/types/navigation';
 
-// Selected deck-tab cap: chrome edge-ring + machined depth (DESIGN.md §depth system).
+// Selected deck-tab cap: chrome edge-ring + machined depth (DESIGN.md section depth system).
 const CENTER_TAB_ACTIVE_SHADOW =
   'inset 0 1px 0 rgba(255,255,255,0.12), inset 0 -1px 0 rgba(0,0,0,0.6), 0 0 0 1px var(--color-chrome-edge), 0 3px 6px rgba(0,0,0,0.5)';
 import {

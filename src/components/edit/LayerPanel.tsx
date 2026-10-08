@@ -45,7 +45,7 @@ const BLEND_MODES = [
   'Difference',
 ];
 
-/* ─── Sortable Layer Row ──────────────────────────────── */
+/* --- Sortable Layer Row -------------------------------- */
 
 function SortableLayerRow({
   layer,
@@ -228,7 +228,7 @@ function SortableLayerRow({
   );
 }
 
-/* ─── Layer Panel ─────────────────────────────────────── */
+/* --- Layer Panel --------------------------------------- */
 
 export function LayerPanel() {
   const {
