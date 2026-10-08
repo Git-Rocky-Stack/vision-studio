@@ -361,6 +361,16 @@ select {
   select:disabled {
     cursor: not-allowed;
   }
+
+  /* A native control with no accent-color takes the operating system's accent,
+     which on Windows is whatever hue the user picked (a violet check, on a
+     machine with a violet accent). Carbon Pro has one accent: chrome. */
+  input[type="checkbox"],
+  input[type="radio"],
+  input[type="range"],
+  progress {
+    accent-color: var(--color-accent-primary);
+  }
 }
 
 :root[data-theme='light'],
