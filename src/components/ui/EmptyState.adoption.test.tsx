@@ -1,12 +1,16 @@
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
+import { DiscoverSection } from '@/components/foundry/DiscoverSection';
 import { IterationTreePanel } from '@/components/iteration/IterationTreePanel';
 import { WorkbenchBoardsDock } from '@/components/layout/WorkbenchBoardsDock';
 import { WorkbenchGalleryDock } from '@/components/layout/WorkbenchGalleryDock';
 import { WorkbenchViewer } from '@/components/layout/WorkbenchViewer';
 import { TimelinePlaybackPreview } from '@/components/timeline/TimelinePlaybackPreview';
+import { AssetsPanel } from '@/pages/AssetsPanel';
 import { CollectionsPage } from '@/pages/CollectionsPage';
+import { StoryboardPanel } from '@/pages/StoryboardPanel';
+import { TemplatesPanel } from '@/pages/TemplatesPanel';
 import { useAppStore } from '@/store/appStore';
 
 /**
@@ -73,5 +77,30 @@ describe('empty states share one treatment', () => {
 
     render(<TimelinePlaybackPreview />);
     expectSharedEmptyState('No active program output');
+  });
+
+  it('assets with nothing in the library', () => {
+    render(<AssetsPanel />);
+    const state = expectSharedEmptyState('No assets yet');
+    expect(within(state).getAllByRole('button').map((button) => button.textContent)).toEqual(['Import media']);
+  });
+
+  it('storyboard with no project open', () => {
+    render(<StoryboardPanel />);
+    const state = expectSharedEmptyState('No Project Open');
+    expect(within(state).getAllByRole('button').map((button) => button.textContent)).toEqual(['New Project']);
+  });
+
+  it('templates when a search matches nothing', () => {
+    render(<TemplatesPanel />);
+    fireEvent.change(screen.getByPlaceholderText('Search templates...'), {
+      target: { value: 'no template is called this' },
+    });
+    expectSharedEmptyState('No templates found');
+  });
+
+  it('model discovery before a search', () => {
+    render(<DiscoverSection />);
+    expectSharedEmptyState('Search for a model');
   });
 });
