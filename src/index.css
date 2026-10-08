@@ -385,6 +385,103 @@ body[data-theme='light'] {
   --color-gradient-progress-end: var(--color-accent-primary);
 }
 
+/* Hardware surfaces stay carbon in both themes (DESIGN.md, Theme policy): a
+   faceplate is a physical instrument surface and is black in a bright room.
+   Their recipes hard-code carbon backgrounds, so everything drawn ON them has
+   to resolve against the dark palette as well - otherwise the light theme puts
+   its dark text on a dark plate and the label disappears.
+
+   Each hardware surface therefore re-declares the dark values of every token
+   the light theme overrides. The alias tokens are repeated too: a custom
+   property holding var() is resolved where it is declared and inherited as a
+   finished value, so --color-chrome would otherwise keep the light accent.
+
+   This lives in the components layer so a colour utility on the surface itself
+   (an active pad's text-accent-primary) still wins over the reset below.
+   light-theme-hardware-island.test.ts holds this block to the @theme values. */
+@layer components {
+  :is(:root, body)[data-theme='light'] :is(.raised-panel, .recessed-well, .raised-control, .faceplate-stripe, .vx-faceplate, .vx-btn) {
+    color-scheme: dark;
+    color: var(--color-text-body);
+
+    --color-void: #000000;
+    --color-canvas: #050505;
+    --color-surface: #0d0d0d;
+    --color-elevated: #141414;
+    --color-panel: #101010;
+    --color-panel-raised: #1a1a1a;
+    --color-overlay: rgba(0, 0, 0, 0.86);
+    --color-accent-primary: #e6e6e6;
+    --color-accent-primary-hover: #ffffff;
+    --color-accent-primary-pressed: #b8b8b8;
+    --color-accent-primary-muted: rgba(230, 230, 230, 0.1);
+    --color-accent-primary-border: rgba(230, 230, 230, 0.28);
+    --color-accent-primary-glow: rgba(230, 230, 230, 0.2);
+    --color-text-primary: #f5f5f5;
+    --color-text-body: #b3b3b3;
+    --color-text-muted: #888888;
+    --color-border: rgba(255, 255, 255, 0.08);
+    --color-border-hover: rgba(255, 255, 255, 0.16);
+    --color-status-success: #22c55e;
+    --color-status-success-muted: rgba(34, 197, 94, 0.08);
+    --color-status-success-border: rgba(34, 197, 94, 0.2);
+    --color-status-warning: #eab308;
+    --color-status-warning-muted: rgba(234, 179, 8, 0.08);
+    --color-status-warning-border: rgba(234, 179, 8, 0.2);
+    --color-status-error: #ef4444;
+    --color-status-error-muted: rgba(239, 68, 68, 0.08);
+    --color-status-error-border: rgba(239, 68, 68, 0.2);
+    --color-status-info: #38bdf8;
+    --color-status-info-muted: rgba(56, 189, 248, 0.08);
+    --color-status-info-border: rgba(56, 189, 248, 0.2);
+    --color-red-primary: var(--color-status-error);
+    --color-red-highlight: #f87171;
+    --color-red-pressed: #dc2626;
+    --color-red-glow: rgba(239, 68, 68, 0.22);
+    --color-red-aura: var(--color-status-error-muted);
+    --color-category-youtube: #ef4444;
+    --color-category-social: #f472b6;
+    --color-category-marketing: #2dd4bf;
+    --color-category-art: #8b5cf6;
+    --color-gradient-progress-start: var(--color-accent-primary-pressed);
+    --color-gradient-progress-end: var(--color-accent-primary);
+
+    /* Aliases of the tokens above, re-resolved against the dark values. */
+    --color-feature-01: var(--color-accent-primary);
+    --color-carbon-950: var(--color-canvas);
+    --color-carbon-900: var(--color-surface);
+    --color-carbon-850: var(--color-panel);
+    --color-carbon-800: var(--color-elevated);
+    --color-carbon-750: var(--color-panel-raised);
+    --color-platinum: var(--color-text-primary);
+    --color-silver-mute: var(--color-text-muted);
+    --color-chrome: var(--color-accent-primary);
+    --color-chrome-bright: var(--color-accent-primary-hover);
+    --color-chrome-pressed: var(--color-accent-primary-pressed);
+    --color-chrome-edge: var(--color-accent-primary-border);
+    --color-chrome-glow: var(--color-accent-primary-glow);
+    --color-chrome-soft: var(--color-accent-primary-muted);
+    --color-led-rec: var(--color-status-error);
+    --color-led-cue: var(--color-status-warning);
+    --color-led-play: var(--color-status-success);
+    --color-led-jog: var(--color-status-info);
+    --color-hairline: var(--color-border);
+    --color-hairline-strong: var(--color-border-hover);
+    --color-black: var(--color-void);
+    --color-charcoal: var(--color-surface);
+    --color-charcoal-light: var(--color-elevated);
+    --color-charcoal-lighter: var(--color-panel-raised);
+    --color-red: var(--color-status-error);
+    --color-red-hover: var(--color-red-pressed);
+    --color-silver: var(--color-text-body);
+    --color-light-grey: var(--color-text-primary);
+    --color-white: var(--color-text-primary);
+    --shadow-accent: 0 0 0 1px var(--color-accent-primary-border), 0 0 18px rgba(230, 230, 230, 0.08), 0 12px 28px rgba(0, 0, 0, 0.32);
+    --shadow-accent-subtle: 0 0 0 1px var(--color-accent-primary-border), 0 0 12px rgba(230, 230, 230, 0.06);
+    --shadow-glow-red-subtle: 0 0 0 1px var(--color-status-error-border), 0 0 10px rgba(239, 68, 68, 0.08);
+  }
+}
+
 /* Typography utilities */
 :root {
   --font-family-ui: var(--font-sans);    /* IBM Plex Sans */
