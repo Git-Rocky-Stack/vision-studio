@@ -5,12 +5,29 @@ import { useAppStore } from '@/store/appStore';
 
 import { WorkflowLibraryPanel } from './WorkflowLibraryPanel';
 
+const headingOutline = () =>
+  screen.getAllByRole('heading').map((heading) => `${heading.tagName} ${heading.textContent}`);
+
 describe('WorkflowLibraryPanel', () => {
   beforeEach(() => {
     useAppStore.setState(useAppStore.getInitialState(), true);
   });
 
   afterEach(cleanup);
+
+  // In the left dock the panel is the first thing on the Workflows tab, so it
+  // carries the page heading. Inside the workbench the page already has one.
+  it('heads the dock with the workspace name when docked', () => {
+    render(<WorkflowLibraryPanel docked />);
+
+    expect(headingOutline()).toEqual(['H1 Workflows', 'H2 Workflow Library', 'H2 Run Output']);
+  });
+
+  it('adds no page heading inside the workbench', () => {
+    render(<WorkflowLibraryPanel />);
+
+    expect(headingOutline()).toEqual(['H3 Workflow Library', 'H3 Run Output']);
+  });
 
   it('lists the saved workflows and marks the active one', () => {
     render(<WorkflowLibraryPanel />);
