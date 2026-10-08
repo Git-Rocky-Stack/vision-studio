@@ -134,10 +134,22 @@ describe('EditCanvas', () => {
     });
 
     it('overlays the drawing surface while a mask tool is open', async () => {
-      useAppStore.setState({ editAiMaskDrawing: true });
+      useAppStore.setState({ editAiMaskDrawing: true, editAiMaskTool: 'rectangle' });
       await renderWithImage();
-      expect(screen.getByTestId('edit-ai-mask-surface')).toBeInTheDocument();
-      expect(screen.getByTestId('region-mask-drawer')).toBeInTheDocument();
+
+      // The surface sits exactly over the displayed image: the 640x480 stub is
+      // fitted at 0.85 and centred in the default 800x600 stage.
+      const surface = screen.getByTestId('edit-ai-mask-surface');
+      expect(surface).toHaveStyle({ left: '128px', top: '96px', width: '544px', height: '408px' });
+
+      // The drawer fills that surface, takes the pointer, and is bound to the AI
+      // mask and to the tool picked in the panel, not to a region lock.
+      const drawer = screen.getByTestId('region-mask-drawer');
+      expect(surface).toContainElement(drawer);
+      expect(drawer).toHaveClass('absolute', 'inset-0');
+      expect(drawer).toHaveStyle({ pointerEvents: 'auto' });
+      expect(drawer).toHaveAttribute('data-active-region', 'edit-ai-mask');
+      expect(drawer).toHaveAttribute('data-active-tool', 'rectangle');
     });
 
     it('commits drawn masks to the store with edit defaults', async () => {

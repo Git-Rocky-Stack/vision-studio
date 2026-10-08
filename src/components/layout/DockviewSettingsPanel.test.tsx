@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { act, cleanup, render, screen } from '@testing-library/react';
 
 import { useAppStore } from '@/store/appStore';
 
@@ -80,7 +80,6 @@ describe('DockviewSettingsPanel', () => {
   it('hides the footer timeline when iteration timeline mode is active', () => {
     useAppStore.setState({
       activeTab: 'generate',
-      iterationView: 'timeline',
       iterationBranches: [
         {
           id: 'branch-1',
@@ -94,7 +93,17 @@ describe('DockviewSettingsPanel', () => {
 
     render(<DockviewSettingsPanel />);
 
-    expect(screen.queryByTestId('mock-iteration-timeline')).not.toBeInTheDocument();
+    // In the footer first, so its absence below is the mode's doing and not a
+    // panel that never mounted a footer.
+    expect(screen.queryAllByTestId('mock-iteration-timeline')).toHaveLength(1);
+
+    act(() => {
+      useAppStore.getState().setIterationView('timeline');
+    });
+
+    // Only the footer slot goes; the panel body stays where it was.
+    expect(screen.queryAllByTestId('mock-iteration-timeline')).toHaveLength(0);
+    expect(screen.getByRole('tabpanel')).toHaveTextContent('Generate');
   });
 
   // The Workflows tab used to dock the Storyboard panel: scenes and board

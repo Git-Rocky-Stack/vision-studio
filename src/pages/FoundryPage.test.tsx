@@ -50,8 +50,26 @@ describe('FoundryPage', () => {
 
   it('switches sections when a section tab is clicked', () => {
     render(<FoundryPage />);
+    const selectedTabs = () =>
+      screen
+        .getAllByRole('tab')
+        .filter((tab) => tab.getAttribute('aria-selected') === 'true')
+        .map((tab) => tab.textContent);
+
+    // Discover is open first, so the change below is the click's doing.
+    expect(selectedTabs()).toEqual(['Discover']);
+    expect(screen.queryAllByLabelText('Search models')).toHaveLength(1);
+    expect(screen.queryAllByRole('heading', { name: 'Installed models' })).toHaveLength(0);
+
     fireEvent.click(screen.getByRole('tab', { name: /library/i }));
-    expect(screen.getByTestId('foundry-section-library')).toBeInTheDocument();
+
+    // The selection moves, the Library body replaces the Discover body, and it
+    // lands in the panel the tab names.
+    expect(selectedTabs()).toEqual(['Library']);
+    expect(screen.queryAllByLabelText('Search models')).toHaveLength(0);
+    expect(screen.getByTestId('foundry-section-library')).toContainElement(
+      screen.getByRole('heading', { name: 'Installed models' }),
+    );
   });
 
   it('warms the model/download/library/hardware loaders on mount', () => {

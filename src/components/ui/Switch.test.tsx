@@ -88,8 +88,12 @@ describe('Switch', () => {
 
   it('role="switch" attribute present', () => {
     render(<Switch checked={false} onChange={() => {}} label="Toggle" />);
-    const switchEl = screen.getByRole('switch');
-    expect(switchEl).toBeInTheDocument();
+    // One control, announced as a switch under its label. Not a checkbox, and
+    // the knob inside it is not a second control.
+    const switchEl = screen.getByRole('switch', { name: 'Toggle' });
+    expect(switchEl).toHaveAttribute('role', 'switch');
+    expect(screen.getAllByRole('switch')).toHaveLength(1);
+    expect(screen.queryAllByRole('checkbox')).toHaveLength(0);
   });
 
   it('aria-label matches label prop', () => {

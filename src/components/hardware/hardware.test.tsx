@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { isInaccessible, render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { ChromeButton, Faceplate, Lcd, Led, MonoLabel } from './index';
 
@@ -16,8 +16,14 @@ describe('hardware primitives', () => {
 
   it('renders a decorative LED as aria-hidden (not announced)', () => {
     const { container } = render(<Led color="rec" pulse />);
-    const dot = container.querySelector('span[aria-hidden="true"]');
-    expect(dot).not.toBeNull();
+
+    // The dot is the whole of what Led renders, so hiding it hides everything:
+    // no wrapper around it and no text inside it is left to be announced.
+    expect(container.children).toHaveLength(1);
+    const dot = container.firstElementChild as HTMLElement;
+    expect(dot).toHaveAttribute('aria-hidden', 'true');
+    expect(isInaccessible(dot)).toBe(true);
+    expect(dot).toBeEmptyDOMElement();
   });
 
   it('renders a ChromeButton with the vx-btn marker classes and click wiring', () => {

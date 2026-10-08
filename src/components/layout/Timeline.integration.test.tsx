@@ -257,20 +257,40 @@ describe('Timeline integration', () => {
     seedProjectAndMedia();
     render(<Timeline />);
 
-    expect(screen.getByTestId('timeline-track-sidebar')).toBeInTheDocument();
-    expect(screen.getByTestId('timeline-clip-inspector-empty')).toBeInTheDocument();
+    const SIDEBAR = 'timeline-track-sidebar';
+    const INSPECTOR = 'timeline-clip-inspector-empty';
+    const openPanes = () =>
+      [SIDEBAR, INSPECTOR].filter((testId) => screen.queryByTestId(testId) !== null);
+    // jsdom has no layout, so the width a collapsed pane gives back shows up as
+    // the deck's column template: split while both panes are open, a single
+    // column with one, and no deck at all with neither.
+    const deckColumns = () => {
+      const deck = screen.queryByTestId('timeline-details-deck');
+      if (!deck) return 'no deck';
+      if (deck.classList.contains('grid-cols-1')) return 'one column';
+      return [...deck.classList].some((name) => name.startsWith('grid-cols-['))
+        ? 'two columns'
+        : 'no column template';
+    };
+
+    expect(openPanes()).toEqual([SIDEBAR, INSPECTOR]);
+    expect(deckColumns()).toBe('two columns');
 
     await user.click(screen.getByLabelText('Collapse track list'));
-    expect(screen.queryByTestId('timeline-track-sidebar')).not.toBeInTheDocument();
+    expect(openPanes()).toEqual([INSPECTOR]);
+    expect(deckColumns()).toBe('one column');
 
     await user.click(screen.getByLabelText('Collapse clip inspector'));
-    expect(screen.queryByTestId('timeline-clip-inspector-empty')).not.toBeInTheDocument();
+    expect(openPanes()).toEqual([]);
+    expect(deckColumns()).toBe('no deck');
 
     await user.click(screen.getByLabelText('Expand track list'));
-    expect(screen.getByTestId('timeline-track-sidebar')).toBeInTheDocument();
+    expect(openPanes()).toEqual([SIDEBAR]);
+    expect(deckColumns()).toBe('one column');
 
     await user.click(screen.getByLabelText('Expand clip inspector'));
-    expect(screen.getByTestId('timeline-clip-inspector-empty')).toBeInTheDocument();
+    expect(openPanes()).toEqual([SIDEBAR, INSPECTOR]);
+    expect(deckColumns()).toBe('two columns');
   });
 
   it('supports frame stepping and stop transport controls', async () => {
