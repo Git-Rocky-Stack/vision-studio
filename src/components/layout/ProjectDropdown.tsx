@@ -102,7 +102,7 @@ export const ProjectDropdown = memo(function ProjectDropdown() {
           role="listbox"
           aria-label="Project list"
           className={cn(
-            'absolute top-full left-0 mt-1 w-64 z-dropdown',
+            'absolute top-full left-0 mt-1 w-64 z-[var(--z-dropdown)]',
             'raised-panel overflow-hidden',
             'animate-in fade-in slide-in-from-top-1 duration-150'
           )}

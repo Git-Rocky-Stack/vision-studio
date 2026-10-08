@@ -887,8 +887,18 @@ input[type="range"]::-webkit-slider-thumb:hover {
 /* ---- Four-layer raised-hardware depth system -------------------------- */
 
 /* Layer 1 - raised faceplate - sits proud of the chassis. */
+
+/* The faceplate needs a positioning context for its edge-light pseudo-elements,
+   but that default must lose to a utility that positions the plate itself (a
+   popover, a floating toolbar). Unlayered rules outrank Tailwind's utilities
+   layer, so this one declaration lives in the components layer instead. */
+@layer components {
+  .raised-panel {
+    position: relative;
+  }
+}
+
 .raised-panel {
-  position: relative;
   background:
     radial-gradient(ellipse 80% 60% at 30% -10%, rgba(255,255,255,0.04) 0%, transparent 60%),
     linear-gradient(180deg, #1C1C1C 0%, #151515 35%, #101010 70%, #0C0C0C 100%);
