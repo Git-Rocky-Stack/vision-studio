@@ -125,6 +125,9 @@ describe('DockviewSettingsPanel', () => {
 
     render(<DockviewSettingsPanel />);
 
-    expect(await screen.findByTestId('mock-storyboard')).toBeInTheDocument();
+    const storyboard = await screen.findByTestId('mock-storyboard');
+    expect(screen.getByRole('tabpanel')).toContainElement(storyboard);
+    expect(storyboard).toHaveTextContent('Storyboard');
+    expect(screen.queryAllByRole('heading', { name: 'Workflow Library' })).toHaveLength(0);
   });
 });

@@ -20,7 +20,8 @@ import { describe, expect, it } from 'vitest';
 
 const appSourceRoot = join(process.cwd(), 'src');
 const scanExtensions = new Set(['.ts', '.tsx']);
-const privateFocusRingPattern = /\b(?:group-)?focus(?:-visible|-within)?:(?:ring(?:-[^\s'"`]+)?|outline-none)(?![\w-])/g;
+// \x27 \x22 \x60 are the three quote characters that can end a class string.
+const privateFocusRingPattern = /\b(?:group-)?focus(?:-visible|-within)?:(?:ring(?:-[^\s\x27\x22\x60]+)?|outline-none)(?![\w-])/g;
 
 const toPosix = (filePath: string) => relative(process.cwd(), filePath).split(/[\\/]/).join('/');
 

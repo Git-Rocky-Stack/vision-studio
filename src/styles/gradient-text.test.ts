@@ -16,7 +16,8 @@ const scanExtensions = new Set(['.ts', '.tsx', '.css']);
 // This file names the banned forms in order to forbid them.
 const guardFiles = new Set(['src/styles/gradient-text.test.ts']);
 
-const gradientTextPattern = /background-clip\s*:\s*text|\bbg-clip-text\b|backgroundClip\s*:\s*['"`]text|\bgradient-text(?!\.test)(?![\w|])/;
+// \x27 \x22 \x60 are the quote characters an inline style value can open with.
+const gradientTextPattern = /background-clip\s*:\s*text|\bbg-clip-text\b|backgroundClip\s*:\s*[\x27\x22\x60]text|\bgradient-text(?!\.test)(?![\w|])/;
 
 const toPosix = (filePath: string) => relative(process.cwd(), filePath).split(/[\\/]/).join('/');
 

@@ -27,7 +27,8 @@ const scanExtensions = new Set(['.ts', '.tsx', '.css']);
 // This file names the banned forms in order to forbid them.
 const guardFiles = new Set(['src/styles/motion-discipline.test.ts']);
 
-const transitionAllPattern = /\btransition-all\b|transition\s*:\s*['"`]?\s*all\b|transition-property\s*:\s*all\b|transitionProperty\s*:\s*['"`]all\b/;
+// \x27 \x22 \x60 are the quote characters an inline style value can open with.
+const transitionAllPattern = /\btransition-all\b|transition\s*:\s*[\x27\x22\x60]?\s*all\b|transition-property\s*:\s*all\b|transitionProperty\s*:\s*[\x27\x22\x60]all\b/;
 
 const toPosix = (filePath: string) => relative(process.cwd(), filePath).split(/[\\/]/).join('/');
 
