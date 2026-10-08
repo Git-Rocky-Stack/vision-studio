@@ -32,8 +32,8 @@ export type CapabilityColor = keyof typeof CAP_VARS;
 
 /**
  * Resolve an LED or capability key to its CSS color variable. Any other string
- * (a raw CSS color or `var(--color-category-*)`) passes through unchanged, so
- * category/feature hues can drive a pinpoint LED without leaving the LED idiom.
+ * (a raw CSS color or `var(--color-feature-*)`) passes through unchanged, so a
+ * feature hue can drive a pinpoint LED without leaving the LED idiom.
  */
 export function resolveHardwareColor(color: LedColor | CapabilityColor | (string & {})): string {
   if (color in LED_VARS) return LED_VARS[color as LedColor];

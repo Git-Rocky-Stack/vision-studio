@@ -1,6 +1,5 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { cn } from '@/utils/cn';
-import { hexToRgba } from '@/utils/colorUtils';
 import { Button } from '@/components/ui/Button';
 import { Slider } from '@/components/ui/Slider';
 import { useAppStore } from '@/store/appStore';
@@ -28,12 +27,11 @@ const CATEGORIES: {
   id: ProjectTemplate['category'];
   label: string;
   icon: React.ElementType;
-  color: string;
 }[] = [
-  { id: 'social', label: 'Social Media', icon: Instagram, color: 'var(--color-category-social)' },
-  { id: 'youtube', label: 'YouTube', icon: Youtube, color: 'var(--color-category-youtube)' },
-  { id: 'marketing', label: 'Marketing', icon: ShoppingBag, color: 'var(--color-category-marketing)' },
-  { id: 'art', label: 'Art & Creative', icon: Palette, color: 'var(--color-category-art)' },
+  { id: 'social', label: 'Social Media', icon: Instagram },
+  { id: 'youtube', label: 'YouTube', icon: Youtube },
+  { id: 'marketing', label: 'Marketing', icon: ShoppingBag },
+  { id: 'art', label: 'Art & Creative', icon: Palette },
 ];
 
 const DIMENSION_PRESETS = [
@@ -327,18 +325,9 @@ export function TemplateCreator({ onClose, editingTemplate }: TemplateCreatorPro
                           className={cn(
                             'flex items-center gap-3 p-3 rounded-md border transition-all text-left',
                             isSelected
-                              ? 'border-transparent'
+                              ? 'border-accent-primary-border bg-accent-primary-muted text-accent-primary'
                               : 'border-border bg-elevated hover:border-border-hover'
                           )}
-                          style={
-                            isSelected
-                              ? {
-                                  backgroundColor: hexToRgba(cat.color, 0.06),
-                                  borderColor: hexToRgba(cat.color, 0.25),
-                                  color: cat.color,
-                                }
-                              : undefined
-                          }
                         >
                           <Icon className="w-4 h-4 flex-shrink-0" />
                           <span className="text-sm font-medium">

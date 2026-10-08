@@ -80,8 +80,8 @@ export function FoundryPage() {
     <div className="h-full overflow-y-auto bg-surface p-6">
       <div className="mx-auto max-w-6xl">
         <p className="mono-label text-text-muted">Models</p>
-        <h1 className="mt-1 text-2xl font-semibold text-text-primary">Foundry</h1>
-        <p className="mt-2 text-sm text-text-body">
+        <h1 className="mt-1 type-title">Foundry</h1>
+        <p className="mt-2 max-w-[70ch] text-sm text-text-body">
           Discover and acquire models, manage your local library, and check how each
           model fits your hardware.
         </p>

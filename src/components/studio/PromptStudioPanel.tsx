@@ -1,5 +1,5 @@
 import { memo, type ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
-import { AlertCircle, ChevronDown, Cloud } from 'lucide-react';
+import { AlertCircle, ChevronDown, Cloud, Cpu } from 'lucide-react';
 import { useShallow } from 'zustand/react/shallow';
 
 import { getActiveUserAccount, resolvePromptEnhancementRoute } from '@/features/accounts/providerRouting';
@@ -353,7 +353,11 @@ export const PromptStudioPanel = memo(function PromptStudioPanel() {
       <div className="recessed-well px-3 py-3">
         <div className="flex items-start gap-3">
           <div className="raised-control mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center text-text-body">
-            <Cloud className="h-4 w-4" />
+            {promptRoute.provider === 'local' ? (
+              <Cpu className="h-4 w-4" />
+            ) : (
+              <Cloud className="h-4 w-4" />
+            )}
           </div>
           <div className="min-w-0">
             <div className="flex items-center gap-2">

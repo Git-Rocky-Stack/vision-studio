@@ -1,5 +1,4 @@
 import { useEffect, useRef } from 'react';
-import { hexToRgba } from '@/utils/colorUtils';
 import { Button } from '@/components/ui/Button';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -14,13 +13,6 @@ import {
   MessageSquareX,
 } from 'lucide-react';
 import type { ProjectTemplate } from '@/types/template';
-
-const categoryColors: Record<string, string> = {
-  youtube: 'var(--color-category-youtube)',
-  social: 'var(--color-category-social)',
-  marketing: 'var(--color-category-marketing)',
-  art: 'var(--color-category-art)',
-};
 
 const categoryLabels: Record<string, string> = {
   youtube: 'YouTube',
@@ -131,59 +123,35 @@ export function TemplatePreviewModal({
               <X className="w-4 h-4" />
             </button>
 
-            {/* Header with accent */}
-            {(() => {
-              const color = categoryColors[template.category] || '#e63946';
-              return (
-                <div className="p-6 pb-4 border-b border-border">
-                  {/* Color accent line */}
-                  <div
-                    className="absolute top-0 left-0 right-0 h-0.5"
-                    style={{
-                      background: `linear-gradient(90deg, transparent, ${color}, transparent)`,
-                    }}
-                  />
-
-                  <div className="flex items-start gap-4">
-                    {/* Thumbnail */}
-                    <div
-                      className="w-16 h-16 rounded-xl flex items-center justify-center flex-shrink-0 text-3xl"
-                      style={{
-                        background: `linear-gradient(135deg, ${hexToRgba(color, 0.08)}, ${hexToRgba(color, 0.02)})`,
-                        border: `1px solid ${hexToRgba(color, 0.13)}`,
-                      }}
-                    >
-                      {template.thumbnail}
-                    </div>
-
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <h2 className="text-xl font-bold text-text-primary">
-                          {template.name}
-                        </h2>
-                        <span
-                          className="px-2 py-0.5 rounded-full mono-label"
-                          style={{
-                            backgroundColor: hexToRgba(color, 0.08),
-                            color: color,
-                          }}
-                        >
-                          {categoryLabels[template.category] || template.category}
-                        </span>
-                        {template.isCustom && (
-                          <span className="px-2 py-0.5 rounded-full mono-label bg-elevated text-text-muted">
-                            Custom
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-sm text-text-body leading-relaxed">
-                        {template.description}
-                      </p>
-                    </div>
-                  </div>
+            {/* Header. The category is named by its label; it carries no hue
+                of its own (one accent - see category-hue.test.ts). */}
+            <div className="p-6 pb-4 border-b border-border">
+              <div className="flex items-start gap-4">
+                {/* Thumbnail */}
+                <div className="recessed-well w-16 h-16 flex items-center justify-center flex-shrink-0 text-3xl">
+                  {template.thumbnail}
                 </div>
-              );
-            })()}
+
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    <h2 className="text-xl font-bold text-text-primary">
+                      {template.name}
+                    </h2>
+                    <span className="px-2 py-0.5 rounded-full mono-label bg-elevated text-text-body">
+                      {categoryLabels[template.category] || template.category}
+                    </span>
+                    {template.isCustom && (
+                      <span className="px-2 py-0.5 rounded-full mono-label bg-elevated text-text-muted">
+                        Custom
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-sm text-text-body leading-relaxed">
+                    {template.description}
+                  </p>
+                </div>
+              </div>
+            </div>
 
             {/* Settings Breakdown */}
             <div className="flex-1 overflow-y-auto p-6 space-y-5 scrollbar-hide">

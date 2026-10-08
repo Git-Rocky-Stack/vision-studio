@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useAppStore } from '@/store/appStore';
 import type { ModelRecord } from '@/types/model';
 
+import { skippedHeadingLevels } from '../../tests/support/headingOrder';
 import { SettingsPanel } from './SettingsPanel';
 
 function makeModelRecord(overrides: Partial<ModelRecord> = {}): ModelRecord {
@@ -263,6 +264,101 @@ describe('SettingsPanel', () => {
     expect(await screen.findByText('Compile')).toBeInTheDocument();
     expect(screen.getByText('Quantization')).toBeInTheDocument();
     expect(screen.getByLabelText('Master Enable')).toBeInTheDocument();
+  });
+
+  it('names the cache folder without raw markdown backticks', async () => {
+    render(<SettingsPanel />);
+
+    const note = await screen.findByText(/App cache folder/);
+    expect(note).toHaveTextContent('/outputs');
+    expect(note.textContent).not.toContain('`');
+  });
+
+  // The storage bar is the only graphic on the General tab. A filled segment
+  // beside "0 tracked assets" says something is stored when nothing is.
+  it('draws no fill on the storage bar when nothing is tracked', async () => {
+    useAppStore.setState({ assetLibrary: [] });
+    render(<SettingsPanel />);
+
+    expect(await screen.findByText('0 tracked assets')).toBeInTheDocument();
+    expect(screen.getByTestId('storage-usage-fill')).toHaveStyle({ width: '0%' });
+  });
+
+  it('fills the storage bar once assets are tracked', async () => {
+    useAppStore.setState({
+      assetLibrary: [{ id: 'asset-1' }, { id: 'asset-2' }],
+    } as never);
+    render(<SettingsPanel />);
+
+    expect(await screen.findByText('2 tracked assets')).toBeInTheDocument();
+    expect(screen.getByTestId('storage-usage-fill')).toHaveStyle({ width: '16%' });
+  });
+
+  // A check mark means "confirmed". Beside "GPU not detected" it said the
+  // opposite of the label it sat next to.
+  it('marks an undetected GPU with a warning icon, not a check', async () => {
+    useAppStore.setState({
+      systemInfo: { ...useAppStore.getState().systemInfo, gpuAvailable: false, gpuName: '' },
+    });
+    render(<SettingsPanel />);
+    fireEvent.click(screen.getByRole('button', { name: /AI & Models/i }));
+
+    const card = (await screen.findByText('GPU not detected')).closest('.raised-panel');
+    expect(card?.querySelector('svg.lucide-triangle-alert')).not.toBeNull();
+    expect(card?.querySelector('svg.lucide-check')).toBeNull();
+  });
+
+  it('keeps the check for a GPU that was detected', async () => {
+    useAppStore.setState({
+      systemInfo: {
+        ...useAppStore.getState().systemInfo,
+        gpuAvailable: true,
+        gpuName: 'RTX 4090',
+      },
+    });
+    render(<SettingsPanel />);
+    fireEvent.click(screen.getByRole('button', { name: /AI & Models/i }));
+
+    const card = (await screen.findByText('RTX 4090')).closest('.raised-panel');
+    expect(card?.querySelector('svg.lucide-check')).not.toBeNull();
+    expect(card?.querySelector('svg.lucide-triangle-alert')).toBeNull();
+  });
+
+  it('keeps an unbroken heading order on AI & Models', async () => {
+    render(<SettingsPanel />);
+    fireEvent.click(screen.getByRole('button', { name: /AI & Models/i }));
+
+    await screen.findByText('Key Usage');
+    expect(skippedHeadingLevels()).toEqual([]);
+  });
+
+  // The guide is a Settings tab, so it sits under the Settings h1 like every
+  // other tab. Its own h1 gave the page two top-level headings.
+  it('nests the User Guide under the single Settings h1', async () => {
+    render(<SettingsPanel />);
+    fireEvent.click(screen.getByRole('button', { name: /User Guide/i }));
+
+    await screen.findByRole('heading', { name: 'User Guide' });
+    expect(document.querySelectorAll('h1')).toHaveLength(1);
+    expect(skippedHeadingLevels()).toEqual([]);
+  });
+
+  // Tab -> the title that tab shows. Found by name, because the outgoing tab
+  // stays mounted while it animates out and its title would match "any h2".
+  it.each([
+    ['General', 'General Settings'],
+    ['AI & Models', 'AI & Models'],
+    ['Performance', 'Performance'],
+    ['Appearance', 'Appearance'],
+    ['Notifications', 'Notifications'],
+    ['User Guide', 'User Guide'],
+    ['About', 'Vision Studio'],
+  ])('titles the %s tab with the shared page-title treatment', async (tab, title) => {
+    render(<SettingsPanel />);
+    fireEvent.click(screen.getByRole('button', { name: new RegExp(`^${tab}`) }));
+
+    const heading = await screen.findByRole('heading', { level: 2, name: title });
+    expect(heading).toHaveClass('type-title');
   });
 
   it('links model management to the Foundry', async () => {

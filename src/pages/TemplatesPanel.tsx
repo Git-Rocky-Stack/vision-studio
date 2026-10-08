@@ -40,14 +40,6 @@ const categoryLabels: Record<string, string> = {
   art: 'Art & Creative',
 };
 
-/** Category accent hue (CSS var). Drives a pinpoint LED + selected ring only - never a fill. */
-const categoryColors: Record<string, string> = {
-  youtube: 'var(--color-category-youtube)',
-  social: 'var(--color-category-social)',
-  marketing: 'var(--color-category-marketing)',
-  art: 'var(--color-category-art)',
-};
-
 type SortBy = 'popular' | 'newest' | 'alpha';
 type ViewMode = 'cards' | 'compact';
 
@@ -241,7 +233,6 @@ export function TemplatesPanel() {
         <div className="flex flex-wrap gap-2 pb-5">
           {CATEGORY_TABS.map((tab) => {
             const Icon = tab.icon;
-            const color = categoryColors[tab.id];
             const isActive = selectedCategory === tab.id;
             const count = tab.id === 'mine' ? userTemplates.length : undefined;
 
@@ -249,8 +240,6 @@ export function TemplatesPanel() {
               <PadButton
                 key={tab.id}
                 selected={isActive}
-                accent={color}
-                led={isActive && color ? color : undefined}
                 onClick={() => setSelectedCategory(tab.id)}
                 aria-selected={isActive}
               >
@@ -309,7 +298,6 @@ export function TemplatesPanel() {
           /* Compact list view */
           <div className="flex flex-col gap-2">
             {sortedTemplates.map((template, index) => {
-              const color = categoryColors[template.category] || 'var(--color-accent-primary)';
               return (
                 <motion.div
                   key={template.id}
@@ -328,18 +316,15 @@ export function TemplatesPanel() {
                     }
                   }}
                 >
-                  <ThumbWell template={template} color={color} size={36} />
+                  <ThumbWell template={template} size={36} />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      <h3 className="font-medium text-sm text-text-primary truncate">
+                      <h2 className="font-medium text-sm text-text-primary truncate">
                         {template.name}
-                      </h3>
-                      <span className="inline-flex items-center gap-1.5 flex-shrink-0">
-                        <Led color={color} size={6} />
-                        <MonoLabel tone="muted">
-                          {categoryLabels[template.category] || template.category}
-                        </MonoLabel>
-                      </span>
+                      </h2>
+                      <MonoLabel tone="muted" className="flex-shrink-0">
+                        {categoryLabels[template.category] || template.category}
+                      </MonoLabel>
                       {template.isCustom && <MonoLabel tone="muted">Custom</MonoLabel>}
                     </div>
                     <div className="flex items-center gap-3 mt-1 data-mono text-text-muted">
@@ -379,7 +364,6 @@ export function TemplatesPanel() {
             style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))' }}
           >
             {sortedTemplates.map((template, index) => {
-              const color = categoryColors[template.category] || 'var(--color-accent-primary)';
               const isHovered = hoveredTemplate === template.id;
               return (
                 <motion.div
@@ -402,17 +386,14 @@ export function TemplatesPanel() {
                   }}
                 >
                   <div className="flex items-start gap-4">
-                    <ThumbWell template={template} color={color} size={56} />
+                    <ThumbWell template={template} size={56} />
                     <div className="flex-1 min-w-0">
-                      <h3 className="font-semibold text-text-primary truncate">
+                      <h2 className="font-semibold text-text-primary truncate">
                         {template.name}
-                      </h3>
-                      <span className="inline-flex items-center gap-1.5 mt-1">
-                        <Led color={color} size={6} />
-                        <MonoLabel tone="muted">
-                          {categoryLabels[template.category] || template.category}
-                        </MonoLabel>
-                      </span>
+                      </h2>
+                      <MonoLabel tone="muted" className="mt-1 block">
+                        {categoryLabels[template.category] || template.category}
+                      </MonoLabel>
                       <p className="text-sm text-text-body mt-2 line-clamp-2">
                         {template.description}
                       </p>
@@ -503,12 +484,12 @@ export function TemplatesPanel() {
   );
 }
 
-/** Recessed CRT thumbnail viewport: template short-code in mono + a category LED. */
-function ThumbWell({ template, color, size }: { template: ProjectTemplate; color: string; size: number }) {
+/** Recessed CRT thumbnail viewport: the template short-code in mono. */
+function ThumbWell({ template, size }: { template: ProjectTemplate; size: number }) {
   return (
     <RecessedWell
       padding={0}
-      className="relative flex items-center justify-center flex-shrink-0"
+      className="flex items-center justify-center flex-shrink-0"
       style={{ width: size, height: size }}
     >
       <span
@@ -517,7 +498,6 @@ function ThumbWell({ template, color, size }: { template: ProjectTemplate; color
       >
         {template.thumbnail}
       </span>
-      <Led color={color} size={5} style={{ position: 'absolute', top: 4, right: 4 }} />
     </RecessedWell>
   );
 }

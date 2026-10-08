@@ -28,11 +28,13 @@ const FINAL_FRAME_MS = TRAIL_MS;
 /** Default opacity value a newly-added layer keyframe holds. */
 const DEFAULT_KEYFRAME_VALUE = 1;
 
+// Lane legend, cycled per track. Drawn from the capability palette so the
+// lanes stay on the documented hues (DESIGN.md section Color).
 const TRACK_COLORS = [
-  'var(--color-category-youtube)',
-  'var(--color-category-art)',
-  'var(--color-category-social)',
-  'var(--color-category-marketing)',
+  'var(--color-capability-image)',
+  'var(--color-capability-video)',
+  'var(--color-capability-edit)',
+  'var(--color-capability-local)',
 ] as const;
 
 const INTERPOLATION_OPTIONS: { value: KeyframeInterpolation; label: string }[] = [

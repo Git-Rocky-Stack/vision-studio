@@ -500,7 +500,8 @@ const TimelineClipBlock = memo(function TimelineClipBlock({
 }) {
   const leftPct = (clip.startMs / totalDurationMs) * 100;
   const widthPct = Math.max(2, (clip.durationMs / totalDurationMs) * 100);
-  const baseColor = mediaAsset?.type === 'video' ? 'var(--color-category-youtube)' : 'var(--color-category-art)';
+  // Clips are tinted by what they hold, which is what the capability palette names.
+  const baseColor = mediaAsset?.type === 'video' ? 'var(--color-capability-video)' : 'var(--color-capability-image)';
   const backgroundImage =
     mediaAsset?.type === 'audio'
       ? null

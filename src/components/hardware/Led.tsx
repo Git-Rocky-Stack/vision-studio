@@ -4,7 +4,7 @@ import { resolveHardwareColor, type LedColor, type CapabilityColor } from './tok
 interface LedProps {
   /**
    * LED semantic (rec/cue/play/jog/fx/time), capability
-   * (image/video/edit/local/cloud), or a raw CSS color/var for category hues.
+   * (image/video/edit/local/cloud), or a raw CSS color/var for feature hues.
    */
   color: LedColor | CapabilityColor | (string & {});
   /** Diameter in px. */

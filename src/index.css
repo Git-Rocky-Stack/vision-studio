@@ -57,12 +57,6 @@
   --color-red-glow: rgba(239, 68, 68, 0.22);
   --color-red-aura: var(--color-status-error-muted);
 
-  /* Category colors */
-  --color-category-youtube: #ef4444;
-  --color-category-social: #f472b6;
-  --color-category-marketing: #2dd4bf;
-  --color-category-art: #8b5cf6;
-
   /* Capability colors for model/runtime routing */
   --color-capability-image: #38bdf8;
   --color-capability-video: #f59e0b;
@@ -412,10 +406,6 @@ body[data-theme='light'] {
   --color-red-pressed: #b91c1c;
   --color-red-glow: rgba(220, 38, 38, 0.18);
   --color-red-aura: var(--color-status-error-muted);
-  --color-category-youtube: #dc2626;
-  --color-category-social: #d94f7a;
-  --color-category-marketing: #2da89e;
-  --color-category-art: #5b4cd6;
   --color-gradient-progress-start: var(--color-accent-primary-pressed);
   --color-gradient-progress-end: var(--color-accent-primary);
 }
@@ -474,10 +464,6 @@ body[data-theme='light'] {
     --color-red-pressed: #dc2626;
     --color-red-glow: rgba(239, 68, 68, 0.22);
     --color-red-aura: var(--color-status-error-muted);
-    --color-category-youtube: #ef4444;
-    --color-category-social: #f472b6;
-    --color-category-marketing: #2dd4bf;
-    --color-category-art: #8b5cf6;
     --color-gradient-progress-start: var(--color-accent-primary-pressed);
     --color-gradient-progress-end: var(--color-accent-primary);
 

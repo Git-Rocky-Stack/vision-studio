@@ -3,7 +3,8 @@
  *
  * The document is GENERATED (backend/foundry/notices.py) and drift-guarded by
  * backend/tests/test_notices.py, so its structure is a closed set: h1-h3
- * headings, "- " list items, **bold**, [text](url) links, plain paragraphs.
+ * headings, "- " list items, **bold**, [text](url) links, `inline code`
+ * (model ids and the LICENSE pointer), plain paragraphs.
  * Parsing that fixed grammar here keeps the About > Licenses screen bound to
  * the exact shipped compliance artifact - one source of truth, no markdown
  * dependency, no dangerouslySetInnerHTML.
@@ -12,6 +13,7 @@
 export type LicenseSpan =
   | { kind: 'text'; text: string }
   | { kind: 'bold'; text: string }
+  | { kind: 'code'; text: string }
   | { kind: 'link'; text: string; url: string };
 
 export type LicensesBlock =
@@ -19,7 +21,7 @@ export type LicensesBlock =
   | { kind: 'paragraph'; spans: LicenseSpan[] }
   | { kind: 'listItem'; spans: LicenseSpan[] };
 
-const INLINE = /\[([^\]]+)\]\(([^)]+)\)|\*\*([^*]+)\*\*/g;
+const INLINE = /\[([^\]]+)\]\(([^)]+)\)|\*\*([^*]+)\*\*|`([^`]+)`/g;
 
 function parseInlineSpans(text: string): LicenseSpan[] {
   const spans: LicenseSpan[] = [];
@@ -29,8 +31,10 @@ function parseInlineSpans(text: string): LicenseSpan[] {
     if (index > last) spans.push({ kind: 'text', text: text.slice(last, index) });
     if (match[1] !== undefined) {
       spans.push({ kind: 'link', text: match[1], url: match[2] });
-    } else {
+    } else if (match[3] !== undefined) {
       spans.push({ kind: 'bold', text: match[3] });
+    } else {
+      spans.push({ kind: 'code', text: match[4] });
     }
     last = index + match[0].length;
   }

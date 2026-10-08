@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { useAppStore } from '@/store/appStore';
 import { provisioningInitialState } from '@/store/slices/provisioningSlice';
 import packageJson from '../../../package.json';
@@ -44,6 +44,22 @@ describe('AboutSection', () => {
     expect(licenses).toHaveTextContent('Stable Diffusion 3.5 Large');
     expect(licenses).toHaveTextContent('PyTorch');
     expect(licenses).toHaveTextContent('Powered by Stability AI');
+  });
+
+  it('renders inline code as code, never as raw markdown backticks', () => {
+    render(<AboutSection />);
+    const licenses = screen.getByTestId('about-licenses');
+    expect(licenses.textContent).not.toContain('`');
+    expect(within(licenses).getByText('sd3.5-large').tagName).toBe('CODE');
+  });
+
+  // The same document ships as a file beside LICENSE and renders on this
+  // screen, so its pointer to LICENSE has to read true in both places.
+  it('points at the LICENSE without calling itself a file', () => {
+    render(<AboutSection />);
+    const licenses = screen.getByTestId('about-licenses');
+    expect(licenses).not.toHaveTextContent('this file');
+    expect(within(licenses).getByText('LICENSE').tagName).toBe('CODE');
   });
 
   it('license links open externally', () => {

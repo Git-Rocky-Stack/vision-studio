@@ -1,8 +1,9 @@
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useAppStore } from '@/store/appStore';
 
+import { skippedHeadingLevels } from '../../tests/support/headingOrder';
 import { AssetsPanel } from './AssetsPanel';
 import { BatchPromptQueue } from './BatchPanel';
 import { SettingsPanel } from './SettingsPanel';
@@ -163,6 +164,26 @@ describe('Carbon Pro secondary panels', () => {
     const allTemplates = screen.getByRole('button', { name: /All Templates/i });
     expect(allTemplates).toHaveAttribute('aria-pressed', 'true');
     expect(container.querySelector(legacyPrimarySelector)).not.toBeInTheDocument();
+  });
+
+  // One accent: a selected category lights in chrome like every other pad. A
+  // private hue per category put violet, pink and teal text on the faceplate.
+  it('selects a Templates category in chrome, not a category hue', () => {
+    render(<TemplatesPanel />);
+
+    const pad = screen.getByRole('button', { name: /YouTube/i });
+    fireEvent.click(pad);
+
+    expect(pad).toHaveAttribute('aria-pressed', 'true');
+    expect(pad.style.color).toBe('var(--color-chrome)');
+    expect(pad.style.boxShadow).toContain('var(--color-chrome-edge)');
+  });
+
+  it('keeps an unbroken heading order on Templates', () => {
+    render(<TemplatesPanel />);
+
+    expect(screen.getAllByRole('heading').length).toBeGreaterThan(1);
+    expect(skippedHeadingLevels()).toEqual([]);
   });
 
   it('renders Settings idle controls with accent selection and no legacy primary red', async () => {

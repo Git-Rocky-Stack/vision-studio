@@ -43,6 +43,11 @@ describe('FoundryPage', () => {
     expect(screen.getByRole('tab', { name: /hardware/i })).toBeInTheDocument();
   });
 
+  it('titles the page with the shared page-title treatment', () => {
+    render(<FoundryPage />);
+    expect(screen.getByRole('heading', { level: 1, name: 'Foundry' })).toHaveClass('type-title');
+  });
+
   it('switches sections when a section tab is clicked', () => {
     render(<FoundryPage />);
     fireEvent.click(screen.getByRole('tab', { name: /library/i }));

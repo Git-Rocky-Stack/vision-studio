@@ -734,7 +734,7 @@ export function SettingsPanel() {
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: -10 }}
             transition={{ duration: 0.2 }}
-            className="max-w-2xl"
+            className="max-w-2xl [&_p]:max-w-[70ch]"
           >
             {activeTab === 'general' && (
               <div className="space-y-8">
@@ -819,14 +819,15 @@ export function SettingsPanel() {
                     </div>
                     <div className="h-2 bg-void rounded-full overflow-hidden border border-border">
                       <div
+                        data-testid="storage-usage-fill"
                         className="h-full rounded-full bg-[linear-gradient(90deg,var(--color-gradient-progress-start),var(--color-gradient-progress-end))]"
                         style={{
-                          width: `${Math.min(100, Math.max(8, assetLibrary.length * 8))}%`,
+                          width: `${Math.min(100, assetLibrary.length * 8)}%`,
                         }}
                       />
                     </div>
                     <p className="data-mono text-text-muted mt-2">
-                      App cache folder: internal `/outputs`. Custom output folders are preserved.
+                      App cache folder: internal /outputs. Custom output folders are preserved.
                     </p>
                     <Button
                       variant="ghost"
@@ -863,19 +864,16 @@ export function SettingsPanel() {
                           : 'bg-status-warning-muted',
                       )}
                     >
-                      <Check
-                        className={cn(
-                          'w-5 h-5',
-                          systemInfo.gpuAvailable
-                            ? 'text-status-success'
-                            : 'text-status-warning',
-                        )}
-                      />
+                      {systemInfo.gpuAvailable ? (
+                        <Check className="w-5 h-5 text-status-success" />
+                      ) : (
+                        <AlertTriangle className="w-5 h-5 text-status-warning" />
+                      )}
                     </div>
                     <div>
-                      <h4 className="text-sm font-medium text-text-primary">
+                      <h3 className="text-sm font-medium text-text-primary">
                         {systemInfo.gpuName || 'GPU not detected'}
-                      </h4>
+                      </h3>
                       <p className="data-mono text-text-body">
                         {systemInfo.gpuVram || 'CPU mode'}, {systemInfo.cudaVersion || 'No CUDA'}
                       </p>
@@ -888,9 +886,9 @@ export function SettingsPanel() {
                     <div className="flex items-start gap-3">
                       <AlertTriangle className="w-5 h-5 text-status-error mt-0.5 flex-shrink-0" />
                       <div>
-                        <h4 className="text-sm font-medium text-status-error">
+                        <h3 className="text-sm font-medium text-status-error">
                           AI Backend Offline
-                        </h4>
+                        </h3>
                         <p className="text-xs text-text-body mt-1">
                           The Python backend is not running. Image generation and AI features are
                           disabled.

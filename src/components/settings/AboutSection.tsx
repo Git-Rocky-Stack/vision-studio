@@ -20,6 +20,13 @@ function Spans({ spans }: { spans: LicenseSpan[] }) {
             </strong>
           );
         }
+        if (span.kind === 'code') {
+          return (
+            <code key={index} className="data-mono text-text-primary">
+              {span.text}
+            </code>
+          );
+        }
         if (span.kind === 'link') {
           return (
             <a
@@ -157,7 +164,7 @@ export function AboutSection() {
     <div data-testid="settings-about" className="flex flex-col gap-6">
       <div>
         <p className="mono-label text-text-muted">About</p>
-        <h2 className="mt-1 text-xl font-semibold text-text-primary">Vision Studio</h2>
+        <h2 className="mt-1 type-title">Vision Studio</h2>
         <p className="data-mono mt-1 text-text-muted">{`v${packageJson.version}`}</p>
         <p className="mt-3 max-w-[65ch] text-sm leading-relaxed text-text-body">
           Professional local-first AI image and video generation. Everything runs on
@@ -182,14 +189,14 @@ export function AboutSection() {
             if (block.kind === 'heading') {
               if (block.level === 1) {
                 return (
-                  <h3 key={index} className="text-lg font-semibold text-text-primary">
+                  <h3 key={index} className="text-base font-semibold text-text-primary">
                     {block.text}
                   </h3>
                 );
               }
               if (block.level === 2) {
                 return (
-                  <h4 key={index} className="mt-4 text-base font-medium text-text-primary">
+                  <h4 key={index} className="mt-4 type-section">
                     {block.text}
                   </h4>
                 );

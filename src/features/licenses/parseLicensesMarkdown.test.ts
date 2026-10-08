@@ -48,4 +48,24 @@ describe('parseLicensesMarkdown', () => {
     const blocks = parseLicensesMarkdown('## A\r\n- item\r\n');
     expect(blocks).toHaveLength(2);
   });
+
+  // The generator wraps every model id and the LICENSE pointer in backticks.
+  // Left unparsed they reached the About screen as literal backtick characters.
+  it('parses inline code into a code span, without the backticks', () => {
+    const blocks = parseLicensesMarkdown(SAMPLE);
+    const item = blocks.find(
+      (b) => b.kind === 'listItem' && b.spans.some((s) => s.kind === 'code'),
+    );
+    if (item?.kind !== 'listItem') throw new Error('expected a list item with inline code');
+    expect(item.spans).toContainEqual({ kind: 'code', text: 'sd3.5-large' });
+
+    const paragraph = blocks.find((b) => b.kind === 'paragraph');
+    if (paragraph?.kind !== 'paragraph') throw new Error('expected the preamble paragraph');
+    expect(paragraph.spans).toContainEqual({ kind: 'code', text: 'LICENSE.txt' });
+
+    const everyText = blocks.flatMap((b) =>
+      b.kind === 'heading' ? [b.text] : b.spans.map((s) => s.text),
+    );
+    expect(everyText.join('')).not.toContain('`');
+  });
 });

@@ -15,8 +15,8 @@ interface KeyframeDiamondProps {
 const INTERPOLATION_COLORS: Record<KeyframeInterpolation, string> = {
   linear: 'bg-text-body',
   'ease-in': 'bg-status-warning',
-  'ease-out': 'bg-category-youtube',
-  'ease-in-out': 'bg-category-social',
+  'ease-out': 'bg-status-info',
+  'ease-in-out': 'bg-capability-edit',
 };
 
 export const KeyframeDiamond = memo(function KeyframeDiamond({

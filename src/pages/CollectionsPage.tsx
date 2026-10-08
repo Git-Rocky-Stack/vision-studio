@@ -52,7 +52,7 @@ export const CollectionsPage = memo(function CollectionsPage() {
       {/* Header */}
       <header className="flex items-center gap-4 border-b border-border px-6 py-4">
         <Layers className="w-5 h-5 text-accent-primary" aria-hidden="true" />
-        <h1 className="type-heading-3 text-text-primary flex-1">Collections</h1>
+        <h1 className="type-title flex-1">Collections</h1>
         <AnalyzeButton />
         <Button
           variant="primary"

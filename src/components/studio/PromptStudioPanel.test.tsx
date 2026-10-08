@@ -73,6 +73,44 @@ describe('PromptStudioPanel', () => {
     expect(await screen.findByText('Local Prompt Tools')).toBeInTheDocument();
   });
 
+  // The route chip names where prompt tools run. A cloud glyph beside "Local
+  // Prompt Tools" contradicted the one fact the chip exists to state.
+  it('draws the local route with a local glyph, not a cloud', async () => {
+    render(<PromptStudioPanel />);
+
+    const chip = (await screen.findByText('Local Prompt Tools')).closest('.recessed-well');
+    expect(chip?.querySelector('svg.lucide-cpu')).not.toBeNull();
+    expect(chip?.querySelector('svg.lucide-cloud')).toBeNull();
+  });
+
+  it('keeps the cloud glyph for a hosted prompt route', async () => {
+    const accounts = {
+      activeAccountId: 'account-primary',
+      accounts: [
+        {
+          id: 'account-primary',
+          name: 'Primary',
+          createdAt: '2026-04-24T00:00:00.000Z',
+          updatedAt: '2026-04-24T00:00:00.000Z',
+          preferences: {
+            promptEnhancementProvider: 'openrouter',
+            openRouterModel: 'openai/gpt-4o-mini',
+            imageGenerationProvider: 'local',
+            openRouterImageModel: '',
+          },
+          openRouter: { apiKeyStored: true, keyLabel: 'Primary Key', lastValidatedAt: null },
+        },
+      ],
+    };
+    (window.electron.accounts.list as ReturnType<typeof vi.fn>).mockResolvedValue(accounts);
+    render(<PromptStudioPanel />);
+
+    const label = await screen.findByText(/OpenRouter/, { selector: 'p.type-section' });
+    const chip = label.closest('.recessed-well');
+    expect(chip?.querySelector('svg.lucide-cloud')).not.toBeNull();
+    expect(chip?.querySelector('svg.lucide-cpu')).toBeNull();
+  });
+
   it('keeps the editors bound to the shared generation draft', async () => {
     const user = userEvent.setup();
     render(<PromptStudioPanel />);

@@ -22,7 +22,7 @@ NOTICES_PATH = os.path.join(REPO_ROOT, "THIRD-PARTY-LICENSES.md")
 
 _PREAMBLE = (
     "Vision Studio's own source code is released under the MIT License (see "
-    "`LICENSE`, shipped alongside this file). The application additionally "
+    "`LICENSE`, shipped with the application). The application additionally "
     "bundles the runtime "
     "dependencies and provisions the AI models listed below; each retains its "
     "own license, linked here in accordance with its terms.\n\n"

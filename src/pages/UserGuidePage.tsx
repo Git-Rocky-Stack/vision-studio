@@ -20,12 +20,14 @@ const GUIDE_LINKS = [
 
 export function UserGuidePage() {
   return (
-    <div className="h-full overflow-y-auto bg-surface p-6">
+    // A Settings tab: the Settings panel supplies the h1, the scroller and the
+    // padding, exactly as it does for every other tab.
+    <div>
       <div className="max-w-3xl">
-        <p className="text-label text-text-muted">Help</p>
-        <h1 className="mt-1 text-2xl font-semibold text-text-primary">
+        <p className="mono-label text-text-muted">Help</p>
+        <h2 className="mt-1 type-title">
           User Guide
-        </h1>
+        </h2>
         <p className="mt-2 text-sm text-text-body">
           Vision Studio is now local-first with optional OpenRouter BYOK. Use one active account at
           a time, route prompt tools and still-image generation where you need them, and move work
