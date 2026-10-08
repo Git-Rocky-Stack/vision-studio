@@ -211,7 +211,9 @@ export const DockviewSettingsPanel = memo(function DockviewSettingsPanel() {
         role="tabpanel"
         id="settings-tabpanel"
         aria-labelledby="settings-segmented-control"
-        className="scroll-shadow-y min-h-0 flex-1 overflow-y-auto"
+        // A flex column, so a panel that pins its own header or footer (flex-1
+        // min-h-0) can fill the dock; content-height panels still scroll here.
+        className="scroll-shadow-y flex min-h-0 flex-1 flex-col overflow-y-auto"
       >
         <Suspense fallback={<PanelLoadingFallback />}>
           <SettingsContent activeTab={activeTab} activeSubMode={activeSubMode} />

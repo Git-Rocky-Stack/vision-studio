@@ -1449,7 +1449,7 @@ export function GeneratePanel() {
         </div>
       </div>
 
-      <div className="h-0 flex-1 overflow-y-scroll p-4 space-y-4">
+      <div className="h-0 flex-1 overflow-y-auto p-4 space-y-4">
         <GenerateSectionCard
           sectionId="prompt"
           title="Prompt"
@@ -1739,12 +1739,13 @@ export function GeneratePanel() {
             </p>
           </motion.div>
         )}
-      </div>
 
-      <div className="border-t border-border bg-panel p-4">
+        {/* The run summary and readiness detail scroll with the form. Only the
+            action itself (and any blocking warning) is pinned below, so the
+            button is always on screen without the footer crowding the form. */}
         <div
           data-testid="generate-preflight-summary"
-          className="recessed-well mb-3 px-3 py-3"
+          className="recessed-well px-3 py-3"
         >
           <div className="flex items-center justify-between gap-3">
             <div className="min-w-0">
@@ -1761,21 +1762,6 @@ export function GeneratePanel() {
               Target: {timelineTargetSummary}
             </p>
           ) : null}
-          {footerWarning && (
-            <p data-testid="generate-preflight-warning" className="mt-2 text-xs text-status-warning">
-              {footerWarning}
-              {(controlNetPreflight.missingRecordIds.length > 0 ||
-                referencePreflight.missingRecordIds.length > 0) && (
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('foundry')}
-                  className="ml-2 underline underline-offset-2 text-status-warning hover:text-text-primary transition-colors"
-                >
-                  Manage in Foundry
-                </button>
-              )}
-            </p>
-          )}
           {lastGuidedNotices.length > 0 && (
             <div data-testid="guided-notices" className="recessed-well mt-2 px-3 py-2">
               <span className="mono-label text-text-muted">Pass Notices</span>
@@ -1795,7 +1781,24 @@ export function GeneratePanel() {
             HuggingFace video) bypass the local pipeline, so no local model id
             is in play there. */}
         <PreflightFooter modelId={hostedRouteEnabled ? null : currentModel} />
+      </div>
 
+      <div className="flex-shrink-0 border-t border-border bg-panel p-3">
+        {footerWarning && (
+          <p data-testid="generate-preflight-warning" className="mb-2 text-xs text-status-warning">
+            {footerWarning}
+            {(controlNetPreflight.missingRecordIds.length > 0 ||
+              referencePreflight.missingRecordIds.length > 0) && (
+              <button
+                type="button"
+                onClick={() => setActiveTab('foundry')}
+                className="ml-2 underline underline-offset-2 text-status-warning hover:text-text-primary transition-colors"
+              >
+                Manage in Foundry
+              </button>
+            )}
+          </p>
+        )}
         <AnimatePresence mode="wait">
           {genStatus.isGenerating ? (
             <motion.div
