@@ -1554,9 +1554,12 @@ export function SettingsPanel() {
                               disabled={!hasHuggingFaceToken}
                               className="recessed-well w-full px-3 py-2 text-sm text-text-primary"
                             >
-                              <option value="">Select a HuggingFace prompt model</option>
+                              <option value="">Default (Qwen 2.5 7B Instruct)</option>
+                              <option value="Qwen/Qwen2.5-7B-Instruct">
+                                Qwen 2.5 7B Instruct
+                              </option>
                               <option value="meta-llama/Llama-3.1-8B-Instruct">
-                                Llama 3.1 8B Instruct
+                                Llama 3.1 8B Instruct (gated - accept its license on huggingface.co)
                               </option>
                             </select>
                             <p className="text-xs text-text-muted">

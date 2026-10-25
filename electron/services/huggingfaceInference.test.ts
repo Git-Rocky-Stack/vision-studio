@@ -92,6 +92,9 @@ describe('createHuggingFaceInferenceService.enhancePrompt', () => {
 
     expect(axiosInstance.post.mock.calls[0][1].model).toBe(curated[0].id);
     expect(axiosInstance.post.mock.calls[1][1].model).toBe(curated[0].id);
+    // The default must work for a fresh token: never a license-gated repo.
+    expect(curated[0].id).not.toMatch(/^meta-llama\//);
+    expect(curated[0].name).not.toMatch(/gated/i);
   });
 
   it('explains a 403 on a gated model instead of blaming the token', async () => {

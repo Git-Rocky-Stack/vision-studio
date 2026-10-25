@@ -20,6 +20,14 @@ export function isBackendDownError(error: unknown): boolean {
   return msg.includes('ECONNREFUSED') || candidate?.code === 'ECONNREFUSED';
 }
 
+/**
+ * Attempt count for calls that CREATE work on the backend (generation, edit,
+ * export, conversion submits). A timed-out or 5xx submit may already have
+ * enqueued its job, so a retry would run - and write output for - the same
+ * request twice. Those calls fail once and let the user decide.
+ */
+export const SUBMIT_ONCE = 1;
+
 export async function requestBackend<T>(
   request: () => Promise<T>,
   attempts: number = 3,

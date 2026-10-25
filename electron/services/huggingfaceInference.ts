@@ -198,8 +198,12 @@ const CURATED_IMAGE_MODELS: HuggingFaceModelSummary[] = [
   { id: 'black-forest-labs/FLUX.1-schnell', name: 'FLUX.1 schnell', modality: 'image' },
   { id: 'stabilityai/stable-diffusion-xl-base-1.0', name: 'SDXL 1.0', modality: 'image' },
 ];
+// The first entry is the out-of-box default, so it must be ungated: a gated
+// default (Llama requires accepting Meta's license on huggingface.co) would
+// make prompt-assist fail for every new token holder until they did.
 const CURATED_TEXT_MODELS: HuggingFaceModelSummary[] = [
-  { id: 'meta-llama/Llama-3.1-8B-Instruct', name: 'Llama 3.1 8B Instruct', modality: 'text' },
+  { id: 'Qwen/Qwen2.5-7B-Instruct', name: 'Qwen 2.5 7B Instruct', modality: 'text' },
+  { id: 'meta-llama/Llama-3.1-8B-Instruct', name: 'Llama 3.1 8B Instruct (gated)', modality: 'text' },
 ];
 /**
  * The router's chat endpoint rejects a request without `model` (HTTP 400),

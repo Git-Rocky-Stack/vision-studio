@@ -24,6 +24,7 @@ import { mergeJobsByCreatedAtDesc } from './jobListing';
 import { routeBackendWsMessage } from './backendWsRouting';
 import {
   BACKEND_DOWN_MESSAGE as _BACKEND_DOWN_MESSAGE,
+  SUBMIT_ONCE,
   describeBackendError,
   requestBackend,
 } from './backendRequest';
@@ -249,7 +250,8 @@ ipcMain.handle(
         `${BACKEND_URL}/api/v1/comfy/run-graph`,
         { graph: params.graph, generation_type: params.generationType },
         { headers: backendAuthHeaders() }
-      )
+      ),
+      SUBMIT_ONCE,
     );
     return response.data;
   }
@@ -375,6 +377,7 @@ ipcMain.handle('generation:generate-image', async (_event, params) => {
   try {
     const response = await requestBackend(() =>
       backendHttp.post(`${BACKEND_URL}/api/generate/image`, params, { headers: backendAuthHeaders() }),
+      SUBMIT_ONCE,
     );
     return {
       success: true,
@@ -435,6 +438,7 @@ ipcMain.handle('generation:generate-video', async (_event, params) => {
   try {
     const response = await requestBackend(() =>
       backendHttp.post(`${BACKEND_URL}/api/generate/video`, params, { headers: backendAuthHeaders() }),
+      SUBMIT_ONCE,
     );
     return {
       success: true,
@@ -668,6 +672,7 @@ ipcMain.handle('generation:edit-image', async (_event, params) => {
     const { operation, ...body } = params ?? {};
     const response = await requestBackend(() =>
       backendHttp.post(`${BACKEND_URL}/api/v1/edit/${operation}`, body, { headers: backendAuthHeaders() }),
+      SUBMIT_ONCE,
     );
     return { success: true, jobId: response.data.job_id };
   } catch (error: any) {
@@ -696,6 +701,7 @@ ipcMain.handle('generation:export-timeline-sequence', async (_event, params) => 
   try {
     const response = await requestBackend(() =>
       backendHttp.post(`${BACKEND_URL}/api/timeline/export`, params, { headers: backendAuthHeaders() }),
+      SUBMIT_ONCE,
     );
     return {
       success: true,
@@ -862,6 +868,7 @@ ipcMain.handle('generation:batch', async (_event, params) => {
             },
             { headers: backendAuthHeaders() },
           ),
+          SUBMIT_ONCE,
         );
         return response.data.job_id as string;
       },
@@ -1384,6 +1391,7 @@ ipcMain.handle('models:convert', async (_event, modelId: string) => {
         undefined,
         { headers: backendAuthHeaders(), timeout: BACKEND_LONG_OPERATION_TIMEOUT_MS },
       ),
+      SUBMIT_ONCE,
     );
     return response.data;
   } catch (error: any) {

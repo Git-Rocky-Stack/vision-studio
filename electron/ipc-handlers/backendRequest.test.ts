@@ -1,7 +1,10 @@
+import { readFileSync } from 'fs';
+import { resolve } from 'path';
 import { describe, expect, it, vi } from 'vitest';
 
 import {
   BACKEND_DOWN_MESSAGE,
+  SUBMIT_ONCE,
   isBackendDownError,
   requestBackend,
 } from './backendRequest';
@@ -144,4 +147,33 @@ describe('requestBackend', () => {
       vi.useRealTimers();
     }
   });
+
+  it('SUBMIT_ONCE never resends a submit that timed out', async () => {
+    const request = vi.fn(async () => {
+      throw Object.assign(new Error('timeout of 30000ms exceeded'), { code: 'ECONNABORTED' });
+    });
+    await expect(requestBackend(request, SUBMIT_ONCE)).rejects.toThrow(/timeout/);
+    expect(request).toHaveBeenCalledTimes(1);
+  });
+
+  it('every job-creating submit in the generation handlers is sent once', () => {
+    const source = readFileSync(resolve(__dirname, 'generation.ts'), 'utf8');
+    const calls = source.split('requestBackend(').slice(1).map((chunk) => chunk.slice(0, 600));
+    const submitPaths = [
+      '/api/v1/comfy/run-graph',
+      '/api/generate/image',
+      '/api/generate/video',
+      '/api/v1/edit/',
+      '/api/timeline/export',
+      '/convert-safetensors',
+    ];
+    for (const path of submitPaths) {
+      const matching = calls.filter((call) => call.split(');')[0].includes(path));
+      expect(matching.length, path).toBeGreaterThan(0);
+      for (const call of matching) {
+        expect(call.split(');')[0], path).toContain('SUBMIT_ONCE');
+      }
+    }
+  });
 });
+
