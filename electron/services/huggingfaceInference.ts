@@ -11,9 +11,15 @@
  * either. Those passes stay Local (diffusers on the user's GPU) - we do not ship
  * a client for a payload shape we cannot stand behind (Codex M6 gate).
  *
- * All generation posts to the Inference Providers router
+ * Prompt-only text-to-image posts to the Inference Providers router
  * (https://router.huggingface.co/hf-inference/models/<model>) returning raw
  * bytes; chat posts to the OpenAI-compatible router (.../v1/chat/completions).
+ *
+ * Text-to-video does NOT go to hf-inference: that provider serves no
+ * text-to-video models, so a pinned hf-inference URL can never succeed for
+ * Lightricks/LTX-Video and friends. Video dispatches through the official
+ * client's textToVideo with provider 'auto', which resolves whichever live
+ * provider (fal-ai, replicate, novita...) maps the model.
  *
  * #42 exception: single-LoRA still-image jobs dispatch adapter-by-model-id via
  * the official @huggingface/inference client - the Hub LoRA repo id is passed
@@ -31,6 +37,7 @@ import {
   createKeyConcurrencyLimit,
   isAbortError,
   isRetryableBilledError,
+  isTimeoutError,
   isRetryableError,
   retryHostedCall,
 } from './hostedHttp';
@@ -45,6 +52,8 @@ const DEFAULT_RETRY_BASE_DELAY_MS = 250;
 const DEFAULT_MAX_CONCURRENT_PER_KEY = 4;
 const METADATA_TIMEOUT_MS = 15_000;
 const GENERATION_TIMEOUT_MS = 120_000;
+/** Hosted text-to-video routinely takes minutes; 120s cut real jobs off. */
+const VIDEO_GENERATION_TIMEOUT_MS = 600_000;
 export const HF_MAX_PROMPT_CHARS = 8_000;
 
 export type HuggingFacePromptMode = 'clarify' | 'cinematic' | 'concise' | 'expand' | 'variations';
@@ -130,6 +139,37 @@ const defaultAdapterTextToImage: AdapterTextToImage = async (args, options) => {
   return textToImage(args, { ...options, outputType: 'blob' });
 };
 
+/** Official-client call shape for text-to-video provider resolution. */
+type ClientTextToVideoArgs = {
+  accessToken: string;
+  model: string;
+  /** 'auto' = first live provider mapping for the model, resolved by the client. */
+  provider: 'auto';
+  inputs: string;
+  parameters: { num_frames?: number };
+};
+
+type ClientTextToVideo = (
+  args: ClientTextToVideoArgs,
+  options: { signal?: AbortSignal; retry_on_error: boolean },
+) => Promise<Blob | ArrayBuffer | Uint8Array>;
+
+/** Default text-to-video dispatch: lazily loaded, injected in tests. */
+const defaultClientTextToVideo: ClientTextToVideo = async (args, options) => {
+  const { textToVideo } = await import('@huggingface/inference');
+  return textToVideo(args, options);
+};
+
+/**
+ * The official client takes no timeout option, so the deadline rides the
+ * abort signal. A deadline reject surfaces as a TimeoutError, a user cancel
+ * as an AbortError, which keeps the two distinguishable downstream.
+ */
+function withDeadline(signal: AbortSignal | undefined, timeoutMs: number): AbortSignal {
+  const deadline = AbortSignal.timeout(timeoutMs);
+  return signal ? AbortSignal.any([signal, deadline]) : deadline;
+}
+
 type CreateHuggingFaceInferenceServiceOptions = {
   axiosInstance?: AxiosLike;
   routerBaseUrl?: string;
@@ -140,6 +180,8 @@ type CreateHuggingFaceInferenceServiceOptions = {
   maxConcurrentPerKey?: number;
   logger?: Logger;
   adapterTextToImage?: AdapterTextToImage;
+  clientTextToVideo?: ClientTextToVideo;
+  videoGenerationTimeoutMs?: number;
 };
 
 /** Curated v1 defaults; users may also type any model id in Settings. */
@@ -270,6 +312,9 @@ function createHuggingFaceError(error: unknown, fallback: string): Error {
     // name === 'AbortError' to tell a user cancel from a real failure.
     return new DOMException('HuggingFace request was cancelled.', 'AbortError');
   }
+  if (isTimeoutError(error)) {
+    return new Error(`${fallback.replace(/\.$/, '')} (request timed out).`);
+  }
   // Axios errors carry response.status; the official client's
   // InferenceClientProviderApiError carries httpResponse.status (#42). Both
   // must sanitize identically - never echo the token or raw upstream body.
@@ -380,6 +425,8 @@ export function createHuggingFaceInferenceService({
   maxConcurrentPerKey = DEFAULT_MAX_CONCURRENT_PER_KEY,
   logger = console,
   adapterTextToImage = defaultAdapterTextToImage,
+  clientTextToVideo = defaultClientTextToVideo,
+  videoGenerationTimeoutMs = VIDEO_GENERATION_TIMEOUT_MS,
 }: CreateHuggingFaceInferenceServiceOptions = {}) {
   const limit = createKeyConcurrencyLimit(maxConcurrentPerKey);
 
@@ -668,25 +715,22 @@ export function createHuggingFaceInferenceService({
     assertValidHfModelId(normalizedModel);
     assertPromptLength(normalizedPrompt, 'Prompt');
     try {
-      const response = await withBilledRetry(
+      const payload = await withBilledRetry(
         token,
         () =>
-          axiosInstance.post(
-            `${inferenceBaseUrl}/${normalizedModel}`,
+          clientTextToVideo(
             {
+              accessToken: token,
+              model: normalizedModel,
+              provider: 'auto',
               inputs: normalizedPrompt,
               parameters: { ...(durationSeconds ? { num_frames: Math.round(durationSeconds * 24) } : {}) },
             },
-            {
-              headers: buildHeaders(token),
-              timeout: GENERATION_TIMEOUT_MS,
-              responseType: 'arraybuffer',
-              signal,
-            },
+            { signal: withDeadline(signal, videoGenerationTimeoutMs), retry_on_error: false },
           ),
         signal,
       );
-      return toVideoResult(normalizedModel, (response as { data: unknown }).data);
+      return toVideoResult(normalizedModel, await adapterPayloadToBuffer(payload));
     } catch (error) {
       throw createHuggingFaceError(error, 'HuggingFace video generation failed.');
     }

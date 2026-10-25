@@ -411,40 +411,92 @@ describe('createHuggingFaceInferenceService.listVideoModels', () => {
 });
 
 describe('createHuggingFaceInferenceService.generateVideo', () => {
-  it('normalizes returned bytes to an mp4 data URL via the hf-inference router', async () => {
-    const axiosInstance = {
-      get: vi.fn(),
-      post: vi.fn().mockResolvedValue({ data: MP4_BYTES, headers: { 'content-type': 'video/mp4' } }),
-    };
-    const service = createHuggingFaceInferenceService({ axiosInstance });
+  function hangingClient() {
+    return vi.fn(
+      (_args: unknown, options: { signal?: AbortSignal }) =>
+        new Promise<Blob>((_resolve, reject) => {
+          options.signal?.addEventListener('abort', () => reject(options.signal?.reason));
+        }),
+    );
+  }
+
+  it('dispatches through the official client with provider auto, never the hf-inference router', async () => {
+    const axiosInstance = { get: vi.fn(), post: vi.fn() };
+    const clientTextToVideo = vi.fn().mockResolvedValue(new Blob([MP4_BYTES]));
+    const service = createHuggingFaceInferenceService({ axiosInstance, clientTextToVideo });
+
     const result = await service.generateVideo({
       token: 'hf_token',
       model: 'Lightricks/LTX-Video',
       prompt: 'a wave',
       durationSeconds: 5,
     });
+
+    expect(clientTextToVideo).toHaveBeenCalledWith(
+      {
+        accessToken: 'hf_token',
+        model: 'Lightricks/LTX-Video',
+        provider: 'auto',
+        inputs: 'a wave',
+        parameters: { num_frames: 120 },
+      },
+      expect.objectContaining({ retry_on_error: false, signal: expect.any(AbortSignal) }),
+    );
+    expect(axiosInstance.post).not.toHaveBeenCalled();
     expect(result.mimeType).toBe('video/mp4');
     expect(result.dataUrl.startsWith('data:video/mp4;base64,')).toBe(true);
-    const url = axiosInstance.post.mock.calls[0][0] as string;
-    expect(url).toBe('https://router.huggingface.co/hf-inference/models/Lightricks/LTX-Video');
+  });
+
+  it('forwards a user cancel to the client as an AbortError', async () => {
+    const controller = new AbortController();
+    const service = createHuggingFaceInferenceService({
+      axiosInstance: { get: vi.fn(), post: vi.fn() },
+      clientTextToVideo: hangingClient(),
+    });
+
+    const pending = service.generateVideo({ token: 'hf_token', model: 'm/v', prompt: 'a wave', signal: controller.signal });
+    controller.abort();
+
+    await expect(pending).rejects.toMatchObject({ name: 'AbortError' });
+  });
+
+  it('gives the client a deadline and reports expiry as a timeout, not a cancel', async () => {
+    const clientTextToVideo = hangingClient();
+    const service = createHuggingFaceInferenceService({
+      axiosInstance: { get: vi.fn(), post: vi.fn() },
+      clientTextToVideo,
+      videoGenerationTimeoutMs: 5,
+    });
+
+    const thrown = (await service
+      .generateVideo({ token: 'hf_token', model: 'm/v', prompt: 'a wave' })
+      .catch((error: unknown) => error)) as Error;
+
+    expect(thrown.name).not.toBe('AbortError');
+    expect(thrown.message).toMatch(/timed out/);
+    // Billed: a timeout is never retried.
+    expect(clientTextToVideo).toHaveBeenCalledOnce();
   });
 
   it('rejects a non-video response body (sanitization)', async () => {
-    const axiosInstance = {
-      get: vi.fn(),
-      post: vi.fn().mockResolvedValue({ data: Buffer.from('{"error":"loading"}'), headers: {} }),
-    };
-    const service = createHuggingFaceInferenceService({ axiosInstance });
+    const clientTextToVideo = vi.fn().mockResolvedValue(new Blob(['{"error":"loading"}']));
+    const service = createHuggingFaceInferenceService({
+      axiosInstance: { get: vi.fn(), post: vi.fn() },
+      clientTextToVideo,
+    });
     await expect(
       service.generateVideo({ token: 'hf_token', model: 'm/v', prompt: 'a wave' }),
     ).rejects.toThrow(/did not return a valid video|failed/i);
   });
 
   it('rejects an empty prompt before any network call', async () => {
-    const axiosInstance = { get: vi.fn(), post: vi.fn() };
-    const service = createHuggingFaceInferenceService({ axiosInstance });
+    const clientTextToVideo = vi.fn();
+    const service = createHuggingFaceInferenceService({
+      axiosInstance: { get: vi.fn(), post: vi.fn() },
+      clientTextToVideo,
+    });
     await expect(service.generateVideo({ token: 'hf_token', model: 'm/v', prompt: '   ' })).rejects.toThrow(/empty/i);
-    expect(axiosInstance.post).not.toHaveBeenCalled();
+    expect(clientTextToVideo).not.toHaveBeenCalled();
   });
 });
 
