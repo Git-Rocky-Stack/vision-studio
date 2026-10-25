@@ -194,6 +194,26 @@ describe('PromptStudioPanel', () => {
     });
   });
 
+  it('says nothing changed when the hosted reply was unreadable', async () => {
+    const user = userEvent.setup();
+    window.electron.generation.enhancePrompt = vi.fn().mockResolvedValue({
+      success: true,
+      mode: 'clarify',
+      prompt: 'hero portrait',
+      variations: [],
+      fallback: true,
+    });
+
+    render(<PromptStudioPanel />);
+
+    await user.type(screen.getByPlaceholderText('Describe what you want to generate...'), 'hero portrait');
+    await user.click(screen.getByRole('button', { name: /Enhancement/ }));
+    await user.click(screen.getByTitle('Automatically improve prompt quality with AI'));
+
+    expect(await screen.findByText(/nothing was changed/)).toBeInTheDocument();
+    expect(screen.queryByText(/Prompt enhanced/)).not.toBeInTheDocument();
+  });
+
   it('updates the negative prompt with suggested terms', async () => {
     const user = userEvent.setup();
     render(<PromptStudioPanel />);

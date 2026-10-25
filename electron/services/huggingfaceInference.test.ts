@@ -126,6 +126,32 @@ describe('createHuggingFaceInferenceService.enhancePrompt', () => {
     ).rejects.toThrow(/gated.*Inference Providers/s);
   });
 
+  it('flags an unreadable reply as a fallback that echoes the input', async () => {
+    const axiosInstance = {
+      get: vi.fn(),
+      post: vi.fn().mockResolvedValue({ data: { choices: [{ message: { content: 'sorry, prose' } }] } }),
+    };
+    const service = createHuggingFaceInferenceService({ axiosInstance, logger: { warn: vi.fn() } });
+
+    const enhanced = await service.enhancePrompt({ token: 'hf_token', prompt: 'a cat', mode: 'clarify' });
+    const negative = await service.suggestNegativePrompt({ token: 'hf_token', prompt: 'a cat', negativePrompt: 'blur' });
+
+    expect(enhanced).toMatchObject({ prompt: 'a cat', variations: [], fallback: true });
+    expect(negative).toMatchObject({ negativePrompt: 'blur', suggestions: [], fallback: true });
+  });
+
+  it('does not flag a readable reply as a fallback', async () => {
+    const axiosInstance = {
+      get: vi.fn(),
+      post: vi.fn().mockResolvedValue({
+        data: { choices: [{ message: { content: JSON.stringify({ prompt: 'a tabby cat', variations: [] }) } }] },
+      }),
+    };
+    const service = createHuggingFaceInferenceService({ axiosInstance });
+    const result = await service.enhancePrompt({ token: 'hf_token', prompt: 'a cat', mode: 'clarify' });
+    expect(result.fallback).toBeUndefined();
+  });
+
   it('rejects an over-long prompt before any network call', async () => {
     const axiosInstance = { get: vi.fn(), post: vi.fn() };
     const service = createHuggingFaceInferenceService({ axiosInstance });

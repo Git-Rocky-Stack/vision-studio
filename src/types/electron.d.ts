@@ -378,6 +378,8 @@ export interface ElectronAPI {
       prompt?: string;
       variations?: string[];
       usage?: OpenRouterUsageSnapshot | null;
+      /** The model's reply was unreadable; `prompt` is the input echoed back. */
+      fallback?: boolean;
       provenance?: import('../../shared/retrieval').ContextProvenanceItem[];
       contextMode?: 'semantic' | 'lexical';
     }>;
@@ -392,6 +394,8 @@ export interface ElectronAPI {
       suggestions?: string[];
       source?: 'openrouter' | 'huggingface' | 'heuristic';
       usage?: OpenRouterUsageSnapshot | null;
+      /** The model's reply was unreadable; `negativePrompt` is the input echoed back. */
+      fallback?: boolean;
       provenance?: import('../../shared/retrieval').ContextProvenanceItem[];
       contextMode?: 'semantic' | 'lexical';
     }>;

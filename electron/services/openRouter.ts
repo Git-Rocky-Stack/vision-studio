@@ -59,12 +59,20 @@ export interface OpenRouterPromptEnhancementResult {
   prompt: string;
   variations: string[];
   usage: OpenRouterUsage | null;
+  /**
+   * True when the call succeeded but the model's reply could not be parsed,
+   * so `prompt` is the user's input echoed back. The UI must say nothing
+   * changed instead of reporting an enhancement.
+   */
+  fallback?: true;
 }
 
 export interface OpenRouterNegativePromptSuggestionResult {
   negativePrompt: string;
   suggestions: string[];
   usage: OpenRouterUsage | null;
+  /** True when the reply was unreadable and `negativePrompt` is the input echoed back. */
+  fallback?: true;
 }
 
 export interface OpenRouterImageResult {
@@ -738,6 +746,7 @@ export function createOpenRouterService({
         prompt: normalizedPrompt,
         variations: [],
         usage,
+        fallback: true,
       };
     }
   }
@@ -825,6 +834,7 @@ export function createOpenRouterService({
         negativePrompt: normalizedNegativePrompt,
         suggestions: [],
         usage,
+        fallback: true,
       };
     }
   }

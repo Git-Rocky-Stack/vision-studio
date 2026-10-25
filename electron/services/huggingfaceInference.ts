@@ -98,12 +98,20 @@ export interface HuggingFacePromptEnhancementResult {
   prompt: string;
   variations: string[];
   usage: HuggingFaceUsage | null;
+  /**
+   * True when the call succeeded but the model's reply had no usable prompt,
+   * so `prompt` is the user's input echoed back. The UI must say nothing
+   * changed instead of reporting an enhancement.
+   */
+  fallback?: true;
 }
 
 export interface HuggingFaceNegativePromptSuggestionResult {
   negativePrompt: string;
   suggestions: string[];
   usage: HuggingFaceUsage | null;
+  /** True when the reply was unreadable and `negativePrompt` is the input echoed back. */
+  fallback?: true;
 }
 
 type AxiosLike = {
@@ -551,8 +559,11 @@ export function createHuggingFaceInferenceService({
         JSON.stringify({ mode, prompt: normalized, ...(context ? { referenceContext: context } : {}) }),
         signal,
       );
+      if (typeof parsed.prompt !== 'string' || !parsed.prompt.trim()) {
+        return { prompt: normalized, variations: [], usage, fallback: true };
+      }
       return {
-        prompt: typeof parsed.prompt === 'string' && parsed.prompt.trim() ? parsed.prompt : normalized,
+        prompt: parsed.prompt,
         variations: Array.isArray(parsed.variations)
           ? (parsed.variations.filter((value) => typeof value === 'string') as string[])
           : [],
@@ -590,8 +601,11 @@ export function createHuggingFaceInferenceService({
         JSON.stringify({ prompt: normalized, current: negativePrompt ?? '', ...(context ? { referenceContext: context } : {}) }),
         signal,
       );
+      if (typeof parsed.negativePrompt !== 'string' || !parsed.negativePrompt.trim()) {
+        return { negativePrompt: negativePrompt?.trim() ?? '', suggestions: [], usage, fallback: true };
+      }
       return {
-        negativePrompt: typeof parsed.negativePrompt === 'string' ? parsed.negativePrompt : '',
+        negativePrompt: parsed.negativePrompt,
         suggestions: Array.isArray(parsed.suggestions)
           ? (parsed.suggestions.filter((value) => typeof value === 'string') as string[])
           : [],

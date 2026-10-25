@@ -1066,6 +1066,7 @@ describe('createOpenRouterService', () => {
 
       expect(result.negativePrompt).toBe('blurry, distorted');
       expect(result.suggestions).toEqual([]);
+      expect(result.fallback).toBe(true);
       expect(result.usage).toEqual({
         promptTokens: 10,
         completionTokens: 8,
@@ -1094,6 +1095,7 @@ describe('createOpenRouterService', () => {
 
       expect(result.negativePrompt).toBe('low quality');
       expect(result.suggestions).toEqual([]);
+      expect(result.fallback).toBe(true);
     });
 
     it('returns empty negativePrompt when no original was provided AND parse fails', async () => {
@@ -1366,6 +1368,7 @@ describe('createOpenRouterService', () => {
       expect(result.prompt).toBe('a serene mountain lake at dawn');
       expect(result.mode).toBe('cinematic');
       expect(result.variations).toEqual([]);
+      expect(result.fallback).toBe(true);
       // Usage should still surface even on fallback so cost/tokens are tracked.
       expect(result.usage).toEqual({
         promptTokens: 10,
@@ -1400,6 +1403,7 @@ describe('createOpenRouterService', () => {
       expect(result.prompt).toBe('a portrait');
       expect(result.mode).toBe('clarify');
       expect(result.variations).toEqual([]);
+      expect(result.fallback).toBe(true);
     });
 
     it('STILL throws on HTTP errors (parse fallback only applies when the API call itself succeeds)', async () => {
