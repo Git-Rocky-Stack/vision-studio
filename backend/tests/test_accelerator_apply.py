@@ -17,21 +17,21 @@ from foundry.accelerator import AccelerationPlan, AppliedAcceleration, apply_acc
 class _FakeModule:
     def __init__(self):
         self.memory_format = None
+        self.attn_processor = None
 
     def to(self, *, memory_format=None):
         self.memory_format = memory_format
         return self
+
+    def set_attn_processor(self, processor):
+        self.attn_processor = processor
 
 
 class _FakePipeline:
     def __init__(self, *, unet=True, transformer=False):
         self.unet = _FakeModule() if unet else None
         self.transformer = _FakeModule() if transformer else None
-        self.attn_processor = None
         self.slicing = None
-
-    def set_attn_processor(self, processor):
-        self.attn_processor = processor
 
     def enable_attention_slicing(self, level=None):
         self.slicing = level or "default"
@@ -74,6 +74,30 @@ class ApplyTests(unittest.TestCase):
         self.assertIn("channels_last", result.applied)
         self.assertEqual(pipe.unet.memory_format, "channels_last_format")
         self.assertTrue(any(a.startswith("compile:") for a in result.applied))
+
+    def test_sdpa_targets_the_unet_not_the_pipeline(self):
+        pipe = _FakePipeline(unet=True)
+        result = apply_acceleration(pipe, AccelerationPlan(sdpa=True), "sdxl")
+        self.assertIn("sdpa", result.applied)
+        self.assertIsNotNone(pipe.unet.attn_processor)
+
+    def test_sdpa_never_touches_a_transformer(self):
+        # FLUX / SD3 / LTX: their native joint-attention SDPA processors stay.
+        pipe = _FakePipeline(unet=False, transformer=True)
+        result = apply_acceleration(pipe, AccelerationPlan(sdpa=True), "flux")
+        self.assertIsNone(pipe.transformer.attn_processor)
+        self.assertNotIn("sdpa", result.applied)
+        self.assertTrue(any("native SDPA" in s for s in result.skipped))
+
+    def test_sdpa_without_a_processor_surface_is_reported_skipped(self):
+        class _BareUnet:
+            pass
+
+        pipe = _FakePipeline(unet=True)
+        pipe.unet = _BareUnet()
+        result = apply_acceleration(pipe, AccelerationPlan(sdpa=True), "sdxl")
+        self.assertNotIn("sdpa", result.applied)
+        self.assertIn("sdpa (no attn-processor surface)", result.skipped)
 
     def test_channels_last_skipped_for_non_conv_family(self):
         pipe = _FakePipeline()

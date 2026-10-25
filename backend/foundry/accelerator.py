@@ -310,12 +310,28 @@ def _compile_target(pipeline):
 
 
 def _apply_sdpa(pipeline, result: AppliedAcceleration) -> None:
-    try:
-        if hasattr(pipeline, "set_attn_processor"):
-            pipeline.set_attn_processor(_sdpa_processor())
-            result.applied.append("sdpa")
+    """Fused SDPA attention on the UNet denoiser.
+
+    set_attn_processor lives on the denoiser MODEL, not on the pipeline
+    (DiffusionPipeline has no such method, so the old pipeline-level call
+    never ran on a real pipeline). Transformer denoisers (FLUX, SD3, LTX)
+    are left alone: they already run their own SDPA processors
+    (FluxAttnProcessor2_0 / JointAttnProcessor2_0 / ...), and the generic
+    AttnProcessor2_0 would break their joint text-image attention.
+    """
+    unet = getattr(pipeline, "unet", None)
+    if unet is None:
+        if getattr(pipeline, "transformer", None) is not None:
+            result.skipped.append("sdpa (transformer already uses its native SDPA attention)")
         else:
             result.skipped.append("sdpa (no attn-processor surface)")
+        return
+    if not hasattr(unet, "set_attn_processor"):
+        result.skipped.append("sdpa (no attn-processor surface)")
+        return
+    try:
+        unet.set_attn_processor(_sdpa_processor())
+        result.applied.append("sdpa")
     except Exception as exc:  # noqa: BLE001 - best-effort
         result.skipped.append(f"sdpa ({type(exc).__name__})")
 
