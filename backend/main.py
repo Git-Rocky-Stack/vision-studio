@@ -43,6 +43,7 @@ import asyncio
 import json
 import logging
 import os
+import re
 import secrets
 import shutil
 import subprocess
@@ -51,7 +52,7 @@ import uuid
 from dataclasses import asdict
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Literal, Set
 from contextlib import asynccontextmanager
 
 import imageio.v2 as imageio
@@ -62,7 +63,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from PIL import Image
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
@@ -561,14 +562,26 @@ class BackgroundReplacePayload(BaseModel):
     image_path: str
 
 
+# Bounds shared by the generation requests. Seeds are uint32 (torch and
+# ComfyUI both take 0..2**32-1); -1 asks for a random one. Latent pipelines
+# work on a /8 grid, so dimensions snap DOWN to a multiple of 8 (every bound
+# below is itself a multiple of 8, so snapping never leaves the range).
+MAX_PROMPT_LENGTH = 4000
+SEED_MAX = 2**32 - 1
+
+
+def snap_to_multiple_of_8(value: int) -> int:
+    return value - value % 8
+
+
 class ImageGenerationRequest(BaseModel):
-    prompt: str = Field(..., description="Positive prompt for generation")
-    negative_prompt: str = Field(default="", description="Negative prompt")
-    width: int = Field(default=1024, ge=256, le=2048, description="Image width")
-    height: int = Field(default=1024, ge=256, le=2048, description="Image height")
+    prompt: str = Field(..., max_length=MAX_PROMPT_LENGTH, description="Positive prompt for generation")
+    negative_prompt: str = Field(default="", max_length=MAX_PROMPT_LENGTH, description="Negative prompt")
+    width: int = Field(default=1024, ge=256, le=2048, description="Image width (snapped down to a multiple of 8)")
+    height: int = Field(default=1024, ge=256, le=2048, description="Image height (snapped down to a multiple of 8)")
     steps: int = Field(default=25, ge=1, le=100, description="Sampling steps")
     cfg_scale: float = Field(default=7.5, ge=1, le=30, description="CFG Scale")
-    seed: int = Field(default=-1, description="Random seed (-1 for random)")
+    seed: int = Field(default=-1, ge=-1, le=SEED_MAX, description="Random seed (-1 for random)")
     model: str = Field(default="flux-dev", description="Model to use")
     scheduler: str = Field(default="euler", description="Scheduler/sampler")
     acceleration_settings: Optional[dict] = Field(
@@ -589,6 +602,11 @@ class ImageGenerationRequest(BaseModel):
     denoising_strength: float = Field(
         default=0.75, ge=0.05, le=1.0, description="#34 img2img/inpaint strength")
 
+    @field_validator("width", "height")
+    @classmethod
+    def _snap_dimension(cls, value: int) -> int:
+        return snap_to_multiple_of_8(value)
+
 
 def _guided_payload(request: "ImageGenerationRequest") -> Optional[Dict[str, Any]]:
     """#34: project the request's guided fields into the generator's dict seam."""
@@ -596,29 +614,34 @@ def _guided_payload(request: "ImageGenerationRequest") -> Optional[Dict[str, Any
             or request.outpaint or request.background_replace):
         return None
     return {
-        "controlnet": [layer.dict() for layer in request.controlnet],
-        "reference_images": [layer.dict() for layer in request.reference_images],
-        "inpaint": request.inpaint.dict() if request.inpaint else None,
-        "outpaint": request.outpaint.dict() if request.outpaint else None,
+        "controlnet": [layer.model_dump() for layer in request.controlnet],
+        "reference_images": [layer.model_dump() for layer in request.reference_images],
+        "inpaint": request.inpaint.model_dump() if request.inpaint else None,
+        "outpaint": request.outpaint.model_dump() if request.outpaint else None,
         "background_replace": (
-            request.background_replace.dict() if request.background_replace else None),
+            request.background_replace.model_dump() if request.background_replace else None),
         "denoising_strength": request.denoising_strength,
     }
 
 
 class VideoGenerationRequest(BaseModel):
-    prompt: str = Field(..., description="Prompt for video generation")
+    prompt: str = Field(..., max_length=MAX_PROMPT_LENGTH, description="Prompt for video generation")
     image_path: Optional[str] = Field(default=None, description="Optional input image")
-    width: int = Field(default=1024, ge=256, le=1920)
-    height: int = Field(default=576, ge=256, le=1080)
+    width: int = Field(default=1024, ge=256, le=1920, description="Snapped down to a multiple of 8")
+    height: int = Field(default=576, ge=256, le=1080, description="Snapped down to a multiple of 8")
     fps: int = Field(default=24, ge=12, le=60)
     duration: int = Field(default=5, ge=1, le=10, description="Duration in seconds")
     steps: int = Field(default=25, ge=1, le=100)
     model: str = Field(default="ltx-video", description="Model to use")
-    seed: int = Field(default=-1)
+    seed: int = Field(default=-1, ge=-1, le=SEED_MAX, description="Random seed (-1 for random)")
     acceleration_settings: Optional[dict] = Field(
         default=None, description="M9 acceleration toggles (auto/on/off per optimization)")
     loras: List[LoraSelection] = Field(default_factory=list, description="#136 local LoRA adapters")
+
+    @field_validator("width", "height")
+    @classmethod
+    def _snap_dimension(cls, value: int) -> int:
+        return snap_to_multiple_of_8(value)
 
 
 class JobResponse(BaseModel):
@@ -638,9 +661,18 @@ class JobStatusResponse(BaseModel):
     error: Optional[str]
 
 
+PromptEnhancementMode = Literal["clarify", "cinematic", "concise", "expand", "variations"]
+
+
 class PromptEnhancementRequest(BaseModel):
-    prompt: str = Field(..., description="Prompt to enhance")
-    mode: str = Field(default="clarify", description="Enhancement mode")
+    prompt: str = Field(..., max_length=MAX_PROMPT_LENGTH, description="Prompt to enhance")
+    mode: PromptEnhancementMode = Field(default="clarify", description="Enhancement mode")
+
+    @field_validator("mode", mode="before")
+    @classmethod
+    def _normalize_mode(cls, value: Any) -> Any:
+        # The template engine always accepted " Clarify " - keep that.
+        return value.strip().lower() if isinstance(value, str) else value
 
 
 class CropBoxRequest(BaseModel):
@@ -750,10 +782,10 @@ async def get_system_info(request: Request):
     **Use Case:** Check system capabilities before starting generation jobs.
     """
     # One truthful probe for every backend (CUDA on Windows/Linux, Apple MPS
-    # on macOS) - foundry.hardware degrades to no-GPU instead of raising.
-    from foundry.hardware import probe_hardware
-
-    profile = probe_hardware(MODELS_DIR)
+    # on macOS) - foundry.hardware degrades to no-GPU instead of raising. It
+    # runs in a worker thread like /api/hardware: the CUDA query can block
+    # briefly on a cold driver, which would stall every other request.
+    profile = await asyncio.to_thread(probe_hardware, MODELS_DIR)
     gpu_vram = (
         f"{profile.vram_total_bytes / 1e9:.1f} GB" if profile.gpu_available else None
     )
@@ -772,7 +804,12 @@ async def get_system_info(request: Request):
 @limiter.limit("60/minute")
 async def enhance_prompt_endpoint(request: Request, prompt_request: PromptEnhancementRequest):
     """
-    Enhance a prompt using AI-powered prompt engineering.
+    Enhance a prompt with the local template engine.
+
+    No model runs here: each mode appends a fixed, mode-specific set of
+    descriptors (or condenses the prompt), so the result is deterministic and
+    works offline. The AI-backed enhancement (OpenRouter / Hugging Face) runs
+    in the desktop app with the user's own key and never reaches this route.
 
     ## Enhancement Modes:
     - **clarify**: Add detail and structure while preserving the original subject
@@ -782,11 +819,14 @@ async def enhance_prompt_endpoint(request: Request, prompt_request: PromptEnhanc
     - **expand**: Add more descriptive elements and context
 
     ### Request Body
-    - `prompt`: The prompt to enhance (required)
-    - `mode`: Enhancement mode (default: "clarify")
+    - `prompt`: The prompt to enhance (required, at most 4000 characters)
+    - `mode`: Enhancement mode (default: "clarify"), one of the modes above
 
     ### Response
     Structured JSON with `mode`, `prompt`, and `variations`
+
+    ### Errors
+    - `422`: Empty prompt, or an unknown mode
 
     ### Example
     ```json
@@ -796,7 +836,12 @@ async def enhance_prompt_endpoint(request: Request, prompt_request: PromptEnhanc
     }
     ```
     """
-    return enhance_prompt(prompt_request.prompt, prompt_request.mode)
+    try:
+        return enhance_prompt(prompt_request.prompt, prompt_request.mode)
+    except ValueError as exc:
+        # Empty (whitespace-only) prompt or unknown mode: a bad request, not a
+        # server failure. The message never carries the prompt text.
+        raise HTTPException(status_code=422, detail=str(exc))
 
 
 def create_derived_output_path(source_path: str, prefix: str) -> tuple[str, str]:
@@ -811,9 +856,7 @@ def create_derived_output_path(source_path: str, prefix: str) -> tuple[str, str]
 
 
 def model_to_dict(model: BaseModel) -> Dict[str, Any]:
-    if hasattr(model, "model_dump"):
-        return model.model_dump()
-    return model.dict()
+    return model.model_dump()
 
 
 def extract_video_frame_file(source_path: str, output_path: str, time_ms: int = 0) -> Dict[str, Any]:
@@ -856,6 +899,40 @@ def extract_video_frame_file(source_path: str, output_path: str, time_ms: int = 
 
 def normalize_local_path(file_path: str) -> str:
     return str(Path(file_path).expanduser()).replace("\\", "/")
+
+
+_WINDOWS_DRIVE_PREFIX = re.compile(r"^[A-Za-z]:/")
+
+
+def resolve_timeline_export_path(output_path: str) -> str:
+    """Validate a timeline export destination and return it normalized.
+
+    The desktop app sends the absolute path the user picked in the save
+    dialog, so absolute paths are allowed - but only to an .mp4 file in a
+    folder that already exists. A relative path resolves under OUTPUT_DIR
+    and may not climb out of it. The .mp4 requirement means an export can
+    never overwrite a non-video file. Raises ValueError with a message safe
+    to show the user.
+    """
+    raw = (output_path or "").strip()
+    if not raw or "\x00" in raw:
+        raise ValueError("Choose where to save the export.")
+    normalized = normalize_local_path(raw)
+    if Path(normalized).suffix.lower() != ".mp4":
+        raise ValueError("Timeline exports are saved as .mp4 - choose a file name ending in .mp4.")
+
+    if os.path.isabs(normalized) or _WINDOWS_DRIVE_PREFIX.match(normalized):
+        target = Path(normalized)
+        if not target.parent.is_dir():
+            raise ValueError("The folder chosen for the export does not exist.")
+    else:
+        root = Path(OUTPUT_DIR).resolve()
+        target = (root / normalized).resolve()
+        if target != root and root not in target.parents:
+            raise ValueError("The export path must stay inside the outputs folder.")
+    if target.exists() and not target.is_file():
+        raise ValueError("The export path points at a folder, not a file.")
+    return normalize_local_path(str(target))
 
 
 def resolve_backend_media_path(source_path: str) -> str:
@@ -1072,8 +1149,17 @@ def mux_timeline_audio_file(
     return normalize_local_path(output_path)
 
 
+def _file_signature(path: Optional[str]) -> Optional[tuple]:
+    """(size, mtime_ns) of an existing file, else None."""
+    try:
+        stat = os.stat(path) if path else None
+    except OSError:
+        return None
+    return (stat.st_size, stat.st_mtime_ns) if stat else None
+
+
 def _remove_export_files(*paths: Optional[str]) -> None:
-    """Delete what a cancelled export wrote; a partial MP4 is not a file anyone wants."""
+    """Delete what a cancelled or failed export wrote; a partial MP4 is not a file anyone wants."""
     for path in dict.fromkeys(p for p in paths if p):
         try:
             os.remove(path)
@@ -1087,6 +1173,18 @@ def process_timeline_export(job_id: str, export_request: TimelineExportRequest):
     """Render and encode a resolved timeline frame stream into an MP4."""
     output_path: Optional[str] = None
     silent_video_path: Optional[str] = None
+    # The destination as it was before this export touched it: a failure
+    # must never delete a file the user had there that was never written to.
+    output_before: Optional[tuple] = None
+
+    def written_files() -> List[Optional[str]]:
+        files: List[Optional[str]] = []
+        if silent_video_path and silent_video_path != output_path:
+            files.append(silent_video_path)
+        if output_path and (output_before is None
+                            or _file_signature(output_path) != output_before):
+            files.append(output_path)
+        return files
 
     def on_frame_encoded(progress: float) -> None:
         # Runs after every encoded frame: a cancelled export stops here.
@@ -1100,6 +1198,7 @@ def process_timeline_export(job_id: str, export_request: TimelineExportRequest):
             logger.info(f"[Job {job_id}] Cancelled before it started")
             return
         output_path = normalize_local_path(export_request.output_path)
+        output_before = _file_signature(output_path)
         silent_video_path = (
             output_path
             if not export_request.audio_layers
@@ -1133,12 +1232,14 @@ def process_timeline_export(job_id: str, export_request: TimelineExportRequest):
             result=result,
             completed_at=datetime.now(),
         ):
-            _remove_export_files(output_path, silent_video_path)
+            _remove_export_files(*written_files())
     except GenerationCancelled:
         logger.info(f"[Job {job_id}] Export stopped by cancel")
-        _remove_export_files(output_path, silent_video_path)
+        _remove_export_files(*written_files())
     except Exception as e:
         logger.error(f"Timeline export failed: {e}", exc_info=True)
+        # A half-written MP4 (and the silent pre-mux file) is not a result.
+        _remove_export_files(*written_files())
         job_manager.update_unless_cancelled(
             job_id,
             status=JobStatus.FAILED,
@@ -1172,7 +1273,9 @@ async def crop_image(request: Request, edit_request: ImageEditRequest):
         raise HTTPException(status_code=404, detail="Source image not found")
 
     output_path, relative_path = create_derived_output_path(edit_request.source_path, "crop")
-    result = apply_crop_and_transform(
+    # PIL decode/transform/encode is CPU-bound: run it off the event loop.
+    result = await asyncio.to_thread(
+        apply_crop_and_transform,
         edit_request.source_path,
         output_path,
         crop_box=model_to_dict(edit_request.crop_box) if edit_request.crop_box else None,
@@ -1206,7 +1309,9 @@ async def extract_video_frame(request: Request, extract_request: VideoFrameExtra
         raise HTTPException(status_code=404, detail="Source video not found")
 
     output_path, relative_path = create_derived_output_path(extract_request.source_path, "frame")
-    result = extract_video_frame_file(
+    # imageio seeks + decodes the video: run it off the event loop.
+    result = await asyncio.to_thread(
+        extract_video_frame_file,
         extract_request.source_path,
         output_path,
         time_ms=extract_request.time_ms,
@@ -1227,9 +1332,17 @@ async def export_timeline(
 
     The renderer resolves playback frames locally, then submits the ordered frame
     stream and resolved audio plan here for deterministic MP4 encoding through the backend.
+
+    `output_path` must end in `.mp4`. An absolute path (the save-dialog choice)
+    must be in a folder that exists; a relative path resolves under the
+    outputs folder and may not leave it. Anything else is a `422`.
     """
+    try:
+        normalized_output_path = resolve_timeline_export_path(export_request.output_path)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    export_request = export_request.model_copy(update={"output_path": normalized_output_path})
     job_id = str(uuid.uuid4())
-    normalized_output_path = normalize_local_path(export_request.output_path)
     output_dir = os.path.dirname(normalized_output_path) or OUTPUT_DIR
 
     job = GenerationJob(
@@ -1436,7 +1549,7 @@ async def generate_image(
         id=job_id,
         type="image",
         status=JobStatus.PENDING,
-        params=gen_request.dict(),
+        params=gen_request.model_dump(),
         output_dir=os.path.join(OUTPUT_DIR, job_id)
     )
 
@@ -1517,6 +1630,21 @@ async def process_image_generation(job_id: str, request: ImageGenerationRequest)
     finally:
         # #33: free the stored preview frame on every terminal path.
         step_preview_service.discard(job_id)
+        _remove_empty_job_dir(job_id)
+
+
+def _remove_empty_job_dir(job_id: str) -> None:
+    """Drop outputs/<job_id> when a failed or cancelled job left it empty.
+
+    The endpoint creates the directory before the job runs; a job that wrote
+    nothing should not leave an empty folder behind. Never raises.
+    """
+    job_dir = os.path.join(OUTPUT_DIR, job_id)
+    try:
+        if os.path.isdir(job_dir) and not os.listdir(job_dir):
+            os.rmdir(job_dir)
+    except OSError:
+        pass
 
 
 async def generate_with_comfyui(job_id: str, request: ImageGenerationRequest) -> Dict:
@@ -1653,7 +1781,7 @@ async def generate_direct(job_id: str, request: ImageGenerationRequest) -> Dict:
         model_name=request.model,
         scheduler=request.scheduler,
         acceleration_settings=accel_settings,
-        loras=[l.dict() for l in request.loras],
+        loras=[l.model_dump() for l in request.loras],
         guided=_guided_payload(request),
         progress_callback=lambda p: job_manager.update_job(job_id, progress=p),
         should_cancel=lambda: job_manager.is_cancelled(job_id),
@@ -1718,7 +1846,7 @@ async def generate_video(
         id=job_id,
         type="video",
         status=JobStatus.PENDING,
-        params=video_request.dict(),
+        params=video_request.model_dump(),
         output_dir=os.path.join(OUTPUT_DIR, job_id)
     )
 
@@ -1755,7 +1883,7 @@ async def generate_video_direct(job_id: str, request: VideoGenerationRequest) ->
         # -1 means "random": the generator draws one and reports it.
         seed=request.seed if request.seed != -1 else None,
         acceleration_settings=accel_settings,
-        loras=[l.dict() for l in request.loras],
+        loras=[l.model_dump() for l in request.loras],
         progress_callback=lambda progress: job_manager.update_job(job_id, progress=progress),
         should_cancel=lambda: job_manager.is_cancelled(job_id),
     )
@@ -1825,6 +1953,8 @@ async def process_video_generation(job_id: str, request: VideoGenerationRequest)
             error=str(e),
             completed_at=datetime.now()
         )
+    finally:
+        _remove_empty_job_dir(job_id)
 
 
 # ============= Job Management =============
@@ -1908,7 +2038,11 @@ async def cancel_job(request: Request, job_id: str):
 
 @app.get("/api/jobs", tags=["Jobs"])
 @limiter.limit("60/minute")
-async def list_jobs(request: Request, status: Optional[str] = None, limit: int = 50):
+async def list_jobs(
+    request: Request,
+    status: Optional[str] = Query(None, max_length=16),
+    limit: int = Query(50, ge=1, le=100),
+):
     """
     List recent generation jobs with optional filtering.
 
@@ -2453,13 +2587,15 @@ class ConnectionManager:
         self.active_connections.append(websocket)
     
     def disconnect(self, websocket: WebSocket):
-        self.active_connections.remove(websocket)
+        # Idempotent: every exit path of the endpoint calls this.
+        if websocket in self.active_connections:
+            self.active_connections.remove(websocket)
     
     async def broadcast(self, message: dict):
-        for connection in self.active_connections:
+        for connection in list(self.active_connections):
             try:
                 await connection.send_json(message)
-            except:
+            except Exception:  # noqa: BLE001 - a dead socket is cleaned up by its endpoint
                 pass
 
 
@@ -2485,12 +2621,19 @@ async def websocket_endpoint(websocket: WebSocket):
     ```json
     {
       "action": "subscribe",
-      "job_id": "job-123"  // Optional: subscribe to specific job only
+      "job_id": "job-123"
     }
     ```
+    - `subscribe` with a `job_id` narrows this connection's updates to the
+      subscribed jobs (repeat it to add more); without a `job_id` it clears
+      the filter so every job is reported again (the default).
+    - `unsubscribe` with a `job_id` drops that job from the filter.
+    Malformed or unknown messages are ignored; they never close the socket.
 
     ### Server Messages
-    The server pushes periodic updates (every 500ms) for all processing jobs:
+    The server pushes periodic updates (every 500ms) for processing jobs, plus
+    one final update when a job it reported finishes (completed, failed or
+    cancelled):
     ```json
     {
       "type": "job_update",
@@ -2501,7 +2644,7 @@ async def websocket_endpoint(websocket: WebSocket):
     ```
 
     ### Message Fields
-    - `type`: Always "job_update"
+    - `type`: "job_update" (or "step_image" for a live preview frame)
     - `job_id`: Unique job identifier
     - `status`: Current job status (pending, processing, completed, failed, cancelled)
     - `progress`: Completion percentage (0.0 - 100.0)
@@ -2525,31 +2668,72 @@ async def websocket_endpoint(websocket: WebSocket):
 
     await manager.connect(websocket)
 
+    # Job ids this connection subscribed to; empty means every job.
+    subscriptions: Set[str] = set()
     # Start background task to send updates
-    update_task = asyncio.create_task(send_job_updates(websocket))
+    update_task = asyncio.create_task(send_job_updates(websocket, subscriptions))
 
     try:
         while True:
             # Receive commands from client
-            data = await websocket.receive_json()
-
-            if data.get("action") == "subscribe":
-                job_id = data.get("job_id")
-                # Subscribe to specific job updates
-                pass
+            message = await websocket.receive()
+            if message.get("type") == "websocket.disconnect":
+                break
+            apply_ws_command(parse_ws_command(message.get("text")), subscriptions)
 
     except WebSocketDisconnect:
+        pass
+    finally:
+        # Every exit (disconnect, error, cancellation) releases the socket
+        # and stops its update loop.
         manager.disconnect(websocket)
         update_task.cancel()
 
 
-def build_ws_updates(active_jobs, sent_revisions: Dict[str, int]) -> List[Dict[str, Any]]:
+def parse_ws_command(text: Optional[str]) -> Optional[Dict[str, Any]]:
+    """A client command as a dict, or None for bad JSON / non-object / binary."""
+    if not text:
+        return None
+    try:
+        data = json.loads(text)
+    except ValueError:
+        return None
+    return data if isinstance(data, dict) else None
+
+
+def apply_ws_command(data: Optional[Dict[str, Any]], subscriptions: Set[str]) -> None:
+    """Apply subscribe/unsubscribe to this connection's filter; ignore the rest."""
+    if data is None:
+        return
+    action = data.get("action")
+    job_id = data.get("job_id")
+    if action == "subscribe":
+        if isinstance(job_id, str) and job_id:
+            subscriptions.add(job_id)
+        elif job_id is None:
+            subscriptions.clear()
+    elif action == "unsubscribe" and isinstance(job_id, str):
+        subscriptions.discard(job_id)
+
+
+def _ws_wants(job_id: str, subscriptions: Optional[Set[str]]) -> bool:
+    return not subscriptions or job_id in subscriptions
+
+
+def build_ws_updates(
+    active_jobs,
+    sent_revisions: Dict[str, int],
+    subscriptions: Optional[Set[str]] = None,
+) -> List[Dict[str, Any]]:
     """One WS tick: a job_update per processing job, plus at most one new
     step_image per job whose preview revision this connection has not sent
     yet (#33). Mutates sent_revisions - the per-connection dedup state. The
-    500ms tick is what caps the stream at ~2 frames/sec."""
+    500ms tick is what caps the stream at ~2 frames/sec. A non-empty
+    subscriptions set limits the tick to those job ids."""
     messages: List[Dict[str, Any]] = []
     for job in active_jobs:
+        if not _ws_wants(job.id, subscriptions):
+            continue
         messages.append({
             "type": "job_update",
             "job_id": job.id,
@@ -2569,20 +2753,61 @@ def build_ws_updates(active_jobs, sent_revisions: Dict[str, int]) -> List[Dict[s
     return messages
 
 
-async def send_job_updates(websocket: WebSocket):
+TERMINAL_JOB_STATUSES = {JobStatus.COMPLETED, JobStatus.FAILED, JobStatus.CANCELLED}
+
+
+def build_ws_final_updates(
+    reported_ids: Set[str],
+    active_ids: Set[str],
+    sent_revisions: Dict[str, int],
+    subscriptions: Optional[Set[str]] = None,
+) -> List[Dict[str, Any]]:
+    """One last job_update for every job this connection reported as
+    processing that has since finished, so a client never stalls on the last
+    in-flight percentage. Drops finished ids from reported_ids and their
+    preview dedup state from sent_revisions."""
+    messages: List[Dict[str, Any]] = []
+    for job_id in sorted(reported_ids - active_ids):
+        job = job_manager.get_job(job_id)
+        if job is not None and job.status not in TERMINAL_JOB_STATUSES:
+            continue  # not finished (e.g. back to pending): keep watching
+        reported_ids.discard(job_id)
+        sent_revisions.pop(job_id, None)
+        if job is None or not _ws_wants(job_id, subscriptions):
+            continue
+        messages.append({
+            "type": "job_update",
+            "job_id": job.id,
+            "status": job.status.value,
+            "progress": job.progress,
+        })
+    return messages
+
+
+async def send_job_updates(websocket: WebSocket, subscriptions: Optional[Set[str]] = None):
     """Send periodic job updates"""
     sent_revisions: Dict[str, int] = {}
+    reported_ids: Set[str] = set()
     try:
         while True:
             # Send all active jobs status
             active_jobs = job_manager.list_jobs(status="processing")
+            active_ids = {job.id for job in active_jobs}
 
-            for message in build_ws_updates(active_jobs, sent_revisions):
+            messages = build_ws_final_updates(
+                reported_ids, active_ids, sent_revisions, subscriptions)
+            messages += build_ws_updates(active_jobs, sent_revisions, subscriptions)
+            reported_ids |= active_ids
+
+            for message in messages:
                 await websocket.send_json(message)
 
             await asyncio.sleep(0.5)  # Update every 500ms
 
     except asyncio.CancelledError:
+        pass
+    except (WebSocketDisconnect, RuntimeError):
+        # The socket closed under a send; the endpoint's finally cleans up.
         pass
 
 
