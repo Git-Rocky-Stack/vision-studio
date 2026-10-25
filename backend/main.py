@@ -1660,13 +1660,13 @@ async def generate_video(
     - `seed`: Random seed for reproducibility (default: -1)
 
     ### Models Available
-    - `ltx-video`: LTX Video model (text-to-video and image-to-video)
+    - `ltx-video`: LTX Video model (text-to-video)
     - `svd`: Stable Video Diffusion (image-to-video only)
-    - `animate-diff`: AnimateDiff (text-to-video with motion modules)
+    - `animatediff`: AnimateDiff (text-to-video with motion modules)
 
     ### Text-to-Video vs Image-to-Video
-    - **Text-to-Video**: Use when `image_path` is null. Model: ltx-video, animate-diff.
-    - **Image-to-Video**: Provide `image_path`. Model: svd, ltx-video.
+    - **Text-to-Video**: Use when `image_path` is null. Model: ltx-video, animatediff.
+    - **Image-to-Video**: Provide `image_path`. Model: svd.
 
     ### Example
     ```json
@@ -1748,7 +1748,8 @@ async def process_video_generation(job_id: str, request: VideoGenerationRequest)
                 duration=request.duration,
                 steps=request.steps,
                 model_name=request.model,
-                seed=request.seed if request.seed != -1 else 0,
+                # -1 means "random": the generator draws one and reports it.
+                seed=request.seed if request.seed != -1 else None,
                 acceleration_settings=accel_settings,
                 loras=[l.dict() for l in request.loras],
                 progress_callback=lambda progress: job_manager.update_job(job_id, progress=progress),
