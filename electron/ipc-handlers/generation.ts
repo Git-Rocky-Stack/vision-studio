@@ -1,7 +1,10 @@
 import crypto from 'node:crypto';
 import { ipcMain, BrowserWindow } from 'electron';
-import axios from 'axios';
 import WebSocket from 'ws';
+import {
+  backendHttp,
+  BACKEND_LONG_OPERATION_TIMEOUT_MS,
+} from '../services/backendHttp';
 import {
   getBackendAuthToken,
   backendAuthHeaders,
@@ -195,7 +198,7 @@ ipcMain.handle(
   'workflow:run-graph',
   async (_event, params: { graph: unknown; generationType: 'image' | 'video' }) => {
     const response = await requestBackend(() =>
-      axios.post(
+      backendHttp.post(
         `${BACKEND_URL}/api/v1/comfy/run-graph`,
         { graph: params.graph, generation_type: params.generationType },
         { headers: backendAuthHeaders() }
@@ -324,7 +327,7 @@ ipcMain.handle('generation:generate-image', async (_event, params) => {
 
   try {
     const response = await requestBackend(() =>
-      axios.post(`${BACKEND_URL}/api/generate/image`, params, { headers: backendAuthHeaders() }),
+      backendHttp.post(`${BACKEND_URL}/api/generate/image`, params, { headers: backendAuthHeaders() }),
     );
     return {
       success: true,
@@ -384,7 +387,7 @@ ipcMain.handle('generation:generate-video', async (_event, params) => {
 
   try {
     const response = await requestBackend(() =>
-      axios.post(`${BACKEND_URL}/api/generate/video`, params, { headers: backendAuthHeaders() }),
+      backendHttp.post(`${BACKEND_URL}/api/generate/video`, params, { headers: backendAuthHeaders() }),
     );
     return {
       success: true,
@@ -468,7 +471,7 @@ ipcMain.handle('generation:enhance-prompt', async (_event, params) => {
 
   try {
     const response = await requestBackend(() =>
-      axios.post(`${BACKEND_URL}/api/prompts/enhance`, params, { headers: backendAuthHeaders() }),
+      backendHttp.post(`${BACKEND_URL}/api/prompts/enhance`, params, { headers: backendAuthHeaders() }),
     );
     return toLocalPromptEnhanceResult(response.data);
   } catch (error: any) {
@@ -602,7 +605,7 @@ ipcMain.handle('director:index-stats', async () => {
 ipcMain.handle('generation:crop-image', async (_event, params) => {
   try {
     const response = await requestBackend(() =>
-      axios.post(`${BACKEND_URL}/api/images/crop`, params, { headers: backendAuthHeaders() }),
+      backendHttp.post(`${BACKEND_URL}/api/images/crop`, params, { headers: backendAuthHeaders() }),
     );
     return response.data;
   } catch (error: any) {
@@ -617,7 +620,7 @@ ipcMain.handle('generation:edit-image', async (_event, params) => {
   try {
     const { operation, ...body } = params ?? {};
     const response = await requestBackend(() =>
-      axios.post(`${BACKEND_URL}/api/v1/edit/${operation}`, body, { headers: backendAuthHeaders() }),
+      backendHttp.post(`${BACKEND_URL}/api/v1/edit/${operation}`, body, { headers: backendAuthHeaders() }),
     );
     return { success: true, jobId: response.data.job_id };
   } catch (error: any) {
@@ -631,7 +634,7 @@ ipcMain.handle('generation:edit-image', async (_event, params) => {
 ipcMain.handle('generation:extract-video-frame', async (_event, params) => {
   try {
     const response = await requestBackend(() =>
-      axios.post(`${BACKEND_URL}/api/videos/extract-frame`, params, { headers: backendAuthHeaders() }),
+      backendHttp.post(`${BACKEND_URL}/api/videos/extract-frame`, params, { headers: backendAuthHeaders() }),
     );
     return response.data;
   } catch (error: any) {
@@ -645,7 +648,7 @@ ipcMain.handle('generation:extract-video-frame', async (_event, params) => {
 ipcMain.handle('generation:export-timeline-sequence', async (_event, params) => {
   try {
     const response = await requestBackend(() =>
-      axios.post(`${BACKEND_URL}/api/timeline/export`, params, { headers: backendAuthHeaders() }),
+      backendHttp.post(`${BACKEND_URL}/api/timeline/export`, params, { headers: backendAuthHeaders() }),
     );
     return {
       success: true,
@@ -804,7 +807,7 @@ ipcMain.handle('generation:batch', async (_event, params) => {
       prompts,
       async (prompt: string) => {
         const response = await requestBackend(() =>
-          axios.post(
+          backendHttp.post(
             `${BACKEND_URL}/api/generate/image`,
             {
               ...baseParams,
@@ -850,7 +853,7 @@ ipcMain.handle('generation:get-status', async (_event, jobId: string) => {
 
   try {
     const response = await requestBackend(() =>
-      axios.get(`${BACKEND_URL}/api/jobs/${jobId}`, { headers: backendAuthHeaders() }),
+      backendHttp.get(`${BACKEND_URL}/api/jobs/${jobId}`, { headers: backendAuthHeaders() }),
     );
     return response.data;
   } catch (error: any) {
@@ -938,7 +941,7 @@ ipcMain.handle('generation:cancel', async (_event, jobId: string) => {
 
   try {
     const response = await requestBackend(() =>
-      axios.post(`${BACKEND_URL}/api/jobs/${jobId}/cancel`, undefined, { headers: backendAuthHeaders() }),
+      backendHttp.post(`${BACKEND_URL}/api/jobs/${jobId}/cancel`, undefined, { headers: backendAuthHeaders() }),
     );
     return response.data;
   } catch (error: any) {
@@ -964,7 +967,7 @@ ipcMain.handle('generation:list-jobs', async (_event, options = {}) => {
       url += `&status=${status}`;
     }
 
-    const response = await requestBackend(() => axios.get(url, { headers: backendAuthHeaders() }));
+    const response = await requestBackend(() => backendHttp.get(url, { headers: backendAuthHeaders() }));
     const backendJobs = Array.isArray(response.data?.jobs) ? response.data.jobs : [];
     return {
       ...response.data,
@@ -990,7 +993,7 @@ ipcMain.handle('generation:list-jobs', async (_event, options = {}) => {
 ipcMain.handle('models:list', async () => {
   try {
     const response = await requestBackend(() =>
-      axios.get(`${BACKEND_URL}/api/models`, { headers: backendAuthHeaders() }),
+      backendHttp.get(`${BACKEND_URL}/api/models`, { headers: backendAuthHeaders() }),
     );
     return response.data;
   } catch (error: any) {
@@ -1002,7 +1005,7 @@ ipcMain.handle('models:list', async () => {
 ipcMain.handle('models:get', async (_event, modelId: string) => {
   try {
     const response = await requestBackend(() =>
-      axios.get(`${BACKEND_URL}/api/models/${modelId}`, { headers: backendAuthHeaders() }),
+      backendHttp.get(`${BACKEND_URL}/api/models/${modelId}`, { headers: backendAuthHeaders() }),
     );
     return response.data;
   } catch (error) {
@@ -1014,7 +1017,7 @@ ipcMain.handle('models:get', async (_event, modelId: string) => {
 ipcMain.handle('models:download', async (_event, modelId: string) => {
   try {
     const response = await requestBackend(() =>
-      axios.post(`${BACKEND_URL}/api/models/${modelId}/download`, undefined, {
+      backendHttp.post(`${BACKEND_URL}/api/models/${modelId}/download`, undefined, {
         // The backend routes X-HF-Token to HF downloads and X-Civitai-Token to
         // CivitAI direct-URL downloads based on the model record's source.
         headers: { ...backendAuthHeaders(), ...hfTokenHeaders(), ...civitaiTokenHeaders() },
@@ -1033,7 +1036,7 @@ ipcMain.handle('models:download', async (_event, modelId: string) => {
 ipcMain.handle('models:download:pause', async (_event, modelId: string) => {
   try {
     const response = await requestBackend(() =>
-      axios.post(`${BACKEND_URL}/api/models/${modelId}/download/pause`, undefined, {
+      backendHttp.post(`${BACKEND_URL}/api/models/${modelId}/download/pause`, undefined, {
         headers: backendAuthHeaders(),
       }),
     );
@@ -1047,7 +1050,7 @@ ipcMain.handle('models:download:pause', async (_event, modelId: string) => {
 ipcMain.handle('models:download:resume', async (_event, modelId: string) => {
   try {
     const response = await requestBackend(() =>
-      axios.post(`${BACKEND_URL}/api/models/${modelId}/download/resume`, undefined, {
+      backendHttp.post(`${BACKEND_URL}/api/models/${modelId}/download/resume`, undefined, {
         headers: { ...backendAuthHeaders(), ...hfTokenHeaders(), ...civitaiTokenHeaders() },
       }),
     );
@@ -1061,7 +1064,7 @@ ipcMain.handle('models:download:resume', async (_event, modelId: string) => {
 ipcMain.handle('models:download:cancel', async (_event, modelId: string) => {
   try {
     const response = await requestBackend(() =>
-      axios.post(`${BACKEND_URL}/api/models/${modelId}/download/cancel`, undefined, {
+      backendHttp.post(`${BACKEND_URL}/api/models/${modelId}/download/cancel`, undefined, {
         headers: backendAuthHeaders(),
       }),
     );
@@ -1075,7 +1078,7 @@ ipcMain.handle('models:download:cancel', async (_event, modelId: string) => {
 ipcMain.handle('models:downloads:list', async () => {
   try {
     const response = await requestBackend(() =>
-      axios.get(`${BACKEND_URL}/api/models/downloads`, { headers: backendAuthHeaders() }),
+      backendHttp.get(`${BACKEND_URL}/api/models/downloads`, { headers: backendAuthHeaders() }),
     );
     return response.data;
   } catch (error: any) {
@@ -1090,7 +1093,7 @@ ipcMain.handle('models:downloads:list', async () => {
 ipcMain.handle('models:downloads:subscribe', async () => {
   try {
     const response = await requestBackend(() =>
-      axios.get(`${BACKEND_URL}/api/models/downloads`, { headers: backendAuthHeaders() }),
+      backendHttp.get(`${BACKEND_URL}/api/models/downloads`, { headers: backendAuthHeaders() }),
     );
     return response.data;
   } catch (error: any) {
@@ -1105,7 +1108,7 @@ ipcMain.handle('models:downloads:subscribe', async () => {
 ipcMain.handle('provision:status', async () => {
   try {
     const response = await requestBackend(() =>
-      axios.get(`${BACKEND_URL}/api/models/provision/status`, { headers: backendAuthHeaders() }),
+      backendHttp.get(`${BACKEND_URL}/api/models/provision/status`, { headers: backendAuthHeaders() }),
     );
     return response.data;
   } catch (error: any) {
@@ -1117,7 +1120,7 @@ ipcMain.handle('provision:status', async () => {
 ipcMain.handle('provision:start', async () => {
   try {
     const response = await requestBackend(() =>
-      axios.post(`${BACKEND_URL}/api/models/provision/start`, undefined, {
+      backendHttp.post(`${BACKEND_URL}/api/models/provision/start`, undefined, {
         // X-HF-Token is forwarded for the gated SD3.5 pipelines in the auto-set.
         headers: { ...backendAuthHeaders(), ...hfTokenHeaders() },
       }),
@@ -1132,7 +1135,7 @@ ipcMain.handle('provision:start', async () => {
 ipcMain.handle('provision:pause', async () => {
   try {
     const response = await requestBackend(() =>
-      axios.post(`${BACKEND_URL}/api/models/provision/pause`, undefined, {
+      backendHttp.post(`${BACKEND_URL}/api/models/provision/pause`, undefined, {
         headers: backendAuthHeaders(),
       }),
     );
@@ -1146,7 +1149,7 @@ ipcMain.handle('provision:pause', async () => {
 ipcMain.handle('provision:resume', async () => {
   try {
     const response = await requestBackend(() =>
-      axios.post(`${BACKEND_URL}/api/models/provision/resume`, undefined, {
+      backendHttp.post(`${BACKEND_URL}/api/models/provision/resume`, undefined, {
         headers: { ...backendAuthHeaders(), ...hfTokenHeaders() },
       }),
     );
@@ -1160,7 +1163,7 @@ ipcMain.handle('provision:resume', async () => {
 ipcMain.handle('provision:cancel', async () => {
   try {
     const response = await requestBackend(() =>
-      axios.post(`${BACKEND_URL}/api/models/provision/cancel`, undefined, {
+      backendHttp.post(`${BACKEND_URL}/api/models/provision/cancel`, undefined, {
         headers: backendAuthHeaders(),
       }),
     );
@@ -1174,7 +1177,7 @@ ipcMain.handle('provision:cancel', async () => {
 ipcMain.handle('provision:reverify', async () => {
   try {
     const response = await requestBackend(() =>
-      axios.post(`${BACKEND_URL}/api/models/provision/reverify`, undefined, {
+      backendHttp.post(`${BACKEND_URL}/api/models/provision/reverify`, undefined, {
         // Reverify re-runs start(): the HF token is forwarded for any gated
         // auto-set model a repair re-fetch may need.
         headers: { ...backendAuthHeaders(), ...hfTokenHeaders() },
@@ -1190,7 +1193,7 @@ ipcMain.handle('provision:reverify', async () => {
 ipcMain.handle('models:get-status', async (_event, modelId: string) => {
   try {
     const response = await requestBackend(() =>
-      axios.get(`${BACKEND_URL}/api/models/${modelId}/status`, { headers: backendAuthHeaders() }),
+      backendHttp.get(`${BACKEND_URL}/api/models/${modelId}/status`, { headers: backendAuthHeaders() }),
     );
     return response.data;
   } catch (error: any) {
@@ -1202,7 +1205,7 @@ ipcMain.handle('models:get-status', async (_event, modelId: string) => {
 ipcMain.handle('models:delete', async (_event, modelId: string) => {
   try {
     const response = await requestBackend(() =>
-      axios.delete(`${BACKEND_URL}/api/models/${modelId}`, { headers: backendAuthHeaders() }),
+      backendHttp.delete(`${BACKEND_URL}/api/models/${modelId}`, { headers: backendAuthHeaders() }),
     );
     return response.data;
   } catch (error: any) {
@@ -1217,8 +1220,10 @@ ipcMain.handle('models:delete', async (_event, modelId: string) => {
 ipcMain.handle('models:import', async (_event, path: string, layoutHint: string) => {
   try {
     const response = await requestBackend(() =>
-      axios.post(`${BACKEND_URL}/api/models/import`, { path, layout_hint: layoutHint }, {
+      backendHttp.post(`${BACKEND_URL}/api/models/import`, { path, layout_hint: layoutHint }, {
         headers: backendAuthHeaders(),
+        // Registers the root, then rescans every library synchronously.
+        timeout: BACKEND_LONG_OPERATION_TIMEOUT_MS,
       }),
     );
     return response.data;
@@ -1234,7 +1239,10 @@ ipcMain.handle('models:import', async (_event, path: string, layoutHint: string)
 ipcMain.handle('models:scan', async () => {
   try {
     const response = await requestBackend(() =>
-      axios.post(`${BACKEND_URL}/api/models/scan`, undefined, { headers: backendAuthHeaders() }),
+      backendHttp.post(`${BACKEND_URL}/api/models/scan`, undefined, {
+        headers: backendAuthHeaders(),
+        timeout: BACKEND_LONG_OPERATION_TIMEOUT_MS,
+      }),
     );
     return response.data;
   } catch (error: any) {
@@ -1249,7 +1257,7 @@ ipcMain.handle('models:scan', async () => {
 ipcMain.handle('models:libraries:list', async () => {
   try {
     const response = await requestBackend(() =>
-      axios.get(`${BACKEND_URL}/api/models/libraries`, { headers: backendAuthHeaders() }),
+      backendHttp.get(`${BACKEND_URL}/api/models/libraries`, { headers: backendAuthHeaders() }),
     );
     return response.data;
   } catch (error: any) {
@@ -1261,7 +1269,7 @@ ipcMain.handle('models:libraries:list', async () => {
 ipcMain.handle('models:libraries:remove', async (_event, rootId: string) => {
   try {
     const response = await requestBackend(() =>
-      axios.delete(`${BACKEND_URL}/api/models/libraries/${encodeURIComponent(rootId)}`, {
+      backendHttp.delete(`${BACKEND_URL}/api/models/libraries/${encodeURIComponent(rootId)}`, {
         headers: backendAuthHeaders(),
       }),
     );
@@ -1280,7 +1288,7 @@ ipcMain.handle(
   async (_event, query: string, source: 'hf' | 'civitai', page: number, nsfw: boolean) => {
     try {
       const response = await requestBackend(() =>
-        axios.get(`${BACKEND_URL}/api/models/search`, {
+        backendHttp.get(`${BACKEND_URL}/api/models/search`, {
           params: { q: query, source, page, nsfw },
           headers: { ...backendAuthHeaders(), ...hfTokenHeaders(), ...civitaiTokenHeaders() },
         }),
@@ -1307,7 +1315,7 @@ ipcMain.handle(
   async (_event, modelId: string, kind: 'pickle' | 'trust_remote_code', granted: boolean) => {
     try {
       const response = await requestBackend(() =>
-        axios.post(
+        backendHttp.post(
           `${BACKEND_URL}/api/models/consent`,
           { model_id: modelId, kind, granted },
           { headers: backendAuthHeaders() },
@@ -1324,10 +1332,10 @@ ipcMain.handle(
 ipcMain.handle('models:convert', async (_event, modelId: string) => {
   try {
     const response = await requestBackend(() =>
-      axios.post(
+      backendHttp.post(
         `${BACKEND_URL}/api/models/${encodeURIComponent(modelId)}/convert-safetensors`,
         undefined,
-        { headers: backendAuthHeaders() },
+        { headers: backendAuthHeaders(), timeout: BACKEND_LONG_OPERATION_TIMEOUT_MS },
       ),
     );
     return response.data;
@@ -1340,7 +1348,7 @@ ipcMain.handle('models:convert', async (_event, modelId: string) => {
 ipcMain.handle('models:libraries:detect', async () => {
   try {
     const response = await requestBackend(() =>
-      axios.get(`${BACKEND_URL}/api/models/libraries/detect`, { headers: backendAuthHeaders() }),
+      backendHttp.get(`${BACKEND_URL}/api/models/libraries/detect`, { headers: backendAuthHeaders() }),
     );
     return response.data;
   } catch (error: any) {
@@ -1352,7 +1360,7 @@ ipcMain.handle('models:libraries:detect', async () => {
 ipcMain.handle('hardware:get', async () => {
   try {
     const response = await requestBackend(() =>
-      axios.get(`${BACKEND_URL}/api/hardware`, { headers: backendAuthHeaders() }),
+      backendHttp.get(`${BACKEND_URL}/api/hardware`, { headers: backendAuthHeaders() }),
     );
     return response.data;
   } catch (error: any) {
@@ -1364,10 +1372,10 @@ ipcMain.handle('hardware:get', async () => {
 ipcMain.handle('models:resolveRuntime', async (_event, modelId: string) => {
   try {
     const response = await requestBackend(() =>
-      axios.post(
+      backendHttp.post(
         `${BACKEND_URL}/api/models/${encodeURIComponent(modelId)}/resolve-runtime`,
         undefined,
-        { headers: backendAuthHeaders() },
+        { headers: backendAuthHeaders(), timeout: BACKEND_LONG_OPERATION_TIMEOUT_MS },
       ),
     );
     return response.data;

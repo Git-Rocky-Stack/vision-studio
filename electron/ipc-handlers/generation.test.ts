@@ -6,6 +6,7 @@ const harness = vi.hoisted(() => ({
   handlers: new Map<string, Handler>(),
   post: vi.fn(),
   get: vi.fn(),
+  createConfig: undefined as unknown,
 }));
 
 vi.mock('electron', () => ({
@@ -18,7 +19,12 @@ vi.mock('electron', () => ({
 }));
 
 vi.mock('axios', () => ({
-  default: { post: harness.post, get: harness.get, delete: vi.fn() },
+  default: {
+    create: (config: unknown) => {
+      harness.createConfig = config;
+      return { post: harness.post, get: harness.get, delete: vi.fn() };
+    },
+  },
 }));
 
 vi.mock('ws', () => ({ default: class {} }));
@@ -30,6 +36,21 @@ function invoke(channel: string, ...args: unknown[]) {
   if (!handler) throw new Error(`no handler for ${channel}`);
   return handler({}, ...args);
 }
+
+describe('backend request timeouts', () => {
+  it('builds the shared backend client with a 30s default timeout', () => {
+    expect(harness.createConfig).toEqual({ timeout: 30_000 });
+  });
+
+  it('lets a long synchronous backend operation outlive the control timeout', async () => {
+    harness.post.mockReset().mockResolvedValue({ data: { records_indexed: 3, warnings: [] } });
+
+    await invoke('models:scan');
+
+    const config = harness.post.mock.calls[0][2] as { timeout?: number };
+    expect(config.timeout).toBe(10 * 60_000);
+  });
+});
 
 describe('backend error logging', () => {
   it('logs only the message and status, never the token-bearing request config', async () => {
