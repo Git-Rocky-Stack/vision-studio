@@ -2,6 +2,114 @@
 
 All notable changes to Vision Studio will be documented in this file.
 
+## [3.4.2] - 2026-10-25
+
+UAT and go-to-market readiness release. A full design and engineering audit:
+every unwired action found is wired or honestly disabled, the hosted AI routes
+stop double-billing and mislabelling cancels, the local GPU path stops breaking
+flow-matching models, the packaged app can edit the images it shows, and the
+renderer stops rewriting its whole persisted store on every update. Carries the
+cancel / Background Batch / ComfyUI-video / token-storage fixes (#93), the dev
+venv launch fix (#94) and the 41-item design pass (FINDING-001 to 041) that
+landed after 3.4.1.
+
+### Security
+- **Every high advisory in the shipped and dev trees is cleared.** axios 1.20.0,
+  zod 4.6.7, fast-uri 3.1.9 and follow-redirects 1.16.1 on the shipped path;
+  Electron 42.11.18 (the runtime; advisory range <=42.11.15), Vite 6.4.5 and
+  Vitest 4.1.12 in the toolchain. `npm audit` and `npm audit --omit=dev` both
+  report zero
+- **Hosted API keys never reach logs or error causes.** OpenRouter errors no
+  longer carry the AxiosError (whose config holds the bearer key) as `cause`,
+  and every backend-call log line records only the message and HTTP status
+- **Packaged builds drop the reload and DevTools accelerators.** A minimal
+  application menu keeps the Edit roles text fields need; Ctrl/Cmd+R, F5,
+  F12 and the DevTools chords are swallowed, so a stray reload can no longer
+  discard a running session
+- **Timeline export writes only `.mp4` files**, to an existing folder or inside
+  the output directory, and removes its partial files on failure
+
+### Fixed
+- **FLUX, FLUX Fill and SD 3.5 generate correctly on the local GPU path.** The
+  scheduler swap no longer replaces their flow-matching scheduler with an
+  Euler/DPM one (the default `Euler a` hit every run). Swaps derive from the
+  scheduler the model loaded with, and Karras sigmas are a constructor argument
+- **A fresh install's first Generate targets an installed model.** The default
+  `flux-dev` is outside the first-run install set; the model picker now moves an
+  unknown or not-installed selection onto an installed model on first load,
+  and badges models whose weights are not on disk
+- **Prompt Studio Enhance and Expand work on the Local provider** (the handler
+  returned no `success` flag, so every call read as a failure)
+- **Hosted generations are sent once.** Billed OpenRouter and Hugging Face
+  generations retry only on 429 or a 503 with Retry-After, never on a timeout,
+  and local generation, edit, export and conversion submits are no longer
+  resubmitted when the backend is slow to answer
+- **Cancelled Hugging Face jobs stay cancelled** instead of being overwritten as
+  failed or completed
+- **Hugging Face text-to-video uses provider routing** (`textToVideo`, provider
+  `auto`, 600 s deadline); the prompt-assist default is the ungated Qwen 2.5 7B
+  Instruct, and a 403 on a gated model says to accept its license
+- **Random video seeds are random** (seed -1 always rendered seed 0), video
+  frame counts are capped per model family, video progress is reported per step,
+  and an installed video model is resolved by its architecture, not its id
+- **One model stays resident.** The image and video generators release each
+  other's pipelines before loading, so switching models no longer stacks two
+  multi-GB pipelines in VRAM; deleting a model evicts it and re-indexes
+- **A dead ComfyUI connection is noticed**, and jobs fall back to the built-in
+  engine when queueing to ComfyUI fails
+- **Canvas undo and redo restore the edit**, the panel's Undo/Redo buttons work,
+  and Before/After and History are real
+- **Canvas tool shortcuts work on the Canvas tab** (they were wired to the Story
+  canvas and also fired on Ctrl combinations); Eyedropper works; Clone, Heal,
+  Shape and Pen are shown as not available yet
+- **All 15 adjustment sliders and the Filters tab change the image**, and edits
+  can be **exported** as a new asset (`<output>/edits/`)
+- **The packaged app can read back the pixels it edits** - backend outputs and
+  imported files no longer taint the canvas, which had disabled adjustments, the
+  eyedropper and Export in the build users run
+- **Pipelines run**, step by step, with live status and cancel; Region Lock
+  Generate runs a masked inpaint instead of the first pipeline in the list; and
+  custom pipelines survive a restart
+- **Collections can be used**: add to collection from assets and the preview,
+  rename, delete, and open a collection to see its assets
+- **The Region tab no longer traps you**, and region mode turned on from the
+  canvas toolbar is no longer switched straight off
+- **Failures are no longer silent** in export, copy, bulk delete, crop,
+  settings saves, AI Director actions and Start Backend
+- **Cancel Batch clears its spinners** and says how many prompts were cancelled
+- **`VISION_STUDIO_SKIP_BACKEND=0` starts the backend** (any non-empty value
+  skipped it), and the no-backend dialog no longer points at a Python-path
+  setting that does not exist
+- **Batch export resolves real outputs** (it always answered 404), `/ws` cleans
+  up after bad frames and sends each job's final state, and oversized upscales
+  are refused before allocating
+- Backend: Pydantic v2 `model_dump()` throughout (29 deprecation warnings gone)
+
+### Performance
+- **Entry bundle 782 kB -> 442 kB** (gzip 205 -> 120 kB): every non-startup
+  view is lazy-loaded
+- **Persisted state is written once per 400 ms** instead of synchronously on
+  every store update, and flushed on hide/unload
+- The full-screen film grain is a static tile with a stepped transform (it
+  re-rasterized an SVG filter ten times a second, forever); dock resizing,
+  playback, polling, galleries (poster-only video tiles), long lists
+  (virtualized) and the iteration graph (capped when persisted) no longer
+  re-render or rewrite the store on every frame
+
+### Design
+- Reduced motion is honoured app-wide (`MotionConfig`), chrome buttons show
+  their hover and press states, overlay radius is reserved for overlays (with a
+  guard test), fields share the recessed-well recipe with a visible focus
+  border, UI labels are mono, dialogs share one shell, empty states share one
+  component, and route LEDs reflect real configuration
+
+### Documentation
+- New [User Guide](docs/USER_GUIDE.md), [Troubleshooting](docs/TROUBLESHOOTING.md)
+  and [UAT checklist](docs/UAT_CHECKLIST.md); dated audits and handoffs moved to
+  `docs/archive/`; setup docs state the real Node (`^20.19 || ^22.13 || >=24`,
+  now in `engines`) and Python (3.10-3.12) ranges; every current doc's links and
+  anchors are checked
+
 ## [3.4.1] - 2026-09-16
 
 ### Security
