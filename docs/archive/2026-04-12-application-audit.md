@@ -1,5 +1,9 @@
 # Vision Studio Application Audit
 
+> **Historical design record - 2026-04-12.** Describes intent and findings at that
+> date, not current behaviour. See `docs/INDEX.md` for what is authoritative.
+> It is a point-in-time audit: findings it lists as open may since have been fixed, and figures it quotes (test counts, file counts, line numbers) are as of that date. Formerly `AUDIT_2026-04-12.md`.
+
 **Audit Date:** 2026-04-12  
 **Auditor:** Claude Code (Elite Partner)  
 **Scope:** Full application review - accessibility, performance, design system, code quality  

@@ -668,7 +668,7 @@ State is split across **four** stores. Knowing where each lives is essential.
 - `backend/middleware/rate_limit.py` - limiter
 - `backend/utils/sanitization.py` - text/path/base64 validators
 - `backend/main.py` - auth middleware (`require_local_auth_token`)
-- `SECURITY-AUDIT-2026-04-18.md` (root) - the April 2026 audit findings
+- [`archive/2026-04-18-security-audit.md`](./archive/2026-04-18-security-audit.md) - the April 2026 audit findings (a historical snapshot, not the current state)
 
 ---
 

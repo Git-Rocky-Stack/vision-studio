@@ -1,6 +1,6 @@
 # Vision Studio — Documentation Index
 
-> Authoritative entry point for technical documentation. Start here.
+> Authoritative entry point for the documentation. Start here.
 
 ## Core reference
 
@@ -29,28 +29,38 @@
 | [`../THIRD-PARTY-LICENSES.md`](../THIRD-PARTY-LICENSES.md) | Bundled runtime dependencies and provisioned models, each under its own terms. Ships inside every installer. |
 | [`../THIRD-PARTY-NOTICES.md`](../THIRD-PARTY-NOTICES.md) | Curated notices for the major shipped runtime dependencies, plus the `license-checker` / `pip-licenses` commands that reproduce the complete list. |
 
-## Audits & strategy (point-in-time snapshots)
+## Release, delivery and operations
 
-These are dated working documents. Treat them as historical references for the date in the filename, not as authoritative specs.
+| Document | What it covers |
+|----------|----------------|
+| [`R2-DELIVERY.md`](./R2-DELIVERY.md) | Runbook for the Cloudflare R2 installer host, the update feed, and the model mirror. |
+| [`code-signing.md`](./code-signing.md) | EV code signing for the Windows build: certificates, tokens vs cloud HSM, signing in CI. |
+| [`RELEASE_SCREENSHOTS.md`](./RELEASE_SCREENSHOTS.md) | How the README screenshots are generated from the running app, and how to regenerate them. |
+| [`TENSORRT_VERIFICATION.md`](./TENSORRT_VERIFICATION.md) | Runbook for verifying the TensorRT path on real hardware before a model family may use it under Auto. |
 
-| Document | Date |
-|----------|------|
-| [`accessibility-audit-2026-04-18.md`](./accessibility-audit-2026-04-18.md) | 2026-04-18 |
-| [`code-quality-review-2026-04-17.md`](./code-quality-review-2026-04-17.md) | 2026-04-17 |
-| [`code-signing.md`](./code-signing.md) | Reference |
-| [`dependency-security.md`](./dependency-security.md) | Reference |
-| [`competitive-analysis-2026-04.md`](./competitive-analysis-2026-04.md) | 2026-04 |
-| [`comprehensive-audit-2026-06-03.md`](./comprehensive-audit-2026-06-03.md) | 2026-06-03 |
-| [`current-todos-2026-07-04.md`](./current-todos-2026-07-04.md) | 2026-07-04 |
-| [`handoff-2026-04-17.md`](./handoff-2026-04-17.md) | 2026-04-17 |
-| [`handoff-2026-04-19.md`](./handoff-2026-04-19.md) | 2026-04-19 |
-| [`performance-audit-2026-04-18.md`](./performance-audit-2026-04-18.md) | 2026-04-18 |
-| [`qa-audit-2026-04-18.md`](./qa-audit-2026-04-18.md) | 2026-04-18 |
-| [`qa-testing-strategy.md`](./qa-testing-strategy.md) | Reference |
-| [`../SECURITY-AUDIT-2026-04-18.md`](../SECURITY-AUDIT-2026-04-18.md) | 2026-04-18 |
-| [`../AUDIT_2026-04-12.md`](../AUDIT_2026-04-12.md) | 2026-04-12 |
+## Engineering policy
 
-Plans live under [`plans/`](./plans/) and superpowers notes under [`superpowers/`](./superpowers/).
+| Document | What it covers |
+|----------|----------------|
+| [`dependency-security.md`](./dependency-security.md) | Shipped-vs-dev audit policy and the tracked dev-only exceptions. |
+| [`qa-testing-strategy.md`](./qa-testing-strategy.md) | The risk-based testing strategy the test layers were built from. Its baseline figures are from 2026-03-13; the strategy itself is current. |
+
+## History (point-in-time records)
+
+These are dated working documents. Treat them as historical references for the
+date in the filename, not as authoritative specs: each one opens with a banner
+saying so.
+
+- [`archive/`](./archive/) - audits, code reviews, session handoffs and to-do
+  snapshots (the April 2026 security, QA, performance and accessibility audits,
+  the 2026-06-03 comprehensive audit, and more). The
+  [archive index](./archive/README.md) lists each record and the path it used
+  to live at.
+- [`plans/`](./plans/) - design and implementation plans.
+- [`superpowers/`](./superpowers/) - specs, plans and spikes.
+- [`competitive-analysis-2026-04.md`](./competitive-analysis-2026-04.md) - the
+  April 2026 competitive landscape analysis (dated by month only, so it stays
+  outside the dated archive).
 
 ---
 
@@ -74,14 +84,14 @@ Plans live under [`plans/`](./plans/) and superpowers notes under [`superpowers/
 
 **Security review**
 1. `ARCHITECTURE.md §8` (security model + threat table).
-2. `../SECURITY-AUDIT-2026-04-18.md` (last formal audit).
+2. `archive/2026-04-18-security-audit.md` (the last formal audit - a historical snapshot).
 3. `dependency-security.md` (shipped-vs-dev audit policy + tracked dev-only exceptions).
 4. Read `electron/services/security.ts`, `outputRoots.ts`, `secureStore.ts`, `contentSecurityPolicy.ts`, and `backend/middleware/rate_limit.py` + `backend/utils/sanitization.py`.
 
 **Release / packaging**
 1. `../BUNDLING.md` and `../DEPLOYMENT.md`.
 2. `ARCHITECTURE.md §9 + §11` (build pipeline + release flow diagram).
-3. `docs/code-signing.md`.
+3. `code-signing.md` and `R2-DELIVERY.md`.
 
 ---
 

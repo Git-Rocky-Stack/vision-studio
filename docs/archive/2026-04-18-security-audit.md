@@ -1,5 +1,11 @@
 # Vision Studio - Comprehensive Security Audit Report
 
+> **Historical design record - 2026-04-18.** Describes intent and findings at that
+> date, not current behaviour. See `docs/INDEX.md` for what is authoritative.
+> It is a point-in-time audit: findings it lists as open may since have been fixed, and figures it quotes (test counts, file counts, line numbers) are as of that date. Formerly `SECURITY-AUDIT-2026-04-18.md`.
+>
+> For the current security policy see `SECURITY.md`; for the current security model see `docs/ARCHITECTURE.md` section 8.
+
 **Date:** 2026-04-18
 **Scope:** Electron + React desktop application, full codebase
 **Framework:** OWASP Top 10 for Desktop Applications

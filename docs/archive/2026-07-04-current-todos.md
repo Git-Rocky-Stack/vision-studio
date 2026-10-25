@@ -1,5 +1,11 @@
 # Current To-Dos — Remaining Work Audit (2026-07-04)
 
+> **Historical design record - 2026-07-04.** Describes intent and findings at that
+> date, not current behaviour. See `docs/INDEX.md` for what is authoritative.
+> It is a point-in-time to-do snapshot: items it lists as open may since have closed. Formerly `docs/current-todos-2026-07-04.md`.
+>
+> Since resolved: #32 (canvas text layer add/delete), #33 (CompositionPreview generation action) and #34 (backend edit and ControlNet services) are all closed - the stubs this snapshot describes are gone from the tree.
+
 > Point-in-time snapshot of every known remaining to-do, stub, and unwired
 > feature, taken immediately after PR #40 ("Phase 1: LoRA end-to-end (#136)")
 > merged to `main` at `86f7443a`. Verified against the code on that commit —

@@ -17,7 +17,7 @@ const ROOT = resolve(__dirname, '..');
  * So the framing travels in the file. Every archived record opens with a
  * blockquote banner naming its date and its status as a record of intent.
  */
-const ARCHIVE_DIRS = ['docs/plans', 'docs/superpowers'];
+const ARCHIVE_DIRS = ['docs/plans', 'docs/superpowers', 'docs/archive'];
 
 /** The banner is a blockquote so it can never itself read as a claim. */
 const BANNER = (date: string) => `> **Historical design record - ${date}.**`;
@@ -62,6 +62,18 @@ describe('archived design records declare their own provenance', () => {
       unbannered,
       `${unbannered.length} archived record(s) carry no provenance banner`,
     ).toEqual([]);
+  });
+
+  it('keeps dated records out of the repository root and the docs/ landing directory', () => {
+    // Audits and handoffs used to sit beside README.md and docs/INDEX.md with no
+    // banner, where a visitor read them as current. Dated records belong in an
+    // archive directory, where the banner check above reaches them.
+    const DATED = /\d{4}-\d{2}-\d{2}/;
+    const loose = [
+      ...readdirSync(ROOT),
+      ...readdirSync(resolve(ROOT, 'docs')).map((name) => `docs/${name}`),
+    ].filter((name) => name.endsWith('.md') && DATED.test(name));
+    expect(loose, 'move dated records into docs/archive/ (named <date>-<slug>.md)').toEqual([]);
   });
 
   it('gives each archive directory an index that says what it holds', () => {
