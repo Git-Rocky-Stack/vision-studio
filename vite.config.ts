@@ -100,8 +100,10 @@ export default defineConfig({
     outDir: 'dist',
     // The renderer uses vendor chunk splitting (below) and route/panel-level code
     // splitting (heavy non-startup surfaces are React.lazy'd in
-    // DockviewSettingsPanel). That trimmed the entry chunk from ~825 kB to ~620 kB.
-    // The limit stays at 800 kB as a regression guard with modest headroom.
+    // DockviewSettingsPanel, and the centre views and full-width pages in
+    // DockviewLayout). That took the entry chunk from ~825 kB to ~440 kB.
+    // The limit stays at 800 kB as a regression guard; a split chunk should
+    // never approach it either.
     chunkSizeWarningLimit: 800,
     rollupOptions: {
       output: {
