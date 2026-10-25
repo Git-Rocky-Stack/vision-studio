@@ -6,9 +6,11 @@ Provides endpoints for batch image processing and ZIP export.
 
 from __future__ import annotations
 
+import asyncio
 import base64
 import logging
 import time
+from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -30,13 +32,23 @@ router = APIRouter(prefix="/api/v1/batch", tags=["Batch"])
 
 # Global service instance (initialized on first use)
 _service: BatchService | None = None
+# The backend's outputs folder (main.py configures it at startup): image ids
+# resolve to generation outputs there.
+_output_dir: Optional[str] = None
+
+
+def configure(output_dir: Optional[str]) -> None:
+    """Point the batch export at the backend's outputs folder."""
+    global _output_dir, _service
+    _output_dir = output_dir
+    _service = None  # rebuilt on next use with the new folder
 
 
 def get_service() -> BatchService:
     """Get or create the batch service instance."""
     global _service
     if _service is None:
-        _service = BatchService()
+        _service = BatchService(output_dir=_output_dir)
     return _service
 
 
@@ -60,10 +72,11 @@ async def export_batch_to_zip(request: Request, batch_request: BatchExportReques
     a ZIP file.
 
     ### Request Body
-    - `image_ids`: List of image identifiers to export
+    - `image_ids`: Images to export - a generation job id (exports the job's
+      first image) or an output path such as `/outputs/<job_id>/<file>`
     - `format`: Output format (png, jpg, webp), default "png"
     - `quality`: JPEG/WEBP quality (1-100), default 95
-    - `resize`: Optional resize dimensions {"width": int, "height": int}
+    - `resize`: Optional resize dimensions {"width": int, "height": int}, each 1-8192
 
     ### Response
     - `success`: True if export succeeded
@@ -75,7 +88,7 @@ async def export_batch_to_zip(request: Request, batch_request: BatchExportReques
     ### Example
     ```json
     {
-      "image_ids": ["img-001", "img-002", "img-003"],
+      "image_ids": ["3f2c...-job-id", "/outputs/8a1b...-job-id/image_001.png"],
       "format": "jpg",
       "quality": 85,
       "resize": {"width": 1024, "height": 768}
@@ -89,11 +102,14 @@ async def export_batch_to_zip(request: Request, batch_request: BatchExportReques
         # Sanitize image IDs (prevent path traversal)
         sanitized_image_ids = [sanitize_path(image_id) for image_id in batch_request.image_ids]
 
-        # Check which images exist before processing
-        missing_images = [
-            image_id for image_id in sanitized_image_ids
-            if service._get_image(image_id) is None
-        ]
+        # Check which images exist before processing (decodes from disk -
+        # off the event loop, like the export itself below).
+        missing_images = await asyncio.to_thread(
+            lambda: [
+                image_id for image_id in sanitized_image_ids
+                if service._get_image(image_id) is None
+            ]
+        )
 
         if missing_images:
             logger.warning(f"Missing images: {missing_images}")
@@ -109,7 +125,8 @@ async def export_batch_to_zip(request: Request, batch_request: BatchExportReques
             # If SOME are missing, log warning but continue with existing ones
 
         # Export to ZIP
-        zip_bytes, file_count = service.export_to_zip(
+        zip_bytes, file_count = await asyncio.to_thread(
+            service.export_to_zip,
             image_ids=sanitized_image_ids,
             format=batch_request.format,
             quality=batch_request.quality,

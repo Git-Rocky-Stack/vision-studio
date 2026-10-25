@@ -4,6 +4,7 @@ Fallback when ComfyUI is not available
 """
 
 import os
+import weakref
 try:
     import torch
 except ImportError:  # torch is optional and absent in the lightweight CI/test env
@@ -37,6 +38,7 @@ from foundry.accelerator import DEFAULT_ACCELERATION_SETTINGS, accelerate_pipeli
 from foundry.lora import loras_applied
 from utils.device import empty_device_cache, is_out_of_memory, resolve_device
 from utils.job_manager import GenerationCancelled
+from utils.pipeline_cache import register_pipeline_owner, release_other_pipeline_caches
 
 # #34 guided passes (all modules import with no torch/diffusers).
 from guided.controlnet_registry import resolve_controlnet_stack
@@ -194,6 +196,9 @@ class DirectGenerator:
         # Acceleration settings the cached pipeline was built with, per model.
         # A changed request must evict+rebuild (in-place accel is irreversible).
         self._loaded_acceleration: Dict[str, Any] = {}
+        # Scheduler config each cached pipeline was loaded with; weak keys so
+        # an unloaded pipeline's entry goes with it.
+        self._scheduler_origins: "weakref.WeakKeyDictionary[Any, Any]" = weakref.WeakKeyDictionary()
         self.device = resolve_device(torch)
         self.executor = ThreadPoolExecutor(max_workers=1)
 
@@ -202,6 +207,10 @@ class DirectGenerator:
 
         if not DIFFUSERS_AVAILABLE:
             raise RuntimeError("diffusers library not available")
+
+        # The video generator releases this cache before it loads (and this
+        # one releases the video cache) - see utils.pipeline_cache.
+        register_pipeline_owner("image", self.unload_all)
 
         print(f"🖥️ DirectGenerator using device: {self.device}")
 
@@ -238,6 +247,11 @@ class DirectGenerator:
         plan = resolve_plan(model_name, overrides)
         if plan.refusal:
             raise ModelLoadRefusedError(plan.refusal)
+
+        # One resident pipeline per generator, and none in the video
+        # generator: two multi-GB pipelines never share VRAM.
+        self.unload_all()
+        release_other_pipeline_caches("image")
 
         ladder = list(plan.fallback_ladder)
         slicing_max = False
@@ -319,6 +333,26 @@ class DirectGenerator:
         return pipeline
 
     def _configure_scheduler(self, pipeline, scheduler_name: str):
+        """Swap the sampler on an eps/v-prediction pipeline (SD 1.5 / SDXL).
+
+        Flow-matching pipelines (FLUX, FLUX Fill, SD 3.5) ship a
+        FlowMatch*Scheduler and break - or silently produce noise - under
+        Euler/DPM/DDIM/UniPC, so they always keep their own scheduler. Every
+        swap derives from the scheduler the pipeline was LOADED with, never
+        from a previous swap, so switching samplers back and forth on a
+        cached pipeline cannot accumulate config drift.
+        """
+        current = getattr(pipeline, "scheduler", None)
+        if current is None or type(current).__name__.startswith("FlowMatch"):
+            return pipeline
+        try:
+            original_config = self._scheduler_origins.get(pipeline)
+            if original_config is None:
+                original_config = current.config
+                self._scheduler_origins[pipeline] = original_config
+        except TypeError:  # not weak-referenceable/hashable: swap from current
+            original_config = current.config
+
         normalized = scheduler_name.strip().lower()
         scheduler_cls = EulerAncestralDiscreteScheduler
 
@@ -338,9 +372,12 @@ class DirectGenerator:
         elif normalized == "unipc":
             scheduler_cls = UniPCMultistepScheduler
 
-        pipeline.scheduler = scheduler_cls.from_config(pipeline.scheduler.config)
-        if "karras" in normalized and hasattr(pipeline.scheduler.config, "use_karras_sigmas"):
-            pipeline.scheduler.config.use_karras_sigmas = True
+        # Karras sigmas are a constructor argument: setting the config field
+        # after construction leaves the already-built sigma schedule untouched.
+        overrides: Dict[str, Any] = {}
+        if "karras" in normalized and scheduler_cls is DPMSolverMultistepScheduler:
+            overrides["use_karras_sigmas"] = True
+        pipeline.scheduler = scheduler_cls.from_config(original_config, **overrides)
         return pipeline
     
     async def generate_image(
@@ -749,6 +786,11 @@ class DirectGenerator:
             self.applied_acceleration.pop(model_name, None)
             empty_device_cache(torch)
             print(f"🗑️ Unloaded model: {model_name}")
+
+    def unload_all(self):
+        """Drop every cached pipeline (no-op when none is resident)."""
+        for model_name in list(self.pipelines):
+            self.unload_model(model_name)
 
     def get_memory_usage(self) -> Dict[str, float]:
         """Get GPU memory usage"""

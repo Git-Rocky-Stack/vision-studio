@@ -13,7 +13,7 @@ from typing import Callable, Dict, Optional, Tuple
 
 from PIL import Image
 
-from edit_tools.weights import EditCancelled, EditModelUnavailable
+from edit_tools.weights import EditCancelled, EditModelUnavailable, EditToolError
 from utils.device import resolve_device
 
 try:  # stub CI / slim install
@@ -33,12 +33,43 @@ except ImportError:
 
 TILE = 256
 OVERLAP = 16
+# Longest edge of the canvas upscale() allocates. The working canvas is the
+# MODEL's scale (2x runs the 4x model, then downsamples), so a 2x request
+# allocates 4x too. 16384^2 RGB is already ~800 MB.
+MAX_UPSCALE_EDGE = 16384
 
 RunTile = Callable[[Image.Image], Image.Image]
 ProgressCb = Callable[[int, int], None]
 CancelCheck = Callable[[], bool]
 
 _RUNNERS: Dict[str, Tuple[RunTile, int]] = {}
+
+
+def check_upscale_size(width: int, height: int, scale: int, model_scale: int = 4) -> None:
+    """Refuse (EditToolError) before any canvas is allocated when the working
+    canvas would exceed MAX_UPSCALE_EDGE on its long edge."""
+    working_scale = max(scale, model_scale)
+    long_edge = max(width, height)
+    if long_edge * working_scale > MAX_UPSCALE_EDGE:
+        largest = MAX_UPSCALE_EDGE // working_scale
+        raise EditToolError(
+            f"This image is too large to upscale: {width}x{height} at {scale}x needs a "
+            f"{long_edge * working_scale}px working canvas (the limit is "
+            f"{MAX_UPSCALE_EDGE}px). Resize or crop it to at most {largest}px on the "
+            "long edge first."
+        )
+
+
+def _half_precision(descriptor, device: str):
+    """(descriptor, torch dtype): fp16 on CUDA when the architecture supports
+    it - about half the VRAM and faster on tensor cores - else fp32. Fail-soft:
+    any trouble converting keeps the fp32 model."""
+    if device != "cuda" or not getattr(descriptor, "supports_half", False):
+        return descriptor, torch.float32
+    try:
+        return descriptor.half(), torch.float16
+    except Exception:  # noqa: BLE001 - fp32 always works
+        return descriptor, torch.float32
 
 
 def _make_runner(model_path: str) -> Tuple[RunTile, int]:
@@ -51,13 +82,14 @@ def _make_runner(model_path: str) -> Tuple[RunTile, int]:
 
     device = resolve_device(torch)
     descriptor = ModelLoader().load_from_file(model_path).to(device).eval()
+    descriptor, dtype = _half_precision(descriptor, device)
 
     def run(tile: Image.Image) -> Image.Image:
         arr = np.asarray(tile.convert("RGB"), dtype=np.float32) / 255.0
-        tensor = torch.from_numpy(arr).permute(2, 0, 1).unsqueeze(0).to(device)
+        tensor = torch.from_numpy(arr).permute(2, 0, 1).unsqueeze(0).to(device, dtype=dtype)
         with torch.no_grad():
             out = descriptor(tensor)
-        out = out.squeeze(0).permute(1, 2, 0).clamp(0.0, 1.0).cpu().numpy()
+        out = out.float().squeeze(0).permute(1, 2, 0).clamp(0.0, 1.0).cpu().numpy()
         return Image.fromarray((out * 255.0).round().astype(np.uint8))
 
     _RUNNERS[model_path] = (run, int(descriptor.scale))
@@ -76,8 +108,11 @@ def upscale(
     """Super-resolve ``image`` by ``scale`` (2 or 4) with seam-free tiling."""
     if scale not in (2, 4):
         raise ValueError(f"Unsupported scale factor: {scale}. Must be 2 or 4.")
+    # Size gate first: never load weights for, or allocate, an oversized canvas.
+    check_upscale_size(image.width, image.height, scale, model_scale)
     if run_tile is None:
         run_tile, model_scale = _make_runner(model_path or "")
+        check_upscale_size(image.width, image.height, scale, model_scale)
 
     source = image.convert("RGB")
     width, height = source.size

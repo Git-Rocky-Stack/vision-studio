@@ -6,7 +6,11 @@ from __future__ import annotations
 
 from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+
+# Longest edge a batch resize may ask for: every image in the batch is
+# resized in memory, so the bound keeps one request from allocating gigabytes.
+MAX_RESIZE_EDGE = 8192
 
 
 class BatchExportRequest(BaseModel):
@@ -14,7 +18,8 @@ class BatchExportRequest(BaseModel):
     Request schema for batch image export to ZIP.
 
     Attributes:
-        image_ids: List of image identifiers to export
+        image_ids: Images to export - a job id (its first image under
+            outputs/<job_id>/) or an output path ("/outputs/<job_id>/<file>")
         format: Output image format (png, jpg, webp)
         quality: JPEG/WEBP quality (1-100, default 95)
         resize: Optional resize dimensions {"width": int, "height": int}
@@ -22,7 +27,10 @@ class BatchExportRequest(BaseModel):
     image_ids: list[str] = Field(
         ...,
         min_length=1,
-        description="List of image identifiers to export"
+        description=(
+            "Images to export: a generation job id (its first image) or an "
+            "output path such as /outputs/<job_id>/<file>"
+        ),
     )
     format: str = Field(
         default="png",
@@ -37,8 +45,28 @@ class BatchExportRequest(BaseModel):
     )
     resize: Optional[dict] = Field(
         default=None,
-        description="Optional resize dimensions {\"width\": int, \"height\": int}"
+        description=(
+            "Optional resize dimensions {\"width\": int, \"height\": int}, "
+            f"each 1-{MAX_RESIZE_EDGE}"
+        ),
     )
+
+    @field_validator("resize")
+    @classmethod
+    def _validate_resize(cls, value: Optional[dict]) -> Optional[dict]:
+        """Exactly integer width and height in range - a malformed resize used
+        to be skipped silently, and an oversized one allocated unbounded."""
+        if value is None:
+            return None
+        if set(value) != {"width", "height"}:
+            raise ValueError("resize must have exactly 'width' and 'height'")
+        for key in ("width", "height"):
+            dimension = value[key]
+            if isinstance(dimension, bool) or not isinstance(dimension, int):
+                raise ValueError(f"resize.{key} must be an integer")
+            if not 1 <= dimension <= MAX_RESIZE_EDGE:
+                raise ValueError(f"resize.{key} must be between 1 and {MAX_RESIZE_EDGE}")
+        return value
 
 
 class BatchExportResponse(BaseModel):

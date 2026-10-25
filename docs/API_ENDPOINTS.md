@@ -435,7 +435,7 @@ GPU + model info.
 { "prompt": "a cat", "mode": "clarify" }
 ```
 
-`mode` ∈ `clarify | cinematic | concise | variations | expand`. Response is mode-specific but always `{ mode, prompt, variations? }`.
+`mode` ∈ `clarify | cinematic | concise | variations | expand` (case and surrounding spaces are ignored); `prompt` is at most 4000 characters. Response is mode-specific but always `{ mode, prompt, variations }`. This route is the local **template** engine - each mode appends a fixed set of descriptors (or condenses the prompt), no model runs; the AI-backed enhancement (OpenRouter / Hugging Face) runs in the Main process with the user's own key and never reaches this route. `422` for an empty prompt or an unknown mode.
 
 ### 2.4 Generation
 
@@ -445,15 +445,15 @@ Body - `ImageGenerationRequest`:
 
 | Field | Type | Default | Range / values |
 |-------|------|---------|----------------|
-| `prompt` | string | - (required) | non-empty |
-| `negative_prompt` | string | `""` | |
-| `width` | int | `1024` | 256–2048 |
-| `height` | int | `1024` | 256–2048 |
+| `prompt` | string | - (required) | non-empty, at most 4000 characters |
+| `negative_prompt` | string | `""` | at most 4000 characters |
+| `width` | int | `1024` | 256–2048, snapped down to a multiple of 8 |
+| `height` | int | `1024` | 256–2048, snapped down to a multiple of 8 |
 | `steps` | int | `25` | 1–100 |
 | `cfg_scale` | float | `7.5` | 1–30 |
-| `seed` | int | `-1` | -1 = random |
+| `seed` | int | `-1` | -1 = random, else 0–4294967295 (2^32-1) |
 | `model` | string | `flux-dev` | a registry id (`GET /api/models`): `flux-dev`, `flux-schnell`, `sd3.5-large`, `sd3.5-medium`, `sdxl-base` (alias `sdxl`), `sd-1-5`, or an installed model. FLUX inpainting switches to `flux-fill` itself |
-| `scheduler` | string | `euler` | sampler name accepted by ComfyUI / diffusers |
+| `scheduler` | string | `euler` | sampler name accepted by ComfyUI / diffusers. The built-in engine applies it to SD 1.5 / SDXL only: FLUX, FLUX Fill and SD 3.5 always keep their flow-matching scheduler |
 | `acceleration_settings` | object \| null | `null` | M9 acceleration toggles (see below); `null` = all defaults |
 | `loras` | array | `[]` | `{ "id": "<installed LoRA id>", "weight": 0–2 (default 1.0) }` per adapter |
 | `controlnet` | array | `[]` | canvas ControlNet layers: `layer_id`, `source_path`, `preprocessor`, `strength` 0–2, `start_step` / `end_step` 0–1, `mask` |
@@ -484,7 +484,7 @@ Response - `JobResponse`:
 
 The job runs asynchronously in `BackgroundTasks`. Poll via `GET /api/jobs/{id}` or subscribe via `/ws`.
 
-Requests with a guided field (`controlnet`, `reference_images`, `inpaint`, `outpaint`, `background_replace`) always run on the built-in engine. Any other request goes to ComfyUI when one is connected ([README, Option C](../README.md#option-c-external-comfyui-advanced)), which receives the model, prompts, size, steps, CFG, scheduler and seed, but not `loras` or `acceleration_settings`.
+Requests with a guided field (`controlnet`, `reference_images`, `inpaint`, `outpaint`, `background_replace`) always run on the built-in engine. Any other request goes to ComfyUI when one is connected ([README, Option C](../README.md#option-c-external-comfyui-advanced)), which receives the model, prompts, size, steps, CFG, scheduler and seed, but not `loras` or `acceleration_settings`. If ComfyUI does not accept the job (its queue call fails, or it disconnected - the backend notices a dropped ComfyUI WebSocket), the job runs on the built-in engine instead.
 
 #### `POST /api/generate/video` - `tags=[Generation]`, limit `10/min`
 
@@ -492,19 +492,19 @@ Body - `VideoGenerationRequest`:
 
 | Field | Type | Default | Range / values |
 |-------|------|---------|----------------|
-| `prompt` | string | - (required) | |
+| `prompt` | string | - (required) | at most 4000 characters |
 | `image_path` | string \| null | `null` | optional input image (image-to-video) |
-| `width` | int | `1024` | 256–1920 |
-| `height` | int | `576` | 256–1080 |
+| `width` | int | `1024` | 256–1920, snapped down to a multiple of 8 |
+| `height` | int | `576` | 256–1080, snapped down to a multiple of 8 |
 | `fps` | int | `24` | 12–60 |
 | `duration` | int | `5` | 1–10 seconds |
 | `steps` | int | `25` | 1–100 |
-| `model` | string | `ltx-video` | `ltx-video`, `animatediff` (text-to-video), `svd` (image-to-video; needs `image_path`) |
-| `seed` | int | `-1` | -1 = random |
+| `model` | string | `ltx-video` | `ltx-video`, `animatediff` (text-to-video), `svd` (image-to-video; needs `image_path`), or an installed model whose record's `base_architecture` is `ltx`, `animatediff` or `svd` |
+| `seed` | int | `-1` | -1 = random (the result reports the seed drawn), else 0–4294967295 |
 | `acceleration_settings` | object \| null | `null` | M9 acceleration toggles ([same shape as image](#acceleration-settings)); `null` = all defaults |
 | `loras` | array | `[]` | as for images; applied to `ltx-video` and `animatediff`, ignored for `svd` |
 
-On the built-in engine, clip length is `fps` x `duration` frames (minimum 8). With ComfyUI connected, an image-to-video job (one with `image_path`) goes to ComfyUI's SVD-XT workflow instead: it receives `image_path`, size, `fps`, `steps` and `seed`, renders 14 frames, and ignores `model`, `prompt`, `duration` and `loras` (`backend/utils/comfy_workflows.py`). Text-to-video always runs on the built-in engine; if that engine is unavailable while ComfyUI is connected, the job fails with an error saying ComfyUI runs image-to-video only. (3.4.1 and earlier sent every video job to ComfyUI, where text-to-video failed for want of an input image.)
+On the built-in engine the clip asks for `fps` x `duration` frames (minimum 8), capped per model family: AnimateDiff 32, SVD 25, LTX rounded to the nearest 8k+1 up to 257. The result reports what was produced (`frames`, and `duration` = frames / fps) next to `requested_duration`. With ComfyUI connected, an image-to-video job (one with `image_path`) goes to ComfyUI's SVD-XT workflow instead: it receives `image_path`, size, `fps`, `steps` and `seed`, renders 14 frames, and ignores `model`, `prompt`, `duration` and `loras` (`backend/utils/comfy_workflows.py`); if ComfyUI does not accept the upload or the queue call, the job runs on the built-in engine. Text-to-video always runs on the built-in engine; if that engine is unavailable while ComfyUI is connected, the job fails with an error saying ComfyUI runs image-to-video only. (3.4.1 and earlier sent every video job to ComfyUI, where text-to-video failed for want of an input image.)
 
 Returns `JobResponse`.
 
@@ -531,7 +531,7 @@ When `status === "completed"`, `result` is provider-specific:
 
 - Image, built-in engine: `{ "images": ["/outputs/<job_id>/generated.png"], "seed": 12345, "width": 1024, "height": 1024, "prompt": "...", "model": "flux-dev", "acceleration": {...}, "loras": [...], "guided": ... }`. Through ComfyUI the files are `image_NNN.<ext>`.
 - Edit: `{ "images": ["/outputs/<job_id>/<name>"], ... }`; `restore-faces` adds `faces_detected`.
-- Video, built-in engine: `{ "video": "/outputs/<job_id>/video.mp4", "frames": 120, "fps": 24, "duration": 5, "job_id": "...", "loras": [...] }`, plus `acceleration` when it applies.
+- Video, built-in engine: `{ "video": "/outputs/<job_id>/video.mp4", "frames": 121, "fps": 24, "duration": 5.042, "requested_duration": 5, "seed": 12345, "job_id": "...", "loras": [...] }`, plus `acceleration` when it applies. `duration` is the produced length in seconds (frames / fps).
 - Video through ComfyUI: `{ "videos": ["/outputs/<job_id>/video_001.webp"], "seed": ..., "prompt": "...", "model": "..." }`.
 - Timeline export: `{ "video": "<output_path>", "output_path": "<output_path>", "fps": 24, "duration": 5.0, "frames": 120, "width": 1920, "height": 1080, "sequence_name": "..." }`. Here `video` is the local file the export wrote, not an `/outputs/` URL.
 
@@ -553,7 +553,7 @@ Cancels a `pending` or `processing` job of any kind (generation, edit, timeline 
 
 #### `GET /api/jobs?status=&limit=` - `tags=[Jobs]`, limit `60/min`
 
-`status` ∈ `pending|processing|completed|failed|cancelled` (optional). `limit` defaults to 50 and is not bounded. Returns:
+`status` ∈ `pending|processing|completed|failed|cancelled` (optional). `limit` defaults to 50 and must be 1–100 (`422` otherwise). Returns:
 
 ```json
 { "jobs": [{ "job_id": "...", "status": "...", "type": "...", "progress": 42.5, "created_at": "..." }] }
@@ -828,7 +828,7 @@ Returns the legacy `ModelManager` record: `{ id, name, type, source, repo_id, au
 
 #### `DELETE /api/models/{model_id}` - `tags=[Models]`, limit `30/min`
 
-Deletes locally installed weights. Returns `{ "success": true }`. `404` if not installed. `409` if the model is a linked library reference - call `DELETE /api/models/libraries/{root_id}` instead; no bytes are ever deleted by that path either.
+Deletes locally installed weights. Any cached pipeline for the model is evicted first, the files are removed in a worker thread, and the Foundry index is re-scanned afterwards so `GET /api/models` stops reporting them (a failed re-scan is logged, not a failed delete). Returns `{ "success": true }`. `404` if not installed. `409` if the model is a linked library reference - call `DELETE /api/models/libraries/{root_id}` instead; no bytes are ever deleted by that path either.
 
 #### `POST /api/models/import` - `tags=[Models]`, limit `30/min`
 
@@ -943,7 +943,7 @@ Body - `TimelineExportRequest`:
 }
 ```
 
-Validation: `width/height` 64–4096; `fps` 1–60; `frames` length 1–24000; per-audio-layer `gain` 0–2.
+Validation: `width/height` 64–4096; `fps` 1–60; `frames` length 1–24000; per-audio-layer `gain` 0–2. `output_path` must end in `.mp4`: an absolute path (the save-dialog choice) must be in a folder that exists, and a relative path resolves under the outputs folder and may not leave it - anything else, or a path that names a folder, is `422` before a job exists. A failed export removes its partial MP4 and the silent pre-mux file, but never a file that was already at `output_path` and that the export did not write to.
 
 ### 2.10 ControlNet - removed
 
@@ -981,7 +981,7 @@ Body - `UpscaleRequest`:
 { "source_path": "C:/.../outputs/<job>/generated.png", "scale": 2, "model": "general", "face_enhance": false }
 ```
 
-`scale` ∈ `2 | 4`; `model` ∈ `general | anime` (Real-ESRGAN x4plus weights).
+`scale` ∈ `2 | 4`; `model` ∈ `general | anime` (Real-ESRGAN x4plus weights; fp16 on CUDA when the architecture supports it). The working canvas is the model's 4x even for `scale: 2` (it downsamples afterwards), so the source may be at most 4096 px on its long edge: a larger one is `422` before a job exists.
 
 #### `POST /api/v1/edit/restore-faces` - limit `30/min`
 
@@ -1005,14 +1005,14 @@ Body - `BatchExportRequest`:
 
 ```json
 {
-  "image_ids": ["img-001", "img-002"],
+  "image_ids": ["3f2c…", "/outputs/8a1b…/image_001.png"],
   "format": "jpg",
   "quality": 85,
   "resize": { "width": 1024, "height": 768 }
 }
 ```
 
-`format` ∈ `png|jpg|webp`. `quality` 1–100. `resize` optional.
+Each `image_ids` entry is a generation job id (the job's first image under `outputs/<job_id>/`, in name order) or an output path (`/outputs/<job_id>/<file>`, png/jpg/webp). Ids never resolve outside the outputs folder. `format` ∈ `png|jpg|webp`. `quality` 1–100. `resize` optional; when present it must be exactly `{ "width", "height" }`, integers 1–8192 (`422` otherwise).
 
 Response - `BatchExportResponse`:
 
@@ -1031,8 +1031,9 @@ Response - `BatchExportResponse`:
 ### 2.15 Retrieval / AI Director - `/api/v1/retrieval`
 
 Local-first retrieval store for M7. The embedding model (`all-MiniLM-L6-v2`) is
-lazily loaded and optional: when absent, ranking falls back to deterministic
-lexical matching. The index persists as files under the runtime data dir
+lazily loaded (in a worker thread - every route runs off the event loop) and
+optional: when it is absent, or installed but fails to load (it is then not
+retried), ranking falls back to deterministic lexical matching. The index persists as files under the runtime data dir
 (`vectors.npz` + `corpus.json`); no SQLite, no native extension.
 
 | Method | Path | Body → Response | Notes |
@@ -1091,7 +1092,7 @@ The Main process (`electron/ipc-handlers/generation.ts`) opens this connection o
 
 ### Server → client
 
-Every 500 ms the server pushes a `job_update` frame for each `processing` job:
+Every 500 ms the server pushes a `job_update` frame for each `processing` job, and one final `job_update` (with `status` `completed`, `failed` or `cancelled`) for each job it reported that has since finished:
 
 ```json
 {
@@ -1118,13 +1119,17 @@ The Main process forwards each frame unchanged: `job_update` over the `generatio
 
 ### Client → server
 
-Optional subscription messages - currently a no-op accepted shape:
+Optional subscription messages filter this connection's frames:
 
 ```json
 { "action": "subscribe", "job_id": "9a2…" }
 ```
 
-The server ignores these (it broadcasts everything). Reserved for future per-job filtering.
+- `subscribe` with a `job_id` narrows the stream to the subscribed jobs (send it again to add more).
+- `subscribe` without a `job_id` clears the filter: every job is reported again (the default).
+- `unsubscribe` with a `job_id` drops that job from the filter.
+
+Malformed JSON, binary frames and unknown actions are ignored; they never close the socket. The Main process does not subscribe, so it receives every job.
 
 ---
 

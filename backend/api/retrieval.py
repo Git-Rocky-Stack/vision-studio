@@ -4,10 +4,15 @@ Retrieval / AI Director API router (M7).
 Local-first retrieval store: ingest the renderer's sanitized corpus, query for
 budgeted context snippets, manage the index. No real embedding model or network
 in tests — the service is injected with a stub via the module-level `_service`.
+
+Every route runs the service in a worker thread: the first call loads the
+index from disk and the embedding model (seconds), and every ingest/query
+does numpy work - none of it may stall the event loop.
 """
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 from pathlib import Path
@@ -51,7 +56,8 @@ def get_service() -> RetrievalService:
 @router.post("/ingest", response_model=IngestResponse)
 async def ingest(request: IngestRequest) -> IngestResponse:
     try:
-        result = get_service().ingest([record.model_dump() for record in request.records])
+        records = [record.model_dump() for record in request.records]
+        result = await asyncio.to_thread(lambda: get_service().ingest(records))
         return IngestResponse(**result)
     except Exception as exc:  # structured error, never silent-fail
         logger.exception("Retrieval ingest failed: %s", exc)
@@ -64,11 +70,13 @@ async def ingest(request: IngestRequest) -> IngestResponse:
 @router.post("/query", response_model=QueryResponse)
 async def query(request: QueryRequest) -> QueryResponse:
     try:
-        result = get_service().query(
-            text=request.text,
-            model_family=request.modelFamily,
-            sources=list(request.sources),
-            max_tokens=request.maxTokens,
+        result = await asyncio.to_thread(
+            lambda: get_service().query(
+                text=request.text,
+                model_family=request.modelFamily,
+                sources=list(request.sources),
+                max_tokens=request.maxTokens,
+            )
         )
         return QueryResponse(**result)
     except Exception as exc:
@@ -81,10 +89,10 @@ async def query(request: QueryRequest) -> QueryResponse:
 
 @router.post("/clear")
 async def clear() -> dict:
-    get_service().clear()
+    await asyncio.to_thread(lambda: get_service().clear())
     return {"success": True}
 
 
 @router.get("/stats", response_model=StatsResponse)
 async def stats() -> StatsResponse:
-    return StatsResponse(**get_service().stats())
+    return StatsResponse(**await asyncio.to_thread(lambda: get_service().stats()))

@@ -7,8 +7,9 @@ from __future__ import annotations
 import asyncio
 import base64
 import os
+import random
 from concurrent.futures import ThreadPoolExecutor
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 from io import BytesIO
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterator, List, Optional
@@ -37,12 +38,14 @@ from utils.job_manager import GenerationCancelled
 from utils.direct_generator import (
     ModelLoadRefusedError,
     _resolve_lora_record,
+    _resolve_record,
     apply_fallback_rung,
     dtype_for_precision,
     pipeline_class_for,
     resolve_plan,
 )
 from foundry.lora import loras_applied
+from utils.pipeline_cache import register_pipeline_owner, release_other_pipeline_caches
 from foundry.accelerator import (
     DEFAULT_ACCELERATION_SETTINGS,
     accelerate_pipeline,
@@ -50,17 +53,59 @@ from foundry.accelerator import (
 )
 
 
-def resolve_video_model_strategy(model_name: str, has_input_image: bool) -> str:
-    normalized = model_name.lower()
-    if normalized == "ltx-video":
-        return "text-to-video"
-    if normalized == "svd":
+# Catalog ids of the shipped video records -> their family. Any other id
+# (a linked or downloaded checkpoint) resolves through its registry record's
+# base_architecture, the same field the runtime resolver keys on.
+_VIDEO_FAMILY_BY_ID = {"ltx-video": "ltx", "svd": "svd", "animatediff": "animatediff"}
+VIDEO_FAMILIES = frozenset(_VIDEO_FAMILY_BY_ID.values())
+
+# Frames each family can produce in one pass. AnimateDiff motion modules are
+# trained on 16-frame windows and degrade past 32; SVD-XT is a 25-frame
+# model; LTX needs 8k+1 frames and tops out at 257.
+VIDEO_FRAME_LIMITS = {"animatediff": 32, "svd": 25, "ltx": 257}
+MIN_VIDEO_FRAMES = 8
+
+
+def resolve_video_family(model_name: str, record: Optional[Dict[str, Any]] = None) -> Optional[str]:
+    """"ltx" | "svd" | "animatediff" for a model id, or None when unknown."""
+    family = _VIDEO_FAMILY_BY_ID.get(model_name.lower())
+    if family is not None:
+        return family
+    architecture = (record or {}).get("base_architecture")
+    return architecture if architecture in VIDEO_FAMILIES else None
+
+
+def resolve_video_model_strategy(
+    model_name: str,
+    has_input_image: bool,
+    record: Optional[Dict[str, Any]] = None,
+) -> str:
+    family = resolve_video_family(model_name, record)
+    if family == "svd":
         if not has_input_image:
             raise ValueError("Stable Video Diffusion requires an input image")
         return "image-to-video"
-    if normalized == "animatediff":
+    if family in ("ltx", "animatediff"):
         return "text-to-video"
     raise ValueError(f"Unsupported video model: {model_name}")
+
+
+def plan_video_frame_count(family: Optional[str], fps: int, duration: int) -> int:
+    """Frames to request from the pipeline for fps * duration, capped per family.
+
+    The requested length is a wish, not a contract: asking AnimateDiff for 240
+    frames runs out of memory or produces noise, and LTX rejects counts that
+    are not 8k+1. The result reports the length that was actually produced.
+    """
+    requested = max(MIN_VIDEO_FRAMES, int(fps) * int(duration))
+    limit = VIDEO_FRAME_LIMITS.get(family or "")
+    if limit is None:
+        return requested
+    frames = min(requested, limit)
+    if family == "ltx":
+        # Nearest 8k+1 (k >= 1), never past the 257-frame ceiling.
+        frames = min(8 * max(1, round((frames - 1) / 8)) + 1, limit)
+    return frames
 
 
 def build_video_result(
@@ -68,15 +113,22 @@ def build_video_result(
     relative_video_path: str,
     frame_count: int,
     fps: int,
-    duration: int,
+    duration: float,
+    requested_duration: Optional[float] = None,
+    seed: Optional[int] = None,
 ) -> Dict[str, object]:
-    return {
+    result: Dict[str, object] = {
         "video": relative_video_path,
         "frames": frame_count,
         "fps": fps,
         "duration": duration,
         "job_id": job_id,
     }
+    if requested_duration is not None:
+        result["requested_duration"] = requested_duration
+    if seed is not None:
+        result["seed"] = seed
+    return result
 
 
 def resolve_video_model_source(models_dir: str, model_name: str, default: Optional[str] = None) -> str:
@@ -112,6 +164,23 @@ def resolve_animatediff_sources(
     )
 
 
+def _video_record(model_name: str) -> Optional[Dict[str, Any]]:
+    """Registry record for model_name, or None. Fail-soft: an unreadable
+    registry leaves the id unknown, which resolve_video_model_strategy reports."""
+    try:
+        return _resolve_record(model_name)
+    except Exception:  # noqa: BLE001 - lookup is advisory
+        return None
+
+
+def _inference_mode():
+    """torch.inference_mode() when torch is present, else a no-op context
+    (the stub CI env has no torch; fake pipelines run under it unchanged)."""
+    if torch is None:
+        return nullcontext()
+    return torch.inference_mode()
+
+
 @contextmanager
 def decode_data_url_to_image(image_source: str) -> Iterator[Image.Image]:
     if image_source.startswith("data:image/"):
@@ -137,6 +206,22 @@ class DirectVideoGenerator:
         # A changed request must evict+rebuild (in-place accel is irreversible).
         self._loaded_acceleration: Dict[str, Any] = {}
         configure_inductor_cache(os.path.join(models_dir, ".cache", "inductor"))
+        # The image generator releases this cache before it loads (and this
+        # one releases the image cache) - see utils.pipeline_cache.
+        register_pipeline_owner("video", self.unload_all)
+
+    def unload_model(self, model_name: str) -> None:
+        """Drop one cached pipeline and release the allocator cache."""
+        if model_name in self.pipelines:
+            del self.pipelines[model_name]
+            self._loaded_acceleration.pop(model_name, None)
+            self.applied_acceleration.pop(model_name, None)
+            empty_device_cache(torch)
+
+    def unload_all(self) -> None:
+        """Drop every cached pipeline (no-op when none is resident)."""
+        for model_name in list(self.pipelines):
+            self.unload_model(model_name)
 
     def load_model(self, model_name: str, overrides: Optional[Dict[str, Any]] = None,
                    acceleration_settings=None):
@@ -157,14 +242,16 @@ class DirectVideoGenerator:
             # accel (compile/quantization/slicing) is irreversible, so evict and
             # rebuild to honor (and honestly report) the new settings.
             print(f"Acceleration settings changed for {model_name}; reloading")
-            del self.pipelines[model_name]
-            self._loaded_acceleration.pop(model_name, None)
-            self.applied_acceleration.pop(model_name, None)
-            empty_device_cache(torch)
+            self.unload_model(model_name)
 
         plan = resolve_plan(model_name, overrides)
         if plan.refusal:
             raise ModelLoadRefusedError(plan.refusal)
+
+        # One resident pipeline per generator, and none in the image
+        # generator: two multi-GB pipelines never share VRAM.
+        self.unload_all()
+        release_other_pipeline_caches("video")
 
         ladder = list(plan.fallback_ladder)
         slicing_max = False
@@ -301,9 +388,16 @@ class DirectVideoGenerator:
         acceleration_settings=None,
         loras: Optional[List[Dict[str, Any]]] = None,
         should_cancel: Optional[Callable[[], bool]] = None,
+        progress_fn: Optional[Callable[[int, int], None]] = None,
     ) -> Dict[str, object]:
-        frame_count = max(8, fps * duration)
-        strategy = resolve_video_model_strategy(model_name, bool(image_path))
+        # Unknown ids (linked/downloaded checkpoints) resolve their family
+        # through the registry record; the catalog ids never need the lookup.
+        record = None
+        if model_name.lower() not in _VIDEO_FAMILY_BY_ID:
+            record = _video_record(model_name)
+        family = resolve_video_family(model_name, record)
+        strategy = resolve_video_model_strategy(model_name, bool(image_path), record)
+        frame_count = plan_video_frame_count(family, fps, duration)
         pipeline = self.load_model(model_name, acceleration_settings=acceleration_settings)
 
         generator = None
@@ -312,40 +406,43 @@ class DirectVideoGenerator:
 
         # LTX, SVD and AnimateDiff all call callback_on_step_end after every
         # denoising step; raising there stops a cancelled job at that step.
-        def _on_step_end(_pipe, _step, _timestep, callback_kwargs):
+        def _on_step_end(_pipe, step, _timestep, callback_kwargs):
             if should_cancel is not None and should_cancel():
                 raise GenerationCancelled(os.path.basename(output_dir))
+            if progress_fn is not None:
+                progress_fn(step + 1, steps)
             return callback_kwargs
 
+        call_kwargs: Dict[str, Any] = {
+            "height": height,
+            "width": width,
+            "num_frames": frame_count,
+            "num_inference_steps": steps,
+            "generator": generator,
+            "callback_on_step_end": _on_step_end,
+        }
         # svd (StableVideoDiffusionPipeline) has no text/LoRA conditioning path.
-        effective_loras = [] if model_name == "svd" else (loras or [])
+        effective_loras = [] if family == "svd" else (loras or [])
         with loras_applied(pipeline, effective_loras, _resolve_lora_record) as lora_result:
-            if strategy == "text-to-video":
-                output = pipeline(
-                    prompt=prompt,
-                    negative_prompt="worst quality, blurry, distorted",
-                    width=width,
-                    height=height,
-                    num_frames=frame_count,
-                    num_inference_steps=steps,
-                    generator=generator,
-                    callback_on_step_end=_on_step_end,
-                )
-            else:
-                with decode_data_url_to_image(image_path) as source_image:
-                    source = source_image.convert("RGB").resize(
-                        (width, height),
-                        Image.Resampling.LANCZOS,
+            with _inference_mode():
+                if strategy == "text-to-video":
+                    output = pipeline(
+                        prompt=prompt,
+                        negative_prompt="worst quality, blurry, distorted",
+                        **call_kwargs,
                     )
-                output = pipeline(
-                    source,
-                    height=height,
-                    width=width,
-                    num_frames=frame_count,
-                    num_inference_steps=steps,
-                    generator=generator,
-                    callback_on_step_end=_on_step_end,
-                )
+                else:
+                    with decode_data_url_to_image(image_path) as source_image:
+                        source = source_image.convert("RGB").resize(
+                            (width, height),
+                            Image.Resampling.LANCZOS,
+                        )
+                    if family == "svd":
+                        # The VAE decodes every frame at once by default - the
+                        # VRAM peak of an SVD run. 8 at a time is the
+                        # diffusers-documented memory/speed balance.
+                        call_kwargs["decode_chunk_size"] = 8
+                    output = pipeline(source, **call_kwargs)
 
         frames = output.frames[0]
         output_path = os.path.join(output_dir, "video.mp4")
@@ -356,7 +453,11 @@ class DirectVideoGenerator:
             relative_video_path=f"/outputs/{os.path.basename(output_dir)}/video.mp4",
             frame_count=len(frames),
             fps=fps,
-            duration=duration,
+            # What was produced, not what was asked for: the frame count is
+            # capped per family (plan_video_frame_count).
+            duration=round(len(frames) / fps, 3) if fps else 0.0,
+            requested_duration=duration,
+            seed=seed,
         )
         applied = self.applied_acceleration.get(model_name)
         if applied is not None:
@@ -388,16 +489,32 @@ class DirectVideoGenerator:
         output_dir = os.path.join(self.output_dir, job_id)
         Path(output_dir).mkdir(parents=True, exist_ok=True)
 
+        # Same contract as the image path: no seed means a fresh random one,
+        # reported back in the result so the run can be reproduced.
         if seed is None:
-            seed = 0
+            seed = random.randint(0, 2**32 - 1)
 
         if progress_callback:
             progress_callback(5.0)
 
-        # get_running_loop is the correct API inside an async context (avoids the
-        # 3.12 get_event_loop deprecation); progress here is reported on the
-        # async side, so no worker-thread loop hop is needed.
+        # Capture the running loop HERE (async context). progress_fn runs in
+        # the executor worker, which has no event loop; call_soon_threadsafe
+        # hops each per-step update back onto this one (mirrors the image path).
         loop = asyncio.get_running_loop()
+        finished = {"done": False}
+
+        def report(progress: float) -> None:
+            # A step update still queued when the run returns must not pull
+            # the final 100% back down.
+            if progress_callback and not finished["done"]:
+                progress_callback(progress)
+
+        def progress_fn(step: int, total: int) -> None:
+            if progress_callback and total > 0:
+                # 5% is reported before the load; denoising spans 5-95%, the
+                # remaining 5% is the MP4 encode.
+                loop.call_soon_threadsafe(report, 5.0 + (step / total) * 90.0)
+
         result = await loop.run_in_executor(
             self.executor,
             self._generate_sync,
@@ -414,8 +531,10 @@ class DirectVideoGenerator:
             acceleration_settings,
             loras,
             should_cancel,
+            progress_fn,
         )
 
+        finished["done"] = True
         if progress_callback:
             progress_callback(100.0)
 
