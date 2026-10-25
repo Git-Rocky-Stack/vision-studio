@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, it, expect, vi } from 'vitest';
-import { KeyboardShortcuts } from './KeyboardShortcuts';
+import { KeyboardShortcuts, SHORTCUT_GROUPS } from './KeyboardShortcuts';
 
 describe('KeyboardShortcuts', () => {
   describe('Rendering', () => {
@@ -23,9 +23,9 @@ describe('KeyboardShortcuts', () => {
     it('renders all shortcut categories', () => {
       render(<KeyboardShortcuts open={true} onClose={() => {}} />);
       // Use getAllByText since AnimatePresence may cause duplicates
-      expect(screen.getAllByText('Canvas').length).toBeGreaterThanOrEqual(1);
-      expect(screen.getAllByText('General').length).toBeGreaterThanOrEqual(1);
-      expect(screen.getAllByText('Edit Canvas').length).toBeGreaterThanOrEqual(1);
+      for (const title of ['General', 'Edit Canvas', 'Timeline', 'Preview Canvas', 'Region Mask', 'Navigation']) {
+        expect(screen.getAllByText(title).length, title).toBeGreaterThanOrEqual(1);
+      }
     });
 
     it('renders shortcut table with key combinations and descriptions', () => {
@@ -39,6 +39,23 @@ describe('KeyboardShortcuts', () => {
       // Verify key combinations use + separator
       const plusSeparators = screen.getAllByText('+');
       expect(plusSeparators.length).toBeGreaterThan(0);
+    });
+  });
+
+  describe('Alternatives and modifiers', () => {
+    it('shows alternative chords as alternatives, not as one chord', () => {
+      render(<KeyboardShortcuts open={true} onClose={() => {}} />);
+      const zoomIn = SHORTCUT_GROUPS.flatMap((g) => g.shortcuts).find((s) => s.description === 'Zoom in');
+      expect(zoomIn?.chords).toEqual([['+'], ['=']]);
+      expect(screen.getAllByText('or').length).toBeGreaterThan(0);
+    });
+
+    it('names Cmd as well as Ctrl for undo, redo and duplicate', () => {
+      const chords = SHORTCUT_GROUPS.flatMap((g) => g.shortcuts)
+        .filter((s) => ['Undo edit', 'Redo edit', 'Duplicate the selected clip'].includes(s.description))
+        .flatMap((s) => s.chords);
+      expect(chords.length).toBeGreaterThan(0);
+      for (const chord of chords) expect(chord[0]).toBe('Ctrl/Cmd');
     });
   });
 

@@ -212,8 +212,9 @@ from source.
 
 ## Reloading the window lost my work
 
-The window has the standard Electron menu, so **View > Reload** (Ctrl+R / Cmd+R)
-and **Force Reload** reload the interface. A reload keeps your projects,
+The installed app disables the reload and DevTools keys (Ctrl+R / Cmd+R, F5,
+F12) and has no View menu, so this only happens in a development build
+(`npm run dev`), where **View > Reload** and **Force Reload** remain. A reload keeps your projects,
 storyboards, timeline sequences, assets, collections, prompt history and
 settings, but it drops what lives only in the open window: the canvas edit layers
 and their undo history, and the prompt and settings in the open Generate and

@@ -23,7 +23,6 @@ const overlayFiles = new Set([
   'src/components/edit/ColorPicker.tsx', // popover
   'src/components/edit/TextControls.tsx', // font dropdown
   'src/components/canvas/CanvasContextMenu.tsx', // context menu
-  'src/components/ui/KeyboardShortcuts.tsx', // dialog shell
 ]);
 
 const appSourceRoot = join(process.cwd(), 'src');

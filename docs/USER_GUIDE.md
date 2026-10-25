@@ -413,9 +413,10 @@ you just generated, or any image from **Assets** with **Open in viewer** - and
 click **Send to Edit**. For a video, **Extract to Edit** takes the current frame.
 
 - **Tool strip** (left): Move (V), Scale (T), Crop (C), Rotate (R); Brush (B),
-  Eraser (E), Clone Stamp (S), Heal (J); Text (X), Shape (U), Pen (P); Hand (H),
-  Zoom (Z), Eyedropper (I). Hover a tool to see its key. The keys work whenever
-  the Canvas tab is open and you are not typing in a field.
+  Eraser (E); Text (X); Hand (H), Zoom (Z), Eyedropper (I). Hover a tool to see
+  its key. The keys work whenever the Canvas tab is open and you are not typing
+  in a field. Clone Stamp, Heal, Shape and Pen are shown but marked *Not
+  available yet*, and have no key.
 - **Inspector** tabs: **Adjust** (exposure, contrast, colour and detail
   sliders), **Filters**, **Crop**, **Text**, **AI Tools**, **Control** (ControlNet
   layers) and **Region** (region locks and masks). On **Control** and **Region**
@@ -550,15 +551,16 @@ where each key is active, is [`KEYBOARD_SHORTCUTS.md`](./KEYBOARD_SHORTCUTS.md).
 | Anywhere | Ctrl+Z / Cmd+Z | Undo |
 | Anywhere | Ctrl+Y / Cmd+Y, or Ctrl+Shift+Z / Cmd+Shift+Z | Redo |
 | Navigation bar | Arrow keys, Home, End | Move between workspace tabs |
-| Canvas | V T C R | Move, Scale, Crop, Rotate |
-| Canvas | B E S J | Brush, Eraser, Clone Stamp, Heal |
-| Canvas | X U P | Text, Shape, Pen |
-| Canvas | H Z I | Hand, Zoom, Eyedropper |
-| Canvas | + or =, -, 0 | Zoom in, zoom out, reset zoom and pan |
-| Canvas | Shift+drag, middle mouse button | Pan |
-| Canvas | Scroll | Zoom |
-| Canvas (Control and Region tabs) | V R L B E | Select, rectangle, polygon, brush, erase mask tools |
-| Canvas (Control and Region tabs) | I | Invert the mask |
+| Canvas tab | V T C R | Move, Scale, Crop, Rotate |
+| Canvas tab | B E X | Brush, Eraser, Text |
+| Canvas tab | H Z I | Hand, Zoom, Eyedropper |
+| Canvas tab | Scroll | Zoom |
+| Canvas tab (Zoom tool) | Click / Shift+click | Zoom in / zoom out |
+| Preview canvas (every tab but Canvas) | + or =, -, 0 | Zoom in, zoom out, reset zoom and pan |
+| Preview canvas | Shift+drag, middle mouse button | Pan |
+| Preview canvas | Scroll | Zoom |
+| Preview canvas, region mode | V R L B E | Select, rectangle, polygon, brush, erase mask tools |
+| Preview canvas, region mode | I | Invert the mask |
 | Timeline | Space | Play or pause |
 | Timeline | Home / End | Start / end of the range |
 | Timeline | Left / Right | Step 250 ms (with Shift: 1 s) |
@@ -567,11 +569,14 @@ where each key is active, is [`KEYBOARD_SHORTCUTS.md`](./KEYBOARD_SHORTCUTS.md).
 | Timeline | Ctrl+D / Cmd+D | Duplicate the selected clip |
 | Timeline | Delete or Backspace | Delete the selected clip (asks first) |
 
-Single-letter keys do nothing while you are typing in a text field.
+Single-letter keys do nothing while you are typing in a text field, and are
+not triggered by Ctrl/Cmd chords. The timeline's Space, Home/End and arrow keys
+are left to a focused button, slider, tab or menu outside the timeline.
 
-The window also has the standard menu, where **View > Reload** (Ctrl+R /
-Cmd+R) reloads the window. Unsaved canvas layers and the open Generate form are
-lost when you do - see
+The installed app has no reload or DevTools keys: Ctrl+R / Cmd+R, F5, F12 and
+the DevTools chords are disabled so a stray key press cannot discard unsaved
+canvas layers or the open Generate form. Development builds (`npm run dev`)
+keep the standard Electron menu - see
 [Reloading the window](./TROUBLESHOOTING.md#reloading-the-window-lost-my-work).
 
 ## 9. Privacy: what goes online

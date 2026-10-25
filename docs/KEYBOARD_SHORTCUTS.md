@@ -102,7 +102,8 @@ and the same letters then drive the mask tools instead.
 ## Generate tab canvas
 
 The centre canvas on the Generate tab (and other tabs that show the generation
-canvas) is a different surface from the Canvas tab editor.
+canvas) is a different surface from the Canvas tab editor. Its keys skip text
+fields and are not triggered by Ctrl, Cmd or Alt chords.
 
 | Keys | Action | Where it is active | Source file |
 |------|--------|--------------------|-------------|
@@ -126,8 +127,11 @@ canvas) is a different surface from the Canvas tab editor.
 ## Timeline
 
 Active while the Timeline is shown under the canvas on the Generate tab. The
-handler listens on the whole window and skips only text fields, text areas and
-selects.
+handler listens on the whole window. It skips text fields, selects and
+editable text; ignores Ctrl/Cmd chords other than Ctrl/Cmd+D; and, outside the
+timeline itself, leaves Space, Home/End and the arrow keys to a focused button,
+link, slider, tab, menu or resize handle (so Space still presses a focused
+button).
 
 | Keys | Action | Where it is active | Source file |
 |------|--------|--------------------|-------------|
