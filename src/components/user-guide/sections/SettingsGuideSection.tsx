@@ -8,23 +8,24 @@ export function SettingsGuideSection() {
     <UserGuideSection
       id="guide-settings"
       title="Settings"
-      summary="Configure local accounts, BYOK routing, backend startup, models, GPU acceleration, output paths, appearance, and notifications."
+      summary="Configure output paths, backend startup, local accounts, BYOK routing, GPU acceleration, appearance, and notifications."
     >
       <GuideList
         items={[
           <span>
-            Settings is split across six tabs: <strong>General</strong>,{' '}
+            Settings is split across seven tabs: <strong>General</strong>,{' '}
             <strong>AI &amp; Models</strong>, <strong>Performance</strong>,{' '}
-            <strong>Appearance</strong>, <strong>Notifications</strong>, and{' '}
-            <strong>User Guide</strong> (this document).
+            <strong>Appearance</strong>, <strong>Notifications</strong>,{' '}
+            <strong>User Guide</strong> (this document), and <strong>About</strong>.
           </span>,
           <span>
-            Use <strong>AI &amp; Models</strong> to start the backend, inspect GPU state, manage
-            installed local models, and choose how the active account routes prompt tools and
-            still images.
+            Use <strong>AI &amp; Models</strong> to inspect GPU state, start the backend when it is
+            offline, and choose how the active account routes prompt tools, still images, and
+            video. Model downloads and management live in the <strong>Foundry</strong>; the
+            Installed Models card here links to it with <strong>Manage in Foundry</strong>.
           </span>,
           <span>
-            Changing the default output path restarts the backend so new local jobs write to the
+            Changing the default output folder restarts the backend so new local jobs write to the
             selected location.
           </span>,
         ]}
@@ -33,34 +34,39 @@ export function SettingsGuideSection() {
       <GuideStepList
         steps={[
           {
-            title: 'General -- set your output path and autosave',
+            title: 'General: output path, autosave, backend autostart',
             description:
-              'Pick the default output path (where Local generations land) and toggle Autosave for projects. Changing the output path restarts the backend so new jobs land in the new location; existing assets remain reachable in their original root.',
+              'Pick the Default Output Location with Browse, toggle Auto Save for local project state, and keep Backend Autostart on for normal use. Changing the output folder restarts the backend; existing assets stay reachable in their original root. Storage Usage shows the library size and offers Clear Cache.',
           },
           {
-            title: 'AI & Models -- start the backend and pick models',
+            title: 'AI & Models: GPU and backend',
             description:
-              'Confirm Backend Autostart is on for normal use. Inspect GPU detection (CUDA version, VRAM). Browse installed models and download new ones -- large model downloads (10+ GB) run in the background and surface progress here.',
+              'The GPU card shows the detected GPU, VRAM, and CUDA version (or CPU mode). When the backend is offline, an AI Backend Offline card appears with a Start Backend button.',
           },
           {
-            title: 'AI & Models -- configure your account and BYOK routing',
+            title: 'AI & Models: account and BYOK routing',
             description:
-              'Use User Accounts & BYOK to create or switch the active account. Per account, choose your prompt enhancement provider (Local or OpenRouter) and your still-image provider. Save your OpenRouter key, run Verify, and pick the prompt and still-image models you want hosted runs to use.',
+              'Use User Accounts & BYOK to create, rename, switch, or remove the active account. Per account, choose the Prompt Enhancement Provider, the Still Image Provider, and the Motion / Video Provider (each Local, OpenRouter, or HuggingFace, except that OpenRouter has no video). Save an OpenRouter key and a HuggingFace token, and pick the models hosted runs should use.',
           },
           {
-            title: 'Performance -- tune acceleration per your GPU',
+            title: 'AI & Models: over-budget policy, tagging, and AI Director',
             description:
-              'The Performance tab exposes per-optimization tri-state controls (SDPA, channels-last, torch.compile, quantization, attention slicing, TensorRT) plus a master switch. Auto lets Vision Studio choose for your hardware; On/Off override it. After a Local generation, the panel shows exactly what was applied, skipped, or fell back this run.',
+              'Over-Budget Policy picks a fallback provider for local runs projected to exceed your GPU budget and can auto-route them without asking. AI Tagging Mode controls when assets are tagged. AI Director (RAG) grounds prompt assist in your prompts, assets, and a model-prompting knowledge base.',
           },
           {
-            title: 'Appearance -- pick a theme',
+            title: 'Performance: tune acceleration for your GPU',
             description:
-              'Theme is Dark, Light, or System (follows your OS preference). The change is instant and persists per machine.',
+              'The Performance tab has a Master Enable switch plus a tri-state control (Auto, On, Off) for Compile, Quantization, SDPA, Channels Last, Attention Slicing, and TensorRT. After a Local generation, the panel shows what was applied, skipped, or fell back on that run.',
           },
           {
-            title: 'Notifications -- pick what you want to hear',
+            title: 'Appearance: pick a theme',
             description:
-              'Toggle desktop notifications for Generation Complete, Generation Failed, and Model Downloads independently. Disabled types still log in the in-app activity but skip the OS toast.',
+              'Theme is Dark, Light, or System (follows your OS preference). The change applies immediately and is saved with your settings.',
+          },
+          {
+            title: 'Notifications: pick what you want to hear',
+            description:
+              'Toggle desktop notifications for Generation Complete, Generation Failed, and Model Downloads independently. A disabled type simply skips the OS notification.',
           },
         ]}
       />
@@ -69,21 +75,22 @@ export function SettingsGuideSection() {
         <GuideList
           items={[
             <span>
-              Create, rename, switch, and remove local accounts without introducing mandatory
-              cloud login. Each account is a self-contained profile.
+              Create, rename, switch, and remove local accounts without any cloud login. Each
+              account is a self-contained profile.
             </span>,
             <span>
-              Each local account stores its own encrypted OpenRouter key (sealed with the OS
-              keychain via <code>safeStorage</code>), prompt model choice, and still-image model
-              choice.
+              Each local account stores its own OpenRouter API key and HuggingFace token, encrypted
+              with the operating system&apos;s secure storage (Electron <code>safeStorage</code>)
+              and kept in the main process, plus its own prompt, still-image, and video model
+              choices.
             </span>,
             <span>
-              Only one account is active at a time, and that active account controls the hosted
-              prompt and still-image route seen across the rest of the app.
+              Only one account is active at a time, and that active account controls the prompt,
+              still-image, and video routes seen across the rest of the app.
             </span>,
             <span>
-              Deleting an account also clears its stored key from the OS keychain. Switching
-              accounts does not -- keys stay sealed for whenever you re-activate that account.
+              Removing an account deletes its stored key and token. Switching accounts does not;
+              they stay stored for whenever you re-activate that account.
             </span>,
           ]}
         />
@@ -95,23 +102,42 @@ export function SettingsGuideSection() {
             {
               title: 'Paste your OpenRouter API key',
               description:
-                'In the active account&apos;s BYOK panel, paste the key. It&apos;s stored encrypted via the OS keychain -- Vision Studio never logs the raw key and never returns it to the renderer.',
+                "In the active account's OpenRouter API Key panel, paste the key and choose Save Key. The key is encrypted and stays in the main process; Vision Studio never returns it to the renderer.",
             },
             {
               title: 'Run Verify',
               description:
-                'Verify hits OpenRouter to confirm access and load the model catalogs (text and image). On success, the catalog populates the prompt and still-image model pickers.',
+                'Verify checks the key with OpenRouter and loads the model catalogs. The prompt catalog is filtered to text models that support JSON responses; the still-image catalog to models that output images.',
             },
             {
               title: 'Pick your prompt and image models',
               description:
-                'Select a chat-capable model for prompt enhancement and an image-capable model for still-image generation. The pickers only show models the verified key can actually access.',
+                'Select a prompt model (or leave the account default) and a still-image model. Use Refresh next to either picker to reload its catalog.',
             },
             {
               title: 'Watch your usage and credits',
               description:
-                'After a verify, the panel shows current key metadata: remaining credits vs limit, total usage, BYOK usage, daily/weekly/monthly usage, and expiry. Re-run Verify any time to refresh.',
+                'Key Usage shows Credit Remaining, Total Usage, BYOK Usage, and Tier & Expiry for the stored key. Use Refresh Usage at any time to reload it.',
             },
+          ]}
+        />
+      </GuideCallout>
+
+      <GuideCallout title="Connect To HuggingFace" tone="info">
+        <GuideList
+          items={[
+            <span>
+              Paste a HuggingFace access token in the HuggingFace Inference Token panel and choose
+              Save Token. The panel then reads <strong>Token stored</strong>; Clear removes it.
+            </span>,
+            <span>
+              Pick a still-image model (FLUX.1 schnell or SDXL 1.0), a video model (LTX-Video), and
+              a prompt model (Qwen 2.5 7B Instruct by default, or Llama 3.1 8B Instruct, which is
+              gated on huggingface.co).
+            </span>,
+            <span>
+              The HuggingFace provider buttons stay disabled until a token is stored.
+            </span>,
           ]}
         />
       </GuideCallout>
@@ -120,16 +146,12 @@ export function SettingsGuideSection() {
         <GuideList
           items={[
             <span>
-              Installed models are surfaced in the AI &amp; Models tab with name, size, and load
-              state. The Local generation routes only see models that show as installed.
+              The Installed Models card in AI &amp; Models shows how many models are installed.
+              Discover, download, convert, and delete models in the <strong>Foundry</strong>.
             </span>,
             <span>
-              Downloads run in the background; closing Settings does not cancel them. Notifications
-              fire on completion (gated by your Notification settings).
-            </span>,
-            <span>
-              Deleting a model frees disk space immediately and removes it from the model picker.
-              Re-download any time -- the catalog persists across uninstalls of the model itself.
+              The Local generation routes only offer models that are installed. When none are,
+              the model picker points you to the Foundry.
             </span>,
           ]}
         />
@@ -139,17 +161,17 @@ export function SettingsGuideSection() {
         <GuideList
           items={[
             <span>
-              The header surfaces backend status (running, port, GPU detected). The same status is
-              visible in AI &amp; Models with full system info.
+              The header shows a backend status pill (offline, warming, ready, GPU or CPU mode).
+              The GPU card in AI &amp; Models shows the detected GPU, VRAM, and CUDA version.
             </span>,
             <span>
-              Use Start Backend if Autostart is off, the backend has been stopped manually, or a
-              prior start failed. Stop Backend cleanly terminates the Python child process.
+              Use Start Backend in AI &amp; Models when Autostart is off or a start failed. There
+              is no Stop Backend control; the backend stops when you quit the app.
             </span>,
             <span>
-              On Windows, the bundled backend is a PyInstaller one-file exe -- first launch can
-              take several minutes to extract. Vision Studio surfaces a friendly modal with that
-              hint if the readiness probe times out.
+              If the bundled backend does not start in time on launch, Vision Studio shows a
+              Backend Not Started dialog. The first launch can take several minutes while the
+              bundled backend extracts.
             </span>,
           ]}
         />
@@ -159,56 +181,45 @@ export function SettingsGuideSection() {
         <GuideList
           items={[
             <span>
-              The <strong>Performance</strong> tab tunes how Local generations use your GPU. A
-              master switch turns acceleration on or off; each optimization is tri-state
+              The <strong>Performance</strong> tab tunes how Local generations use your GPU. Master
+              Enable turns acceleration on or off; each optimization is tri-state
               (<strong>Auto</strong>, <strong>On</strong>, <strong>Off</strong>).
             </span>,
             <span>
-              Covered optimizations: SDPA attention, channels-last memory format, torch.compile,
-              quantization, attention slicing, and the opt-in TensorRT engine path. Auto lets
-              Vision Studio pick what fits your hardware; On/Off override per optimization.
+              Covered optimizations: torch.compile, quantization, SDPA attention, channels-last
+              memory format, attention slicing, and the TensorRT engine path. Auto lets Vision
+              Studio pick what fits your hardware; On and Off override one optimization.
             </span>,
             <span>
-              Every optimization is best-effort and never fails a generation. After a Local run the
-              panel reports exactly what was <strong>applied</strong>, <strong>skipped</strong>, or
-              <strong> fell back</strong> to eager -- no guessing, no silent failures.
+              After a Local run the panel reports what was <strong>Applied</strong>,{' '}
+              <strong>Skipped</strong>, or <strong>Fell Back</strong> on that run.
             </span>,
             <span>
-              TensorRT ships auto-off until it is verified on real hardware. Enabling it explicitly
-              builds an engine with a hard fallback to eager if the build does not succeed.
+              Under Auto, TensorRT stays off; set it to On to build an engine explicitly.
             </span>,
           ]}
         />
-      </GuideCallout>
-
-      <GuideCallout title="Verification And Usage Telemetry" tone="info">
-        <p>
-          After saving an OpenRouter key, run Verify to confirm access and load the model
-          catalogs. Settings also shows current key metadata such as remaining credits, total
-          usage, BYOK usage, and expiry when OpenRouter reports it. Verification runs are
-          read-only and never charge against your account.
-        </p>
       </GuideCallout>
 
       <GuideCallout title="Route Changes Affect The Whole Product" tone="warning">
         <GuideList
           items={[
             <span>
-              <strong>Prompt provider</strong> changes affect Prompt Studio and prompt enhancement
-              actions across Generate, Quick Generate, and Workflows.
+              <strong>Prompt provider</strong> changes affect Prompt Studio and the prompt
+              enhancement actions.
             </span>,
             <span>
               <strong>Still-image provider</strong> changes affect Generate, Quick Generate,
               Batch, Workflow still-image runs, and supported timeline still-image actions.
             </span>,
             <span>
-              <strong>Video remains local-only</strong> regardless of routing -- there is no
-              hosted video equivalent today.
+              <strong>Video provider</strong> changes affect Generate video runs and timeline video
+              actions such as retakes and Extend Shot. Video runs Local or through HuggingFace;
+              OpenRouter has no video route.
             </span>,
             <span>
-              Switching the active account is the canonical way to change provider routing for
-              everyone using this install. The change takes effect immediately; in-flight jobs
-              continue on their original route.
+              Switching the active account is the way to change every route at once for this
+              install.
             </span>,
           ]}
         />

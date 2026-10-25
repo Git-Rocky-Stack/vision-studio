@@ -7,6 +7,7 @@
 | Document | What it covers |
 |----------|----------------|
 | [`USER_GUIDE.md`](./USER_GUIDE.md) | Install, the first-run model setup, picking models in the Foundry, your first image, hosted routes with your own key, every workspace tab, keyboard shortcuts, and what goes online. **Start here if you use the app.** |
+| [`KEYBOARD_SHORTCUTS.md`](./KEYBOARD_SHORTCUTS.md) | Every keyboard shortcut the app binds, where each one is active, and the source file that handles it, plus the reload and DevTools keys packaged builds disable. |
 | [`TROUBLESHOOTING.md`](./TROUBLESHOOTING.md) | Backend offline, GPU not detected, out of memory, gated downloads, disk space, key verification, export errors, ComfyUI, unsigned-installer warnings, and where the logs are. |
 | [`UAT_CHECKLIST.md`](./UAT_CHECKLIST.md) | The pass/fail acceptance matrix for a release candidate, per platform, with defect-logging rules and exit criteria. |
 

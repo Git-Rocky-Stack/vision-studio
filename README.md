@@ -397,6 +397,7 @@ numbers, because they change with nearly every pull request.
 | Doc | What it covers |
 |-----|----------------|
 | [`docs/USER_GUIDE.md`](docs/USER_GUIDE.md) | Install, first-run model setup, the Foundry, your first image, hosted routes with your own key, every workspace, shortcuts, and what goes online |
+| [`docs/KEYBOARD_SHORTCUTS.md`](docs/KEYBOARD_SHORTCUTS.md) | Every keyboard shortcut, where it is active, and which keys packaged builds disable |
 | [`docs/TROUBLESHOOTING.md`](docs/TROUBLESHOOTING.md) | Backend offline, GPU not detected, out of memory, gated downloads, disk space, key verification, export errors, ComfyUI, unsigned-installer warnings, logs |
 | [`docs/UAT_CHECKLIST.md`](docs/UAT_CHECKLIST.md) | The release-candidate acceptance matrix, per platform |
 

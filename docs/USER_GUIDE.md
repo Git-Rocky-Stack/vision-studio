@@ -540,7 +540,8 @@ website instead.
 ## 8. Keyboard shortcuts
 
 Press **?** anywhere (outside a text field) to show the shortcuts overlay; press
-it again or Esc to close it.
+it again or Esc to close it. The complete reference, taken from the code, with
+where each key is active, is [`KEYBOARD_SHORTCUTS.md`](./KEYBOARD_SHORTCUTS.md).
 
 | Where | Keys | Action |
 |-------|------|--------|
