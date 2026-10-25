@@ -33,27 +33,27 @@ export function StoryGuideSection() {
           {
             title: 'Create or open a project',
             description:
-              'Story works in the context of the active project. Use the project switcher in the header to create a fresh project or open a recent one -- Story panel inherits whatever project is active.',
+              'Story works in the context of the active project. Use the project switcher in the header to create, rename, or open a project; with no project open, Story offers New Project.',
           },
           {
             title: 'Add scene cards',
             description:
-              'Click the add-scene control in the Story panel. Each card holds a scene title, prompt, optional notes, scene-level references, character assignments, and a transition to the next scene.',
+              'Use Add Scene in the Story toolbar. Each card holds a scene name, prompt, scene-level references, assigned characters, and a transition to the next scene. Scene cards can be duplicated or deleted from their own buttons.',
           },
           {
             title: 'Assign characters and elements',
             description:
-              'Build out the Character library and Element library once at the project level. Assign characters to scenes via the chip control on each card so generated stills inherit the right visual language.',
+              'Build the Character and Element libraries once at the project level. With a scene selected, click a character card in the library to assign it to that scene (click again to remove it); assigned characters show as chips on the scene card.',
           },
           {
             title: 'Pick transitions and order scenes',
             description:
-              'Drag scenes to reorder them. Use the transition indicator between cards to choose how each scene flows into the next -- cuts, dissolves, and named transitions are surfaced on both Story and Timeline so the intent travels with the scene.',
+              'Drag a scene by its handle, or use Move scene up and Move scene down, to reorder. Click the transition indicator between cards to cycle through Cut, Fade, Dissolve, Wipe Left, Wipe Right, and Zoom.',
           },
           {
-            title: 'Generate or send to timeline',
+            title: 'Send to timeline',
             description:
-              'Generate a still per card from the card itself, or use Build Timeline to derive one clip per approved scene into a project sequence. Beat markers and reference context come along automatically.',
+              'Use Build Timeline to derive one clip per scene into the project sequence, or the Send scene to timeline button on a single card. Beat markers and reference context come along automatically.',
           },
         ]}
       />
@@ -64,17 +64,17 @@ export function StoryGuideSection() {
             {
               title: 'Open Import Script',
               description:
-                'Use Import Script from the Story toolbar. Paste a script or load a text file -- the importer parses it into a draft set of scenes and elements rather than writing directly into the live board.',
+                'Use Import Script in the Story toolbar and paste screenplay pages, an outline, or a rough brief. The importer stages a draft of scenes and elements instead of writing directly into the live board.',
             },
             {
               title: 'Review parsed scenes and elements',
               description:
-                'The draft review surface lists each candidate scene and element. Toggle each on or off, edit titles and prompts inline, and reassign elements between scenes if the parser guessed wrong.',
+                'The review surface lists each candidate scene and element. Accept or drop each one, edit scene names, prompt seeds, and summaries, edit element names, and remove element links from a scene if the parser guessed wrong.',
             },
             {
               title: 'Commit the draft',
               description:
-                'Once the structure looks right, commit the draft. Accepted scenes are appended to the project board; accepted elements are merged into the Element library. Rejected items are discarded.',
+                'Choose Commit to Storyboard once the structure looks right (or Commit Draft from the draft banner). Accepted scenes are added to the project board and accepted elements to the Element library; dropped items are discarded. Discard Draft throws the whole draft away.',
             },
           ]}
         />
@@ -84,18 +84,16 @@ export function StoryGuideSection() {
         <GuideList
           items={[
             <span>
-              <strong>Characters</strong> hold a name, reference imagery, and the prompt language
-              that defines them visually. Assigning a character to a scene injects their language
-              into that scene&apos;s downstream generation.
+              <strong>Characters</strong> hold a name, a description, and reference images, with
+              per-feature locks. A character card shows how many scenes use it.
             </span>,
             <span>
-              <strong>Elements</strong> are reusable concepts (locations, props, motifs) you want
-              to keep visually consistent across multiple scenes without re-typing the same prompt
-              fragment.
+              <strong>Elements</strong> are reusable concepts (characters, locations, objects,
+              styles) you want to keep visually consistent across multiple scenes without
+              re-typing the same prompt fragment.
             </span>,
             <span>
-              Both libraries are project-scoped -- duplicating a project copies its libraries so
-              you can fork visual language without polluting the original.
+              Both libraries are project-scoped, so each project keeps its own visual language.
             </span>,
           ]}
         />
@@ -106,15 +104,15 @@ export function StoryGuideSection() {
           items={[
             <span>
               <strong>Project (board) references</strong> hold project-wide style and character
-              guidance -- apply once, inherit everywhere.
+              guidance: apply once, inherit everywhere.
             </span>,
             <span>
               <strong>Scene references</strong> stay attached to the currently selected scene, so
               downstream Generate and Timeline work can inherit the right context automatically.
             </span>,
             <span>
-              <strong>Current-run references</strong> are the most ephemeral -- they only affect
-              the next generation request and do not persist on the board.
+              <strong>Current-run references</strong> are the most ephemeral: they only affect the
+              next generation request and do not persist on the board.
             </span>,
           ]}
         />
@@ -124,19 +122,17 @@ export function StoryGuideSection() {
         <GuideList
           items={[
             <span>
-              <strong>Build Timeline</strong> creates or reuses a project sequence and derives one
-              clip per approved scene, in scene order, with transition data and reference context
-              preserved.
+              <strong>Build Timeline</strong> creates or reuses the project sequence and derives
+              one clip per scene, in scene order. A scene with no frame yet gets a placeholder
+              clip, and scenes that already have a clip are updated instead of duplicated.
             </span>,
             <span>
-              <strong>Send To Timeline</strong> from an individual scene appends just that scene as
-              a new clip -- useful when the rest of the project has already been edited and you only
-              want to advance one beat.
+              <strong>Send To Timeline</strong> from an individual scene does the same for just
+              that scene, which is useful when the rest of the project has already been edited.
             </span>,
             <span>
-              Once clips exist on the timeline, the Clip Inspector exposes the storyboard
-              context, so you can navigate back to the originating scene without losing your edit
-              focus.
+              After a build, a status banner summarizes what was added, updated, or skipped and
+              offers a button to open the timeline.
             </span>,
           ]}
         />

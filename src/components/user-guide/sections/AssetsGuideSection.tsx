@@ -8,22 +8,21 @@ export function AssetsGuideSection() {
     <UserGuideSection
       id="guide-assets"
       title="Assets"
-      summary="Review, organize, tag, export, and recover generated media -- local and hosted output share one library."
+      summary="Review, organize, tag, and export generated media. Local and hosted output share one library."
     >
       <GuideList
         items={[
           <span>
-            Assets tracks outputs from the managed internal output folder as well as any custom
-            output root you configure in Settings.
+            Assets tracks outputs from the internal app output folder as well as any custom output
+            folder you configure in Settings.
           </span>,
           <span>
-            Collections can be manual or smart, and AI tagging modes determine whether metadata is
-            applied on generation, in the background, on demand, or not at all.
+            Collections group assets by hand, and the AI tagging mode decides whether tags are
+            derived on generation, in the background, on demand, or not at all.
           </span>,
           <span>
-            Export and reveal flows remain safe-user actions, so media can be moved into your
-            normal Documents, Downloads, Pictures, or project destination without bypassing app
-            safeguards.
+            Exports are checked in the main process, so media can only be copied into your
+            Desktop, Documents, Downloads, Pictures, or Videos folders.
           </span>,
         ]}
       />
@@ -33,37 +32,36 @@ export function AssetsGuideSection() {
           {
             title: 'Browse the asset library',
             description:
-              'Open Assets to see every generated and imported file across all managed output roots. Filter by type (image, video, audio), collection, or tag -- the library is virtualized so 10,000+ items scroll smoothly.',
+              'Open Assets to see every generated and imported file. Search by name, prompt, or model, filter by type (All, Image, Video, Audio), and switch between grid and list views. The grid is virtualized, so large libraries scroll smoothly.',
           },
           {
             title: 'Import outside media',
             description:
-              'Use Import (or drop files onto the panel) to bring external images, videos, or audio into the library. Imports are copied into the managed imports folder so the originals stay untouched and the library stays portable.',
+              'Use the Import button to pick external images, videos, or audio. Imports are copied into an imports folder inside your output folder, so the originals stay untouched.',
           },
           {
             title: 'Build a collection',
             description:
-              'Create a Manual collection to hand-pick assets, or a Smart collection driven by a query (prompt text, model, tags, date range, style, mood). Smart collections re-evaluate themselves whenever the library changes.',
+              'Choose New Collection on the Collections page, rename it with the pencil on its card, then use Add to collection on an asset tile in Assets or in the image preview. You can also create a new collection straight from the Add to collection menu.',
           },
           {
             title: 'Tag and analyze',
             description:
-              'Pick a tagging mode that fits your workflow (see the modes callout below). Analyze derives style, subject, color, and mood tags from the prompt you wrote for that asset -- no cloud call, no separate model, and identical every time. Use Analyze on the Collections page to clear the untagged backlog.',
+              'Pick a tagging mode that fits your workflow (see the modes below). Analysis derives style, subject, color, and mood tags from the prompt you wrote for that asset, with no cloud call and no separate model. Use Analyze on the Collections page to clear the untagged backlog.',
           },
           {
-            title: 'Export, reveal, or delete',
+            title: 'Open, export, or delete',
             description:
-              'Right-click an asset for Export (copy to a safe destination), Reveal in Folder, or Delete. Multi-select to bulk-export to a directory or bulk-delete with one confirm. Deletes go through the same managed-path checks as everywhere else.',
+              'Hover an asset tile for its buttons: favorite, open in viewer, extract frame to edit (video), export, add to collection, and delete. Click tiles to select several, then use Export in the selection bar to copy them to a folder. Delete always asks first.',
           },
         ]}
       />
 
       <GuideCallout title="One Library For Local And Hosted Output" tone="accent">
         <p>
-          OpenRouter still-image results are written into the managed output root before they are
-          synced back into Assets. Users do not need a separate hosted gallery to find BYOK
-          output -- searches, smart collections, and tags all see hosted and local results
-          together.
+          OpenRouter still-image results are written into your output folder before they are
+          synced back into Assets. You do not need a separate hosted gallery to find BYOK output:
+          search, collections, and tags see hosted and local results together.
         </p>
       </GuideCallout>
 
@@ -71,48 +69,41 @@ export function AssetsGuideSection() {
         <GuideList
           items={[
             <span>
-              <strong>On Generation</strong> (default) -- every new asset is analyzed and tagged
-              the moment it lands in the library. Best when you want maximum searchability with no
-              extra clicks.
+              <strong>On Generation</strong> (default): every new asset is analyzed and tagged
+              the moment it lands in the library.
             </span>,
             <span>
-              <strong>Background Batch</strong> -- new assets queue instead of being tagged as
-              they land, and the backlog is cleared in one pass. Best when you generate in bursts
-              and would rather tag the whole run at once.
+              <strong>Background Batch</strong>: new assets queue instead of being tagged as they
+              land, and the queue is tagged in one pass once the app has been idle for a while.
             </span>,
             <span>
-              <strong>On Demand</strong> -- nothing is tagged automatically; the Analyze control
-              on the Collections page reports how many assets are still untagged and tags them
-              when you ask. Best when most of your work never needs tags.
+              <strong>On Demand</strong>: nothing is tagged automatically; the Analyze button on
+              the Collections page shows how many assets are still untagged and tags them when you
+              ask.
             </span>,
             <span>
-              <strong>Off</strong> -- tagging is fully disabled. The library still works normally
-              for browsing, exporting, and manual collections.
+              <strong>Off</strong>: tagging is disabled and the Analyze button reads Tagging off.
+              The library still works normally for browsing, exporting, and collections.
             </span>,
           ]}
         />
       </GuideCallout>
 
-      <GuideCallout title="Smart vs Manual Collections" tone="info">
+      <GuideCallout title="Collections" tone="info">
         <GuideList
           items={[
             <span>
-              <strong>Manual collections</strong> hold an explicit list of asset ids. Drag assets
-              in, remove them out -- the contents only change when you change them.
+              Collections hold an explicit list of assets. Their contents only change when you add
+              an asset with Add to collection or remove one from the open collection.
             </span>,
             <span>
-              <strong>Smart collections</strong> hold a query: prompt text, model, tags, date
-              range, style category, color palette, mood. The collection re-evaluates whenever the
-              library changes, so it always reflects "everything that matches" right now.
+              Click a collection card to open it below the grid; hover an asset there to remove it.
+              Rename a collection with the pencil and delete it with the trash button. Deleting a
+              collection never deletes its assets.
             </span>,
             <span>
-              Smart queries can be tuned at any time without re-creating the collection. A
-              collection that started as "everything from this week tagged portrait" can become
-              "everything from this month tagged portrait OR character" with one edit.
-            </span>,
-            <span>
-              Both types support a cover asset, a description, and ordering on the Collections
-              page so you can curate what each collection looks like at a glance.
+              Filter the grid by All, Manual, Tagged (every member analyzed), or Untagged (analysis
+              still outstanding), and search collections by name.
             </span>,
           ]}
         />
@@ -122,24 +113,20 @@ export function AssetsGuideSection() {
         <GuideList
           items={[
             <span>
-              <strong>Style</strong> -- the visual style named in the prompt (photorealistic,
-              anime, watercolor, etc.).
+              <strong>Style</strong>: the visual style named in the prompt (photorealistic,
+              anime, watercolor, and so on).
             </span>,
             <span>
-              <strong>Subject</strong> -- the subject named in the prompt (portrait, landscape,
+              <strong>Subject</strong>: the subject named in the prompt (portrait, landscape,
               product, character).
             </span>,
             <span>
-              <strong>Color</strong> -- color terms named in the prompt, each resolved to its
-              real hex; smart collections can target these directly.
+              <strong>Color</strong>: color terms named in the prompt, each resolved to its real
+              hex value.
             </span>,
             <span>
-              <strong>Mood</strong> -- the emotional register named in the prompt (calm,
-              dramatic, energetic).
-            </span>,
-            <span>
-              <strong>Custom</strong> -- your own tags. Custom tags coexist with derived tags and
-              never get overwritten by re-analysis.
+              <strong>Mood</strong>: the emotional register named in the prompt (calm, dramatic,
+              energetic).
             </span>,
           ]}
         />
@@ -149,17 +136,15 @@ export function AssetsGuideSection() {
         <GuideList
           items={[
             <span>
-              Batch results can be previewed, bulk exported, or bulk deleted after a run. The
-              batch workspace keeps prompt order, status, and per-result metadata together so
-              large prompt sets stay reviewable.
+              Batch results can be sorted, filtered, exported with Export All, or removed with
+              Delete All after a run.
             </span>,
             <span>
-              Failed prompts in a batch keep their position in the list with a retry control --
-              they don&apos;t silently disappear, so you always know what produced what.
+              Failed prompts keep their card and are marked failed, so you always know what
+              produced what. There is no retry control; resubmit the prompt in a new batch.
             </span>,
             <span>
-              Batch results are also full members of the Assets library, so smart collections
-              that filter by date or model surface them automatically.
+              Batch results are also full members of the Assets library.
             </span>,
           ]}
         />
@@ -169,16 +154,18 @@ export function AssetsGuideSection() {
         <GuideList
           items={[
             <span>
-              Reads only resolve inside managed output roots. Imports go through a managed copy
-              so external paths never become library entries directly.
+              Reads, deletes, and reveals only resolve inside managed output folders. Imports go
+              through a managed copy so external paths never become library entries directly.
             </span>,
             <span>
-              Exports only land inside Home, Desktop, Documents, Downloads, Pictures, or Videos.
-              Selecting a destination outside those roots is rejected with a clear error.
+              Exports only land inside Desktop, Documents, Downloads, Pictures, or Videos. Your
+              home folder itself is not an allowed destination; a folder outside those locations
+              is rejected.
             </span>,
             <span>
-              Cleared cache only affects the internal output folder -- your imports and external
-              roots are never touched by Clear Cache.
+              Clear Cache (Settings &gt; General) empties the internal app output folder only.
+              Custom output folders are preserved, but anything stored in the internal folder,
+              including imports made while no custom output folder was set, is removed.
             </span>,
           ]}
         />

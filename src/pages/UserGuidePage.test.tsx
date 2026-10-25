@@ -18,7 +18,7 @@ describe('UserGuidePage', () => {
     expect(screen.getByRole('heading', { name: 'Workflows' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Assets' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Settings' })).toBeInTheDocument();
-    expect(screen.getByText(/OpenRouter BYOK/i)).toBeInTheDocument();
+    expect(screen.getByText(/OpenRouter key or Hugging Face token \(BYOK\)/i)).toBeInTheDocument();
   });
 
   // Step descriptions ran about 95 characters per line in the 670px column.

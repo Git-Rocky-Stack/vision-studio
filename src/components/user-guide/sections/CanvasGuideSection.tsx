@@ -13,16 +13,16 @@ export function CanvasGuideSection() {
       <GuideList
         items={[
           <span>
-            Select a tool from the left strip, then adjust the layer, mask, or image-specific
-            controls in the surrounding work surface.
+            The Canvas tab is the layer editor. The left dock holds the tool strip and the
+            Properties panel; the right dock holds Layers.
           </span>,
           <span>
             Use Layers to preserve ordering and visibility while refining the active image instead
             of flattening every change into a single destructive pass.
           </span>,
           <span>
-            Canvas remains the best place to continue working after a Generate, Workflow, or
-            Timeline still result becomes the active image.
+            Canvas is the place to continue working after a Generate, Workflow, Batch, or Timeline
+            still becomes the active image.
           </span>,
         ]}
       />
@@ -32,27 +32,27 @@ export function CanvasGuideSection() {
           {
             title: 'Bring an image onto the canvas',
             description:
-              'Either generate one from Generate, drop an image into the canvas, or right-click an asset in the library and choose Open in Canvas. The image becomes the base layer.',
+              'Use Send to Edit: from the Viewer, from a Batch result, from the image preview, or from the right-click menu on the Generate canvas. For a video, use Extract to Edit in the Viewer or Extract frame to edit on the asset tile. To edit a library image, open it in the Viewer first. The image becomes the base layer.',
           },
           {
-            title: 'Pick a tool from the left strip',
+            title: 'Pick a tool from the tool strip',
             description:
-              'Tools are grouped into Selection & Transform, Drawing, Shapes & Text, and Navigation (see the tools tour below). Hover any tool to see its keyboard shortcut.',
+              'Tools are grouped into Selection & Transform, Drawing, Shapes & Text, and Navigation (see the tour below). Hover a tool to see its keyboard shortcut, or press the letter while the Canvas tab is open.',
           },
           {
-            title: 'Adjust the active layer',
+            title: 'Adjust the image in the Properties panel',
             description:
-              'Use the Properties panel on the right to change opacity, blend mode, position, and tool-specific parameters. Most numeric inputs accept drag-to-scrub for fine control.',
+              'The Properties panel has Adjust, Filters, Crop, Text, AI Tools, Control, and Region tabs. Layer opacity and blend mode are set on each row in the Layers panel.',
           },
           {
             title: 'Run an AI Tool when you need a pass',
             description:
-              'Open the AI Tools panel for non-destructive edits -- background removal, AI upscale, style transfer, generative fill, face enhancement, object removal, and AI expand. Each tool runs on the active layer or the masked region.',
+              'Open the AI Tools tab for background removal, AI upscale, style transfer, generative fill, face enhancement, object removal, and AI expand. These run on the local backend.',
           },
           {
-            title: 'Use undo/redo freely while you iterate',
+            title: 'Use undo and redo while you iterate',
             description:
-              'Ctrl/Cmd+Z and Ctrl/Cmd+Y (or Ctrl/Cmd+Shift+Z) are wired globally -- you can undo across panels without losing canvas state. Layers are preserved in the history stack.',
+              'Ctrl/Cmd+Z undoes canvas edits (layers, strokes, adjustments, and filters); Ctrl/Cmd+Y or Ctrl/Cmd+Shift+Z redoes them. The keys work from anywhere in the app except text fields, and the history keeps up to 100 steps. They do not undo work in other panels.',
           },
         ]}
       />
@@ -61,20 +61,25 @@ export function CanvasGuideSection() {
         <GuideList
           items={[
             <span>
-              <strong>Selection &amp; Transform</strong>: Move (V), Scale (T), Crop (C), Rotate (R)
-              -- for repositioning, resizing, cropping, and rotating the active layer.
+              <strong>Selection &amp; Transform</strong>: Move (V), Scale (T), Crop (C), Rotate
+              (R), for repositioning, resizing, cropping, and rotating.
             </span>,
             <span>
-              <strong>Drawing</strong>: Brush (B), Eraser (E) -- for painting and erasing
-              strokes. Clone Stamp and Heal are shown but not available yet.
+              <strong>Drawing</strong>: Brush (B), Eraser (E), for painting and erasing strokes.
+              Clone Stamp and Heal are shown but not available yet.
             </span>,
             <span>
-              <strong>Shapes &amp; Text</strong>: Text (X) -- for adding text on top of the
-              image. Shape and Pen are shown but not available yet.
+              <strong>Shapes &amp; Text</strong>: Text (X), for adding text on top of the image.
+              Shape and Pen are shown but not available yet.
             </span>,
             <span>
-              <strong>Navigation</strong>: Hand (H), Zoom (Z), Eyedropper (I) -- for panning,
-              zooming, and sampling a color into the brush and the selected text layer.
+              <strong>Navigation</strong>: Hand (H) to drag the view, Zoom (Z) to click in
+              (Shift+click out), and Eyedropper (I) to sample a color into the brush and the
+              selected text layer. The mouse wheel zooms with any tool.
+            </span>,
+            <span>
+              While the Control or Region tab is open, the letters switch to the mask tools:
+              Select (V), Rectangle (R), Lasso (L), Brush (B), Eraser (E), and Invert mask (I).
             </span>,
           ]}
         />
@@ -84,22 +89,23 @@ export function CanvasGuideSection() {
         <GuideList
           items={[
             <span>
-              Each generation, paint stroke, shape, and text element lives on its own layer with
-              independent visibility, opacity, and blend mode.
+              Each layer has its own visibility, opacity, and blend mode. Double-click a layer
+              name to rename it.
             </span>,
             <span>
-              Drag layers to reorder them in the panel -- top layers paint over lower ones. Toggle
-              the eye icon to hide without deleting; toggle the lock to prevent accidental edits.
+              Drag a layer by its handle to reorder it (or focus the handle and press Arrow Up or
+              Arrow Down); top layers paint over lower ones. Toggle the eye to hide a layer without
+              deleting it, and the lock to prevent accidental edits.
             </span>,
             <span>
-              Right-click a layer for Duplicate, Merge Down, Flatten, and Delete. Group selection
-              respects multi-layer transforms so you can move a composition together.
+              Use the New Layer, Duplicate Layer, and Delete Layer buttons in the panel header.
+              There is no right-click menu on layers.
             </span>,
           ]}
         />
       </GuideCallout>
 
-      <GuideCallout title="AI Tools Panel" tone="accent">
+      <GuideCallout title="AI Tools" tone="accent">
         <GuideList
           items={[
             <span>
@@ -107,8 +113,7 @@ export function CanvasGuideSection() {
               Replace Background prompt that re-fills the cut-out area.
             </span>,
             <span>
-              <strong>AI Upscale</strong> at 2x or 4x with model variants tuned for General, Face,
-              or Anime sources.
+              <strong>AI Upscale</strong> at 2x or 4x with General, Face, or Anime model variants.
             </span>,
             <span>
               <strong>Style Transfer</strong> with built-in presets (Van Gogh, Monet, Ukiyo-e,
@@ -126,9 +131,9 @@ export function CanvasGuideSection() {
       <GuideCallout title="Reference-Aware Finishing" tone="info">
         <p>
           Current-run, scene, and project references can keep composition, style, character, and
-          pose language aligned while you refine an image. Those same references can also feed
-          Generate and Story surfaces when you move upstream again -- the reference set follows
-          your work, not the panel you happen to be in.
+          pose language aligned while you refine an image. The same references also feed Generate
+          and Story when you move upstream again, so the reference set follows your work, not the
+          panel you happen to be in.
         </p>
       </GuideCallout>
 
@@ -137,8 +142,8 @@ export function CanvasGuideSection() {
           Canvas-oriented image controls such as inpaint, ControlNet, generative fill, face
           enhancement, and other guided passes stay on the local backend route. Use the Local
           still-image provider when your pass depends on canvas structure or reference-driven
-          image edits -- switching the active account&apos;s image provider to OpenRouter disables
-          these controls for that account.
+          image edits. Hosted still-image routes (OpenRouter and HuggingFace) are prompt-only and
+          refuse these inputs.
         </p>
       </GuideCallout>
     </UserGuideSection>
