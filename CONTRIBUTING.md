@@ -39,7 +39,9 @@ Install the following software before getting started:
     releases, so `npm test` and `npm run lint` fail there
   - Node 22 LTS is recommended (`.nvmrc`; `nvm use` picks it up). CI builds and
     tests on Node 20 (the `node-version` in `.github/workflows/pr-gate.yml`)
-  - npm is included with Node.js
+  - npm is included with Node.js. npm 10 (bundled with Node 20 and 22) and
+    npm 11 both work, and write the same `package-lock.json`. See
+    [Dependencies and the lockfile](#dependencies-and-the-lockfile)
 
 - **Python 3.12** - [Download](https://www.python.org/downloads/)
   - Verify: `python --version` or `python3 --version`
@@ -67,6 +69,20 @@ cd vision-studio
 # Install frontend dependencies
 npm install
 ```
+
+#### Dependencies and the lockfile
+
+- Add, remove or update packages with plain `npm install <pkg>`,
+  `npm uninstall <pkg>` or `npm update`, on npm 10 or npm 11. Commit
+  `package.json` and `package-lock.json` together.
+- `npm ci` is what CI runs; use it for a clean, lockfile-exact install.
+- `package.json` carries `"overrides": { "vite": "$vite" }`. Keep it: without
+  it npm resolves a vite 8 peer chain that crashes npm 10 with
+  `Cannot read properties of null (reading 'edgesOut')`. The full story is in
+  `tests/npm-lockfile-resolution.test.ts`, which also guards it.
+- The PR gate's **Lockfile** job rewrites the lockfile on npm 10 and fails if
+  anything changes, so a lockfile that is out of date with `package.json`
+  is caught before merge. To fix one, run `npm install` and commit the result.
 
 Then set up the Python backend in `backend/venv`. `npm run dev` starts the
 backend with that venv's Python whenever it exists, so it does not have to be
