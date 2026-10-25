@@ -16,6 +16,7 @@ import {
   type AppSettings,
 } from './settings';
 import { DEFAULT_SETTINGS, type StoreSchema } from './outputRoots';
+import { decodePngDataUrl } from './dataUrlAsset';
 import type {
   OpenRouterKeyInfo,
   OpenRouterModelSummary,
@@ -60,6 +61,38 @@ export async function readTakenFileNames(
  * First free `<name><ext>`, `<name>-1<ext>`, ... against `taken`, and reserve
  * it there so later files in the same batch cannot claim it too.
  */
+/**
+ * Write a flattened Canvas edit (PNG data URL from the renderer) into
+ * `<outputRoot>/edits/`, under a collision-free sanitized name. Returns the
+ * same record shape `assets:import-files` returns for each file.
+ */
+export async function writeDataUrlAsset(outputRoot: string, dataUrl: unknown, fileName: unknown) {
+  const decoded = decodePngDataUrl(dataUrl, fileName);
+  if (!decoded.ok) {
+    return { success: false as const, error: decoded.error };
+  }
+
+  const editsDir = path.join(outputRoot, 'edits');
+  await fs.promises.mkdir(editsDir, { recursive: true });
+  const takenNames = await readTakenFileNames(editsDir);
+  const candidateName = reserveUniqueFileName(decoded.baseName, '.png', takenNames);
+  const writtenPath = path.join(editsDir, candidateName);
+  // 'wx' never overwrites: a name raced into existence fails loudly instead.
+  await fs.promises.writeFile(writtenPath, decoded.bytes, { flag: 'wx' });
+
+  const normalized = writtenPath.replace(/\\/g, '/');
+  return {
+    success: true as const,
+    file: {
+      originalPath: normalized,
+      importedPath: normalized,
+      name: path.parse(candidateName).name,
+      type: 'image' as const,
+      importedAt: new Date().toISOString(),
+    },
+  };
+}
+
 export function reserveUniqueFileName(
   name: string,
   ext: string,
@@ -593,6 +626,19 @@ export function registerMainIpcHandlers({
       return { success: false, error: error.message };
     }
   });
+
+  ipcMain.handle(
+    'assets:save-data-url',
+    async (_event, params: { dataUrl?: unknown; fileName?: unknown } | undefined) => {
+      try {
+        const outputRoot = resolveOutputPath(outputRoots.getAppSettings(), app.getPath('userData'));
+        outputRoots.rememberOutputRoot(outputRoot);
+        return await writeDataUrlAsset(outputRoot, params?.dataUrl, params?.fileName);
+      } catch (error: any) {
+        return { success: false, error: error instanceof Error ? error.message : 'Could not save the edited image.' };
+      }
+    },
+  );
 
   ipcMain.handle('assets:export-many', async (_event, sourcePaths: string[], destinationDir: string) => {
     try {

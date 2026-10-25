@@ -126,6 +126,13 @@ export interface ElectronAPI {
       type: 'image' | 'video' | 'audio';
       importedAt: string;
     }>; error?: string }>;
+    saveDataUrl: (params: { dataUrl: string; fileName: string }) => Promise<{ success: boolean; file?: {
+      originalPath: string;
+      importedPath: string;
+      name: string;
+      type: 'image' | 'video' | 'audio';
+      importedAt: string;
+    }; error?: string }>;
     export: (sourcePath: string, destinationPath: string) => Promise<{ success: boolean; destinationPath?: string; error?: string }>;
     exportMany: (sourcePaths: string[], destinationDir: string) => Promise<{ success: boolean; exportedCount?: number; error?: string }>;
     delete: (sourcePath: string) => Promise<{ success: boolean; error?: string }>;
@@ -393,6 +400,7 @@ const electronAPI: ElectronAPI = {
   },
   assets: {
     importFiles: (sourcePaths) => ipcRenderer.invoke('assets:import-files', sourcePaths),
+    saveDataUrl: (params) => ipcRenderer.invoke('assets:save-data-url', params),
     export: (sourcePath, destinationPath) => ipcRenderer.invoke('assets:export', sourcePath, destinationPath),
     exportMany: (sourcePaths, destinationDir) => ipcRenderer.invoke('assets:export-many', sourcePaths, destinationDir),
     delete: (sourcePath) => ipcRenderer.invoke('assets:delete', sourcePath),

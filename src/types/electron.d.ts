@@ -349,11 +349,8 @@ export interface ElectronAPI {
     delete: (sourcePath: string) => Promise<{ success: boolean; error?: string }>;
     reveal: (sourcePath: string) => Promise<{ success: boolean; error?: string }>;
     clearCache: () => Promise<{ success: boolean; error?: string }>;
-    /**
-     * Pending main-process bridge (see src/features/edit/exportEdit.ts):
-     * write a PNG data URL into managed assets. Optional until preload ships it.
-     */
-    saveDataUrl?: (params: {
+    /** Write a flattened Canvas edit (PNG data URL) into <outputRoot>/edits/. */
+    saveDataUrl: (params: {
       dataUrl: string;
       fileName: string;
     }) => Promise<{ success: boolean; file?: ImportedAssetFile; error?: string }>;

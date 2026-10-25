@@ -8,6 +8,7 @@ import {
   readTakenFileNames,
   reserveUniqueFileName,
   resolveShellPath,
+  writeDataUrlAsset,
 } from './mainIpc';
 
 const HOME = 'C:/Users/User';
@@ -94,5 +95,39 @@ describe('import / export collision naming', () => {
     const taken = new Set(['shot.png']);
     expect(reserveUniqueFileName('Shot', '.PNG', new Set(taken), true)).toBe('Shot-1.PNG');
     expect(reserveUniqueFileName('Shot', '.PNG', new Set(taken), false)).toBe('Shot.PNG');
+  });
+});
+
+describe('assets:save-data-url writer', () => {
+  const PNG_BYTES = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3]);
+  const pngDataUrl = `data:image/png;base64,${PNG_BYTES.toString('base64')}`;
+
+  it('writes a PNG under <outputRoot>/edits with a sanitized, collision-free name', async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'vs-edit-'));
+    try {
+      const first = await writeDataUrlAsset(root, pngDataUrl, '../../etc/shot-edit.png');
+      const second = await writeDataUrlAsset(root, pngDataUrl, '../../etc/shot-edit.png');
+
+      expect(first.success && first.file.importedPath).toBe(path.join(root, 'edits', 'shot-edit.png').replace(/\\/g, '/'));
+      expect(second.success && second.file.name).toBe('shot-edit-1');
+      expect(fs.readFileSync(path.join(root, 'edits', 'shot-edit.png'))).toEqual(PNG_BYTES);
+      expect(fs.readdirSync(root)).toEqual(['edits']);
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it('refuses non-PNG payloads without writing anything', async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'vs-edit-'));
+    try {
+      const notPng = `data:image/png;base64,${Buffer.from('GIF89a-not-a-png').toString('base64')}`;
+      for (const payload of [notPng, 'data:image/jpeg;base64,AAAA', 'data:image/png;base64,***', 42]) {
+        const result = await writeDataUrlAsset(root, payload, 'x');
+        expect(result.success).toBe(false);
+      }
+      expect(fs.existsSync(path.join(root, 'edits'))).toBe(false);
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
   });
 });
