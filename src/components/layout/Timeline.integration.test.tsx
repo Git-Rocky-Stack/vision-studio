@@ -443,4 +443,53 @@ describe('Timeline integration', () => {
     await user.click(screen.getByLabelText('Disable solo track'));
     expect(useAppStore.getState().timelineTracks.find((track) => track.id === audioTrack?.id)?.solo).toBe(false);
   });
+
+  describe('window-wide transport keys', () => {
+    function pressOn(target: EventTarget, key: string, init: KeyboardEventInit = {}) {
+      act(() => {
+        target.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true, ...init }));
+      });
+    }
+
+    it('plays on Space from the page, but leaves Space to a focused button elsewhere', () => {
+      seedProjectAndMedia();
+      render(<Timeline />);
+      const outside = document.createElement('button');
+      document.body.appendChild(outside);
+      try {
+        pressOn(outside, ' ');
+        expect(useAppStore.getState().playState).toBe('stopped');
+
+        pressOn(document.body, ' ');
+        expect(useAppStore.getState().playState).toBe('playing');
+      } finally {
+        outside.remove();
+      }
+    });
+
+    it('leaves arrow keys to a focused slider elsewhere', () => {
+      seedProjectAndMedia();
+      render(<Timeline />);
+      useAppStore.getState().seekTo(2000);
+      const slider = document.createElement('div');
+      slider.setAttribute('role', 'slider');
+      document.body.appendChild(slider);
+      try {
+        pressOn(slider, 'ArrowRight');
+        expect(useAppStore.getState().currentTime).toBe(2000);
+      } finally {
+        slider.remove();
+      }
+    });
+
+    it('ignores Ctrl/Cmd chords other than duplicate', () => {
+      seedProjectAndMedia();
+      render(<Timeline />);
+      pressOn(document.body, ' ', { ctrlKey: true });
+      pressOn(document.body, 'ArrowRight', { metaKey: true });
+      expect(useAppStore.getState().playState).toBe('stopped');
+      expect(useAppStore.getState().currentTime).toBe(0);
+    });
+  });
 });
+

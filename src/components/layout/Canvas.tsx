@@ -1,4 +1,5 @@
 import { cn } from '@/utils/cn';
+import { isEditableTarget } from '@/utils/isEditableTarget';
 import { useAppStore } from '@/store/appStore';
 import { useShallow } from 'zustand/react/shallow';
 import {
@@ -388,7 +389,10 @@ export const Canvas = memo(function Canvas() {
   // Keyboard shortcuts for canvas
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      if (isEditableTarget(e.target)) return;
+      // Ctrl/Cmd/Alt chords are the app's or the OS's (Ctrl+V pastes, Ctrl+=
+      // zooms the page); these single-key shortcuts must not also fire.
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
       // Region mask tool shortcuts (only active in region mode)
       if (regionMode) {
         switch (e.key.toLowerCase()) {

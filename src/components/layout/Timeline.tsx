@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useMemo, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useShallow } from 'zustand/react/shallow';
 import {
@@ -32,6 +32,7 @@ import {
 
 import { useAppStore } from '@/store/appStore';
 import { cn } from '@/utils/cn';
+import { isEditableTarget, ownsNavigationKeys } from '@/utils/isEditableTarget';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { StoryboardPlayback } from '@/components/timeline/StoryboardPlayback';
@@ -752,6 +753,7 @@ const TimelineClipBlock = memo(function TimelineClipBlock({
 });
 
 export const Timeline = memo(function Timeline() {
+  const timelineRootRef = useRef<HTMLDivElement>(null);
   const {
     projects,
     activeProjectId,
@@ -1160,17 +1162,34 @@ export const Timeline = memo(function Timeline() {
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (
-        event.target instanceof HTMLInputElement ||
-        event.target instanceof HTMLTextAreaElement ||
-        event.target instanceof HTMLSelectElement
-      ) {
+      if (event.defaultPrevented || isEditableTarget(event.target)) {
         return;
       }
 
-      if (event.key === ' ') {
+      // The handler listens on the whole window. A focused control elsewhere
+      // that gives Space, Home/End or the arrows a meaning of its own (a
+      // button Space presses, a slider, a tab list, the nav rail) keeps them;
+      // inside the timeline itself the transport keys still win.
+      const insideTimeline =
+        event.target instanceof Node && Boolean(timelineRootRef.current?.contains(event.target));
+      const isNavigationKey = [' ', 'Home', 'End', 'ArrowLeft', 'ArrowRight'].includes(event.key);
+      if (isNavigationKey && !insideTimeline && ownsNavigationKeys(event.target)) {
+        return;
+      }
+      const hasCommandModifier = event.ctrlKey || event.metaKey;
+
+      if (event.key === ' ' && !hasCommandModifier && !event.altKey) {
         event.preventDefault();
         toggleTimelinePlayback();
+        return;
+      }
+
+      if (hasCommandModifier) {
+        // Ctrl/Cmd chords belong to the app or the OS; only Ctrl/Cmd+D is ours.
+        if (event.key.toLowerCase() === 'd' && activeClip) {
+          event.preventDefault();
+          duplicateTimelineClip(activeClip.id);
+        }
         return;
       }
 
@@ -1212,15 +1231,9 @@ export const Timeline = memo(function Timeline() {
         return;
       }
 
-      if (event.key.toLowerCase() === 's' && activeClip) {
+      if (event.key.toLowerCase() === 's' && !event.altKey && activeClip) {
         event.preventDefault();
         splitTimelineClip(activeClip.id, useAppStore.getState().currentTime);
-        return;
-      }
-
-      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'd' && activeClip) {
-        event.preventDefault();
-        duplicateTimelineClip(activeClip.id);
         return;
       }
 
@@ -1293,6 +1306,7 @@ export const Timeline = memo(function Timeline() {
 
   return (
     <motion.div
+      ref={timelineRootRef}
       initial={{ height: COLLAPSED_HEIGHT }}
       animate={{ height: EXPANDED_HEIGHT }}
       transition={{ duration: 0.2 }}
