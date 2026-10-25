@@ -47,3 +47,16 @@ export async function requestBackend<T>(
 
   throw lastError;
 }
+
+/**
+ * Log-safe one-line description of a failed backend call: the message plus
+ * the HTTP status when there is one. Never log the raw AxiosError - its
+ * config.headers carry the backend auth token and any forwarded HF / CivitAI
+ * token.
+ */
+export function describeBackendError(error: unknown): string {
+  const candidate = error as { message?: unknown; response?: { status?: unknown } } | null;
+  const message = typeof candidate?.message === 'string' && candidate.message ? candidate.message : 'Unknown error';
+  const status = candidate?.response?.status;
+  return typeof status === 'number' ? `${message} (HTTP ${status})` : message;
+}

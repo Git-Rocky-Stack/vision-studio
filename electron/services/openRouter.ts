@@ -274,8 +274,14 @@ function toOpenRouterError(error: unknown, fallbackMessage: string) {
   return fallbackMessage;
 }
 
+/**
+ * Deliberately NO `cause`: the underlying AxiosError's config.headers carry
+ * `Authorization: Bearer <key>`, and a cause survives into util.inspect,
+ * console logging, and error reporters. The extracted message is all any
+ * caller uses.
+ */
 function createOpenRouterError(error: unknown, fallbackMessage: string) {
-  return new Error(toOpenRouterError(error, fallbackMessage), { cause: error });
+  return new Error(toOpenRouterError(error, fallbackMessage));
 }
 
 function extractMessageContent(content: unknown) {

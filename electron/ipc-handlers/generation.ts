@@ -19,7 +19,11 @@ import { buildPromptContext } from '../services/promptAugmentation';
 import { createRetrievalClient } from '../services/retrievalClient';
 import { mergeJobsByCreatedAtDesc } from './jobListing';
 import { routeBackendWsMessage } from './backendWsRouting';
-import { BACKEND_DOWN_MESSAGE as _BACKEND_DOWN_MESSAGE, requestBackend } from './backendRequest';
+import {
+  BACKEND_DOWN_MESSAGE as _BACKEND_DOWN_MESSAGE,
+  describeBackendError,
+  requestBackend,
+} from './backendRequest';
 import {
   OPENROUTER_IMAGE_UNSUPPORTED_MESSAGE,
   OPENROUTER_JOB_PREFIX,
@@ -327,7 +331,7 @@ ipcMain.handle('generation:generate-image', async (_event, params) => {
       jobId: response.data.job_id,
     };
   } catch (error: any) {
-    console.error('Image generation error:', error);
+    console.error('Image generation error:', describeBackendError(error));
     return {
       success: false,
       error: toSafeRendererError(error, 'Image generation failed'),
@@ -387,7 +391,7 @@ ipcMain.handle('generation:generate-video', async (_event, params) => {
       jobId: response.data.job_id,
     };
   } catch (error: any) {
-    console.error('Video generation error:', error);
+    console.error('Video generation error:', describeBackendError(error));
     return {
       success: false,
       error: toSafeRendererError(error, 'Video generation failed'),
@@ -648,7 +652,7 @@ ipcMain.handle('generation:export-timeline-sequence', async (_event, params) => 
       jobId: response.data.job_id,
     };
   } catch (error: any) {
-    console.error('Timeline export error:', error);
+    console.error('Timeline export error:', describeBackendError(error));
     return {
       success: false,
       error: toSafeRendererError(error, 'Timeline export failed'),
@@ -819,7 +823,7 @@ ipcMain.handle('generation:batch', async (_event, params) => {
       jobIds,
     };
   } catch (error: any) {
-    console.error('Batch generation error:', error);
+    console.error('Batch generation error:', describeBackendError(error));
     return {
       success: false,
       error: toSafeRendererError(error, 'Batch generation failed'),
@@ -850,7 +854,7 @@ ipcMain.handle('generation:get-status', async (_event, jobId: string) => {
     );
     return response.data;
   } catch (error: any) {
-    console.error('Get status error:', error);
+    console.error('Get status error:', describeBackendError(error));
     return {
       success: false,
       error: toSafeRendererError(error, 'Could not get generation status'),
@@ -938,7 +942,7 @@ ipcMain.handle('generation:cancel', async (_event, jobId: string) => {
     );
     return response.data;
   } catch (error: any) {
-    console.error('Cancel job error:', error);
+    console.error('Cancel job error:', describeBackendError(error));
     return {
       success: false,
       error: toSafeRendererError(error, 'Could not cancel generation'),
@@ -973,7 +977,7 @@ ipcMain.handle('generation:list-jobs', async (_event, options = {}) => {
       };
     }
 
-    console.error('List jobs error:', error);
+    console.error('List jobs error:', describeBackendError(error));
     return {
       success: false,
       error: toSafeRendererError(error, 'Could not list jobs'),
@@ -990,7 +994,7 @@ ipcMain.handle('models:list', async () => {
     );
     return response.data;
   } catch (error: any) {
-    console.error('List models error:', error);
+    console.error('List models error:', describeBackendError(error));
     return [];
   }
 });
@@ -1002,7 +1006,7 @@ ipcMain.handle('models:get', async (_event, modelId: string) => {
     );
     return response.data;
   } catch (error) {
-    console.error('Failed to get model record:', error);
+    console.error('Failed to get model record:', describeBackendError(error));
     return null;
   }
 });
@@ -1018,7 +1022,7 @@ ipcMain.handle('models:download', async (_event, modelId: string) => {
     );
     return response.data;
   } catch (error: any) {
-    console.error('Download model error:', error instanceof Error ? error.message : error);
+    console.error('Download model error:', describeBackendError(error));
     return {
       success: false,
       error: toSafeRendererError(error, 'Model download failed'),
@@ -1035,7 +1039,7 @@ ipcMain.handle('models:download:pause', async (_event, modelId: string) => {
     );
     return response.data;
   } catch (error: any) {
-    console.error('Pause download error:', error instanceof Error ? error.message : error);
+    console.error('Pause download error:', describeBackendError(error));
     return { success: false, error: toSafeRendererError(error, 'Pause failed') };
   }
 });
@@ -1049,7 +1053,7 @@ ipcMain.handle('models:download:resume', async (_event, modelId: string) => {
     );
     return response.data;
   } catch (error: any) {
-    console.error('Resume download error:', error instanceof Error ? error.message : error);
+    console.error('Resume download error:', describeBackendError(error));
     return { success: false, error: toSafeRendererError(error, 'Resume failed') };
   }
 });
@@ -1063,7 +1067,7 @@ ipcMain.handle('models:download:cancel', async (_event, modelId: string) => {
     );
     return response.data;
   } catch (error: any) {
-    console.error('Cancel download error:', error instanceof Error ? error.message : error);
+    console.error('Cancel download error:', describeBackendError(error));
     return { success: false, error: toSafeRendererError(error, 'Cancel failed') };
   }
 });
@@ -1075,7 +1079,7 @@ ipcMain.handle('models:downloads:list', async () => {
     );
     return response.data;
   } catch (error: any) {
-    console.error('List downloads error:', error instanceof Error ? error.message : error);
+    console.error('List downloads error:', describeBackendError(error));
     return [];
   }
 });
@@ -1090,7 +1094,7 @@ ipcMain.handle('models:downloads:subscribe', async () => {
     );
     return response.data;
   } catch (error: any) {
-    console.error('Subscribe downloads error:', error instanceof Error ? error.message : error);
+    console.error('Subscribe downloads error:', describeBackendError(error));
     return [];
   }
 });
@@ -1105,7 +1109,7 @@ ipcMain.handle('provision:status', async () => {
     );
     return response.data;
   } catch (error: any) {
-    console.error('Provision status error:', error instanceof Error ? error.message : error);
+    console.error('Provision status error:', describeBackendError(error));
     return { success: false, error: toSafeRendererError(error, 'Provision status failed') };
   }
 });
@@ -1120,7 +1124,7 @@ ipcMain.handle('provision:start', async () => {
     );
     return response.data;
   } catch (error: any) {
-    console.error('Provision start error:', error instanceof Error ? error.message : error);
+    console.error('Provision start error:', describeBackendError(error));
     return { success: false, error: toSafeRendererError(error, 'Provisioning could not start') };
   }
 });
@@ -1134,7 +1138,7 @@ ipcMain.handle('provision:pause', async () => {
     );
     return response.data;
   } catch (error: any) {
-    console.error('Provision pause error:', error instanceof Error ? error.message : error);
+    console.error('Provision pause error:', describeBackendError(error));
     return { success: false, error: toSafeRendererError(error, 'Provision pause failed') };
   }
 });
@@ -1148,7 +1152,7 @@ ipcMain.handle('provision:resume', async () => {
     );
     return response.data;
   } catch (error: any) {
-    console.error('Provision resume error:', error instanceof Error ? error.message : error);
+    console.error('Provision resume error:', describeBackendError(error));
     return { success: false, error: toSafeRendererError(error, 'Provision resume failed') };
   }
 });
@@ -1162,7 +1166,7 @@ ipcMain.handle('provision:cancel', async () => {
     );
     return response.data;
   } catch (error: any) {
-    console.error('Provision cancel error:', error instanceof Error ? error.message : error);
+    console.error('Provision cancel error:', describeBackendError(error));
     return { success: false, error: toSafeRendererError(error, 'Provision cancel failed') };
   }
 });
@@ -1178,7 +1182,7 @@ ipcMain.handle('provision:reverify', async () => {
     );
     return response.data;
   } catch (error: any) {
-    console.error('Provision reverify error:', error instanceof Error ? error.message : error);
+    console.error('Provision reverify error:', describeBackendError(error));
     return { success: false, error: toSafeRendererError(error, 'Provision verify failed') };
   }
 });
@@ -1190,7 +1194,7 @@ ipcMain.handle('models:get-status', async (_event, modelId: string) => {
     );
     return response.data;
   } catch (error: any) {
-    console.error('Get model status error:', error);
+    console.error('Get model status error:', describeBackendError(error));
     return null;
   }
 });
@@ -1202,7 +1206,7 @@ ipcMain.handle('models:delete', async (_event, modelId: string) => {
     );
     return response.data;
   } catch (error: any) {
-    console.error('Delete model error:', error);
+    console.error('Delete model error:', describeBackendError(error));
     return {
       success: false,
       error: toSafeRendererError(error, 'Model delete failed'),
@@ -1219,7 +1223,7 @@ ipcMain.handle('models:import', async (_event, path: string, layoutHint: string)
     );
     return response.data;
   } catch (error: any) {
-    console.error('Import library root error:', error);
+    console.error('Import library root error:', describeBackendError(error));
     return {
       success: false,
       error: toSafeRendererError(error, 'Library root import failed'),
@@ -1234,7 +1238,7 @@ ipcMain.handle('models:scan', async () => {
     );
     return response.data;
   } catch (error: any) {
-    console.error('Library scan error:', error);
+    console.error('Library scan error:', describeBackendError(error));
     return {
       success: false,
       error: toSafeRendererError(error, 'Library scan failed'),
@@ -1249,7 +1253,7 @@ ipcMain.handle('models:libraries:list', async () => {
     );
     return response.data;
   } catch (error: any) {
-    console.error('List library roots error:', error);
+    console.error('List library roots error:', describeBackendError(error));
     return [];
   }
 });
@@ -1263,7 +1267,7 @@ ipcMain.handle('models:libraries:remove', async (_event, rootId: string) => {
     );
     return response.data;
   } catch (error: any) {
-    console.error('Remove library root error:', error);
+    console.error('Remove library root error:', describeBackendError(error));
     return {
       success: false,
       error: toSafeRendererError(error, 'Library root removal failed'),
@@ -1285,7 +1289,7 @@ ipcMain.handle(
     } catch (error: any) {
       // Message only: the raw AxiosError carries token-bearing request
       // headers in config.headers and must never reach the log.
-      console.error('Model search error:', error instanceof Error ? error.message : error);
+      console.error('Model search error:', describeBackendError(error));
       return {
         source,
         query,
@@ -1311,7 +1315,7 @@ ipcMain.handle(
       );
       return response.data;
     } catch (error: any) {
-      console.error('Model consent error:', error instanceof Error ? error.message : error);
+      console.error('Model consent error:', describeBackendError(error));
       return { success: false, error: toSafeRendererError(error, 'Consent update failed') };
     }
   },
@@ -1328,7 +1332,7 @@ ipcMain.handle('models:convert', async (_event, modelId: string) => {
     );
     return response.data;
   } catch (error: any) {
-    console.error('Model convert error:', error instanceof Error ? error.message : error);
+    console.error('Model convert error:', describeBackendError(error));
     return { success: false, error: toSafeRendererError(error, 'Conversion failed') };
   }
 });
@@ -1340,7 +1344,7 @@ ipcMain.handle('models:libraries:detect', async () => {
     );
     return response.data;
   } catch (error: any) {
-    console.error('Detect library roots error:', error);
+    console.error('Detect library roots error:', describeBackendError(error));
     return [];
   }
 });
@@ -1352,7 +1356,7 @@ ipcMain.handle('hardware:get', async () => {
     );
     return response.data;
   } catch (error: any) {
-    console.error('Hardware profile error:', error instanceof Error ? error.message : error);
+    console.error('Hardware profile error:', describeBackendError(error));
     return { success: false, error: toSafeRendererError(error, 'Could not fetch hardware profile') };
   }
 });
@@ -1368,7 +1372,7 @@ ipcMain.handle('models:resolveRuntime', async (_event, modelId: string) => {
     );
     return response.data;
   } catch (error: any) {
-    console.error('Resolve runtime error:', error instanceof Error ? error.message : error);
+    console.error('Resolve runtime error:', describeBackendError(error));
     return { success: false, error: toSafeRendererError(error, 'Runtime resolution failed') };
   }
 });

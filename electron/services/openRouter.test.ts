@@ -1996,3 +1996,31 @@ describe('createOpenRouterService', () => {
     });
   });
 });
+
+describe('OpenRouter error key hygiene', () => {
+  it('never carries the API key in a thrown error, however it is serialized', async () => {
+    const apiKey = 'sk-or-v1-supersecret-key';
+    const axiosError = Object.assign(new Error('Request failed with status code 401'), {
+      isAxiosError: true,
+      config: { headers: { Authorization: `Bearer ${apiKey}` } },
+      request: { _header: `POST /api/v1/chat/completions\r\nAuthorization: Bearer ${apiKey}` },
+      response: { status: 401, headers: {}, data: { error: { message: 'No auth credentials found' } } },
+    });
+    const axiosInstance = { get: vi.fn().mockRejectedValue(axiosError), post: vi.fn().mockRejectedValue(axiosError) };
+    const service = createOpenRouterService({ axiosInstance, retryBaseDelayMs: 0 });
+
+    const thrown = [
+      await service.getKeyInfo(apiKey).catch((error: unknown) => error),
+      await service.enhancePrompt({ apiKey, prompt: 'a cat', mode: 'clarify' }).catch((error: unknown) => error),
+    ];
+
+    const { inspect } = await import('node:util');
+    for (const error of thrown) {
+      expect(error).toBeInstanceOf(Error);
+      expect((error as Error).message).toBe('No auth credentials found');
+      expect(inspect(error, { depth: 10 })).not.toContain(apiKey);
+      expect(JSON.stringify(error, Object.getOwnPropertyNames(error))).not.toContain(apiKey);
+      expect((error as { cause?: unknown }).cause).toBeUndefined();
+    }
+  });
+});

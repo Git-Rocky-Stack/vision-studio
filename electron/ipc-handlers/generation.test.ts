@@ -31,6 +31,32 @@ function invoke(channel: string, ...args: unknown[]) {
   return handler({}, ...args);
 }
 
+describe('backend error logging', () => {
+  it('logs only the message and status, never the token-bearing request config', async () => {
+    const secret = 'backend-token-should-never-be-logged';
+    const axiosError = Object.assign(new Error('Request failed with status code 500'), {
+      isAxiosError: true,
+      config: { headers: { 'x-vision-studio-token': secret, 'X-HF-Token': secret } },
+      response: { status: 500, data: {} },
+    });
+    harness.post.mockReset().mockRejectedValue(axiosError);
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    try {
+      const result = await invoke('generation:generate-image', { prompt: 'a cat' });
+
+      expect(result.success).toBe(false);
+      const logged = consoleError.mock.calls.map((call) => call.map(String).join(' ')).join('\n');
+      expect(logged).toContain('Request failed with status code 500 (HTTP 500)');
+      expect(logged).not.toContain(secret);
+      for (const call of consoleError.mock.calls) {
+        for (const arg of call) expect(typeof arg).toBe('string');
+      }
+    } finally {
+      consoleError.mockRestore();
+    }
+  });
+});
+
 describe('generation:enhance-prompt (Local route)', () => {
   beforeEach(() => {
     harness.post.mockReset();
