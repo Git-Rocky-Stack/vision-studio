@@ -1,15 +1,65 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
-import { Profiler, type ReactNode } from 'react';
+import { Profiler, forwardRef, useImperativeHandle, useRef, type ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useAppStore } from '@/store/appStore';
 import { TEXT_LAYER_DEFAULT_STYLE, createTextLayer } from '@/features/edit/textLayers';
 import { EditCanvas } from './EditCanvas';
 
+// The pointer the mocked stage reports, in image pixels. Tests move it, then
+// fire mouse events on the stage element.
+const pointer = { x: 0, y: 0 };
+type StageMouseHandler = (event: { evt: MouseEvent; target: unknown }) => void;
+
 vi.mock('react-konva', () => ({
-  Stage: ({ children }: { children: ReactNode }) => <div data-testid="konva-stage">{children}</div>,
+  Stage: forwardRef(function MockStage(
+    {
+      children,
+      onMouseDown,
+      onMouseMove,
+      onMouseUp,
+      onClick,
+    }: {
+      children: ReactNode;
+      onClick?: StageMouseHandler;
+      onMouseDown?: StageMouseHandler;
+      onMouseMove?: StageMouseHandler;
+      onMouseUp?: StageMouseHandler;
+    },
+    ref,
+  ) {
+    const handle = useRef({
+      getRelativePointerPosition: () => ({ ...pointer }),
+      getPointerPosition: () => ({ ...pointer }),
+      findOne: () => null,
+    }).current;
+    useImperativeHandle(ref, () => handle);
+    // Like Konva: the target is the stage only when nothing on it was hit.
+    const forward = (handler?: StageMouseHandler) => (event: React.MouseEvent) =>
+      handler?.({
+        evt: event.nativeEvent,
+        target: event.target === event.currentTarget ? handle : event.target,
+      });
+    return (
+      <div
+        data-testid="konva-stage"
+        onMouseDown={forward(onMouseDown)}
+        onMouseMove={forward(onMouseMove)}
+        onMouseUp={forward(onMouseUp)}
+        onClick={forward(onClick)}
+      >
+        {children}
+      </div>
+    );
+  }),
+  Group: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
+  Circle: () => <div data-testid="konva-circle" />,
+  Ellipse: ({ id }: { id?: string }) => <div data-testid="konva-ellipse" data-id={id} />,
+  Arrow: ({ id }: { id?: string }) => <div data-testid="konva-arrow" data-id={id} />,
   Layer: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
-  Rect: () => <div />,
+  Rect: ({ id, width, height }: { id?: string; width?: number; height?: number }) => (
+    <div data-testid={id ? 'konva-shape-rect' : undefined} data-id={id} data-width={width} data-height={height} />
+  ),
   Image: () => <div />,
   Line: ({ stroke, strokeWidth }: { stroke?: string; strokeWidth?: number }) => (
     <div data-testid="konva-line" data-stroke={stroke} data-stroke-width={strokeWidth} />
@@ -441,11 +491,15 @@ describe('EditCanvas', () => {
       expect(useAppStore.getState().activeEditTool).toBe('eyedropper');
     });
 
-    it('gives unimplemented tools no shortcut', () => {
+    it.each([
+      ['s', 'clone'],
+      ['j', 'heal'],
+      ['u', 'shape'],
+      ['p', 'pen'],
+    ] as const)('selects the retouch and vector tools: %s', (key, tool) => {
       render(<EditCanvas />);
-      fireEvent.keyDown(window, { key: 's' });
-      fireEvent.keyDown(window, { key: 'p' });
-      expect(useAppStore.getState().activeEditTool).toBe('move');
+      fireEvent.keyDown(window, { key });
+      expect(useAppStore.getState().activeEditTool).toBe(tool);
     });
 
     it('ignores letters typed into inputs, selects and contentEditable, and Ctrl chords', () => {
@@ -477,6 +531,145 @@ describe('EditCanvas', () => {
       unmount();
       fireEvent.keyDown(window, { key: 'b' });
       expect(useAppStore.getState().activeEditTool).toBe('move');
+    });
+  });
+
+  describe('drawing tools', () => {
+    async function renderWithImage(tool: Parameters<ReturnType<typeof useAppStore.getState>['setActiveEditTool']>[0]) {
+      act(() => {
+        useAppStore.getState().setCurrentImage('preview://img.png', 'C:/img.png');
+        useAppStore.getState().setActiveEditTool(tool);
+      });
+      render(<EditCanvas />);
+      await act(async () => {});
+      return screen.getByTestId('konva-stage');
+    }
+
+    const at = (x: number, y: number) => {
+      pointer.x = x;
+      pointer.y = y;
+    };
+
+    it('draws a rectangle layer on a drag and selects it', async () => {
+      const stage = await renderWithImage('shape');
+      at(10, 20);
+      fireEvent.mouseDown(stage, { button: 0 });
+      at(110, 70);
+      fireEvent.mouseMove(stage);
+      fireEvent.mouseUp(stage);
+
+      const { editLayers, selectedEditLayerId } = useAppStore.getState();
+      const shape = editLayers.find((layer) => layer.type === 'shape');
+      expect(shape?.data).toMatchObject({ kind: 'rectangle', x: 10, y: 20, width: 100, height: 50 });
+      expect(selectedEditLayerId).toBe(shape?.id);
+      expect(screen.getByTestId('konva-shape-rect')).toHaveAttribute('data-id', shape?.id);
+      expect(useAppStore.getState().editHistory.at(-1)?.action).toBe('Add rectangle');
+    });
+
+    it('draws the kind picked in the tool options', async () => {
+      useAppStore.getState().setEditShapeKind('ellipse');
+      const stage = await renderWithImage('shape');
+      at(0, 0);
+      fireEvent.mouseDown(stage, { button: 0 });
+      at(40, 20);
+      fireEvent.mouseUp(stage);
+      expect(useAppStore.getState().editLayers.at(-1)?.data).toMatchObject({ kind: 'ellipse', x: 20, y: 10 });
+      expect(screen.getByTestId('konva-ellipse')).toBeInTheDocument();
+    });
+
+    it('ignores a click that is not a drag', async () => {
+      const stage = await renderWithImage('shape');
+      at(5, 5);
+      fireEvent.mouseDown(stage, { button: 0 });
+      fireEvent.mouseUp(stage);
+      expect(useAppStore.getState().editLayers.some((layer) => layer.type === 'shape')).toBe(false);
+    });
+
+    it('builds a pen path from clicks and closes it on the first anchor', async () => {
+      const stage = await renderWithImage('pen');
+      for (const [x, y] of [[0, 0], [100, 0], [100, 100]]) {
+        at(x, y);
+        fireEvent.mouseDown(stage, { button: 0 });
+        fireEvent.mouseUp(stage);
+      }
+      expect(useAppStore.getState().editPenDraft).toEqual([0, 0, 100, 0, 100, 100]);
+
+      at(1, 1);
+      fireEvent.mouseDown(stage, { button: 0 });
+      const path = useAppStore.getState().editLayers.at(-1);
+      expect(path?.data).toMatchObject({ kind: 'path', closed: true, points: [0, 0, 100, 0, 100, 100] });
+      expect(useAppStore.getState().editPenDraft).toBeNull();
+    });
+
+    it('finishes an open pen path with Enter and cancels one with Escape', async () => {
+      const stage = await renderWithImage('pen');
+      at(0, 0);
+      fireEvent.mouseDown(stage, { button: 0 });
+      at(50, 50);
+      fireEvent.mouseDown(stage, { button: 0 });
+      fireEvent.keyDown(window, { key: 'Enter' });
+      expect(useAppStore.getState().editLayers.at(-1)?.data).toMatchObject({ kind: 'path', closed: false });
+
+      at(10, 10);
+      fireEvent.mouseDown(stage, { button: 0 });
+      fireEvent.keyDown(window, { key: 'Escape' });
+      expect(useAppStore.getState().editPenDraft).toBeNull();
+    });
+
+    it('asks for a source before cloning, and Alt+click sets one', async () => {
+      const stage = await renderWithImage('clone');
+      at(30, 30);
+      fireEvent.mouseDown(stage, { button: 0 });
+      expect(screen.getByRole('alert')).toHaveTextContent('Alt+click the image to set a clone source first.');
+      expect(useAppStore.getState().editRetouchStrokes).toEqual([]);
+
+      at(5, 6);
+      fireEvent.mouseDown(stage, { button: 0, altKey: true });
+      expect(useAppStore.getState().editCloneSource).toEqual({ x: 5, y: 6 });
+      expect(screen.queryByRole('alert')).toBeNull();
+    });
+
+    it('commits a clone stroke with the aligned offset, and keeps the offset for the next stroke', async () => {
+      const stage = await renderWithImage('clone');
+      act(() => useAppStore.getState().setEditCloneSource({ x: 10, y: 10 }));
+      at(40, 50);
+      fireEvent.mouseDown(stage, { button: 0 });
+      at(60, 50);
+      fireEvent.mouseMove(stage);
+      fireEvent.mouseUp(stage);
+
+      at(200, 200);
+      fireEvent.mouseDown(stage, { button: 0 });
+      fireEvent.mouseUp(stage);
+
+      const [first, second] = useAppStore.getState().editRetouchStrokes;
+      expect(first).toMatchObject({ tool: 'clone', points: [40, 50, 60, 50], offset: { x: -30, y: -40 } });
+      expect(second.offset).toEqual({ x: -30, y: -40 });
+      expect(useAppStore.getState().editHistory.at(-1)?.action).toBe('Clone Stamp stroke');
+    });
+
+    it('spot heals without a source', async () => {
+      const stage = await renderWithImage('heal');
+      at(20, 20);
+      fireEvent.mouseDown(stage, { button: 0 });
+      fireEvent.mouseUp(stage);
+      expect(useAppStore.getState().editRetouchStrokes[0]).toMatchObject({ tool: 'heal', offset: null });
+      expect(useAppStore.getState().editHistory.at(-1)?.action).toBe('Spot heal stroke');
+    });
+
+    it('does not change the selection when a drawing tool click ends', async () => {
+      const stage = await renderWithImage('shape');
+      at(0, 0);
+      fireEvent.mouseDown(stage, { button: 0 });
+      at(30, 30);
+      fireEvent.mouseUp(stage);
+      fireEvent.click(stage);
+      expect(useAppStore.getState().selectedEditLayerId).not.toBeNull();
+
+      // The same click with the Move tool still clears the selection.
+      act(() => useAppStore.getState().setActiveEditTool('move'));
+      fireEvent.click(stage);
+      expect(useAppStore.getState().selectedEditLayerId).toBeNull();
     });
   });
 });

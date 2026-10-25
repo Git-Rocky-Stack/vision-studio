@@ -2,6 +2,7 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { useAppStore } from '@/store/appStore';
+import { EDIT_TOOL_SHORTCUTS } from '@/features/edit/useEditToolShortcuts';
 import { ToolStrip } from './ToolStrip';
 
 describe('ToolStrip', () => {
@@ -10,19 +11,35 @@ describe('ToolStrip', () => {
   });
   afterEach(cleanup);
 
-  it.each(['Clone Stamp', 'Heal', 'Shape', 'Pen'])('renders %s as not available and never selects it', (label) => {
+  it.each([
+    ['Clone Stamp (S)', 'clone'],
+    ['Heal (J)', 'heal'],
+    ['Shape (U)', 'shape'],
+    ['Pen (P)', 'pen'],
+    ['Eyedropper (I)', 'eyedropper'],
+    ['Crop (C)', 'crop'],
+  ] as const)('selects %s', (name, tool) => {
     render(<ToolStrip />);
-    const button = screen.getByRole('button', { name: `${label} (Not available yet)` });
-    expect(button).toHaveAttribute('aria-disabled', 'true');
+    const button = screen.getByRole('button', { name });
     fireEvent.click(button);
-    expect(useAppStore.getState().activeEditTool).toBe('move');
+    expect(useAppStore.getState().activeEditTool).toBe(tool);
+    expect(button).toHaveAttribute('aria-pressed', 'true');
   });
 
-  it('selects working tools and shows their shortcut', () => {
+  it('labels every tool with the key that selects it', () => {
     render(<ToolStrip />);
-    fireEvent.click(screen.getByRole('button', { name: 'Eyedropper (I)' }));
-    expect(useAppStore.getState().activeEditTool).toBe('eyedropper');
-    fireEvent.click(screen.getByRole('button', { name: 'Crop (C)' }));
-    expect(useAppStore.getState().activeEditTool).toBe('crop');
+    const buttons = screen.getAllByRole('button');
+    expect(buttons).toHaveLength(Object.keys(EDIT_TOOL_SHORTCUTS).length);
+    for (const [key, tool] of Object.entries(EDIT_TOOL_SHORTCUTS)) {
+      fireEvent.click(screen.getByRole('button', { name: new RegExp(`\\(${key.toUpperCase()}\\)$`) }));
+      expect(useAppStore.getState().activeEditTool).toBe(tool);
+    }
+  });
+
+  it('has no disabled tools', () => {
+    render(<ToolStrip />);
+    for (const button of screen.getAllByRole('button')) {
+      expect(button).not.toHaveAttribute('aria-disabled');
+    }
   });
 });

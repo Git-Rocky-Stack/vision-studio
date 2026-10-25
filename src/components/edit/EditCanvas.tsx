@@ -11,14 +11,19 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { RegionLockToolbar } from '@/components/edit/RegionLockToolbar';
 import { RegionMaskDrawer } from '@/components/edit/RegionMaskDrawer';
 import { CanvasControlLayerRail } from '@/components/canvas/CanvasControlLayerRail';
+import { ShapeNode } from '@/components/edit/ShapeNode';
+import { ToolOverlay, type ToolOverlayHandle } from '@/components/edit/ToolOverlay';
 import { isTextLayer, konvaBlendMode, konvaFontStyle } from '@/features/edit/textLayers';
+import { closesPath, createShapeLayer, isShapeLayer, shapeDataFromDrag } from '@/features/edit/shapeLayers';
+import { finishPenPath } from '@/features/edit/penPath';
+import { useRetouchedImage } from '@/features/edit/useRetouchedImage';
 import { applyEditPipeline, isIdentityEdit } from '@/features/edit/imageFilters';
 import { EXPORT_TAINTED_MESSAGE, registerEditFlattener, rgbToHex } from '@/features/edit/exportEdit';
 import { useEditToolShortcuts } from '@/features/edit/useEditToolShortcuts';
 import { PIXEL_ACCESS_NOTICE, cssFallbackFilter, loadEditableImage } from '@/features/edit/pixelAccess';
 import type { RegionTool } from '@/components/edit/RegionLockToolbar';
 import type { RegionMask } from '@/types/project';
-import type { EditStroke } from '@/types/editor';
+import type { EditStroke, EditTool, RetouchStroke } from '@/types/editor';
 import type Konva from 'konva';
 
 const CHECKERBOARD_SIZE = 16;
@@ -28,7 +33,18 @@ const CHECKERBOARD_SIZE = 16;
 const TRANSFORMER_COLOR_TOKENS = {
   accent: '--color-feature-01',
   anchorStroke: '--color-text-primary',
+  contrast: '--color-void',
 } as const;
+
+/** Tools that draw on a press-drag, so a click must not change the selection. */
+const DRAWING_TOOLS: ReadonlySet<EditTool> = new Set(['brush', 'eraser', 'clone', 'heal', 'shape', 'pen']);
+
+export const CLONE_SOURCE_HINT = 'Alt+click the image to set a clone source first.';
+export const RETOUCH_TAINTED_MESSAGE = 'Clone Stamp and Heal need readable pixels, and this image cannot be read.';
+
+function newStrokeId(prefix: string): string {
+  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
 
 // #34 PR2: blank AI-tool mask shown before the first stroke is drawn.
 const EMPTY_AI_MASK: RegionMask = {
@@ -74,7 +90,11 @@ export function EditCanvas() {
     setEditBrushColor,
     editFilters,
     editCompareOriginal,
+    editRetouchStrokes,
+    addEditLayer,
   } = useAppStore(useShallow((s) => ({
+    editRetouchStrokes: s.editRetouchStrokes,
+    addEditLayer: s.addEditLayer,
     setActiveTab: s.setActiveTab,
     setCenterView: s.setCenterView,
     editStrokes: s.editStrokes,
@@ -138,6 +158,12 @@ export function EditCanvas() {
   const imageRef = useRef<Konva.Image>(null);
   const imageLayerRef = useRef<Konva.Layer>(null);
   const checkerLayerRef = useRef<Konva.Layer>(null);
+  const overlayLayerRef = useRef<Konva.Layer>(null);
+  const overlayRef = useRef<ToolOverlayHandle>(null);
+  // In-progress Clone Stamp / Heal stroke and Shape drag. Kept in refs: the
+  // overlay draws them, so the editor does not re-render per pointer move.
+  const retouchDraftRef = useRef<Pick<RetouchStroke, 'tool' | 'points' | 'offset'> | null>(null);
+  const shapeDragRef = useRef<{ x: number; y: number } | null>(null);
 
   useEditToolShortcuts();
 
@@ -150,7 +176,13 @@ export function EditCanvas() {
   // so they survive unmount and take part in undo/redo.
   const [draftStroke, setDraftStroke] = useState<EditStroke | null>(null);
   const draftStrokeRef = useRef<EditStroke | null>(null);
-  const [eyedropperError, setEyedropperError] = useState<string | null>(null);
+  // A tool's last refusal (eyedropper off the image, clone without a source),
+  // shown while that tool stays active.
+  const [toolNotice, setToolNotice] = useState<{ tool: EditTool; message: string } | null>(null);
+  const setEyedropperError = useCallback(
+    (message: string | null) => setToolNotice(message ? { tool: 'eyedropper', message } : null),
+    [],
+  );
   // False when the image taints the canvas (cross-origin without CORS):
   // pixel reads then throw, so the pixel pipeline, eyedropper and export
   // cannot run (see features/edit/pixelAccess.ts).
@@ -276,7 +308,7 @@ export function EditCanvas() {
       // A cross-origin image taints the canvas; reading pixels then throws.
       setEyedropperError('This image cannot be sampled.');
     }
-  }, [setEditBrushColor, updateEditLayer]);
+  }, [setEditBrushColor, setEyedropperError, updateEditLayer]);
 
   // Stage click (deselect / zoom tool / eyedropper)
   const handleStageClick = useCallback(
@@ -285,6 +317,9 @@ export function EditCanvas() {
         sampleColorAtPointer();
         return;
       }
+      // A drawing tool's press-drag selects what it drew; the click that
+      // ends it must not clear that selection.
+      if (DRAWING_TOOLS.has(activeEditTool)) return;
       if (e.target === stageRef.current) {
         setSelectedId(null);
         setSelectedEditLayerId(null);
@@ -300,39 +335,168 @@ export function EditCanvas() {
   // Strokes are recorded in image pixels (the stage's local space), so they
   // stay put when the view zooms or pans, and export at full resolution.
   const handleMouseDown = useCallback(
-    (_event: Konva.KonvaEventObject<MouseEvent>) => {
-      if (activeEditTool !== 'brush' && activeEditTool !== 'eraser') return;
+    (event: Konva.KonvaEventObject<MouseEvent>) => {
+      if (event.evt.button !== undefined && event.evt.button !== 0) return;
       const pos = stageRef.current?.getRelativePointerPosition();
       if (!pos) return;
-      const stroke: EditStroke = {
-        id: `stroke-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-        tool: activeEditTool,
-        points: [pos.x, pos.y],
-        color: editBrushColor,
-        size: activeEditTool === 'eraser' ? editBrushSize * 2 : editBrushSize,
-      };
-      draftStrokeRef.current = stroke;
-      setDraftStroke(stroke);
+      const state = useAppStore.getState();
+
+      if (activeEditTool === 'brush' || activeEditTool === 'eraser') {
+        const stroke: EditStroke = {
+          id: newStrokeId('stroke'),
+          tool: activeEditTool,
+          points: [pos.x, pos.y],
+          color: editBrushColor,
+          size: activeEditTool === 'eraser' ? editBrushSize * 2 : editBrushSize,
+        };
+        draftStrokeRef.current = stroke;
+        setDraftStroke(stroke);
+        return;
+      }
+
+      if (activeEditTool === 'clone' || activeEditTool === 'heal') {
+        if (!loadedImage) return;
+        if (!pixelAccess) {
+          setToolNotice({ tool: activeEditTool, message: RETOUCH_TAINTED_MESSAGE });
+          return;
+        }
+        if (event.evt.altKey) {
+          state.setEditCloneSource({ x: pos.x, y: pos.y });
+          setToolNotice(null);
+          return;
+        }
+        let offset: RetouchStroke['offset'] = null;
+        if (state.editCloneSource) {
+          // Aligned sampling: the first stroke after a new source fixes the
+          // offset, and later strokes keep it.
+          offset = state.editCloneOffset ?? {
+            x: state.editCloneSource.x - pos.x,
+            y: state.editCloneSource.y - pos.y,
+          };
+          if (!state.editCloneOffset) state.setEditCloneOffset(offset);
+        } else if (activeEditTool === 'clone') {
+          setToolNotice({ tool: 'clone', message: CLONE_SOURCE_HINT });
+          return;
+        }
+        setToolNotice(null);
+        retouchDraftRef.current = { tool: activeEditTool, points: [pos.x, pos.y], offset };
+        overlayRef.current?.setRetouchDraft([pos.x, pos.y]);
+        return;
+      }
+
+      if (activeEditTool === 'shape') {
+        shapeDragRef.current = { x: pos.x, y: pos.y };
+        return;
+      }
+
+      if (activeEditTool === 'pen') {
+        const draft = state.editPenDraft;
+        // The second press of a double-click ends an open path.
+        if (draft && event.evt.detail >= 2) {
+          finishPenPath(false);
+          return;
+        }
+        if (draft && closesPath(draft, pos, stageScale)) {
+          finishPenPath(true);
+          return;
+        }
+        state.setEditPenDraft(draft ? [...draft, pos.x, pos.y] : [pos.x, pos.y]);
+      }
     },
-    [activeEditTool, editBrushColor, editBrushSize]
+    [activeEditTool, editBrushColor, editBrushSize, loadedImage, pixelAccess, stageScale]
   );
 
-  const handleMouseMove = useCallback(() => {
-    const draft = draftStrokeRef.current;
-    if (!draft) return;
+  const handleMouseMove = useCallback((event?: Konva.KonvaEventObject<MouseEvent>) => {
     const pos = stageRef.current?.getRelativePointerPosition();
     if (!pos) return;
-    const next = { ...draft, points: [...draft.points, pos.x, pos.y] };
-    draftStrokeRef.current = next;
-    setDraftStroke(next);
+    overlayRef.current?.setPointer({ x: pos.x, y: pos.y });
+
+    const draft = draftStrokeRef.current;
+    if (draft) {
+      const next = { ...draft, points: [...draft.points, pos.x, pos.y] };
+      draftStrokeRef.current = next;
+      setDraftStroke(next);
+      return;
+    }
+
+    const retouch = retouchDraftRef.current;
+    if (retouch) {
+      // Skip sub-pixel steps: the mask is round, so dense points add nothing.
+      const minStep = Math.max(1, useAppStore.getState().editBrushSize / 8);
+      const lastX = retouch.points[retouch.points.length - 2];
+      const lastY = retouch.points[retouch.points.length - 1];
+      if (Math.hypot(pos.x - lastX, pos.y - lastY) < minStep) return;
+      retouch.points = [...retouch.points, pos.x, pos.y];
+      overlayRef.current?.setRetouchDraft(retouch.points);
+      return;
+    }
+
+    const shapeStart = shapeDragRef.current;
+    if (shapeStart) {
+      const state = useAppStore.getState();
+      overlayRef.current?.setShapeDraft(
+        shapeDataFromDrag(state.editShapeKind, shapeStart, pos, state.editShapeStyle, Boolean(event?.evt.shiftKey)),
+      );
+    }
   }, []);
 
-  const handleMouseUp = useCallback(() => {
+  const handleMouseUp = useCallback((event?: { evt?: MouseEvent } | MouseEvent) => {
+    const state = useAppStore.getState();
     const draft = draftStrokeRef.current;
     draftStrokeRef.current = null;
-    setDraftStroke(null);
-    if (draft) addEditStroke(draft);
-  }, [addEditStroke]);
+    if (draft) {
+      setDraftStroke(null);
+      addEditStroke(draft);
+    }
+
+    const retouch = retouchDraftRef.current;
+    retouchDraftRef.current = null;
+    if (retouch) {
+      overlayRef.current?.setRetouchDraft(null);
+      state.addRetouchStroke({
+        id: newStrokeId(retouch.tool),
+        tool: retouch.tool,
+        points: retouch.points,
+        size: state.editBrushSize,
+        hardness: state.editRetouchHardness,
+        opacity: state.editRetouchOpacity,
+        offset: retouch.offset,
+      });
+    }
+
+    const shapeStart = shapeDragRef.current;
+    shapeDragRef.current = null;
+    if (shapeStart) {
+      overlayRef.current?.setShapeDraft(null);
+      const pos = stageRef.current?.getRelativePointerPosition();
+      const mouse = event && 'evt' in event ? event.evt : (event as MouseEvent | undefined);
+      const data = pos
+        ? shapeDataFromDrag(state.editShapeKind, shapeStart, pos, state.editShapeStyle, Boolean(mouse?.shiftKey))
+        : null;
+      if (data) {
+        const layer = createShapeLayer(data);
+        addEditLayer(layer, `Add ${layer.name.toLowerCase()}`);
+        setSelectedEditLayerId(layer.id);
+      }
+    }
+  }, [addEditLayer, addEditStroke, setSelectedEditLayerId]);
+
+  // A drag released outside the stage still ends (and commits) the stroke.
+  useEffect(() => {
+    const onWindowMouseUp = (event: MouseEvent) => handleMouseUp(event);
+    window.addEventListener('mouseup', onWindowMouseUp);
+    return () => window.removeEventListener('mouseup', onWindowMouseUp);
+  }, [handleMouseUp]);
+
+  // The tool's notice belongs to it: switching tools clears it.
+  useEffect(() => {
+    setToolNotice((notice) => (notice && notice.tool !== activeEditTool ? null : notice));
+  }, [activeEditTool]);
+
+  // Clone Stamp and Heal burn into the base pixels; Before/After shows the
+  // original without them.
+  const retouchedImage = useRetouchedImage(loadedImage, editRetouchStrokes, pixelAccess);
+  const baseImage = editCompareOriginal ? loadedImage : retouchedImage;
 
   // Adjustments and look filters run on real pixels through a Konva filter
   // on the base image, so the canvas shows exactly what Export flattens.
@@ -354,7 +518,7 @@ export function EditCanvas() {
       node.cache();
     }
     node.getLayer()?.batchDraw();
-  }, [imageAdjustments, editFilters, editCompareOriginal, loadedImage, pixelAccess]);
+  }, [imageAdjustments, editFilters, editCompareOriginal, baseImage, pixelAccess]);
 
   // Export flattener: the stage at intrinsic image resolution, without the
   // checkerboard or transform handles.
@@ -368,6 +532,7 @@ export function EditCanvas() {
       const scale = stage.scaleX() || 1;
       transformer?.nodes([]);
       checkerLayerRef.current?.hide();
+      overlayLayerRef.current?.hide();
       try {
         return stage.toDataURL({
           x: stage.x(),
@@ -379,6 +544,7 @@ export function EditCanvas() {
         });
       } finally {
         checkerLayerRef.current?.show();
+        overlayLayerRef.current?.show();
         transformer?.nodes(previousNodes);
         stage.batchDraw();
       }
@@ -401,6 +567,10 @@ export function EditCanvas() {
         return 'grab';
       case 'brush':
       case 'eraser':
+      case 'clone':
+      case 'heal':
+      case 'shape':
+      case 'pen':
         return 'crosshair';
       case 'zoom':
         return 'zoom-in';
@@ -445,12 +615,12 @@ export function EditCanvas() {
         )}
       />
 
-      {eyedropperError && activeEditTool === 'eyedropper' && (
+      {toolNotice && toolNotice.tool === activeEditTool && (
         <p
           role="alert"
           className="recessed-well absolute bottom-4 left-1/2 z-10 -translate-x-1/2 px-3 py-1.5 type-caption text-status-error"
         >
-          {eyedropperError}
+          {toolNotice.message}
         </p>
       )}
 
@@ -484,6 +654,7 @@ export function EditCanvas() {
           onMouseDown={handleMouseDown}
           onMouseMove={handleMouseMove}
           onMouseUp={handleMouseUp}
+          onMouseLeave={() => overlayRef.current?.setPointer(null)}
           onDragEnd={(e) => {
             if (isDraggable) {
               setStagePos({ x: e.target.x(), y: e.target.y() });
@@ -521,7 +692,7 @@ export function EditCanvas() {
               <KonvaImage
                 id="main-image"
                 ref={imageRef}
-                image={loadedImage}
+                image={baseImage ?? loadedImage}
                 x={0}
                 y={0}
                 width={loadedImage.width}
@@ -530,10 +701,12 @@ export function EditCanvas() {
                   activeEditTool === 'move' || activeEditTool === 'scale'
                 }
                 onClick={() => {
+                  if (DRAWING_TOOLS.has(activeEditTool)) return;
                   setSelectedId('main-image');
                   setSelectedEditLayerId(null);
                 }}
                 onTap={() => {
+                  if (DRAWING_TOOLS.has(activeEditTool)) return;
                   setSelectedId('main-image');
                   setSelectedEditLayerId(null);
                 }}
@@ -541,10 +714,12 @@ export function EditCanvas() {
             )}
           </Layer>
 
-          {/* Text layers (#32): rendered from the shared layer model. */}
+          {/* Text, shape and path layers, stacked in layer-panel order. */}
           <Layer visible={!editCompareOriginal}>
-            {editLayers.filter(isTextLayer).filter((layer) => layer.visible).map((layer) => {
-              const selectText = () => {
+            {editLayers.filter((layer) => layer.visible).map((layer) => {
+              if (!isTextLayer(layer) && !isShapeLayer(layer)) return null;
+              const selectLayer = () => {
+                if (DRAWING_TOOLS.has(activeEditTool)) return;
                 setSelectedEditLayerId(layer.id);
                 setSelectedId(null);
               };
@@ -561,6 +736,27 @@ export function EditCanvas() {
                   },
                 });
               };
+              const draggable =
+                !layer.locked && (activeEditTool === 'move' || activeEditTool === 'scale');
+
+              if (isShapeLayer(layer)) {
+                return (
+                  <ShapeNode
+                    key={layer.id}
+                    id={layer.id}
+                    data={layer.data}
+                    opacity={layer.opacity}
+                    globalCompositeOperation={konvaBlendMode(layer.blendMode)}
+                    listening={!layer.locked}
+                    draggable={draggable}
+                    onClick={selectLayer}
+                    onTap={selectLayer}
+                    onDragEnd={persistTransform}
+                    onTransformEnd={persistTransform}
+                  />
+                );
+              }
+
               return (
                 <Text
                   key={layer.id}
@@ -591,11 +787,9 @@ export function EditCanvas() {
                   strokeWidth={layer.data.strokeWidth}
                   fillAfterStrokeEnabled
                   listening={!layer.locked}
-                  draggable={
-                    !layer.locked && (activeEditTool === 'move' || activeEditTool === 'scale')
-                  }
-                  onClick={selectText}
-                  onTap={selectText}
+                  draggable={draggable}
+                  onClick={selectLayer}
+                  onTap={selectLayer}
                   onDragEnd={persistTransform}
                   onTransformEnd={persistTransform}
                 />
@@ -619,6 +813,16 @@ export function EditCanvas() {
                 }
               />
             ))}
+          </Layer>
+
+          {/* Tool feedback: brush footprint, clone source, drafts. Never exported. */}
+          <Layer ref={overlayLayerRef} listening={false} visible={!editCompareOriginal && Boolean(loadedImage)}>
+            <ToolOverlay
+              ref={overlayRef}
+              stageScale={stageScale}
+              accentColor={transformerColors.accent}
+              contrastColor={transformerColors.contrast}
+            />
           </Layer>
 
           {/* Transform handles layer */}

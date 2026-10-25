@@ -166,6 +166,13 @@ Load an image first: open it in the viewer and click **Send to Edit**.
 | CAN-12 | **Generative Fill** and **Object Removal** with a mask | Masked area filled / object removed | | | | | |
 | CAN-13 | **AI Expand** in one direction; **Style Transfer** with a preset | Canvas extended; style applied | | | | | |
 | CAN-14 | Right-click the image: **Copy Image**, **Save As...**, **Open in Explorer**, a **Refine** pipeline | Each acts on the current image | | | | | |
+| CAN-15 | **Clone Stamp (S)**: paint without a source; then Alt+click a source and paint two strokes *(new in this release)* | First stroke shows "Alt+click the image to set a clone source first." and paints nothing; then the source is copied, and the second stroke keeps the same offset (the source marker follows the brush) | | | | | |
+| CAN-16 | **Heal (J)** with no source: paint over a blemish or dust spot *(new in this release)* | The spot is replaced by matching nearby texture, with no visible seam or colour shift | | | | | |
+| CAN-17 | **Heal** after Alt+clicking a source; vary Size, Hardness and Opacity; press [ and ] *(new in this release)* | Texture comes from the source, colour from around the stroke; the brush ring resizes with [ and ] | | | | | |
+| CAN-18 | After CAN-15 to CAN-17: Ctrl+Z through the strokes, Before/After, **Clear retouching**, then **Export** *(new in this release)* | Each undo removes one stroke; Before/After shows the original; Clear removes all; the exported PNG carries the retouching | | | | | |
+| CAN-19 | **Shape (U)**: draw a rectangle, an ellipse (Shift), a line (Shift) and an arrow; toggle Fill, change the outline colour and width with one selected *(new in this release)* | Each is its own layer in Layers; Shift squares or snaps to 45 degrees; the selected shape restyles | | | | | |
+| CAN-20 | **Pen (P)**: click four points and click the first again; then draw an open path and press Enter; then Backspace and Esc on a third *(new in this release)* | A closed, fillable path layer; an open path layer; Backspace removes the last point and Esc cancels | | | | | |
+| CAN-21 | Move, scale and rotate a shape and a path; hide, lock, reorder and delete their layers; Export *(new in this release)* | Transforms stick and undo; layer controls behave as for text; the export matches the canvas | | | | | |
 
 ## 7. Story and Timeline
 

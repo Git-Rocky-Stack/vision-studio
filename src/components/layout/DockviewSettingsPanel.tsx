@@ -30,6 +30,7 @@ const EditPropertiesPanel = lazy(() =>
   import('@/components/edit/EditPropertiesPanel').then((m) => ({ default: m.EditPropertiesPanel })),
 );
 const ToolStrip = lazy(() => import('@/components/edit/ToolStrip').then((m) => ({ default: m.ToolStrip })));
+const ToolOptions = lazy(() => import('@/components/edit/ToolOptions').then((m) => ({ default: m.ToolOptions })));
 const PipelineWorkspace = lazy(() =>
   import('@/components/pipeline/PipelineWorkspace').then((m) => ({ default: m.PipelineWorkspace })),
 );
@@ -142,6 +143,7 @@ function SettingsContent({
         <div className="flex min-h-0 flex-1 flex-col gap-0 overflow-hidden">
           <h1 className="sr-only">Canvas</h1>
           <ToolStrip />
+          <ToolOptions />
           <div className="min-h-0 flex-1 overflow-y-auto">
             <EditPropertiesPanel />
           </div>

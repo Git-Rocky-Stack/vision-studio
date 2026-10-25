@@ -31,6 +31,8 @@ import {
   Trash2,
   Layers,
   Type,
+  Shapes,
+  PenTool,
 } from 'lucide-react';
 import type { Layer } from '@/types/editor';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
@@ -167,6 +169,14 @@ function SortableLayerRow({
         ) : layer.type === 'text' ? (
           <div className="w-full h-full flex items-center justify-center bg-elevated">
             <Type className="w-3 h-3 text-text-muted" />
+          </div>
+        ) : layer.type === 'shape' ? (
+          <div className="w-full h-full flex items-center justify-center bg-elevated">
+            {layer.data?.kind === 'path' ? (
+              <PenTool className="w-3 h-3 text-text-muted" />
+            ) : (
+              <Shapes className="w-3 h-3 text-text-muted" />
+            )}
           </div>
         ) : (
           <div className="w-full h-full bg-gradient-to-br from-elevated to-surface" />

@@ -103,6 +103,9 @@ import type {
   ImageAdjustments,
   EditStroke,
   EditFilterState,
+  RetouchStroke,
+  ShapeKind,
+  ShapeStyle,
 } from '@/types/editor';
 
 import type {
@@ -435,6 +438,25 @@ export interface AppState {
   editAiMaskTool: 'brush' | 'rectangle';
   editAiMaskBrushSize: number;
   editAiMaskDrawing: boolean;
+  /** Committed Clone Stamp / Heal strokes, in image pixels; part of undo state. */
+  editRetouchStrokes: RetouchStroke[];
+  /** Clone Stamp / Heal brush hardness and opacity, 0-1. Size is editBrushSize. */
+  editRetouchHardness: number;
+  editRetouchOpacity: number;
+  /** Alt+click sampling point, in image pixels. Null until one is set. */
+  editCloneSource: { x: number; y: number } | null;
+  /**
+   * Aligned sampling: the source-minus-destination offset fixed by the first
+   * stroke after a source is set, reused by later strokes until a new one.
+   */
+  editCloneOffset: { x: number; y: number } | null;
+  /** Shape tool: kind drawn by the next drag, and the style new shapes and paths get. */
+  editShapeKind: Exclude<ShapeKind, 'path'>;
+  editShapeStyle: ShapeStyle;
+  /** Pen tool: smooth curves through the anchors instead of straight segments. */
+  editPenSmooth: boolean;
+  /** Pen tool: anchors of the path being drawn, in image pixels. Null when idle. */
+  editPenDraft: number[] | null;
   generationDraft: GenerationDraft | null;
 
   // --- Batch View State ---------------------------------------------------
@@ -888,6 +910,16 @@ export interface AppState {
   setEditAiMaskTool: (tool: 'brush' | 'rectangle') => void;
   setEditAiMaskBrushSize: (size: number) => void;
   setEditAiMaskDrawing: (drawing: boolean) => void;
+  addRetouchStroke: (stroke: RetouchStroke) => void;
+  clearRetouchStrokes: () => void;
+  setEditRetouchHardness: (hardness: number) => void;
+  setEditRetouchOpacity: (opacity: number) => void;
+  setEditCloneSource: (point: { x: number; y: number } | null) => void;
+  setEditCloneOffset: (offset: { x: number; y: number } | null) => void;
+  setEditShapeKind: (kind: Exclude<ShapeKind, 'path'>) => void;
+  setEditShapeStyle: (style: Partial<ShapeStyle>) => void;
+  setEditPenSmooth: (smooth: boolean) => void;
+  setEditPenDraft: (points: number[] | null) => void;
 
   // Project CRUD
   createProject: (name: string, dimensions?: { width: number; height: number }) => Project;

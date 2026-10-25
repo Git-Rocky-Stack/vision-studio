@@ -13,6 +13,30 @@ cancel / Background Batch / ComfyUI-video / token-storage fixes (#93), the dev
 venv launch fix (#94) and the 41-item design pass (FINDING-001 to 041) that
 landed after 3.4.1.
 
+### Added
+- **Clone Stamp (S).** Alt+click to set a source, then paint to copy it under a
+  soft round brush. Sampling is aligned: the source follows the brush and later
+  strokes keep the same offset until a new Alt+click. Size, hardness and
+  opacity live in the new Tool options
+- **Heal (J).** A Poisson-blended healing brush: texture from the source,
+  colour and light from the pixels around the stroke, so the patch has no seam.
+  With no source set it spot-heals, picking the best-matching nearby
+  neighbourhood on its own. Large strokes solve from a coarse-grid seed, so a
+  typical dab heals in tens of milliseconds
+- **Retouching is non-destructive and undoable.** Clone and Heal strokes are
+  stored as paths and replayed (incrementally) over the base image, under the
+  adjustments, filters and layers; each is one undo step, Before/After shows
+  the original, and Clear retouching removes them all. Export carries them
+- **Shape (U)** draws rectangles, ellipses, lines and arrows (Shift for squares,
+  circles and 45-degree lines), and **Pen (P)** draws open or closed, straight
+  or smooth paths (click the first point to close; Enter or double-click to
+  finish; Backspace and Esc). Each is a layer with outline and fill that
+  selects, restyles, moves, scales, rotates and exports like text
+- **Tool options** under the tool strip: brush size and colour (the Brush tool
+  had neither control before), retouch hardness, opacity and source, shape kind
+  and style, and the Pen's Finish, Close and Cancel. [ and ] step the brush
+  size; the canvas shows the brush footprint and the clone source
+
 ### Security
 - **Every high advisory in the shipped and dev trees is cleared.** axios 1.20.0,
   zod 4.6.7, fast-uri 3.1.9 and follow-redirects 1.16.1 on the shipped path;
@@ -116,6 +140,13 @@ landed after 3.4.1.
   component, and route LEDs reflect real configuration
 
 ### Documentation
+- **The Canvas guides cover the new tools**: the in-app User Guide, the `?`
+  sheet, `docs/USER_GUIDE.md`, `docs/KEYBOARD_SHORTCUTS.md`, the README and
+  UAT rows CAN-15 to CAN-21
+- **npm 10 can update the lockfile again.** A vite 8 peer chain under vitest
+  crashed npm 10's resolver (`reading 'edgesOut'`); `overrides.vite: "$vite"`
+  stops it, npm 10 and 11 write identical lockfiles, and a new PR-gate
+  Lockfile job guards both. CONTRIBUTING documents the workflow
 - New [User Guide](docs/USER_GUIDE.md), [Troubleshooting](docs/TROUBLESHOOTING.md),
   [Keyboard shortcuts](docs/KEYBOARD_SHORTCUTS.md) and
   [UAT checklist](docs/UAT_CHECKLIST.md); dated audits and handoffs moved to

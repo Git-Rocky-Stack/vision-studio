@@ -5,6 +5,9 @@ import type {
   EditStroke,
   EditFilterState,
   EditStateSnapshot,
+  RetouchStroke,
+  ShapeKind,
+  ShapeStyle,
 } from '@/types/editor';
 import { DEFAULT_ADJUSTMENTS, DEFAULT_EDIT_FILTERS } from '@/types/editor';
 import type { RegionMask } from '@/types/project';
@@ -31,8 +34,19 @@ function createBaseImageLayer(imagePath: string, assetPath?: string | null): Lay
 export const EDIT_HISTORY_COALESCE_MS = 600;
 export const EDIT_HISTORY_LIMIT = 100;
 export const DEFAULT_EDIT_BRUSH_COLOR = '#e6e6e6';
+export const DEFAULT_EDIT_SHAPE_STYLE: ShapeStyle = {
+  stroke: '#e6e6e6',
+  strokeWidth: 4,
+  fill: '#e6e6e6',
+  fillEnabled: false,
+};
 
-type EditContent = Pick<AppState, 'editLayers' | 'imageAdjustments' | 'editStrokes' | 'editFilters'>;
+const clampUnit = (value: number) => Math.max(0, Math.min(1, value));
+
+type EditContent = Pick<
+  AppState,
+  'editLayers' | 'imageAdjustments' | 'editStrokes' | 'editRetouchStrokes' | 'editFilters'
+>;
 type EditStateFields = EditContent & Pick<AppState, 'editHistory' | 'editHistoryIndex'>;
 
 function snapshotOf(state: EditContent): EditStateSnapshot {
@@ -40,6 +54,7 @@ function snapshotOf(state: EditContent): EditStateSnapshot {
     layers: state.editLayers,
     adjustments: state.imageAdjustments,
     strokes: state.editStrokes,
+    retouch: state.editRetouchStrokes,
     filters: state.editFilters,
   };
 }
@@ -104,6 +119,7 @@ function restoreEntry(state: AppState, index: number): Partial<AppState> {
     editLayers: layers,
     imageAdjustments: entry.state.adjustments,
     editStrokes: entry.state.strokes,
+    editRetouchStrokes: entry.state.retouch ?? [],
     editFilters: entry.state.filters,
     selectedEditLayerId:
       state.selectedEditLayerId && layers.some((l) => l.id === state.selectedEditLayerId)
@@ -141,11 +157,22 @@ export const editInitialState = {
   editAiMaskTool: 'brush' as 'brush' | 'rectangle',
   editAiMaskBrushSize: 40,
   editAiMaskDrawing: false,
+  editRetouchStrokes: [] as RetouchStroke[],
+  editRetouchHardness: 0.6,
+  editRetouchOpacity: 1,
+  editCloneSource: null as { x: number; y: number } | null,
+  editCloneOffset: null as { x: number; y: number } | null,
+  editShapeKind: 'rectangle' as Exclude<ShapeKind, 'path'>,
+  editShapeStyle: { ...DEFAULT_EDIT_SHAPE_STYLE } as ShapeStyle,
+  editPenSmooth: false,
+  editPenDraft: null as number[] | null,
 };
 
 export function createEditActions(set: AppSet, _get: AppGet) {
   return {
-    setActiveEditTool: (tool: AppState['activeEditTool']) => set({ activeEditTool: tool }),
+    // Leaving the Pen tool abandons an unfinished path.
+    setActiveEditTool: (tool: AppState['activeEditTool']) =>
+      set(tool === 'pen' ? { activeEditTool: tool } : { activeEditTool: tool, editPenDraft: null }),
     addEditLayer: (layer: Layer, historyLabel?: string) =>
       set((state) => {
         const editLayers = [...state.editLayers, layer];
@@ -216,6 +243,46 @@ export function createEditActions(set: AppSet, _get: AppGet) {
           ...recordEditHistory(state, { ...state, editStrokes }, 'Clear strokes'),
         };
       }),
+    addRetouchStroke: (stroke: RetouchStroke) =>
+      set((state) => {
+        const editRetouchStrokes = [...state.editRetouchStrokes, stroke];
+        return {
+          editRetouchStrokes,
+          ...recordEditHistory(
+            state,
+            { ...state, editRetouchStrokes },
+            stroke.tool === 'clone' ? 'Clone Stamp stroke' : stroke.offset ? 'Heal stroke' : 'Spot heal stroke',
+          ),
+        };
+      }),
+    clearRetouchStrokes: () =>
+      set((state) => {
+        if (state.editRetouchStrokes.length === 0) return state;
+        const editRetouchStrokes: RetouchStroke[] = [];
+        return {
+          editRetouchStrokes,
+          ...recordEditHistory(state, { ...state, editRetouchStrokes }, 'Clear retouching'),
+        };
+      }),
+    setEditRetouchHardness: (hardness: number) => set({ editRetouchHardness: clampUnit(hardness) }),
+    setEditRetouchOpacity: (opacity: number) => set({ editRetouchOpacity: clampUnit(opacity) }),
+    // A new source restarts aligned sampling: the next stroke fixes the offset.
+    setEditCloneSource: (point: { x: number; y: number } | null) =>
+      set({ editCloneSource: point, editCloneOffset: null }),
+    setEditCloneOffset: (offset: { x: number; y: number } | null) => set({ editCloneOffset: offset }),
+    setEditShapeKind: (kind: Exclude<ShapeKind, 'path'>) => set({ editShapeKind: kind }),
+    setEditShapeStyle: (style: Partial<ShapeStyle>) =>
+      set((state) => ({
+        editShapeStyle: {
+          ...state.editShapeStyle,
+          ...style,
+          ...(style.strokeWidth !== undefined
+            ? { strokeWidth: Math.max(0, Math.min(100, style.strokeWidth)) }
+            : {}),
+        },
+      })),
+    setEditPenSmooth: (smooth: boolean) => set({ editPenSmooth: smooth }),
+    setEditPenDraft: (points: number[] | null) => set({ editPenDraft: points }),
     setEditFilters: (filters: Partial<EditFilterState>) =>
       set((state) => {
         const editFilters = { ...state.editFilters, ...filters };
@@ -231,7 +298,8 @@ export function createEditActions(set: AppSet, _get: AppGet) {
         };
       }),
     setEditBrushColor: (color: string) => set({ editBrushColor: color }),
-    setEditBrushSize: (size: number) => set({ editBrushSize: Math.max(1, Math.min(200, size)) }),
+    setEditBrushSize: (size: number) =>
+      set({ editBrushSize: Math.round(Math.max(1, Math.min(400, size))) }),
     setEditCompareOriginal: (on: boolean) => set({ editCompareOriginal: on }),
     pushEditHistory: (entry: EditHistoryEntry) =>
       set((state) => {
@@ -277,6 +345,10 @@ export function createEditActions(set: AppSet, _get: AppGet) {
         imageAdjustments: { ...DEFAULT_ADJUSTMENTS },
         // Strokes and filters belong to the old image's pixel space and look.
         editStrokes: [],
+        editRetouchStrokes: [],
+        editCloneSource: null,
+        editCloneOffset: null,
+        editPenDraft: null,
         editFilters: { ...DEFAULT_EDIT_FILTERS },
         editCompareOriginal: false,
         editAiMask: null,

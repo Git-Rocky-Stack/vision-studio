@@ -413,10 +413,32 @@ you just generated, or any image from **Assets** with **Open in viewer** - and
 click **Send to Edit**. For a video, **Extract to Edit** takes the current frame.
 
 - **Tool strip** (left): Move (V), Scale (T), Crop (C), Rotate (R); Brush (B),
-  Eraser (E); Text (X); Hand (H), Zoom (Z), Eyedropper (I). Hover a tool to see
-  its key. The keys work whenever the Canvas tab is open and you are not typing
-  in a field. Clone Stamp, Heal, Shape and Pen are shown but marked *Not
-  available yet*, and have no key.
+  Eraser (E), Clone Stamp (S), Heal (J); Text (X), Shape (U), Pen (P); Hand
+  (H), Zoom (Z), Eyedropper (I). Hover a tool to see its key. The keys work
+  whenever the Canvas tab is open and you are not typing in a field.
+- **Tool options** (under the tool strip): the settings for the active tool.
+  Brush and Eraser have size and colour; Clone Stamp and Heal have size,
+  hardness, opacity and the sampling source; Shape and Pen have outline colour
+  and width, fill, and the shape kind or Smooth curves. [ and ] step the brush
+  size for Brush, Eraser, Clone Stamp and Heal.
+- **Clone Stamp**: Alt+click the image to set the source, then paint to copy
+  it. The source moves with the brush, so later strokes keep the same offset
+  until you Alt+click a new one.
+- **Heal**: paint over a blemish, dust or a small object. Heal finds matching
+  texture nearby and blends it into the colour and light around the stroke (a
+  spot heal). Alt+click first to heal from a source you choose. Retouching
+  changes the image's own pixels, under the adjustments, filters, text and
+  shapes. Each stroke is one undo step, Before/After shows the image without
+  it, and **Clear retouching** removes all of it.
+- **Shape**: choose Rectangle, Ellipse, Line or Arrow in Tool options and drag
+  on the image. Shift makes a square or circle, or snaps a line to 45 degrees.
+- **Pen**: click to place points. Click the first point to close the shape;
+  double-click or press Enter to finish an open path. Backspace removes the
+  last point, Esc cancels. Smooth curves rounds the corners.
+- Each shape and path is its own layer in **Layers**, with an outline and an
+  optional fill. Select one and Tool options restyle it; Move, Scale and Rotate
+  transform it. Shapes, paths, text and brush strokes are part of the exported
+  image.
 - **Inspector** tabs: **Adjust** (exposure, contrast, colour and detail
   sliders), **Filters**, **Crop**, **Text**, **AI Tools**, **Control** (ControlNet
   layers) and **Region** (region locks and masks). On **Control** and **Region**
@@ -552,7 +574,11 @@ where each key is active, is [`KEYBOARD_SHORTCUTS.md`](./KEYBOARD_SHORTCUTS.md).
 | Anywhere | Ctrl+Y / Cmd+Y, or Ctrl+Shift+Z / Cmd+Shift+Z | Redo |
 | Navigation bar | Arrow keys, Home, End | Move between workspace tabs |
 | Canvas tab | V T C R | Move, Scale, Crop, Rotate |
-| Canvas tab | B E X | Brush, Eraser, Text |
+| Canvas tab | B E S J | Brush, Eraser, Clone Stamp, Heal |
+| Canvas tab | X U P | Text, Shape, Pen |
+| Canvas tab | [ / ] | Smaller / larger brush (Brush, Eraser, Clone Stamp, Heal) |
+| Canvas tab (Clone Stamp, Heal) | Alt+click | Set the source |
+| Canvas tab (Pen) | Enter, Backspace, Esc | Finish the path, remove the last point, cancel |
 | Canvas tab | H Z I | Hand, Zoom, Eyedropper |
 | Canvas tab | Scroll | Zoom |
 | Canvas tab (Zoom tool) | Click / Shift+click | Zoom in / zoom out |

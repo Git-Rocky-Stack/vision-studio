@@ -79,7 +79,8 @@ describe('User Guide accuracy', () => {
     const text = textOf(<CanvasGuideSection />);
     const toolNames: Record<string, string> = {
       move: 'Move', scale: 'Scale', crop: 'Crop', rotate: 'Rotate', brush: 'Brush',
-      eraser: 'Eraser', text: 'Text', hand: 'Hand', zoom: 'Zoom', eyedropper: 'Eyedropper',
+      eraser: 'Eraser', clone: 'Clone Stamp', heal: 'Heal', text: 'Text', shape: 'Shape',
+      pen: 'Pen', hand: 'Hand', zoom: 'Zoom', eyedropper: 'Eyedropper',
     };
     for (const [key, tool] of Object.entries(EDIT_TOOL_SHORTCUTS)) {
       expect(text).toContain(`${toolNames[tool]} (${key.toUpperCase()})`);
@@ -87,8 +88,9 @@ describe('User Guide accuracy', () => {
     for (const key of Object.keys(REGION_TOOL_SHORTCUTS)) {
       expect(text).toMatch(new RegExp(`\\(${key.toUpperCase()}\\)`));
     }
-    expect(text).toMatch(/Clone Stamp and Heal are shown but not available yet/);
-    expect(text).toMatch(/Shape and Pen are shown but not available yet/);
+    expect(text).not.toMatch(/not available yet/);
+    expect(text).toMatch(/Alt\+click to set the source/);
+    expect(text).toMatch(/Click the first point to close the\s+shape/);
   });
 
   it('does not promise canvas drop, layer context menus, or Spacebar panning', () => {

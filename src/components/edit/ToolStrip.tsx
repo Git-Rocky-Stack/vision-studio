@@ -10,11 +10,11 @@ import {
   RotateCw,
   Paintbrush,
   Eraser,
-  Copy,
-  Heart,
+  Stamp,
+  Bandage,
   Type,
-  Square,
-  Pen,
+  Shapes,
+  PenTool,
   Hand,
   ZoomIn,
   Pipette,
@@ -24,12 +24,8 @@ interface ToolDef {
   id: EditTool;
   icon: React.ElementType;
   label: string;
-  shortcut?: string;
-  /** Not implemented on the canvas yet: rendered disabled, never selectable. */
-  unavailable?: boolean;
+  shortcut: string;
 }
-
-export const UNAVAILABLE_TOOL_TOOLTIP = 'Not available yet';
 
 const toolGroups: ToolDef[][] = [
   // Selection & Transform
@@ -43,14 +39,14 @@ const toolGroups: ToolDef[][] = [
   [
     { id: 'brush', icon: Paintbrush, label: 'Brush', shortcut: 'B' },
     { id: 'eraser', icon: Eraser, label: 'Eraser', shortcut: 'E' },
-    { id: 'clone', icon: Copy, label: 'Clone Stamp', unavailable: true },
-    { id: 'heal', icon: Heart, label: 'Heal', unavailable: true },
+    { id: 'clone', icon: Stamp, label: 'Clone Stamp', shortcut: 'S' },
+    { id: 'heal', icon: Bandage, label: 'Heal', shortcut: 'J' },
   ],
   // Shapes & Text
   [
     { id: 'text', icon: Type, label: 'Text', shortcut: 'X' },
-    { id: 'shape', icon: Square, label: 'Shape', unavailable: true },
-    { id: 'pen', icon: Pen, label: 'Pen', unavailable: true },
+    { id: 'shape', icon: Shapes, label: 'Shape', shortcut: 'U' },
+    { id: 'pen', icon: PenTool, label: 'Pen', shortcut: 'P' },
   ],
   // Navigation
   [
@@ -78,24 +74,20 @@ export const ToolStrip = memo(function ToolStrip() {
         <div key={groupIdx} role="group" className="flex items-center gap-1">
           {group.map((tool) => {
             const Icon = tool.icon;
-            const isActive = !tool.unavailable && activeEditTool === tool.id;
-            const name = tool.shortcut ? `${tool.label} (${tool.shortcut})` : tool.label;
-            const tooltip = tool.unavailable ? `${tool.label}: ${UNAVAILABLE_TOOL_TOOLTIP}` : name;
+            const isActive = activeEditTool === tool.id;
+            const name = `${tool.label} (${tool.shortcut})`;
             return (
-              <Tooltip key={tool.id} content={tooltip} placement="bottom">
+              <Tooltip key={tool.id} content={name} placement="bottom">
                 <button
                   type="button"
-                  onClick={tool.unavailable ? undefined : () => setActiveEditTool(tool.id)}
-                  aria-label={tool.unavailable ? `${tool.label} (${UNAVAILABLE_TOOL_TOOLTIP})` : name}
+                  onClick={() => setActiveEditTool(tool.id)}
+                  aria-label={name}
                   aria-pressed={isActive}
-                  aria-disabled={tool.unavailable || undefined}
                   className={cn(
                     'flex h-10 w-10 items-center justify-center rounded-md transition-colors',
-                    tool.unavailable
-                      ? 'cursor-not-allowed text-text-muted opacity-40'
-                      : isActive
-                        ? 'bg-accent-primary-muted text-accent-primary'
-                        : 'text-text-body hover:bg-elevated hover:text-text-primary'
+                    isActive
+                      ? 'bg-accent-primary-muted text-accent-primary'
+                      : 'text-text-body hover:bg-elevated hover:text-text-primary'
                   )}
                 >
                   <Icon className="h-4 w-4" aria-hidden="true" />

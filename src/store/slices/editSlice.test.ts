@@ -208,3 +208,72 @@ describe('edit undo/redo restores state', () => {
     expect(useAppStore.getState().editHistory).toEqual([]);
   });
 });
+
+describe('retouch, shape and pen state', () => {
+  const retouch = {
+    id: 'r1',
+    tool: 'heal' as const,
+    points: [10, 10],
+    size: 20,
+    hardness: 0.5,
+    opacity: 1,
+    offset: null,
+  };
+
+  beforeEach(() => {
+    resetStore();
+    useAppStore.getState().setCurrentImage('img.png', 'C:/img.png');
+  });
+
+  it('records retouch strokes in history and restores them on undo/redo', () => {
+    useAppStore.getState().addRetouchStroke(retouch);
+    expect(useAppStore.getState().editHistory.at(-1)?.action).toBe('Spot heal stroke');
+    useAppStore.getState().undo();
+    expect(useAppStore.getState().editRetouchStrokes).toEqual([]);
+    useAppStore.getState().redo();
+    expect(useAppStore.getState().editRetouchStrokes).toEqual([retouch]);
+    useAppStore.getState().clearRetouchStrokes();
+    expect(useAppStore.getState().editRetouchStrokes).toEqual([]);
+    useAppStore.getState().undo();
+    expect(useAppStore.getState().editRetouchStrokes).toEqual([retouch]);
+  });
+
+  it('labels clone and source heal strokes', () => {
+    useAppStore.getState().addRetouchStroke({ ...retouch, tool: 'clone', offset: { x: 1, y: 1 } });
+    expect(useAppStore.getState().editHistory.at(-1)?.action).toBe('Clone Stamp stroke');
+    useAppStore.getState().addRetouchStroke({ ...retouch, offset: { x: 1, y: 1 } });
+    expect(useAppStore.getState().editHistory.at(-1)?.action).toBe('Heal stroke');
+  });
+
+  it('restarts aligned sampling when a new source is set', () => {
+    useAppStore.getState().setEditCloneSource({ x: 1, y: 2 });
+    useAppStore.getState().setEditCloneOffset({ x: 5, y: 5 });
+    useAppStore.getState().setEditCloneSource({ x: 9, y: 9 });
+    expect(useAppStore.getState().editCloneOffset).toBeNull();
+  });
+
+  it('clamps hardness, opacity, brush size and outline width', () => {
+    const state = useAppStore.getState();
+    state.setEditRetouchHardness(2);
+    state.setEditRetouchOpacity(-1);
+    state.setEditBrushSize(1000);
+    state.setEditShapeStyle({ strokeWidth: 500 });
+    const next = useAppStore.getState();
+    expect(next.editRetouchHardness).toBe(1);
+    expect(next.editRetouchOpacity).toBe(0);
+    expect(next.editBrushSize).toBe(400);
+    expect(next.editShapeStyle.strokeWidth).toBe(100);
+  });
+
+  it('keeps retouching, sources and pen drafts out of the next image', () => {
+    const state = useAppStore.getState();
+    state.addRetouchStroke(retouch);
+    state.setEditCloneSource({ x: 1, y: 2 });
+    state.setEditPenDraft([0, 0]);
+    state.setCurrentImage('next.png', 'C:/next.png');
+    const next = useAppStore.getState();
+    expect(next.editRetouchStrokes).toEqual([]);
+    expect(next.editCloneSource).toBeNull();
+    expect(next.editPenDraft).toBeNull();
+  });
+});

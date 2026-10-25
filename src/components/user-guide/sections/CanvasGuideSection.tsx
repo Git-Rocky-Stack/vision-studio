@@ -40,6 +40,11 @@ export function CanvasGuideSection() {
               'Tools are grouped into Selection & Transform, Drawing, Shapes & Text, and Navigation (see the tour below). Hover a tool to see its keyboard shortcut, or press the letter while the Canvas tab is open.',
           },
           {
+            title: 'Set the tool in Tool options',
+            description:
+              'Brush, Eraser, Clone Stamp, Heal, Shape, and Pen show their settings under the tool strip: size, colour, hardness, opacity, shape kind, outline and fill. [ and ] step the brush size for the painting and retouch tools.',
+          },
+          {
             title: 'Adjust the image in the Properties panel',
             description:
               'The Properties panel has Adjust, Filters, Crop, Text, AI Tools, Control, and Region tabs. Layer opacity and blend mode are set on each row in the Layers panel.',
@@ -65,12 +70,12 @@ export function CanvasGuideSection() {
               (R), for repositioning, resizing, cropping, and rotating.
             </span>,
             <span>
-              <strong>Drawing</strong>: Brush (B), Eraser (E), for painting and erasing strokes.
-              Clone Stamp and Heal are shown but not available yet.
+              <strong>Drawing</strong>: Brush (B), Eraser (E), Clone Stamp (S), and Heal (J), for
+              painting, erasing, and retouching the image.
             </span>,
             <span>
-              <strong>Shapes &amp; Text</strong>: Text (X), for adding text on top of the image.
-              Shape and Pen are shown but not available yet.
+              <strong>Shapes &amp; Text</strong>: Text (X), Shape (U), and Pen (P), for text,
+              rectangles, ellipses, lines, arrows, and freeform paths on top of the image.
             </span>,
             <span>
               <strong>Navigation</strong>: Hand (H) to drag the view, Zoom (Z) to click in
@@ -80,6 +85,54 @@ export function CanvasGuideSection() {
             <span>
               While the Control or Region tab is open, the letters switch to the mask tools:
               Select (V), Rectangle (R), Lasso (L), Brush (B), Eraser (E), and Invert mask (I).
+            </span>,
+          ]}
+        />
+      </GuideCallout>
+
+      <GuideCallout title="Retouching: Clone Stamp and Heal" tone="info">
+        <GuideList
+          items={[
+            <span>
+              <strong>Clone Stamp (S)</strong> copies one part of the image over another.
+              Alt+click to set the source, then paint. The source follows the brush, so later
+              strokes keep the same distance from it until you Alt+click a new one.
+            </span>,
+            <span>
+              <strong>Heal (J)</strong> removes blemishes, dust, and small objects. Paint over the
+              spot and Heal finds matching texture nearby, then blends it into the colour and light
+              around the stroke. Alt+click first to heal from a source you choose instead.
+            </span>,
+            <span>
+              Size, Hardness, and Opacity are in Tool options. Retouching changes the image's own
+              pixels, under the adjustments, filters, text, and shapes; every stroke is one undo
+              step, and Before/After shows the image without it. Clear retouching removes all of it
+              at once.
+            </span>,
+            <span>
+              Retouching needs readable pixels. An image the app cannot read back shows a notice
+              instead of painting.
+            </span>,
+          ]}
+        />
+      </GuideCallout>
+
+      <GuideCallout title="Shapes and Paths" tone="info">
+        <GuideList
+          items={[
+            <span>
+              <strong>Shape (U)</strong>: pick Rectangle, Ellipse, Line, or Arrow in Tool options,
+              then drag on the image. Hold Shift for a square, a circle, or a 45-degree line.
+            </span>,
+            <span>
+              <strong>Pen (P)</strong>: click to place points. Click the first point to close the
+              shape; double-click or press Enter to finish an open path. Backspace removes the last
+              point and Esc cancels. Turn on Smooth curves for flowing lines instead of corners.
+            </span>,
+            <span>
+              Every shape and path is its own layer with an outline colour and width and an
+              optional fill. Select one and the Tool options restyle it; switch to Move, Scale, or
+              Rotate to transform it.
             </span>,
           ]}
         />

@@ -63,14 +63,31 @@ The Canvas edit history holds up to 100 steps; quick repeats of the same edit
 | R | Rotate tool | Canvas tab, region mode off | `src/features/edit/useEditToolShortcuts.ts` |
 | B | Brush tool | Canvas tab, region mode off | `src/features/edit/useEditToolShortcuts.ts` |
 | E | Eraser tool | Canvas tab, region mode off | `src/features/edit/useEditToolShortcuts.ts` |
+| S | Clone Stamp tool | Canvas tab, region mode off | `src/features/edit/useEditToolShortcuts.ts` |
+| J | Heal tool | Canvas tab, region mode off | `src/features/edit/useEditToolShortcuts.ts` |
 | X | Text tool | Canvas tab, region mode off | `src/features/edit/useEditToolShortcuts.ts` |
+| U | Shape tool | Canvas tab, region mode off | `src/features/edit/useEditToolShortcuts.ts` |
+| P | Pen tool | Canvas tab, region mode off | `src/features/edit/useEditToolShortcuts.ts` |
 | H | Hand tool (drag to pan) | Canvas tab, region mode off | `src/features/edit/useEditToolShortcuts.ts` |
 | Z | Zoom tool (click to zoom in, Shift+click to zoom out) | Canvas tab, region mode off | `src/features/edit/useEditToolShortcuts.ts`, `src/components/edit/EditCanvas.tsx` |
 | I | Eyedropper tool | Canvas tab, region mode off | `src/features/edit/useEditToolShortcuts.ts` |
 | Mouse wheel | Zoom the editor view | Over the Canvas tab editor, any tool | `src/components/edit/EditCanvas.tsx` |
 
-The letter keys do nothing with Ctrl, Cmd or Alt held. Clone Stamp, Heal, Shape
-and Pen are shown in the tool strip but are not available yet, and have no key.
+The letter keys do nothing with Ctrl, Cmd or Alt held.
+
+### Tool keys (Canvas tab)
+
+| Keys | Action | Where it works | Source |
+| --- | --- | --- | --- |
+| [ / ] | Make the brush smaller / larger (1 px steps below 10 px, then 5, 10 and 25) | Brush, Eraser, Clone Stamp and Heal | `src/features/edit/useEditToolShortcuts.ts` |
+| Alt+click | Set the Clone Stamp / Heal source | Clone Stamp or Heal, on the image | `src/components/edit/EditCanvas.tsx` |
+| Shift+drag | Square rectangle, circle, or a line snapped to 45 degrees | Shape tool | `src/features/edit/shapeLayers.ts` |
+| Click the first point | Close the path | Pen tool, three or more points | `src/components/edit/EditCanvas.tsx` |
+| Enter / double-click | Finish an open path | Pen tool, two or more points | `src/features/edit/useEditToolShortcuts.ts`, `src/components/edit/EditCanvas.tsx` |
+| Backspace / Delete | Remove the last point | Pen tool, while drawing a path | `src/features/edit/useEditToolShortcuts.ts` |
+| Esc | Cancel the path | Pen tool, while drawing a path | `src/features/edit/useEditToolShortcuts.ts` |
+
+Picking another tool also abandons an unfinished Pen path.
 
 ### Region mask tools (Canvas tab, Control or Region tab open)
 

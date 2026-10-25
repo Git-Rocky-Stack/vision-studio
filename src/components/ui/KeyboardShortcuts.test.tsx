@@ -66,8 +66,11 @@ describe('KeyboardShortcuts', () => {
       expect(screen.getAllByText('Redo edit').length).toBeGreaterThanOrEqual(1);
       expect(screen.getAllByText('Brush tool').length).toBeGreaterThanOrEqual(1);
       expect(screen.getAllByText('Eyedropper tool').length).toBeGreaterThanOrEqual(1);
-      // Unimplemented tools have no binding, so the sheet does not claim one.
-      expect(screen.queryByText(/clone/i)).toBeNull();
+      for (const label of ['Clone Stamp tool', 'Heal tool', 'Shape tool', 'Pen tool']) {
+        expect(screen.getAllByText(label).length).toBeGreaterThanOrEqual(1);
+      }
+      expect(screen.getAllByText('Pen: finish an open path').length).toBeGreaterThanOrEqual(1);
+      expect(screen.getAllByText('Clone Stamp, Heal: set the source').length).toBeGreaterThanOrEqual(1);
     });
   });
 
