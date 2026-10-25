@@ -2,11 +2,21 @@
 
 > Authoritative entry point for the documentation. Start here.
 
+## Using the app
+
+| Document | What it covers |
+|----------|----------------|
+| [`USER_GUIDE.md`](./USER_GUIDE.md) | Install, the first-run model setup, picking models in the Foundry, your first image, hosted routes with your own key, every workspace tab, keyboard shortcuts, and what goes online. **Start here if you use the app.** |
+| [`TROUBLESHOOTING.md`](./TROUBLESHOOTING.md) | Backend offline, GPU not detected, out of memory, gated downloads, disk space, key verification, export errors, ComfyUI, unsigned-installer warnings, and where the logs are. |
+| [`UAT_CHECKLIST.md`](./UAT_CHECKLIST.md) | The pass/fail acceptance matrix for a release candidate, per platform, with defect-logging rules and exit criteria. |
+
+The app also carries its own guide under **Settings > User Guide**.
+
 ## Core reference
 
 | Document | What it covers |
 |----------|----------------|
-| [`ARCHITECTURE.md`](./ARCHITECTURE.md) | Process model, source layout, frontend/main/backend stack, data flows, persistence, security, build, release, testing. **Start here.** |
+| [`ARCHITECTURE.md`](./ARCHITECTURE.md) | Process model, source layout, frontend/main/backend stack, data flows, persistence, security, build, release, testing. **Start here if you work on the code.** |
 | [`API_ENDPOINTS.md`](./API_ENDPOINTS.md) | Complete reference for the three API surfaces: Electron IPC (`window.electron.*`), backend REST + WebSocket, OpenRouter integration. |
 | [`DATABASE_SCHEMA.md`](./DATABASE_SCHEMA.md) | SQLite schema, ER diagram, migration runner, how to add a migration safely. |
 | [`api/openapi.json`](./api/openapi.json) | Machine-readable OpenAPI 3.0 spec for the backend REST API. Pair with Swagger UI / Redoc / OpenAPI Generator. |
@@ -66,6 +76,11 @@ saying so.
 
 ## Reading order by role
 
+**Using or testing the app**
+1. `USER_GUIDE.md`
+2. `TROUBLESHOOTING.md` when something does not behave as described
+3. `UAT_CHECKLIST.md` for a release-candidate pass
+
 **Joining the team / first-time orientation**
 1. `../README.md` (≤ 10 min)
 2. `ARCHITECTURE.md` end-to-end (≤ 30 min)
@@ -92,6 +107,7 @@ saying so.
 1. `../BUNDLING.md` and `../DEPLOYMENT.md`.
 2. `ARCHITECTURE.md §9 + §11` (build pipeline + release flow diagram).
 3. `code-signing.md` and `R2-DELIVERY.md`.
+4. `UAT_CHECKLIST.md` before the release goes out.
 
 ---
 

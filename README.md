@@ -92,6 +92,7 @@ A professional AI-powered desktop application for image and video generation. No
 4. On first launch, install the one-click starter set (33 models, about 137 GB) or skip it and download only the models you want through the in-app **Foundry** (~2-24 GB per model, consent-gated) - then start creating
 5. **FLUX.1 [dev] and LTX Video are not in the starter set.** Their licences do not allow Vision Studio to install them for you, so FLUX.1 [dev] (with its Fill, ControlNet Union and IP-Adapter companions) and LTX Video are manual downloads: search for them in **Foundry > Discover**, accept each licence on Hugging Face when the Foundry shows **Accept license**, and add your Hugging Face token at the top of the Foundry. The two Stable Diffusion 3.5 models *are* in the set, but are gated too - they need the same token and licence acceptance
 
+New to the app? The [User Guide](docs/USER_GUIDE.md) walks through install, first run, your first image and everything after it.
 
 ### Option 2: Build from Source
 
@@ -277,7 +278,7 @@ vision-studio/
 - Windows 11 / macOS 14 / Ubuntu 24.04
 - NVIDIA GPU with 8GB+ VRAM, or Apple M-series (runs on Metal/MPS)
 - 16 GB RAM
-- 50 GB free disk space (for model weights)
+- 150 GB free disk space to install the full first-run model set (about 137 GB); a few models need far less
 
 macOS builds are **Apple Silicon (arm64) only** - PyTorch dropped macOS x64
 wheels at 2.3 - and need **macOS 14 or later**: the release is built on
@@ -323,6 +324,9 @@ ws://127.0.0.1:8000/ws?token=<token>
 ```
 
 ## Troubleshooting
+
+The common cases are below; [`docs/TROUBLESHOOTING.md`](docs/TROUBLESHOOTING.md)
+covers the rest, including where the logs are.
 
 ### "Backend not found"
 - The bundled backend unpacks itself to a temporary folder each time it starts, which can take several minutes; restart the app and give it time, or start it from **Settings > AI & Models**
@@ -387,6 +391,18 @@ numbers, because they change with nearly every pull request.
 | Backend benchmarks (opt-in) | pytest-benchmark | `cd backend && python -m pytest tests/benchmarks -o addopts="" --benchmark-only --collect-only -q` | Excluded from the default run by `backend/pytest.ini`; needs the GPU/model stack |
 
 ## Documentation
+
+### Getting help
+
+| Doc | What it covers |
+|-----|----------------|
+| [`docs/USER_GUIDE.md`](docs/USER_GUIDE.md) | Install, first-run model setup, the Foundry, your first image, hosted routes with your own key, every workspace, shortcuts, and what goes online |
+| [`docs/TROUBLESHOOTING.md`](docs/TROUBLESHOOTING.md) | Backend offline, GPU not detected, out of memory, gated downloads, disk space, key verification, export errors, ComfyUI, unsigned-installer warnings, logs |
+| [`docs/UAT_CHECKLIST.md`](docs/UAT_CHECKLIST.md) | The release-candidate acceptance matrix, per platform |
+
+The app also has a built-in guide under **Settings > User Guide**.
+
+### Technical documentation
 
 Full technical documentation lives in [`docs/`](docs/). Start with the index:
 

@@ -30,7 +30,11 @@ Please include:
 - What an attacker gains - code execution, file read/write outside the app,
   credential disclosure, or bypass of a consent gate
 - Reproduction steps or a proof of concept
-- Any logs from **Settings -> Diagnostics** (redact paths and tokens first)
+- Any relevant logs (redact paths and tokens first). The backend writes
+  `logs/backend.log` inside the app's user-data folder (`%APPDATA%\vision-studio`
+  on Windows, `~/Library/Application Support/vision-studio` on macOS,
+  `~/.config/vision-studio` on Linux); see
+  [`docs/TROUBLESHOOTING.md`](docs/TROUBLESHOOTING.md#where-the-logs-are)
 
 You will get an acknowledgement within **72 hours** and an assessment with a
 fix timeline within **7 days**. We will tell you plainly if we consider a
