@@ -1,5 +1,9 @@
 # WCAG 2.1 AA Accessibility Audit
 
+> **Historical design record - 2026-04-18.** Describes intent and findings at that
+> date, not current behaviour. See `docs/INDEX.md` for what is authoritative.
+> It is a point-in-time audit: findings it lists as open may since have been fixed, and figures it quotes (test counts, file counts, line numbers) are as of that date. Formerly `docs/accessibility-audit-2026-04-18.md`.
+
 **Application:** Vision Studio (Electron + React desktop app)
 **Date:** 2026-04-18
 **Auditor:** Claude (Automated + Manual Code Review)

@@ -1,5 +1,9 @@
 # Vision Studio Comprehensive Audit - 2026-06-03
 
+> **Historical design record - 2026-06-03.** Describes intent and findings at that
+> date, not current behaviour. See `docs/INDEX.md` for what is authoritative.
+> It is a point-in-time audit: findings it lists as open may since have been fixed, and figures it quotes (test counts, file counts, line numbers) are as of that date. Formerly `docs/comprehensive-audit-2026-06-03.md`.
+
 ## Executive Summary
 
 Vision Studio is in a materially strong engineering state at the TypeScript, renderer, and Electron architecture layers. The app has a large test suite, a clean production build, strict TypeScript settings, disciplined Electron hardening, and meaningful unit/component coverage across the core creative workflows.

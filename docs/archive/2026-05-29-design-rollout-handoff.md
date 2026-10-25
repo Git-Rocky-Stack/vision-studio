@@ -1,5 +1,11 @@
 # Carbon Pro Hardware-Language Rollout — Handoff
 
+> **Historical design record - 2026-05-29.** Describes intent and findings at that
+> date, not current behaviour. See `docs/INDEX.md` for what is authoritative.
+> It is a session handoff note: branch names, commit hashes and "next steps" are as of that date. Formerly `DESIGN_ROLLOUT_HANDOFF.md`.
+>
+> The design system it rolled out is documented in `DESIGN.md`, which is authoritative.
+
 Status as of 2026-05-29. The **foundation is complete and shipped green** (full suite 135 files / 1201 tests, typecheck, build all passed in a prior verified run). This file tracks the per-surface rollout that continues on top of it.
 
 ## Foundation (DONE, verified)

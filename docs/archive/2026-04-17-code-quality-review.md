@@ -1,5 +1,9 @@
 # Code Quality Review — 2026-04-17
 
+> **Historical design record - 2026-04-17.** Describes intent and findings at that
+> date, not current behaviour. See `docs/INDEX.md` for what is authoritative.
+> It is a point-in-time audit: findings it lists as open may since have been fixed, and figures it quotes (test counts, file counts, line numbers) are as of that date. Formerly `docs/code-quality-review-2026-04-17.md`.
+
 **Scope:** Last 5 commits (workflow feature: graph editor, comfy export, workbench)  
 **Files:** 10 changed, ~1,347 insertions, ~207 deletions  
 **Reviewer:** Automated quality analysis  

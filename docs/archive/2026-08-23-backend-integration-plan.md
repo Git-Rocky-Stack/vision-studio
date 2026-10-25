@@ -1,5 +1,11 @@
 # Vision Studio - Python Backend Integration Plan
 
+> **Historical design record - 2026-08-23.** Describes intent and findings at that
+> date, not current behaviour. See `docs/INDEX.md` for what is authoritative.
+> It is a plan: it records what was intended, which may have shipped differently or not at all. Formerly `BACKEND_PLAN.md`.
+>
+> The plan carries no date of its own. 2026-08-23 is the earliest commit in the available repository history that contains it, so the plan itself is older than that. The backend as built is described in `docs/ARCHITECTURE.md`.
+
 ## Overview
 
 This document outlines the plan for integrating the Python AI backend for image and video generation.

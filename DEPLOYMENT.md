@@ -2,8 +2,12 @@
 
 How Vision Studio is built, packaged, and delivered for Windows, macOS, and Linux.
 
-Current version in the tree: **v3.4.1**; the most recent tagged GitHub release is
-**v3.4.0**. Version history lives in [`CHANGELOG.md`](CHANGELOG.md).
+The version in the tree is whatever `package.json` says (the README's "Current
+release" line is pinned to it by `tests/version-sync.test.ts`). Which versions
+have been tagged and published is a fact about GitHub, not about this file:
+list the `v*` tags or see the
+[releases page](https://github.com/Git-Rocky-Stack/vision-studio/releases).
+Version history lives in [`CHANGELOG.md`](CHANGELOG.md).
 
 ## Heavy-by-design: one build shape
 
@@ -31,8 +35,13 @@ Intel build would ship without its backend.
 
 - [ ] Work is merged to `main` and green (`npm run typecheck`, `npm test`, `npm run build`)
 - [ ] Bump the version in lockstep: `npm version X.Y.Z --no-git-tag-version`
-      (updates `package.json` + `package-lock.json`), then `scripts/installer.iss`
-      (`MyAppVersion`) and add a `CHANGELOG.md` entry
+      (updates `package.json` + `package-lock.json`) and add a `CHANGELOG.md`
+      entry. `package.json` is the single source: electron-builder reads it, and
+      `scripts/build-windows.cjs` passes it to Inno Setup as
+      `/DMyAppVersion=<version>`, so `scripts/installer.iss` has no version to
+      edit by hand (it refuses to compile without that define).
+      `tests/version-sync.test.ts` checks the README, `SECURITY.md`, the
+      changelog heading and the OpenAPI examples against it
 - [ ] Only rebuild the backend bundle if `backend/` actually changed since the last
       release (`git diff <last-release-commit>..HEAD -- backend/`) - otherwise the
       existing `resources/VisionStudio-Backend.exe` is reused as-is

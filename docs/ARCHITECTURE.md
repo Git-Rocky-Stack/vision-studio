@@ -668,7 +668,7 @@ State is split across **four** stores. Knowing where each lives is essential.
 - `backend/middleware/rate_limit.py` - limiter
 - `backend/utils/sanitization.py` - text/path/base64 validators
 - `backend/main.py` - auth middleware (`require_local_auth_token`)
-- `SECURITY-AUDIT-2026-04-18.md` (root) - the April 2026 audit findings
+- [`archive/2026-04-18-security-audit.md`](./archive/2026-04-18-security-audit.md) - the April 2026 audit findings (a historical snapshot, not the current state)
 
 ---
 
@@ -705,16 +705,17 @@ State is split across **four** stores. Knowing where each lives is essential.
 
 ## 10. Testing strategy
 
-Counts measured at v3.4.0 with the command in each row.
+File and test counts are deliberately not quoted: they move with nearly every
+pull request. Run the command in each row for the current figure.
 
-| Layer | Framework | Files | Tests | Notes |
-|-------|-----------|-------|-------|-------|
-| Unit + integration + component | Vitest 4.1 | 232 | 2034 | Two projects in `vitest.config.ts`: `unit` (node environment) and `component` (jsdom 28 + Testing Library). `npx vitest run` |
-| E2E | Playwright 1.58 + Electron | 9 | 36 | 8 of 9 specs launch the real app - 7 through `tests/e2e/fixtures/electron.fixture`, and `generate-completion.spec.ts:60` via a direct `electron.launch`. Only `performance/performance.spec.ts` uses a plain browser against `vite preview`, because Electron serves the renderer over `file://`, which yields no resource or paint timing to measure |
-| Accessibility | axe-core, injected | (within E2E) | smoke | `tests/e2e/accessibility.spec.ts:49` reads `node_modules/axe-core/axe.min.js` and injects it. `@axe-core/playwright`'s `AxeBuilder` calls `context.newPage()`, which Electron's `BrowserContext` does not support |
-| Visual regression | Playwright snapshots | (within E2E) | - | `npm run test:visual`. Snapshots are Windows-authored; only that platform compares meaningfully |
-| Backend | pytest | 118 | 1108 | `backend/pytest.ini` sets testpaths and excludes the benchmark tier. `cd backend && python -m pytest` |
-| Backend benchmarks | pytest-benchmark | 1 | 1 | Opt-in; needs the GPU/model stack |
+| Layer | Framework | Count with | Notes |
+|-------|-----------|------------|-------|
+| Unit + integration + component | Vitest 4.1 | `npx vitest run` | Two projects in `vitest.config.ts`: `unit` (node environment) and `component` (jsdom 28 + Testing Library) |
+| E2E | Playwright 1.58 + Electron | `npx playwright test --list` | 8 of 9 specs launch the real app - 7 through `tests/e2e/fixtures/electron.fixture`, and `generate-completion.spec.ts:60` via a direct `electron.launch`. Only `performance/performance.spec.ts` uses a plain browser against `vite preview`, because Electron serves the renderer over `file://`, which yields no resource or paint timing to measure |
+| Accessibility | axe-core, injected | (within E2E) | `tests/e2e/accessibility.spec.ts:49` reads `node_modules/axe-core/axe.min.js` and injects it. `@axe-core/playwright`'s `AxeBuilder` calls `context.newPage()`, which Electron's `BrowserContext` does not support |
+| Visual regression | Playwright snapshots | (within E2E) | `npm run test:visual`. Snapshots are Windows-authored; only that platform compares meaningfully |
+| Backend | pytest | `cd backend && python -m pytest --collect-only -q` | `backend/pytest.ini` sets testpaths and excludes the benchmark tier |
+| Backend benchmarks | pytest-benchmark | `cd backend && python -m pytest tests/benchmarks -o addopts="" --benchmark-only --collect-only -q` | Opt-in; needs the GPU/model stack |
 
 ### Repo gates
 
@@ -830,7 +831,7 @@ Local rehearsal: `npm run test:build` (= `build:windows` + a sanity message).
 _Whole-document verification against the codebase: 2026-05-03, at v2.5.0._
 
 _Re-checked 2026-09-18 at v3.4.1: the present-tense claims in every section were
-compared with the tree and corrected where they had drifted. The §10 file and
-test counts are still the ones measured at v3.4.0._
+compared with the tree and corrected where they had drifted. §10 no longer
+quotes file or test counts; each row names the command that prints them._
 
 _Canonical source: `package.json`, `backend/main.py`, `electron/services/mainProcess.ts`, `electron/preload.ts`, `backend/db/migrations/001_initial_schema.py`._
