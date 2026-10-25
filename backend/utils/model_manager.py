@@ -442,12 +442,9 @@ class ModelManager:
             return False
         
         try:
-            if os.path.exists(model_info.local_path):
-                if os.path.isdir(model_info.local_path):
-                    shutil.rmtree(model_info.local_path)
-                else:
-                    os.remove(model_info.local_path)
-            
+            # A multi-GB tree takes seconds to remove; keep it off the event loop.
+            await asyncio.to_thread(self._remove_local_files, model_info.local_path)
+
             model_info.local_path = None
             model_info.status = "not_downloaded"
             model_info.progress = 0.0
@@ -457,6 +454,14 @@ class ModelManager:
             print(f"Failed to delete model: {e}")
             return False
     
+    @staticmethod
+    def _remove_local_files(local_path: str) -> None:
+        if os.path.exists(local_path):
+            if os.path.isdir(local_path):
+                shutil.rmtree(local_path)
+            else:
+                os.remove(local_path)
+
     def get_model_path(self, model_id: str) -> Optional[str]:
         """Get local path for a model"""
         model_info = self.available_models.get(model_id)

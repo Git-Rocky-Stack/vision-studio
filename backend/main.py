@@ -2380,9 +2380,24 @@ async def delete_model(request: Request, model_id: str):
             status_code=409,
             detail="This model is a linked library reference - remove its library root instead.",
         )
+    # A cached pipeline still holds the weights (and, on Windows, open file
+    # handles that block the delete): evict it before the files go.
+    for generator in (direct_generator, direct_video_generator):
+        if generator is not None:
+            try:
+                generator.unload_model(model_id)
+            except Exception as exc:  # noqa: BLE001 - eviction is best-effort
+                logger.warning("Could not evict cached pipeline for %s: %s", model_id, exc)
     deleted = await model_manager.delete_model(model_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Model not found or not installed")
+    # Re-index so the Foundry registry stops reporting the deleted files as
+    # installed. The files are already gone, so a failed scan is not a failed
+    # delete - it is retriable through POST /api/models/scan.
+    try:
+        await asyncio.to_thread(index_service.scan)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Re-index after deleting %s failed: %s", model_id, exc)
     return {"success": True}
 
 
