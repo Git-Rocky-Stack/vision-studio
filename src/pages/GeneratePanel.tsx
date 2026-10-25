@@ -2,6 +2,7 @@ import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } fro
 import { useShallow } from 'zustand/react/shallow';
 import { cn } from '@/utils/cn';
 import { useAppStore } from '@/store/appStore';
+import type { AppState } from '@/store/appStore.types';
 import { PromptArea } from '@/components/generate/PromptArea';
 import { StylePresetsBar } from '@/components/generate/StylePresetsBar';
 import { ModelSelector } from '@/components/generate/ModelSelector';
@@ -258,30 +259,53 @@ function resolveReferenceContext(
   };
 }
 
+// Each selector returns one record already held by the store, so the panel
+// re-renders when that record changes - not on every edit to any project,
+// clip, track or sequence, and not on a dock resize or a 30s health report.
+function selectActiveProject(s: AppState) {
+  return s.projects.find((project) => project.id === s.activeProjectId) ?? null;
+}
+
+function selectActiveTimelineClip(s: AppState) {
+  return s.activeTimelineClipId
+    ? s.timelineClips.find((clip) => clip.id === s.activeTimelineClipId) ?? null
+    : null;
+}
+
+function selectActiveTimelineTrack(s: AppState) {
+  const clip = selectActiveTimelineClip(s);
+  return clip ? s.timelineTracks.find((track) => track.id === clip.trackId) ?? null : null;
+}
+
+function selectActiveTimelineSequence(s: AppState) {
+  const track = selectActiveTimelineTrack(s);
+  const sequenceId = track ? track.sequenceId : s.activeTimelineSequenceId;
+  return sequenceId ? s.timelineSequences.find((sequence) => sequence.id === sequenceId) ?? null : null;
+}
+
+function selectActiveTimelineBinding(s: AppState) {
+  const bindingId = selectActiveTimelineClip(s)?.generationBindingId;
+  return bindingId ? s.clipGenerationBindings.find((binding) => binding.id === bindingId) ?? null : null;
+}
+
 export function GeneratePanel() {
   const {
     addJob,
     updateJob,
     syncAssetsFromJobStatus,
-    systemInfo,
+    backendConnected,
+    gpuAvailable,
     currentProject,
     currentImageAssetPath,
-    projects,
     activeProjectId,
     activeSceneId,
-    activeTimelineSequenceId,
-    activeTimelineClipId,
     referenceSets,
     mediaAssets,
-    timelineSequences,
-    timelineTracks,
-    timelineClips,
-    clipGenerationBindings,
     addToPromptHistory,
     favoritePrompts,
     toggleFavoritePrompt,
     generationDraft,
-    layoutPreferences,
+    collapsedGenerateSections,
     setGenerationDraft,
     setGenerateSectionCollapsed,
     advancedGeneration,
@@ -290,30 +314,29 @@ export function GeneratePanel() {
     addJob: s.addJob,
     updateJob: s.updateJob,
     syncAssetsFromJobStatus: s.syncAssetsFromJobStatus,
-    systemInfo: s.systemInfo,
+    backendConnected: s.systemInfo.backendConnected,
+    gpuAvailable: s.systemInfo.gpuAvailable,
     currentProject: s.currentProject,
     currentImageAssetPath: s.currentImageAssetPath,
-    projects: s.projects,
     activeProjectId: s.activeProjectId,
     activeSceneId: s.activeSceneId,
-    activeTimelineSequenceId: s.activeTimelineSequenceId,
-    activeTimelineClipId: s.activeTimelineClipId,
     referenceSets: s.referenceSets,
     mediaAssets: s.mediaAssets,
-    timelineSequences: s.timelineSequences,
-    timelineTracks: s.timelineTracks,
-    timelineClips: s.timelineClips,
-    clipGenerationBindings: s.clipGenerationBindings,
     addToPromptHistory: s.addToPromptHistory,
     favoritePrompts: s.favoritePrompts,
     toggleFavoritePrompt: s.toggleFavoritePrompt,
     generationDraft: s.generationDraft,
-    layoutPreferences: s.layoutPreferences,
+    collapsedGenerateSections: s.layoutPreferences.collapsedGenerateSections,
     setGenerationDraft: s.setGenerationDraft,
     setGenerateSectionCollapsed: s.setGenerateSectionCollapsed,
     advancedGeneration: s.advancedGeneration,
     updateAdvancedGeneration: s.updateAdvancedGeneration,
   })));
+  const activeProject = useAppStore(selectActiveProject);
+  const activeTimelineClip = useAppStore(selectActiveTimelineClip);
+  const activeTimelineTrack = useAppStore(selectActiveTimelineTrack);
+  const activeTimelineSequence = useAppStore(selectActiveTimelineSequence);
+  const activeTimelineBinding = useAppStore(selectActiveTimelineBinding);
 
   const { reduced, transition } = useMotionConfig();
 
@@ -399,10 +422,6 @@ export function GeneratePanel() {
   const updateRefConfig = (patch: Partial<typeof refConfig>) =>
     setRefConfig((prev) => ({ ...prev, ...patch }));
 
-  const activeProject = useMemo(
-    () => projects.find((project) => project.id === activeProjectId) ?? null,
-    [activeProjectId, projects],
-  );
   const activeScene = useMemo(
     () => activeProject?.scenes.find((scene) => scene.id === activeSceneId) ?? null,
     [activeProject, activeSceneId],
@@ -450,33 +469,6 @@ export function GeneratePanel() {
           )
         : { errors: [], missingRecordIds: [], notices: [] },
     [availableModels, imageConfig.generationType, imageConfig.model, resolvedCanvasControlLayers.inpaint, resolvedCanvasControlLayers.referenceImages, selectedImageBaseArch],
-  );
-  const activeTimelineClip = useMemo(
-    () => timelineClips.find((clip) => clip.id === activeTimelineClipId) ?? null,
-    [activeTimelineClipId, timelineClips],
-  );
-  const activeTimelineTrack = useMemo(
-    () =>
-      activeTimelineClip
-        ? timelineTracks.find((track) => track.id === activeTimelineClip.trackId) ?? null
-        : null,
-    [activeTimelineClip, timelineTracks],
-  );
-  const activeTimelineSequence = useMemo(
-    () =>
-      activeTimelineTrack
-        ? timelineSequences.find((sequence) => sequence.id === activeTimelineTrack.sequenceId) ?? null
-        : activeTimelineSequenceId
-          ? timelineSequences.find((sequence) => sequence.id === activeTimelineSequenceId) ?? null
-          : null,
-    [activeTimelineSequenceId, activeTimelineTrack, timelineSequences],
-  );
-  const activeTimelineBinding = useMemo(
-    () =>
-      activeTimelineClip?.generationBindingId
-        ? clipGenerationBindings.find((binding) => binding.id === activeTimelineClip.generationBindingId) ?? null
-        : null,
-    [activeTimelineClip, clipGenerationBindings],
   );
   const activeTimelineMediaAsset = useMemo(
     () =>
@@ -789,7 +781,7 @@ export function GeneratePanel() {
       return;
     }
 
-    if (!systemInfo.backendConnected && !useOpenRouterImage && !useHuggingFaceImage && !useHuggingFaceVideo) {
+    if (!backendConnected && !useOpenRouterImage && !useHuggingFaceImage && !useHuggingFaceVideo) {
       updateGenStatus({
         status: 'error',
         errorMessage: 'The AI backend is not running. Please restart the app or start the backend from Settings.',
@@ -1223,7 +1215,7 @@ export function GeneratePanel() {
     }
   };
 
-  const isGpuAvailable = systemInfo.gpuAvailable;
+  const isGpuAvailable = gpuAvailable;
   const isFavorited = favoritePrompts.includes(imageConfig.prompt.trim());
   const openRouterImageEnabled =
     imageConfig.generationType === 'image' &&
@@ -1312,7 +1304,6 @@ export function GeneratePanel() {
     : huggingFaceVideoEnabled
       ? '1-3min'
       : '2-5min';
-  const collapsedGenerateSections = layoutPreferences.collapsedGenerateSections;
 
   const isGenerateSectionCollapsed = useCallback(
     (sectionId: GenerateCollapsibleSectionId) => collapsedGenerateSections.includes(sectionId),
@@ -1346,7 +1337,7 @@ export function GeneratePanel() {
       : null;
   const footerWarning = hostedRouteEnabled
     ? hostedRouteWarning
-    : !systemInfo.backendConnected
+    : !backendConnected
       ? 'Backend offline. Start it from Settings before generating.'
       : imageConfig.generationType === 'image' && resolvedCanvasControlLayers.errors.length > 0
         ? resolvedCanvasControlLayers.errors[0]

@@ -44,6 +44,10 @@ import type {
   TimelinePlayRange,
   TimelineTrack,
 } from '@/types/timeline';
+import type { Scene } from '@/types/project';
+
+/** Shared fallback, so a project-less timeline keeps a stable scenes reference. */
+const EMPTY_SCENES: Scene[] = [];
 
 const RULER_HEIGHT = 32;
 const TRACK_HEIGHT = 68;
@@ -166,9 +170,53 @@ function buildTimelineTicks(totalDurationMs: number, zoom: number) {
   return ticks;
 }
 
+// The playhead moves every animation frame during playback. Only these small
+// readouts subscribe to currentTime, so the 1800-line Timeline body does not
+// re-render at 60fps; anything that needs the time in a handler reads it from
+// the store at that moment.
+const selectCurrentTime = (state: { currentTime: number }) => state.currentTime;
+
+const PlayheadTimecode = memo(function PlayheadTimecode({ fps }: { fps: number }) {
+  const currentTime = useAppStore(selectCurrentTime);
+  return <span className="font-mono text-xs text-text-primary">{formatTimecode(currentTime, fps)}</span>;
+});
+
+const TrackPlayhead = memo(function TrackPlayhead({ totalDurationMs }: { totalDurationMs: number }) {
+  const currentTime = useAppStore(selectCurrentTime);
+  return (
+    <div
+      className="pointer-events-none absolute inset-y-0 z-20 w-px bg-accent-primary"
+      style={{ left: `${(currentTime / totalDurationMs) * 100}%` }}
+    />
+  );
+});
+
+const CollapsedProgress = memo(function CollapsedProgress({ totalDurationMs }: { totalDurationMs: number }) {
+  const currentTime = useAppStore(selectCurrentTime);
+  const progress = totalDurationMs > 0 ? (currentTime / totalDurationMs) * 100 : 0;
+  return (
+    <div
+      className="mx-2 h-1.5 flex-1 overflow-hidden rounded-full bg-void"
+      role="progressbar"
+      aria-label="Timeline progress"
+      aria-valuemin={0}
+      aria-valuemax={100}
+      aria-valuenow={Math.round(progress)}
+    >
+      <div
+        className="h-full rounded-full"
+        style={{
+          width: `${progress}%`,
+          background:
+            'linear-gradient(90deg, var(--color-gradient-progress-start), var(--color-gradient-progress-end))',
+        }}
+      />
+    </div>
+  );
+});
+
 const TransportControls = memo(function TransportControls({
   isPlaying,
-  currentTime,
   totalDurationMs,
   fps,
   onTogglePlay,
@@ -179,7 +227,6 @@ const TransportControls = memo(function TransportControls({
   onSkipToEnd,
 }: {
   isPlaying: boolean;
-  currentTime: number;
   totalDurationMs: number;
   fps: number;
   onTogglePlay: () => void;
@@ -251,7 +298,7 @@ const TransportControls = memo(function TransportControls({
       </button>
       <div className="mx-1 h-5 w-px bg-border" />
       <div className="flex min-w-[112px] items-center justify-end gap-1">
-        <span className="font-mono text-xs text-text-primary">{formatTimecode(currentTime, fps)}</span>
+        <PlayheadTimecode fps={fps} />
         <span className="font-mono text-xs text-text-muted">/</span>
         <span className="font-mono text-xs text-text-muted">{formatTimecode(totalDurationMs, fps)}</span>
       </div>
@@ -305,18 +352,17 @@ const ZoomControls = memo(function ZoomControls({
 
 const TimeRuler = memo(function TimeRuler({
   totalDurationMs,
-  currentTime,
   playRange,
   zoom,
   onSeek,
 }: {
   totalDurationMs: number;
-  currentTime: number;
   playRange: TimelinePlayRange | null;
   zoom: number;
   onSeek: (timeMs: number) => void;
 }) {
   const ticks = useMemo(() => buildTimelineTicks(totalDurationMs, zoom), [totalDurationMs, zoom]);
+  const currentTime = useAppStore(selectCurrentTime);
 
   return (
     <div
@@ -733,7 +779,6 @@ export const Timeline = memo(function Timeline() {
     timelineMode,
     setTimelineMode,
     playState,
-    currentTime,
     onionSkinEnabled,
     setOnionSkinEnabled,
     timelineStop,
@@ -770,7 +815,6 @@ export const Timeline = memo(function Timeline() {
       timelineMode: state.timelineMode,
       setTimelineMode: state.setTimelineMode,
       playState: state.playState,
-      currentTime: state.currentTime,
       onionSkinEnabled: state.onionSkinEnabled,
       setOnionSkinEnabled: state.setOnionSkinEnabled,
       timelineStop: state.timelineStop,
@@ -792,7 +836,7 @@ export const Timeline = memo(function Timeline() {
   const [isInspectorCollapsed, setIsInspectorCollapsed] = useState(false);
 
   const activeProject = projects.find((project) => project.id === activeProjectId) ?? null;
-  const storyboardScenes = activeProject?.scenes ?? [];
+  const storyboardScenes = activeProject?.scenes ?? EMPTY_SCENES;
 
   useEffect(() => {
     if (!activeProjectId) {
@@ -869,7 +913,6 @@ export const Timeline = memo(function Timeline() {
   const activeClipDraftRange =
     activeClip && retakeDraftRange?.clipId === activeClip.id ? retakeDraftRange : null;
   const canAuthorRetake = activeClipMediaAsset?.type === 'video';
-  const clipLocalPlayheadMs = activeClip ? clampClipRelativeTime(currentTime, activeClip) : null;
   const canCreateRetake =
     canAuthorRetake &&
     activeClipDraftRange?.startMs !== null &&
@@ -930,7 +973,6 @@ export const Timeline = memo(function Timeline() {
 
   const selectedMediaAsset = mediaAssets.find((asset) => asset.id === insertMediaId) ?? mediaAssets[0] ?? null;
   const totalDurationMs = Math.max(activeSequence?.durationMs ?? 0, activeSequence?.playRange?.endMs ?? 0, 10000);
-  const progress = totalDurationMs > 0 ? (currentTime / totalDurationMs) * 100 : 0;
   const frameStepMs = Math.max(1, Math.round(1000 / Math.max(activeSequence?.fps ?? 24, 1)));
   const selectedTrack = sequenceTracks.find((track) => track.id === (activeClip?.trackId ?? selectedTrackId)) ?? null;
 
@@ -1030,9 +1072,10 @@ export const Timeline = memo(function Timeline() {
 
   const handleMarkRetakeBoundary = useCallback(
     (edge: 'startMs' | 'endMs') => {
-      if (!activeClip || !canAuthorRetake || clipLocalPlayheadMs === null) {
+      if (!activeClip || !canAuthorRetake) {
         return;
       }
+      const clipLocalPlayheadMs = clampClipRelativeTime(useAppStore.getState().currentTime, activeClip);
 
       setRetakeDraftRange((current) => {
         const next =
@@ -1048,7 +1091,7 @@ export const Timeline = memo(function Timeline() {
         return next;
       });
     },
-    [activeClip, canAuthorRetake, clipLocalPlayheadMs],
+    [activeClip, canAuthorRetake],
   );
 
   const handleCreateRetake = useCallback(() => {
@@ -1170,7 +1213,7 @@ export const Timeline = memo(function Timeline() {
 
       if (event.key.toLowerCase() === 's' && activeClip) {
         event.preventDefault();
-        splitTimelineClip(activeClip.id, currentTime);
+        splitTimelineClip(activeClip.id, useAppStore.getState().currentTime);
         return;
       }
 
@@ -1191,7 +1234,6 @@ export const Timeline = memo(function Timeline() {
   }, [
     activeClip,
     activeSequence,
-    currentTime,
     duplicateTimelineClip,
     moveTimelineClip,
     seekBy,
@@ -1234,30 +1276,12 @@ export const Timeline = memo(function Timeline() {
         >
           {playState === 'playing' ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
         </button>
-        <span className="font-mono text-xs text-text-primary">
-          {formatTimecode(currentTime, activeSequence?.fps ?? 24)}
-        </span>
+        <PlayheadTimecode fps={activeSequence?.fps ?? 24} />
         <span className="font-mono text-xs text-text-muted">/</span>
         <span className="font-mono text-xs text-text-muted">
           {formatTimecode(totalDurationMs, activeSequence?.fps ?? 24)}
         </span>
-        <div
-          className="mx-2 h-1.5 flex-1 overflow-hidden rounded-full bg-void"
-          role="progressbar"
-          aria-label="Timeline progress"
-          aria-valuemin={0}
-          aria-valuemax={100}
-          aria-valuenow={Math.round(progress)}
-        >
-          <div
-            className="h-full rounded-full"
-            style={{
-              width: `${progress}%`,
-              background:
-                'linear-gradient(90deg, var(--color-gradient-progress-start), var(--color-gradient-progress-end))',
-            }}
-          />
-        </div>
+        <CollapsedProgress totalDurationMs={totalDurationMs} />
         <div className="flex items-center gap-1 text-text-muted">
           <Layers className="h-3 w-3" />
           <span className="data-mono">{sequenceTracks.length}</span>
@@ -1279,7 +1303,6 @@ export const Timeline = memo(function Timeline() {
         <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1">
           <TransportControls
             isPlaying={playState === 'playing'}
-            currentTime={currentTime}
             totalDurationMs={totalDurationMs}
             fps={activeSequence?.fps ?? 24}
             onTogglePlay={toggleTimelinePlayback}
@@ -1320,7 +1343,9 @@ export const Timeline = memo(function Timeline() {
 
               <button
                 type="button"
-                onClick={() => activeClip && splitTimelineClip(activeClip.id, currentTime)}
+                onClick={() =>
+                  activeClip && splitTimelineClip(activeClip.id, useAppStore.getState().currentTime)
+                }
                 disabled={!activeClip}
                 className="rounded-md p-1.5 text-text-body transition disabled:cursor-not-allowed disabled:text-text-muted/40 hover:bg-surface hover:text-text-primary"
                 aria-label="Split clip"
@@ -1427,7 +1452,6 @@ export const Timeline = memo(function Timeline() {
               >
                 <TimeRuler
                   totalDurationMs={totalDurationMs}
-                  currentTime={currentTime}
                   playRange={activeSequence?.playRange ?? null}
                   zoom={zoom}
                   onSeek={seekTo}
@@ -1465,10 +1489,7 @@ export const Timeline = memo(function Timeline() {
                 ) : null}
 
                 <div role="group" aria-label="Timeline tracks" className="relative">
-                  <div
-                    className="pointer-events-none absolute inset-y-0 z-20 w-px bg-accent-primary"
-                    style={{ left: `${(currentTime / totalDurationMs) * 100}%` }}
-                  />
+                  <TrackPlayhead totalDurationMs={totalDurationMs} />
 
                   {sequenceTracks.length === 0 ? (
                     <div className="flex h-28 items-center justify-center border-b border-border">
