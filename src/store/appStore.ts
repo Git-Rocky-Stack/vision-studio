@@ -56,6 +56,7 @@ import { collectionsInitialState, createCollectionsActions } from './slices/coll
 import { mediaTimelineInitialState, createMediaTimelineActions } from './slices/mediaTimelineSlice';
 import { timelineInitialState, createTimelineActions } from './slices/timelineSlice';
 import { pipelineInitialState, createPipelineActions } from './slices/pipelineSlice';
+import type { PipelineDefinition } from '@/types/pipeline';
 import { accelerationInitialState, createAccelerationActions } from './slices/accelerationSlice';
 
 // Re-exports: local types
@@ -1021,6 +1022,7 @@ function partializeAppState(state: AppState) {
     iterationView: state.iterationView,
     iterationComparisonMode: state.iterationComparisonMode,
     collections: state.collections,
+    pipelines: state.pipelines,
     availableTags: state.availableTags,
     taggingMode: state.taggingMode,
     assetMetadata: Array.from(state.assetMetadata.entries()),
@@ -1134,6 +1136,18 @@ export const useAppStore = create<AppState>()(
                 : undefined,
             ),
           };
+        }
+        if (Array.isArray(persisted.pipelines)) {
+          // Saved pipelines (custom ones, and edits to built-ins) win; a
+          // built-in that a newer release added is still restored.
+          const saved = (persisted.pipelines as PipelineDefinition[]).filter(
+            (pipeline) => pipeline && typeof pipeline.id === 'string' && Array.isArray(pipeline.steps),
+          );
+          const savedIds = new Set(saved.map((pipeline) => pipeline.id));
+          (persisted as Record<string, unknown>).pipelines = [
+            ...saved,
+            ...currentState.pipelines.filter((pipeline) => pipeline.isBuiltIn && !savedIds.has(pipeline.id)),
+          ];
         }
         const normalizedTimelineClips = normalizeTimelineClips(
           Array.isArray((persisted as Partial<AppState>).timelineClips)
