@@ -43,6 +43,14 @@ export const generationInitialState = {
   },
 };
 
+function shallowEqualRecord<T extends object>(a: T, b: T): boolean {
+  if (a === b) return true;
+  const aKeys = Object.keys(a) as (keyof T)[];
+  const bKeys = Object.keys(b) as (keyof T)[];
+  if (aKeys.length !== bKeys.length) return false;
+  return aKeys.every((key) => Object.is(a[key], b[key]));
+}
+
 export function createGenerationActions(set: AppSet, _get: AppGet) {
   return {
     addJob: (job: GenerationJob) => set((state) => ({
@@ -51,10 +59,10 @@ export function createGenerationActions(set: AppSet, _get: AppGet) {
     updateJob: (jobId: string, updates: Partial<GenerationJob>) => {
       const state = _get();
       const existingJob = state.activeJobs.find((job) => job.id === jobId);
-      if (!existingJob) {
-        set((s) => ({ activeJobs: s.activeJobs }));
-        return;
-      }
+      // An update for a job that is no longer active (a late WS frame after
+      // completion, a poll racing a cancel) changes nothing, so it must not
+      // notify every subscriber or schedule a persist write either.
+      if (!existingJob) return;
 
       const updatedJob = { ...existingJob, ...updates };
       const isTerminal =
@@ -101,7 +109,12 @@ export function createGenerationActions(set: AppSet, _get: AppGet) {
     deleteCompletedJob: (jobId: string) => set((state) => ({
       completedJobs: state.completedJobs.filter((j) => j.id !== jobId),
     })),
-    setSystemInfo: (info: AppState['systemInfo']) => set({ systemInfo: info }),
+    // The health poll reports the same system info every 30s. A fresh object
+    // with identical fields would still re-render every systemInfo subscriber.
+    setSystemInfo: (info: AppState['systemInfo']) => {
+      if (shallowEqualRecord(_get().systemInfo, info)) return;
+      set({ systemInfo: info });
+    },
     addBatchJob: (batchJob: BatchJob) => set((state) => ({
       batchJobs: [...state.batchJobs, batchJob],
     })),

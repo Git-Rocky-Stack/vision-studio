@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, it } from 'vitest';
 
 import { useAppStore } from '@/store/appStore';
 import type { GenerationJob } from '@/store/appStore.types';
+import type { IterationNode } from '@/types/iteration';
+import { capIterationGraphForPersist, PERSISTED_ITERATION_NODE_CAP } from './iterationSlice';
 
 function resetStore() {
   useAppStore.setState(useAppStore.getInitialState());
@@ -155,5 +157,68 @@ describe('iteration lineage from real generations', () => {
     useAppStore.getState().updateJob('job-1', { status: 'completed', result: job.result });
 
     expect(useAppStore.getState().iterationNodes.size).toBe(0);
+  });
+});
+
+describe('persisted iteration graph cap', () => {
+  beforeEach(resetStore);
+
+  function makeNode(id: string, createdAt: number, extra: Partial<IterationNode> = {}): IterationNode {
+    return {
+      id,
+      parentId: null,
+      branchId: 'b1',
+      childrenIds: [],
+      generationJob: makeJob(id),
+      thumbnail: '',
+      settingsDiff: null,
+      createdAt,
+      isPinned: false,
+      note: '',
+      ...extra,
+    };
+  }
+
+  it('returns the graph unchanged while it is under the cap', () => {
+    const nodes = new Map([['a', makeNode('a', 1)]]);
+    const result = capIterationGraphForPersist(nodes, [], { cap: 5 });
+    expect(result.nodes).toBe(nodes);
+  });
+
+  it('keeps the newest nodes, pinned nodes and every ancestor of a kept node', () => {
+    const nodes = new Map<string, IterationNode>([
+      ['root', makeNode('root', 1, { childrenIds: ['mid', 'old'] })],
+      ['mid', makeNode('mid', 2, { parentId: 'root', childrenIds: ['leaf'] })],
+      ['old', makeNode('old', 3, { parentId: 'root' })],
+      ['pinned', makeNode('pinned', 4, { isPinned: true, branchId: 'b2' })],
+      ['other', makeNode('other', 5, { branchId: 'b3' })],
+      ['leaf', makeNode('leaf', 10, { parentId: 'mid' })],
+    ]);
+    const branches = [
+      { id: 'b1', name: 'B1', rootNodeId: 'root', activeNodeId: 'old', createdAt: 1 },
+      { id: 'b2', name: 'B2', rootNodeId: 'pinned', activeNodeId: 'pinned', createdAt: 4 },
+      { id: 'b3', name: 'B3', rootNodeId: 'other', activeNodeId: 'other', createdAt: 5 },
+    ];
+
+    const result = capIterationGraphForPersist(nodes, branches, { cap: 1 });
+
+    expect([...result.nodes.keys()].sort()).toEqual(['leaf', 'mid', 'pinned', 'root']);
+    expect(result.nodes.get('root')!.childrenIds).toEqual(['mid']);
+    expect(result.branches.map((branch) => branch.id)).toEqual(['b1', 'b2']);
+    expect(result.branches[0].activeNodeId).toBe('leaf');
+  });
+
+  it('caps what partialize writes', () => {
+    const partialize = (useAppStore as unknown as {
+      persist: { getOptions: () => { partialize: (s: unknown) => Record<string, unknown> } };
+    }).persist.getOptions().partialize;
+    const nodes = new Map<string, IterationNode>();
+    for (let i = 0; i < PERSISTED_ITERATION_NODE_CAP + 25; i++) {
+      nodes.set(`n${i}`, makeNode(`n${i}`, i, { branchId: `b${i}` }));
+    }
+    useAppStore.setState({ iterationNodes: nodes });
+
+    const persisted = partialize(useAppStore.getState());
+    expect((persisted.iterationNodes as unknown[]).length).toBe(PERSISTED_ITERATION_NODE_CAP);
   });
 });
