@@ -179,6 +179,24 @@ describe('Carbon Pro secondary panels', () => {
     expect(pad.style.boxShadow).toContain('var(--color-chrome-edge)');
   });
 
+  // The faceplate lamp read READY unconditionally beside an invented serial.
+  // It reports what the deck holds: READY with templates in view, NO MATCH
+  // when the search leaves none.
+  it('drives the Templates faceplate state from what is loaded', () => {
+    render(<TemplatesPanel />);
+
+    expect(screen.getByText('TEMPLATES')).toBeInTheDocument();
+    expect(screen.queryByText('MOD - TEMPLATES - 01')).not.toBeInTheDocument();
+    expect(screen.getByText('READY')).toBeInTheDocument();
+
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Search templates' }), {
+      target: { value: 'zzz no template has this name' },
+    });
+
+    expect(screen.getByText('NO MATCH')).toBeInTheDocument();
+    expect(screen.queryByText('READY')).not.toBeInTheDocument();
+  });
+
   it('keeps an unbroken heading order on Templates', () => {
     render(<TemplatesPanel />);
 

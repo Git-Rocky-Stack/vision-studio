@@ -1289,6 +1289,71 @@ input[type="range"]::-webkit-slider-thumb:hover {
 .vx-switch { transition: transform var(--duration-click) var(--ease-click); }
 .vx-switch:hover { transform: translateY(-1px); }
 .vx-switch:active { transform: translateY(0); }
+/* ChromeButton. All of its visuals live here: inline styles would outrank the
+   hover and pressed rules below, which is how the cap lost both. */
+.vx-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-family: var(--font-mono);
+  font-weight: var(--font-weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  white-space: nowrap;
+  border-radius: var(--radius-control);
+  cursor: pointer;
+  transition:
+    background var(--duration-click) var(--ease-click),
+    border-color var(--duration-click) var(--ease-click),
+    box-shadow var(--duration-click) var(--ease-click),
+    transform var(--duration-click) var(--ease-click);
+}
+.vx-btn-sm { padding: 7px 12px; font-size: 11px; }
+.vx-btn-md { padding: 10px 18px; font-size: 12px; }
+.vx-btn-lg { padding: 12px 22px; font-size: 13px; }
+.vx-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  filter: saturate(0.6);
+}
+/* Ghost cap - dark carbon secondary, the raised-control material with a
+   brighter rim and an edge-light strip. */
+.vx-btn-ghost {
+  background: linear-gradient(180deg, #1F1F1F 0%, #171717 60%, #121212 100%);
+  color: var(--color-platinum);
+  border: 1px solid rgba(255,255,255,0.18);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.10),
+    inset 0 -1px 0 rgba(0,0,0,0.5),
+    0 1px 2px rgba(0,0,0,0.6),
+    0 4px 8px rgba(0,0,0,0.4);
+}
+.vx-btn-ghost::before {
+  content: "";
+  position: absolute;
+  top: 2px; left: 14px; right: 14px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.18), transparent);
+  pointer-events: none;
+}
+.vx-btn-ghost:not(:disabled):hover {
+  background: linear-gradient(180deg, #262626 0%, #1C1C1C 60%, #161616 100%);
+  border-color: rgba(255,255,255,0.28);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.14),
+    inset 0 -1px 0 rgba(0,0,0,0.5),
+    0 1px 2px rgba(0,0,0,0.6),
+    0 6px 12px rgba(0,0,0,0.45);
+}
+.vx-btn-ghost:not(:disabled):active {
+  background: linear-gradient(180deg, #121212 0%, #171717 100%);
+  transform: translateY(1px);
+  box-shadow:
+    inset 0 2px 4px rgba(0,0,0,0.6),
+    inset 0 -1px 0 rgba(255,255,255,0.04);
+}
 .vx-btn-chrome:not(:disabled):hover {
   background: linear-gradient(180deg, #FFF 0%, #F5F5F5 50%, #E0E0E0 100%);
   box-shadow:

@@ -1844,8 +1844,8 @@ export function GeneratePanel() {
               onClick={handleGenerate}
               disabled={!imageConfig.prompt.trim()}
               variant="chrome"
+              size="lg"
               className="w-full"
-              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, paddingTop: 14, paddingBottom: 14 }}
             >
               <Wand2 className="h-4.5 w-4.5" />
               {generateActionLabel}

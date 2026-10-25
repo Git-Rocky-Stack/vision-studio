@@ -505,8 +505,8 @@ export function QuickGeneratePanel() {
           variant="chrome"
           onClick={handleGenerate}
           disabled={genStatus.isGenerating || !prompt.trim()}
+          size="lg"
           className="flex-1"
-          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
         >
           {genStatus.isGenerating ? (
             <>

@@ -990,8 +990,8 @@ export function BatchPromptQueue() {
               variant="chrome"
               onClick={handleStartBatch}
               disabled={!prompts.some((p) => p.prompt.trim())}
+              size="lg"
               className="flex-1"
-              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
             >
               <Play className="w-4 h-4" />
               Start Batch ({prompts.filter((p) => p.prompt.trim()).length})

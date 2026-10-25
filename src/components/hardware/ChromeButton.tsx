@@ -1,89 +1,47 @@
-import type { ButtonHTMLAttributes, CSSProperties, ReactNode } from 'react';
+import type { ButtonHTMLAttributes, ReactNode } from 'react';
 import { cn } from '@/utils/cn';
+
+export type ChromeButtonSize = 'sm' | 'md' | 'lg';
 
 interface ChromeButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   children: ReactNode;
   /** chrome = polished metal-cap primary CTA. ghost = dark carbon secondary. */
   variant?: 'chrome' | 'ghost';
+  /**
+   * sm = in-card actions (a template's Use), md = section actions (Create
+   * Template), lg = the panel's primary CTA (Generate, Start Batch).
+   */
+  size?: ChromeButtonSize;
 }
 
-const BASE: CSSProperties = {
-  fontFamily: 'var(--font-mono)',
-  fontSize: 13,
-  fontWeight: 600,
-  textTransform: 'uppercase',
-  letterSpacing: '1px',
-  whiteSpace: 'nowrap',
-  padding: '12px 22px',
-  borderRadius: 'var(--radius-control)',
-  cursor: 'pointer',
-  border: 'none',
-  transition:
-    'background var(--duration-click) var(--ease-click), box-shadow var(--duration-click) var(--ease-click), transform var(--duration-click) var(--ease-click)',
-  position: 'relative',
-};
-
-const CHROME: CSSProperties = {
-  background: 'linear-gradient(180deg, #FFF 0%, #E6E6E6 50%, #C8C8C8 100%)',
-  // The metal-cap fill is theme-independent (always light), so the engraved label
-  // must be a fixed dark, not var(--color-void): that token flips to #f4f4f4 in the
-  // light theme, rendering the label near-white on the light cap (~1.03:1 contrast).
-  // Matches the .btn-chrome CSS recipe (index.css), which hardcodes #000.
-  color: '#000',
-  boxShadow:
-    'inset 0 1px 0 rgba(255,255,255,0.9),' +
-    'inset 0 -1px 0 rgba(0,0,0,0.3),' +
-    'inset 0 -2px 0 rgba(0,0,0,0.15),' +
-    '0 0 0 1px rgba(230,230,230,0.4),' +
-    '0 1px 2px rgba(0,0,0,0.6),' +
-    '0 4px 12px rgba(0,0,0,0.5),' +
-    '0 0 24px rgba(230,230,230,0.18)',
-};
-
-const GHOST: CSSProperties = {
-  background: 'linear-gradient(180deg, #1F1F1F 0%, #171717 60%, #121212 100%)',
-  color: 'var(--color-platinum)',
-  border: '1px solid rgba(255,255,255,0.18)',
-  boxShadow:
-    'inset 0 1px 0 rgba(255,255,255,0.10),' +
-    'inset 0 -1px 0 rgba(0,0,0,0.5),' +
-    '0 1px 2px rgba(0,0,0,0.6),' +
-    '0 4px 8px rgba(0,0,0,0.4)',
-};
-
 /**
- * Primary action as a polished chrome metal cap (not a hue gradient). Hover/
- * active states live in index.css (.vx-btn-chrome / .vx-btn-ghost). Mirrors the
- * website Button.
+ * Primary action as a polished chrome metal cap (not a hue gradient). Mirrors
+ * the website Button.
+ *
+ * Every visual lives in index.css (.vx-btn, .btn-chrome / .vx-btn-chrome,
+ * .vx-btn-ghost, .vx-btn-sm/md/lg). It used to be inline style, and an inline
+ * background and box-shadow outrank any stylesheet rule, so the cap's hover
+ * and pressed states were never drawn. A caller adjusts layout with className
+ * (w-full, flex-1), never by restyling the cap.
  */
-export function ChromeButton({ children, variant = 'chrome', className, style, disabled, ...rest }: ChromeButtonProps) {
+export function ChromeButton({
+  children,
+  variant = 'chrome',
+  size = 'lg',
+  className,
+  ...rest
+}: ChromeButtonProps) {
   return (
     <button
       // vx-btn-* hover/active states are suppressed when disabled (CSS :not(:disabled)).
-      className={cn('vx-btn', `vx-btn-${variant}`, className)}
-      disabled={disabled}
-      style={{
-        ...BASE,
-        ...(variant === 'chrome' ? CHROME : GHOST),
-        ...(disabled ? { opacity: 0.45, cursor: 'not-allowed', filter: 'saturate(0.6)' } : null),
-        ...style,
-      }}
+      className={cn(
+        'vx-btn whitespace-nowrap',
+        variant === 'chrome' ? 'btn-chrome vx-btn-chrome' : 'vx-btn-ghost',
+        `vx-btn-${size}`,
+        className,
+      )}
       {...rest}
     >
-      {variant === 'ghost' && (
-        <span
-          aria-hidden="true"
-          style={{
-            position: 'absolute',
-            top: 2,
-            left: 14,
-            right: 14,
-            height: 1,
-            background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.18), transparent)',
-            pointerEvents: 'none',
-          }}
-        />
-      )}
       {children}
     </button>
   );

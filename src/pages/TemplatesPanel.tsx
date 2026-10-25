@@ -67,6 +67,9 @@ export function TemplatesPanel() {
   const [showCreator, setShowCreator] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState<ProjectTemplate | null>(null);
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
+  // Real state for the faceplate LED: an import in progress or one that failed
+  // to parse, instead of a READY lamp that was lit unconditionally.
+  const [importStatus, setImportStatus] = useState<'idle' | 'importing' | 'error'>('idle');
 
   const allTemplates =
     selectedCategory === 'mine'
@@ -128,18 +131,30 @@ export function TemplatesPanel() {
     input.onchange = async (e) => {
       const file = (e.target as HTMLInputElement).files?.[0];
       if (!file) return;
+      setImportStatus('importing');
       try {
         const text = await file.text();
         const template = JSON.parse(text) as ProjectTemplate;
         template.id = crypto.randomUUID();
         template.isCustom = true;
         useAppStore.getState().addUserTemplate(template);
+        setImportStatus('idle');
       } catch (err) {
         console.error('Failed to import template:', err);
+        setImportStatus('error');
       }
     };
     input.click();
   };
+
+  const faceplateState: { led: 'play' | 'cue' | 'rec'; label: string } =
+    importStatus === 'error'
+      ? { led: 'rec', label: 'IMPORT FAILED' }
+      : importStatus === 'importing'
+        ? { led: 'cue', label: 'IMPORTING' }
+        : sortedTemplates.length === 0
+          ? { led: 'cue', label: 'NO MATCH' }
+          : { led: 'play', label: 'READY' };
 
   const CATEGORY_TABS: { id: string; label: string; icon?: React.ElementType }[] = [
     { id: 'all', label: 'All Templates' },
@@ -160,22 +175,23 @@ export function TemplatesPanel() {
 
       {/* -- Control deck faceplate ----------------------------------- */}
       <Faceplate
-        kicker="MOD - TEMPLATES - 01"
-        stateLed="play"
-        stateLabel="READY"
+        kicker="TEMPLATES"
+        stateLed={faceplateState.led}
+        stateLabel={faceplateState.label}
         bodyPadding={16}
         className="flex-shrink-0"
       >
         {/* Title row */}
         <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-          <Lcd color="play" size="lg">{sortedTemplates.length} LOADED</Lcd>
+          <Lcd color={sortedTemplates.length > 0 ? 'play' : 'cue'} size="lg">
+            {sortedTemplates.length} LOADED
+          </Lcd>
           <ChromeButton
-            className="whitespace-nowrap"
+            size="md"
             onClick={() => {
               setEditingTemplate(null);
               setShowCreator(true);
             }}
-            style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '10px 18px', fontSize: 12 }}
           >
             <Plus className="w-3.5 h-3.5" />
             Create Template
@@ -186,8 +202,10 @@ export function TemplatesPanel() {
             of collapsing to a single character beside the sort and view pads. */}
         <div className="mb-4 flex flex-wrap items-center gap-2">
           <RecessedWell padding={0} className="flex min-w-[180px] flex-1 items-center">
-            <Search className="ml-3 w-4 h-4 text-text-muted flex-shrink-0" />
+            <Search className="ml-3 w-4 h-4 text-text-muted flex-shrink-0" aria-hidden="true" />
             <input
+              type="search"
+              aria-label="Search templates"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search templates..."
@@ -347,8 +365,8 @@ export function TemplatesPanel() {
                       </>
                     )}
                     <ChromeButton
+                      size="sm"
                       onClick={(e) => { e.stopPropagation(); handleUseTemplate(template); }}
-                      style={{ padding: '7px 12px', fontSize: 11 }}
                     >
                       Use
                       <ArrowRight className="w-3.5 h-3.5" />
@@ -428,8 +446,8 @@ export function TemplatesPanel() {
                     )}
                     <div className="flex-1" />
                     <ChromeButton
+                      size="sm"
                       onClick={(e) => { e.stopPropagation(); handleUseTemplate(template); }}
-                      style={{ padding: '8px 14px', fontSize: 11 }}
                     >
                       Use Template
                       <ArrowRight className="w-3.5 h-3.5" />
