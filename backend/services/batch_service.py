@@ -12,6 +12,7 @@ import io
 import logging
 import time
 import zipfile
+from pathlib import Path
 from typing import Optional
 
 from PIL import Image
@@ -23,28 +24,64 @@ logger = get_logger(__name__)
 # WEBP compression method: 6 = best compression (slowest)
 WEBP_BEST_COMPRESSION = 6
 
+# Generation output files a batch export may read (never videos or sidecars).
+OUTPUT_IMAGE_SUFFIXES = frozenset({".png", ".jpg", ".jpeg", ".webp"})
+
 
 class BatchService:
     """
     Service for batch image processing and ZIP export.
 
-    Handles loading images from the in-memory store, processing
-    (format conversion, resizing), and creating ZIP archives.
+    Handles loading images (from the in-memory store, or from generation
+    outputs on disk), processing (format conversion, resizing), and creating
+    ZIP archives.
     """
 
-    def __init__(self, images_store: Optional[dict] = None):
+    def __init__(self, images_store: Optional[dict] = None, output_dir: Optional[str] = None):
         """
         Initialize batch service.
 
         Args:
             images_store: Dictionary mapping image IDs to image data.
                          If None, uses an empty dict.
+            output_dir: The backend's outputs folder. When set, an id that is
+                         not in the store resolves to a generation output:
+                         a job id (outputs/<job_id>/, its first image) or an
+                         output path (/outputs/<job_id>/<file>).
         """
         self.images_store = images_store if images_store is not None else {}
+        self.output_dir = output_dir
+
+    def _resolve_output_file(self, image_id: str) -> Optional[Path]:
+        """The image file under output_dir an id names, or None.
+
+        Never leaves output_dir: the id is resolved and must stay inside it
+        (the API sanitizes ids too; this is the second rail).
+        """
+        if not self.output_dir:
+            return None
+        root = Path(self.output_dir).resolve()
+        relative = image_id.replace("\\", "/").lstrip("/")
+        if relative.startswith("outputs/"):
+            relative = relative[len("outputs/"):]
+        if not relative:
+            return None
+        candidate = (root / relative).resolve()
+        if root not in candidate.parents:
+            return None
+        if candidate.is_dir():
+            images = sorted(
+                path for path in candidate.iterdir()
+                if path.is_file() and path.suffix.lower() in OUTPUT_IMAGE_SUFFIXES
+            )
+            return images[0] if images else None
+        if candidate.is_file() and candidate.suffix.lower() in OUTPUT_IMAGE_SUFFIXES:
+            return candidate
+        return None
 
     def _get_image(self, image_id: str) -> Optional[Image.Image]:
         """
-        Retrieve an image from the store by ID.
+        Retrieve an image by ID: the in-memory store first, then outputs on disk.
 
         Args:
             image_id: The image identifier
@@ -54,6 +91,14 @@ class BatchService:
         """
         image_data = self.images_store.get(image_id)
         if image_data is None:
+            output_file = self._resolve_output_file(image_id)
+            if output_file is not None:
+                try:
+                    with Image.open(output_file) as opened:
+                        return opened.convert("RGB")
+                except Exception as e:
+                    logger.error(f"Failed to read output image {image_id}: {e}")
+                    return None
             logger.warning(f"Image not found: {image_id}")
             return None
 

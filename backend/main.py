@@ -112,7 +112,7 @@ from foundry.security_policy import ConsentStore
 setup_logging(log_file=os.getenv("LOG_FILE"))
 logger = get_logger(__name__)
 from api.edit import router as edit_router, configure as configure_edit
-from api.batch import router as batch_router
+from api.batch import router as batch_router, configure as configure_batch
 from api.retrieval import router as retrieval_router
 from api.comfy_graph import router as comfy_graph_router, configure as configure_comfy_graph
 from guided.controlnet_registry import resolve_controlnet_stack
@@ -347,7 +347,7 @@ Professional-grade API for AI-powered creative content generation.
 - **Image Generation** - FLUX.1, Stable Diffusion 3.5, Stable Diffusion XL, SD 1.5
 - **Video Generation** - LTX Video, Stable Video Diffusion, AnimateDiff
 - **Image Editing** - crop, rotate and flip; background removal, upscaling and face restoration (`/api/v1/edit`)
-- **Batch Export** - process a set of images and return them as one ZIP (`/api/v1/batch/export-zip`)
+- **Batch Export** - convert/resize generated images (by job id or output path) and return them as one ZIP (`/api/v1/batch/export-zip`)
 - **Model Management** - Download, install, and manage AI models
 - **Real-time Updates** - WebSocket-based progress streaming
 
@@ -469,6 +469,8 @@ app.include_router(comfy_graph_router)
 # `lambda: comfy_client` reads the live module global, which is assigned when the
 # ComfyUI connection is established during startup (None until then).
 configure_comfy_graph(lambda: comfy_client, job_manager, OUTPUT_DIR)
+# Batch export resolves image ids to generation outputs under OUTPUT_DIR.
+configure_batch(OUTPUT_DIR)
 # #34 real edit tools: job manager + Foundry record resolution for /api/v1/edit.
 configure_edit(
     job_manager=job_manager,
