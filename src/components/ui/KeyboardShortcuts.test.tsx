@@ -42,6 +42,18 @@ describe('KeyboardShortcuts', () => {
     });
   });
 
+  describe('Edit shortcuts', () => {
+    it('lists undo/redo and every bound edit tool letter', () => {
+      render(<KeyboardShortcuts open={true} onClose={() => {}} />);
+      expect(screen.getAllByText('Undo edit').length).toBeGreaterThanOrEqual(1);
+      expect(screen.getAllByText('Redo edit').length).toBeGreaterThanOrEqual(1);
+      expect(screen.getAllByText('Brush tool').length).toBeGreaterThanOrEqual(1);
+      expect(screen.getAllByText('Eyedropper tool').length).toBeGreaterThanOrEqual(1);
+      // Unimplemented tools have no binding, so the sheet does not claim one.
+      expect(screen.queryByText(/clone/i)).toBeNull();
+    });
+  });
+
   describe('Accessibility', () => {
     it('has role="dialog" attribute', () => {
       render(<KeyboardShortcuts open={true} onClose={() => {}} />);

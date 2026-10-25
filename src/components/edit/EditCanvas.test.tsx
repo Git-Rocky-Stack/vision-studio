@@ -11,7 +11,9 @@ vi.mock('react-konva', () => ({
   Layer: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
   Rect: () => <div />,
   Image: () => <div />,
-  Line: () => <div />,
+  Line: ({ stroke, strokeWidth }: { stroke?: string; strokeWidth?: number }) => (
+    <div data-testid="konva-line" data-stroke={stroke} data-stroke-width={strokeWidth} />
+  ),
   Text: ({
     text,
     fontFamily,
@@ -401,6 +403,80 @@ describe('EditCanvas', () => {
       await renderWithImage();
 
       expect(useAppStore.getState().currentImageSize).toEqual({ width: 640, height: 480 });
+    });
+  });
+
+  describe('brush strokes live in the store', () => {
+    const stroke = { id: 's1', tool: 'brush' as const, points: [0, 0, 4, 4], color: '#ff0000', size: 6 };
+
+    it('renders committed strokes from the store and keeps them across a remount', () => {
+      act(() => {
+        useAppStore.getState().addEditStroke(stroke);
+      });
+      const { unmount } = render(<EditCanvas />);
+      expect(screen.getByTestId('konva-line').dataset.stroke).toBe('#ff0000');
+      unmount();
+
+      render(<EditCanvas />);
+      expect(screen.getAllByTestId('konva-line')).toHaveLength(1);
+    });
+
+    it('hides strokes while Before/After shows the original', () => {
+      act(() => {
+        useAppStore.getState().setCurrentImage('img.png', 'C:/img.png');
+        useAppStore.getState().addEditStroke(stroke);
+        useAppStore.getState().setEditCompareOriginal(true);
+      });
+      render(<EditCanvas />);
+      expect(screen.getByText('Before')).toBeInTheDocument();
+    });
+  });
+
+  describe('edit tool shortcuts (mounted with the editor)', () => {
+    it('switches tools with single letters', () => {
+      render(<EditCanvas />);
+      fireEvent.keyDown(window, { key: 'b' });
+      expect(useAppStore.getState().activeEditTool).toBe('brush');
+      fireEvent.keyDown(window, { key: 'I' });
+      expect(useAppStore.getState().activeEditTool).toBe('eyedropper');
+    });
+
+    it('gives unimplemented tools no shortcut', () => {
+      render(<EditCanvas />);
+      fireEvent.keyDown(window, { key: 's' });
+      fireEvent.keyDown(window, { key: 'p' });
+      expect(useAppStore.getState().activeEditTool).toBe('move');
+    });
+
+    it('ignores letters typed into inputs, selects and contentEditable, and Ctrl chords', () => {
+      render(
+        <>
+          <EditCanvas />
+          <input aria-label="field" />
+          <select aria-label="pick"><option>a</option></select>
+          <div contentEditable aria-label="rich" suppressContentEditableWarning>x</div>
+        </>,
+      );
+      fireEvent.keyDown(screen.getByLabelText('field'), { key: 'b' });
+      fireEvent.keyDown(screen.getByLabelText('pick'), { key: 'b' });
+      fireEvent.keyDown(screen.getByLabelText('rich'), { key: 'b' });
+      fireEvent.keyDown(window, { key: 'z', ctrlKey: true });
+      expect(useAppStore.getState().activeEditTool).toBe('move');
+    });
+
+    it('drives region mask tools while region mode is on', () => {
+      useAppStore.setState({ regionMode: true });
+      render(<EditCanvas />);
+      fireEvent.keyDown(window, { key: 'l' });
+      expect(useAppStore.getState().activeMaskTool).toBe('polygon');
+      expect(useAppStore.getState().activeEditTool).toBe('move');
+    });
+
+    it('stops listening once the editor unmounts', () => {
+      const { unmount } = render(<EditCanvas />);
+      unmount();
+      fireEvent.keyDown(window, { key: 'b' });
+      expect(useAppStore.getState().activeEditTool).toBe('move');
     });
   });
 });

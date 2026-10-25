@@ -43,6 +43,8 @@ interface CropControlsProps {
   onCustomHeightChange: (h: number) => void;
   onApply: () => void;
   onCancel: () => void;
+  /** True while the crop request is in flight; Apply shows a spinner and is disabled. */
+  isApplying?: boolean;
 }
 
 export function CropControls({
@@ -61,6 +63,7 @@ export function CropControls({
   onCustomHeightChange,
   onApply,
   onCancel,
+  isApplying = false,
 }: CropControlsProps) {
   return (
     <div className="space-y-4">
@@ -181,8 +184,16 @@ export function CropControls({
         <Button variant="ghost" size="sm" icon={X} onClick={onCancel}>
           Cancel
         </Button>
-        <Button variant="primary" size="sm" icon={Check} fullWidth onClick={onApply}>
-          Apply Crop
+        <Button
+          variant="primary"
+          size="sm"
+          icon={Check}
+          fullWidth
+          onClick={onApply}
+          isLoading={isApplying}
+          disabled={isApplying}
+        >
+          {isApplying ? 'Cropping...' : 'Apply Crop'}
         </Button>
       </div>
     </div>

@@ -12,6 +12,7 @@ import { applyThemeToDocument, type ThemePreference } from '@/features/theme/the
 import { startBackgroundTagging } from '@/features/assets/backgroundTagging';
 import { AI_DIRECTOR_DEFAULTS } from '../shared/retrieval';
 import { buildIngestRecords } from '@/features/director/buildIngestRecords';
+import { isEditableTarget } from '@/utils/isEditableTarget';
 
 function App() {
   const { setSystemInfo, loadModels, updateJob } = useAppStore(
@@ -30,15 +31,18 @@ function App() {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      // Text fields, selects and contentEditable keep their own undo and keys.
+      if (isEditableTarget(e.target)) return;
       if (e.key === '?') {
         setShowShortcuts(prev => !prev);
       }
-      if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+      // Shift turns the key into 'Z', so compare case-insensitively.
+      const key = e.key.toLowerCase();
+      if ((e.ctrlKey || e.metaKey) && key === 'z' && !e.shiftKey) {
         e.preventDefault();
         useAppStore.getState().undo();
       }
-      if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) {
+      if ((e.ctrlKey || e.metaKey) && (key === 'y' || (key === 'z' && e.shiftKey))) {
         e.preventDefault();
         useAppStore.getState().redo();
       }

@@ -11,8 +11,12 @@ import { RegionLockToolbar } from '@/components/edit/RegionLockToolbar';
 import { RegionMaskDrawer } from '@/components/edit/RegionMaskDrawer';
 import { CanvasControlLayerRail } from '@/components/canvas/CanvasControlLayerRail';
 import { isTextLayer, konvaBlendMode, konvaFontStyle } from '@/features/edit/textLayers';
+import { applyEditPipeline, isIdentityEdit } from '@/features/edit/imageFilters';
+import { registerEditFlattener, rgbToHex } from '@/features/edit/exportEdit';
+import { useEditToolShortcuts } from '@/features/edit/useEditToolShortcuts';
 import type { RegionTool } from '@/components/edit/RegionLockToolbar';
 import type { RegionMask } from '@/types/project';
+import type { EditStroke } from '@/types/editor';
 import type Konva from 'konva';
 
 const CHECKERBOARD_SIZE = 16;
@@ -53,9 +57,23 @@ export function EditCanvas() {
     updateRegionLock,
     setActiveTab,
     setCenterView,
+    editStrokes,
+    addEditStroke,
+    editBrushColor,
+    editBrushSize,
+    setEditBrushColor,
+    editFilters,
+    editCompareOriginal,
   } = useAppStore(useShallow((s) => ({
     setActiveTab: s.setActiveTab,
     setCenterView: s.setCenterView,
+    editStrokes: s.editStrokes,
+    addEditStroke: s.addEditStroke,
+    editBrushColor: s.editBrushColor,
+    editBrushSize: s.editBrushSize,
+    setEditBrushColor: s.setEditBrushColor,
+    editFilters: s.editFilters,
+    editCompareOriginal: s.editCompareOriginal,
     currentImage: s.currentImage,
       activeEditTool: s.activeEditTool,
       imageAdjustments: s.imageAdjustments,
@@ -108,15 +126,21 @@ export function EditCanvas() {
   const stageRef = useRef<Konva.Stage>(null);
   const transformerRef = useRef<Konva.Transformer>(null);
   const imageRef = useRef<Konva.Image>(null);
+  const imageLayerRef = useRef<Konva.Layer>(null);
+  const checkerLayerRef = useRef<Konva.Layer>(null);
+
+  useEditToolShortcuts();
 
   const [containerSize, setContainerSize] = useState({ width: 800, height: 600 });
   const [loadedImage, setLoadedImage] = useState<HTMLImageElement | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [stageScale, setStageScale] = useState(1);
   const [stagePos, setStagePos] = useState({ x: 0, y: 0 });
-  const [isDrawing, setIsDrawing] = useState(false);
-  const [lines, setLines] = useState<{ points: number[]; tool: string }[]>([]);
-  const currentLineRef = useRef<{ points: number[]; tool: string } | null>(null);
+  // In-progress stroke only; committed strokes live in the store (editStrokes)
+  // so they survive unmount and take part in undo/redo.
+  const [draftStroke, setDraftStroke] = useState<EditStroke | null>(null);
+  const draftStrokeRef = useRef<EditStroke | null>(null);
+  const [eyedropperError, setEyedropperError] = useState<string | null>(null);
 
   // Resize observer
   useEffect(() => {
@@ -209,9 +233,43 @@ export function EditCanvas() {
     [stageScale]
   );
 
-  // Stage click (deselect / zoom tool)
+  // Eyedropper: sample the rendered (adjusted) base image under the pointer
+  // into the brush colour, and into the selected text layer's fill.
+  const sampleColorAtPointer = useCallback(() => {
+    const stage = stageRef.current;
+    const layer = imageLayerRef.current;
+    const pointer = stage?.getPointerPosition();
+    if (!stage || !layer || !pointer) return;
+    try {
+      const ratio = layer.getCanvas().getPixelRatio();
+      const pixel = layer
+        .getContext()
+        .getImageData(Math.floor(pointer.x * ratio), Math.floor(pointer.y * ratio), 1, 1).data;
+      if (pixel[3] === 0) {
+        setEyedropperError('Nothing to sample there. Click on the image.');
+        return;
+      }
+      const hex = rgbToHex(pixel[0], pixel[1], pixel[2]);
+      setEditBrushColor(hex);
+      setEyedropperError(null);
+      const state = useAppStore.getState();
+      const selected = state.editLayers.find((l) => l.id === state.selectedEditLayerId);
+      if (selected && isTextLayer(selected)) {
+        updateEditLayer(selected.id, { data: { ...selected.data, fill: hex } }, 'Eyedropper text colour');
+      }
+    } catch {
+      // A cross-origin image taints the canvas; reading pixels then throws.
+      setEyedropperError('This image cannot be sampled.');
+    }
+  }, [setEditBrushColor, updateEditLayer]);
+
+  // Stage click (deselect / zoom tool / eyedropper)
   const handleStageClick = useCallback(
     (e: Konva.KonvaEventObject<MouseEvent>) => {
+      if (activeEditTool === 'eyedropper') {
+        sampleColorAtPointer();
+        return;
+      }
       if (e.target === stageRef.current) {
         setSelectedId(null);
         setSelectedEditLayerId(null);
@@ -221,63 +279,97 @@ export function EditCanvas() {
         setStageScale((s) => Math.max(0.1, Math.min(5, s * scaleBy)));
       }
     },
-    [activeEditTool, setSelectedEditLayerId]
+    [activeEditTool, setSelectedEditLayerId, sampleColorAtPointer]
   );
 
-  // Drawing handlers - use ref for in-progress line to avoid array copy on every mouse move
+  // Strokes are recorded in image pixels (the stage's local space), so they
+  // stay put when the view zooms or pans, and export at full resolution.
   const handleMouseDown = useCallback(
     (_event: Konva.KonvaEventObject<MouseEvent>) => {
       if (activeEditTool !== 'brush' && activeEditTool !== 'eraser') return;
-      setIsDrawing(true);
-      const pos = stageRef.current?.getPointerPosition();
-      if (pos) {
-        const newLine = { points: [pos.x, pos.y], tool: activeEditTool };
-        currentLineRef.current = newLine;
-        setLines((prev) => [...prev, newLine]);
-      }
-    },
-    [activeEditTool]
-  );
-
-  const handleMouseMove = useCallback(
-    (_event: Konva.KonvaEventObject<MouseEvent>) => {
-      if (!isDrawing || !currentLineRef.current) return;
-      const pos = stageRef.current?.getPointerPosition();
+      const pos = stageRef.current?.getRelativePointerPosition();
       if (!pos) return;
-      // Mutate the current line ref directly for performance
-      currentLineRef.current.points = currentLineRef.current.points.concat([pos.x, pos.y]);
-      // Force a re-render of the Konva layer without full state copy
-      const layer = stageRef.current?.findOne('.drawing-layer');
-      if (layer) (layer as unknown as { batchDraw: () => void }).batchDraw();
+      const stroke: EditStroke = {
+        id: `stroke-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        tool: activeEditTool,
+        points: [pos.x, pos.y],
+        color: editBrushColor,
+        size: activeEditTool === 'eraser' ? editBrushSize * 2 : editBrushSize,
+      };
+      draftStrokeRef.current = stroke;
+      setDraftStroke(stroke);
     },
-    [isDrawing]
+    [activeEditTool, editBrushColor, editBrushSize]
   );
 
-  const handleMouseUp = useCallback(() => {
-    if (currentLineRef.current) {
-      // Commit final line state
-      setLines((prev) => {
-        const updated = [...prev];
-        updated[updated.length - 1] = { ...currentLineRef.current! };
-        return updated;
-      });
-      currentLineRef.current = null;
-    }
-    setIsDrawing(false);
+  const handleMouseMove = useCallback(() => {
+    const draft = draftStrokeRef.current;
+    if (!draft) return;
+    const pos = stageRef.current?.getRelativePointerPosition();
+    if (!pos) return;
+    const next = { ...draft, points: [...draft.points, pos.x, pos.y] };
+    draftStrokeRef.current = next;
+    setDraftStroke(next);
   }, []);
 
-  // CSS filter string from adjustments
-  const cssFilter = [
-    `brightness(${1 + imageAdjustments.brightness / 100})`,
-    `contrast(${1 + imageAdjustments.contrast / 100})`,
-    `saturate(${1 + imageAdjustments.saturation / 100})`,
-    imageAdjustments.blur > 0 ? `blur(${imageAdjustments.blur * 0.2}px)` : '',
-    imageAdjustments.temperature !== 0
-      ? `sepia(${Math.abs(imageAdjustments.temperature) / 200})`
-      : '',
-  ]
-    .filter(Boolean)
-    .join(' ');
+  const handleMouseUp = useCallback(() => {
+    const draft = draftStrokeRef.current;
+    draftStrokeRef.current = null;
+    setDraftStroke(null);
+    if (draft) addEditStroke(draft);
+  }, [addEditStroke]);
+
+  // Adjustments and look filters run on real pixels through a Konva filter
+  // on the base image, so the canvas shows exactly what Export flattens.
+  // Before/After compare renders the untouched original.
+  useEffect(() => {
+    const node = imageRef.current;
+    if (!node || !loadedImage) return;
+    if (editCompareOriginal || isIdentityEdit(imageAdjustments, editFilters)) {
+      node.filters([]);
+      node.clearCache();
+    } else {
+      const adjustments = imageAdjustments;
+      const filters = editFilters;
+      node.filters([
+        (imageData: ImageData) =>
+          applyEditPipeline(imageData.data, imageData.width, imageData.height, adjustments, filters),
+      ]);
+      node.cache();
+    }
+    node.getLayer()?.batchDraw();
+  }, [imageAdjustments, editFilters, editCompareOriginal, loadedImage]);
+
+  // Export flattener: the stage at intrinsic image resolution, without the
+  // checkerboard or transform handles.
+  useEffect(() => {
+    registerEditFlattener(() => {
+      const stage = stageRef.current;
+      if (!stage || !loadedImage) return null;
+      const transformer = transformerRef.current;
+      const previousNodes = transformer?.nodes() ?? [];
+      const scale = stage.scaleX() || 1;
+      transformer?.nodes([]);
+      checkerLayerRef.current?.hide();
+      try {
+        return stage.toDataURL({
+          x: stage.x(),
+          y: stage.y(),
+          width: loadedImage.width * scale,
+          height: loadedImage.height * scale,
+          pixelRatio: 1 / scale,
+          mimeType: 'image/png',
+        });
+      } finally {
+        checkerLayerRef.current?.show();
+        transformer?.nodes(previousNodes);
+        stage.batchDraw();
+      }
+    });
+    return () => registerEditFlattener(null);
+  }, [loadedImage]);
+
+  const visibleStrokes = draftStroke ? [...editStrokes, draftStroke] : editStrokes;
 
   // Determine if stage is draggable (hand tool or no image)
   const isDraggable = activeEditTool === 'hand';
@@ -333,7 +425,22 @@ export function EditCanvas() {
         )}
       />
 
-      <div style={{ filter: cssFilter || undefined }}>
+      {eyedropperError && activeEditTool === 'eyedropper' && (
+        <p
+          role="alert"
+          className="recessed-well absolute bottom-4 left-1/2 z-10 -translate-x-1/2 px-3 py-1.5 type-caption text-status-error"
+        >
+          {eyedropperError}
+        </p>
+      )}
+
+      {editCompareOriginal && currentImage && (
+        <span className="recessed-well mono-label absolute right-4 top-4 z-10 px-2 py-1 text-text-primary">
+          Before
+        </span>
+      )}
+
+      <div>
         <Stage
           ref={stageRef}
           width={containerSize.width}
@@ -355,7 +462,7 @@ export function EditCanvas() {
           }}
         >
           {/* Background checkerboard layer */}
-          <Layer>
+          <Layer ref={checkerLayerRef}>
             {loadedImage &&
               Array.from({
                 length: Math.ceil(loadedImage.width / CHECKERBOARD_SIZE),
@@ -380,7 +487,7 @@ export function EditCanvas() {
           </Layer>
 
           {/* Main image layer */}
-          <Layer>
+          <Layer ref={imageLayerRef}>
             {loadedImage && (
               <KonvaImage
                 id="main-image"
@@ -406,7 +513,7 @@ export function EditCanvas() {
           </Layer>
 
           {/* Text layers (#32): rendered from the shared layer model. */}
-          <Layer>
+          <Layer visible={!editCompareOriginal}>
             {editLayers.filter(isTextLayer).filter((layer) => layer.visible).map((layer) => {
               const selectText = () => {
                 setSelectedEditLayerId(layer.id);
@@ -468,17 +575,13 @@ export function EditCanvas() {
           </Layer>
 
           {/* Drawing layer */}
-          <Layer name="drawing-layer">
-            {lines.map((line, i) => (
+          <Layer name="drawing-layer" visible={!editCompareOriginal}>
+            {visibleStrokes.map((line) => (
               <Line
-                key={i}
+                key={line.id}
                 points={line.points}
-                stroke={
-                  line.tool === 'eraser'
-                    ? 'rgba(0,0,0,1)'
-                    : 'rgba(230, 230, 230, 0.5)'
-                }
-                strokeWidth={line.tool === 'eraser' ? 20 : 10}
+                stroke={line.tool === 'eraser' ? 'rgba(0,0,0,1)' : line.color}
+                strokeWidth={line.size}
                 tension={0.5}
                 lineCap="round"
                 lineJoin="round"
