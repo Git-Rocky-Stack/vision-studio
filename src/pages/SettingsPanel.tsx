@@ -452,7 +452,7 @@ export function SettingsPanel() {
         }
         if (Date.now() >= deadline) {
           setBackendStartError(
-            `The backend did not come up within ${BACKEND_START_TIMEOUT_MS / 1000} seconds. Check the Python path, then try again.`,
+            `The backend did not come up within ${BACKEND_START_TIMEOUT_MS / 1000} seconds. Check the backend log (logs/backend.log in the app data folder), then try again.`,
           );
           return;
         }
@@ -984,7 +984,7 @@ export function SettingsPanel() {
                     AI & Models
                   </h2>
                   <p className="text-sm text-text-body">
-                    Configure AI generation settings, local accounts, and optional OpenRouter BYOK.
+                    Configure AI generation settings, local accounts, and optional OpenRouter and HuggingFace BYOK.
                   </p>
                 </div>
 
@@ -1055,9 +1055,9 @@ export function SettingsPanel() {
                     User Accounts & BYOK
                   </h3>
                   <p className="text-xs text-text-body">
-                    Keep separate local creator profiles, each with its own OpenRouter key and
-                    prompt-enhancement model. Keys stay in the main process and are encrypted with
-                    OS secure storage before they are saved.
+                    Keep separate local creator profiles, each with its own OpenRouter key,
+                    HuggingFace token and hosted model choices. Keys stay in the main process and
+                    are encrypted with OS secure storage before they are saved.
                   </p>
 
                   <div className="raised-panel p-4 space-y-4">
@@ -1553,8 +1553,8 @@ export function SettingsPanel() {
                             </div>
                             <p className="text-xs text-text-body">
                               Save one encrypted HuggingFace token per local account to enable BYOK
-                              prompt enhancement and hosted still-image generation through the
-                              HuggingFace Inference providers.
+                              prompt enhancement, hosted still-image generation and hosted video
+                              through the HuggingFace Inference providers.
                             </p>
                           </div>
 

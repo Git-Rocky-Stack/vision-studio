@@ -104,6 +104,61 @@ describe('QuickGeneratePanel', () => {
     expect(screen.getByText(/google\/gemini-2.5-flash-image/)).toBeInTheDocument();
   });
 
+  describe('HuggingFace still-image route', () => {
+    function useHuggingFaceAccount({ tokenStored = true, model = 'black-forest-labs/FLUX.1-schnell' } = {}) {
+      window.electron.accounts.list = vi.fn().mockResolvedValue({
+        activeAccountId: 'account-primary',
+        accounts: [
+          {
+            id: 'account-primary',
+            name: 'Primary',
+            createdAt: '2026-04-24T00:00:00.000Z',
+            updatedAt: '2026-04-24T00:00:00.000Z',
+            preferences: {
+              promptEnhancementProvider: 'local',
+              openRouterModel: '',
+              imageGenerationProvider: 'huggingface',
+              openRouterImageModel: '',
+              huggingFaceImageModel: model,
+            },
+            openRouter: { apiKeyStored: false, keyLabel: null, lastValidatedAt: null },
+            huggingFace: { tokenStored },
+          },
+        ],
+      });
+    }
+
+    async function generateWithBackendOffline() {
+      useAppStore.setState({
+        systemInfo: { ...useAppStore.getState().systemInfo, backendConnected: false },
+      });
+      render(<QuickGeneratePanel />);
+      await screen.findByText('HuggingFace Still Image Route');
+      fireEvent.change(screen.getByLabelText('Prompt'), { target: { value: 'a lighthouse at dusk' } });
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /Generate/i }));
+      });
+    }
+
+    it('runs the hosted model with the local backend offline', async () => {
+      useHuggingFaceAccount();
+      await generateWithBackendOffline();
+
+      expect(window.electron.generation.generateImage).toHaveBeenCalledWith(
+        expect.objectContaining({ model: 'black-forest-labs/FLUX.1-schnell' }),
+      );
+      expect(screen.queryByText(/AI backend is not running/)).not.toBeInTheDocument();
+    });
+
+    it('refuses to run without a stored token, and says why', async () => {
+      useHuggingFaceAccount({ tokenStored: false });
+      await generateWithBackendOffline();
+
+      expect(window.electron.generation.generateImage).not.toHaveBeenCalled();
+      expect(await screen.findByText(/no token is stored for the active account/)).toBeInTheDocument();
+    });
+  });
+
   describe('status polling', () => {
     afterEach(() => {
       vi.useRealTimers();

@@ -297,7 +297,7 @@ export function WorkflowWorkbench({ library = 'inline' }: WorkflowWorkbenchProps
               {!systemInfo.backendConnected ? (
                 <p className="mt-2 type-caption text-text-muted">
                   {workflowCanRunWithoutBackend
-                    ? 'Local backend is offline, but OpenRouter-hosted still-image runs remain available.'
+                    ? `Local backend is offline, but ${stillImageRoute.provider === 'huggingface' ? 'HuggingFace' : 'OpenRouter'}-hosted still-image runs remain available.`
                     : 'Local backend is offline. Workflow runs stay blocked until it comes back.'}
                 </p>
               ) : null}

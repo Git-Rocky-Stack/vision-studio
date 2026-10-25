@@ -210,9 +210,17 @@ export function QuickGeneratePanel() {
     isGeneratingRef.current = true;
 
     const latestActiveAccount = await syncActiveAccount();
-    const useOpenRouterImage =
-      latestActiveAccount?.preferences.imageGenerationProvider === 'openrouter';
+    const savedImageProvider = latestActiveAccount?.preferences.imageGenerationProvider;
+    const useOpenRouterImage = savedImageProvider === 'openrouter';
+    const useHuggingFaceImage = savedImageProvider === 'huggingface';
+    const useHostedImage = useOpenRouterImage || useHuggingFaceImage;
     const openRouterImageModel = latestActiveAccount?.preferences.openRouterImageModel.trim() ?? '';
+    const huggingFaceImageModel = latestActiveAccount?.preferences.huggingFaceImageModel?.trim() ?? '';
+    const requestedModel = useOpenRouterImage
+      ? openRouterImageModel
+      : useHuggingFaceImage
+        ? huggingFaceImageModel
+        : selectedModel;
 
     if (useOpenRouterImage && !latestActiveAccount?.openRouter.apiKeyStored) {
       setGenStatus({
@@ -236,7 +244,30 @@ export function QuickGeneratePanel() {
       return;
     }
 
-    if (!systemInfo.backendConnected && !useOpenRouterImage) {
+    if (useHuggingFaceImage && !latestActiveAccount?.huggingFace?.tokenStored) {
+      setGenStatus({
+        isGenerating: false,
+        progress: 0,
+        status: 'error',
+        errorMessage: 'HuggingFace is selected for still images, but no token is stored for the active account.',
+      });
+      isGeneratingRef.current = false;
+      return;
+    }
+
+    if (useHuggingFaceImage && !huggingFaceImageModel) {
+      setGenStatus({
+        isGenerating: false,
+        progress: 0,
+        status: 'error',
+        errorMessage: 'Select a HuggingFace still-image model in Settings before generating.',
+      });
+      isGeneratingRef.current = false;
+      return;
+    }
+
+    // Hosted routes do not need the local backend.
+    if (!systemInfo.backendConnected && !useHostedImage) {
       setGenStatus({
         isGenerating: false,
         progress: 0,
@@ -262,7 +293,7 @@ export function QuickGeneratePanel() {
         steps: advancedGeneration.steps,
         cfg_scale: advancedGeneration.cfgScale,
         seed: advancedGeneration.seed === -1 ? undefined : advancedGeneration.seed,
-        model: useOpenRouterImage ? openRouterImageModel : selectedModel,
+        model: requestedModel,
         scheduler: advancedGeneration.scheduler,
         acceleration_settings: toAccelerationRequestPayload(
           useAppStore.getState().accelerationSettings,
@@ -283,7 +314,7 @@ export function QuickGeneratePanel() {
             steps: advancedGeneration.steps,
             cfg_scale: advancedGeneration.cfgScale,
             seed: advancedGeneration.seed,
-            model: useOpenRouterImage ? openRouterImageModel : selectedModel,
+            model: requestedModel,
             scheduler: advancedGeneration.scheduler,
             output_root: outputRoot,
           },
@@ -313,7 +344,22 @@ export function QuickGeneratePanel() {
   };
 
   const openRouterImageEnabled = activeAccount?.preferences.imageGenerationProvider === 'openrouter';
-  const openRouterImageModel = activeAccount?.preferences.openRouterImageModel.trim() ?? '';
+  const huggingFaceImageEnabled = activeAccount?.preferences.imageGenerationProvider === 'huggingface';
+  const hostedRoute = openRouterImageEnabled
+    ? {
+        title: 'OpenRouter Still Image Route',
+        provider: 'OpenRouter',
+        model: activeAccount?.preferences.openRouterImageModel.trim() ?? '',
+        credentialStored: Boolean(activeAccount?.openRouter.apiKeyStored),
+      }
+    : huggingFaceImageEnabled
+      ? {
+          title: 'HuggingFace Still Image Route',
+          provider: 'HuggingFace',
+          model: activeAccount?.preferences.huggingFaceImageModel?.trim() ?? '',
+          credentialStored: Boolean(activeAccount?.huggingFace?.tokenStored),
+        }
+      : null;
 
   return (
     <div className="flex flex-col h-full bg-panel">
@@ -386,19 +432,19 @@ export function QuickGeneratePanel() {
                 Model Router
               </label>
               <p className="mt-1 text-xs text-text-muted">
-                {openRouterImageEnabled
-                  ? 'The active account is routing still images through OpenRouter.'
+                {hostedRoute
+                  ? `The active account is routing still images through ${hostedRoute.provider}.`
                   : 'Route this quick image through a model profile.'}
               </p>
             </div>
-            {openRouterImageEnabled ? (
+            {hostedRoute ? (
               <RouteStatusCard
-                title="OpenRouter Still Image Route"
-                ready={Boolean(openRouterImageModel) && Boolean(activeAccount?.openRouter.apiKeyStored)}
+                title={hostedRoute.title}
+                ready={Boolean(hostedRoute.model) && hostedRoute.credentialStored}
               >
                 <p className="mt-1 text-xs text-text-body">
                   Account: {activeAccount?.name ?? 'No active account'}.
-                  {' '}Model: {openRouterImageModel || 'Not set in Settings'}.
+                  {' '}Model: {hostedRoute.model || 'Not set in Settings'}.
                 </p>
                 <p className="mt-1 text-xs text-text-muted">
                   Quick Generate uses the account&apos;s hosted still-image model until you switch the account back to Local.
