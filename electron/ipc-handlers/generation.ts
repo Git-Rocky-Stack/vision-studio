@@ -67,7 +67,18 @@ const BATCH_SUBMISSION_CONCURRENCY = 4;
 let ws: WebSocket | null = null;
 let mainWindow: BrowserWindow | null = null;
 let wsReconnectAttempts = 0;
+let wsReconnectTimer: ReturnType<typeof setTimeout> | null = null;
 const WS_BASE_DELAY = 1000; // 1s initial delay, doubles each attempt up to 30s
+
+/**
+ * Renderer sink for job and progress events. The target window is swapped
+ * on macOS re-activate, and a closed window must not throw on send.
+ */
+function sendToRenderer(channel: string, payload: unknown) {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send(channel, payload);
+  }
+}
 
 type UserAccountsService = ReturnType<typeof createUserAccountsService>;
 type OpenRouterService = ReturnType<typeof createOpenRouterService>;
@@ -78,7 +89,7 @@ let openRouterService: OpenRouterService | null = null;
 let outputRootService: OutputRootService | null = null;
 
 const openRouterImageJobStore = createOpenRouterImageJobStore({
-  emit: (channel, payload) => mainWindow?.webContents.send(channel, payload),
+  emit: sendToRenderer,
 });
 
 function dispatchOpenRouterImageJob(jobId: string, params: Record<string, unknown>) {
@@ -103,7 +114,7 @@ type HuggingFaceService = ReturnType<typeof createHuggingFaceInferenceService>;
 let huggingFaceService: HuggingFaceService | null = null;
 
 const huggingFaceImageJobStore = createHuggingFaceImageJobStore({
-  emit: (channel, payload) => mainWindow?.webContents.send(channel, payload),
+  emit: sendToRenderer,
 });
 
 function dispatchHuggingFaceImageJob(jobId: string, params: Record<string, unknown>) {
@@ -125,7 +136,7 @@ function dispatchHuggingFaceImageJob(jobId: string, params: Record<string, unkno
 }
 
 const huggingFaceVideoJobStore = createHuggingFaceVideoJobStore({
-  emit: (channel, payload) => mainWindow?.webContents.send(channel, payload),
+  emit: sendToRenderer,
 });
 
 function dispatchHuggingFaceVideoJob(jobId: string, params: Record<string, unknown>) {
@@ -148,6 +159,26 @@ function dispatchHuggingFaceVideoJob(jobId: string, params: Record<string, unkno
 
 export function setupGenerationHandlers(window: BrowserWindow) {
   mainWindow = window;
+  // One socket per app session. macOS re-activate creates a new window and
+  // calls this again; only the event target changes. Opening a second socket
+  // here left the first one connected too, so every progress event reached
+  // the renderer twice.
+  if (!ws) {
+    connectWebSocket();
+  }
+}
+
+/**
+ * Reconnect now instead of waiting out the backoff. The socket starts
+ * connecting before the backend has started, so by the time the backend is
+ * ready the backoff can have grown to 30s of missed progress. Called when the
+ * backend reports ready; a no-op while a socket is open or connecting.
+ */
+export function kickBackendWebSocket() {
+  wsReconnectAttempts = 0;
+  if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
+    return;
+  }
   connectWebSocket();
 }
 
@@ -169,28 +200,44 @@ export function configureGenerationHandlerServices({
 }
 
 function connectWebSocket() {
-  ws = new WebSocket(`${WS_URL}?token=${encodeURIComponent(getBackendAuthToken())}`);
+  if (wsReconnectTimer) {
+    clearTimeout(wsReconnectTimer);
+    wsReconnectTimer = null;
+  }
+  if (ws) {
+    // Retire the previous socket so it can neither deliver duplicate events
+    // nor schedule a second reconnect loop. Keep a no-op error listener:
+    // terminating a socket mid-handshake emits 'error'.
+    const previous = ws;
+    previous.removeAllListeners();
+    previous.on('error', () => undefined);
+    previous.terminate();
+  }
 
-  ws.on('open', () => {
+  const socket = new WebSocket(`${WS_URL}?token=${encodeURIComponent(getBackendAuthToken())}`);
+  ws = socket;
+
+  socket.on('open', () => {
     wsReconnectAttempts = 0;
     console.log('Connected to Python backend WebSocket');
   });
 
-  ws.on('message', (data) => {
-    routeBackendWsMessage(data.toString(), (channel, payload) => {
-      mainWindow?.webContents.send(channel, payload);
-    });
+  socket.on('message', (data) => {
+    routeBackendWsMessage(data.toString(), sendToRenderer);
   });
 
-  ws.on('close', () => {
+  socket.on('close', () => {
+    if (ws !== socket) {
+      return;
+    }
     const delay = Math.min(WS_BASE_DELAY * Math.pow(2, wsReconnectAttempts), 30000);
     wsReconnectAttempts += 1;
     console.log(`WebSocket closed, reconnecting in ${delay}ms (attempt ${wsReconnectAttempts})...`);
-    setTimeout(connectWebSocket, delay);
+    wsReconnectTimer = setTimeout(connectWebSocket, delay);
   });
 
-  ws.on('error', (err) => {
-    console.error('WebSocket error:', err);
+  socket.on('error', (err) => {
+    console.error('WebSocket error:', err instanceof Error ? err.message : err);
   });
 }
 

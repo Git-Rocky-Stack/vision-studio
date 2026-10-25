@@ -7,6 +7,11 @@ const harness = vi.hoisted(() => ({
   post: vi.fn(),
   get: vi.fn(),
   createConfig: undefined as unknown,
+  sockets: [] as Array<{
+    readyState: number;
+    terminated: boolean;
+    emit: (event: string, ...args: unknown[]) => boolean;
+  }>,
 }));
 
 vi.mock('electron', () => ({
@@ -27,15 +32,92 @@ vi.mock('axios', () => ({
   },
 }));
 
-vi.mock('ws', () => ({ default: class {} }));
+vi.mock('ws', async () => {
+  const { EventEmitter } = await import('node:events');
+  class FakeWebSocket extends EventEmitter {
+    static CONNECTING = 0;
+    static OPEN = 1;
+    static CLOSED = 3;
+    readyState = FakeWebSocket.CONNECTING;
+    terminated = false;
+    constructor(readonly url: string) {
+      super();
+      harness.sockets.push(this);
+    }
+    terminate() {
+      this.terminated = true;
+      this.readyState = FakeWebSocket.CLOSED;
+    }
+  }
+  return { default: FakeWebSocket };
+});
 
-await import('./generation');
+const { setupGenerationHandlers, kickBackendWebSocket } = await import('./generation');
 
 function invoke(channel: string, ...args: unknown[]) {
   const handler = harness.handlers.get(channel);
   if (!handler) throw new Error(`no handler for ${channel}`);
   return handler({}, ...args);
 }
+
+describe('backend progress WebSocket', () => {
+  function fakeWindow() {
+    return { isDestroyed: () => false, webContents: { send: vi.fn() } };
+  }
+  const jobUpdate = JSON.stringify({ type: 'job_update', job_id: 'j1', status: 'processing', progress: 40 });
+
+  it('opens one socket for the session and only swaps the target window on re-activate', () => {
+    const first = fakeWindow();
+    const second = fakeWindow();
+    vi.spyOn(console, 'log').mockImplementation(() => undefined);
+
+    setupGenerationHandlers(first as never);
+    setupGenerationHandlers(second as never);
+
+    expect(harness.sockets).toHaveLength(1);
+    harness.sockets[0].readyState = 1;
+    harness.sockets[0].emit('open');
+    harness.sockets[0].emit('message', Buffer.from(jobUpdate));
+    expect(first.webContents.send).not.toHaveBeenCalled();
+    expect(second.webContents.send).toHaveBeenCalledTimes(1);
+    expect(second.webContents.send).toHaveBeenCalledWith('generation:progress', expect.objectContaining({ job_id: 'j1' }));
+  });
+
+  it('ignores a kick while the socket is open', () => {
+    kickBackendWebSocket();
+    expect(harness.sockets).toHaveLength(1);
+  });
+
+  it('reconnects immediately on a kick instead of waiting out the backoff', () => {
+    vi.useFakeTimers();
+    try {
+      const socket = harness.sockets[0];
+      socket.readyState = 3;
+      socket.emit('close');
+      expect(harness.sockets).toHaveLength(1);
+
+      kickBackendWebSocket();
+      expect(harness.sockets).toHaveLength(2);
+
+      // The backoff timer from the close was cancelled: no third socket.
+      vi.advanceTimersByTime(60_000);
+      expect(harness.sockets).toHaveLength(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('retires a superseded socket so it cannot deliver duplicate events', () => {
+    const window = fakeWindow();
+    setupGenerationHandlers(window as never);
+    const [stale, current] = harness.sockets;
+
+    stale.emit('message', Buffer.from(jobUpdate));
+    current.emit('message', Buffer.from(jobUpdate));
+
+    expect(window.webContents.send).toHaveBeenCalledTimes(1);
+  });
+});
 
 describe('backend request timeouts', () => {
   it('builds the shared backend client with a 30s default timeout', () => {

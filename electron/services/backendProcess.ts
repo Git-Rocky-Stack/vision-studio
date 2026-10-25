@@ -241,6 +241,12 @@ type BackendProcessServiceOptions = {
   isDev: () => boolean;
   dirname: string;
   logger?: Logger;
+  /**
+   * Fired each time a spawned backend passes its health check. The main
+   * process uses it to reconnect the progress WebSocket immediately instead
+   * of waiting out a backoff grown while the backend was still starting.
+   */
+  onReady?: () => void;
 };
 
 export function createBackendProcessService({
@@ -253,6 +259,7 @@ export function createBackendProcessService({
   isDev,
   dirname: electronDirname,
   logger = console,
+  onReady,
 }: BackendProcessServiceOptions) {
   let pythonBackend: ChildProcess | null = null;
   let backendReady = false;
@@ -367,6 +374,9 @@ export function createBackendProcessService({
         hasStarted = true;
         backendReady = started;
         sendStatus(getMainWindow()?.webContents);
+        if (started) {
+          onReady?.();
+        }
         resolve(started);
       };
 

@@ -21,6 +21,7 @@ import { registerMainIpcHandlers } from './mainIpc';
 import { registerContentSecurityPolicy } from './contentSecurityPolicy';
 import {
   configureGenerationHandlerServices,
+  kickBackendWebSocket,
   setupGenerationHandlers,
 } from '../ipc-handlers/generation';
 import { createUserAccountsService, DEFAULT_USER_ACCOUNTS_STATE } from './userAccounts';
@@ -122,6 +123,7 @@ export function createMainProcessServices({
     isDev: () => Boolean(devServerUrl),
     dirname,
     logger,
+    onReady: kickBackendWebSocket,
   });
 
   configureGenerationHandlerServices({
