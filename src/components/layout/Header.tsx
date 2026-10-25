@@ -46,13 +46,15 @@ function formatCount(count: number, singular: string, plural = `${singular}s`) {
 function getBackendStatusPresentation(params: {
   systemInfo: ReturnType<typeof useAppStore.getState>['systemInfo'];
   activeJobs: ReturnType<typeof useAppStore.getState>['activeJobs'];
-  generationQueue: ReturnType<typeof useAppStore.getState>['generationQueue'];
   availableModels: ReturnType<typeof useAppStore.getState>['availableModels'];
   provisionStatus: ReturnType<typeof useAppStore.getState>['provisionStatus'];
 }): HeaderStatusPresentation {
-  const { systemInfo, activeJobs, generationQueue, availableModels, provisionStatus } = params;
-  const runningCount = activeJobs.length;
-  const queuedCount = generationQueue.length;
+  const { systemInfo, activeJobs, availableModels, provisionStatus } = params;
+  // Counted from the real job records: generationQueue is never populated,
+  // and activeJobs also keeps finished jobs, which are neither running nor
+  // queued.
+  const runningCount = activeJobs.filter((job) => job.status === 'processing').length;
+  const queuedCount = activeJobs.filter((job) => job.status === 'pending').length;
   const downloadingCount = availableModels.filter((model) => model.status === 'downloading').length;
 
   if (runningCount > 0 || queuedCount > 0) {
@@ -145,14 +147,12 @@ export const Header = memo(function Header() {
   const systemInfo = useAppStore((s) => s.systemInfo);
   const availableModels = useAppStore((s) => s.availableModels);
   const activeJobs = useAppStore((s) => s.activeJobs);
-  const generationQueue = useAppStore((s) => s.generationQueue);
   const provisionStatus = useAppStore((s) => s.provisionStatus);
 
   const backendStatus = getBackendStatusPresentation({
     systemInfo,
     availableModels,
     activeJobs,
-    generationQueue,
     provisionStatus,
   });
 
