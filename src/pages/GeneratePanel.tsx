@@ -51,7 +51,6 @@ import {
   Check,
   ChevronDown,
   Clapperboard,
-  Cloud,
   Clock,
   Film,
   Frame,
@@ -67,7 +66,8 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { ChromeButton, Lcd, Led } from '@/components/hardware';
+import { ChromeButton, Lcd } from '@/components/hardware';
+import { RouteStatusCard } from '@/components/generate/RouteStatusCard';
 import { Slider } from '@/components/ui/Slider';
 import { useMotionConfig } from '@/utils/animation';
 
@@ -1501,29 +1501,19 @@ export function GeneratePanel() {
                 </p>
               </div>
               {openRouterImageEnabled ? (
-                <div className="recessed-well px-4 py-4">
-                  <div className="flex items-start gap-3">
-                    <div className="raised-control mt-0.5 flex h-9 w-9 flex-shrink-0 items-center justify-center text-accent-primary">
-                      <Cloud className="h-4 w-4" />
-                    </div>
-                    <div className="min-w-0 space-y-2">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <Led color="play" size={7} />
-                          <p className="type-section text-text-primary">OpenRouter Still Image Route</p>
-                        </div>
-                        <p className="mt-1 text-xs text-text-body">
-                          Account: {activeAccount?.name ?? 'No active account'}.
-                          {' '}Model: {openRouterImageModel || 'Not set in Settings'}.
-                        </p>
-                      </div>
-                      <p className="text-xs text-text-muted">
-                        Prompt, negative prompt, aspect ratio, and seed flow through OpenRouter.
-                        ControlNet, inpaint, and canvas-guided passes remain local-only for now.
-                      </p>
-                    </div>
-                  </div>
-                </div>
+                <RouteStatusCard
+                  title="OpenRouter Still Image Route"
+                  ready={Boolean(openRouterImageModel) && Boolean(activeAccount?.openRouter.apiKeyStored)}
+                >
+                  <p className="mt-1 text-xs text-text-body">
+                    Account: {activeAccount?.name ?? 'No active account'}.
+                    {' '}Model: {openRouterImageModel || 'Not set in Settings'}.
+                  </p>
+                  <p className="mt-2 text-xs text-text-muted">
+                    Prompt, negative prompt, aspect ratio, and seed flow through OpenRouter.
+                    ControlNet, inpaint, and canvas-guided passes remain local-only for now.
+                  </p>
+                </RouteStatusCard>
               ) : (
                 <ModelSelector
                   value={currentModel}

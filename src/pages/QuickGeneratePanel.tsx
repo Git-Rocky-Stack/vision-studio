@@ -9,9 +9,10 @@ import { Button } from '@/components/ui/Button';
 import { ModelSelector } from '@/components/generate/ModelSelector';
 import { cn } from '@/utils/cn';
 import type { UserAccountSummary } from '@/types/electron';
-import { Wand2, Loader2, CheckCircle2, AlertCircle, Cloud, X } from 'lucide-react';
+import { Wand2, Loader2, CheckCircle2, AlertCircle, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChromeButton, Led } from '@/components/hardware';
+import { ChromeButton } from '@/components/hardware';
+import { RouteStatusCard } from '@/components/generate/RouteStatusCard';
 
 const ASPECT_RATIOS = [
   { name: 'Square', width: 1024, height: 1024, icon: '1:1' },
@@ -391,26 +392,18 @@ export function QuickGeneratePanel() {
               </p>
             </div>
             {openRouterImageEnabled ? (
-              <div className="recessed-well px-4 py-3">
-                <div className="flex items-start gap-3">
-                  <div className="raised-control mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center text-accent-primary">
-                    <Cloud className="h-4 w-4" aria-hidden="true" />
-                  </div>
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <Led color="play" size={7} />
-                      <p className="type-section text-text-primary">OpenRouter Still Image Route</p>
-                    </div>
-                    <p className="mt-1 text-xs text-text-body">
-                      Account: {activeAccount?.name ?? 'No active account'}.
-                      {' '}Model: {openRouterImageModel || 'Not set in Settings'}.
-                    </p>
-                    <p className="mt-1 text-xs text-text-muted">
-                      Quick Generate uses the account&apos;s hosted still-image model until you switch the account back to Local.
-                    </p>
-                  </div>
-                </div>
-              </div>
+              <RouteStatusCard
+                title="OpenRouter Still Image Route"
+                ready={Boolean(openRouterImageModel) && Boolean(activeAccount?.openRouter.apiKeyStored)}
+              >
+                <p className="mt-1 text-xs text-text-body">
+                  Account: {activeAccount?.name ?? 'No active account'}.
+                  {' '}Model: {openRouterImageModel || 'Not set in Settings'}.
+                </p>
+                <p className="mt-1 text-xs text-text-muted">
+                  Quick Generate uses the account&apos;s hosted still-image model until you switch the account back to Local.
+                </p>
+              </RouteStatusCard>
             ) : (
               <ModelSelector
                 value={selectedModel}
