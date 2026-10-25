@@ -476,18 +476,31 @@ export function BatchPromptQueue() {
     batchPollRef.current = setTimeout(tick, BATCH_POLL_INTERVAL_MS);
   };
 
-  const handleCancel = () => {
+  const handleCancel = async () => {
     stopBatchPolling();
     setIsGenerating(false);
-    setBatchNotice({
-      tone: 'info',
-      message: 'Batch cancellation requested.',
-    });
-    prompts.forEach((p) => {
-      if (p.status === 'generating') {
-        window.electron.generation.cancel(p.id);
-      }
-    });
+    // Every submitted prompt (running or still queued on the backend) is
+    // 'generating'. Polling stops here, so put them back to pending - left as
+    // they were, their spinners would run forever.
+    const inFlight = prompts.filter((p) => p.status === 'generating');
+    setPrompts((current) =>
+      current.map((p) => (p.status === 'generating' ? { ...p, status: 'pending' } : p)),
+    );
+    setBatchNotice({ tone: 'info', message: 'Cancelling the batch...' });
+    const outcomes = await Promise.allSettled(
+      inFlight.map((p) => window.electron.generation.cancel(p.id)),
+    );
+    const failed = outcomes.filter(
+      (outcome) => outcome.status === 'rejected' || outcome.value?.success === false,
+    ).length;
+    setBatchNotice(
+      failed > 0
+        ? {
+            tone: 'error',
+            message: `Cancelled ${inFlight.length - failed} of ${inFlight.length} prompts; ${failed} could not be cancelled and may still finish.`,
+          }
+        : { tone: 'info', message: `Batch cancelled (${inFlight.length} prompt${inFlight.length === 1 ? '' : 's'}).` },
+    );
   };
 
   const handleExport = () => {
@@ -972,7 +985,7 @@ export function BatchPromptQueue() {
       {/* Actions */}
       <div className="p-4 border-t border-border flex gap-2">
         {isGenerating ? (
-          <Button variant="danger" icon={Pause} fullWidth onClick={handleCancel}>
+          <Button variant="danger" icon={Pause} fullWidth onClick={() => void handleCancel()}>
             Cancel Batch
           </Button>
         ) : (

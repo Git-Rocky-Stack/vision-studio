@@ -205,5 +205,33 @@ describe('BatchPromptQueue', () => {
       await advance(10000);
       expect(getStatus).toHaveBeenCalledTimes(1);
     });
+
+    it('cancels every submitted job, queued ones included, and clears their spinners', async () => {
+      window.electron.generation.getStatus = vi.fn().mockResolvedValue({ status: 'pending', progress: 0 });
+      const cancel = vi.fn().mockResolvedValue({ success: true });
+      window.electron.generation.cancel = cancel;
+      await startBatch(['job-a', 'job-b', 'job-c']);
+
+      fireEvent.click(screen.getByRole('button', { name: /Cancel Batch/i }));
+      for (let i = 0; i < 3; i++) await flush();
+
+      expect(cancel.mock.calls.map(([id]) => id).sort()).toEqual(['job-a', 'job-b', 'job-c']);
+      expect(screen.getByText('Batch cancelled (3 prompts).')).toBeInTheDocument();
+      expect(document.querySelectorAll('.animate-spin')).toHaveLength(0);
+    });
+
+    it('says which prompts could not be cancelled', async () => {
+      window.electron.generation.getStatus = vi.fn().mockResolvedValue({ status: 'pending', progress: 0 });
+      window.electron.generation.cancel = vi
+        .fn()
+        .mockResolvedValueOnce({ success: true })
+        .mockResolvedValueOnce({ success: false });
+      await startBatch(['job-a', 'job-b']);
+
+      fireEvent.click(screen.getByRole('button', { name: /Cancel Batch/i }));
+      for (let i = 0; i < 3; i++) await flush();
+
+      expect(screen.getByText(/Cancelled 1 of 2 prompts; 1 could not be cancelled/)).toBeInTheDocument();
+    });
   });
 });
