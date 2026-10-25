@@ -6,6 +6,7 @@ import type {
   BrowserWindowConstructorOptions,
   Dialog,
   IpcMain,
+  Menu as MenuType,
   SafeStorage,
   Session,
   Shell,
@@ -29,6 +30,7 @@ import { createDownloadTokensService } from './downloadTokens';
 import { createOpenRouterService } from './openRouter';
 import { createHuggingFaceInferenceService } from './huggingfaceInference';
 import { createUpdaterService, type AutoUpdaterLike } from './updater';
+import { installApplicationMenu } from './applicationMenu';
 
 type BrowserWindowConstructor = new (options: BrowserWindowConstructorOptions) => BrowserWindow;
 
@@ -45,6 +47,8 @@ type MainProcessDependencies = {
   devServerUrl?: string;
   resourcesPath: string;
   autoUpdater: AutoUpdaterLike;
+  /** Packaged builds replace the default menu (see applicationMenu.ts). */
+  Menu?: Pick<typeof MenuType, 'buildFromTemplate' | 'setApplicationMenu'>;
   logger?: Console;
 };
 
@@ -61,6 +65,7 @@ export function createMainProcessServices({
   devServerUrl,
   resourcesPath,
   autoUpdater,
+  Menu,
   logger = console,
 }: MainProcessDependencies) {
   const store = createSecureStore<StoreSchema>({
@@ -107,6 +112,7 @@ export function createMainProcessServices({
     BrowserWindow,
     dirname,
     devServerUrl,
+    blockReloadShortcuts: app.isPackaged,
   });
 
   const backend = createBackendProcessService({
@@ -165,6 +171,14 @@ export function createMainProcessServices({
     // Before the window or backend exist, so no download can go out without them.
     downloadTokens.restore();
     registerContentSecurityPolicy(session.defaultSession);
+    if (Menu) {
+      installApplicationMenu({
+        Menu,
+        isPackaged: app.isPackaged,
+        platform: process.platform,
+        appName: app.getName(),
+      });
+    }
     outputRoots.rememberOutputRoot(outputRoots.getInternalOutputDirectory());
     outputRoots.rememberOutputRoot(outputRoots.getResolvedOutputDirectory());
 
