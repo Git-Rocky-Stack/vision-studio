@@ -123,11 +123,21 @@ from guided.passes import GuidedValidationError, resolve_guided_pass
 from preview.step_preview import step_preview_service
 
 try:
-    from utils.comfy_client import ComfyUIClient
+    from utils.comfy_client import ComfyUIClient, VIDEO_PROMPT_TIMEOUT_SECONDS
     COMFY_CLIENT_IMPORT_ERROR: Optional[Exception] = None
 except Exception as import_error:
     ComfyUIClient = None  # type: ignore[assignment]
+    VIDEO_PROMPT_TIMEOUT_SECONDS = 1800
     COMFY_CLIENT_IMPORT_ERROR = import_error
+
+
+class ComfyQueueError(RuntimeError):
+    """ComfyUI did not accept a job (unreachable or refused before queueing).
+
+    Nothing ran on ComfyUI, so the job falls back to the direct GPU path.
+    Failures AFTER a prompt was queued are real job failures, never this.
+    """
+
 
 # Configuration
 OUTPUT_DIR = os.getenv("OUTPUT_DIR", os.path.join(os.path.dirname(__file__), "outputs"))
@@ -1461,7 +1471,15 @@ async def process_image_generation(job_id: str, request: ImageGenerationRequest)
         # would silently drop the layers, so they force the direct path.
         if comfy_client and comfy_client.connected and _guided_payload(request) is None:
             logger.info(f"[Job {job_id}] Using ComfyUI generator")
-            result = await generate_with_comfyui(job_id, request)
+            try:
+                result = await generate_with_comfyui(job_id, request)
+            except ComfyQueueError as exc:
+                # ComfyUI went away between the connected check and the
+                # queue call: nothing ran there, so the job runs here instead.
+                if not direct_generator:
+                    raise
+                logger.warning(f"[Job {job_id}] ComfyUI did not take the job ({exc}); using direct generator")
+                result = await generate_direct(job_id, request)
         else:
             logger.info(f"[Job {job_id}] ComfyUI not connected, using direct generator. comfy_client={comfy_client is not None}")
             result = await generate_direct(job_id, request)
@@ -1520,7 +1538,10 @@ async def generate_with_comfyui(job_id: str, request: ImageGenerationRequest) ->
     )
 
     logger.info(f"[Job {job_id}] Queueing prompt to ComfyUI, workflow nodes={list(workflow.keys())}")
-    prompt_id = await comfy_client.queue_prompt(workflow)
+    try:
+        prompt_id = await comfy_client.queue_prompt(workflow)
+    except Exception as exc:  # noqa: BLE001 - classified for the direct fallback
+        raise ComfyQueueError(str(exc) or type(exc).__name__) from exc
     logger.info(f"[Job {job_id}] Prompt queued, prompt_id={prompt_id}")
     job_manager.update_job(job_id, progress=10.0)
     outputs = await comfy_client.wait_for_prompt_completion(
@@ -1561,9 +1582,12 @@ async def generate_video_with_comfyui(job_id: str, request: VideoGenerationReque
     if not comfy_client:
         raise RuntimeError("ComfyUI client is not available")
 
-    image_filename = ""
-    if request.image_path:
-        image_filename = await comfy_client.upload_image(request.image_path)
+    try:
+        image_filename = ""
+        if request.image_path:
+            image_filename = await comfy_client.upload_image(request.image_path)
+    except Exception as exc:  # noqa: BLE001 - classified for the direct fallback
+        raise ComfyQueueError(str(exc) or type(exc).__name__) from exc
 
     workflow, resolved_seed = build_video_workflow(
         model=request.model,
@@ -1577,10 +1601,16 @@ async def generate_video_with_comfyui(job_id: str, request: VideoGenerationReque
         file_prefix=f"vision_studio/{job_id}/video",
     )
 
-    prompt_id = await comfy_client.queue_prompt(workflow)
+    try:
+        prompt_id = await comfy_client.queue_prompt(workflow)
+    except Exception as exc:  # noqa: BLE001 - classified for the direct fallback
+        raise ComfyQueueError(str(exc) or type(exc).__name__) from exc
     job_manager.update_job(job_id, progress=10.0)
     outputs = await comfy_client.wait_for_prompt_completion(
         prompt_id,
+        # Video prompts run for minutes: the image budget would time out a
+        # healthy clip.
+        timeout_seconds=VIDEO_PROMPT_TIMEOUT_SECONDS,
         progress_callback=lambda progress: job_manager.update_job(job_id, progress=progress),
         kinds=("images", "gifs", "videos"),
         should_cancel=lambda: job_manager.is_cancelled(job_id),
@@ -1708,6 +1738,29 @@ async def generate_video(
     )
 
 
+async def generate_video_direct(job_id: str, request: VideoGenerationRequest) -> Dict:
+    """Generate video using the direct diffusers video pipelines."""
+    from foundry.accelerator import accel_settings_from_dict
+    accel_settings = accel_settings_from_dict(request.acceleration_settings)
+    return await direct_video_generator.generate_video(
+        job_id=job_id,
+        prompt=request.prompt,
+        image_path=request.image_path,
+        width=request.width,
+        height=request.height,
+        fps=request.fps,
+        duration=request.duration,
+        steps=request.steps,
+        model_name=request.model,
+        # -1 means "random": the generator draws one and reports it.
+        seed=request.seed if request.seed != -1 else None,
+        acceleration_settings=accel_settings,
+        loras=[l.dict() for l in request.loras],
+        progress_callback=lambda progress: job_manager.update_job(job_id, progress=progress),
+        should_cancel=lambda: job_manager.is_cancelled(job_id),
+    )
+
+
 async def process_video_generation(job_id: str, request: VideoGenerationRequest):
     """Process video generation job"""
     try:
@@ -1722,7 +1775,14 @@ async def process_video_generation(job_id: str, request: VideoGenerationRequest)
         # empty input image and fail, so it stays on the built-in engine.
         if comfy_connected and request.image_path:
             logger.info(f"[Job {job_id}] Using ComfyUI video generator")
-            result = await generate_video_with_comfyui(job_id, request)
+            try:
+                result = await generate_video_with_comfyui(job_id, request)
+            except ComfyQueueError as exc:
+                # Nothing was queued there, so the job runs here instead.
+                if not direct_video_generator:
+                    raise
+                logger.warning(f"[Job {job_id}] ComfyUI did not take the job ({exc}); using direct video generator")
+                result = await generate_video_direct(job_id, request)
         else:
             if not direct_video_generator:
                 if comfy_connected:
@@ -1735,26 +1795,7 @@ async def process_video_generation(job_id: str, request: VideoGenerationRequest)
                     "No video generation backend available. Install the required libraries "
                     "(pip install diffusers torch) for direct video generation."
                 )
-
-            from foundry.accelerator import accel_settings_from_dict
-            accel_settings = accel_settings_from_dict(request.acceleration_settings)
-            result = await direct_video_generator.generate_video(
-                job_id=job_id,
-                prompt=request.prompt,
-                image_path=request.image_path,
-                width=request.width,
-                height=request.height,
-                fps=request.fps,
-                duration=request.duration,
-                steps=request.steps,
-                model_name=request.model,
-                # -1 means "random": the generator draws one and reports it.
-                seed=request.seed if request.seed != -1 else None,
-                acceleration_settings=accel_settings,
-                loras=[l.dict() for l in request.loras],
-                progress_callback=lambda progress: job_manager.update_job(job_id, progress=progress),
-                should_cancel=lambda: job_manager.is_cancelled(job_id),
-            )
+            result = await generate_video_direct(job_id, request)
 
         # A cancel that landed mid-run wins over the result.
         job_manager.update_unless_cancelled(

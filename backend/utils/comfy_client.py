@@ -17,6 +17,13 @@ except ModuleNotFoundError:  # CI stub omits aiohttp; keep the module import-saf
 from .comfy_workflows import extract_history_outputs
 from .job_manager import GenerationCancelled
 
+# Bound on the startup probe and WebSocket handshake.
+CONNECT_TIMEOUT_SECONDS = 5
+# How long a queued prompt may run before it is cancelled. Video workflows
+# take minutes per clip, so they get a longer budget than images.
+IMAGE_PROMPT_TIMEOUT_SECONDS = 600
+VIDEO_PROMPT_TIMEOUT_SECONDS = 1800
+
 
 class ComfyUIClient:
     """Client for communicating with ComfyUI server"""
@@ -29,43 +36,67 @@ class ComfyUIClient:
         self.connected = False
         self.ws = None
         self._session: Optional[aiohttp.ClientSession] = None
+        self._listener_task: Optional[asyncio.Task] = None
     
     async def connect(self):
-        """Connect to ComfyUI server"""
+        """Connect to ComfyUI server.
+
+        The reachability probe and the WebSocket handshake are each bounded
+        (CONNECT_TIMEOUT_SECONDS) so a wedged ComfyUI cannot stall backend
+        startup; a failed connect closes the session it opened.
+        """
         try:
             self._session = aiohttp.ClientSession()
-            
+
             # Test HTTP connection
-            async with self._session.get(f"{self.http_url}/system_stats") as resp:
-                if resp.status == 200:
-                    print(f"✅ Connected to ComfyUI at {self.http_url}")
-                    self.connected = True
-                else:
+            async with self._session.get(
+                f"{self.http_url}/system_stats",
+                timeout=aiohttp.ClientTimeout(total=CONNECT_TIMEOUT_SECONDS),
+            ) as resp:
+                if resp.status != 200:
                     raise ConnectionError(f"ComfyUI returned status {resp.status}")
-            
+
             # Connect WebSocket for real-time updates
-            self.ws = await self._session.ws_connect(
-                f"{self.ws_url}?clientId={self.client_id}"
+            self.ws = await asyncio.wait_for(
+                self._session.ws_connect(f"{self.ws_url}?clientId={self.client_id}"),
+                timeout=CONNECT_TIMEOUT_SECONDS,
             )
-            
-            # Start WebSocket listener
-            asyncio.create_task(self._ws_listener())
-            
+            print(f"✅ Connected to ComfyUI at {self.http_url}")
+            self.connected = True
+
+            # Start WebSocket listener (held so it is not garbage collected).
+            self._listener_task = asyncio.create_task(self._ws_listener())
+
         except Exception as e:
             print(f"❌ Failed to connect to ComfyUI: {e}")
             self.connected = False
+            await self._close_transport()
             raise
-    
+
+    async def _close_transport(self):
+        """Close the WebSocket and HTTP session; never raises."""
+        ws, session = self.ws, self._session
+        self.ws, self._session = None, None
+        for closable in (ws, session):
+            if closable is None:
+                continue
+            try:
+                await closable.close()
+            except Exception:  # noqa: BLE001 - closing a dead transport
+                pass
+
     async def disconnect(self):
         """Disconnect from ComfyUI"""
         self.connected = False
-        if self.ws:
-            await self.ws.close()
-        if self._session:
-            await self._session.close()
-    
+        await self._close_transport()
+
     async def _ws_listener(self):
-        """Listen for WebSocket messages"""
+        """Listen for WebSocket messages.
+
+        However the stream ends - server restart, network drop, error frame -
+        the client is no longer connected, so new jobs take the direct GPU
+        path instead of queueing to a ComfyUI that is gone.
+        """
         try:
             async for msg in self.ws:
                 if msg.type == aiohttp.WSMsgType.TEXT:
@@ -76,7 +107,9 @@ class ComfyUIClient:
                     break
         except Exception as e:
             print(f"WebSocket listener error: {e}")
-    
+        finally:
+            self.connected = False
+
     async def _handle_ws_message(self, data: Dict):
         """Handle incoming WebSocket messages"""
         msg_type = data.get("type")
@@ -160,7 +193,7 @@ class ComfyUIClient:
     async def wait_for_prompt_completion(
         self,
         prompt_id: str,
-        timeout_seconds: int = 600,
+        timeout_seconds: int = IMAGE_PROMPT_TIMEOUT_SECONDS,
         poll_interval: float = 1.0,
         progress_callback: Optional[Callable[[float], None]] = None,
         kinds: tuple[str, ...] = ("images",),
@@ -184,6 +217,12 @@ class ComfyUIClient:
                 return outputs
 
             if asyncio.get_running_loop().time() - start > timeout_seconds:
+                # Stop the prompt before giving up on it: left alone it keeps
+                # the GPU busy for a job that has already failed.
+                try:
+                    await self.cancel_prompt(prompt_id)
+                except Exception as exc:  # noqa: BLE001 - the job fails regardless
+                    print(f"⚠️ ComfyUI did not accept the cancel for {prompt_id}: {exc}")
                 raise TimeoutError(f"Timed out waiting for ComfyUI prompt {prompt_id}")
 
             if progress_callback:
