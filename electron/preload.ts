@@ -1,30 +1,10 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import type { AppSettings } from './services/settings';
-
-type AccountPreferences = {
-  promptEnhancementProvider: 'local' | 'openrouter';
-  openRouterModel: string;
-  imageGenerationProvider: 'local' | 'openrouter';
-  openRouterImageModel: string;
-};
-
-type AccountSummary = {
-  id: string;
-  name: string;
-  createdAt: string;
-  updatedAt: string;
-  preferences: AccountPreferences;
-  openRouter: {
-    apiKeyStored: boolean;
-    keyLabel: string | null;
-    lastValidatedAt: string | null;
-  };
-};
-
-type AccountsSnapshot = {
-  activeAccountId: string | null;
-  accounts: AccountSummary[];
-};
+// The account shape is owned by the userAccounts service. A hand-copied
+// duplicate here had drifted (local | openrouter only, no HuggingFace or video
+// fields); importing the type keeps the bridge and the service in lockstep.
+// Type-only: nothing from the service is bundled into the preload.
+import type { UserAccountsSnapshot as AccountsSnapshot } from './services/userAccounts';
 
 type OpenRouterModelListResult = Promise<{
   success: boolean;
