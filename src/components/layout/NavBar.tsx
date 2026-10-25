@@ -17,11 +17,6 @@ import { cn } from '@/utils/cn';
 import type { ActiveTab } from '@/types/navigation';
 import { WORKSPACE_TAB_LABELS } from './workspaceTabs';
 
-// Active workspace pad: a lit carbon cap with a chrome edge-ring and glow,
-// matching PadButton's selected recipe (DESIGN.md section four-layer depth system).
-const ACTIVE_TAB_SHADOW =
-  'inset 0 1px 0 rgba(255,255,255,0.12), inset 0 -1px 0 rgba(0,0,0,0.6), 0 0 0 1px var(--color-chrome-edge), 0 0 10px rgba(230,230,230,0.18), 0 4px 8px rgba(0,0,0,0.5)';
-
 // ---------------------------------------------------------------------------
 // Tab definitions
 // ---------------------------------------------------------------------------
@@ -121,10 +116,9 @@ export const NavBar = memo(function NavBar() {
           'relative flex h-10 w-10 items-center justify-center rounded-md transition duration-150',
           'min-w-[44px] min-h-[44px]', // touch target
           isActive
-            ? 'raised-control vx-pad text-accent-primary'
+            ? 'raised-control selected-cap vx-pad text-accent-primary'
             : 'text-text-muted hover:bg-elevated/60 hover:text-text-primary'
         )}
-        style={isActive ? { boxShadow: ACTIVE_TAB_SHADOW } : undefined}
       >
         {isActive && (
           /* Lit channel-select strip on the pad's leading edge */

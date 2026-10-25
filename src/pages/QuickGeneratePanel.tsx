@@ -417,17 +417,11 @@ export function QuickGeneratePanel() {
                   className={cn(
                     'vx-pad raised-control flex flex-col items-center justify-center gap-0.5 px-2 py-2 text-xs',
                     selectedRatio.name === ratio.name
-                      ? 'text-accent-primary'
+                      ? 'selected-cap text-accent-primary'
                       : 'text-text-body hover:text-text-primary'
                   )}
                   style={
-                    selectedRatio.name === ratio.name
-                      ? {
-                          borderColor: 'var(--color-chrome)',
-                          boxShadow:
-                            'inset 0 1px 0 rgba(255,255,255,0.12), 0 0 0 1px var(--color-chrome-edge), 0 4px 8px rgba(0,0,0,0.5)',
-                        }
-                      : undefined
+                    selectedRatio.name === ratio.name ? { borderColor: 'var(--color-chrome)' } : undefined
                   }
                 >
                   <span className="type-ui">{ratio.icon}</span>
