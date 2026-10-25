@@ -28,6 +28,7 @@ import {
 } from './openRouterImageRouting';
 import { createOpenRouterImageJobStore } from './openRouterImageJobs';
 import { suggestNegativePromptFromHeuristics } from './negativePromptHeuristics';
+import { toLocalPromptEnhanceResult } from '../../shared/localPromptEnhance';
 import { runOpenRouterImageJob } from './runOpenRouterImageJob';
 import { createHuggingFaceImageJobStore } from './huggingfaceImageJobs';
 import { runHuggingFaceImageJob } from './runHuggingFaceImageJob';
@@ -465,7 +466,7 @@ ipcMain.handle('generation:enhance-prompt', async (_event, params) => {
     const response = await requestBackend(() =>
       axios.post(`${BACKEND_URL}/api/prompts/enhance`, params, { headers: backendAuthHeaders() }),
     );
-    return response.data;
+    return toLocalPromptEnhanceResult(response.data);
   } catch (error: any) {
     return {
       success: false,
