@@ -586,12 +586,12 @@ def _guided_payload(request: "ImageGenerationRequest") -> Optional[Dict[str, Any
             or request.outpaint or request.background_replace):
         return None
     return {
-        "controlnet": [layer.dict() for layer in request.controlnet],
-        "reference_images": [layer.dict() for layer in request.reference_images],
-        "inpaint": request.inpaint.dict() if request.inpaint else None,
-        "outpaint": request.outpaint.dict() if request.outpaint else None,
+        "controlnet": [layer.model_dump() for layer in request.controlnet],
+        "reference_images": [layer.model_dump() for layer in request.reference_images],
+        "inpaint": request.inpaint.model_dump() if request.inpaint else None,
+        "outpaint": request.outpaint.model_dump() if request.outpaint else None,
         "background_replace": (
-            request.background_replace.dict() if request.background_replace else None),
+            request.background_replace.model_dump() if request.background_replace else None),
         "denoising_strength": request.denoising_strength,
     }
 
@@ -801,9 +801,7 @@ def create_derived_output_path(source_path: str, prefix: str) -> tuple[str, str]
 
 
 def model_to_dict(model: BaseModel) -> Dict[str, Any]:
-    if hasattr(model, "model_dump"):
-        return model.model_dump()
-    return model.dict()
+    return model.model_dump()
 
 
 def extract_video_frame_file(source_path: str, output_path: str, time_ms: int = 0) -> Dict[str, Any]:
@@ -1426,7 +1424,7 @@ async def generate_image(
         id=job_id,
         type="image",
         status=JobStatus.PENDING,
-        params=gen_request.dict(),
+        params=gen_request.model_dump(),
         output_dir=os.path.join(OUTPUT_DIR, job_id)
     )
 
@@ -1623,7 +1621,7 @@ async def generate_direct(job_id: str, request: ImageGenerationRequest) -> Dict:
         model_name=request.model,
         scheduler=request.scheduler,
         acceleration_settings=accel_settings,
-        loras=[l.dict() for l in request.loras],
+        loras=[l.model_dump() for l in request.loras],
         guided=_guided_payload(request),
         progress_callback=lambda p: job_manager.update_job(job_id, progress=p),
         should_cancel=lambda: job_manager.is_cancelled(job_id),
@@ -1688,7 +1686,7 @@ async def generate_video(
         id=job_id,
         type="video",
         status=JobStatus.PENDING,
-        params=video_request.dict(),
+        params=video_request.model_dump(),
         output_dir=os.path.join(OUTPUT_DIR, job_id)
     )
 
@@ -1750,7 +1748,7 @@ async def process_video_generation(job_id: str, request: VideoGenerationRequest)
                 model_name=request.model,
                 seed=request.seed if request.seed != -1 else 0,
                 acceleration_settings=accel_settings,
-                loras=[l.dict() for l in request.loras],
+                loras=[l.model_dump() for l in request.loras],
                 progress_callback=lambda progress: job_manager.update_job(job_id, progress=progress),
                 should_cancel=lambda: job_manager.is_cancelled(job_id),
             )
