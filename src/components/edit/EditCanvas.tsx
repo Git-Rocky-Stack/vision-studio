@@ -12,8 +12,9 @@ import { RegionMaskDrawer } from '@/components/edit/RegionMaskDrawer';
 import { CanvasControlLayerRail } from '@/components/canvas/CanvasControlLayerRail';
 import { isTextLayer, konvaBlendMode, konvaFontStyle } from '@/features/edit/textLayers';
 import { applyEditPipeline, isIdentityEdit } from '@/features/edit/imageFilters';
-import { registerEditFlattener, rgbToHex } from '@/features/edit/exportEdit';
+import { EXPORT_TAINTED_MESSAGE, registerEditFlattener, rgbToHex } from '@/features/edit/exportEdit';
 import { useEditToolShortcuts } from '@/features/edit/useEditToolShortcuts';
+import { PIXEL_ACCESS_NOTICE, cssFallbackFilter, loadEditableImage } from '@/features/edit/pixelAccess';
 import type { RegionTool } from '@/components/edit/RegionLockToolbar';
 import type { RegionMask } from '@/types/project';
 import type { EditStroke } from '@/types/editor';
@@ -141,6 +142,10 @@ export function EditCanvas() {
   const [draftStroke, setDraftStroke] = useState<EditStroke | null>(null);
   const draftStrokeRef = useRef<EditStroke | null>(null);
   const [eyedropperError, setEyedropperError] = useState<string | null>(null);
+  // False when the image taints the canvas (cross-origin without CORS):
+  // pixel reads then throw, so the pixel pipeline, eyedropper and export
+  // cannot run (see features/edit/pixelAccess.ts).
+  const [pixelAccess, setPixelAccess] = useState(true);
 
   // Resize observer
   useEffect(() => {
@@ -170,18 +175,19 @@ export function EditCanvas() {
       return;
     }
     let cancelled = false;
-    const img = new window.Image();
-    img.onload = () => {
-      if (cancelled) return;
-      setLoadedImage(img);
-      setCurrentImageSize({ width: img.width, height: img.height });
-    };
-    img.onerror = () => {
-      if (cancelled) return;
-      setLoadedImage(null);
-      setCurrentImageSize(null);
-    };
-    img.src = currentImage;
+    loadEditableImage(currentImage).then(
+      ({ image, pixelAccess: readable }) => {
+        if (cancelled) return;
+        setLoadedImage(image);
+        setPixelAccess(readable);
+        setCurrentImageSize({ width: image.width, height: image.height });
+      },
+      () => {
+        if (cancelled) return;
+        setLoadedImage(null);
+        setCurrentImageSize(null);
+      },
+    );
     return () => { cancelled = true; };
   }, [currentImage, setCurrentImageSize]);
 
@@ -325,7 +331,8 @@ export function EditCanvas() {
   useEffect(() => {
     const node = imageRef.current;
     if (!node || !loadedImage) return;
-    if (editCompareOriginal || isIdentityEdit(imageAdjustments, editFilters)) {
+    // A tainted canvas cannot be read back; the CSS fallback below previews instead.
+    if (!pixelAccess || editCompareOriginal || isIdentityEdit(imageAdjustments, editFilters)) {
       node.filters([]);
       node.clearCache();
     } else {
@@ -338,7 +345,7 @@ export function EditCanvas() {
       node.cache();
     }
     node.getLayer()?.batchDraw();
-  }, [imageAdjustments, editFilters, editCompareOriginal, loadedImage]);
+  }, [imageAdjustments, editFilters, editCompareOriginal, loadedImage, pixelAccess]);
 
   // Export flattener: the stage at intrinsic image resolution, without the
   // checkerboard or transform handles.
@@ -346,6 +353,7 @@ export function EditCanvas() {
     registerEditFlattener(() => {
       const stage = stageRef.current;
       if (!stage || !loadedImage) return null;
+      if (!pixelAccess) throw new Error(EXPORT_TAINTED_MESSAGE);
       const transformer = transformerRef.current;
       const previousNodes = transformer?.nodes() ?? [];
       const scale = stage.scaleX() || 1;
@@ -367,7 +375,10 @@ export function EditCanvas() {
       }
     });
     return () => registerEditFlattener(null);
-  }, [loadedImage]);
+  }, [loadedImage, pixelAccess]);
+
+  const fallbackCssFilter =
+    !pixelAccess && !editCompareOriginal ? cssFallbackFilter(imageAdjustments) : '';
 
   const visibleStrokes = draftStroke ? [...editStrokes, draftStroke] : editStrokes;
 
@@ -440,7 +451,16 @@ export function EditCanvas() {
         </span>
       )}
 
-      <div>
+      {!pixelAccess && currentImage && (
+        <p
+          role="status"
+          className="recessed-well absolute bottom-4 left-4 right-4 z-10 px-3 py-2 type-caption text-text-body"
+        >
+          {PIXEL_ACCESS_NOTICE}
+        </p>
+      )}
+
+      <div style={{ filter: fallbackCssFilter || undefined }}>
         <Stage
           ref={stageRef}
           width={containerSize.width}

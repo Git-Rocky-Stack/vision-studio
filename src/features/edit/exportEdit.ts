@@ -30,6 +30,8 @@ export function registerEditFlattener(fn: EditFlattener | null): void {
 export const EXPORT_BRIDGE_MISSING_MESSAGE =
   'Saving edits needs the assets.saveDataUrl bridge, which this build does not include yet.';
 export const EXPORT_NO_CANVAS_MESSAGE = 'Open an image in the editor before exporting.';
+export const EXPORT_TAINTED_MESSAGE =
+  "This image cannot be exported: its server does not allow pixel access (CORS), so the canvas cannot be read back.";
 
 export interface SaveDataUrlApi {
   saveDataUrl?: (params: {
@@ -59,7 +61,17 @@ export async function exportEditedImage({
   store?: typeof useAppStore;
   now?: Date;
 } = {}): Promise<ExportEditResult> {
-  const dataUrl = flattener?.() ?? null;
+  let dataUrl: string | null;
+  try {
+    dataUrl = flattener?.() ?? null;
+  } catch (error) {
+    // A tainted canvas throws SecurityError from toDataURL.
+    const isSecurity = error instanceof Error && (error.name === 'SecurityError' || error.message === EXPORT_TAINTED_MESSAGE);
+    return {
+      ok: false,
+      error: isSecurity ? EXPORT_TAINTED_MESSAGE : error instanceof Error ? error.message : 'Export failed.',
+    };
+  }
   if (!dataUrl) {
     return { ok: false, error: EXPORT_NO_CANVAS_MESSAGE };
   }

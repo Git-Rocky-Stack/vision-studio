@@ -4,6 +4,7 @@ import { useAppStore } from '@/store/appStore';
 import {
   EXPORT_BRIDGE_MISSING_MESSAGE,
   EXPORT_NO_CANVAS_MESSAGE,
+  EXPORT_TAINTED_MESSAGE,
   exportEditedImage,
   registerEditFlattener,
   rgbToHex,
@@ -54,6 +55,16 @@ describe('exportEditedImage', () => {
     registerEditFlattener(() => 'data:image/png;base64,AAAA');
     const saveDataUrl = vi.fn().mockResolvedValue({ success: false, error: 'Disk full' });
     expect(await exportEditedImage({ assetsApi: { saveDataUrl } })).toEqual({ ok: false, error: 'Disk full' });
+  });
+
+  it('explains a tainted canvas instead of throwing', async () => {
+    registerEditFlattener(() => {
+      const error = new Error('The canvas has been tainted by cross-origin data.');
+      error.name = 'SecurityError';
+      throw error;
+    });
+    const result = await exportEditedImage({ assetsApi: { saveDataUrl: vi.fn() } });
+    expect(result).toEqual({ ok: false, error: EXPORT_TAINTED_MESSAGE });
   });
 
   it('formats sampled colours', () => {
