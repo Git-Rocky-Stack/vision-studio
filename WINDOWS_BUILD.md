@@ -147,5 +147,5 @@ the default index in order; a failure on one falls through to the next.
 | `npm run build` | Vite frontend -> `dist/` |
 | `npm run package:win` | nsis-web + portable zip (delivery build) |
 | `npm run package:win:signed` | signed production build (requires a signing mode) |
-| `npm run release:publish:r2` | publish `release/` to the R2 `win/` prefix |
+| `npm run release:publish:r2` | publish `release/` (the portable zip) to the R2 `win/` prefix; run it again as `npm run release:publish:r2 -- --dir release/nsis-web` for the stub, `.nsis.7z` and `latest.yml` - see [Publishing to R2](#publishing-to-r2) |
 | `npm run clean` / `clean:all` | remove build artifacts (and deps/venv) |

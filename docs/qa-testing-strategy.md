@@ -8,9 +8,10 @@
 > kept because the strategy that follows was derived from it, and editing the
 > premise out would make the reasoning unreadable. Every target it sets has since
 > been met or exceeded. For the numbers that hold now, see
-> [`ARCHITECTURE.md` §10](./ARCHITECTURE.md#10-testing-strategy) — as of v3.4.0:
-> 232 Vitest files / 2034 tests, 9 Playwright specs / 36 tests, 118 pytest files /
-> 1108 tests, and a four-job CI gate on every pull request.
+> [`ARCHITECTURE.md` §10](./ARCHITECTURE.md#10-testing-strategy), which names
+> the command that prints each layer's current count (`npx vitest run`,
+> `npx playwright test --list`, `cd backend && python -m pytest --collect-only -q`),
+> plus the CI gate that runs on every pull request.
 
 ---
 
