@@ -36,6 +36,49 @@ describe('EditPropertiesPanel', () => {
     expect(screen.getByRole('tab', { name: /control/i })).toHaveAttribute('aria-selected', 'true');
   });
 
+  describe('region tab sync', () => {
+    function seedRegion() {
+      const state = useAppStore.getState();
+      const project = state.createProject('Regions');
+      const scene = state.addScene(project.id, { name: 'Shot 1' });
+      state.setActiveProject(project.id);
+      state.setActiveScene(scene.id);
+      return useAppStore.getState().createRegionLock(scene.id, 'frame-1', { name: 'Region 1' });
+    }
+
+    it('lets the user leave the Region tab while a region is selected', async () => {
+      const lock = seedRegion();
+      useAppStore.setState({ regionMode: true, activeRegionId: lock.id });
+      render(<EditPropertiesPanel />);
+      await waitFor(() =>
+        expect(screen.getByRole('tab', { name: /region/i })).toHaveAttribute('aria-selected', 'true'),
+      );
+
+      await act(async () => {
+        screen.getByRole('tab', { name: /adjust/i }).click();
+      });
+
+      expect(screen.getByRole('tab', { name: /adjust/i })).toHaveAttribute('aria-selected', 'true');
+      expect(useAppStore.getState().regionMode).toBe(false);
+    });
+
+    it('opens the Region tab, keeping the selection, when region mode is turned on elsewhere', async () => {
+      const lock = seedRegion();
+      render(<EditPropertiesPanel />);
+      expect(screen.getByRole('tab', { name: /adjust/i })).toHaveAttribute('aria-selected', 'true');
+
+      await act(async () => {
+        useAppStore.setState({ regionMode: true, activeRegionId: lock.id });
+      });
+
+      await waitFor(() =>
+        expect(screen.getByRole('tab', { name: /region/i })).toHaveAttribute('aria-selected', 'true'),
+      );
+      expect(useAppStore.getState().regionMode).toBe(true);
+      expect(useAppStore.getState().activeRegionId).toBe(lock.id);
+    });
+  });
+
   // Same defect class EditCanvas was fixed for: this panel derived the active
   // region lock, the active scene and the active control layer by hand from a
   // `projects` array subscription. Every project writer rebuilds `projects`

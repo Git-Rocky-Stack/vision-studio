@@ -5,6 +5,7 @@ import { useAppStore } from '@/store/appStore';
 import { selectActiveRegionLock } from '@/store/slices/projectSlice';
 import { useShallow } from 'zustand/react/shallow';
 import { cn } from '@/utils/cn';
+import { useResolvedCssColors } from '@/hooks/useResolvedCssColors';
 import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { RegionLockToolbar } from '@/components/edit/RegionLockToolbar';
@@ -22,6 +23,13 @@ import type Konva from 'konva';
 
 const CHECKERBOARD_SIZE = 16;
 
+// Konva draws to a canvas and cannot evaluate var(): the selection transformer
+// takes these tokens resolved (useResolvedCssColors follows theme switches).
+const TRANSFORMER_COLOR_TOKENS = {
+  accent: '--color-feature-01',
+  anchorStroke: '--color-text-primary',
+} as const;
+
 // #34 PR2: blank AI-tool mask shown before the first stroke is drawn.
 const EMPTY_AI_MASK: RegionMask = {
   type: 'brush',
@@ -32,6 +40,7 @@ const EMPTY_AI_MASK: RegionMask = {
 };
 
 export function EditCanvas() {
+  const transformerColors = useResolvedCssColors(TRANSFORMER_COLOR_TOKENS);
   const {
     currentImage,
     activeEditTool,
@@ -620,10 +629,10 @@ export function EditCanvas() {
                 if (newBox.width < 5 || newBox.height < 5) return oldBox;
                 return newBox;
               }}
-              borderStroke="var(--color-feature-01)"
+              borderStroke={transformerColors.accent}
               borderStrokeWidth={1}
-              anchorFill="var(--color-feature-01)"
-              anchorStroke="#ffffff"
+              anchorFill={transformerColors.accent}
+              anchorStroke={transformerColors.anchorStroke}
               anchorSize={8}
               anchorCornerRadius={2}
               rotateEnabled={activeEditTool === 'rotate'}

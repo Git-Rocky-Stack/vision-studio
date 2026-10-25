@@ -195,26 +195,51 @@ export function EditPropertiesPanel() {
     );
   })();
 
-  // Auto-switch to region tab when region mode is active and a region is selected
+  // Tab and region-mode sync. Every effect here reacts to a TRANSITION, not to
+  // standing state: reacting to "a region is selected" forced the Region tab
+  // back on every attempt to leave it, and reacting to "region mode is on
+  // while another tab is open" switched off - and deselected - a region the
+  // canvas toolbar had just turned on.
+  // Seeded empty so a selection that already exists when the panel mounts
+  // still opens its tab once.
+  const previousRegionIdRef = useRef<string | null>(null);
+  const previousControlLayerIdRef = useRef<string | null>(null);
+  const previousRegionModeRef = useRef(false);
+  const previousTabRef = useRef(activeTab);
+
+  // A newly selected region (or newly entered region mode) opens its tab.
   useEffect(() => {
-    if (regionMode && activeRegionId && activeTab !== 'region') {
+    const regionSelected = activeRegionId !== null && activeRegionId !== previousRegionIdRef.current;
+    const regionModeEntered = regionMode && !previousRegionModeRef.current;
+    previousRegionIdRef.current = activeRegionId;
+    previousRegionModeRef.current = regionMode;
+    if ((regionSelected || regionModeEntered) && activeTab !== 'region' && activeTab !== 'control') {
       setActiveTab('region');
     }
-  }, [regionMode, activeRegionId, activeTab]);
+  }, [activeRegionId, regionMode, activeTab]);
 
+  // A newly selected canvas control layer (with no region selected) opens Control.
+  const activeControlLayerId = activeCanvasControlLayer?.id ?? null;
   useEffect(() => {
-    if (activeCanvasControlLayer && !activeRegionId && activeTab !== 'control') {
+    const layerSelected =
+      activeControlLayerId !== null && activeControlLayerId !== previousControlLayerIdRef.current;
+    previousControlLayerIdRef.current = activeControlLayerId;
+    if (layerSelected && !activeRegionId && activeTab !== 'control') {
       setActiveTab('control');
     }
-  }, [activeCanvasControlLayer, activeRegionId, activeTab]);
+  }, [activeControlLayerId, activeRegionId, activeTab]);
 
-  // Sync regionMode with the region tab: entering the tab enables region mode,
-  // leaving it disables region mode. This gives users a single, discoverable
-  // entry point to region-lock features.
+  // Entering the Region or Control tab enables region mode; leaving both
+  // disables it. This is the single, discoverable entry point to region lock.
   useEffect(() => {
-    if ((activeTab === 'region' || activeTab === 'control') && !regionMode) {
+    const previousTab = previousTabRef.current;
+    previousTabRef.current = activeTab;
+    if (previousTab === activeTab) return;
+    const inRegionTabs = activeTab === 'region' || activeTab === 'control';
+    const wasInRegionTabs = previousTab === 'region' || previousTab === 'control';
+    if (inRegionTabs && !regionMode) {
       setRegionMode(true);
-    } else if (activeTab !== 'region' && activeTab !== 'control' && regionMode) {
+    } else if (!inRegionTabs && wasInRegionTabs && regionMode) {
       setRegionMode(false);
     }
   }, [activeTab, regionMode, setRegionMode]);
