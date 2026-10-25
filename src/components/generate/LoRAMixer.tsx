@@ -296,8 +296,10 @@ export function LoRAMixer({
               <div className="rounded-md border border-border bg-surface p-2 space-y-2">
                 {/* Search */}
                 <div className="relative">
-                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-text-muted" />
+                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-text-muted" aria-hidden="true" />
                   <input
+                    type="search"
+                    aria-label="Search LoRAs"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     placeholder="Search LoRAs..."
