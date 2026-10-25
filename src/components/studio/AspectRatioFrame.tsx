@@ -31,7 +31,9 @@ export const AspectRatioFrame = memo(function AspectRatioFrame({
 }: AspectRatioFrameProps) {
   if (!visible) return null;
 
-  const numericRatio = RATIO_MAP[ratio] ?? 1;
+  // Named ratios first, then any "W:H" (21:9, a custom 1216:832).
+  const [w, h] = ratio.split(':').map(Number);
+  const numericRatio = RATIO_MAP[ratio] ?? (w > 0 && h > 0 ? w / h : 1);
 
   return (
     <div
