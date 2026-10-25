@@ -17,6 +17,8 @@ import {
 } from './settings';
 import { DEFAULT_SETTINGS, type StoreSchema } from './outputRoots';
 import { decodePngDataUrl } from './dataUrlAsset';
+import { sniffImageMime } from './imageMagic';
+import { fileURLToPath } from 'url';
 import type {
   OpenRouterKeyInfo,
   OpenRouterModelSummary,
@@ -61,6 +63,37 @@ export async function readTakenFileNames(
  * First free `<name><ext>`, `<name>-1<ext>`, ... against `taken`, and reserve
  * it there so later files in the same batch cannot claim it too.
  */
+/** Largest managed image the Canvas editor may read back through the bridge. */
+export const MAX_READ_DATA_URL_BYTES = 100 * 1024 * 1024;
+
+/**
+ * Read a managed image as a data URL for the Canvas editor. A file:// image
+ * drawn into the packaged (file://) renderer taints the canvas, because
+ * Chromium gives every file URL an opaque origin; a data URL never does.
+ * Only paths inside the managed output roots resolve, and only real image
+ * bytes (by signature, not extension) are returned.
+ */
+export async function readManagedImageDataUrl(
+  assetPath: unknown,
+  resolveManagedAssetPath: (assetPath: string) => string,
+) {
+  if (typeof assetPath !== 'string' || assetPath.length === 0) {
+    return { success: false as const, error: 'No image path was given.' };
+  }
+  const localPath = /^file:\/\//i.test(assetPath) ? fileURLToPath(assetPath) : assetPath;
+  const resolved = resolveManagedAssetPath(localPath);
+  const stat = await fs.promises.stat(resolved);
+  if (!stat.isFile() || stat.size > MAX_READ_DATA_URL_BYTES) {
+    return { success: false as const, error: 'The image is too large to edit.' };
+  }
+  const bytes = await fs.promises.readFile(resolved);
+  const mime = sniffImageMime(bytes);
+  if (!mime) {
+    return { success: false as const, error: 'The file is not a supported image.' };
+  }
+  return { success: true as const, dataUrl: `data:${mime};base64,${bytes.toString('base64')}` };
+}
+
 /**
  * Write a flattened Canvas edit (PNG data URL from the renderer) into
  * `<outputRoot>/edits/`, under a collision-free sanitized name. Returns the
@@ -624,6 +657,14 @@ export function registerMainIpcHandlers({
       return { success: true, files };
     } catch (error: any) {
       return { success: false, error: error.message };
+    }
+  });
+
+  ipcMain.handle('assets:read-data-url', async (_event, assetPath: unknown) => {
+    try {
+      return await readManagedImageDataUrl(assetPath, (p) => outputRoots.resolveManagedAssetPath(p));
+    } catch (error: any) {
+      return { success: false, error: error instanceof Error ? error.message : 'Could not read the image.' };
     }
   });
 

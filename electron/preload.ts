@@ -126,6 +126,7 @@ export interface ElectronAPI {
       type: 'image' | 'video' | 'audio';
       importedAt: string;
     }>; error?: string }>;
+    readDataUrl: (assetPath: string) => Promise<{ success: boolean; dataUrl?: string; error?: string }>;
     saveDataUrl: (params: { dataUrl: string; fileName: string }) => Promise<{ success: boolean; file?: {
       originalPath: string;
       importedPath: string;
@@ -401,6 +402,7 @@ const electronAPI: ElectronAPI = {
   assets: {
     importFiles: (sourcePaths) => ipcRenderer.invoke('assets:import-files', sourcePaths),
     saveDataUrl: (params) => ipcRenderer.invoke('assets:save-data-url', params),
+    readDataUrl: (assetPath) => ipcRenderer.invoke('assets:read-data-url', assetPath),
     export: (sourcePath, destinationPath) => ipcRenderer.invoke('assets:export', sourcePath, destinationPath),
     exportMany: (sourcePaths, destinationDir) => ipcRenderer.invoke('assets:export-many', sourcePaths, destinationDir),
     delete: (sourcePath) => ipcRenderer.invoke('assets:delete', sourcePath),

@@ -8,8 +8,11 @@ import type { ImageAdjustments } from '@/types/editor';
  * on http://localhost:8000, so this is a real case, not a theoretical one.
  *
  * loadEditableImage asks for CORS first and falls back to a plain load, then
- * probes whether pixels are readable. When they are not, the canvas keeps a
- * CSS preview of the adjustments CSS can express and says what is missing.
+ * probes whether pixels are readable. Backend outputs are made readable by the
+ * app session's response headers (contentSecurityPolicy.ts); a file:// import
+ * is re-read through the assets.readDataUrl bridge. When pixels still cannot
+ * be read, the canvas keeps a CSS preview of the adjustments CSS can express
+ * and says what is missing.
  */
 
 export interface LoadedEditImage {
@@ -57,10 +60,21 @@ export function canReadPixels(image: HTMLImageElement): boolean {
   }
 }
 
+type ReadDataUrl = (assetPath: string) => Promise<{ success: boolean; dataUrl?: string; error?: string }>;
+
+function defaultReadDataUrl(): ReadDataUrl | undefined {
+  return typeof window !== 'undefined' ? window.electron?.assets?.readDataUrl : undefined;
+}
+
 export async function loadEditableImage(
   src: string,
   { ImageClass = (typeof window !== 'undefined' ? window.Image : undefined) as ImageCtor | undefined,
-    probe = canReadPixels }: { ImageClass?: ImageCtor; probe?: (img: HTMLImageElement) => boolean } = {},
+    probe = canReadPixels,
+    readDataUrl = defaultReadDataUrl() }: {
+    ImageClass?: ImageCtor;
+    probe?: (img: HTMLImageElement) => boolean;
+    readDataUrl?: ReadDataUrl;
+  } = {},
 ): Promise<LoadedEditImage> {
   if (!ImageClass) throw new Error('Images cannot be loaded here');
   if (isCrossOriginHttp(src)) {
@@ -74,7 +88,23 @@ export async function loadEditableImage(
     }
   }
   const image = await loadOnce(src, ImageClass, false);
-  return { image, pixelAccess: probe(image) };
+  if (probe(image)) return { image, pixelAccess: true };
+
+  // The packaged renderer gives every file:// URL an opaque origin, so an
+  // imported image taints the canvas. The main process can hand the same
+  // managed file back as a data URL, which never does.
+  if (/^file:\/\//i.test(src) && readDataUrl) {
+    try {
+      const result = await readDataUrl(src);
+      if (result.success && result.dataUrl) {
+        const readable = await loadOnce(result.dataUrl, ImageClass, false);
+        return { image: readable, pixelAccess: probe(readable) };
+      }
+    } catch {
+      // Fall through to the display-only image below.
+    }
+  }
+  return { image, pixelAccess: false };
 }
 
 export const PIXEL_ACCESS_NOTICE =

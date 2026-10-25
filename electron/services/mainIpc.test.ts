@@ -1,6 +1,7 @@
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
+import { pathToFileURL } from 'url';
 import { describe, expect, it, vi } from 'vitest';
 
 import {
@@ -8,6 +9,7 @@ import {
   readTakenFileNames,
   reserveUniqueFileName,
   resolveShellPath,
+  readManagedImageDataUrl,
   writeDataUrlAsset,
 } from './mainIpc';
 
@@ -126,6 +128,48 @@ describe('assets:save-data-url writer', () => {
         expect(result.success).toBe(false);
       }
       expect(fs.existsSync(path.join(root, 'edits'))).toBe(false);
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('assets:read-data-url reader', () => {
+  const PNG_BYTES = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 9, 9]);
+
+  it('returns a managed image as a signature-typed data URL, from a path or a file:// URL', async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'vs-read-'));
+    try {
+      const file = path.join(root, 'imports', 'shot.jpg');
+      fs.mkdirSync(path.dirname(file));
+      fs.writeFileSync(file, PNG_BYTES);
+      const resolveManaged = (p: string) => p;
+
+      const fromPath = await readManagedImageDataUrl(file, resolveManaged);
+      const fromUrl = await readManagedImageDataUrl(pathToFileURL(file).href, resolveManaged);
+
+      const expected = `data:image/png;base64,${PNG_BYTES.toString('base64')}`;
+      expect(fromPath).toEqual({ success: true, dataUrl: expected });
+      expect(fromUrl).toEqual({ success: true, dataUrl: expected });
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it('refuses paths outside the managed roots and non-image bytes', async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'vs-read-'));
+    try {
+      const secret = path.join(root, 'secrets.json');
+      fs.writeFileSync(secret, '{"token":"x"}');
+      const refuseAll = () => {
+        throw new Error('Asset path is outside managed output directories');
+      };
+      await expect(readManagedImageDataUrl(secret, refuseAll)).rejects.toThrow(/outside managed/);
+      expect(await readManagedImageDataUrl(secret, (p) => p)).toEqual({
+        success: false,
+        error: 'The file is not a supported image.',
+      });
+      expect((await readManagedImageDataUrl('', (p) => p)).success).toBe(false);
     } finally {
       fs.rmSync(root, { recursive: true, force: true });
     }

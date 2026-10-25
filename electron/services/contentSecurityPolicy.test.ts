@@ -4,7 +4,7 @@ import path from 'path';
 
 import { describe, expect, it } from 'vitest';
 
-import { CONTENT_SECURITY_POLICY } from './contentSecurityPolicy';
+import { CONTENT_SECURITY_POLICY, withBackendOutputCors } from './contentSecurityPolicy';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
@@ -94,5 +94,29 @@ describe('CONTENT_SECURITY_POLICY', () => {
     }
     // ...and the meta must not introduce directives the header does not declare.
     expect(Object.keys(metaDirectives).sort()).toEqual(Object.keys(directives).sort());
+  });
+});
+
+describe('withBackendOutputCors', () => {
+  it('marks backend /outputs GETs readable for the app session only', () => {
+    for (const url of [
+      'http://localhost:8000/outputs/job-1/image.png',
+      'http://127.0.0.1:8000/outputs/job-1/image.png',
+    ]) {
+      const headers = withBackendOutputCors(url, 'GET', { 'access-control-allow-origin': ['http://localhost:5173'] });
+      expect(headers['Access-Control-Allow-Origin']).toEqual(['*']);
+      expect(headers['access-control-allow-origin']).toBeUndefined();
+    }
+  });
+
+  it('leaves the authenticated API, other ports, other hosts and writes alone', () => {
+    for (const [url, method] of [
+      ['http://localhost:8000/api/jobs', 'GET'],
+      ['http://localhost:8001/outputs/job-1/image.png', 'GET'],
+      ['https://example.com/outputs/x.png', 'GET'],
+      ['http://localhost:8000/outputs/job-1/image.png', 'POST'],
+    ] as const) {
+      expect(withBackendOutputCors(url, method, {})['Access-Control-Allow-Origin']).toBeUndefined();
+    }
   });
 });

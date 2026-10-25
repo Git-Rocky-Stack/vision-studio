@@ -349,6 +349,8 @@ export interface ElectronAPI {
     delete: (sourcePath: string) => Promise<{ success: boolean; error?: string }>;
     reveal: (sourcePath: string) => Promise<{ success: boolean; error?: string }>;
     clearCache: () => Promise<{ success: boolean; error?: string }>;
+    /** Read a managed image as a data URL, so the Canvas editor can read its pixels. */
+    readDataUrl: (assetPath: string) => Promise<{ success: boolean; dataUrl?: string; error?: string }>;
     /** Write a flattened Canvas edit (PNG data URL) into <outputRoot>/edits/. */
     saveDataUrl: (params: {
       dataUrl: string;
