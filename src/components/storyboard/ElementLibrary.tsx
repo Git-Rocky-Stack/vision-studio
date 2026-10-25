@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/Button';
+import { EmptyState } from '@/components/ui/EmptyState';
 import { useAppStore } from '@/store/appStore';
 import type { ElementType, Scene } from '@/types/project';
 import { cn } from '@/utils/cn';
@@ -110,13 +111,12 @@ export function ElementLibrary({ projectId }: ElementLibraryProps) {
 
       <div className="max-h-[260px] space-y-2 overflow-y-auto px-3 pb-3">
         {elements.length === 0 ? (
-          <div className="rounded-sm border border-dashed border-border px-4 py-5 text-center">
-            <Sparkles className="mx-auto h-5 w-5 text-text-muted" aria-hidden="true" />
-            <p className="mt-2 type-ui text-text-primary">No Elements yet</p>
-            <p className="mt-1 type-caption text-text-body">
-              Approved script imports will start building shared continuity objects here.
-            </p>
-          </div>
+          <EmptyState
+            icon={Sparkles}
+            title="No Elements yet"
+            description="Approved script imports will start building shared continuity objects here."
+            className="h-auto"
+          />
         ) : (
           elements.map(({ element, sceneCount, linkedScenes }) => {
             const Icon = typeIcon(element.type);

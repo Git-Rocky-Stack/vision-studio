@@ -1,5 +1,6 @@
 import { memo, useMemo } from 'react';
 import { Sparkles, Zap, Layers3, Clapperboard, FolderPlus, ImageOff } from 'lucide-react';
+import { EmptyState } from '@/components/ui/EmptyState';
 import { useShallow } from 'zustand/react/shallow';
 import { useAppStore } from '@/store/appStore';
 import { MonoLabel } from '@/components/hardware';
@@ -157,11 +158,12 @@ export const LaunchpadPanel = memo(function LaunchpadPanel() {
             Recent renders
           </MonoLabel>
           {recent.length === 0 ? (
-            <div className="mt-3 flex flex-col items-center gap-2 rounded-md border border-border bg-surface py-8 text-text-muted">
-              <ImageOff className="h-6 w-6 opacity-40" aria-hidden="true" />
-              <p className="type-body-sm">No renders yet</p>
-              <p className="type-micro">Anything you generate lands here</p>
-            </div>
+            <EmptyState
+              icon={ImageOff}
+              title="No renders yet"
+              description="Anything you generate lands here"
+              className="mt-3 h-auto"
+            />
           ) : (
             <ul className="mt-3 grid grid-cols-[repeat(auto-fill,minmax(112px,1fr))] gap-3">
               {recent.map((asset) => (

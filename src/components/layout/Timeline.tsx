@@ -32,6 +32,7 @@ import {
 
 import { useAppStore } from '@/store/appStore';
 import { cn } from '@/utils/cn';
+import { EmptyState } from '@/components/ui/EmptyState';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { StoryboardPlayback } from '@/components/timeline/StoryboardPlayback';
 import { AnimationTrackEditor } from '@/components/timeline/AnimationTrackEditor';
@@ -1492,15 +1493,12 @@ export const Timeline = memo(function Timeline() {
                   <TrackPlayhead totalDurationMs={totalDurationMs} />
 
                   {sequenceTracks.length === 0 ? (
-                    <div className="flex h-28 items-center justify-center border-b border-border">
-                      <div className="text-center">
-                        <Layers className="mx-auto h-8 w-8 text-text-muted/40" />
-                        <p className="mt-2 text-sm text-text-primary">No tracks yet</p>
-                        <p className="mt-1 text-xs text-text-muted">
-                          Add a track, then drop imported or generated media into the timeline.
-                        </p>
-                      </div>
-                    </div>
+                    <EmptyState
+                      icon={Layers}
+                      title="No tracks yet"
+                      description="Add a track, then drop imported or generated media into the timeline."
+                      className="h-auto min-h-28 border-b border-border py-4"
+                    />
                   ) : (
                     sequenceTracks.map((track) => {
                       const clips = clipsByTrackId.get(track.id) ?? [];

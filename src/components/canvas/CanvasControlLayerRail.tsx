@@ -6,6 +6,7 @@ import {
   EyeOff,
   GitBranch,
   Image as ImageIcon,
+  Layers,
   PaintBucket,
   Plus,
   Trash2,
@@ -15,6 +16,7 @@ import { useAppStore } from '@/store/appStore';
 import { selectActiveScene } from '@/store/slices/projectSlice';
 import type { CanvasControlLayer, CanvasControlLayerType } from '@/types/project';
 import { cn } from '@/utils/cn';
+import { EmptyState } from '@/components/ui/EmptyState';
 
 interface CanvasControlLayerRailProps {
   className?: string;
@@ -235,12 +237,12 @@ export const CanvasControlLayerRail = memo(function CanvasControlLayerRail({
 
       <div className="max-h-[min(28rem,calc(100vh-12rem))] space-y-2 overflow-y-auto px-3 py-3">
         {scene.canvasControlLayers.length === 0 ? (
-          <div className="rounded-sm border border-dashed border-border px-4 py-6 text-center">
-            <p className="type-ui text-text-primary">No control layers yet</p>
-            <p className="mt-1 text-xs text-text-muted">
-              Start with a ControlNet guide, a reusable reference image, or an inpaint mask.
-            </p>
-          </div>
+          <EmptyState
+            icon={Layers}
+            title="No control layers yet"
+            description="Start with a ControlNet guide, a reusable reference image, or an inpaint mask."
+            className="h-auto"
+          />
         ) : (
           scene.canvasControlLayers.map((layer, index) => (
             <LayerRow

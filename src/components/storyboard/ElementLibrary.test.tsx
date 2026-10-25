@@ -21,7 +21,7 @@ describe('ElementLibrary', () => {
 
     render(<ElementLibrary projectId={project.id} />);
 
-    expect(screen.getByText('No Elements yet')).toBeInTheDocument();
+    expect(screen.getByText('No Elements yet').closest('[data-testid="empty-state"]')).not.toBeNull();
     expect(screen.getByText(/Approved script imports will start building/i)).toBeInTheDocument();
   });
 
