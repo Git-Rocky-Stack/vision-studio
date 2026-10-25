@@ -65,16 +65,16 @@ export function CanvasGuideSection() {
               -- for repositioning, resizing, cropping, and rotating the active layer.
             </span>,
             <span>
-              <strong>Drawing</strong>: Brush (B), Eraser (E), Clone Stamp (S), Heal (J) -- for
-              painting, erasing, copying pixels, and frequency-aware healing.
+              <strong>Drawing</strong>: Brush (B), Eraser (E) -- for painting and erasing
+              strokes. Clone Stamp and Heal are shown but not available yet.
             </span>,
             <span>
-              <strong>Shapes &amp; Text</strong>: Text (X), Shape (U), Pen (P) -- for adding
-              vector text, primitive shapes, and bezier paths on top of any layer.
+              <strong>Shapes &amp; Text</strong>: Text (X) -- for adding text on top of the
+              image. Shape and Pen are shown but not available yet.
             </span>,
             <span>
               <strong>Navigation</strong>: Hand (H), Zoom (Z), Eyedropper (I) -- for panning,
-              zooming, and sampling colors. Spacebar temporarily activates Hand from any tool.
+              zooming, and sampling a color into the brush and the selected text layer.
             </span>,
           ]}
         />

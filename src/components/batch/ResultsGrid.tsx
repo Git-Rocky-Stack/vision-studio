@@ -12,6 +12,8 @@ import {
   Layers,
 } from 'lucide-react';
 import { AnimatePresence } from 'framer-motion';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
+import { pushNotice, reportActionError, runExport } from '@/features/notices';
 
 export type ViewMode = 'grid' | 'list' | 'large';
 export type SortBy = 'created' | 'prompt' | 'status';
@@ -152,25 +154,50 @@ export function ResultsGrid({
       return;
     }
 
-    await window.electron.assets.export(result.assetPath, destinationPath);
+    await runExport(() => window.electron.assets.export(result.assetPath!, destinationPath));
   };
 
+  const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
+
   const handleBulkDelete = async () => {
+    setConfirmBulkDelete(false);
     const selectedResults = batchResults.filter((result) => selectedIds.has(result.id));
     const assetPaths = selectedResults
       .map((result) => result.assetPath)
       .filter((assetPath): assetPath is string => Boolean(assetPath));
 
     const deleteResults = await Promise.all(
-      assetPaths.map((assetPath) => window.electron.assets.delete(assetPath))
+      assetPaths.map((assetPath) =>
+        window.electron.assets
+          .delete(assetPath)
+          .catch((error: unknown) => ({
+            success: false,
+            error: error instanceof Error ? error.message : 'delete failed',
+          })),
+      )
     );
     const deletedPaths = assetPaths.filter((_, index) => deleteResults[index]?.success);
+    // Results with no file behind them (failed generations) are just records.
     const deletedIds = selectedResults
-      .filter((result) => result.assetPath && deletedPaths.includes(result.assetPath))
+      .filter((result) => !result.assetPath || deletedPaths.includes(result.assetPath))
       .map((result) => result.id);
 
     removeBatchResults(deletedIds);
     removeAssetRecordsByPaths(deletedPaths);
+
+    const failed = assetPaths.length - deletedPaths.length;
+    if (failed > 0) {
+      const firstError = deleteResults.find((r) => !r?.success)?.error;
+      reportActionError(
+        `${failed} of ${assetPaths.length} files could not be deleted${firstError ? `: ${firstError}` : ''}. They are still selected.`,
+      );
+      // Keep only the failures selected so the user can retry them.
+      setSelectedIds(new Set(selectedResults.filter((r) => !deletedIds.includes(r.id)).map((r) => r.id)));
+      return;
+    }
+    if (deletedIds.length > 0) {
+      pushNotice('success', `Deleted ${deletedIds.length} ${deletedIds.length === 1 ? 'result' : 'results'}.`);
+    }
     deselectAll();
   };
 
@@ -191,7 +218,9 @@ export function ResultsGrid({
       return;
     }
 
-    await window.electron.assets.exportMany(assetPaths, destinationDir);
+    await runExport(() => window.electron.assets.exportMany(assetPaths, destinationDir), {
+      successMessage: `Exported ${assetPaths.length} ${assetPaths.length === 1 ? 'file' : 'files'}.`,
+    });
   };
 
   const parentRef = useRef<HTMLDivElement>(null);
@@ -301,7 +330,7 @@ export function ResultsGrid({
               Edit
             </button>
             <button
-              onClick={handleBulkDelete}
+              onClick={() => setConfirmBulkDelete(true)}
               className="flex items-center gap-2 px-3 py-2 rounded-md text-xs text-status-error hover:bg-status-error-muted transition"
             >
               <Trash2 className="w-3.5 h-3.5" />
@@ -310,6 +339,16 @@ export function ResultsGrid({
           </div>
         )}
       </AnimatePresence>
+
+      <ConfirmDialog
+        open={confirmBulkDelete}
+        title={`Delete ${selectedIds.size} ${selectedIds.size === 1 ? 'result' : 'results'}?`}
+        message="The files are removed from disk and from Assets. This cannot be undone."
+        confirmLabel="Delete"
+        variant="danger"
+        onConfirm={() => void handleBulkDelete()}
+        onCancel={() => setConfirmBulkDelete(false)}
+      />
     </div>
   );
 }

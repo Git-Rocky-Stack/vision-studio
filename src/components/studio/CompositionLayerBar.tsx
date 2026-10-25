@@ -8,13 +8,12 @@ import {
   Maximize,
   Frame,
   Image,
-  GitBranch,
-  PaintBucket,
 } from 'lucide-react';
 import { cn } from '@/utils/cn';
 import { useAppStore } from '@/store/appStore';
 import type { CompositionLayerState } from '@/types/promptStudio';
 import { Slider } from '@/components/ui/Slider';
+import { Button } from '@/components/ui/Button';
 
 interface CompositionLayerBarProps {
   /** Callback fired when the Generate button is clicked. */
@@ -27,7 +26,11 @@ interface CompositionLayerBarProps {
   onResetView: () => void;
 }
 
-/** Layer metadata for rendering toggle buttons. */
+/**
+ * Layer metadata for rendering toggle buttons. ControlNet and Masks are not
+ * offered: the preview has no preprocessed map or mask image to show yet, so
+ * those toggles switched nothing on screen.
+ */
 const LAYER_CONFIG: {
   key: keyof CompositionLayerState;
   label: string;
@@ -35,8 +38,6 @@ const LAYER_CONFIG: {
 }[] = [
   { key: 'aspectFrame', label: 'Frame', icon: Frame },
   { key: 'reference', label: 'Reference', icon: Image },
-  { key: 'controlNet', label: 'ControlNet', icon: GitBranch },
-  { key: 'regionMasks', label: 'Masks', icon: PaintBucket },
 ];
 
 const ZOOM_STEP = 0.25;
@@ -209,16 +210,9 @@ export const CompositionLayerBar = memo(function CompositionLayerBar({
       <div className={cn('mx-1 h-5 w-px bg-border')} aria-hidden="true" />
 
       {/* Generate button */}
-      <button
-        type="button"
-        onClick={onGenerate}
-        className={cn(
-          'rounded bg-accent-primary px-3 py-1 text-xs font-medium text-void',
-          'transition-colors hover:bg-accent-primary-pressed',
-        )}
-      >
+      <Button variant="primary" size="xs" onClick={onGenerate}>
         Generate
-      </button>
+      </Button>
     </div>
   );
 });

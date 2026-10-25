@@ -53,7 +53,7 @@ export interface PipelineDefinition {
 // ---------------------------------------------------------------------------
 
 /** Status of a single step during pipeline execution. */
-export type StepExecutionStatus = 'pending' | 'running' | 'complete' | 'error';
+export type StepExecutionStatus = 'pending' | 'running' | 'complete' | 'error' | 'skipped';
 
 /** Result snapshot for one step in a running execution. */
 export interface StepExecutionResult {
@@ -68,9 +68,11 @@ export interface PipelineExecution {
   id: string;
   pipelineId: string;
   sourceImageId: string;
-  status: 'queued' | 'running' | 'complete' | 'error';
+  status: 'queued' | 'running' | 'complete' | 'error' | 'cancelled';
   currentStepIndex: number;
   stepResults: StepExecutionResult[];
   finalOutput?: string;
+  /** Execution-level failure message (e.g. a step that cannot run). */
+  error?: string;
   created: string;
 }

@@ -47,11 +47,11 @@ describe('CollectionsPage', () => {
     expect(screen.getByText('No collections yet')).toBeInTheDocument();
   });
 
-  it('renders category filter tabs', () => {
+  it('renders category filters as pressed toggles, without the empty Smart filter', () => {
     render(<CollectionsPage />);
-    expect(screen.getByRole('tab', { name: 'All' })).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: 'Smart' })).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: 'Manual' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'All', pressed: true })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Smart' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Manual', pressed: false })).toBeInTheDocument();
   });
 
   it('creates a new collection on button click', async () => {
@@ -80,7 +80,7 @@ describe('CollectionsPage', () => {
     store.analyzeAssets(['asset-0']);
 
     render(<CollectionsPage />);
-    await user.click(screen.getByRole('tab', { name: 'Tagged' }));
+    await user.click(screen.getByRole('button', { name: 'Tagged' }));
 
     // The grid is inside <AnimatePresence>, so a filtered-out card leaves via
     // its exit animation rather than unmounting synchronously.
@@ -100,7 +100,7 @@ describe('CollectionsPage', () => {
     store.analyzeAssets(['asset-0']);
 
     render(<CollectionsPage />);
-    await user.click(screen.getByRole('tab', { name: 'Untagged' }));
+    await user.click(screen.getByRole('button', { name: 'Untagged' }));
 
     await waitForElementToBeRemoved(() => screen.queryByText('Tagged Set'));
     expect(screen.getByText('Untagged Set')).toBeInTheDocument();
@@ -139,5 +139,63 @@ describe('CollectionsPage', () => {
 
     expect(screen.getByText('cinematic')).toBeInTheDocument();
     expect(screen.getByText('moody')).toBeInTheDocument();
+  });
+
+  it('says No matches when a search filters every collection out', async () => {
+    const user = userEvent.setup();
+    useAppStore.getState().createCollection({ name: 'Portraits', type: 'manual' });
+    render(<CollectionsPage />);
+    await user.type(screen.getByLabelText('Search collections'), 'zzz');
+
+    expect(await screen.findByText('No matches')).toBeInTheDocument();
+    expect(screen.queryByText('No collections yet')).toBeNull();
+  });
+
+  it('names new collections distinctly', async () => {
+    const user = userEvent.setup();
+    render(<CollectionsPage />);
+    await user.click(screen.getByRole('button', { name: /^new collection$/i }));
+    await user.click(screen.getByRole('button', { name: /^new collection$/i }));
+    expect(useAppStore.getState().collections.map((c) => c.name)).toEqual(['New Collection', 'New Collection 2']);
+  });
+
+  it('renames a collection inline', async () => {
+    const user = userEvent.setup();
+    useAppStore.getState().createCollection({ name: 'Old', type: 'manual' });
+    render(<CollectionsPage />);
+    await user.click(screen.getByRole('button', { name: 'Rename Old' }));
+    const input = screen.getByRole('textbox', { name: 'Rename Old' });
+    await user.clear(input);
+    await user.type(input, 'Hero shots{Enter}');
+
+    expect(useAppStore.getState().collections[0].name).toBe('Hero shots');
+  });
+
+  it('deletes a collection only after confirmation', async () => {
+    const user = userEvent.setup();
+    useAppStore.getState().createCollection({ name: 'Doomed', type: 'manual' });
+    render(<CollectionsPage />);
+
+    await user.click(screen.getByRole('button', { name: 'Delete Doomed' }));
+    expect(useAppStore.getState().collections).toHaveLength(1);
+    await user.click(screen.getByRole('button', { name: 'Delete collection' }));
+
+    expect(useAppStore.getState().collections).toHaveLength(0);
+  });
+
+  it("opens the active collection's assets and removes one", async () => {
+    const user = userEvent.setup();
+    seedAssets('a cinematic portrait', 'a serene landscape');
+    const collection = useAppStore.getState().createCollection({ name: 'Picks', type: 'manual' });
+    useAppStore.getState().addAssetToCollection(collection.id, 'asset-0');
+    useAppStore.getState().addAssetToCollection(collection.id, 'asset-1');
+    render(<CollectionsPage />);
+
+    await user.click(screen.getByRole('button', { name: /picks collection/i }));
+    const detail = screen.getByRole('region', { name: 'Picks assets' });
+    expect(detail).toHaveTextContent('render-0.png');
+
+    await user.click(screen.getByRole('button', { name: 'Remove render-0.png from Picks' }));
+    expect(useAppStore.getState().collections[0].assetIds).toEqual(['asset-1']);
   });
 });

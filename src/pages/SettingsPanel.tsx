@@ -101,6 +101,14 @@ const ACTIVE_DOWNLOAD_STATUSES = new Set<DownloadStatus>(['queued', 'downloading
 /** Download states that end the lifecycle - no further polling is needed. */
 const TERMINAL_DOWNLOAD_STATUSES = new Set<DownloadStatus>(['ready', 'error', 'cancelled']);
 
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error ?? 'unknown error');
+}
+
+/** Start Backend polls backend.getStatus at this pace until the process is up. */
+export const BACKEND_START_POLL_MS = 500;
+export const BACKEND_START_TIMEOUT_MS = 30_000;
+
 function formatOpenRouterCurrency(value: number | null) {
   if (value === null || !Number.isFinite(value)) {
     return 'Unavailable';
@@ -243,22 +251,63 @@ export function SettingsPanel() {
     void electron.director.indexStats().then(setIndexStats);
   }, []);
 
+  const [settingsError, setSettingsError] = useState<string | null>(null);
+  const [directorError, setDirectorError] = useState<string | null>(null);
+  const [directorBusy, setDirectorBusy] = useState<'rebuild' | 'clear' | null>(null);
+
   const updateAiDirector = async (next: AiDirectorSettings) => {
+    const previous = aiDirector;
     setAiDirector(next);
-    await window.electron.settings.update({ aiDirector: next });
+    setDirectorError(null);
+    try {
+      await window.electron.settings.update({ aiDirector: next });
+    } catch (error) {
+      setDirectorError(`AI Director settings were not saved: ${errorMessage(error)}`);
+      // Show what is actually stored, not the optimistic toggle.
+      try {
+        const stored = await window.electron.settings.get();
+        setAiDirector(stored.aiDirector ?? AI_DIRECTOR_DEFAULTS);
+      } catch {
+        setAiDirector(previous);
+      }
+    }
+  };
+
+  const refreshIndexStats = async () => {
+    try {
+      setIndexStats(await window.electron.director.indexStats());
+    } catch {
+      // Stats are informational; the action's own error is what matters.
+    }
   };
 
   const rebuildDirectorIndex = async () => {
-    const { promptHistory, favoritePrompts, assetLibrary, batchResults } = useAppStore.getState();
-    await window.electron.director.syncCorpus(
-      buildIngestRecords({ promptHistory, favoritePrompts, assetLibrary, batchResults }),
-    );
-    setIndexStats(await window.electron.director.indexStats());
+    setDirectorBusy('rebuild');
+    setDirectorError(null);
+    try {
+      const { promptHistory, favoritePrompts, assetLibrary, batchResults } = useAppStore.getState();
+      await window.electron.director.syncCorpus(
+        buildIngestRecords({ promptHistory, favoritePrompts, assetLibrary, batchResults }),
+      );
+    } catch (error) {
+      setDirectorError(`Index rebuild failed: ${errorMessage(error)}`);
+    } finally {
+      await refreshIndexStats();
+      setDirectorBusy(null);
+    }
   };
 
   const clearDirectorIndex = async () => {
-    await window.electron.director.clearIndex();
-    setIndexStats(await window.electron.director.indexStats());
+    setDirectorBusy('clear');
+    setDirectorError(null);
+    try {
+      await window.electron.director.clearIndex();
+    } catch (error) {
+      setDirectorError(`Clearing the index failed: ${errorMessage(error)}`);
+    } finally {
+      await refreshIndexStats();
+      setDirectorBusy(null);
+    }
   };
 
   // Drive the live download queue from the store slice: poll while any job is in
@@ -364,8 +413,74 @@ export function SettingsPanel() {
     return `${assetLibrary.length} tracked asset${assetLibrary.length === 1 ? '' : 's'}`;
   }, [assetLibrary.length]);
 
+  const [isStartingBackend, setIsStartingBackend] = useState(false);
+  const [backendStartError, setBackendStartError] = useState<string | null>(null);
+
+  // Start the backend, then poll until it actually answers instead of
+  // guessing with a fixed delay; surface the start error or a timeout.
+  const handleStartBackend = async () => {
+    if (isStartingBackend) return;
+    setIsStartingBackend(true);
+    setBackendStartError(null);
+    try {
+      const result = await window.electron.backend.start();
+      if (!result.success) {
+        setBackendStartError(result.error || 'The backend could not be started.');
+        return;
+      }
+      const deadline = Date.now() + BACKEND_START_TIMEOUT_MS;
+      for (;;) {
+        const backendStatus = await window.electron.backend.getStatus().catch(() => ({ running: false, bundled: undefined }));
+        if (backendStatus.running) {
+          const info = await window.electron.system.getInfo().catch(() => null);
+          if (info?.backendConnected) {
+            setSystemInfo({
+              gpuAvailable: info.gpu_available,
+              gpuName: info.gpu_name,
+              gpuVram: info.gpu_vram,
+              cudaVersion: info.cuda_version,
+              comfyuiConnected: info.comfyui_connected,
+              modelsCount: info.models_count,
+              backendConnected: true,
+              backendRunning: true,
+              bundledBackend: backendStatus.bundled,
+            });
+            const models = await window.electron.models.list().catch(() => null);
+            if (models) setAvailableModels(models);
+            return;
+          }
+        }
+        if (Date.now() >= deadline) {
+          setBackendStartError(
+            `The backend did not come up within ${BACKEND_START_TIMEOUT_MS / 1000} seconds. Check the Python path, then try again.`,
+          );
+          return;
+        }
+        await new Promise((resolve) => setTimeout(resolve, BACKEND_START_POLL_MS));
+      }
+    } catch (error) {
+      setBackendStartError(`The backend could not be started: ${errorMessage(error)}`);
+    } finally {
+      setIsStartingBackend(false);
+    }
+  };
+
   const persistSettings = async (patch: Partial<SettingsState>) => {
-    const next = await window.electron.settings.update(patch);
+    setSettingsError(null);
+    let next: Awaited<ReturnType<typeof window.electron.settings.update>>;
+    try {
+      next = await window.electron.settings.update(patch);
+    } catch (error) {
+      // settings:update throws when, e.g., the backend restart a change needs
+      // fails. Say so, and re-read what is actually stored so the controls
+      // do not show a value that was never saved.
+      setSettingsError(`Settings were not saved: ${errorMessage(error)}`);
+      try {
+        next = await window.electron.settings.get();
+      } catch {
+        return;
+      }
+    }
     setSettings({
       theme: next.theme,
       autoSave: next.autoSave,
@@ -727,6 +842,23 @@ export function SettingsPanel() {
       </div>
 
       <div className="flex-1 overflow-y-auto p-6">
+        {settingsError && (
+          <div
+            role="alert"
+            className="mb-4 flex max-w-2xl items-start gap-3 rounded-md border border-status-error-border bg-status-error-muted p-3"
+          >
+            <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0 text-status-error" aria-hidden="true" />
+            <p className="flex-1 text-sm text-status-error">{settingsError}</p>
+            <button
+              type="button"
+              onClick={() => setSettingsError(null)}
+              aria-label="Dismiss settings error"
+              className="text-xs text-text-body hover:text-text-primary"
+            >
+              Dismiss
+            </button>
+          </div>
+        )}
         <AnimatePresence mode="wait">
           <motion.div
             key={activeTab}
@@ -900,33 +1032,18 @@ export function SettingsPanel() {
                           size="sm"
                           className="mt-3 text-status-error hover:bg-status-error-muted"
                           icon={Play}
-                          onClick={async () => {
-                            const result = await window.electron.backend.start();
-                            if (result.success) {
-                              setTimeout(async () => {
-                                const [info, backendStatus] = await Promise.all([
-                                  window.electron.system.getInfo(),
-                                  window.electron.backend.getStatus(),
-                                ]);
-                                setSystemInfo({
-                                  gpuAvailable: info.gpu_available,
-                                  gpuName: info.gpu_name,
-                                  gpuVram: info.gpu_vram,
-                                  cudaVersion: info.cuda_version,
-                                  comfyuiConnected: info.comfyui_connected,
-                                  modelsCount: info.models_count,
-                                  backendConnected: info.backendConnected ?? false,
-                                  backendRunning: backendStatus.running,
-                                  bundledBackend: backendStatus.bundled,
-                                });
-                                const models = await window.electron.models.list();
-                                setAvailableModels(models);
-                              }, 3000);
-                            }
-                          }}
+                          isLoading={isStartingBackend}
+                          loadingLabel="Starting Backend..."
+                          disabled={isStartingBackend}
+                          onClick={() => void handleStartBackend()}
                         >
                           Start Backend
                         </Button>
+                        {backendStartError && (
+                          <p role="alert" className="mt-2 text-xs text-status-error">
+                            {backendStartError}
+                          </p>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -1718,16 +1835,31 @@ export function SettingsPanel() {
                     </label>
                   ))}
                   <div className="flex items-center gap-3 pt-2">
-                    <button type="button" className="btn-chrome px-3 py-1.5 text-sm" onClick={() => void rebuildDirectorIndex()}>
-                      Rebuild index
+                    <button
+                      type="button"
+                      className="btn-chrome px-3 py-1.5 text-sm disabled:cursor-not-allowed disabled:opacity-50"
+                      disabled={directorBusy !== null}
+                      onClick={() => void rebuildDirectorIndex()}
+                    >
+                      {directorBusy === 'rebuild' ? 'Rebuilding...' : 'Rebuild index'}
                     </button>
-                    <button type="button" className="raised-control px-3 py-1.5 text-sm" onClick={() => void clearDirectorIndex()}>
-                      Clear index
+                    <button
+                      type="button"
+                      className="raised-control px-3 py-1.5 text-sm disabled:cursor-not-allowed disabled:opacity-50"
+                      disabled={directorBusy !== null}
+                      onClick={() => void clearDirectorIndex()}
+                    >
+                      {directorBusy === 'clear' ? 'Clearing...' : 'Clear index'}
                     </button>
                     <span className="mono-label text-text-muted">
                       {indexStats.count} indexed ({indexStats.mode})
                     </span>
                   </div>
+                  {directorError && (
+                    <p role="alert" className="pt-2 text-xs text-status-error">
+                      {directorError}
+                    </p>
+                  )}
                 </div>
 
                 <div className="space-y-4">

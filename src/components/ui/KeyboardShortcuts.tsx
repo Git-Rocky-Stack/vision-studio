@@ -2,11 +2,33 @@ import { useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Keyboard } from 'lucide-react';
 import { DialogCloseButton } from '@/components/ui/DialogCloseButton';
+import { EDIT_TOOL_SHORTCUTS } from '@/features/edit/useEditToolShortcuts';
+import type { EditTool } from '@/types/editor';
 
 interface ShortcutGroup {
   title: string;
   shortcuts: { keys: string[]; description: string }[];
 }
+
+const EDIT_TOOL_LABELS: Partial<Record<EditTool, string>> = {
+  move: 'Move tool',
+  scale: 'Scale tool',
+  crop: 'Crop tool',
+  rotate: 'Rotate tool',
+  brush: 'Brush tool',
+  eraser: 'Eraser tool',
+  text: 'Text tool',
+  hand: 'Hand tool',
+  zoom: 'Zoom tool',
+  eyedropper: 'Eyedropper tool',
+};
+
+// Generated from the live key map, so the sheet cannot drift from what the
+// editor actually binds.
+const EDIT_TOOL_ROWS = Object.entries(EDIT_TOOL_SHORTCUTS).map(([key, tool]) => ({
+  keys: [key.toUpperCase()],
+  description: EDIT_TOOL_LABELS[tool] ?? tool,
+}));
 
 const SHORTCUT_GROUPS: ShortcutGroup[] = [
   {
@@ -25,12 +47,16 @@ const SHORTCUT_GROUPS: ShortcutGroup[] = [
     shortcuts: [
       { keys: ['?'], description: 'Show keyboard shortcuts' },
       { keys: ['Esc'], description: 'Close dialog / cancel' },
+      { keys: ['Ctrl', 'Z'], description: 'Undo edit' },
+      { keys: ['Ctrl', 'Y'], description: 'Redo edit' },
+      { keys: ['Ctrl', 'Shift', 'Z'], description: 'Redo edit' },
     ],
   },
   {
     title: 'Edit Canvas',
     shortcuts: [
       { keys: ['Scroll'], description: 'Zoom in/out' },
+      ...EDIT_TOOL_ROWS,
     ],
   },
 ];

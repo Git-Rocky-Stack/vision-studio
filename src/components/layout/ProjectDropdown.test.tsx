@@ -47,6 +47,8 @@ const mockStoreValue = {
   projects: mockProjects,
   activeProjectId: 'proj-1',
   setActiveProject: vi.fn(),
+  updateProject: vi.fn(),
+  deleteProject: vi.fn(),
   createProject: vi.fn(() => ({
     id: 'proj-new',
     name: 'Untitled Project',
@@ -61,6 +63,8 @@ describe('ProjectDropdown', () => {
     vi.mocked(useAppStore).mockReturnValue(mockStoreValue);
     mockStoreValue.setActiveProject.mockClear();
     mockStoreValue.createProject.mockClear();
+    mockStoreValue.updateProject.mockClear();
+    mockStoreValue.deleteProject.mockClear();
   });
 
   describe('rendering', () => {
@@ -90,7 +94,7 @@ describe('ProjectDropdown', () => {
       render(<ProjectDropdown />);
       const trigger = screen.getByRole('button', { name: /select project/i });
       await user.click(trigger);
-      expect(screen.getByRole('listbox', { name: /project list/i })).toBeInTheDocument();
+      expect(screen.getByRole('dialog', { name: /project list/i })).toBeInTheDocument();
     });
 
     it('lists all projects', async () => {
@@ -130,9 +134,9 @@ describe('ProjectDropdown', () => {
       const user = userEvent.setup();
       render(<ProjectDropdown />);
       await user.click(screen.getByRole('button', { name: /select project/i }));
-      expect(screen.getByRole('listbox')).toBeInTheDocument();
+      expect(screen.getByRole('dialog', { name: /project list/i })).toBeInTheDocument();
       await user.click(screen.getByText('Product Demo'));
-      expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+      expect(screen.queryByRole('dialog', { name: /project list/i })).not.toBeInTheDocument();
     });
   });
 
@@ -155,15 +159,50 @@ describe('ProjectDropdown', () => {
       render(<ProjectDropdown />);
       const trigger = screen.getByRole('button', { name: /select project/i });
       expect(trigger).toHaveAttribute('aria-expanded', 'false');
-      expect(trigger).toHaveAttribute('aria-haspopup', 'listbox');
+      expect(trigger).toHaveAttribute('aria-haspopup', 'dialog');
     });
 
-    it('active project has aria-selected', async () => {
+    it('marks the active project row as current', async () => {
       const user = userEvent.setup();
       render(<ProjectDropdown />);
       await user.click(screen.getByRole('button', { name: /select project/i }));
-      const activeOption = screen.getByRole('option', { name: /sci-fi short film/i });
-      expect(activeOption).toHaveAttribute('aria-selected', 'true');
+      const activeRow = screen.getByRole('button', { name: /^sci-fi short film/i });
+      expect(activeRow).toHaveAttribute('aria-current', 'true');
+    });
+  });
+
+  describe('rename and delete', () => {
+    it('renames a project inline', async () => {
+      const user = userEvent.setup();
+      render(<ProjectDropdown />);
+      await user.click(screen.getByRole('button', { name: /select project/i }));
+      await user.click(screen.getByRole('button', { name: 'Rename Product Demo' }));
+      const input = screen.getByRole('textbox', { name: 'Rename Product Demo' });
+      await user.clear(input);
+      await user.type(input, 'Launch Teaser{Enter}');
+      expect(mockStoreValue.updateProject).toHaveBeenCalledWith('proj-2', { name: 'Launch Teaser' });
+    });
+
+    it('does not rename to an empty name', async () => {
+      const user = userEvent.setup();
+      render(<ProjectDropdown />);
+      await user.click(screen.getByRole('button', { name: /select project/i }));
+      await user.click(screen.getByRole('button', { name: 'Rename Product Demo' }));
+      await user.clear(screen.getByRole('textbox', { name: 'Rename Product Demo' }));
+      await user.keyboard('{Enter}');
+      expect(mockStoreValue.updateProject).not.toHaveBeenCalled();
+    });
+
+    it('deletes a project only after confirmation', async () => {
+      const user = userEvent.setup();
+      render(<ProjectDropdown />);
+      await user.click(screen.getByRole('button', { name: /select project/i }));
+      await user.click(screen.getByRole('button', { name: 'Delete Product Demo' }));
+      expect(mockStoreValue.deleteProject).not.toHaveBeenCalled();
+      expect(screen.getByText('Delete "Product Demo"?')).toBeInTheDocument();
+
+      await user.click(screen.getByRole('button', { name: 'Delete project' }));
+      expect(mockStoreValue.deleteProject).toHaveBeenCalledWith('proj-2');
     });
   });
 });

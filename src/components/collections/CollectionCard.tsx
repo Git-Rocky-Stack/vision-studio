@@ -1,9 +1,11 @@
 import { memo, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { motion } from 'framer-motion';
-import { FolderOpen, Trash2 } from 'lucide-react';
+import { FolderOpen, Pencil, Trash2 } from 'lucide-react';
 import { useShallow } from 'zustand/react/shallow';
 import { cn } from '@/utils/cn';
 import { useAppStore } from '@/store/appStore';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { TagBadge } from './TagBadge';
 import type { Collection } from '@/types/collections';
 
@@ -24,14 +26,25 @@ export const CollectionCard = memo(function CollectionCard({
   className,
 }: CollectionCardProps) {
   const [showActions, setShowActions] = useState(false);
-  const { assetLibrary, deleteCollection, setActiveCollection, activeCollectionId } = useAppStore(
+  const [isRenaming, setIsRenaming] = useState(false);
+  const [draftName, setDraftName] = useState(collection.name);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const { assetLibrary, deleteCollection, renameCollection, setActiveCollection, activeCollectionId } = useAppStore(
     useShallow((s) => ({
       assetLibrary: s.assetLibrary,
       deleteCollection: s.deleteCollection,
+      renameCollection: s.renameCollection,
       setActiveCollection: s.setActiveCollection,
       activeCollectionId: s.activeCollectionId,
     })),
   );
+
+  const commitRename = () => {
+    const name = draftName.trim();
+    if (name && name !== collection.name) renameCollection(collection.id, name);
+    else setDraftName(collection.name);
+    setIsRenaming(false);
+  };
 
   const isSmart = collection.type === 'smart';
   const isActive = activeCollectionId === collection.id;
@@ -81,6 +94,8 @@ export const CollectionCard = memo(function CollectionCard({
       aria-pressed={isActive}
       aria-label={`${collection.name} collection, ${collection.assetIds.length} assets`}
       onKeyDown={(e) => {
+        // Keys typed into the rename field belong to the field.
+        if (e.target !== e.currentTarget) return;
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault();
           activate();
@@ -113,9 +128,30 @@ export const CollectionCard = memo(function CollectionCard({
 
       {/* Info */}
       <div className="flex items-center gap-2">
-        <span className="type-body-sm font-medium text-text-primary truncate flex-1">
-          {collection.name}
-        </span>
+        {isRenaming ? (
+          <input
+            type="text"
+            value={draftName}
+            autoFocus
+            aria-label={`Rename ${collection.name}`}
+            onChange={(e) => setDraftName(e.target.value)}
+            onClick={(e) => e.stopPropagation()}
+            onBlur={commitRename}
+            onKeyDown={(e) => {
+              e.stopPropagation();
+              if (e.key === 'Enter') commitRename();
+              if (e.key === 'Escape') {
+                setDraftName(collection.name);
+                setIsRenaming(false);
+              }
+            }}
+            className="recessed-well min-w-0 flex-1 px-2 py-0.5 type-body-sm text-text-primary"
+          />
+        ) : (
+          <span className="type-body-sm font-medium text-text-primary truncate flex-1">
+            {collection.name}
+          </span>
+        )}
         {isSmart && (
           <span className="type-micro px-1.5 py-0.5 rounded-full bg-accent-primary-muted text-accent-primary border border-accent-primary-border">
             Smart
@@ -144,21 +180,59 @@ export const CollectionCard = memo(function CollectionCard({
         </div>
       )}
 
-      {/* Hover actions */}
-      {showActions && (
-        <div className="absolute top-2 right-2 flex gap-1">
+      {/* Actions: shown on hover, and while keyboard focus is inside the card */}
+      <div
+        className={cn(
+          'absolute top-2 right-2 flex gap-1 transition-opacity focus-within:opacity-100',
+          showActions || isActive ? 'opacity-100' : 'opacity-0',
+        )}
+      >
+        {!isSmart && (
           <button
             type="button"
             onClick={(e) => {
               e.stopPropagation();
-              deleteCollection(collection.id);
+              setDraftName(collection.name);
+              setIsRenaming(true);
             }}
-            className="icon-button p-1 rounded-md bg-void/80 text-text-muted hover:text-status-error hover:bg-void"
-            aria-label={`Delete ${collection.name}`}
+            className="icon-button p-1 rounded-md bg-void/80 text-text-muted hover:text-text-primary hover:bg-void"
+            aria-label={`Rename ${collection.name}`}
           >
-            <Trash2 className="w-3.5 h-3.5" />
+            <Pencil className="w-3.5 h-3.5" />
           </button>
-        </div>
+        )}
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            setConfirmDelete(true);
+          }}
+          className="icon-button p-1 rounded-md bg-void/80 text-text-muted hover:text-status-error hover:bg-void"
+          aria-label={`Delete ${collection.name}`}
+        >
+          <Trash2 className="w-3.5 h-3.5" />
+        </button>
+      </div>
+
+      {/* Portalled: the card's hover transform would otherwise become the
+          containing block of the dialog's fixed overlay. React events still
+          bubble through the portal, so stop them reaching the card. */}
+      {confirmDelete && createPortal(
+      <div onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+        <ConfirmDialog
+          open={confirmDelete}
+          title={`Delete "${collection.name}"?`}
+          message="The collection is removed. Its assets stay in your library."
+          confirmLabel="Delete collection"
+          variant="danger"
+          onConfirm={() => {
+            setConfirmDelete(false);
+            deleteCollection(collection.id);
+          }}
+          onCancel={() => setConfirmDelete(false)}
+        />
+      </div>,
+      document.body,
       )}
     </motion.div>
   );

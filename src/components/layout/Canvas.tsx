@@ -35,7 +35,6 @@ export const Canvas = memo(function Canvas() {
     setActiveRegionId,
     setActiveMaskTool,
     toggleMaskInverted,
-    setActiveEditTool,
     setActiveSubMode,
     setActiveTab,
     setCenterView,
@@ -59,7 +58,6 @@ export const Canvas = memo(function Canvas() {
     setActiveRegionId: s.setActiveRegionId,
     setActiveMaskTool: s.setActiveMaskTool,
     toggleMaskInverted: s.toggleMaskInverted,
-    setActiveEditTool: s.setActiveEditTool,
     setActiveSubMode: s.setActiveSubMode,
     setActiveTab: s.setActiveTab,
     setCenterView: s.setCenterView,
@@ -189,6 +187,33 @@ export const Canvas = memo(function Canvas() {
   const handleResetZoom = () => {
     setZoom(100);
     setPan({ x: 0, y: 0 });
+  };
+  // Fit the artboard inside the visible container, within the zoom limits.
+  const handleZoomToFit = () => {
+    const rect = containerRef.current?.getBoundingClientRect();
+    if (!rect || rect.width === 0 || rect.height === 0) {
+      handleResetZoom();
+      return;
+    }
+    const fit = Math.min(rect.width / displayedArtboardSize.width, rect.height / displayedArtboardSize.height);
+    setZoom(Math.round(Math.min(200, Math.max(25, fit * 100 * 0.9))));
+    setPan({ x: 0, y: 0 });
+  };
+  // Generation Info opens the Viewer on the library record of this image,
+  // where its prompt, model, seed and settings are shown.
+  const generationInfoAssetId = contextMenu
+    ? (useAppStore
+        .getState()
+        .assetLibrary.find(
+          (asset) =>
+            asset.path === currentImageAssetPath ||
+            (currentImage !== null && asset.previewUrl === currentImage),
+        )?.id ?? null)
+    : null;
+  const handleShowGenerationInfo = () => {
+    if (!generationInfoAssetId) return;
+    useAppStore.getState().setActiveViewerItemId(`asset-${generationInfoAssetId}`);
+    setCenterView('viewer');
   };
   const openGenerate = () => {
     setActiveTab('generate');
@@ -386,53 +411,9 @@ export const Canvas = memo(function Canvas() {
             toggleMaskInverted();
             return;
         }
-      } else {
-        // Edit tool shortcuts (only active outside region mode)
-        switch (e.key.toLowerCase()) {
-          case 'v':
-            setActiveEditTool('move');
-            return;
-          case 't':
-            setActiveEditTool('scale');
-            return;
-          case 'c':
-            setActiveEditTool('crop');
-            return;
-          case 'r':
-            setActiveEditTool('rotate');
-            return;
-          case 'b':
-            setActiveEditTool('brush');
-            return;
-          case 'e':
-            setActiveEditTool('eraser');
-            return;
-          case 's':
-            setActiveEditTool('clone');
-            return;
-          case 'j':
-            setActiveEditTool('heal');
-            return;
-          case 'x':
-            setActiveEditTool('text');
-            return;
-          case 'u':
-            setActiveEditTool('shape');
-            return;
-          case 'p':
-            setActiveEditTool('pen');
-            return;
-          case 'h':
-            setActiveEditTool('hand');
-            return;
-          case 'z':
-            setActiveEditTool('zoom');
-            return;
-          case 'i':
-            setActiveEditTool('eyedropper');
-            return;
-        }
       }
+      // Edit tool letters live in EditCanvas (useEditToolShortcuts): this
+      // Canvas is not mounted on the editor tab, where those tools work.
       // Canvas zoom shortcuts
       switch (e.key) {
         case '+':
@@ -778,6 +759,9 @@ export const Canvas = memo(function Canvas() {
           x={contextMenu.x}
           y={contextMenu.y}
           onClose={() => setContextMenu(null)}
+          onShowGenerationInfo={generationInfoAssetId ? handleShowGenerationInfo : undefined}
+          onZoomToFit={handleZoomToFit}
+          onZoom100={handleResetZoom}
         />
       )}
     </div>

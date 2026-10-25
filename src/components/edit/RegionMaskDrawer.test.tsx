@@ -459,4 +459,29 @@ describe('RegionMaskDrawer', () => {
     // Dashed erase preview should appear
     expect(queryByTestId('mask-draft-erase-path')).toBeTruthy();
   });
+
+  it('draws with resolved status tokens instead of raw hexes', () => {
+    document.documentElement.style.setProperty('--color-status-error', 'rgb(1, 2, 3)');
+    document.documentElement.style.setProperty('--color-status-info', 'rgb(4, 5, 6)');
+    try {
+      const { getByTestId } = render(
+        <RegionMaskDrawer
+          activeRegion={mockRegion}
+          canvasWidth={CANVAS_W}
+          canvasHeight={CANVAS_H}
+          tool="erase"
+          brushSize={30}
+          onMaskCommit={vi.fn()}
+        />
+      );
+      const surface = getByTestId('region-mask-drawer');
+      stubBoundingRect(surface);
+      fireEvent.pointerDown(surface, { clientX: 100, clientY: 100, button: 0, pointerId: 1 });
+      fireEvent.pointerMove(surface, { clientX: 200, clientY: 200, pointerId: 1 });
+      expect(getByTestId('mask-draft-erase-path')).toHaveAttribute('stroke', 'rgb(4, 5, 6)');
+    } finally {
+      document.documentElement.style.removeProperty('--color-status-error');
+      document.documentElement.style.removeProperty('--color-status-info');
+    }
+  });
 });

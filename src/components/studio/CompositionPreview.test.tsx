@@ -12,6 +12,14 @@ import { runStudioGeneration } from '@/features/studio/runStudioGeneration';
 
 import { CompositionPreview } from './CompositionPreview';
 
+function frameRatioOf(el: HTMLElement): string | undefined {
+  // React sets the property through style; read the value it was given.
+  const fiberProps = Object.entries(el).find(([k]) => k.startsWith('__reactProps'))?.[1] as
+    | { style?: { aspectRatio?: string } }
+    | undefined;
+  return fiberProps?.style?.aspectRatio;
+}
+
 function resetStore() {
   useAppStore.setState(useAppStore.getInitialState());
 }
@@ -31,15 +39,30 @@ describe('CompositionPreview', () => {
     // Default state: all layers visible, so "Hide X" labels
     expect(screen.getByLabelText(/Hide Frame/)).toBeInTheDocument();
     expect(screen.getByLabelText(/Hide Reference/)).toBeInTheDocument();
-    expect(screen.getByLabelText(/Hide ControlNet/)).toBeInTheDocument();
-    expect(screen.getByLabelText(/Hide Masks/)).toBeInTheDocument();
+    // No preprocessed map or mask image exists for the preview, so their
+    // toggles would switch nothing on screen.
+    expect(screen.queryByLabelText(/ControlNet/)).toBeNull();
+    expect(screen.queryByLabelText(/Masks/)).toBeNull();
   });
 
-  it('renders the Generate button', () => {
+  it('renders the Generate button as the shared primary Button', () => {
     render(<CompositionPreview />);
 
     // The generate button has visible text "Generate"
-    expect(screen.getByRole('button', { name: /generate/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /generate/i })).toHaveClass('btn-chrome');
+  });
+
+  it.each([
+    ['16:9', {}, String(16 / 9)],
+    ['21:9', {}, String(21 / 9)],
+    ['custom', { customWidth: 1200, customHeight: 800 }, '1.5'],
+  ] as const)('frames the %s aspect ratio the store holds', (aspectRatio, extra, expected) => {
+    useAppStore.setState({ aspectRatio, ...extra, currentImage: 'ref.png' });
+    const { container } = render(<CompositionPreview />);
+    const frame = container.querySelector('.border-dashed.border-accent-primary') as HTMLElement;
+    // Inspect the inline declaration directly: jsdom's CSSOM drops aspect-ratio.
+    expect(frame).not.toBeNull();
+    expect(frameRatioOf(frame)).toBe(expected);
   });
 
   it('renders zoom controls', () => {

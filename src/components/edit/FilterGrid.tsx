@@ -2,28 +2,11 @@ import { useState } from 'react';
 import { cn } from '@/utils/cn';
 import { Slider } from '@/components/ui/Slider';
 import { Layers, Sparkles } from 'lucide-react';
+import { LOOK_FILTERS, lookFilterCss } from '@/features/edit/imageFilters';
 
-interface FilterDef {
-  id: string;
-  name: string;
-  category: string;
-  css: string;
-}
-
-const FILTERS: FilterDef[] = [
-  { id: 'cinematic-warm', name: 'Cinematic Warm', category: 'cinematic', css: 'contrast(1.1) saturate(1.3) sepia(0.15)' },
-  { id: 'cinematic-cool', name: 'Cinematic Cool', category: 'cinematic', css: 'contrast(1.15) saturate(0.9) hue-rotate(10deg)' },
-  { id: 'vintage-film', name: 'Vintage Film', category: 'vintage', css: 'sepia(0.4) contrast(1.1) brightness(0.95)' },
-  { id: 'vintage-fade', name: 'Vintage Fade', category: 'vintage', css: 'sepia(0.2) contrast(0.9) brightness(1.1) saturate(0.8)' },
-  { id: 'noir', name: 'Noir', category: 'bw', css: 'grayscale(1) contrast(1.3) brightness(0.9)' },
-  { id: 'bw-classic', name: 'B&W Classic', category: 'bw', css: 'grayscale(1) contrast(1.1)' },
-  { id: 'portrait-soft', name: 'Portrait Soft', category: 'portrait', css: 'contrast(0.95) brightness(1.05) saturate(1.1)' },
-  { id: 'landscape-vivid', name: 'Landscape Vivid', category: 'landscape', css: 'saturate(1.5) contrast(1.1) brightness(1.05)' },
-  { id: 'dreamy', name: 'Dreamy', category: 'creative', css: 'brightness(1.1) contrast(0.9) saturate(1.2)' },
-  { id: 'cyberpunk', name: 'Cyberpunk', category: 'creative', css: 'contrast(1.3) saturate(1.5) hue-rotate(-10deg)' },
-  { id: 'vibrant', name: 'Vibrant', category: 'creative', css: 'saturate(1.8) contrast(1.1)' },
-  { id: 'matte', name: 'Matte', category: 'creative', css: 'contrast(0.85) brightness(1.1) saturate(0.9)' },
-];
+// One definition drives both the CSS preview thumbnails here and the pixel
+// pipeline the canvas (and Export) renders with.
+const FILTERS = LOOK_FILTERS.map((f) => ({ ...f, css: lookFilterCss(f.ops) }));
 
 const CATEGORIES = [
   { id: 'all', label: 'All' },
