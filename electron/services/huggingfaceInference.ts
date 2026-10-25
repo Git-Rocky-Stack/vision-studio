@@ -27,7 +27,13 @@
  * echoed into errors; remote bytes are validated before any caller writes them.
  */
 import axios from 'axios';
-import { createKeyConcurrencyLimit, isAbortError, retryHostedCall } from './hostedHttp';
+import {
+  createKeyConcurrencyLimit,
+  isAbortError,
+  isRetryableBilledError,
+  isRetryableError,
+  retryHostedCall,
+} from './hostedHttp';
 
 const DEFAULT_ROUTER_BASE_URL = 'https://router.huggingface.co/v1';
 const DEFAULT_HUB_BASE_URL = 'https://huggingface.co';
@@ -337,10 +343,28 @@ export function createHuggingFaceInferenceService({
 }: CreateHuggingFaceInferenceServiceOptions = {}) {
   const limit = createKeyConcurrencyLimit(maxConcurrentPerKey);
 
-  function withRetry<T>(token: string, operation: () => Promise<T>, signal?: AbortSignal) {
+  function withRetry<T>(
+    token: string,
+    operation: () => Promise<T>,
+    signal?: AbortSignal,
+    isRetryable: (error: unknown) => boolean = isRetryableError,
+  ) {
     return limit(token, () =>
-      retryHostedCall(operation, { maxAttempts: maxRetryAttempts, baseDelayMs: retryBaseDelayMs, signal }),
+      retryHostedCall(operation, {
+        maxAttempts: maxRetryAttempts,
+        baseDelayMs: retryBaseDelayMs,
+        signal,
+        isRetryable,
+      }),
     );
+  }
+
+  /**
+   * Generation calls spend the user's Inference Providers credit: retry only
+   * failures the provider says it did not run (see isRetryableBilledError).
+   */
+  function withBilledRetry<T>(token: string, operation: () => Promise<T>, signal?: AbortSignal) {
+    return withRetry(token, operation, signal, isRetryableBilledError);
   }
 
   function parseJsonObject(raw: string): Record<string, unknown> {
@@ -524,7 +548,7 @@ export function createHuggingFaceInferenceService({
       const normalizedAdapter = adapterRepoId.trim();
       assertValidHfAdapterRepoId(normalizedAdapter);
       try {
-        const payload = await withRetry(
+        const payload = await withBilledRetry(
           token,
           () =>
             adapterTextToImage(
@@ -555,7 +579,7 @@ export function createHuggingFaceInferenceService({
     if (!normalizedModel) throw new Error('HuggingFace image model is required.');
     assertValidHfModelId(normalizedModel);
     try {
-      const response = await withRetry(
+      const response = await withBilledRetry(
         token,
         () =>
           axiosInstance.post(
@@ -604,7 +628,7 @@ export function createHuggingFaceInferenceService({
     assertValidHfModelId(normalizedModel);
     assertPromptLength(normalizedPrompt, 'Prompt');
     try {
-      const response = await withRetry(
+      const response = await withBilledRetry(
         token,
         () =>
           axiosInstance.post(

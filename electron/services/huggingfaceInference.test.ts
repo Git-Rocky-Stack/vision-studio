@@ -140,6 +140,22 @@ describe('createHuggingFaceInferenceService.generateImage', () => {
     expect(axiosInstance.post).toHaveBeenCalledOnce();
   });
 
+  it('does not retry a billed generation on a 502 or a timeout', async () => {
+    const badGateway = Object.assign(new Error('HTTP 502'), { response: { status: 502, headers: {} } });
+    const timeout = Object.assign(new Error('timeout'), { code: 'ECONNABORTED' });
+    for (const failure of [badGateway, timeout]) {
+      const axiosInstance = {
+        get: vi.fn(),
+        post: vi.fn().mockRejectedValueOnce(failure).mockResolvedValue({ data: PNG_MAGIC }),
+      };
+      const service = createHuggingFaceInferenceService({ axiosInstance, retryBaseDelayMs: 0 });
+      await expect(
+        service.generateImage({ token: 'hf_token', model: 'm/x', prompt: 'a tree', width: 512, height: 512 }),
+      ).rejects.toThrow();
+      expect(axiosInstance.post).toHaveBeenCalledOnce();
+    }
+  });
+
   it('rejects a non-image response body (sanitization)', async () => {
     const axiosInstance = {
       get: vi.fn(),

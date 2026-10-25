@@ -1,5 +1,12 @@
 import axios from 'axios';
 import { z, type ZodError } from 'zod';
+import {
+  createKeyConcurrencyLimit,
+  isRetryableBilledError,
+  isRetryableError,
+  isTimeoutError,
+  retryHostedCall,
+} from './hostedHttp';
 
 type AxiosLike = Pick<typeof axios, 'get' | 'post'>;
 
@@ -178,153 +185,10 @@ function assertPromptLength(value: string, fieldName: string) {
   }
 }
 
-function isTimeoutError(error: unknown) {
-  const code = (error as { code?: unknown })?.code;
-  if (code === 'ECONNABORTED' || code === 'ETIMEDOUT') {
-    return true;
-  }
-  const name = (error as { name?: unknown })?.name;
-  return name === 'TimeoutError';
-}
-
-const RETRYABLE_STATUS_CODES = new Set([429, 500, 502, 503, 504]);
 const DEFAULT_RETRY_BASE_DELAY_MS = 250;
 const DEFAULT_MAX_RETRY_ATTEMPTS = 3;
 const DEFAULT_MODEL_CACHE_TTL_MS = 5 * 60 * 1000;
 const DEFAULT_MAX_CONCURRENT_PER_KEY = 4;
-
-/**
- * Per-key counting semaphore. `maxPerKey` total in-flight calls allowed
- * per API key; calls beyond that wait FIFO for a slot to free.
- *
- * Different keys are isolated -- one user's burst doesn't starve another's
- * call. Slots are released in `finally` so error paths don't leak.
- */
-function createKeyConcurrencyLimit(maxPerKey: number) {
-  type KeyState = { active: number; waiters: Array<() => void> };
-  const states = new Map<string, KeyState>();
-
-  function getState(key: string): KeyState {
-    let state = states.get(key);
-    if (!state) {
-      state = { active: 0, waiters: [] };
-      states.set(key, state);
-    }
-    return state;
-  }
-
-  return async function run<T>(key: string, work: () => Promise<T>): Promise<T> {
-    const state = getState(key);
-    if (state.active >= maxPerKey) {
-      await new Promise<void>((resolve) => state.waiters.push(resolve));
-    }
-    state.active += 1;
-    try {
-      return await work();
-    } finally {
-      state.active -= 1;
-      const next = state.waiters.shift();
-      if (next) next();
-    }
-  };
-}
-
-function isAbortError(error: unknown) {
-  const name = (error as { name?: unknown })?.name;
-  if (name === 'AbortError' || name === 'CanceledError') {
-    return true;
-  }
-  const code = (error as { code?: unknown })?.code;
-  return code === 'ERR_CANCELED';
-}
-
-function getResponseStatus(error: unknown): number | null {
-  const status = (error as { response?: { status?: unknown } })?.response?.status;
-  return typeof status === 'number' ? status : null;
-}
-
-function isRetryableError(error: unknown): boolean {
-  if (isAbortError(error) || isTimeoutError(error)) {
-    return false;
-  }
-  const status = getResponseStatus(error);
-  if (status === null) {
-    // Network-level failure with no HTTP response (e.g. ECONNRESET, EAI_AGAIN) - retry.
-    const code = (error as { code?: unknown })?.code;
-    if (code === 'ECONNRESET' || code === 'ECONNREFUSED' || code === 'EAI_AGAIN' || code === 'ENOTFOUND') {
-      return true;
-    }
-    return false;
-  }
-  return RETRYABLE_STATUS_CODES.has(status);
-}
-
-function getRetryAfterMs(error: unknown): number | null {
-  const headers = (error as { response?: { headers?: Record<string, unknown> } })?.response?.headers;
-  if (!headers) {
-    return null;
-  }
-  const raw = headers['retry-after'] ?? headers['Retry-After'];
-  if (typeof raw !== 'string' || !raw.trim()) {
-    return null;
-  }
-  const seconds = Number(raw);
-  if (Number.isFinite(seconds) && seconds >= 0) {
-    return Math.round(seconds * 1000);
-  }
-  // Retry-After can also be an HTTP date.
-  const dateMs = Date.parse(raw);
-  if (!Number.isNaN(dateMs)) {
-    return Math.max(0, dateMs - Date.now());
-  }
-  return null;
-}
-
-function delay(ms: number, signal?: AbortSignal) {
-  return new Promise<void>((resolve, reject) => {
-    if (signal?.aborted) {
-      reject(new DOMException('Aborted', 'AbortError'));
-      return;
-    }
-    const timer = setTimeout(() => {
-      signal?.removeEventListener('abort', onAbort);
-      resolve();
-    }, ms);
-    const onAbort = () => {
-      clearTimeout(timer);
-      reject(new DOMException('Aborted', 'AbortError'));
-    };
-    signal?.addEventListener('abort', onAbort, { once: true });
-  });
-}
-
-async function retryOpenRouterCall<T>(
-  operation: () => Promise<T>,
-  {
-    maxAttempts,
-    baseDelayMs,
-    signal,
-  }: { maxAttempts: number; baseDelayMs: number; signal?: AbortSignal },
-): Promise<T> {
-  let lastError: unknown;
-  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
-    if (signal?.aborted) {
-      throw new DOMException('Aborted', 'AbortError');
-    }
-    try {
-      return await operation();
-    } catch (error) {
-      lastError = error;
-      if (attempt === maxAttempts || !isRetryableError(error)) {
-        throw error;
-      }
-      const retryAfter = getRetryAfterMs(error);
-      const backoff = retryAfter ?? baseDelayMs * Math.pow(2, attempt - 1);
-      await delay(backoff, signal);
-    }
-  }
-  throw lastError;
-}
 
 function asNumber(value: unknown) {
   if (typeof value === 'number' && Number.isFinite(value)) {
@@ -689,14 +553,20 @@ export function createOpenRouterService({
     imageModelCache.set(apiKey, { fetchedAt: now(), models });
   }
 
-  function withRetry<T>(apiKey: string, operation: () => Promise<T>, signal?: AbortSignal) {
+  function withRetry<T>(
+    apiKey: string,
+    operation: () => Promise<T>,
+    signal?: AbortSignal,
+    isRetryable: (error: unknown) => boolean = isRetryableError,
+  ) {
     // Per-key semaphore wraps the entire retry sequence so a single logical
     // call holds one slot for its full lifetime (initial attempt + backoffs).
     return runWithKeyLimit(apiKey, () =>
-      retryOpenRouterCall(operation, {
+      retryHostedCall(operation, {
         maxAttempts: maxRetryAttempts,
         baseDelayMs: retryBaseDelayMs,
         signal,
+        isRetryable,
       }),
     );
   }
@@ -1024,6 +894,9 @@ export function createOpenRouterService({
             },
           ),
         signal,
+        // Billed: never retry a timeout or a 500/502/504 that may have
+        // already produced (and charged for) an image.
+        isRetryableBilledError,
       );
 
       const envelope = parseChatCompletionEnvelope(response.data);

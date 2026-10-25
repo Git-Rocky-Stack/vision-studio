@@ -774,6 +774,70 @@ describe('createOpenRouterService', () => {
       expect(axiosInstance.get).toHaveBeenCalledTimes(2);
     });
 
+    describe('billed image generation', () => {
+      const imageModels = {
+        data: {
+          data: [
+            {
+              id: 'google/gemini-2.5-flash-image',
+              name: 'Gemini Image',
+              architecture: { output_modalities: ['image'] },
+              supported_parameters: [],
+              pricing: { prompt: '0', completion: '0', image: '0' },
+            },
+          ],
+        },
+      };
+      const imageReply = {
+        data: {
+          choices: [{ message: { content: '', images: [{ image_url: { url: 'data:image/png;base64,xx' } }] } }],
+        },
+      };
+      const args = {
+        apiKey: 'sk-or-v1-test-key',
+        model: 'google/gemini-2.5-flash-image',
+        prompt: 'a cat',
+        width: 1024,
+        height: 1024,
+      };
+
+      it.each([500, 502, 504])('does NOT retry a %s that may already have been billed', async (status) => {
+        const axiosInstance = {
+          get: vi.fn().mockResolvedValue(imageModels),
+          post: vi.fn().mockRejectedValueOnce(http(status)).mockResolvedValue(imageReply),
+        };
+        const service = createOpenRouterService({ axiosInstance, retryBaseDelayMs: 0 });
+        await expect(service.generateImage(args)).rejects.toThrow();
+        expect(axiosInstance.post).toHaveBeenCalledTimes(1);
+      });
+
+      it('does NOT retry a timeout on image generation', async () => {
+        const timeoutError = Object.assign(new Error('timeout'), { code: 'ECONNABORTED' });
+        const axiosInstance = {
+          get: vi.fn().mockResolvedValue(imageModels),
+          post: vi.fn().mockRejectedValueOnce(timeoutError).mockResolvedValue(imageReply),
+        };
+        const service = createOpenRouterService({ axiosInstance, retryBaseDelayMs: 0 });
+        await expect(service.generateImage(args)).rejects.toThrow(/timed out/i);
+        expect(axiosInstance.post).toHaveBeenCalledTimes(1);
+      });
+
+      it('retries a 429 and a 503 with Retry-After', async () => {
+        const axiosInstance = {
+          get: vi.fn().mockResolvedValue(imageModels),
+          post: vi
+            .fn()
+            .mockRejectedValueOnce(http(429))
+            .mockRejectedValueOnce(http(503, { 'retry-after': '0' }))
+            .mockResolvedValue(imageReply),
+        };
+        const service = createOpenRouterService({ axiosInstance, retryBaseDelayMs: 0 });
+        const result = await service.generateImage(args);
+        expect(result.images).toHaveLength(1);
+        expect(axiosInstance.post).toHaveBeenCalledTimes(3);
+      });
+    });
+
     it('retries metadata calls (getKeyInfo) on 5xx', async () => {
       const axiosInstance = {
         get: vi
