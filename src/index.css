@@ -798,8 +798,27 @@ p, li, dd, blockquote {
   animation: cinema-fade 0.2s ease-out;
 }
 
+/* Film grain: one pre-rendered noise tile, repeated. Oversized so the stepped
+   drift never exposes an edge. The jitter is a compositor-only transform that
+   pauses while the window is hidden and stops entirely under reduced motion. */
+.film-grain {
+  position: fixed;
+  inset: -8%;
+  pointer-events: none;
+  background-repeat: repeat;
+  background-size: 128px 128px;
+}
+.film-grain[data-animated='true'] {
+  animation: grain-drift 1s steps(10) infinite;
+  will-change: transform;
+}
+.film-grain[data-paused='true'] {
+  animation-play-state: paused;
+}
+
 /* Reduced motion: disable decorative animations */
 @media (prefers-reduced-motion: reduce) {
+  .film-grain,
   .animate-pulse-glow,
   .animate-glow-pulse,
   .btn-chrome-cinema,
