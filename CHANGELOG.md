@@ -77,6 +77,18 @@ landed after 3.4.1.
 - **Failures are no longer silent** in export, copy, bulk delete, crop,
   settings saves, AI Director actions and Start Backend
 - **Cancel Batch clears its spinners** and says how many prompts were cancelled
+- **Quick Generate runs the HuggingFace still-image route** - it sent the local
+  checkpoint id to the hosted route and refused to run with the backend offline
+- **Window-wide shortcuts leave keys to the focused control**: Space presses a
+  focused button again, arrows on a slider no longer scrub the timeline, and
+  Ctrl/Cmd chords no longer also split clips, zoom the canvas or pick mask tools
+- **The timeline's Storyboard/Animation/Canvas switch fits at 1280 px** (the
+  zoom group clipped it to its first button)
+- **The `?` shortcut sheet and the guides list only real bindings**, with
+  Ctrl/Cmd, alternatives and where each key is live
+- **The in-app User Guide matches the app**: seven Settings tabs, HuggingFace
+  routes (video included), the `Euler a` default, per-card batch prompts, no
+  phantom drop targets, context menus or timeline keys
 - **`VISION_STUDIO_SKIP_BACKEND=0` starts the backend** (any non-empty value
   skipped it), and the no-backend dialog no longer points at a Python-path
   setting that does not exist
@@ -104,8 +116,9 @@ landed after 3.4.1.
   component, and route LEDs reflect real configuration
 
 ### Documentation
-- New [User Guide](docs/USER_GUIDE.md), [Troubleshooting](docs/TROUBLESHOOTING.md)
-  and [UAT checklist](docs/UAT_CHECKLIST.md); dated audits and handoffs moved to
+- New [User Guide](docs/USER_GUIDE.md), [Troubleshooting](docs/TROUBLESHOOTING.md),
+  [Keyboard shortcuts](docs/KEYBOARD_SHORTCUTS.md) and
+  [UAT checklist](docs/UAT_CHECKLIST.md); dated audits and handoffs moved to
   `docs/archive/`; setup docs state the real Node (`^20.19 || ^22.13 || >=24`,
   now in `engines`) and Python (3.10-3.12) ranges; every current doc's links and
   anchors are checked
