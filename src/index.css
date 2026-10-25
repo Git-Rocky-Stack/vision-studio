@@ -529,13 +529,15 @@ body[data-theme='light'] {
   font-family: var(--font-family-mono);
 }
 
+/* A UI label is always mono UPPERCASE (DESIGN.md section Typography), so
+   .text-label is the .mono-label recipe under its older name. */
 .text-label {
-  font-family: var(--font-family-ui);
-  font-size: var(--font-size-xs);
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;      /* 11px */
   font-weight: var(--font-weight-medium);
-  text-transform: none;
-  letter-spacing: 0;
-  line-height: var(--line-height-ui);
+  text-transform: uppercase;
+  letter-spacing: 0.66px;
+  line-height: 1.27;
 }
 
 .text-micro {
@@ -1088,6 +1090,18 @@ input[type="range"]::-webkit-slider-thumb:hover {
     inset 0 -1px 0 rgba(255,255,255,0.03),
     inset 1px 0 2px rgba(0,0,0,0.5),
     inset -1px 0 2px rgba(0,0,0,0.5);
+}
+
+/* A well that holds a field shows it is active, and shows an error. The well's
+   own border is unlayered, so a focus:border-* or border-status-* utility on
+   the field can never reach it; these states have to live here. */
+.recessed-well:focus,
+.recessed-well:focus-visible,
+.recessed-well:focus-within {
+  border-color: var(--color-accent-primary-border);
+}
+.recessed-well[aria-invalid='true'] {
+  border-color: var(--color-status-error);
 }
 
 /* Layer 3 - raised control - button cap / pad / fader cap, sits ON the well. */
