@@ -4,6 +4,7 @@ Fallback when ComfyUI is not available
 """
 
 import os
+import weakref
 try:
     import torch
 except ImportError:  # torch is optional and absent in the lightweight CI/test env
@@ -194,6 +195,9 @@ class DirectGenerator:
         # Acceleration settings the cached pipeline was built with, per model.
         # A changed request must evict+rebuild (in-place accel is irreversible).
         self._loaded_acceleration: Dict[str, Any] = {}
+        # Scheduler config each cached pipeline was loaded with; weak keys so
+        # an unloaded pipeline's entry goes with it.
+        self._scheduler_origins: "weakref.WeakKeyDictionary[Any, Any]" = weakref.WeakKeyDictionary()
         self.device = resolve_device(torch)
         self.executor = ThreadPoolExecutor(max_workers=1)
 
@@ -319,6 +323,23 @@ class DirectGenerator:
         return pipeline
 
     def _configure_scheduler(self, pipeline, scheduler_name: str):
+        """Swap the sampler on an eps/v-prediction pipeline (SD 1.5 / SDXL).
+
+        Flow-matching pipelines (FLUX, FLUX Fill, SD 3.5) ship a
+        FlowMatch*Scheduler and break - or silently produce noise - under
+        Euler/DPM/DDIM/UniPC, so they always keep their own scheduler. Every
+        swap derives from the scheduler the pipeline was LOADED with, never
+        from a previous swap, so switching samplers back and forth on a
+        cached pipeline cannot accumulate config drift.
+        """
+        current = getattr(pipeline, "scheduler", None)
+        if current is None or type(current).__name__.startswith("FlowMatch"):
+            return pipeline
+        original_config = self._scheduler_origins.get(pipeline)
+        if original_config is None:
+            original_config = current.config
+            self._scheduler_origins[pipeline] = original_config
+
         normalized = scheduler_name.strip().lower()
         scheduler_cls = EulerAncestralDiscreteScheduler
 
@@ -338,9 +359,12 @@ class DirectGenerator:
         elif normalized == "unipc":
             scheduler_cls = UniPCMultistepScheduler
 
-        pipeline.scheduler = scheduler_cls.from_config(pipeline.scheduler.config)
-        if "karras" in normalized and hasattr(pipeline.scheduler.config, "use_karras_sigmas"):
-            pipeline.scheduler.config.use_karras_sigmas = True
+        # Karras sigmas are a constructor argument: setting the config field
+        # after construction leaves the already-built sigma schedule untouched.
+        overrides: Dict[str, Any] = {}
+        if "karras" in normalized and scheduler_cls is DPMSolverMultistepScheduler:
+            overrides["use_karras_sigmas"] = True
+        pipeline.scheduler = scheduler_cls.from_config(original_config, **overrides)
         return pipeline
     
     async def generate_image(
