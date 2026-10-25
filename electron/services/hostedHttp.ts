@@ -25,6 +25,20 @@ export function delay(ms: number, signal?: AbortSignal): Promise<void> {
 
 const RETRYABLE_STATUS = new Set([429, 500, 502, 503, 504]);
 
+/**
+ * True for every shape a cancelled request takes: a DOM AbortError (fetch and
+ * the @huggingface/inference client), axios's CanceledError, or its
+ * ERR_CANCELED code.
+ */
+export function isAbortError(error: unknown): boolean {
+  const candidate = error as { name?: unknown; code?: unknown } | null;
+  return (
+    candidate?.name === 'AbortError' ||
+    candidate?.name === 'CanceledError' ||
+    candidate?.code === 'ERR_CANCELED'
+  );
+}
+
 function responseStatus(error: unknown): number | null {
   const candidate = error as
     | { response?: { status?: unknown }; httpResponse?: { status?: unknown } }
@@ -38,7 +52,7 @@ function responseStatus(error: unknown): number | null {
 }
 
 export function isRetryableError(error: unknown): boolean {
-  if ((error as { name?: string } | null)?.name === 'AbortError') {
+  if (isAbortError(error)) {
     return false;
   }
   const status = responseStatus(error);

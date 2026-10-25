@@ -127,6 +127,19 @@ describe('createHuggingFaceInferenceService.generateImage', () => {
     expect(result.images[0].dataUrl.startsWith('data:image/png;base64,')).toBe(true);
   });
 
+  it('keeps the AbortError identity when the request is cancelled (axios CanceledError)', async () => {
+    const canceled = Object.assign(new Error('canceled'), { name: 'CanceledError', code: 'ERR_CANCELED' });
+    const axiosInstance = { get: vi.fn(), post: vi.fn().mockRejectedValue(canceled) };
+    const service = createHuggingFaceInferenceService({ axiosInstance });
+
+    const thrown = await service
+      .generateImage({ token: 'hf_token', model: 'm/x', prompt: 'a tree', width: 512, height: 512 })
+      .catch((error: unknown) => error);
+
+    expect((thrown as Error).name).toBe('AbortError');
+    expect(axiosInstance.post).toHaveBeenCalledOnce();
+  });
+
   it('rejects a non-image response body (sanitization)', async () => {
     const axiosInstance = {
       get: vi.fn(),

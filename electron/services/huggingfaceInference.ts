@@ -27,7 +27,7 @@
  * echoed into errors; remote bytes are validated before any caller writes them.
  */
 import axios from 'axios';
-import { createKeyConcurrencyLimit, retryHostedCall } from './hostedHttp';
+import { createKeyConcurrencyLimit, isAbortError, retryHostedCall } from './hostedHttp';
 
 const DEFAULT_ROUTER_BASE_URL = 'https://router.huggingface.co/v1';
 const DEFAULT_HUB_BASE_URL = 'https://huggingface.co';
@@ -228,8 +228,10 @@ function assertPromptLength(value: string, label: string) {
  * the token or raw upstream body verbatim (Codex gate).
  */
 function createHuggingFaceError(error: unknown, fallback: string): Error {
-  if ((error as { name?: string } | null)?.name === 'AbortError') {
-    return new Error('HuggingFace request was cancelled.');
+  if (isAbortError(error)) {
+    // Keep the AbortError identity: the job runners branch on
+    // name === 'AbortError' to tell a user cancel from a real failure.
+    return new DOMException('HuggingFace request was cancelled.', 'AbortError');
   }
   // Axios errors carry response.status; the official client's
   // InferenceClientProviderApiError carries httpResponse.status (#42). Both
