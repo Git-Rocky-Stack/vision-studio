@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useAppStore } from '@/store/appStore';
@@ -140,5 +140,70 @@ describe('BatchPromptQueue', () => {
       );
     });
     expect(await screen.findByText('Provider unavailable')).toBeInTheDocument();
+  });
+
+  describe('status polling', () => {
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    async function flush() {
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+    }
+
+    async function startBatch(jobIds: string[]) {
+      vi.useFakeTimers();
+      window.electron.generation.batch = vi.fn().mockResolvedValue({ success: true, jobIds });
+      render(<BatchPromptQueue />);
+      await flush();
+      for (let i = 1; i < jobIds.length; i++) {
+        fireEvent.click(screen.getByRole('button', { name: /Add Prompt/i }));
+      }
+      screen.getAllByPlaceholderText('Enter prompt...').forEach((input, index) => {
+        fireEvent.change(input, { target: { value: `prompt ${index}` } });
+      });
+      fireEvent.click(screen.getByRole('button', { name: /Start Batch/i }));
+      for (let i = 0; i < 5; i++) await flush();
+      expect(window.electron.generation.batch).toHaveBeenCalled();
+    }
+
+    async function advance(ms: number) {
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(ms);
+      });
+    }
+
+    it('records a finished job once and stops polling it', async () => {
+      const getStatus = vi.fn(async (jobId: string) =>
+        jobId === 'job-a'
+          ? { job_id: jobId, status: 'completed', progress: 100, result: { images: ['/outputs/a.png'], seed: 1 } }
+          : { job_id: jobId, status: 'pending', progress: 0 },
+      );
+      window.electron.generation.getStatus = getStatus as unknown as typeof window.electron.generation.getStatus;
+      await startBatch(['job-a', 'job-b']);
+
+      await advance(2000);
+      await advance(2000);
+      await advance(2000);
+
+      expect(getStatus.mock.calls.filter(([id]) => id === 'job-a')).toHaveLength(1);
+      expect(getStatus.mock.calls.filter(([id]) => id === 'job-b')).toHaveLength(3);
+      expect(useAppStore.getState().batchResults.map((result) => result.id)).toEqual(['job-a']);
+    });
+
+    it('stops polling when the batch is cancelled', async () => {
+      const getStatus = vi.fn().mockResolvedValue({ job_id: 'job-a', status: 'pending', progress: 0 });
+      window.electron.generation.getStatus = getStatus;
+      await startBatch(['job-a']);
+
+      await advance(2000);
+      expect(getStatus).toHaveBeenCalledTimes(1);
+
+      fireEvent.click(screen.getByRole('button', { name: /Cancel Batch/i }));
+      await advance(10000);
+      expect(getStatus).toHaveBeenCalledTimes(1);
+    });
   });
 });

@@ -48,6 +48,8 @@ interface BatchNoticeState {
 }
 
 const BACKEND_ASSET_BASE_URL = 'http://localhost:8000';
+const BATCH_POLL_INTERVAL_MS = 2000;
+const MAX_BATCH_STATUS_ERRORS = 5;
 
 function resolveOutputRoot(defaultOutputPath: string, userDataPath: string) {
   return (defaultOutputPath || `${userDataPath.replace(/\\/g, '/')}/outputs`).replace(/\\/g, '/');
@@ -124,13 +126,18 @@ export function BatchPromptQueue() {
     }))
   );
 
-  // Ref for polling interval cleanup
-  const batchPollRef = useRef<ReturnType<typeof setInterval>>(null);
-  useEffect(() => {
-    return () => {
-      if (batchPollRef.current) clearInterval(batchPollRef.current);
-    };
+  // Batch status polling. One chained timeout at a time: the next tick is
+  // scheduled only after the current one has finished awaiting every status,
+  // so a slow backend can never stack overlapping ticks. Bumping the run id
+  // retires an in-flight tick (cancel, a new batch, unmount).
+  const batchPollRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const batchPollRunRef = useRef(0);
+  const stopBatchPolling = useCallback(() => {
+    batchPollRunRef.current += 1;
+    if (batchPollRef.current) clearTimeout(batchPollRef.current);
+    batchPollRef.current = null;
   }, []);
+  useEffect(() => stopBatchPolling, [stopBatchPolling]);
 
   const [prompts, setPrompts] = useState<BatchPrompt[]>([
     { id: '1', prompt: '', status: 'pending' },
@@ -331,27 +338,43 @@ export function BatchPromptQueue() {
     }
   };
 
-  const pollBatchProgress = async (
+  const pollBatchProgress = (
     batchId: string,
     jobIds: string[],
     startingPrompts: BatchPrompt[],
     outputRoot: string,
     submittedModel: string,
   ) => {
-    const checkInterval = setInterval(async () => {
-      batchPollRef.current = checkInterval;
-      let allCompleted = true;
-      const updatedPrompts = [...startingPrompts];
+    stopBatchPolling();
+    const runId = batchPollRunRef.current;
+    const isCurrentRun = () => batchPollRunRef.current === runId;
+    // A finished job is fetched and recorded exactly once. Each tick used to
+    // re-fetch every job and re-add every completed result.
+    const finishedJobIds = new Set<string>();
+    // A status call that keeps throwing (backend gone) must not poll forever.
+    const statusErrors = new Map<string, number>();
+    let updatedPrompts = startingPrompts.map((prompt) => ({ ...prompt }));
+
+    const tick = async () => {
+      batchPollRef.current = null;
 
       for (let i = 0; i < jobIds.length; i++) {
+        if (finishedJobIds.has(jobIds[i])) continue;
         try {
           const status = await window.electron.generation.getStatus(jobIds[i]);
+          if (!isCurrentRun()) return;
           const promptIndex = updatedPrompts.findIndex((p) => p.id === jobIds[i]);
 
-          if (promptIndex !== -1) {
+          if (promptIndex === -1) {
+            finishedJobIds.add(jobIds[i]);
+          } else {
             if (status.status === 'completed') {
-              updatedPrompts[promptIndex].status = 'completed';
-              updatedPrompts[promptIndex].result = status.result?.images?.[0];
+              finishedJobIds.add(jobIds[i]);
+              updatedPrompts[promptIndex] = {
+                ...updatedPrompts[promptIndex],
+                status: 'completed',
+                result: status.result?.images?.[0],
+              };
               syncAssetsFromJobStatus({
                 ...status,
                 params: {
@@ -390,34 +413,47 @@ export function BatchPromptQueue() {
                 createdAt: status.created_at ? new Date(status.created_at) : new Date(),
                 isFavorite: false,
               });
-            } else if (status.status === 'failed') {
-              updatedPrompts[promptIndex].status = 'failed';
+            } else if (status.status === 'failed' || status.status === 'cancelled') {
+              finishedJobIds.add(jobIds[i]);
+              updatedPrompts[promptIndex] = { ...updatedPrompts[promptIndex], status: 'failed' };
               if (status.error) {
                 setBatchNotice({
                   tone: 'error',
                   message: status.error,
                 });
               }
-            } else {
-              allCompleted = false;
             }
           }
         } catch (e) {
+          if (!isCurrentRun()) return;
           console.error('Failed to get job status:', e);
+          const errors = (statusErrors.get(jobIds[i]) ?? 0) + 1;
+          statusErrors.set(jobIds[i], errors);
+          if (errors >= MAX_BATCH_STATUS_ERRORS) {
+            finishedJobIds.add(jobIds[i]);
+            updatedPrompts = updatedPrompts.map((prompt) =>
+              prompt.id === jobIds[i] ? { ...prompt, status: 'failed' } : prompt,
+            );
+          }
         }
       }
 
+      if (!isCurrentRun()) return;
+      updatedPrompts = [...updatedPrompts];
       setPrompts(updatedPrompts);
 
-      if (allCompleted) {
-        clearInterval(checkInterval);
-        batchPollRef.current = null;
+      if (finishedJobIds.size >= jobIds.length) {
         setIsGenerating(false);
+        return;
       }
-    }, 2000);
+      batchPollRef.current = setTimeout(tick, BATCH_POLL_INTERVAL_MS);
+    };
+
+    batchPollRef.current = setTimeout(tick, BATCH_POLL_INTERVAL_MS);
   };
 
   const handleCancel = () => {
+    stopBatchPolling();
     setIsGenerating(false);
     setBatchNotice({
       tone: 'info',

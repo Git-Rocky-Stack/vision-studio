@@ -27,6 +27,8 @@ interface GenStatus {
   errorMessage: string;
 }
 
+const QUICK_POLL_INTERVAL_MS = 1500;
+
 function resolveOutputRoot(defaultOutputPath: string, userDataPath: string) {
   return (defaultOutputPath || `${userDataPath.replace(/\\/g, '/')}/outputs`).replace(/\\/g, '/');
 }
@@ -40,11 +42,26 @@ export function QuickGeneratePanel() {
     systemInfo: s.systemInfo,
   })));
 
-  // Refs for cleanup
-  const intervalRef = useRef<ReturnType<typeof setInterval>>(null);
-  const safetyTimeoutRef = useRef<ReturnType<typeof setTimeout>>(null);
+  // Status polling. Progress arrives over the WebSocket (onProgress); the poll
+  // only has to notice the terminal state, so it runs every 1.5s as a chained
+  // timeout - the next request is not sent until the previous one returned. A
+  // 500ms setInterval used to overlap slow requests and could complete the
+  // same job twice. Bumping the run id retires a poll (new job, unmount).
+  const pollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const safetyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const unwatchRef = useRef<(() => void) | null>(null);
+  const pollRunRef = useRef(0);
   const isGeneratingRef = useRef(false);
+
+  const stopPolling = useCallback(() => {
+    pollRunRef.current += 1;
+    if (pollTimeoutRef.current) clearTimeout(pollTimeoutRef.current);
+    if (safetyTimeoutRef.current) clearTimeout(safetyTimeoutRef.current);
+    unwatchRef.current?.();
+    pollTimeoutRef.current = null;
+    safetyTimeoutRef.current = null;
+    unwatchRef.current = null;
+  }, []);
 
   const [prompt, setPrompt] = useState('');
   const [negativePrompt, setNegativePrompt] = useState('');
@@ -70,10 +87,24 @@ export function QuickGeneratePanel() {
 
   const pollJobStatus = useCallback(
     async (jobId: string) => {
+      stopPolling();
+      const runId = pollRunRef.current;
+      const isCurrentRun = () => pollRunRef.current === runId;
+      // Claims the terminal transition: only the first caller proceeds.
+      const claimCompletion = () => {
+        if (!isCurrentRun()) return false;
+        stopPolling();
+        return true;
+      };
+
       const checkStatus = async () => {
+        pollTimeoutRef.current = null;
+        if (!isCurrentRun()) return;
         try {
           const status = await window.electron.generation.getStatus(jobId);
+          if (!isCurrentRun()) return;
           if (status.status === 'completed') {
+            if (!claimCompletion()) return;
             const existingJob = useAppStore.getState().activeJobs.find((j) => j.id === jobId);
             const completedAt = status.completed_at ? new Date(status.completed_at) : new Date();
 
@@ -111,11 +142,9 @@ export function QuickGeneratePanel() {
 
             setGenStatus({ isGenerating: false, progress: 100, status: 'success', errorMessage: '' });
             isGeneratingRef.current = false;
-            // Clear refs on completion
-            if (intervalRef.current) clearInterval(intervalRef.current);
-            if (unwatchRef.current) unwatchRef.current();
-            if (safetyTimeoutRef.current) clearTimeout(safetyTimeoutRef.current);
+            return;
           } else if (status.status === 'failed') {
+            if (!claimCompletion()) return;
             updateJob(jobId, {
               status: 'failed',
               progress: status.progress ?? 0,
@@ -133,9 +162,7 @@ export function QuickGeneratePanel() {
               errorMessage: status.error || 'Generation failed',
             });
             isGeneratingRef.current = false;
-            if (intervalRef.current) clearInterval(intervalRef.current);
-            if (unwatchRef.current) unwatchRef.current();
-            if (safetyTimeoutRef.current) clearTimeout(safetyTimeoutRef.current);
+            return;
           } else {
             updateJob(jobId, {
               status: status.status,
@@ -149,27 +176,24 @@ export function QuickGeneratePanel() {
         } catch {
           // Keep polling
         }
+        if (isCurrentRun()) {
+          pollTimeoutRef.current = setTimeout(() => void checkStatus(), QUICK_POLL_INTERVAL_MS);
+        }
       };
 
-      const interval = setInterval(checkStatus, 500);
-      intervalRef.current = interval;
-      const unwatch = window.electron.generation.onProgress((data) => {
+      unwatchRef.current = window.electron.generation.onProgress((data) => {
         if (data.job_id === jobId && data.progress !== undefined) {
           setGenStatus((prev) => ({ ...prev, progress: data.progress ?? prev.progress }));
         }
       });
-      unwatchRef.current = unwatch;
+
+      // Stop after 5 minutes
+      safetyTimeoutRef.current = setTimeout(stopPolling, 5 * 60 * 1000);
 
       // Initial check
       await checkStatus();
-
-      // Stop after 5 minutes
-      safetyTimeoutRef.current = setTimeout(() => {
-        clearInterval(intervalRef.current!);
-        unwatchRef.current?.();
-      }, 5 * 60 * 1000);
     },
-    [updateJob, syncAssetsFromJobStatus, prompt]
+    [updateJob, syncAssetsFromJobStatus, prompt, stopPolling]
   );
 
   // Cleanup on unmount
@@ -177,13 +201,7 @@ export function QuickGeneratePanel() {
     void syncActiveAccount();
   }, [syncActiveAccount]);
 
-  useEffect(() => {
-    return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-      if (unwatchRef.current) unwatchRef.current();
-      if (safetyTimeoutRef.current) clearTimeout(safetyTimeoutRef.current);
-    };
-  }, []);
+  useEffect(() => stopPolling, [stopPolling]);
 
   const handleGenerate = async () => {
     if (!prompt.trim()) return;
