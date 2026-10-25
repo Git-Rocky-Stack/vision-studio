@@ -573,7 +573,7 @@ const TimelineClipBlock = memo(function TimelineClipBlock({
     <button
       type="button"
       className={cn(
-        'absolute top-2 h-[52px] overflow-hidden rounded-xl border text-left transition',
+        'absolute top-2 h-[52px] overflow-hidden rounded-sm border text-left transition',
         selected
           ? 'z-10 border-accent-primary shadow-accent-subtle'
           : 'border-border hover:border-accent-primary/40 hover:shadow-lg',

@@ -102,7 +102,7 @@ export function ScriptImportDialog({
           initial={{ opacity: 0, scale: 0.96, y: 10 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.96, y: 10 }}
-          className="relative w-full max-w-3xl overflow-hidden rounded-xl border border-border bg-elevated shadow-cinematic"
+          className="raised-panel dialog-shell relative w-full max-w-3xl overflow-hidden"
           onClick={(event) => event.stopPropagation()}
           data-testid="script-import-dialog"
         >
@@ -147,8 +147,8 @@ export function ScriptImportDialog({
                 />
               </div>
 
-              <div className="space-y-4 rounded-xl border border-border bg-surface/70 p-4">
-                <div className="rounded-xl border border-border bg-canvas px-4 py-4">
+              <div className="space-y-4 rounded-sm border border-border bg-surface/70 p-4">
+                <div className="rounded-sm border border-border bg-canvas px-4 py-4">
                   <p className="type-ui text-text-muted">What gets staged</p>
                   <ul className="mt-3 space-y-2 text-sm text-text-body">
                     <li>Scene candidates and ordering</li>
@@ -158,7 +158,7 @@ export function ScriptImportDialog({
                   </ul>
                 </div>
 
-                <div className="rounded-xl border border-dashed border-accent-primary/30 bg-accent-primary-muted/30 px-4 py-4">
+                <div className="rounded-sm border border-dashed border-accent-primary/30 bg-accent-primary-muted/30 px-4 py-4">
                   <div className="flex items-start gap-3">
                     <Sparkles className="mt-0.5 h-4 w-4 text-accent-primary" />
                     <div>

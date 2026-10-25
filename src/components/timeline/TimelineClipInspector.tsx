@@ -305,7 +305,7 @@ export function TimelineClipInspector({
       className={cn('w-[320px] border-l border-border bg-elevated/70 p-4 overflow-y-auto', className)}
       data-testid="timeline-clip-inspector"
     >
-      <div className="rounded-xl border border-border bg-surface p-4">
+      <div className="rounded-sm border border-border bg-surface p-4">
         <div className="flex items-start justify-between gap-3">
           <div>
             <p className="text-base text-text-primary">Clip Inspector</p>
@@ -320,7 +320,7 @@ export function TimelineClipInspector({
 
         {clip.storyboardDerived ? (
           <div
-            className="mt-4 rounded-xl border border-border bg-canvas p-3"
+            className="mt-4 rounded-sm border border-border bg-canvas p-3"
             data-testid="timeline-inspector-storyboard-context"
           >
             <div className="flex items-start justify-between gap-3">
@@ -444,7 +444,7 @@ export function TimelineClipInspector({
           </label>
         </div>
 
-        <div className="mt-4 rounded-xl border border-border bg-canvas p-3">
+        <div className="mt-4 rounded-sm border border-border bg-canvas p-3">
           <div className="flex items-center justify-between">
             <span className="text-xs text-text-muted">Source Window</span>
             <span className="data-mono text-text-primary">
@@ -469,7 +469,7 @@ export function TimelineClipInspector({
           </div>
         </div>
 
-        <div className="mt-4 rounded-xl border border-border bg-canvas p-3">
+        <div className="mt-4 rounded-sm border border-border bg-canvas p-3">
           <div className="flex items-center justify-between">
             <span className="text-xs text-text-muted">Movement</span>
             <span className="data-mono text-text-muted">{sequence.fps} fps snap</span>
@@ -496,7 +496,7 @@ export function TimelineClipInspector({
         </div>
 
         {isAudioClip ? (
-          <div className="mt-4 rounded-xl border border-border bg-canvas p-3" data-testid="timeline-audio-controls">
+          <div className="mt-4 rounded-sm border border-border bg-canvas p-3" data-testid="timeline-audio-controls">
             <div className="flex items-start justify-between gap-3">
               <div>
                 <p className="text-xs text-text-muted">Audio Clip</p>
@@ -580,7 +580,7 @@ export function TimelineClipInspector({
             </div>
           </div>
         ) : (
-          <div className="mt-4 rounded-xl border border-border bg-canvas p-3">
+          <div className="mt-4 rounded-sm border border-border bg-canvas p-3">
             <p className="text-xs text-text-muted">Transitions</p>
             <div className="mt-3 grid grid-cols-2 gap-3">
               <div>
@@ -695,7 +695,7 @@ export function TimelineClipInspector({
           </div>
         )}
 
-        <div className="mt-4 rounded-xl border border-border bg-canvas p-3" data-testid="timeline-retake-controls">
+        <div className="mt-4 rounded-sm border border-border bg-canvas p-3" data-testid="timeline-retake-controls">
           <div className="flex items-start justify-between gap-3">
             <div>
               <p className="text-xs text-text-muted">Retake Ranges</p>
@@ -948,7 +948,7 @@ export function TimelineClipInspector({
         </div>
 
         {!isAudioClip ? (
-          <div className="mt-4 rounded-xl border border-border bg-canvas p-3" data-testid="timeline-ai-actions">
+          <div className="mt-4 rounded-sm border border-border bg-canvas p-3" data-testid="timeline-ai-actions">
             <div className="flex items-start justify-between gap-3">
               <div>
                 <p className="text-xs text-text-muted">AI Clip Actions</p>
@@ -1021,7 +1021,7 @@ export function TimelineClipInspector({
           </div>
         ) : null}
 
-        <div className="mt-4 rounded-xl border border-border bg-canvas p-3" data-testid="timeline-export-actions">
+        <div className="mt-4 rounded-sm border border-border bg-canvas p-3" data-testid="timeline-export-actions">
           <div className="flex items-start justify-between gap-3">
             <div>
               <p className="text-xs text-text-muted">Sequence Export</p>

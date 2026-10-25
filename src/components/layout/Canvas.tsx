@@ -574,11 +574,11 @@ export const Canvas = memo(function Canvas() {
                 <motion.div
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className="w-full max-w-lg rounded-xl border border-border bg-[linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.01))] px-6 py-6 text-center shadow-cinematic"
+                  className="raised-panel w-full max-w-lg px-6 py-6 text-center"
                 >
                   <div
                     ref={videoPreviewRef}
-                    className="mx-auto mb-4 aspect-video w-full max-w-sm overflow-hidden rounded-xl border border-border bg-void"
+                    className="mx-auto mb-4 aspect-video w-full max-w-sm overflow-hidden rounded-sm border border-border bg-void"
                   >
                     <MediaPreview
                       kind="video"
@@ -669,9 +669,9 @@ export const Canvas = memo(function Canvas() {
                 <motion.div
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className="w-full max-w-md rounded-xl border border-border bg-[linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.01))] px-8 py-10 text-center shadow-cinematic"
+                  className="raised-panel w-full max-w-md px-8 py-10 text-center"
                 >
-                  <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-xl border border-accent-primary-border bg-accent-primary-muted shadow-accent-subtle">
+                  <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-md border border-accent-primary-border bg-accent-primary-muted shadow-accent-subtle">
                     <Sparkles className="h-6 w-6 text-accent-primary" />
                   </div>
                   <div>

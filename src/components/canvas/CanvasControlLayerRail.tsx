@@ -85,7 +85,7 @@ function LayerRow({
   return (
     <div
       className={cn(
-        'rounded-xl border transition',
+        'rounded-sm border transition',
         isActive ? 'border-accent-primary-border bg-accent-primary-muted shadow-accent-subtle' : 'border-border bg-surface/75',
       )}
     >
@@ -96,7 +96,7 @@ function LayerRow({
           setActiveCanvasControlLayerId(sceneId, layer.id);
         }}
         className={cn(
-          'flex w-full items-start gap-3 rounded-xl px-3 py-2.5 text-left transition-colors',
+          'flex w-full items-start gap-3 rounded-md px-3 py-2.5 text-left transition-colors',
           isActive ? 'text-text-primary' : 'text-text-body hover:bg-elevated/70 hover:text-text-primary',
         )}
         aria-pressed={isActive}
@@ -220,7 +220,7 @@ export const CanvasControlLayerRail = memo(function CanvasControlLayerRail({
               setActiveRegionId(null);
               createCanvasControlLayer(scene.id, { type });
             }}
-            className="inline-flex flex-col items-center justify-center gap-1 rounded-xl border border-border bg-canvas px-2 py-2 text-center text-text-body transition hover:border-border-hover hover:bg-elevated hover:text-text-primary"
+            className="inline-flex flex-col items-center justify-center gap-1 rounded-md border border-border bg-canvas px-2 py-2 text-center text-text-body transition hover:border-border-hover hover:bg-elevated hover:text-text-primary"
             aria-label={label}
             title={label}
           >
@@ -235,7 +235,7 @@ export const CanvasControlLayerRail = memo(function CanvasControlLayerRail({
 
       <div className="max-h-[min(28rem,calc(100vh-12rem))] space-y-2 overflow-y-auto px-3 py-3">
         {scene.canvasControlLayers.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-border px-4 py-6 text-center">
+          <div className="rounded-sm border border-dashed border-border px-4 py-6 text-center">
             <p className="type-ui text-text-primary">No control layers yet</p>
             <p className="mt-1 text-xs text-text-muted">
               Start with a ControlNet guide, a reusable reference image, or an inpaint mask.

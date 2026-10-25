@@ -132,7 +132,7 @@ export function TimelineRetakeCompare({ className }: TimelineRetakeCompareProps)
   return (
     <section
       className={cn(
-        'absolute bottom-4 right-4 z-20 w-[min(760px,calc(100%-2rem))] rounded-xl border border-border bg-void/90 p-3 text-text-body shadow-cinematic backdrop-blur-md',
+        'absolute bottom-4 right-4 z-20 w-[min(760px,calc(100%-2rem))] rounded-sm border border-border bg-void/90 p-3 text-text-body shadow-cinematic backdrop-blur-md',
         className,
       )}
       data-testid="timeline-retake-compare"

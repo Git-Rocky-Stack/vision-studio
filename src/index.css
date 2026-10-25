@@ -1072,6 +1072,12 @@ input[type="range"]::-webkit-slider-thumb:hover {
   pointer-events: none;
 }
 
+/* Dialog shell - every modal is a raised faceplate with the overlay radius,
+   the one soft surface in the machined scale. Pair with .raised-panel. */
+.dialog-shell {
+  border-radius: var(--radius-overlay);
+}
+
 /* Layer 2 - recessed well - carved INTO the faceplate. */
 .recessed-well {
   background: linear-gradient(180deg, #080808 0%, #0a0a0a 100%);

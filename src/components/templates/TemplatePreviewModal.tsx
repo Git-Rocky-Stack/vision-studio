@@ -112,7 +112,7 @@ export function TemplatePreviewModal({
             role="dialog"
             aria-modal="true"
             aria-label="Template preview"
-            className="relative w-full max-w-[720px] max-h-[80vh] bg-surface rounded-xl border border-border shadow-cinematic overflow-hidden flex flex-col"
+            className="raised-panel dialog-shell relative w-full max-w-[720px] max-h-[80vh] overflow-hidden flex flex-col"
           >
             {/* Close Button */}
             <DialogCloseButton

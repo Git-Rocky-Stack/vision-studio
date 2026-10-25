@@ -20,7 +20,7 @@ export function GuideCallout({
   children,
 }: GuideCalloutProps) {
   return (
-    <div className={cn('rounded-xl border px-4 py-4', TONE_STYLES[tone])}>
+    <div className={cn('rounded-sm border px-4 py-4', TONE_STYLES[tone])}>
       <p className="type-ui text-text-primary">{title}</p>
       <div className="mt-2 space-y-2 text-sm leading-6">{children}</div>
     </div>
