@@ -191,9 +191,10 @@ export function CropControls({
           fullWidth
           onClick={onApply}
           isLoading={isApplying}
+          loadingLabel="Cropping..."
           disabled={isApplying}
         >
-          {isApplying ? 'Cropping...' : 'Apply Crop'}
+          Apply Crop
         </Button>
       </div>
     </div>

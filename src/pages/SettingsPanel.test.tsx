@@ -416,6 +416,73 @@ describe('SettingsPanel', () => {
     fireEvent.click(manageButton);
     expect(useAppStore.getState().activeTab).toBe('foundry');
   });
+
+  describe('error handling', () => {
+    it('shows a banner and re-reads stored settings when settings:update throws', async () => {
+      (window.electron.settings.update as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
+        new Error('backend restart failed'),
+      );
+      render(<SettingsPanel />);
+      await waitFor(() => expect(window.electron.settings.get).toHaveBeenCalled());
+      const getCalls = (window.electron.settings.get as ReturnType<typeof vi.fn>).mock.calls.length;
+
+      fireEvent.click(screen.getByRole('switch', { name: 'Toggle auto save' }));
+
+      expect(await screen.findByRole('alert')).toHaveTextContent(
+        'Settings were not saved: backend restart failed',
+      );
+      expect((window.electron.settings.get as ReturnType<typeof vi.fn>).mock.calls.length).toBeGreaterThan(getCalls);
+    });
+
+    it('reports AI Director index failures and clears the busy state', async () => {
+      (window.electron as unknown as { director: unknown }).director = {
+        syncCorpus: vi.fn().mockRejectedValue(new Error('embedder offline')),
+        clearIndex: vi.fn(),
+        indexStats: vi.fn().mockResolvedValue({ count: 0, mode: 'lexical' }),
+      };
+      render(<SettingsPanel />);
+      fireEvent.click(screen.getByRole('button', { name: /AI & Models/i }));
+      fireEvent.click(await screen.findByRole('button', { name: 'Rebuild index' }));
+
+      expect(await screen.findByText('Index rebuild failed: embedder offline')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Rebuild index' })).toBeEnabled();
+    });
+
+    describe('Start Backend', () => {
+      beforeEach(() => {
+        useAppStore.setState({
+          systemInfo: { ...useAppStore.getState().systemInfo, backendConnected: false },
+        });
+      });
+
+      it('shows the start error instead of ignoring it', async () => {
+        (window.electron.backend.start as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+          success: false,
+          error: 'python not found',
+        });
+        render(<SettingsPanel />);
+        fireEvent.click(screen.getByRole('button', { name: /AI & Models/i }));
+        fireEvent.click(await screen.findByRole('button', { name: 'Start Backend' }));
+
+        expect(await screen.findByText('python not found')).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Start Backend' })).toBeEnabled();
+      });
+
+      it('polls status until the backend answers, then refreshes system info', async () => {
+        const getStatus = window.electron.backend.getStatus as ReturnType<typeof vi.fn>;
+        getStatus
+          .mockResolvedValueOnce({ running: false, bundled: true })
+          .mockResolvedValue({ running: true, bundled: true });
+        render(<SettingsPanel />);
+        fireEvent.click(screen.getByRole('button', { name: /AI & Models/i }));
+        fireEvent.click(await screen.findByRole('button', { name: 'Start Backend' }));
+
+        expect(screen.getByRole('button', { name: /starting backend/i })).toBeDisabled();
+        await waitFor(() => expect(useAppStore.getState().systemInfo.backendConnected).toBe(true));
+        expect(getStatus.mock.calls.length).toBeGreaterThanOrEqual(2);
+      });
+    });
+  });
 });
 
 /**
