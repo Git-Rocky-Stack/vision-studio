@@ -1997,6 +1997,91 @@ describe('createOpenRouterService', () => {
   });
 });
 
+describe('OpenRouter generateImage result handling', () => {
+  const PNG_BYTES = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00]);
+  const args = {
+    apiKey: 'sk-or-v1-test-key',
+    model: 'black-forest-labs/flux-pro',
+    prompt: 'a lighthouse',
+    width: 1024,
+    height: 1024,
+  };
+  const catalog = { data: { data: [] } };
+  function reply(url: string) {
+    return { data: { choices: [{ message: { content: '', images: [{ image_url: { url } }] } }] } };
+  }
+
+  it('still generates when the model catalog call fails', async () => {
+    const axiosInstance = {
+      get: vi.fn().mockRejectedValue(Object.assign(new Error('catalog down'), { response: { status: 401, headers: {} } })),
+      post: vi.fn().mockResolvedValue(reply('data:image/png;base64,AAAA')),
+    };
+    const warn = vi.fn();
+    const service = createOpenRouterService({
+      axiosInstance,
+      retryBaseDelayMs: 0,
+      logger: { warn, error: vi.fn(), info: vi.fn() },
+    });
+
+    const result = await service.generateImage(args);
+
+    expect(result.images).toEqual([{ dataUrl: 'data:image/png;base64,AAAA', mimeType: 'image/png' }]);
+    expect(axiosInstance.post.mock.calls[0][1].modalities).toEqual(['image']);
+    expect(warn).toHaveBeenCalled();
+  });
+
+  it('downloads an https result image without sending the API key', async () => {
+    const imageUrl = 'https://cdn.example.com/render/abc.png';
+    const axiosInstance = {
+      get: vi.fn((url: string): Promise<any> =>
+        url === imageUrl ? Promise.resolve({ data: PNG_BYTES }) : Promise.resolve(catalog),
+      ),
+      post: vi.fn().mockResolvedValue(reply(imageUrl)),
+    };
+    const service = createOpenRouterService({ axiosInstance, retryBaseDelayMs: 0 });
+
+    const result = await service.generateImage(args);
+
+    expect(result.images).toHaveLength(1);
+    expect(result.images[0].mimeType).toBe('image/png');
+    expect(result.images[0].dataUrl).toBe(`data:image/png;base64,${PNG_BYTES.toString('base64')}`);
+    const download = axiosInstance.get.mock.calls.find(([url]) => url === imageUrl) as unknown as [
+      string,
+      Record<string, unknown>,
+    ];
+    expect(download[1]).toMatchObject({ responseType: 'arraybuffer', timeout: 60_000, maxContentLength: 25 * 1024 * 1024 });
+    expect(JSON.stringify(download[1])).not.toContain('sk-or-v1-test-key');
+  });
+
+  it('reports a billed image whose link could not be fetched instead of "no images"', async () => {
+    const imageUrl = 'https://cdn.example.com/render/gone.png';
+    const axiosInstance = {
+      get: vi.fn((url: string): Promise<any> =>
+        url === imageUrl ? Promise.resolve({ data: Buffer.from('<html>not found</html>') }) : Promise.resolve(catalog),
+      ),
+      post: vi.fn().mockResolvedValue(reply(imageUrl)),
+    };
+    const service = createOpenRouterService({
+      axiosInstance,
+      retryBaseDelayMs: 0,
+      logger: { warn: vi.fn(), error: vi.fn(), info: vi.fn() },
+    });
+
+    await expect(service.generateImage(args)).rejects.toThrow(/could not be downloaded/);
+  });
+
+  it('never fetches a plain-http image link', async () => {
+    const axiosInstance = {
+      get: vi.fn().mockResolvedValue(catalog),
+      post: vi.fn().mockResolvedValue(reply('http://cdn.example.com/render/abc.png')),
+    };
+    const service = createOpenRouterService({ axiosInstance, retryBaseDelayMs: 0 });
+
+    await expect(service.generateImage(args)).rejects.toThrow(/did not return any images/);
+    expect(axiosInstance.get).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe('OpenRouter error key hygiene', () => {
   it('never carries the API key in a thrown error, however it is serialized', async () => {
     const apiKey = 'sk-or-v1-supersecret-key';

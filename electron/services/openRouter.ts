@@ -7,6 +7,7 @@ import {
   isTimeoutError,
   retryHostedCall,
 } from './hostedHttp';
+import { sniffImageMime } from './imageMagic';
 
 type AxiosLike = Pick<typeof axios, 'get' | 'post'>;
 
@@ -176,6 +177,9 @@ function buildUserTextMessage(text: string) {
 const METADATA_TIMEOUT_MS = 10_000;
 const TEXT_COMPLETION_TIMEOUT_MS = 30_000;
 const IMAGE_GENERATION_TIMEOUT_MS = 120_000;
+/** Fetching a provider-hosted result image (https URL instead of a data URL). */
+const IMAGE_DOWNLOAD_TIMEOUT_MS = 60_000;
+const IMAGE_DOWNLOAD_MAX_BYTES = 25 * 1024 * 1024;
 
 /**
  * Maximum per-field character count for user-supplied prompts. Generous
@@ -501,23 +505,41 @@ function toAspectRatio(width: number, height: number) {
   return nearest.label && nearest.distance <= tolerance ? nearest.label : null;
 }
 
-function extractImageDataUrl(image: unknown) {
-  const dataUrl =
+type ExtractedImage =
+  | { kind: 'data'; image: OpenRouterImageResult }
+  | { kind: 'remote'; url: string };
+
+/**
+ * Most image models answer with a base64 data URL, but some providers hand
+ * back an https link to the rendered file instead. Both are a billed result,
+ * so both must reach the user; anything else (http, other schemes) is
+ * dropped.
+ */
+function extractImage(image: unknown): ExtractedImage | null {
+  const url =
     typeof (image as { image_url?: { url?: unknown } })?.image_url?.url === 'string'
       ? (image as { image_url: { url: string } }).image_url.url
       : typeof (image as { imageUrl?: { url?: unknown } })?.imageUrl?.url === 'string'
         ? (image as { imageUrl: { url: string } }).imageUrl.url
         : null;
 
-  if (!dataUrl || !dataUrl.startsWith('data:image/')) {
+  if (!url) {
     return null;
   }
 
-  const mimeTypeMatch = /^data:([^;]+);base64,/.exec(dataUrl);
-  return {
-    dataUrl,
-    mimeType: mimeTypeMatch?.[1] ?? 'image/png',
-  };
+  if (url.startsWith('data:image/')) {
+    const mimeTypeMatch = /^data:([^;]+);base64,/.exec(url);
+    return { kind: 'data', image: { dataUrl: url, mimeType: mimeTypeMatch?.[1] ?? 'image/png' } };
+  }
+
+  try {
+    if (new URL(url).protocol === 'https:') {
+      return { kind: 'remote', url };
+    }
+  } catch {
+    // Not a URL at all.
+  }
+  return null;
 }
 
 function buildHeaders(apiKey: string, appReferer: string, appTitle: string) {
@@ -845,6 +867,46 @@ export function createOpenRouterService({
     }
   }
 
+  /**
+   * Fetch a provider-hosted result image. No Authorization header: the link
+   * points at a third-party CDN, and the OpenRouter key must never reach it.
+   * Capped in time and size, and typed by magic bytes. Returns null (after a
+   * warning) rather than throwing so one bad link does not discard the rest.
+   */
+  async function downloadRemoteImage(
+    url: string,
+    signal?: AbortSignal,
+  ): Promise<OpenRouterImageResult | null> {
+    try {
+      const response = await axiosInstance.get(url, {
+        responseType: 'arraybuffer',
+        timeout: IMAGE_DOWNLOAD_TIMEOUT_MS,
+        maxContentLength: IMAGE_DOWNLOAD_MAX_BYTES,
+        maxBodyLength: IMAGE_DOWNLOAD_MAX_BYTES,
+        maxRedirects: 3,
+        ...(signal ? { signal } : {}),
+      });
+      const buffer = Buffer.from(response.data as ArrayBuffer);
+      if (buffer.length > IMAGE_DOWNLOAD_MAX_BYTES) {
+        throw new Error('image exceeds the download size cap');
+      }
+      const mimeType = sniffImageMime(buffer);
+      if (!mimeType) {
+        throw new Error('downloaded file is not an image');
+      }
+      return { dataUrl: `data:${mimeType};base64,${buffer.toString('base64')}`, mimeType };
+    } catch (error) {
+      if (signal?.aborted) {
+        throw error;
+      }
+      logger.warn(
+        '[openRouter] generateImage: could not download a hosted result image',
+        error instanceof Error ? error.message : error,
+      );
+      return null;
+    }
+  }
+
   async function generateImage({
     apiKey,
     model,
@@ -877,7 +939,18 @@ export function createOpenRouterService({
     assertPromptLength(normalizedNegativePrompt, 'Negative prompt');
 
     try {
-      const imageModels = await listImageModels(apiKey);
+      // Best-effort: the catalog only decides whether to also ask for text
+      // output. A catalog outage must not block a generation the user asked
+      // for, so an unknown model falls back to image-only modalities.
+      let imageModels: OpenRouterModelSummary[] = [];
+      try {
+        imageModels = await listImageModels(apiKey);
+      } catch (catalogError) {
+        logger.warn(
+          '[openRouter] generateImage: model catalog unavailable, continuing without it',
+          catalogError instanceof Error ? catalogError.message : catalogError,
+        );
+      }
       const selectedModel = imageModels.find((candidate) => candidate.id === normalizedModel);
       const aspectRatio = toAspectRatio(width, height);
       const modalities = selectedModel?.outputModalities.includes('text')
@@ -917,14 +990,25 @@ export function createOpenRouterService({
 
       const envelope = parseChatCompletionEnvelope(response.data);
       const message = envelope.choices[0].message;
-      const images = Array.isArray(message.images)
+      const extracted = Array.isArray(message.images)
         ? message.images
-            .map((image: unknown) => extractImageDataUrl(image))
-            .filter((image): image is OpenRouterImageResult => Boolean(image))
+            .map((image: unknown) => extractImage(image))
+            .filter((image): image is ExtractedImage => Boolean(image))
         : [];
+      const images = (
+        await Promise.all(
+          extracted.map((entry) =>
+            entry.kind === 'data' ? entry.image : downloadRemoteImage(entry.url, signal),
+          ),
+        )
+      ).filter((image): image is OpenRouterImageResult => Boolean(image));
 
       if (images.length === 0) {
-        throw new Error('OpenRouter did not return any images.');
+        throw new Error(
+          extracted.length > 0
+            ? 'OpenRouter generated an image, but it could not be downloaded.'
+            : 'OpenRouter did not return any images.',
+        );
       }
 
       const usage = extractUsage(response.data);
