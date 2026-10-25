@@ -13,6 +13,8 @@ import {
 } from '@/features/assets/assetRecords';
 import { extractFrameToEdit } from '@/features/media/frameExtraction';
 import { MediaPreview } from '@/components/ui/MediaPreview';
+import { runExport } from '@/features/notices';
+import { AddToCollectionMenu } from '@/components/collections/AddToCollectionMenu';
 import {
   Search,
   Grid,
@@ -212,7 +214,7 @@ export function AssetsPanel() {
       return;
     }
 
-    await window.electron.assets.export(asset.path, destinationPath);
+    await runExport(() => window.electron.assets.export(asset.path, destinationPath));
   };
 
   const handleExportMultiple = async () => {
@@ -225,9 +227,11 @@ export function AssetsPanel() {
       return;
     }
 
-    await window.electron.assets.exportMany(
-      selectedAssetRecords.map((asset) => asset.path),
-      destinationDir
+    await runExport(() =>
+      window.electron.assets.exportMany(
+        selectedAssetRecords.map((asset) => asset.path),
+        destinationDir
+      )
     );
   };
 
@@ -514,6 +518,11 @@ export function AssetsPanel() {
                         >
                           <Download className="w-3.5 h-3.5" />
                         </button>
+                        <AddToCollectionMenu
+                          assetId={asset.id}
+                          iconOnly
+                          triggerClassName="p-2 rounded bg-surface/80 text-text-body hover:text-text-primary hover:bg-surface transition focus-visible:opacity-100"
+                        />
                         <button
                           aria-label="Delete asset"
                           onClick={(e) => {

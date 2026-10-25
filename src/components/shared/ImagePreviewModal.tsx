@@ -25,6 +25,8 @@ import type { BatchResult } from '@/types/generation';
 import { toGenerationDraftFromResult } from '@/features/batch/resultActions';
 import { useEditTool } from '@/features/edit/useEditTool';
 import { DialogCloseButton } from '@/components/ui/DialogCloseButton';
+import { runExport } from '@/features/notices';
+import { AddToCollectionMenu } from '@/components/collections/AddToCollectionMenu';
 
 interface ImagePreviewModalProps {
   result: BatchResult | null;
@@ -56,6 +58,10 @@ export function ImagePreviewModal({
   );
 
   const editTool = useEditTool();
+  // Collections hold library asset ids; resolve this result's record by path.
+  const libraryAssetId = useAppStore((s) =>
+    result?.assetPath ? (s.assetLibrary.find((a) => a.path === result.assetPath)?.id ?? null) : null,
+  );
 
   const currentIndex = result ? results.findIndex((r) => r.id === result.id) : -1;
   const hasPrev = currentIndex > 0;
@@ -174,7 +180,8 @@ export function ImagePreviewModal({
       return;
     }
 
-    await window.electron.assets.export(result.assetPath, destinationPath);
+    const assetPath = result.assetPath;
+    await runExport(() => window.electron.assets.export(assetPath, destinationPath));
   };
 
   const handleDelete = async () => {
@@ -401,6 +408,10 @@ export function ImagePreviewModal({
                     Export
                   </Button>
                 </div>
+                <AddToCollectionMenu
+                  assetId={libraryAssetId}
+                  triggerClassName="w-full justify-center rounded-md px-3 py-2 type-ui text-text-body transition hover:bg-elevated hover:text-text-primary"
+                />
                 {editTool.error && (
                   <div
                     role="alert"
