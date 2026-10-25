@@ -45,6 +45,7 @@ from utils.direct_generator import (
     resolve_plan,
 )
 from foundry.lora import loras_applied
+from utils.pipeline_cache import register_pipeline_owner, release_other_pipeline_caches
 from foundry.accelerator import (
     DEFAULT_ACCELERATION_SETTINGS,
     accelerate_pipeline,
@@ -205,6 +206,22 @@ class DirectVideoGenerator:
         # A changed request must evict+rebuild (in-place accel is irreversible).
         self._loaded_acceleration: Dict[str, Any] = {}
         configure_inductor_cache(os.path.join(models_dir, ".cache", "inductor"))
+        # The image generator releases this cache before it loads (and this
+        # one releases the image cache) - see utils.pipeline_cache.
+        register_pipeline_owner("video", self.unload_all)
+
+    def unload_model(self, model_name: str) -> None:
+        """Drop one cached pipeline and release the allocator cache."""
+        if model_name in self.pipelines:
+            del self.pipelines[model_name]
+            self._loaded_acceleration.pop(model_name, None)
+            self.applied_acceleration.pop(model_name, None)
+            empty_device_cache(torch)
+
+    def unload_all(self) -> None:
+        """Drop every cached pipeline (no-op when none is resident)."""
+        for model_name in list(self.pipelines):
+            self.unload_model(model_name)
 
     def load_model(self, model_name: str, overrides: Optional[Dict[str, Any]] = None,
                    acceleration_settings=None):
@@ -225,14 +242,16 @@ class DirectVideoGenerator:
             # accel (compile/quantization/slicing) is irreversible, so evict and
             # rebuild to honor (and honestly report) the new settings.
             print(f"Acceleration settings changed for {model_name}; reloading")
-            del self.pipelines[model_name]
-            self._loaded_acceleration.pop(model_name, None)
-            self.applied_acceleration.pop(model_name, None)
-            empty_device_cache(torch)
+            self.unload_model(model_name)
 
         plan = resolve_plan(model_name, overrides)
         if plan.refusal:
             raise ModelLoadRefusedError(plan.refusal)
+
+        # One resident pipeline per generator, and none in the image
+        # generator: two multi-GB pipelines never share VRAM.
+        self.unload_all()
+        release_other_pipeline_caches("video")
 
         ladder = list(plan.fallback_ladder)
         slicing_max = False

@@ -38,6 +38,7 @@ from foundry.accelerator import DEFAULT_ACCELERATION_SETTINGS, accelerate_pipeli
 from foundry.lora import loras_applied
 from utils.device import empty_device_cache, is_out_of_memory, resolve_device
 from utils.job_manager import GenerationCancelled
+from utils.pipeline_cache import register_pipeline_owner, release_other_pipeline_caches
 
 # #34 guided passes (all modules import with no torch/diffusers).
 from guided.controlnet_registry import resolve_controlnet_stack
@@ -207,6 +208,10 @@ class DirectGenerator:
         if not DIFFUSERS_AVAILABLE:
             raise RuntimeError("diffusers library not available")
 
+        # The video generator releases this cache before it loads (and this
+        # one releases the video cache) - see utils.pipeline_cache.
+        register_pipeline_owner("image", self.unload_all)
+
         print(f"🖥️ DirectGenerator using device: {self.device}")
 
         if self.device == "cuda":
@@ -242,6 +247,11 @@ class DirectGenerator:
         plan = resolve_plan(model_name, overrides)
         if plan.refusal:
             raise ModelLoadRefusedError(plan.refusal)
+
+        # One resident pipeline per generator, and none in the video
+        # generator: two multi-GB pipelines never share VRAM.
+        self.unload_all()
+        release_other_pipeline_caches("image")
 
         ladder = list(plan.fallback_ladder)
         slicing_max = False
@@ -773,6 +783,11 @@ class DirectGenerator:
             self.applied_acceleration.pop(model_name, None)
             empty_device_cache(torch)
             print(f"🗑️ Unloaded model: {model_name}")
+
+    def unload_all(self):
+        """Drop every cached pipeline (no-op when none is resident)."""
+        for model_name in list(self.pipelines):
+            self.unload_model(model_name)
 
     def get_memory_usage(self) -> Dict[str, float]:
         """Get GPU memory usage"""
