@@ -39,6 +39,32 @@ describe('MediaPreview', () => {
     expect(screen.getByText('Video')).toBeInTheDocument();
   });
 
+  it('draws a poster-only tile as a lazy image, with no video element', () => {
+    render(
+      <MediaPreview
+        kind="video"
+        src="/outputs/clip.mp4"
+        poster="/outputs/clip.jpg"
+        alt="Clip"
+        posterOnly
+        testId="tile"
+      />,
+    );
+
+    const tile = screen.getByTestId('tile');
+    expect(tile.querySelector('video')).toBeNull();
+    const poster = screen.getByAltText('Clip');
+    expect(poster).toHaveAttribute('src', 'http://localhost:8000/outputs/clip.jpg');
+    expect(poster).toHaveAttribute('loading', 'lazy');
+  });
+
+  it('draws a placeholder for a poster-only tile that has no poster', () => {
+    render(<MediaPreview kind="video" src="/outputs/clip.mp4" alt="Clip" posterOnly testId="tile" />);
+
+    expect(screen.getByTestId('tile').querySelector('video')).toBeNull();
+    expect(screen.getByRole('img', { name: 'Clip' })).toBeInTheDocument();
+  });
+
   it('resolves backend outputs through the local API host', () => {
     expect(resolveMediaSourceUrl('/outputs/clip.mp4')).toBe('http://localhost:8000/outputs/clip.mp4');
   });

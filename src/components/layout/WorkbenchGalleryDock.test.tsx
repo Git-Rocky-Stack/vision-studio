@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, render, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { useAppStore } from '@/store/appStore';
@@ -39,13 +39,14 @@ describe('WorkbenchGalleryDock', () => {
 
     const reviewButton = screen.getByRole('button', { name: 'Review Storyboard clip' });
 
-    // The card must play THIS asset. A <video> element that exists but points at
-    // the poster, or at a neighbouring asset, renders a plausible-looking card
-    // for the wrong clip - which presence alone cannot distinguish.
-    const video = reviewButton.querySelector('video');
-    expect(video).not.toBeNull();
-    expect(video).toHaveAttribute('src', expect.stringContaining('storyboard.mp4'));
-    expect(video).toHaveAttribute('aria-label', 'Storyboard clip');
+    // A gallery tile draws THIS asset's poster, not a <video>: every mounted
+    // video element opens the file to read its metadata, which for a grid of
+    // clips is a media pipeline per thumbnail. The viewer plays the clip.
+    expect(reviewButton.querySelector('video')).toBeNull();
+    const poster = within(reviewButton).getByAltText('Storyboard clip');
+    expect(poster.tagName).toBe('IMG');
+    expect(poster).toHaveAttribute('src', expect.stringContaining('data:image/svg+xml'));
+    expect(poster).toHaveAttribute('loading', 'lazy');
 
     expect(screen.getByText('Video')).toHaveTextContent('Video');
     expect(reviewButton).toHaveTextContent('Storyboard clip prompt');

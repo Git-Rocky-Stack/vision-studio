@@ -247,7 +247,13 @@ export const IterationTimeline = memo(function IterationTimeline({ className }: 
                       )}
                     >
                       {node.thumbnail ? (
-                        <img src={node.thumbnail} alt="" className="h-full w-full object-cover" />
+                        <img
+                          src={node.thumbnail}
+                          alt=""
+                          loading="lazy"
+                          decoding="async"
+                          className="h-full w-full object-cover"
+                        />
                       ) : (
                         <div className="flex h-full w-full items-center justify-center bg-void type-badge text-text-muted">
                           {index + 1}

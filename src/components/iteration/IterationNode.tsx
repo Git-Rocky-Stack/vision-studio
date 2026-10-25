@@ -19,11 +19,15 @@ export const IterationNode = memo(function IterationNode({
   onPin,
   className,
 }: IterationNodeProps) {
-  const iterationNodes = useAppStore((s) => s.iterationNodes);
-  const comparisonIds = useAppStore((s) => s.comparisonIds);
+  // Derived booleans, not the whole graph: subscribing to iterationNodes and
+  // comparisonIds re-rendered every node in the tree whenever any node was
+  // added, pinned or annotated, or the comparison pair changed.
+  const parentBranchId = useAppStore((s) =>
+    node.parentId ? s.iterationNodes.get(node.parentId)?.branchId : undefined,
+  );
+  const isCompared = useAppStore((s) => s.comparisonIds?.includes(node.id) ?? false);
   const toggleIterationComparison = useAppStore((s) => s.toggleIterationComparison);
-  const isBranchStart = node.parentId === null || (node.parentId && iterationNodes.get(node.parentId)?.branchId !== node.branchId);
-  const isCompared = comparisonIds?.includes(node.id) ?? false;
+  const isBranchStart = node.parentId === null || parentBranchId !== node.branchId;
 
   return (
     <div
@@ -57,7 +61,7 @@ export const IterationNode = memo(function IterationNode({
       {/* Thumbnail */}
       <div className="w-8 h-8 rounded-sm overflow-hidden bg-void flex-shrink-0">
         {node.thumbnail ? (
-          <img src={node.thumbnail} alt="" className="w-full h-full object-cover" />
+          <img src={node.thumbnail} alt="" loading="lazy" decoding="async" className="w-full h-full object-cover" />
         ) : (
           <div className="w-full h-full flex items-center justify-center text-text-muted type-micro">
             {node.generationJob.type === 'image' ? 'IMG' : 'VID'}
