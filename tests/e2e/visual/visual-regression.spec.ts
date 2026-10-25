@@ -7,6 +7,7 @@
  * Run: npm run test:visual
  * Update baselines: npm run test:visual:update
  */
+import fs from 'fs';
 import { test, expect } from '../fixtures/electron.fixture';
 import { GeneratePage } from '../pages/generate.page';
 import { SidebarPage } from '../pages/sidebar.page';
@@ -92,6 +93,29 @@ test.describe('Visual Regression', () => {
       await expect(page.locator('input[placeholder="Search templates..."]')).toBeVisible();
 
       await expect(page).toHaveScreenshot('templates-panel-default.png', {
+        fullPage: false,
+        maxDiffPixelRatio: 0.02,
+      });
+    });
+  });
+
+  test.describe('Canvas Panel', () => {
+    test('Canvas panel - Shape tool options', async ({ page }, testInfo) => {
+      // Baselines are per platform and this one was recorded on Linux. CI never
+      // writes baselines, so on a platform without one (the Windows release
+      // run) skip with the fix rather than fail on a missing file.
+      test.skip(
+        Boolean(process.env.CI) && !fs.existsSync(testInfo.snapshotPath('canvas-panel-shape-tool.png')),
+        `No ${process.platform} baseline yet: record it with npm run test:visual:update`,
+      );
+      const sidebar = new SidebarPage(page);
+      await sidebar.navigateTo('canvas');
+      await expect(page.getByRole('toolbar', { name: 'Edit tools' })).toBeVisible();
+      // Shape: the tool strip with every tool live, and the Tool options panel.
+      await page.getByRole('button', { name: 'Shape (U)' }).click();
+      await expect(page.getByRole('region', { name: 'Tool options' })).toBeVisible();
+
+      await expect(page).toHaveScreenshot('canvas-panel-shape-tool.png', {
         fullPage: false,
         maxDiffPixelRatio: 0.02,
       });

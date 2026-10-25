@@ -299,8 +299,15 @@ the current number for its layer.
 | Backend (benchmark, opt-in) | pytest-benchmark | `cd backend && python -m pytest tests/benchmarks -o addopts="" --benchmark-only --collect-only -q` |
 
 The E2E figure counts every spec Playwright can collect, including the
-Windows-authored visual-regression suite. Snapshot comparisons are only
-meaningful on the platform that authored them.
+visual-regression suite. Its baselines are per platform
+(`tests/e2e/visual/snapshots/**/<name>--win32.png` and `--linux.png`), and a
+comparison is only meaningful against the platform's own file. Run it on Linux
+under a virtual display, e.g.
+`xvfb-run -a -s "-screen 0 1920x1080x24" npm run test:visual`, after
+`npm run build`. After an intended UI change, re-record the baselines on each
+platform with `npm run test:visual:update` and review the new images before
+committing them. CI never writes baselines: a missing one fails the run, except
+the Canvas panel capture, which skips on a platform it was not yet recorded on.
 
 ### TypeScript Type Check
 
