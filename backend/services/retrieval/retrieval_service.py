@@ -17,7 +17,7 @@ from typing import Dict, List, Optional, Set
 
 import numpy as np
 
-from services.retrieval.embedder import Embedder
+from services.retrieval.embedder import EMBED_DIM, Embedder, EmbedderUnavailable
 from services.retrieval.index_store import CorpusItem, IndexStore, ScoredItem, content_hash
 from services.retrieval.knowledge_base import KnowledgeBase
 
@@ -73,11 +73,16 @@ class RetrievalService:
             ))
         if not items:
             return {"ingested": 0, "skipped": len(records), "total": self._index.count()}
+        vectors = None
         if self._embedder.available:
-            vectors = self._embedder.embed([it.text for it in items])
-        else:
-            # No model: store with a zero placeholder vector; the lexical query path ignores it.
-            vectors = np.zeros((len(items), 1), dtype=np.float32)
+            try:
+                vectors = self._embedder.embed([it.text for it in items])
+            except EmbedderUnavailable:
+                vectors = None  # model failed to load: store like the no-model path
+        if vectors is None:
+            # No model: store with a zero placeholder vector; the lexical query
+            # path ignores it. Full width, so a later semantic run can stack it.
+            vectors = np.zeros((len(items), EMBED_DIM), dtype=np.float32)
         self._index.upsert(items, vectors)
         self._index.persist()
         return {"ingested": len(items), "skipped": len(records) - len(items), "total": self._index.count()}
@@ -92,9 +97,12 @@ class RetrievalService:
 
         if corpus_sources:
             if use_semantic:
-                qvec = self._embedder.embed([text])[0]
-                scored = self._index.query(qvec, k=PER_SOURCE_K * len(corpus_sources), sources=corpus_sources)
-            else:
+                try:
+                    qvec = self._embedder.embed([text])[0]
+                    scored = self._index.query(qvec, k=PER_SOURCE_K * len(corpus_sources), sources=corpus_sources)
+                except EmbedderUnavailable:
+                    use_semantic = False
+            if not use_semantic:
                 scored = self._lexical(text, corpus_sources)
 
         kb_snippets: List[Dict] = []
