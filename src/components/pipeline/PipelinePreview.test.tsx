@@ -66,4 +66,23 @@ describe('PipelinePreview step dots', () => {
     expect(screen.getByRole('button', { name: 'Step 2: running' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Step 3: pending' })).toBeInTheDocument();
   });
+
+  it('colours running and complete dots with defined status tokens', () => {
+    render(<PipelinePreview execution={makeExecution()} stepIndex={0} onStepSelect={vi.fn()} />);
+    expect(screen.getByRole('button', { name: 'Step 1: complete' })).toHaveClass('border-status-success');
+    expect(screen.getByRole('button', { name: 'Step 2: running' })).toHaveClass('border-status-warning');
+  });
+
+  it('shows the execution error and the cancelled state', () => {
+    const { rerender } = render(
+      <PipelinePreview
+        execution={makeExecution({ status: 'error', error: 'Denoise steps have no backend operation yet.' })}
+        stepIndex={2}
+      />,
+    );
+    expect(screen.getByRole('alert')).toHaveTextContent('Denoise steps have no backend operation yet.');
+
+    rerender(<PipelinePreview execution={makeExecution({ status: 'cancelled' })} stepIndex={2} />);
+    expect(screen.getByText('Pipeline cancelled')).toBeInTheDocument();
+  });
 });

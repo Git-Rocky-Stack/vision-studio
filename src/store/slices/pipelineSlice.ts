@@ -1,5 +1,10 @@
 import type { AppSet } from '../appStore.types';
-import type { PipelineDefinition, PipelineStep, PipelineExecution } from '@/types/pipeline';
+import type {
+  PipelineDefinition,
+  PipelineStep,
+  PipelineExecution,
+  StepExecutionResult,
+} from '@/types/pipeline';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -152,15 +157,22 @@ export function createPipelineActions(set: AppSet) {
         };
       }),
 
-    runPipeline: (pipelineId: string, sourceImageId: string) =>
+    /**
+     * Enqueue an execution record and return its id. This only records the
+     * run; src/features/pipeline/runPipelineExecution.ts (startPipelineRun)
+     * actually executes the steps and drives the record's status.
+     */
+    runPipeline: (pipelineId: string, sourceImageId: string): string | null => {
+      let id: string | null = null;
       set((s) => {
         const pipeline = s.pipelines.find((p) => p.id === pipelineId);
         if (!pipeline) return s;
+        id = crypto.randomUUID();
         return {
           pipelineExecutions: [
             ...s.pipelineExecutions,
             {
-              id: crypto.randomUUID(),
+              id,
               pipelineId,
               sourceImageId,
               status: 'queued' as const,
@@ -173,12 +185,51 @@ export function createPipelineActions(set: AppSet) {
             },
           ],
         };
-      }),
+      });
+      return id;
+    },
 
+    updatePipelineExecution: (
+      executionId: string,
+      updates: Partial<Pick<PipelineExecution, 'status' | 'currentStepIndex' | 'finalOutput' | 'error'>>,
+    ) =>
+      set((s) => ({
+        pipelineExecutions: s.pipelineExecutions.map((e) =>
+          e.id === executionId ? { ...e, ...updates } : e
+        ),
+      })),
+
+    updatePipelineStepResult: (
+      executionId: string,
+      stepId: string,
+      updates: Partial<Omit<StepExecutionResult, 'stepId'>>,
+    ) =>
+      set((s) => ({
+        pipelineExecutions: s.pipelineExecutions.map((e) =>
+          e.id === executionId
+            ? {
+                ...e,
+                stepResults: e.stepResults.map((r) => (r.stepId === stepId ? { ...r, ...updates } : r)),
+              }
+            : e
+        ),
+      })),
+
+    /** Marks the record cancelled; the executor's abort signal stops the job. */
     cancelPipelineExecution: (executionId: string) =>
       set((s) => ({
         pipelineExecutions: s.pipelineExecutions.map((e) =>
-          e.id === executionId ? { ...e, status: 'error' as const } : e
+          e.id === executionId && (e.status === 'queued' || e.status === 'running')
+            ? {
+                ...e,
+                status: 'cancelled' as const,
+                stepResults: e.stepResults.map((r) =>
+                  r.status === 'running' || r.status === 'pending'
+                    ? { ...r, status: r.status === 'running' ? ('error' as const) : r.status, error: r.status === 'running' ? 'Cancelled' : r.error }
+                    : r
+                ),
+              }
+            : e
         ),
       })),
 

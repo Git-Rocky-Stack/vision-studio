@@ -7,8 +7,13 @@ import { PipelineNode } from './PipelineNode';
 import { PipelineNodePalette } from './PipelineNodePalette';
 import { PipelineNodeConfig } from './PipelineNodeConfig';
 import { PipelinePreview } from './PipelinePreview';
-import { Plus, Save, Copy, Trash2, Workflow } from 'lucide-react';
+import { Plus, Copy, Trash2, Workflow, Play, Square } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import {
+  cancelPipelineRun,
+  pipelineUnsupportedReason,
+  startPipelineRun,
+} from '@/features/pipeline/runPipelineExecution';
 
 interface PipelineBuilderProps {
   pipeline: PipelineDefinition;
@@ -24,18 +29,26 @@ export const PipelineBuilder = memo(function PipelineBuilder({
   const [editingName, setEditingName] = useState(false);
   const [nameValue, setNameValue] = useState(pipeline.name);
 
-  const { updatePipeline, deletePipeline, duplicatePipeline, pipelineExecutions } = useAppStore(
-    useShallow((s) => ({
-      updatePipeline: s.updatePipeline,
-      deletePipeline: s.deletePipeline,
-      duplicatePipeline: s.duplicatePipeline,
-      pipelineExecutions: s.pipelineExecutions,
-    }))
-  );
+  const { updatePipeline, deletePipeline, duplicatePipeline, pipelineExecutions, currentImageAssetPath } =
+    useAppStore(
+      useShallow((s) => ({
+        updatePipeline: s.updatePipeline,
+        deletePipeline: s.deletePipeline,
+        duplicatePipeline: s.duplicatePipeline,
+        pipelineExecutions: s.pipelineExecutions,
+        currentImageAssetPath: s.currentImageAssetPath,
+      }))
+    );
 
   const selectedStep = selectedStepIndex !== null ? pipeline.steps[selectedStepIndex] : null;
 
-  const execution = pipelineExecutions.find((e) => e.pipelineId === pipeline.id) ?? null;
+  // The most recent run of this pipeline (executions are appended).
+  const execution =
+    [...pipelineExecutions].reverse().find((e) => e.pipelineId === pipeline.id) ?? null;
+  const isRunning = execution?.status === 'running' || execution?.status === 'queued';
+  const unsupported = pipelineUnsupportedReason(pipeline);
+  const runBlockedReason =
+    unsupported ?? (!currentImageAssetPath ? 'Open an image from Assets on the Edit canvas first.' : null);
 
   function handleAddStep(type: PipelineStepType) {
     const id = crypto.randomUUID();
@@ -155,14 +168,36 @@ export const PipelineBuilder = memo(function PipelineBuilder({
           <Copy className="w-3.5 h-3.5 text-text-muted hover:text-text-body" />
         </button>
 
-        <button
-          type="button"
-          onClick={() => updatePipeline(pipeline.id, { steps: pipeline.steps })}
-          aria-label="Save pipeline"
-          className="p-1.5 rounded hover:bg-elevated transition-colors"
-        >
-          <Save className="w-3.5 h-3.5 text-text-muted hover:text-text-body" />
-        </button>
+        {/* Edits save as they are made, so there is no Save button. Run
+            executes the steps on the image open on the Edit canvas. */}
+        {isRunning && execution ? (
+          <button
+            type="button"
+            onClick={() => cancelPipelineRun(execution.id)}
+            aria-label="Cancel pipeline run"
+            className="flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs text-text-body transition-colors hover:bg-elevated"
+          >
+            <Square className="w-3 h-3" aria-hidden="true" />
+            Cancel
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={() => {
+              if (currentImageAssetPath && !runBlockedReason) {
+                void startPipelineRun(pipeline.id, currentImageAssetPath);
+                setSelectedStepIndex((index) => index ?? 0);
+              }
+            }}
+            disabled={Boolean(runBlockedReason)}
+            title={runBlockedReason ?? 'Run on the image open on the Edit canvas'}
+            aria-label="Run pipeline"
+            className="flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs text-text-body transition-colors hover:bg-elevated disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            <Play className="w-3 h-3" aria-hidden="true" />
+            Run
+          </button>
+        )}
 
         {!pipeline.isBuiltIn && (
           <button
@@ -181,6 +216,10 @@ export const PipelineBuilder = memo(function PipelineBuilder({
         <div className="px-3 py-1.5 text-xs text-text-muted bg-surface/30 border-b border-border">
           {pipeline.description}
         </div>
+      )}
+
+      {unsupported && (
+        <p className="px-3 py-1.5 text-xs text-status-warning border-b border-border">{unsupported}</p>
       )}
 
       {/* Node palette dropdown */}

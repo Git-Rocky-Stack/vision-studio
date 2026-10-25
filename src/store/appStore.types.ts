@@ -988,7 +988,17 @@ export interface AppState {
   updatePipeline: (id: string, updates: Partial<Pick<PipelineDefinition, 'name' | 'description' | 'steps'>>) => void;
   deletePipeline: (id: string) => void;
   duplicatePipeline: (id: string, newName: string) => void;
-  runPipeline: (pipelineId: string, sourceImageId: string) => void;
+  /** Records a queued execution and returns its id; startPipelineRun executes it. */
+  runPipeline: (pipelineId: string, sourceImageId: string) => string | null;
+  updatePipelineExecution: (
+    executionId: string,
+    updates: Partial<Pick<PipelineExecution, 'status' | 'currentStepIndex' | 'finalOutput' | 'error'>>,
+  ) => void;
+  updatePipelineStepResult: (
+    executionId: string,
+    stepId: string,
+    updates: Partial<Omit<import('@/types/pipeline').StepExecutionResult, 'stepId'>>,
+  ) => void;
   cancelPipelineExecution: (executionId: string) => void;
   setActivePipelineId: (id: string | null) => void;
   setPipelineBuilderOpen: (open: boolean) => void;

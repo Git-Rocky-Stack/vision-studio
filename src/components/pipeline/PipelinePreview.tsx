@@ -43,11 +43,14 @@ export const PipelinePreview = memo(function PipelinePreview({
       <div className="flex items-center gap-1.5 px-1" role="group" aria-label="Pipeline step progress">
         {steps.map((step, i) => {
           const isActive = i === stepIndex;
-          const colors = {
+          // Status tokens; the old bg-warning / bg-success names were never
+          // defined, so running and complete dots rendered blank.
+          const colors: Record<typeof step.status, string> = {
             pending: 'bg-surface border-border',
-            running: 'bg-warning/30 border-warning animate-pulse',
-            complete: 'bg-success/30 border-success',
+            running: 'bg-status-warning/30 border-status-warning animate-pulse',
+            complete: 'bg-status-success/30 border-status-success',
             error: 'bg-status-error/30 border-status-error',
+            skipped: 'bg-transparent border-border border-dashed',
           };
           const color = colors[step.status];
 
@@ -93,11 +96,21 @@ export const PipelinePreview = memo(function PipelinePreview({
           <div className="flex flex-col items-center justify-center gap-2 h-full">
             <Eye className="w-6 h-6 text-text-muted" />
             <p className="text-xs text-text-muted">
-              {execution.status === 'error' ? 'Pipeline failed' : 'No preview available'}
+              {execution.status === 'error'
+                ? 'Pipeline failed'
+                : execution.status === 'cancelled'
+                  ? 'Pipeline cancelled'
+                  : 'No preview available'}
             </p>
           </div>
         )}
       </div>
+
+      {execution.status === 'error' && execution.error && (
+        <p role="alert" className="px-1 text-xs text-status-error">
+          {execution.error}
+        </p>
+      )}
 
       {/* Step status text */}
       {activeStep && (
@@ -105,6 +118,7 @@ export const PipelinePreview = memo(function PipelinePreview({
           {activeStep.status === 'complete' && `Step ${stepIndex !== null ? stepIndex + 1 : ''} complete`}
           {activeStep.status === 'running' && `Step ${stepIndex !== null ? stepIndex + 1 : ''} processing...`}
           {activeStep.status === 'pending' && `Step ${stepIndex !== null ? stepIndex + 1 : ''} pending`}
+          {activeStep.status === 'skipped' && `Step ${stepIndex !== null ? stepIndex + 1 : ''} skipped (disabled)`}
           {activeStep.status === 'error' && activeStep.error && (
             <span className="text-status-error">Error: {activeStep.error}</span>
           )}
