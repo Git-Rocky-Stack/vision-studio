@@ -10,3 +10,14 @@ export function hexToRgba(hex: string, opacity: number): string {
   const b = parseInt(clean.substring(4, 6), 16);
   return `rgba(${r}, ${g}, ${b}, ${opacity})`;
 }
+
+/**
+ * Any CSS colour (hex, rgb(), or a `var(--color-*)` token) at `opacity` over
+ * transparent. Unlike hexToRgba this never parses the string, so token
+ * colours like `var(--color-feature-03)` keep working instead of becoming
+ * rgba(NaN, NaN, NaN).
+ */
+export function withAlpha(color: string, opacity: number): string {
+  const percent = Math.round(Math.max(0, Math.min(1, opacity)) * 1000) / 10;
+  return `color-mix(in srgb, ${color} ${percent}%, transparent)`;
+}

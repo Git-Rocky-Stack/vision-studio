@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { cn } from '@/utils/cn';
-import { hexToRgba } from '@/utils/colorUtils';
+import { withAlpha } from '@/utils/colorUtils';
 import { Button } from '@/components/ui/Button';
 import { Slider } from '@/components/ui/Slider';
 import { isLikelyVideoPath } from '@/components/ui/MediaPreview';
@@ -487,9 +487,9 @@ export function AIToolsPanel() {
                               style={
                                 stylePreset === style.id
                                   ? {
-                                      backgroundColor: hexToRgba(style.color, 0.13),
+                                      backgroundColor: withAlpha(style.color, 0.13),
                                       color: style.color,
-                                      border: `1px solid ${hexToRgba(style.color, 0.25)}`,
+                                      border: `1px solid ${withAlpha(style.color, 0.25)}`,
                                     }
                                   : undefined
                               }
