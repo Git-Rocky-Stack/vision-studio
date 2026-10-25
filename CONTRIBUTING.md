@@ -32,19 +32,25 @@ Install the following software before getting started:
 
 #### Required
 
-- **Node.js 20** - [Download](https://nodejs.org/)
+- **Node.js `^20.19.0 || ^22.13.0 || >=24`** - [Download](https://nodejs.org/)
   - Verify: `node --version`
-  - CI builds and tests on Node 20 (`.github/workflows/pr-gate.yml:23`); other
-    versions are untested here
-  - npm is included with Node.js
+  - The range is the `engines` field in `package.json`. It comes from the
+    toolchain, not from preference: jsdom 28 and ESLint 10 do not run on older
+    releases, so `npm test` and `npm run lint` fail there
+  - Node 22 LTS is recommended (`.nvmrc`; `nvm use` picks it up). CI builds and
+    tests on Node 20 (the `node-version` in `.github/workflows/pr-gate.yml`)
+  - npm is included with Node.js. npm 10 (bundled with Node 20 and 22) and
+    npm 11 both work, and write the same `package-lock.json`. See
+    [Dependencies and the lockfile](#dependencies-and-the-lockfile)
 
 - **Python 3.12** - [Download](https://www.python.org/downloads/)
   - Verify: `python --version` or `python3 --version`
   - Required for backend development and AI generation features
-  - Every workflow that builds or tests the backend pins 3.12
-    (`.github/workflows/pr-gate.yml:91`, `release.yml:33`,
-    `release-mac-linux.yml:72`). The torch build this pairs with — 2.5.1+cu121 —
-    publishes no cp313 wheels, so a 3.13 interpreter fails at `pip install torch`
+  - Every workflow that builds or tests the backend pins 3.12 (the
+    `python-version` in `.github/workflows/pr-gate.yml`, `release.yml` and
+    `release-mac-linux.yml`). 3.10 and 3.11 also work. The torch build this
+    pairs with - 2.5.1+cu121 - publishes no cp313 wheels, so a 3.13 interpreter
+    fails at `pip install torch`
 
 #### Optional (GPU Acceleration)
 
@@ -62,19 +68,66 @@ cd vision-studio
 
 # Install frontend dependencies
 npm install
+```
 
-# Install backend dependencies (if using system Python)
+#### Dependencies and the lockfile
+
+- Add, remove or update packages with plain `npm install <pkg>`,
+  `npm uninstall <pkg>` or `npm update`, on npm 10 or npm 11. Commit
+  `package.json` and `package-lock.json` together.
+- `npm ci` is what CI runs; use it for a clean, lockfile-exact install.
+- `package.json` carries `"overrides": { "vite": "$vite" }`. Keep it: without
+  it npm resolves a vite 8 peer chain that crashes npm 10 with
+  `Cannot read properties of null (reading 'edgesOut')`. The full story is in
+  `tests/npm-lockfile-resolution.test.ts`, which also guards it.
+- The PR gate's **Lockfile** job rewrites the lockfile on npm 10 and fails if
+  anything changes, so a lockfile that is out of date with `package.json`
+  is caught before merge. To fix one, run `npm install` and commit the result.
+
+Then set up the Python backend in `backend/venv`. `npm run dev` starts the
+backend with that venv's Python whenever it exists, so it does not have to be
+activated in the shell that runs the app.
+
+**Any platform, one step** - runs `build-backend.cjs`'s own install steps (the
+pinned PyTorch, `requirements.txt`, then the generation stack) and finishes with
+the release build's import check. On Windows, `setup-python.bat` runs the same
+script. Without an NVIDIA GPU it installs the smaller CPU torch wheels. It looks
+for a Python 3.10-3.12 interpreter through `uv`, then the Windows `py` launcher,
+then `python` on `PATH` - on Linux or macOS, where `python` may be missing or
+too new, install one with `uv python install 3.12` or use the manual steps.
+
+```bash
+node scripts/setup-dev-backend.cjs
+```
+
+**Or by hand** - the same pins, step by step:
+
+```bash
 cd backend
-python -m venv venv
+python3.12 -m venv venv
 # Windows:
 venv\Scripts\activate
 # macOS/Linux:
 source venv/bin/activate
 
-pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121
+# NVIDIA (Windows/Linux):
+pip install torch==2.5.1 torchvision==0.20.1 torchaudio==2.5.1 --index-url https://download.pytorch.org/whl/cu121
+# macOS (Apple Silicon) - the cu121 index has no macOS wheels:
+pip install torch==2.5.1 torchvision==0.20.1 torchaudio==2.5.1
+
 pip install -r requirements.txt
+
+# The generation stack the release build bundles (BUNDLED_RUNTIME_PACKAGES in
+# build-backend.cjs). requirements.txt holds only the server and test
+# dependencies; without this the backend starts but cannot generate.
+pip install "diffusers>=0.25.0" "transformers>=4.35.0" "accelerate>=0.24.0" "peft>=0.11.0" \
+  "controlnet-aux>=0.0.10" "onnxruntime>=1.17" "spandrel>=0.4.0" "facexlib>=0.3.0" "aiohttp>=3.9"
 cd ..
 ```
+
+The package list lives in `build-backend.cjs` (`TORCH_PIN` and
+`BUNDLED_RUNTIME_PACKAGES`); if it ever disagrees with this page, the script is
+right.
 
 ### Verify Setup
 
@@ -106,9 +159,10 @@ This command:
 
 ### Separate Processes
 
-There is no `dev:frontend` / `dev:backend` script — `npm run dev` starts Vite,
-which launches Electron through `vite-plugin-electron` (`vite.config.ts:52`), and
-Electron spawns the backend (`electron/services/backendProcess.ts:318`). To run the
+There is no `dev:frontend` / `dev:backend` script - `npm run dev` starts Vite,
+which launches Electron through `vite-plugin-electron` (the `electron()` plugin
+in `vite.config.ts`), and Electron spawns the backend (the `spawn(...)` call in
+`createBackendProcessService`, `electron/services/backendProcess.ts`). To run the
 backend yourself instead, start it standalone and tell the shell not to spawn its
 own:
 
@@ -126,10 +180,13 @@ npm run dev
 
 | Variable | Read at | Effect |
 |----------|---------|--------|
-| `VISION_STUDIO_SKIP_BACKEND` | `electron/services/mainProcess.ts:164` | Electron does not autostart a backend child |
-| `VISION_STUDIO_BACKEND_EXTERNAL` | `electron/services/backendProcess.ts:158` | Probe an out-of-process backend over HTTP so it reads as connected. Any value except `0`, `false`, `off`, `no`, or empty enables it |
-| `VISION_STUDIO_BACKEND_AUTH_TOKEN` | `electron/services/backendProcess.ts:135` | **Must match in both terminals.** Otherwise each side mints its own token and every authenticated request fails with HTTP 403 while `/health` still succeeds — the app reads as "disconnected" with the backend plainly up |
-| `VISION_STUDIO_BACKEND_HOST` | `backend/main.py:268` | Bind address; defaults to `127.0.0.1` |
+| `VISION_STUDIO_SKIP_BACKEND` | `start()` in `electron/services/mainProcess.ts` | Electron does not autostart a backend child when truthy (`1`, `true`, `yes`, `on`); `0`, `false`, `off`, `no` and empty leave autostart on |
+| `VISION_STUDIO_BACKEND_EXTERNAL` | `isExternalBackendEnabled()` in `electron/services/backendProcess.ts` | Probe an out-of-process backend over HTTP so it reads as connected. Any value except `0`, `false`, `off`, `no`, or empty enables it |
+| `VISION_STUDIO_BACKEND_AUTH_TOKEN` | `getBackendAuthToken()` in `electron/services/backendAuth.ts`; `BACKEND_AUTH_TOKEN` in `backend/main.py` | **Must match in both terminals.** Otherwise each side mints its own token and every authenticated request fails with HTTP 403 while `/health` still succeeds - the app reads as "disconnected" with the backend plainly up. `externalBackendTokenWarning()` logs a warning when external mode is on without it |
+| `VISION_STUDIO_BACKEND_HOST` | `get_uvicorn_config()` in `backend/main.py` | Bind address; defaults to `127.0.0.1` |
+
+These are referenced by file and symbol rather than line number, so they stay
+findable as the files change.
 
 ### Building for Production
 
@@ -144,15 +201,23 @@ npm run package:mac      # macOS only
 npm run package:linux    # Linux only
 ```
 
-**Output:** `release/` directory contains the distributable (.exe, .dmg, .AppImage)
+**Output:** the `release/` directory. Windows writes the nsis-web installer to
+`release/nsis-web/` and a portable zip to `release/`; macOS writes a `.dmg` and
+`.zip`; Linux writes an `.AppImage`. macOS and Linux packages are built in CI
+(PyInstaller cannot cross-compile) - see [DEPLOYMENT.md](DEPLOYMENT.md).
 
 ### Build Configuration
 
-| Command | Description | Output Size |
-|---------|-------------|-------------|
-| `npm run build:backend` | Bundle Python with PyInstaller | ~4-6 GB |
-| `npm run package` | Full Electron build | ~4-6 GB |
-| `npm run package:win` | Windows-specific build | ~4-6 GB |
+Approximate sizes, from the release artifacts listed in
+[DEPLOYMENT.md](DEPLOYMENT.md#file-sizes-v320):
+
+| Command | Description | Output |
+|---------|-------------|--------|
+| `npm run build:backend` | PyInstaller backend bundle -> `resources/` (roughly 30-60 min) | ~2.6 GB on Windows |
+| `npm run package:win` | nsis-web installer + portable zip | ~1 MB `Setup.exe` stub, ~2.56 GB `.nsis.7z` app package, ~2.6 GB portable zip |
+| `npm run package:mac` | Apple Silicon `.dmg` + `.zip` (CI) | ~527 MB dmg |
+| `npm run package:linux` | x64 `.AppImage` (CI) | ~3.3 GB |
+| `npm run package` | electron-builder for the platform you are on | as above |
 
 See [BUNDLING.md](BUNDLING.md) for detailed bundling options.
 
@@ -222,19 +287,27 @@ python -m pytest tests/benchmarks -o addopts="" --benchmark-only
 
 ### Test Coverage
 
-Measured at v3.4.0. Each row names the command that reproduces its numbers, so a
-stale figure here is one command away from being caught.
+This page does not quote test counts: they change with almost every pull
+request, and a hard-coded figure is wrong within days. Each command below prints
+the current number for its layer.
 
-| Layer | Framework | Files | Tests | Reproduce with |
-|-------|-----------|-------|-------|----------------|
-| Frontend (unit + component + integration) | Vitest 4.1 | 232 | 2034 | `npx vitest run` |
-| E2E | Playwright 1.58 | 9 | 36 | `npx playwright test --list` |
-| Backend (unit + integration) | pytest | 118 | 1108 | `cd backend && python -m pytest --collect-only -q` |
-| Backend (benchmark, opt-in) | pytest-benchmark | 1 | 1 | `cd backend && python -m pytest tests/benchmarks -o addopts="" --benchmark-only --collect-only -q` |
+| Layer | Framework | Count it with |
+|-------|-----------|---------------|
+| Frontend (unit + component + integration + repo gates) | Vitest 4.1 | `npx vitest run` (summary line: test files and tests) |
+| E2E | Playwright 1.58 | `npx playwright test --list` |
+| Backend (unit + integration) | pytest | `cd backend && python -m pytest --collect-only -q` |
+| Backend (benchmark, opt-in) | pytest-benchmark | `cd backend && python -m pytest tests/benchmarks -o addopts="" --benchmark-only --collect-only -q` |
 
 The E2E figure counts every spec Playwright can collect, including the
-Windows-authored visual-regression suite. Snapshot comparisons are only
-meaningful on the platform that authored them.
+visual-regression suite. Its baselines are per platform
+(`tests/e2e/visual/snapshots/**/<name>--win32.png` and `--linux.png`), and a
+comparison is only meaningful against the platform's own file. Run it on Linux
+under a virtual display, e.g.
+`xvfb-run -a -s "-screen 0 1920x1080x24" npm run test:visual`, after
+`npm run build`. After an intended UI change, re-record the baselines on each
+platform with `npm run test:visual:update` and review the new images before
+committing them. CI never writes baselines: a missing one fails the run, except
+the Canvas panel capture, which skips on a platform it was not yet recorded on.
 
 ### TypeScript Type Check
 

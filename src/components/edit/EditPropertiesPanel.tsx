@@ -1,5 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { cn } from '@/utils/cn';
+import { exportEditedImage } from '@/features/edit/exportEdit';
+import { toggleLookFilter } from '@/features/edit/imageFilters';
+import { planRegionLockGeneration } from '@/features/edit/regionLockGeneration';
+import { useEditTool } from '@/features/edit/useEditTool';
 import { useAppStore } from '@/store/appStore';
 import { selectActiveRegionLock, selectActiveScene } from '@/store/slices/projectSlice';
 import { useShallow } from 'zustand/react/shallow';
@@ -35,6 +39,7 @@ import {
   GitBranch,
   Image as ImageIcon,
   PaintBucket,
+  Download,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { isLikelyVideoPath } from '@/components/ui/MediaPreview';
@@ -93,6 +98,15 @@ export function EditPropertiesPanel() {
     setImageAdjustments,
     resetImageAdjustments,
     editHistory,
+    editHistoryIndex,
+    undo,
+    redo,
+    jumpToEditHistory,
+    editFilters,
+    setEditFilters,
+    editCompareOriginal,
+    setEditCompareOriginal,
+    activeEditTool,
     currentImage,
     currentImageAssetPath,
     setCurrentImage,
@@ -122,6 +136,15 @@ export function EditPropertiesPanel() {
       setImageAdjustments: s.setImageAdjustments,
       resetImageAdjustments: s.resetImageAdjustments,
       editHistory: s.editHistory,
+      editHistoryIndex: s.editHistoryIndex,
+      undo: s.undo,
+      redo: s.redo,
+      jumpToEditHistory: s.jumpToEditHistory,
+      editFilters: s.editFilters,
+      setEditFilters: s.setEditFilters,
+      editCompareOriginal: s.editCompareOriginal,
+      setEditCompareOriginal: s.setEditCompareOriginal,
+      activeEditTool: s.activeEditTool,
       currentImage: s.currentImage,
       currentImageAssetPath: s.currentImageAssetPath,
       setCurrentImage: s.setCurrentImage,
@@ -172,34 +195,107 @@ export function EditPropertiesPanel() {
     );
   })();
 
-  // Auto-switch to region tab when region mode is active and a region is selected
+  // Tab and region-mode sync. Every effect here reacts to a TRANSITION, not to
+  // standing state: reacting to "a region is selected" forced the Region tab
+  // back on every attempt to leave it, and reacting to "region mode is on
+  // while another tab is open" switched off - and deselected - a region the
+  // canvas toolbar had just turned on.
+  // Seeded empty so a selection that already exists when the panel mounts
+  // still opens its tab once.
+  const previousRegionIdRef = useRef<string | null>(null);
+  const previousControlLayerIdRef = useRef<string | null>(null);
+  const previousRegionModeRef = useRef(false);
+  const previousTabRef = useRef(activeTab);
+
+  // A newly selected region (or newly entered region mode) opens its tab.
   useEffect(() => {
-    if (regionMode && activeRegionId && activeTab !== 'region') {
+    const regionSelected = activeRegionId !== null && activeRegionId !== previousRegionIdRef.current;
+    const regionModeEntered = regionMode && !previousRegionModeRef.current;
+    previousRegionIdRef.current = activeRegionId;
+    previousRegionModeRef.current = regionMode;
+    if ((regionSelected || regionModeEntered) && activeTab !== 'region' && activeTab !== 'control') {
       setActiveTab('region');
     }
-  }, [regionMode, activeRegionId, activeTab]);
+  }, [activeRegionId, regionMode, activeTab]);
 
+  // A newly selected canvas control layer (with no region selected) opens Control.
+  const activeControlLayerId = activeCanvasControlLayer?.id ?? null;
   useEffect(() => {
-    if (activeCanvasControlLayer && !activeRegionId && activeTab !== 'control') {
+    const layerSelected =
+      activeControlLayerId !== null && activeControlLayerId !== previousControlLayerIdRef.current;
+    previousControlLayerIdRef.current = activeControlLayerId;
+    if (layerSelected && !activeRegionId && activeTab !== 'control') {
       setActiveTab('control');
     }
-  }, [activeCanvasControlLayer, activeRegionId, activeTab]);
+  }, [activeControlLayerId, activeRegionId, activeTab]);
 
-  // Sync regionMode with the region tab: entering the tab enables region mode,
-  // leaving it disables region mode. This gives users a single, discoverable
-  // entry point to region-lock features.
+  // Entering the Region or Control tab enables region mode; leaving both
+  // disables it. This is the single, discoverable entry point to region lock.
   useEffect(() => {
-    if ((activeTab === 'region' || activeTab === 'control') && !regionMode) {
+    const previousTab = previousTabRef.current;
+    previousTabRef.current = activeTab;
+    if (previousTab === activeTab) return;
+    const inRegionTabs = activeTab === 'region' || activeTab === 'control';
+    const wasInRegionTabs = previousTab === 'region' || previousTab === 'control';
+    if (inRegionTabs && !regionMode) {
       setRegionMode(true);
-    } else if (activeTab !== 'region' && activeTab !== 'control' && regionMode) {
+    } else if (!inRegionTabs && wasInRegionTabs && regionMode) {
       setRegionMode(false);
     }
   }, [activeTab, regionMode, setRegionMode]);
 
-  // Filter state
-  const [selectedFilters, setSelectedFilters] = useState<string[]>([]);
-  const [filterIntensity, setFilterIntensity] = useState(100);
-  const [stackMode, setStackMode] = useState(false);
+  // The Crop tool's controls live in the Crop tab: picking the tool (strip or
+  // C key) opens it. Keyed on the tool alone so the tab can still be left.
+  useEffect(() => {
+    if (activeEditTool === 'crop') {
+      setActiveTab('crop');
+    }
+  }, [activeEditTool]);
+
+  const [showHistory, setShowHistory] = useState(false);
+  const historyRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!showHistory) return;
+    const onPointerDown = (event: MouseEvent) => {
+      if (historyRef.current && !historyRef.current.contains(event.target as Node)) {
+        setShowHistory(false);
+      }
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setShowHistory(false);
+    };
+    document.addEventListener('mousedown', onPointerDown);
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', onPointerDown);
+      document.removeEventListener('keydown', onKeyDown);
+    };
+  }, [showHistory]);
+
+  const [isExporting, setIsExporting] = useState(false);
+  const [exportStatus, setExportStatus] = useState<{ tone: 'success' | 'error'; message: string } | null>(null);
+  const handleExport = async () => {
+    setIsExporting(true);
+    setExportStatus(null);
+    try {
+      const result = await exportEditedImage();
+      setExportStatus(
+        result.ok
+          ? { tone: 'success', message: 'Edited image saved to Assets.' }
+          : { tone: 'error', message: result.error ?? 'Export failed.' },
+      );
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  // Region Lock generation runs the masked inpaint pass (see
+  // regionLockGeneration.ts), with its own progress and honest errors.
+  const regionTool = useEditTool();
+  const [regionError, setRegionError] = useState<string | null>(null);
+  useEffect(() => {
+    setRegionError(null);
+  }, [activeRegionId]);
 
   // Crop state
   const [cropAspect, setCropAspect] = useState('free');
@@ -238,17 +334,7 @@ export function EditPropertiesPanel() {
   };
 
   const handleToggleFilter = (filterId: string) => {
-    if (stackMode) {
-      setSelectedFilters((prev) =>
-        prev.includes(filterId)
-          ? prev.filter((id) => id !== filterId)
-          : [...prev, filterId]
-      );
-    } else {
-      setSelectedFilters((prev) =>
-        prev.includes(filterId) ? [] : [filterId]
-      );
-    }
+    setEditFilters({ selected: toggleLookFilter(editFilters, filterId) });
   };
 
   const tabs: { id: PropertiesTab; label: string; icon: React.ElementType }[] = [
@@ -274,7 +360,12 @@ export function EditPropertiesPanel() {
     }
   };
 
-  const undoCount = editHistory.length;
+  // Undo steps available: every entry before the current one.
+  const undoCount = Math.max(0, editHistoryIndex);
+  const canUndo = editHistoryIndex > 0;
+  const canRedo = editHistoryIndex < editHistory.length - 1;
+  const [isCropping, setIsCropping] = useState(false);
+  const [cropError, setCropError] = useState<string | null>(null);
   const isVideoSource = isLikelyVideoPath(currentImageAssetPath ?? currentImage);
   const computedCropBox = imageSize
     ? buildCropBox(cropAspect, imageSize.width, imageSize.height, customWidth, customHeight)
@@ -284,19 +375,36 @@ export function EditPropertiesPanel() {
     : null;
 
   const handleApplyCrop = async () => {
+    if (isCropping) return;
     if (!currentImageAssetPath || isVideoSource) {
+      setCropError(
+        isVideoSource
+          ? 'Extract a still frame before cropping.'
+          : 'Crop needs an image saved in Assets. Load one from the Viewer or Assets.',
+      );
       return;
     }
 
-    const result = await window.electron.generation.cropImage({
-      source_path: currentImageAssetPath,
-      crop_box: computedCropBox ?? undefined,
-      rotation,
-      flip_horizontal: flipH,
-      flip_vertical: flipV,
-    });
+    setIsCropping(true);
+    setCropError(null);
+    let result: Awaited<ReturnType<typeof window.electron.generation.cropImage>>;
+    try {
+      result = await window.electron.generation.cropImage({
+        source_path: currentImageAssetPath,
+        crop_box: computedCropBox ?? undefined,
+        rotation,
+        flip_horizontal: flipH,
+        flip_vertical: flipV,
+      });
+    } catch (error) {
+      setCropError(error instanceof Error ? error.message : 'Crop failed.');
+      return;
+    } finally {
+      setIsCropping(false);
+    }
 
     if (!result?.image || !result?.output_path) {
+      setCropError('Crop failed: the backend returned no image.');
       return;
     }
 
@@ -365,15 +473,17 @@ export function EditPropertiesPanel() {
       <div className="flex items-center justify-between px-3 py-2 border-b border-border bg-elevated">
         <div className="flex items-center gap-1">
           <button
-            disabled={undoCount === 0}
+            type="button"
+            onClick={undo}
+            disabled={!canUndo}
             className={cn(
               'relative p-2 rounded-md transition',
-              undoCount > 0
+              canUndo
                 ? 'text-text-body hover:text-text-primary hover:bg-surface'
                 : 'text-text-muted/40 cursor-not-allowed'
             )}
-            title="Undo"
-            aria-label={undoCount > 0 ? `Undo (${undoCount} actions)` : 'Undo'}
+            title="Undo (Ctrl+Z)"
+            aria-label={canUndo ? `Undo (${undoCount} actions)` : 'Undo'}
           >
             <Undo2 className="w-4 h-4" />
             {undoCount > 0 && (
@@ -383,9 +493,16 @@ export function EditPropertiesPanel() {
             )}
           </button>
           <button
-            disabled
-            className="p-2 rounded-md text-text-muted/40 cursor-not-allowed"
-            title="Redo"
+            type="button"
+            onClick={redo}
+            disabled={!canRedo}
+            className={cn(
+              'p-2 rounded-md transition',
+              canRedo
+                ? 'text-text-body hover:text-text-primary hover:bg-surface'
+                : 'text-text-muted/40 cursor-not-allowed'
+            )}
+            title="Redo (Ctrl+Y)"
             aria-label="Redo"
           >
             <Redo2 className="w-4 h-4" />
@@ -394,19 +511,107 @@ export function EditPropertiesPanel() {
 
         <div className="flex items-center gap-1">
           <button
-            className="p-2 rounded-md text-text-body hover:text-text-primary hover:bg-surface transition"
-            title="Before/After"
+            type="button"
+            onClick={() => setEditCompareOriginal(!editCompareOriginal)}
+            disabled={!currentImage}
+            aria-pressed={editCompareOriginal}
+            aria-label="Before/After compare"
+            className={cn(
+              'p-2 rounded-md transition disabled:cursor-not-allowed disabled:opacity-40',
+              editCompareOriginal
+                ? 'bg-accent-primary-muted text-accent-primary'
+                : 'text-text-body hover:text-text-primary hover:bg-surface'
+            )}
+            title="Before/After: show the original without edits"
           >
             <SplitSquareHorizontal className="w-4 h-4" />
           </button>
+          <div className="relative" ref={historyRef}>
+            <button
+              type="button"
+              onClick={() => setShowHistory((open) => !open)}
+              aria-expanded={showHistory}
+              aria-haspopup="true"
+              aria-label="Edit history"
+              className={cn(
+                'p-2 rounded-md transition',
+                showHistory
+                  ? 'bg-accent-primary-muted text-accent-primary'
+                  : 'text-text-body hover:text-text-primary hover:bg-surface'
+              )}
+              title="History"
+            >
+              <History className="w-4 h-4" />
+            </button>
+            {showHistory && (
+              <div
+                role="dialog"
+                aria-label="Edit history"
+                className="absolute right-0 top-full z-30 mt-1 w-64 rounded-overlay border border-border bg-elevated p-2 shadow-cinematic"
+              >
+                <p className="mono-label px-2 pb-2 text-text-muted">History</p>
+                {editHistory.length === 0 ? (
+                  <p className="px-2 pb-1 type-caption text-text-body">No edits yet.</p>
+                ) : (
+                  <ol className="max-h-64 space-y-0.5 overflow-y-auto">
+                    {editHistory.map((entry, index) => {
+                      const isCurrent = index === editHistoryIndex;
+                      const isFuture = index > editHistoryIndex;
+                      return (
+                        <li key={entry.id}>
+                          <button
+                            type="button"
+                            onClick={() => jumpToEditHistory(index)}
+                            aria-current={isCurrent ? 'step' : undefined}
+                            className={cn(
+                              'flex w-full items-center justify-between gap-2 rounded-md px-2 py-1.5 text-left type-caption transition',
+                              isCurrent
+                                ? 'raised-control text-text-primary'
+                                : isFuture
+                                  ? 'text-text-muted hover:bg-surface'
+                                  : 'text-text-body hover:bg-surface hover:text-text-primary'
+                            )}
+                          >
+                            <span className="truncate">{entry.action}</span>
+                            <span className="data-mono text-text-muted">
+                              {new Date(entry.timestamp).toLocaleTimeString([], {
+                                hour: '2-digit',
+                                minute: '2-digit',
+                                second: '2-digit',
+                              })}
+                            </span>
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ol>
+                )}
+              </div>
+            )}
+          </div>
           <button
-            className="p-2 rounded-md text-text-body hover:text-text-primary hover:bg-surface transition"
-            title="History"
+            type="button"
+            onClick={() => void handleExport()}
+            disabled={!currentImage || isExporting || editCompareOriginal}
+            aria-label="Export edited image to Assets"
+            title={editCompareOriginal ? 'Turn off Before/After to export' : 'Export to Assets'}
+            className="p-2 rounded-md text-text-body transition hover:bg-surface hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-40"
           >
-            <History className="w-4 h-4" />
+            <Download className="w-4 h-4" />
           </button>
         </div>
       </div>
+      {exportStatus && (
+        <p
+          role={exportStatus.tone === 'error' ? 'alert' : 'status'}
+          className={cn(
+            'border-b border-border px-3 py-2 type-caption',
+            exportStatus.tone === 'error' ? 'text-status-error' : 'text-status-success'
+          )}
+        >
+          {exportStatus.message}
+        </p>
+      )}
 
       {/* Tab Bar */}
       <div className="px-2 py-2 border-b border-border">
@@ -579,12 +784,13 @@ export function EditPropertiesPanel() {
               className="p-4"
             >
               <FilterGrid
-                selectedFilters={selectedFilters}
+                selectedFilters={editFilters.selected}
                 onToggleFilter={handleToggleFilter}
-                intensity={filterIntensity}
-                onIntensityChange={setFilterIntensity}
-                stackMode={stackMode}
-                onStackModeChange={setStackMode}
+                intensity={editFilters.intensity}
+                onIntensityChange={(intensity) => setEditFilters({ intensity })}
+                stackMode={editFilters.stackMode}
+                onStackModeChange={(stackMode) => setEditFilters({ stackMode })}
+                previewImage={currentImage ?? undefined}
               />
             </motion.div>
           )}
@@ -614,7 +820,13 @@ export function EditPropertiesPanel() {
                 onCustomHeightChange={setCustomHeight}
                 onApply={handleApplyCrop}
                 onCancel={() => setActiveTab('adjustments')}
+                isApplying={isCropping}
               />
+              {cropError && (
+                <p role="alert" className="mt-3 type-caption text-status-error">
+                  {cropError}
+                </p>
+              )}
             </motion.div>
           )}
 
@@ -715,21 +927,35 @@ export function EditPropertiesPanel() {
               className="p-4"
             >
               {activeRegionLock ? (
-                <RegionLockProperties
-                  region={activeRegionLock}
-                  onUpdate={(updates) => updateRegionLock(activeRegionLock.sceneId, activeRegionLock.id, updates)}
-                  onDelete={() => {
-                    deleteRegionLock(activeRegionLock.sceneId, activeRegionLock.id);
-                  }}
-                  onGenerate={() => {
-                    if (!currentImageAssetPath) return;
-                    const { pipelines, runPipeline } = useAppStore.getState();
-                    const firstPipeline = pipelines[0];
-                    if (firstPipeline) {
-                      runPipeline(firstPipeline.id, currentImageAssetPath);
-                    }
-                  }}
-                />
+                <>
+                  <RegionLockProperties
+                    region={activeRegionLock}
+                    onUpdate={(updates) => updateRegionLock(activeRegionLock.sceneId, activeRegionLock.id, updates)}
+                    onDelete={() => {
+                      deleteRegionLock(activeRegionLock.sceneId, activeRegionLock.id);
+                    }}
+                    isGenerating={regionTool.isRunning}
+                    onGenerate={() => {
+                      if (regionTool.isRunning) return;
+                      if (!currentImageAssetPath || isVideoSource) {
+                        setRegionError('Load a still image from Assets before generating a region.');
+                        return;
+                      }
+                      const plan = planRegionLockGeneration(activeRegionLock, currentImageAssetPath);
+                      if (!plan.ok) {
+                        setRegionError(plan.error);
+                        return;
+                      }
+                      setRegionError(null);
+                      void regionTool.runGuided(plan.operation, plan.input);
+                    }}
+                  />
+                  {(regionError || regionTool.error) && (
+                    <p role="alert" className="mt-2 px-4 type-caption text-status-error">
+                      {regionError ?? regionTool.error}
+                    </p>
+                  )}
+                </>
               ) : (
                 <div className="flex flex-col items-center justify-center py-12 text-center">
                   <Lock className="w-8 h-8 text-text-muted mb-3 opacity-40" />

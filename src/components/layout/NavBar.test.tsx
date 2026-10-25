@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
@@ -166,6 +166,9 @@ describe('NavBar', () => {
     await user.keyboard('{ArrowDown}');
 
     expect(useAppStore.getState().activeTab).toBe('canvas');
-    expect(screen.getByRole('tab', { name: 'Canvas' })).toHaveFocus();
+    // Focus moves on the next animation frame, after the tab re-renders. The
+    // synchronous persist write used to delay the assertion long enough for
+    // that frame to land; now that writes are debounced it has to be awaited.
+    await waitFor(() => expect(screen.getByRole('tab', { name: 'Canvas' })).toHaveFocus());
   });
 });

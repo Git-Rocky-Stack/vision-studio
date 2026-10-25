@@ -143,6 +143,7 @@ export function WorkbenchGalleryDock() {
                     mediaClassName="h-full w-full object-cover"
                     fallbackClassName="h-full w-full"
                     showPlayBadge={item.generationType === 'video'}
+                    posterOnly
                   />
                 </div>
                 <div className={cn('space-y-1', isCompact ? 'p-2' : 'p-3')}>

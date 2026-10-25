@@ -44,6 +44,60 @@ function getNextComparisonIds(current: ComparisonIds, id: string): ComparisonIds
   return [current[1], id];
 }
 
+/** How many iteration nodes survive a restart (pinned nodes and ancestors excepted). */
+export const PERSISTED_ITERATION_NODE_CAP = 300;
+
+/**
+ * Bounds the iteration graph written to storage. Every completed render adds a
+ * node (with its full job and a thumbnail URL), so an unbounded graph made each
+ * persist write larger for the life of the install.
+ *
+ * Kept: the `cap` most recent nodes, every pinned node, any explicitly kept id
+ * (the active iteration), and every ancestor of a kept node, so a surviving
+ * node never loses the path back to its root. childrenIds are trimmed to the
+ * survivors, and a branch survives only while one of its nodes does.
+ */
+export function capIterationGraphForPersist(
+  nodes: Map<string, IterationNode>,
+  branches: IterationBranch[],
+  options: { cap?: number; keepIds?: (string | null | undefined)[] } = {},
+): { nodes: Map<string, IterationNode>; branches: IterationBranch[] } {
+  const cap = options.cap ?? PERSISTED_ITERATION_NODE_CAP;
+  if (nodes.size <= cap) return { nodes, branches };
+
+  const keep = new Set<string>();
+  const sorted = Array.from(nodes.values()).sort((a, b) => b.createdAt - a.createdAt);
+  for (const node of sorted.slice(0, cap)) keep.add(node.id);
+  for (const node of sorted) if (node.isPinned) keep.add(node.id);
+  for (const id of options.keepIds ?? []) if (id && nodes.has(id)) keep.add(id);
+
+  for (const id of Array.from(keep)) {
+    let parentId = nodes.get(id)?.parentId ?? null;
+    while (parentId && !keep.has(parentId) && nodes.has(parentId)) {
+      keep.add(parentId);
+      parentId = nodes.get(parentId)?.parentId ?? null;
+    }
+  }
+
+  const kept = new Map<string, IterationNode>();
+  for (const [id, node] of nodes) {
+    if (!keep.has(id)) continue;
+    const childrenIds = node.childrenIds.filter((childId) => keep.has(childId));
+    kept.set(id, childrenIds.length === node.childrenIds.length ? node : { ...node, childrenIds });
+  }
+
+  const liveBranchIds = new Set(Array.from(kept.values(), (node) => node.branchId));
+  const keptBranches = branches
+    .filter((branch) => liveBranchIds.has(branch.id))
+    .map((branch) => {
+      if (kept.has(branch.activeNodeId)) return branch;
+      const newest = sorted.find((node) => node.branchId === branch.id && kept.has(node.id));
+      return newest ? { ...branch, activeNodeId: newest.id } : branch;
+    });
+
+  return { nodes: kept, branches: keptBranches };
+}
+
 export const iterationInitialState = {
   iterationNodes: new Map<string, IterationNode>(),
   iterationBranches: [] as IterationBranch[],

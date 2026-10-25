@@ -16,6 +16,9 @@ import {
   type AppSettings,
 } from './settings';
 import { DEFAULT_SETTINGS, type StoreSchema } from './outputRoots';
+import { decodePngDataUrl } from './dataUrlAsset';
+import { sniffImageMime } from './imageMagic';
+import { fileURLToPath } from 'url';
 import type {
   OpenRouterKeyInfo,
   OpenRouterModelSummary,
@@ -27,6 +30,117 @@ import type {
   UserAccountRecord,
   UserAccountsSnapshot,
 } from './userAccounts';
+
+// Windows and default macOS volumes treat "Shot.png" and "shot.png" as the
+// same file, so collisions must be checked case-insensitively there.
+const CASE_INSENSITIVE_FILESYSTEM = process.platform === 'win32' || process.platform === 'darwin';
+
+function fileNameKey(name: string, caseInsensitive: boolean) {
+  return caseInsensitive ? name.toLowerCase() : name;
+}
+
+/**
+ * Names already present in a destination directory, read once. Replaces a
+ * synchronous existsSync probe per candidate name per file, which blocked the
+ * main process for the whole import / export of a large selection.
+ */
+export async function readTakenFileNames(
+  dir: string,
+  caseInsensitive: boolean = CASE_INSENSITIVE_FILESYSTEM,
+): Promise<Set<string>> {
+  try {
+    const names = await fs.promises.readdir(dir);
+    return new Set(names.map((name) => fileNameKey(name, caseInsensitive)));
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+      return new Set();
+    }
+    throw error;
+  }
+}
+
+/**
+ * First free `<name><ext>`, `<name>-1<ext>`, ... against `taken`, and reserve
+ * it there so later files in the same batch cannot claim it too.
+ */
+/** Largest managed image the Canvas editor may read back through the bridge. */
+export const MAX_READ_DATA_URL_BYTES = 100 * 1024 * 1024;
+
+/**
+ * Read a managed image as a data URL for the Canvas editor. A file:// image
+ * drawn into the packaged (file://) renderer taints the canvas, because
+ * Chromium gives every file URL an opaque origin; a data URL never does.
+ * Only paths inside the managed output roots resolve, and only real image
+ * bytes (by signature, not extension) are returned.
+ */
+export async function readManagedImageDataUrl(
+  assetPath: unknown,
+  resolveManagedAssetPath: (assetPath: string) => string,
+) {
+  if (typeof assetPath !== 'string' || assetPath.length === 0) {
+    return { success: false as const, error: 'No image path was given.' };
+  }
+  const localPath = /^file:\/\//i.test(assetPath) ? fileURLToPath(assetPath) : assetPath;
+  const resolved = resolveManagedAssetPath(localPath);
+  const stat = await fs.promises.stat(resolved);
+  if (!stat.isFile() || stat.size > MAX_READ_DATA_URL_BYTES) {
+    return { success: false as const, error: 'The image is too large to edit.' };
+  }
+  const bytes = await fs.promises.readFile(resolved);
+  const mime = sniffImageMime(bytes);
+  if (!mime) {
+    return { success: false as const, error: 'The file is not a supported image.' };
+  }
+  return { success: true as const, dataUrl: `data:${mime};base64,${bytes.toString('base64')}` };
+}
+
+/**
+ * Write a flattened Canvas edit (PNG data URL from the renderer) into
+ * `<outputRoot>/edits/`, under a collision-free sanitized name. Returns the
+ * same record shape `assets:import-files` returns for each file.
+ */
+export async function writeDataUrlAsset(outputRoot: string, dataUrl: unknown, fileName: unknown) {
+  const decoded = decodePngDataUrl(dataUrl, fileName);
+  if (!decoded.ok) {
+    return { success: false as const, error: decoded.error };
+  }
+
+  const editsDir = path.join(outputRoot, 'edits');
+  await fs.promises.mkdir(editsDir, { recursive: true });
+  const takenNames = await readTakenFileNames(editsDir);
+  const candidateName = reserveUniqueFileName(decoded.baseName, '.png', takenNames);
+  const writtenPath = path.join(editsDir, candidateName);
+  // 'wx' never overwrites: a name raced into existence fails loudly instead.
+  await fs.promises.writeFile(writtenPath, decoded.bytes, { flag: 'wx' });
+
+  const normalized = writtenPath.replace(/\\/g, '/');
+  return {
+    success: true as const,
+    file: {
+      originalPath: normalized,
+      importedPath: normalized,
+      name: path.parse(candidateName).name,
+      type: 'image' as const,
+      importedAt: new Date().toISOString(),
+    },
+  };
+}
+
+export function reserveUniqueFileName(
+  name: string,
+  ext: string,
+  taken: Set<string>,
+  caseInsensitive: boolean = CASE_INSENSITIVE_FILESYSTEM,
+): string {
+  let candidate = `${name}${ext}`;
+  let counter = 1;
+  while (taken.has(fileNameKey(candidate, caseInsensitive))) {
+    candidate = `${name}-${counter}${ext}`;
+    counter += 1;
+  }
+  taken.add(fileNameKey(candidate, caseInsensitive));
+  return candidate;
+}
 
 type StoreLike = {
   get: <K extends keyof StoreSchema>(key: K) => StoreSchema[K];
@@ -509,7 +623,7 @@ export function registerMainIpcHandlers({
       await fs.promises.mkdir(importsDir, { recursive: true });
       outputRoots.rememberOutputRoot(outputRoot);
 
-      const usedNames = new Set<string>();
+      const takenNames = await readTakenFileNames(importsDir);
       const importedAt = new Date().toISOString();
       const files: Array<{
         originalPath: string;
@@ -527,15 +641,7 @@ export function registerMainIpcHandlers({
         }
 
         const parsed = path.parse(normalizedSource);
-        let candidateName = parsed.base;
-        let counter = 1;
-
-        while (usedNames.has(candidateName) || fs.existsSync(path.join(importsDir, candidateName))) {
-          candidateName = `${parsed.name}-${counter}${parsed.ext}`;
-          counter += 1;
-        }
-
-        usedNames.add(candidateName);
+        const candidateName = reserveUniqueFileName(parsed.name, parsed.ext, takenNames);
         const importedPath = path.join(importsDir, candidateName);
         await fs.promises.copyFile(normalizedSource, importedPath);
 
@@ -554,6 +660,27 @@ export function registerMainIpcHandlers({
     }
   });
 
+  ipcMain.handle('assets:read-data-url', async (_event, assetPath: unknown) => {
+    try {
+      return await readManagedImageDataUrl(assetPath, (p) => outputRoots.resolveManagedAssetPath(p));
+    } catch (error: any) {
+      return { success: false, error: error instanceof Error ? error.message : 'Could not read the image.' };
+    }
+  });
+
+  ipcMain.handle(
+    'assets:save-data-url',
+    async (_event, params: { dataUrl?: unknown; fileName?: unknown } | undefined) => {
+      try {
+        const outputRoot = resolveOutputPath(outputRoots.getAppSettings(), app.getPath('userData'));
+        outputRoots.rememberOutputRoot(outputRoot);
+        return await writeDataUrlAsset(outputRoot, params?.dataUrl, params?.fileName);
+      } catch (error: any) {
+        return { success: false, error: error instanceof Error ? error.message : 'Could not save the edited image.' };
+      }
+    },
+  );
+
   ipcMain.handle('assets:export-many', async (_event, sourcePaths: string[], destinationDir: string) => {
     try {
       const resolvedDestDir = resolveSafeExportDestination(destinationDir, getAllowedExportRoots(app));
@@ -561,20 +688,12 @@ export function registerMainIpcHandlers({
         return { success: false, error: 'Invalid destination directory' };
       }
       await fs.promises.mkdir(resolvedDestDir, { recursive: true });
-      const usedNames = new Set<string>();
+      const takenNames = await readTakenFileNames(resolvedDestDir);
 
       for (const sourcePath of sourcePaths) {
         const resolvedSource = outputRoots.resolveManagedAssetPath(sourcePath);
         const parsed = path.parse(resolvedSource);
-        let candidateName = `${parsed.name}${parsed.ext}`;
-        let counter = 1;
-
-        while (usedNames.has(candidateName) || fs.existsSync(path.join(resolvedDestDir, candidateName))) {
-          candidateName = `${parsed.name}-${counter}${parsed.ext}`;
-          counter += 1;
-        }
-
-        usedNames.add(candidateName);
+        const candidateName = reserveUniqueFileName(parsed.name, parsed.ext, takenNames);
         await fs.promises.copyFile(resolvedSource, path.join(resolvedDestDir, candidateName));
       }
 

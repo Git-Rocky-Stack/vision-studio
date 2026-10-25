@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -130,14 +130,14 @@ describe('DockviewLayout', () => {
 
   afterEach(cleanup);
 
-  it('renders the layer-editing canvas on the canvas tab', () => {
+  it('renders the layer-editing canvas on the canvas tab', async () => {
     // EditCanvas is the only renderer of `editLayers`. Without it mounted, a
     // user can add a text layer from TextControls, see it listed in
     // LayerPanel, and never have it drawn or be able to move it.
     useAppStore.setState({ activeTab: 'canvas' });
     render(<DockviewLayout />);
 
-    expect(screen.getByTestId('mock-edit-canvas')).toBeInTheDocument();
+    expect(await screen.findByTestId('mock-edit-canvas')).toBeInTheDocument();
   });
 
   it('keeps the generate tab on the generation canvas, not the layer editor', () => {
@@ -169,24 +169,24 @@ describe('DockviewLayout', () => {
 
   // The Workflows tab docks the library on the left; the Generate tab's
   // workflow view has the Generate panel there and keeps the library inline.
-  it('tells the workbench where its library is shown', () => {
+  it('tells the workbench where its library is shown', async () => {
     useAppStore.setState({ activeTab: 'workflows' });
     const workflows = render(<DockviewLayout />);
-    expect(screen.getByTestId('mock-workflow')).toHaveAttribute('data-library', 'docked');
+    expect(await screen.findByTestId('mock-workflow')).toHaveAttribute('data-library', 'docked');
     workflows.unmount();
 
     useAppStore.setState({ activeTab: 'generate', centerView: 'workflow' });
     render(<DockviewLayout />);
-    expect(screen.getByTestId('mock-workflow')).toHaveAttribute('data-library', 'inline');
+    expect(await screen.findByTestId('mock-workflow')).toHaveAttribute('data-library', 'inline');
   });
 
   // In the Pipelines sub-mode the left dock holds the pipeline builder, so the
   // library is not docked anywhere and the workbench has to show it itself.
-  it('keeps the library in the workbench while the dock shows pipelines', () => {
+  it('keeps the library in the workbench while the dock shows pipelines', async () => {
     useAppStore.setState({ activeTab: 'workflows', activeSubMode: 'pipelines' });
     render(<DockviewLayout />);
 
-    expect(screen.getByTestId('mock-workflow')).toHaveAttribute('data-library', 'inline');
+    expect(await screen.findByTestId('mock-workflow')).toHaveAttribute('data-library', 'inline');
   });
 
   // Below 1280px the review dock is collapsed so the centre stays usable, and
@@ -367,18 +367,18 @@ describe('DockviewLayout', () => {
     expect(screen.queryByTestId('center-tab-bar')).not.toBeInTheDocument();
   });
 
-  it('renders full-width AssetsPanel for assets tab', () => {
+  it('renders full-width AssetsPanel for assets tab', async () => {
     useAppStore.setState({ activeTab: 'assets' });
     render(<DockviewLayout />);
 
-    expect(screen.getByTestId('mock-assets')).toBeInTheDocument();
+    expect(await screen.findByTestId('mock-assets')).toBeInTheDocument();
   });
 
-  it('renders full-width SettingsPanel for settings tab', () => {
+  it('renders full-width SettingsPanel for settings tab', async () => {
     useAppStore.setState({ activeTab: 'settings' });
     render(<DockviewLayout />);
 
-    expect(screen.getByTestId('mock-settings')).toBeInTheDocument();
+    expect(await screen.findByTestId('mock-settings')).toBeInTheDocument();
   });
 
   it('renders the Launchpad workspace for the launchpad center view', () => {
@@ -466,5 +466,50 @@ describe('DockviewLayout', () => {
     await user.keyboard('{ArrowDown}');
 
     expect(useAppStore.getState().layoutPreferences.rightDockTripleRatios[0]).toBeGreaterThan(initialTopRatio);
+  });
+
+  // A drag used to write the store (and so schedule a persist and re-render
+  // every layout subscriber) on each pointermove. It previews on the DOM and
+  // commits once, on release.
+  it('previews a dock drag on the DOM and commits the width once on release', () => {
+    useAppStore.setState({ activeTab: 'generate' });
+    render(<DockviewLayout />);
+
+    const frames: FrameRequestCallback[] = [];
+    const raf = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+      frames.push(callback);
+      return frames.length;
+    });
+    const caf = vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => undefined);
+    const rect = vi
+      .spyOn(HTMLElement.prototype, 'getBoundingClientRect')
+      .mockReturnValue({ left: 0, right: 1000, top: 0, bottom: 800, width: 1000, height: 800 } as DOMRect);
+    const layoutWrites = vi.fn();
+    const unsubscribe = useAppStore.subscribe((state, previous) => {
+      if (state.layoutPreferences !== previous.layoutPreferences) layoutWrites(state.layoutPreferences.rightDockWidth);
+    });
+
+    const dock = screen.getByTestId('right-dock');
+    fireEvent.pointerDown(screen.getByTestId('splitter-right-dock'), { clientX: 640 });
+    for (const clientX of [670, 660, 650, 640]) {
+      window.dispatchEvent(new MouseEvent('pointermove', { clientX }));
+    }
+    // Four moves, one frame, no store write yet.
+    expect(frames).toHaveLength(1);
+    frames[0](0);
+    expect(dock.style.width).toBe('360px');
+    expect(layoutWrites).not.toHaveBeenCalled();
+
+    act(() => {
+      window.dispatchEvent(new MouseEvent('pointerup', { clientX: 640 }));
+    });
+    expect(layoutWrites).toHaveBeenCalledTimes(1);
+    expect(layoutWrites).toHaveBeenCalledWith(360);
+
+    unsubscribe();
+
+    rect.mockRestore();
+    raf.mockRestore();
+    caf.mockRestore();
   });
 });

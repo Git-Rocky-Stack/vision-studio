@@ -6,6 +6,7 @@ import type {
   BrowserWindowConstructorOptions,
   Dialog,
   IpcMain,
+  Menu as MenuType,
   SafeStorage,
   Session,
   Shell,
@@ -15,12 +16,13 @@ type NotificationConstructor = typeof import('electron').Notification;
 
 import { createSecureStore } from './secureStore';
 import { createOutputRootService, DEFAULT_SETTINGS, type StoreSchema } from './outputRoots';
-import { createBackendProcessService } from './backendProcess';
+import { createBackendProcessService, isSkipBackendEnabled } from './backendProcess';
 import { createMainWindowService } from './mainWindow';
 import { registerMainIpcHandlers } from './mainIpc';
 import { registerContentSecurityPolicy } from './contentSecurityPolicy';
 import {
   configureGenerationHandlerServices,
+  kickBackendWebSocket,
   setupGenerationHandlers,
 } from '../ipc-handlers/generation';
 import { createUserAccountsService, DEFAULT_USER_ACCOUNTS_STATE } from './userAccounts';
@@ -28,6 +30,7 @@ import { createDownloadTokensService } from './downloadTokens';
 import { createOpenRouterService } from './openRouter';
 import { createHuggingFaceInferenceService } from './huggingfaceInference';
 import { createUpdaterService, type AutoUpdaterLike } from './updater';
+import { installApplicationMenu } from './applicationMenu';
 
 type BrowserWindowConstructor = new (options: BrowserWindowConstructorOptions) => BrowserWindow;
 
@@ -44,6 +47,8 @@ type MainProcessDependencies = {
   devServerUrl?: string;
   resourcesPath: string;
   autoUpdater: AutoUpdaterLike;
+  /** Packaged builds replace the default menu (see applicationMenu.ts). */
+  Menu?: Pick<typeof MenuType, 'buildFromTemplate' | 'setApplicationMenu'>;
   logger?: Console;
 };
 
@@ -60,6 +65,7 @@ export function createMainProcessServices({
   devServerUrl,
   resourcesPath,
   autoUpdater,
+  Menu,
   logger = console,
 }: MainProcessDependencies) {
   const store = createSecureStore<StoreSchema>({
@@ -106,6 +112,7 @@ export function createMainProcessServices({
     BrowserWindow,
     dirname,
     devServerUrl,
+    blockReloadShortcuts: app.isPackaged,
   });
 
   const backend = createBackendProcessService({
@@ -122,6 +129,7 @@ export function createMainProcessServices({
     isDev: () => Boolean(devServerUrl),
     dirname,
     logger,
+    onReady: kickBackendWebSocket,
   });
 
   configureGenerationHandlerServices({
@@ -163,20 +171,28 @@ export function createMainProcessServices({
     // Before the window or backend exist, so no download can go out without them.
     downloadTokens.restore();
     registerContentSecurityPolicy(session.defaultSession);
+    if (Menu) {
+      installApplicationMenu({
+        Menu,
+        isPackaged: app.isPackaged,
+        platform: process.platform,
+        appName: app.getName(),
+      });
+    }
     outputRoots.rememberOutputRoot(outputRoots.getInternalOutputDirectory());
     outputRoots.rememberOutputRoot(outputRoots.getResolvedOutputDirectory());
 
     const window = mainWindow.createWindow();
     setupGenerationHandlers(window);
 
-    if (outputRoots.getAppSettings().backendAutostart && !process.env.VISION_STUDIO_SKIP_BACKEND) {
+    if (outputRoots.getAppSettings().backendAutostart && !isSkipBackendEnabled()) {
       const started = await backend.start();
 
       if (!started) {
         const bundledPath = backend.getBundledBackendPath();
         const detail = bundledPath
           ? `The backend was found at:\n${bundledPath}\n\nbut failed to start within the timeout. On first launch, the backend may need several minutes to extract. Try restarting the app.\n\nYou can also try starting it manually from Settings.`
-          : 'No backend executable was found. Please reinstall the application or configure a Python path in Settings.';
+          : 'No backend executable was found. Please reinstall the application.\n\nRunning from source? Install the backend with `node scripts/setup-dev-backend.cjs`, then start it from Settings > AI & Models > Start Backend.';
 
         void dialog.showMessageBox(mainWindow.getWindow()!, {
           type: 'warning',

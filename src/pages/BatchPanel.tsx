@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import { useShallow } from 'zustand/react/shallow';
 import { useAppStore } from '@/store/appStore';
 import { cn } from '@/utils/cn';
@@ -11,7 +12,6 @@ import type { ViewMode, SortBy, FilterBy } from '@/components/batch/ResultsGrid'
 import type { UserAccountSummary } from '@/types/electron';
 import {
   AlertCircle,
-  Cloud,
   Layers,
   Plus,
   Trash2,
@@ -31,7 +31,8 @@ import {
   Download,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChromeButton, Led } from '@/components/hardware';
+import { ChromeButton } from '@/components/hardware';
+import { RouteStatusCard } from '@/components/generate/RouteStatusCard';
 import { resolveStoredAssetPath } from '@/features/assets/assetRecords';
 
 interface BatchPrompt {
@@ -48,6 +49,19 @@ interface BatchNoticeState {
 }
 
 const BACKEND_ASSET_BASE_URL = 'http://localhost:8000';
+const BATCH_POLL_INTERVAL_MS = 2000;
+const MAX_BATCH_STATUS_ERRORS = 5;
+const PROMPT_VIRTUALIZE_THRESHOLD = 30;
+
+function promptCardClassName(status: BatchPrompt['status']) {
+  return cn(
+    'relative p-3 rounded-md border transition',
+    status === 'generating' && 'border-status-warning-border bg-status-warning-muted',
+    status === 'completed' && 'border-status-success-border bg-status-success-muted',
+    status === 'failed' && 'border-status-error-border bg-status-error-muted',
+    status === 'pending' && 'border-border bg-elevated',
+  );
+}
 
 function resolveOutputRoot(defaultOutputPath: string, userDataPath: string) {
   return (defaultOutputPath || `${userDataPath.replace(/\\/g, '/')}/outputs`).replace(/\\/g, '/');
@@ -124,17 +138,33 @@ export function BatchPromptQueue() {
     }))
   );
 
-  // Ref for polling interval cleanup
-  const batchPollRef = useRef<ReturnType<typeof setInterval>>(null);
-  useEffect(() => {
-    return () => {
-      if (batchPollRef.current) clearInterval(batchPollRef.current);
-    };
+  // Batch status polling. One chained timeout at a time: the next tick is
+  // scheduled only after the current one has finished awaiting every status,
+  // so a slow backend can never stack overlapping ticks. Bumping the run id
+  // retires an in-flight tick (cancel, a new batch, unmount).
+  const batchPollRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const batchPollRunRef = useRef(0);
+  const stopBatchPolling = useCallback(() => {
+    batchPollRunRef.current += 1;
+    if (batchPollRef.current) clearTimeout(batchPollRef.current);
+    batchPollRef.current = null;
   }, []);
+  useEffect(() => stopBatchPolling, [stopBatchPolling]);
 
   const [prompts, setPrompts] = useState<BatchPrompt[]>([
     { id: '1', prompt: '', status: 'pending' },
   ]);
+  // A long batch (pasted prompt lists, variations) renders only the cards in
+  // view; short lists keep their enter/exit animation.
+  const promptListRef = useRef<HTMLDivElement>(null);
+  const virtualizePrompts = prompts.length > PROMPT_VIRTUALIZE_THRESHOLD;
+  const promptVirtualizer = useVirtualizer({
+    count: prompts.length,
+    getScrollElement: () => promptListRef.current,
+    estimateSize: () => 96,
+    overscan: 4,
+    enabled: virtualizePrompts,
+  });
   const [isGenerating, setIsGenerating] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -164,6 +194,7 @@ export function BatchPromptQueue() {
 
   const openRouterImageEnabled = activeAccount?.preferences.imageGenerationProvider === 'openrouter';
   const openRouterImageModel = activeAccount?.preferences.openRouterImageModel.trim() ?? '';
+  const openRouterRouteReady = Boolean(openRouterImageModel) && Boolean(activeAccount?.openRouter.apiKeyStored);
   const huggingFaceImageEnabled = activeAccount?.preferences.imageGenerationProvider === 'huggingface';
   const huggingFaceImageModel = activeAccount?.preferences.huggingFaceImageModel?.trim() ?? '';
 
@@ -331,27 +362,43 @@ export function BatchPromptQueue() {
     }
   };
 
-  const pollBatchProgress = async (
+  const pollBatchProgress = (
     batchId: string,
     jobIds: string[],
     startingPrompts: BatchPrompt[],
     outputRoot: string,
     submittedModel: string,
   ) => {
-    const checkInterval = setInterval(async () => {
-      batchPollRef.current = checkInterval;
-      let allCompleted = true;
-      const updatedPrompts = [...startingPrompts];
+    stopBatchPolling();
+    const runId = batchPollRunRef.current;
+    const isCurrentRun = () => batchPollRunRef.current === runId;
+    // A finished job is fetched and recorded exactly once. Each tick used to
+    // re-fetch every job and re-add every completed result.
+    const finishedJobIds = new Set<string>();
+    // A status call that keeps throwing (backend gone) must not poll forever.
+    const statusErrors = new Map<string, number>();
+    let updatedPrompts = startingPrompts.map((prompt) => ({ ...prompt }));
+
+    const tick = async () => {
+      batchPollRef.current = null;
 
       for (let i = 0; i < jobIds.length; i++) {
+        if (finishedJobIds.has(jobIds[i])) continue;
         try {
           const status = await window.electron.generation.getStatus(jobIds[i]);
+          if (!isCurrentRun()) return;
           const promptIndex = updatedPrompts.findIndex((p) => p.id === jobIds[i]);
 
-          if (promptIndex !== -1) {
+          if (promptIndex === -1) {
+            finishedJobIds.add(jobIds[i]);
+          } else {
             if (status.status === 'completed') {
-              updatedPrompts[promptIndex].status = 'completed';
-              updatedPrompts[promptIndex].result = status.result?.images?.[0];
+              finishedJobIds.add(jobIds[i]);
+              updatedPrompts[promptIndex] = {
+                ...updatedPrompts[promptIndex],
+                status: 'completed',
+                result: status.result?.images?.[0],
+              };
               syncAssetsFromJobStatus({
                 ...status,
                 params: {
@@ -390,44 +437,70 @@ export function BatchPromptQueue() {
                 createdAt: status.created_at ? new Date(status.created_at) : new Date(),
                 isFavorite: false,
               });
-            } else if (status.status === 'failed') {
-              updatedPrompts[promptIndex].status = 'failed';
+            } else if (status.status === 'failed' || status.status === 'cancelled') {
+              finishedJobIds.add(jobIds[i]);
+              updatedPrompts[promptIndex] = { ...updatedPrompts[promptIndex], status: 'failed' };
               if (status.error) {
                 setBatchNotice({
                   tone: 'error',
                   message: status.error,
                 });
               }
-            } else {
-              allCompleted = false;
             }
           }
         } catch (e) {
+          if (!isCurrentRun()) return;
           console.error('Failed to get job status:', e);
+          const errors = (statusErrors.get(jobIds[i]) ?? 0) + 1;
+          statusErrors.set(jobIds[i], errors);
+          if (errors >= MAX_BATCH_STATUS_ERRORS) {
+            finishedJobIds.add(jobIds[i]);
+            updatedPrompts = updatedPrompts.map((prompt) =>
+              prompt.id === jobIds[i] ? { ...prompt, status: 'failed' } : prompt,
+            );
+          }
         }
       }
 
+      if (!isCurrentRun()) return;
+      updatedPrompts = [...updatedPrompts];
       setPrompts(updatedPrompts);
 
-      if (allCompleted) {
-        clearInterval(checkInterval);
-        batchPollRef.current = null;
+      if (finishedJobIds.size >= jobIds.length) {
         setIsGenerating(false);
+        return;
       }
-    }, 2000);
+      batchPollRef.current = setTimeout(tick, BATCH_POLL_INTERVAL_MS);
+    };
+
+    batchPollRef.current = setTimeout(tick, BATCH_POLL_INTERVAL_MS);
   };
 
-  const handleCancel = () => {
+  const handleCancel = async () => {
+    stopBatchPolling();
     setIsGenerating(false);
-    setBatchNotice({
-      tone: 'info',
-      message: 'Batch cancellation requested.',
-    });
-    prompts.forEach((p) => {
-      if (p.status === 'generating') {
-        window.electron.generation.cancel(p.id);
-      }
-    });
+    // Every submitted prompt (running or still queued on the backend) is
+    // 'generating'. Polling stops here, so put them back to pending - left as
+    // they were, their spinners would run forever.
+    const inFlight = prompts.filter((p) => p.status === 'generating');
+    setPrompts((current) =>
+      current.map((p) => (p.status === 'generating' ? { ...p, status: 'pending' } : p)),
+    );
+    setBatchNotice({ tone: 'info', message: 'Cancelling the batch...' });
+    const outcomes = await Promise.allSettled(
+      inFlight.map((p) => window.electron.generation.cancel(p.id)),
+    );
+    const failed = outcomes.filter(
+      (outcome) => outcome.status === 'rejected' || outcome.value?.success === false,
+    ).length;
+    setBatchNotice(
+      failed > 0
+        ? {
+            tone: 'error',
+            message: `Cancelled ${inFlight.length - failed} of ${inFlight.length} prompts; ${failed} could not be cancelled and may still finish.`,
+          }
+        : { tone: 'info', message: `Batch cancelled (${inFlight.length} prompt${inFlight.length === 1 ? '' : 's'}).` },
+    );
   };
 
   const handleExport = () => {
@@ -494,6 +567,56 @@ export function BatchPromptQueue() {
     setShowDeleteConfirm(false);
   };
 
+  const renderPromptCard = (prompt: BatchPrompt, index: number) => (
+    <div className="flex items-start gap-3">
+      {/* Drag handle */}
+      <div className="flex flex-col items-center gap-1 pt-2">
+        <GripVertical className="w-3.5 h-3.5 text-text-muted cursor-grab" />
+        <span className="type-meta text-text-muted">
+          {index + 1}
+        </span>
+      </div>
+
+      {/* Input */}
+      <div className="flex-1">
+        <textarea
+          aria-label={`Prompt ${index + 1}`}
+          value={prompt.prompt}
+          onChange={(e) => updatePrompt(prompt.id, e.target.value)}
+          placeholder="Enter prompt..."
+          disabled={isGenerating}
+          rows={2}
+          className="recessed-well w-full resize-none px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent-primary disabled:opacity-50"
+        />
+      </div>
+
+      {/* Status/Actions */}
+      <div className="flex flex-col gap-1 pt-1">
+        {prompt.status === 'generating' && (
+          <Loader2 className="w-4 h-4 text-status-warning animate-spin" />
+        )}
+        {prompt.status === 'completed' && (
+          <CheckCircle2 className="w-4 h-4 text-status-success" />
+        )}
+        {prompt.status === 'failed' && (
+          <XCircle className="w-4 h-4 text-status-error" />
+        )}
+
+        {!isGenerating && (
+          <button
+            type="button"
+            onClick={() => removePrompt(prompt.id)}
+            aria-label={`Remove prompt ${index + 1}`}
+            title="Remove prompt"
+            className="icon-button p-1 rounded-md text-text-muted hover:text-status-error hover:bg-status-error-muted transition"
+          >
+            <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
+          </button>
+        )}
+      </div>
+    </div>
+  );
+
   const completedCount = prompts.filter((p) => p.status === 'completed').length;
   const progress =
     prompts.length > 0 ? (completedCount / prompts.length) * 100 : 0;
@@ -511,8 +634,10 @@ export function BatchPromptQueue() {
               return (
                 <button
                   key={opt.value}
+                  type="button"
                   onClick={() => setBatchViewMode(opt.value)}
                   aria-label={opt.label}
+                  aria-pressed={batchViewMode === opt.value}
                   className={cn(
                     'p-2 rounded-md transition',
                     batchViewMode === opt.value
@@ -528,8 +653,9 @@ export function BatchPromptQueue() {
 
           {/* Sort dropdown */}
           <div className="flex items-center gap-2 ml-auto">
-            <ArrowUpDown className="w-3.5 h-3.5 text-text-muted" />
+            <ArrowUpDown className="w-3.5 h-3.5 text-text-muted" aria-hidden="true" />
             <select
+              aria-label="Sort results"
               value={batchSortBy}
               onChange={(e) => setBatchSortBy(e.target.value as SortBy)}
               className="bg-elevated border border-border rounded-md px-2 py-1 text-xs text-text-primary focus:border-accent-primary transition"
@@ -548,7 +674,9 @@ export function BatchPromptQueue() {
           {FILTER_OPTIONS.map((opt) => (
             <button
               key={opt.value}
+              type="button"
               onClick={() => setBatchFilterBy(opt.value)}
+              aria-pressed={batchFilterBy === opt.value}
               className={cn(
                 'px-2.5 py-1 rounded-md text-xs transition',
                 batchFilterBy === opt.value
@@ -604,27 +732,16 @@ export function BatchPromptQueue() {
       {(openRouterImageEnabled || batchNotice) && (
         <div className="space-y-3 border-b border-border px-4 py-3">
           {openRouterImageEnabled && (
-            <div className="recessed-well px-4 py-3">
-              <div className="flex items-start gap-3">
-                <div className="raised-control mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center text-accent-primary">
-                  <Cloud className="h-4 w-4" aria-hidden="true" />
-                </div>
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2">
-                    <Led color="play" size={7} />
-                    <p className="type-section text-text-primary">OpenRouter Batch Route</p>
-                  </div>
-                  <p className="mt-1 text-xs text-text-body">
-                    Account: {activeAccount?.name ?? 'No active account'}.
-                    {' '}Model: {openRouterImageModel || 'Not set in Settings'}.
-                  </p>
-                  <p className="mt-1 text-xs text-text-muted">
-                    Hosted still-image batches can run even when the local backend is offline.
-                    Local-only controls like steps and CFG stay disabled while this route is active.
-                  </p>
-                </div>
-              </div>
-            </div>
+            <RouteStatusCard title="OpenRouter Batch Route" ready={openRouterRouteReady}>
+              <p className="mt-1 text-xs text-text-body">
+                Account: {activeAccount?.name ?? 'No active account'}.
+                {' '}Model: {openRouterImageModel || 'Not set in Settings'}.
+              </p>
+              <p className="mt-1 text-xs text-text-muted">
+                Hosted still-image batches can run even when the local backend is offline.
+                Local-only controls like steps and CFG stay disabled while this route is active.
+              </p>
+            </RouteStatusCard>
           )}
 
           {batchNotice && (
@@ -677,8 +794,28 @@ export function BatchPromptQueue() {
       )}
 
       {/* Prompts List */}
-      <div className="flex-1 overflow-y-auto p-4 scrollbar-hide">
-        <div className="space-y-3">
+      <div ref={promptListRef} className="flex-1 overflow-y-auto p-4 scrollbar-hide">
+        <div className={virtualizePrompts ? undefined : 'space-y-3'}>
+          {virtualizePrompts ? (
+            <div className="relative w-full" style={{ height: promptVirtualizer.getTotalSize() }}>
+              {promptVirtualizer.getVirtualItems().map((virtualRow) => {
+                const prompt = prompts[virtualRow.index];
+                return (
+                  <div
+                    key={prompt.id}
+                    ref={promptVirtualizer.measureElement}
+                    data-index={virtualRow.index}
+                    className="absolute left-0 top-0 w-full pb-3"
+                    style={{ transform: `translateY(${virtualRow.start}px)` }}
+                  >
+                    <div className={promptCardClassName(prompt.status)}>
+                      {renderPromptCard(prompt, virtualRow.index)}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
           <AnimatePresence>
             {prompts.map((prompt, index) => (
               <motion.div
@@ -686,63 +823,13 @@ export function BatchPromptQueue() {
                 initial={{ opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: 'auto' }}
                 exit={{ opacity: 0, height: 0 }}
-                className={cn(
-                  'relative p-3 rounded-md border transition',
-                  prompt.status === 'generating' &&
-                    'border-status-warning-border bg-status-warning-muted',
-                  prompt.status === 'completed' &&
-                    'border-status-success-border bg-status-success-muted',
-                  prompt.status === 'failed' &&
-                    'border-status-error-border bg-status-error-muted',
-                  prompt.status === 'pending' && 'border-border bg-elevated'
-                )}
+                className={promptCardClassName(prompt.status)}
               >
-                <div className="flex items-start gap-3">
-                  {/* Drag handle */}
-                  <div className="flex flex-col items-center gap-1 pt-2">
-                    <GripVertical className="w-3.5 h-3.5 text-text-muted cursor-grab" />
-                    <span className="type-meta text-text-muted">
-                      {index + 1}
-                    </span>
-                  </div>
-
-                  {/* Input */}
-                  <div className="flex-1">
-                    <textarea
-                      value={prompt.prompt}
-                      onChange={(e) => updatePrompt(prompt.id, e.target.value)}
-                      placeholder="Enter prompt..."
-                      disabled={isGenerating}
-                      rows={2}
-                      className="recessed-well w-full resize-none px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent-primary disabled:opacity-50"
-                    />
-                  </div>
-
-                  {/* Status/Actions */}
-                  <div className="flex flex-col gap-1 pt-1">
-                    {prompt.status === 'generating' && (
-                      <Loader2 className="w-4 h-4 text-status-warning animate-spin" />
-                    )}
-                    {prompt.status === 'completed' && (
-                      <CheckCircle2 className="w-4 h-4 text-status-success" />
-                    )}
-                    {prompt.status === 'failed' && (
-                      <XCircle className="w-4 h-4 text-status-error" />
-                    )}
-
-                    {!isGenerating && (
-                      <button
-                        onClick={() => removePrompt(prompt.id)}
-                        className="icon-button p-1 rounded-md text-text-muted hover:text-status-error hover:bg-status-error-muted transition"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    )}
-                  </div>
-                </div>
+                {renderPromptCard(prompt, index)}
               </motion.div>
             ))}
           </AnimatePresence>
+          )}
         </div>
 
         {/* Add Buttons */}
@@ -841,26 +928,15 @@ export function BatchPromptQueue() {
                   </div>
 
                   {openRouterImageEnabled ? (
-                    <div className="recessed-well px-4 py-3">
-                      <div className="flex items-start gap-3">
-                        <div className="raised-control mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center text-accent-primary">
-                          <Cloud className="h-4 w-4" aria-hidden="true" />
-                        </div>
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-2">
-                            <Led color="play" size={7} />
-                            <p className="type-section text-text-primary">OpenRouter Hosted Model</p>
-                          </div>
-                          <p className="mt-1 text-xs text-text-body">
-                            {openRouterImageModel || 'Select an OpenRouter still-image model in Settings.'}
-                          </p>
-                          <p className="mt-1 text-xs text-text-muted">
-                            Switch the active account&apos;s still-image provider back to Local in
-                            Settings to pick a backend model and use local sampling controls here.
-                          </p>
-                        </div>
-                      </div>
-                    </div>
+                    <RouteStatusCard title="OpenRouter Hosted Model" ready={openRouterRouteReady}>
+                      <p className="mt-1 text-xs text-text-body">
+                        {openRouterImageModel || 'Select an OpenRouter still-image model in Settings.'}
+                      </p>
+                      <p className="mt-1 text-xs text-text-muted">
+                        Switch the active account&apos;s still-image provider back to Local in
+                        Settings to pick a backend model and use local sampling controls here.
+                      </p>
+                    </RouteStatusCard>
                   ) : (
                     <>
                       <Slider
@@ -909,7 +985,7 @@ export function BatchPromptQueue() {
       {/* Actions */}
       <div className="p-4 border-t border-border flex gap-2">
         {isGenerating ? (
-          <Button variant="danger" icon={Pause} fullWidth onClick={handleCancel}>
+          <Button variant="danger" icon={Pause} fullWidth onClick={() => void handleCancel()}>
             Cancel Batch
           </Button>
         ) : (
@@ -927,8 +1003,8 @@ export function BatchPromptQueue() {
               variant="chrome"
               onClick={handleStartBatch}
               disabled={!prompts.some((p) => p.prompt.trim())}
+              size="lg"
               className="flex-1"
-              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
             >
               <Play className="w-4 h-4" />
               Start Batch ({prompts.filter((p) => p.prompt.trim()).length})

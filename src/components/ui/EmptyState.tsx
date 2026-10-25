@@ -13,6 +13,11 @@ interface EmptyStateProps {
    * when the title belongs in the page outline at that level.
    */
   titleAs?: 'p' | 'h2' | 'h3';
+  /**
+   * `compact` is for short strips (a timeline track area, a dock rail) where
+   * the full-size tile would push the description out of view.
+   */
+  size?: 'default' | 'compact';
   className?: string;
 }
 
@@ -31,22 +36,30 @@ export function EmptyState({
   description,
   children,
   titleAs: Title = 'p',
+  size = 'default',
   className,
 }: EmptyStateProps) {
+  const compact = size === 'compact';
   return (
     <div
       data-testid="empty-state"
       className={cn(
-        'flex h-full min-h-0 flex-col items-center justify-center px-6 py-8 text-center',
+        'flex h-full min-h-0 flex-col items-center justify-center text-center',
+        compact ? 'px-4 py-3' : 'px-6 py-8',
         className,
       )}
     >
-      <div className="raised-control flex h-12 w-12 flex-shrink-0 items-center justify-center text-text-muted">
-        <Icon className="h-5 w-5" aria-hidden="true" />
+      <div
+        className={cn(
+          'raised-control flex flex-shrink-0 items-center justify-center text-text-muted',
+          compact ? 'h-8 w-8' : 'h-12 w-12',
+        )}
+      >
+        <Icon className={compact ? 'h-4 w-4' : 'h-5 w-5'} aria-hidden="true" />
       </div>
-      <Title className="mt-4 type-section">{title}</Title>
+      <Title className={cn(compact ? 'mt-2' : 'mt-4', 'type-section')}>{title}</Title>
       {description ? (
-        <p className="mt-2 max-w-[42ch] text-xs text-text-muted">{description}</p>
+        <p className={cn(compact ? 'mt-1' : 'mt-2', 'max-w-[42ch] text-xs text-text-muted')}>{description}</p>
       ) : null}
       {children ? (
         <div data-empty-state-actions className="mt-4 flex flex-wrap items-center justify-center gap-2">

@@ -79,6 +79,7 @@ describe('store persistence partialize', () => {
     expect(persisted).toHaveProperty('batchResults');
     expect(persisted).toHaveProperty('assetLibrary');
     expect(persisted).toHaveProperty('assetMetadata');
+    expect(persisted).toHaveProperty('pipelines');
 
     // Excluded (transient state)
     expect(persisted).not.toHaveProperty('activeJobs');
@@ -96,6 +97,31 @@ describe('store persistence partialize', () => {
     expect(persisted).not.toHaveProperty('comparisonMode');
     expect(persisted).not.toHaveProperty('comparisonImages');
     expect(persisted).not.toHaveProperty('generationDraft');
+  });
+});
+
+describe('pipeline persistence', () => {
+  beforeEach(resetStore);
+
+  it('restores custom pipelines and edits, and backfills built-ins a release added', () => {
+    const options = (useAppStore as any).persist?.getOptions?.();
+    if (typeof options?.merge !== 'function') {
+      throw new Error('zustand persist merge is unreachable - fix this accessor.');
+    }
+    const current = useAppStore.getState();
+    const [firstBuiltIn, ...otherBuiltIns] = current.pipelines;
+    expect(otherBuiltIns.length).toBeGreaterThan(0);
+    const custom = { ...firstBuiltIn, id: 'custom-1', name: 'My chain', isBuiltIn: false };
+    const editedBuiltIn = { ...firstBuiltIn, name: 'Renamed built-in' };
+
+    const merged = options.merge({ pipelines: [editedBuiltIn, custom] }, current) as typeof current;
+
+    expect(merged.pipelines.map((p) => p.id)).toEqual([
+      firstBuiltIn.id,
+      'custom-1',
+      ...otherBuiltIns.map((p) => p.id),
+    ]);
+    expect(merged.pipelines[0].name).toBe('Renamed built-in');
   });
 });
 

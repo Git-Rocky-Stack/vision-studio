@@ -18,8 +18,10 @@ from datetime import datetime
 from typing import Any, Callable, Dict, Optional
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
+from PIL import Image
 
-from edit_tools.service import run_edit_operation
+from edit_tools.service import MODEL_SCALE, run_edit_operation
+from edit_tools.upscale import check_upscale_size
 from edit_tools.weights import EditCancelled, EditModelUnavailable, EditToolError
 from middleware.rate_limit import LIMITS, limiter
 from schemas.edit import (  # type: ignore[import-not-found]
@@ -94,6 +96,16 @@ async def _process(job_id: str, operation: str, params: Dict[str, Any]) -> None:
             completed_at=datetime.now())
 
 
+def _image_size(source_path: str) -> Optional[tuple]:
+    """(width, height) from the image header, or None when it cannot be read
+    (a missing file 404s in _submit; an unreadable one fails the job)."""
+    try:
+        with Image.open(source_path) as image:
+            return image.size
+    except Exception:  # noqa: BLE001
+        return None
+
+
 def _submit(operation: str, source_path: str, params: Dict[str, Any],
             background_tasks: BackgroundTasks) -> EditJobResponse:
     if not os.path.exists(source_path):  # the /api/images/crop convention
@@ -126,7 +138,17 @@ async def remove_background(request: Request, body: BackgroundRemoveRequest,
 @limiter.limit(LIMITS["edit"])
 async def upscale_image(request: Request, body: UpscaleRequest,
                         background_tasks: BackgroundTasks) -> EditJobResponse:
-    """AI super-resolution (Real-ESRGAN, optional GFPGAN face pass)."""
+    """AI super-resolution (Real-ESRGAN, optional GFPGAN face pass).
+
+    An image whose working canvas would exceed 16384px on the long edge is
+    refused with 422 before a job exists (the tool checks again itself).
+    """
+    size = await asyncio.to_thread(_image_size, body.source_path)
+    if size is not None:
+        try:
+            check_upscale_size(size[0], size[1], body.scale, MODEL_SCALE)
+        except EditToolError as exc:
+            raise HTTPException(status_code=422, detail=str(exc))
     return _submit("upscale", body.source_path,
                    {"scale": body.scale, "model": body.model,
                     "face_enhance": body.face_enhance}, background_tasks)

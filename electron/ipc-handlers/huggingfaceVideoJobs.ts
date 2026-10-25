@@ -1,4 +1,5 @@
 import type { OpenRouterImageJobStatus } from './openRouterImageRouting';
+import { pruneFinishedJobs, type JobRetentionOptions } from './hostedJobRetention';
 
 /**
  * In-process store for HuggingFace text-to-video jobs (M6 PR2). Mirrors
@@ -45,8 +46,11 @@ function snapshot(job: HuggingFaceVideoJob): HuggingFaceVideoJobSnapshot {
 
 export function createHuggingFaceVideoJobStore({
   emit,
+  retention,
 }: {
   emit: HuggingFaceVideoJobEmit;
+  /** Finished-job retention (default 24h); see hostedJobRetention.ts. */
+  retention?: JobRetentionOptions;
 }): HuggingFaceVideoJobStore {
   const jobs = new Map<string, HuggingFaceVideoJob>();
 
@@ -68,6 +72,7 @@ export function createHuggingFaceVideoJobStore({
       return job ? snapshot(job) : null;
     },
     set(job) {
+      pruneFinishedJobs(jobs, retention);
       jobs.set(job.job_id, job);
       emitProgress(job);
       return job;
@@ -87,6 +92,7 @@ export function createHuggingFaceVideoJobStore({
       return nextJob;
     },
     values() {
+      pruneFinishedJobs(jobs, retention);
       return Array.from(jobs.values()).map(snapshot);
     },
   };

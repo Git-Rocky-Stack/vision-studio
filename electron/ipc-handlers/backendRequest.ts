@@ -20,6 +20,14 @@ export function isBackendDownError(error: unknown): boolean {
   return msg.includes('ECONNREFUSED') || candidate?.code === 'ECONNREFUSED';
 }
 
+/**
+ * Attempt count for calls that CREATE work on the backend (generation, edit,
+ * export, conversion submits). A timed-out or 5xx submit may already have
+ * enqueued its job, so a retry would run - and write output for - the same
+ * request twice. Those calls fail once and let the user decide.
+ */
+export const SUBMIT_ONCE = 1;
+
 export async function requestBackend<T>(
   request: () => Promise<T>,
   attempts: number = 3,
@@ -46,4 +54,17 @@ export async function requestBackend<T>(
   }
 
   throw lastError;
+}
+
+/**
+ * Log-safe one-line description of a failed backend call: the message plus
+ * the HTTP status when there is one. Never log the raw AxiosError - its
+ * config.headers carry the backend auth token and any forwarded HF / CivitAI
+ * token.
+ */
+export function describeBackendError(error: unknown): string {
+  const candidate = error as { message?: unknown; response?: { status?: unknown } } | null;
+  const message = typeof candidate?.message === 'string' && candidate.message ? candidate.message : 'Unknown error';
+  const status = candidate?.response?.status;
+  return typeof status === 'number' ? `${message} (HTTP ${status})` : message;
 }

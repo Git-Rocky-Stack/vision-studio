@@ -8,7 +8,7 @@
 
 A professional AI-powered desktop application for image and video generation. No cloud required - everything runs locally on your machine.
 
-> **Current release: v3.4.1** - see [`CHANGELOG.md`](CHANGELOG.md) for what's new. Download at **[vision-studio-x.com/download](https://vision-studio-x.com/download)**.
+> **Current release: v3.4.2** - see [`CHANGELOG.md`](CHANGELOG.md) for what's new. Download at **[vision-studio-x.com/download](https://vision-studio-x.com/download)**.
 
 ## Screenshots
 
@@ -64,11 +64,12 @@ A professional AI-powered desktop application for image and video generation. No
 
 ## Features
 
-- **Image Generation** - FLUX.1 [dev] and [schnell], Stable Diffusion 3.5 Large and Medium, Stable Diffusion XL, SD 1.5
-- **Video Generation** - LTX Video and AnimateDiff from a prompt, Stable Video Diffusion from a still image; clips are written as MP4
+- **Image Generation** - FLUX.1 [dev] and [schnell], Stable Diffusion 3.5 Large and Medium, Stable Diffusion XL, SD 1.5 (FLUX.1 [dev] is a manual Foundry download - see [Quick Start](#option-1-download-pre-built-app-easiest))
+- **Video Generation** - LTX Video and AnimateDiff from a prompt, Stable Video Diffusion from a still image; clips are written as MP4 (LTX Video is a manual Foundry download)
 - **Guided Edit Tools** - background removal, AI upscale, face enhancement, generative fill, object removal, AI expand, background replace, and style transfer
 - **ControlNet and Reference Images** - canny, depth, pose, scribble and normal guides as canvas layers (SD 1.5, SDXL, FLUX.1 [dev], SD 3.5 Large); two or more reference layers condition a render through IP-Adapter (SD 1.5, SDXL, FLUX.1 [dev])
 - **Layer Editor** - a Konva canvas with real text layers (font, color, shadow, stroke, blend), click-to-select and drag/transform, kept in sync with the tool strip, layer list, and properties panel
+- **Retouching and Vector Tools** - Clone Stamp (Alt+click a source, aligned sampling) and a Poisson-blended Heal brush with automatic spot healing, both undoable stroke by stroke; Shape (rectangle, ellipse, line, arrow) and Pen (straight or smooth, open or closed paths) as styleable, transformable layers; brush size on [ and ]
 - **Storyboard and Timeline** - lay a project out as scenes, with onion skin ghosting the neighbouring scenes (adjustable count, opacity, and direction); cut clips on video and audio tracks and export an MP4 with cut, fade or dissolve transitions and AAC audio
 - **Iteration Tree** - every render is a node; fork one to reload its prompt, model, sampler, steps, CFG and seed into the generator (re-roll draws a new seed), and record the new run as its child, with a settings diff against the parent
 - **Prompt Tagging** - assets are tagged deterministically from the prompt you actually wrote (style, subject, colour, mood), on generation or on demand
@@ -90,6 +91,9 @@ A professional AI-powered desktop application for image and video generation. No
 2. Run the installer. The AI backend (PyTorch, diffusers, CUDA/MPS) is bundled - there is nothing extra to install. It unpacks itself to a temporary folder each time the app starts, which can take a few minutes
 3. Builds are not yet code-signed. On Windows click **More info -> Run anyway**. On macOS 15 or later, try to open the app once, then choose **Open Anyway** under **System Settings > Privacy & Security**; on macOS 14, **right-click -> Open**. On Linux, `chmod +x` the AppImage
 4. On first launch, install the one-click starter set (33 models, about 137 GB) or skip it and download only the models you want through the in-app **Foundry** (~2-24 GB per model, consent-gated) - then start creating
+5. **FLUX.1 [dev] and LTX Video are not in the starter set.** Their licences do not allow Vision Studio to install them for you, so FLUX.1 [dev] (with its Fill, ControlNet Union and IP-Adapter companions) and LTX Video are manual downloads: search for them in **Foundry > Discover**, accept each licence on Hugging Face when the Foundry shows **Accept license**, and add your Hugging Face token at the top of the Foundry. The two Stable Diffusion 3.5 models *are* in the set, but are gated too - they need the same token and licence acceptance
+
+New to the app? The [User Guide](docs/USER_GUIDE.md) walks through install, first run, your first image and everything after it.
 
 ### Option 2: Build from Source
 
@@ -110,9 +114,13 @@ npm run dev
 
 ### Prerequisites
 
-- **Node.js** 20 ([Download](https://nodejs.org/)) - the version CI builds and tests on
-- **Python** 3.12 (for backend development) - the version every backend workflow
-  pins, and the one the shipped torch build (2.5.1+cu121) has wheels for
+- **Node.js** `^20.19.0 || ^22.13.0 || >=24` ([Download](https://nodejs.org/)) -
+  the `engines` range in `package.json`, set by the toolchain (jsdom 28 and
+  ESLint 10 refuse anything older). Node 22 LTS is the recommended choice
+  (`.nvmrc`); CI builds and tests on Node 20
+- **Python** 3.12 (for backend development; 3.10 and 3.11 also work) - the version
+  every backend workflow pins. The shipped torch build (2.5.1+cu121) has no
+  wheels for Python 3.13 or later
 - **CUDA 12.1** (optional, for NVIDIA GPU acceleration)
 
 ### Setup Options
@@ -190,7 +198,7 @@ Vision Studio can hand work to a ComfyUI server you already run:
 The hand-off uses fixed checkpoint file names (for example `flux1-dev.safetensors`)
 and does not pass LoRAs. Every image-to-video job becomes ComfyUI's SVD-XT
 workflow (14 frames), which does not receive the model, prompt or duration.
-(3.4.1 and earlier also sent text-to-video jobs there, where they failed for want
+(Versions before 3.4.2 also sent text-to-video jobs there, where they failed for want
 of an input image.) Start Vision Studio without ComfyUI running to keep every job
 on the built-in engine.
 
@@ -271,7 +279,7 @@ vision-studio/
 - Windows 11 / macOS 14 / Ubuntu 24.04
 - NVIDIA GPU with 8GB+ VRAM, or Apple M-series (runs on Metal/MPS)
 - 16 GB RAM
-- 50 GB free disk space (for model weights)
+- 150 GB free disk space to install the full first-run model set (about 137 GB); a few models need far less
 
 macOS builds are **Apple Silicon (arm64) only** - PyTorch dropped macOS x64
 wheels at 2.3 - and need **macOS 14 or later**: the release is built on
@@ -318,6 +326,9 @@ ws://127.0.0.1:8000/ws?token=<token>
 
 ## Troubleshooting
 
+The common cases are below; [`docs/TROUBLESHOOTING.md`](docs/TROUBLESHOOTING.md)
+covers the rest, including where the logs are.
+
 ### "Backend not found"
 - The bundled backend unpacks itself to a temporary folder each time it starts, which can take several minutes; restart the app and give it time, or start it from **Settings > AI & Models**
 - From source: build the backend with `npm run build:backend`, or use system Python (`setup-python.bat` on Windows; on Linux and macOS, the steps under Developer Setup)
@@ -335,7 +346,7 @@ ws://127.0.0.1:8000/ws?token=<token>
 
 ### Models not downloading
 - Check internet connection
-- Gated models (FLUX.1 [dev], Stable Diffusion 3.5): accept the license on Hugging Face (the Foundry's **Accept license** link opens it) and paste an access token into the Foundry header. It is saved encrypted and kept across launches, or kept until you quit where the OS offers no encryption (3.4.1 and earlier keep it only until you quit)
+- Gated models (FLUX.1 [dev], Stable Diffusion 3.5): accept the license on Hugging Face (the Foundry's **Accept license** link opens it) and paste an access token into the Foundry header. It is saved encrypted and kept across launches, or kept until you quit where the OS offers no encryption (versions before 3.4.2 keep it only until you quit)
 - Or download the files yourself and add their folder with **Add folder** in the Foundry's library roots
 
 ## Testing
@@ -368,18 +379,32 @@ cd backend && python -m pytest
 
 > Run the backend suite with **pytest**, not `python -m unittest discover` - the
 > latter silently skips the pytest-style suites (security sanitization, DB
-> migrations). CI runs `python -m pytest` ([`.github/workflows/pr-gate.yml:109`](.github/workflows/pr-gate.yml)).
+> migrations). CI runs `python -m pytest` (the backend job in [`.github/workflows/pr-gate.yml`](.github/workflows/pr-gate.yml)).
 
-Counts below were measured at v3.4.0; re-run the command in each row to confirm.
+Run each command to see that layer's current count - this README does not quote
+numbers, because they change with nearly every pull request.
 
-| Layer | Framework | Files | Tests | What it covers |
-|-------|-----------|-------|-------|----------------|
-| Unit + Component + Integration (`npx vitest run`) | Vitest 4.1 | 235 | 2046 | Pure logic, Zustand store, Electron services, React components, API/workflow contracts, plus repo gates: Carbon Pro tokens, palette discipline, UI glyphs, preload-bridge mount paths, Playwright port, CI type-check, archived-doc provenance, shipped dependency overrides, pinned torch stack |
-| E2E + Visual (`npx playwright test --list`) | Playwright 1.58 | 9 | 36 | Electron end-to-end, accessibility (axe-core), performance budgets, and the Windows visual-regression suite |
-| Backend (`cd backend && python -m pytest`) | pytest | 124 | 1108 | FastAPI + foundry + services; import-safe collection on CI, real model runs are local |
-| Backend benchmarks (opt-in) | pytest-benchmark | 1 | 1 | Excluded from the default run by `backend/pytest.ini`; needs the GPU/model stack |
+| Layer | Framework | Count it with | What it covers |
+|-------|-----------|---------------|----------------|
+| Unit + Component + Integration | Vitest 4.1 | `npx vitest run` | Pure logic, Zustand store, Electron services, React components, API/workflow contracts, plus repo gates: Carbon Pro tokens, palette discipline, UI glyphs, preload-bridge mount paths, Playwright port, CI type-check, archived-doc provenance, documentation links, shipped dependency overrides, pinned torch stack |
+| E2E + Visual | Playwright 1.58 | `npx playwright test --list` | Electron end-to-end, accessibility (axe-core), performance budgets, and the Windows visual-regression suite |
+| Backend | pytest | `cd backend && python -m pytest --collect-only -q` | FastAPI + foundry + services; import-safe collection on CI, real model runs are local |
+| Backend benchmarks (opt-in) | pytest-benchmark | `cd backend && python -m pytest tests/benchmarks -o addopts="" --benchmark-only --collect-only -q` | Excluded from the default run by `backend/pytest.ini`; needs the GPU/model stack |
 
 ## Documentation
+
+### Getting help
+
+| Doc | What it covers |
+|-----|----------------|
+| [`docs/USER_GUIDE.md`](docs/USER_GUIDE.md) | Install, first-run model setup, the Foundry, your first image, hosted routes with your own key, every workspace, shortcuts, and what goes online |
+| [`docs/KEYBOARD_SHORTCUTS.md`](docs/KEYBOARD_SHORTCUTS.md) | Every keyboard shortcut, where it is active, and which keys packaged builds disable |
+| [`docs/TROUBLESHOOTING.md`](docs/TROUBLESHOOTING.md) | Backend offline, GPU not detected, out of memory, gated downloads, disk space, key verification, export errors, ComfyUI, unsigned-installer warnings, logs |
+| [`docs/UAT_CHECKLIST.md`](docs/UAT_CHECKLIST.md) | The release-candidate acceptance matrix, per platform |
+
+The app also has a built-in guide under **Settings > User Guide**.
+
+### Technical documentation
 
 Full technical documentation lives in [`docs/`](docs/). Start with the index:
 

@@ -57,4 +57,62 @@ describe('ModelSelector', () => {
     render(<ModelSelector value="legacy-unknown-id" generationType="image" onChange={vi.fn()} />);
     expect(screen.getByText('Stable Diffusion XL Base')).toBeInTheDocument();
   });
+
+  it('marks a selected model whose weights are not on disk', () => {
+    render(<ModelSelector value="sdxl-base" generationType="image" onChange={vi.fn()} />);
+    expect(screen.getByText('Not installed')).toBeInTheDocument();
+  });
+
+  describe('first-load correction onto an installed model', () => {
+    beforeEach(() => {
+      useAppStore.setState({
+        availableModels: [
+          record({ id: 'flux-dev', name: 'FLUX.1 [dev]', status: 'not_found' }),
+          record({ id: 'sdxl-base', name: 'Stable Diffusion XL Base', status: 'ready' }),
+        ],
+      });
+    });
+
+    it('moves a not-installed default onto the first installed model', () => {
+      const onChange = vi.fn();
+      render(<ModelSelector value="flux-dev" generationType="image" onChange={onChange} />);
+      expect(onChange).toHaveBeenCalledTimes(1);
+      expect(onChange).toHaveBeenCalledWith('sdxl-base');
+    });
+
+    it('moves an unknown id onto the first installed model', () => {
+      const onChange = vi.fn();
+      render(<ModelSelector value="legacy-unknown-id" generationType="image" onChange={onChange} />);
+      expect(onChange).toHaveBeenCalledWith('sdxl-base');
+    });
+
+    it('leaves an installed selection alone', () => {
+      const onChange = vi.fn();
+      render(<ModelSelector value="sdxl-base" generationType="image" onChange={onChange} />);
+      expect(onChange).not.toHaveBeenCalled();
+    });
+
+    it('leaves the selection alone when nothing is installed', () => {
+      useAppStore.setState({
+        availableModels: [record({ id: 'flux-dev', status: 'not_found' })],
+      });
+      const onChange = vi.fn();
+      render(<ModelSelector value="flux-dev" generationType="image" onChange={onChange} />);
+      expect(onChange).not.toHaveBeenCalled();
+    });
+
+    it('never overrides a later explicit pick of a not-installed model', async () => {
+      const user = userEvent.setup();
+      const onChange = vi.fn();
+      const { rerender } = render(
+        <ModelSelector value="sdxl-base" generationType="image" onChange={onChange} />,
+      );
+      await user.click(screen.getByTestId('model-selector-trigger'));
+      await user.click(screen.getByRole('option', { name: /FLUX\.1 \[dev\]/i }));
+      expect(onChange).toHaveBeenLastCalledWith('flux-dev');
+
+      rerender(<ModelSelector value="flux-dev" generationType="image" onChange={onChange} />);
+      expect(onChange).toHaveBeenCalledTimes(1);
+    });
+  });
 });

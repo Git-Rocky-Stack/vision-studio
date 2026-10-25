@@ -30,8 +30,9 @@ const EditPropertiesPanel = lazy(() =>
   import('@/components/edit/EditPropertiesPanel').then((m) => ({ default: m.EditPropertiesPanel })),
 );
 const ToolStrip = lazy(() => import('@/components/edit/ToolStrip').then((m) => ({ default: m.ToolStrip })));
-const PipelineBuilder = lazy(() =>
-  import('@/components/pipeline/PipelineBuilder').then((m) => ({ default: m.PipelineBuilder })),
+const ToolOptions = lazy(() => import('@/components/edit/ToolOptions').then((m) => ({ default: m.ToolOptions })));
+const PipelineWorkspace = lazy(() =>
+  import('@/components/pipeline/PipelineWorkspace').then((m) => ({ default: m.PipelineWorkspace })),
 );
 
 function PanelLoadingFallback() {
@@ -142,6 +143,7 @@ function SettingsContent({
         <div className="flex min-h-0 flex-1 flex-col gap-0 overflow-hidden">
           <h1 className="sr-only">Canvas</h1>
           <ToolStrip />
+          <ToolOptions />
           <div className="min-h-0 flex-1 overflow-y-auto">
             <EditPropertiesPanel />
           </div>
@@ -157,14 +159,9 @@ function SettingsContent({
     case 'workflows': {
       const sub = activeSubMode as WorkflowsSubMode;
       if (sub === 'pipelines') {
-        const { activePipelineId, pipelines } = useAppStore.getState();
-        const active = pipelines.find((p) => p.id === activePipelineId) ?? pipelines[0];
-        if (active) return <PipelineBuilder pipeline={active} />;
-        return (
-          <div className="flex flex-col items-center justify-center h-full gap-3 text-text-muted p-6">
-            <p className="text-sm">No pipelines available</p>
-          </div>
-        );
+        // Reactive picker + builder; reading getState() here during render
+        // never re-rendered on pipeline changes.
+        return <PipelineWorkspace />;
       }
       // The workbench in the centre leaves its library out on this tab
       // (DockviewLayout passes library="docked"), so this is the only copy.

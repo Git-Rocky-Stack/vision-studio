@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 
+import { useAppStore } from '@/store/appStore';
+import { useNoticeStore } from '@/features/notices';
 import { ImagePreviewModal } from './ImagePreviewModal';
 import type { BatchResult } from '@/types/generation';
 import type { EditOperation } from '@/features/edit/runEditTool';
@@ -85,5 +87,39 @@ describe('ImagePreviewModal upscale (#34 real path)', () => {
     expect(screen.getByTestId('modal-upscale-error')).toHaveTextContent(
       /install 'edit-realesrgan-x4plus'/,
     );
+  });
+});
+
+describe('ImagePreviewModal export and collections', () => {
+  beforeEach(() => {
+    useAppStore.setState(useAppStore.getInitialState(), true);
+    useNoticeStore.getState().clear();
+  });
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllGlobals();
+  });
+
+  it('reports a failed export instead of ignoring the result', async () => {
+    vi.stubGlobal('electron', {
+      dialog: { saveFile: vi.fn().mockResolvedValue('D:/img.png') },
+      assets: { export: vi.fn().mockResolvedValue({ success: false, error: 'EACCES' }) },
+    });
+    renderModal();
+    fireEvent.click(screen.getByRole('button', { name: /^export$/i }));
+    await waitFor(() => expect(useNoticeStore.getState().notices[0]?.message).toBe('Export failed: EACCES'));
+  });
+
+  it('adds the result to a collection through its library record', () => {
+    useAppStore.setState({
+      assetLibrary: [{ id: 'job::img', path: 'C:/outputs/j1/img.png', name: 'img.png' } as never],
+    });
+    const collection = useAppStore.getState().createCollection({ name: 'Picks', type: 'manual' });
+    renderModal();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add to collection' }));
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Picks' }));
+
+    expect(useAppStore.getState().collections.find((c) => c.id === collection.id)?.assetIds).toEqual(['job::img']);
   });
 });

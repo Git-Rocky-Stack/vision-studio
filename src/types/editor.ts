@@ -46,11 +46,103 @@ export interface TextLayerData extends TextStyle {
   scaleY: number;
 }
 
+/** One committed brush or eraser stroke, in intrinsic image pixels. */
+export interface EditStroke {
+  id: string;
+  tool: 'brush' | 'eraser';
+  points: number[];
+  color: string;
+  size: number;
+}
+
+/**
+ * One committed Clone Stamp or Heal stroke, in intrinsic image pixels. It is
+ * burned into the base image's pixels (features/edit/retouch.ts), under the
+ * adjustments, filters and vector layers.
+ */
+export interface RetouchStroke {
+  id: string;
+  tool: 'clone' | 'heal';
+  points: number[];
+  /** Brush diameter in image pixels. */
+  size: number;
+  /** 0-1: share of the radius painted at full strength before the soft edge. */
+  hardness: number;
+  /** 0-1. */
+  opacity: number;
+  /**
+   * Source minus destination, in image pixels. Clone always has one; a Heal
+   * stroke without one is a spot heal and picks its source automatically.
+   */
+  offset: { x: number; y: number } | null;
+}
+
+/** Shape tool kinds. `path` is what the Pen tool draws. */
+export type ShapeKind = 'rectangle' | 'ellipse' | 'line' | 'arrow' | 'path';
+
+/** Styling shared by shape and path layers; also the tool's draft style. */
+export interface ShapeStyle {
+  stroke: string;
+  strokeWidth: number;
+  fill: string;
+  fillEnabled: boolean;
+}
+
+/**
+ * `Layer.data` payload for `type: 'shape'` layers. `x`/`y` is the node
+ * origin: the top-left corner for rectangles, the centre for ellipses, and
+ * the first point for lines, arrows and paths (whose `points` are relative
+ * to it).
+ */
+export interface ShapeLayerData extends ShapeStyle {
+  kind: ShapeKind;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  points: number[];
+  /** Paths only: joins the last point back to the first and allows a fill. */
+  closed: boolean;
+  /** Paths only: 0 draws straight segments, higher values smooth curves. */
+  tension: number;
+  rotation: number;
+  scaleX: number;
+  scaleY: number;
+}
+
+/** Look filters chosen in the Filters tab; applied to the base image. */
+export interface EditFilterState {
+  selected: string[];
+  /** 0-100 blend of each filter over the unfiltered pixel. */
+  intensity: number;
+  stackMode: boolean;
+}
+
+export const DEFAULT_EDIT_FILTERS: EditFilterState = {
+  selected: [],
+  intensity: 100,
+  stackMode: false,
+};
+
+/** Everything undo/redo restores. Layer objects are immutable, so sharing them is safe. */
+export interface EditStateSnapshot {
+  layers: Layer[];
+  adjustments: ImageAdjustments;
+  strokes: EditStroke[];
+  /** Absent in entries recorded before retouch existed: read as none. */
+  retouch?: RetouchStroke[];
+  filters: EditFilterState;
+}
+
 export interface EditHistoryEntry {
   id: string;
   action: string;
   timestamp: Date;
   snapshot?: string; // base64 canvas snapshot for undo
+  /** Edit state after this action; undo/redo restore it. */
+  state?: EditStateSnapshot;
+  /** Continuous edits (slider drags, transforms) with the same key coalesce. */
+  coalesceKey?: string;
 }
 
 export interface ImageAdjustments {

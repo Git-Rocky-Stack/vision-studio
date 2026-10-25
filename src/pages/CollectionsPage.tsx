@@ -6,22 +6,37 @@ import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { useAppStore } from '@/store/appStore';
 import { CollectionCard } from '@/components/collections/CollectionCard';
+import { CollectionDetail } from '@/components/collections/CollectionDetail';
 import { AnalyzeButton } from '@/components/collections/AnalyzeButton';
 
-type CategoryFilter = 'all' | 'smart' | 'manual' | 'tagged' | 'untagged';
+// 'smart' is not offered as a filter: nothing in the UI creates a smart
+// collection yet, so the category would always be empty. Smart collections
+// that exist still show under All.
+type CategoryFilter = 'all' | 'manual' | 'tagged' | 'untagged';
+
+/** "New Collection", then "New Collection 2", ... so new cards are tellable apart. */
+export function nextCollectionName(existing: readonly string[]): string {
+  const base = 'New Collection';
+  if (!existing.includes(base)) return base;
+  let n = 2;
+  while (existing.includes(`${base} ${n}`)) n += 1;
+  return `${base} ${n}`;
+}
 
 export const CollectionsPage = memo(function CollectionsPage() {
   const collections = useAppStore((s) => s.collections);
   const assetMetadata = useAppStore((s) => s.assetMetadata);
   const createCollection = useAppStore((s) => s.createCollection);
+  const activeCollectionId = useAppStore((s) => s.activeCollectionId);
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState<CategoryFilter>('all');
+
+  const activeCollection = collections.find((c) => c.id === activeCollectionId) ?? null;
 
   const filtered = useMemo(() => {
     let result = collections;
 
-    if (category === 'smart') result = result.filter((c) => c.type === 'smart');
-    else if (category === 'manual') result = result.filter((c) => c.type === 'manual');
+    if (category === 'manual') result = result.filter((c) => c.type === 'manual');
     else if (category === 'tagged') {
       // Fully analysed: holds assets, and every one of them has metadata.
       result = result.filter(
@@ -42,7 +57,6 @@ export const CollectionsPage = memo(function CollectionsPage() {
 
   const categories: { id: CategoryFilter; label: string }[] = [
     { id: 'all', label: 'All' },
-    { id: 'smart', label: 'Smart' },
     { id: 'manual', label: 'Manual' },
     { id: 'tagged', label: 'Tagged' },
     { id: 'untagged', label: 'Untagged' },
@@ -59,7 +73,9 @@ export const CollectionsPage = memo(function CollectionsPage() {
           variant="primary"
           size="sm"
           icon={Plus}
-          onClick={() => createCollection({ name: 'New Collection', type: 'manual' })}
+          onClick={() =>
+            createCollection({ name: nextCollectionName(collections.map((c) => c.name)), type: 'manual' })
+          }
         >
           New Collection
         </Button>
@@ -78,13 +94,13 @@ export const CollectionsPage = memo(function CollectionsPage() {
             aria-label="Search collections"
           />
         </div>
-        <nav className="flex gap-1" role="tablist" aria-label="Collection categories">
+        {/* Filter toggles, not tabs: there is one grid, not a panel per tab. */}
+        <div className="flex gap-1" role="group" aria-label="Collection categories">
           {categories.map((cat) => (
             <button
               key={cat.id}
               type="button"
-              role="tab"
-              aria-selected={category === cat.id}
+              aria-pressed={category === cat.id}
               onClick={() => setCategory(cat.id)}
               className={cn(
                 'rounded-md px-3 py-1.5 type-body-sm transition-colors',
@@ -96,27 +112,39 @@ export const CollectionsPage = memo(function CollectionsPage() {
               {cat.label}
             </button>
           ))}
-        </nav>
+        </div>
       </div>
 
       {/* Collection grid */}
-      <div className="flex-1 overflow-y-auto p-6">
-        {filtered.length === 0 ? (
-          // No action here: New Collection is in the header directly above.
-          <EmptyState
-            icon={FolderOpen}
-            title="No collections yet"
-            description="Create a collection to organize your assets."
-          />
-        ) : (
-          <div className="grid grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-4">
-            <AnimatePresence mode="popLayout">
-              {filtered.map((collection) => (
-                <CollectionCard key={collection.id} collection={collection} />
-              ))}
-            </AnimatePresence>
-          </div>
-        )}
+      <div className="flex-1 overflow-y-auto">
+        <div className="p-6">
+          {filtered.length === 0 ? (
+            collections.length === 0 ? (
+              // No action here: New Collection is in the header directly above.
+              <EmptyState
+                icon={FolderOpen}
+                title="No collections yet"
+                description="Create a collection to organize your assets."
+              />
+            ) : (
+              <EmptyState
+                icon={Search}
+                title="No matches"
+                description="No collection matches the current search or filter."
+              />
+            )
+          ) : (
+            <div className="grid grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-4">
+              <AnimatePresence mode="popLayout">
+                {filtered.map((collection) => (
+                  <CollectionCard key={collection.id} collection={collection} />
+                ))}
+              </AnimatePresence>
+            </div>
+          )}
+        </div>
+
+        {activeCollection && <CollectionDetail collection={activeCollection} />}
       </div>
     </div>
   );

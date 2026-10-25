@@ -50,4 +50,12 @@ describe('EmptyState', () => {
 
     expect(screen.getByText('d').className).toMatch(/max-w-\[\d+ch\]/);
   });
+
+  it('has a compact size for short strips that keeps the description in view', () => {
+    render(<EmptyState icon={ImageIcon} title="t" description="d" size="compact" />);
+
+    const root = screen.getByTestId('empty-state');
+    expect(root.className).toContain('py-3');
+    expect(root.firstElementChild?.className).toContain('h-8');
+  });
 });

@@ -34,6 +34,36 @@ jobs:
         # tests/ci-typecheck-gate.test.ts.
         run: npm run typecheck
 
+  lockfile:
+    name: Lockfile
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Lockfile matches package.json (npm 10)
+        # Node 20 ships npm 10, the release whose arborist crashed re-resolving
+        # this tree (see tests/npm-lockfile-resolution.test.ts). Rewriting the
+        # lockfile in place must succeed and change nothing: a stale lockfile
+        # or a crash fails here instead of on a contributor's machine.
+        run: |
+          npm --version
+          npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+          git diff --exit-code package-lock.json
+
+      - name: Fresh resolution succeeds (npm 10)
+        # The crash only showed on a full re-resolution, which an in-sync
+        # lockfile skips: resolve package.json from scratch as well.
+        run: |
+          mkdir -p "$RUNNER_TEMP/fresh"
+          cp package.json "$RUNNER_TEMP/fresh/"
+          cd "$RUNNER_TEMP/fresh"
+          npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+
   audit-prod:
     name: Dependency Audit (shipped)
     runs-on: ubuntu-latest

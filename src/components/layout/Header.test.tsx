@@ -29,8 +29,7 @@ const baseStore = {
     bundledBackend: false,
   },
   availableModels: [] as { id: string; status: string }[],
-  activeJobs: [] as Array<{ id: string }>,
-  generationQueue: [] as Array<{ id: string }>,
+  activeJobs: [] as Array<{ id: string; status?: string }>,
 };
 
 function mockStore(overrides: Partial<typeof baseStore> = {}) {
@@ -94,14 +93,37 @@ describe('Header', () => {
         backendConnected: true,
         backendRunning: true,
       },
-      activeJobs: [{ id: 'job-1' }],
-      generationQueue: [{ id: 'queue-1' }, { id: 'queue-2' }],
+      activeJobs: [
+        { id: 'job-1', status: 'processing' },
+        { id: 'job-2', status: 'pending' },
+        { id: 'job-3', status: 'pending' },
+        // Finished jobs stay in activeJobs but are neither running nor queued.
+        { id: 'job-4', status: 'completed' },
+        { id: 'job-5', status: 'failed' },
+      ],
     });
 
     render(<Header />);
 
     expect(screen.getByLabelText('Generation queue active')).toBeInTheDocument();
     expect(screen.getByText('Queue active: 1 running job, 2 queued items')).toBeInTheDocument();
+  });
+
+  it('does not report a queue when every job has finished', () => {
+    mockStore({
+      systemInfo: {
+        ...baseStore.systemInfo,
+        gpuAvailable: true,
+        modelsCount: 2,
+        backendConnected: true,
+        backendRunning: true,
+      },
+      activeJobs: [{ id: 'job-1', status: 'completed' }],
+    });
+
+    render(<Header />);
+
+    expect(screen.queryByLabelText('Generation queue active')).toBeNull();
   });
 
   it('marks the backend as not ready when neither process nor health are available', () => {

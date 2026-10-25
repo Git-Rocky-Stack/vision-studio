@@ -14,16 +14,17 @@ export function WorkflowsGuideSection() {
         items={[
           <span>
             Use <strong>Workflows</strong> for node graph authoring, validation, and still-image
-            execution, then export the graph as ComfyUI JSON when you need an external graph
-            handoff.
+            execution. Graphs can be exported as ComfyUI API JSON, imported from it, or run on a
+            ComfyUI server.
           </span>,
           <span>
-            <strong>Validate</strong> previews the resolved request for the active workflow,
-            including prompt, model, dimensions, and execution issues before you run it.
+            <strong>Validate</strong> previews the resolved request for the active workflow
+            (model, size, steps, CFG, and prompt) and lists any execution issues before you run
+            it.
           </span>,
           <span>
-            The run rail records recent workflow output so you can see which execution actually
-            completed, failed, or remains in progress.
+            The Run Output list records the active workflow&apos;s recent runs, so you can see
+            which execution completed, failed, or is still in progress.
           </span>,
         ]}
       />
@@ -31,39 +32,38 @@ export function WorkflowsGuideSection() {
       <GuideStepList
         steps={[
           {
-            title: 'Pick or duplicate a starting workflow',
+            title: 'Pick a workflow',
             description:
-              'The Workflows panel lists saved workflows on the left. Open one to load its node graph, or duplicate a built-in template when you want a customizable starting point without overwriting the original.',
+              'The Workflow Library lists your saved workflows. Click one to load its node graph. A graph imported from ComfyUI JSON is added to the library as a new workflow.',
           },
           {
             title: 'Edit the node graph',
             description:
-              'Click a node to inspect its inputs in the right rail. Drag connections between node ports to wire data through the graph. The editor enforces type compatibility -- incompatible wires are rejected at draw time, not at run time.',
+              'Use the add-node buttons above the graph to add nodes. Select a node, choose Start connection from selected node, then click the target node to wire them. Drag nodes to move them, or focus a node and use the arrow keys (Shift for bigger steps). Delete selection removes the selected node or edge. The panel under the graph shows the selected node, and LoRA Loader nodes get a LoRA picker there.',
           },
           {
             title: 'Validate the resolved request',
             description:
-              'Click Validate to compute the request the workflow would actually send: final prompt, selected model, dimensions, references, and any execution issues. This is your dry-run before spending compute.',
+              'Click Validate to compute the request the workflow would actually send: model, size, steps, CFG, and prompt, plus any execution issues. This is your dry run before spending compute.',
           },
           {
             title: 'Run the workflow',
             description:
-              'When validation passes, run the workflow. The execution streams progress into the run rail and the result lands in Viewer and Assets -- the same destinations as Generate. Failed runs surface their error in the run rail with the offending node highlighted.',
+              'Run Workflow stays disabled while blocking issues remain. The run is recorded under Run Output, and its result is added to Assets like any other generation. A failure message appears in the workflow panel.',
           },
           {
-            title: 'Export the graph if needed',
+            title: 'Export, import, or run on ComfyUI',
             description:
-              'Use Export to ComfyUI JSON to hand the graph off to an external ComfyUI installation. The export captures node parameters and wiring; runtime values like the active account&apos;s API key are not embedded.',
+              'Export ComfyUI JSON shows the graph in ComfyUI API format. Paste an API-format prompt into the Import box and choose Import graph to bring one in; the import report lists unsupported nodes and unresolved models. Run on ComfyUI is enabled only for graphs that pass the safety check.',
           },
         ]}
       />
 
       <GuideCallout title="Real Execution, Not Just Export" tone="accent">
         <p>
-          Workflow Workbench runs real still-image jobs through the existing generation pipeline.
-          A successful workflow run pushes output into Viewer and Assets -- workflows are not stuck
-          at graph editing or JSON export. Treat them as first-class generation entry points
-          alongside Generate and Quick Generate.
+          Workflows run real still-image jobs through the existing generation pipeline. A
+          successful workflow run adds its output to Assets, so workflows are first-class
+          generation entry points alongside Generate and Quick Generate.
         </p>
       </GuideCallout>
 
@@ -71,42 +71,40 @@ export function WorkflowsGuideSection() {
         <GuideList
           items={[
             <span>
-              <strong>Missing inputs</strong> -- required ports without a wire or default value.
+              <strong>Invalid or unsupported graphs</strong>: a graph that cannot be read, or a
+              node type workflow execution does not support yet.
             </span>,
             <span>
-              <strong>Type mismatches</strong> -- wires the editor allowed by accident or graphs
-              loaded from external sources with stale connections.
+              <strong>Sampler wiring</strong>: the graph needs exactly one KSampler, its positive
+              input connected to a prompt encoder, and its model input connected to a checkpoint
+              loader.
             </span>,
             <span>
-              <strong>Provider conflicts</strong> -- graph requires a feature (ControlNet, LoRA,
-              video) that the active account&apos;s provider routing does not support.
+              <strong>Route problems</strong>: an offline backend on the Local route, or a hosted
+              route that is missing its key or model.
             </span>,
             <span>
-              <strong>Resolved preview</strong> -- the actual prompt text, model id, and
-              dimensions that will be sent. Use this to confirm the prompt expansion is what you
-              expect before generating.
+              <strong>Resolved preview</strong>: the model, size, steps, CFG, and prompt that will
+              be sent. Use it to confirm the prompt is what you expect before generating.
             </span>,
           ]}
         />
       </GuideCallout>
 
-      <GuideCallout title="OpenRouter Workflow Route" tone="info">
+      <GuideCallout title="Hosted Workflow Route" tone="info">
         <GuideList
           items={[
             <span>
-              If the active account uses OpenRouter for still images and has a hosted image model
-              set, workflow still-image runs can continue even while the local backend is offline.
+              If the active account uses a hosted still-image route with a model set, workflow
+              still-image runs can continue even while the local backend is offline.
             </span>,
             <span>
-              The routed model shown in the execution summary is the model that will actually run.
-              If the graph specifies a model that doesn&apos;t match the active account&apos;s
-              provider, validation will surface the conflict before submission.
+              The resolved preview shows the routed model, which is the model that will actually
+              run on a hosted route.
             </span>,
             <span>
-              ControlNet and other guided-graph nodes still require the Local route -- they fail
-              validation under OpenRouter. LoRA Loader chains follow the same rule with one
-              exception: a single FLUX Hub-hosted LoRA at strength 1.0 validates on the
-              HuggingFace route.
+              Hosted runs are prompt-only. LoRA Loader chains are refused on OpenRouter; on
+              HuggingFace only a single FLUX Hub-hosted LoRA at strength 1.0 can run.
             </span>,
           ]}
         />
@@ -116,21 +114,21 @@ export function WorkflowsGuideSection() {
         <GuideList
           items={[
             <span>
-              <strong>Workflows</strong> are node graphs that produce a single primary output per
-              run -- the right tool for "this prompt, this model, these references, generate."
+              <strong>Workflows</strong> are node graphs that produce a primary output per run:
+              the right tool for &quot;this prompt, this model, these settings, generate.&quot;
             </span>,
             <span>
-              <strong>Pipelines</strong> are reusable local refinement chains -- upscale, restore,
-              polish, color-grade, format-convert -- that operate on existing assets. They&apos;re
-              the right tool for "I have an image; now run these post-steps in order."
+              <strong>Pipelines</strong> (the Pipelines mode of the Workflows tab) are reusable
+              refinement chains that run on existing images. Step types include Upscale, Denoise,
+              Sharpen, Face Restore, Color Correct, Background Remove, Style Transfer, Blur, Crop /
+              Resize, and Custom.
             </span>,
             <span>
-              The two compose: a workflow can produce an asset that a pipeline then refines, and
-              the result lands as a new asset with a clear lineage to the source.
+              The two compose: a workflow can produce an asset that a pipeline then refines.
             </span>,
             <span>
-              Duplicate a built-in pipeline starting point when a project needs a custom order or
-              stronger parameters -- built-ins remain pristine for quick reuse.
+              Duplicate a built-in pipeline when a project needs a custom order or stronger
+              parameters; the built-ins stay unchanged for quick reuse.
             </span>,
           ]}
         />

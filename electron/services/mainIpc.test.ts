@@ -1,7 +1,17 @@
+import fs from 'fs';
+import os from 'os';
 import path from 'path';
-import { describe, expect, it } from 'vitest';
+import { pathToFileURL } from 'url';
+import { describe, expect, it, vi } from 'vitest';
 
-import { getAllowedExportRoots, resolveShellPath } from './mainIpc';
+import {
+  getAllowedExportRoots,
+  readTakenFileNames,
+  reserveUniqueFileName,
+  resolveShellPath,
+  readManagedImageDataUrl,
+  writeDataUrlAsset,
+} from './mainIpc';
 
 const HOME = 'C:/Users/User';
 
@@ -56,5 +66,112 @@ describe('shell-open allow-roots (P1 hardening)', () => {
     expect(resolveShellPath(`${HOME}/Desktop/render.png`, throwingRoots, roots)).toBe(
       path.resolve(`${HOME}/Desktop/render.png`)
     );
+  });
+});
+
+describe('import / export collision naming', () => {
+  it('reads the destination once and resolves every collision against it, never existsSync', async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'vs-collide-'));
+    try {
+      fs.writeFileSync(path.join(dir, 'shot.png'), '');
+      fs.writeFileSync(path.join(dir, 'shot-1.png'), '');
+      const existsSync = vi.spyOn(fs, 'existsSync');
+
+      const taken = await readTakenFileNames(dir, false);
+      const names = ['shot', 'shot', 'other'].map((name) => reserveUniqueFileName(name, '.png', taken, false));
+
+      expect(names).toEqual(['shot-2.png', 'shot-3.png', 'other.png']);
+      expect(existsSync).not.toHaveBeenCalled();
+      existsSync.mockRestore();
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('treats a missing destination as empty', async () => {
+    const taken = await readTakenFileNames(path.join(os.tmpdir(), 'vs-does-not-exist-xyz'), false);
+    expect(taken.size).toBe(0);
+  });
+
+  it('matches case-insensitively where the filesystem does', () => {
+    const taken = new Set(['shot.png']);
+    expect(reserveUniqueFileName('Shot', '.PNG', new Set(taken), true)).toBe('Shot-1.PNG');
+    expect(reserveUniqueFileName('Shot', '.PNG', new Set(taken), false)).toBe('Shot.PNG');
+  });
+});
+
+describe('assets:save-data-url writer', () => {
+  const PNG_BYTES = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3]);
+  const pngDataUrl = `data:image/png;base64,${PNG_BYTES.toString('base64')}`;
+
+  it('writes a PNG under <outputRoot>/edits with a sanitized, collision-free name', async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'vs-edit-'));
+    try {
+      const first = await writeDataUrlAsset(root, pngDataUrl, '../../etc/shot-edit.png');
+      const second = await writeDataUrlAsset(root, pngDataUrl, '../../etc/shot-edit.png');
+
+      expect(first.success && first.file.importedPath).toBe(path.join(root, 'edits', 'shot-edit.png').replace(/\\/g, '/'));
+      expect(second.success && second.file.name).toBe('shot-edit-1');
+      expect(fs.readFileSync(path.join(root, 'edits', 'shot-edit.png'))).toEqual(PNG_BYTES);
+      expect(fs.readdirSync(root)).toEqual(['edits']);
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it('refuses non-PNG payloads without writing anything', async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'vs-edit-'));
+    try {
+      const notPng = `data:image/png;base64,${Buffer.from('GIF89a-not-a-png').toString('base64')}`;
+      for (const payload of [notPng, 'data:image/jpeg;base64,AAAA', 'data:image/png;base64,***', 42]) {
+        const result = await writeDataUrlAsset(root, payload, 'x');
+        expect(result.success).toBe(false);
+      }
+      expect(fs.existsSync(path.join(root, 'edits'))).toBe(false);
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('assets:read-data-url reader', () => {
+  const PNG_BYTES = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 9, 9]);
+
+  it('returns a managed image as a signature-typed data URL, from a path or a file:// URL', async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'vs-read-'));
+    try {
+      const file = path.join(root, 'imports', 'shot.jpg');
+      fs.mkdirSync(path.dirname(file));
+      fs.writeFileSync(file, PNG_BYTES);
+      const resolveManaged = (p: string) => p;
+
+      const fromPath = await readManagedImageDataUrl(file, resolveManaged);
+      const fromUrl = await readManagedImageDataUrl(pathToFileURL(file).href, resolveManaged);
+
+      const expected = `data:image/png;base64,${PNG_BYTES.toString('base64')}`;
+      expect(fromPath).toEqual({ success: true, dataUrl: expected });
+      expect(fromUrl).toEqual({ success: true, dataUrl: expected });
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it('refuses paths outside the managed roots and non-image bytes', async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'vs-read-'));
+    try {
+      const secret = path.join(root, 'secrets.json');
+      fs.writeFileSync(secret, '{"token":"x"}');
+      const refuseAll = () => {
+        throw new Error('Asset path is outside managed output directories');
+      };
+      await expect(readManagedImageDataUrl(secret, refuseAll)).rejects.toThrow(/outside managed/);
+      expect(await readManagedImageDataUrl(secret, (p) => p)).toEqual({
+        success: false,
+        error: 'The file is not a supported image.',
+      });
+      expect((await readManagedImageDataUrl('', (p) => p)).success).toBe(false);
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
   });
 });

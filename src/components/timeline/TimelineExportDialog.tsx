@@ -227,7 +227,7 @@ export function TimelineExportDialog({
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.96, y: 12 }}
           onClick={(event) => event.stopPropagation()}
-          className="relative w-full max-w-2xl overflow-hidden rounded-xl border border-border bg-elevated shadow-cinematic"
+          className="raised-panel dialog-shell relative w-full max-w-2xl overflow-hidden"
           data-testid="timeline-export-dialog"
         >
           <div className="border-b border-border bg-[linear-gradient(180deg,rgba(255,255,255,0.05),rgba(255,255,255,0.01))] px-6 py-5">
@@ -239,7 +239,7 @@ export function TimelineExportDialog({
                 </p>
                 <h2 className="mt-3 text-2xl text-text-primary">{sequence.name}</h2>
                 <p className="mt-2 max-w-xl text-sm leading-6 text-text-body">
-                  Export a silent MP4 using the same resolved sequence playback used by the center preview.
+                  Export an MP4 using the same resolved sequence playback used by the center preview, with the timeline's audio tracks mixed in.
                 </p>
               </div>
 
@@ -270,13 +270,13 @@ export function TimelineExportDialog({
               <SummaryCard
                 label="Format"
                 value={`${project.dimensions.width}x${project.dimensions.height}`}
-                detail={`Silent MP4 at ${effectiveFps} fps`}
+                detail={`MP4 at ${effectiveFps} fps, audio tracks mixed in (silent when there are none)`}
               />
             </div>
 
             <div
               className={cn(
-                'rounded-xl border px-4 py-4',
+                'rounded-sm border px-4 py-4',
                 uiState.status === 'success'
                   ? 'border-status-success/40 bg-status-success-muted/40'
                   : uiState.status === 'error'
@@ -345,7 +345,7 @@ export function TimelineExportDialog({
                   <div>
                     <p className="text-base text-text-primary">Ready to export</p>
                     <p className="mt-1 text-sm text-text-body">
-                      Choose a save destination, then the app will render this timeline view into one silent MP4.
+                      Choose a save destination, then the app will render this timeline view, and its audio tracks, into one MP4.
                     </p>
                   </div>
                 </div>
@@ -426,7 +426,7 @@ function SummaryCard({
   detail: string;
 }) {
   return (
-    <div className="rounded-xl border border-border bg-surface/70 px-4 py-3">
+    <div className="rounded-sm border border-border bg-surface/70 px-4 py-3">
       <p className="mono-label text-text-muted">{label}</p>
       <p className="mt-2 text-base text-text-primary">{value}</p>
       <p className="mt-1 text-xs text-text-muted">{detail}</p>

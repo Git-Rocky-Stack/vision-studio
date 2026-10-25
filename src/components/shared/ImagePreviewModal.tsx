@@ -25,6 +25,8 @@ import type { BatchResult } from '@/types/generation';
 import { toGenerationDraftFromResult } from '@/features/batch/resultActions';
 import { useEditTool } from '@/features/edit/useEditTool';
 import { DialogCloseButton } from '@/components/ui/DialogCloseButton';
+import { runExport } from '@/features/notices';
+import { AddToCollectionMenu } from '@/components/collections/AddToCollectionMenu';
 
 interface ImagePreviewModalProps {
   result: BatchResult | null;
@@ -56,6 +58,10 @@ export function ImagePreviewModal({
   );
 
   const editTool = useEditTool();
+  // Collections hold library asset ids; resolve this result's record by path.
+  const libraryAssetId = useAppStore((s) =>
+    result?.assetPath ? (s.assetLibrary.find((a) => a.path === result.assetPath)?.id ?? null) : null,
+  );
 
   const currentIndex = result ? results.findIndex((r) => r.id === result.id) : -1;
   const hasPrev = currentIndex > 0;
@@ -174,7 +180,8 @@ export function ImagePreviewModal({
       return;
     }
 
-    await window.electron.assets.export(result.assetPath, destinationPath);
+    const assetPath = result.assetPath;
+    await runExport(() => window.electron.assets.export(assetPath, destinationPath));
   };
 
   const handleDelete = async () => {
@@ -265,7 +272,7 @@ export function ImagePreviewModal({
                 <button
                   onClick={goToPrev}
                   aria-label="Previous image"
-                  className="absolute left-4 top-1/2 -translate-y-1/2 p-3 rounded-xl bg-surface/80 backdrop-blur-sm text-text-muted hover:text-text-primary hover:bg-elevated transition"
+                  className="absolute left-4 top-1/2 -translate-y-1/2 p-3 rounded-md bg-surface/80 backdrop-blur-sm text-text-muted hover:text-text-primary hover:bg-elevated transition"
                 >
                   <ChevronLeft className="w-6 h-6" />
                 </button>
@@ -287,7 +294,7 @@ export function ImagePreviewModal({
                 <button
                   onClick={goToNext}
                   aria-label="Next image"
-                  className="absolute right-[340px] top-1/2 -translate-y-1/2 p-3 rounded-xl bg-surface/80 backdrop-blur-sm text-text-muted hover:text-text-primary hover:bg-elevated transition"
+                  className="absolute right-[340px] top-1/2 -translate-y-1/2 p-3 rounded-md bg-surface/80 backdrop-blur-sm text-text-muted hover:text-text-primary hover:bg-elevated transition"
                 >
                   <ChevronRight className="w-6 h-6" />
                 </button>
@@ -401,6 +408,10 @@ export function ImagePreviewModal({
                     Export
                   </Button>
                 </div>
+                <AddToCollectionMenu
+                  assetId={libraryAssetId}
+                  triggerClassName="w-full justify-center rounded-md px-3 py-2 type-ui text-text-body transition hover:bg-elevated hover:text-text-primary"
+                />
                 {editTool.error && (
                   <div
                     role="alert"

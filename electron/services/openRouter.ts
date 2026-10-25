@@ -1,5 +1,13 @@
 import axios from 'axios';
 import { z, type ZodError } from 'zod';
+import {
+  createKeyConcurrencyLimit,
+  isRetryableBilledError,
+  isRetryableError,
+  isTimeoutError,
+  retryHostedCall,
+} from './hostedHttp';
+import { sniffImageMime } from './imageMagic';
 
 type AxiosLike = Pick<typeof axios, 'get' | 'post'>;
 
@@ -52,12 +60,20 @@ export interface OpenRouterPromptEnhancementResult {
   prompt: string;
   variations: string[];
   usage: OpenRouterUsage | null;
+  /**
+   * True when the call succeeded but the model's reply could not be parsed,
+   * so `prompt` is the user's input echoed back. The UI must say nothing
+   * changed instead of reporting an enhancement.
+   */
+  fallback?: true;
 }
 
 export interface OpenRouterNegativePromptSuggestionResult {
   negativePrompt: string;
   suggestions: string[];
   usage: OpenRouterUsage | null;
+  /** True when the reply was unreadable and `negativePrompt` is the input echoed back. */
+  fallback?: true;
 }
 
 export interface OpenRouterImageResult {
@@ -161,6 +177,9 @@ function buildUserTextMessage(text: string) {
 const METADATA_TIMEOUT_MS = 10_000;
 const TEXT_COMPLETION_TIMEOUT_MS = 30_000;
 const IMAGE_GENERATION_TIMEOUT_MS = 120_000;
+/** Fetching a provider-hosted result image (https URL instead of a data URL). */
+const IMAGE_DOWNLOAD_TIMEOUT_MS = 60_000;
+const IMAGE_DOWNLOAD_MAX_BYTES = 25 * 1024 * 1024;
 
 /**
  * Maximum per-field character count for user-supplied prompts. Generous
@@ -178,153 +197,10 @@ function assertPromptLength(value: string, fieldName: string) {
   }
 }
 
-function isTimeoutError(error: unknown) {
-  const code = (error as { code?: unknown })?.code;
-  if (code === 'ECONNABORTED' || code === 'ETIMEDOUT') {
-    return true;
-  }
-  const name = (error as { name?: unknown })?.name;
-  return name === 'TimeoutError';
-}
-
-const RETRYABLE_STATUS_CODES = new Set([429, 500, 502, 503, 504]);
 const DEFAULT_RETRY_BASE_DELAY_MS = 250;
 const DEFAULT_MAX_RETRY_ATTEMPTS = 3;
 const DEFAULT_MODEL_CACHE_TTL_MS = 5 * 60 * 1000;
 const DEFAULT_MAX_CONCURRENT_PER_KEY = 4;
-
-/**
- * Per-key counting semaphore. `maxPerKey` total in-flight calls allowed
- * per API key; calls beyond that wait FIFO for a slot to free.
- *
- * Different keys are isolated -- one user's burst doesn't starve another's
- * call. Slots are released in `finally` so error paths don't leak.
- */
-function createKeyConcurrencyLimit(maxPerKey: number) {
-  type KeyState = { active: number; waiters: Array<() => void> };
-  const states = new Map<string, KeyState>();
-
-  function getState(key: string): KeyState {
-    let state = states.get(key);
-    if (!state) {
-      state = { active: 0, waiters: [] };
-      states.set(key, state);
-    }
-    return state;
-  }
-
-  return async function run<T>(key: string, work: () => Promise<T>): Promise<T> {
-    const state = getState(key);
-    if (state.active >= maxPerKey) {
-      await new Promise<void>((resolve) => state.waiters.push(resolve));
-    }
-    state.active += 1;
-    try {
-      return await work();
-    } finally {
-      state.active -= 1;
-      const next = state.waiters.shift();
-      if (next) next();
-    }
-  };
-}
-
-function isAbortError(error: unknown) {
-  const name = (error as { name?: unknown })?.name;
-  if (name === 'AbortError' || name === 'CanceledError') {
-    return true;
-  }
-  const code = (error as { code?: unknown })?.code;
-  return code === 'ERR_CANCELED';
-}
-
-function getResponseStatus(error: unknown): number | null {
-  const status = (error as { response?: { status?: unknown } })?.response?.status;
-  return typeof status === 'number' ? status : null;
-}
-
-function isRetryableError(error: unknown): boolean {
-  if (isAbortError(error) || isTimeoutError(error)) {
-    return false;
-  }
-  const status = getResponseStatus(error);
-  if (status === null) {
-    // Network-level failure with no HTTP response (e.g. ECONNRESET, EAI_AGAIN) - retry.
-    const code = (error as { code?: unknown })?.code;
-    if (code === 'ECONNRESET' || code === 'ECONNREFUSED' || code === 'EAI_AGAIN' || code === 'ENOTFOUND') {
-      return true;
-    }
-    return false;
-  }
-  return RETRYABLE_STATUS_CODES.has(status);
-}
-
-function getRetryAfterMs(error: unknown): number | null {
-  const headers = (error as { response?: { headers?: Record<string, unknown> } })?.response?.headers;
-  if (!headers) {
-    return null;
-  }
-  const raw = headers['retry-after'] ?? headers['Retry-After'];
-  if (typeof raw !== 'string' || !raw.trim()) {
-    return null;
-  }
-  const seconds = Number(raw);
-  if (Number.isFinite(seconds) && seconds >= 0) {
-    return Math.round(seconds * 1000);
-  }
-  // Retry-After can also be an HTTP date.
-  const dateMs = Date.parse(raw);
-  if (!Number.isNaN(dateMs)) {
-    return Math.max(0, dateMs - Date.now());
-  }
-  return null;
-}
-
-function delay(ms: number, signal?: AbortSignal) {
-  return new Promise<void>((resolve, reject) => {
-    if (signal?.aborted) {
-      reject(new DOMException('Aborted', 'AbortError'));
-      return;
-    }
-    const timer = setTimeout(() => {
-      signal?.removeEventListener('abort', onAbort);
-      resolve();
-    }, ms);
-    const onAbort = () => {
-      clearTimeout(timer);
-      reject(new DOMException('Aborted', 'AbortError'));
-    };
-    signal?.addEventListener('abort', onAbort, { once: true });
-  });
-}
-
-async function retryOpenRouterCall<T>(
-  operation: () => Promise<T>,
-  {
-    maxAttempts,
-    baseDelayMs,
-    signal,
-  }: { maxAttempts: number; baseDelayMs: number; signal?: AbortSignal },
-): Promise<T> {
-  let lastError: unknown;
-  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
-    if (signal?.aborted) {
-      throw new DOMException('Aborted', 'AbortError');
-    }
-    try {
-      return await operation();
-    } catch (error) {
-      lastError = error;
-      if (attempt === maxAttempts || !isRetryableError(error)) {
-        throw error;
-      }
-      const retryAfter = getRetryAfterMs(error);
-      const backoff = retryAfter ?? baseDelayMs * Math.pow(2, attempt - 1);
-      await delay(backoff, signal);
-    }
-  }
-  throw lastError;
-}
 
 function asNumber(value: unknown) {
   if (typeof value === 'number' && Number.isFinite(value)) {
@@ -402,8 +278,14 @@ function toOpenRouterError(error: unknown, fallbackMessage: string) {
   return fallbackMessage;
 }
 
+/**
+ * Deliberately NO `cause`: the underlying AxiosError's config.headers carry
+ * `Authorization: Bearer <key>`, and a cause survives into util.inspect,
+ * console logging, and error reporters. The extracted message is all any
+ * caller uses.
+ */
 function createOpenRouterError(error: unknown, fallbackMessage: string) {
-  return new Error(toOpenRouterError(error, fallbackMessage), { cause: error });
+  return new Error(toOpenRouterError(error, fallbackMessage));
 }
 
 function extractMessageContent(content: unknown) {
@@ -623,23 +505,41 @@ function toAspectRatio(width: number, height: number) {
   return nearest.label && nearest.distance <= tolerance ? nearest.label : null;
 }
 
-function extractImageDataUrl(image: unknown) {
-  const dataUrl =
+type ExtractedImage =
+  | { kind: 'data'; image: OpenRouterImageResult }
+  | { kind: 'remote'; url: string };
+
+/**
+ * Most image models answer with a base64 data URL, but some providers hand
+ * back an https link to the rendered file instead. Both are a billed result,
+ * so both must reach the user; anything else (http, other schemes) is
+ * dropped.
+ */
+function extractImage(image: unknown): ExtractedImage | null {
+  const url =
     typeof (image as { image_url?: { url?: unknown } })?.image_url?.url === 'string'
       ? (image as { image_url: { url: string } }).image_url.url
       : typeof (image as { imageUrl?: { url?: unknown } })?.imageUrl?.url === 'string'
         ? (image as { imageUrl: { url: string } }).imageUrl.url
         : null;
 
-  if (!dataUrl || !dataUrl.startsWith('data:image/')) {
+  if (!url) {
     return null;
   }
 
-  const mimeTypeMatch = /^data:([^;]+);base64,/.exec(dataUrl);
-  return {
-    dataUrl,
-    mimeType: mimeTypeMatch?.[1] ?? 'image/png',
-  };
+  if (url.startsWith('data:image/')) {
+    const mimeTypeMatch = /^data:([^;]+);base64,/.exec(url);
+    return { kind: 'data', image: { dataUrl: url, mimeType: mimeTypeMatch?.[1] ?? 'image/png' } };
+  }
+
+  try {
+    if (new URL(url).protocol === 'https:') {
+      return { kind: 'remote', url };
+    }
+  } catch {
+    // Not a URL at all.
+  }
+  return null;
 }
 
 function buildHeaders(apiKey: string, appReferer: string, appTitle: string) {
@@ -689,14 +589,20 @@ export function createOpenRouterService({
     imageModelCache.set(apiKey, { fetchedAt: now(), models });
   }
 
-  function withRetry<T>(apiKey: string, operation: () => Promise<T>, signal?: AbortSignal) {
+  function withRetry<T>(
+    apiKey: string,
+    operation: () => Promise<T>,
+    signal?: AbortSignal,
+    isRetryable: (error: unknown) => boolean = isRetryableError,
+  ) {
     // Per-key semaphore wraps the entire retry sequence so a single logical
     // call holds one slot for its full lifetime (initial attempt + backoffs).
     return runWithKeyLimit(apiKey, () =>
-      retryOpenRouterCall(operation, {
+      retryHostedCall(operation, {
         maxAttempts: maxRetryAttempts,
         baseDelayMs: retryBaseDelayMs,
         signal,
+        isRetryable,
       }),
     );
   }
@@ -868,6 +774,7 @@ export function createOpenRouterService({
         prompt: normalizedPrompt,
         variations: [],
         usage,
+        fallback: true,
       };
     }
   }
@@ -955,7 +862,48 @@ export function createOpenRouterService({
         negativePrompt: normalizedNegativePrompt,
         suggestions: [],
         usage,
+        fallback: true,
       };
+    }
+  }
+
+  /**
+   * Fetch a provider-hosted result image. No Authorization header: the link
+   * points at a third-party CDN, and the OpenRouter key must never reach it.
+   * Capped in time and size, and typed by magic bytes. Returns null (after a
+   * warning) rather than throwing so one bad link does not discard the rest.
+   */
+  async function downloadRemoteImage(
+    url: string,
+    signal?: AbortSignal,
+  ): Promise<OpenRouterImageResult | null> {
+    try {
+      const response = await axiosInstance.get(url, {
+        responseType: 'arraybuffer',
+        timeout: IMAGE_DOWNLOAD_TIMEOUT_MS,
+        maxContentLength: IMAGE_DOWNLOAD_MAX_BYTES,
+        maxBodyLength: IMAGE_DOWNLOAD_MAX_BYTES,
+        maxRedirects: 3,
+        ...(signal ? { signal } : {}),
+      });
+      const buffer = Buffer.from(response.data as ArrayBuffer);
+      if (buffer.length > IMAGE_DOWNLOAD_MAX_BYTES) {
+        throw new Error('image exceeds the download size cap');
+      }
+      const mimeType = sniffImageMime(buffer);
+      if (!mimeType) {
+        throw new Error('downloaded file is not an image');
+      }
+      return { dataUrl: `data:${mimeType};base64,${buffer.toString('base64')}`, mimeType };
+    } catch (error) {
+      if (signal?.aborted) {
+        throw error;
+      }
+      logger.warn(
+        '[openRouter] generateImage: could not download a hosted result image',
+        error instanceof Error ? error.message : error,
+      );
+      return null;
     }
   }
 
@@ -991,7 +939,18 @@ export function createOpenRouterService({
     assertPromptLength(normalizedNegativePrompt, 'Negative prompt');
 
     try {
-      const imageModels = await listImageModels(apiKey);
+      // Best-effort: the catalog only decides whether to also ask for text
+      // output. A catalog outage must not block a generation the user asked
+      // for, so an unknown model falls back to image-only modalities.
+      let imageModels: OpenRouterModelSummary[] = [];
+      try {
+        imageModels = await listImageModels(apiKey);
+      } catch (catalogError) {
+        logger.warn(
+          '[openRouter] generateImage: model catalog unavailable, continuing without it',
+          catalogError instanceof Error ? catalogError.message : catalogError,
+        );
+      }
       const selectedModel = imageModels.find((candidate) => candidate.id === normalizedModel);
       const aspectRatio = toAspectRatio(width, height);
       const modalities = selectedModel?.outputModalities.includes('text')
@@ -1024,18 +983,32 @@ export function createOpenRouterService({
             },
           ),
         signal,
+        // Billed: never retry a timeout or a 500/502/504 that may have
+        // already produced (and charged for) an image.
+        isRetryableBilledError,
       );
 
       const envelope = parseChatCompletionEnvelope(response.data);
       const message = envelope.choices[0].message;
-      const images = Array.isArray(message.images)
+      const extracted = Array.isArray(message.images)
         ? message.images
-            .map((image: unknown) => extractImageDataUrl(image))
-            .filter((image): image is OpenRouterImageResult => Boolean(image))
+            .map((image: unknown) => extractImage(image))
+            .filter((image): image is ExtractedImage => Boolean(image))
         : [];
+      const images = (
+        await Promise.all(
+          extracted.map((entry) =>
+            entry.kind === 'data' ? entry.image : downloadRemoteImage(entry.url, signal),
+          ),
+        )
+      ).filter((image): image is OpenRouterImageResult => Boolean(image));
 
       if (images.length === 0) {
-        throw new Error('OpenRouter did not return any images.');
+        throw new Error(
+          extracted.length > 0
+            ? 'OpenRouter generated an image, but it could not be downloaded.'
+            : 'OpenRouter did not return any images.',
+        );
       }
 
       const usage = extractUsage(response.data);

@@ -7,6 +7,7 @@ import {
   ChevronDown,
   Cloud,
   Cpu,
+  Download,
   Gauge,
   HardDrive,
   Image as ImageIcon,
@@ -67,6 +68,16 @@ function Badge({
     <span className={cn('inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 type-badge', className)}>
       {children}
     </span>
+  );
+}
+
+/** Catalog rows include models whose weights are not on disk yet. */
+function NotInstalledBadge() {
+  return (
+    <Badge className="border-status-warning/30 bg-status-warning/10 text-status-warning">
+      <Download className="h-2.5 w-2.5" />
+      Not installed
+    </Badge>
   );
 }
 
@@ -136,6 +147,21 @@ export function ModelSelector({ value, onChange, generationType }: ModelSelector
 
   const models = selectModelsByCapability(availableModels, generationType);
   const selected = models.find((m) => m.id === value) ?? models[0] ?? null;
+  const firstReady = models.find((m) => m.status === 'ready') ?? null;
+
+  // The shipped defaults (and project templates) can name a catalog model the
+  // first-run install set leaves out, so a fresh install would aim its first
+  // Generate at weights that are not on disk. Once per mount, when the catalog
+  // first arrives, move an unknown or not-installed selection onto an
+  // installed model. Later picks are the user's and are never overridden.
+  const autoCorrected = useRef(false);
+  useEffect(() => {
+    if (autoCorrected.current || models.length === 0) return;
+    autoCorrected.current = true;
+    const current = models.find((m) => m.id === value);
+    if (current?.status === 'ready' || !firstReady) return;
+    onChange(firstReady.id);
+  }, [models, value, firstReady, onChange]);
 
   if (!selected) {
     return (
@@ -192,6 +218,7 @@ export function ModelSelector({ value, onChange, generationType }: ModelSelector
               <SelectedRuntimeIcon className="h-2.5 w-2.5" />
               {selectedRuntime.label}
             </Badge>
+            {selected.status !== 'ready' && <NotInstalledBadge />}
           </div>
           <p className="mt-1.5 type-meta text-text-muted">
             {selected.tier} / {hardwareLabel[selected.hardware_class]} / {selected.vram}
@@ -278,6 +305,7 @@ export function ModelSelector({ value, onChange, generationType }: ModelSelector
                         <Badge className="border-border bg-canvas text-text-muted">
                           {hardwareLabel[model.hardware_class]}
                         </Badge>
+                        {model.status !== 'ready' && <NotInstalledBadge />}
                       </div>
                     </div>
                   </button>

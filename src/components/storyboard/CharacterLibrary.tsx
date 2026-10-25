@@ -111,7 +111,13 @@ export function CharacterLibrary({ projectId }: CharacterLibraryProps) {
             </span>
           )}
         </div>
-        <Button variant="ghost" size="sm" onClick={handleAddCharacter}>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={handleAddCharacter}
+          aria-label="Add character"
+          title="Add character"
+        >
           <Plus className="w-3.5 h-3.5" aria-hidden="true" />
         </Button>
       </div>

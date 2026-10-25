@@ -17,6 +17,15 @@ describe('createRetrievalClient', () => {
     expect(url).toContain('/api/v1/retrieval/query');
     expect(body).toMatchObject({ text: 'fox', modelFamily: 'sdxl', sources: ['assets'], maxTokens: 200 });
     expect((config as { headers: Record<string, string> }).headers['X-Auth']).toBe('k');
+    // Prompt-assist awaits the query: a wedged backend must time out.
+    expect((config as { timeout?: number }).timeout).toBe(30_000);
+  });
+
+  it('gives a full corpus ingest the long-operation timeout', async () => {
+    const axiosInstance = { get: vi.fn(), post: vi.fn().mockResolvedValue({ data: { ingested: 0, skipped: 0, total: 0 } }) };
+    const client = createRetrievalClient({ baseUrl: 'http://x', axiosInstance });
+    await client.ingest([]);
+    expect((axiosInstance.post.mock.calls[0][2] as { timeout?: number }).timeout).toBe(10 * 60_000);
   });
 
   it('ingests records and returns counts', async () => {

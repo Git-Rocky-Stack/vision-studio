@@ -1,4 +1,5 @@
 import { cn } from '@/utils/cn';
+import { isEditableTarget } from '@/utils/isEditableTarget';
 import { useAppStore } from '@/store/appStore';
 import { useShallow } from 'zustand/react/shallow';
 import {
@@ -35,7 +36,6 @@ export const Canvas = memo(function Canvas() {
     setActiveRegionId,
     setActiveMaskTool,
     toggleMaskInverted,
-    setActiveEditTool,
     setActiveSubMode,
     setActiveTab,
     setCenterView,
@@ -59,7 +59,6 @@ export const Canvas = memo(function Canvas() {
     setActiveRegionId: s.setActiveRegionId,
     setActiveMaskTool: s.setActiveMaskTool,
     toggleMaskInverted: s.toggleMaskInverted,
-    setActiveEditTool: s.setActiveEditTool,
     setActiveSubMode: s.setActiveSubMode,
     setActiveTab: s.setActiveTab,
     setCenterView: s.setCenterView,
@@ -189,6 +188,33 @@ export const Canvas = memo(function Canvas() {
   const handleResetZoom = () => {
     setZoom(100);
     setPan({ x: 0, y: 0 });
+  };
+  // Fit the artboard inside the visible container, within the zoom limits.
+  const handleZoomToFit = () => {
+    const rect = containerRef.current?.getBoundingClientRect();
+    if (!rect || rect.width === 0 || rect.height === 0) {
+      handleResetZoom();
+      return;
+    }
+    const fit = Math.min(rect.width / displayedArtboardSize.width, rect.height / displayedArtboardSize.height);
+    setZoom(Math.round(Math.min(200, Math.max(25, fit * 100 * 0.9))));
+    setPan({ x: 0, y: 0 });
+  };
+  // Generation Info opens the Viewer on the library record of this image,
+  // where its prompt, model, seed and settings are shown.
+  const generationInfoAssetId = contextMenu
+    ? (useAppStore
+        .getState()
+        .assetLibrary.find(
+          (asset) =>
+            asset.path === currentImageAssetPath ||
+            (currentImage !== null && asset.previewUrl === currentImage),
+        )?.id ?? null)
+    : null;
+  const handleShowGenerationInfo = () => {
+    if (!generationInfoAssetId) return;
+    useAppStore.getState().setActiveViewerItemId(`asset-${generationInfoAssetId}`);
+    setCenterView('viewer');
   };
   const openGenerate = () => {
     setActiveTab('generate');
@@ -363,7 +389,10 @@ export const Canvas = memo(function Canvas() {
   // Keyboard shortcuts for canvas
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      if (isEditableTarget(e.target)) return;
+      // Ctrl/Cmd/Alt chords are the app's or the OS's (Ctrl+V pastes, Ctrl+=
+      // zooms the page); these single-key shortcuts must not also fire.
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
       // Region mask tool shortcuts (only active in region mode)
       if (regionMode) {
         switch (e.key.toLowerCase()) {
@@ -386,53 +415,9 @@ export const Canvas = memo(function Canvas() {
             toggleMaskInverted();
             return;
         }
-      } else {
-        // Edit tool shortcuts (only active outside region mode)
-        switch (e.key.toLowerCase()) {
-          case 'v':
-            setActiveEditTool('move');
-            return;
-          case 't':
-            setActiveEditTool('scale');
-            return;
-          case 'c':
-            setActiveEditTool('crop');
-            return;
-          case 'r':
-            setActiveEditTool('rotate');
-            return;
-          case 'b':
-            setActiveEditTool('brush');
-            return;
-          case 'e':
-            setActiveEditTool('eraser');
-            return;
-          case 's':
-            setActiveEditTool('clone');
-            return;
-          case 'j':
-            setActiveEditTool('heal');
-            return;
-          case 'x':
-            setActiveEditTool('text');
-            return;
-          case 'u':
-            setActiveEditTool('shape');
-            return;
-          case 'p':
-            setActiveEditTool('pen');
-            return;
-          case 'h':
-            setActiveEditTool('hand');
-            return;
-          case 'z':
-            setActiveEditTool('zoom');
-            return;
-          case 'i':
-            setActiveEditTool('eyedropper');
-            return;
-        }
       }
+      // Edit tool letters live in EditCanvas (useEditToolShortcuts): this
+      // Canvas is not mounted on the editor tab, where those tools work.
       // Canvas zoom shortcuts
       switch (e.key) {
         case '+':
@@ -574,11 +559,11 @@ export const Canvas = memo(function Canvas() {
                 <motion.div
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className="w-full max-w-lg rounded-xl border border-border bg-[linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.01))] px-6 py-6 text-center shadow-cinematic"
+                  className="raised-panel w-full max-w-lg px-6 py-6 text-center"
                 >
                   <div
                     ref={videoPreviewRef}
-                    className="mx-auto mb-4 aspect-video w-full max-w-sm overflow-hidden rounded-xl border border-border bg-void"
+                    className="mx-auto mb-4 aspect-video w-full max-w-sm overflow-hidden rounded-sm border border-border bg-void"
                   >
                     <MediaPreview
                       kind="video"
@@ -669,9 +654,9 @@ export const Canvas = memo(function Canvas() {
                 <motion.div
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className="w-full max-w-md rounded-xl border border-border bg-[linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.01))] px-8 py-10 text-center shadow-cinematic"
+                  className="raised-panel w-full max-w-md px-8 py-10 text-center"
                 >
-                  <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-xl border border-accent-primary-border bg-accent-primary-muted shadow-accent-subtle">
+                  <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-md border border-accent-primary-border bg-accent-primary-muted shadow-accent-subtle">
                     <Sparkles className="h-6 w-6 text-accent-primary" />
                   </div>
                   <div>
@@ -778,6 +763,9 @@ export const Canvas = memo(function Canvas() {
           x={contextMenu.x}
           y={contextMenu.y}
           onClose={() => setContextMenu(null)}
+          onShowGenerationInfo={generationInfoAssetId ? handleShowGenerationInfo : undefined}
+          onZoomToFit={handleZoomToFit}
+          onZoom100={handleResetZoom}
         />
       )}
     </div>

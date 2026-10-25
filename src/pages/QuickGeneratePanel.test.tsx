@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useAppStore } from '@/store/appStore';
@@ -102,5 +102,114 @@ describe('QuickGeneratePanel', () => {
 
     expect(await screen.findByText('OpenRouter Still Image Route')).toBeInTheDocument();
     expect(screen.getByText(/google\/gemini-2.5-flash-image/)).toBeInTheDocument();
+  });
+
+  describe('HuggingFace still-image route', () => {
+    function useHuggingFaceAccount({ tokenStored = true, model = 'black-forest-labs/FLUX.1-schnell' } = {}) {
+      window.electron.accounts.list = vi.fn().mockResolvedValue({
+        activeAccountId: 'account-primary',
+        accounts: [
+          {
+            id: 'account-primary',
+            name: 'Primary',
+            createdAt: '2026-04-24T00:00:00.000Z',
+            updatedAt: '2026-04-24T00:00:00.000Z',
+            preferences: {
+              promptEnhancementProvider: 'local',
+              openRouterModel: '',
+              imageGenerationProvider: 'huggingface',
+              openRouterImageModel: '',
+              huggingFaceImageModel: model,
+            },
+            openRouter: { apiKeyStored: false, keyLabel: null, lastValidatedAt: null },
+            huggingFace: { tokenStored },
+          },
+        ],
+      });
+    }
+
+    async function generateWithBackendOffline() {
+      useAppStore.setState({
+        systemInfo: { ...useAppStore.getState().systemInfo, backendConnected: false },
+      });
+      render(<QuickGeneratePanel />);
+      await screen.findByText('HuggingFace Still Image Route');
+      fireEvent.change(screen.getByLabelText('Prompt'), { target: { value: 'a lighthouse at dusk' } });
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: /Generate/i }));
+      });
+    }
+
+    it('runs the hosted model with the local backend offline', async () => {
+      useHuggingFaceAccount();
+      await generateWithBackendOffline();
+
+      expect(window.electron.generation.generateImage).toHaveBeenCalledWith(
+        expect.objectContaining({ model: 'black-forest-labs/FLUX.1-schnell' }),
+      );
+      expect(screen.queryByText(/AI backend is not running/)).not.toBeInTheDocument();
+    });
+
+    it('refuses to run without a stored token, and says why', async () => {
+      useHuggingFaceAccount({ tokenStored: false });
+      await generateWithBackendOffline();
+
+      expect(window.electron.generation.generateImage).not.toHaveBeenCalled();
+      expect(await screen.findByText(/no token is stored for the active account/)).toBeInTheDocument();
+    });
+  });
+
+  describe('status polling', () => {
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    async function advance(ms: number) {
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(ms);
+      });
+    }
+
+    async function generate() {
+      vi.useFakeTimers();
+      useAppStore.setState({
+        systemInfo: { ...useAppStore.getState().systemInfo, backendConnected: true },
+      });
+      render(<QuickGeneratePanel />);
+      await advance(0);
+      fireEvent.change(screen.getByLabelText('Prompt'), { target: { value: 'a lighthouse at dusk' } });
+      fireEvent.click(screen.getByRole('button', { name: /Generate/i }));
+      for (let i = 0; i < 5; i++) await advance(0);
+    }
+
+    it('never sends a status request while the previous one is still in flight', async () => {
+      const getStatus = vi.fn(() => new Promise(() => undefined));
+      window.electron.generation.getStatus = getStatus as unknown as typeof window.electron.generation.getStatus;
+
+      await generate();
+      await advance(10_000);
+
+      expect(getStatus).toHaveBeenCalledTimes(1);
+    });
+
+    it('completes a job exactly once and then stops polling', async () => {
+      const responses = ['processing', 'processing', 'completed'];
+      const getStatus = vi.fn(async () => ({
+        job_id: 'job-quick-1',
+        status: responses.shift() ?? 'completed',
+        progress: 100,
+        result: { images: ['/outputs/job-quick-1/image.png'] },
+      }));
+      window.electron.generation.getStatus = getStatus as unknown as typeof window.electron.generation.getStatus;
+
+      await generate();
+      await advance(1500);
+      await advance(1500);
+      await advance(10_000);
+
+      expect(getStatus).toHaveBeenCalledTimes(3);
+      expect(window.electron.notifications.notify).toHaveBeenCalledTimes(1);
+      expect(window.electron.notifications.notify).toHaveBeenCalledWith('generation_complete', expect.anything());
+    });
   });
 });

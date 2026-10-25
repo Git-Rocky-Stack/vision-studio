@@ -149,6 +149,16 @@ describe('Input', () => {
     render(<Input error="Invalid input" />);
     const input = screen.getByRole('textbox');
     expect(input).toHaveClass('border-status-error');
+    // The well's own border is unlayered and outranks the utility above, so
+    // the error border is drawn by .recessed-well[aria-invalid='true'].
+    expect(input).toHaveAttribute('aria-invalid', 'true');
+  });
+
+  it('draws the field as a recessed well', () => {
+    render(<Input />);
+    const input = screen.getByRole('textbox');
+    expect(input).toHaveClass('recessed-well');
+    expect(input).not.toHaveAttribute('aria-invalid');
   });
 
   it('maintains accessibility with aria attributes', () => {

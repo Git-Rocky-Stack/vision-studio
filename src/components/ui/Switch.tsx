@@ -28,10 +28,10 @@ export function Switch({ checked, onChange, label, disabled, className }: Switch
         className
       )}
       style={{
-        // Recessed slot: a lit chrome channel when on, a dark carved well when off.
-        boxShadow: checked
-          ? 'inset 0 1px 2px rgba(0,0,0,0.35), 0 0 8px var(--color-accent-primary-glow)'
-          : 'inset 0 1px 3px rgba(0,0,0,0.8)',
+        // Recessed slot: one depth layer, carved in, in both states. The track
+        // used to add an outer glow when on, mixing inset and outset shadows on
+        // one element; the light now comes from the knob.
+        boxShadow: checked ? 'inset 0 1px 2px rgba(0,0,0,0.35)' : 'inset 0 1px 3px rgba(0,0,0,0.8)',
       }}
     >
       <span
@@ -45,7 +45,10 @@ export function Switch({ checked, onChange, label, disabled, className }: Switch
           checked ? 'translate-x-4 bg-void' : 'translate-x-0 bg-accent-primary'
         )}
         style={{
-          boxShadow: '0 1px 2px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.5)',
+          // A raised knob: its own bevel and drop, plus the chrome glow when on.
+          boxShadow: checked
+            ? '0 1px 2px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.5), 0 0 8px var(--color-accent-primary-glow)'
+            : '0 1px 2px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.5)',
         }}
       />
     </button>

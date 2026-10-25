@@ -86,7 +86,8 @@ export default defineConfig({
   // Visual snapshots live beside the spec under tests/e2e/visual/snapshots,
   // keyed by name + project + platform. No Playwright projects are defined, so
   // the project segment is empty and baselines are e.g.
-  // generate-panel-default--win32.png on the Windows runner. This template
+  // generate-panel-default--win32.png on Windows and
+  // generate-panel-default--linux.png on Linux (both committed). This template
   // fully governs snapshot location, so no separate snapshotDir is needed.
   snapshotPathTemplate: '{testDir}/visual/snapshots/{testFilePath}/{arg}-{projectName}-{platform}{ext}',
 });

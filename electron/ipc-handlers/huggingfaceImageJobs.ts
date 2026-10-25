@@ -1,4 +1,5 @@
 import type { OpenRouterImageJobStatus } from './openRouterImageRouting';
+import { pruneFinishedJobs, type JobRetentionOptions } from './hostedJobRetention';
 
 /**
  * In-process store for HuggingFace still-image jobs (M6). Mirrors
@@ -42,7 +43,14 @@ function snapshot(job: HuggingFaceImageJob): HuggingFaceImageJobSnapshot {
   return rest;
 }
 
-export function createHuggingFaceImageJobStore({ emit }: { emit: HuggingFaceImageJobEmit }): HuggingFaceImageJobStore {
+export function createHuggingFaceImageJobStore({
+  emit,
+  retention,
+}: {
+  emit: HuggingFaceImageJobEmit;
+  /** Finished-job retention (default 24h); see hostedJobRetention.ts. */
+  retention?: JobRetentionOptions;
+}): HuggingFaceImageJobStore {
   const jobs = new Map<string, HuggingFaceImageJob>();
 
   function emitProgress(job: HuggingFaceImageJob) {
@@ -63,6 +71,7 @@ export function createHuggingFaceImageJobStore({ emit }: { emit: HuggingFaceImag
       return job ? snapshot(job) : null;
     },
     set(job) {
+      pruneFinishedJobs(jobs, retention);
       jobs.set(job.job_id, job);
       emitProgress(job);
       return job;
@@ -82,6 +91,7 @@ export function createHuggingFaceImageJobStore({ emit }: { emit: HuggingFaceImag
       return nextJob;
     },
     values() {
+      pruneFinishedJobs(jobs, retention);
       return Array.from(jobs.values()).map(snapshot);
     },
   };

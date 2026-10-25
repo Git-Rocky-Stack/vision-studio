@@ -1,6 +1,7 @@
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import type { HuggingFaceVideoJobStore } from './huggingfaceVideoJobs';
+import { deleteOrphanedFiles } from './orphanFileCleanup';
 
 /**
  * Runs a HuggingFace text-to-video job in the main process (M6 PR2). Resolves
@@ -28,7 +29,15 @@ type RunDeps = {
     }) => Promise<{ model: string | null; dataUrl: string; mimeType: string }>;
   };
   outputRoots: { getResolvedOutputDirectory: () => string; rememberOutputRoot: (dir: string) => void };
+  // Allow test overrides for the orphan-cleanup side-effect.
+  deleteOrphans?: typeof deleteOrphanedFiles;
 };
+
+/** A user cancel already patched the job; the runner must not overwrite it. */
+function isCancelled(store: HuggingFaceVideoJobStore, jobId: string): boolean {
+  const job = store.get(jobId);
+  return !job || job.status === 'cancelled';
+}
 
 const MIME_EXT: Record<string, string> = {
   'video/mp4': 'mp4',
@@ -65,6 +74,7 @@ export async function runHuggingFaceVideoJob(
   deps: RunDeps,
 ): Promise<void> {
   const { store, userAccounts, huggingFace, outputRoots } = deps;
+  const orphanCleanup = deps.deleteOrphans ?? deleteOrphanedFiles;
   const accountId = typeof params.__huggingFaceAccountId === 'string' ? params.__huggingFaceAccountId : null;
   try {
     const account = userAccounts.getAccount(accountId);
@@ -91,10 +101,22 @@ export async function runHuggingFaceVideoJob(
       signal: controller.signal,
     });
 
+    // Same two checkpoints as runOpenRouterImageJob: a cancel that landed
+    // while the request was in flight wins over the response, and a cancel
+    // during the write gets its file cleaned up instead of completing.
+    if (isCancelled(store, jobId)) {
+      return;
+    }
+
     store.patch(jobId, { progress: 72 });
     const video = outputDir ? await persistDataUrl(outputDir, jobId, result.dataUrl) : result.dataUrl;
     if (outputDir) {
       outputRoots.rememberOutputRoot(outputDir);
+    }
+
+    if (isCancelled(store, jobId)) {
+      await orphanCleanup(outputDir ? [video] : [], console);
+      return;
     }
 
     store.patch(jobId, {
@@ -110,6 +132,9 @@ export async function runHuggingFaceVideoJob(
       },
     });
   } catch (error) {
+    if (store.get(jobId)?.status === 'cancelled') {
+      return;
+    }
     const message =
       (error as { name?: string } | null)?.name === 'AbortError'
         ? 'HuggingFace video generation was cancelled.'

@@ -80,7 +80,7 @@ describe('TimelineExportDialog', () => {
     );
 
     expect(screen.getByText('Active Range')).toBeInTheDocument();
-    expect(screen.getByText('Silent MP4 at 24 fps')).toBeInTheDocument();
+    expect(screen.getByText('MP4 at 24 fps, audio tracks mixed in (silent when there are none)')).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Export MP4' }));
 

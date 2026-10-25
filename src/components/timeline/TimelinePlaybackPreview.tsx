@@ -330,7 +330,7 @@ export const TimelinePlaybackPreview = memo(function TimelinePlaybackPreview({
           <>
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.08),transparent_55%)]" />
             <div className="flex h-full items-center justify-center px-6 py-5">
-              <div className="relative aspect-video h-full max-h-full w-full max-w-6xl overflow-hidden rounded-xl border border-border bg-black shadow-cinematic">
+              <div className="relative aspect-video h-full max-h-full w-full max-w-6xl overflow-hidden rounded-sm border border-border bg-black shadow-cinematic">
                 {frame.layers.map((layer, index) => {
                   const resolvedSource = resolveMediaSourceUrl(layer.sourcePath);
                   const resolvedPoster = resolveMediaSourceUrl(layer.posterUrl);
@@ -386,7 +386,7 @@ export const TimelinePlaybackPreview = memo(function TimelinePlaybackPreview({
         ) : frame && frame.audioLayers.length > 0 ? (
           <div className="flex h-full items-center justify-center px-6 py-10">
             <div className="max-w-md space-y-3 text-center">
-              <div className="mx-auto inline-flex h-12 w-12 items-center justify-center rounded-xl border border-border bg-surface text-text-primary">
+              <div className="mx-auto inline-flex h-12 w-12 items-center justify-center rounded-md border border-border bg-surface text-text-primary">
                 <AudioLines className="h-5 w-5" />
               </div>
               <div>

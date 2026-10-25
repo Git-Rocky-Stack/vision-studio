@@ -10,11 +10,11 @@ import {
   RotateCw,
   Paintbrush,
   Eraser,
-  Copy,
-  Heart,
+  Stamp,
+  Bandage,
   Type,
-  Square,
-  Pen,
+  Shapes,
+  PenTool,
   Hand,
   ZoomIn,
   Pipette,
@@ -24,7 +24,7 @@ interface ToolDef {
   id: EditTool;
   icon: React.ElementType;
   label: string;
-  shortcut?: string;
+  shortcut: string;
 }
 
 const toolGroups: ToolDef[][] = [
@@ -39,14 +39,14 @@ const toolGroups: ToolDef[][] = [
   [
     { id: 'brush', icon: Paintbrush, label: 'Brush', shortcut: 'B' },
     { id: 'eraser', icon: Eraser, label: 'Eraser', shortcut: 'E' },
-    { id: 'clone', icon: Copy, label: 'Clone Stamp', shortcut: 'S' },
-    { id: 'heal', icon: Heart, label: 'Heal', shortcut: 'J' },
+    { id: 'clone', icon: Stamp, label: 'Clone Stamp', shortcut: 'S' },
+    { id: 'heal', icon: Bandage, label: 'Heal', shortcut: 'J' },
   ],
   // Shapes & Text
   [
     { id: 'text', icon: Type, label: 'Text', shortcut: 'X' },
-    { id: 'shape', icon: Square, label: 'Shape', shortcut: 'U' },
-    { id: 'pen', icon: Pen, label: 'Pen', shortcut: 'P' },
+    { id: 'shape', icon: Shapes, label: 'Shape', shortcut: 'U' },
+    { id: 'pen', icon: PenTool, label: 'Pen', shortcut: 'P' },
   ],
   // Navigation
   [
@@ -75,7 +75,7 @@ export const ToolStrip = memo(function ToolStrip() {
           {group.map((tool) => {
             const Icon = tool.icon;
             const isActive = activeEditTool === tool.id;
-            const name = tool.shortcut ? `${tool.label} (${tool.shortcut})` : tool.label;
+            const name = `${tool.label} (${tool.shortcut})`;
             return (
               <Tooltip key={tool.id} content={name} placement="bottom">
                 <button

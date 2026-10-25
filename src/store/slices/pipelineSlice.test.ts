@@ -67,12 +67,29 @@ describe('PipelineStore', () => {
     expect(executions[0].status).toBe('queued');
   });
 
-  it('cancelExecution sets status to error', () => {
+  it('runPipeline returns the new execution id, or null for an unknown pipeline', () => {
+    const builtIn = useAppStore.getState().pipelines[0];
+    const id = useAppStore.getState().runPipeline(builtIn.id, 'image-1');
+    expect(useAppStore.getState().pipelineExecutions[0].id).toBe(id);
+    expect(useAppStore.getState().runPipeline('missing', 'image-1')).toBeNull();
+  });
+
+  it('updates execution and step results', () => {
+    const builtIn = useAppStore.getState().pipelines[0];
+    const id = useAppStore.getState().runPipeline(builtIn.id, 'image-1')!;
+    useAppStore.getState().updatePipelineExecution(id, { status: 'running' });
+    useAppStore.getState().updatePipelineStepResult(id, builtIn.steps[0].id, { status: 'running' });
+    const execution = useAppStore.getState().pipelineExecutions[0];
+    expect(execution.status).toBe('running');
+    expect(execution.stepResults[0].status).toBe('running');
+  });
+
+  it('cancelExecution marks a queued execution cancelled', () => {
     const builtIn = useAppStore.getState().pipelines[0];
     useAppStore.getState().runPipeline(builtIn.id, 'image-1');
     const execution = useAppStore.getState().pipelineExecutions[0];
     useAppStore.getState().cancelPipelineExecution(execution.id);
-    expect(useAppStore.getState().pipelineExecutions[0].status).toBe('error');
+    expect(useAppStore.getState().pipelineExecutions[0].status).toBe('cancelled');
   });
 
   it('setActivePipelineId sets the active pipeline', () => {

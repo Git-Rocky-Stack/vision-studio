@@ -1,4 +1,5 @@
 import type { OpenRouterImageJobStatus } from './openRouterImageRouting';
+import { pruneFinishedJobs, type JobRetentionOptions } from './hostedJobRetention';
 
 /**
  * In-process store for OpenRouter still-image jobs.
@@ -59,8 +60,11 @@ function snapshot(job: OpenRouterImageJob): OpenRouterImageJobSnapshot {
 
 export function createOpenRouterImageJobStore({
   emit,
+  retention,
 }: {
   emit: OpenRouterImageJobEmit;
+  /** Finished-job retention (default 24h); see hostedJobRetention.ts. */
+  retention?: JobRetentionOptions;
 }): OpenRouterImageJobStore {
   const jobs = new Map<string, OpenRouterImageJob>();
 
@@ -82,6 +86,7 @@ export function createOpenRouterImageJobStore({
       return job ? snapshot(job) : null;
     },
     set(job) {
+      pruneFinishedJobs(jobs, retention);
       jobs.set(job.job_id, job);
       emitProgress(job);
       return job;
@@ -101,6 +106,7 @@ export function createOpenRouterImageJobStore({
       return nextJob;
     },
     values() {
+      pruneFinishedJobs(jobs, retention);
       return Array.from(jobs.values()).map(snapshot);
     },
   };

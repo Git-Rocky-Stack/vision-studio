@@ -1,5 +1,6 @@
 import { join } from 'path';
 import type { BrowserWindow as BrowserWindowInstance, BrowserWindowConstructorOptions } from 'electron';
+import { isBlockedPackagedShortcut } from './applicationMenu';
 
 type BrowserWindowConstructor = new (options: BrowserWindowConstructorOptions) => BrowserWindowInstance;
 
@@ -12,6 +13,12 @@ type MainWindowServiceOptions = {
   dirname: string;
   devServerUrl?: string;
   onReadyToShow?: () => void | Promise<void>;
+  /**
+   * Packaged builds: swallow reload / DevTools shortcuts before the page sees
+   * them (see applicationMenu.ts). A reload drops all renderer state.
+   */
+  blockReloadShortcuts?: boolean;
+  platform?: NodeJS.Platform;
 };
 
 export function createBrowserWindowOptions(preloadPath: string): BrowserWindowConstructorOptions {
@@ -59,6 +66,8 @@ export function createMainWindowService({
   dirname: electronDirname,
   devServerUrl,
   onReadyToShow,
+  blockReloadShortcuts = false,
+  platform = process.platform,
 }: MainWindowServiceOptions) {
   let mainWindow: BrowserWindowInstance | null = null;
 
@@ -83,6 +92,14 @@ export function createMainWindowService({
       event.preventDefault();
     });
     mainWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+
+    if (blockReloadShortcuts) {
+      mainWindow.webContents.on('before-input-event', (event, input) => {
+        if (isBlockedPackagedShortcut(input, platform)) {
+          event.preventDefault();
+        }
+      });
+    }
 
     mainWindow.once('ready-to-show', () => {
       void onReadyToShow?.();

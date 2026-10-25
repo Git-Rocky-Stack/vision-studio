@@ -182,6 +182,15 @@ describe('AIToolsPanel (#34 real tools)', () => {
     });
   });
 
+  it('fills the selected style chip from its token colour (no rgba(NaN))', () => {
+    render(<AIToolsPanel />);
+    fireEvent.click(screen.getByText('Style Transfer'));
+    fireEvent.click(screen.getByText('Monet'));
+    const style = screen.getByText('Monet').closest('button')!.getAttribute('style') ?? '';
+    expect(style).not.toContain('NaN');
+    expect(style).toContain('color-mix(in srgb, var(--color-feature-08)');
+  });
+
   it('generative fill requires a mask AND a prompt before dispatching inpaint', () => {
     render(<AIToolsPanel />);
     fireEvent.click(screen.getByText('Generative Fill'));

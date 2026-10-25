@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 import { Timeline } from './Timeline';
@@ -142,6 +142,19 @@ describe('Timeline integration', () => {
 
     useAppStore.getState().seekTo(-100);
     expect(useAppStore.getState().currentTime).toBe(0);
+  });
+
+  // The playhead readouts subscribe to currentTime themselves (the Timeline
+  // body no longer does), so a seek must still reach the ruler.
+  it('moves the ruler playhead when the store time changes', () => {
+    seedProjectAndMedia();
+    render(<Timeline />);
+
+    act(() => {
+      useAppStore.getState().seekTo(2500);
+    });
+
+    expect(screen.getByRole('slider', { name: 'Time ruler' })).toHaveAttribute('aria-valuenow', '2500');
   });
 
   it('onion skin toggle works', async () => {
@@ -430,4 +443,53 @@ describe('Timeline integration', () => {
     await user.click(screen.getByLabelText('Disable solo track'));
     expect(useAppStore.getState().timelineTracks.find((track) => track.id === audioTrack?.id)?.solo).toBe(false);
   });
+
+  describe('window-wide transport keys', () => {
+    function pressOn(target: EventTarget, key: string, init: KeyboardEventInit = {}) {
+      act(() => {
+        target.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true, ...init }));
+      });
+    }
+
+    it('plays on Space from the page, but leaves Space to a focused button elsewhere', () => {
+      seedProjectAndMedia();
+      render(<Timeline />);
+      const outside = document.createElement('button');
+      document.body.appendChild(outside);
+      try {
+        pressOn(outside, ' ');
+        expect(useAppStore.getState().playState).toBe('stopped');
+
+        pressOn(document.body, ' ');
+        expect(useAppStore.getState().playState).toBe('playing');
+      } finally {
+        outside.remove();
+      }
+    });
+
+    it('leaves arrow keys to a focused slider elsewhere', () => {
+      seedProjectAndMedia();
+      render(<Timeline />);
+      useAppStore.getState().seekTo(2000);
+      const slider = document.createElement('div');
+      slider.setAttribute('role', 'slider');
+      document.body.appendChild(slider);
+      try {
+        pressOn(slider, 'ArrowRight');
+        expect(useAppStore.getState().currentTime).toBe(2000);
+      } finally {
+        slider.remove();
+      }
+    });
+
+    it('ignores Ctrl/Cmd chords other than duplicate', () => {
+      seedProjectAndMedia();
+      render(<Timeline />);
+      pressOn(document.body, ' ', { ctrlKey: true });
+      pressOn(document.body, 'ArrowRight', { metaKey: true });
+      expect(useAppStore.getState().playState).toBe('stopped');
+      expect(useAppStore.getState().currentTime).toBe(0);
+    });
+  });
 });
+

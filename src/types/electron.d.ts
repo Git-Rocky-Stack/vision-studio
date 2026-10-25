@@ -349,6 +349,13 @@ export interface ElectronAPI {
     delete: (sourcePath: string) => Promise<{ success: boolean; error?: string }>;
     reveal: (sourcePath: string) => Promise<{ success: boolean; error?: string }>;
     clearCache: () => Promise<{ success: boolean; error?: string }>;
+    /** Read a managed image as a data URL, so the Canvas editor can read its pixels. */
+    readDataUrl: (assetPath: string) => Promise<{ success: boolean; dataUrl?: string; error?: string }>;
+    /** Write a flattened Canvas edit (PNG data URL) into <outputRoot>/edits/. */
+    saveDataUrl: (params: {
+      dataUrl: string;
+      fileName: string;
+    }) => Promise<{ success: boolean; file?: ImportedAssetFile; error?: string }>;
   };
   director: {
     syncCorpus: (records: import('../../shared/retrieval').IngestRecord[]) => Promise<{ ingested: number; skipped: number; total: number }>;
@@ -378,6 +385,8 @@ export interface ElectronAPI {
       prompt?: string;
       variations?: string[];
       usage?: OpenRouterUsageSnapshot | null;
+      /** The model's reply was unreadable; `prompt` is the input echoed back. */
+      fallback?: boolean;
       provenance?: import('../../shared/retrieval').ContextProvenanceItem[];
       contextMode?: 'semantic' | 'lexical';
     }>;
@@ -392,6 +401,8 @@ export interface ElectronAPI {
       suggestions?: string[];
       source?: 'openrouter' | 'huggingface' | 'heuristic';
       usage?: OpenRouterUsageSnapshot | null;
+      /** The model's reply was unreadable; `negativePrompt` is the input echoed back. */
+      fallback?: boolean;
       provenance?: import('../../shared/retrieval').ContextProvenanceItem[];
       contextMode?: 'semantic' | 'lexical';
     }>;

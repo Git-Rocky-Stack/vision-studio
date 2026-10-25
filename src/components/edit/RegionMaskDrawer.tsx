@@ -1,5 +1,6 @@
-import { memo, useCallback, useEffect, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { BoundingBox, Point, MaskType, RegionMask } from '@/types/project';
+import { resolveCssColor } from '@/utils/resolveCssColor';
 
 export type MaskTool = MaskType | 'select';
 
@@ -77,6 +78,12 @@ export const RegionMaskDrawer = memo(function RegionMaskDrawer({
   const [draft, setDraft] = useState<Draft | null>(null);
   const draftRef = useRef<Draft | null>(null);
   const surfaceRef = useRef<HTMLDivElement>(null);
+  // Status tokens resolved once per mount: SVG presentation attributes do not
+  // evaluate var(); opacity goes through fill-/stroke-opacity instead of rgba.
+  const [maskColor, eraseColor] = useMemo(
+    () => [resolveCssColor('--color-status-error'), resolveCssColor('--color-status-info')],
+    [],
+  );
 
   useEffect(() => {
     draftRef.current = draft;
@@ -210,8 +217,9 @@ export const RegionMaskDrawer = memo(function RegionMaskDrawer({
           y={y}
           width={w}
           height={h}
-          fill="rgba(239, 68, 68, 0.20)"
-          stroke="#ef4444"
+          fill={maskColor}
+          fillOpacity={0.2}
+          stroke={maskColor}
           strokeWidth={2}
           strokeDasharray="6 4"
           data-testid="mask-draft-rect"
@@ -227,8 +235,9 @@ export const RegionMaskDrawer = memo(function RegionMaskDrawer({
       return (
         <path
           d={d}
-          fill={draft.tool === 'polygon' ? 'rgba(239, 68, 68, 0.15)' : 'none'}
-          stroke={isErase ? '#38bdf8' : '#ef4444'}
+          fill={draft.tool === 'polygon' ? maskColor : 'none'}
+          fillOpacity={0.15}
+          stroke={isErase ? eraseColor : maskColor}
           strokeWidth={draft.tool !== 'polygon' ? brushSize : 2}
           strokeLinecap="round"
           strokeLinejoin="round"
@@ -256,8 +265,10 @@ export const RegionMaskDrawer = memo(function RegionMaskDrawer({
           y={y}
           width={width}
           height={height}
-          fill="rgba(239, 68, 68, 0.12)"
-          stroke="rgba(239, 68, 68, 0.9)"
+          fill={maskColor}
+          fillOpacity={0.12}
+          stroke={maskColor}
+          strokeOpacity={0.9}
           strokeWidth={2}
         />
       );
@@ -273,12 +284,10 @@ export const RegionMaskDrawer = memo(function RegionMaskDrawer({
       return (
         <path
           d={closedCommand}
-          fill={
-            mask.type === 'polygon'
-              ? 'rgba(239, 68, 68, 0.10)'
-              : 'none'
-          }
-          stroke={isEraseMask ? 'rgba(56, 189, 248, 0.9)' : 'rgba(239, 68, 68, 0.9)'}
+          fill={mask.type === 'polygon' ? maskColor : 'none'}
+          fillOpacity={0.1}
+          stroke={isEraseMask ? eraseColor : maskColor}
+          strokeOpacity={0.9}
           strokeWidth={mask.type === 'brush' || mask.type === 'erase' ? Math.max(6, brushSize * 0.6) : 2}
           strokeLinecap="round"
           strokeLinejoin="round"

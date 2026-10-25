@@ -4,8 +4,6 @@ import { useAppStore } from '@/store/appStore';
 import { CompositionLayerBar } from '@/components/studio/CompositionLayerBar';
 import { AspectRatioFrame } from '@/components/studio/AspectRatioFrame';
 import { ReferenceOverlay } from '@/components/studio/ReferenceOverlay';
-import { ControlNetVisualization } from '@/components/studio/ControlNetVisualization';
-import { RegionMaskPreview } from '@/components/studio/RegionMaskPreview';
 import { ProgressivePreview } from '@/components/studio/ProgressivePreview';
 import { AlertCircle, ImagePlus, X } from 'lucide-react';
 import { MediaPreview, isLikelyVideoPath } from '@/components/ui/MediaPreview';
@@ -29,6 +27,10 @@ export const CompositionPreview = memo(function CompositionPreview() {
   const currentImageAssetPath = useAppStore((s) => s.currentImageAssetPath);
   const previewError = useAppStore((s) => s.previewError);
   const setPreviewError = useAppStore((s) => s.setPreviewError);
+  // The frame shows the ratio the next generation will actually use.
+  const frameRatio = useAppStore((s) =>
+    s.aspectRatio === 'custom' ? `${s.customWidth}:${s.customHeight}` : s.aspectRatio,
+  );
 
   // #33: receive decoded step frames for the tracked run.
   useStepImageSubscription();
@@ -153,28 +155,22 @@ export const CompositionPreview = memo(function CompositionPreview() {
                 imageUrl={currentImage}
                 layers={compositionLayers.reference}
               />
-              <ControlNetVisualization
-                preprocessedImageUrl={null}
-                preprocessorType="canny"
-                layers={compositionLayers.controlNet}
-              />
-              <RegionMaskPreview
-                maskImageUrl={null}
-                layers={compositionLayers.regionMasks}
-              />
+              {/* ControlNet and region-mask overlays are not rendered: no
+                  preprocessed map or mask image exists for this preview yet,
+                  and their layer toggles are hidden until one does. */}
               <AspectRatioFrame
-                ratio="1:1"
+                ratio={frameRatio}
                 visible={compositionLayers.aspectFrame.visible}
                 opacity={compositionLayers.aspectFrame.opacity}
               />
             </div>
           ) : hasReferenceImage && isVideoSource ? (
-            <div className="flex w-full max-w-2xl flex-col items-center gap-4 rounded-xl border border-border bg-surface/50 px-6 py-6 text-center">
+            <div className="flex w-full max-w-2xl flex-col items-center gap-4 rounded-sm border border-border bg-surface/50 px-6 py-6 text-center">
               <div
                 ref={(node) => {
                   videoPreviewRef.current = node;
                 }}
-                className="aspect-video w-full overflow-hidden rounded-xl border border-border bg-void"
+                className="aspect-video w-full overflow-hidden rounded-sm border border-border bg-void"
               >
                 <MediaPreview
                   kind="video"

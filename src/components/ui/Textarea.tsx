@@ -31,8 +31,11 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
           id={textareaId}
           rows={rows}
           aria-describedby={describedBy}
+          aria-invalid={error ? true : props['aria-invalid']}
+          // The shared field recipe: a recessed well carved into the panel.
+          // Its focus and error borders are drawn by .recessed-well itself.
           className={cn(
-            'w-full bg-elevated border border-border rounded-md text-text-primary placeholder:text-text-muted',
+            'recessed-well w-full text-text-primary placeholder:text-text-muted',
             'focus:border-accent-primary transition duration-200 resize-none',
             'disabled:opacity-50 disabled:cursor-not-allowed p-3 text-sm',
             error && 'border-status-error focus:border-status-error',

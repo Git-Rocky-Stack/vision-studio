@@ -1,24 +1,14 @@
-import { memo, useCallback, useEffect, useRef, useState } from 'react';
+import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { PanelRightClose, PanelRightOpen } from 'lucide-react';
 import { useAppStore } from '@/store/appStore';
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
 import { NavBar } from '@/components/layout/NavBar';
 import { Canvas } from '@/components/layout/Canvas';
-import { EditCanvas } from '@/components/edit/EditCanvas';
 import { LaunchpadPanel } from '@/components/layout/LaunchpadPanel';
-import { Timeline } from '@/components/layout/Timeline';
-import { WorkbenchViewer } from '@/components/layout/WorkbenchViewer';
-import { WorkflowWorkbench } from '@/components/workflow/WorkflowWorkbench';
 import { DockviewSettingsPanel } from '@/components/layout/DockviewSettingsPanel';
 import { DockviewGalleryPanel } from '@/components/layout/DockviewGalleryPanel';
 import { DockviewBoardsPanel } from '@/components/layout/DockviewBoardsPanel';
 import { DockviewLayersPanel } from '@/components/layout/DockviewLayersPanel';
-import { AssetsPanel } from '@/pages/AssetsPanel';
-import { SettingsPanel } from '@/pages/SettingsPanel';
-import { CollectionsPage } from '@/pages/CollectionsPage';
-import { FoundryPage } from '@/pages/FoundryPage';
-import { CompositionPreview } from '@/components/studio/CompositionPreview';
-import { TimelinePlaybackPreview } from '@/components/timeline/TimelinePlaybackPreview';
 import { IterationViewSelector } from '@/components/iteration/IterationViewSelector';
 import { IterationWorkspacePanel } from '@/components/iteration/IterationWorkspacePanel';
 import { getLayoutPreset, resolveCenterView } from '@/components/layout/layoutPresets';
@@ -26,12 +16,50 @@ import { MonoLabel } from '@/components/hardware';
 import { cn } from '@/utils/cn';
 import type { ActiveTab, CenterView } from '@/types/navigation';
 
+// Only the shell, the generation Canvas and the docks stay in the entry chunk.
+// Every other centre surface and full-width page is code-split and loaded on
+// first navigation (mirrors DockviewSettingsPanel). The timeline workspace is
+// the default generate view, so its two chunks are requested as soon as this
+// module evaluates: they load in parallel with startup instead of after it.
+const importTimeline = () => import('@/components/layout/Timeline');
+const importTimelinePlaybackPreview = () => import('@/components/timeline/TimelinePlaybackPreview');
+if (typeof window !== 'undefined') {
+  void importTimeline().catch(() => undefined);
+  void importTimelinePlaybackPreview().catch(() => undefined);
+}
+
+const Timeline = lazy(() => importTimeline().then((m) => ({ default: m.Timeline })));
+const TimelinePlaybackPreview = lazy(() =>
+  importTimelinePlaybackPreview().then((m) => ({ default: m.TimelinePlaybackPreview })),
+);
+const EditCanvas = lazy(() => import('@/components/edit/EditCanvas').then((m) => ({ default: m.EditCanvas })));
+const WorkbenchViewer = lazy(() =>
+  import('@/components/layout/WorkbenchViewer').then((m) => ({ default: m.WorkbenchViewer })),
+);
+const WorkflowWorkbench = lazy(() =>
+  import('@/components/workflow/WorkflowWorkbench').then((m) => ({ default: m.WorkflowWorkbench })),
+);
+const AssetsPanel = lazy(() => import('@/pages/AssetsPanel').then((m) => ({ default: m.AssetsPanel })));
+const SettingsPanel = lazy(() => import('@/pages/SettingsPanel').then((m) => ({ default: m.SettingsPanel })));
+const CollectionsPage = lazy(() =>
+  import('@/pages/CollectionsPage').then((m) => ({ default: m.CollectionsPage })),
+);
+const FoundryPage = lazy(() => import('@/pages/FoundryPage').then((m) => ({ default: m.FoundryPage })));
+const CompositionPreview = lazy(() =>
+  import('@/components/studio/CompositionPreview').then((m) => ({ default: m.CompositionPreview })),
+);
+
+function ViewLoadingFallback() {
+  return (
+    <div role="status" aria-label="Loading view" className="flex h-full items-center justify-center">
+      <div className="h-6 w-6 animate-pulse rounded-full bg-elevated" />
+    </div>
+  );
+}
+
 /** Ties the review dock to the control that opens it below the xl breakpoint. */
 const REVIEW_DOCK_ID = 'review-dock';
 
-// Selected deck-tab cap: chrome edge-ring + machined depth (DESIGN.md section depth system).
-const CENTER_TAB_ACTIVE_SHADOW =
-  'inset 0 1px 0 rgba(255,255,255,0.12), inset 0 -1px 0 rgba(0,0,0,0.6), 0 0 0 1px var(--color-chrome-edge), 0 3px 6px rgba(0,0,0,0.5)';
 import {
   LEFT_DOCK_DEFAULT_WIDTH,
   LEFT_DOCK_MAX_WIDTH,
@@ -46,7 +74,59 @@ import {
   RIGHT_DOCK_TRIPLE_DEFAULT_RATIOS,
   RIGHT_DOCK_TRIPLE_MIN_RATIO,
   adjustAdjacentPanelRatios,
+  clampDockWidth,
 } from '@/store/layoutPreferences';
+
+function leftDockWidthStyle(width: number) {
+  return `clamp(120px, min(${width}px, 32vw), ${width}px)`;
+}
+
+function gridRowsForRatios(ratios: readonly number[]) {
+  return ratios.map((ratio) => `${ratio}fr`).join(' auto ');
+}
+
+/**
+ * Runs a pointer drag without writing the store per pointermove.
+ *
+ * Each move computes the next value; the preview is applied straight to the
+ * DOM at most once per animation frame, and the store (which persists layout
+ * preferences and re-renders every subscriber) is written once, on release.
+ */
+function trackPointerDrag<T>(
+  compute: (event: PointerEvent) => T,
+  preview: (value: T) => void,
+  commit: (value: T) => void,
+) {
+  const abortController = new AbortController();
+  let latest: { value: T } | null = null;
+  let frame: number | null = null;
+
+  const end = () => {
+    abortController.abort();
+    if (frame !== null) cancelAnimationFrame(frame);
+    frame = null;
+    if (!latest) return;
+    // Land the final position even if its frame never ran: when the commit
+    // leaves the store unchanged, React has nothing to re-apply over it.
+    preview(latest.value);
+    commit(latest.value);
+  };
+
+  window.addEventListener(
+    'pointermove',
+    (moveEvent) => {
+      latest = { value: compute(moveEvent) };
+      if (frame !== null) return;
+      frame = requestAnimationFrame(() => {
+        frame = null;
+        if (latest) preview(latest.value);
+      });
+    },
+    { signal: abortController.signal },
+  );
+  window.addEventListener('pointerup', end, { once: true, signal: abortController.signal });
+  window.addEventListener('pointercancel', end, { once: true, signal: abortController.signal });
+}
 
 /* -------------------------------------------------------------------------- */
 /*  Center content renderer                                                   */
@@ -189,8 +269,14 @@ export const DockviewLayout = memo(function DockviewLayout() {
   const workflowLibraryDocked = activeTab === 'workflows' && activeSubMode !== 'pipelines';
 
   const preset = getLayoutPreset(activeTab);
+  const centerTabs = useMemo<CenterTabDef[]>(
+    () => preset.centerViews.map((id) => ({ id, label: CENTER_VIEW_LABELS[id] })),
+    [preset.centerViews],
+  );
   const workspaceRef = useRef<HTMLDivElement>(null);
   const rightDockStackRef = useRef<HTMLDivElement>(null);
+  const leftDockRef = useRef<HTMLElement>(null);
+  const rightDockRef = useRef<HTMLElement>(null);
 
   // Below the xl breakpoint the review dock is collapsed so the centre stays
   // usable, and the window may be as narrow as 1200px. This is the way back to
@@ -234,27 +320,21 @@ export const DockviewLayout = memo(function DockviewLayout() {
 
       event.preventDefault();
       const rect = workspace.getBoundingClientRect();
-      const abortController = new AbortController();
 
-      const cleanup = () => abortController.abort();
-
-      window.addEventListener(
-        'pointermove',
-        (moveEvent) => {
-          const nextWidth = edge === 'left'
-            ? moveEvent.clientX - rect.left
-            : rect.right - moveEvent.clientX;
-
+      trackPointerDrag(
+        (moveEvent) =>
+          edge === 'left'
+            ? clampDockWidth(moveEvent.clientX - rect.left, LEFT_DOCK_MIN_WIDTH, LEFT_DOCK_MAX_WIDTH)
+            : clampDockWidth(rect.right - moveEvent.clientX, RIGHT_DOCK_MIN_WIDTH, RIGHT_DOCK_MAX_WIDTH),
+        (width) => {
           if (edge === 'left') {
-            setLeftDockWidth(nextWidth);
-          } else {
-            setRightDockWidth(nextWidth);
+            if (leftDockRef.current) leftDockRef.current.style.width = leftDockWidthStyle(width);
+          } else if (rightDockRef.current) {
+            rightDockRef.current.style.width = `${width}px`;
           }
         },
-        { signal: abortController.signal },
+        (width) => (edge === 'left' ? setLeftDockWidth(width) : setRightDockWidth(width)),
       );
-      window.addEventListener('pointerup', cleanup, { once: true, signal: abortController.signal });
-      window.addEventListener('pointercancel', cleanup, { once: true, signal: abortController.signal });
     },
     [setLeftDockWidth, setRightDockWidth],
   );
@@ -274,34 +354,25 @@ export const DockviewLayout = memo(function DockviewLayout() {
 
     event.preventDefault();
     const rect = stack.getBoundingClientRect();
-    const abortController = new AbortController();
+    const preceding = ratios.slice(0, leadingIndex).reduce((sum, value) => sum + value, 0);
 
-    const cleanup = () => abortController.abort();
-
-    window.addEventListener(
-      'pointermove',
+    trackPointerDrag(
       (moveEvent) => {
         const pointerOffset = Math.min(rect.height, Math.max(0, moveEvent.clientY - rect.top));
         const absoluteRatio = pointerOffset / Math.max(rect.height, 1);
-        const preceding = ratios
-          .slice(0, leadingIndex)
-          .reduce((sum, value) => sum + value, 0);
-
-        const nextLeadingRatio = absoluteRatio - preceding;
-        setRatios(
-          adjustAdjacentPanelRatios(
-            ratios,
-            leadingIndex,
-            nextLeadingRatio,
-            defaults,
-            minRatio,
-          ) as typeof ratios,
-        );
+        return adjustAdjacentPanelRatios(
+          ratios,
+          leadingIndex,
+          absoluteRatio - preceding,
+          defaults,
+          minRatio,
+        ) as typeof ratios;
       },
-      { signal: abortController.signal },
+      (nextRatios) => {
+        stack.style.gridTemplateRows = gridRowsForRatios(nextRatios);
+      },
+      setRatios,
     );
-    window.addEventListener('pointerup', cleanup, { once: true, signal: abortController.signal });
-    window.addEventListener('pointercancel', cleanup, { once: true, signal: abortController.signal });
   };
 
   const handleWidthResizeKeyDown = useCallback(
@@ -366,15 +437,17 @@ export const DockviewLayout = memo(function DockviewLayout() {
             className="min-h-0 flex-1 overflow-hidden"
           >
             <ErrorBoundary fallbackLabel={`${activeTab} panel error`}>
-              {activeTab === 'assets' ? (
-                <AssetsPanel />
-              ) : activeTab === 'collections' ? (
-                <CollectionsPage />
-              ) : activeTab === 'foundry' ? (
-                <FoundryPage />
-              ) : (
-                <SettingsPanel />
-              )}
+              <Suspense fallback={<ViewLoadingFallback />}>
+                {activeTab === 'assets' ? (
+                  <AssetsPanel />
+                ) : activeTab === 'collections' ? (
+                  <CollectionsPage />
+                ) : activeTab === 'foundry' ? (
+                  <FoundryPage />
+                ) : (
+                  <SettingsPanel />
+                )}
+              </Suspense>
             </ErrorBoundary>
           </section>
         </main>
@@ -386,15 +459,10 @@ export const DockviewLayout = memo(function DockviewLayout() {
   /*  Three-panel layout (generate, canvas, story, workflows)                  */
   /* ------------------------------------------------------------------------ */
 
-  const centerTabs: CenterTabDef[] = preset.centerViews.map((id) => ({
-    id,
-    label: CENTER_VIEW_LABELS[id],
-  }));
-
-  const canvasGridRows = `${layoutPreferences.rightDockCanvasRatios[0]}fr auto ${layoutPreferences.rightDockCanvasRatios[1]}fr`;
-  const dualGridRows = `${layoutPreferences.rightDockDualRatios[0]}fr auto ${layoutPreferences.rightDockDualRatios[1]}fr`;
-  const tripleGridRows = `${layoutPreferences.rightDockTripleRatios[0]}fr auto ${layoutPreferences.rightDockTripleRatios[1]}fr auto ${layoutPreferences.rightDockTripleRatios[2]}fr`;
-  const responsiveLeftDockWidth = `clamp(120px, min(${layoutPreferences.leftDockWidth}px, 32vw), ${layoutPreferences.leftDockWidth}px)`;
+  const canvasGridRows = gridRowsForRatios(layoutPreferences.rightDockCanvasRatios);
+  const dualGridRows = gridRowsForRatios(layoutPreferences.rightDockDualRatios);
+  const tripleGridRows = gridRowsForRatios(layoutPreferences.rightDockTripleRatios);
+  const responsiveLeftDockWidth = leftDockWidthStyle(layoutPreferences.leftDockWidth);
 
   return (
     <div className="flex h-full min-h-0">
@@ -403,6 +471,7 @@ export const DockviewLayout = memo(function DockviewLayout() {
       <div ref={workspaceRef} className="relative flex min-h-0 flex-1 min-w-0">
         {/* Left dock - settings panel */}
         <aside
+          ref={leftDockRef}
           data-testid="left-dock"
           role="complementary"
           aria-label="Settings panel"
@@ -449,10 +518,9 @@ export const DockviewLayout = memo(function DockviewLayout() {
                     className={cn(
                       'rounded-md px-3 py-1.5 transition duration-150',
                       centerView === tab.id
-                        ? 'raised-control vx-pad text-accent-primary'
+                        ? 'raised-control selected-cap vx-pad text-accent-primary'
                         : 'text-text-body hover:bg-elevated/60 hover:text-text-primary',
                     )}
-                    style={centerView === tab.id ? { boxShadow: CENTER_TAB_ACTIVE_SHADOW } : undefined}
                   >
                     <MonoLabel>{tab.label}</MonoLabel>
                   </button>
@@ -476,6 +544,7 @@ export const DockviewLayout = memo(function DockviewLayout() {
             className="min-h-0 flex-1 overflow-hidden"
           >
             <ErrorBoundary fallbackLabel="Center view error">
+              <Suspense fallback={<ViewLoadingFallback />}>
               {isStudioMode ? (
                 <CompositionPreview />
               ) : showTimelineWorkspace ? (
@@ -492,6 +561,7 @@ export const DockviewLayout = memo(function DockviewLayout() {
                   workflowLibraryDocked={workflowLibraryDocked}
                 />
               )}
+              </Suspense>
             </ErrorBoundary>
           </section>
         </main>
@@ -530,6 +600,7 @@ export const DockviewLayout = memo(function DockviewLayout() {
           )}
         </button>
         <aside
+          ref={rightDockRef}
           id={REVIEW_DOCK_ID}
           data-testid="right-dock"
           role="complementary"

@@ -1,7 +1,9 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { cn } from '@/utils/cn';
 import { useAppStore } from '@/store/appStore';
 import { useShallow } from 'zustand/react/shallow';
+import { pipelineUnsupportedReason, startPipelineRun } from '@/features/pipeline/runPipelineExecution';
+import { pushNotice, reportActionError } from '@/features/notices';
 import {
   Copy,
   Save,
@@ -19,25 +21,40 @@ interface MenuItem {
   icon: React.ElementType;
   action: () => void;
   disabled?: boolean;
+  /** Why the item is disabled, shown as its tooltip. */
+  reason?: string;
 }
 
 interface CanvasContextMenuProps {
   x: number;
   y: number;
   onClose: () => void;
+  /** Open the generation metadata for the current image; omitted when there is none. */
+  onShowGenerationInfo?: () => void;
+  onZoomToFit?: () => void;
+  onZoom100?: () => void;
 }
 
-export function CanvasContextMenu({ x, y, onClose }: CanvasContextMenuProps) {
-  const { currentImage, currentImageAssetPath, setActiveTab, pipelines, runPipeline } = useAppStore(
+export function CanvasContextMenu({
+  x,
+  y,
+  onClose,
+  onShowGenerationInfo,
+  onZoomToFit,
+  onZoom100,
+}: CanvasContextMenuProps) {
+  const { currentImage, currentImageAssetPath, setActiveTab, pipelines } = useAppStore(
     useShallow((s) => ({
       currentImage: s.currentImage,
       currentImageAssetPath: s.currentImageAssetPath,
       setActiveTab: s.setActiveTab,
       pipelines: s.pipelines,
-      runPipeline: s.runPipeline,
     }))
   );
   const menuRef = useRef<HTMLDivElement>(null);
+  // A failed action keeps the menu open with the reason, instead of closing
+  // as if it had worked.
+  const [actionError, setActionError] = useState<string | null>(null);
 
   // Close on outside click or Escape
   useEffect(() => {
@@ -80,12 +97,14 @@ export function CanvasContextMenu({ x, y, onClose }: CanvasContextMenuProps) {
     if (!currentImage) return;
     try {
       const response = await fetch(currentImage);
+      if (!response.ok) throw new Error(`the image could not be read (${response.status})`);
       const blob = await response.blob();
       await navigator.clipboard.write([
         new ClipboardItem({ [blob.type]: blob }),
       ]);
     } catch (err) {
-      console.error('Failed to copy image:', err);
+      setActionError(`Copy failed: ${err instanceof Error ? err.message : 'clipboard unavailable'}`);
+      return;
     }
     onClose();
   };
@@ -101,10 +120,15 @@ export function CanvasContextMenu({ x, y, onClose }: CanvasContextMenuProps) {
       });
 
       if (destinationPath) {
-        await window.electron.assets.export(currentImageAssetPath, destinationPath);
+        const result = await window.electron.assets.export(currentImageAssetPath, destinationPath);
+        if (!result?.success) {
+          setActionError(`Save failed: ${result?.error ?? 'the file could not be written'}`);
+          return;
+        }
       }
     } catch (err) {
-      console.error('Save failed:', err);
+      setActionError(`Save failed: ${err instanceof Error ? err.message : 'unknown error'}`);
+      return;
     }
     onClose();
   };
@@ -119,25 +143,43 @@ export function CanvasContextMenu({ x, y, onClose }: CanvasContextMenuProps) {
   const handleOpenInExplorer = async () => {
     if (!currentImageAssetPath) return;
     try {
-      await window.electron.assets.reveal(currentImageAssetPath);
+      const result = await window.electron.assets.reveal(currentImageAssetPath);
+      if (result && !result.success) {
+        setActionError(`Could not open the folder: ${result.error ?? 'unknown error'}`);
+        return;
+      }
     } catch (err) {
-      console.error('Failed to open in explorer:', err);
+      setActionError(`Could not open the folder: ${err instanceof Error ? err.message : 'unknown error'}`);
+      return;
     }
     onClose();
   };
 
-  const refineItems: MenuItem[] = pipelines.map((p) => ({
-    id: `refine-${p.id}`,
-    label: p.name,
-    icon: Sparkles,
-    action: () => {
-      if (currentImageAssetPath) {
-        runPipeline(p.id, currentImageAssetPath);
-      }
-      onClose();
-    },
-    disabled: !currentImageAssetPath,
-  }));
+  // Refine runs the pipeline for real (startPipelineRun). The menu closes
+  // immediately, so the outcome is reported as a notice.
+  const refineItems: MenuItem[] = pipelines.map((p) => {
+    const unsupported = pipelineUnsupportedReason(p);
+    return {
+      id: `refine-${p.id}`,
+      label: p.name,
+      icon: Sparkles,
+      action: () => {
+        if (currentImageAssetPath && !unsupported) {
+          const sourcePath = currentImageAssetPath;
+          void startPipelineRun(p.id, sourcePath).then((result) => {
+            if (result.status === 'error') {
+              reportActionError(`${p.name} failed: ${result.error ?? 'unknown error'}`);
+            } else if (result.status === 'complete') {
+              pushNotice('success', `${p.name} finished. The result is on the Edit canvas.`);
+            }
+          });
+        }
+        onClose();
+      },
+      disabled: !currentImageAssetPath || Boolean(unsupported),
+      reason: unsupported ?? (!currentImageAssetPath ? 'Needs an image saved in Assets.' : undefined),
+    };
+  });
 
   const sections: (MenuItem | 'divider')[][] = [
     [
@@ -149,12 +191,40 @@ export function CanvasContextMenu({ x, y, onClose }: CanvasContextMenuProps) {
       ? [{ id: 'refine-header' as const, label: 'Refine', icon: Sparkles, action: () => {}, disabled: true }, ...refineItems]
       : [],
     [
-      { id: 'info', label: 'Generation Info', icon: Info, action: () => { onClose(); }, disabled: !currentImage },
+      {
+        id: 'info',
+        label: 'Generation Info',
+        icon: Info,
+        action: () => {
+          onShowGenerationInfo?.();
+          onClose();
+        },
+        disabled: !currentImage || !onShowGenerationInfo,
+        reason: currentImage && !onShowGenerationInfo ? 'No generation record for this image.' : undefined,
+      },
       { id: 'explorer', label: 'Open in Explorer', icon: FolderOpen, action: handleOpenInExplorer, disabled: !currentImageAssetPath },
     ],
     [
-      { id: 'fit', label: 'Zoom to Fit', icon: Maximize, action: () => { onClose(); } },
-      { id: 'zoom100', label: 'Zoom to 100%', icon: ZoomIn, action: () => { onClose(); } },
+      {
+        id: 'fit',
+        label: 'Zoom to Fit',
+        icon: Maximize,
+        action: () => {
+          onZoomToFit?.();
+          onClose();
+        },
+        disabled: !onZoomToFit,
+      },
+      {
+        id: 'zoom100',
+        label: 'Zoom to 100%',
+        icon: ZoomIn,
+        action: () => {
+          onZoom100?.();
+          onClose();
+        },
+        disabled: !onZoom100,
+      },
     ],
   ];
 
@@ -197,6 +267,11 @@ export function CanvasContextMenu({ x, y, onClose }: CanvasContextMenuProps) {
       className="fixed z-50 min-w-[200px] py-1.5 bg-elevated border border-border rounded-xl shadow-cinematic"
       style={{ left: x, top: y }}
     >
+      {actionError && (
+        <p role="alert" className="mx-2 mb-1 max-w-[240px] rounded-md px-2 py-1.5 type-caption text-status-error">
+          {actionError}
+        </p>
+      )}
       {sections.map((section, sectionIdx) => (
         <div key={sectionIdx} role="presentation">
           {sectionIdx > 0 && (
@@ -213,6 +288,7 @@ export function CanvasContextMenu({ x, y, onClose }: CanvasContextMenuProps) {
                 disabled={menuItem.disabled}
                 role="menuitem"
                 aria-disabled={menuItem.disabled}
+                title={menuItem.reason}
                 className={cn(
                   'w-full flex items-center gap-3 px-3 py-2 text-left transition',
                   menuItem.disabled

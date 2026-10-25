@@ -1,6 +1,6 @@
 // Must load before any module registers ipcMain handlers.
 import './ipc-guard';
-import { app, BrowserWindow, ipcMain, dialog, shell, Notification, session, safeStorage } from 'electron';
+import { app, BrowserWindow, ipcMain, dialog, shell, Menu, Notification, session, safeStorage } from 'electron';
 // electron-updater is CJS; default-import interop is required under the ESM
 // main bundle (named imports break at runtime).
 import electronUpdater from 'electron-updater';
@@ -26,6 +26,7 @@ const services = createMainProcessServices({
   devServerUrl: process.env.VITE_DEV_SERVER_URL,
   resourcesPath: process.resourcesPath,
   autoUpdater: electronUpdater.autoUpdater,
+  Menu,
 });
 
 services.registerIpc();

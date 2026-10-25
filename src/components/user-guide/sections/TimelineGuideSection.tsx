@@ -13,13 +13,13 @@ export function TimelineGuideSection() {
       <GuideList
         items={[
           <span>
-            Use the playback surface to review the active sequence, play range, speed, and loop
-            state before you commit to export.
+            The Timeline sits under the canvas on the Generate tab. Use the playback surface to
+            review the active sequence, play range, speed, and loop state before you export.
           </span>,
           <span>
             The Clip Inspector handles timing edits, transitions, split and duplicate actions,
-            track moves, storyboard context, and AI clip actions for clips that already have a
-            generation binding.
+            track moves, retake ranges, and AI clip actions for clips that have a generation
+            binding.
           </span>,
           <span>
             AI-bound clips can use <strong>Regenerate In Place</strong>,{' '}
@@ -34,32 +34,32 @@ export function TimelineGuideSection() {
           {
             title: 'Open or create a sequence',
             description:
-              'Use the sequence picker at the top of Timeline. Build Timeline from Story creates a sequence automatically; otherwise create one manually and drag clips in from Assets.',
+              'Use Build Timeline in Story to create or reuse the project sequence automatically, or use Add Clip in the timeline toolbar to place the selected media on the timeline.',
           },
           {
-            title: 'Navigate with playback transport',
+            title: 'Navigate with the keyboard and transport',
             description:
-              'Spacebar plays/pauses. Use the timeline scrubber to jog, or J/K/L for reverse/pause/forward when supported. Loop and speed controls live next to transport.',
+              'Space plays or pauses. Home and End jump to the start and end of the play range (or the sequence). Left and Right seek 250 ms; hold Shift to seek 1 second. Loop and speed controls sit with the transport.',
           },
           {
             title: 'Set an in/out range',
             description:
-              'Use Mark In and Mark Out (typically I and O) on the toolbar to scope playback and export to a specific range. Clear the range with Shift+I or the toolbar reset.',
+              'Use the Mark In and Mark Out buttons in the timeline toolbar to scope playback and export to a range. Clear the range with the Clear Range button. These are toolbar buttons; they have no keyboard shortcut.',
           },
           {
             title: 'Edit clips with the Clip Inspector',
             description:
-              'Select a clip on a track to load it in the Clip Inspector. Edit start/end, trim handles, transition style, and track assignment. Split, duplicate, and move actions live in the inspector toolbar.',
+              'Select a clip to load it in the Clip Inspector. Edit its label, track, start, and duration, trim the start or end to the playhead, move it a frame Earlier or Later, and set in and out transitions. With a clip selected, S splits it at the playhead, Ctrl/Cmd+D duplicates it, Alt+Left or Alt+Right nudges it one frame, and Delete or Backspace deletes it after a confirmation.',
           },
           {
             title: 'Add and balance audio layers',
             description:
-              'Drop audio assets onto an audio track. Set per-clip gain (0-2x), fade-in, fade-out, and clip offset directly on the audio clip. Mix is previewed live during playback and rendered into the export.',
+              'Put audio clips on an audio track. Set gain (0 to 200 percent), fade in, and fade out in milliseconds on the selected audio clip, and trim its start to the playhead to begin partway into the file. The mix plays during preview and is rendered into the export.',
           },
           {
             title: 'Export when ready',
             description:
-              'Use Export MP4. The dialog summarizes the active range, dimensions, fps, and audio layer count before encoding. Successful exports surface Open and Reveal actions, even when saved outside managed roots.',
+              'Use Export MP4. The dialog summarizes the scope, range, and frame size before encoding. A successful export offers Open MP4 and a reveal action for files saved in your managed output folder or in Desktop, Documents, Downloads, Pictures, or Videos.',
           },
         ]}
       />
@@ -70,22 +70,22 @@ export function TimelineGuideSection() {
             {
               title: 'Mark the retake range',
               description:
-                'Use Retake In and Retake Out from the timeline toolbar to select the segment of the clip you want to redo. The range appears on the clip and in the inspector.',
+                'Retakes work on video clips. Use Retake In and Retake Out in the timeline toolbar, then create the range. The range appears in the inspector, where you can fine-tune its in and out times or clear it.',
             },
             {
               title: 'Generate a candidate take',
               description:
-                'From the inspector, use Generate Retake. The original clip stays intact while the new take generates against the same prompt, model, and references as the source clip.',
+                'In the inspector, select the range and use Generate Retake. The original clip stays intact while the new take generates through the active video route.',
             },
             {
-              title: 'Compare candidates side by side',
+              title: 'Compare candidates',
               description:
-                'Open the Compare surface to A/B the original and any candidate takes. Multiple takes can stack on a single clip range -- keep generating until one feels right.',
+                'Candidate takes are listed under the range, and the compare surface plays the original against a candidate. Several takes can stack on one range; keep generating until one feels right.',
             },
             {
               title: 'Accept, reject, or revert',
               description:
-                'Accept makes a take the new editorial version for playback and export. Reject removes a take from consideration. Revert restores the original clip range and discards all takes.',
+                'Accept makes a take the editorial version for playback and export. Reject marks a take as rejected. Revert, available once a take is accepted, returns the range to the original clip and keeps the takes as candidates.',
             },
           ]}
         />
@@ -95,21 +95,20 @@ export function TimelineGuideSection() {
         <GuideList
           items={[
             <span>
-              <strong>Regenerate In Place</strong> re-runs the same prompt and settings to refresh
-              a clip without altering its place on the timeline.
+              <strong>Regenerate In Place</strong> re-runs the clip&apos;s generation to refresh it
+              without changing its place on the timeline.
             </span>,
             <span>
-              <strong>Create Variant</strong> spawns a fresh job using the same parameters with a
-              new seed, useful when you want options without losing the current take.
+              <strong>Create Variant</strong> runs a new job from the same binding, so you get
+              options without losing the current take.
             </span>,
             <span>
-              <strong>Extend Shot</strong> grows the clip duration by generating additional frames
-              that match the existing motion and composition.
+              <strong>Extend Shot</strong> lengthens a motion clip by generating more footage. It
+              is only available for video clips.
             </span>,
             <span>
-              All three actions require a generation binding (the clip was created via Generate or
-              Story). Imported assets show storyboard context but cannot be regenerated through
-              these actions.
+              All three actions need a generation binding (the clip was generated from the main
+              panel). Clips without one show a prompt to generate from the main panel first.
             </span>,
           ]}
         />
@@ -119,20 +118,16 @@ export function TimelineGuideSection() {
         <GuideList
           items={[
             <span>
-              <strong>Gain</strong> ranges 0-2x. Anything past 1.0 amplifies, so watch peaks if
-              you mix loud sources.
+              <strong>Gain</strong> runs from 0 to 200 percent. Anything past 100 amplifies, so
+              watch peaks if you mix loud sources.
             </span>,
             <span>
-              <strong>Fade-in</strong> and <strong>Fade-out</strong> are millisecond-precise and
-              applied as a piecewise volume curve at export time, not just during preview.
+              <strong>Fade In</strong> and <strong>Fade Out</strong> are set in milliseconds and
+              applied as a volume curve at export time, not just during preview.
             </span>,
             <span>
-              <strong>Clip offset</strong> lets you start the audio file partway in without
-              trimming the source -- useful for syncing a music drop to a visual beat.
-            </span>,
-            <span>
-              Multiple audio layers are mixed via <code>amix</code> at export. Single layers pass
-              through directly to preserve maximum quality.
+              Multiple audio layers are mixed with <code>amix</code> at export; a single layer
+              passes through on its own.
             </span>,
           ]}
         />
@@ -142,17 +137,17 @@ export function TimelineGuideSection() {
         <GuideList
           items={[
             <span>
-              Prompt-only still-image timeline runs can use the active account&apos;s OpenRouter
-              still-image route.
+              Still-image timeline runs follow the active account&apos;s still-image provider
+              (Local, OpenRouter, or HuggingFace).
             </span>,
             <span>
-              Video generation, retakes, and sequence export continue to depend on the local
-              backend and local generation path.
+              Video runs, retakes, and Extend Shot follow the active account&apos;s video provider
+              (Local or HuggingFace). Hosted routes keep working while the local backend is
+              offline.
             </span>,
             <span>
-              The export pipeline runs on the Python backend regardless of provider, so an offline
-              backend always blocks export -- even for sequences full of OpenRouter-generated
-              stills.
+              Sequence export always runs on the local backend, so an offline backend blocks
+              export even for sequences made entirely of hosted output.
             </span>,
           ]}
         />
@@ -162,17 +157,15 @@ export function TimelineGuideSection() {
         <GuideList
           items={[
             <span>
-              Export MP4 renders exactly what the playback surface is previewing. If you set an
-              in/out range, only that range is rendered; otherwise Vision Studio exports the full
-              active sequence.
+              Export MP4 renders what the playback surface previews. If you set an in/out range,
+              only that range is rendered; otherwise the full active sequence is exported.
             </span>,
             <span>
-              Encoding is H.264 video + AAC audio with <code>+faststart</code> moov placement, so
-              exports begin streaming immediately in viewers and browsers.
+              Video is encoded as H.264 MP4. When the sequence has audio, it is mixed to AAC and
+              the file is written with <code>+faststart</code> so it starts playing immediately.
             </span>,
             <span>
-              Output paths can sit anywhere -- managed roots get tracked in Assets automatically;
-              external locations stay openable and revealable through the export dialog.
+              The destination must be an <code>.mp4</code> file in a folder that already exists.
             </span>,
           ]}
         />

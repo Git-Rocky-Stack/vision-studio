@@ -774,6 +774,70 @@ describe('createOpenRouterService', () => {
       expect(axiosInstance.get).toHaveBeenCalledTimes(2);
     });
 
+    describe('billed image generation', () => {
+      const imageModels = {
+        data: {
+          data: [
+            {
+              id: 'google/gemini-2.5-flash-image',
+              name: 'Gemini Image',
+              architecture: { output_modalities: ['image'] },
+              supported_parameters: [],
+              pricing: { prompt: '0', completion: '0', image: '0' },
+            },
+          ],
+        },
+      };
+      const imageReply = {
+        data: {
+          choices: [{ message: { content: '', images: [{ image_url: { url: 'data:image/png;base64,xx' } }] } }],
+        },
+      };
+      const args = {
+        apiKey: 'sk-or-v1-test-key',
+        model: 'google/gemini-2.5-flash-image',
+        prompt: 'a cat',
+        width: 1024,
+        height: 1024,
+      };
+
+      it.each([500, 502, 504])('does NOT retry a %s that may already have been billed', async (status) => {
+        const axiosInstance = {
+          get: vi.fn().mockResolvedValue(imageModels),
+          post: vi.fn().mockRejectedValueOnce(http(status)).mockResolvedValue(imageReply),
+        };
+        const service = createOpenRouterService({ axiosInstance, retryBaseDelayMs: 0 });
+        await expect(service.generateImage(args)).rejects.toThrow();
+        expect(axiosInstance.post).toHaveBeenCalledTimes(1);
+      });
+
+      it('does NOT retry a timeout on image generation', async () => {
+        const timeoutError = Object.assign(new Error('timeout'), { code: 'ECONNABORTED' });
+        const axiosInstance = {
+          get: vi.fn().mockResolvedValue(imageModels),
+          post: vi.fn().mockRejectedValueOnce(timeoutError).mockResolvedValue(imageReply),
+        };
+        const service = createOpenRouterService({ axiosInstance, retryBaseDelayMs: 0 });
+        await expect(service.generateImage(args)).rejects.toThrow(/timed out/i);
+        expect(axiosInstance.post).toHaveBeenCalledTimes(1);
+      });
+
+      it('retries a 429 and a 503 with Retry-After', async () => {
+        const axiosInstance = {
+          get: vi.fn().mockResolvedValue(imageModels),
+          post: vi
+            .fn()
+            .mockRejectedValueOnce(http(429))
+            .mockRejectedValueOnce(http(503, { 'retry-after': '0' }))
+            .mockResolvedValue(imageReply),
+        };
+        const service = createOpenRouterService({ axiosInstance, retryBaseDelayMs: 0 });
+        const result = await service.generateImage(args);
+        expect(result.images).toHaveLength(1);
+        expect(axiosInstance.post).toHaveBeenCalledTimes(3);
+      });
+    });
+
     it('retries metadata calls (getKeyInfo) on 5xx', async () => {
       const axiosInstance = {
         get: vi
@@ -1002,6 +1066,7 @@ describe('createOpenRouterService', () => {
 
       expect(result.negativePrompt).toBe('blurry, distorted');
       expect(result.suggestions).toEqual([]);
+      expect(result.fallback).toBe(true);
       expect(result.usage).toEqual({
         promptTokens: 10,
         completionTokens: 8,
@@ -1030,6 +1095,7 @@ describe('createOpenRouterService', () => {
 
       expect(result.negativePrompt).toBe('low quality');
       expect(result.suggestions).toEqual([]);
+      expect(result.fallback).toBe(true);
     });
 
     it('returns empty negativePrompt when no original was provided AND parse fails', async () => {
@@ -1302,6 +1368,7 @@ describe('createOpenRouterService', () => {
       expect(result.prompt).toBe('a serene mountain lake at dawn');
       expect(result.mode).toBe('cinematic');
       expect(result.variations).toEqual([]);
+      expect(result.fallback).toBe(true);
       // Usage should still surface even on fallback so cost/tokens are tracked.
       expect(result.usage).toEqual({
         promptTokens: 10,
@@ -1336,6 +1403,7 @@ describe('createOpenRouterService', () => {
       expect(result.prompt).toBe('a portrait');
       expect(result.mode).toBe('clarify');
       expect(result.variations).toEqual([]);
+      expect(result.fallback).toBe(true);
     });
 
     it('STILL throws on HTTP errors (parse fallback only applies when the API call itself succeeds)', async () => {
@@ -1926,5 +1994,118 @@ describe('createOpenRouterService', () => {
       // Single-part should not gain a leading/trailing separator.
       expect(result.content).toBe('Only one part.');
     });
+  });
+});
+
+describe('OpenRouter generateImage result handling', () => {
+  const PNG_BYTES = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00]);
+  const args = {
+    apiKey: 'sk-or-v1-test-key',
+    model: 'black-forest-labs/flux-pro',
+    prompt: 'a lighthouse',
+    width: 1024,
+    height: 1024,
+  };
+  const catalog = { data: { data: [] } };
+  function reply(url: string) {
+    return { data: { choices: [{ message: { content: '', images: [{ image_url: { url } }] } }] } };
+  }
+
+  it('still generates when the model catalog call fails', async () => {
+    const axiosInstance = {
+      get: vi.fn().mockRejectedValue(Object.assign(new Error('catalog down'), { response: { status: 401, headers: {} } })),
+      post: vi.fn().mockResolvedValue(reply('data:image/png;base64,AAAA')),
+    };
+    const warn = vi.fn();
+    const service = createOpenRouterService({
+      axiosInstance,
+      retryBaseDelayMs: 0,
+      logger: { warn, error: vi.fn(), info: vi.fn() },
+    });
+
+    const result = await service.generateImage(args);
+
+    expect(result.images).toEqual([{ dataUrl: 'data:image/png;base64,AAAA', mimeType: 'image/png' }]);
+    expect(axiosInstance.post.mock.calls[0][1].modalities).toEqual(['image']);
+    expect(warn).toHaveBeenCalled();
+  });
+
+  it('downloads an https result image without sending the API key', async () => {
+    const imageUrl = 'https://cdn.example.com/render/abc.png';
+    const axiosInstance = {
+      get: vi.fn((url: string): Promise<any> =>
+        url === imageUrl ? Promise.resolve({ data: PNG_BYTES }) : Promise.resolve(catalog),
+      ),
+      post: vi.fn().mockResolvedValue(reply(imageUrl)),
+    };
+    const service = createOpenRouterService({ axiosInstance, retryBaseDelayMs: 0 });
+
+    const result = await service.generateImage(args);
+
+    expect(result.images).toHaveLength(1);
+    expect(result.images[0].mimeType).toBe('image/png');
+    expect(result.images[0].dataUrl).toBe(`data:image/png;base64,${PNG_BYTES.toString('base64')}`);
+    const download = axiosInstance.get.mock.calls.find(([url]) => url === imageUrl) as unknown as [
+      string,
+      Record<string, unknown>,
+    ];
+    expect(download[1]).toMatchObject({ responseType: 'arraybuffer', timeout: 60_000, maxContentLength: 25 * 1024 * 1024 });
+    expect(JSON.stringify(download[1])).not.toContain('sk-or-v1-test-key');
+  });
+
+  it('reports a billed image whose link could not be fetched instead of "no images"', async () => {
+    const imageUrl = 'https://cdn.example.com/render/gone.png';
+    const axiosInstance = {
+      get: vi.fn((url: string): Promise<any> =>
+        url === imageUrl ? Promise.resolve({ data: Buffer.from('<html>not found</html>') }) : Promise.resolve(catalog),
+      ),
+      post: vi.fn().mockResolvedValue(reply(imageUrl)),
+    };
+    const service = createOpenRouterService({
+      axiosInstance,
+      retryBaseDelayMs: 0,
+      logger: { warn: vi.fn(), error: vi.fn(), info: vi.fn() },
+    });
+
+    await expect(service.generateImage(args)).rejects.toThrow(/could not be downloaded/);
+  });
+
+  it('never fetches a plain-http image link', async () => {
+    const axiosInstance = {
+      get: vi.fn().mockResolvedValue(catalog),
+      post: vi.fn().mockResolvedValue(reply('http://cdn.example.com/render/abc.png')),
+    };
+    const service = createOpenRouterService({ axiosInstance, retryBaseDelayMs: 0 });
+
+    await expect(service.generateImage(args)).rejects.toThrow(/did not return any images/);
+    expect(axiosInstance.get).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('OpenRouter error key hygiene', () => {
+  it('never carries the API key in a thrown error, however it is serialized', async () => {
+    const apiKey = 'sk-or-v1-supersecret-key';
+    const axiosError = Object.assign(new Error('Request failed with status code 401'), {
+      isAxiosError: true,
+      config: { headers: { Authorization: `Bearer ${apiKey}` } },
+      request: { _header: `POST /api/v1/chat/completions\r\nAuthorization: Bearer ${apiKey}` },
+      response: { status: 401, headers: {}, data: { error: { message: 'No auth credentials found' } } },
+    });
+    const axiosInstance = { get: vi.fn().mockRejectedValue(axiosError), post: vi.fn().mockRejectedValue(axiosError) };
+    const service = createOpenRouterService({ axiosInstance, retryBaseDelayMs: 0 });
+
+    const thrown = [
+      await service.getKeyInfo(apiKey).catch((error: unknown) => error),
+      await service.enhancePrompt({ apiKey, prompt: 'a cat', mode: 'clarify' }).catch((error: unknown) => error),
+    ];
+
+    const { inspect } = await import('node:util');
+    for (const error of thrown) {
+      expect(error).toBeInstanceOf(Error);
+      expect((error as Error).message).toBe('No auth credentials found');
+      expect(inspect(error, { depth: 10 })).not.toContain(apiKey);
+      expect(JSON.stringify(error, Object.getOwnPropertyNames(error))).not.toContain(apiKey);
+      expect((error as { cause?: unknown }).cause).toBeUndefined();
+    }
   });
 });

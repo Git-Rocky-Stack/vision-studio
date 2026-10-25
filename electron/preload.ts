@@ -1,30 +1,10 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import type { AppSettings } from './services/settings';
-
-type AccountPreferences = {
-  promptEnhancementProvider: 'local' | 'openrouter';
-  openRouterModel: string;
-  imageGenerationProvider: 'local' | 'openrouter';
-  openRouterImageModel: string;
-};
-
-type AccountSummary = {
-  id: string;
-  name: string;
-  createdAt: string;
-  updatedAt: string;
-  preferences: AccountPreferences;
-  openRouter: {
-    apiKeyStored: boolean;
-    keyLabel: string | null;
-    lastValidatedAt: string | null;
-  };
-};
-
-type AccountsSnapshot = {
-  activeAccountId: string | null;
-  accounts: AccountSummary[];
-};
+// The account shape is owned by the userAccounts service. A hand-copied
+// duplicate here had drifted (local | openrouter only, no HuggingFace or video
+// fields); importing the type keeps the bridge and the service in lockstep.
+// Type-only: nothing from the service is bundled into the preload.
+import type { UserAccountsSnapshot as AccountsSnapshot } from './services/userAccounts';
 
 type OpenRouterModelListResult = Promise<{
   success: boolean;
@@ -146,6 +126,14 @@ export interface ElectronAPI {
       type: 'image' | 'video' | 'audio';
       importedAt: string;
     }>; error?: string }>;
+    readDataUrl: (assetPath: string) => Promise<{ success: boolean; dataUrl?: string; error?: string }>;
+    saveDataUrl: (params: { dataUrl: string; fileName: string }) => Promise<{ success: boolean; file?: {
+      originalPath: string;
+      importedPath: string;
+      name: string;
+      type: 'image' | 'video' | 'audio';
+      importedAt: string;
+    }; error?: string }>;
     export: (sourcePath: string, destinationPath: string) => Promise<{ success: boolean; destinationPath?: string; error?: string }>;
     exportMany: (sourcePaths: string[], destinationDir: string) => Promise<{ success: boolean; exportedCount?: number; error?: string }>;
     delete: (sourcePath: string) => Promise<{ success: boolean; error?: string }>;
@@ -413,6 +401,8 @@ const electronAPI: ElectronAPI = {
   },
   assets: {
     importFiles: (sourcePaths) => ipcRenderer.invoke('assets:import-files', sourcePaths),
+    saveDataUrl: (params) => ipcRenderer.invoke('assets:save-data-url', params),
+    readDataUrl: (assetPath) => ipcRenderer.invoke('assets:read-data-url', assetPath),
     export: (sourcePath, destinationPath) => ipcRenderer.invoke('assets:export', sourcePath, destinationPath),
     exportMany: (sourcePaths, destinationDir) => ipcRenderer.invoke('assets:export-many', sourcePaths, destinationDir),
     delete: (sourcePath) => ipcRenderer.invoke('assets:delete', sourcePath),

@@ -175,7 +175,6 @@ describe('Textarea', () => {
     const textarea = screen.getByRole('textbox');
     expect(textarea).toHaveClass('custom-class');
     expect(textarea).toHaveClass('another-class');
-    expect(textarea).toHaveClass('bg-elevated');
-    expect(textarea).toHaveClass('border-border');
+    expect(textarea).toHaveClass('recessed-well');
   });
 });

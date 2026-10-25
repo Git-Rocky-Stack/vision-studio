@@ -6,6 +6,17 @@ import { useAppStore } from '@/store/appStore';
 import type { ElectronAPI } from '@/types/electron';
 
 import { buildDefaultGenerationDraft, PromptStudioPanel } from './PromptStudioPanel';
+import { toLocalPromptEnhanceResult } from '../../../shared/localPromptEnhance';
+
+/**
+ * The Local route answers with the backend's bare `{ mode, prompt, variations }`
+ * body. The mocks run that real shape through the same mapper the
+ * generation:enhance-prompt handler uses, rather than hand-injecting
+ * `success: true` and hiding a contract break.
+ */
+function localEnhanceReply(body: { mode: string; prompt: string; variations: string[] }) {
+  return toLocalPromptEnhanceResult(body);
+}
 
 function resetStore() {
   useAppStore.setState(useAppStore.getInitialState());
@@ -38,11 +49,9 @@ function installElectronMock() {
       }),
     },
     generation: {
-      enhancePrompt: vi.fn().mockResolvedValue({
-        success: true,
-        prompt: 'enhanced prompt from service',
-        variations: [],
-      }),
+      enhancePrompt: vi.fn().mockResolvedValue(
+        localEnhanceReply({ mode: 'clarify', prompt: 'enhanced prompt from service', variations: [] }),
+      ),
       suggestNegativePrompt: vi.fn().mockResolvedValue({
         success: true,
         negativePrompt: 'blurry, low quality',
@@ -161,11 +170,13 @@ describe('PromptStudioPanel', () => {
 
   it('runs Expand through the prompt enhancement seam with expand mode', async () => {
     const user = userEvent.setup();
-    window.electron.generation.enhancePrompt = vi.fn().mockResolvedValue({
-      success: true,
-      prompt: 'expanded hero portrait with layered wardrobe detail',
-      variations: [],
-    });
+    window.electron.generation.enhancePrompt = vi.fn().mockResolvedValue(
+      localEnhanceReply({
+        mode: 'expand',
+        prompt: 'expanded hero portrait with layered wardrobe detail',
+        variations: [],
+      }),
+    );
 
     render(<PromptStudioPanel />);
 
@@ -181,6 +192,26 @@ describe('PromptStudioPanel', () => {
         'expanded hero portrait with layered wardrobe detail',
       );
     });
+  });
+
+  it('says nothing changed when the hosted reply was unreadable', async () => {
+    const user = userEvent.setup();
+    window.electron.generation.enhancePrompt = vi.fn().mockResolvedValue({
+      success: true,
+      mode: 'clarify',
+      prompt: 'hero portrait',
+      variations: [],
+      fallback: true,
+    });
+
+    render(<PromptStudioPanel />);
+
+    await user.type(screen.getByPlaceholderText('Describe what you want to generate...'), 'hero portrait');
+    await user.click(screen.getByRole('button', { name: /Enhancement/ }));
+    await user.click(screen.getByTitle('Automatically improve prompt quality with AI'));
+
+    expect(await screen.findByText(/nothing was changed/)).toBeInTheDocument();
+    expect(screen.queryByText(/Prompt enhanced/)).not.toBeInTheDocument();
   });
 
   it('updates the negative prompt with suggested terms', async () => {

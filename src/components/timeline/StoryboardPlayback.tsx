@@ -1,7 +1,8 @@
 import { memo, useMemo, useCallback } from 'react';
 import { useAppStore } from '@/store/appStore';
 import { cn } from '@/utils/cn';
-import { Play, Pause, SkipBack, SkipForward, Repeat, ChevronRight } from 'lucide-react';
+import { EmptyState } from '@/components/ui/EmptyState';
+import { Play, Pause, SkipBack, SkipForward, Repeat, ChevronRight, Clapperboard } from 'lucide-react';
 import { OnionSkinOverlay } from '@/components/timeline/OnionSkinOverlay';
 
 // ---------------------------------------------------------------------------
@@ -98,14 +99,12 @@ export const StoryboardPlayback = memo(function StoryboardPlayback({
 
   if (scenes.length === 0) {
     return (
-      <div className={cn('flex items-center justify-center h-full', className)}>
-        <div className="text-center">
-          <p className="text-sm text-text-muted">No scenes yet</p>
-          <p className="text-xs text-text-muted mt-0.5">
-            Add scenes to your project to use storyboard playback
-          </p>
-        </div>
-      </div>
+      <EmptyState
+        icon={Clapperboard}
+        title="No scenes yet"
+        description="Add scenes to your project to use storyboard playback"
+        className={className}
+      />
     );
   }
 
