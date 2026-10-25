@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useDeferredValue, useMemo, useRef, useState } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { cn } from '@/utils/cn';
@@ -91,26 +91,33 @@ export function AssetsPanel() {
   const [isImporting, setIsImporting] = useState(false);
   const [extractingAssetId, setExtractingAssetId] = useState<string | null>(null);
 
+  // The field updates on every keystroke; the filter over up to 500 records
+  // (and the virtualised grid behind it) runs at deferred priority, so typing
+  // never waits on it.
+  const deferredSearchQuery = useDeferredValue(searchQuery);
   const filteredAssets = useMemo(() => {
+    const query = deferredSearchQuery.toLowerCase();
     return assetLibrary.filter((asset) => {
       if (filter !== 'all' && asset.type !== filter) {
         return false;
       }
 
-      if (!searchQuery) {
+      if (!query) {
         return true;
       }
 
-      const query = searchQuery.toLowerCase();
       return (
         asset.name.toLowerCase().includes(query) ||
         asset.prompt.toLowerCase().includes(query) ||
         asset.model?.toLowerCase().includes(query)
       );
     });
-  }, [assetLibrary, filter, searchQuery]);
+  }, [assetLibrary, filter, deferredSearchQuery]);
 
-  const selectedAssetRecords = filteredAssets.filter((asset) => selectedAssets.has(asset.id));
+  const selectedAssetRecords = useMemo(
+    () => filteredAssets.filter((asset) => selectedAssets.has(asset.id)),
+    [filteredAssets, selectedAssets],
+  );
 
   const toggleSelection = (id: string) => {
     setSelectedAssets((current) => {
@@ -273,9 +280,10 @@ export function AssetsPanel() {
       <h1 className="sr-only">Assets</h1>
       <div className="p-4 border-b border-border space-y-4">
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" aria-hidden="true" />
           <input
-            type="text"
+            type="search"
+            aria-label="Search assets"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search assets..."
@@ -289,7 +297,9 @@ export function AssetsPanel() {
               {(['all', 'image', 'video', 'audio'] as AssetType[]).map((type) => (
                 <button
                   key={type}
+                  type="button"
                   onClick={() => setFilter(type)}
+                  aria-pressed={filter === type}
                   className={cn(
                     'px-3 py-1 rounded text-sm font-medium transition capitalize',
                     filter === type

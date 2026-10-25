@@ -1,4 +1,5 @@
-import { useState, useRef, useEffect } from 'react';
+import { Fragment, useState, useRef, useEffect } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import { cn } from '@/utils/cn';
 import { useAppStore } from '@/store/appStore';
 import { useShallow } from 'zustand/react/shallow';
@@ -13,6 +14,10 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { PromptHistoryEntry } from '@/types/generation';
+
+/** Above this many rows the list renders only what is scrolled into view. */
+const VIRTUALIZE_THRESHOLD = 30;
+const ESTIMATED_ROW_HEIGHT = 72;
 
 interface PromptHistoryProps {
   isOpen: boolean;
@@ -35,6 +40,7 @@ export function PromptHistory({
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<'all' | 'favorites'>('all');
   const panelRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
 
   // Close on outside click
   useEffect(() => {
@@ -72,6 +78,15 @@ export function PromptHistory({
     return matchesSearch && matchesFilter;
   });
 
+  const virtualize = filtered.length > VIRTUALIZE_THRESHOLD;
+  const rowVirtualizer = useVirtualizer({
+    count: filtered.length,
+    getScrollElement: () => listRef.current,
+    estimateSize: () => ESTIMATED_ROW_HEIGHT,
+    overscan: 6,
+    enabled: isOpen && virtualize,
+  });
+
   const formatTimestamp = (ts: Date) => {
     const d = new Date(ts);
     const now = new Date();
@@ -86,6 +101,16 @@ export function PromptHistory({
     if (diffDays < 7) return `${diffDays}d ago`;
     return d.toLocaleDateString();
   };
+
+  const renderRow = (entry: PromptHistoryEntry) => (
+    <PromptHistoryRow
+      entry={entry}
+      isFavorite={favoritePrompts.includes(entry.prompt)}
+      onSelect={() => onSelectPrompt(entry.prompt, entry.negativePrompt)}
+      onToggleFavorite={() => toggleFavoritePrompt(entry.prompt)}
+      formatTimestamp={formatTimestamp}
+    />
+  );
 
   return (
     <AnimatePresence>
@@ -113,10 +138,13 @@ export function PromptHistory({
               </span>
             </div>
             <button
+              type="button"
               onClick={onClose}
+              aria-label="Close prompt history"
+              title="Close prompt history"
               className="icon-button p-1 rounded-md text-text-muted hover:text-text-primary hover:bg-surface transition"
             >
-              <X className="w-3.5 h-3.5" />
+              <X className="w-3.5 h-3.5" aria-hidden="true" />
             </button>
           </div>
 
@@ -125,6 +153,8 @@ export function PromptHistory({
             <div className="flex-1 relative">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-text-muted pointer-events-none" />
               <input
+                type="search"
+                aria-label="Search prompt history"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search prompts..."
@@ -162,7 +192,7 @@ export function PromptHistory({
           </div>
 
           {/* List */}
-          <div className="max-h-[320px] overflow-y-auto scrollbar-hide">
+          <div ref={listRef} className="max-h-[320px] overflow-y-auto scrollbar-hide">
             {filtered.length === 0 ? (
               <div className="py-10 text-center">
                 <Sparkles className="w-8 h-8 text-text-muted mx-auto mb-2 opacity-20" />
@@ -177,19 +207,25 @@ export function PromptHistory({
                     : 'Try a different search term'}
                 </p>
               </div>
+            ) : virtualize ? (
+              <div className="relative w-full" style={{ height: rowVirtualizer.getTotalSize() }}>
+                {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+                  const entry = filtered[virtualRow.index];
+                  return (
+                    <div
+                      key={entry.id}
+                      ref={rowVirtualizer.measureElement}
+                      data-index={virtualRow.index}
+                      className="absolute left-0 top-0 w-full"
+                      style={{ transform: `translateY(${virtualRow.start}px)` }}
+                    >
+                      {renderRow(entry)}
+                    </div>
+                  );
+                })}
+              </div>
             ) : (
-              filtered.map((entry) => (
-                <PromptHistoryRow
-                  key={entry.id}
-                  entry={entry}
-                  isFavorite={favoritePrompts.includes(entry.prompt)}
-                  onSelect={() =>
-                    onSelectPrompt(entry.prompt, entry.negativePrompt)
-                  }
-                  onToggleFavorite={() => toggleFavoritePrompt(entry.prompt)}
-                  formatTimestamp={formatTimestamp}
-                />
-              ))
+              filtered.map((entry) => <Fragment key={entry.id}>{renderRow(entry)}</Fragment>)
             )}
           </div>
         </motion.div>
