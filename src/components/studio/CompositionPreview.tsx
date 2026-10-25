@@ -165,12 +165,12 @@ export const CompositionPreview = memo(function CompositionPreview() {
               />
             </div>
           ) : hasReferenceImage && isVideoSource ? (
-            <div className="flex w-full max-w-2xl flex-col items-center gap-4 rounded-xl border border-border bg-surface/50 px-6 py-6 text-center">
+            <div className="flex w-full max-w-2xl flex-col items-center gap-4 rounded-sm border border-border bg-surface/50 px-6 py-6 text-center">
               <div
                 ref={(node) => {
                   videoPreviewRef.current = node;
                 }}
-                className="aspect-video w-full overflow-hidden rounded-xl border border-border bg-void"
+                className="aspect-video w-full overflow-hidden rounded-sm border border-border bg-void"
               >
                 <MediaPreview
                   kind="video"

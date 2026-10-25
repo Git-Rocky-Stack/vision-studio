@@ -522,7 +522,7 @@ export function EditPropertiesPanel() {
               <div
                 role="dialog"
                 aria-label="Edit history"
-                className="absolute right-0 top-full z-30 mt-1 w-64 rounded-xl border border-border bg-elevated p-2 shadow-cinematic"
+                className="absolute right-0 top-full z-30 mt-1 w-64 rounded-overlay border border-border bg-elevated p-2 shadow-cinematic"
               >
                 <p className="mono-label px-2 pb-2 text-text-muted">History</p>
                 {editHistory.length === 0 ? (

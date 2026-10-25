@@ -12,9 +12,9 @@ import { describe, expect, it } from 'vitest';
  * instrument. Dialog shells use .raised-panel.dialog-shell instead.
  *
  * rounded-xl is allowed only in the files below, each of which draws a menu,
- * popover, floating notice or dialog. The second group still uses it on cards
- * and buttons and is owned by in-flight work; take a file off the list once
- * its cards are sharpened.
+ * popover, floating notice or dialog. A popover in a file that also draws
+ * cards uses the token-named rounded-overlay utility instead, so the file
+ * never has to be allowlisted.
  */
 
 const overlayFiles = new Set([
@@ -24,12 +24,6 @@ const overlayFiles = new Set([
   'src/components/edit/TextControls.tsx', // font dropdown
   'src/components/canvas/CanvasContextMenu.tsx', // context menu
   'src/components/ui/KeyboardShortcuts.tsx', // dialog shell
-]);
-
-const pendingFiles = new Set([
-  'src/components/shared/ImagePreviewModal.tsx',
-  'src/components/batch/ResultsGrid.tsx',
-  'src/components/studio/CompositionPreview.tsx',
 ]);
 
 const appSourceRoot = join(process.cwd(), 'src');
@@ -57,7 +51,7 @@ describe('overlay radius', () => {
     const offenders = listSourceFiles(appSourceRoot)
       .filter((filePath) => {
         const rel = toPosix(filePath);
-        return !overlayFiles.has(rel) && !pendingFiles.has(rel);
+        return !overlayFiles.has(rel);
       })
       .flatMap((filePath) =>
         readFileSync(filePath, 'utf8')

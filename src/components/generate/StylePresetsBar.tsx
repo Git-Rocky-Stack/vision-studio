@@ -204,7 +204,7 @@ export function StylePresetsBar({ activePresets, onTogglePreset }: StylePresetsB
           <form
             role="dialog"
             aria-label="New style"
-            className="absolute left-0 top-full z-30 mt-1 w-64 space-y-2 rounded-xl border border-border bg-elevated p-3 shadow-cinematic"
+            className="absolute left-0 top-full z-30 mt-1 w-64 space-y-2 rounded-overlay border border-border bg-elevated p-3 shadow-cinematic"
             onSubmit={(event) => {
               event.preventDefault();
               handleAdd();

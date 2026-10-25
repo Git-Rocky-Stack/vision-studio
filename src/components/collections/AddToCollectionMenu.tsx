@@ -108,7 +108,7 @@ export function AddToCollectionMenu({ assetId, triggerClassName, iconOnly = fals
             aria-label="Add to collection"
             onClick={(event) => event.stopPropagation()}
             onPointerDown={(event) => event.stopPropagation()}
-            className="fixed z-[70] w-56 rounded-xl border border-border bg-elevated p-2 shadow-cinematic"
+            className="fixed z-[70] w-56 rounded-overlay border border-border bg-elevated p-2 shadow-cinematic"
             style={{ top: position.top, left: position.left }}
           >
             <p className="mono-label px-2 pb-2 text-text-muted">Collections</p>

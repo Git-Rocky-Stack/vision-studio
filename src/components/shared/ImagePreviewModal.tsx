@@ -272,7 +272,7 @@ export function ImagePreviewModal({
                 <button
                   onClick={goToPrev}
                   aria-label="Previous image"
-                  className="absolute left-4 top-1/2 -translate-y-1/2 p-3 rounded-xl bg-surface/80 backdrop-blur-sm text-text-muted hover:text-text-primary hover:bg-elevated transition"
+                  className="absolute left-4 top-1/2 -translate-y-1/2 p-3 rounded-md bg-surface/80 backdrop-blur-sm text-text-muted hover:text-text-primary hover:bg-elevated transition"
                 >
                   <ChevronLeft className="w-6 h-6" />
                 </button>
@@ -294,7 +294,7 @@ export function ImagePreviewModal({
                 <button
                   onClick={goToNext}
                   aria-label="Next image"
-                  className="absolute right-[340px] top-1/2 -translate-y-1/2 p-3 rounded-xl bg-surface/80 backdrop-blur-sm text-text-muted hover:text-text-primary hover:bg-elevated transition"
+                  className="absolute right-[340px] top-1/2 -translate-y-1/2 p-3 rounded-md bg-surface/80 backdrop-blur-sm text-text-muted hover:text-text-primary hover:bg-elevated transition"
                 >
                   <ChevronRight className="w-6 h-6" />
                 </button>

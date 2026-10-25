@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { AnimatePresence } from 'framer-motion';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
+import { EmptyState } from '@/components/ui/EmptyState';
 import { pushNotice, reportActionError, runExport } from '@/features/notices';
 
 export type ViewMode = 'grid' | 'list' | 'large';
@@ -243,17 +244,12 @@ export function ResultsGrid({
       {/* Grid Area */}
       <div ref={parentRef} className="flex-1 overflow-y-auto p-4 scrollbar-hide">
         {sortedResults.length === 0 ? (
-          /* Empty State */
-          <div className="flex flex-col items-center justify-center h-full text-center">
-            <div className="w-16 h-16 rounded-xl bg-elevated flex items-center justify-center mb-4">
-              <Layers className="w-8 h-8 text-text-muted" />
-            </div>
-            <p className="text-sm text-text-primary mb-1">
-              No results yet
-            </p>
-            <p className="text-xs text-text-muted max-w-[240px]">
-              Generate a batch to see results here. Results will appear as each image completes.
-            </p>
+          <div className="flex h-full items-center justify-center">
+            <EmptyState
+              icon={Layers}
+              title="No results yet"
+              description="Generate a batch to see results here. Results will appear as each image completes."
+            />
           </div>
         ) : (
           <div style={{ height: `${rowVirtualizer.getTotalSize()}px`, position: 'relative' }}>
