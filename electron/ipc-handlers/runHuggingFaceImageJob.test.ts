@@ -1,3 +1,6 @@
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import { createHuggingFaceImageJobStore } from './huggingfaceImageJobs';
 import { runHuggingFaceImageJob } from './runHuggingFaceImageJob';
@@ -200,5 +203,65 @@ describe('runHuggingFaceImageJob', () => {
     expect(job?.status).toBe('failed');
     expect(job?.error).toMatch(/ControlNet or inpaint/i);
     expect(h.huggingFace.generateImage).not.toHaveBeenCalled();
+  });
+});
+
+describe('runHuggingFaceImageJob cancellation', () => {
+  const jobId = 'huggingface-image-cancel';
+  const params = { prompt: 'a tree', width: 512, height: 512, __huggingFaceAccountId: 'account-1' };
+
+  function cancel(store: ReturnType<typeof createHuggingFaceImageJobStore>) {
+    store.patch(jobId, { status: 'cancelled', completed_at: new Date().toISOString() });
+  }
+
+  it('keeps a job cancelled while the request was in flight cancelled, not completed', async () => {
+    const h = setup();
+    h.store.set({ job_id: jobId, status: 'pending', progress: 0, type: 'image', created_at: new Date().toISOString() });
+    h.huggingFace.generateImage = vi.fn(async () => {
+      cancel(h.store);
+      return { model: 'm', images: [{ dataUrl: PNG_DATA_URL, mimeType: 'image/png' }], usage: null };
+    });
+
+    await runHuggingFaceImageJob(jobId, params, h.deps);
+
+    expect(h.store.get(jobId)?.status).toBe('cancelled');
+  });
+
+  it('keeps a cancelled job cancelled when the aborted request rejects', async () => {
+    const h = setup();
+    h.store.set({ job_id: jobId, status: 'pending', progress: 0, type: 'image', created_at: new Date().toISOString() });
+    h.huggingFace.generateImage = vi.fn(async () => {
+      cancel(h.store);
+      throw new DOMException('HuggingFace request was cancelled.', 'AbortError');
+    });
+
+    await runHuggingFaceImageJob(jobId, params, h.deps);
+
+    const job = h.store.get(jobId);
+    expect(job?.status).toBe('cancelled');
+    expect(job?.error).toBeUndefined();
+  });
+
+  it('deletes the written files when the cancel lands during the write', async () => {
+    const tempRoot = await mkdtemp(path.join(tmpdir(), 'hf-cancel-'));
+    try {
+      const h = setup({ tempRoot });
+      h.store.set({ job_id: jobId, status: 'pending', progress: 0, type: 'image', created_at: new Date().toISOString() });
+      const deleteOrphans = vi.fn(async () => undefined);
+      const patch = h.store.patch;
+      h.store.patch = (id, next) => {
+        const result = patch(id, next);
+        // The cancel arrives right after the runner reports the write stage.
+        if (next.progress === 72) cancel(h.store);
+        return result;
+      };
+
+      await runHuggingFaceImageJob(jobId, params, { ...h.deps, deleteOrphans });
+
+      expect(h.store.get(jobId)?.status).toBe('cancelled');
+      expect(deleteOrphans).toHaveBeenCalledWith([expect.stringContaining(jobId)], expect.anything());
+    } finally {
+      await rm(tempRoot, { recursive: true, force: true });
+    }
   });
 });

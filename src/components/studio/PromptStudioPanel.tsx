@@ -33,6 +33,10 @@ type StudioBannerState = {
   message: string;
 };
 
+// The hosted call succeeded but the model's reply could not be read, so the
+// service echoed the input back. Say so rather than claim an enhancement.
+const FALLBACK_NOTICE = "The model's reply could not be read, so nothing was changed.";
+
 const FEATURED_STYLE_PRESET_IDS = new Set([
   'cinematic',
   'photorealistic',
@@ -209,6 +213,10 @@ export const PromptStudioPanel = memo(function PromptStudioPanel() {
         mode: 'clarify',
         augment: await buildAugment(),
       });
+      if (result.success && result.fallback) {
+        setBanner({ tone: 'info', message: FALLBACK_NOTICE });
+        return;
+      }
       if (!result.success || !result.prompt) {
         throw new Error(result.error || 'Prompt enhancement failed.');
       }
@@ -255,6 +263,10 @@ export const PromptStudioPanel = memo(function PromptStudioPanel() {
         mode: 'expand',
         augment: await buildAugment(),
       });
+      if (result.success && result.fallback) {
+        setBanner({ tone: 'info', message: FALLBACK_NOTICE });
+        return;
+      }
       if (!result.success || !result.prompt) {
         throw new Error(result.error || 'Prompt expansion failed.');
       }
@@ -296,6 +308,10 @@ export const PromptStudioPanel = memo(function PromptStudioPanel() {
         negativePrompt: draft.negativePrompt,
         augment: await buildAugment(),
       });
+      if (result.success && result.fallback) {
+        setBanner({ tone: 'info', message: FALLBACK_NOTICE });
+        return;
+      }
       if (!result.success || !result.negativePrompt) {
         throw new Error(result.error || 'Negative prompt suggestion failed.');
       }

@@ -2,6 +2,7 @@ import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { validateHuggingFaceLoraDispatch } from '../../shared/hostedLoraRouting';
 import type { HuggingFaceImageJobStore } from './huggingfaceImageJobs';
+import { deleteOrphanedFiles } from './orphanFileCleanup';
 
 type HuggingFaceImageGenResult = {
   model: string | null;
@@ -50,6 +51,8 @@ type RunDeps = {
     rememberOutputRoot: (dir: string) => void;
     getManagedOutputRoots: () => string[];
   };
+  // Allow test overrides for the orphan-cleanup side-effect.
+  deleteOrphans?: typeof deleteOrphanedFiles;
 };
 
 /** Hosted CN/inpaint has no documented Inference Providers contract; stay Local. */
@@ -62,6 +65,12 @@ const MIME_EXT: Record<string, string> = {
   'image/webp': 'webp',
   'image/gif': 'gif',
 };
+
+/** A user cancel already patched the job; the runner must not overwrite it. */
+function isCancelled(store: HuggingFaceImageJobStore, jobId: string): boolean {
+  const job = store.get(jobId);
+  return !job || job.status === 'cancelled';
+}
 
 function failJob(store: HuggingFaceImageJobStore, jobId: string, message: string) {
   store.patch(jobId, {
@@ -93,6 +102,7 @@ export async function runHuggingFaceImageJob(
   deps: RunDeps,
 ): Promise<void> {
   const { store, userAccounts, huggingFace, outputRoots } = deps;
+  const orphanCleanup = deps.deleteOrphans ?? deleteOrphanedFiles;
   const accountId = typeof params.__huggingFaceAccountId === 'string' ? params.__huggingFaceAccountId : null;
   try {
     const account = userAccounts.getAccount(accountId);
@@ -152,15 +162,30 @@ export async function runHuggingFaceImageJob(
       signal: controller.signal,
     });
 
+    // Same two checkpoints as runOpenRouterImageJob: a cancel that landed
+    // while the request was in flight wins over the response, and a cancel
+    // during the writes gets its files cleaned up instead of completing.
+    if (isCancelled(store, jobId)) {
+      return;
+    }
+
     store.patch(jobId, { progress: 72 });
     const images: string[] = [];
+    const writtenFiles: string[] = [];
     if (outputDir) {
       for (let index = 0; index < result.images.length; index += 1) {
-        images.push(await persistDataUrl(outputDir, jobId, index, result.images[index].dataUrl));
+        const filePath = await persistDataUrl(outputDir, jobId, index, result.images[index].dataUrl);
+        images.push(filePath);
+        writtenFiles.push(filePath);
       }
       outputRoots.rememberOutputRoot(outputDir);
     } else {
       images.push(...result.images.map((image) => image.dataUrl));
+    }
+
+    if (isCancelled(store, jobId)) {
+      await orphanCleanup(writtenFiles, console);
+      return;
     }
 
     store.patch(jobId, {
@@ -176,6 +201,9 @@ export async function runHuggingFaceImageJob(
       },
     });
   } catch (error) {
+    if (store.get(jobId)?.status === 'cancelled') {
+      return;
+    }
     const message =
       (error as { name?: string } | null)?.name === 'AbortError'
         ? 'HuggingFace image generation was cancelled.'

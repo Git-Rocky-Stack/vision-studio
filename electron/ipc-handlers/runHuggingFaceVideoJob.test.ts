@@ -1,3 +1,6 @@
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import { createHuggingFaceVideoJobStore } from './huggingfaceVideoJobs';
 import { runHuggingFaceVideoJob } from './runHuggingFaceVideoJob';
@@ -56,5 +59,65 @@ describe('runHuggingFaceVideoJob', () => {
     expect(job?.result?.video).toBe(MP4_DATA_URL);
     expect(h.huggingFace.generateVideo).toHaveBeenCalledOnce();
     expect(JSON.stringify(job)).not.toContain('hf_token');
+  });
+});
+
+describe('runHuggingFaceVideoJob cancellation', () => {
+  const jobId = 'huggingface-video-cancel';
+  const params = { prompt: 'a wave', duration: 5, __huggingFaceAccountId: 'account-1' };
+
+  function cancel(store: ReturnType<typeof createHuggingFaceVideoJobStore>) {
+    store.patch(jobId, { status: 'cancelled', completed_at: new Date().toISOString() });
+  }
+
+  it('keeps a job cancelled while the request was in flight cancelled, not completed', async () => {
+    const h = setup();
+    h.store.set({ job_id: jobId, status: 'pending', progress: 0, type: 'video', created_at: new Date().toISOString() });
+    h.huggingFace.generateVideo = vi.fn(async () => {
+      cancel(h.store);
+      return { model: 'Lightricks/LTX-Video', dataUrl: MP4_DATA_URL, mimeType: 'video/mp4' };
+    });
+
+    await runHuggingFaceVideoJob(jobId, params, h.deps);
+
+    expect(h.store.get(jobId)?.status).toBe('cancelled');
+  });
+
+  it('keeps a cancelled job cancelled when the aborted request rejects', async () => {
+    const h = setup();
+    h.store.set({ job_id: jobId, status: 'pending', progress: 0, type: 'video', created_at: new Date().toISOString() });
+    h.huggingFace.generateVideo = vi.fn(async () => {
+      cancel(h.store);
+      throw new DOMException('HuggingFace request was cancelled.', 'AbortError');
+    });
+
+    await runHuggingFaceVideoJob(jobId, params, h.deps);
+
+    const job = h.store.get(jobId);
+    expect(job?.status).toBe('cancelled');
+    expect(job?.error).toBeUndefined();
+  });
+
+  it('deletes the written clip when the cancel lands during the write', async () => {
+    const tempRoot = await mkdtemp(path.join(tmpdir(), 'hf-video-cancel-'));
+    try {
+      const h = setup({ tempRoot });
+      h.store.set({ job_id: jobId, status: 'pending', progress: 0, type: 'video', created_at: new Date().toISOString() });
+      const deleteOrphans = vi.fn(async () => undefined);
+      const patch = h.store.patch;
+      h.store.patch = (id, next) => {
+        const result = patch(id, next);
+        // The cancel arrives right after the runner reports the write stage.
+        if (next.progress === 72) cancel(h.store);
+        return result;
+      };
+
+      await runHuggingFaceVideoJob(jobId, params, { ...h.deps, deleteOrphans });
+
+      expect(h.store.get(jobId)?.status).toBe('cancelled');
+      expect(deleteOrphans).toHaveBeenCalledWith([expect.stringContaining(jobId)], expect.anything());
+    } finally {
+      await rm(tempRoot, { recursive: true, force: true });
+    }
   });
 });

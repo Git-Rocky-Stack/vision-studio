@@ -3,8 +3,14 @@ import {
   createKeyConcurrencyLimit,
   retryHostedCall,
   isRetryableError,
+  isRetryableBilledError,
   getRetryAfterMs,
+  parseRetryAfterMs,
 } from './hostedHttp';
+
+function networkError(code: string) {
+  return Object.assign(new Error(code), { code });
+}
 
 function httpError(status: number, headers: Record<string, string> = {}) {
   const error = new Error(`HTTP ${status}`) as Error & { response: unknown };
@@ -40,6 +46,44 @@ describe('isRetryableError', () => {
   it('does not retry an AbortError', () => {
     expect(isRetryableError(new DOMException('Aborted', 'AbortError'))).toBe(false);
   });
+
+  it('never retries a timeout, but retries a transient connection failure', () => {
+    expect(isRetryableError(networkError('ECONNABORTED'))).toBe(false);
+    expect(isRetryableError(networkError('ETIMEDOUT'))).toBe(false);
+    expect(isRetryableError(new DOMException('timed out', 'TimeoutError'))).toBe(false);
+    expect(isRetryableError(networkError('ECONNRESET'))).toBe(true);
+    expect(isRetryableError(new Error('something odd'))).toBe(false);
+  });
+});
+
+describe('isRetryableBilledError', () => {
+  it('retries a 429 and a 503 that carries Retry-After', () => {
+    expect(isRetryableBilledError(httpError(429))).toBe(true);
+    expect(isRetryableBilledError(httpError(503, { 'retry-after': '3' }))).toBe(true);
+  });
+
+  it('never retries a 500/502/504 or a bare 503 that may already have been billed', () => {
+    for (const status of [500, 502, 504]) {
+      expect(isRetryableBilledError(httpError(status))).toBe(false);
+    }
+    expect(isRetryableBilledError(httpError(503))).toBe(false);
+  });
+
+  it('never retries a timeout or a connection reset, only a request that never left', () => {
+    expect(isRetryableBilledError(networkError('ECONNABORTED'))).toBe(false);
+    expect(isRetryableBilledError(new DOMException('timed out', 'TimeoutError'))).toBe(false);
+    expect(isRetryableBilledError(networkError('ECONNRESET'))).toBe(false);
+    expect(isRetryableBilledError(networkError('ECONNREFUSED'))).toBe(true);
+    expect(isRetryableBilledError(networkError('ENOTFOUND'))).toBe(true);
+  });
+
+  it('caps a billed call at one attempt on a 502', async () => {
+    const op = vi.fn().mockRejectedValue(httpError(502));
+    await expect(
+      retryHostedCall(op, { maxAttempts: 3, baseDelayMs: 0, isRetryable: isRetryableBilledError }),
+    ).rejects.toThrow('HTTP 502');
+    expect(op).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe('getRetryAfterMs', () => {
@@ -49,6 +93,23 @@ describe('getRetryAfterMs', () => {
 
   it('returns null without the header', () => {
     expect(getRetryAfterMs(httpError(429))).toBeNull();
+  });
+
+  it('reads an HTTP-date Retry-After as the delay until that moment', () => {
+    const now = Date.parse('2026-10-25T12:00:00Z');
+    expect(parseRetryAfterMs('Sun, 25 Oct 2026 12:00:05 GMT', now)).toBe(5000);
+    expect(parseRetryAfterMs('Sun, 25 Oct 2026 11:59:00 GMT', now)).toBe(0);
+  });
+
+  it('rejects an unusable value', () => {
+    expect(parseRetryAfterMs('soon')).toBeNull();
+    expect(parseRetryAfterMs('-1')).toBeNull();
+    expect(parseRetryAfterMs('')).toBeNull();
+  });
+
+  it('reads the header through a Headers-style get()', () => {
+    const error = { response: { status: 429, headers: new Headers({ 'Retry-After': '2' }) } };
+    expect(getRetryAfterMs(error)).toBe(2000);
   });
 });
 

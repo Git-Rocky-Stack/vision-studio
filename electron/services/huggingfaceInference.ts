@@ -11,9 +11,15 @@
  * either. Those passes stay Local (diffusers on the user's GPU) - we do not ship
  * a client for a payload shape we cannot stand behind (Codex M6 gate).
  *
- * All generation posts to the Inference Providers router
+ * Prompt-only text-to-image posts to the Inference Providers router
  * (https://router.huggingface.co/hf-inference/models/<model>) returning raw
  * bytes; chat posts to the OpenAI-compatible router (.../v1/chat/completions).
+ *
+ * Text-to-video does NOT go to hf-inference: that provider serves no
+ * text-to-video models, so a pinned hf-inference URL can never succeed for
+ * Lightricks/LTX-Video and friends. Video dispatches through the official
+ * client's textToVideo with provider 'auto', which resolves whichever live
+ * provider (fal-ai, replicate, novita...) maps the model.
  *
  * #42 exception: single-LoRA still-image jobs dispatch adapter-by-model-id via
  * the official @huggingface/inference client - the Hub LoRA repo id is passed
@@ -27,7 +33,15 @@
  * echoed into errors; remote bytes are validated before any caller writes them.
  */
 import axios from 'axios';
-import { createKeyConcurrencyLimit, retryHostedCall } from './hostedHttp';
+import {
+  createKeyConcurrencyLimit,
+  isAbortError,
+  isRetryableBilledError,
+  isTimeoutError,
+  isRetryableError,
+  retryHostedCall,
+} from './hostedHttp';
+import { sniffImageMime } from './imageMagic';
 
 const DEFAULT_ROUTER_BASE_URL = 'https://router.huggingface.co/v1';
 const DEFAULT_HUB_BASE_URL = 'https://huggingface.co';
@@ -39,6 +53,8 @@ const DEFAULT_RETRY_BASE_DELAY_MS = 250;
 const DEFAULT_MAX_CONCURRENT_PER_KEY = 4;
 const METADATA_TIMEOUT_MS = 15_000;
 const GENERATION_TIMEOUT_MS = 120_000;
+/** Hosted text-to-video routinely takes minutes; 120s cut real jobs off. */
+const VIDEO_GENERATION_TIMEOUT_MS = 600_000;
 export const HF_MAX_PROMPT_CHARS = 8_000;
 
 export type HuggingFacePromptMode = 'clarify' | 'cinematic' | 'concise' | 'expand' | 'variations';
@@ -83,12 +99,20 @@ export interface HuggingFacePromptEnhancementResult {
   prompt: string;
   variations: string[];
   usage: HuggingFaceUsage | null;
+  /**
+   * True when the call succeeded but the model's reply had no usable prompt,
+   * so `prompt` is the user's input echoed back. The UI must say nothing
+   * changed instead of reporting an enhancement.
+   */
+  fallback?: true;
 }
 
 export interface HuggingFaceNegativePromptSuggestionResult {
   negativePrompt: string;
   suggestions: string[];
   usage: HuggingFaceUsage | null;
+  /** True when the reply was unreadable and `negativePrompt` is the input echoed back. */
+  fallback?: true;
 }
 
 type AxiosLike = {
@@ -124,6 +148,37 @@ const defaultAdapterTextToImage: AdapterTextToImage = async (args, options) => {
   return textToImage(args, { ...options, outputType: 'blob' });
 };
 
+/** Official-client call shape for text-to-video provider resolution. */
+type ClientTextToVideoArgs = {
+  accessToken: string;
+  model: string;
+  /** 'auto' = first live provider mapping for the model, resolved by the client. */
+  provider: 'auto';
+  inputs: string;
+  parameters: { num_frames?: number };
+};
+
+type ClientTextToVideo = (
+  args: ClientTextToVideoArgs,
+  options: { signal?: AbortSignal; retry_on_error: boolean },
+) => Promise<Blob | ArrayBuffer | Uint8Array>;
+
+/** Default text-to-video dispatch: lazily loaded, injected in tests. */
+const defaultClientTextToVideo: ClientTextToVideo = async (args, options) => {
+  const { textToVideo } = await import('@huggingface/inference');
+  return textToVideo(args, options);
+};
+
+/**
+ * The official client takes no timeout option, so the deadline rides the
+ * abort signal. A deadline reject surfaces as a TimeoutError, a user cancel
+ * as an AbortError, which keeps the two distinguishable downstream.
+ */
+function withDeadline(signal: AbortSignal | undefined, timeoutMs: number): AbortSignal {
+  const deadline = AbortSignal.timeout(timeoutMs);
+  return signal ? AbortSignal.any([signal, deadline]) : deadline;
+}
+
 type CreateHuggingFaceInferenceServiceOptions = {
   axiosInstance?: AxiosLike;
   routerBaseUrl?: string;
@@ -134,6 +189,8 @@ type CreateHuggingFaceInferenceServiceOptions = {
   maxConcurrentPerKey?: number;
   logger?: Logger;
   adapterTextToImage?: AdapterTextToImage;
+  clientTextToVideo?: ClientTextToVideo;
+  videoGenerationTimeoutMs?: number;
 };
 
 /** Curated v1 defaults; users may also type any model id in Settings. */
@@ -144,6 +201,12 @@ const CURATED_IMAGE_MODELS: HuggingFaceModelSummary[] = [
 const CURATED_TEXT_MODELS: HuggingFaceModelSummary[] = [
   { id: 'meta-llama/Llama-3.1-8B-Instruct', name: 'Llama 3.1 8B Instruct', modality: 'text' },
 ];
+/**
+ * The router's chat endpoint rejects a request without `model` (HTTP 400),
+ * and a new account's huggingFaceModel preference is ''. Fall back to the
+ * first curated text model so prompt-assist works out of the box.
+ */
+export const DEFAULT_HF_TEXT_MODEL = CURATED_TEXT_MODELS[0].id;
 const CURATED_VIDEO_MODELS: HuggingFaceModelSummary[] = [
   { id: 'Lightricks/LTX-Video', name: 'LTX-Video', modality: 'video' },
 ];
@@ -176,36 +239,6 @@ const PROMPT_ENHANCEMENT_SYSTEM_PROMPT =
 const NEGATIVE_PROMPT_SYSTEM_PROMPT =
   'You suggest negative prompts for image generation. Reply ONLY with compact JSON of shape {"negativePrompt": string, "suggestions": string[]}.';
 
-const IMAGE_MAGIC: Array<{ mime: string; test: (buffer: Buffer) => boolean }> = [
-  // PNG signature.
-  {
-    mime: 'image/png',
-    test: (buffer) =>
-      buffer.length >= 4 && buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4e && buffer[3] === 0x47,
-  },
-  // JPEG: start-of-image marker.
-  {
-    mime: 'image/jpeg',
-    test: (buffer) => buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff,
-  },
-  // WebP: 'RIFF' container at bytes 0-3 AND 'WEBP' form type at bytes 8-11. A
-  // bare RIFF is insufficient - WAV/AVI share the RIFF container - so the form
-  // type must also match (mirrors the asset reader's WebP detection).
-  {
-    mime: 'image/webp',
-    test: (buffer) =>
-      buffer.length >= 12 &&
-      buffer.slice(0, 4).toString('ascii') === 'RIFF' &&
-      buffer.slice(8, 12).toString('ascii') === 'WEBP',
-  },
-  // GIF87a / GIF89a share the 'GIF8' prefix.
-  {
-    mime: 'image/gif',
-    test: (buffer) =>
-      buffer.length >= 4 && buffer[0] === 0x47 && buffer[1] === 0x49 && buffer[2] === 0x46 && buffer[3] === 0x38,
-  },
-];
-
 function buildHeaders(token: string) {
   return {
     Authorization: `Bearer ${token}`,
@@ -223,13 +256,43 @@ function assertPromptLength(value: string, label: string) {
   }
 }
 
+export const HUGGINGFACE_GATED_MODEL_MESSAGE =
+  'This HuggingFace model is gated - accept its license on huggingface.co, then try again.';
+
+/**
+ * Whether a 403 body says the model is gated / access-restricted. The body is
+ * only inspected, never echoed (it can quote request details).
+ */
+function isGatedModelRefusal(error: unknown): boolean {
+  const shaped = error as { response?: { data?: unknown }; httpResponse?: { body?: unknown } } | null;
+  const body = shaped?.response?.data ?? shaped?.httpResponse?.body;
+  let text = '';
+  if (typeof body === 'string') {
+    text = body;
+  } else if (Buffer.isBuffer(body) || body instanceof ArrayBuffer || body instanceof Uint8Array) {
+    text = Buffer.from(body as ArrayBuffer).toString('utf8');
+  } else if (body && typeof body === 'object') {
+    try {
+      text = JSON.stringify(body);
+    } catch {
+      text = '';
+    }
+  }
+  return /gated|restricted|accept the (?:license|conditions)|access to model/i.test(text);
+}
+
 /**
  * Sanitize a thrown transport error into a renderer-safe message. NEVER include
  * the token or raw upstream body verbatim (Codex gate).
  */
 function createHuggingFaceError(error: unknown, fallback: string): Error {
-  if ((error as { name?: string } | null)?.name === 'AbortError') {
-    return new Error('HuggingFace request was cancelled.');
+  if (isAbortError(error)) {
+    // Keep the AbortError identity: the job runners branch on
+    // name === 'AbortError' to tell a user cancel from a real failure.
+    return new DOMException('HuggingFace request was cancelled.', 'AbortError');
+  }
+  if (isTimeoutError(error)) {
+    return new Error(`${fallback.replace(/\.$/, '')} (request timed out).`);
   }
   // Axios errors carry response.status; the official client's
   // InferenceClientProviderApiError carries httpResponse.status (#42). Both
@@ -238,8 +301,17 @@ function createHuggingFaceError(error: unknown, fallback: string): Error {
     | { response?: { status?: number }; httpResponse?: { status?: number } }
     | null;
   const status = shaped?.response?.status ?? shaped?.httpResponse?.status;
-  if (status === 401 || status === 403) {
+  if (status === 401) {
     return new Error('HuggingFace rejected the token. Check the BYOK token in Settings.');
+  }
+  if (status === 403) {
+    // A 403 is not a bad token: the token authenticated, but this model (or
+    // this token's scope) is not allowed. Gated repos are the common case.
+    return new Error(
+      isGatedModelRefusal(error)
+        ? HUGGINGFACE_GATED_MODEL_MESSAGE
+        : `${HUGGINGFACE_GATED_MODEL_MESSAGE} If you already accepted it, check that the token is allowed to call Inference Providers.`,
+    );
   }
   if (status === 404) {
     return new Error('HuggingFace could not find that model for the requested task.');
@@ -271,15 +343,6 @@ function extractUsage(data: unknown): HuggingFaceUsage | null {
     totalTokens: num(usage.total_tokens),
     cost: num(usage.cost),
   };
-}
-
-function sniffImageMime(buffer: Buffer): string | null {
-  for (const candidate of IMAGE_MAGIC) {
-    if (candidate.test(buffer)) {
-      return candidate.mime;
-    }
-  }
-  return null;
 }
 
 function toImageResult(data: unknown): HuggingFaceImageResult {
@@ -332,13 +395,33 @@ export function createHuggingFaceInferenceService({
   maxConcurrentPerKey = DEFAULT_MAX_CONCURRENT_PER_KEY,
   logger = console,
   adapterTextToImage = defaultAdapterTextToImage,
+  clientTextToVideo = defaultClientTextToVideo,
+  videoGenerationTimeoutMs = VIDEO_GENERATION_TIMEOUT_MS,
 }: CreateHuggingFaceInferenceServiceOptions = {}) {
   const limit = createKeyConcurrencyLimit(maxConcurrentPerKey);
 
-  function withRetry<T>(token: string, operation: () => Promise<T>, signal?: AbortSignal) {
+  function withRetry<T>(
+    token: string,
+    operation: () => Promise<T>,
+    signal?: AbortSignal,
+    isRetryable: (error: unknown) => boolean = isRetryableError,
+  ) {
     return limit(token, () =>
-      retryHostedCall(operation, { maxAttempts: maxRetryAttempts, baseDelayMs: retryBaseDelayMs, signal }),
+      retryHostedCall(operation, {
+        maxAttempts: maxRetryAttempts,
+        baseDelayMs: retryBaseDelayMs,
+        signal,
+        isRetryable,
+      }),
     );
+  }
+
+  /**
+   * Generation calls spend the user's Inference Providers credit: retry only
+   * failures the provider says it did not run (see isRetryableBilledError).
+   */
+  function withBilledRetry<T>(token: string, operation: () => Promise<T>, signal?: AbortSignal) {
+    return withRetry(token, operation, signal, isRetryableBilledError);
   }
 
   function parseJsonObject(raw: string): Record<string, unknown> {
@@ -359,7 +442,7 @@ export function createHuggingFaceInferenceService({
         axiosInstance.post(
           `${routerBaseUrl}/chat/completions`,
           {
-            ...(model ? { model } : {}),
+            model: model?.trim() || DEFAULT_HF_TEXT_MODEL,
             temperature: 0.3,
             response_format: { type: 'json_object' },
             messages: [
@@ -438,8 +521,11 @@ export function createHuggingFaceInferenceService({
         JSON.stringify({ mode, prompt: normalized, ...(context ? { referenceContext: context } : {}) }),
         signal,
       );
+      if (typeof parsed.prompt !== 'string' || !parsed.prompt.trim()) {
+        return { prompt: normalized, variations: [], usage, fallback: true };
+      }
       return {
-        prompt: typeof parsed.prompt === 'string' && parsed.prompt.trim() ? parsed.prompt : normalized,
+        prompt: parsed.prompt,
         variations: Array.isArray(parsed.variations)
           ? (parsed.variations.filter((value) => typeof value === 'string') as string[])
           : [],
@@ -477,8 +563,11 @@ export function createHuggingFaceInferenceService({
         JSON.stringify({ prompt: normalized, current: negativePrompt ?? '', ...(context ? { referenceContext: context } : {}) }),
         signal,
       );
+      if (typeof parsed.negativePrompt !== 'string' || !parsed.negativePrompt.trim()) {
+        return { negativePrompt: negativePrompt?.trim() ?? '', suggestions: [], usage, fallback: true };
+      }
       return {
-        negativePrompt: typeof parsed.negativePrompt === 'string' ? parsed.negativePrompt : '',
+        negativePrompt: parsed.negativePrompt,
         suggestions: Array.isArray(parsed.suggestions)
           ? (parsed.suggestions.filter((value) => typeof value === 'string') as string[])
           : [],
@@ -522,7 +611,7 @@ export function createHuggingFaceInferenceService({
       const normalizedAdapter = adapterRepoId.trim();
       assertValidHfAdapterRepoId(normalizedAdapter);
       try {
-        const payload = await withRetry(
+        const payload = await withBilledRetry(
           token,
           () =>
             adapterTextToImage(
@@ -553,7 +642,7 @@ export function createHuggingFaceInferenceService({
     if (!normalizedModel) throw new Error('HuggingFace image model is required.');
     assertValidHfModelId(normalizedModel);
     try {
-      const response = await withRetry(
+      const response = await withBilledRetry(
         token,
         () =>
           axiosInstance.post(
@@ -602,25 +691,22 @@ export function createHuggingFaceInferenceService({
     assertValidHfModelId(normalizedModel);
     assertPromptLength(normalizedPrompt, 'Prompt');
     try {
-      const response = await withRetry(
+      const payload = await withBilledRetry(
         token,
         () =>
-          axiosInstance.post(
-            `${inferenceBaseUrl}/${normalizedModel}`,
+          clientTextToVideo(
             {
+              accessToken: token,
+              model: normalizedModel,
+              provider: 'auto',
               inputs: normalizedPrompt,
               parameters: { ...(durationSeconds ? { num_frames: Math.round(durationSeconds * 24) } : {}) },
             },
-            {
-              headers: buildHeaders(token),
-              timeout: GENERATION_TIMEOUT_MS,
-              responseType: 'arraybuffer',
-              signal,
-            },
+            { signal: withDeadline(signal, videoGenerationTimeoutMs), retry_on_error: false },
           ),
         signal,
       );
-      return toVideoResult(normalizedModel, (response as { data: unknown }).data);
+      return toVideoResult(normalizedModel, await adapterPayloadToBuffer(payload));
     } catch (error) {
       throw createHuggingFaceError(error, 'HuggingFace video generation failed.');
     }

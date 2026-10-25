@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createHuggingFaceInferenceService } from './huggingfaceInference';
+import { createHuggingFaceInferenceService, HUGGINGFACE_GATED_MODEL_MESSAGE } from './huggingfaceInference';
 
 const PNG_MAGIC = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x01]);
 
@@ -77,6 +77,81 @@ describe('createHuggingFaceInferenceService.enhancePrompt', () => {
     expect(url).toContain('/chat/completions');
   });
 
+  it('sends the first curated text model when the account has none selected', async () => {
+    const axiosInstance = {
+      get: vi.fn(),
+      post: vi.fn().mockResolvedValue({
+        data: { choices: [{ message: { content: JSON.stringify({ prompt: 'p', variations: [] }) } }] },
+      }),
+    };
+    const service = createHuggingFaceInferenceService({ axiosInstance });
+    const curated = await service.listTextModels('hf_token');
+
+    await service.enhancePrompt({ token: 'hf_token', prompt: 'a cat', mode: 'clarify' });
+    await service.enhancePrompt({ token: 'hf_token', prompt: 'a cat', mode: 'clarify', model: '  ' });
+
+    expect(axiosInstance.post.mock.calls[0][1].model).toBe(curated[0].id);
+    expect(axiosInstance.post.mock.calls[1][1].model).toBe(curated[0].id);
+  });
+
+  it('explains a 403 on a gated model instead of blaming the token', async () => {
+    const gated = Object.assign(new Error('HTTP 403'), {
+      response: {
+        status: 403,
+        headers: {},
+        data: { error: 'Access to model meta-llama/Llama-3.1-8B-Instruct is restricted. hf_secret' },
+      },
+    });
+    const axiosInstance = { get: vi.fn(), post: vi.fn().mockRejectedValue(gated) };
+    const service = createHuggingFaceInferenceService({ axiosInstance });
+
+    const thrown = (await service
+      .enhancePrompt({ token: 'hf_secret', prompt: 'a cat', mode: 'clarify' })
+      .catch((error: unknown) => error)) as Error;
+
+    expect(thrown.message).toBe(HUGGINGFACE_GATED_MODEL_MESSAGE);
+    expect(thrown.message).not.toMatch(/rejected the token/);
+    expect(thrown.message).not.toContain('hf_secret');
+  });
+
+  it('still points a 403 without a gated body at the license and the token scope', async () => {
+    const forbidden = Object.assign(new Error('HTTP 403'), {
+      response: { status: 403, headers: {}, data: Buffer.from('{"error":"forbidden"}') },
+    });
+    const axiosInstance = { get: vi.fn(), post: vi.fn().mockRejectedValue(forbidden) };
+    const service = createHuggingFaceInferenceService({ axiosInstance });
+
+    await expect(
+      service.generateImage({ token: 'hf_token', model: 'm/x', prompt: 'a tree', width: 512, height: 512 }),
+    ).rejects.toThrow(/gated.*Inference Providers/s);
+  });
+
+  it('flags an unreadable reply as a fallback that echoes the input', async () => {
+    const axiosInstance = {
+      get: vi.fn(),
+      post: vi.fn().mockResolvedValue({ data: { choices: [{ message: { content: 'sorry, prose' } }] } }),
+    };
+    const service = createHuggingFaceInferenceService({ axiosInstance, logger: { warn: vi.fn() } });
+
+    const enhanced = await service.enhancePrompt({ token: 'hf_token', prompt: 'a cat', mode: 'clarify' });
+    const negative = await service.suggestNegativePrompt({ token: 'hf_token', prompt: 'a cat', negativePrompt: 'blur' });
+
+    expect(enhanced).toMatchObject({ prompt: 'a cat', variations: [], fallback: true });
+    expect(negative).toMatchObject({ negativePrompt: 'blur', suggestions: [], fallback: true });
+  });
+
+  it('does not flag a readable reply as a fallback', async () => {
+    const axiosInstance = {
+      get: vi.fn(),
+      post: vi.fn().mockResolvedValue({
+        data: { choices: [{ message: { content: JSON.stringify({ prompt: 'a tabby cat', variations: [] }) } }] },
+      }),
+    };
+    const service = createHuggingFaceInferenceService({ axiosInstance });
+    const result = await service.enhancePrompt({ token: 'hf_token', prompt: 'a cat', mode: 'clarify' });
+    expect(result.fallback).toBeUndefined();
+  });
+
   it('rejects an over-long prompt before any network call', async () => {
     const axiosInstance = { get: vi.fn(), post: vi.fn() };
     const service = createHuggingFaceInferenceService({ axiosInstance });
@@ -125,6 +200,35 @@ describe('createHuggingFaceInferenceService.generateImage', () => {
     expect(result.images).toHaveLength(1);
     expect(result.images[0].mimeType).toBe('image/png');
     expect(result.images[0].dataUrl.startsWith('data:image/png;base64,')).toBe(true);
+  });
+
+  it('keeps the AbortError identity when the request is cancelled (axios CanceledError)', async () => {
+    const canceled = Object.assign(new Error('canceled'), { name: 'CanceledError', code: 'ERR_CANCELED' });
+    const axiosInstance = { get: vi.fn(), post: vi.fn().mockRejectedValue(canceled) };
+    const service = createHuggingFaceInferenceService({ axiosInstance });
+
+    const thrown = await service
+      .generateImage({ token: 'hf_token', model: 'm/x', prompt: 'a tree', width: 512, height: 512 })
+      .catch((error: unknown) => error);
+
+    expect((thrown as Error).name).toBe('AbortError');
+    expect(axiosInstance.post).toHaveBeenCalledOnce();
+  });
+
+  it('does not retry a billed generation on a 502 or a timeout', async () => {
+    const badGateway = Object.assign(new Error('HTTP 502'), { response: { status: 502, headers: {} } });
+    const timeout = Object.assign(new Error('timeout'), { code: 'ECONNABORTED' });
+    for (const failure of [badGateway, timeout]) {
+      const axiosInstance = {
+        get: vi.fn(),
+        post: vi.fn().mockRejectedValueOnce(failure).mockResolvedValue({ data: PNG_MAGIC }),
+      };
+      const service = createHuggingFaceInferenceService({ axiosInstance, retryBaseDelayMs: 0 });
+      await expect(
+        service.generateImage({ token: 'hf_token', model: 'm/x', prompt: 'a tree', width: 512, height: 512 }),
+      ).rejects.toThrow();
+      expect(axiosInstance.post).toHaveBeenCalledOnce();
+    }
   });
 
   it('rejects a non-image response body (sanitization)', async () => {
@@ -333,40 +437,92 @@ describe('createHuggingFaceInferenceService.listVideoModels', () => {
 });
 
 describe('createHuggingFaceInferenceService.generateVideo', () => {
-  it('normalizes returned bytes to an mp4 data URL via the hf-inference router', async () => {
-    const axiosInstance = {
-      get: vi.fn(),
-      post: vi.fn().mockResolvedValue({ data: MP4_BYTES, headers: { 'content-type': 'video/mp4' } }),
-    };
-    const service = createHuggingFaceInferenceService({ axiosInstance });
+  function hangingClient() {
+    return vi.fn(
+      (_args: unknown, options: { signal?: AbortSignal }) =>
+        new Promise<Blob>((_resolve, reject) => {
+          options.signal?.addEventListener('abort', () => reject(options.signal?.reason));
+        }),
+    );
+  }
+
+  it('dispatches through the official client with provider auto, never the hf-inference router', async () => {
+    const axiosInstance = { get: vi.fn(), post: vi.fn() };
+    const clientTextToVideo = vi.fn().mockResolvedValue(new Blob([MP4_BYTES]));
+    const service = createHuggingFaceInferenceService({ axiosInstance, clientTextToVideo });
+
     const result = await service.generateVideo({
       token: 'hf_token',
       model: 'Lightricks/LTX-Video',
       prompt: 'a wave',
       durationSeconds: 5,
     });
+
+    expect(clientTextToVideo).toHaveBeenCalledWith(
+      {
+        accessToken: 'hf_token',
+        model: 'Lightricks/LTX-Video',
+        provider: 'auto',
+        inputs: 'a wave',
+        parameters: { num_frames: 120 },
+      },
+      expect.objectContaining({ retry_on_error: false, signal: expect.any(AbortSignal) }),
+    );
+    expect(axiosInstance.post).not.toHaveBeenCalled();
     expect(result.mimeType).toBe('video/mp4');
     expect(result.dataUrl.startsWith('data:video/mp4;base64,')).toBe(true);
-    const url = axiosInstance.post.mock.calls[0][0] as string;
-    expect(url).toBe('https://router.huggingface.co/hf-inference/models/Lightricks/LTX-Video');
+  });
+
+  it('forwards a user cancel to the client as an AbortError', async () => {
+    const controller = new AbortController();
+    const service = createHuggingFaceInferenceService({
+      axiosInstance: { get: vi.fn(), post: vi.fn() },
+      clientTextToVideo: hangingClient(),
+    });
+
+    const pending = service.generateVideo({ token: 'hf_token', model: 'm/v', prompt: 'a wave', signal: controller.signal });
+    controller.abort();
+
+    await expect(pending).rejects.toMatchObject({ name: 'AbortError' });
+  });
+
+  it('gives the client a deadline and reports expiry as a timeout, not a cancel', async () => {
+    const clientTextToVideo = hangingClient();
+    const service = createHuggingFaceInferenceService({
+      axiosInstance: { get: vi.fn(), post: vi.fn() },
+      clientTextToVideo,
+      videoGenerationTimeoutMs: 5,
+    });
+
+    const thrown = (await service
+      .generateVideo({ token: 'hf_token', model: 'm/v', prompt: 'a wave' })
+      .catch((error: unknown) => error)) as Error;
+
+    expect(thrown.name).not.toBe('AbortError');
+    expect(thrown.message).toMatch(/timed out/);
+    // Billed: a timeout is never retried.
+    expect(clientTextToVideo).toHaveBeenCalledOnce();
   });
 
   it('rejects a non-video response body (sanitization)', async () => {
-    const axiosInstance = {
-      get: vi.fn(),
-      post: vi.fn().mockResolvedValue({ data: Buffer.from('{"error":"loading"}'), headers: {} }),
-    };
-    const service = createHuggingFaceInferenceService({ axiosInstance });
+    const clientTextToVideo = vi.fn().mockResolvedValue(new Blob(['{"error":"loading"}']));
+    const service = createHuggingFaceInferenceService({
+      axiosInstance: { get: vi.fn(), post: vi.fn() },
+      clientTextToVideo,
+    });
     await expect(
       service.generateVideo({ token: 'hf_token', model: 'm/v', prompt: 'a wave' }),
     ).rejects.toThrow(/did not return a valid video|failed/i);
   });
 
   it('rejects an empty prompt before any network call', async () => {
-    const axiosInstance = { get: vi.fn(), post: vi.fn() };
-    const service = createHuggingFaceInferenceService({ axiosInstance });
+    const clientTextToVideo = vi.fn();
+    const service = createHuggingFaceInferenceService({
+      axiosInstance: { get: vi.fn(), post: vi.fn() },
+      clientTextToVideo,
+    });
     await expect(service.generateVideo({ token: 'hf_token', model: 'm/v', prompt: '   ' })).rejects.toThrow(/empty/i);
-    expect(axiosInstance.post).not.toHaveBeenCalled();
+    expect(clientTextToVideo).not.toHaveBeenCalled();
   });
 });
 

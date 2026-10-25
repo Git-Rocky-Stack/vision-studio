@@ -1,7 +1,10 @@
 import crypto from 'node:crypto';
 import { ipcMain, BrowserWindow } from 'electron';
-import axios from 'axios';
 import WebSocket from 'ws';
+import {
+  backendHttp,
+  BACKEND_LONG_OPERATION_TIMEOUT_MS,
+} from '../services/backendHttp';
 import {
   getBackendAuthToken,
   backendAuthHeaders,
@@ -19,7 +22,11 @@ import { buildPromptContext } from '../services/promptAugmentation';
 import { createRetrievalClient } from '../services/retrievalClient';
 import { mergeJobsByCreatedAtDesc } from './jobListing';
 import { routeBackendWsMessage } from './backendWsRouting';
-import { BACKEND_DOWN_MESSAGE as _BACKEND_DOWN_MESSAGE, requestBackend } from './backendRequest';
+import {
+  BACKEND_DOWN_MESSAGE as _BACKEND_DOWN_MESSAGE,
+  describeBackendError,
+  requestBackend,
+} from './backendRequest';
 import {
   OPENROUTER_IMAGE_UNSUPPORTED_MESSAGE,
   OPENROUTER_JOB_PREFIX,
@@ -28,6 +35,7 @@ import {
 } from './openRouterImageRouting';
 import { createOpenRouterImageJobStore } from './openRouterImageJobs';
 import { suggestNegativePromptFromHeuristics } from './negativePromptHeuristics';
+import { toLocalPromptEnhanceResult } from '../../shared/localPromptEnhance';
 import { runOpenRouterImageJob } from './runOpenRouterImageJob';
 import { createHuggingFaceImageJobStore } from './huggingfaceImageJobs';
 import { runHuggingFaceImageJob } from './runHuggingFaceImageJob';
@@ -59,7 +67,18 @@ const BATCH_SUBMISSION_CONCURRENCY = 4;
 let ws: WebSocket | null = null;
 let mainWindow: BrowserWindow | null = null;
 let wsReconnectAttempts = 0;
+let wsReconnectTimer: ReturnType<typeof setTimeout> | null = null;
 const WS_BASE_DELAY = 1000; // 1s initial delay, doubles each attempt up to 30s
+
+/**
+ * Renderer sink for job and progress events. The target window is swapped
+ * on macOS re-activate, and a closed window must not throw on send.
+ */
+function sendToRenderer(channel: string, payload: unknown) {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send(channel, payload);
+  }
+}
 
 type UserAccountsService = ReturnType<typeof createUserAccountsService>;
 type OpenRouterService = ReturnType<typeof createOpenRouterService>;
@@ -70,7 +89,7 @@ let openRouterService: OpenRouterService | null = null;
 let outputRootService: OutputRootService | null = null;
 
 const openRouterImageJobStore = createOpenRouterImageJobStore({
-  emit: (channel, payload) => mainWindow?.webContents.send(channel, payload),
+  emit: sendToRenderer,
 });
 
 function dispatchOpenRouterImageJob(jobId: string, params: Record<string, unknown>) {
@@ -95,7 +114,7 @@ type HuggingFaceService = ReturnType<typeof createHuggingFaceInferenceService>;
 let huggingFaceService: HuggingFaceService | null = null;
 
 const huggingFaceImageJobStore = createHuggingFaceImageJobStore({
-  emit: (channel, payload) => mainWindow?.webContents.send(channel, payload),
+  emit: sendToRenderer,
 });
 
 function dispatchHuggingFaceImageJob(jobId: string, params: Record<string, unknown>) {
@@ -117,7 +136,7 @@ function dispatchHuggingFaceImageJob(jobId: string, params: Record<string, unkno
 }
 
 const huggingFaceVideoJobStore = createHuggingFaceVideoJobStore({
-  emit: (channel, payload) => mainWindow?.webContents.send(channel, payload),
+  emit: sendToRenderer,
 });
 
 function dispatchHuggingFaceVideoJob(jobId: string, params: Record<string, unknown>) {
@@ -140,6 +159,26 @@ function dispatchHuggingFaceVideoJob(jobId: string, params: Record<string, unkno
 
 export function setupGenerationHandlers(window: BrowserWindow) {
   mainWindow = window;
+  // One socket per app session. macOS re-activate creates a new window and
+  // calls this again; only the event target changes. Opening a second socket
+  // here left the first one connected too, so every progress event reached
+  // the renderer twice.
+  if (!ws) {
+    connectWebSocket();
+  }
+}
+
+/**
+ * Reconnect now instead of waiting out the backoff. The socket starts
+ * connecting before the backend has started, so by the time the backend is
+ * ready the backoff can have grown to 30s of missed progress. Called when the
+ * backend reports ready; a no-op while a socket is open or connecting.
+ */
+export function kickBackendWebSocket() {
+  wsReconnectAttempts = 0;
+  if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
+    return;
+  }
   connectWebSocket();
 }
 
@@ -161,28 +200,44 @@ export function configureGenerationHandlerServices({
 }
 
 function connectWebSocket() {
-  ws = new WebSocket(`${WS_URL}?token=${encodeURIComponent(getBackendAuthToken())}`);
+  if (wsReconnectTimer) {
+    clearTimeout(wsReconnectTimer);
+    wsReconnectTimer = null;
+  }
+  if (ws) {
+    // Retire the previous socket so it can neither deliver duplicate events
+    // nor schedule a second reconnect loop. Keep a no-op error listener:
+    // terminating a socket mid-handshake emits 'error'.
+    const previous = ws;
+    previous.removeAllListeners();
+    previous.on('error', () => undefined);
+    previous.terminate();
+  }
 
-  ws.on('open', () => {
+  const socket = new WebSocket(`${WS_URL}?token=${encodeURIComponent(getBackendAuthToken())}`);
+  ws = socket;
+
+  socket.on('open', () => {
     wsReconnectAttempts = 0;
     console.log('Connected to Python backend WebSocket');
   });
 
-  ws.on('message', (data) => {
-    routeBackendWsMessage(data.toString(), (channel, payload) => {
-      mainWindow?.webContents.send(channel, payload);
-    });
+  socket.on('message', (data) => {
+    routeBackendWsMessage(data.toString(), sendToRenderer);
   });
 
-  ws.on('close', () => {
+  socket.on('close', () => {
+    if (ws !== socket) {
+      return;
+    }
     const delay = Math.min(WS_BASE_DELAY * Math.pow(2, wsReconnectAttempts), 30000);
     wsReconnectAttempts += 1;
     console.log(`WebSocket closed, reconnecting in ${delay}ms (attempt ${wsReconnectAttempts})...`);
-    setTimeout(connectWebSocket, delay);
+    wsReconnectTimer = setTimeout(connectWebSocket, delay);
   });
 
-  ws.on('error', (err) => {
-    console.error('WebSocket error:', err);
+  socket.on('error', (err) => {
+    console.error('WebSocket error:', err instanceof Error ? err.message : err);
   });
 }
 
@@ -190,7 +245,7 @@ ipcMain.handle(
   'workflow:run-graph',
   async (_event, params: { graph: unknown; generationType: 'image' | 'video' }) => {
     const response = await requestBackend(() =>
-      axios.post(
+      backendHttp.post(
         `${BACKEND_URL}/api/v1/comfy/run-graph`,
         { graph: params.graph, generation_type: params.generationType },
         { headers: backendAuthHeaders() }
@@ -319,14 +374,14 @@ ipcMain.handle('generation:generate-image', async (_event, params) => {
 
   try {
     const response = await requestBackend(() =>
-      axios.post(`${BACKEND_URL}/api/generate/image`, params, { headers: backendAuthHeaders() }),
+      backendHttp.post(`${BACKEND_URL}/api/generate/image`, params, { headers: backendAuthHeaders() }),
     );
     return {
       success: true,
       jobId: response.data.job_id,
     };
   } catch (error: any) {
-    console.error('Image generation error:', error);
+    console.error('Image generation error:', describeBackendError(error));
     return {
       success: false,
       error: toSafeRendererError(error, 'Image generation failed'),
@@ -379,14 +434,14 @@ ipcMain.handle('generation:generate-video', async (_event, params) => {
 
   try {
     const response = await requestBackend(() =>
-      axios.post(`${BACKEND_URL}/api/generate/video`, params, { headers: backendAuthHeaders() }),
+      backendHttp.post(`${BACKEND_URL}/api/generate/video`, params, { headers: backendAuthHeaders() }),
     );
     return {
       success: true,
       jobId: response.data.job_id,
     };
   } catch (error: any) {
-    console.error('Video generation error:', error);
+    console.error('Video generation error:', describeBackendError(error));
     return {
       success: false,
       error: toSafeRendererError(error, 'Video generation failed'),
@@ -463,9 +518,9 @@ ipcMain.handle('generation:enhance-prompt', async (_event, params) => {
 
   try {
     const response = await requestBackend(() =>
-      axios.post(`${BACKEND_URL}/api/prompts/enhance`, params, { headers: backendAuthHeaders() }),
+      backendHttp.post(`${BACKEND_URL}/api/prompts/enhance`, params, { headers: backendAuthHeaders() }),
     );
-    return response.data;
+    return toLocalPromptEnhanceResult(response.data);
   } catch (error: any) {
     return {
       success: false,
@@ -597,7 +652,7 @@ ipcMain.handle('director:index-stats', async () => {
 ipcMain.handle('generation:crop-image', async (_event, params) => {
   try {
     const response = await requestBackend(() =>
-      axios.post(`${BACKEND_URL}/api/images/crop`, params, { headers: backendAuthHeaders() }),
+      backendHttp.post(`${BACKEND_URL}/api/images/crop`, params, { headers: backendAuthHeaders() }),
     );
     return response.data;
   } catch (error: any) {
@@ -612,7 +667,7 @@ ipcMain.handle('generation:edit-image', async (_event, params) => {
   try {
     const { operation, ...body } = params ?? {};
     const response = await requestBackend(() =>
-      axios.post(`${BACKEND_URL}/api/v1/edit/${operation}`, body, { headers: backendAuthHeaders() }),
+      backendHttp.post(`${BACKEND_URL}/api/v1/edit/${operation}`, body, { headers: backendAuthHeaders() }),
     );
     return { success: true, jobId: response.data.job_id };
   } catch (error: any) {
@@ -626,7 +681,7 @@ ipcMain.handle('generation:edit-image', async (_event, params) => {
 ipcMain.handle('generation:extract-video-frame', async (_event, params) => {
   try {
     const response = await requestBackend(() =>
-      axios.post(`${BACKEND_URL}/api/videos/extract-frame`, params, { headers: backendAuthHeaders() }),
+      backendHttp.post(`${BACKEND_URL}/api/videos/extract-frame`, params, { headers: backendAuthHeaders() }),
     );
     return response.data;
   } catch (error: any) {
@@ -640,14 +695,14 @@ ipcMain.handle('generation:extract-video-frame', async (_event, params) => {
 ipcMain.handle('generation:export-timeline-sequence', async (_event, params) => {
   try {
     const response = await requestBackend(() =>
-      axios.post(`${BACKEND_URL}/api/timeline/export`, params, { headers: backendAuthHeaders() }),
+      backendHttp.post(`${BACKEND_URL}/api/timeline/export`, params, { headers: backendAuthHeaders() }),
     );
     return {
       success: true,
       jobId: response.data.job_id,
     };
   } catch (error: any) {
-    console.error('Timeline export error:', error);
+    console.error('Timeline export error:', describeBackendError(error));
     return {
       success: false,
       error: toSafeRendererError(error, 'Timeline export failed'),
@@ -799,7 +854,7 @@ ipcMain.handle('generation:batch', async (_event, params) => {
       prompts,
       async (prompt: string) => {
         const response = await requestBackend(() =>
-          axios.post(
+          backendHttp.post(
             `${BACKEND_URL}/api/generate/image`,
             {
               ...baseParams,
@@ -818,7 +873,7 @@ ipcMain.handle('generation:batch', async (_event, params) => {
       jobIds,
     };
   } catch (error: any) {
-    console.error('Batch generation error:', error);
+    console.error('Batch generation error:', describeBackendError(error));
     return {
       success: false,
       error: toSafeRendererError(error, 'Batch generation failed'),
@@ -845,11 +900,11 @@ ipcMain.handle('generation:get-status', async (_event, jobId: string) => {
 
   try {
     const response = await requestBackend(() =>
-      axios.get(`${BACKEND_URL}/api/jobs/${jobId}`, { headers: backendAuthHeaders() }),
+      backendHttp.get(`${BACKEND_URL}/api/jobs/${jobId}`, { headers: backendAuthHeaders() }),
     );
     return response.data;
   } catch (error: any) {
-    console.error('Get status error:', error);
+    console.error('Get status error:', describeBackendError(error));
     return {
       success: false,
       error: toSafeRendererError(error, 'Could not get generation status'),
@@ -933,11 +988,11 @@ ipcMain.handle('generation:cancel', async (_event, jobId: string) => {
 
   try {
     const response = await requestBackend(() =>
-      axios.post(`${BACKEND_URL}/api/jobs/${jobId}/cancel`, undefined, { headers: backendAuthHeaders() }),
+      backendHttp.post(`${BACKEND_URL}/api/jobs/${jobId}/cancel`, undefined, { headers: backendAuthHeaders() }),
     );
     return response.data;
   } catch (error: any) {
-    console.error('Cancel job error:', error);
+    console.error('Cancel job error:', describeBackendError(error));
     return {
       success: false,
       error: toSafeRendererError(error, 'Could not cancel generation'),
@@ -959,7 +1014,7 @@ ipcMain.handle('generation:list-jobs', async (_event, options = {}) => {
       url += `&status=${status}`;
     }
 
-    const response = await requestBackend(() => axios.get(url, { headers: backendAuthHeaders() }));
+    const response = await requestBackend(() => backendHttp.get(url, { headers: backendAuthHeaders() }));
     const backendJobs = Array.isArray(response.data?.jobs) ? response.data.jobs : [];
     return {
       ...response.data,
@@ -972,7 +1027,7 @@ ipcMain.handle('generation:list-jobs', async (_event, options = {}) => {
       };
     }
 
-    console.error('List jobs error:', error);
+    console.error('List jobs error:', describeBackendError(error));
     return {
       success: false,
       error: toSafeRendererError(error, 'Could not list jobs'),
@@ -985,11 +1040,11 @@ ipcMain.handle('generation:list-jobs', async (_event, options = {}) => {
 ipcMain.handle('models:list', async () => {
   try {
     const response = await requestBackend(() =>
-      axios.get(`${BACKEND_URL}/api/models`, { headers: backendAuthHeaders() }),
+      backendHttp.get(`${BACKEND_URL}/api/models`, { headers: backendAuthHeaders() }),
     );
     return response.data;
   } catch (error: any) {
-    console.error('List models error:', error);
+    console.error('List models error:', describeBackendError(error));
     return [];
   }
 });
@@ -997,11 +1052,11 @@ ipcMain.handle('models:list', async () => {
 ipcMain.handle('models:get', async (_event, modelId: string) => {
   try {
     const response = await requestBackend(() =>
-      axios.get(`${BACKEND_URL}/api/models/${modelId}`, { headers: backendAuthHeaders() }),
+      backendHttp.get(`${BACKEND_URL}/api/models/${modelId}`, { headers: backendAuthHeaders() }),
     );
     return response.data;
   } catch (error) {
-    console.error('Failed to get model record:', error);
+    console.error('Failed to get model record:', describeBackendError(error));
     return null;
   }
 });
@@ -1009,7 +1064,7 @@ ipcMain.handle('models:get', async (_event, modelId: string) => {
 ipcMain.handle('models:download', async (_event, modelId: string) => {
   try {
     const response = await requestBackend(() =>
-      axios.post(`${BACKEND_URL}/api/models/${modelId}/download`, undefined, {
+      backendHttp.post(`${BACKEND_URL}/api/models/${modelId}/download`, undefined, {
         // The backend routes X-HF-Token to HF downloads and X-Civitai-Token to
         // CivitAI direct-URL downloads based on the model record's source.
         headers: { ...backendAuthHeaders(), ...hfTokenHeaders(), ...civitaiTokenHeaders() },
@@ -1017,7 +1072,7 @@ ipcMain.handle('models:download', async (_event, modelId: string) => {
     );
     return response.data;
   } catch (error: any) {
-    console.error('Download model error:', error instanceof Error ? error.message : error);
+    console.error('Download model error:', describeBackendError(error));
     return {
       success: false,
       error: toSafeRendererError(error, 'Model download failed'),
@@ -1028,13 +1083,13 @@ ipcMain.handle('models:download', async (_event, modelId: string) => {
 ipcMain.handle('models:download:pause', async (_event, modelId: string) => {
   try {
     const response = await requestBackend(() =>
-      axios.post(`${BACKEND_URL}/api/models/${modelId}/download/pause`, undefined, {
+      backendHttp.post(`${BACKEND_URL}/api/models/${modelId}/download/pause`, undefined, {
         headers: backendAuthHeaders(),
       }),
     );
     return response.data;
   } catch (error: any) {
-    console.error('Pause download error:', error instanceof Error ? error.message : error);
+    console.error('Pause download error:', describeBackendError(error));
     return { success: false, error: toSafeRendererError(error, 'Pause failed') };
   }
 });
@@ -1042,13 +1097,13 @@ ipcMain.handle('models:download:pause', async (_event, modelId: string) => {
 ipcMain.handle('models:download:resume', async (_event, modelId: string) => {
   try {
     const response = await requestBackend(() =>
-      axios.post(`${BACKEND_URL}/api/models/${modelId}/download/resume`, undefined, {
+      backendHttp.post(`${BACKEND_URL}/api/models/${modelId}/download/resume`, undefined, {
         headers: { ...backendAuthHeaders(), ...hfTokenHeaders(), ...civitaiTokenHeaders() },
       }),
     );
     return response.data;
   } catch (error: any) {
-    console.error('Resume download error:', error instanceof Error ? error.message : error);
+    console.error('Resume download error:', describeBackendError(error));
     return { success: false, error: toSafeRendererError(error, 'Resume failed') };
   }
 });
@@ -1056,13 +1111,13 @@ ipcMain.handle('models:download:resume', async (_event, modelId: string) => {
 ipcMain.handle('models:download:cancel', async (_event, modelId: string) => {
   try {
     const response = await requestBackend(() =>
-      axios.post(`${BACKEND_URL}/api/models/${modelId}/download/cancel`, undefined, {
+      backendHttp.post(`${BACKEND_URL}/api/models/${modelId}/download/cancel`, undefined, {
         headers: backendAuthHeaders(),
       }),
     );
     return response.data;
   } catch (error: any) {
-    console.error('Cancel download error:', error instanceof Error ? error.message : error);
+    console.error('Cancel download error:', describeBackendError(error));
     return { success: false, error: toSafeRendererError(error, 'Cancel failed') };
   }
 });
@@ -1070,11 +1125,11 @@ ipcMain.handle('models:download:cancel', async (_event, modelId: string) => {
 ipcMain.handle('models:downloads:list', async () => {
   try {
     const response = await requestBackend(() =>
-      axios.get(`${BACKEND_URL}/api/models/downloads`, { headers: backendAuthHeaders() }),
+      backendHttp.get(`${BACKEND_URL}/api/models/downloads`, { headers: backendAuthHeaders() }),
     );
     return response.data;
   } catch (error: any) {
-    console.error('List downloads error:', error instanceof Error ? error.message : error);
+    console.error('List downloads error:', describeBackendError(error));
     return [];
   }
 });
@@ -1085,11 +1140,11 @@ ipcMain.handle('models:downloads:list', async () => {
 ipcMain.handle('models:downloads:subscribe', async () => {
   try {
     const response = await requestBackend(() =>
-      axios.get(`${BACKEND_URL}/api/models/downloads`, { headers: backendAuthHeaders() }),
+      backendHttp.get(`${BACKEND_URL}/api/models/downloads`, { headers: backendAuthHeaders() }),
     );
     return response.data;
   } catch (error: any) {
-    console.error('Subscribe downloads error:', error instanceof Error ? error.message : error);
+    console.error('Subscribe downloads error:', describeBackendError(error));
     return [];
   }
 });
@@ -1100,11 +1155,11 @@ ipcMain.handle('models:downloads:subscribe', async () => {
 ipcMain.handle('provision:status', async () => {
   try {
     const response = await requestBackend(() =>
-      axios.get(`${BACKEND_URL}/api/models/provision/status`, { headers: backendAuthHeaders() }),
+      backendHttp.get(`${BACKEND_URL}/api/models/provision/status`, { headers: backendAuthHeaders() }),
     );
     return response.data;
   } catch (error: any) {
-    console.error('Provision status error:', error instanceof Error ? error.message : error);
+    console.error('Provision status error:', describeBackendError(error));
     return { success: false, error: toSafeRendererError(error, 'Provision status failed') };
   }
 });
@@ -1112,14 +1167,14 @@ ipcMain.handle('provision:status', async () => {
 ipcMain.handle('provision:start', async () => {
   try {
     const response = await requestBackend(() =>
-      axios.post(`${BACKEND_URL}/api/models/provision/start`, undefined, {
+      backendHttp.post(`${BACKEND_URL}/api/models/provision/start`, undefined, {
         // X-HF-Token is forwarded for the gated SD3.5 pipelines in the auto-set.
         headers: { ...backendAuthHeaders(), ...hfTokenHeaders() },
       }),
     );
     return response.data;
   } catch (error: any) {
-    console.error('Provision start error:', error instanceof Error ? error.message : error);
+    console.error('Provision start error:', describeBackendError(error));
     return { success: false, error: toSafeRendererError(error, 'Provisioning could not start') };
   }
 });
@@ -1127,13 +1182,13 @@ ipcMain.handle('provision:start', async () => {
 ipcMain.handle('provision:pause', async () => {
   try {
     const response = await requestBackend(() =>
-      axios.post(`${BACKEND_URL}/api/models/provision/pause`, undefined, {
+      backendHttp.post(`${BACKEND_URL}/api/models/provision/pause`, undefined, {
         headers: backendAuthHeaders(),
       }),
     );
     return response.data;
   } catch (error: any) {
-    console.error('Provision pause error:', error instanceof Error ? error.message : error);
+    console.error('Provision pause error:', describeBackendError(error));
     return { success: false, error: toSafeRendererError(error, 'Provision pause failed') };
   }
 });
@@ -1141,13 +1196,13 @@ ipcMain.handle('provision:pause', async () => {
 ipcMain.handle('provision:resume', async () => {
   try {
     const response = await requestBackend(() =>
-      axios.post(`${BACKEND_URL}/api/models/provision/resume`, undefined, {
+      backendHttp.post(`${BACKEND_URL}/api/models/provision/resume`, undefined, {
         headers: { ...backendAuthHeaders(), ...hfTokenHeaders() },
       }),
     );
     return response.data;
   } catch (error: any) {
-    console.error('Provision resume error:', error instanceof Error ? error.message : error);
+    console.error('Provision resume error:', describeBackendError(error));
     return { success: false, error: toSafeRendererError(error, 'Provision resume failed') };
   }
 });
@@ -1155,13 +1210,13 @@ ipcMain.handle('provision:resume', async () => {
 ipcMain.handle('provision:cancel', async () => {
   try {
     const response = await requestBackend(() =>
-      axios.post(`${BACKEND_URL}/api/models/provision/cancel`, undefined, {
+      backendHttp.post(`${BACKEND_URL}/api/models/provision/cancel`, undefined, {
         headers: backendAuthHeaders(),
       }),
     );
     return response.data;
   } catch (error: any) {
-    console.error('Provision cancel error:', error instanceof Error ? error.message : error);
+    console.error('Provision cancel error:', describeBackendError(error));
     return { success: false, error: toSafeRendererError(error, 'Provision cancel failed') };
   }
 });
@@ -1169,7 +1224,7 @@ ipcMain.handle('provision:cancel', async () => {
 ipcMain.handle('provision:reverify', async () => {
   try {
     const response = await requestBackend(() =>
-      axios.post(`${BACKEND_URL}/api/models/provision/reverify`, undefined, {
+      backendHttp.post(`${BACKEND_URL}/api/models/provision/reverify`, undefined, {
         // Reverify re-runs start(): the HF token is forwarded for any gated
         // auto-set model a repair re-fetch may need.
         headers: { ...backendAuthHeaders(), ...hfTokenHeaders() },
@@ -1177,7 +1232,7 @@ ipcMain.handle('provision:reverify', async () => {
     );
     return response.data;
   } catch (error: any) {
-    console.error('Provision reverify error:', error instanceof Error ? error.message : error);
+    console.error('Provision reverify error:', describeBackendError(error));
     return { success: false, error: toSafeRendererError(error, 'Provision verify failed') };
   }
 });
@@ -1185,11 +1240,11 @@ ipcMain.handle('provision:reverify', async () => {
 ipcMain.handle('models:get-status', async (_event, modelId: string) => {
   try {
     const response = await requestBackend(() =>
-      axios.get(`${BACKEND_URL}/api/models/${modelId}/status`, { headers: backendAuthHeaders() }),
+      backendHttp.get(`${BACKEND_URL}/api/models/${modelId}/status`, { headers: backendAuthHeaders() }),
     );
     return response.data;
   } catch (error: any) {
-    console.error('Get model status error:', error);
+    console.error('Get model status error:', describeBackendError(error));
     return null;
   }
 });
@@ -1197,11 +1252,11 @@ ipcMain.handle('models:get-status', async (_event, modelId: string) => {
 ipcMain.handle('models:delete', async (_event, modelId: string) => {
   try {
     const response = await requestBackend(() =>
-      axios.delete(`${BACKEND_URL}/api/models/${modelId}`, { headers: backendAuthHeaders() }),
+      backendHttp.delete(`${BACKEND_URL}/api/models/${modelId}`, { headers: backendAuthHeaders() }),
     );
     return response.data;
   } catch (error: any) {
-    console.error('Delete model error:', error);
+    console.error('Delete model error:', describeBackendError(error));
     return {
       success: false,
       error: toSafeRendererError(error, 'Model delete failed'),
@@ -1212,13 +1267,15 @@ ipcMain.handle('models:delete', async (_event, modelId: string) => {
 ipcMain.handle('models:import', async (_event, path: string, layoutHint: string) => {
   try {
     const response = await requestBackend(() =>
-      axios.post(`${BACKEND_URL}/api/models/import`, { path, layout_hint: layoutHint }, {
+      backendHttp.post(`${BACKEND_URL}/api/models/import`, { path, layout_hint: layoutHint }, {
         headers: backendAuthHeaders(),
+        // Registers the root, then rescans every library synchronously.
+        timeout: BACKEND_LONG_OPERATION_TIMEOUT_MS,
       }),
     );
     return response.data;
   } catch (error: any) {
-    console.error('Import library root error:', error);
+    console.error('Import library root error:', describeBackendError(error));
     return {
       success: false,
       error: toSafeRendererError(error, 'Library root import failed'),
@@ -1229,11 +1286,14 @@ ipcMain.handle('models:import', async (_event, path: string, layoutHint: string)
 ipcMain.handle('models:scan', async () => {
   try {
     const response = await requestBackend(() =>
-      axios.post(`${BACKEND_URL}/api/models/scan`, undefined, { headers: backendAuthHeaders() }),
+      backendHttp.post(`${BACKEND_URL}/api/models/scan`, undefined, {
+        headers: backendAuthHeaders(),
+        timeout: BACKEND_LONG_OPERATION_TIMEOUT_MS,
+      }),
     );
     return response.data;
   } catch (error: any) {
-    console.error('Library scan error:', error);
+    console.error('Library scan error:', describeBackendError(error));
     return {
       success: false,
       error: toSafeRendererError(error, 'Library scan failed'),
@@ -1244,11 +1304,11 @@ ipcMain.handle('models:scan', async () => {
 ipcMain.handle('models:libraries:list', async () => {
   try {
     const response = await requestBackend(() =>
-      axios.get(`${BACKEND_URL}/api/models/libraries`, { headers: backendAuthHeaders() }),
+      backendHttp.get(`${BACKEND_URL}/api/models/libraries`, { headers: backendAuthHeaders() }),
     );
     return response.data;
   } catch (error: any) {
-    console.error('List library roots error:', error);
+    console.error('List library roots error:', describeBackendError(error));
     return [];
   }
 });
@@ -1256,13 +1316,13 @@ ipcMain.handle('models:libraries:list', async () => {
 ipcMain.handle('models:libraries:remove', async (_event, rootId: string) => {
   try {
     const response = await requestBackend(() =>
-      axios.delete(`${BACKEND_URL}/api/models/libraries/${encodeURIComponent(rootId)}`, {
+      backendHttp.delete(`${BACKEND_URL}/api/models/libraries/${encodeURIComponent(rootId)}`, {
         headers: backendAuthHeaders(),
       }),
     );
     return response.data;
   } catch (error: any) {
-    console.error('Remove library root error:', error);
+    console.error('Remove library root error:', describeBackendError(error));
     return {
       success: false,
       error: toSafeRendererError(error, 'Library root removal failed'),
@@ -1275,7 +1335,7 @@ ipcMain.handle(
   async (_event, query: string, source: 'hf' | 'civitai', page: number, nsfw: boolean) => {
     try {
       const response = await requestBackend(() =>
-        axios.get(`${BACKEND_URL}/api/models/search`, {
+        backendHttp.get(`${BACKEND_URL}/api/models/search`, {
           params: { q: query, source, page, nsfw },
           headers: { ...backendAuthHeaders(), ...hfTokenHeaders(), ...civitaiTokenHeaders() },
         }),
@@ -1284,7 +1344,7 @@ ipcMain.handle(
     } catch (error: any) {
       // Message only: the raw AxiosError carries token-bearing request
       // headers in config.headers and must never reach the log.
-      console.error('Model search error:', error instanceof Error ? error.message : error);
+      console.error('Model search error:', describeBackendError(error));
       return {
         source,
         query,
@@ -1302,7 +1362,7 @@ ipcMain.handle(
   async (_event, modelId: string, kind: 'pickle' | 'trust_remote_code', granted: boolean) => {
     try {
       const response = await requestBackend(() =>
-        axios.post(
+        backendHttp.post(
           `${BACKEND_URL}/api/models/consent`,
           { model_id: modelId, kind, granted },
           { headers: backendAuthHeaders() },
@@ -1310,7 +1370,7 @@ ipcMain.handle(
       );
       return response.data;
     } catch (error: any) {
-      console.error('Model consent error:', error instanceof Error ? error.message : error);
+      console.error('Model consent error:', describeBackendError(error));
       return { success: false, error: toSafeRendererError(error, 'Consent update failed') };
     }
   },
@@ -1319,15 +1379,15 @@ ipcMain.handle(
 ipcMain.handle('models:convert', async (_event, modelId: string) => {
   try {
     const response = await requestBackend(() =>
-      axios.post(
+      backendHttp.post(
         `${BACKEND_URL}/api/models/${encodeURIComponent(modelId)}/convert-safetensors`,
         undefined,
-        { headers: backendAuthHeaders() },
+        { headers: backendAuthHeaders(), timeout: BACKEND_LONG_OPERATION_TIMEOUT_MS },
       ),
     );
     return response.data;
   } catch (error: any) {
-    console.error('Model convert error:', error instanceof Error ? error.message : error);
+    console.error('Model convert error:', describeBackendError(error));
     return { success: false, error: toSafeRendererError(error, 'Conversion failed') };
   }
 });
@@ -1335,11 +1395,11 @@ ipcMain.handle('models:convert', async (_event, modelId: string) => {
 ipcMain.handle('models:libraries:detect', async () => {
   try {
     const response = await requestBackend(() =>
-      axios.get(`${BACKEND_URL}/api/models/libraries/detect`, { headers: backendAuthHeaders() }),
+      backendHttp.get(`${BACKEND_URL}/api/models/libraries/detect`, { headers: backendAuthHeaders() }),
     );
     return response.data;
   } catch (error: any) {
-    console.error('Detect library roots error:', error);
+    console.error('Detect library roots error:', describeBackendError(error));
     return [];
   }
 });
@@ -1347,11 +1407,11 @@ ipcMain.handle('models:libraries:detect', async () => {
 ipcMain.handle('hardware:get', async () => {
   try {
     const response = await requestBackend(() =>
-      axios.get(`${BACKEND_URL}/api/hardware`, { headers: backendAuthHeaders() }),
+      backendHttp.get(`${BACKEND_URL}/api/hardware`, { headers: backendAuthHeaders() }),
     );
     return response.data;
   } catch (error: any) {
-    console.error('Hardware profile error:', error instanceof Error ? error.message : error);
+    console.error('Hardware profile error:', describeBackendError(error));
     return { success: false, error: toSafeRendererError(error, 'Could not fetch hardware profile') };
   }
 });
@@ -1359,15 +1419,15 @@ ipcMain.handle('hardware:get', async () => {
 ipcMain.handle('models:resolveRuntime', async (_event, modelId: string) => {
   try {
     const response = await requestBackend(() =>
-      axios.post(
+      backendHttp.post(
         `${BACKEND_URL}/api/models/${encodeURIComponent(modelId)}/resolve-runtime`,
         undefined,
-        { headers: backendAuthHeaders() },
+        { headers: backendAuthHeaders(), timeout: BACKEND_LONG_OPERATION_TIMEOUT_MS },
       ),
     );
     return response.data;
   } catch (error: any) {
-    console.error('Resolve runtime error:', error instanceof Error ? error.message : error);
+    console.error('Resolve runtime error:', describeBackendError(error));
     return { success: false, error: toSafeRendererError(error, 'Runtime resolution failed') };
   }
 });
