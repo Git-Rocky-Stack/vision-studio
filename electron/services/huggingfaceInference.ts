@@ -150,6 +150,12 @@ const CURATED_IMAGE_MODELS: HuggingFaceModelSummary[] = [
 const CURATED_TEXT_MODELS: HuggingFaceModelSummary[] = [
   { id: 'meta-llama/Llama-3.1-8B-Instruct', name: 'Llama 3.1 8B Instruct', modality: 'text' },
 ];
+/**
+ * The router's chat endpoint rejects a request without `model` (HTTP 400),
+ * and a new account's huggingFaceModel preference is ''. Fall back to the
+ * first curated text model so prompt-assist works out of the box.
+ */
+export const DEFAULT_HF_TEXT_MODEL = CURATED_TEXT_MODELS[0].id;
 const CURATED_VIDEO_MODELS: HuggingFaceModelSummary[] = [
   { id: 'Lightricks/LTX-Video', name: 'LTX-Video', modality: 'video' },
 ];
@@ -229,6 +235,31 @@ function assertPromptLength(value: string, label: string) {
   }
 }
 
+export const HUGGINGFACE_GATED_MODEL_MESSAGE =
+  'This HuggingFace model is gated - accept its license on huggingface.co, then try again.';
+
+/**
+ * Whether a 403 body says the model is gated / access-restricted. The body is
+ * only inspected, never echoed (it can quote request details).
+ */
+function isGatedModelRefusal(error: unknown): boolean {
+  const shaped = error as { response?: { data?: unknown }; httpResponse?: { body?: unknown } } | null;
+  const body = shaped?.response?.data ?? shaped?.httpResponse?.body;
+  let text = '';
+  if (typeof body === 'string') {
+    text = body;
+  } else if (Buffer.isBuffer(body) || body instanceof ArrayBuffer || body instanceof Uint8Array) {
+    text = Buffer.from(body as ArrayBuffer).toString('utf8');
+  } else if (body && typeof body === 'object') {
+    try {
+      text = JSON.stringify(body);
+    } catch {
+      text = '';
+    }
+  }
+  return /gated|restricted|accept the (?:license|conditions)|access to model/i.test(text);
+}
+
 /**
  * Sanitize a thrown transport error into a renderer-safe message. NEVER include
  * the token or raw upstream body verbatim (Codex gate).
@@ -246,8 +277,17 @@ function createHuggingFaceError(error: unknown, fallback: string): Error {
     | { response?: { status?: number }; httpResponse?: { status?: number } }
     | null;
   const status = shaped?.response?.status ?? shaped?.httpResponse?.status;
-  if (status === 401 || status === 403) {
+  if (status === 401) {
     return new Error('HuggingFace rejected the token. Check the BYOK token in Settings.');
+  }
+  if (status === 403) {
+    // A 403 is not a bad token: the token authenticated, but this model (or
+    // this token's scope) is not allowed. Gated repos are the common case.
+    return new Error(
+      isGatedModelRefusal(error)
+        ? HUGGINGFACE_GATED_MODEL_MESSAGE
+        : `${HUGGINGFACE_GATED_MODEL_MESSAGE} If you already accepted it, check that the token is allowed to call Inference Providers.`,
+    );
   }
   if (status === 404) {
     return new Error('HuggingFace could not find that model for the requested task.');
@@ -385,7 +425,7 @@ export function createHuggingFaceInferenceService({
         axiosInstance.post(
           `${routerBaseUrl}/chat/completions`,
           {
-            ...(model ? { model } : {}),
+            model: model?.trim() || DEFAULT_HF_TEXT_MODEL,
             temperature: 0.3,
             response_format: { type: 'json_object' },
             messages: [

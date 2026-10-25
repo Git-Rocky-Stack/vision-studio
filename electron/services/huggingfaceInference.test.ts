@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createHuggingFaceInferenceService } from './huggingfaceInference';
+import { createHuggingFaceInferenceService, HUGGINGFACE_GATED_MODEL_MESSAGE } from './huggingfaceInference';
 
 const PNG_MAGIC = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x01]);
 
@@ -75,6 +75,55 @@ describe('createHuggingFaceInferenceService.enhancePrompt', () => {
     expect(result.usage?.totalTokens).toBe(18);
     const url = axiosInstance.post.mock.calls[0][0] as string;
     expect(url).toContain('/chat/completions');
+  });
+
+  it('sends the first curated text model when the account has none selected', async () => {
+    const axiosInstance = {
+      get: vi.fn(),
+      post: vi.fn().mockResolvedValue({
+        data: { choices: [{ message: { content: JSON.stringify({ prompt: 'p', variations: [] }) } }] },
+      }),
+    };
+    const service = createHuggingFaceInferenceService({ axiosInstance });
+    const curated = await service.listTextModels('hf_token');
+
+    await service.enhancePrompt({ token: 'hf_token', prompt: 'a cat', mode: 'clarify' });
+    await service.enhancePrompt({ token: 'hf_token', prompt: 'a cat', mode: 'clarify', model: '  ' });
+
+    expect(axiosInstance.post.mock.calls[0][1].model).toBe(curated[0].id);
+    expect(axiosInstance.post.mock.calls[1][1].model).toBe(curated[0].id);
+  });
+
+  it('explains a 403 on a gated model instead of blaming the token', async () => {
+    const gated = Object.assign(new Error('HTTP 403'), {
+      response: {
+        status: 403,
+        headers: {},
+        data: { error: 'Access to model meta-llama/Llama-3.1-8B-Instruct is restricted. hf_secret' },
+      },
+    });
+    const axiosInstance = { get: vi.fn(), post: vi.fn().mockRejectedValue(gated) };
+    const service = createHuggingFaceInferenceService({ axiosInstance });
+
+    const thrown = (await service
+      .enhancePrompt({ token: 'hf_secret', prompt: 'a cat', mode: 'clarify' })
+      .catch((error: unknown) => error)) as Error;
+
+    expect(thrown.message).toBe(HUGGINGFACE_GATED_MODEL_MESSAGE);
+    expect(thrown.message).not.toMatch(/rejected the token/);
+    expect(thrown.message).not.toContain('hf_secret');
+  });
+
+  it('still points a 403 without a gated body at the license and the token scope', async () => {
+    const forbidden = Object.assign(new Error('HTTP 403'), {
+      response: { status: 403, headers: {}, data: Buffer.from('{"error":"forbidden"}') },
+    });
+    const axiosInstance = { get: vi.fn(), post: vi.fn().mockRejectedValue(forbidden) };
+    const service = createHuggingFaceInferenceService({ axiosInstance });
+
+    await expect(
+      service.generateImage({ token: 'hf_token', model: 'm/x', prompt: 'a tree', width: 512, height: 512 }),
+    ).rejects.toThrow(/gated.*Inference Providers/s);
   });
 
   it('rejects an over-long prompt before any network call', async () => {
