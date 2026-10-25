@@ -188,6 +188,33 @@ export const Canvas = memo(function Canvas() {
     setZoom(100);
     setPan({ x: 0, y: 0 });
   };
+  // Fit the artboard inside the visible container, within the zoom limits.
+  const handleZoomToFit = () => {
+    const rect = containerRef.current?.getBoundingClientRect();
+    if (!rect || rect.width === 0 || rect.height === 0) {
+      handleResetZoom();
+      return;
+    }
+    const fit = Math.min(rect.width / displayedArtboardSize.width, rect.height / displayedArtboardSize.height);
+    setZoom(Math.round(Math.min(200, Math.max(25, fit * 100 * 0.9))));
+    setPan({ x: 0, y: 0 });
+  };
+  // Generation Info opens the Viewer on the library record of this image,
+  // where its prompt, model, seed and settings are shown.
+  const generationInfoAssetId = contextMenu
+    ? (useAppStore
+        .getState()
+        .assetLibrary.find(
+          (asset) =>
+            asset.path === currentImageAssetPath ||
+            (currentImage !== null && asset.previewUrl === currentImage),
+        )?.id ?? null)
+    : null;
+  const handleShowGenerationInfo = () => {
+    if (!generationInfoAssetId) return;
+    useAppStore.getState().setActiveViewerItemId(`asset-${generationInfoAssetId}`);
+    setCenterView('viewer');
+  };
   const openGenerate = () => {
     setActiveTab('generate');
   };
@@ -732,6 +759,9 @@ export const Canvas = memo(function Canvas() {
           x={contextMenu.x}
           y={contextMenu.y}
           onClose={() => setContextMenu(null)}
+          onShowGenerationInfo={generationInfoAssetId ? handleShowGenerationInfo : undefined}
+          onZoomToFit={handleZoomToFit}
+          onZoom100={handleResetZoom}
         />
       )}
     </div>

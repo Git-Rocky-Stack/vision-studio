@@ -5,9 +5,26 @@ import { useAppStore } from '@/store/appStore';
 import { Canvas } from './Canvas';
 
 vi.mock('@/components/canvas/CanvasContextMenu', () => ({
-  CanvasContextMenu: ({ x, y }: { x: number; y: number }) => (
+  CanvasContextMenu: ({
+    x,
+    y,
+    onZoomToFit,
+    onZoom100,
+    onShowGenerationInfo,
+  }: {
+    x: number;
+    y: number;
+    onZoomToFit?: () => void;
+    onZoom100?: () => void;
+    onShowGenerationInfo?: () => void;
+  }) => (
     <div role="menu" aria-label="Canvas actions">
       {x},{y}
+      <button type="button" onClick={onZoomToFit}>mock-fit</button>
+      <button type="button" onClick={onZoom100}>mock-100</button>
+      {onShowGenerationInfo && (
+        <button type="button" onClick={onShowGenerationInfo}>mock-info</button>
+      )}
     </div>
   ),
 }));
@@ -68,6 +85,33 @@ describe('Canvas', () => {
     });
 
     expect(screen.getByRole('menu', { name: 'Canvas actions' })).toBeInTheDocument();
+  });
+
+  it('wires the context menu zoom items to the real canvas zoom', () => {
+    render(<Canvas />);
+    const canvas = screen.getByRole('application', { name: /image canvas/i });
+    stubBoundingRect(canvas, 380, 230);
+    fireEvent.keyDown(canvas, { key: 'F10', shiftKey: true });
+
+    // The empty artboard is 760x460, so fitting a 380x230 view zooms to 45%.
+    fireEvent.click(screen.getByText('mock-fit'));
+    expect(screen.getByText('45%')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText('mock-100'));
+    expect(screen.getByText('100%')).toBeInTheDocument();
+  });
+
+  it('opens generation info in the Viewer for a library image', () => {
+    useAppStore.setState({
+      assetLibrary: [{ id: 'job::a.png', path: 'C:/out/a.png', previewUrl: 'p.png' } as never],
+    });
+    useAppStore.getState().setCurrentImage('p.png', 'C:/out/a.png');
+    render(<Canvas />);
+    fireEvent.keyDown(screen.getByRole('application', { name: /image canvas/i }), { key: 'F10', shiftKey: true });
+
+    fireEvent.click(screen.getByText('mock-info'));
+    expect(useAppStore.getState().activeViewerItemId).toBe('asset-job::a.png');
+    expect(useAppStore.getState().centerView).toBe('viewer');
   });
 
   it('routes the empty canvas CTA to Viewer', () => {
