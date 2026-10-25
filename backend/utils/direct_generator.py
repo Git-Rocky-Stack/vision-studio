@@ -345,10 +345,13 @@ class DirectGenerator:
         current = getattr(pipeline, "scheduler", None)
         if current is None or type(current).__name__.startswith("FlowMatch"):
             return pipeline
-        original_config = self._scheduler_origins.get(pipeline)
-        if original_config is None:
+        try:
+            original_config = self._scheduler_origins.get(pipeline)
+            if original_config is None:
+                original_config = current.config
+                self._scheduler_origins[pipeline] = original_config
+        except TypeError:  # not weak-referenceable/hashable: swap from current
             original_config = current.config
-            self._scheduler_origins[pipeline] = original_config
 
         normalized = scheduler_name.strip().lower()
         scheduler_cls = EulerAncestralDiscreteScheduler
