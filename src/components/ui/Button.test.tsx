@@ -93,4 +93,24 @@ describe('Button', () => {
     expect(screen.getByRole('button', { name: 'Delete' })).toHaveClass('text-status-error');
     expect(screen.getByRole('button', { name: 'Delete' })).toHaveClass('border-status-error/30');
   });
+
+  // Framer's whileHover/whileTap spring scale ignored prefers-reduced-motion
+  // and was not the hardware envelope. Flat variants lift on .vx-lift and the
+  // secondary cap on .vx-switch; neither leaves an inline transform behind.
+  it('moves on a CSS hardware envelope, not a spring scale', () => {
+    render(
+      <>
+        <Button variant="ghost">Ghost</Button>
+        <Button variant="danger">Danger</Button>
+        <Button variant="secondary">Secondary</Button>
+      </>,
+    );
+
+    expect(screen.getByRole('button', { name: 'Ghost' })).toHaveClass('vx-lift');
+    expect(screen.getByRole('button', { name: 'Danger' })).toHaveClass('vx-lift');
+    expect(screen.getByRole('button', { name: 'Secondary' })).toHaveClass('vx-switch');
+    for (const name of ['Ghost', 'Danger', 'Secondary']) {
+      expect(screen.getByRole('button', { name }).style.transform).toBe('');
+    }
+  });
 });

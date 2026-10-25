@@ -1306,6 +1306,14 @@ input[type="range"]::-webkit-slider-thumb:hover {
 .vx-knob:hover { transform: translateY(-1px); }
 .vx-rocker { transition: transform var(--duration-click) var(--ease-click); cursor: pointer; }
 .vx-rocker:hover { transform: translateY(-1px); }
+/* Lift envelope for flat buttons (Button ghost/danger): the hardware detent
+   in place of a spring scale. Only the transform is set, so the button's own
+   colour transition is kept. */
+.vx-lift:not(:disabled):hover { transform: translateY(-1px); }
+.vx-lift:not(:disabled):active { transform: translateY(0); }
+@media (prefers-reduced-motion: reduce) {
+  .vx-lift:not(:disabled):hover { transform: none; }
+}
 .vx-switch { transition: transform var(--duration-click) var(--ease-click); }
 .vx-switch:hover { transform: translateY(-1px); }
 .vx-switch:active { transform: translateY(0); }
