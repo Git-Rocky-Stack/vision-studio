@@ -1,7 +1,14 @@
+import fs from 'fs';
+import os from 'os';
 import path from 'path';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
-import { getAllowedExportRoots, resolveShellPath } from './mainIpc';
+import {
+  getAllowedExportRoots,
+  readTakenFileNames,
+  reserveUniqueFileName,
+  resolveShellPath,
+} from './mainIpc';
 
 const HOME = 'C:/Users/User';
 
@@ -56,5 +63,36 @@ describe('shell-open allow-roots (P1 hardening)', () => {
     expect(resolveShellPath(`${HOME}/Desktop/render.png`, throwingRoots, roots)).toBe(
       path.resolve(`${HOME}/Desktop/render.png`)
     );
+  });
+});
+
+describe('import / export collision naming', () => {
+  it('reads the destination once and resolves every collision against it, never existsSync', async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'vs-collide-'));
+    try {
+      fs.writeFileSync(path.join(dir, 'shot.png'), '');
+      fs.writeFileSync(path.join(dir, 'shot-1.png'), '');
+      const existsSync = vi.spyOn(fs, 'existsSync');
+
+      const taken = await readTakenFileNames(dir, false);
+      const names = ['shot', 'shot', 'other'].map((name) => reserveUniqueFileName(name, '.png', taken, false));
+
+      expect(names).toEqual(['shot-2.png', 'shot-3.png', 'other.png']);
+      expect(existsSync).not.toHaveBeenCalled();
+      existsSync.mockRestore();
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('treats a missing destination as empty', async () => {
+    const taken = await readTakenFileNames(path.join(os.tmpdir(), 'vs-does-not-exist-xyz'), false);
+    expect(taken.size).toBe(0);
+  });
+
+  it('matches case-insensitively where the filesystem does', () => {
+    const taken = new Set(['shot.png']);
+    expect(reserveUniqueFileName('Shot', '.PNG', new Set(taken), true)).toBe('Shot-1.PNG');
+    expect(reserveUniqueFileName('Shot', '.PNG', new Set(taken), false)).toBe('Shot.PNG');
   });
 });
