@@ -8,6 +8,7 @@ import {
   createBackendProcessService,
   externalBackendTokenWarning,
   isExternalBackendEnabled,
+  isSkipBackendEnabled,
   resolveBackendCommand,
   resolveBundledBackendPath,
   shouldProbeBackendConnectivity,
@@ -233,6 +234,18 @@ describe('backend process helpers', () => {
     });
 
     expect(env.VISION_STUDIO_VERSION).toBe('9.9.9');
+  });
+});
+
+describe('skip-backend flag', () => {
+  it('only skips the spawn for truthy values, so =0 / =false still start the backend', () => {
+    expect(isSkipBackendEnabled({})).toBe(false);
+    for (const value of ['', '0', 'false', 'off', 'no', ' FALSE ']) {
+      expect(isSkipBackendEnabled({ VISION_STUDIO_SKIP_BACKEND: value })).toBe(false);
+    }
+    for (const value of ['1', 'true', 'yes', 'on', ' TRUE ']) {
+      expect(isSkipBackendEnabled({ VISION_STUDIO_SKIP_BACKEND: value })).toBe(true);
+    }
   });
 });
 

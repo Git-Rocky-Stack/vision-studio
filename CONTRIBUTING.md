@@ -164,7 +164,7 @@ npm run dev
 
 | Variable | Read at | Effect |
 |----------|---------|--------|
-| `VISION_STUDIO_SKIP_BACKEND` | `start()` in `electron/services/mainProcess.ts` | Electron does not autostart a backend child. Any non-empty value counts, `0` included |
+| `VISION_STUDIO_SKIP_BACKEND` | `start()` in `electron/services/mainProcess.ts` | Electron does not autostart a backend child when truthy (`1`, `true`, `yes`, `on`); `0`, `false`, `off`, `no` and empty leave autostart on |
 | `VISION_STUDIO_BACKEND_EXTERNAL` | `isExternalBackendEnabled()` in `electron/services/backendProcess.ts` | Probe an out-of-process backend over HTTP so it reads as connected. Any value except `0`, `false`, `off`, `no`, or empty enables it |
 | `VISION_STUDIO_BACKEND_AUTH_TOKEN` | `getBackendAuthToken()` in `electron/services/backendAuth.ts`; `BACKEND_AUTH_TOKEN` in `backend/main.py` | **Must match in both terminals.** Otherwise each side mints its own token and every authenticated request fails with HTTP 403 while `/health` still succeeds - the app reads as "disconnected" with the backend plainly up. `externalBackendTokenWarning()` logs a warning when external mode is on without it |
 | `VISION_STUDIO_BACKEND_HOST` | `get_uvicorn_config()` in `backend/main.py` | Bind address; defaults to `127.0.0.1` |

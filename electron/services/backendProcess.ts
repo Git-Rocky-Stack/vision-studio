@@ -189,6 +189,16 @@ export function isExternalBackendEnabled(env: NodeJS.ProcessEnv = process.env): 
 }
 
 /**
+ * `VISION_STUDIO_SKIP_BACKEND` (do not spawn the backend) uses the same
+ * truthiness as `VISION_STUDIO_BACKEND_EXTERNAL`, so `=0` / `=false` mean
+ * "do not skip" instead of skipping because the variable is non-empty.
+ */
+export function isSkipBackendEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
+  const raw = (env.VISION_STUDIO_SKIP_BACKEND ?? '').trim().toLowerCase();
+  return !EXTERNAL_BACKEND_FALSEY.has(raw);
+}
+
+/**
  * When an external backend is declared but no shared auth token is configured,
  * Electron (via backendAuth) and the manually-started `python main.py` each
  * mint a *different* random token. The backend then rejects Electron's

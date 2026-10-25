@@ -16,7 +16,7 @@ type NotificationConstructor = typeof import('electron').Notification;
 
 import { createSecureStore } from './secureStore';
 import { createOutputRootService, DEFAULT_SETTINGS, type StoreSchema } from './outputRoots';
-import { createBackendProcessService } from './backendProcess';
+import { createBackendProcessService, isSkipBackendEnabled } from './backendProcess';
 import { createMainWindowService } from './mainWindow';
 import { registerMainIpcHandlers } from './mainIpc';
 import { registerContentSecurityPolicy } from './contentSecurityPolicy';
@@ -185,14 +185,14 @@ export function createMainProcessServices({
     const window = mainWindow.createWindow();
     setupGenerationHandlers(window);
 
-    if (outputRoots.getAppSettings().backendAutostart && !process.env.VISION_STUDIO_SKIP_BACKEND) {
+    if (outputRoots.getAppSettings().backendAutostart && !isSkipBackendEnabled()) {
       const started = await backend.start();
 
       if (!started) {
         const bundledPath = backend.getBundledBackendPath();
         const detail = bundledPath
           ? `The backend was found at:\n${bundledPath}\n\nbut failed to start within the timeout. On first launch, the backend may need several minutes to extract. Try restarting the app.\n\nYou can also try starting it manually from Settings.`
-          : 'No backend executable was found. Please reinstall the application or configure a Python path in Settings.';
+          : 'No backend executable was found. Please reinstall the application.\n\nRunning from source? Install the backend with `node scripts/setup-dev-backend.cjs`, then start it from Settings > AI & Models > Start Backend.';
 
         void dialog.showMessageBox(mainWindow.getWindow()!, {
           type: 'warning',
