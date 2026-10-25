@@ -3,6 +3,7 @@ import { Film, Plus, Trash2 } from 'lucide-react';
 import { useShallow } from 'zustand/react/shallow';
 import { useAppStore } from '@/store/appStore';
 import { cn } from '@/utils/cn';
+import { EmptyState } from '@/components/ui/EmptyState';
 import { FrameFilmstrip, type FrameItem } from './FrameFilmstrip';
 import { KeyframeDiamond } from './KeyframeDiamond';
 import type { Keyframe, KeyframeInterpolation } from '@/types/timeline';
@@ -192,33 +193,33 @@ export const AnimationTrackEditor = memo(function AnimationTrackEditor({
 
   if (keyframes.length === 0) {
     return (
-      <div className={cn('flex items-center justify-center h-full', className)}>
-        <div className="text-center">
-          <Film className="w-8 h-8 text-text-muted mx-auto mb-2 opacity-30" aria-hidden="true" />
-          <p className="text-sm text-text-muted">No keyframes yet</p>
-          <p className="text-xs text-text-muted mt-0.5">
-            {canAddKeyframe
-              ? 'Add a keyframe at the playhead to start animating'
-              : 'Select a layer in the Layers panel to start animating'}
-          </p>
-          <button
-            type="button"
-            onClick={handleFrameAdd}
-            disabled={!canAddKeyframe}
-            title={addButtonTitle}
-            className={cn(
-              'mt-3 inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5',
-              'text-xs text-text-body transition',
-              canAddKeyframe
-                ? 'hover:border-border-hover hover:bg-elevated hover:text-text-primary'
-                : 'cursor-not-allowed opacity-50',
-            )}
-          >
-            <Plus className="h-3.5 w-3.5" aria-hidden="true" />
-            Add keyframe
-          </button>
-        </div>
-      </div>
+      <EmptyState
+        icon={Film}
+        title="No keyframes yet"
+        description={
+          canAddKeyframe
+            ? 'Add a keyframe at the playhead to start animating'
+            : 'Select a layer in the Layers panel to start animating'
+        }
+        className={className}
+      >
+        <button
+          type="button"
+          onClick={handleFrameAdd}
+          disabled={!canAddKeyframe}
+          title={addButtonTitle}
+          className={cn(
+            'inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5',
+            'text-xs text-text-body transition',
+            canAddKeyframe
+              ? 'hover:border-border-hover hover:bg-elevated hover:text-text-primary'
+              : 'cursor-not-allowed opacity-50',
+          )}
+        >
+          <Plus className="h-3.5 w-3.5" aria-hidden="true" />
+          Add keyframe
+        </button>
+      </EmptyState>
     );
   }
 

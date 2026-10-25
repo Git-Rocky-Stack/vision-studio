@@ -308,16 +308,16 @@ function buildPlaceholderPreview(scene: Scene) {
     <svg xmlns="http://www.w3.org/2000/svg" width="512" height="320" viewBox="0 0 512 320">
       <defs>
         <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stop-color="#151821" />
-          <stop offset="100%" stop-color="#1e2430" />
+          <stop offset="0%" stop-color="#0d0d0d" />
+          <stop offset="100%" stop-color="#141414" />
         </linearGradient>
       </defs>
-      <rect width="512" height="320" rx="28" fill="url(#bg)" />
-      <rect x="40" y="40" width="432" height="180" rx="20" fill="#0f1218" stroke="#40495b" stroke-width="6" />
-      <text x="256" y="108" fill="#f5f7fb" font-size="22" font-family="Segoe UI, Arial, sans-serif" text-anchor="middle">Storyboard Placeholder</text>
-      <text x="256" y="148" fill="#a5b0c5" font-size="26" font-family="Segoe UI, Arial, sans-serif" text-anchor="middle">${safeLabel}</text>
-      <text x="256" y="188" fill="#8b96ac" font-size="18" font-family="Segoe UI, Arial, sans-serif" text-anchor="middle">${safeBeatCount} beat markers preserved</text>
-      <text x="256" y="268" fill="#f5f7fb" font-size="18" font-family="Segoe UI, Arial, sans-serif" text-anchor="middle">Add or generate media to replace this clip source</text>
+      <rect width="512" height="320" rx="2" fill="url(#bg)" />
+      <rect x="40" y="40" width="432" height="180" rx="2" fill="#050505" stroke="#262626" stroke-width="6" />
+      <text x="256" y="108" fill="#f5f5f5" font-size="22" font-family="IBM Plex Mono, monospace" text-anchor="middle">Storyboard Placeholder</text>
+      <text x="256" y="148" fill="#b3b3b3" font-size="26" font-family="IBM Plex Mono, monospace" text-anchor="middle">${safeLabel}</text>
+      <text x="256" y="188" fill="#888888" font-size="18" font-family="IBM Plex Mono, monospace" text-anchor="middle">${safeBeatCount} beat markers preserved</text>
+      <text x="256" y="268" fill="#f5f5f5" font-size="18" font-family="IBM Plex Mono, monospace" text-anchor="middle">Add or generate media to replace this clip source</text>
     </svg>
   `.trim();
 

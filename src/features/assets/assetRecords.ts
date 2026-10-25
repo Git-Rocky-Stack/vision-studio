@@ -54,15 +54,15 @@ function buildVideoPlaceholderPreview(label: string = LOCAL_VIDEO_PLACEHOLDER_LA
     <svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
       <defs>
         <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stop-color="#151821" />
-          <stop offset="100%" stop-color="#202736" />
+          <stop offset="0%" stop-color="#0d0d0d" />
+          <stop offset="100%" stop-color="#141414" />
         </linearGradient>
       </defs>
-      <rect width="512" height="512" rx="40" fill="url(#bg)" />
-      <rect x="72" y="128" width="368" height="224" rx="24" fill="#0f1218" stroke="#485267" stroke-width="8" />
-      <polygon points="232,184 232,296 320,240" fill="#f5f7fb" opacity="0.95" />
-      <text x="256" y="404" fill="#f5f7fb" font-size="32" font-family="Segoe UI, Arial, sans-serif" text-anchor="middle">VIDEO</text>
-      <text x="256" y="442" fill="#a5b0c5" font-size="20" font-family="Segoe UI, Arial, sans-serif" text-anchor="middle">${safeLabel}</text>
+      <rect width="512" height="512" rx="2" fill="url(#bg)" />
+      <rect x="72" y="128" width="368" height="224" rx="2" fill="#050505" stroke="#262626" stroke-width="8" />
+      <polygon points="232,184 232,296 320,240" fill="#f5f5f5" opacity="0.95" />
+      <text x="256" y="404" fill="#f5f5f5" font-size="32" font-family="IBM Plex Mono, monospace" text-anchor="middle">VIDEO</text>
+      <text x="256" y="442" fill="#b3b3b3" font-size="20" font-family="IBM Plex Mono, monospace" text-anchor="middle">${safeLabel}</text>
     </svg>
   `.trim();
 
@@ -75,19 +75,19 @@ function buildAudioPlaceholderPreview(label: string = LOCAL_AUDIO_PLACEHOLDER_LA
     <svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
       <defs>
         <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stop-color="#151821" />
-          <stop offset="100%" stop-color="#1d2630" />
+          <stop offset="0%" stop-color="#0d0d0d" />
+          <stop offset="100%" stop-color="#141414" />
         </linearGradient>
       </defs>
-      <rect width="512" height="512" rx="40" fill="url(#bg)" />
-      <rect x="92" y="124" width="328" height="264" rx="28" fill="#0f1218" stroke="#485267" stroke-width="8" />
-      <rect x="148" y="192" width="22" height="128" rx="11" fill="#f5f7fb" opacity="0.95" />
-      <rect x="196" y="162" width="22" height="188" rx="11" fill="#f5f7fb" opacity="0.95" />
-      <rect x="244" y="210" width="22" height="92" rx="11" fill="#f5f7fb" opacity="0.95" />
-      <rect x="292" y="176" width="22" height="160" rx="11" fill="#f5f7fb" opacity="0.95" />
-      <rect x="340" y="200" width="22" height="112" rx="11" fill="#f5f7fb" opacity="0.95" />
-      <text x="256" y="430" fill="#f5f7fb" font-size="32" font-family="Segoe UI, Arial, sans-serif" text-anchor="middle">AUDIO</text>
-      <text x="256" y="466" fill="#a5b0c5" font-size="20" font-family="Segoe UI, Arial, sans-serif" text-anchor="middle">${safeLabel}</text>
+      <rect width="512" height="512" rx="2" fill="url(#bg)" />
+      <rect x="92" y="124" width="328" height="264" rx="2" fill="#050505" stroke="#262626" stroke-width="8" />
+      <rect x="148" y="192" width="22" height="128" rx="2" fill="#f5f5f5" opacity="0.95" />
+      <rect x="196" y="162" width="22" height="188" rx="2" fill="#f5f5f5" opacity="0.95" />
+      <rect x="244" y="210" width="22" height="92" rx="2" fill="#f5f5f5" opacity="0.95" />
+      <rect x="292" y="176" width="22" height="160" rx="2" fill="#f5f5f5" opacity="0.95" />
+      <rect x="340" y="200" width="22" height="112" rx="2" fill="#f5f5f5" opacity="0.95" />
+      <text x="256" y="430" fill="#f5f5f5" font-size="32" font-family="IBM Plex Mono, monospace" text-anchor="middle">AUDIO</text>
+      <text x="256" y="466" fill="#b3b3b3" font-size="20" font-family="IBM Plex Mono, monospace" text-anchor="middle">${safeLabel}</text>
     </svg>
   `.trim();
 

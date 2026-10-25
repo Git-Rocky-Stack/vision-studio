@@ -55,6 +55,13 @@ interface MediaPreviewProps {
   loop?: boolean;
   autoPlay?: boolean;
   showPlayBadge?: boolean;
+  /**
+   * Grid and filmstrip tiles: draw a video as its poster only, never a
+   * <video> element. Every mounted <video preload="metadata"> opens the file
+   * and decodes its header, which for a gallery of clips is dozens of media
+   * pipelines for thumbnails. A video without a poster shows a placeholder.
+   */
+  posterOnly?: boolean;
   testId?: string;
 }
 
@@ -71,6 +78,7 @@ export function MediaPreview({
   loop = false,
   autoPlay = false,
   showPlayBadge = false,
+  posterOnly = false,
   testId,
 }: MediaPreviewProps) {
   const [videoFailed, setVideoFailed] = useState(false);
@@ -116,7 +124,7 @@ export function MediaPreview({
     );
   }
 
-  const showVideoElement = Boolean(resolvedSrc) && !videoFailed;
+  const showVideoElement = !posterOnly && Boolean(resolvedSrc) && !videoFailed;
 
   return (
     <div
@@ -141,8 +149,21 @@ export function MediaPreview({
         <img
           src={resolvedPoster}
           alt={alt}
+          loading="lazy"
+          decoding="async"
           className={cn('h-full w-full', mediaClassName)}
         />
+      ) : posterOnly && resolvedSrc ? (
+        <div
+          role="img"
+          aria-label={alt || undefined}
+          className={cn(
+            'flex h-full w-full items-center justify-center bg-elevated text-text-muted',
+            fallbackClassName,
+          )}
+        >
+          <Film className="h-5 w-5" aria-hidden="true" />
+        </div>
       ) : (
         <div
           className={cn(

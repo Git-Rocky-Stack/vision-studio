@@ -36,7 +36,7 @@ describe('CanvasControlLayerRail', () => {
 
     expect(screen.getByTestId('canvas-control-layer-rail')).toBeInTheDocument();
     expect(screen.getByText('Canvas Control Layers')).toBeInTheDocument();
-    expect(screen.getByText('No control layers yet')).toBeInTheDocument();
+    expect(screen.getByText('No control layers yet').closest('[data-testid="empty-state"]')).not.toBeNull();
     expect(screen.getByRole('button', { name: 'Add Control Layer' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Add Reference Layer' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Add Inpaint Mask' })).toBeInTheDocument();

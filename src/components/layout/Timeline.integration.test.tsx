@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 import { Timeline } from './Timeline';
@@ -142,6 +142,19 @@ describe('Timeline integration', () => {
 
     useAppStore.getState().seekTo(-100);
     expect(useAppStore.getState().currentTime).toBe(0);
+  });
+
+  // The playhead readouts subscribe to currentTime themselves (the Timeline
+  // body no longer does), so a seek must still reach the ruler.
+  it('moves the ruler playhead when the store time changes', () => {
+    seedProjectAndMedia();
+    render(<Timeline />);
+
+    act(() => {
+      useAppStore.getState().seekTo(2500);
+    });
+
+    expect(screen.getByRole('slider', { name: 'Time ruler' })).toHaveAttribute('aria-valuenow', '2500');
   });
 
   it('onion skin toggle works', async () => {

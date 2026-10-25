@@ -1,58 +1,76 @@
-import { memo, useEffect, useRef, useCallback } from 'react';
+import { memo, useEffect, useState } from 'react';
 
 interface FilmGrainOverlayProps {
   opacity?: number;
   animated?: boolean;
 }
 
-export const FilmGrainOverlay = memo(function FilmGrainOverlay({ opacity = 0.025, animated = true }: FilmGrainOverlayProps) {
-  const turbulenceRef = useRef<SVGFETurbulenceElement>(null);
-  const rafRef = useRef<number>(0);
-  const lastUpdateRef = useRef<number>(0);
+const GRAIN_TILE_SIZE = 128;
 
-  const animate = useCallback((timestamp: number) => {
-    if (!animated || !turbulenceRef.current) return;
+let cachedGrainTile: string | null | undefined;
 
-    // Update seed every ~100ms for flicker effect
-    if (timestamp - lastUpdateRef.current > 100) {
-      const seed = Math.floor(Math.random() * 1000);
-      turbulenceRef.current.setAttribute('seed', String(seed));
-      lastUpdateRef.current = timestamp;
+/**
+ * Renders one tile of monochrome noise into a canvas, once per session.
+ *
+ * The overlay used to run a full-viewport feTurbulence filter and re-seed it
+ * every 100ms from an endless rAF loop, so the GPU re-rasterised fractal noise
+ * for the whole window ten times a second, hidden or not, reduced motion or
+ * not. A 128px tile repeated as a background costs one paint; the flicker is a
+ * stepped CSS transform on the compositor.
+ */
+function getGrainTile(): string | null {
+  if (cachedGrainTile !== undefined) return cachedGrainTile;
+  cachedGrainTile = null;
+  if (typeof document === 'undefined') return cachedGrainTile;
+  try {
+    const canvas = document.createElement('canvas');
+    canvas.width = GRAIN_TILE_SIZE;
+    canvas.height = GRAIN_TILE_SIZE;
+    const context = canvas.getContext('2d');
+    if (!context) return cachedGrainTile;
+    const image = context.createImageData(GRAIN_TILE_SIZE, GRAIN_TILE_SIZE);
+    const { data } = image;
+    for (let i = 0; i < data.length; i += 4) {
+      const value = Math.floor(Math.random() * 256);
+      data[i] = value;
+      data[i + 1] = value;
+      data[i + 2] = value;
+      data[i + 3] = 255;
     }
+    context.putImageData(image, 0, 0);
+    cachedGrainTile = canvas.toDataURL('image/png');
+  } catch {
+    cachedGrainTile = null;
+  }
+  return cachedGrainTile;
+}
 
-    rafRef.current = requestAnimationFrame(animate);
-  }, [animated]);
-
+function useDocumentHidden(): boolean {
+  const [hidden, setHidden] = useState(() =>
+    typeof document !== 'undefined' ? document.visibilityState === 'hidden' : false,
+  );
   useEffect(() => {
-    if (animated) {
-      rafRef.current = requestAnimationFrame(animate);
-    }
-    return () => {
-      if (rafRef.current) {
-        cancelAnimationFrame(rafRef.current);
-      }
-    };
-  }, [animated, animate]);
+    const onChange = () => setHidden(document.visibilityState === 'hidden');
+    document.addEventListener('visibilitychange', onChange);
+    return () => document.removeEventListener('visibilitychange', onChange);
+  }, []);
+  return hidden;
+}
+
+export const FilmGrainOverlay = memo(function FilmGrainOverlay({ opacity = 0.025, animated = true }: FilmGrainOverlayProps) {
+  const [tile] = useState(getGrainTile);
+  const hidden = useDocumentHidden();
+
+  if (!tile) return null;
 
   return (
     <div
-      className="fixed inset-0 pointer-events-none z-[9999]"
-      style={{ opacity }}
-    >
-      <svg width="100%" height="100%">
-        <filter id="film-grain">
-          <feTurbulence
-            ref={turbulenceRef}
-            type="fractalNoise"
-            baseFrequency="0.65"
-            numOctaves="3"
-            stitchTiles="stitch"
-            seed="0"
-          />
-          <feColorMatrix type="saturate" values="0" />
-        </filter>
-        <rect width="100%" height="100%" filter="url(#film-grain)" />
-      </svg>
-    </div>
+      aria-hidden="true"
+      data-testid="film-grain-overlay"
+      className="film-grain z-[9999]"
+      data-animated={animated ? 'true' : 'false'}
+      data-paused={hidden ? 'true' : 'false'}
+      style={{ opacity, backgroundImage: `url(${tile})` }}
+    />
   );
 });

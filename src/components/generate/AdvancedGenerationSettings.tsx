@@ -1,3 +1,4 @@
+import { useId } from 'react';
 import { useAppStore } from '@/store/appStore';
 import { useShallow } from 'zustand/react/shallow';
 import { Slider } from '@/components/ui/Slider';
@@ -26,6 +27,7 @@ export function AdvancedGenerationSettings() {
   );
 
   const generationType = advancedGeneration.generationType;
+  const seedInputId = useId();
 
   const randomizeSeed = () =>
     updateAdvancedGeneration({ seed: Math.floor(Math.random() * 2147483647) });
@@ -86,22 +88,26 @@ export function AdvancedGenerationSettings() {
 
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
-              <label className="text-label text-text-body">Seed</label>
+              <label htmlFor={seedInputId} className="text-label text-text-body">Seed</label>
               <button
+                type="button"
                 onClick={randomizeSeed}
                 className="icon-button p-1 rounded text-text-muted hover:text-accent-primary transition"
-                title="Randomize"
+                title="Randomize seed"
+                aria-label="Randomize seed"
               >
-                <Dice5 className="w-4 h-4" />
+                <Dice5 className="w-4 h-4" aria-hidden="true" />
               </button>
             </div>
             <input
+              id={seedInputId}
               type="number"
+              aria-describedby={`${seedInputId}-hint`}
               value={advancedGeneration.seed}
               onChange={(e) => updateAdvancedGeneration({ seed: Number(e.target.value) })}
               className="w-full bg-elevated border border-border rounded-md px-3 py-2 data-mono text-text-primary focus:border-accent-primary transition"
             />
-            <p className="text-xs text-text-muted">
+            <p id={`${seedInputId}-hint`} className="text-xs text-text-muted">
               Use -1 for random seed
             </p>
           </div>

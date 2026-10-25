@@ -1,15 +1,11 @@
 import { cn } from '@/utils/cn';
-import { motion } from 'framer-motion';
 
 // Instrument UI labels are Mono UPPERCASE. Applied inline because the app's
 // global resets neutralize the Tailwind `uppercase` / `tracking-*` utilities.
 const LABEL_STYLE: React.CSSProperties = { textTransform: 'uppercase', letterSpacing: '0.5px' };
 
 interface ButtonProps
-  extends Omit<
-    React.ButtonHTMLAttributes<HTMLButtonElement>,
-    'onDrag' | 'onDragStart' | 'onDragEnd' | 'onAnimationStart' | 'onAnimationEnd'
-  > {
+  extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: 'primary' | 'secondary' | 'ghost' | 'danger' | 'cinema';
   size?: 'xs' | 'sm' | 'md' | 'lg';
   icon?: React.ComponentType<{ className?: string }>;
@@ -46,8 +42,8 @@ export function Button({
     // envelope, and .btn-chrome-cinema adds the hero breathing glow.
     primary: 'btn-chrome vx-btn-chrome bg-accent-primary text-void',
     secondary: 'raised-control vx-switch text-text-body hover:text-text-primary',
-    ghost: 'text-text-body hover:text-text-primary hover:bg-elevated',
-    danger: 'bg-status-error/10 text-status-error border border-status-error/30 hover:bg-status-error/20',
+    ghost: 'vx-lift text-text-body hover:text-text-primary hover:bg-elevated',
+    danger: 'vx-lift bg-status-error/10 text-status-error border border-status-error/30 hover:bg-status-error/20',
     cinema: 'btn-chrome vx-btn-chrome btn-chrome-cinema bg-accent-primary text-void',
   };
 
@@ -59,20 +55,12 @@ export function Button({
     lg: 'px-6 py-3 text-base gap-2',
   };
 
-  // Chrome caps move on the CSS .vx-btn-chrome envelope (mechanical lift +
-  // press detent) instead of framer's spring scale, matching the website's
-  // hardware motion. Other variants keep the existing scale feedback.
-  const isChrome = variant === 'primary' || variant === 'cinema';
-  const motionProps = isChrome
-    ? {}
-    : {
-        whileHover: { scale: disabled ? 1 : 1.02 },
-        whileTap: { scale: disabled ? 1 : 0.98 },
-      };
-
+  // Every variant moves on a CSS hardware envelope, never a spring scale: chrome
+  // caps on .vx-btn-chrome (lift + press detent), the secondary cap on
+  // .vx-switch, ghost and danger on .vx-lift. All of them collapse under
+  // prefers-reduced-motion, which framer's whileHover/whileTap did not.
   return (
-    <motion.button
-      {...motionProps}
+    <button
       className={cn(
         baseStyles,
         variants[variant],
@@ -99,6 +87,6 @@ export function Button({
           {Icon && iconPosition === 'right' && <Icon className="w-4 h-4" />}
         </>
       )}
-    </motion.button>
+    </button>
   );
 }

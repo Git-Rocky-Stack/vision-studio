@@ -13,6 +13,10 @@ export function ImageWithFallback({
   alt,
   className,
   fallbackClassName,
+  onLoad,
+  onError,
+  loading = 'lazy',
+  decoding = 'async',
   ...props
 }: ImageWithFallbackProps) {
   const [state, setState] = useState<'loading' | 'loaded' | 'error'>('loading');
@@ -31,16 +35,24 @@ export function ImageWithFallback({
         </div>
       )}
       {src && (
+        // The caller's props go first and its handlers are chained: spreading
+        // them last replaced the internal onLoad/onError, so an image whose
+        // caller passed either handler never left the invisible loading state.
         <img
-          src={src}
-          srcSet={props.srcSet}
-          sizes={props.sizes}
-          alt={alt}
-          className={cn(className, state !== 'loaded' && 'invisible')}
-          onLoad={() => setState('loaded')}
-          onError={() => setState('error')}
-          loading={props.loading ?? 'lazy'}
           {...props}
+          src={src}
+          alt={alt}
+          loading={loading}
+          decoding={decoding}
+          className={cn(className, state !== 'loaded' && 'invisible')}
+          onLoad={(event) => {
+            setState('loaded');
+            onLoad?.(event);
+          }}
+          onError={(event) => {
+            setState('error');
+            onError?.(event);
+          }}
         />
       )}
     </div>

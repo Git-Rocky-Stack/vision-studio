@@ -96,7 +96,7 @@ export function OverBudgetFallbackDialog({
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.95 }}
             onClick={(event) => event.stopPropagation()}
-            className="relative mx-4 w-full max-w-md rounded-xl border border-border bg-elevated p-6 shadow-cinematic"
+            className="raised-panel dialog-shell relative mx-4 w-full max-w-md p-6"
           >
             <div className="flex items-start gap-4">
               <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-md bg-status-warning-muted">

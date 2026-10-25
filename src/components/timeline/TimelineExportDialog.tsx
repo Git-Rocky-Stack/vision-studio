@@ -227,7 +227,7 @@ export function TimelineExportDialog({
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.96, y: 12 }}
           onClick={(event) => event.stopPropagation()}
-          className="relative w-full max-w-2xl overflow-hidden rounded-xl border border-border bg-elevated shadow-cinematic"
+          className="raised-panel dialog-shell relative w-full max-w-2xl overflow-hidden"
           data-testid="timeline-export-dialog"
         >
           <div className="border-b border-border bg-[linear-gradient(180deg,rgba(255,255,255,0.05),rgba(255,255,255,0.01))] px-6 py-5">
@@ -276,7 +276,7 @@ export function TimelineExportDialog({
 
             <div
               className={cn(
-                'rounded-xl border px-4 py-4',
+                'rounded-sm border px-4 py-4',
                 uiState.status === 'success'
                   ? 'border-status-success/40 bg-status-success-muted/40'
                   : uiState.status === 'error'
@@ -426,7 +426,7 @@ function SummaryCard({
   detail: string;
 }) {
   return (
-    <div className="rounded-xl border border-border bg-surface/70 px-4 py-3">
+    <div className="rounded-sm border border-border bg-surface/70 px-4 py-3">
       <p className="mono-label text-text-muted">{label}</p>
       <p className="mt-2 text-base text-text-primary">{value}</p>
       <p className="mt-1 text-xs text-text-muted">{detail}</p>

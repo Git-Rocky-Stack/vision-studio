@@ -547,6 +547,7 @@ export function WorkbenchViewer() {
                     mediaClassName="h-full w-full object-cover"
                     fallbackClassName="h-full w-full"
                     showPlayBadge={item.generationType === 'video'}
+                    posterOnly
                   />
                 </button>
               );

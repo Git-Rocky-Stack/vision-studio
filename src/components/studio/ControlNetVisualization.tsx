@@ -10,14 +10,19 @@ interface ControlNetVisualizationProps {
   layers: { visible: boolean; opacity: number };
 }
 
-/** Color mapping per preprocessor type for visual differentiation. */
+/**
+ * Tint per preprocessor type, drawn from the LED palette at 25% so each
+ * overlay reads distinctly without importing hues the palette does not have
+ * (the old blue, purple and cyan were off-palette).
+ */
+const tint = (token: string) => `color-mix(in srgb, var(${token}) 25%, transparent)`;
 const PREPROCESSOR_COLORS: Record<string, string> = {
-  canny: 'rgba(34,197,94,0.25)',        // green
-  depth: 'rgba(59,130,246,0.25)',       // blue
-  openpose: 'rgba(239,68,68,0.25)',     // red
-  scribble: 'rgba(234,179,8,0.25)',     // yellow
-  segmentation: 'rgba(168,85,247,0.25)', // purple
-  normal: 'rgba(6,182,212,0.25)',       // cyan
+  canny: tint('--color-led-play'),
+  depth: tint('--color-led-jog'),
+  openpose: tint('--color-led-rec'),
+  scribble: tint('--color-led-cue'),
+  segmentation: tint('--color-led-fx'),
+  normal: tint('--color-led-time'),
 };
 
 /**
@@ -31,7 +36,7 @@ export const ControlNetVisualization = memo(function ControlNetVisualization({
 }: ControlNetVisualizationProps) {
   if (!layers.visible || !preprocessedImageUrl) return null;
 
-  const tint = PREPROCESSOR_COLORS[preprocessorType] ?? PREPROCESSOR_COLORS.canny;
+  const overlayTint = PREPROCESSOR_COLORS[preprocessorType] ?? PREPROCESSOR_COLORS.canny;
 
   return (
     <div
@@ -48,7 +53,7 @@ export const ControlNetVisualization = memo(function ControlNetVisualization({
       <div
         className={cn('absolute inset-0')}
         aria-hidden="true"
-        style={{ backgroundColor: tint, mixBlendMode: 'multiply' }}
+        style={{ backgroundColor: overlayTint, mixBlendMode: 'multiply' }}
       />
     </div>
   );

@@ -25,7 +25,12 @@ export function FoundryHeaderBar() {
       <div className="raised-control inline-flex items-center gap-2 self-start rounded-md px-3 py-1.5">
         <Cpu aria-hidden="true" className="h-4 w-4 text-text-muted" />
         <span className="text-sm text-text-primary">{gpuLabel}</span>
-        {hardwareProfile && <Led color={ready ? 'play' : 'rec'} size={6} />}
+        {hardwareProfile && (
+          <>
+            <Led color={ready ? 'play' : 'rec'} size={6} />
+            <span className="sr-only">{ready ? 'GPU ready' : 'No GPU available'}</span>
+          </>
+        )}
       </div>
       <div className="w-full md:max-w-md">
         <ModelTokensBar />

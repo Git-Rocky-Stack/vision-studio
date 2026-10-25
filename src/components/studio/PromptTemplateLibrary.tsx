@@ -1,5 +1,6 @@
 import { memo, useState, useMemo } from 'react';
 import { Search } from 'lucide-react';
+import { EmptyState } from '@/components/ui/EmptyState';
 import { useAppStore } from '@/store/appStore';
 import type { PromptTemplateCategory } from '@/types/promptStudio';
 import { cn } from '@/utils/cn';
@@ -117,12 +118,12 @@ export const PromptTemplateLibrary = memo(function PromptTemplateLibrary({
           ))}
         </div>
       ) : (
-        <div className="flex flex-col items-center justify-center gap-2 py-8 text-text-muted">
-          <p className="text-sm">No templates found</p>
-          <p className="text-xs text-text-muted">
-            Try a different search or category
-          </p>
-        </div>
+        <EmptyState
+          icon={Search}
+          title="No templates found"
+          description="Try a different search or category"
+          className="h-auto"
+        />
       )}
     </div>
   );

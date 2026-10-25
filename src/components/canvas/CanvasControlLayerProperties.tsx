@@ -133,7 +133,7 @@ export const CanvasControlLayerProperties = memo(function CanvasControlLayerProp
 
       <div
         className={cn(
-          'rounded-xl border px-3 py-3',
+          'rounded-sm border px-3 py-3',
           isReady
             ? 'border-accent-primary-border bg-accent-primary-muted'
             : 'border-status-warning-border bg-status-warning-muted',
@@ -288,7 +288,7 @@ export const CanvasControlLayerProperties = memo(function CanvasControlLayerProp
             {layer.preprocessor && baseArchitecture ? (
               <div
                 className={cn(
-                  'rounded-xl border px-3 py-3',
+                  'rounded-sm border px-3 py-3',
                   requiredRecords.length > 0 && missingRecords.length === 0
                     ? 'border-border bg-void'
                     : 'border-status-warning-border bg-status-warning-muted',
@@ -356,7 +356,7 @@ export const CanvasControlLayerProperties = memo(function CanvasControlLayerProp
         {layer.type === 'reference-image' && baseArchitecture ? (
           <div
             className={cn(
-              'rounded-xl border px-3 py-3',
+              'rounded-sm border px-3 py-3',
               referenceRecords.length > 0 && missingReferenceRecords.length === 0
                 ? 'border-border bg-void'
                 : 'border-status-warning-border bg-status-warning-muted',
@@ -486,7 +486,7 @@ export const CanvasControlLayerProperties = memo(function CanvasControlLayerProp
           </>
         )}
 
-        <div className="grid grid-cols-[minmax(0,1fr),auto] items-center gap-3 rounded-xl border border-border bg-void px-3 py-3">
+        <div className="grid grid-cols-[minmax(0,1fr),auto] items-center gap-3 rounded-sm border border-border bg-void px-3 py-3">
           <div>
             <p className="type-ui text-text-primary">Layer Visibility</p>
             <p className="type-caption text-text-body">
@@ -552,7 +552,7 @@ export const CanvasControlLayerProperties = memo(function CanvasControlLayerProp
           </div>
         </label>
 
-        <div className="rounded-xl border border-border bg-void px-3 py-3">
+        <div className="rounded-sm border border-border bg-void px-3 py-3">
           <div className="mb-2 flex items-center gap-2">
             <ArrowDownUp className="h-4 w-4 text-text-muted" aria-hidden="true" />
             <span className="type-ui text-text-primary">Mask Bounds</span>

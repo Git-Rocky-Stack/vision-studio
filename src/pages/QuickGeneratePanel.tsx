@@ -9,9 +9,10 @@ import { Button } from '@/components/ui/Button';
 import { ModelSelector } from '@/components/generate/ModelSelector';
 import { cn } from '@/utils/cn';
 import type { UserAccountSummary } from '@/types/electron';
-import { Wand2, Loader2, CheckCircle2, AlertCircle, Cloud, X } from 'lucide-react';
+import { Wand2, Loader2, CheckCircle2, AlertCircle, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChromeButton, Led } from '@/components/hardware';
+import { ChromeButton } from '@/components/hardware';
+import { RouteStatusCard } from '@/components/generate/RouteStatusCard';
 
 const ASPECT_RATIOS = [
   { name: 'Square', width: 1024, height: 1024, icon: '1:1' },
@@ -27,6 +28,8 @@ interface GenStatus {
   errorMessage: string;
 }
 
+const QUICK_POLL_INTERVAL_MS = 1500;
+
 function resolveOutputRoot(defaultOutputPath: string, userDataPath: string) {
   return (defaultOutputPath || `${userDataPath.replace(/\\/g, '/')}/outputs`).replace(/\\/g, '/');
 }
@@ -40,11 +43,26 @@ export function QuickGeneratePanel() {
     systemInfo: s.systemInfo,
   })));
 
-  // Refs for cleanup
-  const intervalRef = useRef<ReturnType<typeof setInterval>>(null);
-  const safetyTimeoutRef = useRef<ReturnType<typeof setTimeout>>(null);
+  // Status polling. Progress arrives over the WebSocket (onProgress); the poll
+  // only has to notice the terminal state, so it runs every 1.5s as a chained
+  // timeout - the next request is not sent until the previous one returned. A
+  // 500ms setInterval used to overlap slow requests and could complete the
+  // same job twice. Bumping the run id retires a poll (new job, unmount).
+  const pollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const safetyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const unwatchRef = useRef<(() => void) | null>(null);
+  const pollRunRef = useRef(0);
   const isGeneratingRef = useRef(false);
+
+  const stopPolling = useCallback(() => {
+    pollRunRef.current += 1;
+    if (pollTimeoutRef.current) clearTimeout(pollTimeoutRef.current);
+    if (safetyTimeoutRef.current) clearTimeout(safetyTimeoutRef.current);
+    unwatchRef.current?.();
+    pollTimeoutRef.current = null;
+    safetyTimeoutRef.current = null;
+    unwatchRef.current = null;
+  }, []);
 
   const [prompt, setPrompt] = useState('');
   const [negativePrompt, setNegativePrompt] = useState('');
@@ -70,10 +88,24 @@ export function QuickGeneratePanel() {
 
   const pollJobStatus = useCallback(
     async (jobId: string) => {
+      stopPolling();
+      const runId = pollRunRef.current;
+      const isCurrentRun = () => pollRunRef.current === runId;
+      // Claims the terminal transition: only the first caller proceeds.
+      const claimCompletion = () => {
+        if (!isCurrentRun()) return false;
+        stopPolling();
+        return true;
+      };
+
       const checkStatus = async () => {
+        pollTimeoutRef.current = null;
+        if (!isCurrentRun()) return;
         try {
           const status = await window.electron.generation.getStatus(jobId);
+          if (!isCurrentRun()) return;
           if (status.status === 'completed') {
+            if (!claimCompletion()) return;
             const existingJob = useAppStore.getState().activeJobs.find((j) => j.id === jobId);
             const completedAt = status.completed_at ? new Date(status.completed_at) : new Date();
 
@@ -111,11 +143,9 @@ export function QuickGeneratePanel() {
 
             setGenStatus({ isGenerating: false, progress: 100, status: 'success', errorMessage: '' });
             isGeneratingRef.current = false;
-            // Clear refs on completion
-            if (intervalRef.current) clearInterval(intervalRef.current);
-            if (unwatchRef.current) unwatchRef.current();
-            if (safetyTimeoutRef.current) clearTimeout(safetyTimeoutRef.current);
+            return;
           } else if (status.status === 'failed') {
+            if (!claimCompletion()) return;
             updateJob(jobId, {
               status: 'failed',
               progress: status.progress ?? 0,
@@ -133,9 +163,7 @@ export function QuickGeneratePanel() {
               errorMessage: status.error || 'Generation failed',
             });
             isGeneratingRef.current = false;
-            if (intervalRef.current) clearInterval(intervalRef.current);
-            if (unwatchRef.current) unwatchRef.current();
-            if (safetyTimeoutRef.current) clearTimeout(safetyTimeoutRef.current);
+            return;
           } else {
             updateJob(jobId, {
               status: status.status,
@@ -149,27 +177,24 @@ export function QuickGeneratePanel() {
         } catch {
           // Keep polling
         }
+        if (isCurrentRun()) {
+          pollTimeoutRef.current = setTimeout(() => void checkStatus(), QUICK_POLL_INTERVAL_MS);
+        }
       };
 
-      const interval = setInterval(checkStatus, 500);
-      intervalRef.current = interval;
-      const unwatch = window.electron.generation.onProgress((data) => {
+      unwatchRef.current = window.electron.generation.onProgress((data) => {
         if (data.job_id === jobId && data.progress !== undefined) {
           setGenStatus((prev) => ({ ...prev, progress: data.progress ?? prev.progress }));
         }
       });
-      unwatchRef.current = unwatch;
+
+      // Stop after 5 minutes
+      safetyTimeoutRef.current = setTimeout(stopPolling, 5 * 60 * 1000);
 
       // Initial check
       await checkStatus();
-
-      // Stop after 5 minutes
-      safetyTimeoutRef.current = setTimeout(() => {
-        clearInterval(intervalRef.current!);
-        unwatchRef.current?.();
-      }, 5 * 60 * 1000);
     },
-    [updateJob, syncAssetsFromJobStatus, prompt]
+    [updateJob, syncAssetsFromJobStatus, prompt, stopPolling]
   );
 
   // Cleanup on unmount
@@ -177,13 +202,7 @@ export function QuickGeneratePanel() {
     void syncActiveAccount();
   }, [syncActiveAccount]);
 
-  useEffect(() => {
-    return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-      if (unwatchRef.current) unwatchRef.current();
-      if (safetyTimeoutRef.current) clearTimeout(safetyTimeoutRef.current);
-    };
-  }, []);
+  useEffect(() => stopPolling, [stopPolling]);
 
   const handleGenerate = async () => {
     if (!prompt.trim()) return;
@@ -373,26 +392,18 @@ export function QuickGeneratePanel() {
               </p>
             </div>
             {openRouterImageEnabled ? (
-              <div className="recessed-well px-4 py-3">
-                <div className="flex items-start gap-3">
-                  <div className="raised-control mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center text-accent-primary">
-                    <Cloud className="h-4 w-4" aria-hidden="true" />
-                  </div>
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <Led color="play" size={7} />
-                      <p className="type-section text-text-primary">OpenRouter Still Image Route</p>
-                    </div>
-                    <p className="mt-1 text-xs text-text-body">
-                      Account: {activeAccount?.name ?? 'No active account'}.
-                      {' '}Model: {openRouterImageModel || 'Not set in Settings'}.
-                    </p>
-                    <p className="mt-1 text-xs text-text-muted">
-                      Quick Generate uses the account&apos;s hosted still-image model until you switch the account back to Local.
-                    </p>
-                  </div>
-                </div>
-              </div>
+              <RouteStatusCard
+                title="OpenRouter Still Image Route"
+                ready={Boolean(openRouterImageModel) && Boolean(activeAccount?.openRouter.apiKeyStored)}
+              >
+                <p className="mt-1 text-xs text-text-body">
+                  Account: {activeAccount?.name ?? 'No active account'}.
+                  {' '}Model: {openRouterImageModel || 'Not set in Settings'}.
+                </p>
+                <p className="mt-1 text-xs text-text-muted">
+                  Quick Generate uses the account&apos;s hosted still-image model until you switch the account back to Local.
+                </p>
+              </RouteStatusCard>
             ) : (
               <ModelSelector
                 value={selectedModel}
@@ -417,17 +428,11 @@ export function QuickGeneratePanel() {
                   className={cn(
                     'vx-pad raised-control flex flex-col items-center justify-center gap-0.5 px-2 py-2 text-xs',
                     selectedRatio.name === ratio.name
-                      ? 'text-accent-primary'
+                      ? 'selected-cap text-accent-primary'
                       : 'text-text-body hover:text-text-primary'
                   )}
                   style={
-                    selectedRatio.name === ratio.name
-                      ? {
-                          borderColor: 'var(--color-chrome)',
-                          boxShadow:
-                            'inset 0 1px 0 rgba(255,255,255,0.12), 0 0 0 1px var(--color-chrome-edge), 0 4px 8px rgba(0,0,0,0.5)',
-                        }
-                      : undefined
+                    selectedRatio.name === ratio.name ? { borderColor: 'var(--color-chrome)' } : undefined
                   }
                 >
                   <span className="type-ui">{ratio.icon}</span>
@@ -500,8 +505,8 @@ export function QuickGeneratePanel() {
           variant="chrome"
           onClick={handleGenerate}
           disabled={genStatus.isGenerating || !prompt.trim()}
+          size="lg"
           className="flex-1"
-          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
         >
           {genStatus.isGenerating ? (
             <>

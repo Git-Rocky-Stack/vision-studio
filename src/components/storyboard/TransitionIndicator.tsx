@@ -41,7 +41,7 @@ const TRANSITION_CONFIG: Record<
   zoom: {
     icon: ZoomIn,
     label: 'Zoom',
-    className: 'text-feature-02',
+    className: 'text-led-fx',
   },
 };
 
@@ -68,10 +68,10 @@ export const TransitionIndicator = memo(function TransitionIndicator({
         'type-ui transition-colors duration-150',
         'hover:bg-elevated rounded-md cursor-pointer',
         onClick ? 'cursor-pointer' : 'cursor-default',
-        config.className
+        'text-text-body'
       )}
     >
-      <Icon className="w-3 h-3" aria-hidden="true" />
+      <Icon className={cn('w-3 h-3', config.className)} aria-hidden="true" />
       <span>{config.label}</span>
       {duration !== undefined && duration > 0 && (
         <span className="text-text-muted ml-0.5">

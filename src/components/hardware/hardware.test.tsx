@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { isInaccessible, render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { ChromeButton, Faceplate, Lcd, Led, MonoLabel } from './index';
@@ -35,7 +37,40 @@ describe('hardware primitives', () => {
 
   it('never wraps a ChromeButton label', () => {
     render(<ChromeButton variant="chrome">Start Batch (0)</ChromeButton>);
-    expect(screen.getByRole('button', { name: 'Start Batch (0)' }).style.whiteSpace).toBe('nowrap');
+    expect(screen.getByRole('button', { name: 'Start Batch (0)' })).toHaveClass('whitespace-nowrap');
+  });
+
+  // An inline background or box-shadow outranks every stylesheet rule, so the
+  // cap's hover and pressed states (.vx-btn-chrome:hover/:active) never drew.
+  it('draws the ChromeButton cap from classes, never inline style', () => {
+    render(
+      <>
+        <ChromeButton>chrome</ChromeButton>
+        <ChromeButton variant="ghost" size="sm">ghost</ChromeButton>
+      </>,
+    );
+    const chrome = screen.getByRole('button', { name: 'chrome' });
+    const ghost = screen.getByRole('button', { name: 'ghost' });
+
+    expect(chrome).toHaveClass('btn-chrome', 'vx-btn-chrome', 'vx-btn-lg');
+    expect(ghost).toHaveClass('vx-btn-ghost', 'vx-btn-sm');
+    expect(chrome.getAttribute('style')).toBeNull();
+    expect(ghost.getAttribute('style')).toBeNull();
+  });
+
+  it('defines the hover and pressed states its classes rely on', () => {
+    const css = readFileSync(join(process.cwd(), 'src/index.css'), 'utf8');
+    for (const selector of [
+      '.vx-btn-chrome:not(:disabled):hover',
+      '.vx-btn-chrome:not(:disabled):active',
+      '.vx-btn-ghost:not(:disabled):hover',
+      '.vx-btn-ghost:not(:disabled):active',
+      '.vx-btn-sm',
+      '.vx-btn-md',
+      '.vx-btn-lg',
+    ]) {
+      expect(css).toContain(`${selector} {`);
+    }
   });
 
   it('renders a Faceplate with its kicker and children', () => {

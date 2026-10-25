@@ -1,5 +1,6 @@
 import { create } from 'zustand';
-import { createJSONStorage, persist, type StateStorage } from 'zustand/middleware';
+import { persist, type StateStorage } from 'zustand/middleware';
+import { createDebouncedJSONStorage } from './debouncedPersistStorage';
 import type { AppState } from './appStore.types';
 import type { ProjectTemplate } from '@/types/template';
 import {
@@ -46,7 +47,11 @@ import { projectInitialState, createProjectActions } from './slices/projectSlice
 import { workflowInitialState, createWorkflowActions } from './slices/workflowSlice';
 import { promptStudioInitialState, createPromptStudioActions } from './slices/promptStudioSlice';
 import { generationPreviewInitialState, createGenerationPreviewActions } from './slices/generationPreviewSlice';
-import { iterationInitialState, createIterationActions } from './slices/iterationSlice';
+import {
+  iterationInitialState,
+  createIterationActions,
+  capIterationGraphForPersist,
+} from './slices/iterationSlice';
 import { collectionsInitialState, createCollectionsActions } from './slices/collectionsSlice';
 import { mediaTimelineInitialState, createMediaTimelineActions } from './slices/mediaTimelineSlice';
 import { timelineInitialState, createTimelineActions } from './slices/timelineSlice';
@@ -978,6 +983,74 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
   }
 ];
 
+function partializeAppState(state: AppState) {
+  const iterationGraph = capIterationGraphForPersist(state.iterationNodes, state.iterationBranches, {
+    keepIds: [state.activeIterationId],
+  });
+  return {
+    activeTab: state.activeTab,
+    activeSubMode: state.activeSubMode,
+    centerView: state.centerView,
+    // #34 installer PR3: first-run overlay dismissal survives restarts.
+    firstRunProvisionDismissed: state.firstRunProvisionDismissed,
+    layoutPreferences: state.layoutPreferences,
+    aspectRatio: state.aspectRatio,
+    resolutionTier: state.resolutionTier,
+    customWidth: state.customWidth,
+    customHeight: state.customHeight,
+    generationMode: state.generationMode,
+    darkMode: state.darkMode,
+    recentProjects: state.recentProjects,
+    projects: state.projects,
+    activeProjectId: state.activeProjectId,
+    activeSceneId: state.activeSceneId,
+    storyboardImportDrafts: state.storyboardImportDrafts,
+    activeStoryboardImportDraftId: state.activeStoryboardImportDraftId,
+    migrationStatus: state.migrationStatus,
+    promptHistory: state.promptHistory.slice(0, 50),
+    favoritePrompts: state.favoritePrompts,
+    customStylePresets: state.customStylePresets,
+    userTemplates: state.userTemplates,
+    batchResults: state.batchResults.slice(0, 200),
+    assetLibrary: state.assetLibrary.slice(0, 500),
+    promptTemplates: state.promptTemplates,
+    compositionLayers: state.compositionLayers,
+    iterationBranches: iterationGraph.branches,
+    iterationNodes: Array.from(iterationGraph.nodes.entries()),
+    activeIterationId: state.activeIterationId,
+    iterationView: state.iterationView,
+    iterationComparisonMode: state.iterationComparisonMode,
+    collections: state.collections,
+    availableTags: state.availableTags,
+    taggingMode: state.taggingMode,
+    assetMetadata: Array.from(state.assetMetadata.entries()),
+    mediaAssets: state.mediaAssets,
+    referenceSets: state.referenceSets,
+    timelineSequences: state.timelineSequences,
+    timelineTracks: state.timelineTracks,
+    timelineClips: state.timelineClips,
+    clipRetakeTakes: state.clipRetakeTakes,
+    clipGenerationBindings: state.clipGenerationBindings,
+    activeTimelineSequenceId: state.activeTimelineSequenceId,
+    activeTimelineClipId: state.activeTimelineClipId,
+    activeTimelineRetakeRangeId: state.activeTimelineRetakeRangeId,
+    activeTimelineRetakeTakeId: state.activeTimelineRetakeTakeId,
+  };
+}
+
+type PersistedAppState = ReturnType<typeof partializeAppState>;
+
+const appPersistStorage = createDebouncedJSONStorage<PersistedAppState>(getPersistStorage);
+
+/**
+ * Writes any persisted state still waiting out the debounce. The storage also
+ * flushes itself on pagehide / beforeunload / visibilitychange(hidden); tests
+ * and explicit save points call this to persist immediately.
+ */
+export function flushPersistedState(): void {
+  appPersistStorage.flush();
+}
+
 export const useAppStore = create<AppState>()(
   persist(
     (set, get) => ({
@@ -1014,7 +1087,7 @@ export const useAppStore = create<AppState>()(
     }),
     {
       name: 'vision-studio-storage',
-      storage: createJSONStorage(getPersistStorage),
+      storage: appPersistStorage,
       merge: (persistedState, currentState) => {
         const persisted = persistedState as Record<string, unknown>;
         // Reconstruct Maps from serialized arrays
@@ -1133,55 +1206,7 @@ export const useAppStore = create<AppState>()(
               : null,
         };
       },
-      partialize: (state) => ({
-        activeTab: state.activeTab,
-        activeSubMode: state.activeSubMode,
-        centerView: state.centerView,
-        // #34 installer PR3: first-run overlay dismissal survives restarts.
-        firstRunProvisionDismissed: state.firstRunProvisionDismissed,
-        layoutPreferences: state.layoutPreferences,
-        aspectRatio: state.aspectRatio,
-        resolutionTier: state.resolutionTier,
-        customWidth: state.customWidth,
-        customHeight: state.customHeight,
-        generationMode: state.generationMode,
-        darkMode: state.darkMode,
-        recentProjects: state.recentProjects,
-        projects: state.projects,
-        activeProjectId: state.activeProjectId,
-        activeSceneId: state.activeSceneId,
-        storyboardImportDrafts: state.storyboardImportDrafts,
-        activeStoryboardImportDraftId: state.activeStoryboardImportDraftId,
-        migrationStatus: state.migrationStatus,
-        promptHistory: state.promptHistory.slice(0, 50),
-        favoritePrompts: state.favoritePrompts,
-        customStylePresets: state.customStylePresets,
-        userTemplates: state.userTemplates,
-        batchResults: state.batchResults.slice(0, 200),
-        assetLibrary: state.assetLibrary.slice(0, 500),
-        promptTemplates: state.promptTemplates,
-        compositionLayers: state.compositionLayers,
-        iterationBranches: state.iterationBranches,
-        iterationNodes: Array.from(state.iterationNodes.entries()),
-        activeIterationId: state.activeIterationId,
-        iterationView: state.iterationView,
-        iterationComparisonMode: state.iterationComparisonMode,
-        collections: state.collections,
-        availableTags: state.availableTags,
-        taggingMode: state.taggingMode,
-        assetMetadata: Array.from(state.assetMetadata.entries()),
-        mediaAssets: state.mediaAssets,
-        referenceSets: state.referenceSets,
-        timelineSequences: state.timelineSequences,
-        timelineTracks: state.timelineTracks,
-        timelineClips: state.timelineClips,
-        clipRetakeTakes: state.clipRetakeTakes,
-        clipGenerationBindings: state.clipGenerationBindings,
-        activeTimelineSequenceId: state.activeTimelineSequenceId,
-        activeTimelineClipId: state.activeTimelineClipId,
-        activeTimelineRetakeRangeId: state.activeTimelineRetakeRangeId,
-        activeTimelineRetakeTakeId: state.activeTimelineRetakeTakeId,
-      }),
+      partialize: partializeAppState,
     }
   )
 );

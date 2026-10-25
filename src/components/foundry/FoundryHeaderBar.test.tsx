@@ -74,6 +74,24 @@ describe('FoundryHeaderBar', () => {
     });
   });
 
+  // The LED is hidden from assistive tech, so the verdict it shows is spoken
+  // as text beside it.
+  it('says what the readiness LED shows', () => {
+    window.electron = {
+      auth: { setHfToken: vi.fn(), setCivitaiToken: vi.fn() },
+    } as unknown as typeof window.electron;
+
+    useAppStore.setState({ hardwareProfile: makeProfile({ gpu_available: true }) } as never);
+    const { rerender } = render(<FoundryHeaderBar />);
+    expect(screen.getByText('GPU ready')).toHaveClass('sr-only');
+
+    useAppStore.setState({
+      hardwareProfile: makeProfile({ gpu_available: false, gpu_name: 'CPU only' }),
+    } as never);
+    rerender(<FoundryHeaderBar />);
+    expect(screen.getByText('No GPU available')).toHaveClass('sr-only');
+  });
+
   it('shows a detecting state while a connected backend has not answered yet', () => {
     window.electron = {
       auth: { setHfToken: vi.fn(), setCivitaiToken: vi.fn() },

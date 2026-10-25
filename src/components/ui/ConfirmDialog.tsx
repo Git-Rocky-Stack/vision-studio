@@ -91,7 +91,7 @@ export function ConfirmDialog({
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.95 }}
             onClick={(e) => e.stopPropagation()}
-            className="relative w-full max-w-sm mx-4 bg-elevated border border-border rounded-xl p-6 shadow-cinematic"
+            className="raised-panel dialog-shell relative w-full max-w-sm mx-4 p-6"
           >
             <div className="flex items-start gap-4">
               <div

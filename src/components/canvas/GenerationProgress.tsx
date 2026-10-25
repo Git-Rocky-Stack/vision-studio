@@ -1,9 +1,12 @@
 import { memo } from 'react';
 import { useAppStore } from '@/store/appStore';
-import { motion } from 'framer-motion';
+import { motion, useReducedMotion } from 'framer-motion';
 
 export const GenerationProgress = memo(function GenerationProgress() {
   const activeJobs = useAppStore((s) => s.activeJobs);
+  // MotionConfig reducedMotion="user" (main.tsx) only skips transform and
+  // layout animations; an opacity loop keeps running, so stop it here.
+  const reduceMotion = useReducedMotion();
   const activeJob = activeJobs.find(
     (j) => j.status === 'pending' || j.status === 'processing'
   );
@@ -87,8 +90,8 @@ export const GenerationProgress = memo(function GenerationProgress() {
         <div className="text-center">
           <motion.p
             className="type-section text-text-body"
-            animate={{ opacity: [0.5, 1, 0.5] }}
-            transition={{ duration: 2, repeat: Infinity }}
+            animate={reduceMotion ? { opacity: 1 } : { opacity: [0.5, 1, 0.5] }}
+            transition={reduceMotion ? { duration: 0 } : { duration: 2, repeat: Infinity }}
           >
             Generating...
           </motion.p>
