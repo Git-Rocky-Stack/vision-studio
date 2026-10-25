@@ -1298,10 +1298,14 @@ export const Timeline = memo(function Timeline() {
       transition={{ duration: 0.2 }}
       className="flex flex-col overflow-hidden border-t border-border bg-surface shadow-cinematic"
     >
-      <div className="flex min-h-12 items-center justify-between gap-3 border-b border-border bg-elevated/90 px-3 py-1.5">
+      <div className="flex min-h-12 flex-wrap items-center justify-between gap-x-3 gap-y-1 border-b border-border bg-elevated/90 px-3 py-1.5">
         {/* Wraps to a second row when the workspace is narrow. It used to scroll
-            sideways, which hid the edit-mode switch at the default window size. */}
-        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1">
+            sideways, which hid the edit-mode switch at the default window size.
+            The group sizes from its content (basis auto, not 0) so that when
+            it and the zoom group cannot share a row, the zoom group wraps
+            below - a zero basis let the zoom group squeeze over the mode
+            switch at 1280px. */}
+        <div className="flex min-w-0 flex-[1_1_auto] flex-wrap items-center gap-x-2 gap-y-1">
           <TransportControls
             isPlaying={playState === 'playing'}
             totalDurationMs={totalDurationMs}
@@ -1316,7 +1320,7 @@ export const Timeline = memo(function Timeline() {
 
           <div className="mx-1 h-5 w-px bg-border" />
 
-          <div className="flex h-8 items-center gap-0.5 rounded-md border border-border bg-canvas p-0.5 shadow-sm">
+          <div className="flex h-8 flex-none items-center gap-0.5 rounded-md border border-border bg-canvas p-0.5 shadow-sm">
             {(['storyboard', 'animation', 'canvas'] as const).map((mode) => {
               const active = timelineMode === mode;
               return (
@@ -1497,7 +1501,8 @@ export const Timeline = memo(function Timeline() {
                       icon={Layers}
                       title="No tracks yet"
                       description="Add a track, then drop imported or generated media into the timeline."
-                      className="h-auto min-h-28 border-b border-border py-4"
+                      size="compact"
+                      className="h-auto border-b border-border"
                     />
                   ) : (
                     sequenceTracks.map((track) => {
