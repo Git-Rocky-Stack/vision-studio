@@ -101,6 +101,8 @@ import type {
   Layer,
   EditHistoryEntry,
   ImageAdjustments,
+  EditStroke,
+  EditFilterState,
 } from '@/types/editor';
 
 import type {
@@ -419,6 +421,15 @@ export interface AppState {
   currentImage: string | null;
   currentImageAssetPath: string | null;
   imageAdjustments: ImageAdjustments;
+  /** Committed brush/eraser strokes, in image pixels; part of undo state. */
+  editStrokes: EditStroke[];
+  /** Filters-tab selection applied to the base image; part of undo state. */
+  editFilters: EditFilterState;
+  /** Brush colour; the eyedropper samples into it. */
+  editBrushColor: string;
+  editBrushSize: number;
+  /** Before/After compare: true renders the base image without adjustments or filters. */
+  editCompareOriginal: boolean;
   /** #34 PR2: shared AI-tool inpaint mask (Generative Fill / Object Removal). */
   editAiMask: RegionMask | null;
   editAiMaskTool: 'brush' | 'rectangle';
@@ -851,10 +862,18 @@ export interface AppState {
 
   // Edit mode
   setActiveEditTool: (tool: EditTool) => void;
-  addEditLayer: (layer: Layer) => void;
-  updateEditLayer: (id: string, updates: Partial<Layer>) => void;
-  removeEditLayer: (id: string) => void;
+  addEditLayer: (layer: Layer, historyLabel?: string) => void;
+  updateEditLayer: (id: string, updates: Partial<Layer>, historyLabel?: string) => void;
+  removeEditLayer: (id: string, historyLabel?: string) => void;
   reorderEditLayers: (layerIds: string[]) => void;
+  addEditStroke: (stroke: EditStroke) => void;
+  clearEditStrokes: () => void;
+  setEditFilters: (filters: Partial<EditFilterState>) => void;
+  setEditBrushColor: (color: string) => void;
+  setEditBrushSize: (size: number) => void;
+  setEditCompareOriginal: (on: boolean) => void;
+  /** Jump to a history entry (the History popover). */
+  jumpToEditHistory: (index: number) => void;
   setSelectedEditLayerId: (id: string | null) => void;
   setCurrentImageSize: (size: { width: number; height: number } | null) => void;
   pushEditHistory: (entry: EditHistoryEntry) => void;

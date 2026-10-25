@@ -40,8 +40,14 @@ describe('TextControls (#32)', () => {
     expect(isTextLayer(layer)).toBe(true);
     expect(layer.data.text).toBe('Chrome headline');
     expect(selectedEditLayerId).toBe(layer.id);
-    expect(editHistory).toHaveLength(1);
-    expect(editHistory[0].action).toMatch(/add text/i);
+    // An "Original" base entry plus the add, so the add itself is undoable.
+    expect(editHistory).toHaveLength(2);
+    expect(editHistory[1].action).toMatch(/add text/i);
+
+    act(() => {
+      useAppStore.getState().undo();
+    });
+    expect(useAppStore.getState().editLayers).toHaveLength(0);
   });
 
   it('adds a default-content layer when the content field is empty', () => {

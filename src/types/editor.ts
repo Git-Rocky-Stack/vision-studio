@@ -46,11 +46,46 @@ export interface TextLayerData extends TextStyle {
   scaleY: number;
 }
 
+/** One committed brush or eraser stroke, in intrinsic image pixels. */
+export interface EditStroke {
+  id: string;
+  tool: 'brush' | 'eraser';
+  points: number[];
+  color: string;
+  size: number;
+}
+
+/** Look filters chosen in the Filters tab; applied to the base image. */
+export interface EditFilterState {
+  selected: string[];
+  /** 0-100 blend of each filter over the unfiltered pixel. */
+  intensity: number;
+  stackMode: boolean;
+}
+
+export const DEFAULT_EDIT_FILTERS: EditFilterState = {
+  selected: [],
+  intensity: 100,
+  stackMode: false,
+};
+
+/** Everything undo/redo restores. Layer objects are immutable, so sharing them is safe. */
+export interface EditStateSnapshot {
+  layers: Layer[];
+  adjustments: ImageAdjustments;
+  strokes: EditStroke[];
+  filters: EditFilterState;
+}
+
 export interface EditHistoryEntry {
   id: string;
   action: string;
   timestamp: Date;
   snapshot?: string; // base64 canvas snapshot for undo
+  /** Edit state after this action; undo/redo restore it. */
+  state?: EditStateSnapshot;
+  /** Continuous edits (slider drags, transforms) with the same key coalesce. */
+  coalesceKey?: string;
 }
 
 export interface ImageAdjustments {

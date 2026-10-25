@@ -47,7 +47,6 @@ export function TextControls() {
     updateEditLayer,
     removeEditLayer,
     setSelectedEditLayerId,
-    pushEditHistory,
   } = useAppStore(
     useShallow((s) => ({
       editLayers: s.editLayers,
@@ -57,7 +56,6 @@ export function TextControls() {
       updateEditLayer: s.updateEditLayer,
       removeEditLayer: s.removeEditLayer,
       setSelectedEditLayerId: s.setSelectedEditLayerId,
-      pushEditHistory: s.pushEditHistory,
     }))
   );
 
@@ -128,24 +126,15 @@ export function TextControls() {
       : { x: 64, y: 64 };
     const layer = createTextLayer({ text, position, style, opacity: opacityPercent / 100 });
 
-    addEditLayer(layer);
+    // The layer action records the undo step itself (with a state snapshot).
+    addEditLayer(layer, `Add text layer "${layer.name}"`);
     setSelectedEditLayerId(layer.id);
-    pushEditHistory({
-      id: crypto.randomUUID(),
-      action: `Add text layer "${layer.name}"`,
-      timestamp: new Date(),
-    });
   };
 
   const confirmDeleteSelected = () => {
     if (!selectedTextLayer) return;
     const { id, name } = selectedTextLayer;
-    removeEditLayer(id);
-    pushEditHistory({
-      id: crypto.randomUUID(),
-      action: `Delete text layer "${name}"`,
-      timestamp: new Date(),
-    });
+    removeEditLayer(id, `Delete text layer "${name}"`);
     setShowDeleteConfirm(false);
   };
 
