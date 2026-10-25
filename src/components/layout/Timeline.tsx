@@ -583,8 +583,8 @@ const TimelineClipBlock = memo(function TimelineClipBlock({
         width: `${widthPct}%`,
         minWidth: '84px',
         background: selected
-          ? `linear-gradient(135deg, color-mix(in srgb, ${baseColor} 24%, transparent), rgba(20,20,24,0.92))`
-          : `linear-gradient(135deg, color-mix(in srgb, ${baseColor} 12%, transparent), rgba(20,20,24,0.88))`,
+          ? `linear-gradient(135deg, color-mix(in srgb, ${baseColor} 24%, transparent), color-mix(in srgb, var(--color-elevated) 92%, transparent))`
+          : `linear-gradient(135deg, color-mix(in srgb, ${baseColor} 12%, transparent), color-mix(in srgb, var(--color-elevated) 88%, transparent))`,
       }}
       onClick={(event) => {
         event.stopPropagation();

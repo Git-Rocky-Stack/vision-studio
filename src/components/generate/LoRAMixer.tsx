@@ -33,15 +33,17 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
+// Identity dots for stacked LoRAs: chrome, then the LED and capability hues.
+// The violet, light-blue and slate feature colours this used were off-palette.
 const LORA_COLORS = [
   'var(--color-feature-01)',
-  'var(--color-feature-02)',
+  'var(--color-led-jog)',
   'var(--color-feature-03)',
   'var(--color-feature-04)',
   'var(--color-feature-05)',
   'var(--color-feature-06)',
-  'var(--color-feature-07)',
-  'var(--color-feature-08)',
+  'var(--color-led-cue)',
+  'var(--color-cap-cloud)',
 ];
 
 interface LoRAMixerProps {
