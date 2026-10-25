@@ -1,5 +1,6 @@
 import { memo, useMemo } from 'react';
 import { cn } from '@/utils/cn';
+import { Led } from '@/components/hardware/Led';
 import type { RegionLock, AITool } from '@/types/project';
 
 interface RegionLockOverlayProps {
@@ -17,12 +18,22 @@ const AI_TOOL_LABELS: Record<AITool, string> = {
   remove: 'Remove',
 };
 
-const AI_TOOL_COLORS: Record<AITool, string> = {
-  'generative-fill': '#22c55e',
-  'style-transfer': '#6c5ce7',
+// Semantic tokens only: the region tint follows the theme with the rest of
+// the status palette (DESIGN.md, LED palette).
+export const AI_TOOL_COLORS: Record<AITool, string> = {
+  'generative-fill': 'var(--color-status-success)',
+  'style-transfer': 'var(--color-capability-edit)',
   upscale: 'var(--color-status-info)',
-  remove: '#ef4444',
+  remove: 'var(--color-status-error)',
 };
+
+const ERASE_COLOR = 'var(--color-status-info)';
+const INVERT_COLOR = 'var(--color-status-error)';
+
+/** A token colour at a given strength over transparent, for fills and glows. */
+function tokenMix(color: string, percent: number): string {
+  return `color-mix(in srgb, ${color} ${percent}%, transparent)`;
+}
 
 export const RegionLockOverlay = memo(function RegionLockOverlay({
   regionLocks,
@@ -84,6 +95,7 @@ const RegionMask = memo(function RegionMask({
   const toolColor = AI_TOOL_COLORS[aiTool];
   const toolLabel = AI_TOOL_LABELS[aiTool];
   const isEraseMask = mask.type === 'erase';
+  const stateColor = isEraseMask ? ERASE_COLOR : invertMask ? INVERT_COLOR : toolColor;
 
   return (
     <div
@@ -129,11 +141,7 @@ const RegionMask = memo(function RegionMask({
             : 'border border-dashed'
         )}
         style={{
-          borderColor: isEraseMask
-            ? 'rgba(56, 189, 248, 0.6)'
-            : invertMask
-              ? 'rgba(239, 68, 68, 0.6)'
-              : toolColor,
+          borderColor: isEraseMask || invertMask ? tokenMix(stateColor, 60) : toolColor,
         }}
       />
 
@@ -142,65 +150,52 @@ const RegionMask = memo(function RegionMask({
         <div
           className="absolute inset-0 rounded-sm pointer-events-none"
           style={{
-            boxShadow: `inset 0 0 ${featherRadius}px ${isEraseMask ? 'rgba(56, 189, 248, 0.15)' : invertMask ? 'rgba(239, 68, 68, 0.15)' : 'rgba(34, 197, 94, 0.15)'}`,
+            boxShadow: `inset 0 0 ${featherRadius}px ${tokenMix(
+              isEraseMask || invertMask ? stateColor : 'var(--color-status-success)',
+              15,
+            )}`,
           }}
         />
       )}
 
-      {/* Label */}
+      {/* Label: a recessed chip with an LED for the state colour, so the text
+          stays primary-on-dark in both themes instead of white on a tint. */}
       <div
         className={cn(
-          'absolute -top-6 left-0 flex items-center gap-1.5',
-          'px-2 py-0.5 rounded-md type-ui whitespace-nowrap',
+          'recessed-well absolute -top-7 left-0 flex items-center gap-1.5',
+          'px-2 py-0.5 type-ui text-text-primary whitespace-nowrap',
           'pointer-events-none'
         )}
         role="status"
         aria-live="polite"
         aria-label={`${name} ${toolLabel} ${Math.round(strength * 100)}%`}
-        style={{
-          backgroundColor: isEraseMask ? 'rgba(56, 189, 248, 0.9)' : invertMask ? 'rgba(239, 68, 68, 0.9)' : toolColor,
-          color: '#fff',
-        }}
+        data-state-color={stateColor}
       >
+        <Led color={stateColor} size={6} />
         <span className="font-semibold">{name}</span>
-        <span className="h-3 w-px bg-white/40" aria-hidden="true" />
+        <span className="h-3 w-px bg-border-hover" aria-hidden="true" />
         <span>{toolLabel}</span>
-        <span className="opacity-70">{Math.round(strength * 100)}%</span>
+        <span className="text-text-muted">{Math.round(strength * 100)}%</span>
       </div>
 
-      {/* Erase indicator */}
-      {isEraseMask && (
-        <div className="absolute -top-5 -right-1 px-1 py-0.5 rounded-sm bg-status-info type-ui text-white font-bold pointer-events-none">
-          ERASE
-        </div>
-      )}
-
-      {/* Invert indicator */}
-      {invertMask && (
-        <div className="absolute -top-5 -right-1 px-1 py-0.5 rounded-sm bg-status-error type-ui text-white font-bold pointer-events-none">
-          INV
+      {/* Erase / invert indicators */}
+      {(isEraseMask || invertMask) && (
+        <div className="recessed-well mono-label absolute -top-7 -right-1 flex items-center gap-1 px-1.5 py-0.5 text-text-primary pointer-events-none">
+          <Led color={stateColor} size={5} />
+          {isEraseMask ? 'ERASE' : 'INV'}
         </div>
       )}
 
       {/* Active indicator - corner handles */}
       {isActive && (
         <>
-          <div
-            className="absolute w-2 h-2 -top-1 -left-1 rounded-full border-2 border-white"
-            style={{ backgroundColor: isEraseMask ? 'var(--color-status-info)' : toolColor }}
-          />
-          <div
-            className="absolute w-2 h-2 -top-1 -right-1 rounded-full border-2 border-white"
-            style={{ backgroundColor: isEraseMask ? 'var(--color-status-info)' : toolColor }}
-          />
-          <div
-            className="absolute w-2 h-2 -bottom-1 -left-1 rounded-full border-2 border-white"
-            style={{ backgroundColor: isEraseMask ? 'var(--color-status-info)' : toolColor }}
-          />
-          <div
-            className="absolute w-2 h-2 -bottom-1 -right-1 rounded-full border-2 border-white"
-            style={{ backgroundColor: isEraseMask ? 'var(--color-status-info)' : toolColor }}
-          />
+          {['-top-1 -left-1', '-top-1 -right-1', '-bottom-1 -left-1', '-bottom-1 -right-1'].map((pos) => (
+            <div
+              key={pos}
+              className={cn('absolute h-2 w-2 rounded-full border-2 border-text-primary', pos)}
+              style={{ backgroundColor: isEraseMask ? ERASE_COLOR : toolColor }}
+            />
+          ))}
         </>
       )}
     </div>

@@ -168,7 +168,7 @@ describe('RegionLockOverlay', () => {
     expect(screen.getByText('ERASE')).toBeInTheDocument();
   });
 
-  it('renders sky-blue label background for erase masks', () => {
+  it('marks erase masks with the info status token on a recessed label', () => {
     const eraseRegion: RegionLock = {
       ...mockRegion,
       id: 'region-erase',
@@ -187,7 +187,27 @@ describe('RegionLockOverlay', () => {
       />
     );
     const label = screen.getByText('Shirt Region').parentElement;
-    expect(label?.style.backgroundColor).toBe('rgba(56, 189, 248, 0.9)');
+    expect(label).toHaveAttribute('data-state-color', 'var(--color-status-info)');
+    expect(label).toHaveClass('recessed-well', 'text-text-primary');
+  });
+
+  it('uses only status/capability tokens, never raw hexes or white text', () => {
+    const { container } = render(
+      <RegionLockOverlay
+        regionLocks={[
+          { ...mockRegion, id: 'a', aiTool: 'style-transfer' },
+          { ...mockRegion, id: 'b', aiTool: 'remove', invertMask: true },
+        ]}
+        canvasWidth={1024}
+        canvasHeight={1024}
+        activeRegionId="a"
+      />
+    );
+    const html = container.innerHTML;
+    expect(html).not.toMatch(/#[0-9a-f]{6}\b/i);
+    expect(html).not.toContain('text-white');
+    expect(html).toContain('var(--color-capability-edit)');
+    expect(html).toContain('var(--color-status-error)');
   });
 
   it('renders dashed border for erase masks even when active', () => {
