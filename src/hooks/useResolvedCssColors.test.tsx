@@ -1,4 +1,4 @@
-import { act, renderHook } from '@testing-library/react';
+import { act, cleanup, renderHook } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { useResolvedCssColors } from './useResolvedCssColors';
@@ -7,6 +7,10 @@ const TOKENS = { accent: '--test-accent' } as const;
 
 describe('useResolvedCssColors', () => {
   afterEach(() => {
+    // Unmount first: the hook observes data-theme, so restoring the document
+    // while it is still mounted fires its MutationObserver and schedules a
+    // render outside act() that can land after jsdom is torn down.
+    cleanup();
     document.documentElement.style.removeProperty('--test-accent');
     delete document.documentElement.dataset.theme;
   });

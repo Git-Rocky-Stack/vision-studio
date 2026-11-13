@@ -12,12 +12,10 @@ describe('KeyboardShortcuts', () => {
 
     it('does not render when open=false', () => {
       render(<KeyboardShortcuts open={false} onClose={() => {}} />);
-      // AnimatePresence keeps element in DOM but with opacity 0
-      const dialogs = screen.getAllByRole('dialog');
-      // All dialogs should have opacity 0
-      dialogs.forEach(dialog => {
-        expect(dialog).toHaveStyle('opacity: 0');
-      });
+      // Closed from the first render, AnimatePresence has nothing to animate
+      // out, so no dialog is mounted at all.
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+      expect(screen.queryByText('Keyboard Shortcuts')).not.toBeInTheDocument();
     });
 
     it('renders all shortcut categories', () => {
