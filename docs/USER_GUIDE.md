@@ -31,7 +31,7 @@ Download the build for your platform from
 | Platform | Download | Requirements |
 |----------|----------|--------------|
 | Windows | `Vision-Studio-<version>-Setup.exe`, a small web installer (about 1 MB) that downloads the app package (several gigabytes) while it installs. A portable zip of the app needs no install | Windows 10 or 11, x64 |
-| macOS | `Vision-Studio-<version>-arm64.dmg` (about 530 MB) | Apple Silicon (M-series) and macOS 14 or later; the installer refuses older systems. There is no Intel build |
+| macOS | `Vision-Studio-<version>-arm64.dmg` (about 615 MB) | Apple Silicon (M-series) and macOS 14 or later; the installer refuses older systems. There is no Intel build |
 | Linux | `Vision-Studio-<version>-x86_64.AppImage` (several gigabytes) | x64, Ubuntu 22.04 or a distribution with the same glibc or newer |
 
 On Windows, installing or updating closes a running Vision Studio, and its

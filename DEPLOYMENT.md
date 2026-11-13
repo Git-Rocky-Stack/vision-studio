@@ -83,7 +83,7 @@ Produces, in `release/` and `release/nsis-web/`:
 |----------|-------------|------|
 | `Vision-Studio-<ver>-Setup.exe` | ~1 MB | **nsis-web stub** - downloads the app package at install time |
 | `vision-studio-<ver>-x64.nsis.7z` | ~4.07 GB (3.5.0) | app package the stub pulls from the R2 host |
-| `Vision Studio-<ver>-win.zip` | ~2.6 GB | portable ZIP (no install) |
+| `Vision Studio-<ver>-win.zip` | ~4.44 GB (3.5.0) | portable ZIP (no install) |
 | `latest.yml` | <1 KB | electron-updater feed |
 
 (Sizes from the CUDA 12.1 releases; the CUDA 13.2 + TensorRT backend is 6.06 GB
@@ -107,9 +107,9 @@ secrets are present) or manually:
 gh workflow run release-mac-linux.yml --ref main -f publish_r2=true
 ```
 
-macOS output: `Vision-Studio-<ver>-arm64.dmg` (~527 MB) + `.zip` (~519 MB, the
+macOS output: `Vision-Studio-<ver>-arm64.dmg` (~615 MB in 3.5.0) + `.zip` (~605 MB, the
 format electron-updater consumes) + blockmaps + `latest-mac.yml`.
-Linux output: `Vision-Studio-<ver>-x86_64.AppImage` (~3.3 GB) + `latest-linux.yml`.
+Linux output: `Vision-Studio-<ver>-x86_64.AppImage` (~7.25 GB in 3.5.0, with TensorRT) + `latest-linux.yml`.
 
 ## Delivery: Cloudflare R2
 
@@ -221,9 +221,9 @@ release before quoting them.
 
 | Platform | Installer / package | Notes |
 |----------|--------------------|-------|
-| Windows | ~1 MB stub + ~4.07 GB app package as of v3.5.0 (portable zip ~2.6 GB as of v3.2.0, larger since) | nsis-web, signed |
-| macOS (Apple Silicon) | ~527 MB dmg as of v3.2.0 | MPS wheel, no CUDA or TensorRT payload |
-| Linux x64 | ~3.3 GB AppImage as of v3.2.0 | CUDA torch |
+| Windows | ~1 MB stub + ~4.07 GB app package, or ~4.44 GB portable zip, as of v3.5.0 | nsis-web, signed |
+| macOS (Apple Silicon) | ~615 MB dmg as of v3.5.0 | MPS wheel, no CUDA or TensorRT payload |
+| Linux x64 | ~7.25 GB AppImage as of v3.5.0 | CUDA 13.2 torch + TensorRT |
 
 From the CUDA 13.2 + TensorRT backend on, the Windows and Linux bundles grow by
 the TensorRT runtime - **+2.36 GB (Windows) / +4.55 GB (Linux)** installed
