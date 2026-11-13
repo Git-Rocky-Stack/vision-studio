@@ -36,7 +36,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: macos-14
+          # macos-14 runners were retired (v3.5.0's tag run could not start
+          # one). The app still targets macOS 14: mac.minimumSystemVersion is
+          # 14.0, and the minos gate below fails any binary built for newer.
+          - os: macos-15
             platform: mac
             r2_prefix: mac/
           - os: ubuntu-22.04
@@ -140,6 +143,10 @@ jobs:
           codesign --verify --deep --strict "$APP"
           grep -q "updates.vision-studio-x.com/mac/" "$APP/Contents/Resources/app-update.yml"
           ls -lh release/*.dmg release/*.zip release/latest-mac.yml
+
+      - name: Verify every macOS binary runs on macOS 14
+        if: matrix.platform == 'mac'
+        run: bash scripts/ci-check-macos-minos.sh "release/mac-arm64/Vision Studio.app" 14.0
 
       - name: Verify Linux artifacts (feed URL + AppImage)
         if: matrix.platform == 'linux'

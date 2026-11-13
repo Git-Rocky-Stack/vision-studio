@@ -75,7 +75,7 @@ gh release create v<ver> --notes-file <notes>   # notes + pointer, NO >2GB asset
 ### macOS + Linux (CI only - PyInstaller cannot cross-compile)
 
 `.github/workflows/release-mac-linux.yml` builds each platform on its native
-runner (macos-14 arm64 / ubuntu-22.04 x64): per-OS torch, the full diffusers
+runner (macos-15 arm64, targeting macOS 14 / ubuntu-22.04 x64): per-OS torch, the full diffusers
 stack, PyInstaller bundle, a live `/api/health` smoke gate asserting
 `generation_available: true` (the class of failure #60 fixed), then
 electron-builder packaging and an R2 publish to `mac/` / `linux/`.

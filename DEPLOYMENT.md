@@ -98,7 +98,7 @@ host that serves the update feed.
 ### macOS + Linux (CI)
 
 These are built and published by `.github/workflows/release-mac-linux.yml`
-(`macos-14` arm64, `ubuntu-22.04`). It builds the native backend, runs a live
+(`macos-15` arm64, building for macOS 14 and gated on it; `ubuntu-22.04`). It builds the native backend, runs a live
 `/api/health` smoke gate (asserting `generation_available: true`), packages, and
 publishes to R2. Trigger it by **pushing a `v*` tag** (auto-publishes when the R2
 secrets are present) or manually:
