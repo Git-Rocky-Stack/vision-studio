@@ -73,15 +73,15 @@ npm run package:win                    # electron-builder (electron-builder.yml)
 | File | Size | Description |
 |------|------|-------------|
 | `nsis-web/Vision-Studio-<ver>-Setup.exe` | ~1 MB | Web-installer **stub** |
-| `nsis-web/vision-studio-<ver>-x64.nsis.7z` | ~2.56 GB | App package the stub downloads |
+| `nsis-web/vision-studio-<ver>-x64.nsis.7z` | ~4.07 GB (3.5.0) | App package the stub downloads |
 | `nsis-web/latest.yml` | <1 KB | electron-updater feed |
 | `Vision Studio-<ver>-win.zip` | ~2.6 GB | Portable ZIP (no install) |
 
-These sizes are from the CUDA 12.1 releases. The CUDA 13.2 + TensorRT backend
-measures 6.06 GB uncompressed (5,783 MiB, of which TensorRT is 2,252 MiB /
-2.36 GB - measured on a local build), against roughly 2.6 GB before, so expect the
-`.nsis.7z` and the zip to grow accordingly; re-measure them on the first such
-release.
+The `.nsis.7z` size is measured from the signed 3.5.0 CI build
+(4,067,427,706 bytes, CUDA 13.2 + TensorRT); the zip figure is still from the
+CUDA 12.1 releases and will grow by a similar amount. The CUDA 13.2 + TensorRT
+backend measures 6.06 GB uncompressed (5,783 MiB, of which TensorRT is 2,252 MiB
+/ 2.36 GB - measured on a local build).
 
 ### Why nsis-web (not a single-file `.exe`)
 

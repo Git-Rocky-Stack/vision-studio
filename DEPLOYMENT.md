@@ -82,7 +82,7 @@ Produces, in `release/` and `release/nsis-web/`:
 | Artifact | Approx size | Role |
 |----------|-------------|------|
 | `Vision-Studio-<ver>-Setup.exe` | ~1 MB | **nsis-web stub** - downloads the app package at install time |
-| `vision-studio-<ver>-x64.nsis.7z` | ~2.56 GB | app package the stub pulls from the R2 host |
+| `vision-studio-<ver>-x64.nsis.7z` | ~4.07 GB (3.5.0) | app package the stub pulls from the R2 host |
 | `Vision Studio-<ver>-win.zip` | ~2.6 GB | portable ZIP (no install) |
 | `latest.yml` | <1 KB | electron-updater feed |
 
@@ -221,7 +221,7 @@ release before quoting them.
 
 | Platform | Installer / package | Notes |
 |----------|--------------------|-------|
-| Windows | ~1 MB stub + ~2.56 GB app package (or ~2.6 GB portable zip) as of v3.2.0 | nsis-web |
+| Windows | ~1 MB stub + ~4.07 GB app package as of v3.5.0 (portable zip ~2.6 GB as of v3.2.0, larger since) | nsis-web, signed |
 | macOS (Apple Silicon) | ~527 MB dmg as of v3.2.0 | MPS wheel, no CUDA or TensorRT payload |
 | Linux x64 | ~3.3 GB AppImage as of v3.2.0 | CUDA torch |
 

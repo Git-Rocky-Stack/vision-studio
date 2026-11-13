@@ -280,7 +280,7 @@ vision-studio/
 ### Minimum
 - Windows 10 x64 / macOS 14 (Apple Silicon) / Ubuntu 22.04 x64
 - 8 GB RAM
-- 10 GB free disk space
+- 15 GB free disk space for the app (the Windows installer downloads a 4.1 GB package that unpacks to over 6 GB), plus room for the models you install
 - Internet connection (first-run model downloads)
 
 ### Recommended
