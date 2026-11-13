@@ -19,3 +19,15 @@ updates:
     groups:
       minor-and-patch:
         update-types: [minor, patch]
+    ignore:
+      # @types/node tracks the Node that ships inside Electron (Electron 45 =
+      # Node 24), not the newest Node. Newer typings would type-check Node APIs
+      # that do not exist in the packaged main process and fail only at
+      # runtime. Raise this together with the Electron major that moves Node.
+      - dependency-name: "@types/node"
+        versions: [">=25"]
+      # typescript-eslint 8.x peers on typescript <6.1, so TypeScript 7 (the
+      # native compiler) breaks `npm ci` with ERESOLVE. Lift this when a
+      # typescript-eslint release accepts TypeScript 7.
+      - dependency-name: "typescript"
+        versions: [">=6.1"]
