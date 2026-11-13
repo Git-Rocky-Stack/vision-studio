@@ -2,7 +2,7 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { WorkflowGraph } from '@/types/workflow';
-import { WorkflowGraphEditor } from './WorkflowGraphEditor';
+import { VIEWPORT_SETTLE_MS, WorkflowGraphEditor } from './WorkflowGraphEditor';
 
 const graph: WorkflowGraph = {
   nodes: {
@@ -337,6 +337,105 @@ describe('WorkflowGraphEditor', () => {
       fireEvent.click(screen.getByRole('button', { name: 'LoRA Loader node' }));
 
       expect(screen.getByText(/no loras installed/i)).toBeInTheDocument();
+    });
+  });
+
+  describe('viewport (pan and zoom)', () => {
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    function renderEditor(props: Partial<React.ComponentProps<typeof WorkflowGraphEditor>> = {}) {
+      return render(
+        <WorkflowGraphEditor
+          graph={graph}
+          onMoveNode={() => {}}
+          onAddNode={() => {}}
+          onConnectNodes={() => {}}
+          onDeleteSelection={() => {}}
+          {...props}
+        />
+      );
+    }
+
+    it('restores the saved pan and zoom on mount', () => {
+      renderEditor({ graph: { ...graph, viewport: { x: 120, y: 60, zoom: 1.5 } } });
+
+      const viewport = screen.getByTestId('workflow-graph-viewport');
+      expect(viewport.scrollLeft).toBe(120);
+      expect(viewport.scrollTop).toBe(60);
+      expect(screen.getByLabelText('Graph zoom level')).toHaveTextContent('150%');
+      expect(screen.getByTestId('workflow-graph-canvas')).toHaveStyle({ transform: 'scale(1.5)' });
+    });
+
+    it('saves the pan once scrolling settles, not on every scroll event', () => {
+      vi.useFakeTimers();
+      const onViewportChange = vi.fn();
+      renderEditor({ onViewportChange });
+
+      const viewport = screen.getByTestId('workflow-graph-viewport');
+      viewport.scrollLeft = 40;
+      fireEvent.scroll(viewport);
+      viewport.scrollLeft = 90;
+      viewport.scrollTop = 30;
+      fireEvent.scroll(viewport);
+      expect(onViewportChange).not.toHaveBeenCalled();
+
+      vi.advanceTimersByTime(VIEWPORT_SETTLE_MS);
+      expect(onViewportChange).toHaveBeenCalledTimes(1);
+      expect(onViewportChange).toHaveBeenCalledWith({ x: 90, y: 30, zoom: 1 });
+
+      // An unchanged position is not written again.
+      fireEvent.scroll(viewport);
+      vi.advanceTimersByTime(VIEWPORT_SETTLE_MS);
+      expect(onViewportChange).toHaveBeenCalledTimes(1);
+    });
+
+    it('zooms with the toolbar within bounds and saves the zoom', () => {
+      vi.useFakeTimers();
+      const onViewportChange = vi.fn();
+      renderEditor({ onViewportChange, graph: { ...graph, viewport: { x: 0, y: 0, zoom: 1.9 } } });
+
+      fireEvent.click(screen.getByRole('button', { name: 'Zoom in' }));
+      expect(screen.getByLabelText('Graph zoom level')).toHaveTextContent('200%');
+      expect(screen.getByRole('button', { name: 'Zoom in' })).toBeDisabled();
+
+      vi.advanceTimersByTime(VIEWPORT_SETTLE_MS);
+      expect(onViewportChange).toHaveBeenLastCalledWith(expect.objectContaining({ zoom: 2 }));
+
+      fireEvent.click(screen.getByRole('button', { name: 'Reset graph view' }));
+      vi.advanceTimersByTime(VIEWPORT_SETTLE_MS);
+      expect(onViewportChange).toHaveBeenLastCalledWith({ x: 0, y: 0, zoom: 1 });
+      expect(screen.getByLabelText('Graph zoom level')).toHaveTextContent('100%');
+    });
+
+    it('zooms with Ctrl + wheel', () => {
+      renderEditor();
+      fireEvent.wheel(screen.getByTestId('workflow-graph-viewport'), { deltaY: -100, ctrlKey: true });
+      expect(screen.getByLabelText('Graph zoom level')).toHaveTextContent('110%');
+    });
+
+    it('flushes a still-settling gesture when the editor unmounts', () => {
+      vi.useFakeTimers();
+      const onViewportChange = vi.fn();
+      const { unmount } = renderEditor({ onViewportChange });
+      const viewport = screen.getByTestId('workflow-graph-viewport');
+      viewport.scrollTop = 75;
+      fireEvent.scroll(viewport);
+
+      unmount();
+      expect(onViewportChange).toHaveBeenCalledWith({ x: 0, y: 75, zoom: 1 });
+    });
+
+    it('converts drag distance into graph units while zoomed', () => {
+      const onMoveNode = vi.fn();
+      renderEditor({ onMoveNode, graph: { ...graph, viewport: { x: 0, y: 0, zoom: 2 } } });
+
+      const node = screen.getByRole('button', { name: 'Prompt Encode node' });
+      fireEvent.pointerDown(node, { clientX: 50, clientY: 90, pointerId: 1 });
+      fireEvent.pointerUp(window, { clientX: 90, clientY: 130, pointerId: 1 });
+
+      expect(onMoveNode).toHaveBeenCalledWith('prompt', { x: 60, y: 100 });
     });
   });
 });

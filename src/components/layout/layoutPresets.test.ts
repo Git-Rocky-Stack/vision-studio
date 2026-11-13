@@ -18,15 +18,30 @@ describe('layoutPresets', () => {
     expect(preset.centerViews).toEqual(['canvas', 'viewer', 'workflow', 'launchpad']);
   });
 
-  it('canvas preset has layers in right dock', () => {
+  it('canvas preset has both docks and no sub-modes', () => {
     const preset = getLayoutPreset('canvas');
-    expect(preset.rightDockPanels).toContain('layers');
-    expect(preset.rightDockPanels).toContain('gallery');
+    expect(preset.hasRightDock).toBe(true);
+    expect(preset.subModes).toEqual([]);
   });
 
   it('story preset has sub-modes', () => {
     const preset = getLayoutPreset('story');
-    expect(preset.subModes).toEqual(['storyboard', 'templates']);
+    expect(preset.subModes.map((m) => m.value)).toEqual(['storyboard', 'templates']);
+  });
+
+  it('is the single source for the sub-modes each tab offers, with their labels', () => {
+    expect(getLayoutPreset('generate').subModes.map((m) => m.value)).toEqual([
+      'generate',
+      'quick',
+      'batch',
+      'studio',
+    ]);
+    // Workflows used to declare no sub-modes here while the settings rail
+    // offered Workflows / Pipelines from its own list.
+    expect(getLayoutPreset('workflows').subModes).toEqual([
+      { value: 'workflows', label: 'Workflows' },
+      { value: 'pipelines', label: 'Pipelines' },
+    ]);
   });
 
   it('assets preset has no side docks', () => {

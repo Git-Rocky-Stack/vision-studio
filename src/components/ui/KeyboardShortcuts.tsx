@@ -1,7 +1,8 @@
-import { useEffect, useRef } from 'react';
+import { useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Keyboard } from 'lucide-react';
 import { DialogCloseButton } from '@/components/ui/DialogCloseButton';
+import { useDialogFocus } from '@/hooks/useDialogFocus';
 import { EDIT_TOOL_SHORTCUTS } from '@/features/edit/useEditToolShortcuts';
 import type { EditTool } from '@/types/editor';
 
@@ -60,7 +61,7 @@ export const SHORTCUT_GROUPS: ShortcutGroup[] = [
       { chords: [['Alt', 'Click']], description: 'Clone Stamp, Heal: set the source' },
       { chords: [['Shift', 'Drag']], description: 'Shape: square, circle, 45-degree line' },
       { chords: [['Enter'], ['Double-click']], description: 'Pen: finish an open path' },
-      { chords: [['Backspace']], description: 'Pen: remove the last point' },
+      { chords: [['Backspace'], ['Delete']], description: 'Pen: remove the last point' },
       { chords: [['Esc']], description: 'Pen: cancel the path' },
       { chords: [['Scroll']], description: 'Zoom in/out' },
       { chords: [['Click'], ['Shift', 'Click']], description: 'Zoom tool: zoom in / out' },
@@ -68,7 +69,7 @@ export const SHORTCUT_GROUPS: ShortcutGroup[] = [
   },
   {
     title: 'Timeline',
-    scope: 'Generate tab',
+    scope: 'Generate tab, Canvas view',
     shortcuts: [
       { chords: [['Space']], description: 'Play / pause' },
       { chords: [['Home'], ['End']], description: 'Jump to start / end of the play range' },
@@ -81,19 +82,19 @@ export const SHORTCUT_GROUPS: ShortcutGroup[] = [
   },
   {
     title: 'Preview Canvas',
-    scope: 'center canvas, every tab but Canvas',
+    scope: 'Story tab canvas',
     shortcuts: [
       { chords: [['+'], ['=']], description: 'Zoom in' },
       { chords: [['-']], description: 'Zoom out' },
       { chords: [['0']], description: 'Reset zoom & pan' },
       { chords: [['Scroll']], description: 'Zoom in/out' },
       { chords: [['Shift', 'Drag'], ['Middle drag']], description: 'Pan canvas' },
-      { chords: [['Right click'], ['Shift', 'F10']], description: 'Context menu' },
+      { chords: [['Right click'], ['Shift', 'F10'], ['Menu']], description: 'Context menu' },
     ],
   },
   {
     title: 'Region Mask',
-    scope: 'preview canvas in region mode',
+    scope: 'Canvas tab (Control/Region) or Story tab canvas, region mode',
     shortcuts: [
       { chords: [['V']], description: 'Select' },
       { chords: [['R']], description: 'Rectangle' },
@@ -106,7 +107,10 @@ export const SHORTCUT_GROUPS: ShortcutGroup[] = [
   {
     title: 'Navigation',
     shortcuts: [
-      { chords: [['Up'], ['Down'], ['Home'], ['End']], description: 'Move between workspace tabs (nav rail focused)' },
+      {
+        chords: [['Up'], ['Down'], ['Left'], ['Right'], ['Home'], ['End']],
+        description: 'Move between workspace tabs (nav rail focused)',
+      },
       { chords: [['Left'], ['Right']], description: 'Previous / next result (image preview)' },
     ],
   },
@@ -119,26 +123,10 @@ interface KeyboardShortcutsProps {
 
 export function KeyboardShortcuts({ open, onClose }: KeyboardShortcutsProps) {
   const dialogRef = useRef<HTMLDivElement>(null);
-  const previousFocusRef = useRef<HTMLElement | null>(null);
 
-  useEffect(() => {
-    if (!open) return;
-    previousFocusRef.current = document.activeElement as HTMLElement;
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-
-    document.addEventListener('keydown', handleKeyDown);
-    requestAnimationFrame(() => {
-      dialogRef.current?.querySelector<HTMLElement>('button')?.focus();
-    });
-
-    return () => {
-      document.removeEventListener('keydown', handleKeyDown);
-      previousFocusRef.current?.focus();
-    };
-  }, [open, onClose]);
+  // Tab stays inside the overlay, and Escape closes it without also reaching
+  // window-level workspace shortcuts (it used to cancel an unfinished Pen path).
+  useDialogFocus(dialogRef, { open, onEscape: onClose });
 
   return (
     <AnimatePresence>

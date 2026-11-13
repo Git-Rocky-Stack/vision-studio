@@ -5,6 +5,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { useAppStore } from '@/store/appStore';
 import { MonoLabel } from '@/components/hardware';
 import { cn } from '@/utils/cn';
+import { resolveAssetThumbnail } from '@/features/assets/assetRecords';
 import type { ActiveSubMode, ActiveTab } from '@/types/navigation';
 
 /**
@@ -180,7 +181,7 @@ export const LaunchpadPanel = memo(function LaunchpadPanel() {
                   >
                     <span className="block aspect-square overflow-hidden bg-void">
                       <img
-                        src={asset.thumbnail || asset.previewUrl}
+                        src={resolveAssetThumbnail(asset)}
                         alt={asset.name}
                         loading="lazy"
                         className="h-full w-full object-cover transition-transform group-hover:scale-105"

@@ -5,12 +5,15 @@
  *
  * It installs exactly what the release build bundles by calling
  * build-backend.cjs's own steps, so the two cannot drift apart: a Python
- * 3.10-3.12 venv in backend/venv, the pinned torch stack, requirements.txt,
- * the generation stack (diffusers and the rest), then the same import check the
- * release build runs before PyInstaller. It stops there - no bundle is built.
+ * venv (build-backend.cjs LOCKED_PYTHON_VERSION) in backend/venv, the pinned
+ * torch stack, the hash-locked requirements,
+ * the generation stack (diffusers and the rest), torch-tensorrt + TensorRT on
+ * a CUDA install (Windows/Linux, as the release bundles it), then the same
+ * import check the release build runs before PyInstaller. It stops there - no
+ * bundle is built.
  *
- * Without an NVIDIA GPU it installs the CPU torch wheels, which are smaller;
- * the release build always tries CUDA first.
+ * Without an NVIDIA GPU it installs the CPU torch wheels, which are smaller
+ * and carry no TensorRT; the release build always tries CUDA first.
  */
 
 const { execSync } = require('child_process');
@@ -28,20 +31,24 @@ function hasNvidiaGpu() {
 async function setupDevBackend(steps = build, gpuPresent = hasNvidiaGpu) {
   const python = await steps.checkPython();
   if (python.status !== 'ok') {
-    // build-backend.cjs looks for 3.12, 3.11 and 3.10 and flags anything newer:
-    // the pinned torch 2.5.1 has no Windows wheels past Python 3.12.
+    // The hash-locked requirements and the pinned torch wheels are resolved
+    // for exactly one Python minor (build-backend.cjs LOCKED_PYTHON_VERSION).
     throw new Error(
-      'Python 3.10, 3.11 or 3.12 is required (the pinned PyTorch 2.5.1 has no wheels ' +
-        'for newer Windows Pythons). Install Python 3.12 from https://www.python.org/downloads/ ' +
-        'and run this again.',
+      `Python ${steps.LOCKED_PYTHON_VERSION ?? build.LOCKED_PYTHON_VERSION} is required (the backend ` +
+        `dependency locks and PyTorch ${steps.TORCH_PIN ?? build.TORCH_PIN} are resolved for it). Install it ` +
+        'from https://www.python.org/downloads/ and run this again.',
     );
   }
 
   const venvPath = await steps.setupVirtualEnv(python.pythonPath);
-  await steps.installPyTorch(venvPath, !gpuPresent());
+  const flavor = await steps.installPyTorch(venvPath, !gpuPresent());
   await steps.installPythonDependencies(venvPath);
-  await steps.installBundledRuntimes(venvPath);
-  steps.assertBundleImports(venvPath);
+  // installTensorRT decides from the platform and torch flavour (CUDA on
+  // Windows/Linux only) and reports whether it installed anything; the lock
+  // check and the import check then hold the venv to exactly that.
+  const tensorrt = await steps.installTensorRT(venvPath, flavor);
+  await steps.installBundledRuntimes(venvPath, { tensorrt });
+  steps.assertBundleImports(venvPath, { expectTensorrt: tensorrt });
   return venvPath;
 }
 

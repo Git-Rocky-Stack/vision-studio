@@ -1,9 +1,9 @@
 """Pydantic schema mirroring ModelRecord for FastAPI response_model."""
 
 import re
-from typing import List, Optional
+from typing import Dict, List, Literal, Optional
 
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, Field, field_validator
 
 
 class ModelRecordSchema(BaseModel):
@@ -71,7 +71,11 @@ class ProvisionModelSchema(BaseModel):
     name: str
     license: Optional[str] = None
     attribution: Optional[str] = None
+    # Catalog estimate (legacy); size_bytes is the exact pinned footprint.
     approx_bytes: int = 0
+    size_bytes: int = 0
+    # K3 first-run tier: "core" (small essential set) | "extended".
+    tier: Literal["core", "extended"] = "extended"
     # Registry weight format (pickle/safetensors/onnx); None when unknown. The
     # first-run disclosure derives the informed-auto-consent list from this.
     format: Optional[str] = None
@@ -84,14 +88,9 @@ class ProvisionModelSchema(BaseModel):
     gate_url: Optional[str] = None
 
 
-class ProvisionStatusSchema(BaseModel):
-    """Aggregate + per-model snapshot of comprehensive auto-provisioning.
+class ProvisionAggregateSchema(BaseModel):
+    """Byte-weighted aggregate over a set of models (whole set or one tier)."""
 
-    ``schema_version`` (not ``schema``) avoids shadowing pydantic's reserved
-    ``BaseModel.schema`` classmethod.
-    """
-
-    schema_version: int
     overall_progress: float
     total_bytes: int
     present_bytes: int
@@ -103,7 +102,41 @@ class ProvisionStatusSchema(BaseModel):
     active_count: int
     error_count: int
     complete: bool
+
+
+class ProvisionReverifySchema(BaseModel):
+    """Background integrity re-hash of present copies (B1: off the event loop)."""
+
+    state: Literal["idle", "running", "done", "error"] = "idle"
+    checked_bytes: int = 0
+    total_bytes: int = 0
+    corrupt: List[str] = []
+    error: Optional[str] = None
+
+
+class ProvisionStartRequest(BaseModel):
+    """K3: optional body of POST /api/models/provision/start.
+
+    ``model_ids`` scopes the run to a subset of the manifest auto-set (each id
+    must be a member, else 400); omitted or empty provisions every model.
+    """
+
+    model_ids: Optional[List[str]] = Field(default=None, max_length=256)
+
+
+class ProvisionStatusSchema(ProvisionAggregateSchema):
+    """Aggregate + per-model snapshot of comprehensive auto-provisioning.
+
+    ``schema_version`` (not ``schema``) avoids shadowing pydantic's reserved
+    ``BaseModel.schema`` classmethod. ``tiers`` carries the same aggregate per
+    tier so the first-run screen can show "core ready" independently of the
+    extended set.
+    """
+
+    schema_version: int
     attribution: Optional[str] = None
+    tiers: Dict[str, ProvisionAggregateSchema] = {}
+    reverify: ProvisionReverifySchema = ProvisionReverifySchema()
     models: List[ProvisionModelSchema] = []
 
 
@@ -197,6 +230,13 @@ class HardwareProfileSchema(BaseModel):
     system_ram_total_bytes: int = 0
     system_ram_available_bytes: int = 0
     disk_free_bytes: int = 0
+    gpu_unsupported_reason: Optional[str] = Field(
+        default=None,
+        description=(
+            "Set when an NVIDIA GPU is present but this build has no CUDA "
+            "kernels for it (older than compute capability 7.5); generation "
+            "then runs on the CPU. Null otherwise."),
+    )
 
 
 class VramEstimateSchema(BaseModel):

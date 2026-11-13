@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { cn } from '@/utils/cn';
 import { withAlpha } from '@/utils/colorUtils';
 import { useAppStore } from '@/store/appStore';
 import { Button } from '@/components/ui/Button';
+import { useFocusWhen } from '@/hooks/useFocusWhen';
 import { Plus, ChevronDown, ChevronRight, Trash2 } from 'lucide-react';
 
 interface StylePresetsBarProps {
@@ -32,6 +33,7 @@ export function StylePresetsBar({ activePresets, onTogglePreset }: StylePresetsB
   const customStylePresets = useAppStore((s) => s.customStylePresets);
   const addCustomStylePreset = useAppStore((s) => s.addCustomStylePreset);
   const removeCustomStylePreset = useAppStore((s) => s.removeCustomStylePreset);
+  const styleLabelId = useId();
 
   const grouped: Record<string, typeof stylePresets> = {};
   // User styles get their own group, first, so a new one is easy to find.
@@ -57,6 +59,9 @@ export function StylePresetsBar({ activePresets, onTogglePreset }: StylePresetsB
   const [modifier, setModifier] = useState('');
   const [addError, setAddError] = useState<string | null>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
+  const nameInputRef = useRef<HTMLInputElement>(null);
+  // Opening the popover moves focus to its first field.
+  useFocusWhen(nameInputRef, isAdding);
 
   useEffect(() => {
     if (!isAdding) return;
@@ -103,9 +108,9 @@ export function StylePresetsBar({ activePresets, onTogglePreset }: StylePresetsB
 
   return (
     <div className="space-y-2">
-      <label className="text-label text-text-body">Style</label>
+      <span id={styleLabelId} className="block text-label text-text-body">Style</span>
 
-      <div className="space-y-1.5">
+      <div className="space-y-1.5" role="group" aria-labelledby={styleLabelId}>
         {Object.entries(grouped).map(([cat, presets]) => {
           const isCollapsed = collapsed[cat] !== false;
           const hasActivePreset = presets.some((p) => activePresets.includes(p.id));
@@ -204,7 +209,7 @@ export function StylePresetsBar({ activePresets, onTogglePreset }: StylePresetsB
           <form
             role="dialog"
             aria-label="New style"
-            className="absolute left-0 top-full z-30 mt-1 w-64 space-y-2 rounded-overlay border border-border bg-elevated p-3 shadow-cinematic"
+            className="absolute left-0 top-full z-30 mt-1 w-64 space-y-2 rounded-overlay border border-border bg-elevated p-3 shadow-overlay"
             onSubmit={(event) => {
               event.preventDefault();
               handleAdd();
@@ -213,9 +218,9 @@ export function StylePresetsBar({ activePresets, onTogglePreset }: StylePresetsB
             <label className="block space-y-1">
               <span className="mono-label text-text-muted">Name</span>
               <input
+                ref={nameInputRef}
                 type="text"
                 value={name}
-                autoFocus
                 onChange={(e) => setName(e.target.value)}
                 placeholder="Moody neon"
                 className="recessed-well w-full px-2 py-1.5 text-xs text-text-primary placeholder:text-text-muted"

@@ -102,75 +102,82 @@ export function AddToCollectionMenu({ assetId, triggerClassName, iconOnly = fals
       {open &&
         assetId &&
         createPortal(
+          // The popover is portalled, but React still bubbles its events through
+          // the component tree: this wrapper only captures them so a click in
+          // the menu never reaches the tile (or dialog) it was opened from.
           <div
-            ref={popoverRef}
-            role="dialog"
-            aria-label="Add to collection"
+            role="presentation"
             onClick={(event) => event.stopPropagation()}
             onPointerDown={(event) => event.stopPropagation()}
-            className="fixed z-[70] w-56 rounded-overlay border border-border bg-elevated p-2 shadow-cinematic"
-            style={{ top: position.top, left: position.left }}
           >
-            <p className="mono-label px-2 pb-2 text-text-muted">Collections</p>
-            {manual.length === 0 ? (
-              <p className="px-2 pb-2 type-caption text-text-body">No collections yet. Create one below.</p>
-            ) : (
-              <ul className="max-h-48 space-y-0.5 overflow-y-auto pb-2">
-                {manual.map((collection) => {
-                  const member = collection.assetIds.includes(assetId);
-                  return (
-                    <li key={collection.id}>
-                      <button
-                        type="button"
-                        role="checkbox"
-                        aria-checked={member}
-                        onClick={() =>
-                          member
-                            ? removeAssetFromCollection(collection.id, assetId)
-                            : addAssetToCollection(collection.id, assetId)
-                        }
-                        className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left type-caption text-text-primary transition hover:bg-surface"
-                      >
-                        <span
-                          className={cn(
-                            'flex h-3.5 w-3.5 items-center justify-center rounded-sm border',
-                            member ? 'border-accent-primary bg-accent-primary text-void' : 'border-border-hover',
-                          )}
-                          aria-hidden="true"
-                        >
-                          {member && <Check className="h-2.5 w-2.5" />}
-                        </span>
-                        <span className="truncate">{collection.name}</span>
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-            <form
-              className="flex items-center gap-1 border-t border-border pt-2"
-              onSubmit={(event) => {
-                event.preventDefault();
-                handleCreate();
-              }}
+            <div
+              ref={popoverRef}
+              role="dialog"
+              aria-label="Add to collection"
+              className="fixed z-[var(--z-overlay)] w-56 rounded-overlay border border-border bg-elevated p-2 shadow-overlay"
+              style={{ top: position.top, left: position.left }}
             >
-              <input
-                type="text"
-                value={newName}
-                onChange={(event) => setNewName(event.target.value)}
-                placeholder="New collection"
-                aria-label="New collection name"
-                className="recessed-well min-w-0 flex-1 px-2 py-1 type-caption text-text-primary placeholder:text-text-muted"
-              />
-              <button
-                type="submit"
-                aria-label="Create collection with this asset"
-                disabled={!newName.trim()}
-                className="raised-control p-1.5 text-text-primary disabled:cursor-not-allowed disabled:opacity-40"
+              <p className="mono-label px-2 pb-2 text-text-muted">Collections</p>
+              {manual.length === 0 ? (
+                <p className="px-2 pb-2 type-caption text-text-body">No collections yet. Create one below.</p>
+              ) : (
+                <ul className="max-h-48 space-y-0.5 overflow-y-auto pb-2">
+                  {manual.map((collection) => {
+                    const member = collection.assetIds.includes(assetId);
+                    return (
+                      <li key={collection.id}>
+                        <button
+                          type="button"
+                          role="checkbox"
+                          aria-checked={member}
+                          onClick={() =>
+                            member
+                              ? removeAssetFromCollection(collection.id, assetId)
+                              : addAssetToCollection(collection.id, assetId)
+                          }
+                          className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left type-caption text-text-primary transition hover:bg-surface"
+                        >
+                          <span
+                            className={cn(
+                              'flex h-3.5 w-3.5 items-center justify-center rounded-sm border',
+                              member ? 'border-accent-primary bg-accent-primary text-void' : 'border-border-hover',
+                            )}
+                            aria-hidden="true"
+                          >
+                            {member && <Check className="h-2.5 w-2.5" />}
+                          </span>
+                          <span className="truncate">{collection.name}</span>
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+              <form
+                className="flex items-center gap-1 border-t border-border pt-2"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  handleCreate();
+                }}
               >
-                <Plus className="h-3.5 w-3.5" aria-hidden="true" />
-              </button>
-            </form>
+                <input
+                  type="text"
+                  value={newName}
+                  onChange={(event) => setNewName(event.target.value)}
+                  placeholder="New collection"
+                  aria-label="New collection name"
+                  className="recessed-well min-w-0 flex-1 px-2 py-1 type-caption text-text-primary placeholder:text-text-muted"
+                />
+                <button
+                  type="submit"
+                  aria-label="Create collection with this asset"
+                  disabled={!newName.trim()}
+                  className="raised-control p-1.5 text-text-primary disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  <Plus className="h-3.5 w-3.5" aria-hidden="true" />
+                </button>
+              </form>
+            </div>
           </div>,
           document.body,
         )}

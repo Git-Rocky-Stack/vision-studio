@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from '@testing-library/react';
+import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import App from './App';
@@ -73,5 +73,83 @@ describe('App', () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  describe('workspace shortcuts', () => {
+    it('does not undo behind an open modal dialog', async () => {
+      vi.spyOn(console, 'error').mockImplementation(() => undefined);
+      const undo = vi.fn();
+      useAppStore.setState({ undo });
+      render(<App />);
+      await screen.findByTestId('left-dock');
+
+      const modal = document.createElement('div');
+      modal.setAttribute('aria-modal', 'true');
+      document.body.appendChild(modal);
+      try {
+        window.dispatchEvent(new KeyboardEvent('keydown', { key: 'z', ctrlKey: true }));
+        expect(undo).not.toHaveBeenCalled();
+      } finally {
+        modal.remove();
+      }
+
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'z', ctrlKey: true }));
+      expect(undo).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  it('keeps the backend-reported feature availability in the store', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const availability = { tensorrt: { available: false, reason: 'Not bundled.' } };
+    (window as unknown as { electron: unknown }).electron = {
+      system: {
+        getInfo: vi.fn().mockResolvedValue({
+          gpu_available: true,
+          comfyui_connected: false,
+          models_count: 2,
+          backendConnected: true,
+          availability,
+        }),
+      },
+    };
+
+    render(<App />);
+
+    await waitFor(() => expect(useAppStore.getState().systemInfo.availability).toEqual(availability));
+  });
+
+  describe('theme sync (#J6)', () => {
+    it('a slow settings read cannot override a newer theme choice', async () => {
+      vi.spyOn(console, 'error').mockImplementation(() => undefined);
+      let resolveSettings: (value: { theme: string }) => void = () => undefined;
+      (window as unknown as { electron: unknown }).electron = {
+        settings: {
+          get: vi.fn(() => new Promise((resolve) => { resolveSettings = resolve; })),
+        },
+      };
+
+      render(<App />);
+      await screen.findByTestId('left-dock');
+      window.dispatchEvent(new CustomEvent('vision-studio:theme-changed', { detail: { theme: 'light' } }));
+      expect(document.documentElement.dataset.theme).toBe('light');
+
+      await act(async () => {
+        resolveSettings({ theme: 'dark' });
+      });
+      expect(document.documentElement.dataset.theme).toBe('light');
+    });
+
+    it('a failed settings read falls back to the system theme without an unhandled rejection', async () => {
+      vi.spyOn(console, 'error').mockImplementation(() => undefined);
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+      (window as unknown as { electron: unknown }).electron = {
+        settings: { get: vi.fn().mockRejectedValue(new Error('IPC closed')) },
+      };
+
+      render(<App />);
+      await screen.findByTestId('left-dock');
+      await waitFor(() => expect(document.documentElement.dataset.theme).toBe('dark'));
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining('[theme]'), expect.any(Error));
+    });
   });
 });

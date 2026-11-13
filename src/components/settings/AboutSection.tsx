@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ExternalLink, RefreshCw } from 'lucide-react';
+import { Download, ExternalLink, RefreshCw, RotateCcw } from 'lucide-react';
 import packageJson from '../../../package.json';
 import licensesMarkdown from '../../../THIRD-PARTY-LICENSES.md?raw';
+import { Button } from '@/components/ui/Button';
 import { useAppStore } from '@/store/appStore';
+import { formatBytes, formatSpeed } from '@/utils/formatUtils';
 import {
   parseLicensesMarkdown,
   type LicenseSpan,
@@ -49,6 +51,11 @@ function Spans({ spans }: { spans: LicenseSpan[] }) {
   );
 }
 
+/** " 3.2.0" when the version is known, else "" - for inline copy. */
+function versionSuffix(status: UpdaterStatus): string {
+  return status.version ? ` ${status.version}` : '';
+}
+
 /** Human copy for each live updater state - values come only from the
  * pushed UpdaterStatus, never from local animation. */
 function updateStatusLine(status: UpdaterStatus | null): string {
@@ -59,38 +66,80 @@ function updateStatusLine(status: UpdaterStatus | null): string {
     case 'checking':
       return 'Checking for updates...';
     case 'available':
-      return `Update ${status.version ?? ''} found. Downloading in the background.`.replace('  ', ' ');
+      return `Update${versionSuffix(status)} is available. Nothing downloads until you choose Download update.`;
     case 'downloading':
-      return `Downloading update: ${Math.round(status.percent ?? 0)}%`;
+      return `Downloading update${versionSuffix(status)}: ${Math.round(status.percent ?? 0)}%`;
     case 'downloaded':
-      return `Update ${status.version ?? ''} ready. Restart to apply.`.replace('  ', ' ');
+      return `Update${versionSuffix(status)} ready. Restart to apply.`;
     case 'not-available':
       return 'You are on the latest version.';
     case 'error':
-      return `Update check failed: ${status.message ?? 'unknown error'}`;
+      // A version on an error means the download (not the check) failed.
+      return status.version
+        ? `Update${versionSuffix(status)} download failed: ${status.message ?? 'unknown error'}`
+        : `Update check failed: ${status.message ?? 'unknown error'}`;
     case 'idle':
     default:
       return 'Updates are checked automatically.';
   }
 }
 
+/** "120.0 MB of 2.1 GB, 12.4 MB/s" from the real progress fields, or '' when unknown. */
+function downloadDetail(status: UpdaterStatus): string {
+  const parts: string[] = [];
+  if (typeof status.transferred === 'number' && typeof status.total === 'number' && status.total > 0) {
+    parts.push(`${formatBytes(status.transferred)} of ${formatBytes(status.total)}`);
+  }
+  const speed = typeof status.bytesPerSecond === 'number' ? formatSpeed(status.bytesPerSecond) : '';
+  if (speed) {
+    parts.push(speed);
+  }
+  return parts.join(', ');
+}
+
+/**
+ * An action reply must not roll back a newer pushed status: a progress push
+ * can reach the renderer before the `updater:download` reply does.
+ */
+function mergeReply(current: UpdaterStatus | null, reply: UpdaterStatus): UpdaterStatus {
+  if (current?.state === 'downloaded') return current;
+  if (current?.state === 'downloading' && reply.state === 'downloading') return current;
+  return reply;
+}
+
+type UpdateAction = 'check' | 'download' | 'install';
+
+const ACTION_FAILURE: Record<UpdateAction, string> = {
+  check: 'Could not check for updates.',
+  download: 'Could not start the update download.',
+  install: 'Could not start the update.',
+};
+
 /**
  * #34 installer PR4: live auto-update status + actions. State is fed by the
  * main-process updater service (real electron-updater events over
- * updater:status); the manual check and restart actions round-trip through
- * the same service. Without the bridge (dev/web) the block degrades to the
- * disabled explanation.
+ * updater:status); check, download and restart round-trip through the same
+ * service. Nothing downloads until the user chooses Download update - the
+ * installer is several GB. Without the bridge (dev/web) the block degrades to
+ * the disabled explanation.
  */
 function UpdatesBlock() {
   const [status, setStatus] = useState<UpdaterStatus | null>(null);
+  const [pendingAction, setPendingAction] = useState<UpdateAction | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
   const updater = window.electron?.updater;
 
   useEffect(() => {
     if (!updater) return;
     let mounted = true;
-    void updater.getStatus().then((snapshot) => {
-      if (mounted) setStatus(snapshot);
-    });
+    updater.getStatus().then(
+      (snapshot) => {
+        if (mounted) setStatus(snapshot);
+      },
+      () => {
+        // The pushed stream still delivers the next status.
+      },
+    );
     const unsubscribe = updater.onStatus((snapshot) => {
       setStatus(snapshot);
     });
@@ -98,42 +147,131 @@ function UpdatesBlock() {
       mounted = false;
       unsubscribe();
     };
-    // The bridge is fixed for the lifetime of the window.
-  }, []);
+    // The bridge object is fixed for the lifetime of the window, so this
+    // subscribes once per mount.
+  }, [updater]);
 
+  async function runAction(action: UpdateAction, call: () => Promise<UpdaterStatus | void>) {
+    setPendingAction(action);
+    setActionError(null);
+    try {
+      const reply = await call();
+      if (reply) {
+        setStatus((current) => mergeReply(current, reply));
+      }
+    } catch (error) {
+      setActionError(error instanceof Error && error.message ? error.message : ACTION_FAILURE[action]);
+    } finally {
+      setPendingAction(null);
+    }
+  }
+
+  const state = status?.state ?? null;
+  const busy = pendingAction !== null;
   const checkDisabled =
     !updater ||
-    status === null ||
-    status.state === 'disabled' ||
-    status.state === 'checking' ||
-    status.state === 'downloading';
+    busy ||
+    state === null ||
+    state === 'disabled' ||
+    state === 'checking' ||
+    state === 'downloading' ||
+    state === 'downloaded';
+  // A failed download keeps its version, so it can be retried directly.
+  const canDownload = Boolean(updater) && (state === 'available' || (state === 'error' && Boolean(status?.version)));
+  const isRetry = state === 'error';
+  const percent = Math.min(100, Math.max(0, status?.percent ?? 0));
+  const detail = status && state === 'downloading' ? downloadDetail(status) : '';
 
   return (
     <div data-testid="about-updates">
       <p className="mono-label text-text-muted">Updates</p>
-      <p className="mt-2 max-w-[65ch] text-sm leading-relaxed text-text-body">
+      <p
+        data-testid="about-updates-status"
+        aria-live="polite"
+        className="mt-2 max-w-[65ch] text-sm leading-relaxed text-text-body"
+      >
         {updateStatusLine(status)}
       </p>
-      <div className="mt-3 flex items-center gap-3">
-        <button
+
+      {state === 'downloading' && (
+        <div data-testid="about-updates-progress" className="mt-3 max-w-[65ch]">
+          <div
+            className="recessed-well h-1.5 w-full overflow-hidden rounded-full"
+            role="progressbar"
+            aria-label="Update download progress"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={Math.round(percent)}
+            aria-valuetext={detail ? `${Math.round(percent)}%, ${detail}` : `${Math.round(percent)}%`}
+          >
+            <div
+              className="h-full rounded-full bg-accent-primary transition-[width] duration-300"
+              style={{ width: `${percent}%` }}
+            />
+          </div>
+          {detail && <p className="data-mono mt-1.5 text-text-muted">{detail}</p>}
+        </div>
+      )}
+
+      {actionError && (
+        <p
+          role="alert"
+          data-testid="about-updates-action-error"
+          className="mt-2 max-w-[65ch] text-sm leading-relaxed text-status-error"
+        >
+          {actionError}
+        </p>
+      )}
+
+      <div className="mt-3 flex flex-wrap items-center gap-3">
+        <Button
           type="button"
+          variant="secondary"
+          size="sm"
+          icon={RefreshCw}
           data-testid="about-updates-check"
           disabled={checkDisabled}
-          onClick={() => void updater?.check()}
-          className="inline-flex items-center gap-1.5 rounded border border-border px-3 py-1.5 text-sm text-text-body transition hover:border-border-hover hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-50"
+          isLoading={pendingAction === 'check'}
+          loadingLabel="Checking..."
+          onClick={() => {
+            if (updater) void runAction('check', () => updater.check());
+          }}
         >
-          <RefreshCw aria-hidden="true" className="h-3.5 w-3.5" />
           Check for updates
-        </button>
-        {status?.state === 'downloaded' && (
-          <button
+        </Button>
+        {canDownload && (
+          <Button
             type="button"
+            variant="primary"
+            size="sm"
+            icon={Download}
+            data-testid="about-updates-download"
+            disabled={busy}
+            isLoading={pendingAction === 'download'}
+            loadingLabel="Starting download..."
+            onClick={() => {
+              if (updater) void runAction('download', () => updater.download());
+            }}
+          >
+            {isRetry ? 'Retry download' : 'Download update'}
+          </Button>
+        )}
+        {state === 'downloaded' && (
+          <Button
+            type="button"
+            variant="primary"
+            size="sm"
+            icon={RotateCcw}
             data-testid="about-updates-install"
-            onClick={() => void updater?.install()}
-            className="btn-chrome vx-btn-chrome px-3 py-1.5 text-sm"
+            disabled={busy}
+            isLoading={pendingAction === 'install'}
+            loadingLabel="Preparing restart..."
+            onClick={() => {
+              if (updater) void runAction('install', () => updater.install());
+            }}
           >
             Restart to update
-          </button>
+          </Button>
         )}
       </div>
     </div>
@@ -167,9 +305,10 @@ export function AboutSection() {
         <h2 className="mt-1 type-title">Vision Studio</h2>
         <p className="data-mono mt-1 text-text-muted">{`v${packageJson.version}`}</p>
         <p className="mt-3 max-w-[65ch] text-sm leading-relaxed text-text-body">
-          Professional local-first AI image and video generation. Everything runs on
-          your GPU - no cloud, no subscription. Vision Studio's own source code is
-          released under the MIT License.
+          Professional local-first AI image and video generation. Generation runs
+          on your own GPU by default; hosted OpenRouter and Hugging Face routes are
+          opt-in, with your own key. No subscription. Vision Studio's own source
+          code is released under the MIT License.
         </p>
         {attribution && (
           <p

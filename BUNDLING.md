@@ -7,12 +7,29 @@ and the CUDA/MPS runtime) inside the Electron app.
 
 Vision Studio is **heavy-by-design**. Every distributable carries the full
 PyInstaller backend - there is no "slim", "hybrid", or "download PyTorch on first
-run" variant. `scripts/assert-native-backend.cjs` runs as electron-builder's
-`beforePack` hook and **aborts the build** unless
-`resources/VisionStudio-Backend[.exe]` exists and clears a platform-calibrated
-size floor (0.5 GB on Windows/Linux where CUDA is bundled; 0.25 GB on the macOS
-MPS wheel). The same gate also requires the Studio step-preview decoders
-(`resources/preview-decoders/`, the taesd family).
+run" variant. The backend is a **one-folder** bundle in `resources/backend/`:
+`VisionStudio-Backend[.exe]` next to its `_internal/` folder, which runs in place
+(a one-file executable would unpack several GB into a temp folder on every launch
+and leak it on a hard kill). `scripts/assert-native-backend.cjs` runs as
+electron-builder's `beforePack` hook and **aborts the build** unless that folder
+exists, clears a platform-calibrated size floor (0.5 GB on Windows/Linux where
+CUDA is bundled; 0.25 GB on the macOS MPS wheel), and - when packaging for the
+host platform - passes its own `--self-check` (on Windows/Linux with
+`--expect-cuda --expect-tensorrt`). The same gate also requires the Studio
+step-preview decoders (`resources/preview-decoders/`, the taesd family).
+
+What the runtime is, per platform:
+
+| Platform | torch | GPU support | Extra |
+|----------|-------|-------------|-------|
+| Windows x64 | 2.14.1+cu132 (CUDA 13.2) | RTX 20 / GTX 16 (Turing) through RTX 50 (Blackwell), NVIDIA driver R580+; GTX 10-series and older run on CPU | torch-tensorrt 2.14.0 + TensorRT 11.1 (+2.36 GB installed) |
+| Linux x64 | 2.14.1+cu132 (CUDA 13.2) | same as Windows | torch-tensorrt 2.14.0 + TensorRT 11.1 (+4.55 GB installed) |
+| macOS arm64 (14+) | 2.14.1 from PyPI (Metal/MPS) | Apple Silicon | no TensorRT (NVIDIA-only) |
+
+TensorRT is bundled but engines are only built for model families listed in
+`TRT_PROVEN_FAMILIES` (`backend/foundry/tensorrt_engine.py`), which stays empty
+until [docs/TENSORRT_VERIFICATION.md](docs/TENSORRT_VERIFICATION.md)'s correctness
+sweep has been run on real NVIDIA hardware.
 
 What a user downloads on first run is model **weights** - consent-gated through
 the in-app Foundry, following each model's license - never the runtime.
@@ -29,33 +46,41 @@ job). The shipped package is identical either way.
 ## Building the bundle
 
 ```bash
-npm run build:backend      # build-backend.cjs -> resources/VisionStudio-Backend[.exe]
+npm run build:backend      # build-backend.cjs -> resources/backend/VisionStudio-Backend[.exe] + _internal/
 ```
 
 `build-backend.cjs`:
 
-1. Finds a compatible Python (3.10-3.12; PyTorch has no 3.13+ wheels yet).
-2. Creates `backend/venv` and installs PyTorch via a fallback ladder
-   (cu121 -> cu118 -> the default index, which on macOS arm64 is the MPS wheel).
-3. Installs the rest of `requirements.txt` plus the bundled AI runtimes
-   (`diffusers`, `transformers`, `accelerate`, `peft`, `controlnet-aux`,
-   `onnxruntime`, `spandrel`, `facexlib`, `aiohttp`).
-4. Runs an **import gate** - the venv must import every runtime the app needs, or
-   the build stops before producing a silently broken bundle.
-5. Builds a one-file executable with PyInstaller (`backend/main.spec`).
-6. Copies it to `resources/` (and, on macOS, ad-hoc signs it so it stays
-   spawnable - see below).
+1. Requires Python 3.12 (found through `uv`, the `py` launcher, or `PATH`): every
+   dependency lock is compiled for cp312.
+2. Creates `backend/venv` and installs torch + torchvision from their hash lock
+   (`backend/requirements/torch-<platform>-cu132.txt` from the PyTorch cu132
+   index on Windows/Linux; `torch-macos-pypi.txt` on macOS). A failed CUDA install
+   fails the build - there is no silent fallback to CPU wheels.
+3. Installs everything else the bundle ships from `runtime-<platform>.txt`, then
+   on Windows/Linux torch-tensorrt + TensorRT from `tensorrt-<platform>-cu132.txt`
+   (`tensorrt-cu13-libs` comes from `pypi.nvidia.com`). Every install is
+   `pip install --require-hashes --no-deps`: nothing is resolved at build time.
+4. Verifies the venv matches the locks exactly and runs `selfcheck.py` (the same
+   module the frozen bundle runs) before freezing.
+5. Builds the one-folder bundle with PyInstaller (`backend/main.spec`, UPX off)
+   and runs the frozen `--self-check` (`--expect-cuda --expect-tensorrt` on
+   Windows/Linux) - any missing module, library or data file fails the build.
+6. Copies the folder to `resources/backend/` (and removes any legacy one-file
+   `resources/VisionStudio-Backend[.exe]`).
 
-Time: ~30-60 min for a clean build, dominated by the CUDA torch download.
+Time: ~30-60 min for a clean build, dominated by the CUDA torch (~2 GB) and
+TensorRT (~1.9 GB Windows / ~3.7 GB Linux) downloads. Re-resolve the locks with
+`node build-backend.cjs --lock` (needs `uv`) only when deliberately bumping a pin.
 
 ### Reuse when the backend hasn't changed
 
-The bundle is a pure function of `backend/`. If `backend/` is unchanged since the
-last release, **do not rebuild** - the existing `resources/VisionStudio-Backend.exe`
-is byte-for-byte what a rebuild would produce and the packaging gate accepts it:
+The bundle is a pure function of `backend/` and the locks. If neither changed
+since the last release, **do not rebuild** - the existing `resources/backend/`
+folder is what a rebuild would produce and the packaging gate accepts it:
 
 ```bash
-git diff <last-release-commit>..HEAD -- backend/   # empty -> reuse the exe
+git diff <last-release-commit>..HEAD -- backend/ build-backend.cjs   # empty -> reuse the bundle
 ```
 
 ## What ships, and where
@@ -64,7 +89,7 @@ git diff <last-release-commit>..HEAD -- backend/   # empty -> reuse the exe
 
 ```yaml
 extraResources:
-  - from: resources/            # the backend exe + preview decoders + license doc
+  - from: resources/            # backend/ (one-folder bundle) + preview decoders + license doc
     to: .
   - from: backend/              # Python source (reference / provisioning), with:
     to: backend-source/
@@ -83,26 +108,35 @@ some models, an unlicensed redistribution.
 
 ## Platform notes
 
-**Windows** - `VisionStudio-Backend.exe`; needs the Visual C++ Redistributable
-(usually already present).
+**Windows** - `backend/VisionStudio-Backend.exe` + `_internal/`, CUDA 13.2 torch
+and TensorRT. The Visual C++ 2015-2022 runtime DLLs (including
+`vcruntime140_threads.dll`, which PyInstaller does not collect on its own) ship
+inside the bundle, so no redistributable install is needed; the frozen
+self-check confirms them.
 
-**macOS** - `VisionStudio-Backend`, **Apple Silicon only** (PyTorch dropped macOS
-x64 wheels at 2.3). With no Developer ID identity, electron-builder skips signing
-and leaves Electron's prebuilt seal broken, which Apple Silicon refuses to launch;
-`scripts/adhoc-sign-mac.cjs` reseals the app (`codesign --force --deep --sign -`)
-in `afterPack`. `PYTORCH_ENABLE_MPS_FALLBACK=1` is set before torch import.
+**macOS** - `backend/VisionStudio-Backend` + `_internal/`, **Apple Silicon only**
+and **macOS 14+** (torch 2.14 publishes `macosx_14_0_arm64` wheels only; PyTorch
+dropped macOS x64 wheels at 2.3). No TensorRT. With no Developer ID identity,
+electron-builder skips signing and leaves Electron's prebuilt seal broken, which
+Apple Silicon refuses to launch; `scripts/adhoc-sign-mac.cjs` reseals the app
+(`codesign --force --deep --sign -`) in `afterPack`. `PYTORCH_ENABLE_MPS_FALLBACK=1`
+is set before torch import.
 
-**Linux** - `VisionStudio-Backend`, real CUDA 12.1 torch (the AppImage lands
-around 3.3 GB). The backend is device-agnostic (`backend/utils/device.py`:
-CUDA > MPS > CPU), so it runs on a CPU-only machine, just slowly.
+**Linux** - `backend/VisionStudio-Backend` + `_internal/`, CUDA 13.2 torch (with
+its `nvidia-*` CUDA 13.2 userspace libraries from the runtime lock) and TensorRT.
+The backend is device-agnostic (`backend/utils/device.py`: CUDA > MPS > CPU), so
+it runs on a CPU-only machine or a pre-Turing GPU, just slowly (on the CPU).
 
 ## PyInstaller spec (`backend/main.spec`)
 
 The spec must bundle every **data file** the runtime opens at import time - a
 missing data file or Python-metadata entry disables generation *without crashing*
-(HTTP 200 but `generation_available: false`). It therefore includes the foundry
-JSONs, the retrieval `prompting_kb`, and the `transformers`-checked metadata.
-`backend/tests/test_backend_bundle_spec.py` guards these (it discovers the
+(HTTP 200 but `generation_available: false`). It does not keep its own lists:
+it imports them from `backend/selfcheck.py` (required modules, wholesale-collected
+packages, TensorRT packages, bundled data, excludes, Windows VC++ runtime DLLs),
+so the build and its `--self-check` cannot drift apart, and it copies the
+metadata of every installed distribution. `backend/tests/test_selfcheck.py` and
+`backend/tests/test_backend_bundle_spec.py` guard this (the latter discovers the
 foundry JSONs dynamically).
 
 ## Testing the bundle
@@ -111,12 +145,14 @@ foundry JSONs dynamically).
 # 1. Build
 npm run build:backend
 
-# 2. Confirm it exists
-ls resources/VisionStudio-Backend.exe   # Windows
-ls resources/VisionStudio-Backend       # macOS/Linux
+# 2. Run the bundle's own self-check (the build already did; this re-runs it)
+resources/backend/VisionStudio-Backend.exe --self-check --expect-cuda --expect-tensorrt   # Windows
+resources/backend/VisionStudio-Backend --self-check --expect-cuda --expect-tensorrt       # Linux
+resources/backend/VisionStudio-Backend --self-check                                       # macOS
+# expect: SELF-CHECK PASSED (N checks)
 
 # 3. Run it directly and hit health - status ok AND generation available
-resources/VisionStudio-Backend.exe &
+resources/backend/VisionStudio-Backend.exe &
 curl -s http://127.0.0.1:8000/api/health
 # expect: "status":"ok"  AND  "generation_available":true
 ```
@@ -127,17 +163,18 @@ it's the check the CI smoke gate enforces before packaging macOS/Linux.
 ## Troubleshooting
 
 **"Native backend bundle missing" at package time** - run `npm run build:backend`
-(or restore the exe from the last release). The `beforePack` gate is intentional.
+(or restore `resources/backend/` from the last release). The `beforePack` gate is
+intentional.
 
 **Backend resolves but generation is disabled** (`generation_available: false`) -
-a data file or package metadata didn't make it into the bundle. Check
-`backend/main.spec` `datas` and the transformers metadata set; run
-`backend/tests/test_backend_bundle_spec.py`.
+a data file or package metadata didn't make it into the bundle. Run the bundle's
+`--self-check`; it names what is missing. The lists live in `backend/selfcheck.py`.
 
-**"Backend not found" at runtime** - the app looks for the backend in order:
-`resources/VisionStudio-Backend[.exe]` (production) ->
-`backend/dist/VisionStudio-Backend[.exe]` (local build) -> system Python with
-`backend-source/` (dev fallback).
+**"Backend not found" at runtime** - the packaged app runs
+`<resources>/backend/VisionStudio-Backend[.exe]`; a development run tries
+`backend/dist/VisionStudio-Backend/VisionStudio-Backend[.exe]` (fresh
+PyInstaller output), then `resources/backend/VisionStudio-Backend[.exe]`, then
+system Python with `backend-source/` (packaged) or `backend/` (dev).
 
 ## References
 

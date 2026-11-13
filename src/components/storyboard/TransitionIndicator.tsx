@@ -1,4 +1,4 @@
-import { memo } from 'react';
+import { memo, type Ref } from 'react';
 import { cn } from '@/utils/cn';
 import { ArrowRight, ChevronRight, Minus, MoveHorizontal, ZoomIn } from 'lucide-react';
 import type { TransitionType } from '@/types/project';
@@ -7,9 +7,14 @@ interface TransitionIndicatorProps {
   type: TransitionType;
   duration?: number; // ms
   onClick?: () => void;
+  /** Set when the indicator opens a transition editor popover. */
+  expanded?: boolean;
+  /** Id of the popover the indicator controls. */
+  controlsId?: string;
+  ref?: Ref<HTMLButtonElement>;
 }
 
-const TRANSITION_CONFIG: Record<
+export const TRANSITION_CONFIG: Record<
   TransitionType,
   { icon: React.ElementType; label: string; className: string }
 > = {
@@ -45,7 +50,7 @@ const TRANSITION_CONFIG: Record<
   },
 };
 
-function formatDuration(ms: number): string {
+export function formatTransitionDuration(ms: number): string {
   if (ms < 1000) return `${ms}ms`;
   return `${(ms / 1000).toFixed(1)}s`;
 }
@@ -54,14 +59,22 @@ export const TransitionIndicator = memo(function TransitionIndicator({
   type,
   duration,
   onClick,
+  expanded,
+  controlsId,
+  ref,
 }: TransitionIndicatorProps) {
   const config = TRANSITION_CONFIG[type];
   const Icon = config.icon;
 
   return (
     <button
+      ref={ref}
+      type="button"
       data-testid="transition-indicator"
-      aria-label={`${config.label} transition${duration ? `, ${formatDuration(duration)}` : ''}`}
+      aria-label={`${config.label} transition${duration ? `, ${formatTransitionDuration(duration)}` : ''}`}
+      aria-haspopup={expanded === undefined ? undefined : 'dialog'}
+      aria-expanded={expanded}
+      aria-controls={expanded ? controlsId : undefined}
       onClick={onClick}
       className={cn(
         'flex items-center justify-center gap-1 py-1.5 w-full',
@@ -75,7 +88,7 @@ export const TransitionIndicator = memo(function TransitionIndicator({
       <span>{config.label}</span>
       {duration !== undefined && duration > 0 && (
         <span className="text-text-muted ml-0.5">
-          {formatDuration(duration)}
+          {formatTransitionDuration(duration)}
         </span>
       )}
     </button>

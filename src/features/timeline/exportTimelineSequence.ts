@@ -4,7 +4,7 @@ import { useAppStore } from '@/store/appStore';
 import type { AppState } from '@/store/appStore.types';
 import type { JobStatus, TimelineExportAudioLayerParams, TimelineExportParams } from '@/types/electron';
 import type { TimelineCompositionIssue, TimelineCompositionIssueCode, TimelineSequence, TimelineTrack } from '@/types/timeline';
-import { delay } from '@/features/workflow/runWorkflowExecution';
+import { watchJob, type WatchJobOptions } from '@/features/jobs/watchJob';
 
 import { resolveSequenceComposition, resolveTimelinePlayRange } from './sequenceComposition';
 
@@ -33,6 +33,8 @@ interface TimelineExportElectronApi {
   generation: {
     exportTimelineSequence: (params: TimelineExportParams) => Promise<{ success: boolean; jobId?: string; error?: string }>;
     getStatus: (jobId: string) => Promise<JobStatus | { success?: boolean; error?: string }>;
+    /** Stops a running backend job (the same bridge cancel generation uses). */
+    cancel?: (jobId: string) => Promise<{ success: boolean; error?: string }>;
   };
 }
 
@@ -49,7 +51,21 @@ interface ExportTimelineSequenceOptions {
   electron?: TimelineExportElectronApi;
   pollIntervalMs?: number;
   onStatusChange?: (patch: TimelineExportStatusPatch) => void;
+  /**
+   * Aborting cancels the export (#J7): before submission nothing is sent;
+   * mid-render the backend job is cancelled too (it deletes the partial MP4)
+   * and the run resolves as cancelled.
+   */
+  signal?: AbortSignal;
+  /** Watch tuning for tests (retry interval, error cap). */
+  watchOptions?: Pick<WatchJobOptions, 'retryIntervalMs' | 'errorCap' | 'stallTimeoutMs'>;
 }
+
+export const TIMELINE_EXPORT_CANCELLED_MESSAGE = 'Timeline export was cancelled.';
+export const TIMELINE_EXPORT_LOST_MESSAGE =
+  'Lost connection to the AI backend while exporting. The export may still be running; check the output folder or retry.';
+export const TIMELINE_EXPORT_STALLED_MESSAGE =
+  'The export stopped reporting progress and was given up on. Please retry.';
 
 export interface TimelineExportStatusPatch {
   isExporting?: boolean;
@@ -138,6 +154,8 @@ export async function exportTimelineSequence({
   electron = window.electron,
   pollIntervalMs = 500,
   onStatusChange,
+  signal,
+  watchOptions,
 }: ExportTimelineSequenceOptions): Promise<TimelineExportSequenceResult> {
   const initialState = store.getState();
   if (!initialState.systemInfo.backendConnected) {
@@ -151,7 +169,7 @@ export async function exportTimelineSequence({
     outputPath,
   });
 
-  if (!destinationPath) {
+  if (!destinationPath || signal?.aborted) {
     return {
       cancelled: true,
       jobId: null,
@@ -190,41 +208,46 @@ export async function exportTimelineSequence({
       outputPath: null,
     });
 
-    let finalStatus: JobStatus | null = null;
-    for (let attempt = 0; attempt < 2400; attempt += 1) {
-      const nextStatus = await electron.generation.getStatus(jobId);
-      if (!nextStatus || !('status' in nextStatus)) {
-        const failureMessage =
-          nextStatus && 'error' in nextStatus ? nextStatus.error : undefined;
-        throw new Error(failureMessage || 'Timeline export returned no job status.');
-      }
+    // The shared job watch (#J1/#J7): one failed status read no longer ends
+    // tracking while the backend keeps rendering - reads are retried under
+    // the error budget - and an abort cancels the backend job.
+    const watch = await watchJob({
+      jobId,
+      getStatus: (id) => electron.generation.getStatus(id),
+      signal,
+      pollIntervalMs,
+      maxPollIntervalMs: Math.max(pollIntervalMs, 2000),
+      ...(watchOptions ?? {}),
+      onUpdate: (update) => {
+        onStatusChange?.({
+          isExporting: true,
+          status: 'exporting',
+          progress: update.progress,
+          activeJobId: jobId,
+          errorMessage: null,
+          outputPath: null,
+        });
+      },
+    });
 
-      if (
-        nextStatus.status === 'completed' ||
-        nextStatus.status === 'failed' ||
-        nextStatus.status === 'cancelled'
-      ) {
-        finalStatus = nextStatus;
-        break;
-      }
-
+    if (watch.kind === 'aborted') {
+      await electron.generation.cancel?.(jobId).catch(() => undefined);
       onStatusChange?.({
-        isExporting: true,
-        status: 'exporting',
-        progress: nextStatus.progress ?? 0,
-        activeJobId: jobId,
+        isExporting: false,
+        status: 'idle',
+        activeJobId: null,
         errorMessage: null,
         outputPath: null,
       });
-
-      if (pollIntervalMs > 0) {
-        await delay(pollIntervalMs);
-      }
+      return { cancelled: true, jobId, outputPath: null };
     }
-
-    if (!finalStatus) {
-      throw new Error('Timeline export timed out while waiting for the export job.');
+    if (watch.kind === 'lost') {
+      throw new Error(TIMELINE_EXPORT_LOST_MESSAGE);
     }
+    if (watch.kind === 'stalled') {
+      throw new Error(TIMELINE_EXPORT_STALLED_MESSAGE);
+    }
+    const finalStatus: JobStatus = watch.status;
 
     if (finalStatus.status === 'completed') {
       const resolvedOutputPath = normalizePath(
@@ -248,7 +271,7 @@ export async function exportTimelineSequence({
     }
 
     if (finalStatus.status === 'cancelled') {
-      const message = 'Timeline export was cancelled.';
+      const message = TIMELINE_EXPORT_CANCELLED_MESSAGE;
       onStatusChange?.({
         isExporting: false,
         status: 'error',
@@ -281,10 +304,12 @@ export async function exportTimelineSequence({
 
 function resolveTimelineExportContext(state: AppState, requestedSequenceId?: string): TimelineExportContext {
   const activeProject = state.projects.find((project) => project.id === state.activeProjectId) ?? null;
+  // Explicit request first, then the active sequence, then the project's own.
+  const requestedSequence = requestedSequenceId
+    ? state.timelineSequences.find((item) => item.id === requestedSequenceId)
+    : undefined;
   const sequence =
-    (requestedSequenceId
-      ? state.timelineSequences.find((item) => item.id === requestedSequenceId) ?? null
-      : null) ??
+    requestedSequence ??
     state.timelineSequences.find((item) => item.id === state.activeTimelineSequenceId) ??
     state.timelineSequences.find((item) => item.id === activeProject?.timelineSequenceId) ??
     null;

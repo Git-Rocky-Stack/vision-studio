@@ -11,11 +11,12 @@ This document describes **three** API surfaces, in the order you typically encou
 
 Conventions used throughout:
 
-- **Auth** - backend HTTP/WS requests must carry `x-vision-studio-token: <token>`; a missing or wrong token gets `403 { "detail": "Forbidden" }`. The Main process generates the token per launch and passes it to the backend as `VISION_STUDIO_BACKEND_AUTH_TOKEN`; a backend started without that variable generates its own token and logs it, so auth is always on. Manual callers (curl, Postman) must send it. Exempt: `/`, `/api/health`, `/api/docs`, `/api/redoc`, `/api/openapi.json`, and everything under `/outputs/`. The WebSocket takes the token as `?token=…`.
-- **Rate limits** - see the per-endpoint annotations. All limits are per-IP and enforced by `slowapi`. `/api/health`, `/ws` and the `/api/v1/retrieval` routes are not limited.
-- **Errors** - the body depends on the route. Most top-level routes and the edit and comfy routers return `{ "detail": "..." }`. The model download and convert conflicts return `{ "detail": { "error_code": "...", "message": "..." } }`, and the batch and retrieval routers return `{ "detail": { "error": "...", "error_code": "..." } }`. Request validation failures are FastAPI's `422` with a `detail` array. IPC handlers return `{ success: false, error: "..." }` with the renderer-safe message stripped of paths/stacks by `toSafeRendererError`.
-- **Time** - all timestamps are ISO 8601 UTC.
+- **Auth** - backend HTTP/WS requests must carry `x-vision-studio-token: <token>`; a missing or wrong token gets `403 { "detail": "Forbidden" }` (HTTP) or close code `1008` (WebSocket). Tokens are compared in constant time (`secrets.compare_digest`). The Main process generates the token per launch and passes it to the backend as `VISION_STUDIO_BACKEND_AUTH_TOKEN`; a backend started without that variable generates its own token and **never logs it**, so auth is always on - to call a bare `python main.py` by hand, set `VISION_STUDIO_BACKEND_AUTH_TOKEN` yourself first. Manual callers (curl, Postman) must send it. Exempt: `/api/health`, `/api/handshake`, `/api/docs`, `/api/redoc`, `/api/openapi.json`, and everything under `/outputs/`. The WebSocket takes the token in the same `x-vision-studio-token` **request header**; a `?token=` query parameter is not accepted. No log line carries a query string (uvicorn's access and WebSocket lines are redacted to `/path?[redacted]`).
+- **Rate limits** - see the per-endpoint annotations. All limits are keyed on the socket peer address (an `X-Forwarded-For` header is ignored - the backend binds to loopback with no proxy) and enforced by `slowapi`. `/api/health`, `/ws` and the `/api/v1/retrieval` routes are not limited. A limited request gets `429 { "success": false, "error": "Rate limit exceeded", "error_code": "RATE_LIMITED", "retry_after": <seconds> }` with a `Retry-After: <seconds>` header. Limiting is on unless `VISION_STUDIO_DISABLE_RATE_LIMIT=1` (the test suite sets it).
+- **Errors** - the body depends on the route. Most top-level routes and the edit and comfy routers return `{ "detail": "..." }`. The model download and convert conflicts return `{ "detail": { "error_code": "...", "message": "..." } }`, and the retrieval router returns `{ "detail": { "error": "...", "error_code": "..." } }`. Request validation failures are FastAPI's `422` with a `detail` array. IPC handlers return `{ success: false, error: "..." }` with the renderer-safe message stripped of paths/stacks by `toSafeRendererError`.
+- **Time** - all timestamps are ISO 8601 UTC with an explicit offset (`2026-11-11T20:15:03.120000+00:00`); job timestamps are timezone-aware UTC, never host-local.
 - **Paths** - `/outputs/...` is a server-relative URL served by `StaticFiles` (HTTP) AND a renderer-friendly relative path (used directly in `<img src>` against the backend). Absolute filesystem paths are used only inside Pydantic request bodies for ops that need the original on disk.
+- **Media path allow-list** - every route that READS a renderer-named media file (`/api/images/crop`, `/api/videos/extract-frame`, `/api/timeline/export` layers and audio, `/api/v1/edit/*`, guided `/api/generate/image` sources, `/api/generate/video` `image_path`) resolves it with `Path.resolve()` (collapsing `..`, following symlinks) and accepts it only inside the outputs folder (which holds `imports/` and `edits/`), a linked model library root, or a `VISION_STUDIO_MEDIA_ROOTS` entry (`os.pathsep`-separated; the shell may pass earlier output folders). Anything else - another absolute path, `/outputs/../x` - is `400` with a message that never echoes the path. `/outputs/...` URLs and `file:///` URLs are accepted in the same places.
 
 ---
 
@@ -370,14 +371,35 @@ The first-run starter set (the overlay's one-click install). Each method proxies
 
 ## Part 2 - Backend REST API
 
-Base URL: `http://127.0.0.1:8000` (Uvicorn binds `127.0.0.1:8000` by default; `VISION_STUDIO_BACKEND_HOST` overrides the host).
+Base URL: `http://127.0.0.1:8000` (Uvicorn binds `127.0.0.1:8000` by default; `VISION_STUDIO_BACKEND_HOST` overrides the host; the port is always 8000).
+
+#### Environment variables the backend reads
+
+The backend never loads a `.env` file; `backend/.env.example` documents the same list. The Main process sets the first six whenever it spawns the backend (`buildBackendEnvironment`, `electron/services/backendProcess.ts`).
+
+| Variable | Default | Meaning |
+|----------|---------|---------|
+| `VISION_STUDIO_BACKEND_AUTH_TOKEN` | generated per run, never logged | The `x-vision-studio-token` value every non-exempt route and `/ws` require |
+| `MODELS_DIR` | `<backend>/models` | Model weights and Foundry state (`.foundry/*.json`) |
+| `OUTPUT_DIR` | `<backend>/outputs` | Generated media, served under `/outputs/`; also the main media allow-list root |
+| `DATABASE_PATH` | `<backend>/data/vision_studio.db` | SQLite database (job history); its folder also holds `retrieval/` |
+| `LOG_FILE` | unset (console only) | Rotating log file (10 MB x 5 backups, UTF-8) |
+| `VISION_STUDIO_VERSION` | `backend/version.py` fallback | The version the backend reports |
+| `VISION_STUDIO_BACKEND_HOST` | `127.0.0.1` | Bind address (`0.0.0.0` only to deliberately expose the backend on a LAN) |
+| `VISION_STUDIO_BACKEND_RELOAD` | off | `1`/`true`/`yes`: uvicorn auto-reload (development only) |
+| `VISION_STUDIO_DISABLE_RATE_LIMIT` | off | `1`/`true`/`yes`/`on`: no rate limiting (the test suite sets it). Nothing else disables limiting |
+| `VISION_STUDIO_MEDIA_ROOTS` | unset | Extra readable media roots (`os.pathsep`-separated) for the media allow-list |
+| `VISION_STUDIO_PREVIEW_DECODERS_DIR` | the installer's `preview-decoders` folder | Step-preview decoders; a path that does not exist disables previews |
+| `RETRIEVAL_DATA_DIR` | `<DATABASE_PATH folder>/retrieval` | AI Director index files |
+| `VS_TRT_CACHE_DIR` | `.cache/tensorrt` | TensorRT engine cache (only with a TensorRT runtime) |
+| `LOG_LEVEL` | `INFO` | Root logger level |
+| `COMFYUI_URL` | `http://127.0.0.1:8188` | ComfyUI server; unreachable = built-in engine, with background reconnect |
 
 ### Tag index
 
 | Tag | Purpose |
 |-----|---------|
-| Health | Root + readiness |
-| System | Capability/system info |
+| System | Health, token-possession handshake, capability/system info |
 | Prompts | LLM prompt enhancement |
 | Generation | Image + video generation jobs |
 | Jobs | Job status, cancel, list |
@@ -386,19 +408,16 @@ Base URL: `http://127.0.0.1:8000` (Uvicorn binds `127.0.0.1:8000` by default; `V
 | Videos | Frame extraction |
 | Timeline | Resolved timeline → MP4 export |
 | Edit | Background removal, super-resolution, face restore |
-| Batch | ZIP export |
 | Retrieval | AI Director index: ingest, query, clear, stats |
 | ComfyUI Interop | Forward an allow-listed API-format graph to a connected ComfyUI |
 
-### 2.1 Health
+### 2.1 Health and handshake
 
-#### `GET /` - `tags=[Health]`, limit `60/min`
-
-Liveness ping, and the readiness probe the Main process polls. Returns `{ "message": "Vision Studio API", "version": "<app version>" }` (`APP_VERSION`, from `backend/version.py`).
+(`GET /` was removed after 3.4.2: nothing called it. The Main process probes readiness with `GET /api/system/info`.)
 
 #### `GET /api/health` - `tags=[System]`
 
-Returns generator availability. **Exempt from auth** and not rate-limited. Nothing in the app calls it: the Main process polls `GET /` for readiness.
+Returns generator availability. **Exempt from auth** and not rate-limited. Nothing in the app calls it.
 
 ```json
 {
@@ -410,22 +429,52 @@ Returns generator availability. **Exempt from auth** and not rate-limited. Nothi
 }
 ```
 
+#### `GET /api/handshake?nonce=<hex>` - `tags=[System]`, limit `30/min`
+
+Proves the server holds the backend auth token **without revealing it**, so the Main process can confirm that whatever listens on port 8000 is the backend it spawned before sending the token anywhere. **Exempt from auth** by design.
+
+- `nonce` - required, 32-128 hexadecimal characters (either case). Send a fresh random value each time.
+- `200 { "proof": "<hex>" }` - `proof` = lowercase hex of HMAC-SHA256 with the token (UTF-8 bytes) as the key and the nonce exactly as sent (UTF-8 bytes) as the message. Compare it with your own HMAC in constant time.
+- `400 { "detail": "nonce must be 32-128 hexadecimal characters" }` - missing, too short, too long, or non-hex nonce.
+- `429` - more than 30 requests per minute.
+
+```bash
+nonce=$(openssl rand -hex 32)
+curl "http://127.0.0.1:8000/api/handshake?nonce=$nonce"
+printf '%s' "$nonce" | openssl dgst -sha256 -hmac "$VISION_STUDIO_BACKEND_AUTH_TOKEN"   # must match .proof
+```
+
 ### 2.2 System
 
 #### `GET /api/system/info` - `tags=[System]`, limit `60/min`
 
-GPU + model info.
+GPU, model and optional-feature info. The Main process also uses this route as its readiness probe.
 
 ```json
 {
   "gpu_available": true,
-  "gpu_name": "NVIDIA GeForce RTX 4090",
-  "gpu_vram": "24.0 GB",
-  "cuda_version": "12.1",
+  "gpu_name": "NVIDIA GeForce RTX 5090",
+  "gpu_vram": "32.0 GB",
+  "cuda_version": "13.2",
   "comfyui_connected": false,
-  "models_count": 4
+  "models_count": 4,
+  "availability": {
+    "quantization": { "available": true, "reason": null },
+    "tensorrt": { "available": false, "reason": "No model family has been verified for TensorRT yet" },
+    "semanticRetrieval": { "available": false, "reason": "the retrieval embedding model is not downloaded yet (part of the core model set)" }
+  }
 }
 ```
+
+`availability` - exactly these three keys, each `{ "available": bool, "reason": string | null }` (`reason` is `null` when available, a user-facing sentence otherwise). Probed without importing anything heavy or downloading anything; the renderer gates the matching toggles on `availability.<key>.available` and shows `reason` when it is `false`:
+
+| Key | Available when |
+|-----|----------------|
+| `quantization` | an `optimum-quanto` int8 or fp8 backend is importable (`foundry.accelerator.quant_backends_available`; bundled in release builds) and a GPU is present |
+| `tensorrt` | all of, checked in this order (the first that fails is the `reason`): the TensorRT runtime is in this build (`torch_tensorrt` / `tensorrt` importable - bundled with the CUDA builds on Windows/Linux, never on macOS: "TensorRT (torch-tensorrt) is not included in this build for this platform"); an NVIDIA CUDA GPU is present ("requires an NVIDIA GPU (none detected)"); its compute capability is 7.5+ (Turing / RTX 20 and newer: "requires an NVIDIA GPU with compute capability 7.5 or newer ..."); and at least one model family has passed the TensorRT correctness sweep ([`TENSORRT_VERIFICATION.md`](./TENSORRT_VERIFICATION.md)), i.e. `TRT_PROVEN_FAMILIES` is not empty. No family has been verified yet, so on a supported NVIDIA machine this reports `false` with `"No model family has been verified for TensorRT yet"` |
+| `semanticRetrieval` | `sentence-transformers` is importable (bundled) AND the embedding model (manifest entry `embedder-all-minilm-l6-v2`, core tier) is provisioned under `MODELS_DIR`. While it is not provisioned this is `false` with a reason and the AI Director ranks by keywords (lexical); it never downloads a model at runtime |
+
+With no GPU detected, quantization (when installed) reports `"requires a supported GPU (none detected)"`. The exact `reason` text comes from `foundry/accelerator.py` `acceleration_feature_availability` and `api/retrieval.py` `semantic_retrieval_availability`.
 
 ### 2.3 Prompts
 
@@ -445,7 +494,7 @@ Body - `ImageGenerationRequest`:
 
 | Field | Type | Default | Range / values |
 |-------|------|---------|----------------|
-| `prompt` | string | - (required) | non-empty, at most 4000 characters |
+| `prompt` | string | - (required) | non-empty and not whitespace-only (`422` otherwise), at most 4000 characters |
 | `negative_prompt` | string | `""` | at most 4000 characters |
 | `width` | int | `1024` | 256–2048, snapped down to a multiple of 8 |
 | `height` | int | `1024` | 256–2048, snapped down to a multiple of 8 |
@@ -453,8 +502,8 @@ Body - `ImageGenerationRequest`:
 | `cfg_scale` | float | `7.5` | 1–30 |
 | `seed` | int | `-1` | -1 = random, else 0–4294967295 (2^32-1) |
 | `model` | string | `flux-dev` | a registry id (`GET /api/models`): `flux-dev`, `flux-schnell`, `sd3.5-large`, `sd3.5-medium`, `sdxl-base` (alias `sdxl`), `sd-1-5`, or an installed model. FLUX inpainting switches to `flux-fill` itself |
-| `scheduler` | string | `euler` | sampler name accepted by ComfyUI / diffusers. The built-in engine applies it to SD 1.5 / SDXL only: FLUX, FLUX Fill and SD 3.5 always keep their flow-matching scheduler |
-| `acceleration_settings` | object \| null | `null` | M9 acceleration toggles (see below); `null` = all defaults |
+| `scheduler` | string | `euler` | one of `Euler`, `Euler a`, `DPM++ 2M`, `DPM++ 2M Karras`, `DPM++ SDE`, `DPM++ SDE Karras`, `DDIM`, `UniPC` (case-insensitive; `euler_a` / `euler ancestral` alias `Euler a`). Any other name is `422` (it used to fall back to Euler a silently). The built-in engine applies it to SD 1.5 / SDXL only: FLUX, FLUX Fill and SD 3.5 always keep their flow-matching scheduler |
+| `acceleration_settings` | object \| null | `null` | M9 acceleration toggles (see below), typed: an unknown key or a value outside `auto`/`on`/`off` is `422`; `null` = all defaults |
 | `loras` | array | `[]` | `{ "id": "<installed LoRA id>", "weight": 0–2 (default 1.0) }` per adapter |
 | `controlnet` | array | `[]` | canvas ControlNet layers: `layer_id`, `source_path`, `preprocessor`, `strength` 0–2, `start_step` / `end_step` 0–1, `mask` |
 | `reference_images` | array | `[]` | reference layers: `layer_id`, `source_path`, `mask`, `strength` 0–2. One layer = image-to-image, two or more = IP-Adapter |
@@ -462,6 +511,8 @@ Body - `ImageGenerationRequest`:
 | `outpaint` | object \| null | `null` | `image_path`, `directions` (up/down/left/right), `pixels` 64–512 |
 | `background_replace` | object \| null | `null` | `image_path`; the new background comes from `prompt` |
 | `denoising_strength` | float | `0.75` | 0.05–1.0, for image-to-image and inpaint passes |
+
+Every `mask` (`GuidedMaskPayload`: `type`, `points`, `bounds`, `brush_size` 1–512) carries at most 20,000 `points`. Guided source paths (`controlnet[].source_path`, `reference_images[].source_path`, `inpaint`/`outpaint`/`background_replace.image_path`) must resolve inside the media allow-list (Conventions, top of this page) - `400` otherwise - and must exist (`422` naming the file otherwise).
 
 <a id="acceleration-settings"></a>
 **`acceleration_settings`** (M9, local generation only) - per-request inference acceleration toggles. Ignored by the hosted (OpenRouter / HuggingFace) routes. Each optimization is a tri-state string: `auto` (the backend decides from the hardware fit), `on` (force), or `off` (disable).
@@ -471,10 +522,12 @@ Body - `ImageGenerationRequest`:
 | `master_enable` | bool | `true` | `false` disables all acceleration for the run |
 | `sdpa` | string | `auto` | `auto` / `on` / `off` - fused scaled-dot-product attention |
 | `channels_last` | string | `auto` | `auto` / `on` / `off` - channels-last memory format (conv-UNet families) |
-| `compile` | string | `auto` | `auto` / `on` / `off` - `torch.compile` (reduce-overhead) |
-| `quantization` | string | `auto` | `auto` / `on` / `off` - int8 / fp8 where the family + hardware allow and `optimum-quanto` is installed (it is not in release builds) |
+| `compile` | string | `auto` | `auto` / `on` / `off` - `torch.compile` (reduce-overhead). Engaged only when Triton is importable, the backend is NOT the frozen release bundle, and the model is not CPU-offloaded - an explicit `on` is overridden (with a note in `acceleration.skipped`) otherwise. When engaged, a warm-up call compiles at load time inside a fallback: any compile error restores the eager model and is reported in `acceleration.fell_back` |
+| `quantization` | string | `auto` | `auto` / `on` / `off` - int8 / fp8 where the family + hardware allow (`optimum-quanto`, bundled in release builds) |
 | `attention_slicing` | string | `auto` | `auto` / `on` / `off` - only engaged under VRAM pressure |
-| `tensorrt` | string | `auto` | `auto` / `on` / `off` - TensorRT engine build (one-time); needs `torch_tensorrt`, which release builds do not include, and `auto` enables it for no model family yet |
+| `tensorrt` | string | `auto` | `auto` / `on` / `off` - TensorRT engine build (one-time); needs `torch_tensorrt` (bundled with the Windows/Linux CUDA builds). `auto` builds an engine only for a family in `TRT_PROVEN_FAMILIES` - none yet - and otherwise records `"tensorrt off: No model family has been verified for TensorRT yet"` in the result's `acceleration.skipped`. `on` forces a build for any family, with a hard fallback to eager (the verification sweep's path). `GET /api/system/info` `availability.tensorrt` reports whether the toggle is usable |
+
+Check `GET /api/system/info` → `availability` before offering the quantization or TensorRT toggle: each entry says whether the capability can run on this install and machine, and why not.
 
 Response - `JobResponse`:
 
@@ -493,7 +546,7 @@ Body - `VideoGenerationRequest`:
 | Field | Type | Default | Range / values |
 |-------|------|---------|----------------|
 | `prompt` | string | - (required) | at most 4000 characters |
-| `image_path` | string \| null | `null` | optional input image (image-to-video) |
+| `image_path` | string \| null | `null` | optional input image (image-to-video): an image `data:` URL, or a file path inside the media allow-list (`400` otherwise) |
 | `width` | int | `1024` | 256–1920, snapped down to a multiple of 8 |
 | `height` | int | `576` | 256–1080, snapped down to a multiple of 8 |
 | `fps` | int | `24` | 12–60 |
@@ -520,7 +573,7 @@ Returns `JobStatusResponse`:
   "status": "processing",
   "progress": 42.5,
   "type": "image",
-  "created_at": "2026-05-03T18:21:14.318000Z",
+  "created_at": "2026-05-03T18:21:14.318000+00:00",
   "completed_at": null,
   "result": null,
   "error": null
@@ -546,6 +599,8 @@ For local diffusers generations (M9), the result also carries `acceleration` - t
 ```
 
 `404` if not found.
+
+Timestamps are timezone-aware UTC (`+00:00` offset; before this release they were naive host-local times). Job records persist to the `jobs` table of the backend database ([`DATABASE_SCHEMA.md`](./DATABASE_SCHEMA.md)) through a background writer thread, so `GET /api/jobs/{id}` and `GET /api/jobs` still answer after a backend restart for jobs from the last 24 hours. A job that was `pending` or `processing` when the backend stopped comes back `failed` with `error` = `"The backend stopped before this job finished."`.
 
 #### `POST /api/jobs/{job_id}/cancel` - `tags=[Jobs]`, limit `30/min`
 
@@ -595,6 +650,9 @@ Returns `ModelRecord[]` from the Foundry registry (M3+). The full `ModelRecord` 
   "capability": "image",
   "base_architecture": "flux",
   "source": "huggingface",
+  "repo_id": "black-forest-labs/FLUX.1-dev",
+  "revision": "main",
+  "aux_repo_id": null,
   "size": "12.0 GB",
   "status": "ready",
   "tier": "verified",
@@ -603,6 +661,7 @@ Returns `ModelRecord[]` from the Foundry registry (M3+). The full `ModelRecord` 
   "hardware_class": "high",
   "vram": "16.0 GB",
   "description": "High-quality text-to-image model",
+  "license": "flux-1-dev-non-commercial",
   "gated": false,
   "locations": ["/path/to/weights.safetensors"],
   "identity": "sha256:abc123…",
@@ -613,9 +672,13 @@ Returns `ModelRecord[]` from the Foundry registry (M3+). The full `ModelRecord` 
   "trust_remote_code": false,
   "nsfw": false,
   "download_url": null,
-  "sha256": null
+  "sha256": null,
+  "companions": [],
+  "measured_vram_bytes": null
 }
 ```
+
+Source and dependency fields: `repo_id` (Hugging Face repository; `string | null`), `revision` (the git revision downloads resolve - a branch such as `main` for catalog entries, while search results are pinned at the download boundary to the commit sha whose safety signals were verified, and first-run auto-provisioning uses the commit shas pinned in `provision-manifest.json`; `null` = unpinned; `string | null`), `aux_repo_id` (a second repository some models need, e.g. a shared encoder repo; `string | null`), `license` (license id from the catalog or hub; `string | null`), `companions` (ids of records that must install WITH this one - shared encoders, annotators. `POST /api/models/{id}/download` enqueues every companion that is not already `ready`, transitively, after running every consent gate for the whole group; `string[]`, default `[]`), and `measured_vram_bytes` (calibrated peak VRAM from `tools/calibrate_vram.py`, preferred over estimates by the fit planner; `int | null`).
 
 Four fields were added in M3: `locations` (absolute filesystem paths where the artifact is present; `string[]`), `identity` (content-derived identity hash for deduplication; `string | null`), `availability` (`"available" | "linked" | "remote"`), and `library_root_id` (ID of the `LibraryRoot` this record was indexed from; `string | null`). All four have safe defaults and are absent from records created before M3.
 
@@ -727,15 +790,26 @@ Snapshot of every download job (queue + progress). Returns `DownloadJob[]`:
 
 #### `GET /api/models/provision/status` - `tags=[Models]`, limit `60/min`
 
-Snapshot of the first-run starter set. Returns `ProvisionStatus`: `{ schema_version, overall_progress, total_bytes, present_bytes, remaining_bytes, speed, eta, total_count, ready_count, active_count, error_count, complete, attribution, models: [{ id, name, license, attribution, approx_bytes, format, gated, status, progress, error, gate_url }] }`.
+Snapshot of the first-run starter set (provisioned on the user's machine, never shipped in the installer). Returns `ProvisionStatus`: `{ schema_version, overall_progress, total_bytes, present_bytes, remaining_bytes, speed, eta, total_count, ready_count, active_count, error_count, complete, attribution, tiers: { core: <aggregate>, extended: <aggregate> }, reverify: { state, checked_bytes, total_bytes, corrupt, error }, models: [{ id, name, license, attribution, approx_bytes, size_bytes, tier, format, gated, status, progress, error, gate_url }] }`.
+
+- `tier` - `core` or `extended`. The **core** tier (18.8 GB / 17.5 GiB, closed over companions) is the smallest set that makes every surface work: `sd-1-5` + `sd-vae-ft-mse` (fast image), `sdxl-base` + `sdxl-vae` (quality image), `animatediff` (text-to-video), `edit-u2net` (background), `edit-realesrgan-x4plus` (upscale), `edit-gfpgan-v14` + `edit-face-detection` + `edit-face-parsing` (face restore), and `embedder-all-minilm-l6-v2` (AI Director semantic retrieval). Everything else is `extended`.
+- `size_bytes` - the exact pinned footprint (sum of the manifest's per-file sizes); `approx_bytes` is the legacy catalog estimate.
+- `tiers` - the same byte-weighted aggregate per tier, so a first-run screen can show "core ready" independently of the extended set.
+- `reverify` - progress of the background integrity re-hash (`state` ∈ `idle | running | done | error`).
+
+Every Hugging Face entry in the manifest is pinned to a 40-hex commit with its exact file list and per-file size + sha256 (Hub LFS metadata; a few non-LFS SD 3.5 config/tokenizer files that the Hub does not expose to anonymous metadata calls carry their git blob id instead). Downloads fetch at the pinned commit and hash every file; a mismatch deletes the file and fails the model as corrupt. Direct-URL entries are sha256-verified as before.
 
 #### `POST /api/models/provision/start` - `tags=[Models]`, limit `30/min`
 
-Starts (or resumes) downloading every missing member of the set through the download manager and answers `202` with `ProvisionStatus`. Pickle-format members of the curated set are granted pickle consent automatically, and the grant is recorded (`backend/foundry/provision_orchestrator.py`). The optional `X-HF-Token` header is forwarded for the gated SD 3.5 pipelines and is never persisted or logged.
+Starts (or resumes) downloading missing members of the set through the download manager and answers `202` with `ProvisionStatus`.
+
+Optional JSON body `{ "model_ids": ["sd-1-5", "edit-u2net", ...] }` (at most 256 ids) provisions only those entries - e.g. the `core` tier first. Every id must be in the manifest's auto-set, else `400 { "detail": { "error_code": "unknown-provision-models", "message": "...", "unknown": [...] } }` and nothing starts. An omitted body, `null` or an empty list provisions the whole set (the previous behavior).
+
+Pickle-format members of the curated set are granted pickle consent automatically, and the grant is recorded (`backend/foundry/provision_orchestrator.py`). The optional `X-HF-Token` header is forwarded for the gated SD 3.5 pipelines and is never persisted or logged.
 
 #### `POST /api/models/provision/{action}` - `tags=[Models]`, limit `30/min`
 
-`action` ∈ `pause | resume | cancel | reverify`, applied to the whole set; returns `ProvisionStatus`. `resume` re-runs `start`; `reverify` re-hashes present direct-URL files against the manifest sha256 and re-fetches any corrupt copy. `404` for any other action.
+`action` ∈ `pause | resume | cancel | reverify`, applied to the whole set; returns `ProvisionStatus`. `resume` re-runs `start`; `reverify` starts a **background** re-hash (off the event loop) of every present file - direct-URL and pinned Hugging Face entries alike - against the manifest sha256, deletes any corrupt copy and re-fetches it; it returns at once, and `reverify` in the status reports progress and the corrupt ids. `404` for any other action.
 
 #### `GET /api/models/{model_id}` - `tags=[Models]`, limit `60/min`
 
@@ -751,12 +825,15 @@ Headers: HF-source records read the optional `X-HF-Token` header; **`civitai`-so
 
 CivitAI-source records download via host-allowlisted HTTPS from the record's `download_url`, stream to a `.incomplete` staging file, and **verify the record's `sha256` before the atomic move into place** - a mismatch fails the job as corrupt/tampered. **Hashless CivitAI records are refused** (`status: "error"`, `"no sha256 on direct-URL record - refusing unverifiable download"`): the sha256 is the only integrity anchor because delivery is a CDN redirect. Redirects are walked manually with a strict policy: **every hop must be HTTPS**, the Bearer token is attached **only while the hop host is `civitai.com`** (delivery CDNs never see it), and the chain is capped at 5 hops.
 
+**Companions (complete-or-explain installs):** a record's `companions` (shared encoders, annotators) download WITH it. The route walks the companion graph transitively (deduplicated, cycle-safe, skipping companions already `ready` and ids that resolve to no record), runs every consent gate for the **whole group before anything is enqueued**, then enqueues the model and each missing companion with its own per-source token. A blocked companion refuses the whole install up front with `409`, and the message names it (`"Its companion '<id>' ships pickle weights…"`). The response is the requested model's `DownloadJob`; companion jobs appear in `GET /api/models/downloads`.
+
 HF repo downloads acquire a **filtered** file list: repo-authored `.py` files are never fetched (no loader executes repo code), and pickle-bearing suffixes (`.ckpt`/`.pt`/`.pth`/`.bin`/`.pkl`) are fetched only when per-model pickle consent exists.
 
 Errors:
 
 - `404` - unknown `model_id`.
-- `409` - security consent missing (spec 5.3 rail, deny-by-default). `detail.error_code` is `"pickle-consent-required"` (record `format` is `pickle` and pickle consent has not been granted) or `"remote-code-consent-required"` (record sets `trust_remote_code` and remote-code consent has not been granted). Grant via `POST /api/models/consent`, then retry.
+- `409` - pickle consent missing (spec 5.3 rail, deny-by-default) for the model **or any of its companions**: `detail.error_code` `"pickle-consent-required"` (record `format` is `pickle` and pickle consent has not been granted). Grant via `POST /api/models/consent`, then retry.
+- `422` - `detail.error_code` `"remote-code-unsupported"`: the model or a companion needs repo-authored Python (`trust_remote_code`, including when the transient reclassification above reveals it). No Vision Studio loader executes repo code, so such a model could never run; it is refused before anything is queued, and no consent unlocks it. (Before this release the route answered `409 remote-code-consent-required` and let a consented download proceed to a model that could not load.)
 - `503` - `detail.error_code` `"repo-signals-unverifiable"`: a transient HF record's full safety signals could not be fetched (offline / hub outage), so the download fails closed before any bytes move. Retry when online.
 
 #### `POST /api/models/{model_id}/download/{action}` - `tags=[Models]`, limit `30/min`
@@ -853,6 +930,8 @@ Re-index all feeds (built-in app tree, HF cache, and every registered library ro
 
 `records_indexed` is the total count across all feeds. `warnings` lists any paths that were skipped due to permissions or parse errors.
 
+Concurrent scans (this route, `POST /api/models/import`, a model delete's re-index) are serialized on one lock, and the index state (`<MODELS_DIR>/.foundry/index_state.json`) is written atomically. A library root whose drive is unmounted keeps listing its last-known models as `availability: "unavailable"` - across a backend restart too. The app tree's own `.foundry/`, `.cache/` and `text-embedder/` folders are never indexed as library models.
+
 #### `GET /api/models/libraries` - `tags=[Models]`, limit `60/min`
 
 List every registered `LibraryRoot`:
@@ -891,7 +970,7 @@ Body - `ImageEditRequest`:
 }
 ```
 
-Response `{ "image": "/outputs/crop-<id>/image_001-crop.png", "width": 1024, "height": 768, ... }`. `404` if `source_path` doesn't exist.
+Validation: `crop_box.left/top` 0–65535, `crop_box.width/height` 1–65535, `rotation` -360–360 degrees (clockwise), `source_path` at most 4096 characters (`422` otherwise). Response `{ "image": "/outputs/crop-<id>/image_001-crop.png", "width": 1024, "height": 768, ... }`. `400` if `source_path` is outside the media allow-list; `404` if it doesn't exist.
 
 There is no `/api/images/upscale` route: upscaling is [`POST /api/v1/edit/upscale`](#212-edit---apiv1edit).
 
@@ -905,7 +984,7 @@ Body - `VideoFrameExtractRequest`:
 { "source_path": "C:/.../my-video.mp4", "time_ms": 1500 }
 ```
 
-Resolves to nearest frame; returns `{ "image": "/outputs/frame-<id>/<name>-frame.png", "output_path": "...", "width": 1920, "height": 1080, "time_ms": 1500, "frame_index": 36 }`. `404` if source missing.
+Resolves to nearest frame; returns `{ "image": "/outputs/frame-<id>/<name>-frame.png", "output_path": "...", "width": 1920, "height": 1080, "time_ms": 1500, "frame_index": 36 }`. `400` if `source_path` is outside the media allow-list; `404` if source missing.
 
 ### 2.9 Timeline
 
@@ -943,7 +1022,7 @@ Body - `TimelineExportRequest`:
 }
 ```
 
-Validation: `width/height` 64–4096; `fps` 1–60; `frames` length 1–24000; per-audio-layer `gain` 0–2. `output_path` must end in `.mp4`: an absolute path (the save-dialog choice) must be in a folder that exists, and a relative path resolves under the outputs folder and may not leave it - anything else, or a path that names a folder, is `422` before a job exists. A failed export removes its partial MP4 and the silent pre-mux file, but never a file that was already at `output_path` and that the export did not write to.
+Validation: `width/height` 64–4096; `fps` 1–60; `frames` length 1–24000; at most 64 `layers` per frame; at most 128 `audio_layers`; `sequence_name` at most 256 characters; per-audio-layer `gain` 0–2 (`422` otherwise). Every layer and audio `source_path` must resolve inside the media allow-list - `400` before a job exists otherwise. Each video source is decoded by ONE reader for the whole export (sequential forward reads, closed when the export ends or fails). The audio mux runs ffmpeg with a timeout of 120 s + 4 x the export's duration and stops within ~0.25 s when the job is cancelled. `output_path` must end in `.mp4`: an absolute path (the save-dialog choice) must be in a folder that exists, and a relative path resolves under the outputs folder and may not leave it - anything else, or a path that names a folder, is `422` before a job exists. A failed export removes its partial MP4 and the silent pre-mux file, but never a file that was already at `output_path` and that the export did not write to.
 
 ### 2.10 ControlNet - removed
 
@@ -961,7 +1040,7 @@ removed after every job (`backend/foundry/lora.py`).
 
 ### 2.12 Edit - `/api/v1/edit`
 
-Each edit runs as a background job. The route answers `202 Accepted` with `EditJobResponse` (`{ job_id, status, message }`); poll `GET /api/jobs/{job_id}` for the result, which is `{ "images": ["/outputs/<job_id>/<name>"], ... }`. `source_path` must be a file the backend can read (`404` otherwise), and each tool needs its Foundry weights installed (`GET /api/v1/edit/models` reports readiness).
+Each edit runs as a background job. The route answers `202 Accepted` with `EditJobResponse` (`{ job_id, status, message }`); poll `GET /api/jobs/{job_id}` for the result, which is `{ "images": ["/outputs/<job_id>/<name>"], ... }`. `source_path` must resolve inside the media allow-list (`400` otherwise) and exist (`404` otherwise), and each tool needs its Foundry weights installed (a missing weight fails the job with a pointer to the Foundry). `GET /api/v1/edit/models` was removed (it had no caller).
 
 #### `POST /api/v1/edit/remove-background` - limit `30/min`
 
@@ -993,55 +1072,34 @@ Body - `FaceRestoreRequest`:
 
 `strength` 0–100. GFPGAN v1.4; the job result adds `faces_detected`.
 
-#### `GET /api/v1/edit/models` - limit `60/min`
+### 2.13 Batch - removed
 
-Readiness per operation: `{ "tools": { "remove-background": { "ready": true, "records": ["edit-u2net"] }, ... } }`, keyed `remove-background`, `upscale` and `restore-faces`.
-
-### 2.13 Batch - `/api/v1/batch`
-
-#### `POST /api/v1/batch/export-zip` - limit `5/min`
-
-Body - `BatchExportRequest`:
-
-```json
-{
-  "image_ids": ["3f2c…", "/outputs/8a1b…/image_001.png"],
-  "format": "jpg",
-  "quality": 85,
-  "resize": { "width": 1024, "height": 768 }
-}
-```
-
-Each `image_ids` entry is a generation job id (the job's first image under `outputs/<job_id>/`, in name order) or an output path (`/outputs/<job_id>/<file>`, png/jpg/webp). Ids never resolve outside the outputs folder. `format` ∈ `png|jpg|webp`. `quality` 1–100. `resize` optional; when present it must be exactly `{ "width", "height" }`, integers 1–8192 (`422` otherwise).
-
-Response - `BatchExportResponse`:
-
-```json
-{
-  "success": true,
-  "zip_file": "<base64>",
-  "file_count": 2,
-  "total_size_bytes": 458242,
-  "processing_time_ms": 124.7
-}
-```
-
-`404` if **all** image_ids are missing; partial misses are warned and skipped.
+`POST /api/v1/batch/export-zip` (with `api/batch.py`, `services/batch_service.py` and `schemas/batch.py`) was removed after 3.4.2: neither the renderer nor the Main process ever called it. Exporting several assets is the `assets:export-many` IPC channel, which copies files without a backend round trip.
 
 ### 2.15 Retrieval / AI Director - `/api/v1/retrieval`
 
-Local-first retrieval store for M7. The embedding model (`all-MiniLM-L6-v2`) is
-lazily loaded (in a worker thread - every route runs off the event loop) and
-optional: when it is absent, or installed but fails to load (it is then not
-retried), ranking falls back to deterministic lexical matching. The index persists as files under the runtime data dir
-(`vectors.npz` + `corpus.json`); no SQLite, no native extension.
+Local-first retrieval store for M7. The embedding model (`all-MiniLM-L6-v2`,
+manifest entry `embedder-all-minilm-l6-v2`, **core** provisioning tier, pinned
+commit + per-file sha256) is installed by first-run provisioning into
+`<MODELS_DIR>/text-embedder/embedder-all-minilm-l6-v2/` and loaded only from
+there, on CPU, with `local_files_only` - it is **never downloaded at runtime**.
+Until it is provisioned (or if it fails to load), ranking falls back to
+deterministic lexical matching; items ingested in lexical mode are re-embedded
+automatically once the model is available. Loading runs in a worker thread
+(every route runs off the event loop), and the service singleton is created at
+backend startup. The index persists as files under `RETRIEVAL_DATA_DIR`
+(default `<DATABASE_PATH folder>/retrieval`): `vectors.npz` + `corpus.json`,
+written under a lock, each via temp file + `os.replace`, and tagged with a shared
+`generation` so a torn pair is never mis-ranked
+([`DATABASE_SCHEMA.md` §8](./DATABASE_SCHEMA.md#8-persisted-json-state-not-sqlite)).
+No SQLite, no native extension.
 
 | Method | Path | Body → Response | Notes |
 |---|---|---|---|
-| POST | `/api/v1/retrieval/ingest` | `{ records: [{ source, text, boosted?, label? }] }` → `{ ingested, skipped, total }` | Allow-list: only `source/text/boosted/label` are read; content-hash dedupe. |
+| POST | `/api/v1/retrieval/ingest` | `{ records: [{ source, text, boosted?, label? }] }` → `{ ingested, skipped, total }` | At most 10,000 records per request (`422` otherwise - send larger corpora in chunks). Allow-list: only `source/text/boosted/label` are read; content-hash dedupe. |
 | POST | `/api/v1/retrieval/query` | `{ text, modelFamily?, sources[], maxTokens }` → `{ snippets: [{ id, source, text, label, score }], mode }` | `mode` is `semantic` or `lexical`. Snippets are budget-fit; KB entries merged by `modelFamily`. |
 | POST | `/api/v1/retrieval/clear` | → `{ success }` | Empties the index. |
-| GET | `/api/v1/retrieval/stats` | → `{ count, mode }` | |
+| GET | `/api/v1/retrieval/stats` | → `{ count, mode, semantic_available, semantic_unavailable_reason }` | `semantic_available` mirrors `GET /api/system/info` `availability.semanticRetrieval`. |
 
 `source` is `prompt-history \| assets \| knowledge-base`. The curated knowledge
 base ships in-repo (`backend/services/retrieval/prompting_kb/*.json`, keyed by
@@ -1057,7 +1115,7 @@ before it reaches `queue_prompt`.
 
 | Method | Path | Body → Response | Notes |
 |---|---|---|---|
-| POST | `/api/v1/comfy/run-graph` | `{ graph, generation_type? }` → `{ job_id, status, message }` | `generation_type` is `image` (default) or `video`. `200` schedules a background job (poll `GET /api/jobs/{job_id}`); `409` when no Comfy server is connected; `422` when the graph fails the safety gate. |
+| POST | `/api/v1/comfy/run-graph` | `{ graph, generation_type? }` → `{ job_id, status, message }` | Limit `10/min` (the generation limit). `generation_type` must be `image` (the default): `video` is refused with `422` because the safety gate's allow-list holds image nodes only, and any other value is `422` too. `200` schedules a background job (poll `GET /api/jobs/{job_id}`); `409` when ComfyUI is still unreachable after one on-demand reconnect attempt; `422` when the graph fails the safety gate. |
 
 **Safety gate (Codex):** a **class-type allow-list** (the first-class core pipeline -
 `CheckpointLoaderSimple`, `CLIPTextEncode`, `EmptyLatentImage`, `KSampler`,
@@ -1066,9 +1124,19 @@ before it reaches `queue_prompt`.
 unsupported node type or unsafe path raises a structured, **leak-free** refusal
 (no path or token in the message) and the graph is never submitted. The check runs
 at the endpoint **and** as defense-in-depth at the start of `execute_comfy_graph`.
-**Video-through-Comfy:** the flat video path (`process_video_generation`) prefers a
-connected Comfy server (`build_video_workflow` + image/gif/video output extraction)
-and falls back to `DirectVideoGenerator`.
+**Video-through-Comfy:** only **image-to-video** jobs from the flat video path
+(`process_video_generation`, a request with `image_path`) go to a connected Comfy
+server (`build_video_workflow`'s SVD-XT graph + image/gif/video output extraction),
+falling back to `DirectVideoGenerator` if ComfyUI does not accept the job.
+Text-to-video always runs on `DirectVideoGenerator`.
+
+**Connection and progress:** the backend never connects just once. At startup it
+tries once, then a background loop reconnects with backoff (2 s doubling to 60 s)
+whenever the ComfyUI WebSocket drops, and every job path reconnects on demand
+before queueing. Job progress comes from ComfyUI's real `progress` messages
+(`{value, max}` for that prompt), mapped monotonically into 15-90%; the route
+reports 10% when the prompt is queued and 95% when outputs are found. Nothing is
+invented while ComfyUI is silent.
 
 ### 2.14 Static `/outputs/*`
 
@@ -1083,10 +1151,11 @@ Single endpoint, used for real-time progress updates.
 ### Connection
 
 ```
-ws://127.0.0.1:8000/ws?token=<token>
+ws://127.0.0.1:8000/ws
+x-vision-studio-token: <token>          (upgrade request header)
 ```
 
-`?token` is always required: the backend always has a token, generating one when `VISION_STUDIO_BACKEND_AUTH_TOKEN` is unset (the Main process passes it automatically). Mismatch → close with code `1008`.
+The token header is always required: the backend always has a token, generating one when `VISION_STUDIO_BACKEND_AUTH_TOKEN` is unset (the Main process passes it automatically). It is compared in constant time; a missing or wrong header closes the socket with code `1008`. The legacy `?token=` query parameter is **not accepted** (query strings leak into logs and crash reports), and uvicorn's WebSocket accept/reject log lines show the path with any query string redacted. Browsers cannot set WebSocket headers - connect from the Main process (Node `ws`, `new WebSocket(url, { headers })`).
 
 The Main process (`electron/ipc-handlers/generation.ts`) opens this connection on app start and reconnects with exponential backoff (1 s → 2 s → … capped at 30 s).
 
@@ -1242,11 +1311,14 @@ curl -X POST -H "x-vision-studio-token: $TOKEN" \
   http://127.0.0.1:8000/api/jobs/9a2…/cancel
 ```
 
-### 5.3 JavaScript: subscribe to the WebSocket
+### 5.3 Node (Main process): subscribe to the WebSocket
 
 ```js
+const WebSocket = require('ws');        // browsers cannot set upgrade headers
 const TOKEN = '...';                    // Main-process-minted token
-const ws = new WebSocket(`ws://127.0.0.1:8000/ws?token=${encodeURIComponent(TOKEN)}`);
+const ws = new WebSocket('ws://127.0.0.1:8000/ws', {
+  headers: { 'x-vision-studio-token': TOKEN },
+});
 
 ws.onmessage = (event) => {
   const msg = JSON.parse(event.data);
@@ -1304,16 +1376,16 @@ if status["status"] == "completed":
 | `200` | Success | Normal response |
 | `201` | Created | `POST /api/models/import` - new library root registered |
 | `202` | Accepted | `POST /api/models/{id}/download` (body is the `DownloadJob`), `POST /api/models/provision/start`, and every `POST /api/v1/edit/*` job |
-| `400` | Bad request | Batch export validation (`VALIDATION_ERROR`), unknown `source` on `/api/models/search`, unknown `kind` on `/api/models/consent`, or an invalid `path` / `layout_hint` on `/api/models/import` |
+| `400` | Bad request | A media path outside the allowed roots (crop, extract-frame, timeline export, edit tools, guided sources, video `image_path`); a malformed `nonce` on `/api/handshake`; unknown `model_ids` on `POST /api/models/provision/start` (`detail.error_code` `unknown-provision-models`, `detail.unknown` lists them); unknown `source` on `/api/models/search`, unknown `kind` on `/api/models/consent`, or an invalid `path` / `layout_hint` on `/api/models/import` |
 | `403` | Forbidden | Missing/invalid `x-vision-studio-token`; body `{ "detail": "Forbidden" }` |
 | `404` | Not found | Missing job, model, library root, download job/action, provision action, or source file |
-| `409` | Conflict | `DELETE /api/models/{id}` on a linked library reference (remove its library root instead); consent/conversion conflicts on download + convert routes with `detail.error_code` ∈ `pickle-consent-required \| remote-code-consent-required \| no-pickle-source \| already-converted`; `POST /api/v1/comfy/run-graph` with no ComfyUI connected |
-| `422` | Unprocessable | Request validation failure (FastAPI's default, a `detail` array); `POST /api/v1/comfy/run-graph` - graph failed the safety gate; `POST /api/models/{id}/convert-safetensors` - conversion failed (corrupt/unreadable pickle source); `GET /api/models/search` - out-of-bounds query params (`page` outside 1–50, over-length `q`/`author`/`task`) |
-| `429` | Rate limited | Hit the per-IP rate limit; response includes `Retry-After` header and `{ "error": "Rate limit exceeded", "error_code": "RATE_LIMITED", "retry_after": "60" }` |
-| `500` | Server error | Batch export failure (`INTERNAL_ERROR`) and retrieval ingest/query failures (`RETRIEVAL_INGEST_ERROR`, `RETRIEVAL_QUERY_ERROR`), each as `{ "detail": { "error", "error_code" } }`, or any unhandled exception. Generation and edit failures are not HTTP errors: they mark the job `failed` with its `error` |
+| `409` | Conflict | `DELETE /api/models/{id}` on a linked library reference (remove its library root instead); consent/conversion conflicts on download + convert routes with `detail.error_code` ∈ `pickle-consent-required \| no-pickle-source \| already-converted`; `POST /api/v1/comfy/run-graph` when ComfyUI stays unreachable after an on-demand reconnect |
+| `422` | Unprocessable | Request validation failure (FastAPI's default, a `detail` array - including an empty image prompt, an unknown `scheduler`, an untyped `acceleration_settings`, out-of-range crop/rotation/timeline bounds); `POST /api/models/{id}/download` - `remote-code-unsupported`; `POST /api/v1/comfy/run-graph` - graph failed the safety gate or `generation_type` is not `image`; `POST /api/models/{id}/convert-safetensors` - conversion failed (corrupt/unreadable pickle source); `GET /api/models/search` - out-of-bounds query params (`page` outside 1–50, over-length `q`/`author`/`task`) |
+| `429` | Rate limited | Hit the per-client rate limit; response includes a `Retry-After: <seconds>` header (seconds until the window resets) and `{ "success": false, "error": "Rate limit exceeded", "error_code": "RATE_LIMITED", "retry_after": <seconds> }` |
+| `500` | Server error | Retrieval ingest/query failures (`RETRIEVAL_INGEST_ERROR`, `RETRIEVAL_QUERY_ERROR`), each as `{ "detail": { "error", "error_code" } }`, or any unhandled exception. Generation and edit failures are not HTTP errors: they mark the job `failed` with its `error` |
 | `503` | Unavailable | `POST /api/models/{id}/convert-safetensors` in stub mode - `torch` is not installed, conversion is unavailable; `POST /api/models/{id}/download` with `detail.error_code` `repo-signals-unverifiable` - a transient HF record's full safety signals could not be fetched, so the download fails closed |
-| WS `1008` | Policy violation | Token mismatch on `/ws` |
+| WS `1008` | Policy violation | Missing or mismatched `x-vision-studio-token` header on `/ws` |
 
 ---
 
-_Last verified against the codebase on 2026-09-18, at v3.4.1. Canonical source: `backend/main.py`, `backend/api/{edit,batch,retrieval,comfy_graph}.py`, `backend/services/retrieval/*`, `backend/foundry/{schemas,library_roots,index_service,hub_search,civitai_search,security_policy,download_manager,convert,hardware,runtime_resolver}.py`, `shared/retrieval.ts`, `electron/preload.ts`, `electron/ipc-handlers/generation.ts`, `electron/services/{mainIpc,retrievalClient,contextAssembler,promptAugmentation}.ts`, `electron/main.ts`._
+_Last verified against the codebase on 2026-11-11, after v3.4.2. Canonical source: `backend/main.py`, `backend/api/{edit,retrieval,comfy_graph}.py`, `backend/utils/{media_paths,log_redaction,job_store}.py`, `backend/middleware/rate_limit.py`, `backend/services/retrieval/*`, `backend/foundry/{schemas,library_roots,index_service,hub_search,civitai_search,security_policy,download_manager,convert,hardware,runtime_resolver}.py`, `shared/retrieval.ts`, `electron/preload.ts`, `electron/ipc-handlers/generation.ts`, `electron/services/{mainIpc,retrievalClient,contextAssembler,promptAugmentation}.ts`, `electron/main.ts`._

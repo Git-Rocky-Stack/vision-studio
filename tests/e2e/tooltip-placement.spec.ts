@@ -30,9 +30,24 @@ test.describe('Tooltip placement', () => {
       };
     };
 
-    await expect.poll(async () => (await measure())?.gap ?? -1).toBeGreaterThanOrEqual(7);
-    const settled = await measure();
+    // Settled means two reads 50ms apart agree: a single read taken as soon as
+    // the gap first looks right can land mid-scale, while the box is still
+    // shrinking toward its centre and the gap still reads above 8px.
+    const settledRead = async () => {
+      const first = await measure();
+      await page.waitForTimeout(50);
+      const second = await measure();
+      const stable =
+        first !== null &&
+        second !== null &&
+        Math.abs(first.gap - second.gap) < 0.01 &&
+        Math.abs(first.centreOffset - second.centreOffset) < 0.01;
+      return stable ? second : null;
+    };
+    await expect.poll(async () => (await settledRead()) !== null).toBe(true);
+    const settled = await settledRead();
     expect(settled).not.toBeNull();
+    expect(settled?.gap).toBeGreaterThanOrEqual(7);
     expect(settled?.gap).toBeLessThanOrEqual(9);
     expect(settled?.centreOffset).toBeLessThanOrEqual(1);
   });

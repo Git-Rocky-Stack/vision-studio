@@ -11,9 +11,9 @@
 
 ## Product Context
 
-- **What this is:** Vision Studio is a professional AI image and video generation desktop app (Electron) that runs entirely on the user's GPU. FLUX.1, SDXL, SD 1.5, LTX Video, Stable Video Diffusion, AnimateDiff. No cloud, no subscription, no usage caps.
+- **What this is:** Vision Studio is a professional, local-first AI image and video generation desktop app (Electron). Generation runs on the user's own GPU by default - FLUX.1, Stable Diffusion 3.5, SDXL, SD 1.5, LTX Video, Stable Video Diffusion, AnimateDiff. Hosted generation through OpenRouter or Hugging Face is opt-in and uses the user's own key. No subscription, no usage caps.
 - **Who it's for:** Creators with serious GPU rigs who want a polished, local-first console — the "I run my own ComfyUI but want professional gear" audience.
-- **Project type:** Electron 33 + React 19 + TypeScript + Vite + Tailwind CSS v4. Dockview panel workspace, Konva canvas, Framer Motion, Zustand.
+- **Project type:** Electron 42 + React 19 + TypeScript + Vite + Tailwind CSS v4. Custom panel layout (`src/components/layout/DockviewLayout.tsx` - the name is historical; the `dockview` library is not a dependency), Konva canvas, Framer Motion, Zustand.
 - **Memorable thing:** *"This isn't software. It's professional gear that happens to run on my machine. Built like a CDJ-3000."*
 
 **App vs website (instrument vs showroom):** The website is a marketing surface you glance at; the app is a dense tool you operate for hours. The app inherits the *visual language* — IBM Plex type, mono-UPPERCASE labels, machined edges, hardware depth, mechanical motion, chrome accent — but applies hardware primitives (faceplates, LEDs, LCDs, VU meters) in service of real tool functions, never as decoration. Information density and usability win every tie.
@@ -74,7 +74,7 @@ The app's **canonical token names** are kept (the `carbon-pro-tokens.test.ts` co
 | `--color-border` | `rgba(255,255,255,0.08)` | `--color-hairline` | Default border |
 | `--color-border-hover` | `rgba(255,255,255,0.16)` | `--color-hairline-strong` | Prominent border |
 
-**LED palette (Pioneer-DJ semantic)** — aliased to the app's status/capability tokens. Render with `.led-glow` (`box-shadow: 0 0 8px currentColor`). Use only as pinpoint indicators / state badges, never as text or background fills.
+**LED palette (Pioneer-DJ semantic)** — aliased to the app's status/capability tokens. Render with the `Led` component, which carries its own glow (the `.led-glow` utility, `box-shadow: 0 0 8px currentColor`, exists for one-off cases but is unused today). Use only as pinpoint indicators / state badges, never as text or background fills.
 
 | Website LED | App source token | Hex | Meaning |
 |---|---|---|---|
@@ -148,7 +148,7 @@ The single most identity-bearing technique beyond color and type. Every major su
 | 3 · Raised control | `.raised-control` | Buttons, pads, caps that sit on a well. |
 | CTA | `.btn-chrome` | Primary action — polished metal cap gradient (not a hue gradient). |
 
-Supporting utilities: `.faceplate-stripe` (brushed-aluminum header material), `.hex-bolt` + `.tl/.tr/.bl/.br` (stout machined socket-cap bolts for faceplate corners), `.led-glow`, `.instrument-scanline` (opt-in display texture). Recipes are copy-paste ready in `index.css` and documented at length in the website DESIGN.md `§Raised Hardware Depth System`.
+Supporting utilities: `.faceplate-stripe` (brushed-aluminum header material, used by the dock panel headers). `index.css` also carries the website's `.hex-bolt` + `.tl/.tr/.bl/.br`, `.led-glow` and `.instrument-scanline` (opt-in display texture) recipes, but no app component uses those classes today: corner bolts come from the `HexBolt` component (rendered by `Faceplate`) and LED glow from the `Led` component, both of which draw their own styles. Recipes are copy-paste ready in `index.css` and documented at length in the website DESIGN.md `§Raised Hardware Depth System`.
 
 ---
 
@@ -156,7 +156,7 @@ Supporting utilities: `.faceplate-stripe` (brushed-aluminum header material), `.
 
 Hardware primitives live in `src/components/hardware/`. Each must do **real work** — drive a parameter, show real state, trigger an action. Cosplay-only primitives are anti-slop.
 
-Ported / available: `MonoLabel`, `Led`, `SegmentLcd`, `Faceplate` (with `HexBolt`), `ChromeButton`. Extend from the website's library (`Knob`, `RockerSwitch`, VU meters, `JogWheel`, etc.) as real tool needs arise — port deliberately, wired to actual state.
+Ported / available (exported from `src/components/hardware/index.ts`): `MonoLabel`, `Led`, `Lcd` (the segmented-LCD readout), `Faceplate` (draws its own corner bolts through `HexBoltSet`; `HexBolt` is not used on its own anywhere in the app), `ChromeButton`, `RecessedWell`, `PadButton`. Extend from the website's library (`Knob`, `RockerSwitch`, VU meters, `JogWheel`, etc.) as real tool needs arise — port deliberately, wired to actual state.
 
 ---
 

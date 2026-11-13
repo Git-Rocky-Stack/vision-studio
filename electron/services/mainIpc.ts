@@ -1,12 +1,11 @@
 import fs from 'fs';
 import path from 'path';
-import type { App, Dialog, IpcMain, Shell } from 'electron';
+import type { App, Dialog, Shell } from 'electron';
 
 type NotificationConstructor = typeof import('electron').Notification;
 
 import {
-  isAllowedStoreKey,
-  isExecutablePath,
+  isOpenablePath,
   isSafeExternalUrl,
   resolveSafeExportDestination,
 } from './security';
@@ -14,22 +13,28 @@ import {
   resolveOutputPath,
   shouldRestartBackend,
   type AppSettings,
+  type ResolvedAppSettings,
 } from './settings';
-import { DEFAULT_SETTINGS, type StoreSchema } from './outputRoots';
+import { type StoreSchema } from './outputRoots';
 import { decodePngDataUrl } from './dataUrlAsset';
 import { sniffImageMime } from './imageMagic';
 import { fileURLToPath } from 'url';
+import { validateOutputRoot, type OutputRootPolicyContext } from './outputRootPolicy';
+import { hasForbiddenPathSyntax, toNativePath, type RealpathFn } from './pathSafety';
+import { createMediaImportGrants, type MediaImportGrants } from './mediaImportGrants';
+import type { OpenRouterKeyInfo, OpenRouterModelSummary } from './openRouter';
+import type { UserAccountRecord, UserAccountsSnapshot } from './userAccounts';
+import { handleIpc, type IpcHandler, type IpcMainLike } from '../ipc-handlers/ipcHandle';
+import type { IpcSenderEvent } from '../ipc-handlers/ipcSenderPolicy';
+import type { AccountPatch, IpcChannel, SettingsPatch } from '../../shared/ipcContract';
 import type {
-  OpenRouterKeyInfo,
-  OpenRouterModelSummary,
-} from './openRouter';
-import type {
-  ImageGenerationProvider,
-  VideoGenerationProvider,
-  PromptEnhancementProvider,
-  UserAccountRecord,
-  UserAccountsSnapshot,
-} from './userAccounts';
+  BackendStatus,
+  ImportedAssetFile,
+  OpenRouterKeyInfoResult,
+  OpenRouterModelListResult,
+  SystemInfo,
+  UpdaterStatus,
+} from '../../shared/ipcTypes';
 
 // Windows and default macOS volumes treat "Shot.png" and "shot.png" as the
 // same file, so collisions must be checked case-insensitively there.
@@ -59,10 +64,6 @@ export async function readTakenFileNames(
   }
 }
 
-/**
- * First free `<name><ext>`, `<name>-1<ext>`, ... against `taken`, and reserve
- * it there so later files in the same batch cannot claim it too.
- */
 /** Largest managed image the Canvas editor may read back through the bridge. */
 export const MAX_READ_DATA_URL_BYTES = 100 * 1024 * 1024;
 
@@ -126,6 +127,10 @@ export async function writeDataUrlAsset(outputRoot: string, dataUrl: unknown, fi
   };
 }
 
+/**
+ * First free `<name><ext>`, `<name>-1<ext>`, ... against `taken`, and reserve
+ * it there so later files in the same batch cannot claim it too.
+ */
 export function reserveUniqueFileName(
   name: string,
   ext: string,
@@ -145,61 +150,40 @@ export function reserveUniqueFileName(
 type StoreLike = {
   get: <K extends keyof StoreSchema>(key: K) => StoreSchema[K];
   set: <K extends keyof StoreSchema>(key: K, value: StoreSchema[K]) => void;
-  clear: () => void;
 };
 
 type BackendServiceLike = {
-  restart: () => Promise<boolean>;
   restartIfRunning: () => Promise<boolean>;
   startOrRecover: () => Promise<{ success: boolean; error?: string; restarted?: boolean }>;
-  stop: () => void;
-  getStatus: () => Promise<{ running: boolean; pid: number | null; bundled: boolean }>;
-  getSystemInfo: () => Promise<unknown>;
-  getBundledBackendPath: () => string | null;
+  getStatus: () => Promise<BackendStatus>;
+  getSystemInfo: () => Promise<SystemInfo>;
 };
 
 type OutputRootServiceLike = {
-  getAppSettings: () => Required<Omit<AppSettings, 'pythonPath'>> & AppSettings;
+  getAppSettings: () => ResolvedAppSettings;
   getInternalOutputDirectory: () => string;
   rememberOutputRoot: (outputRoot: string) => void;
   resolveManagedAssetPath: (assetPath: string) => string;
 };
 
+// Writes and secret reads are async: secrets go through safeStorage's async
+// API, and the service serializes every write (userAccounts.ts).
 type UserAccountsServiceLike = {
   listAccounts: () => UserAccountsSnapshot;
-  createAccount: (name?: string) => UserAccountsSnapshot;
-  updateAccount: (
-    accountId: string,
-    patch: {
-      name?: string;
-      promptEnhancementProvider?: PromptEnhancementProvider;
-      openRouterModel?: string;
-      imageGenerationProvider?: ImageGenerationProvider;
-      videoGenerationProvider?: VideoGenerationProvider;
-      openRouterImageModel?: string;
-      huggingFaceModel?: string;
-      huggingFaceImageModel?: string;
-      huggingFaceVideoModel?: string;
-      fallbackProvider?: 'openrouter' | 'huggingface' | null;
-    }
-  ) => UserAccountsSnapshot;
-  deleteAccount: (accountId: string) => UserAccountsSnapshot;
-  setActiveAccount: (accountId: string) => UserAccountsSnapshot;
+  createAccount: (name?: string) => Promise<UserAccountsSnapshot>;
+  updateAccount: (accountId: string, patch: AccountPatch) => Promise<UserAccountsSnapshot>;
+  deleteAccount: (accountId: string) => Promise<UserAccountsSnapshot>;
+  setActiveAccount: (accountId: string) => Promise<UserAccountsSnapshot>;
   getAccount: (accountId: string | null | undefined) => UserAccountRecord | null;
-  setOpenRouterApiKey: (accountId: string, apiKey: string) => UserAccountsSnapshot;
-  clearOpenRouterApiKey: (accountId: string) => UserAccountsSnapshot;
-  getOpenRouterApiKey: (accountId?: string | null) => string | null;
+  setOpenRouterApiKey: (accountId: string, apiKey: string) => Promise<UserAccountsSnapshot>;
+  clearOpenRouterApiKey: (accountId: string) => Promise<UserAccountsSnapshot>;
+  getOpenRouterApiKey: (accountId?: string | null) => Promise<string | null>;
   markOpenRouterVerified: (
     accountId: string,
     details: { label?: string | null }
-  ) => UserAccountsSnapshot;
-  setHuggingFaceToken: (accountId: string, token: string) => UserAccountsSnapshot;
-  clearHuggingFaceToken: (accountId: string) => UserAccountsSnapshot;
-  getHuggingFaceToken: (accountId?: string | null) => string | null;
-  markHuggingFaceVerified: (
-    accountId: string,
-    details: { label?: string | null }
-  ) => UserAccountsSnapshot;
+  ) => Promise<UserAccountsSnapshot>;
+  setHuggingFaceToken: (accountId: string, token: string) => Promise<UserAccountsSnapshot>;
+  clearHuggingFaceToken: (accountId: string) => Promise<UserAccountsSnapshot>;
 };
 
 type OpenRouterServiceLike = {
@@ -209,14 +193,15 @@ type OpenRouterServiceLike = {
 };
 
 type UpdaterServiceLike = {
-  getStatus: () => unknown;
-  check: () => Promise<unknown>;
-  install: () => void;
+  getStatus: () => UpdaterStatus;
+  check: () => Promise<UpdaterStatus>;
+  download: () => Promise<UpdaterStatus>;
+  install: () => void | Promise<void>;
 };
 
 type MainIpcOptions = {
   app: Pick<App, 'getVersion' | 'getPath'>;
-  ipcMain: Pick<IpcMain, 'handle'>;
+  ipcMain: IpcMainLike;
   dialog: Pick<Dialog, 'showOpenDialog' | 'showSaveDialog'>;
   shell: Pick<Shell, 'openExternal' | 'openPath' | 'showItemInFolder'>;
   Notification: Pick<NotificationConstructor, 'isSupported'> & {
@@ -229,7 +214,15 @@ type MainIpcOptions = {
   openRouter: OpenRouterServiceLike;
   updater: UpdaterServiceLike;
   getMainWindow: () => Electron.BrowserWindow | null;
-  logger?: Pick<Console, 'warn'>;
+  logger?: Pick<Console, 'warn' | 'error'>;
+  /** Frames allowed to invoke (default: the app's own renderer page). */
+  isTrustedSender?: (event: IpcSenderEvent) => boolean;
+  /** Output-root rules context (default: this machine's home / app data / platform). */
+  outputRootPolicy?: OutputRootPolicyContext;
+  /** One-time grants for assets:import-files (default: a fresh 10-minute grant set). */
+  importGrants?: MediaImportGrants;
+  /** realpath for export/open containment checks (default fs.realpathSync.native). */
+  realpath?: RealpathFn;
 };
 
 const IMAGE_IMPORT_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.webp']);
@@ -256,8 +249,9 @@ function resolveImportedMediaType(filePath: string): 'image' | 'video' | 'audio'
 
 export function resolveShellPath(
   filePath: string,
-  outputRoots: OutputRootServiceLike,
+  outputRoots: Pick<OutputRootServiceLike, 'resolveManagedAssetPath'>,
   allowedExportRoots: string[],
+  realpath?: RealpathFn,
 ): string {
   try {
     return outputRoots.resolveManagedAssetPath(filePath);
@@ -266,12 +260,58 @@ export function resolveShellPath(
     // export root (the user's chosen export destination, e.g. Desktop). Any
     // other renderer-supplied path is refused rather than handed to the OS
     // shell, which would otherwise open/execute an arbitrary path.
-    const exportPath = resolveSafeExportDestination(filePath, allowedExportRoots);
+    const exportPath = resolveSafeExportDestination(filePath, allowedExportRoots, realpath ? { realpath } : {});
     if (!exportPath) {
       throw new Error('Refusing to open a path outside managed or export locations.');
     }
     return exportPath;
   }
+}
+
+/** Disk side of the output-folder rules: the folder must exist or be creatable, and be writable. */
+export async function ensureWritableDirectory(directory: string): Promise<string | null> {
+  try {
+    await fs.promises.mkdir(directory, { recursive: true });
+    const stat = await fs.promises.stat(directory);
+    if (!stat.isDirectory()) {
+      return 'The output folder path points to a file, not a folder.';
+    }
+    await fs.promises.access(directory, fs.constants.W_OK);
+    return null;
+  } catch {
+    return 'The output folder could not be created or is not writable.';
+  }
+}
+
+/**
+ * Check a settings:update patch beyond its schema: the output folder must pass
+ * the output-root rules and be creatable. Returns the patch with the output
+ * folder canonicalized.
+ */
+export async function validateSettingsPatch(
+  patch: SettingsPatch,
+  policy: OutputRootPolicyContext,
+): Promise<{ ok: true; patch: SettingsPatch } | { ok: false; error: string }> {
+  const next: SettingsPatch = { ...patch };
+
+  if (typeof next.defaultOutputPath === 'string') {
+    const trimmed = next.defaultOutputPath.trim();
+    if (trimmed) {
+      const verdict = validateOutputRoot(trimmed, policy);
+      if (!verdict.ok) {
+        return { ok: false, error: verdict.reason };
+      }
+      const diskError = await ensureWritableDirectory(verdict.path);
+      if (diskError) {
+        return { ok: false, error: diskError };
+      }
+      next.defaultOutputPath = verdict.path;
+    } else {
+      next.defaultOutputPath = '';
+    }
+  }
+
+  return { ok: true, patch: next };
 }
 
 export function registerMainIpcHandlers({
@@ -288,45 +328,70 @@ export function registerMainIpcHandlers({
   updater,
   getMainWindow,
   logger = console,
+  isTrustedSender,
+  outputRootPolicy,
+  importGrants = createMediaImportGrants(),
+  realpath,
 }: MainIpcOptions) {
-  ipcMain.handle('app:get-version', () => app.getVersion());
+  const handlerOptions = { logger, ...(isTrustedSender ? { isTrustedSender } : {}) };
+  const on = <C extends IpcChannel>(channel: C, handler: IpcHandler<C>) =>
+    handleIpc(ipcMain, channel, handler, handlerOptions);
+
+  const policy = (): OutputRootPolicyContext =>
+    outputRootPolicy ?? {
+      homeDir: app.getPath('home'),
+      userDataPath: app.getPath('userData'),
+      platform: process.platform,
+      env: process.env,
+    };
+  const containment = realpath ? { realpath } : {};
+
+  on('app:get-version', () => app.getVersion());
 
   // #34 installer PR4: auto-update surface. Status pushes arrive separately
   // over 'updater:status' (see services/updater.ts).
-  ipcMain.handle('updater:get-status', () => updater.getStatus());
-  ipcMain.handle('updater:check', () => updater.check());
-  ipcMain.handle('updater:install', () => updater.install());
+  on('updater:get-status', () => updater.getStatus());
+  on('updater:check', () => updater.check());
+  // Downloads are explicit (autoDownload is off): installers are multi-GB.
+  on('updater:download', () => updater.download());
+  on('updater:install', () => updater.install());
 
-  ipcMain.handle('app:open-external', (_event, url: string) => {
+  on('app:open-external', (_event, url) => {
     if (!isSafeExternalUrl(url)) {
-      logger.warn('Blocked open-external for unsafe URL:', url);
+      logger.warn('Blocked open-external for an unsafe URL.');
       return;
     }
     void shell.openExternal(url);
   });
 
-  ipcMain.handle('app:open-path', async (_event, filePath: string) => {
+  on('app:open-path', async (_event, filePath) => {
     let resolved: string;
     try {
-      resolved = resolveShellPath(filePath, outputRoots, getAllowedExportRoots(app));
-    } catch (error: any) {
-      return { success: false, error: error?.message ?? 'Refused to open path.' };
+      resolved = resolveShellPath(filePath, outputRoots, getAllowedExportRoots(app), realpath);
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : 'Refused to open path.' };
     }
-    if (isExecutablePath(resolved)) {
-      return { success: false, error: 'Refusing to open an executable file.' };
+    let isDirectory: boolean;
+    try {
+      isDirectory = (await fs.promises.stat(resolved)).isDirectory();
+    } catch {
+      return { success: false, error: 'The file no longer exists.' };
     }
-    const error = await shell.openPath(resolved);
+    if (!isOpenablePath(resolved, isDirectory)) {
+      return { success: false, error: 'This file type cannot be opened from Vision Studio.' };
+    }
+    const error = await shell.openPath(toNativePath(resolved));
     return error ? { success: false, error } : { success: true };
   });
 
-  ipcMain.handle('dialog:select-folder', async () => {
+  on('dialog:select-folder', async () => {
     const result = await dialog.showOpenDialog(getMainWindow()!, {
       properties: ['openDirectory'],
     });
     return result.filePaths[0] || null;
   });
 
-  ipcMain.handle('dialog:select-media-files', async () => {
+  on('dialog:select-media-files', async () => {
     const result = await dialog.showOpenDialog(getMainWindow()!, {
       properties: ['openFile', 'multiSelections'],
       filters: [
@@ -337,44 +402,32 @@ export function registerMainIpcHandlers({
       ],
     });
 
-    return result.filePaths.map((filePath) => filePath.replace(/\\/g, '/'));
+    const selected = result.filePaths.map((filePath) => filePath.replace(/\\/g, '/'));
+    // Only paths the native picker produced may be imported (S7).
+    importGrants.grant(selected);
+    return selected;
   });
 
-  ipcMain.handle('dialog:save-file', async (_event, options: { defaultPath?: string; filters?: Electron.FileFilter[] }) => {
+  on('dialog:save-file', async (_event, options) => {
     const result = await dialog.showSaveDialog(getMainWindow()!, {
-      defaultPath: options.defaultPath,
-      filters: options.filters,
+      defaultPath: options?.defaultPath,
+      filters: options?.filters,
     });
     return result.filePath || null;
   });
 
-  ipcMain.handle('store:get', (_event, key: string) => {
-    if (!isAllowedStoreKey(key)) {
-      logger.warn(`Blocked store:get for unknown key: ${key}`);
-      return undefined;
+  on('settings:get', () => outputRoots.getAppSettings());
+
+  on('settings:update', async (_event, patch) => {
+    const checked = await validateSettingsPatch(patch, policy());
+    if (!checked.ok) {
+      throw new Error(checked.error);
     }
-    return store.get(key as keyof StoreSchema);
-  });
 
-  ipcMain.handle('store:set', (_event, key: string, value: unknown) => {
-    if (!isAllowedStoreKey(key)) {
-      logger.warn(`Blocked store:set for unknown key: ${key}`);
-      return;
-    }
-    store.set(key as keyof StoreSchema, value as never);
-  });
-
-  ipcMain.handle('store:reset', () => {
-    store.clear();
-  });
-
-  ipcMain.handle('settings:get', () => outputRoots.getAppSettings());
-
-  ipcMain.handle('settings:update', async (_event, patch: Partial<AppSettings>) => {
     const currentSettings = outputRoots.getAppSettings();
-    const nextSettings = {
+    const nextSettings: AppSettings = {
       ...currentSettings,
-      ...patch,
+      ...checked.patch,
     };
 
     store.set('settings', nextSettings);
@@ -387,235 +440,115 @@ export function registerMainIpcHandlers({
       }
     }
 
-    return nextSettings;
-  });
-
-  ipcMain.handle('settings:reset', async () => {
-    const currentSettings = outputRoots.getAppSettings();
-    const nextSettings = DEFAULT_SETTINGS;
-    store.set('settings', nextSettings);
-    outputRoots.rememberOutputRoot(outputRoots.getInternalOutputDirectory());
-
-    if (shouldRestartBackend(currentSettings, nextSettings)) {
-      const restarted = await backend.restartIfRunning();
-      if (!restarted) {
-        throw new Error('Backend restart failed after settings reset');
-      }
-    }
-
     return outputRoots.getAppSettings();
   });
 
-  ipcMain.handle('accounts:list', () => userAccounts.listAccounts());
+  on('accounts:list', () => userAccounts.listAccounts());
 
-  ipcMain.handle('accounts:create', (_event, payload?: { name?: string }) => {
-    return userAccounts.createAccount(payload?.name);
-  });
+  on('accounts:create', (_event, payload) => userAccounts.createAccount(payload?.name));
 
-  ipcMain.handle(
-    'accounts:update',
-    (
-      _event,
-      accountId: string,
-      patch: {
-        name?: string;
-        promptEnhancementProvider?: PromptEnhancementProvider;
-        openRouterModel?: string;
-        imageGenerationProvider?: ImageGenerationProvider;
-        videoGenerationProvider?: VideoGenerationProvider;
-        openRouterImageModel?: string;
-        huggingFaceModel?: string;
-        huggingFaceImageModel?: string;
-        huggingFaceVideoModel?: string;
-        fallbackProvider?: 'openrouter' | 'huggingface' | null;
-      },
-    ) => userAccounts.updateAccount(accountId, patch),
+  on('accounts:update', (_event, accountId, patch) => userAccounts.updateAccount(accountId, patch));
+
+  on('accounts:delete', (_event, accountId) => userAccounts.deleteAccount(accountId));
+
+  on('accounts:set-active', (_event, accountId) => userAccounts.setActiveAccount(accountId));
+
+  on('accounts:set-openrouter-api-key', (_event, payload) =>
+    userAccounts.setOpenRouterApiKey(payload.accountId, payload.apiKey),
   );
 
-  ipcMain.handle('accounts:delete', (_event, accountId: string) => {
-    return userAccounts.deleteAccount(accountId);
-  });
+  on('accounts:clear-openrouter-api-key', (_event, accountId) => userAccounts.clearOpenRouterApiKey(accountId));
 
-  ipcMain.handle('accounts:set-active', (_event, accountId: string) => {
-    return userAccounts.setActiveAccount(accountId);
-  });
-
-  ipcMain.handle(
-    'accounts:set-openrouter-api-key',
-    (_event, payload: { accountId: string; apiKey: string }) => {
-      return userAccounts.setOpenRouterApiKey(payload.accountId, payload.apiKey);
-    },
+  on('accounts:set-huggingface-token', (_event, payload) =>
+    userAccounts.setHuggingFaceToken(payload.accountId, payload.token),
   );
 
-  ipcMain.handle('accounts:clear-openrouter-api-key', (_event, accountId: string) => {
-    return userAccounts.clearOpenRouterApiKey(accountId);
-  });
+  on('accounts:clear-huggingface-token', (_event, accountId) => userAccounts.clearHuggingFaceToken(accountId));
 
-  ipcMain.handle(
-    'accounts:set-huggingface-token',
-    (_event, payload: { accountId: string; token: string }) => {
-      return userAccounts.setHuggingFaceToken(payload.accountId, payload.token);
-    },
+  /** Resolve the account's stored OpenRouter key, or the failure to report. */
+  async function resolveOpenRouterKey(accountId: string | undefined) {
+    const account = userAccounts.getAccount(accountId);
+    if (!account) {
+      return { ok: false as const, error: 'No active account is available.' };
+    }
+    const apiKey = await userAccounts.getOpenRouterApiKey(account.id);
+    if (!apiKey) {
+      return { ok: false as const, error: 'No OpenRouter API key is stored for this account.' };
+    }
+    return { ok: true as const, account, apiKey };
+  }
+
+  // test-connection and get-key-info are the same operation (validate the key
+  // via GET /key and record the verification); only the failure wording differs.
+  async function verifyOpenRouterKey(
+    accountId: string | undefined,
+    failureMessage: string,
+  ): Promise<OpenRouterKeyInfoResult> {
+    const resolved = await resolveOpenRouterKey(accountId);
+    if (!resolved.ok) {
+      return { success: false, error: resolved.error };
+    }
+    try {
+      const keyInfo = await openRouter.getKeyInfo(resolved.apiKey);
+      const accounts = await userAccounts.markOpenRouterVerified(resolved.account.id, { label: keyInfo.label });
+      return { success: true, keyInfo, accounts };
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : failureMessage };
+    }
+  }
+
+  async function listOpenRouterModels(
+    accountId: string | undefined,
+    list: (apiKey: string) => Promise<OpenRouterModelSummary[]>,
+    failureMessage: string,
+  ): Promise<OpenRouterModelListResult> {
+    const resolved = await resolveOpenRouterKey(accountId);
+    if (!resolved.ok) {
+      return { success: false, error: resolved.error, models: [] };
+    }
+    try {
+      return { success: true, models: await list(resolved.apiKey) };
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : failureMessage, models: [] };
+    }
+  }
+
+  on('openrouter:test-connection', (_event, accountId) =>
+    verifyOpenRouterKey(accountId, 'OpenRouter connection failed.'),
   );
 
-  ipcMain.handle('accounts:clear-huggingface-token', (_event, accountId: string) => {
-    return userAccounts.clearHuggingFaceToken(accountId);
-  });
+  on('openrouter:get-key-info', (_event, accountId) =>
+    verifyOpenRouterKey(accountId, 'Could not load OpenRouter key information.'),
+  );
 
-  ipcMain.handle('openrouter:test-connection', async (_event, accountId?: string) => {
-    const account = userAccounts.getAccount(accountId);
-    if (!account) {
-      return {
-        success: false,
-        error: 'No active account is available.',
-      };
-    }
+  on('openrouter:list-models', (_event, accountId) =>
+    listOpenRouterModels(accountId, (apiKey) => openRouter.listTextModels(apiKey), 'Could not load OpenRouter models.'),
+  );
 
-    const apiKey = userAccounts.getOpenRouterApiKey(account.id);
-    if (!apiKey) {
-      return {
-        success: false,
-        error: 'No OpenRouter API key is stored for this account.',
-      };
-    }
+  on('openrouter:list-image-models', (_event, accountId) =>
+    listOpenRouterModels(
+      accountId,
+      (apiKey) => openRouter.listImageModels(apiKey),
+      'Could not load OpenRouter image models.',
+    ),
+  );
 
-    try {
-      const keyInfo = await openRouter.getKeyInfo(apiKey);
-      const accounts = userAccounts.markOpenRouterVerified(account.id, {
-        label: keyInfo.label,
-      });
-      return {
-        success: true,
-        keyInfo,
-        accounts,
-      };
-    } catch (error: any) {
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'OpenRouter connection failed.',
-      };
-    }
-  });
-
-  ipcMain.handle('openrouter:get-key-info', async (_event, accountId?: string) => {
-    const account = userAccounts.getAccount(accountId);
-    if (!account) {
-      return {
-        success: false,
-        error: 'No active account is available.',
-      };
-    }
-
-    const apiKey = userAccounts.getOpenRouterApiKey(account.id);
-    if (!apiKey) {
-      return {
-        success: false,
-        error: 'No OpenRouter API key is stored for this account.',
-      };
-    }
-
-    try {
-      const keyInfo = await openRouter.getKeyInfo(apiKey);
-      const accounts = userAccounts.markOpenRouterVerified(account.id, {
-        label: keyInfo.label,
-      });
-      return {
-        success: true,
-        keyInfo,
-        accounts,
-      };
-    } catch (error: any) {
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Could not load OpenRouter key information.',
-      };
-    }
-  });
-
-  ipcMain.handle('openrouter:list-models', async (_event, accountId?: string) => {
-    const account = userAccounts.getAccount(accountId);
-    if (!account) {
-      return {
-        success: false,
-        error: 'No active account is available.',
-        models: [],
-      };
-    }
-
-    const apiKey = userAccounts.getOpenRouterApiKey(account.id);
-    if (!apiKey) {
-      return {
-        success: false,
-        error: 'No OpenRouter API key is stored for this account.',
-        models: [],
-      };
-    }
-
-    try {
-      const models = await openRouter.listTextModels(apiKey);
-      return {
-        success: true,
-        models,
-      };
-    } catch (error: any) {
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Could not load OpenRouter models.',
-        models: [],
-      };
-    }
-  });
-
-  ipcMain.handle('openrouter:list-image-models', async (_event, accountId?: string) => {
-    const account = userAccounts.getAccount(accountId);
-    if (!account) {
-      return {
-        success: false,
-        error: 'No active account is available.',
-        models: [],
-      };
-    }
-
-    const apiKey = userAccounts.getOpenRouterApiKey(account.id);
-    if (!apiKey) {
-      return {
-        success: false,
-        error: 'No OpenRouter API key is stored for this account.',
-        models: [],
-      };
-    }
-
-    try {
-      const models = await openRouter.listImageModels(apiKey);
-      return {
-        success: true,
-        models,
-      };
-    } catch (error: any) {
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Could not load OpenRouter image models.',
-        models: [],
-      };
-    }
-  });
-
-  ipcMain.handle('assets:export', async (_event, sourcePath: string, destinationPath: string) => {
+  on('assets:export', async (_event, sourcePath, destinationPath) => {
     try {
       const resolvedSource = outputRoots.resolveManagedAssetPath(sourcePath);
-      const resolvedDest = resolveSafeExportDestination(destinationPath, getAllowedExportRoots(app));
+      const resolvedDest = resolveSafeExportDestination(destinationPath, getAllowedExportRoots(app), containment);
       if (!resolvedDest) {
         return { success: false, error: 'Invalid destination path' };
       }
       await fs.promises.mkdir(path.dirname(resolvedDest), { recursive: true });
       await fs.promises.copyFile(resolvedSource, resolvedDest);
       return { success: true, destinationPath: resolvedDest };
-    } catch (error: any) {
-      return { success: false, error: error.message };
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : 'Export failed.' };
     }
   });
 
-  ipcMain.handle('assets:import-files', async (_event, sourcePaths: string[]) => {
+  on('assets:import-files', async (_event, sourcePaths) => {
     try {
       const appSettings = outputRoots.getAppSettings();
       const outputRoot = resolveOutputPath(appSettings, app.getPath('userData'));
@@ -625,18 +558,23 @@ export function registerMainIpcHandlers({
 
       const takenNames = await readTakenFileNames(importsDir);
       const importedAt = new Date().toISOString();
-      const files: Array<{
-        originalPath: string;
-        importedPath: string;
-        name: string;
-        type: 'image' | 'video' | 'audio';
-        importedAt: string;
-      }> = [];
+      const files: ImportedAssetFile[] = [];
+      let refused = 0;
 
       for (const sourcePath of sourcePaths) {
         const normalizedSource = sourcePath.replace(/\\/g, '/');
+        // Only a path the native picker just produced, once, and never a
+        // UNC / device path (opening one leaks NTLM credentials).
+        if (hasForbiddenPathSyntax(sourcePath) || !importGrants.consume(normalizedSource)) {
+          refused += 1;
+          continue;
+        }
         const resolvedType = resolveImportedMediaType(normalizedSource);
         if (!resolvedType) {
+          continue;
+        }
+        const sourceStat = await fs.promises.stat(normalizedSource);
+        if (!sourceStat.isFile()) {
           continue;
         }
 
@@ -654,36 +592,43 @@ export function registerMainIpcHandlers({
         });
       }
 
+      if (refused > 0) {
+        logger.warn(`[assets:import-files] Refused ${refused} path(s) not chosen in the file picker.`);
+        if (files.length === 0) {
+          return {
+            success: false,
+            error: 'Choose the files to import with the Import button. Network (UNC) paths cannot be imported; copy the files locally first.',
+          };
+        }
+      }
+
       return { success: true, files };
-    } catch (error: any) {
-      return { success: false, error: error.message };
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : 'Import failed.' };
     }
   });
 
-  ipcMain.handle('assets:read-data-url', async (_event, assetPath: unknown) => {
+  on('assets:read-data-url', async (_event, assetPath) => {
     try {
       return await readManagedImageDataUrl(assetPath, (p) => outputRoots.resolveManagedAssetPath(p));
-    } catch (error: any) {
+    } catch (error) {
       return { success: false, error: error instanceof Error ? error.message : 'Could not read the image.' };
     }
   });
 
-  ipcMain.handle(
-    'assets:save-data-url',
-    async (_event, params: { dataUrl?: unknown; fileName?: unknown } | undefined) => {
-      try {
-        const outputRoot = resolveOutputPath(outputRoots.getAppSettings(), app.getPath('userData'));
-        outputRoots.rememberOutputRoot(outputRoot);
-        return await writeDataUrlAsset(outputRoot, params?.dataUrl, params?.fileName);
-      } catch (error: any) {
-        return { success: false, error: error instanceof Error ? error.message : 'Could not save the edited image.' };
-      }
-    },
-  );
-
-  ipcMain.handle('assets:export-many', async (_event, sourcePaths: string[], destinationDir: string) => {
+  on('assets:save-data-url', async (_event, params) => {
     try {
-      const resolvedDestDir = resolveSafeExportDestination(destinationDir, getAllowedExportRoots(app));
+      const outputRoot = resolveOutputPath(outputRoots.getAppSettings(), app.getPath('userData'));
+      outputRoots.rememberOutputRoot(outputRoot);
+      return await writeDataUrlAsset(outputRoot, params.dataUrl, params.fileName);
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : 'Could not save the edited image.' };
+    }
+  });
+
+  on('assets:export-many', async (_event, sourcePaths, destinationDir) => {
+    try {
+      const resolvedDestDir = resolveSafeExportDestination(destinationDir, getAllowedExportRoots(app), containment);
       if (!resolvedDestDir) {
         return { success: false, error: 'Invalid destination directory' };
       }
@@ -698,83 +643,68 @@ export function registerMainIpcHandlers({
       }
 
       return { success: true, exportedCount: sourcePaths.length };
-    } catch (error: any) {
-      return { success: false, error: error.message };
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : 'Export failed.' };
     }
   });
 
-  ipcMain.handle('assets:delete', async (_event, sourcePath: string) => {
+  on('assets:delete', async (_event, sourcePath) => {
     try {
       const resolvedSource = outputRoots.resolveManagedAssetPath(sourcePath);
       await fs.promises.rm(resolvedSource, { force: true });
       return { success: true };
-    } catch (error: any) {
-      return { success: false, error: error.message };
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : 'Delete failed.' };
     }
   });
 
-  ipcMain.handle('assets:reveal', async (_event, sourcePath: string) => {
+  on('assets:reveal', async (_event, sourcePath) => {
     try {
-      shell.showItemInFolder(resolveShellPath(sourcePath, outputRoots, getAllowedExportRoots(app)));
+      shell.showItemInFolder(
+        toNativePath(resolveShellPath(sourcePath, outputRoots, getAllowedExportRoots(app), realpath)),
+      );
       return { success: true };
-    } catch (error: any) {
-      return { success: false, error: error.message };
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : 'Could not reveal the file.' };
     }
   });
 
-  ipcMain.handle('assets:clear-cache', async () => {
+  on('assets:clear-cache', async () => {
     try {
       const outputDirectory = outputRoots.getInternalOutputDirectory();
       await fs.promises.rm(outputDirectory, { recursive: true, force: true });
       await fs.promises.mkdir(outputDirectory, { recursive: true });
       return { success: true };
-    } catch (error: any) {
-      return { success: false, error: error.message };
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : 'Could not clear the cache.' };
     }
   });
 
-  ipcMain.handle(
-    'notifications:notify',
-    async (
-      _event,
-      type: 'generation_complete' | 'generation_failed' | 'model_download',
-      payload: { title: string; body: string }
-    ) => {
-      const settings = outputRoots.getAppSettings();
-      const enabled =
-        (type === 'generation_complete' && settings.notifyOnGenerationComplete) ||
-        (type === 'generation_failed' && settings.notifyOnGenerationFailed) ||
-        (type === 'model_download' && settings.notifyOnModelDownloads);
+  on('notifications:notify', async (_event, type, payload) => {
+    const settings = outputRoots.getAppSettings();
+    const enabled =
+      (type === 'generation_complete' && settings.notifyOnGenerationComplete) ||
+      (type === 'generation_failed' && settings.notifyOnGenerationFailed) ||
+      (type === 'model_download' && settings.notifyOnModelDownloads);
 
-      if (!enabled) {
-        return { success: true, skipped: true };
-      }
-
-      if (Notification.isSupported()) {
-        new Notification({
-          title: payload.title,
-          body: payload.body,
-        }).show();
-      }
-
-      return { success: true };
+    if (!enabled) {
+      return { success: true, skipped: true };
     }
-  );
 
-  ipcMain.handle('system:get-info', () => backend.getSystemInfo());
-  ipcMain.handle('backend:start', () => backend.startOrRecover());
-  ipcMain.handle('backend:stop', () => {
-    backend.stop();
+    if (Notification.isSupported()) {
+      new Notification({
+        title: payload.title,
+        body: payload.body,
+      }).show();
+    }
+
     return { success: true };
   });
-  ipcMain.handle('backend:status', () => backend.getStatus());
-  ipcMain.handle('backend:check-bundled', () => {
-    const bundledPath = backend.getBundledBackendPath();
-    return { exists: bundledPath !== null, path: bundledPath };
-  });
-  ipcMain.handle('app:get-path', (_event, name: 'userData' | 'documents' | 'downloads' | 'pictures') => {
-    return app.getPath(name);
-  });
+
+  on('system:get-info', () => backend.getSystemInfo());
+  on('backend:start', () => backend.startOrRecover());
+  on('backend:status', () => backend.getStatus());
+  on('app:get-path', (_event, name) => app.getPath(name));
 }
 
 // Roots a renderer-supplied path may resolve into for export (write) and for

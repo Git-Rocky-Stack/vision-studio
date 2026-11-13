@@ -1,7 +1,7 @@
 {
-  "_comment": "#34 installer: licenses for the heavy runtimes frozen into VisionStudio-Backend.exe (PyInstaller) and the app bundle. Curated + verified; keep in sync with backend/requirements.txt and package.json when the bundled set changes.",
+  "_comment": "#34 installer: licenses for the heavy runtimes frozen into the VisionStudio-Backend bundle (PyInstaller) and the app bundle. Curated + verified; keep in sync with backend/requirements/runtime.in and package.json when the bundled set changes.",
   "python": [
-    { "name": "PyTorch (torch, torchvision, torchaudio)", "license": "BSD-3-Clause", "url": "https://github.com/pytorch/pytorch/blob/main/LICENSE" },
+    { "name": "PyTorch (torch, torchvision)", "license": "BSD-3-Clause", "url": "https://github.com/pytorch/pytorch/blob/main/LICENSE" },
     { "name": "diffusers", "license": "Apache-2.0", "url": "https://github.com/huggingface/diffusers/blob/main/LICENSE" },
     { "name": "transformers", "license": "Apache-2.0", "url": "https://github.com/huggingface/transformers/blob/main/LICENSE" },
     { "name": "accelerate", "license": "Apache-2.0", "url": "https://github.com/huggingface/accelerate/blob/main/LICENSE" },
@@ -12,9 +12,13 @@
     { "name": "onnxruntime", "license": "MIT", "url": "https://github.com/microsoft/onnxruntime/blob/main/LICENSE" },
     { "name": "spandrel", "license": "MIT", "url": "https://github.com/chaiNNer-org/spandrel/blob/main/LICENSE" },
     { "name": "facexlib", "license": "Apache-2.0", "url": "https://github.com/xinntao/facexlib/blob/master/LICENSE" },
+    { "name": "optimum-quanto", "license": "Apache-2.0", "url": "https://github.com/huggingface/optimum-quanto/blob/main/LICENSE" },
+    { "name": "sentence-transformers", "license": "Apache-2.0", "url": "https://github.com/UKPLab/sentence-transformers/blob/master/LICENSE" },
+    { "name": "imageio-ffmpeg", "license": "BSD-2-Clause", "url": "https://github.com/imageio/imageio-ffmpeg/blob/main/LICENSE" },
+    { "name": "FFmpeg (the ffmpeg 9.0.x executable bundled by imageio-ffmpeg, run unmodified as a separate process; exact builds, corresponding source and written offer: licenses/FFMPEG-NOTICE.md with the full GPL-3.0.txt, shipped inside the backend bundle)", "license": "GPL-3.0-or-later", "url": "https://ffmpeg.org/legal.html" },
     { "name": "numpy", "license": "BSD-3-Clause", "url": "https://github.com/numpy/numpy/blob/main/LICENSE.txt" },
     { "name": "Pillow", "license": "MIT-CMU (HPND)", "url": "https://github.com/python-pillow/Pillow/blob/main/LICENSE" },
-    { "name": "opencv-python", "license": "Apache-2.0", "url": "https://github.com/opencv/opencv-python/blob/4.x/LICENSE.txt" },
+    { "name": "opencv-python-headless", "license": "Apache-2.0", "url": "https://github.com/opencv/opencv-python/blob/4.x/LICENSE.txt" },
     { "name": "FastAPI", "license": "MIT", "url": "https://github.com/fastapi/fastapi/blob/master/LICENSE" },
     { "name": "uvicorn", "license": "BSD-3-Clause", "url": "https://github.com/encode/uvicorn/blob/master/LICENSE.md" },
     { "name": "pydantic", "license": "MIT", "url": "https://github.com/pydantic/pydantic/blob/main/LICENSE" }

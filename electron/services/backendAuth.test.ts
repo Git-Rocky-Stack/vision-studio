@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 
+import * as backendAuth from './backendAuth';
 import {
   BACKEND_AUTH_HEADER,
-  BACKEND_AUTH_TOKEN,
   getBackendAuthToken,
   backendAuthHeaders,
   setHfToken,
@@ -13,10 +13,15 @@ import {
 
 describe('backend auth helpers', () => {
   it('creates a process-local backend auth token header', () => {
-    expect(BACKEND_AUTH_TOKEN.length).toBeGreaterThan(16);
+    const token = getBackendAuthToken();
+    expect(token.length).toBeGreaterThan(16);
     expect(backendAuthHeaders()).toEqual({
-      [BACKEND_AUTH_HEADER]: BACKEND_AUTH_TOKEN,
+      [BACKEND_AUTH_HEADER]: token,
     });
+  });
+
+  it('no longer exports the deprecated eagerly-initialized token constant', () => {
+    expect('BACKEND_AUTH_TOKEN' in backendAuth).toBe(false);
   });
 
   it('getBackendAuthToken returns a stable token', () => {

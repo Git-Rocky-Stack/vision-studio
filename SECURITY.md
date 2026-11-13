@@ -9,15 +9,20 @@ what we consider a vulnerability and how we handle one.
 
 Only the latest release receives security fixes. Vision Studio ships as a
 single stable line with an auto-update feed; there are no maintained LTS
-branches.
+branches. The latest published release is **v3.4.1**; **3.4.2** is the upcoming
+release and is not yet published.
 
 | Version | Supported |
 | ------- | --------- |
 | 3.4.x   | Yes |
 | < 3.4   | No - update to the latest release |
 
-Check your version in **Settings -> About**, or update through the in-app
-updater.
+Check your version in **Settings -> About**. Releases are not yet code-signed,
+and until they are the in-app updater will not install an update (on Windows it
+refuses any update whose signature does not resolve to the expected publisher -
+see [What We Ship, and How It Is Checked](#what-we-ship-and-how-it-is-checked)).
+To update, download the latest version from
+[vision-studio-x.com/download](https://vision-studio-x.com/download).
 
 ## Reporting a Vulnerability
 

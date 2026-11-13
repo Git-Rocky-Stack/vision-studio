@@ -2,6 +2,7 @@
   "$schema": "https://raw.githubusercontent.com/electron-userland/electron-builder/master/packages/app-builder-lib/scheme.json",
   "appId": "com.vision-studio-x.app",
   "productName": "Vision Studio",
+  "copyright": "Copyright © 2024-2026 Vision Studio Team",
   "directories": {
     "output": "release",
     "buildResources": "build"
@@ -19,33 +20,55 @@
     {
       "from": "resources/",
       "to": ".",
-      "filter": ["**/*"]
+      "filter": [
+        "**/*"
+      ]
+    },
+    {
+      "from": "THIRD-PARTY-LICENSES.md",
+      "to": "THIRD-PARTY-LICENSES.md"
+    },
+    {
+      "from": "LICENSE",
+      "to": "LICENSE"
     },
     {
       "from": "backend/",
       "to": "backend-source/",
-      "filter": ["**/*", "!venv/**/*", "!build/**/*", "!dist/**/*", "!__pycache__/**/*", "!*.pyc", "!models/**/*", "!data/**/*", "!outputs/**/*", "!.pytest_cache/**/*"]
+      "filter": [
+        "**/*",
+        "!venv/**/*",
+        "!build/**/*",
+        "!dist/**/*",
+        "!__pycache__/**/*",
+        "!*.pyc",
+        "!models/**/*",
+        "!data/**/*",
+        "!outputs/**/*",
+        "!.pytest_cache/**/*"
+      ]
     }
   ],
   "win": {
     "target": [
       {
         "target": "dir",
-        "arch": ["x64"]
+        "arch": [
+          "x64"
+        ]
       }
     ],
     "icon": "build/icon.ico",
     "signtoolOptions": {
       "publisherName": "Vision Studio Team"
     },
-    "verifyUpdateCodeSignature": false,
+    "verifyUpdateCodeSignature": true,
     "requestedExecutionLevel": "asInvoker"
   },
   "compression": "store",
   "publish": {
-    "provider": "github",
-    "owner": "Git-Rocky-Stack",
-    "repo": "vision-studio",
-    "releaseType": "release"
+    "provider": "generic",
+    "url": "https://updates.vision-studio-x.com/win/",
+    "useMultipleRangeRequest": false
   }
 }

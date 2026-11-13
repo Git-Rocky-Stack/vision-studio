@@ -11,8 +11,8 @@ import {
   ChevronRight,
   ChevronLeft,
   Check,
-  Youtube,
-  Instagram,
+  MonitorPlay,
+  Share2,
   ShoppingBag,
   Palette,
   Monitor,
@@ -22,14 +22,15 @@ import {
   MessageSquare,
 } from 'lucide-react';
 import { DialogCloseButton } from '@/components/ui/DialogCloseButton';
+import { useDialogFocus } from '@/hooks/useDialogFocus';
 
 const CATEGORIES: {
   id: ProjectTemplate['category'];
   label: string;
   icon: React.ElementType;
 }[] = [
-  { id: 'social', label: 'Social Media', icon: Instagram },
-  { id: 'youtube', label: 'YouTube', icon: Youtube },
+  { id: 'social', label: 'Social Media', icon: Share2 },
+  { id: 'youtube', label: 'YouTube', icon: MonitorPlay },
   { id: 'marketing', label: 'Marketing', icon: ShoppingBag },
   { id: 'art', label: 'Art & Creative', icon: Palette },
 ];
@@ -91,7 +92,6 @@ export function TemplateCreator({ onClose, editingTemplate }: TemplateCreatorPro
     editingTemplate?.settings.negativePrompt || ''
   );
   const dialogRef = useRef<HTMLDivElement>(null);
-  const previousFocusRef = useRef<HTMLElement | null>(null);
   const titleId = useId();
   const nameId = useId();
   const descriptionId = useId();
@@ -101,47 +101,24 @@ export function TemplateCreator({ onClose, editingTemplate }: TemplateCreatorPro
   const modelId = useId();
   const promptId = useId();
   const negativePromptId = useId();
+  const dimensionPresetsId = useId();
 
+  const nameInputRef = useRef<HTMLInputElement>(null);
+  const promptRef = useRef<HTMLTextAreaElement>(null);
+
+  // Shared modal contract: focus in (on the name), Tab trapped, Escape
+  // closes, focus restored.
+  useDialogFocus(dialogRef, { open: true, onEscape: onClose, initialFocusRef: nameInputRef });
+
+  // Moving between steps unmounts the focused field: the step's primary field
+  // (Details: name, Prompts: default prompt) takes focus when the user lands on it.
+  const previousStepRef = useRef(step);
   useEffect(() => {
-    previousFocusRef.current = document.activeElement as HTMLElement | null;
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        event.preventDefault();
-        onClose();
-        return;
-      }
-
-      if (event.key !== 'Tab') {
-        return;
-      }
-
-      const focusable = dialogRef.current?.querySelectorAll<HTMLElement>(
-        'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
-      );
-      if (!focusable || focusable.length === 0) {
-        return;
-      }
-
-      const first = focusable[0];
-      const last = focusable[focusable.length - 1];
-
-      if (event.shiftKey && document.activeElement === first) {
-        event.preventDefault();
-        last.focus();
-      } else if (!event.shiftKey && document.activeElement === last) {
-        event.preventDefault();
-        first.focus();
-      }
-    };
-
-    document.addEventListener('keydown', handleKeyDown);
-
-    return () => {
-      document.removeEventListener('keydown', handleKeyDown);
-      previousFocusRef.current?.focus?.();
-    };
-  }, [onClose]);
+    if (previousStepRef.current === step) return;
+    previousStepRef.current = step;
+    const target = step === 0 ? nameInputRef.current : step === 3 ? promptRef.current : null;
+    target?.focus({ preventScroll: true });
+  }, [step]);
 
   const STEPS = [
     { label: 'Details', icon: Type },
@@ -210,7 +187,7 @@ export function TemplateCreator({ onClose, editingTemplate }: TemplateCreatorPro
         exit={{ opacity: 0, scale: 0.95, y: 20 }}
         transition={{ type: 'spring', damping: 25, stiffness: 300 }}
         onClick={(e) => e.stopPropagation()}
-        className="relative w-full max-w-[600px] max-h-[80vh] bg-surface rounded-md border border-border shadow-cinematic overflow-hidden flex flex-col"
+        className="raised-panel dialog-shell relative w-full max-w-[600px] max-h-[80vh] overflow-hidden flex flex-col"
       >
         {/* Close */}
         <DialogCloseButton
@@ -283,12 +260,12 @@ export function TemplateCreator({ onClose, editingTemplate }: TemplateCreatorPro
                     Template Name
                   </label>
                   <input
+                    ref={nameInputRef}
                     id={nameId}
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     placeholder="e.g., My YouTube Thumbnail"
                     className="w-full bg-elevated border border-border rounded-md px-4 py-3 text-sm text-text-primary placeholder:text-text-muted focus:border-accent-primary transition"
-                    autoFocus
                   />
                 </div>
 
@@ -349,10 +326,10 @@ export function TemplateCreator({ onClose, editingTemplate }: TemplateCreatorPro
                 className="space-y-4"
               >
                 <div>
-                  <label className="text-label text-text-body mb-2 block">
+                  <span id={dimensionPresetsId} className="text-label text-text-body mb-2 block">
                     Dimension Presets
-                  </label>
-                  <div className="grid grid-cols-3 gap-2">
+                  </span>
+                  <div className="grid grid-cols-3 gap-2" role="group" aria-labelledby={dimensionPresetsId}>
                     {DIMENSION_PRESETS.map((preset) => {
                       const isSelected =
                         !useCustomDimensions &&
@@ -361,6 +338,8 @@ export function TemplateCreator({ onClose, editingTemplate }: TemplateCreatorPro
                       return (
                         <button
                           key={preset.label}
+                          type="button"
+                          aria-pressed={isSelected}
                           onClick={() => {
                             setWidth(preset.width);
                             setHeight(preset.height);
@@ -523,13 +502,13 @@ export function TemplateCreator({ onClose, editingTemplate }: TemplateCreatorPro
                     Default Prompt
                   </label>
                   <textarea
+                    ref={promptRef}
                     id={promptId}
                     value={prompt}
                     onChange={(e) => setPrompt(e.target.value)}
                     placeholder="Describe the default generation style and content..."
                     rows={4}
                     className="w-full bg-elevated border border-border rounded-md px-4 py-3 text-sm text-text-primary placeholder:text-text-muted focus:border-accent-primary resize-none transition"
-                    autoFocus
                   />
                   <p className="type-caption mt-1">
                     This prompt will be pre-filled when using the template

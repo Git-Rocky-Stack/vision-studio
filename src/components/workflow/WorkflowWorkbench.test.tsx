@@ -126,6 +126,17 @@ describe('WorkflowWorkbench', () => {
     ).toBeInTheDocument();
   });
 
+  it('persists the graph pan/zoom to the active workflow record', () => {
+    render(<WorkflowWorkbench />);
+    const activeId = useAppStore.getState().activeWorkflowId ?? useAppStore.getState().workflowRecords[0].id;
+
+    fireEvent.click(screen.getByRole('button', { name: 'Zoom in' }));
+    cleanup(); // unmount flushes the settling zoom gesture
+
+    const record = useAppStore.getState().workflowRecords.find((w) => w.id === activeId);
+    expect(record?.graph.viewport).toEqual({ x: 0, y: 0, zoom: 1.1 });
+  });
+
   it('renders the editable workflow graph in the center work surface', () => {
     render(<WorkflowWorkbench />);
 

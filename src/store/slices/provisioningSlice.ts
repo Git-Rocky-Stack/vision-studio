@@ -83,7 +83,12 @@ export function createProvisioningActions(set: AppSet, get: AppGet) {
         // Local-first: an IPC hiccup must not wipe known provisioning state.
       }
     },
-    startProvisioning: action((bridge) => bridge.start()),
+    startProvisioning: (options?: { modelIds?: string[] }) =>
+      action((bridge) =>
+        // The bridge gains the optional subset parameter in the IPC rework;
+        // the cast keeps this compiling against the current signature.
+        (bridge.start as (options?: { modelIds?: string[] }) => ReturnType<typeof bridge.start>)(options),
+      )(),
     pauseProvisioning: action((bridge) => bridge.pause()),
     resumeProvisioning: action((bridge) => bridge.resume()),
     cancelProvisioning: action((bridge) => bridge.cancel()),

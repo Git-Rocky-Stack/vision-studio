@@ -17,25 +17,21 @@ import {
   resolveStillImageRoute,
   resolveVideoRoute,
 } from '@/features/accounts/providerRouting';
-import {
-  delay,
-  getOutputAssetId,
-  resolveOutputRoot,
-} from '@/features/workflow/runWorkflowExecution';
-import { resolveStoredAssetPath, toPreviewUrl } from '@/features/assets/assetRecords';
+import { getOutputAssetId, resolveOutputRoot } from '@/features/workflow/runWorkflowExecution';
+import { watchJob } from '@/features/jobs/watchJob';
+import { resolveAssetThumbnail, resolveStoredAssetPath, toPreviewUrl } from '@/features/assets/assetRecords';
 
 type TimelineStore = UseBoundStore<StoreApi<AppState>>;
 
 /**
- * Poll budgets: max wall time before the runner gives up waiting on the
- * job. Multiplied against pollIntervalMs (default 500ms) inside the poll
- * loop, so the local-backend budget is ~60s and the hosted budget is
- * ~120s. Hosted routes (OpenRouter, HuggingFace) get the longer ceiling
- * because off-device image generation has higher tail latency than the
- * local CUDA path.
+ * The job is followed until the backend reports a terminal status (#J1). A
+ * run ends early only when the backend stops answering (status error budget)
+ * or the job stops reporting progress for the watch's stall window.
  */
-const MAX_POLL_ATTEMPTS_LOCAL_BACKEND = 120;
-const MAX_POLL_ATTEMPTS_HOSTED = 240;
+export const TIMELINE_JOB_LOST_MESSAGE =
+  'Lost connection to the AI backend while the timeline job was running. Please retry.';
+export const TIMELINE_JOB_STALLED_MESSAGE =
+  'The timeline job stopped reporting progress and was given up on. Please retry.';
 
 type GenerationType = 'image' | 'video';
 type TimelineGenerationOperation = 'generate' | 'regenerate' | 'variant' | 'extend' | 'retake';
@@ -491,82 +487,52 @@ export async function runTimelineClipGeneration({
     activeJobId: jobId,
   });
 
-  // Hosted routes (OpenRouter / HuggingFace, still-image or video) get the
-  // longer poll ceiling because off-device generation has higher tail latency.
-  const maxPollAttempts = hostedRoute ? MAX_POLL_ATTEMPTS_HOSTED : MAX_POLL_ATTEMPTS_LOCAL_BACKEND;
-
-  let finalStatus: JobStatus | null = null;
-  let signalAborted = false;
+  // The shared job watch (#J1): progress push first, polling as the fallback,
+  // a status error budget, and a stall guard instead of a wall-clock ceiling -
+  // the old 60s local budget cut long video renders off mid-run.
   // Capture the most recent non-terminal progress so the cancel branch
   // can record how far the job actually got instead of falling back to 0.
   let lastKnownProgress = 0;
-  for (let attempt = 0; attempt < maxPollAttempts; attempt += 1) {
-    if (signal?.aborted) {
-      signalAborted = true;
-      break;
-    }
-    const nextStatus = await electron.generation.getStatus(jobId);
-    if (!nextStatus) {
-      throw new Error('Timeline generation returned no job status.');
-    }
-
-    if (
-      nextStatus.status === 'completed' ||
-      nextStatus.status === 'failed' ||
-      nextStatus.status === 'cancelled'
-    ) {
-      finalStatus = nextStatus;
-      break;
-    }
-
-    // Defensive enum guard: a future-version backend could return a status
-    // outside the JobStatus union. Coerce anything other than the two
-    // expected non-terminal values to 'processing' so the store never holds
-    // an unknown literal that downstream code does not handle.
-    const safeStatus: 'pending' | 'processing' =
-      nextStatus.status === 'pending' || nextStatus.status === 'processing'
-        ? nextStatus.status
-        : 'processing';
-    lastKnownProgress = nextStatus.progress ?? lastKnownProgress;
-    state.updateJob(jobId, {
-      status: safeStatus,
-      progress: lastKnownProgress,
-    });
-    const stepValue = (nextStatus as JobStatus & { step?: number }).step;
-    onStatusChange?.({
-      isGenerating: true,
-      status: 'generating',
-      progress: nextStatus.progress ?? 0,
-      ...(typeof stepValue === 'number' ? { step: stepValue } : {}),
-      activeJobId: jobId,
-    });
-
-    if (nextBindingBase) {
-      patchBindingIfPresent(store, nextBindingBase.id, {
-        lastRunSummary: {
-          status: 'running',
-          outputMediaAssetId: null,
-          completedAt: null,
-          errorMessage: null,
-        },
+  const watch = await watchJob({
+    jobId,
+    getStatus: (id) => electron.generation.getStatus(id),
+    signal,
+    pollIntervalMs,
+    // Same cadence as before: the push, not a slower poll, is what reduces load.
+    maxPollIntervalMs: pollIntervalMs,
+    onUpdate: (update) => {
+      lastKnownProgress = update.progress;
+      state.updateJob(jobId, {
+        status: update.status,
+        progress: update.progress,
+        ...(update.step !== undefined ? { step: update.step } : {}),
       });
-    }
+      onStatusChange?.({
+        isGenerating: true,
+        status: 'generating',
+        progress: update.progress,
+        ...(update.step !== undefined ? { step: update.step } : {}),
+        activeJobId: jobId,
+      });
 
-    if (retakeTakeId) {
-      state.updateClipRetakeTake(retakeTakeId, { status: 'rendering' });
-    }
-
-    if (pollIntervalMs > 0) {
-      try {
-        await delay(pollIntervalMs, signal);
-      } catch {
-        signalAborted = true;
-        break;
+      if (nextBindingBase) {
+        patchBindingIfPresent(store, nextBindingBase.id, {
+          lastRunSummary: {
+            status: 'running',
+            outputMediaAssetId: null,
+            completedAt: null,
+            errorMessage: null,
+          },
+        });
       }
-    }
-  }
 
-  if (signalAborted) {
+      if (retakeTakeId) {
+        state.updateClipRetakeTake(retakeTakeId, { status: 'rendering' });
+      }
+    },
+  });
+
+  if (watch.kind === 'aborted') {
     // Tell the backend to stop work when the renderer aborted mid-poll;
     // otherwise the job keeps running and consumes GPU until it completes
     // on its own. Swallow cancel errors so the abort path stays clean.
@@ -603,23 +569,32 @@ export async function runTimelineClipGeneration({
     };
   }
 
-  if (!finalStatus) {
-    const timeoutMessage = 'Timeline generation timed out while waiting for the job to finish.';
+  if (watch.kind === 'lost' || watch.kind === 'stalled') {
+    const watchFailureMessage =
+      watch.kind === 'lost' ? TIMELINE_JOB_LOST_MESSAGE : TIMELINE_JOB_STALLED_MESSAGE;
+    state.updateJob(jobId, {
+      status: 'failed',
+      progress: lastKnownProgress,
+      error: watchFailureMessage,
+      completedAt: new Date(),
+    });
     if (nextBindingBase) {
       patchBindingIfPresent(store, nextBindingBase.id, {
         lastRunSummary: {
           status: 'failed',
           outputMediaAssetId: null,
           completedAt: null,
-          errorMessage: timeoutMessage,
+          errorMessage: watchFailureMessage,
         },
       });
     }
     if (retakeTakeId) {
       state.updateClipRetakeTake(retakeTakeId, { status: 'failed' });
     }
-    throw new Error(timeoutMessage);
+    throw new Error(watchFailureMessage);
   }
+
+  const finalStatus: JobStatus = watch.status;
 
   if (finalStatus.status === 'cancelled') {
     state.updateJob(jobId, {
@@ -1191,8 +1166,9 @@ function buildGeneratedMediaAsset(
   // Edit jobs (#34) produce images; only video jobs carry a video result.
   const assetType = status.type === 'video' ? ('video' as const) : ('image' as const);
   const storedPath = resolveStoredAssetPath(outputPath, params);
+  // A record in its persisted form has an empty thumbnail; resolve its preview.
   const thumbnailUrl =
-    assetRecord?.thumbnail ??
+    (assetRecord ? resolveAssetThumbnail(assetRecord) : '') ||
     toPreviewUrl(outputPath, {
       type: assetType,
       label: assetRecord?.name ?? (assetType === 'video' ? 'Generated Video' : 'Generated Image'),

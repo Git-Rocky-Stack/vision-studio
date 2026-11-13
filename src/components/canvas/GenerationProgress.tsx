@@ -35,7 +35,7 @@ export const GenerationProgress = memo(function GenerationProgress() {
       <div className="absolute inset-0 bg-void/40 backdrop-blur-sm" />
 
       {/* Progress surface */}
-      <div className="relative flex flex-col items-center gap-3 rounded-md border border-border bg-elevated/95 px-6 py-5 shadow-cinematic">
+      <div className="relative flex flex-col items-center gap-3 rounded-md border border-border bg-elevated/95 px-6 py-5 shadow-overlay">
         <div
           className="relative w-[120px] h-[120px]"
           role="progressbar"

@@ -83,7 +83,8 @@ describe('CharacterAssignmentChip', () => {
     const parentClick = vi.fn();
     const user = userEvent.setup();
     render(
-      <div onClick={parentClick}>
+      // A parent stand-in that captures bubbled clicks.
+      <div role="presentation" onClick={parentClick}>
         <CharacterAssignmentChip
           name="Captain Nova"
           color="#e63946"

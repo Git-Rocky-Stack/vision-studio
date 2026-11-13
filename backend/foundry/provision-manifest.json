@@ -9,12 +9,105 @@
       "license_category": "openrail",
       "attribution": null,
       "gated": false,
+      "tier": "core",
       "source": {
         "kind": "hf",
         "repo_id": "guoyww/animatediff-motion-adapter-v1-5-2",
-        "revision": "main"
+        "revision": "6167b88ffe39b4441fdf2113e77b99a6f56b7906",
+        "snapshots": [
+          {
+            "repo_id": "guoyww/animatediff-motion-adapter-v1-5-2",
+            "revision": "6167b88ffe39b4441fdf2113e77b99a6f56b7906",
+            "subdir": "adapter",
+            "files": [
+              {
+                "path": "config.json",
+                "size": 455,
+                "sha256": "7a82341871beba9826ebb8e608415ae2501686bc2e1ccb7a810e50c4b1e37863"
+              },
+              {
+                "path": "diffusion_pytorch_model.safetensors",
+                "size": 1815329816,
+                "sha256": "d95c417ddd4ffe1f7d4df43b51ef1c2c3c4fd7c3fd5ae53c75ef5d798a2213a3"
+              }
+            ]
+          },
+          {
+            "repo_id": "stable-diffusion-v1-5/stable-diffusion-v1-5",
+            "revision": "451f4fe16113bff5a5d2269ed5ad43b0592e9a14",
+            "subdir": "base",
+            "files": [
+              {
+                "path": "model_index.json",
+                "size": 541,
+                "sha256": "e2f6f22e274374010aec30c79eb2d6e53fff4a36ac0225523a92cb2d41a83347"
+              },
+              {
+                "path": "feature_extractor/preprocessor_config.json",
+                "size": 342,
+                "sha256": "2a1da83b5e1032aaeef397552ddb408dca0d8cd1dc58f61bf6abf38d6f33a0a2"
+              },
+              {
+                "path": "scheduler/scheduler_config.json",
+                "size": 308,
+                "sha256": "699cce92eb7c122e2eb7dfdea78e6187fda76a5ed4a8e42319b85610e620e091"
+              },
+              {
+                "path": "text_encoder/config.json",
+                "size": 617,
+                "sha256": "845df614cb9327ae7bbea027316246fae917827407da6df13572e41b5f93b4cc"
+              },
+              {
+                "path": "text_encoder/model.safetensors",
+                "size": 492265874,
+                "sha256": "d008943c017f0092921106440254dbbe00b6a285f7883ec8ba160c3faad88334"
+              },
+              {
+                "path": "tokenizer/merges.txt",
+                "size": 524619,
+                "sha256": "9fd691f7c8039210e0fced15865466c65820d09b63988b0174bfe25de299051a"
+              },
+              {
+                "path": "tokenizer/special_tokens_map.json",
+                "size": 472,
+                "sha256": "c4864a9376a8401918425bed71fc14fc0e81f9b59ec45c1cf96cccb2df508eac"
+              },
+              {
+                "path": "tokenizer/tokenizer_config.json",
+                "size": 806,
+                "sha256": "00439066fcba73de57644cf41e4e3b9f2dbb09d7f3fc2005898ba52399045882"
+              },
+              {
+                "path": "tokenizer/vocab.json",
+                "size": 1059962,
+                "sha256": "e089ad92ba36837a0d31433e555c8f45fe601ab5c221d4f607ded32d9f7a4349"
+              },
+              {
+                "path": "unet/config.json",
+                "size": 743,
+                "sha256": "78f474de6bab3d893868f37be97b636ae65c0df3073ed3256ca458ff599b5f96"
+              },
+              {
+                "path": "unet/diffusion_pytorch_model.safetensors",
+                "size": 3438167540,
+                "sha256": "19da7aaa4b880e59d56843f1fcb4dd9b599c28a1d9d9af7c1143057c8ffae9f1"
+              },
+              {
+                "path": "vae/config.json",
+                "size": 547,
+                "sha256": "786a7d21647ddea6a04b9675c03d3cb45e90a2f3c6da5fbda2c54ade040036de"
+              },
+              {
+                "path": "vae/diffusion_pytorch_model.safetensors",
+                "size": 334643276,
+                "sha256": "a2b5134f4dbc140d9c11f11cba3233099e00af40f262f136c691fb7d38d2194c"
+              }
+            ]
+          }
+        ]
       },
-      "approx_bytes": 1717986918
+      "approx_bytes": 1717986918,
+      "size_bytes": 6081995918
     },
     {
       "id": "annotator-midas",
@@ -24,12 +117,28 @@
       "license_category": "permissive",
       "attribution": null,
       "gated": false,
+      "tier": "extended",
       "source": {
         "kind": "hf",
         "repo_id": "lllyasviel/Annotators",
-        "revision": "main"
+        "revision": "982e7edaec38759d914a963c48c4726685de7d96",
+        "snapshots": [
+          {
+            "repo_id": "lllyasviel/Annotators",
+            "revision": "982e7edaec38759d914a963c48c4726685de7d96",
+            "subdir": "",
+            "files": [
+              {
+                "path": "dpt_hybrid-midas-501f0c75.pt",
+                "size": 492757791,
+                "sha256": "501f0c75b3bca7daec6b3682c5054c09b366765aef6fa3a09d03a5cb4b230853"
+              }
+            ]
+          }
+        ]
       },
-      "approx_bytes": 536870912
+      "approx_bytes": 536870912,
+      "size_bytes": 492757791
     },
     {
       "id": "annotator-normalbae",
@@ -39,12 +148,28 @@
       "license_category": "openrail",
       "attribution": null,
       "gated": false,
+      "tier": "extended",
       "source": {
         "kind": "hf",
         "repo_id": "lllyasviel/Annotators",
-        "revision": "main"
+        "revision": "982e7edaec38759d914a963c48c4726685de7d96",
+        "snapshots": [
+          {
+            "repo_id": "lllyasviel/Annotators",
+            "revision": "982e7edaec38759d914a963c48c4726685de7d96",
+            "subdir": "",
+            "files": [
+              {
+                "path": "scannet.pt",
+                "size": 290767728,
+                "sha256": "03dbf1600c51ee3d45c29f77b77bf1a3b7a24c3452dba62a4ae658f37330c209"
+              }
+            ]
+          }
+        ]
       },
-      "approx_bytes": 322122547
+      "approx_bytes": 322122547,
+      "size_bytes": 290767728
     },
     {
       "id": "controlnet-canny-sd15",
@@ -54,12 +179,33 @@
       "license_category": "openrail",
       "attribution": null,
       "gated": false,
+      "tier": "extended",
       "source": {
         "kind": "hf",
         "repo_id": "lllyasviel/control_v11p_sd15_canny",
-        "revision": "main"
+        "revision": "115a470d547982438f70198e353a921996e2e819",
+        "snapshots": [
+          {
+            "repo_id": "lllyasviel/control_v11p_sd15_canny",
+            "revision": "115a470d547982438f70198e353a921996e2e819",
+            "subdir": "",
+            "files": [
+              {
+                "path": "config.json",
+                "size": 996,
+                "sha256": "8f13c37bac4c495785d6b5edcd604c013776690794d2dddff7579bbc70960801"
+              },
+              {
+                "path": "diffusion_pytorch_model.safetensors",
+                "size": 1445157124,
+                "sha256": "be713fb941fc7c625f0c7d816b6a19115783a665f3049a8974f127e0c075d9a9"
+              }
+            ]
+          }
+        ]
       },
-      "approx_bytes": 2362232012
+      "approx_bytes": 2362232012,
+      "size_bytes": 1445158120
     },
     {
       "id": "controlnet-canny-sd35",
@@ -69,12 +215,33 @@
       "license_category": "stability-community",
       "attribution": "Powered by Stability AI",
       "gated": false,
+      "tier": "extended",
       "source": {
         "kind": "hf",
         "repo_id": "stabilityai/stable-diffusion-3.5-large-controlnet-canny",
-        "revision": "main"
+        "revision": "71511b9db86ecc71b307cf122dc4f8029ef212ec",
+        "snapshots": [
+          {
+            "repo_id": "stabilityai/stable-diffusion-3.5-large-controlnet-canny",
+            "revision": "71511b9db86ecc71b307cf122dc4f8029ef212ec",
+            "subdir": "",
+            "files": [
+              {
+                "path": "config.json",
+                "size": 554,
+                "sha256": "f32184c03c9dbe46ad146e173af0d0760c5b9888267888864b0145a52352e488"
+              },
+              {
+                "path": "diffusion_pytorch_model.safetensors",
+                "size": 8614110992,
+                "sha256": "5f2608a8af55f223250398e04e3c497aa194ddbcb70049f556194c4a2d333865"
+              }
+            ]
+          }
+        ]
       },
-      "approx_bytes": 8697308774
+      "approx_bytes": 8697308774,
+      "size_bytes": 8614111546
     },
     {
       "id": "controlnet-canny-sdxl",
@@ -84,12 +251,33 @@
       "license_category": "openrail",
       "attribution": null,
       "gated": false,
+      "tier": "extended",
       "source": {
         "kind": "hf",
         "repo_id": "diffusers/controlnet-canny-sdxl-1.0",
-        "revision": "main"
+        "revision": "eb115a19a10d14909256db740ed109532ab1483c",
+        "snapshots": [
+          {
+            "repo_id": "diffusers/controlnet-canny-sdxl-1.0",
+            "revision": "eb115a19a10d14909256db740ed109532ab1483c",
+            "subdir": "",
+            "files": [
+              {
+                "path": "config.json",
+                "size": 1309,
+                "sha256": "81f9bfed178f666c332892cd568a78ed8918fe08aaee994d05428a75ab44f2ca"
+              },
+              {
+                "path": "diffusion_pytorch_model.safetensors",
+                "size": 5004167864,
+                "sha256": "ea99040544a999f814fd854575a3aee069a005d026864c8d321b82576706a221"
+              }
+            ]
+          }
+        ]
       },
-      "approx_bytes": 8053063680
+      "approx_bytes": 8053063680,
+      "size_bytes": 5004169173
     },
     {
       "id": "controlnet-depth-sd15",
@@ -99,12 +287,33 @@
       "license_category": "openrail",
       "attribution": null,
       "gated": false,
+      "tier": "extended",
       "source": {
         "kind": "hf",
         "repo_id": "lllyasviel/control_v11f1p_sd15_depth",
-        "revision": "main"
+        "revision": "539f99181d33db39cf1af2e517cd8056785f0a87",
+        "snapshots": [
+          {
+            "repo_id": "lllyasviel/control_v11f1p_sd15_depth",
+            "revision": "539f99181d33db39cf1af2e517cd8056785f0a87",
+            "subdir": "",
+            "files": [
+              {
+                "path": "config.json",
+                "size": 945,
+                "sha256": "ee789f6b46cd8c443c80ffb81e5c05e14b8b3cbec9e861829bfa3d2a6d3ee16f"
+              },
+              {
+                "path": "diffusion_pytorch_model.safetensors",
+                "size": 1445157124,
+                "sha256": "999aca923ca5e19e70e6afc8d11073cc3c03553ca935b636bd5925df4a1c77d1"
+              }
+            ]
+          }
+        ]
       },
-      "approx_bytes": 2362232012
+      "approx_bytes": 2362232012,
+      "size_bytes": 1445158069
     },
     {
       "id": "controlnet-depth-sd35",
@@ -114,12 +323,33 @@
       "license_category": "stability-community",
       "attribution": "Powered by Stability AI",
       "gated": false,
+      "tier": "extended",
       "source": {
         "kind": "hf",
         "repo_id": "stabilityai/stable-diffusion-3.5-large-controlnet-depth",
-        "revision": "main"
+        "revision": "6bcad403a0aca0d000b3624f751d0c391303e12f",
+        "snapshots": [
+          {
+            "repo_id": "stabilityai/stable-diffusion-3.5-large-controlnet-depth",
+            "revision": "6bcad403a0aca0d000b3624f751d0c391303e12f",
+            "subdir": "",
+            "files": [
+              {
+                "path": "config.json",
+                "size": 554,
+                "sha256": "f32184c03c9dbe46ad146e173af0d0760c5b9888267888864b0145a52352e488"
+              },
+              {
+                "path": "diffusion_pytorch_model.safetensors",
+                "size": 8614110992,
+                "sha256": "5cd54d6c670ebc864b459f251573bc0f9cb60f2adf644dbd4df4ffab6879b1a1"
+              }
+            ]
+          }
+        ]
       },
-      "approx_bytes": 8697308774
+      "approx_bytes": 8697308774,
+      "size_bytes": 8614111546
     },
     {
       "id": "controlnet-depth-sdxl",
@@ -129,12 +359,33 @@
       "license_category": "openrail",
       "attribution": null,
       "gated": false,
+      "tier": "extended",
       "source": {
         "kind": "hf",
         "repo_id": "diffusers/controlnet-depth-sdxl-1.0",
-        "revision": "main"
+        "revision": "17bb97973f29801224cd66f192c5ffacf82648b4",
+        "snapshots": [
+          {
+            "repo_id": "diffusers/controlnet-depth-sdxl-1.0",
+            "revision": "17bb97973f29801224cd66f192c5ffacf82648b4",
+            "subdir": "",
+            "files": [
+              {
+                "path": "config.json",
+                "size": 1274,
+                "sha256": "5cbf68b91bd3065716b88b9ef85785023fef6f59ffae2d5762b05553cef9450d"
+              },
+              {
+                "path": "diffusion_pytorch_model.safetensors",
+                "size": 5004167860,
+                "sha256": "b760b1ed26970c7c60abbcef08e7238bb9428bee510a405aff239e06a1471945"
+              }
+            ]
+          }
+        ]
       },
-      "approx_bytes": 8053063680
+      "approx_bytes": 8053063680,
+      "size_bytes": 5004169134
     },
     {
       "id": "controlnet-normal-sd15",
@@ -144,12 +395,33 @@
       "license_category": "openrail",
       "attribution": null,
       "gated": false,
+      "tier": "extended",
       "source": {
         "kind": "hf",
         "repo_id": "lllyasviel/control_v11p_sd15_normalbae",
-        "revision": "main"
+        "revision": "cb7296e6587a219068e9d65864e38729cd862aa8",
+        "snapshots": [
+          {
+            "repo_id": "lllyasviel/control_v11p_sd15_normalbae",
+            "revision": "cb7296e6587a219068e9d65864e38729cd862aa8",
+            "subdir": "",
+            "files": [
+              {
+                "path": "config.json",
+                "size": 1000,
+                "sha256": "8cf73c502d8d140dea82816c7bfb75c3ac588f785350231c895b83edfd4a9642"
+              },
+              {
+                "path": "diffusion_pytorch_model.safetensors",
+                "size": 1445157124,
+                "sha256": "e6c3772b35e5cb1869beca97a6ade6e8e5283310462297b10d129e25351983d7"
+              }
+            ]
+          }
+        ]
       },
-      "approx_bytes": 2362232012
+      "approx_bytes": 2362232012,
+      "size_bytes": 1445158124
     },
     {
       "id": "controlnet-openpose-sd15",
@@ -159,12 +431,33 @@
       "license_category": "openrail",
       "attribution": null,
       "gated": false,
+      "tier": "extended",
       "source": {
         "kind": "hf",
         "repo_id": "lllyasviel/control_v11p_sd15_openpose",
-        "revision": "main"
+        "revision": "9ae9f970358db89e211b87c915f9535c6686d5ba",
+        "snapshots": [
+          {
+            "repo_id": "lllyasviel/control_v11p_sd15_openpose",
+            "revision": "9ae9f970358db89e211b87c915f9535c6686d5ba",
+            "subdir": "",
+            "files": [
+              {
+                "path": "config.json",
+                "size": 999,
+                "sha256": "aa6fecc8745c0d0b26f0d2ca0f686600c8b33177c667d44eb41a51e56e44a697"
+              },
+              {
+                "path": "diffusion_pytorch_model.safetensors",
+                "size": 1445157124,
+                "sha256": "46b10abb28f3750aba7eea208e188539f7945d9256de9a248cbb9902f2276988"
+              }
+            ]
+          }
+        ]
       },
-      "approx_bytes": 2362232012
+      "approx_bytes": 2362232012,
+      "size_bytes": 1445158123
     },
     {
       "id": "controlnet-openpose-sdxl",
@@ -174,12 +467,33 @@
       "license_category": "permissive",
       "attribution": null,
       "gated": false,
+      "tier": "extended",
       "source": {
         "kind": "hf",
         "repo_id": "xinsir/controlnet-openpose-sdxl-1.0",
-        "revision": "main"
+        "revision": "23f966cd5cfdd3f7729c903e243d87152162d2b7",
+        "snapshots": [
+          {
+            "repo_id": "xinsir/controlnet-openpose-sdxl-1.0",
+            "revision": "23f966cd5cfdd3f7729c903e243d87152162d2b7",
+            "subdir": "",
+            "files": [
+              {
+                "path": "config.json",
+                "size": 1235,
+                "sha256": "b5b8f9a7619c9452f19407ef73a01ce3f061fcf932de43ddbaca336d12d02801"
+              },
+              {
+                "path": "diffusion_pytorch_model.safetensors",
+                "size": 2502139104,
+                "sha256": "b8524e557a7df60d081f5d4a0eb109967d107df217943bf88c2d99b9ebcc06c5"
+              }
+            ]
+          }
+        ]
       },
-      "approx_bytes": 2684354560
+      "approx_bytes": 2684354560,
+      "size_bytes": 2502140339
     },
     {
       "id": "controlnet-scribble-sd15",
@@ -189,12 +503,33 @@
       "license_category": "openrail",
       "attribution": null,
       "gated": false,
+      "tier": "extended",
       "source": {
         "kind": "hf",
         "repo_id": "lllyasviel/control_v11p_sd15_scribble",
-        "revision": "main"
+        "revision": "3564ec7b87dd706d5fc760d21c9e90bb160d1e9f",
+        "snapshots": [
+          {
+            "repo_id": "lllyasviel/control_v11p_sd15_scribble",
+            "revision": "3564ec7b87dd706d5fc760d21c9e90bb160d1e9f",
+            "subdir": "",
+            "files": [
+              {
+                "path": "config.json",
+                "size": 999,
+                "sha256": "b92e42e1f42918321c1a927d5ae7a128b16e95e0570961fb7af69c10472c761c"
+              },
+              {
+                "path": "diffusion_pytorch_model.safetensors",
+                "size": 1445157124,
+                "sha256": "387ade970396c191da0fd229d26bbb64f80b8b3c501a774d9838e54638deccb1"
+              }
+            ]
+          }
+        ]
       },
-      "approx_bytes": 2362232012
+      "approx_bytes": 2362232012,
+      "size_bytes": 1445158123
     },
     {
       "id": "controlnet-union-sdxl",
@@ -204,12 +539,33 @@
       "license_category": "permissive",
       "attribution": null,
       "gated": false,
+      "tier": "extended",
       "source": {
         "kind": "hf",
         "repo_id": "xinsir/controlnet-union-sdxl-1.0",
-        "revision": "main"
+        "revision": "801a4a3fa3d4c936f4feea95b98607bc6726f80c",
+        "snapshots": [
+          {
+            "repo_id": "xinsir/controlnet-union-sdxl-1.0",
+            "revision": "801a4a3fa3d4c936f4feea95b98607bc6726f80c",
+            "subdir": "",
+            "files": [
+              {
+                "path": "config.json",
+                "size": 1235,
+                "sha256": "b5b8f9a7619c9452f19407ef73a01ce3f061fcf932de43ddbaca336d12d02801"
+              },
+              {
+                "path": "diffusion_pytorch_model.safetensors",
+                "size": 2512030408,
+                "sha256": "a9e13fd61f3193887791c8a0dd07a07202174dc47d5ddaea94ea1344f07c7467"
+              }
+            ]
+          }
+        ]
       },
-      "approx_bytes": 2576980377
+      "approx_bytes": 2576980377,
+      "size_bytes": 2512031643
     },
     {
       "id": "edit-face-detection",
@@ -219,12 +575,15 @@
       "license_category": "permissive",
       "attribution": null,
       "gated": false,
+      "tier": "core",
       "source": {
         "kind": "url",
         "url": "https://github.com/xinntao/facexlib/releases/download/v0.1.0/detection_Resnet50_Final.pth",
-        "sha256": "6d1de9c2944f2ccddca5f5e010ea5ae64a39845a86311af6fdf30841b0a5a16d"
+        "sha256": "6d1de9c2944f2ccddca5f5e010ea5ae64a39845a86311af6fdf30841b0a5a16d",
+        "size": 109497761
       },
-      "approx_bytes": 109051904
+      "approx_bytes": 109051904,
+      "size_bytes": 109497761
     },
     {
       "id": "edit-face-parsing",
@@ -234,12 +593,15 @@
       "license_category": "permissive",
       "attribution": null,
       "gated": false,
+      "tier": "core",
       "source": {
         "kind": "url",
         "url": "https://github.com/xinntao/facexlib/releases/download/v0.2.2/parsing_parsenet.pth",
-        "sha256": "3d558d8d0e42c20224f13cf5a29c79eba2d59913419f945545d8cf7b72920de2"
+        "sha256": "3d558d8d0e42c20224f13cf5a29c79eba2d59913419f945545d8cf7b72920de2",
+        "size": 85331193
       },
-      "approx_bytes": 84934656
+      "approx_bytes": 84934656,
+      "size_bytes": 85331193
     },
     {
       "id": "edit-gfpgan-v14",
@@ -249,12 +611,15 @@
       "license_category": "permissive",
       "attribution": null,
       "gated": false,
+      "tier": "core",
       "source": {
         "kind": "url",
         "url": "https://github.com/TencentARC/GFPGAN/releases/download/v1.3.0/GFPGANv1.4.pth",
-        "sha256": "e2cd4703ab14f4d01fd1383a8a8b266f9a5833dacee8e6a79d3bf21a1b6be5ad"
+        "sha256": "e2cd4703ab14f4d01fd1383a8a8b266f9a5833dacee8e6a79d3bf21a1b6be5ad",
+        "size": 348632874
       },
-      "approx_bytes": 349175808
+      "approx_bytes": 349175808,
+      "size_bytes": 348632874
     },
     {
       "id": "edit-realesrgan-x4plus",
@@ -264,12 +629,15 @@
       "license_category": "permissive",
       "attribution": null,
       "gated": false,
+      "tier": "core",
       "source": {
         "kind": "url",
         "url": "https://github.com/xinntao/Real-ESRGAN/releases/download/v0.1.0/RealESRGAN_x4plus.pth",
-        "sha256": "4fa0d38905f75ac06eb49a7951b426670021be3018265fd191d2125df9d682f1"
+        "sha256": "4fa0d38905f75ac06eb49a7951b426670021be3018265fd191d2125df9d682f1",
+        "size": 67040989
       },
-      "approx_bytes": 67108864
+      "approx_bytes": 67108864,
+      "size_bytes": 67040989
     },
     {
       "id": "edit-realesrgan-x4plus-anime",
@@ -279,12 +647,15 @@
       "license_category": "permissive",
       "attribution": null,
       "gated": false,
+      "tier": "extended",
       "source": {
         "kind": "url",
         "url": "https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.2.4/RealESRGAN_x4plus_anime_6B.pth",
-        "sha256": "f872d837d3c90ed2e05227bed711af5671a6fd1c9f7d7e91c911a61f155e99da"
+        "sha256": "f872d837d3c90ed2e05227bed711af5671a6fd1c9f7d7e91c911a61f155e99da",
+        "size": 17938799
       },
-      "approx_bytes": 17825792
+      "approx_bytes": 17825792,
+      "size_bytes": 17938799
     },
     {
       "id": "edit-u2net",
@@ -294,12 +665,93 @@
       "license_category": "permissive",
       "attribution": null,
       "gated": false,
+      "tier": "core",
       "source": {
         "kind": "url",
         "url": "https://github.com/danielgatis/rembg/releases/download/v0.0.0/u2net.onnx",
-        "sha256": "8d10d2f3bb75ae3b6d527c77944fc5e7dcd94b29809d47a739a7a728a912b491"
+        "sha256": "8d10d2f3bb75ae3b6d527c77944fc5e7dcd94b29809d47a739a7a728a912b491",
+        "size": 175997641
       },
-      "approx_bytes": 176160768
+      "approx_bytes": 176160768,
+      "size_bytes": 175997641
+    },
+    {
+      "id": "embedder-all-minilm-l6-v2",
+      "name": "all-MiniLM-L6-v2 (AI Director retrieval embedder)",
+      "artifact_type": "text-embedder",
+      "license": "apache-2.0",
+      "license_category": "permissive",
+      "attribution": null,
+      "gated": false,
+      "tier": "core",
+      "source": {
+        "kind": "hf",
+        "repo_id": "sentence-transformers/all-MiniLM-L6-v2",
+        "revision": "1110a243fdf4706b3f48f1d95db1a4f5529b4d41",
+        "snapshots": [
+          {
+            "repo_id": "sentence-transformers/all-MiniLM-L6-v2",
+            "revision": "1110a243fdf4706b3f48f1d95db1a4f5529b4d41",
+            "subdir": "",
+            "files": [
+              {
+                "path": "modules.json",
+                "size": 349,
+                "sha256": "84e40c8e006c9b1d6c122e02cba9b02458120b5fb0c87b746c41e0207cf642cf"
+              },
+              {
+                "path": "config_sentence_transformers.json",
+                "size": 116,
+                "sha256": "061ca9d39661d6c6d6de5ba27f79a1cd5770ea247f8d46412a68a498dc5ac9f3"
+              },
+              {
+                "path": "sentence_bert_config.json",
+                "size": 53,
+                "sha256": "fc1993fde0a95c24ec6c022539d41cf6e2f7c9721e5415d6fb6897472a9cd4b7"
+              },
+              {
+                "path": "config.json",
+                "size": 612,
+                "sha256": "953f9c0d463486b10a6871cc2fd59f223b2c70184f49815e7efbcab5d8908b41"
+              },
+              {
+                "path": "model.safetensors",
+                "size": 90868376,
+                "sha256": "53aa51172d142c89d9012cce15ae4d6cc0ca6895895114379cacb4fab128d9db"
+              },
+              {
+                "path": "tokenizer.json",
+                "size": 466247,
+                "sha256": "be50c3628f2bf5bb5e3a7f17b1f74611b2561a3a27eeab05e5aa30f411572037"
+              },
+              {
+                "path": "tokenizer_config.json",
+                "size": 350,
+                "sha256": "acb92769e8195aabd29b7b2137a9e6d6e25c476a4f15aa4355c233426c61576b"
+              },
+              {
+                "path": "special_tokens_map.json",
+                "size": 112,
+                "sha256": "303df45a03609e4ead04bc3dc1536d0ab19b5358db685b6f3da123d05ec200e3"
+              },
+              {
+                "path": "vocab.txt",
+                "size": 231508,
+                "sha256": "07eced375cec144d27c900241f3e339478dec958f92fddbc551f295c992038a3"
+              },
+              {
+                "path": "1_Pooling/config.json",
+                "size": 190,
+                "sha256": "4be450dde3b0273bb9787637cfbd28fe04a7ba6ab9d36ac48e92b11e350ffc23"
+              }
+            ]
+          }
+        ]
+      },
+      "approx_bytes": 94371840,
+      "size_bytes": 91567913,
+      "manifest_only": true,
+      "format": "safetensors"
     },
     {
       "id": "flux-schnell",
@@ -309,12 +761,28 @@
       "license_category": "permissive",
       "attribution": null,
       "gated": false,
+      "tier": "extended",
       "source": {
         "kind": "hf",
         "repo_id": "black-forest-labs/FLUX.1-schnell",
-        "revision": "main"
+        "revision": "741f7c3ce8b383c54771c7003378a50191e9efe9",
+        "snapshots": [
+          {
+            "repo_id": "black-forest-labs/FLUX.1-schnell",
+            "revision": "741f7c3ce8b383c54771c7003378a50191e9efe9",
+            "subdir": "",
+            "files": [
+              {
+                "path": "flux1-schnell.safetensors",
+                "size": 23782506688,
+                "sha256": "9403429e0052277ac2a87ad800adece5481eecefd9ed334e1f348723621d2a0a"
+              }
+            ]
+          }
+        ]
       },
-      "approx_bytes": 25555055411
+      "approx_bytes": 25555055411,
+      "size_bytes": 23782506688
     },
     {
       "id": "ip-adapter-encoder-clip-vit-l",
@@ -324,12 +792,38 @@
       "license_category": "permissive",
       "attribution": null,
       "gated": false,
+      "tier": "extended",
       "source": {
         "kind": "hf",
         "repo_id": "openai/clip-vit-large-patch14",
-        "revision": "main"
+        "revision": "32bd64288804d66eefd0ccbe215aa642df71cc41",
+        "snapshots": [
+          {
+            "repo_id": "openai/clip-vit-large-patch14",
+            "revision": "32bd64288804d66eefd0ccbe215aa642df71cc41",
+            "subdir": "",
+            "files": [
+              {
+                "path": "config.json",
+                "size": 4519,
+                "sha256": "8a09b467700c58138c29d53c605b34ebc69beaadd13274a8a2af8ad2c2f4032a"
+              },
+              {
+                "path": "preprocessor_config.json",
+                "size": 316,
+                "sha256": "910e70b3956ac9879ebc90b22fb3bc8a75b6a0677814500101a4c072bd7857bd"
+              },
+              {
+                "path": "model.safetensors",
+                "size": 1710540580,
+                "sha256": "a2bf730a0c7debf160f7a6b50b3aaf3703e7e88ac73de7a314903141db026dcb"
+              }
+            ]
+          }
+        ]
       },
-      "approx_bytes": 1825361100
+      "approx_bytes": 1825361100,
+      "size_bytes": 1710545415
     },
     {
       "id": "ip-adapter-encoder-vit-h",
@@ -339,12 +833,33 @@
       "license_category": "permissive",
       "attribution": null,
       "gated": false,
+      "tier": "extended",
       "source": {
         "kind": "hf",
         "repo_id": "h94/IP-Adapter",
-        "revision": "main"
+        "revision": "018e402774aeeddd60609b4ecdb7e298259dc729",
+        "snapshots": [
+          {
+            "repo_id": "h94/IP-Adapter",
+            "revision": "018e402774aeeddd60609b4ecdb7e298259dc729",
+            "subdir": "",
+            "files": [
+              {
+                "path": "models/image_encoder/config.json",
+                "size": 560,
+                "sha256": "625d37b31afbf2f0792a87846b3654ee23f20568409e35b78a1f795b04e1a7a1"
+              },
+              {
+                "path": "models/image_encoder/model.safetensors",
+                "size": 2528373448,
+                "sha256": "6ca9667da1ca9e0b0f75e46bb030f7e011f44f86cbfb8d5a36590fcd7507b030"
+              }
+            ]
+          }
+        ]
       },
-      "approx_bytes": 2684354560
+      "approx_bytes": 2684354560,
+      "size_bytes": 2528374008
     },
     {
       "id": "ip-adapter-sd15",
@@ -354,12 +869,28 @@
       "license_category": "permissive",
       "attribution": null,
       "gated": false,
+      "tier": "extended",
       "source": {
         "kind": "hf",
         "repo_id": "h94/IP-Adapter",
-        "revision": "main"
+        "revision": "018e402774aeeddd60609b4ecdb7e298259dc729",
+        "snapshots": [
+          {
+            "repo_id": "h94/IP-Adapter",
+            "revision": "018e402774aeeddd60609b4ecdb7e298259dc729",
+            "subdir": "",
+            "files": [
+              {
+                "path": "models/ip-adapter_sd15.safetensors",
+                "size": 44642768,
+                "sha256": "289b45f16d043d0bf542e45831f971dcdaabe18b656f11e86d9dfba7e9ee3369"
+              }
+            ]
+          }
+        ]
       },
-      "approx_bytes": 47185920
+      "approx_bytes": 47185920,
+      "size_bytes": 44642768
     },
     {
       "id": "ip-adapter-sdxl",
@@ -369,12 +900,28 @@
       "license_category": "permissive",
       "attribution": null,
       "gated": false,
+      "tier": "extended",
       "source": {
         "kind": "hf",
         "repo_id": "h94/IP-Adapter",
-        "revision": "main"
+        "revision": "018e402774aeeddd60609b4ecdb7e298259dc729",
+        "snapshots": [
+          {
+            "repo_id": "h94/IP-Adapter",
+            "revision": "018e402774aeeddd60609b4ecdb7e298259dc729",
+            "subdir": "",
+            "files": [
+              {
+                "path": "sdxl_models/ip-adapter_sdxl_vit-h.safetensors",
+                "size": 698391064,
+                "sha256": "ebf05d918348aec7abb02a5e9ecef77e0aaea6914a5c4ea13f50d45eb1681831"
+              }
+            ]
+          }
+        ]
       },
-      "approx_bytes": 751619276
+      "approx_bytes": 751619276,
+      "size_bytes": 698391064
     },
     {
       "id": "sd-1-5",
@@ -384,12 +931,28 @@
       "license_category": "openrail",
       "attribution": null,
       "gated": false,
+      "tier": "core",
       "source": {
         "kind": "hf",
         "repo_id": "stable-diffusion-v1-5/stable-diffusion-v1-5",
-        "revision": "main"
+        "revision": "451f4fe16113bff5a5d2269ed5ad43b0592e9a14",
+        "snapshots": [
+          {
+            "repo_id": "stable-diffusion-v1-5/stable-diffusion-v1-5",
+            "revision": "451f4fe16113bff5a5d2269ed5ad43b0592e9a14",
+            "subdir": "",
+            "files": [
+              {
+                "path": "v1-5-pruned-emaonly.safetensors",
+                "size": 4265146304,
+                "sha256": "6ce0161689b3853acaa03779ec93eafe75a02f4ced659bee03f50797806fa2fa"
+              }
+            ]
+          }
+        ]
       },
       "approx_bytes": 4617089843,
+      "size_bytes": 4265146304,
       "repin_reason": "runwayml/stable-diffusion-v1-5 was deleted from HuggingFace; the community mirror is the permanent source.",
       "mirror": {
         "base_url": "https://models.vision-studio-x.com/models/sd-1-5",
@@ -410,12 +973,28 @@
       "license_category": "permissive",
       "attribution": null,
       "gated": false,
+      "tier": "core",
       "source": {
         "kind": "hf",
         "repo_id": "stabilityai/sd-vae-ft-mse",
-        "revision": "main"
+        "revision": "31f26fdeee1355a5c34592e401dd41e45d25a493",
+        "snapshots": [
+          {
+            "repo_id": "stabilityai/sd-vae-ft-mse",
+            "revision": "31f26fdeee1355a5c34592e401dd41e45d25a493",
+            "subdir": "",
+            "files": [
+              {
+                "path": "diffusion_pytorch_model.safetensors",
+                "size": 334643276,
+                "sha256": "a1d993488569e928462932c8c38a0760b874d166399b14414135bd9c42df5815"
+              }
+            ]
+          }
+        ]
       },
-      "approx_bytes": 351272960
+      "approx_bytes": 351272960,
+      "size_bytes": 334643276
     },
     {
       "id": "sd3.5-large",
@@ -425,12 +1004,248 @@
       "license_category": "stability-community",
       "attribution": "Powered by Stability AI",
       "gated": true,
+      "tier": "extended",
       "source": {
         "kind": "hf",
         "repo_id": "stabilityai/stable-diffusion-3.5-large",
-        "revision": "main"
+        "revision": "ceddf0a7fdf2064ea28e2213e3b84e4afa170a0f",
+        "snapshots": [
+          {
+            "repo_id": "stabilityai/stable-diffusion-3.5-large",
+            "revision": "ceddf0a7fdf2064ea28e2213e3b84e4afa170a0f",
+            "subdir": "",
+            "files": [
+              {
+                "path": ".gitattributes",
+                "size": 1576,
+                "git_oid": "cdd8e48fec284706ec2507c582514d77d071a208"
+              },
+              {
+                "path": "LICENSE.md",
+                "size": 11726,
+                "sha256": "9b60b9d0411f54d4087484ad4acf28ca6fd9f6a84c30ddacb04de2c623254749"
+              },
+              {
+                "path": "README.md",
+                "size": 10473,
+                "sha256": "619cc1bd60df78aad1485c2c9dd53999b024ada1b9d5b484bce493594ed3c483"
+              },
+              {
+                "path": "SD3.5L_example_workflow.json",
+                "size": 11575,
+                "git_oid": "17e68c53db215c593cf1a508bef11596c0cd1c70"
+              },
+              {
+                "path": "mmdit.png",
+                "size": 262061,
+                "git_oid": "6b47baaaf4a0ae3867d00a833b7225d0ebceb61e"
+              },
+              {
+                "path": "model_index.json",
+                "size": 706,
+                "git_oid": "d1e85db2887d95ee9e0f6206771a4c52f9233e2f"
+              },
+              {
+                "path": "scheduler/scheduler_config.json",
+                "size": 141,
+                "git_oid": "eca5b2eed3727b3ad375eb20e467e4264120fd5d"
+              },
+              {
+                "path": "sd3.5_large.safetensors",
+                "size": 16460379262,
+                "sha256": "ffef7a279d9134626e6ce0d494fba84fc1c7e720b3c7df2d19a09dc3796d8f93"
+              },
+              {
+                "path": "sd3.5_large_demo.png",
+                "size": 18080198,
+                "sha256": "3017495f2b06abc8388bdcbe3c42a793c02e32afe0e95b1a414976688d4772cd"
+              },
+              {
+                "path": "text_encoder/config.json",
+                "size": 574,
+                "git_oid": "dbda34b6008657d7be7423051c47abd4c94e263a"
+              },
+              {
+                "path": "text_encoder/model.fp16.safetensors",
+                "size": 247323896,
+                "sha256": "71e183d11db0c6b6282a4d9e0abb74125edc8692393e89ed8ee5571005f35cb1"
+              },
+              {
+                "path": "text_encoder/model.safetensors",
+                "size": 247323896,
+                "sha256": "71e183d11db0c6b6282a4d9e0abb74125edc8692393e89ed8ee5571005f35cb1"
+              },
+              {
+                "path": "text_encoder_2/config.json",
+                "size": 570,
+                "git_oid": "35886d089e214b9e35db394d4d3d122a19baf231"
+              },
+              {
+                "path": "text_encoder_2/model.fp16.safetensors",
+                "size": 1389382176,
+                "sha256": "ec310df2af79c318e24d20511b601a591ca8cd4f1fce1d8dff822a356bcdb1f4"
+              },
+              {
+                "path": "text_encoder_2/model.safetensors",
+                "size": 1389382176,
+                "sha256": "ec310df2af79c318e24d20511b601a591ca8cd4f1fce1d8dff822a356bcdb1f4"
+              },
+              {
+                "path": "text_encoder_3/config.json",
+                "size": 740,
+                "git_oid": "5f020057278e664f8d4875a172b8266a9707c249"
+              },
+              {
+                "path": "text_encoder_3/model-00001-of-00002.safetensors",
+                "size": 4994582104,
+                "sha256": "4f2751ceeb2a96edd693e539dc5d6bba0b8d3814f49a9b3798403a0cec4b2e3d"
+              },
+              {
+                "path": "text_encoder_3/model-00002-of-00002.safetensors",
+                "size": 4530066248,
+                "sha256": "f63154532130422309532ff56f11945fbea8266c958e3133e8e5aef85c6293c7"
+              },
+              {
+                "path": "text_encoder_3/model.fp16-00001-of-00002.safetensors",
+                "size": 4994582104,
+                "sha256": "4f2751ceeb2a96edd693e539dc5d6bba0b8d3814f49a9b3798403a0cec4b2e3d"
+              },
+              {
+                "path": "text_encoder_3/model.fp16-00002-of-00002.safetensors",
+                "size": 4530066248,
+                "sha256": "f63154532130422309532ff56f11945fbea8266c958e3133e8e5aef85c6293c7"
+              },
+              {
+                "path": "text_encoder_3/model.safetensors.index.fp16.json",
+                "size": 20980,
+                "git_oid": "26fbacbb229da635a50237394681830c048fc371"
+              },
+              {
+                "path": "text_encoder_3/model.safetensors.index.json",
+                "size": 19885,
+                "git_oid": "c8728bc3dca59d2616a2a594cbac3ddb9eb77d5b"
+              },
+              {
+                "path": "text_encoders/README.md",
+                "size": 636,
+                "git_oid": "10361bb01afae01826203baa800da32c3cc2d2f2"
+              },
+              {
+                "path": "text_encoders/clip_g.safetensors",
+                "size": 1389382176,
+                "sha256": "ec310df2af79c318e24d20511b601a591ca8cd4f1fce1d8dff822a356bcdb1f4"
+              },
+              {
+                "path": "text_encoders/clip_l.safetensors",
+                "size": 246144152,
+                "sha256": "660c6f5b1abae9dc498ac2d21e1347d2abdb0cf6c0c0c8576cd796491d9a6cdd"
+              },
+              {
+                "path": "text_encoders/t5xxl_fp16.safetensors",
+                "size": 9787841024,
+                "sha256": "6e480b09fae049a72d2a8c5fbccb8d3e92febeb233bbe9dfe7256958a9167635"
+              },
+              {
+                "path": "text_encoders/t5xxl_fp8_e4m3fn.safetensors",
+                "size": 4893934904,
+                "sha256": "7d330da4816157540d6bb7838bf63a0f02f573fc48ca4d8de34bb0cbfd514f09"
+              },
+              {
+                "path": "tokenizer/merges.txt",
+                "size": 524619,
+                "git_oid": "76e821f1b6f0a9709293c3b6b51ed90980b3166b"
+              },
+              {
+                "path": "tokenizer/special_tokens_map.json",
+                "size": 588,
+                "git_oid": "cf0682d6de72c1547f41b4f6d7c59f62deffef94"
+              },
+              {
+                "path": "tokenizer/tokenizer_config.json",
+                "size": 705,
+                "git_oid": "180a4e1be2a7d0b38a44108d6f24f585f35147b1"
+              },
+              {
+                "path": "tokenizer/vocab.json",
+                "size": 1059962,
+                "git_oid": "469be27c5c010538f845f518c4f5e8574c78f7c8"
+              },
+              {
+                "path": "tokenizer_2/merges.txt",
+                "size": 524619,
+                "git_oid": "76e821f1b6f0a9709293c3b6b51ed90980b3166b"
+              },
+              {
+                "path": "tokenizer_2/special_tokens_map.json",
+                "size": 576,
+                "git_oid": "b3b93aa8e7fd8552501067e63e04e2958298c2b2"
+              },
+              {
+                "path": "tokenizer_2/tokenizer_config.json",
+                "size": 856,
+                "git_oid": "f4299b251265219ef1369503c04d837bd9528f0a"
+              },
+              {
+                "path": "tokenizer_2/vocab.json",
+                "size": 1059962,
+                "git_oid": "469be27c5c010538f845f518c4f5e8574c78f7c8"
+              },
+              {
+                "path": "tokenizer_3/special_tokens_map.json",
+                "size": 2543,
+                "git_oid": "17ade346a1042cbe0c1436f5bedcbd85c099d582"
+              },
+              {
+                "path": "tokenizer_3/spiece.model",
+                "size": 791656,
+                "sha256": "d60acb128cf7b7f2536e8f38a5b18a05535c9e14c7a355904270e15b0945ea86"
+              },
+              {
+                "path": "tokenizer_3/tokenizer.json",
+                "size": 2424035,
+                "git_oid": "6f055030106071d446e559644b285557a82fefd4"
+              },
+              {
+                "path": "tokenizer_3/tokenizer_config.json",
+                "size": 20617,
+                "git_oid": "15377e70a0e43e060a98bbc5cb6245664d906e6c"
+              },
+              {
+                "path": "transformer/config.json",
+                "size": 397,
+                "git_oid": "feda980c13a51d63beaa5074de3e03bbadb5b0ab"
+              },
+              {
+                "path": "transformer/diffusion_pytorch_model-00001-of-00002.safetensors",
+                "size": 9985185992,
+                "sha256": "8ec9c4af8093417fded1eec8638f313f5671c7dd0a17a3bf64807bee9954a3e0"
+              },
+              {
+                "path": "transformer/diffusion_pytorch_model-00002-of-00002.safetensors",
+                "size": 6307519304,
+                "sha256": "a84bad7103aa22d8ddf6baafc7664868b1edcd316ca6dd9c7e1f667345bd99db"
+              },
+              {
+                "path": "transformer/diffusion_pytorch_model.safetensors.index.json",
+                "size": 126867,
+                "git_oid": "8b54a2ceceea4454cc015aa5f808cf31a179e75f"
+              },
+              {
+                "path": "vae/config.json",
+                "size": 809,
+                "git_oid": "059ae000f22d9c502030ead3c3f1db2718ae6f1f"
+              },
+              {
+                "path": "vae/diffusion_pytorch_model.safetensors",
+                "size": 167666902,
+                "sha256": "8f53304a79335b55e13ec50f63e5157fee4deb2f30d5fae0654e2b2653c109dc"
+              }
+            ]
+          }
+        ]
       },
-      "approx_bytes": 17179869184
+      "approx_bytes": 17179869184,
+      "size_bytes": 71585723216
     },
     {
       "id": "sd3.5-medium",
@@ -440,12 +1255,248 @@
       "license_category": "stability-community",
       "attribution": "Powered by Stability AI",
       "gated": true,
+      "tier": "extended",
       "source": {
         "kind": "hf",
         "repo_id": "stabilityai/stable-diffusion-3.5-medium",
-        "revision": "main"
+        "revision": "b940f670f0eda2d07fbb75229e779da1ad11eb80",
+        "snapshots": [
+          {
+            "repo_id": "stabilityai/stable-diffusion-3.5-medium",
+            "revision": "b940f670f0eda2d07fbb75229e779da1ad11eb80",
+            "subdir": "",
+            "files": [
+              {
+                "path": ".gitattributes",
+                "size": 1519,
+                "git_oid": "a6344aac8c09253b3b630fb776ae94478aa0275b"
+              },
+              {
+                "path": "LICENSE.md",
+                "size": 11726,
+                "sha256": "9b60b9d0411f54d4087484ad4acf28ca6fd9f6a84c30ddacb04de2c623254749"
+              },
+              {
+                "path": "README.md",
+                "size": 12100,
+                "sha256": "076c5b3ce1cb9bd33751656cac2b094b6ab93212a82624dab5405f4596737f7a"
+              },
+              {
+                "path": "SD3.5L_plus_SD3.5M_upscaling_example_workflow.json",
+                "size": 20634,
+                "git_oid": "8534e50bd2c6e1e4c1aa81edb643d822f2fbd8f8"
+              },
+              {
+                "path": "SD3.5M_SLG_example_workflow.json",
+                "size": 16916,
+                "git_oid": "3f54883add37c913e67a2700ab0f1ddcfbb14cf7"
+              },
+              {
+                "path": "SD3.5M_example_workflow.json",
+                "size": 11982,
+                "git_oid": "2d18d11f857505d6261c04fe071b57db8c78639a"
+              },
+              {
+                "path": "mmdit-x.png",
+                "size": 345393,
+                "git_oid": "09063c3533eaaf5f5506f9c2424c4e140c602d56"
+              },
+              {
+                "path": "model_index.json",
+                "size": 706,
+                "git_oid": "d1e85db2887d95ee9e0f6206771a4c52f9233e2f"
+              },
+              {
+                "path": "scheduler/scheduler_config.json",
+                "size": 141,
+                "git_oid": "eca5b2eed3727b3ad375eb20e467e4264120fd5d"
+              },
+              {
+                "path": "sd3.5_medium.safetensors",
+                "size": 5107104286,
+                "sha256": "11fe06e22364b823dfeedc275912336b932b32a293a0b2f35ffac071990cc4de"
+              },
+              {
+                "path": "sd3.5_medium_demo.jpg",
+                "size": 488766,
+                "git_oid": "648b48b7184ea279e088948e84339331f626d277"
+              },
+              {
+                "path": "text_encoder/config.json",
+                "size": 574,
+                "git_oid": "dbda34b6008657d7be7423051c47abd4c94e263a"
+              },
+              {
+                "path": "text_encoder/model.fp16.safetensors",
+                "size": 247323896,
+                "sha256": "71e183d11db0c6b6282a4d9e0abb74125edc8692393e89ed8ee5571005f35cb1"
+              },
+              {
+                "path": "text_encoder/model.safetensors",
+                "size": 247323896,
+                "sha256": "71e183d11db0c6b6282a4d9e0abb74125edc8692393e89ed8ee5571005f35cb1"
+              },
+              {
+                "path": "text_encoder_2/config.json",
+                "size": 570,
+                "git_oid": "35886d089e214b9e35db394d4d3d122a19baf231"
+              },
+              {
+                "path": "text_encoder_2/model.fp16.safetensors",
+                "size": 1389382176,
+                "sha256": "ec310df2af79c318e24d20511b601a591ca8cd4f1fce1d8dff822a356bcdb1f4"
+              },
+              {
+                "path": "text_encoder_2/model.safetensors",
+                "size": 1389382176,
+                "sha256": "ec310df2af79c318e24d20511b601a591ca8cd4f1fce1d8dff822a356bcdb1f4"
+              },
+              {
+                "path": "text_encoder_3/config.json",
+                "size": 740,
+                "git_oid": "5f020057278e664f8d4875a172b8266a9707c249"
+              },
+              {
+                "path": "text_encoder_3/model-00001-of-00002.safetensors",
+                "size": 4994582104,
+                "sha256": "4f2751ceeb2a96edd693e539dc5d6bba0b8d3814f49a9b3798403a0cec4b2e3d"
+              },
+              {
+                "path": "text_encoder_3/model-00002-of-00002.safetensors",
+                "size": 4530066248,
+                "sha256": "f63154532130422309532ff56f11945fbea8266c958e3133e8e5aef85c6293c7"
+              },
+              {
+                "path": "text_encoder_3/model.fp16-00001-of-00002.safetensors",
+                "size": 4994582104,
+                "sha256": "4f2751ceeb2a96edd693e539dc5d6bba0b8d3814f49a9b3798403a0cec4b2e3d"
+              },
+              {
+                "path": "text_encoder_3/model.fp16-00002-of-00002.safetensors",
+                "size": 4530066248,
+                "sha256": "f63154532130422309532ff56f11945fbea8266c958e3133e8e5aef85c6293c7"
+              },
+              {
+                "path": "text_encoder_3/model.safetensors.index.fp16.json",
+                "size": 20980,
+                "git_oid": "26fbacbb229da635a50237394681830c048fc371"
+              },
+              {
+                "path": "text_encoder_3/model.safetensors.index.json",
+                "size": 19885,
+                "git_oid": "c8728bc3dca59d2616a2a594cbac3ddb9eb77d5b"
+              },
+              {
+                "path": "text_encoders/README.md",
+                "size": 636,
+                "git_oid": "10361bb01afae01826203baa800da32c3cc2d2f2"
+              },
+              {
+                "path": "text_encoders/clip_g.safetensors",
+                "size": 1389382176,
+                "sha256": "ec310df2af79c318e24d20511b601a591ca8cd4f1fce1d8dff822a356bcdb1f4"
+              },
+              {
+                "path": "text_encoders/clip_l.safetensors",
+                "size": 246144152,
+                "sha256": "660c6f5b1abae9dc498ac2d21e1347d2abdb0cf6c0c0c8576cd796491d9a6cdd"
+              },
+              {
+                "path": "text_encoders/t5xxl_fp16.safetensors",
+                "size": 9787841024,
+                "sha256": "6e480b09fae049a72d2a8c5fbccb8d3e92febeb233bbe9dfe7256958a9167635"
+              },
+              {
+                "path": "text_encoders/t5xxl_fp8_e4m3fn.safetensors",
+                "size": 4893934904,
+                "sha256": "7d330da4816157540d6bb7838bf63a0f02f573fc48ca4d8de34bb0cbfd514f09"
+              },
+              {
+                "path": "tokenizer/merges.txt",
+                "size": 524619,
+                "git_oid": "76e821f1b6f0a9709293c3b6b51ed90980b3166b"
+              },
+              {
+                "path": "tokenizer/special_tokens_map.json",
+                "size": 588,
+                "git_oid": "cf0682d6de72c1547f41b4f6d7c59f62deffef94"
+              },
+              {
+                "path": "tokenizer/tokenizer_config.json",
+                "size": 705,
+                "git_oid": "180a4e1be2a7d0b38a44108d6f24f585f35147b1"
+              },
+              {
+                "path": "tokenizer/vocab.json",
+                "size": 1059962,
+                "git_oid": "469be27c5c010538f845f518c4f5e8574c78f7c8"
+              },
+              {
+                "path": "tokenizer_2/merges.txt",
+                "size": 524619,
+                "git_oid": "76e821f1b6f0a9709293c3b6b51ed90980b3166b"
+              },
+              {
+                "path": "tokenizer_2/special_tokens_map.json",
+                "size": 576,
+                "git_oid": "b3b93aa8e7fd8552501067e63e04e2958298c2b2"
+              },
+              {
+                "path": "tokenizer_2/tokenizer_config.json",
+                "size": 856,
+                "git_oid": "f4299b251265219ef1369503c04d837bd9528f0a"
+              },
+              {
+                "path": "tokenizer_2/vocab.json",
+                "size": 1059962,
+                "git_oid": "469be27c5c010538f845f518c4f5e8574c78f7c8"
+              },
+              {
+                "path": "tokenizer_3/special_tokens_map.json",
+                "size": 2543,
+                "git_oid": "17ade346a1042cbe0c1436f5bedcbd85c099d582"
+              },
+              {
+                "path": "tokenizer_3/spiece.model",
+                "size": 791656,
+                "sha256": "d60acb128cf7b7f2536e8f38a5b18a05535c9e14c7a355904270e15b0945ea86"
+              },
+              {
+                "path": "tokenizer_3/tokenizer.json",
+                "size": 2424035,
+                "git_oid": "6f055030106071d446e559644b285557a82fefd4"
+              },
+              {
+                "path": "tokenizer_3/tokenizer_config.json",
+                "size": 20617,
+                "git_oid": "15377e70a0e43e060a98bbc5cb6245664d906e6c"
+              },
+              {
+                "path": "transformer/config.json",
+                "size": 524,
+                "git_oid": "313f18cd3d297a5d77ceab073ef54dbec312c0f0"
+              },
+              {
+                "path": "transformer/diffusion_pytorch_model.safetensors",
+                "size": 4939433672,
+                "sha256": "f81eb93a348be218af757dd095cbda45090380d9bbda91049442e0e40bb4cc95"
+              },
+              {
+                "path": "vae/config.json",
+                "size": 809,
+                "git_oid": "059ae000f22d9c502030ead3c3f1db2718ae6f1f"
+              },
+              {
+                "path": "vae/diffusion_pytorch_model.safetensors",
+                "size": 167666902,
+                "sha256": "8f53304a79335b55e13ec50f63e5157fee4deb2f30d5fae0654e2b2653c109dc"
+              }
+            ]
+          }
+        ]
       },
-      "approx_bytes": 5905580032
+      "approx_bytes": 5905580032,
+      "size_bytes": 48861581303
     },
     {
       "id": "sdxl-base",
@@ -455,12 +1506,28 @@
       "license_category": "openrail",
       "attribution": null,
       "gated": false,
+      "tier": "core",
       "source": {
         "kind": "hf",
         "repo_id": "stabilityai/stable-diffusion-xl-base-1.0",
-        "revision": "main"
+        "revision": "462165984030d82259a11f4367a4eed129e94a7b",
+        "snapshots": [
+          {
+            "repo_id": "stabilityai/stable-diffusion-xl-base-1.0",
+            "revision": "462165984030d82259a11f4367a4eed129e94a7b",
+            "subdir": "",
+            "files": [
+              {
+                "path": "sd_xl_base_1.0.safetensors",
+                "size": 6938078334,
+                "sha256": "31e35c80fc4829d14f90153f4c74cd59c90b779f6afe05a74cd6120b893f7e5b"
+              }
+            ]
+          }
+        ]
       },
-      "approx_bytes": 7408818585
+      "approx_bytes": 7408818585,
+      "size_bytes": 6938078334
     },
     {
       "id": "sdxl-refiner",
@@ -470,12 +1537,28 @@
       "license_category": "openrail",
       "attribution": null,
       "gated": false,
+      "tier": "extended",
       "source": {
         "kind": "hf",
         "repo_id": "stabilityai/stable-diffusion-xl-refiner-1.0",
-        "revision": "main"
+        "revision": "5d4cfe854c9a9a87939ff3653551c2b3c99a4356",
+        "snapshots": [
+          {
+            "repo_id": "stabilityai/stable-diffusion-xl-refiner-1.0",
+            "revision": "5d4cfe854c9a9a87939ff3653551c2b3c99a4356",
+            "subdir": "",
+            "files": [
+              {
+                "path": "sd_xl_refiner_1.0.safetensors",
+                "size": 6075981930,
+                "sha256": "7440042bbdc8a24813002c09b6b69b64dc90fded4472613437b7f55f9b7d9c5f"
+              }
+            ]
+          }
+        ]
       },
-      "approx_bytes": 6549825126
+      "approx_bytes": 6549825126,
+      "size_bytes": 6075981930
     },
     {
       "id": "sdxl-vae",
@@ -485,12 +1568,28 @@
       "license_category": "permissive",
       "attribution": null,
       "gated": false,
+      "tier": "core",
       "source": {
         "kind": "hf",
         "repo_id": "madebyollin/sdxl-vae-fp16-fix",
-        "revision": "main"
+        "revision": "207b116dae70ace3637169f1ddd2434b91b3a8cd",
+        "snapshots": [
+          {
+            "repo_id": "madebyollin/sdxl-vae-fp16-fix",
+            "revision": "207b116dae70ace3637169f1ddd2434b91b3a8cd",
+            "subdir": "",
+            "files": [
+              {
+                "path": "sdxl.vae.safetensors",
+                "size": 334641162,
+                "sha256": "235745af8d86bf4a4c1b5b4f529868b37019a10f7c0b2e79ad0abca3a22bc6e1"
+              }
+            ]
+          }
+        ]
       },
-      "approx_bytes": 351272960
+      "approx_bytes": 351272960,
+      "size_bytes": 334641162
     },
     {
       "id": "svd",
@@ -500,12 +1599,118 @@
       "license_category": "stability-community",
       "attribution": "Powered by Stability AI",
       "gated": false,
+      "tier": "extended",
       "source": {
         "kind": "hf",
         "repo_id": "stabilityai/stable-video-diffusion-img2vid-xt",
-        "revision": "main"
+        "revision": "9e43909513c6714f1bc78bcb44d96e733cd242aa",
+        "snapshots": [
+          {
+            "repo_id": "stabilityai/stable-video-diffusion-img2vid-xt",
+            "revision": "9e43909513c6714f1bc78bcb44d96e733cd242aa",
+            "subdir": "",
+            "files": [
+              {
+                "path": ".gitattributes",
+                "size": 1571,
+                "sha256": "847fe1da7aa7eca3fa0fbd4740242b6177a3f4bfe4a3b56753bed95fd614e769"
+              },
+              {
+                "path": "LICENSE.md",
+                "size": 11852,
+                "sha256": "d6f6b1a4dce5c852bd6d7d9482d002baf0ccdb71e662250b73be9eec8764ee8d"
+              },
+              {
+                "path": "README.md",
+                "size": 8156,
+                "sha256": "0513cc8b8da0aff30c91dbc899babe4d411e2d0ac68b8a0aff40103e1489c6b1"
+              },
+              {
+                "path": "comparison.png",
+                "size": 146654,
+                "sha256": "517263334c2011dd28f819b831ccc32a8dd676895429693477b936dc88600d15"
+              },
+              {
+                "path": "feature_extractor/preprocessor_config.json",
+                "size": 518,
+                "sha256": "4db495644e3e5bd8fcac52f70e7fc0b413c911086021acf73ac30e5911166e95"
+              },
+              {
+                "path": "image_encoder/config.json",
+                "size": 685,
+                "sha256": "65da4496f116d2b297fe864e0f31242fbc57e26a5d95b93310f2034e1e90d0ec"
+              },
+              {
+                "path": "image_encoder/model.fp16.safetensors",
+                "size": 1264217240,
+                "sha256": "ae616c24393dd1854372b0639e5541666f7521cbe219669255e865cb7f89466a"
+              },
+              {
+                "path": "image_encoder/model.safetensors",
+                "size": 2528371296,
+                "sha256": "ed1e5af7b4042ca30ec29999a4a5cfcac90b7fb610fd05ace834f2dcbb763eab"
+              },
+              {
+                "path": "model_index.json",
+                "size": 496,
+                "sha256": "9119b8837600736ae38009c5dc80c76112307cb2d229a2cfb477d54c329ff53d"
+              },
+              {
+                "path": "output_tile.gif",
+                "size": 18630497,
+                "sha256": "2340a9809e36fa9634633c7cc5fd256737c620ba47151726c85173512dc5c8ff"
+              },
+              {
+                "path": "scheduler/scheduler_config.json",
+                "size": 533,
+                "sha256": "59aa43afc33395efd40fe94c7369c0477b81698f4b65b63e3ae06f26269876d5"
+              },
+              {
+                "path": "svd_xt.safetensors",
+                "size": 9559625980,
+                "sha256": "b2652c23d64a1da5f14d55011b9b6dce55f2e72e395719f1cd1f8a079b00a451"
+              },
+              {
+                "path": "svd_xt_image_decoder.safetensors",
+                "size": 9503252964,
+                "sha256": "99aa889bf6d1ca28e026755b83ba37e3072ad79b45dd4c94fae14bee7482263b"
+              },
+              {
+                "path": "unet/config.json",
+                "size": 984,
+                "sha256": "9c44e614afa89887aeeeae3113ba73a53fabacbc545ae1237c44c99d0e80fb54"
+              },
+              {
+                "path": "unet/diffusion_pytorch_model.fp16.safetensors",
+                "size": 3049435868,
+                "sha256": "9fbc02e90f37d422f5e3a4aeaee95f6629dc8c45ca211b951626e930daf2bddf"
+              },
+              {
+                "path": "unet/diffusion_pytorch_model.safetensors",
+                "size": 6098682464,
+                "sha256": "7783d82729af04f26ded4641a5952617fe331fc46add332fb9e47674fecc6ad7"
+              },
+              {
+                "path": "vae/config.json",
+                "size": 607,
+                "sha256": "8f34272db69f7e2c615da6142ca3f9fdcd7b682bcfd903ceb15035fea79a8303"
+              },
+              {
+                "path": "vae/diffusion_pytorch_model.fp16.safetensors",
+                "size": 195531910,
+                "sha256": "af602cd0eb4ad6086ec94fbf1438dfb1be5ec9ac03fd0215640854e90d6463a3"
+              },
+              {
+                "path": "vae/diffusion_pytorch_model.safetensors",
+                "size": 391017740,
+                "sha256": "5d92aa595a53d9da9faf594f09910ee869d5d567c8bb0362d5095673c69997d6"
+              }
+            ]
+          }
+        ]
       },
-      "approx_bytes": 10307921510
+      "approx_bytes": 10307921510,
+      "size_bytes": 32608938015
     }
   ],
   "excluded_non_commercial": [
@@ -528,5 +1733,6 @@
       "reason": "license-not-redistributable:non-commercial"
     }
   ],
-  "total_approx_bytes": 137489704541
+  "total_approx_bytes": 137584076381,
+  "total_size_bytes": 247007246030
 }

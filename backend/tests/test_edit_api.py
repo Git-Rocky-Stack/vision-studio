@@ -17,6 +17,7 @@ from PIL import Image
 import api.edit as edit_api  # type: ignore[import-not-found]
 from edit_tools.weights import EditModelUnavailable  # type: ignore[import-not-found]
 from utils.job_manager import JobStatus  # type: ignore[import-not-found]
+from utils.media_paths import configure_media_paths  # type: ignore[import-not-found]
 
 
 class FakeJobManager:
@@ -50,6 +51,8 @@ def _make_client(tmp_path, resolve_record=lambda _record_id: {"status": "ready"}
     manager = FakeJobManager()
     edit_api.configure(manager, str(tmp_path / "outputs"), str(tmp_path / "models"),
                        resolve_record)
+    # The media allow-list: the test's tmp dir plays the outputs folder.
+    configure_media_paths(str(tmp_path), lambda: [])
     return TestClient(app), manager
 
 
@@ -138,16 +141,37 @@ class EditApiTests(unittest.TestCase):
         self.assertEqual(client.post("/api/v1/edit/remove-background", json={
             "source_path": ""}).status_code, 422)
 
-    def test_models_reports_registry_readiness(self):
-        ready_ids = {"edit-u2net"}
-        client, _manager = _make_client(
-            self.tmp_path,
-            resolve_record=lambda record_id: {
-                "status": "ready" if record_id in ready_ids else "not_found"})
-        payload = client.get("/api/v1/edit/models").json()["tools"]
-        self.assertTrue(payload["remove-background"]["ready"])
-        self.assertFalse(payload["upscale"]["ready"])
-        self.assertFalse(payload["restore-faces"]["ready"])
+    def test_source_outside_the_allowed_roots_is_400(self):
+        client, manager = _make_client(self.tmp_path)
+        with tempfile.TemporaryDirectory() as elsewhere:
+            outside = pathlib.Path(elsewhere) / "private.png"
+            Image.new("RGB", (8, 8)).save(outside)
+            response = client.post("/api/v1/edit/upscale",
+                                   json={"source_path": str(outside), "scale": 2})
+        self.assertEqual(response.status_code, 400)
+        self.assertNotIn("private", response.json()["detail"])
+        self.assertEqual(manager.jobs, {})
+
+    def test_traversal_out_of_outputs_is_400(self):
+        client, _manager = _make_client(self.tmp_path)
+        response = client.post("/api/v1/edit/remove-background",
+                               json={"source_path": "/outputs/../../escape.png"})
+        self.assertEqual(response.status_code, 400)
+
+    def test_outputs_url_resolves_and_the_job_gets_the_resolved_path(self):
+        client, manager = _make_client(self.tmp_path)
+        with mock.patch.object(edit_api, "run_edit_operation",
+                               return_value={"images": []}) as run:
+            response = client.post("/api/v1/edit/restore-faces",
+                                   json={"source_path": "/outputs/source.png"})
+        self.assertEqual(response.status_code, 202)
+        self._wait_terminal(manager, response.json()["job_id"])
+        resolved = run.call_args.args[2]["source_path"]
+        self.assertEqual(pathlib.Path(resolved), self.source.resolve())
+
+    def test_edit_models_route_is_gone(self):
+        client, _manager = _make_client(self.tmp_path)
+        self.assertEqual(client.get("/api/v1/edit/models").status_code, 404)
 
 
 if __name__ == "__main__":

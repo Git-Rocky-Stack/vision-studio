@@ -34,6 +34,11 @@ Download the build for your platform from
 | macOS | `Vision-Studio-<version>-arm64.dmg` (about 530 MB) | Apple Silicon (M-series) and macOS 14 or later. There is no Intel build |
 | Linux | `Vision-Studio-<version>-x86_64.AppImage` (about 3.3 GB) | x64, Ubuntu 22.04 or a distribution with the same glibc or newer |
 
+Installing or updating closes a running Vision Studio, and its engine, first;
+an installer you run yourself asks before it does. Vision Studio runs as a
+single instance: opening it again brings the window that is already open to
+the front.
+
 Plan for the disk space the models need as well as the app: the full first-run
 model set is about 137 GB (see [section 2](#2-first-run-the-model-library)).
 8 GB of RAM is the minimum; 16 GB and an NVIDIA GPU with 8 GB or more of VRAM, or
@@ -58,10 +63,9 @@ a fault in the download.
 ### The first start is slow
 
 The AI engine (PyTorch, diffusers and the CUDA or Metal runtime) ships inside the
-app as a single self-extracting program. It unpacks itself to a temporary folder
-every time the app starts, which can take a few minutes, longest on the first
-launch. While it unpacks, the status pill in the header reads **Backend warming**;
-the Foundry header reads **Backend offline**. Give it time. If it still has not
+app; there is nothing extra to install. It can take a few minutes to start,
+longest on the first launch. While it starts, the status pill in the header
+reads **Backend warming**; the Foundry header reads **Backend offline**. Give it time. If it still has not
 started after several minutes, the app tells you so and offers the next steps -
 see [Backend offline](./TROUBLESHOOTING.md#backend-offline).
 
@@ -69,7 +73,12 @@ see [Backend offline](./TROUBLESHOOTING.md#backend-offline).
 
 Once the engine is up, a **Welcome to Vision Studio** screen offers to install the
 model library. It only appears while the library is incomplete, and only once the
-engine has reported what is installed.
+engine has reported what is installed. It offers three choices:
+
+- **Install core** - a smaller core subset of the set below. You can add the
+  rest later from the Foundry (see [Coming back later](#coming-back-later)).
+- **Install everything** - all 33 models.
+- **Custom** - pick the models yourself.
 
 ### What the first-run set contains
 
@@ -88,8 +97,8 @@ upstream source and checked against its recorded hash before use:
   variant (upscale), GFPGAN v1.4 with RetinaFace and ParseNet (face
   enhancement).
 
-The install button shows the remaining size in binary units, so a fresh install
-reads **Install all models (128.0 GB)** - the same ~137 GB, counted in GiB.
+Download sizes on the setup screen are in binary units, so the whole set on a
+fresh install reads 128.0 GB - the same ~137 GB, counted in GiB.
 
 ### What is not included
 
@@ -109,8 +118,8 @@ LTX Video selected; pick an installed model from the Model picker instead.
 
 ### The buttons on the setup screen
 
-- **Install all models (size)** starts every download. It is disabled when the
-  disk check finds too little free space.
+- **Install core**, **Install everything** and **Custom** start the downloads
+  you chose (see above).
 - **Skip for now** closes the screen without downloading anything. You can come
   back to it from the Foundry at any time. Esc does the same.
 - After you start, **Continue in background** closes the screen while downloads
@@ -129,8 +138,9 @@ your models with what is left to download:
 
 - "Disk check: ... free - enough for the remaining ..." - you are fine.
 - "Space is tight" - less than 10% headroom. You can still install.
-- "Not enough disk space: ... needed, only ... free" - **Install all** is
-  disabled. Free up space, then click **Re-check**.
+- "Not enough disk space: ... needed, only ... free" - free up space, then
+  click **Re-check**, or install fewer models with **Install core** or
+  **Custom**.
 
 Every download also checks free space for itself, so a drive that fills up
 part-way stops that download with an error rather than corrupting it.
@@ -288,15 +298,22 @@ Generate button names it, with a **Manage in Foundry** link.
 - **Quick** is a minimal still-image panel for fast drafts: prompt, negative
   prompt, model and aspect ratio, on the active account's still-image route. Its
   model may also start on FLUX.1 [dev]; choose an installed one.
-- **Batch** takes one prompt per line (**Add Prompt**, or **Variations** for
-  one-click variations of a prompt). Each prompt becomes its own job with the
-  shared model, size and settings. **Cancel Batch** stops the run; results can be
-  previewed, then **Export All** or **Delete All**.
+- **Batch** gives each prompt its own card: **Add Prompt** adds a card,
+  **Variations** adds one-click variations of a prompt, and import fills cards
+  from a `.txt`, `.csv` or `.json` file of prompts. Cards can be duplicated,
+  dragged to reorder, or all removed with **Clear All**, and a seed strategy
+  decides the seeds the batch uses. Each card becomes its own job with the
+  shared model, size and settings. **Cancel Batch** stops the run; results can
+  be previewed, then **Export All** or **Delete All**. There is no retry
+  control.
 - **Studio** (Prompt Studio) refines a prompt with **AI Enhance**,
   **Expand**, **Style Transfer** (adds a style's wording) and **Negative
   Suggest**. On the **Local** prompt provider, Enhance and Expand use built-in
   prompt heuristics on your machine; with an OpenRouter or Hugging Face prompt
-  provider (section 5) they ask that model instead.
+  provider (section 5) they ask that model instead. Its template library
+  applies a built-in or saved prompt template to the prompt (replace or merge);
+  you can save the current prompt as your own template and delete the ones you
+  saved.
 
 ### Templates
 
@@ -420,7 +437,11 @@ click **Send to Edit**. For a video, **Extract to Edit** takes the current frame
   Brush and Eraser have size and colour; Clone Stamp and Heal have size,
   hardness, opacity and the sampling source; Shape and Pen have outline colour
   and width, fill, and the shape kind or Smooth curves. [ and ] step the brush
-  size for Brush, Eraser, Clone Stamp and Heal.
+  size for Brush, Eraser, Clone Stamp and Heal. Brush and Eraser offer **Clear
+  strokes**; Clone Stamp and Heal offer **Clear source** (forget the Alt+click
+  source) and **Clear retouching**; while you draw a Pen path, **Finish path**,
+  **Close shape** and **Cancel** do what Enter, clicking the first point and Esc
+  do.
 - **Clone Stamp**: Alt+click the image to set the source, then paint to copy
   it. The source moves with the brush, so later strokes keep the same offset
   until you Alt+click a new one.
@@ -444,17 +465,29 @@ click **Send to Edit**. For a video, **Extract to Edit** takes the current frame
   layers) and **Region** (region locks and masks). On **Control** and **Region**
   the keys switch to the mask tools: V select, R rectangle, L polygon, B brush,
   E erase, I invert the mask.
+- **Region Lock**: on the **Region** tab, draw a mask, give the region a prompt,
+  pick its AI tool, and choose **Generate Region**. The pass runs on the local
+  engine over the current image and repaints only the masked area (**Invert
+  Mask** repaints everything outside it instead); the result is added to Assets
+  and becomes the canvas image. AI tools that have no region pass, such as
+  Style Transfer and Upscale, are shown disabled with the reason - run them from
+  **AI Tools** on the whole image.
 - **AI Tools**: Background Removal (with an optional replacement background
   prompt), AI Upscale, Style Transfer (Van Gogh, Monet, Ukiyo-e, Comic,
   Watercolor, Pencil Sketch), Generative Fill, Face Enhancement, Object Removal
   and AI Expand. They run on the local engine.
 - **Undo and redo**: Ctrl+Z / Cmd+Z undoes, Ctrl+Y / Cmd+Y or Ctrl+Shift+Z /
   Cmd+Shift+Z redoes. Undo restores your edit layers as they were - a removed
-  layer comes back, a moved one returns to its place.
-- **Zoom and pan**: + or = zooms in, - zooms out, 0 resets; scroll to zoom;
-  Shift+drag or the middle mouse button pans. Right-click the image for a menu
-  with Copy Image, Save As, Send to Edit, Open in Explorer, and a **Refine** list
-  that runs any of your pipelines on the image.
+  layer comes back, a moved one returns to its place. The Undo and Redo buttons
+  at the top of the inspector do the same, and the **History** button opens a
+  list of your edit steps: click one to jump back to it (Esc closes the list).
+  **Before/After** shows the original image without your edits.
+- **Export to Assets** (the export button at the top of the inspector) saves
+  the edited image, with its retouching, layers, shapes and text, as a new asset
+  in the `edits` folder inside your output folder. It is unavailable while
+  Before/After is on.
+- **Zoom and pan**: scroll to zoom; the Hand tool (H) drags the view and the
+  Zoom tool (Z) zooms in on a click, out on Shift+click.
 
 ### Story
 
@@ -465,6 +498,17 @@ into a draft of scenes and elements for you to review before anything is added.
 **Build Timeline** turns the approved
 scenes into one clip each on a project sequence; **Send To Timeline** sends a
 single scene.
+
+The canvas in the centre of the Story tab is the generation canvas - the only
+tab that shows it. + or = zooms in, - zooms out, 0 resets; scroll to zoom;
+Shift+drag or the middle mouse button pans. Right-click the image (or, with the
+canvas focused, press Shift+F10 or the Menu key) for a menu with Copy Image,
+Save As, Send to Edit, Open in Explorer, and a **Refine** list that runs any of
+your pipelines on the image. In region mode the mask keys (V R L B E, and I to
+invert) work here too.
+
+**Story > Templates** holds the eight project templates (see
+[Templates](#templates)); choose one to preview it, then **Use Template**.
 
 ### Timeline
 
@@ -478,7 +522,9 @@ tracks.
   duplicates it, Delete or Backspace removes it (after a confirmation; the media
   stays in Assets). The same actions are buttons on the clip toolbar.
 - **Add Clip** puts the selected media asset on the timeline; **Track** adds a
-  track.
+  track. Click a track header (or focus it and press Enter or Space) to select
+  the track; tracks can be muted, soloed, hidden, locked and deleted. The
+  sequence's frame rate (FPS) can be changed.
 - **Mark In** / **Mark Out** set a play range that also limits export; **Clear
   Range** removes it.
 - Audio clips have gain, fades and an offset, and are mixed into the export.
@@ -519,14 +565,17 @@ destination is refused, so the app can never be used to write elsewhere on your
 disk.
 
 **Collections** groups assets. **New Collection** creates a manual collection
-that you fill yourself; the **All / Smart / Manual / Tagged / Untagged** filters
-narrow the list.
+that you fill yourself, or a smart collection that gathers matching assets on
+its own; the **All / Smart / Manual / Tagged / Untagged** filters narrow the
+list.
 
-### AI tagging
+### Prompt-based tagging
 
 Assets are tagged with style, subject, colour and mood, derived from the prompt
 you wrote - on your machine, with no cloud call and no extra model, and the same
-every time. **Settings > AI & Models > AI Tagging Mode** decides when:
+every time. You can also add, edit and remove your own tags on an asset. The
+prompt-based tagging setting under **Settings > AI & Models** (called **AI
+Tagging Mode** in earlier versions) decides when:
 
 - **On Generation** - every new asset as it arrives;
 - **Background Batch** - new assets queue and are tagged together when the app
@@ -548,17 +597,24 @@ Face, the excerpts it retrieved are sent to that provider with your prompt.
 
 | Tab | What is there |
 |-----|---------------|
-| **General** | **Default Output Location** (**Browse**; changing it restarts the backend so new work goes to the new folder), **Auto Save**, **Backend Autostart**, **Storage Usage** with **Clear Cache** (removes cached generated assets in the app's internal output folder; custom output folders are kept) |
-| **AI & Models** | GPU status, **Start Backend** when the backend is offline, **User Accounts & BYOK**, **Over-Budget Policy**, **AI Tagging Mode**, **AI Director (RAG)**, and **Installed Models** with **Manage in Foundry** |
+| **General** | **Default Output Location** (**Browse**; changing it restarts the backend so new work goes to the new folder), **Backend Autostart**, **Storage Usage** with **Clear Cache** (removes cached generated assets in the app's internal output folder; custom output folders are kept) |
+| **AI & Models** | GPU status, **Start Backend** when the backend is offline, **User Accounts & BYOK**, **Over-Budget Policy**, prompt-based tagging, **AI Director (RAG)**, and **Installed Models** with **Manage in Foundry** |
 | **Performance** | Acceleration: a master switch and Auto / On / Off for each optimization (SDPA, channels-last, torch.compile, attention slicing; quantization and TensorRT when their optional packages are present). After a local run it reports what was applied, skipped or fell back |
 | **Appearance** | Theme: dark, light or system |
 | **Notifications** | Desktop notifications for **Generation Complete**, **Generation Failed** and **Model Downloads** |
 | **User Guide** | The in-app guide |
-| **About** | Version, **Updates** (**Check for updates**, **Restart to update**), and the licence text for every model and bundled dependency |
+| **About** | Version, **Updates** (**Check for updates**, **Download update**, **Restart to update**), and the licence text for every model and bundled dependency |
 
-Automatic updates only run in the installed app. Until releases are code-signed,
-the updater will not install an update; download the new version from the
-website instead.
+Projects and settings are saved automatically; there is no save setting to turn
+on. Unexported Canvas layers are not kept across a restart - use **Export to
+Assets** to keep an edit.
+
+Update checks only run in the installed app, and are off on macOS. A found
+update is never downloaded on its own: the installer is several gigabytes, so
+**Download update** starts it when you choose and shows its progress (retry it
+if it fails). Until releases are code-signed, the updater will not install an
+update; download the new version from the website instead. Once it can,
+**Restart to update** asks you to confirm first while generations are running.
 
 ## 8. Keyboard shortcuts
 
@@ -573,6 +629,7 @@ where each key is active, is [`KEYBOARD_SHORTCUTS.md`](./KEYBOARD_SHORTCUTS.md).
 | Anywhere | Ctrl+Z / Cmd+Z | Undo |
 | Anywhere | Ctrl+Y / Cmd+Y, or Ctrl+Shift+Z / Cmd+Shift+Z | Redo |
 | Navigation bar | Arrow keys, Home, End | Move between workspace tabs |
+| Canvas tab | Scroll | Zoom |
 | Canvas tab | V T C R | Move, Scale, Crop, Rotate |
 | Canvas tab | B E S J | Brush, Eraser, Clone Stamp, Heal |
 | Canvas tab | X U P | Text, Shape, Pen |
@@ -580,13 +637,13 @@ where each key is active, is [`KEYBOARD_SHORTCUTS.md`](./KEYBOARD_SHORTCUTS.md).
 | Canvas tab (Clone Stamp, Heal) | Alt+click | Set the source |
 | Canvas tab (Pen) | Enter, Backspace, Esc | Finish the path, remove the last point, cancel |
 | Canvas tab | H Z I | Hand, Zoom, Eyedropper |
-| Canvas tab | Scroll | Zoom |
 | Canvas tab (Zoom tool) | Click / Shift+click | Zoom in / zoom out |
-| Preview canvas (every tab but Canvas) | + or =, -, 0 | Zoom in, zoom out, reset zoom and pan |
-| Preview canvas | Shift+drag, middle mouse button | Pan |
-| Preview canvas | Scroll | Zoom |
-| Preview canvas, region mode | V R L B E | Select, rectangle, polygon, brush, erase mask tools |
-| Preview canvas, region mode | I | Invert the mask |
+| Canvas tab (Control or Region open), Story tab canvas in region mode | V R L B E | Select, rectangle, polygon, brush, erase mask tools |
+| Canvas tab (Control or Region open), Story tab canvas in region mode | I | Invert the mask |
+| Story tab canvas | + or =, -, 0 | Zoom in, zoom out, reset zoom and pan |
+| Story tab canvas | Shift+drag, middle mouse button | Pan |
+| Story tab canvas | Scroll | Zoom |
+| Story tab canvas | Right-click, or Shift+F10 / Menu key with the canvas focused | Canvas menu |
 | Timeline | Space | Play or pause |
 | Timeline | Home / End | Start / end of the range |
 | Timeline | Left / Right | Step 250 ms (with Shift: 1 s) |
@@ -594,10 +651,18 @@ where each key is active, is [`KEYBOARD_SHORTCUTS.md`](./KEYBOARD_SHORTCUTS.md).
 | Timeline | S | Split the selected clip at the playhead |
 | Timeline | Ctrl+D / Cmd+D | Duplicate the selected clip |
 | Timeline | Delete or Backspace | Delete the selected clip (asks first) |
+| Timeline track header | Enter or Space | Select the track |
+| Window (Windows, Linux) | Ctrl+M | Minimize |
+| Window (macOS) | Cmd+M, Cmd+H, Cmd+Q | Minimize, hide, quit |
 
 Single-letter keys do nothing while you are typing in a text field, and are
-not triggered by Ctrl/Cmd chords. The timeline's Space, Home/End and arrow keys
-are left to a focused button, slider, tab or menu outside the timeline.
+not triggered by Ctrl/Cmd chords. The timeline keys work while the Generate tab
+shows its timeline (the **Canvas** view, outside Studio mode); its Space,
+Home/End and arrow keys are left to a focused button, slider, tab or menu
+outside the timeline.
+
+Ctrl+W does not close the window on Windows or Linux. Closing the window while
+generation jobs are still running asks you to confirm first.
 
 The installed app has no reload or DevTools keys: Ctrl+R / Cmd+R, F5, F12 and
 the DevTools chords are disabled so a stray key press cannot discard unsaved

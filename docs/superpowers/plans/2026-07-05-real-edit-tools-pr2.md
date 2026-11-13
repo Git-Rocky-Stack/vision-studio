@@ -3,6 +3,8 @@
 > **Historical design record - 2026-07-05.** Describes intent at that
 > date, not current behaviour. See `docs/INDEX.md` for what is authoritative.
 
+> **Status (checked 2026-11-11):** Shipped - PR #52 (`7e259db`). The task checkboxes below record the plan as written and were not ticked.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Make the four remaining Edit-page AI tools real — Style Transfer (img2img), Generative Fill + Object Removal (inpaint with Edit-canvas masks), AI Expand (backend outpaint pre-step) — plus the returning Background Replacement (inverted-u2net-mask inpaint), as thin frontends over the shipped guided-pass machinery.

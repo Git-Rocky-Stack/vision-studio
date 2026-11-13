@@ -189,5 +189,151 @@ class HfSearchTests(unittest.TestCase):
         self.assertNotIn(" ", results[0].id)
 
 
+def _compatible_listing(index):
+    return listing(id=f"org/model-{index}",
+                   tags=["diffusers:StableDiffusionXLPipeline", "safetensors"])
+
+
+class HfSearchPerformanceTests(unittest.TestCase):
+    """P6: bounded parallel verification, TTL cache, correct paging."""
+
+    def test_verification_fetches_run_concurrently_and_bounded(self):
+        import threading
+        import time
+
+        from foundry import hub_search
+
+        active = {"now": 0, "max": 0}
+        guard = threading.Lock()
+
+        def slow_fetch(repo_id):
+            with guard:
+                active["now"] += 1
+                active["max"] = max(active["max"], active["now"])
+            time.sleep(0.05)
+            with guard:
+                active["now"] -= 1
+            return full_signals(repo_id)
+
+        api = MagicMock()
+        api.list_models.return_value = iter([_compatible_listing(i) for i in range(20)])
+        started = time.monotonic()
+        results = search_hf(api, query="x", verified_repo_ids=set(), fetch_signals=slow_fetch)
+        elapsed = time.monotonic() - started
+
+        self.assertEqual(len(results), 20)
+        self.assertTrue(all(r.tier == "compatible" for r in results))
+        self.assertGreater(active["max"], 1)
+        self.assertLessEqual(active["max"], hub_search.MAX_PARALLEL_VERIFICATIONS)
+        self.assertLess(elapsed, 20 * 0.05)  # strictly faster than serial
+        # Result order follows the listing order, not completion order.
+        self.assertEqual([r.repo_id for r in results], [f"org/model-{i}" for i in range(20)])
+
+    def test_listing_is_consumed_lazily(self):
+        consumed = []
+
+        def endless():
+            index = 0
+            while True:
+                consumed.append(index)
+                yield listing(id=f"org/m-{index}", tags=["diffusers:WanPipeline"])
+                index += 1
+
+        api = MagicMock()
+        api.list_models.return_value = endless()
+        results = search_hf(api, query="x", verified_repo_ids=set(), page=2, page_size=5)
+        self.assertEqual([r.repo_id for r in results], [f"org/m-{i}" for i in range(5, 10)])
+        self.assertEqual(len(consumed), 10)
+
+    def test_cache_serves_next_page_and_repeat_queries(self):
+        from foundry.hub_search import HubSearchCache
+
+        cache = HubSearchCache()
+        api = MagicMock()
+        api.list_models.side_effect = lambda **kw: iter(
+            [_compatible_listing(i) for i in range(kw["limit"])]
+        )
+        fetch = MagicMock(side_effect=full_signals)
+
+        first = search_hf(api, query="x", verified_repo_ids=set(), page=2, page_size=3,
+                          fetch_signals=fetch, cache=cache)
+        self.assertEqual([r.repo_id for r in first], ["org/model-3", "org/model-4", "org/model-5"])
+        # Page 1 is a prefix of what page 2 already fetched: no new listing call.
+        search_hf(api, query="x", verified_repo_ids=set(), page=1, page_size=3,
+                  fetch_signals=fetch, cache=cache)
+        self.assertEqual(api.list_models.call_count, 1)
+        # Repeating page 2 re-uses both the listing and the verified signals.
+        fetch.reset_mock()
+        search_hf(api, query="x", verified_repo_ids=set(), page=2, page_size=3,
+                  fetch_signals=fetch, cache=cache)
+        fetch.assert_not_called()
+        self.assertEqual(api.list_models.call_count, 1)
+
+    def test_exhausted_listing_is_not_refetched_for_later_pages(self):
+        from foundry.hub_search import HubSearchCache
+
+        cache = HubSearchCache()
+        api = MagicMock()
+        api.list_models.side_effect = lambda **kw: iter([_compatible_listing(0)])
+        search_hf(api, query="x", verified_repo_ids=set(), page=1, page_size=5,
+                  fetch_signals=MagicMock(side_effect=full_signals), cache=cache)
+        results = search_hf(api, query="x", verified_repo_ids=set(), page=2, page_size=5,
+                            fetch_signals=MagicMock(side_effect=full_signals), cache=cache)
+        self.assertEqual(results, [])
+        self.assertEqual(api.list_models.call_count, 1)
+
+    def test_failed_verifications_are_not_cached(self):
+        from foundry.hub_search import HubSearchCache
+
+        cache = HubSearchCache()
+        api = MagicMock()
+        api.list_models.side_effect = lambda **kw: iter([_compatible_listing(0)])
+        failing = MagicMock(return_value=RepoSignals(repo_id="org/model-0", reachable=False))
+        first = search_hf(api, query="x", verified_repo_ids=set(),
+                          fetch_signals=failing, cache=cache)
+        self.assertEqual(first[0].tier, "experimental")
+        recovered = MagicMock(side_effect=full_signals)
+        second = search_hf(api, query="x", verified_repo_ids=set(),
+                           fetch_signals=recovered, cache=cache)
+        recovered.assert_called_once_with("org/model-0")
+        self.assertEqual(second[0].tier, "compatible")
+
+    def test_cache_entries_expire_and_are_scoped_per_token(self):
+        from foundry.hub_search import HubSearchCache, token_scope
+
+        now = {"t": 0.0}
+        cache = HubSearchCache(ttl_seconds=60, clock=lambda: now["t"])
+        cache.put("k", "v")
+        self.assertEqual(cache.get("k"), "v")
+        now["t"] = 61
+        self.assertIsNone(cache.get("k"))
+
+        self.assertEqual(token_scope(None), "anonymous")
+        self.assertNotEqual(token_scope("hf_a"), token_scope("hf_b"))
+        self.assertNotIn("hf_secret", token_scope("hf_secret"))
+
+        api = MagicMock()
+        api.list_models.side_effect = lambda **kw: iter([_compatible_listing(0)])
+        fetch = MagicMock(side_effect=full_signals)
+        search_hf(api, query="x", verified_repo_ids=set(), fetch_signals=fetch,
+                  cache=cache, cache_scope=token_scope("hf_a"))
+        search_hf(api, query="x", verified_repo_ids=set(), fetch_signals=fetch,
+                  cache=cache, cache_scope=token_scope("hf_b"))
+        self.assertEqual(api.list_models.call_count, 2)
+        self.assertEqual(fetch.call_count, 2)
+
+    def test_cache_is_bounded(self):
+        from foundry.hub_search import HubSearchCache
+
+        cache = HubSearchCache(max_entries=2)
+        cache.put("a", 1)
+        cache.put("b", 2)
+        cache.get("a")  # a is now most recently used
+        cache.put("c", 3)
+        self.assertIsNone(cache.get("b"))
+        self.assertEqual(cache.get("a"), 1)
+        self.assertEqual(cache.get("c"), 3)
+
+
 if __name__ == "__main__":
     unittest.main()

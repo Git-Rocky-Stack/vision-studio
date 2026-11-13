@@ -10,6 +10,7 @@ import type {
   ShapeStyle,
 } from '@/types/editor';
 import { DEFAULT_ADJUSTMENTS, DEFAULT_EDIT_FILTERS } from '@/types/editor';
+import { RETOUCH_SIZE_MAX, RETOUCH_SIZE_MIN } from '@/features/edit/retouch';
 import type { RegionMask } from '@/types/project';
 import type { AppSet, AppGet, AppState } from '../appStore.types';
 
@@ -299,19 +300,8 @@ export function createEditActions(set: AppSet, _get: AppGet) {
       }),
     setEditBrushColor: (color: string) => set({ editBrushColor: color }),
     setEditBrushSize: (size: number) =>
-      set({ editBrushSize: Math.round(Math.max(1, Math.min(400, size))) }),
+      set({ editBrushSize: Math.round(Math.max(RETOUCH_SIZE_MIN, Math.min(RETOUCH_SIZE_MAX, size))) }),
     setEditCompareOriginal: (on: boolean) => set({ editCompareOriginal: on }),
-    pushEditHistory: (entry: EditHistoryEntry) =>
-      set((state) => {
-        const truncated = state.editHistory.slice(0, state.editHistoryIndex + 1);
-        const newHistory = [...truncated, { state: snapshotOf(state), ...entry }].slice(
-          -EDIT_HISTORY_LIMIT,
-        );
-        return {
-          editHistory: newHistory,
-          editHistoryIndex: newHistory.length - 1,
-        };
-      }),
     undo: () =>
       set((state) => {
         if (state.editHistoryIndex <= 0) return state;

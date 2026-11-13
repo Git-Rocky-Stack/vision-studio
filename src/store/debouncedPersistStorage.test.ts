@@ -101,4 +101,64 @@ describe('createDebouncedJSONStorage', () => {
     expect(storage.setItem).not.toHaveBeenCalled();
     expect(data.has('key')).toBe(false);
   });
+
+  it('schedules nothing for a state object it already holds (#J4)', () => {
+    const { storage } = createSpyStorage();
+    const persist = createDebouncedJSONStorage<{ n: number }>(() => storage, 400);
+    const state = { n: 1 };
+
+    persist.setItem('key', { state, version: 0 });
+    persist.flush();
+    for (let i = 0; i < 1000; i++) persist.setItem('key', { state, version: 0 });
+
+    expect(persist.hasPending()).toBe(false);
+    expect(storage.setItem).toHaveBeenCalledTimes(1);
+  });
+
+  it('drops writes while an asynchronous read is hydrating the key (#J3)', async () => {
+    let resolveRead: (value: string | null) => void = () => undefined;
+    const storage: StateStorage = {
+      getItem: vi.fn(() => new Promise<string | null>((resolve) => { resolveRead = resolve; })),
+      setItem: vi.fn(),
+      removeItem: vi.fn(),
+    };
+    const persist = createDebouncedJSONStorage<{ n: number }>(() => storage, 400);
+
+    const read = persist.getItem('key') as Promise<unknown>;
+    // Pre-hydration defaults must neither be written nor served back as "stored".
+    persist.setItem('key', { state: { n: 0 }, version: 0 });
+    expect(persist.hasPending()).toBe(false);
+
+    resolveRead(JSON.stringify({ state: { n: 9 }, version: 0 }));
+    expect(await read).toEqual({ state: { n: 9 }, version: 0 });
+
+    persist.setItem('key', { state: { n: 10 }, version: 0 });
+    expect(persist.hasPending()).toBe(true);
+  });
+
+  it('reports a failed write once per failure and a recovery after it (#J3)', async () => {
+    let fail = true;
+    const storage: StateStorage = {
+      getItem: () => null,
+      setItem: vi.fn(async () => {
+        if (fail) throw new DOMException('full', 'QuotaExceededError');
+      }),
+      removeItem: vi.fn(),
+    };
+    const onWriteError = vi.fn();
+    const onWriteRecovered = vi.fn();
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const persist = createDebouncedJSONStorage<{ n: number }>(() => storage, { delayMs: 400, onWriteError, onWriteRecovered });
+
+    persist.setItem('key', { state: { n: 1 }, version: 0 });
+    persist.flush();
+    await vi.waitFor(() => expect(onWriteError).toHaveBeenCalledTimes(1));
+    expect(onWriteError.mock.calls[0][1]).toMatchObject({ name: 'QuotaExceededError' });
+
+    fail = false;
+    persist.setItem('key', { state: { n: 2 }, version: 0 });
+    persist.flush();
+    await vi.waitFor(() => expect(onWriteRecovered).toHaveBeenCalledTimes(1));
+    warn.mockRestore();
+  });
 });

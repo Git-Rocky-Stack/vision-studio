@@ -19,11 +19,11 @@ Goals:
 
 Primary files:
 
-- [src/store/appStore.types.ts](/C:/vision-studio/src/store/appStore.types.ts)
-- [src/store/slices/uiSlice.ts](/C:/vision-studio/src/store/slices/uiSlice.ts)
-- [src/components/layout/DockviewLayout.tsx](/C:/vision-studio/src/components/layout/DockviewLayout.tsx)
-- [src/components/layout/DockviewSettingsPanel.tsx](/C:/vision-studio/src/components/layout/DockviewSettingsPanel.tsx)
-- [src/index.css](/C:/vision-studio/src/index.css)
+- [src/store/appStore.types.ts](../../src/store/appStore.types.ts)
+- [src/store/slices/uiSlice.ts](../../src/store/slices/uiSlice.ts)
+- [src/components/layout/DockviewLayout.tsx](../../src/components/layout/DockviewLayout.tsx)
+- [src/components/layout/DockviewSettingsPanel.tsx](../../src/components/layout/DockviewSettingsPanel.tsx)
+- [src/index.css](../../src/index.css)
 
 Verification:
 
@@ -42,10 +42,10 @@ Goals:
 
 Primary files:
 
-- [src/pages/GeneratePanel.tsx](/C:/vision-studio/src/pages/GeneratePanel.tsx)
-- [src/components/generate/AdvancedGenerationSettings.tsx](/C:/vision-studio/src/components/generate/AdvancedGenerationSettings.tsx)
-- [src/components/layout/DockviewSettingsPanel.tsx](/C:/vision-studio/src/components/layout/DockviewSettingsPanel.tsx)
-- [src/store/slices/uiSlice.ts](/C:/vision-studio/src/store/slices/uiSlice.ts)
+- [src/pages/GeneratePanel.tsx](../../src/pages/GeneratePanel.tsx)
+- [src/components/generate/AdvancedGenerationSettings.tsx](../../src/components/generate/AdvancedGenerationSettings.tsx)
+- [src/components/layout/DockviewSettingsPanel.tsx](../../src/components/layout/DockviewSettingsPanel.tsx)
+- [src/store/slices/uiSlice.ts](../../src/store/slices/uiSlice.ts)
 
 Verification:
 
@@ -64,11 +64,11 @@ Goals:
 
 Primary files:
 
-- [src/components/layout/WorkbenchGalleryDock.tsx](/C:/vision-studio/src/components/layout/WorkbenchGalleryDock.tsx)
-- [src/components/layout/WorkbenchViewer.tsx](/C:/vision-studio/src/components/layout/WorkbenchViewer.tsx)
-- [src/components/layout/WorkbenchBoardsDock.tsx](/C:/vision-studio/src/components/layout/WorkbenchBoardsDock.tsx)
-- [src/components/layout/Canvas.tsx](/C:/vision-studio/src/components/layout/Canvas.tsx)
-- [src/store/slices/uiSlice.ts](/C:/vision-studio/src/store/slices/uiSlice.ts)
+- [src/components/layout/WorkbenchGalleryDock.tsx](../../src/components/layout/WorkbenchGalleryDock.tsx)
+- [src/components/layout/WorkbenchViewer.tsx](../../src/components/layout/WorkbenchViewer.tsx)
+- [src/components/layout/WorkbenchBoardsDock.tsx](../../src/components/layout/WorkbenchBoardsDock.tsx)
+- [src/components/layout/Canvas.tsx](../../src/components/layout/Canvas.tsx)
+- [src/store/slices/uiSlice.ts](../../src/store/slices/uiSlice.ts)
 
 Verification:
 
@@ -87,7 +87,7 @@ Goals:
 
 Primary files:
 
-- [src/components/layout/Timeline.tsx](/C:/vision-studio/src/components/layout/Timeline.tsx)
+- [src/components/layout/Timeline.tsx](../../src/components/layout/Timeline.tsx)
 
 Verification:
 
@@ -104,11 +104,11 @@ Goals:
 
 Primary files:
 
-- [src/components/layout/Header.tsx](/C:/vision-studio/src/components/layout/Header.tsx)
-- [src/App.tsx](/C:/vision-studio/src/App.tsx)
-- [electron/services/backendProcess.ts](/C:/vision-studio/electron/services/backendProcess.ts)
-- [electron/services/backend.ts](/C:/vision-studio/electron/services/backend.ts)
-- [src/store/appStore.types.ts](/C:/vision-studio/src/store/appStore.types.ts)
+- [src/components/layout/Header.tsx](../../src/components/layout/Header.tsx)
+- [src/App.tsx](../../src/App.tsx)
+- [electron/services/backendProcess.ts](../../electron/services/backendProcess.ts)
+- [electron/services/backend.ts](../../electron/services/backend.ts)
+- [src/store/appStore.types.ts](../../src/store/appStore.types.ts)
 
 Verification:
 

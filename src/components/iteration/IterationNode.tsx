@@ -50,7 +50,9 @@ export const IterationNode = memo(function IterationNode({
           : 'border-border bg-surface text-text-body hover:border-border-hover hover:bg-elevated',
         className,
       )}
-      aria-selected={isActive}
+      // A toggle button: its selection is aria-pressed (aria-selected is not
+      // a state of role=button).
+      aria-pressed={isActive}
       data-compare-selected={isCompared ? 'true' : 'false'}
     >
       {/* Branch indicator */}

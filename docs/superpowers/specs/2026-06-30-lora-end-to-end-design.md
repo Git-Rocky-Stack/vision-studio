@@ -3,6 +3,8 @@
 > **Historical design record - 2026-06-30.** Describes intent at that
 > date, not current behaviour. See `docs/INDEX.md` for what is authoritative.
 
+> **Status (checked 2026-11-11):** Shipped - PR #40 (`86f7443`).
+
 **Date:** 2026-06-30
 **Task:** #136 (Phase 1 / P1, launch-readiness plan)
 **Status:** Approved (design)

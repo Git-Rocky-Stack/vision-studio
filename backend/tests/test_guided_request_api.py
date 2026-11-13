@@ -11,8 +11,18 @@ BACKEND_ROOT = pathlib.Path(__file__).resolve().parents[1]
 if str(BACKEND_ROOT) not in sys.path:
     sys.path.insert(0, str(BACKEND_ROOT))
 
+import pytest
+
 MASK = {"type": "rectangle", "points": [{"x": 0, "y": 0}],
         "bounds": {"x": 0, "y": 0, "width": 8, "height": 8}}
+
+
+@pytest.fixture(autouse=True)
+def _tmp_path_is_an_allowed_media_root(tmp_path, monkeypatch):
+    # B6: guided source images must resolve inside the allowed media roots.
+    # These tests write their sources under tmp_path, so allow it the way the
+    # desktop shell allows extra roots.
+    monkeypatch.setenv("VISION_STUDIO_MEDIA_ROOTS", str(tmp_path))
 
 
 class _FakeRegistry:
@@ -140,6 +150,23 @@ def test_over_budget_controlnet_stack_preflights_422(monkeypatch, tmp_path):
     response = client.post("/api/generate/image", json=_cn_request(tmp_path))
     assert response.status_code == 422
     assert "does not fit" in response.json()["detail"]
+
+
+def test_fit_gate_credits_memory_this_process_already_holds(monkeypatch, tmp_path):
+    import main as main_module
+
+    client = _client(monkeypatch, _FakeRegistry())
+    seen = {}
+
+    def gate(base_plan, family, profile, **kwargs):
+        seen.update(kwargs)
+        return None
+
+    monkeypatch.setattr(main_module, "guided_fit_refusal", gate)
+    monkeypatch.setattr(main_module, "process_reserved_vram_bytes", lambda: 123_456)
+    response = client.post("/api/generate/image", json=_cn_request(tmp_path))
+    assert response.status_code == 200
+    assert seen.get("reclaimable_bytes") == 123_456
 
 
 def test_fitting_controlnet_stack_still_enqueues(monkeypatch, tmp_path):

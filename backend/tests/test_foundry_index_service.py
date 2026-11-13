@@ -258,6 +258,112 @@ class IndexServiceTests(unittest.TestCase):
         if vae is not None:
             self.assertNotEqual(vae["status"], "ready")
 
+    # -- B10/U7: durable degradation, atomic state, serialized scans ---------
+    def _fresh_service(self):
+        return IndexService(
+            registry=self.registry,
+            roots_store=self.roots,
+            models_dir=self.models_dir,
+            state_path=os.path.join(self.models_dir, ".foundry", "index_state.json"),
+        )
+
+    def test_unmounted_root_records_survive_a_restart(self):
+        lib = os.path.join(self.tmp, "nas-restart")
+        make_safetensors(os.path.join(lib, "loras", "style.safetensors"), LORA_TENSORS)
+        root = self.roots.add(lib, "comfyui")
+        self._scan()
+        shutil.rmtree(lib)  # unmounted while the app is closed
+
+        fresh_registry = ModelRegistry(
+            models_dir=self.models_dir, catalog_path=os.path.join(self.tmp, "catalog.json")
+        )
+        fresh = IndexService(
+            registry=fresh_registry,
+            roots_store=self.roots,
+            models_dir=self.models_dir,
+            state_path=os.path.join(self.models_dir, ".foundry", "index_state.json"),
+        )
+        with mock.patch("foundry.index_service.scan_hf_cache", return_value=HfCacheScan()):
+            fresh.scan()
+        records = [
+            r for r in fresh_registry.list_records() if r.get("library_root_id") == root.id
+        ]
+        self.assertEqual(len(records), 1)
+        self.assertEqual(records[0]["availability"], "unavailable")
+
+    def test_state_file_is_versioned_and_written_atomically(self):
+        lib = os.path.join(self.tmp, "lib-atomic")
+        make_safetensors(os.path.join(lib, "loras", "style.safetensors"), LORA_TENSORS)
+        self.roots.add(lib, "comfyui")
+        self._scan()
+        state_dir = os.path.join(self.models_dir, ".foundry")
+        with open(os.path.join(state_dir, "index_state.json"), encoding="utf-8") as handle:
+            state = json.load(handle)
+        self.assertEqual(state["version"], 2)
+        self.assertIn("signatures", state)
+        self.assertEqual(len(next(iter(state["last_records"].values()))), 1)
+        self.assertEqual([n for n in os.listdir(state_dir) if n.endswith(".tmp")], [])
+
+    def test_failed_state_write_keeps_previous_state(self):
+        self._scan()
+        state_path = os.path.join(self.models_dir, ".foundry", "index_state.json")
+        with open(state_path, encoding="utf-8") as handle:
+            before = handle.read()
+        with mock.patch("foundry.index_service.json.dump", side_effect=OSError("disk full")):
+            with self.assertRaises(OSError):
+                self._scan()
+        with open(state_path, encoding="utf-8") as handle:
+            self.assertEqual(handle.read(), before)
+        state_dir = os.path.dirname(state_path)
+        self.assertEqual([n for n in os.listdir(state_dir) if n.endswith(".tmp")], [])
+
+    def test_legacy_v1_state_file_still_loads_signatures(self):
+        state_path = os.path.join(self.models_dir, ".foundry", "index_state.json")
+        os.makedirs(os.path.dirname(state_path), exist_ok=True)
+        with open(state_path, "w", encoding="utf-8") as handle:
+            json.dump({"__app__": {"x": [1, 2, "lora", "id", "experimental", None]}}, handle)
+        fresh = self._fresh_service()
+        self.assertIn("__app__", fresh._signatures)
+        self.assertEqual(fresh._last_records, {})
+
+    def test_concurrent_scans_are_serialized(self):
+        import threading
+        import time
+
+        active = {"now": 0, "max": 0}
+        guard = threading.Lock()
+        real_apply = self.registry.apply_index
+
+        def slow_apply(records):
+            with guard:
+                active["now"] += 1
+                active["max"] = max(active["max"], active["now"])
+            time.sleep(0.05)
+            try:
+                return real_apply(records)
+            finally:
+                with guard:
+                    active["now"] -= 1
+
+        errors = []
+
+        def worker():
+            try:
+                self.service.scan()
+            except Exception as exc:  # pragma: no cover - surfaced below
+                errors.append(exc)
+
+        with mock.patch.object(self.registry, "apply_index", side_effect=slow_apply), mock.patch(
+            "foundry.index_service.scan_hf_cache", return_value=HfCacheScan()
+        ):
+            threads = [threading.Thread(target=worker) for _ in range(4)]
+            for thread in threads:
+                thread.start()
+            for thread in threads:
+                thread.join()
+        self.assertEqual(errors, [])
+        self.assertEqual(active["max"], 1)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -5,94 +5,116 @@ Uses slowapi (Starlette adaptation of limits) to implement rate limiting
 with configurable limits per endpoint category.
 """
 
+import logging
+import math
 import os
-import sys
+import time
+from typing import Optional
 
 from fastapi import Request
 from fastapi.responses import JSONResponse
 from slowapi import Limiter
 from slowapi.errors import RateLimitExceeded
-from slowapi.util import get_remote_address
+
+logger = logging.getLogger(__name__)
 
 # Rate limit configurations
 # Format: "{count}/{period}" where period is second, minute, hour, day, month, year
 RATE_LIMIT_GENERATE = "10/minute"  # Generation endpoints (expensive operations)
 RATE_LIMIT_EDIT = "30/minute"      # Edit tool endpoints
-RATE_LIMIT_BATCH = "5/minute"      # Batch export (resource intensive)
 RATE_LIMIT_DEFAULT = "60/minute"   # All other endpoints
+RATE_LIMIT_HANDSHAKE = "30/minute"  # Unauthenticated token-possession proof
 
 # Convenience dict for decorator usage
 LIMITS = {
     "generate": RATE_LIMIT_GENERATE,
     "edit": RATE_LIMIT_EDIT,
-    "batch": RATE_LIMIT_BATCH,
     "default": RATE_LIMIT_DEFAULT,
+    "handshake": RATE_LIMIT_HANDSHAKE,
 }
+
+DISABLE_ENV_VAR = "VISION_STUDIO_DISABLE_RATE_LIMIT"
+_TRUTHY = {"1", "true", "yes", "on"}
+
+# Fallback Retry-After when the limiter cannot report its window (seconds).
+_DEFAULT_RETRY_AFTER_SECONDS = 60
 
 
 def get_remote_address(request: Request) -> str:
-    """
-    Extract client IP address from request.
+    """The client address that keys the rate-limit bucket.
 
-    Handles X-Forwarded-For header for proxied requests.
+    Deliberately the socket peer only. The backend binds to loopback with no
+    reverse proxy in front of it, so an ``X-Forwarded-For`` header is
+    attacker-controlled: honoring it would let any caller pick a fresh bucket
+    per request and bypass every limit.
     """
-    forwarded = request.headers.get("X-Forwarded-For")
-    if forwarded:
-        # X-Forwarded-For can contain multiple IPs: client, proxy1, proxy2, ...
-        return forwarded.split(",")[0].strip()
     return request.client.host if request.client else "127.0.0.1"
 
 
-def rate_limiting_enabled() -> bool:
+def rate_limiting_enabled(environ: Optional[dict] = None) -> bool:
+    """Whether request rate limiting is active for this process.
+
+    Limiting is ON unless ``VISION_STUDIO_DISABLE_RATE_LIMIT`` is explicitly
+    truthy (1/true/yes/on). The test suite sets it in ``tests/conftest.py``
+    (its single TestClient shares one bucket, so unrelated tests would trip
+    each other's limits); tests that exercise limiting turn the limiter back
+    on themselves.
+
+    There is intentionally no "a test runner is loaded" heuristic: torch,
+    diffusers and friends import ``unittest`` in production, which used to
+    silently disable limiting in the shipped app.
     """
-    Whether request rate limiting is active for this process.
-
-    Limiting protects the running server from abuse, but it must be OFF under
-    the test runner: the suite drives many requests through a single in-process
-    TestClient whose remote address is a constant, so every generation test
-    would share one per-minute bucket and unrelated tests would fail with
-    spurious 429s. Resolution order:
-
-      1. Explicit override - VISION_STUDIO_DISABLE_RATE_LIMIT
-         (1/true/yes/on disables, 0/false/no/off forces enabled).
-      2. Automatic - disabled when a unittest or pytest runner is loaded, so a
-         plain ``python -m unittest`` / ``pytest`` run is green with no extra
-         setup.
-
-    The server entrypoint (uvicorn) loads neither test runner, so production
-    keeps rate limiting on by default.
-    """
-    override = os.getenv("VISION_STUDIO_DISABLE_RATE_LIMIT", "").strip().lower()
-    if override in {"1", "true", "yes", "on"}:
-        return False
-    if override in {"0", "false", "no", "off"}:
-        return True
-    return not ("pytest" in sys.modules or "unittest" in sys.modules)
+    env = environ if environ is not None else os.environ
+    return env.get(DISABLE_ENV_VAR, "").strip().lower() not in _TRUTHY
 
 
-# Create limiter instance with custom key function. Disabled under the test
-# runner so a single TestClient's shared bucket does not bleed across tests
-# (see rate_limiting_enabled).
+# Create limiter instance with the peer-address key function.
 limiter = Limiter(key_func=get_remote_address, enabled=rate_limiting_enabled())
 
 
-def rate_limit_exceeded_handler(request: Request, exc: RateLimitExceeded) -> JSONResponse:
-    """
-    Handle rate limit exceeded exceptions.
+def _retry_after_seconds(request: Request, exc: RateLimitExceeded) -> int:
+    """Seconds until the exceeded window resets (>= 1).
 
-    Returns a JSON 429 response with standard rate limit headers.
+    slowapi raises ``RateLimitExceeded`` with ``headers=None`` and records the
+    limit that tripped in ``request.state.view_rate_limit``; the limiter's
+    window stats give the reset time. Falls back to the limit's full window,
+    then to 60s.
     """
+    view = getattr(request.state, "view_rate_limit", None)
+    active = getattr(request.app.state, "limiter", None) or limiter
+    if view:
+        try:
+            reset_at, _remaining = active.limiter.get_window_stats(view[0], *view[1])
+            return max(1, int(math.ceil(reset_at - time.time())))
+        except Exception:  # noqa: BLE001 - storage hiccup: fall back below
+            logger.debug("Rate-limit window stats unavailable", exc_info=True)
+    try:
+        return max(1, int(exc.limit.limit.get_expiry()))
+    except Exception:  # noqa: BLE001
+        return _DEFAULT_RETRY_AFTER_SECONDS
+
+
+def rate_limit_exceeded_handler(request: Request, exc: RateLimitExceeded) -> JSONResponse:
+    """JSON 429 with an accurate ``Retry-After`` (never a 500)."""
+    retry_after = _retry_after_seconds(request, exc)
+    headers = {"Retry-After": str(retry_after)}
+    # Upstream may attach headers in future versions; keep any it sets.
+    for name, value in (getattr(exc, "headers", None) or {}).items():
+        headers.setdefault(name, value)
+    limit_amount = None
+    try:
+        limit_amount = exc.limit.limit.amount
+    except Exception:  # noqa: BLE001
+        pass
+    if limit_amount is not None:
+        headers.setdefault("X-RateLimit-Limit", str(limit_amount))
     return JSONResponse(
         status_code=429,
         content={
             "success": False,
             "error": "Rate limit exceeded",
             "error_code": "RATE_LIMITED",
-            "retry_after": str(exc.headers.get("Retry-After", "60")),
+            "retry_after": retry_after,
         },
-        headers={
-            "Retry-After": exc.headers.get("Retry-After", "60"),
-            "X-RateLimit-Limit": exc.headers.get("X-RateLimit-Limit", "unknown"),
-            "X-RateLimit-Reset": exc.headers.get("X-RateLimit-Reset", "unknown"),
-        },
+        headers=headers,
     )

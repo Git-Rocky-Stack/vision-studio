@@ -132,6 +132,9 @@ export function MediaPreview({
       className={cn('relative overflow-hidden bg-void', className)}
     >
       {showVideoElement ? (
+        // Generated and imported clips carry no caption files, so there is no
+        // track to offer; an empty <track> would claim captions that do not exist.
+        // eslint-disable-next-line jsx-a11y-x/media-has-caption -- no captions exist for generated media
         <video
           src={resolvedSrc ?? undefined}
           poster={resolvedPoster ?? undefined}
@@ -185,7 +188,7 @@ export function MediaPreview({
 
       {showPlayBadge && !showControls ? (
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-          <div className="flex h-10 w-10 items-center justify-center rounded-full border border-border bg-void/70 text-text-primary shadow-cinematic backdrop-blur-sm">
+          <div className="flex h-10 w-10 items-center justify-center rounded-full border border-border bg-void/70 text-text-primary shadow-overlay backdrop-blur-sm">
             <Play className="ml-0.5 h-4 w-4 fill-current" aria-hidden="true" />
           </div>
         </div>

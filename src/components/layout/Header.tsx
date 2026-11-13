@@ -1,4 +1,5 @@
 import { memo } from 'react';
+import { useBackendStatusError } from '@/hooks/useBackendStatusError';
 import { useAppStore } from '@/store/appStore';
 import { hasLiveProvisionJob } from '@/store/slices/provisioningSlice';
 import { ProjectDropdown } from './ProjectDropdown';
@@ -48,8 +49,10 @@ function getBackendStatusPresentation(params: {
   activeJobs: ReturnType<typeof useAppStore.getState>['activeJobs'];
   availableModels: ReturnType<typeof useAppStore.getState>['availableModels'];
   provisionStatus: ReturnType<typeof useAppStore.getState>['provisionStatus'];
+  /** Reason from the latest backend status event, e.g. a port already in use. */
+  backendError?: string | null;
 }): HeaderStatusPresentation {
-  const { systemInfo, activeJobs, availableModels, provisionStatus } = params;
+  const { systemInfo, activeJobs, availableModels, provisionStatus, backendError } = params;
   // Counted from the real job records: generationQueue is never populated,
   // and activeJobs also keeps finished jobs, which are neither running nor
   // queued.
@@ -131,6 +134,16 @@ function getBackendStatusPresentation(params: {
     };
   }
 
+  if (backendError) {
+    return {
+      label: 'Backend failed to start',
+      detail: backendError,
+      tone: 'error',
+      pulse: false,
+      ariaLabel: `Backend failed to start: ${backendError}`,
+    };
+  }
+
   return {
     label: 'Backend offline',
     tone: 'error',
@@ -148,12 +161,14 @@ export const Header = memo(function Header() {
   const availableModels = useAppStore((s) => s.availableModels);
   const activeJobs = useAppStore((s) => s.activeJobs);
   const provisionStatus = useAppStore((s) => s.provisionStatus);
+  const backendError = useBackendStatusError();
 
   const backendStatus = getBackendStatusPresentation({
     systemInfo,
     availableModels,
     activeJobs,
     provisionStatus,
+    backendError,
   });
 
   // The project's name is already on the dropdown beside this block, so the
@@ -163,10 +178,10 @@ export const Header = memo(function Header() {
 
   return (
     <header
-      className="app-region-drag relative z-[var(--z-sticky)] flex h-14 flex-shrink-0 items-center gap-4 border-b border-border bg-[linear-gradient(180deg,rgba(255,255,255,0.04),rgba(255,255,255,0.01))] pl-4 pr-36 shadow-[0_12px_32px_rgba(0,0,0,0.18)]"
+      className="app-region-drag relative z-[var(--z-sticky)] flex h-14 flex-shrink-0 items-center gap-4 border-b border-border bg-gradient-to-b from-sheen-lift to-sheen-faint pl-4 pr-36 shadow-[0_12px_32px_rgba(0,0,0,0.18)]"
       data-testid="app-header"
     >
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-px bg-[linear-gradient(90deg,transparent,rgba(255,255,255,0.14),transparent)]" />
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-sheen-edge to-transparent" />
 
       <div className="app-region-no-drag relative z-10">
         <ProjectDropdown />

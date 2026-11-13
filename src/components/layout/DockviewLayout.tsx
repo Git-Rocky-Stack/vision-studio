@@ -1,7 +1,8 @@
-import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { PanelRightClose, PanelRightOpen } from 'lucide-react';
 import { useAppStore } from '@/store/appStore';
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
+import { retryableLazy } from '@/components/ui/ErrorBoundaryLazy';
 import { NavBar } from '@/components/layout/NavBar';
 import { Canvas } from '@/components/layout/Canvas';
 import { LaunchpadPanel } from '@/components/layout/LaunchpadPanel';
@@ -14,6 +15,7 @@ import { IterationWorkspacePanel } from '@/components/iteration/IterationWorkspa
 import { getLayoutPreset, resolveCenterView } from '@/components/layout/layoutPresets';
 import { MonoLabel } from '@/components/hardware';
 import { cn } from '@/utils/cn';
+import { isWorkspaceShortcutBlocked } from '@/utils/modalGuard';
 import type { ActiveTab, CenterView } from '@/types/navigation';
 
 // Only the shell, the generation Canvas and the docks stay in the entry chunk.
@@ -28,26 +30,63 @@ if (typeof window !== 'undefined') {
   void importTimelinePlaybackPreview().catch(() => undefined);
 }
 
-const Timeline = lazy(() => importTimeline().then((m) => ({ default: m.Timeline })));
-const TimelinePlaybackPreview = lazy(() =>
+// retryableLazy (#J5): a chunk that failed to load is re-imported when the
+// boundary around it retries, instead of React rethrowing its cached failure.
+const LazyTimeline = retryableLazy(() => importTimeline().then((m) => ({ default: m.Timeline })));
+const LazyTimelinePlaybackPreview = retryableLazy(() =>
   importTimelinePlaybackPreview().then((m) => ({ default: m.TimelinePlaybackPreview })),
 );
-const EditCanvas = lazy(() => import('@/components/edit/EditCanvas').then((m) => ({ default: m.EditCanvas })));
-const WorkbenchViewer = lazy(() =>
+const LazyEditCanvas = retryableLazy(() =>
+  import('@/components/edit/EditCanvas').then((m) => ({ default: m.EditCanvas })),
+);
+const LazyWorkbenchViewer = retryableLazy(() =>
   import('@/components/layout/WorkbenchViewer').then((m) => ({ default: m.WorkbenchViewer })),
 );
-const WorkflowWorkbench = lazy(() =>
+const LazyWorkflowWorkbench = retryableLazy(() =>
   import('@/components/workflow/WorkflowWorkbench').then((m) => ({ default: m.WorkflowWorkbench })),
 );
-const AssetsPanel = lazy(() => import('@/pages/AssetsPanel').then((m) => ({ default: m.AssetsPanel })));
-const SettingsPanel = lazy(() => import('@/pages/SettingsPanel').then((m) => ({ default: m.SettingsPanel })));
-const CollectionsPage = lazy(() =>
+const LazyAssetsPanel = retryableLazy(() =>
+  import('@/pages/AssetsPanel').then((m) => ({ default: m.AssetsPanel })),
+);
+const LazySettingsPanel = retryableLazy(() =>
+  import('@/pages/SettingsPanel').then((m) => ({ default: m.SettingsPanel })),
+);
+const LazyCollectionsPage = retryableLazy(() =>
   import('@/pages/CollectionsPage').then((m) => ({ default: m.CollectionsPage })),
 );
-const FoundryPage = lazy(() => import('@/pages/FoundryPage').then((m) => ({ default: m.FoundryPage })));
-const CompositionPreview = lazy(() =>
+const LazyFoundryPage = retryableLazy(() =>
+  import('@/pages/FoundryPage').then((m) => ({ default: m.FoundryPage })),
+);
+const LazyCompositionPreview = retryableLazy(() =>
   import('@/components/studio/CompositionPreview').then((m) => ({ default: m.CompositionPreview })),
 );
+
+const Timeline = LazyTimeline.Component;
+const TimelinePlaybackPreview = LazyTimelinePlaybackPreview.Component;
+const EditCanvas = LazyEditCanvas.Component;
+const WorkbenchViewer = LazyWorkbenchViewer.Component;
+const WorkflowWorkbench = LazyWorkflowWorkbench.Component;
+const AssetsPanel = LazyAssetsPanel.Component;
+const SettingsPanel = LazySettingsPanel.Component;
+const CollectionsPage = LazyCollectionsPage.Component;
+const FoundryPage = LazyFoundryPage.Component;
+const CompositionPreview = LazyCompositionPreview.Component;
+
+const resetPageImports = () => {
+  LazyAssetsPanel.reset();
+  LazyCollectionsPage.reset();
+  LazyFoundryPage.reset();
+  LazySettingsPanel.reset();
+};
+
+const resetCenterImports = () => {
+  LazyTimeline.reset();
+  LazyTimelinePlaybackPreview.reset();
+  LazyEditCanvas.reset();
+  LazyWorkbenchViewer.reset();
+  LazyWorkflowWorkbench.reset();
+  LazyCompositionPreview.reset();
+};
 
 function ViewLoadingFallback() {
   return (
@@ -210,6 +249,10 @@ function ResizeHandle({
   const isVertical = orientation === 'vertical';
 
   return (
+    // A focusable separator with aria-valuenow is a widget (WAI-ARIA window
+    // splitter pattern) that must take key and pointer input; jsx-a11y-x
+    // classes `separator` as non-interactive regardless of focusability.
+    // eslint-disable-next-line jsx-a11y-x/no-noninteractive-element-interactions
     <div
       role="separator"
       aria-label={label}
@@ -290,7 +333,8 @@ export const DockviewLayout = memo(function DockviewLayout() {
     }
 
     const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
+      // A modal over the workspace owns Escape (it closes the modal, not the dock).
+      if (event.key === 'Escape' && !isWorkspaceShortcutBlocked(event)) {
         setReviewDockOpen(false);
       }
     };
@@ -436,7 +480,11 @@ export const DockviewLayout = memo(function DockviewLayout() {
             aria-label={`${activeTab} panel`}
             className="min-h-0 flex-1 overflow-hidden"
           >
-            <ErrorBoundary fallbackLabel={`${activeTab} panel error`}>
+            <ErrorBoundary
+              fallbackLabel={`${activeTab} panel error`}
+              resetKeys={[activeTab, activeSubMode]}
+              onRetry={resetPageImports}
+            >
               <Suspense fallback={<ViewLoadingFallback />}>
                 {activeTab === 'assets' ? (
                   <AssetsPanel />
@@ -473,14 +521,13 @@ export const DockviewLayout = memo(function DockviewLayout() {
         <aside
           ref={leftDockRef}
           data-testid="left-dock"
-          role="complementary"
           aria-label="Settings panel"
           className={cn(
             'h-full flex-shrink-0 overflow-hidden border-r border-border bg-surface',
           )}
           style={{ width: responsiveLeftDockWidth }}
         >
-          <ErrorBoundary fallbackLabel="Settings panel error">
+          <ErrorBoundary fallbackLabel="Settings panel error" resetKeys={[activeTab, activeSubMode]}>
             <DockviewSettingsPanel />
           </ErrorBoundary>
         </aside>
@@ -543,7 +590,11 @@ export const DockviewLayout = memo(function DockviewLayout() {
             aria-labelledby={`center-tab-${centerView}`}
             className="min-h-0 flex-1 overflow-hidden"
           >
-            <ErrorBoundary fallbackLabel="Center view error">
+            <ErrorBoundary
+              fallbackLabel="Center view error"
+              resetKeys={[activeTab, activeSubMode, centerView]}
+              onRetry={resetCenterImports}
+            >
               <Suspense fallback={<ViewLoadingFallback />}>
               {isStudioMode ? (
                 <CompositionPreview />
@@ -603,18 +654,17 @@ export const DockviewLayout = memo(function DockviewLayout() {
           ref={rightDockRef}
           id={REVIEW_DOCK_ID}
           data-testid="right-dock"
-          role="complementary"
           aria-label="Gallery panel"
           className={cn(
             'h-full flex-shrink-0 overflow-hidden border-l border-border bg-surface xl:static xl:flex xl:flex-col xl:shadow-none',
             // The drawer opens beside the rail (right-6), which stays put.
             reviewDockOpen
-              ? 'absolute inset-y-0 right-6 z-20 flex max-w-[calc(100%-1.5rem)] flex-col shadow-[var(--shadow-cinematic)]'
+              ? 'absolute inset-y-0 right-6 z-20 flex max-w-[calc(100%-1.5rem)] flex-col shadow-overlay'
               : 'hidden',
           )}
           style={{ width: layoutPreferences.rightDockWidth }}
         >
-          <ErrorBoundary fallbackLabel="Right dock error">
+          <ErrorBoundary fallbackLabel="Right dock error" resetKeys={[activeTab, activeSubMode]}>
             {isCanvasTab ? (
               <div
                 ref={rightDockStackRef}

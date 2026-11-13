@@ -17,7 +17,7 @@ type RunDeps = {
     getAccount: (
       id?: string | null,
     ) => { id: string; preferences: { huggingFaceVideoModel: string }; huggingFace: { tokenStored: boolean } } | null;
-    getHuggingFaceToken: (id?: string | null) => string | null;
+    getHuggingFaceToken: (id?: string | null) => Promise<string | null>;
   };
   huggingFace: {
     generateVideo: (args: {
@@ -78,7 +78,7 @@ export async function runHuggingFaceVideoJob(
   const accountId = typeof params.__huggingFaceAccountId === 'string' ? params.__huggingFaceAccountId : null;
   try {
     const account = userAccounts.getAccount(accountId);
-    const token = userAccounts.getHuggingFaceToken(accountId);
+    const token = await userAccounts.getHuggingFaceToken(accountId);
     if (!account || !account.huggingFace.tokenStored || !token) {
       failJob(store, jobId, 'HuggingFace is selected, but no token is stored for the active account.');
       return;

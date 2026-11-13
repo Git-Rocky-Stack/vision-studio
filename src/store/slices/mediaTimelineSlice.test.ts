@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useAppStore } from '@/store/appStore';
 
@@ -204,5 +204,45 @@ describe('MediaTimelineStore', () => {
     expect(nextState.referenceSets).toHaveLength(0);
     expect(nextState.timelineClips[0].referenceSetIds).toEqual([]);
     expect(nextState.clipGenerationBindings[0].referenceSetIds).toEqual([]);
+  });
+});
+
+describe('deriveStoryboardTimeline carries storyboard transitions', () => {
+  const derivedClipFor = (sceneId: string) =>
+    useAppStore.getState().timelineClips.find((clip) => clip.sceneId === sceneId && clip.storyboardDerived);
+
+  it('gives new clips their scene transition and updates an existing clip once its scene gains a successor', () => {
+    useAppStore.setState(useAppStore.getInitialState(), true);
+    const state = useAppStore.getState();
+    const project = state.createProject('Board');
+    const first = state.addScene(project.id, { name: 'Opening' });
+    state.updateScene(project.id, first.id, { transitions: { type: 'dissolve', duration: 600 } });
+
+    // The last scene has no transition to offer: its clip keeps a plain edge.
+    useAppStore.getState().deriveStoryboardTimeline(project.id);
+    expect(derivedClipFor(first.id)?.transitionOut).toBeNull();
+
+    // Adding scene 2 gives scene 1 a neighbour: the existing clip follows.
+    const second = useAppStore.getState().addScene(project.id, { name: 'Ending' });
+    useAppStore.getState().deriveStoryboardTimeline(project.id);
+    expect(derivedClipFor(first.id)?.transitionOut).toEqual({ type: 'dissolve', durationMs: 600 });
+    expect(derivedClipFor(second.id)?.transitionOut).toBeNull();
+  });
+
+  it('creates a non-final scene clip with its transition already set', () => {
+    useAppStore.setState(useAppStore.getInitialState(), true);
+    const state = useAppStore.getState();
+    const project = state.createProject('Board');
+    const first = state.addScene(project.id, { name: 'Opening' });
+    state.addScene(project.id, { name: 'Ending' });
+    state.updateScene(project.id, first.id, { transitions: { type: 'fade', duration: 400 } });
+    const setTransition = vi.spyOn(useAppStore.getState(), 'setTimelineClipTransition');
+
+    useAppStore.getState().deriveStoryboardTimeline(project.id, { sceneIds: [first.id] });
+
+    expect(derivedClipFor(first.id)?.transitionOut).toEqual({ type: 'fade', durationMs: 400 });
+    // Set at creation, so the follow-up sync has nothing left to change.
+    expect(setTransition).not.toHaveBeenCalled();
+    setTransition.mockRestore();
   });
 });

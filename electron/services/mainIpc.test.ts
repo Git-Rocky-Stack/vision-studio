@@ -64,7 +64,14 @@ describe('shell-open allow-roots (P1 hardening)', () => {
     const roots = getAllowedExportRoots(fakeApp);
 
     expect(resolveShellPath(`${HOME}/Desktop/render.png`, throwingRoots, roots)).toBe(
-      path.resolve(`${HOME}/Desktop/render.png`)
+      `${HOME}/Desktop/render.png`
+    );
+  });
+
+  it('refuses traversal out of an export root', () => {
+    const roots = getAllowedExportRoots(fakeApp);
+    expect(() => resolveShellPath(`${HOME}/Desktop/../AppData/Roaming/evil.lnk`, throwingRoots, roots)).toThrow(
+      /outside managed or export locations/i
     );
   });
 });

@@ -1,5 +1,6 @@
 import { useAppStore } from '@/store/appStore';
 import { selectModelsByCapability } from '@/store/slices/modelsSlice';
+import { resolveStoredAssetPath, toPreviewUrl } from '@/features/assets/assetRecords';
 import { toAccelerationRequestPayload } from '@/features/generation/accelerationRequest';
 import { resolveOutputRoot } from '@/features/workflow/runWorkflowExecution';
 import type {
@@ -9,13 +10,22 @@ import type {
 } from '@/types/generation';
 import type { RegionMask } from '@/types/project';
 
-import { pollEditJob, type EditJobPollApi, type EditStore } from './editJobPolling';
+import {
+  landEditJobOutput,
+  pollEditJob,
+  type EditJobPollApi,
+  type EditStore,
+} from './editJobPolling';
+import { invertRegionMask } from './invertRegionMask';
+import { blendRegionResult } from './regionBlendRunner';
+import { supersedeRawEditOutput, type AssetDeleteApi } from './supersedeRawEditOutput';
 import { EDIT_BACKEND_DOWN_MESSAGE, type EditToolResult } from './runEditTool';
 
 export type GuidedEditOperation =
   | 'style-transfer'
   | 'generative-fill'
   | 'object-removal'
+  | 'region-style-transfer'
   | 'ai-expand'
   | 'background-replace';
 
@@ -32,6 +42,9 @@ export const OBJECT_REMOVAL_PROMPT =
 export const OBJECT_REMOVAL_NEGATIVE =
   'object, person, animal, text, watermark, logo';
 export const AI_EXPAND_DEFAULT_PROMPT = 'seamless continuation of the scene';
+/** Backend bounds for denoising_strength (backend/main.py ImageGenerationRequest). */
+export const DENOISE_MIN = 0.05;
+export const DENOISE_MAX = 1;
 
 const POLL_INTERVAL_MS = 500;
 const POLL_RETRY_MS = 2000;
@@ -48,8 +61,24 @@ export interface GuidedEditInput {
   styleStrength?: number;
   /** User text: style subject / fill content / expand description / new background. */
   prompt?: string;
-  /** generative-fill / object-removal canvas mask. */
+  /** generative-fill / object-removal / region-style-transfer canvas mask. */
   mask?: RegionMask | null;
+  /**
+   * Masked passes: regenerate everything OUTSIDE the mask instead of inside
+   * it. Inverted at request time, where the source dimensions are known.
+   */
+  invertMask?: boolean;
+  /**
+   * generative-fill / object-removal denoising strength 0-1 (Region Lock
+   * Strength). Omitted = 1, a full repaint of the masked area.
+   */
+  denoisingStrength?: number;
+  /**
+   * Masked passes: Region Lock Blend Edges. When set, the finished frame is
+   * composited back over the original through the region mask, softened by
+   * `featherRadius` px (regionBlend.ts). Omitted = the raw pipeline frame.
+   */
+  blend?: { featherRadius: number };
   /** ai-expand. */
   directions?: GenerationOutpaintPayload['directions'];
   pixels?: number;
@@ -88,6 +117,30 @@ const EMPTY_LAYER_MASK: GenerationMaskPayload = {
   bounds: { x: 0, y: 0, width: 0, height: 0 },
 };
 
+/** Operations that repaint a drawn mask (and so require one). */
+export function isMaskedOperation(
+  operation: GuidedEditOperation,
+): operation is 'generative-fill' | 'object-removal' | 'region-style-transfer' {
+  return (
+    operation === 'generative-fill' ||
+    operation === 'object-removal' ||
+    operation === 'region-style-transfer'
+  );
+}
+
+/** Style strength 0-100 -> denoising 0.30-0.90 (shared by both style passes). */
+function styleDenoising(styleStrength: number | undefined): number {
+  const strength = Math.max(0, Math.min(100, styleStrength ?? 75));
+  const denoising = STYLE_STRENGTH_MIN + (strength / 100) * (STYLE_STRENGTH_MAX - STYLE_STRENGTH_MIN);
+  return Number(denoising.toFixed(3));
+}
+
+/** Inpaint strength 0-1, held to the backend's accepted range. */
+function inpaintDenoising(strength: number | undefined): number {
+  if (strength === undefined || !Number.isFinite(strength)) return DENOISE_MAX;
+  return Number(Math.max(DENOISE_MIN, Math.min(DENOISE_MAX, strength)).toFixed(3));
+}
+
 export function buildGuidedEditRequest(
   operation: GuidedEditOperation,
   input: GuidedEditInput,
@@ -105,9 +158,7 @@ export function buildGuidedEditRequest(
   };
 
   if (operation === 'style-transfer') {
-    const strength = Math.max(0, Math.min(100, input.styleStrength ?? 75));
-    const denoising =
-      STYLE_STRENGTH_MIN + (strength / 100) * (STYLE_STRENGTH_MAX - STYLE_STRENGTH_MIN);
+    const denoising = styleDenoising(input.styleStrength);
     return {
       ...base,
       prompt: [input.prompt?.trim(), input.styleModifier?.trim()]
@@ -121,11 +172,31 @@ export function buildGuidedEditRequest(
           mask: { ...EMPTY_LAYER_MASK },
         },
       ],
-      denoising_strength: Number(denoising.toFixed(3)),
+      denoising_strength: denoising,
     };
   }
 
-  if (operation === 'generative-fill' || operation === 'object-removal') {
+  if (isMaskedOperation(operation)) {
+    const sourceMask = input.mask as RegionMask;
+    const mask = input.invertMask
+      ? invertRegionMask(sourceMask, context.sourceWidth, context.sourceHeight)
+      : sourceMask;
+    if (operation === 'region-style-transfer') {
+      // A masked img2img: the inpaint pipeline at a partial strength restyles
+      // the region while keeping its structure - the whole-image Style
+      // Transfer, confined to the mask.
+      return {
+        ...base,
+        prompt: [input.prompt?.trim(), input.styleModifier?.trim()].filter(Boolean).join(', '),
+        inpaint: {
+          layer_id: 'edit-region-style-transfer',
+          layer_name: 'Region Style Transfer',
+          image_path: input.source_path,
+          mask: toGenerationMask(mask),
+        },
+        denoising_strength: styleDenoising(input.styleStrength),
+      };
+    }
     const isFill = operation === 'generative-fill';
     return {
       ...base,
@@ -135,9 +206,9 @@ export function buildGuidedEditRequest(
         layer_id: isFill ? 'edit-generative-fill' : 'edit-object-removal',
         layer_name: isFill ? 'Generative Fill' : 'Object Removal',
         image_path: input.source_path,
-        mask: toGenerationMask(input.mask as RegionMask),
+        mask: toGenerationMask(mask),
       },
-      denoising_strength: 1,
+      denoising_strength: inpaintDenoising(input.denoisingStrength),
     };
   }
 
@@ -181,6 +252,8 @@ interface GuidedEditElectronApi {
       params: ImageGenerationRequestPayload,
     ) => Promise<{ success: boolean; jobId?: string; error?: string }>;
   };
+  /** Used to remove the raw frame a Blend Edges composite supersedes. */
+  assets?: AssetDeleteApi;
 }
 
 export interface RunGuidedEditToolOptions {
@@ -191,6 +264,14 @@ export interface RunGuidedEditToolOptions {
   signal?: AbortSignal;
   onProgress?: (progress: number) => void;
   measureImage?: (src: string) => Promise<{ width: number; height: number }>;
+  /** Blend Edges paste-back (injectable for tests). */
+  blendResult?: typeof blendRegionResult;
+  /** Retires the raw frame once the composite lands (injectable for tests). */
+  supersedeRaw?: typeof supersedeRawEditOutput;
+}
+
+export function blendNotApplied(reason: string): string {
+  return `Blend Edges was not applied (${reason}), so the unblended result is shown.`;
 }
 
 function defaultMeasureImage(src: string): Promise<{ width: number; height: number }> {
@@ -206,7 +287,9 @@ function defaultMeasureImage(src: string): Promise<{ width: number; height: numb
 /**
  * Guided edit-tool run (#34 PR2): builds a real guided-pass generation
  * request from the panel's inputs, submits it through the ordinary image
- * IPC, and lands the finished frame with the shared Edit-page handoff.
+ * IPC, and lands the finished frame with the shared Edit-page handoff. A
+ * Blend Edges run lands only its composite (or, when the blend cannot be
+ * applied, the raw frame), so the library gets one asset per run.
  * Refusals are honest and instant: no backend, no ready checkpoint, or a
  * missing mask never submit a job. The consumed mask clears automatically
  * when the finished image lands (setCurrentImage resets editAiMask).
@@ -222,6 +305,8 @@ export async function runGuidedEditTool(
     signal,
     onProgress,
     measureImage = defaultMeasureImage,
+    blendResult = blendRegionResult,
+    supersedeRaw = supersedeRawEditOutput,
   }: RunGuidedEditToolOptions = {},
 ): Promise<EditToolResult> {
   const state = store.getState();
@@ -235,22 +320,21 @@ export async function runGuidedEditTool(
     return { ok: false, error: NO_IMAGE_MODEL_MESSAGE };
   }
 
-  if (
-    (operation === 'generative-fill' || operation === 'object-removal') &&
-    !(input.mask && input.mask.points.length > 0)
-  ) {
+  if (isMaskedOperation(operation) && !(input.mask && input.mask.points.length > 0)) {
     return { ok: false, error: EMPTY_MASK_MESSAGE };
   }
 
   let jobId: string;
   let outputRoot: string;
   let request: ImageGenerationRequestPayload;
+  const previewSrc = state.currentImage;
+  const originalPath = state.currentImageAssetPath;
+  let dimensions: { width: number; height: number };
   try {
-    const previewSrc = state.currentImage;
     if (!previewSrc) {
       throw new Error(SOURCE_UNREADABLE_MESSAGE);
     }
-    const dimensions = await measureImage(previewSrc);
+    dimensions = await measureImage(previewSrc);
     request = {
       ...buildGuidedEditRequest(operation, input, {
         model: state.selectedImageModelId,
@@ -286,6 +370,13 @@ export async function runGuidedEditTool(
     createdAt: new Date(),
   });
 
+  // Blend Edges composites the frame before it becomes the result, so the raw
+  // frame is held back from the library and the canvas until the blend's
+  // outcome is known.
+  const blendSpec =
+    input.blend && input.mask && isMaskedOperation(operation)
+      ? { blend: input.blend, mask: input.mask }
+      : null;
   const polled = await pollEditJob({
     electron: electron.generation,
     store,
@@ -296,9 +387,48 @@ export async function runGuidedEditTool(
     pollRetryMs,
     signal,
     onProgress,
+    landAssets: !blendSpec,
   });
   if (!polled.ok) {
     return polled.error ? { ok: false, jobId, error: polled.error } : { ok: false, jobId };
   }
+  if (!blendSpec) return { ok: true, jobId };
+
+  // Fallback: the raw output becomes the run's single result.
+  const landRaw = () => {
+    if (polled.status) landEditJobOutput(store, polled.status, outputRoot);
+  };
+  const rawOutput = polled.result?.images?.[0] ?? null;
+  if (!previewSrc || !rawOutput) {
+    landRaw();
+    return { ok: true, jobId, notice: blendNotApplied('the generated image did not load') };
+  }
+  const outcome = await blendResult({
+    originalSrc: previewSrc,
+    generatedSrc: toPreviewUrl(rawOutput, { type: 'image' }),
+    originalPath,
+    mask: blendSpec.mask,
+    invert: Boolean(input.invertMask),
+    featherRadius: blendSpec.blend.featherRadius,
+    width: dimensions.width,
+    height: dimensions.height,
+  });
+  if (!outcome.ok) {
+    landRaw();
+    return { ok: true, jobId, notice: blendNotApplied(outcome.error) };
+  }
+  // The composite landed (blendResult registered it and made it current):
+  // record it as the job's result and retire the unlisted raw file.
+  // Best-effort, never fails the run.
+  await supersedeRaw(
+    {
+      jobId,
+      rawPath: resolveStoredAssetPath(rawOutput, { output_root: outputRoot }),
+      outputRoot,
+      sourcePath: originalPath,
+      replacementPath: outcome.path,
+    },
+    { store, assetsApi: electron.assets },
+  ).catch(() => undefined);
   return { ok: true, jobId };
 }

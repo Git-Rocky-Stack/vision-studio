@@ -2,7 +2,10 @@
 
 from_pipe() shares the already-loaded components (no second checkpoint copy),
 which is why guided passes cost no extra VRAM beyond the base model (ControlNet
-weights are the one addition - loaded per job and always released). The kwargs
+weights are the one addition). Loaded ControlNet models are kept in a small LRU
+cache keyed on (weights dir, loader, dtype, device) so back-to-back guided runs
+do not re-read multi-GB weights from disk; the cache is registered with the
+shared release path (utils.pipeline_cache), so a model switch frees it. The kwargs
 filter handles per-family __call__ differences (FluxFill has no
 strength/negative_prompt) by signature inspection - never name-sniffing -
 and callers report the dropped names in the job result.
@@ -12,8 +15,17 @@ classes (from_pipe's name surgery cannot derive the union pipeline).
 from __future__ import annotations
 
 import inspect
+import logging
+import os
+import threading
+from collections import OrderedDict
 from contextlib import contextmanager
 from typing import Any, Dict, List, Tuple
+
+from utils.device import free_accelerator_memory
+from utils.pipeline_cache import register_pipeline_owner
+
+logger = logging.getLogger(__name__)
 
 try:
     import diffusers
@@ -76,10 +88,76 @@ def derive_variant(base_pipeline: Any, kind: str, controlnet: Any = None,
     return auto_class.from_pipe(base_pipeline)
 
 
+#: ControlNet models kept resident between guided runs. Two covers the
+#: common "same control, iterate on the prompt" loop and a two-condition stack
+#: without letting a session accumulate every ControlNet it ever used.
+CONTROLNET_CACHE_SIZE = 2
+
+_controlnet_cache: "OrderedDict[Tuple[Any, ...], Any]" = OrderedDict()
+_controlnet_cache_lock = threading.Lock()
+
+
+def _weights_stamp(model_dir: str) -> int:
+    """Directory mtime: a reinstalled ControlNet gets a fresh cache entry."""
+    try:
+        return int(os.stat(model_dir).st_mtime_ns)
+    except OSError:
+        return 0
+
+
+def _controlnet_key(model_dir: str, loader: str, torch_dtype: Any, device: str) -> Tuple[Any, ...]:
+    return (os.path.normcase(os.path.abspath(model_dir)), _weights_stamp(model_dir),
+            loader, str(torch_dtype), str(device))
+
+
+def release_controlnet_cache() -> None:
+    """Drop every cached ControlNet and free the memory (shared release path)."""
+    with _controlnet_cache_lock:
+        had_models = bool(_controlnet_cache)
+        _controlnet_cache.clear()
+    if had_models:
+        free_accelerator_memory()
+
+
+def _load_controlnet(model_class: Any, model_dir: str, torch_dtype: Any, device: str,
+                     loader: str) -> Any:
+    key = _controlnet_key(model_dir, loader, torch_dtype, device)
+    with _controlnet_cache_lock:
+        cached = _controlnet_cache.get(key)
+        if cached is not None:
+            _controlnet_cache.move_to_end(key)
+            return cached
+    model = model_class.from_pretrained(model_dir, torch_dtype=torch_dtype).to(device)
+    with _controlnet_cache_lock:
+        _controlnet_cache[key] = model
+    return model
+
+
+def _trim_controlnet_cache(in_use: List[Tuple[Any, ...]]) -> None:
+    """Evict least-recently-used ControlNets beyond the cap (never in_use)."""
+    evicted = False
+    with _controlnet_cache_lock:
+        while len(_controlnet_cache) > CONTROLNET_CACHE_SIZE:
+            victim = next((key for key in _controlnet_cache if key not in in_use), None)
+            if victim is None:
+                break
+            del _controlnet_cache[victim]
+            evicted = True
+    if evicted:
+        free_accelerator_memory()
+
+
+register_pipeline_owner("guided-controlnet", release_controlnet_cache)
+
+
 @contextmanager
 def controlnets_attached(model_dirs: List[str], torch_dtype: Any, device: str,
                          loader: str = "controlnet"):
-    """Load ControlNet weights for one generation; always release afterward."""
+    """ControlNet models for one generation, served from the LRU cache.
+
+    Models stay cached after the run (bounded by CONTROLNET_CACHE_SIZE, freed
+    on model switch); the yielded list is the caller's only per-job handle.
+    """
     if diffusers is None:
         raise RuntimeError("diffusers is not available - guided passes need the full backend")
     class_name = _LOADER_MODEL_CLASSES.get(loader)
@@ -87,19 +165,14 @@ def controlnets_attached(model_dirs: List[str], torch_dtype: Any, device: str,
         raise ValueError(f"unknown ControlNet loader '{loader}'")
     model_class = getattr(diffusers, class_name)
     models: List[Any] = []
+    keys = [_controlnet_key(model_dir, loader, torch_dtype, device) for model_dir in model_dirs]
     try:
         for model_dir in model_dirs:
-            model = model_class.from_pretrained(model_dir, torch_dtype=torch_dtype)
-            models.append(model.to(device))
+            models.append(_load_controlnet(model_class, model_dir, torch_dtype, device, loader))
         yield models
     finally:
         models.clear()
-        try:
-            from utils.device import empty_device_cache
-
-            empty_device_cache()
-        except Exception:
-            pass
+        _trim_controlnet_cache(keys)
 
 
 def combine_controlnets(models: List[Any], loader: str) -> Any:

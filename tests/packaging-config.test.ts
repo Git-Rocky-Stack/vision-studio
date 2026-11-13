@@ -197,4 +197,48 @@ describe('packaging config honesty rails', () => {
     }
     expect(config.nsis.createStartMenuShortcut).toBe(true);
   });
+
+  it('keeps the Inno/unpacked Windows config on the same signed update channel and license set', () => {
+    // electron-builder.windows.json feeds scripts/build-windows.cjs (Inno
+    // Setup). It once updated from a GitHub provider with signature checks
+    // off and shipped without the license files: a second, unverified update
+    // channel. Both configs must stay on the signed R2 feed.
+    const windowsConfig = JSON.parse(
+      readFileSync(resolve(ROOT, 'electron-builder.windows.json'), 'utf8'),
+    );
+    expect(windowsConfig.publish).toEqual(config.publish);
+    expect(windowsConfig.win.verifyUpdateCodeSignature).toBe(true);
+    expect(windowsConfig.win.signtoolOptions).toEqual(config.win.signtoolOptions);
+    expect(windowsConfig.win.icon).toBe(config.win.icon);
+    expect(windowsConfig.copyright).toBe(config.copyright);
+    const froms = (windowsConfig.extraResources ?? []).map((e: { from: string }) => e.from);
+    for (const required of ['LICENSE', 'THIRD-PARTY-LICENSES.md']) {
+      expect(froms).toContain(required);
+    }
+  });
+
+  it('ships every icon the packaging configs reference', () => {
+    // Commit 7c85564 moved build/icon.* away and silently broke every
+    // installer target; the release pipeline found out first.
+    const windowsConfig = JSON.parse(
+      readFileSync(resolve(ROOT, 'electron-builder.windows.json'), 'utf8'),
+    );
+    const iconPaths = new Set<string>([
+      config.win.icon,
+      config.mac.icon,
+      config.linux.icon,
+      windowsConfig.win.icon,
+    ]);
+    for (const iconPath of iconPaths) {
+      expect(() => readFileSync(resolve(ROOT, iconPath)), iconPath).not.toThrow();
+    }
+    const ico = readFileSync(resolve(ROOT, 'build/icon.ico'));
+    // ICONDIR: reserved 0, type 1 (icon); Windows needs the 256px entry.
+    expect(ico.readUInt16LE(0)).toBe(0);
+    expect(ico.readUInt16LE(2)).toBe(1);
+    const count = ico.readUInt16LE(4);
+    const widths = Array.from({ length: count }, (_, i) => ico[6 + i * 16] || 256);
+    expect(widths).toContain(256);
+  });
 });
+

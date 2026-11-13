@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
@@ -155,6 +155,25 @@ describe('Timeline integration', () => {
     });
 
     expect(screen.getByRole('slider', { name: 'Time ruler' })).toHaveAttribute('aria-valuenow', '2500');
+  });
+
+  it('seeks from the keyboard on the focusable time ruler', async () => {
+    const user = userEvent.setup();
+    seedProjectAndMedia();
+    render(<Timeline />);
+    const ruler = screen.getByRole('slider', { name: 'Time ruler' });
+    expect(ruler).toHaveAttribute('tabindex', '0');
+
+    ruler.focus();
+    await user.keyboard('{ArrowRight}');
+    expect(useAppStore.getState().currentTime).toBe(1000);
+    await user.keyboard('{Shift>}{ArrowRight}{/Shift}');
+    expect(useAppStore.getState().currentTime).toBe(Math.min(11000, Number(ruler.getAttribute('aria-valuemax'))));
+    await user.keyboard('{End}');
+    expect(useAppStore.getState().currentTime).toBe(Number(ruler.getAttribute('aria-valuemax')));
+    await user.keyboard('{Home}');
+    expect(useAppStore.getState().currentTime).toBe(0);
+    expect(ruler).toHaveAttribute('aria-valuetext', expect.stringMatching(/^0s of /));
   });
 
   it('onion skin toggle works', async () => {
@@ -401,6 +420,13 @@ describe('Timeline integration', () => {
     expect(within(clipElement).getByText('Derived')).toBeInTheDocument();
     expect(within(clipElement).getByText('Launch Scene')).toBeInTheDocument();
     expect(screen.getByTestId(`timeline-clip-beat-marker-${clip.id}-marker-1`)).toBeInTheDocument();
+    // No outgoing transition carried from the storyboard: no transition chip.
+    expect(screen.queryByTestId(`timeline-clip-transition-out-${clip.id}`)).toBeNull();
+
+    act(() => {
+      useAppStore.getState().setTimelineClipTransition(clip.id, 'out', { type: 'dissolve', durationMs: 500 });
+    });
+    expect(screen.getByTestId(`timeline-clip-transition-out-${clip.id}`)).toHaveTextContent(/dissolve/);
   });
 
   it('uses the active play range for skip to start and skip to end', async () => {
@@ -490,6 +516,128 @@ describe('Timeline integration', () => {
       expect(useAppStore.getState().playState).toBe('stopped');
       expect(useAppStore.getState().currentTime).toBe(0);
     });
+
+    it('leaves S, Delete and Space alone while a modal dialog is open over the timeline', async () => {
+      const user = userEvent.setup();
+      seedProjectAndMedia();
+      render(<Timeline />);
+      await user.selectOptions(screen.getByLabelText('Media asset for timeline'), 'media-video');
+      await user.click(screen.getByLabelText('Add clip to timeline'));
+      const clipId = useAppStore.getState().timelineClips[0].id;
+      act(() => {
+        useAppStore.getState().setActiveTimelineClip(clipId);
+        useAppStore.getState().seekTo(1000);
+      });
+
+      const modal = document.createElement('div');
+      modal.setAttribute('role', 'dialog');
+      modal.setAttribute('aria-modal', 'true');
+      document.body.appendChild(modal);
+      try {
+        pressOn(document.body, 's');
+        pressOn(document.body, 'Delete');
+        pressOn(document.body, ' ');
+        expect(useAppStore.getState().timelineClips).toHaveLength(1);
+        expect(screen.queryByRole('dialog', { name: 'Delete Clip' })).not.toBeInTheDocument();
+        expect(useAppStore.getState().playState).toBe('stopped');
+      } finally {
+        modal.remove();
+      }
+
+      pressOn(document.body, 's');
+      expect(useAppStore.getState().timelineClips).toHaveLength(2);
+    });
+  });
+
+  describe('track deletion', () => {
+    it('deletes a track and its clips only after confirming', async () => {
+      const user = userEvent.setup();
+      seedProjectAndMedia();
+      render(<Timeline />);
+      await user.selectOptions(screen.getByLabelText('Media asset for timeline'), 'media-audio');
+      await user.click(screen.getByLabelText('Add clip to timeline'));
+      const audioTrack = useAppStore.getState().timelineTracks.find((track) => track.kind === 'audio')!;
+      expect(useAppStore.getState().timelineClips).toHaveLength(1);
+
+      await user.click(screen.getByRole('button', { name: `Delete track ${audioTrack.name}` }));
+      const confirm = screen.getByRole('dialog', { name: 'Delete Track' });
+      expect(confirm).toHaveTextContent(`Delete "${audioTrack.name}" and the 1 clip on it?`);
+
+      await user.click(within(confirm).getByRole('button', { name: 'Cancel' }));
+      expect(useAppStore.getState().timelineTracks.some((track) => track.id === audioTrack.id)).toBe(true);
+
+      await user.click(screen.getByRole('button', { name: `Delete track ${audioTrack.name}` }));
+      await user.click(screen.getByRole('button', { name: 'Delete Track' }));
+      expect(useAppStore.getState().timelineTracks.some((track) => track.id === audioTrack.id)).toBe(false);
+      expect(useAppStore.getState().timelineClips).toHaveLength(0);
+      expect(useAppStore.getState().activeTimelineClipId).toBeNull();
+    });
+
+    it('describes an empty track and refuses to delete a locked one', async () => {
+      const user = userEvent.setup();
+      const { sequence } = seedProjectAndMedia();
+      const track = useAppStore.getState().timelineTracks.find((item) => item.sequenceId === sequence.id)!;
+      render(<Timeline />);
+
+      await user.click(screen.getByRole('button', { name: `Delete track ${track.name}` }));
+      expect(screen.getByRole('dialog', { name: 'Delete Track' })).toHaveTextContent(
+        `Delete the empty track "${track.name}"?`,
+      );
+      await user.click(screen.getByRole('button', { name: 'Cancel' }));
+
+      await user.click(screen.getByLabelText('Lock track'));
+      expect(screen.getByRole('button', { name: `Delete track ${track.name}` })).toBeDisabled();
+    });
+
+    it('selects a track from its row button by keyboard, with the toggles as siblings', async () => {
+      const user = userEvent.setup();
+      const { sequence } = seedProjectAndMedia();
+      const track = useAppStore.getState().timelineTracks.find((item) => item.sequenceId === sequence.id)!;
+      render(<Timeline />);
+
+      const select = screen.getByRole('button', { name: `Select track ${track.name}` });
+      expect(select).toHaveAttribute('aria-pressed', 'false');
+      select.focus();
+      await user.keyboard('{Enter}');
+      expect(select).toHaveAttribute('aria-pressed', 'true');
+
+      // No control is nested inside another: the row holds siblings only.
+      const row = screen.getByTestId(`timeline-track-row-${track.id}`);
+      expect(row).not.toHaveAttribute('role');
+      for (const control of within(row).getAllByRole('button')) {
+        expect(control.querySelector('button, [role="button"]')).toBeNull();
+      }
+    });
+
+    it('lets Enter reach a track toggle instead of selecting the row', async () => {
+      const user = userEvent.setup();
+      const { sequence } = seedProjectAndMedia();
+      const track = useAppStore.getState().timelineTracks.find((item) => item.sequenceId === sequence.id)!;
+      render(<Timeline />);
+
+      screen.getByLabelText('Lock track').focus();
+      await user.keyboard('{Enter}');
+      expect(useAppStore.getState().timelineTracks.find((item) => item.id === track.id)?.locked).toBe(true);
+    });
+  });
+
+  describe('sequence frame rate', () => {
+    it('shows the sequence fps and routes a change through setTimelineFps', async () => {
+      const user = userEvent.setup();
+      seedProjectAndMedia();
+      const setTimelineFps = vi.fn();
+      useAppStore.setState({ setTimelineFps });
+      render(<Timeline />);
+
+      const select = screen.getByRole('combobox', { name: 'Sequence frame rate' });
+      expect(select).toHaveValue('24');
+      await user.selectOptions(select, '30');
+      expect(setTimelineFps).toHaveBeenCalledWith(30);
+    });
+
+    it('is disabled until a sequence exists', () => {
+      render(<Timeline />);
+      expect(screen.getByRole('combobox', { name: 'Sequence frame rate' })).toBeDisabled();
+    });
   });
 });
-

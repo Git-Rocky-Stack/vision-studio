@@ -96,11 +96,14 @@ def test_bad_json_does_not_close_and_subscribe_filters(manager):
         ws.send_text("{not json")
         ws.send_bytes(b"\x00\x01")
         ws.send_json({"action": "subscribe", "job_id": "b"})
-        # The first tick may predate the subscribe ([b, a] - newest first);
-        # every later tick carries only b. Four messages cover both orderings:
-        # the socket is still open after the bad input, and the tail is filtered.
+        # The first tick may predate the subscribe and carry both jobs (in
+        # either order: a and b can share a created_at tick on a coarse
+        # clock); every later tick carries only b. Four messages cover both
+        # cases: the socket is still open after the bad input, and the tail
+        # is filtered.
         seen = [ws.receive_json()["job_id"] for _ in range(4)]
-        assert seen in (["b", "a", "b", "b"], ["b", "b", "b", "b"])
+        assert seen == ["b", "b", "b", "b"] or (
+            sorted(seen[:2]) == ["a", "b"] and seen[2:] == ["b", "b"]), seen
 
     assert main.manager.active_connections == []
 

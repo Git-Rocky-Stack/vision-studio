@@ -1,52 +1,89 @@
-import { afterEach, describe, expect, it } from 'vitest';
-import { render, screen, cleanup } from '@testing-library/react';
-import { VideoControls } from './VideoControls';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { render, screen, cleanup, fireEvent } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { VideoControls, VIDEO_FPS_OPTIONS } from './VideoControls';
 
 afterEach(cleanup);
+
+function renderControls(overrides: Partial<Parameters<typeof VideoControls>[0]> = {}) {
+  const props = {
+    duration: 3,
+    fps: 24,
+    onDurationChange: vi.fn(),
+    onFpsChange: vi.fn(),
+    ...overrides,
+  };
+  render(<VideoControls {...props} />);
+  return props;
+}
 
 describe('VideoControls', () => {
   // Slider is a custom role="slider" widget, so its range lives in the ARIA
   // values - which is also the only thing a screen reader can read out.
-  it('renders the duration slider on its documented 1-10 second range', () => {
-    render(<VideoControls />);
+  it('renders the duration slider on the backend 1-10 second range', () => {
+    renderControls();
     const duration = screen.getByRole('slider', { name: 'Duration (seconds)' });
     expect(duration).toHaveAttribute('aria-valuenow', '3');
     expect(duration).toHaveAttribute('aria-valuemin', '1');
     expect(duration).toHaveAttribute('aria-valuemax', '10');
   });
 
-  it('reflects a supplied duration rather than the default', () => {
-    render(<VideoControls duration={7} />);
-    expect(screen.getByRole('slider', { name: 'Duration (seconds)' })).toHaveAttribute(
-      'aria-valuenow',
-      '7'
-    );
+  it('reports a duration change to the store-backed handler', () => {
+    const props = renderControls({ duration: 7 });
+    const duration = screen.getByRole('slider', { name: 'Duration (seconds)' });
+    expect(duration).toHaveAttribute('aria-valuenow', '7');
+    fireEvent.keyDown(duration, { key: 'ArrowRight' });
+    expect(props.onDurationChange).toHaveBeenCalledWith(8);
   });
 
-  // data-active is what paints the selected FPS. Asserting only that the four
+  // data-active is what paints the selected FPS. Asserting only that the
   // buttons exist would pass even if every one of them read as selected.
   it('marks exactly the active FPS option, not all of them', () => {
-    render(<VideoControls fps={16} />);
-    expect(screen.getByText('Frames per second')).toBeInTheDocument();
+    renderControls({ fps: 16 });
     expect(screen.getByLabelText('16 FPS')).toHaveAttribute('data-active', 'true');
-    for (const inactive of ['8 FPS', '12 FPS', '24 FPS']) {
+    expect(screen.getByLabelText('16 FPS')).toHaveAttribute('aria-pressed', 'true');
+    for (const inactive of ['12 FPS', '24 FPS', '30 FPS']) {
       expect(screen.getByLabelText(inactive)).toHaveAttribute('data-active', 'false');
     }
   });
 
-  it('renders the motion strength slider on its documented 0.1-1 range', () => {
-    render(<VideoControls />);
-    const motionStrength = screen.getByRole('slider', { name: 'Motion strength' });
-    expect(motionStrength).toHaveAttribute('aria-valuenow', '0.5');
-    expect(motionStrength).toHaveAttribute('aria-valuemin', '0.1');
-    expect(motionStrength).toHaveAttribute('aria-valuemax', '1');
+  it('only offers frame rates the backend accepts (12-60)', () => {
+    renderControls();
+    for (const option of VIDEO_FPS_OPTIONS) {
+      expect(option).toBeGreaterThanOrEqual(12);
+      expect(option).toBeLessThanOrEqual(60);
+    }
+    expect(screen.queryByLabelText('8 FPS')).toBeNull();
   });
 
-  it('drives the loop toggle from the loop prop', () => {
-    const { rerender } = render(<VideoControls loop={false} />);
-    expect(screen.getByRole('switch', { name: 'Loop video' })).not.toBeChecked();
+  it('reports an FPS choice to the store-backed handler', async () => {
+    const user = userEvent.setup();
+    const props = renderControls();
+    await user.click(screen.getByLabelText('30 FPS'));
+    expect(props.onFpsChange).toHaveBeenCalledWith(30);
+  });
 
-    rerender(<VideoControls loop />);
-    expect(screen.getByRole('switch', { name: 'Loop video' })).toBeChecked();
+  it('shows a non-preset frame rate instead of hiding it', () => {
+    renderControls({ fps: 48 });
+    expect(screen.getAllByText('48 fps').length).toBeGreaterThan(0);
+    for (const option of VIDEO_FPS_OPTIONS) {
+      expect(screen.getByLabelText(`${option} FPS`)).toHaveAttribute('data-active', 'false');
+    }
+  });
+
+  it('has no inert controls: no motion strength and no loop toggle', () => {
+    renderControls();
+    expect(screen.queryByRole('slider', { name: 'Motion strength' })).toBeNull();
+    expect(screen.queryByRole('switch', { name: 'Loop video' })).toBeNull();
+  });
+
+  it('collapses and expands from a keyboard-operable header button', async () => {
+    const user = userEvent.setup();
+    renderControls();
+    const header = screen.getByRole('button', { name: /video settings/i });
+    expect(header).toHaveAttribute('aria-expanded', 'true');
+    header.focus();
+    await user.keyboard('{Enter}');
+    expect(header).toHaveAttribute('aria-expanded', 'false');
   });
 });

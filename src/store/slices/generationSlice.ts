@@ -3,6 +3,7 @@ import type { PromptHistoryEntry, StylePreset, GenerationQueueItem, BatchResult,
 import { BUILT_IN_STYLE_PRESETS } from '@/types/generation';
 import type { AssetJobStatus, AssetRecord, DerivedAssetResult } from '@/types/assets';
 import { createDerivedAssetRecord, upsertAssetsFromJobStatus } from '@/features/assets/assetRecords';
+import { isAssetSyncSuppressed, resolveJobImageThumbnail } from '@/features/jobs/jobOutput';
 import type { AppSet, AppGet, AppState, GenerationJob, BatchJob } from '../appStore.types';
 
 export const generationInitialState = {
@@ -43,6 +44,23 @@ export const generationInitialState = {
   },
 };
 
+/**
+ * Finished jobs kept for the session (newest first). Each entry carries the
+ * full request params, so the history is bounded: enough for the review
+ * surfaces and the iteration lineage, without growing for a whole session.
+ */
+export const COMPLETED_JOB_HISTORY_CAP = 30;
+
+/** Generation-queue tiles kept for the Canvas strip (newest last). */
+export const GENERATION_QUEUE_CAP = 24;
+
+/**
+ * A finished job's lifecycle fields. Once a job has settled they never change
+ * again: a late push frame or a poll racing the completion reports them, and
+ * must not move a completed job back to 'processing'.
+ */
+const SETTLED_LIFECYCLE_FIELDS = new Set<keyof GenerationJob>(['status', 'progress', 'step']);
+
 function shallowEqualRecord<T extends object>(a: T, b: T): boolean {
   if (a === b) return true;
   const aKeys = Object.keys(a) as (keyof T)[];
@@ -59,10 +77,40 @@ export function createGenerationActions(set: AppSet, _get: AppGet) {
     updateJob: (jobId: string, updates: Partial<GenerationJob>) => {
       const state = _get();
       const existingJob = state.activeJobs.find((job) => job.id === jobId);
-      // An update for a job that is no longer active (a late WS frame after
-      // completion, a poll racing a cancel) changes nothing, so it must not
-      // notify every subscriber or schedule a persist write either.
-      if (!existingJob) return;
+      if (!existingJob) {
+        // A finished job keeps its record in completedJobs. Its lifecycle is
+        // settled: a late WS frame or a poll racing a cancel changes nothing
+        // (and notifies no subscriber, schedules no persist write). Its other
+        // fields can still be annotated, e.g. the params flags that mark a
+        // superseded edit output.
+        const finishedJob = state.completedJobs.find((job) => job.id === jobId);
+        if (!finishedJob) return;
+        const patch = Object.fromEntries(
+          Object.entries(updates).filter(
+            ([key]) => !SETTLED_LIFECYCLE_FIELDS.has(key as keyof GenerationJob),
+          ),
+        ) as Partial<GenerationJob>;
+        if (
+          (Object.keys(patch) as (keyof GenerationJob)[]).every((key) =>
+            Object.is(finishedJob[key], patch[key]),
+          )
+        ) {
+          return;
+        }
+        set((s) => ({
+          completedJobs: s.completedJobs.map((job) => (job.id === jobId ? { ...job, ...patch } : job)),
+        }));
+        return;
+      }
+      // The push bridge and the job watcher's poll can report the same
+      // progress; an update that changes no field must not re-render anything.
+      if (
+        (Object.keys(updates) as (keyof GenerationJob)[]).every((key) =>
+          Object.is(existingJob[key], updates[key]),
+        )
+      ) {
+        return;
+      }
 
       const updatedJob = { ...existingJob, ...updates };
       const isTerminal =
@@ -72,7 +120,9 @@ export function createGenerationActions(set: AppSet, _get: AppGet) {
 
       // Timeline-native jobs stay attached to clips instead of polluting the iteration tree.
       if (updatedJob.status === 'completed' && updatedJob.params.source !== 'timeline') {
-        const thumbnail = (updatedJob.result?.images?.[0]) ?? '';
+        // A loadable URL (the backend reports a relative /outputs/ path), or
+        // the replacement result when the job's raw output was superseded.
+        const thumbnail = resolveJobImageThumbnail(updatedJob, state.assetLibrary);
         // Lineage: a run started by forking or re-rolling an existing iteration
         // records that node as its parent. The pending pointer is consumed here
         // so a later, unrelated run still records as a root.
@@ -95,7 +145,10 @@ export function createGenerationActions(set: AppSet, _get: AppGet) {
 
         return {
           activeJobs: s.activeJobs.filter((job) => job.id !== jobId),
-          completedJobs: [updatedJob, ...s.completedJobs.filter((job) => job.id !== jobId)].slice(0, 100),
+          completedJobs: [updatedJob, ...s.completedJobs.filter((job) => job.id !== jobId)].slice(
+            0,
+            COMPLETED_JOB_HISTORY_CAP,
+          ),
         };
       });
     },
@@ -103,7 +156,9 @@ export function createGenerationActions(set: AppSet, _get: AppGet) {
       const job = state.activeJobs.find((j) => j.id === jobId);
       return {
         activeJobs: state.activeJobs.filter((j) => j.id !== jobId),
-        completedJobs: job ? [...state.completedJobs, job].slice(-50) : state.completedJobs,
+        completedJobs: job
+          ? [job, ...state.completedJobs.filter((entry) => entry.id !== jobId)].slice(0, COMPLETED_JOB_HISTORY_CAP)
+          : state.completedJobs,
       };
     }),
     deleteCompletedJob: (jobId: string) => set((state) => ({
@@ -111,18 +166,46 @@ export function createGenerationActions(set: AppSet, _get: AppGet) {
     })),
     // The health poll reports the same system info every 30s. A fresh object
     // with identical fields would still re-render every systemInfo subscriber.
+    // `availability` is a fresh nested object on every report, so it is
+    // compared by value (a few booleans and reasons).
     setSystemInfo: (info: AppState['systemInfo']) => {
-      if (shallowEqualRecord(_get().systemInfo, info)) return;
+      const current = _get().systemInfo;
+      const { availability: currentAvailability, ...currentFlat } = current;
+      const { availability: nextAvailability, ...nextFlat } = info;
+      if (
+        shallowEqualRecord(currentFlat, nextFlat) &&
+        JSON.stringify(currentAvailability ?? null) === JSON.stringify(nextAvailability ?? null)
+      ) {
+        return;
+      }
       set({ systemInfo: info });
     },
     addBatchJob: (batchJob: BatchJob) => set((state) => ({
-      batchJobs: [...state.batchJobs, batchJob],
+      // Only the recent runs matter to the session; a long session of batches
+      // must not grow this list without bound.
+      batchJobs: [...state.batchJobs.filter((entry) => entry.id !== batchJob.id), batchJob].slice(-20),
     })),
-    updateBatchJob: (batchId: string, updates: Partial<BatchJob>) => set((state) => ({
-      batchJobs: state.batchJobs.map((batch) =>
-        batch.id === batchId ? { ...batch, ...updates } : batch
-      ),
-    })),
+    recordBatchJobOutcome: (batchId: string, jobId: string, outcome: 'completed' | 'failed') =>
+      set((state) => {
+        const batch = state.batchJobs.find((entry) => entry.id === batchId);
+        if (!batch) return {};
+        if (batch.completedJobs.includes(jobId) || batch.failedJobs.includes(jobId)) return {};
+        const completedJobs = outcome === 'completed' ? [...batch.completedJobs, jobId] : batch.completedJobs;
+        const failedJobs = outcome === 'failed' ? [...batch.failedJobs, jobId] : batch.failedJobs;
+        const settledCount = completedJobs.length + failedJobs.length;
+        const settled = settledCount >= batch.jobIds.length;
+        const nextBatch: BatchJob = {
+          ...batch,
+          completedJobs,
+          failedJobs,
+          currentIndex: Math.min(settledCount, batch.jobIds.length),
+          status: settled ? (completedJobs.length > 0 ? 'completed' : 'failed') : 'running',
+        };
+        return {
+          batchJobs: state.batchJobs.map((entry) => (entry.id === batchId ? nextBatch : entry)),
+          ...(settled && state.activeBatchId === batchId ? { activeBatchId: null } : {}),
+        };
+      }),
     addToPromptHistory: (entry: PromptHistoryEntry) => set((state) => ({
       promptHistory: [entry, ...state.promptHistory].slice(0, 50),
     })),
@@ -149,8 +232,18 @@ export function createGenerationActions(set: AppSet, _get: AppGet) {
       userTemplates: state.userTemplates.filter((t) => t.id !== id),
     })),
     addToGenerationQueue: (item: GenerationQueueItem) => set((state) => ({
-      generationQueue: [...state.generationQueue, item],
+      generationQueue: [...state.generationQueue.filter((entry) => entry.id !== item.id), item].slice(
+        -GENERATION_QUEUE_CAP,
+      ),
     })),
+    updateGenerationQueueItem: (id: string, patch: Partial<Omit<GenerationQueueItem, 'id'>>) => {
+      if (!_get().generationQueue.some((entry) => entry.id === id)) return;
+      set((state) => ({
+        generationQueue: state.generationQueue.map((entry) =>
+          entry.id === id ? { ...entry, ...patch } : entry,
+        ),
+      }));
+    },
     removeFromGenerationQueue: (id: string) => set((state) => ({
       generationQueue: state.generationQueue.filter((i) => i.id !== id),
     })),
@@ -165,6 +258,10 @@ export function createGenerationActions(set: AppSet, _get: AppGet) {
     setComparisonMode: (mode: AppState['comparisonMode']) => set({ comparisonMode: mode }),
     setComparisonImages: (images: string[]) => set({ comparisonImages: images }),
     syncAssetsFromJobStatus: (status: AssetJobStatus) => {
+      // The job's raw output was superseded by a renderer-side result (a Blend
+      // Edges composite): registering it would list an intermediate, possibly
+      // already deleted, next to the real result.
+      if (isAssetSyncSuppressed(status.params)) return;
       const before = new Set(_get().assetLibrary.map((asset) => asset.id));
       set((state) => ({
         assetLibrary: upsertAssetsFromJobStatus(state.assetLibrary, status),
@@ -185,7 +282,6 @@ export function createGenerationActions(set: AppSet, _get: AppGet) {
         asset.id === assetId ? { ...asset, favorite: !asset.favorite } : asset
       ),
     })),
-    clearAssetLibrary: () => set({ assetLibrary: [] }),
     clearBatchResults: () => set({ batchResults: [] }),
     removeBatchResults: (ids: string[]) => set((state) => ({
       batchResults: state.batchResults.filter((result) => !ids.includes(result.id)),

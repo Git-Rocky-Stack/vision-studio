@@ -1,7 +1,13 @@
 import { memo, useEffect, useState } from 'react';
 
+import { useFilmGrainMode } from '@/features/theme/filmGrainPreference';
+
 interface FilmGrainOverlayProps {
   opacity?: number;
+  /**
+   * Whether the grain may drift. The user's Settings > Appearance preference
+   * can only reduce this (static or off), never force motion back on.
+   */
   animated?: boolean;
 }
 
@@ -60,15 +66,17 @@ function useDocumentHidden(): boolean {
 export const FilmGrainOverlay = memo(function FilmGrainOverlay({ opacity = 0.025, animated = true }: FilmGrainOverlayProps) {
   const [tile] = useState(getGrainTile);
   const hidden = useDocumentHidden();
+  const mode = useFilmGrainMode();
 
-  if (!tile) return null;
+  if (!tile || mode === 'off') return null;
+  const drifting = animated && mode === 'animated';
 
   return (
     <div
       aria-hidden="true"
       data-testid="film-grain-overlay"
-      className="film-grain z-[9999]"
-      data-animated={animated ? 'true' : 'false'}
+      className="film-grain z-[var(--z-overlay)]"
+      data-animated={drifting ? 'true' : 'false'}
       data-paused={hidden ? 'true' : 'false'}
       style={{ opacity, backgroundImage: `url(${tile})` }}
     />

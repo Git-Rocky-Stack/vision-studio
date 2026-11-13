@@ -6,6 +6,7 @@ for the curated pickle-format members and corrupt-refetch for direct-URL
 entries. Fully stub-CI-safe: no torch, no network, small on-disk fakes only.
 """
 
+import asyncio
 import hashlib
 import os
 import pathlib
@@ -20,6 +21,15 @@ if str(BACKEND_ROOT) not in sys.path:
     sys.path.insert(0, str(BACKEND_ROOT))
 
 from foundry import provision_orchestrator as po  # type: ignore[import-not-found]
+
+_run = asyncio.run
+
+
+async def _start_and_wait(orch, **kwargs):
+    """start() + await the background reverify pass it launched."""
+    status = await orch.start(**kwargs)
+    await orch.wait_for_reverify()
+    return status
 
 
 def _job(model_id, status="downloading", progress=0.0, speed=0.0, error=None, gate_url=None):
@@ -221,7 +231,7 @@ class OrchestratorTests(unittest.TestCase):
             "c": {"id": "c", "status": "not_found"},
         }
         orch, manager, *_ = self._orch(entries, records)
-        orch.start()
+        _run(orch.start())
         enqueued = [mid for (verb, mid, _t) in manager.calls if verb == "enqueue"]
         self.assertEqual(sorted(enqueued), ["b", "c"])
         self.assertNotIn("a", enqueued)
@@ -234,7 +244,7 @@ class OrchestratorTests(unittest.TestCase):
             "format": "pickle", "artifact_type": "edit-model",
         }}
         orch, manager, consent, _ = self._orch(entries, records, events=events)
-        orch.start()
+        _run(orch.start())
         self.assertIn(("edit-gfpgan-v14", "pickle", "auto-provision"), consent.grants)
         # consent must be recorded BEFORE the enqueue for that id
         self.assertEqual(events, [("consent", "edit-gfpgan-v14"), ("enqueue", "edit-gfpgan-v14")])
@@ -243,7 +253,7 @@ class OrchestratorTests(unittest.TestCase):
         entries = [_entry("sd-1-5")]
         records = {"sd-1-5": {"id": "sd-1-5", "status": "not_found", "format": "safetensors"}}
         orch, manager, consent, _ = self._orch(entries, records)
-        orch.start()
+        _run(orch.start())
         self.assertEqual(consent.grants, [])
 
     def test_start_resumes_paused_or_errored_job(self):
@@ -254,7 +264,7 @@ class OrchestratorTests(unittest.TestCase):
         }
         jobs = [_job("a", "paused"), _job("b", "error", error="x")]
         orch, manager, *_ = self._orch(entries, records, jobs=jobs)
-        orch.start()
+        _run(orch.start())
         verbs = {mid: verb for (verb, mid, _t) in manager.calls}
         self.assertEqual(verbs["a"], "resume")
         self.assertEqual(verbs["b"], "resume")
@@ -263,7 +273,7 @@ class OrchestratorTests(unittest.TestCase):
         entries = [_entry("a")]
         records = {"a": {"id": "a", "status": "not_found"}}
         orch, manager, *_ = self._orch(entries, records)
-        orch.start(hf_token="hf_SECRET")
+        _run(orch.start(hf_token="hf_SECRET"))
         self.assertEqual(manager.calls, [("enqueue", "a", "hf_SECRET")])
 
     def test_pause_and_cancel_fan_out(self):
@@ -328,7 +338,7 @@ class CorruptRefetchTests(unittest.TestCase):
                   "format": "pickle", "artifact_type": "edit-model"}
         self._seed("edit-gfpgan-v14", b"WRONG-bytes")  # present but corrupt
         orch, manager = self._orch(entry, record)
-        orch.start(reverify=True)
+        _run(_start_and_wait(orch, reverify=True))
         enqueued = [mid for (verb, mid, _t) in manager.calls if verb == "enqueue"]
         self.assertEqual(enqueued, ["edit-gfpgan-v14"])
 
@@ -340,7 +350,7 @@ class CorruptRefetchTests(unittest.TestCase):
                   "format": "pickle", "artifact_type": "edit-model"}
         self._seed("edit-gfpgan-v14", b"correct-bytes")  # present and valid
         orch, manager = self._orch(entry, record)
-        orch.start(reverify=True)
+        _run(_start_and_wait(orch, reverify=True))
         self.assertEqual(manager.calls, [])  # nothing re-enqueued
 
 

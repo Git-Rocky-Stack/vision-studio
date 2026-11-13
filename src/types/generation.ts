@@ -22,9 +22,26 @@ export interface GenerationQueueItem {
   id: string;
   prompt: string;
   thumbnail?: string;
-  params: Record<string, any>;
+  /** Library path of the finished image, so loading the tile onto the canvas keeps it editable. */
+  assetPath?: string;
+  params: Record<string, unknown>;
   status: 'pending' | 'processing' | 'completed' | 'failed';
   createdAt: Date;
+}
+
+/** Generation settings recorded on a batch result (features/jobs/jobWatcher.ts). */
+export interface BatchResultParams {
+  width?: number;
+  height?: number;
+  steps?: number;
+  cfgScale?: number;
+  model?: string;
+  negativePrompt?: string;
+  scheduler?: string;
+  /** Display form, e.g. "1024 x 1024". */
+  resolution?: string;
+  // Older results may carry further backend params.
+  [key: string]: unknown;
 }
 
 export interface BatchResult {
@@ -36,7 +53,7 @@ export interface BatchResult {
   assetPath?: string;
   seed: number;
   generationTime: number;
-  params: Record<string, any>;
+  params: BatchResultParams;
   createdAt: Date;
   isFavorite: boolean;
 }

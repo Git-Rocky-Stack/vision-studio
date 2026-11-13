@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useAppStore } from '@/store/appStore';
 import { TEXT_LAYER_DEFAULT_STYLE, createTextLayer } from '@/features/edit/textLayers';
 import { EXPORT_BRIDGE_MISSING_MESSAGE, registerEditFlattener } from '@/features/edit/exportEdit';
-import { REGION_STYLE_UNSUPPORTED_MESSAGE } from '@/features/edit/regionLockGeneration';
+import { REGION_STYLE_PROMPT_MESSAGE } from '@/features/edit/regionLockGeneration';
 import { EditPropertiesPanel } from './EditPropertiesPanel';
 
 function addText(text: string) {
@@ -106,7 +106,7 @@ describe('EditPropertiesPanel actions', () => {
     await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(EXPORT_BRIDGE_MISSING_MESSAGE));
   });
 
-  it('refuses a region tool with no region-scoped operation, honestly', async () => {
+  it('refuses a region style transfer without a style prompt, honestly', async () => {
     const state = useAppStore.getState();
     const project = state.createProject('P');
     const scene = state.addScene(project.id, { name: 'S' });
@@ -116,6 +116,7 @@ describe('EditPropertiesPanel actions', () => {
     const lock = useAppStore.getState().createRegionLock(scene.id, 'f1', {
       name: 'R',
       aiTool: 'style-transfer',
+      prompt: '',
       mask: {
         type: 'rectangle',
         points: [{ x: 0, y: 0 }, { x: 4, y: 4 }],
@@ -134,7 +135,7 @@ describe('EditPropertiesPanel actions', () => {
     });
     fireEvent.click(await screen.findByRole('button', { name: /generate region/i }));
 
-    expect(screen.getByRole('alert')).toHaveTextContent(REGION_STYLE_UNSUPPORTED_MESSAGE);
+    expect(screen.getByRole('alert')).toHaveTextContent(REGION_STYLE_PROMPT_MESSAGE);
     expect(runPipeline).not.toHaveBeenCalled();
   });
 });

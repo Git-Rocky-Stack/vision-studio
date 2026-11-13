@@ -3,7 +3,7 @@ Structured JSON logging configuration for Vision Studio backend.
 
 Provides:
 - StructuredFormatter: JSON log formatter with ISO 8601 timestamps
-- setup_logging(): Configures root logger with console + file handlers
+- setup_logging(): Configures root logger with console + size-rotated file handlers
 - Support for extra fields: request_id, user_id, duration_ms, exception
 """
 
@@ -11,10 +11,37 @@ from __future__ import annotations
 
 import json
 import logging
+import logging.handlers
 import os
 import sys
 from datetime import datetime, timezone
 from typing import Any, Optional
+
+
+# The log file is size-rotated so a long-running backend (or one that logs a
+# failure loop) can never fill the user's disk: at most
+# LOG_FILE_MAX_BYTES * (LOG_FILE_BACKUP_COUNT + 1) bytes on disk.
+LOG_FILE_MAX_BYTES = 10 * 1024 * 1024
+LOG_FILE_BACKUP_COUNT = 5
+
+# Marks handlers setup_logging() created, so a re-run closes (and releases the
+# file lock of) exactly those and never closes handlers a host installed.
+_OWNED_HANDLER_ATTR = "_vision_studio_owned"
+
+
+def _make_console_stream_safe(stream: Any) -> None:
+    """Never let an unencodable character crash a log write.
+
+    A frozen Windows build's console can be cp1252; JSON log lines are
+    written with ensure_ascii=False, so a non-Latin prompt would otherwise
+    raise UnicodeEncodeError inside the handler.
+    """
+    reconfigure = getattr(stream, "reconfigure", None)
+    if callable(reconfigure):
+        try:
+            reconfigure(errors="replace")
+        except (ValueError, OSError):
+            pass
 
 
 class StructuredFormatter(logging.Formatter):
@@ -108,7 +135,8 @@ def setup_logging(
 
     Sets up:
     - Console handler (stdout) with JSON formatting
-    - Optional file handler with JSON formatting
+    - Optional size-rotated file handler with JSON formatting
+      (LOG_FILE_MAX_BYTES per file, LOG_FILE_BACKUP_COUNT backups)
     - Root logger level from environment or default
 
     Args:
@@ -131,8 +159,12 @@ def setup_logging(
     root_logger = logging.getLogger()
     root_logger.setLevel(level)
 
-    # Remove existing handlers to avoid duplicates
-    root_logger.handlers.clear()
+    # Remove existing handlers to avoid duplicates; close the ones a previous
+    # call created so their log file is released.
+    for handler in list(root_logger.handlers):
+        root_logger.removeHandler(handler)
+        if getattr(handler, _OWNED_HANDLER_ATTR, False):
+            handler.close()
 
     # Create formatter
     formatter = StructuredFormatter(
@@ -140,7 +172,10 @@ def setup_logging(
     )
 
     # Console handler (stdout)
+    _make_console_stream_safe(sys.stdout)
+    _make_console_stream_safe(sys.stderr)
     console_handler = logging.StreamHandler(sys.stdout)
+    setattr(console_handler, _OWNED_HANDLER_ATTR, True)
     console_handler.setLevel(level)
     console_handler.setFormatter(formatter)
     root_logger.addHandler(console_handler)
@@ -152,7 +187,13 @@ def setup_logging(
         if log_dir:
             os.makedirs(log_dir, exist_ok=True)
 
-        file_handler = logging.FileHandler(log_file, encoding="utf-8")
+        file_handler = logging.handlers.RotatingFileHandler(
+            log_file,
+            maxBytes=LOG_FILE_MAX_BYTES,
+            backupCount=LOG_FILE_BACKUP_COUNT,
+            encoding="utf-8",
+        )
+        setattr(file_handler, _OWNED_HANDLER_ATTR, True)
         file_handler.setLevel(level)
         file_handler.setFormatter(formatter)
         root_logger.addHandler(file_handler)

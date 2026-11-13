@@ -3,31 +3,42 @@ Vision Studio - Python Backend
 FastAPI server for AI image and video generation
 """
 
-import builtins
 import sys
 from typing import Any, Callable, Optional
 
-# --- Safe print must be installed BEFORE any other imports, because some
-# modules (e.g. direct_generator) print Unicode at import time and Windows
-# PyInstaller bundles use cp1252 stdout which cannot encode emoji. -----------
-ORIGINAL_PRINT = builtins.print
+
+def make_console_streams_safe() -> None:
+    """Never let an unencodable character crash a console write.
+
+    A Windows PyInstaller bundle's stdout/stderr may be cp1252 (or a pipe with
+    the ANSI code page); writing a character outside it raises
+    UnicodeEncodeError mid-log. Reconfiguring the streams to replace such
+    characters fixes that at the source for every writer (logging handlers,
+    uvicorn, third-party libraries) without monkeypatching builtins.print.
+    Streams that cannot be reconfigured (None under pythonw, or a test
+    runner's capture object) are left alone.
+    """
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is None:
+            continue
+        try:
+            reconfigure(errors="replace")
+        except (ValueError, OSError):
+            pass
 
 
-def make_console_safe(message: Any, encoding: Optional[str] = None) -> str:
-    text = str(message)
-    target_encoding = encoding or getattr(sys.stdout, "encoding", None) or "utf-8"
-    return text.encode(target_encoding, errors="replace").decode(target_encoding, errors="replace")
+make_console_streams_safe()
 
+# --- Frozen-bundle self-check (D5e): `VisionStudio-Backend --self-check`
+# imports every required/optional runtime and probes bundled binaries, then
+# exits - BEFORE the module-level startup below (migrations, directories,
+# model registry) touches the user's machine. build-backend.cjs runs it right
+# after PyInstaller and fails the build on a non-zero exit. -------------------
+if __name__ == "__main__" and "--self-check" in sys.argv[1:]:
+    from selfcheck import main as _self_check_main
 
-def safe_print(*args: Any, **kwargs: Any) -> None:
-    sep = kwargs.pop("sep", " ")
-    file = kwargs.get("file")
-    encoding = getattr(file, "encoding", None) if file is not None else None
-    safe_args = [make_console_safe(arg, encoding=encoding) for arg in args]
-    ORIGINAL_PRINT(*safe_args, sep=sep, **kwargs)
-
-
-builtins.print = safe_print
+    sys.exit(_self_check_main())
 # ---------------------------------------------------------------------------
 
 # --- macOS/MPS: individual ops Metal has not implemented yet fall back to
@@ -40,12 +51,12 @@ if sys.platform == "darwin":
 # ---------------------------------------------------------------------------
 
 import asyncio
+import hashlib
+import hmac
 import json
-import logging
 import os
 import re
 import secrets
-import shutil
 import subprocess
 import time
 import uuid
@@ -58,13 +69,12 @@ from contextlib import asynccontextmanager
 import imageio.v2 as imageio
 import imageio_ffmpeg
 import numpy as np
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, BackgroundTasks, Query, Request, Response
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, BackgroundTasks, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from PIL import Image
 from pydantic import BaseModel, Field, field_validator
-from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
 from version import APP_VERSION
@@ -73,11 +83,21 @@ from utils.logging_config import setup_logging, get_logger
 from utils.comfy_workflows import build_image_workflow, build_video_workflow
 from utils.direct_video_generator import DirectVideoGenerator
 from utils.model_manager import ModelManager
-from utils.direct_generator import DirectGenerator, ModelLoadRefusedError
+from utils.direct_generator import DirectGenerator, ModelLoadRefusedError, is_supported_scheduler
+from utils.device import process_reserved_vram_bytes
+from foundry.accelerator import (
+    DEFAULT_ACCELERATION_SETTINGS,
+    AccelerationSettingsRequest,
+    acceleration_feature_availability,
+)
 from utils.image_ops import apply_crop_and_transform
 from utils.prompt_service import enhance_prompt
-from db.migrate import run_migrations
-from middleware.rate_limit import limiter, rate_limit_exceeded_handler
+from db.migrate import MigrationError, run_migrations
+from utils.job_store import JobStore
+from middleware.rate_limit import RATE_LIMIT_HANDSHAKE, limiter, rate_limit_exceeded_handler
+from utils.media_paths import MediaPathError, configure_media_paths, env_media_roots
+from utils.timeutil import utc_now
+from utils.log_redaction import install_query_redaction
 from foundry import civitai_search, hub_search
 from foundry.classifier import classify_repo
 from foundry.hub_signals import fetch_repo_signals
@@ -94,6 +114,7 @@ from foundry.schemas import (
     HardwareProfileSchema,
     LibraryRootSchema,
     ModelRecordSchema,
+    ProvisionStartRequest,
     ProvisionStatusSchema,
     RuntimePlanSchema,
     ScanResultSchema,
@@ -105,15 +126,21 @@ from foundry.download_manager import DownloadManager
 from foundry.library_roots import RootsStore
 from foundry.index_service import IndexService
 from foundry.provisioning import load_provision_manifest
-from foundry.provision_orchestrator import ProvisionOrchestrator
+from foundry.provision_orchestrator import ProvisionOrchestrator, UnknownProvisionModelsError
+from foundry.download_errors import RemoteCodeUnsupportedError
 from foundry.security_policy import ConsentStore
 
 # Initialize logging at module load time
 setup_logging(log_file=os.getenv("LOG_FILE"))
 logger = get_logger(__name__)
+# K2: no request query string (where a token could ride) reaches a log line.
+install_query_redaction()
 from api.edit import router as edit_router, configure as configure_edit
-from api.batch import router as batch_router, configure as configure_batch
-from api.retrieval import router as retrieval_router
+from api.retrieval import (
+    init_service as init_retrieval_service,
+    router as retrieval_router,
+    semantic_retrieval_availability,
+)
 from api.comfy_graph import router as comfy_graph_router, configure as configure_comfy_graph
 from guided.controlnet_registry import resolve_controlnet_stack
 from guided.fit import guided_fit_refusal
@@ -146,33 +173,63 @@ MODELS_DIR = os.getenv("MODELS_DIR", os.path.join(os.path.dirname(__file__), "mo
 COMFYUI_URL = os.getenv("COMFYUI_URL", "http://127.0.0.1:8188")
 DATABASE_PATH = os.getenv("DATABASE_PATH", os.path.join(os.path.dirname(__file__), "data", "vision_studio.db"))
 BACKEND_AUTH_HEADER = "x-vision-studio-token"
-BACKEND_AUTH_TOKEN = os.getenv("VISION_STUDIO_BACKEND_AUTH_TOKEN")
-if not BACKEND_AUTH_TOKEN:
-    # Fail closed. The auth middleware below only enforces when a token is set,
-    # so an unset token would leave every non-exempt route (generation, ComfyUI
-    # graph execution, retrieval ingest) reachable unauthenticated on loopback.
-    # The packaged app always injects this token; a bare `python main.py` gets a
-    # generated one - logged once here so a local developer can present it -
-    # rather than silently disabling auth.
-    BACKEND_AUTH_TOKEN = secrets.token_urlsafe(32)
+
+
+def resolve_backend_auth_token(configured: Optional[str]) -> str:
+    """The token every request must present (fail closed, never logged).
+
+    The auth middleware below only enforces when a token is set, so an unset
+    token would leave every non-exempt route (generation, ComfyUI graph
+    execution, retrieval ingest) reachable unauthenticated on loopback. The
+    packaged app always injects one; a bare `python main.py` gets a generated
+    one rather than silently disabling auth. The token itself is NEVER logged
+    (log files are shareable support artifacts): a developer who wants to call
+    the API by hand sets VISION_STUDIO_BACKEND_AUTH_TOKEN to a value of their
+    choosing before starting the server.
+    """
+    if configured:
+        return configured
     logger.warning(
         "VISION_STUDIO_BACKEND_AUTH_TOKEN was not set; generated an ephemeral "
-        "backend auth token for this run. Send it as the %r header: %s",
+        "backend auth token for this run (not logged). To call the API by hand, "
+        "set VISION_STUDIO_BACKEND_AUTH_TOKEN yourself and send it as the %r header.",
         BACKEND_AUTH_HEADER,
-        BACKEND_AUTH_TOKEN,
     )
-AUTH_EXEMPT_PATHS = {"/", "/api/health", "/api/docs", "/api/redoc", "/api/openapi.json"}
+    return secrets.token_urlsafe(32)
+
+
+BACKEND_AUTH_TOKEN = resolve_backend_auth_token(os.getenv("VISION_STUDIO_BACKEND_AUTH_TOKEN"))
+# /api/handshake is exempt by design: it proves possession of the token
+# without revealing it (HMAC over a client nonce), so the desktop shell can
+# verify it is talking to ITS backend before sending the token anywhere.
+AUTH_EXEMPT_PATHS = {"/api/health", "/api/handshake", "/api/docs", "/api/redoc", "/api/openapi.json"}
+
+
+def token_matches(presented: Optional[str], expected: Optional[str] = None) -> bool:
+    """Constant-time token comparison (never ``==``/``!=`` on secrets)."""
+    expected = BACKEND_AUTH_TOKEN if expected is None else expected
+    if not presented or not expected:
+        return False
+    return secrets.compare_digest(presented.encode("utf-8"), expected.encode("utf-8"))
 
 # Ensure directories exist
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 os.makedirs(MODELS_DIR, exist_ok=True)
 os.makedirs(os.path.dirname(DATABASE_PATH), exist_ok=True)
 
-# Run database migrations at startup
-run_migrations(DATABASE_PATH)
+# Run database migrations at startup. A failed migration stops the run
+# (db/migrate.py, U6) and is logged there; the backend still starts, with job
+# history kept in memory only, rather than writing into a half-migrated DB.
+try:
+    run_migrations(DATABASE_PATH)
+    _job_store: Optional[JobStore] = JobStore(DATABASE_PATH)
+except MigrationError:
+    _job_store = None
 
 # Global instances
-job_manager = JobManager()
+# U5: job records persist to the jobs table through a background writer thread
+# (never on the event loop) and reload at startup for history listing.
+job_manager = JobManager(store=_job_store)
 model_manager = ModelManager(MODELS_DIR)
 _CATALOG_PATH = os.path.join(os.path.dirname(__file__), "foundry", "verified-catalog.json")
 
@@ -208,6 +265,18 @@ index_service = IndexService(
     state_path=os.path.join(_FOUNDRY_STATE_DIR, "index_state.json"),
 )
 consent_store = ConsentStore(os.path.join(_FOUNDRY_STATE_DIR, "consents.json"))
+
+
+def _allowed_media_roots() -> List[str]:
+    """Extra readable media roots beyond OUTPUT_DIR (B6): every linked
+    library root plus the shell-provided VISION_STUDIO_MEDIA_ROOTS. Read live
+    so a root linked or removed at run time takes effect immediately."""
+    return [root.path for root in roots_store.list()] + env_media_roots()
+
+
+# Routed through the module attribute so tests that swap main.OUTPUT_DIR /
+# main.roots_store keep working (the policy reads both lazily).
+media_path_policy = configure_media_paths(lambda: OUTPUT_DIR, _allowed_media_roots)
 # Late-bind (like the registry above): the manager filters pickle-bearing
 # files out of repo downloads unless per-model consent exists (review H-2).
 # Routed through the module attribute so tests that swap main.consent_store
@@ -293,17 +362,24 @@ async def lifespan(app: FastAPI):
 
     # Startup
     logger.info("Starting Vision Studio Backend...")
+    # uvicorn's dictConfig ran after import and installed fresh handlers:
+    # re-attach the query-string redaction filter to them (idempotent).
+    install_query_redaction()
 
     # Initialize ComfyUI client
     if ComfyUIClient is None:
         logger.warning(f"ComfyUI client unavailable: {COMFY_CLIENT_IMPORT_ERROR}. Will use direct generation as fallback")
     else:
-        try:
-            comfy_client = ComfyUIClient(COMFYUI_URL)
-            await comfy_client.connect()
+        # U2: never a one-shot connect. ensure_connected() never raises; the
+        # background loop reconnects with backoff after a drop, and the job
+        # paths reconnect on demand before queueing (_comfy_ready).
+        comfy_client = ComfyUIClient(COMFYUI_URL)
+        if await comfy_client.ensure_connected():
             logger.info(f"Connected to ComfyUI at {COMFYUI_URL}")
-        except Exception as e:
-            logger.warning(f"Could not connect to ComfyUI: {e}. Will use direct generation as fallback")
+        else:
+            logger.info(f"ComfyUI not reachable at {COMFYUI_URL}; using direct generation "
+                        "and retrying the connection in the background")
+        comfy_client.start_reconnect_loop()
 
     # Initialize direct generator
     try:
@@ -319,6 +395,14 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"Could not initialize direct video generator: {e}")
 
+    # B9: create the retrieval singleton at startup (loads its index from
+    # disk) in a worker thread, instead of lazily - and racily - on the first
+    # request that happens to touch it.
+    try:
+        await asyncio.to_thread(init_retrieval_service, MODELS_DIR)
+    except Exception as e:  # noqa: BLE001 - retrieval is optional; routes retry lazily
+        logger.warning(f"Could not initialize the retrieval index: {e}")
+
     # Load available models
     await model_manager.scan_models()
     logger.info(f"Found {len(model_manager.available_models)} models")
@@ -329,6 +413,8 @@ async def lifespan(app: FastAPI):
     logger.info("Shutting down...")
     if comfy_client:
         await comfy_client.disconnect()
+    # Drain the job-history writer so the last status changes reach the DB.
+    await asyncio.to_thread(job_manager.close)
 
 
 # The auth section is built from the constants require_local_auth_token
@@ -347,22 +433,26 @@ Professional-grade API for AI-powered creative content generation.
 - **Image Generation** - FLUX.1, Stable Diffusion 3.5, Stable Diffusion XL, SD 1.5
 - **Video Generation** - LTX Video, Stable Video Diffusion, AnimateDiff
 - **Image Editing** - crop, rotate and flip; background removal, upscaling and face restoration (`/api/v1/edit`)
-- **Batch Export** - convert/resize generated images (by job id or output path) and return them as one ZIP (`/api/v1/batch/export-zip`)
 - **Model Management** - Download, install, and manage AI models
 - **Real-time Updates** - WebSocket-based progress streaming
 
 ### Authentication
 Every HTTP request must send the backend's token in the `{BACKEND_AUTH_HEADER}` header,
-or it is refused with 403 Forbidden; the `/ws` WebSocket takes it as `?token=` and
-closes with code 1008 without it. The desktop app sets the token
-(`VISION_STUDIO_BACKEND_AUTH_TOKEN`) when it starts the backend; a bare
-`python main.py` generates one for that run and logs it once.
+or it is refused with 403 Forbidden; the `/ws` WebSocket takes it in the same
+request header and closes with code 1008 without it (a `?token=` query parameter
+is not accepted). The desktop app sets the token (`VISION_STUDIO_BACKEND_AUTH_TOKEN`)
+when it starts the backend; a bare `python main.py` generates one for that run and
+never logs it - set the variable yourself to call the API by hand.
+`GET /api/handshake?nonce=<32-128 hex chars>` proves the server holds the token
+without revealing it: it returns `{{"proof": hex(HMAC-SHA256(key=token, msg=nonce))}}`.
 Exempt: {_AUTH_EXEMPT_DOC}, and files under `/outputs/`.
 
 ### Rate Limiting
-Limits are per client address and set on each route: generation 10 requests/minute,
-edit tools 30/minute, batch export 5/minute. Other routes allow 30 or 60 per minute;
-`/api/health`, `/ws` and the `/api/v1/retrieval` routes are not limited. Set
+Limits are per client address and set on each route: generation 10 requests/minute
+(including `/api/v1/comfy/run-graph`), edit tools 30/minute, timeline export and
+safetensors conversion 5/minute, `/api/handshake` 30/minute. Other routes allow 30
+or 60 per minute; `/api/health`, `/ws` and the `/api/v1/retrieval` routes are not
+limited. A limited request gets 429 with a `Retry-After` header (seconds). Set
 `VISION_STUDIO_DISABLE_RATE_LIMIT=1` to turn limiting off.
     """,
     version=APP_VERSION,
@@ -391,7 +481,7 @@ async def require_local_auth_token(request: Request, call_next):
     path = request.url.path
     is_exempt = path in AUTH_EXEMPT_PATHS or path.startswith("/outputs/")
     if BACKEND_AUTH_TOKEN and not is_exempt:
-        if request.headers.get(BACKEND_AUTH_HEADER) != BACKEND_AUTH_TOKEN:
+        if not token_matches(request.headers.get(BACKEND_AUTH_HEADER)):
             return JSONResponse(status_code=403, content={"detail": "Forbidden"})
 
     return await call_next(request)
@@ -463,14 +553,11 @@ app.mount("/outputs", StaticFiles(directory=OUTPUT_DIR), name="outputs")
 
 # Register API routers
 app.include_router(edit_router)
-app.include_router(batch_router)
 app.include_router(retrieval_router)
 app.include_router(comfy_graph_router)
 # `lambda: comfy_client` reads the live module global, which is assigned when the
 # ComfyUI connection is established during startup (None until then).
 configure_comfy_graph(lambda: comfy_client, job_manager, OUTPUT_DIR)
-# Batch export resolves image ids to generation outputs under OUTPUT_DIR.
-configure_batch(OUTPUT_DIR)
 # #34 real edit tools: job manager + Foundry record resolution for /api/v1/edit.
 configure_edit(
     job_manager=job_manager,
@@ -502,10 +589,16 @@ class LoraSelection(BaseModel):
     weight: float = Field(default=1.0, ge=0.0, le=2.0, description="Adapter weight (0-2)")
 
 
+# B14 request bounds. A mask is a canvas polygon/brush stroke: 20k points is
+# far beyond any hand-drawn shape but stops a multi-MB payload from turning
+# into a rasterization DoS.
+MAX_MASK_POINTS = 20_000
+
+
 class GuidedMaskPayload(BaseModel):
     """#34: vector mask from the canvas drawer, in intrinsic image pixels."""
     type: str = Field(..., description="rectangle | polygon | brush | erase")
-    points: List[Dict[str, float]] = Field(default_factory=list)
+    points: List[Dict[str, float]] = Field(default_factory=list, max_length=MAX_MASK_POINTS)
     bounds: Dict[str, float] = Field(default_factory=dict)
     brush_size: Optional[float] = Field(default=None, ge=1, le=512)
 
@@ -577,7 +670,7 @@ def snap_to_multiple_of_8(value: int) -> int:
 
 
 class ImageGenerationRequest(BaseModel):
-    prompt: str = Field(..., max_length=MAX_PROMPT_LENGTH, description="Positive prompt for generation")
+    prompt: str = Field(..., min_length=1, max_length=MAX_PROMPT_LENGTH, description="Positive prompt for generation")
     negative_prompt: str = Field(default="", max_length=MAX_PROMPT_LENGTH, description="Negative prompt")
     width: int = Field(default=1024, ge=256, le=2048, description="Image width (snapped down to a multiple of 8)")
     height: int = Field(default=1024, ge=256, le=2048, description="Image height (snapped down to a multiple of 8)")
@@ -585,8 +678,8 @@ class ImageGenerationRequest(BaseModel):
     cfg_scale: float = Field(default=7.5, ge=1, le=30, description="CFG Scale")
     seed: int = Field(default=-1, ge=-1, le=SEED_MAX, description="Random seed (-1 for random)")
     model: str = Field(default="flux-dev", description="Model to use")
-    scheduler: str = Field(default="euler", description="Scheduler/sampler")
-    acceleration_settings: Optional[dict] = Field(
+    scheduler: str = Field(default="euler", max_length=64, description="Scheduler/sampler")
+    acceleration_settings: Optional[AccelerationSettingsRequest] = Field(
         default=None, description="M9 acceleration toggles (auto/on/off per optimization)")
     loras: List[LoraSelection] = Field(default_factory=list, description="#136 local LoRA adapters")
     controlnet: List[ControlNetLayerPayload] = Field(
@@ -609,6 +702,24 @@ class ImageGenerationRequest(BaseModel):
     def _snap_dimension(cls, value: int) -> int:
         return snap_to_multiple_of_8(value)
 
+    @field_validator("scheduler")
+    @classmethod
+    def _known_scheduler(cls, value: str) -> str:
+        # B14: an unknown sampler used to fall back to Euler a silently.
+        if not is_supported_scheduler(value):
+            raise ValueError(
+                "Unknown scheduler. Choose one of: Euler, Euler a, DPM++ 2M, DPM++ 2M Karras, "
+                "DPM++ SDE, DPM++ SDE Karras, DDIM, UniPC.")
+        return value.strip()
+
+    @field_validator("prompt")
+    @classmethod
+    def _prompt_not_blank(cls, value: str) -> str:
+        # min_length=1 alone lets "   " through: an image prompt must say something.
+        if not value.strip():
+            raise ValueError("prompt must not be empty")
+        return value
+
 
 def _guided_payload(request: "ImageGenerationRequest") -> Optional[Dict[str, Any]]:
     """#34: project the request's guided fields into the generator's dict seam."""
@@ -626,6 +737,38 @@ def _guided_payload(request: "ImageGenerationRequest") -> Optional[Dict[str, Any
     }
 
 
+def resolve_guided_media_paths(request: "ImageGenerationRequest") -> "ImageGenerationRequest":
+    """The request with every guided source path resolved inside the allowed
+    media roots (B6). Raises MediaPathError for any path outside them."""
+    update: Dict[str, Any] = {}
+    if request.controlnet:
+        update["controlnet"] = [
+            layer.model_copy(update={"source_path": resolve_backend_media_path(layer.source_path)})
+            for layer in request.controlnet
+        ]
+    if request.reference_images:
+        update["reference_images"] = [
+            layer.model_copy(update={"source_path": resolve_backend_media_path(layer.source_path)})
+            for layer in request.reference_images
+        ]
+    for field_name in ("inpaint", "outpaint", "background_replace"):
+        payload = getattr(request, field_name)
+        if payload is not None:
+            update[field_name] = payload.model_copy(
+                update={"image_path": resolve_backend_media_path(payload.image_path)})
+    return request.model_copy(update=update) if update else request
+
+
+def resolve_video_input_image(image_path: Optional[str]) -> Optional[str]:
+    """Image-to-video input: a data: URL passes through (decoded in memory);
+    a file path must resolve inside the allowed media roots (B6)."""
+    if not image_path:
+        return image_path
+    if image_path.startswith("data:image/"):
+        return image_path
+    return resolve_backend_media_path(image_path)
+
+
 class VideoGenerationRequest(BaseModel):
     prompt: str = Field(..., max_length=MAX_PROMPT_LENGTH, description="Prompt for video generation")
     image_path: Optional[str] = Field(default=None, description="Optional input image")
@@ -636,7 +779,7 @@ class VideoGenerationRequest(BaseModel):
     steps: int = Field(default=25, ge=1, le=100)
     model: str = Field(default="ltx-video", description="Model to use")
     seed: int = Field(default=-1, ge=-1, le=SEED_MAX, description="Random seed (-1 for random)")
-    acceleration_settings: Optional[dict] = Field(
+    acceleration_settings: Optional[AccelerationSettingsRequest] = Field(
         default=None, description="M9 acceleration toggles (auto/on/off per optimization)")
     loras: List[LoraSelection] = Field(default_factory=list, description="#136 local LoRA adapters")
 
@@ -677,28 +820,42 @@ class PromptEnhancementRequest(BaseModel):
         return value.strip().lower() if isinstance(value, str) else value
 
 
+# Pixel coordinates beyond this are not an image anyone can open (PIL's own
+# decompression-bomb guard trips far below 65535^2).
+MAX_IMAGE_COORDINATE = 65_535
+
+
 class CropBoxRequest(BaseModel):
-    left: int
-    top: int
-    width: int
-    height: int
+    left: int = Field(..., ge=0, le=MAX_IMAGE_COORDINATE)
+    top: int = Field(..., ge=0, le=MAX_IMAGE_COORDINATE)
+    width: int = Field(..., ge=1, le=MAX_IMAGE_COORDINATE)
+    height: int = Field(..., ge=1, le=MAX_IMAGE_COORDINATE)
 
 
 class ImageEditRequest(BaseModel):
-    source_path: str
+    source_path: str = Field(..., min_length=1, max_length=4096)
     crop_box: Optional[CropBoxRequest] = None
-    rotation: int = 0
+    # Degrees, clockwise. One full turn either way covers every UI rotation.
+    rotation: int = Field(default=0, ge=-360, le=360)
     flip_horizontal: bool = False
     flip_vertical: bool = False
 
 
 class VideoFrameExtractRequest(BaseModel):
-    source_path: str
+    source_path: str = Field(..., min_length=1, max_length=4096)
     time_ms: int = Field(default=0, ge=0)
 
 
+# Timeline export bounds (B14): a frame composites at most this many layers
+# (one per visible track - generous for any real edit), and an export mixes
+# at most this many audio clips into one ffmpeg filter graph.
+MAX_TIMELINE_LAYERS_PER_FRAME = 64
+MAX_TIMELINE_AUDIO_LAYERS = 128
+MAX_SEQUENCE_NAME_LENGTH = 256
+
+
 class TimelineExportLayerRequest(BaseModel):
-    source_path: str
+    source_path: str = Field(..., min_length=1, max_length=4096)
     media_type: str = Field(pattern="^(image|video)$")
     source_time_ms: int = Field(default=0, ge=0)
     opacity: float = Field(default=1.0, ge=0.0, le=1.0)
@@ -706,11 +863,12 @@ class TimelineExportLayerRequest(BaseModel):
 
 class TimelineExportFrameRequest(BaseModel):
     time_ms: int = Field(default=0, ge=0)
-    layers: List[TimelineExportLayerRequest] = Field(default_factory=list)
+    layers: List[TimelineExportLayerRequest] = Field(
+        default_factory=list, max_length=MAX_TIMELINE_LAYERS_PER_FRAME)
 
 
 class TimelineExportAudioLayerRequest(BaseModel):
-    source_path: str
+    source_path: str = Field(..., min_length=1, max_length=4096)
     source_time_ms: int = Field(default=0, ge=0)
     timeline_offset_ms: int = Field(default=0, ge=0)
     duration_ms: int = Field(default=1, ge=1)
@@ -722,13 +880,14 @@ class TimelineExportAudioLayerRequest(BaseModel):
 
 
 class TimelineExportRequest(BaseModel):
-    sequence_name: str = Field(default="Timeline Export")
+    sequence_name: str = Field(default="Timeline Export", max_length=MAX_SEQUENCE_NAME_LENGTH)
     width: int = Field(default=1920, ge=64, le=4096)
     height: int = Field(default=1080, ge=64, le=4096)
     fps: int = Field(default=24, ge=1, le=60)
-    output_path: str
+    output_path: str = Field(..., max_length=4096)
     frames: List[TimelineExportFrameRequest] = Field(min_length=1, max_length=24000)
-    audio_layers: List[TimelineExportAudioLayerRequest] = Field(default_factory=list)
+    audio_layers: List[TimelineExportAudioLayerRequest] = Field(
+        default_factory=list, max_length=MAX_TIMELINE_AUDIO_LAYERS)
 
 
 class ModelInfo(BaseModel):
@@ -740,6 +899,13 @@ class ModelInfo(BaseModel):
     description: str
 
 
+class FeatureAvailability(BaseModel):
+    """Whether an optional capability can run on THIS install/machine."""
+    available: bool
+    reason: Optional[str] = Field(
+        default=None, description="Why it is unavailable (user-facing); null when available")
+
+
 class SystemInfo(BaseModel):
     gpu_available: bool
     gpu_name: Optional[str]
@@ -747,6 +913,11 @@ class SystemInfo(BaseModel):
     cuda_version: Optional[str]
     comfyui_connected: bool
     models_count: int
+    availability: Dict[str, FeatureAvailability] = Field(
+        default_factory=dict,
+        description=(
+            "Optional-feature availability the UI gates its toggles on: "
+            "quantization, tensorrt, semanticRetrieval"))
 
 
 class ImportRootRequest(BaseModel):
@@ -756,15 +927,45 @@ class ImportRootRequest(BaseModel):
 
 # ============= API Endpoints =============
 
-@app.get("/", tags=["Health"])
-@limiter.limit("60/minute")
-async def root(request: Request):
-    """
-    Root endpoint - API health check.
+_HANDSHAKE_NONCE = re.compile(r"^[0-9a-fA-F]{32,128}$")
 
-    Returns a simple message confirming the API is running.
+
+def handshake_proof(nonce: str, token: str) -> str:
+    """hex(HMAC-SHA256(key=token utf-8, msg=nonce utf-8)) - the K1 contract."""
+    return hmac.new(token.encode("utf-8"), nonce.encode("utf-8"), hashlib.sha256).hexdigest()
+
+
+@app.get("/api/handshake", tags=["System"])
+@limiter.limit(RATE_LIMIT_HANDSHAKE)
+async def handshake(request: Request, nonce: str = Query("")):
+    # Length is enforced by the nonce pattern below so EVERY malformed nonce
+    # (too short, too long, non-hex, missing) is the contract's 400, never a
+    # FastAPI 422.
     """
-    return {"message": "Vision Studio API", "version": APP_VERSION}
+    Prove this server holds the backend auth token - without revealing it.
+
+    Unauthenticated by design: the desktop shell sends a fresh random nonce and
+    compares the proof with its own HMAC before it trusts whatever is listening
+    on the port with the token.
+
+    ### Query Parameters
+    - `nonce`: 32-128 hexadecimal characters (required)
+
+    ### Response
+    - `proof`: lowercase hex HMAC-SHA256 with the token (UTF-8) as the key and
+      the nonce exactly as sent (UTF-8) as the message
+
+    ### Errors
+    - `400`: Missing or malformed nonce
+    - `429`: More than 30 requests per minute
+    - `503`: No token is configured (only possible in tests)
+    """
+    if not _HANDSHAKE_NONCE.fullmatch(nonce or ""):
+        raise HTTPException(
+            status_code=400, detail="nonce must be 32-128 hexadecimal characters")
+    if not BACKEND_AUTH_TOKEN:
+        raise HTTPException(status_code=503, detail="Backend auth is not configured")
+    return {"proof": handshake_proof(nonce, BACKEND_AUTH_TOKEN)}
 
 
 @app.get("/api/system/info", response_model=SystemInfo, tags=["System"])
@@ -798,8 +999,45 @@ async def get_system_info(request: Request):
         gpu_vram=gpu_vram,
         cuda_version=profile.cuda_version,
         comfyui_connected=comfy_client is not None and comfy_client.connected,
-        models_count=len(model_manager.available_models)
+        models_count=len(model_manager.available_models),
+        availability=await asyncio.to_thread(
+            optional_feature_availability,
+            profile.gpu_available,
+            (getattr(profile, "compute_major", 0), getattr(profile, "compute_minor", 0)),
+            bool(getattr(profile, "cuda_version", None)),
+        ),
     )
+
+
+def optional_feature_availability(
+    gpu_available: bool,
+    compute_capability: Optional[tuple] = None,
+    cuda: Optional[bool] = None,
+) -> Dict[str, Dict[str, Any]]:
+    """`{name: {available, reason}}` for the optional capabilities the UI
+    exposes as toggles - the renderer's contract (keys are exactly these):
+
+    - quantization: an optimum-quanto int8/fp8 backend is importable (and a
+      GPU is present) - foundry.accelerator.quant_backends_available
+    - tensorrt: the bundled TensorRT runtime (torch-tensorrt, Windows/Linux
+      CUDA builds) is importable, an NVIDIA GPU of compute capability 7.5+ is
+      present, AND at least one model family has passed the TensorRT
+      correctness sweep. While TRT_PROVEN_FAMILIES is empty this is false with
+      "No model family has been verified for TensorRT yet" - never faked.
+    - semanticRetrieval: the AI Director's embedding model is provisioned and
+      sentence-transformers is importable; while it is not provisioned this is
+      false with a reason and retrieval ranks by keywords.
+
+    Probed with find_spec / file-existence checks: nothing heavy is imported
+    and nothing is downloaded.
+    """
+    acceleration = acceleration_feature_availability(
+        gpu_available=gpu_available, compute_capability=compute_capability, cuda=cuda)
+    return {
+        "quantization": acceleration["quantization"],
+        "tensorrt": acceleration["tensorrt"],
+        "semanticRetrieval": semantic_retrieval_availability(),
+    }
 
 
 @app.post("/api/prompts/enhance", tags=["Prompts"])
@@ -938,16 +1176,51 @@ def resolve_timeline_export_path(output_path: str) -> str:
 
 
 def resolve_backend_media_path(source_path: str) -> str:
-    normalized_path = source_path.replace("\\", "/")
+    """Resolve a renderer media path inside the allowed roots (B6).
 
-    if normalized_path.startswith("/outputs/"):
-        relative_path = normalized_path.replace("/outputs/", "", 1)
-        return normalize_local_path(os.path.join(OUTPUT_DIR, relative_path))
+    Accepts `/outputs/...` URLs, `file:///` URLs and absolute paths, but only
+    when the fully resolved path (`..` collapsed, symlinks followed) is inside
+    OUTPUT_DIR, a linked library root, or a VISION_STUDIO_MEDIA_ROOTS entry.
+    Raises MediaPathError (-> HTTP 400) otherwise.
+    """
+    return media_path_policy.resolve(source_path)
 
-    if normalized_path.startswith("file:///"):
-        return normalize_local_path(normalized_path.replace("file:///", "", 1))
 
-    return normalize_local_path(normalized_path)
+def resolve_media_or_400(source_path: str) -> str:
+    """resolve_backend_media_path for route handlers: MediaPathError -> 400."""
+    try:
+        return resolve_backend_media_path(source_path)
+    except MediaPathError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+def resolve_timeline_media_paths(export_request: "TimelineExportRequest") -> "TimelineExportRequest":
+    """Every layer and audio source resolved inside the allowed roots (B6).
+
+    Runs once in the route, before a job exists, so a path outside the roots
+    is a 400 instead of a failed job minutes later. Each distinct path is
+    resolved once (a long export repeats the same few sources per frame).
+    Raises MediaPathError.
+    """
+    resolved: Dict[str, str] = {}
+
+    def resolve(path: str) -> str:
+        if path not in resolved:
+            resolved[path] = resolve_backend_media_path(path)
+        return resolved[path]
+
+    frames = [
+        frame.model_copy(update={"layers": [
+            layer.model_copy(update={"source_path": resolve(layer.source_path)})
+            for layer in frame.layers
+        ]})
+        for frame in export_request.frames
+    ]
+    audio_layers = [
+        layer.model_copy(update={"source_path": resolve(layer.source_path)})
+        for layer in export_request.audio_layers
+    ]
+    return export_request.model_copy(update={"frames": frames, "audio_layers": audio_layers})
 
 
 def fit_media_to_canvas(source_image: Image.Image, width: int, height: int, opacity: float) -> Image.Image:
@@ -966,32 +1239,91 @@ def fit_media_to_canvas(source_image: Image.Image, width: int, height: int, opac
     return canvas
 
 
-def extract_video_frame_image(source_path: str, time_ms: int = 0) -> Image.Image:
-    reader = imageio.get_reader(source_path)
+class TimelineVideoSource:
+    """One open decoder for one timeline video source (P2).
 
-    try:
-        metadata = reader.get_meta_data() or {}
+    A timeline export used to open a fresh imageio reader - one ffmpeg
+    process plus a seek - for every video layer of every frame: up to ~24k
+    spawns for a long sequence. A source now keeps ONE reader for the whole
+    export. Timeline frames request monotonically increasing indexes, which
+    the imageio ffmpeg plugin serves by reading forward without re-seeking;
+    a repeated index (held frame, slow motion) is answered from the last
+    decoded frame without touching the decoder. Owned by
+    TimelineVideoSources, which closes every reader.
+    """
+
+    def __init__(self, source_path: str, reader_factory: Callable[[str], Any] = imageio.get_reader):
+        self._reader = reader_factory(source_path)
+        metadata = self._reader.get_meta_data() or {}
         fps_value = metadata.get("fps")
-        fps = float(fps_value) if isinstance(fps_value, (int, float)) and fps_value > 0 else None
-        frame_index = max(0, round((time_ms / 1000.0) * fps)) if fps else 0
-
+        self._fps = float(fps_value) if isinstance(fps_value, (int, float)) and fps_value > 0 else None
         frame_count_value = metadata.get("nframes")
-        if isinstance(frame_count_value, int) and frame_count_value > 0:
-            frame_index = min(frame_index, frame_count_value - 1)
+        self._frame_count = (
+            frame_count_value
+            if isinstance(frame_count_value, int) and frame_count_value > 0
+            else None
+        )
+        self._last_index: Optional[int] = None
+        self._last_frame: Optional[Image.Image] = None
 
+    def _index_for(self, time_ms: int) -> int:
+        frame_index = max(0, round((time_ms / 1000.0) * self._fps)) if self._fps else 0
+        if self._frame_count is not None:
+            frame_index = min(frame_index, self._frame_count - 1)
+        return frame_index
+
+    def frame_at(self, time_ms: int) -> Image.Image:
+        frame_index = self._index_for(time_ms)
+        if frame_index != self._last_index or self._last_frame is None:
+            try:
+                frame = self._reader.get_data(frame_index)
+            except Exception:
+                # Past the real end (nframes is an estimate for some
+                # containers): hold the last frame that exists.
+                fallback_index = self._frame_count - 1 if self._frame_count else 0
+                frame = self._reader.get_data(fallback_index)
+            self._last_index = frame_index
+            self._last_frame = Image.fromarray(frame).convert("RGBA")
+        return self._last_frame.copy()
+
+    def close(self) -> None:
         try:
-            frame = reader.get_data(frame_index)
-        except Exception:
-            fallback_index = (
-                max(0, frame_count_value - 1)
-                if isinstance(frame_count_value, int) and frame_count_value > 0
-                else 0
-            )
-            frame = reader.get_data(fallback_index)
+            self._reader.close()
+        except Exception:  # noqa: BLE001 - closing a dead reader is not an export failure
+            logger.debug("Closing a timeline video reader failed", exc_info=True)
 
-        return Image.fromarray(frame).convert("RGBA")
+
+class TimelineVideoSources:
+    """Lazily opened TimelineVideoSource per path; close() releases them all."""
+
+    def __init__(self, reader_factory: Callable[[str], Any] = imageio.get_reader):
+        self._reader_factory = reader_factory
+        self._sources: Dict[str, TimelineVideoSource] = {}
+
+    def frame_at(self, source_path: str, time_ms: int) -> Image.Image:
+        source = self._sources.get(source_path)
+        if source is None:
+            source = TimelineVideoSource(source_path, self._reader_factory)
+            self._sources[source_path] = source
+        return source.frame_at(time_ms)
+
+    @property
+    def open_count(self) -> int:
+        return len(self._sources)
+
+    def close(self) -> None:
+        sources, self._sources = self._sources, {}
+        for source in sources.values():
+            source.close()
+
+
+def extract_video_frame_image(source_path: str, time_ms: int = 0) -> Image.Image:
+    """One frame from a video, opening and closing its own reader."""
+    source = TimelineVideoSource(source_path)
+    try:
+        return source.frame_at(time_ms)
     finally:
-        reader.close()
+        source.close()
 
 
 def render_timeline_export_frame(
@@ -999,14 +1331,22 @@ def render_timeline_export_frame(
     width: int,
     height: int,
     image_cache: Optional[Dict[str, Image.Image]] = None,
+    video_sources: Optional[TimelineVideoSources] = None,
 ) -> Image.Image:
+    """Composite one timeline frame.
+
+    Layer paths are already resolved inside the allowed media roots by the
+    export route (resolve_timeline_media_paths). Pass a shared video_sources
+    for a multi-frame export; without one, each video layer opens and closes
+    its own reader (single-frame use).
+    """
     canvas = Image.new("RGBA", (width, height), (0, 0, 0, 255))
     reusable_image_cache = image_cache if image_cache is not None else {}
 
     for layer in frame_request.layers:
-        source_path = resolve_backend_media_path(layer.source_path)
+        source_path = layer.source_path
         if not os.path.exists(source_path):
-            raise FileNotFoundError(f"Missing media source: {source_path}")
+            raise FileNotFoundError(f"Missing media source: {os.path.basename(source_path)}")
 
         if layer.media_type == "image":
             cached_image = reusable_image_cache.get(source_path)
@@ -1015,6 +1355,8 @@ def render_timeline_export_frame(
                     cached_image = opened_image.convert("RGBA")
                 reusable_image_cache[source_path] = cached_image
             source_image = cached_image.copy()
+        elif video_sources is not None:
+            source_image = video_sources.frame_at(source_path, layer.source_time_ms)
         else:
             source_image = extract_video_frame_image(source_path, time_ms=layer.source_time_ms)
 
@@ -1037,6 +1379,8 @@ def export_timeline_video_file(
     frame_count = len(export_request.frames)
     writer = imageio.get_writer(output_path, fps=export_request.fps)
     image_cache: Dict[str, Image.Image] = {}
+    # One decoder per video source for the whole export (P2), always closed.
+    video_sources = TimelineVideoSources()
 
     try:
         for index, frame_request in enumerate(export_request.frames):
@@ -1045,12 +1389,14 @@ def export_timeline_video_file(
                 export_request.width,
                 export_request.height,
                 image_cache=image_cache,
+                video_sources=video_sources,
             )
             writer.append_data(np.asarray(frame_image))
 
             if progress_callback:
                 progress_callback(5.0 + ((index + 1) / max(frame_count, 1)) * 90.0)
     finally:
+        video_sources.close()
         writer.close()
 
     return {
@@ -1083,11 +1429,71 @@ def build_timeline_audio_volume_expression(layer: TimelineExportAudioLayerReques
     return "*".join(terms)
 
 
+# FFmpeg audio mux budget (B15): stream-copied video plus AAC encoding of the
+# mixed audio runs far faster than real time, so a mux still running after a
+# generous fixed floor plus 4x the export's duration is hung (a stalled input,
+# a filter graph that never ends) and is killed instead of pinning the job.
+MUX_TIMEOUT_FLOOR_SECONDS = 120.0
+MUX_TIMEOUT_PER_EXPORT_SECOND = 4.0
+_MUX_POLL_SECONDS = 0.25
+
+
+def mux_timeout_seconds(export_duration_ms: int) -> float:
+    return MUX_TIMEOUT_FLOOR_SECONDS + MUX_TIMEOUT_PER_EXPORT_SECOND * max(export_duration_ms, 1) / 1000.0
+
+
+def run_ffmpeg_command(
+    command: List[str],
+    timeout_seconds: float,
+    should_cancel: Optional[Callable[[], bool]] = None,
+    job_id: Optional[str] = None,
+) -> None:
+    """Run ffmpeg to completion, or kill it on timeout / cancel.
+
+    Polls instead of a blocking subprocess.run so a cancelled export stops the
+    encoder within ~0.25s. Raises GenerationCancelled on cancel and
+    RuntimeError (with ffmpeg's stderr tail) on timeout or a non-zero exit.
+    stderr goes to a temp file, not a pipe, so a chatty ffmpeg can never
+    deadlock on a full pipe buffer while we poll.
+    """
+    import tempfile
+
+    with tempfile.TemporaryFile() as stderr_file:
+        process = subprocess.Popen(
+            command, stdout=subprocess.DEVNULL, stderr=stderr_file, stdin=subprocess.DEVNULL)
+        deadline = time.monotonic() + timeout_seconds
+        try:
+            while True:
+                try:
+                    returncode = process.wait(timeout=_MUX_POLL_SECONDS)
+                    break
+                except subprocess.TimeoutExpired:
+                    pass
+                if should_cancel is not None and should_cancel():
+                    raise GenerationCancelled(job_id or "timeline-export")
+                if time.monotonic() >= deadline:
+                    raise RuntimeError(
+                        f"FFmpeg audio mux did not finish within {int(timeout_seconds)}s and was stopped.")
+        finally:
+            if process.poll() is None:
+                process.kill()
+                try:
+                    process.wait(timeout=10)
+                except subprocess.TimeoutExpired:
+                    logger.warning("FFmpeg did not exit after kill")
+        if returncode != 0:
+            stderr_file.seek(0)
+            stderr = stderr_file.read()[-4000:].decode("utf-8", errors="replace").strip()
+            raise RuntimeError(stderr or "FFmpeg audio mux failed.")
+
+
 def mux_timeline_audio_file(
     video_path: str,
     output_path: str,
     audio_layers: List[TimelineExportAudioLayerRequest],
     export_duration_ms: int,
+    should_cancel: Optional[Callable[[], bool]] = None,
+    job_id: Optional[str] = None,
 ):
     ffmpeg_executable = imageio_ffmpeg.get_ffmpeg_exe()
     command = [ffmpeg_executable, "-y", "-i", normalize_local_path(video_path)]
@@ -1095,9 +1501,10 @@ def mux_timeline_audio_file(
     audio_labels: List[str] = []
 
     for index, layer in enumerate(audio_layers, start=1):
-        source_path = resolve_backend_media_path(layer.source_path)
+        # Already resolved inside the allowed media roots by the export route.
+        source_path = layer.source_path
         if not os.path.exists(source_path):
-            raise FileNotFoundError(f"Missing audio source: {source_path}")
+            raise FileNotFoundError(f"Missing audio source: {os.path.basename(source_path)}")
 
         command.extend(["-i", source_path])
         label = f"a{index - 1}"
@@ -1142,11 +1549,12 @@ def mux_timeline_audio_file(
         ]
     )
 
-    try:
-        subprocess.run(command, check=True, capture_output=True, text=True)
-    except subprocess.CalledProcessError as error:
-        stderr = (error.stderr or "").strip()
-        raise RuntimeError(stderr or "FFmpeg audio mux failed.") from error
+    run_ffmpeg_command(
+        command,
+        timeout_seconds=mux_timeout_seconds(export_duration_ms),
+        should_cancel=should_cancel,
+        job_id=job_id,
+    )
 
     return normalize_local_path(output_path)
 
@@ -1218,6 +1626,8 @@ def process_timeline_export(job_id: str, export_request: TimelineExportRequest):
                 output_path=output_path,
                 audio_layers=export_request.audio_layers,
                 export_duration_ms=max(1, round((len(export_request.frames) / export_request.fps) * 1000)),
+                should_cancel=lambda: job_manager.is_cancelled(job_id),
+                job_id=job_id,
             )
             result["video"] = output_path
             result["output_path"] = output_path
@@ -1232,7 +1642,7 @@ def process_timeline_export(job_id: str, export_request: TimelineExportRequest):
             status=JobStatus.COMPLETED,
             progress=100.0,
             result=result,
-            completed_at=datetime.now(),
+            completed_at=utc_now(),
         ):
             _remove_export_files(*written_files())
     except GenerationCancelled:
@@ -1246,7 +1656,7 @@ def process_timeline_export(job_id: str, export_request: TimelineExportRequest):
             job_id,
             status=JobStatus.FAILED,
             error=str(e),
-            completed_at=datetime.now(),
+            completed_at=utc_now(),
         )
 
 
@@ -1271,14 +1681,15 @@ async def crop_image(request: Request, edit_request: ImageEditRequest):
     ### Errors
     - `404`: Source image not found
     """
-    if not os.path.exists(edit_request.source_path):
+    source_path = resolve_media_or_400(edit_request.source_path)
+    if not os.path.exists(source_path):
         raise HTTPException(status_code=404, detail="Source image not found")
 
-    output_path, relative_path = create_derived_output_path(edit_request.source_path, "crop")
+    output_path, relative_path = create_derived_output_path(source_path, "crop")
     # PIL decode/transform/encode is CPU-bound: run it off the event loop.
     result = await asyncio.to_thread(
         apply_crop_and_transform,
-        edit_request.source_path,
+        source_path,
         output_path,
         crop_box=model_to_dict(edit_request.crop_box) if edit_request.crop_box else None,
         rotation=edit_request.rotation,
@@ -1307,14 +1718,15 @@ async def extract_video_frame(request: Request, extract_request: VideoFrameExtra
     - `time_ms`: Resolved extraction time in milliseconds
     - `frame_index`: Resolved frame index
     """
-    if not os.path.exists(extract_request.source_path):
+    source_path = resolve_media_or_400(extract_request.source_path)
+    if not os.path.exists(source_path):
         raise HTTPException(status_code=404, detail="Source video not found")
 
-    output_path, relative_path = create_derived_output_path(extract_request.source_path, "frame")
+    output_path, relative_path = create_derived_output_path(source_path, "frame")
     # imageio seeks + decodes the video: run it off the event loop.
     result = await asyncio.to_thread(
         extract_video_frame_file,
-        extract_request.source_path,
+        source_path,
         output_path,
         time_ms=extract_request.time_ms,
     )
@@ -1343,6 +1755,11 @@ async def export_timeline(
         normalized_output_path = resolve_timeline_export_path(export_request.output_path)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc))
+    try:
+        # Up to 24k frames of path resolution (filesystem calls): off the loop.
+        export_request = await asyncio.to_thread(resolve_timeline_media_paths, export_request)
+    except MediaPathError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
     export_request = export_request.model_copy(update={"output_path": normalized_output_path})
     job_id = str(uuid.uuid4())
     output_dir = os.path.dirname(normalized_output_path) or OUTPUT_DIR
@@ -1427,6 +1844,12 @@ async def generate_image(
     }
     ```
     """
+    # B6: every guided source image must live inside the allowed media roots;
+    # the request carries the resolved paths from here on.
+    try:
+        gen_request = resolve_guided_media_paths(gen_request)
+    except MediaPathError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
     # #34 pre-flight: guided passes either resolve into a real pass or 422 -
     # a job is never created for a request that would silently drop layers.
     guided = _guided_payload(gen_request)
@@ -1538,9 +1961,16 @@ async def generate_image(
                     ip_dirs = [adapter_dir] * ip_stack.instances
                     ip_dirs.append(os.path.join(
                         MODELS_DIR, "ip-adapter", ip_stack.encoder_record_id))
-                refusal = guided_fit_refusal(
+                # Memory this process already holds (the resident pipeline,
+                # cached guided models) is reclaimable: crediting it stops a
+                # loaded checkpoint from being counted twice. The gate reads
+                # safetensors headers from disk - both run off the loop.
+                reclaimable = await asyncio.to_thread(process_reserved_vram_bytes)
+                refusal = await asyncio.to_thread(
+                    guided_fit_refusal,
                     base_plan, record.get("base_architecture"), profile,
-                    cn_model_dirs=cn_dirs, ip_model_dirs=ip_dirs)
+                    cn_model_dirs=cn_dirs, ip_model_dirs=ip_dirs,
+                    reclaimable_bytes=reclaimable)
                 if refusal:
                     raise HTTPException(status_code=422, detail=refusal)
 
@@ -1584,7 +2014,7 @@ async def process_image_generation(job_id: str, request: ImageGenerationRequest)
         # Try ComfyUI first, fallback to direct generation. Guided passes
         # (#34) run on the direct generator only - routing them to ComfyUI
         # would silently drop the layers, so they force the direct path.
-        if comfy_client and comfy_client.connected and _guided_payload(request) is None:
+        if _guided_payload(request) is None and await _comfy_ready():
             logger.info(f"[Job {job_id}] Using ComfyUI generator")
             try:
                 result = await generate_with_comfyui(job_id, request)
@@ -1606,7 +2036,7 @@ async def process_image_generation(job_id: str, request: ImageGenerationRequest)
             status=JobStatus.COMPLETED,
             progress=100.0,
             result=result,
-            completed_at=datetime.now()
+            completed_at=utc_now()
         )
 
     except GenerationCancelled:
@@ -1619,7 +2049,7 @@ async def process_image_generation(job_id: str, request: ImageGenerationRequest)
             job_id,
             status=JobStatus.FAILED,
             error=str(e),
-            completed_at=datetime.now()
+            completed_at=utc_now()
         )
     except Exception as e:
         logger.error(f"Image generation failed: {e}", exc_info=True)
@@ -1627,12 +2057,22 @@ async def process_image_generation(job_id: str, request: ImageGenerationRequest)
             job_id,
             status=JobStatus.FAILED,
             error=str(e),
-            completed_at=datetime.now()
+            completed_at=utc_now()
         )
     finally:
         # #33: free the stored preview frame on every terminal path.
         step_preview_service.discard(job_id)
         _remove_empty_job_dir(job_id)
+
+
+async def _comfy_ready() -> bool:
+    """True when ComfyUI can take a job, reconnecting on demand first."""
+    if comfy_client is None:
+        return False
+    ensure_connected = getattr(comfy_client, "ensure_connected", None)
+    if ensure_connected is None:  # minimal test doubles expose only `connected`
+        return bool(getattr(comfy_client, "connected", False))
+    return bool(await ensure_connected())
 
 
 def _remove_empty_job_dir(job_id: str) -> None:
@@ -1694,7 +2134,8 @@ async def generate_with_comfyui(job_id: str, request: ImageGenerationRequest) ->
         extension = Path(output["filename"]).suffix or ".png"
         local_filename = f"image_{index:03d}{extension}"
         local_path = output_dir / local_filename
-        local_path.write_bytes(image_bytes)
+        # Multi-MB writes: off the event loop (B11).
+        await asyncio.to_thread(local_path.write_bytes, image_bytes)
         generated_images.append(f"/outputs/{job_id}/{local_filename}")
 
     return {
@@ -1707,6 +2148,19 @@ async def generate_with_comfyui(job_id: str, request: ImageGenerationRequest) ->
     }
 
 
+def _write_data_url_image(data_url: str, target_dir: Path) -> str:
+    """Decode an image data: URL to <target_dir>/input.png; returns the path."""
+    import base64
+    from io import BytesIO
+
+    _, _, encoded = data_url.partition(",")
+    target_dir.mkdir(parents=True, exist_ok=True)
+    target = target_dir / "input.png"
+    with Image.open(BytesIO(base64.b64decode(encoded))) as image:
+        image.save(target, "PNG")
+    return str(target).replace("\\", "/")
+
+
 async def generate_video_with_comfyui(job_id: str, request: VideoGenerationRequest) -> Dict:
     """Generate video using a connected ComfyUI server (flat request path)."""
     if not comfy_client:
@@ -1715,7 +2169,13 @@ async def generate_video_with_comfyui(job_id: str, request: VideoGenerationReque
     try:
         image_filename = ""
         if request.image_path:
-            image_filename = await comfy_client.upload_image(request.image_path)
+            upload_path = request.image_path
+            if upload_path.startswith("data:image/"):
+                # ComfyUI's upload takes a file: materialize the data URL in
+                # the job's own output folder (off the loop) first.
+                upload_path = await asyncio.to_thread(
+                    _write_data_url_image, upload_path, Path(OUTPUT_DIR) / job_id)
+            image_filename = await comfy_client.upload_image(upload_path)
     except Exception as exc:  # noqa: BLE001 - classified for the direct fallback
         raise ComfyQueueError(str(exc) or type(exc).__name__) from exc
 
@@ -1755,10 +2215,16 @@ async def generate_video_with_comfyui(job_id: str, request: VideoGenerationReque
         )
         extension = Path(output["filename"]).suffix or ".webp"
         local_name = f"video_{index:03d}{extension}"
-        (output_dir / local_name).write_bytes(data)
+        # Video files are tens of MB: write off the event loop (B11).
+        await asyncio.to_thread((output_dir / local_name).write_bytes, data)
         saved.append(f"/outputs/{job_id}/{local_name}")
 
     return {"videos": saved, "seed": resolved_seed, "prompt": request.prompt, "model": request.model}
+
+
+def _acceleration_settings_for(requested: Optional[AccelerationSettingsRequest]):
+    """The typed request toggles as engine settings (None = all defaults)."""
+    return requested.to_settings() if requested is not None else DEFAULT_ACCELERATION_SETTINGS
 
 
 async def generate_direct(job_id: str, request: ImageGenerationRequest) -> Dict:
@@ -1769,8 +2235,7 @@ async def generate_direct(job_id: str, request: ImageGenerationRequest) -> Dict:
             "the diffusers library (pip install diffusers torch) for direct generation."
         )
     logger.info(f"[Job {job_id}] Starting direct generation with model={request.model}")
-    from foundry.accelerator import accel_settings_from_dict
-    accel_settings = accel_settings_from_dict(request.acceleration_settings)
+    accel_settings = _acceleration_settings_for(request.acceleration_settings)
     result = await direct_generator.generate_image(
         job_id=job_id,
         prompt=request.prompt,
@@ -1842,6 +2307,11 @@ async def generate_video(
     }
     ```
     """
+    try:
+        video_request = video_request.model_copy(
+            update={"image_path": resolve_video_input_image(video_request.image_path)})
+    except MediaPathError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
     job_id = str(uuid.uuid4())
 
     job = GenerationJob(
@@ -1870,8 +2340,7 @@ async def generate_video(
 
 async def generate_video_direct(job_id: str, request: VideoGenerationRequest) -> Dict:
     """Generate video using the direct diffusers video pipelines."""
-    from foundry.accelerator import accel_settings_from_dict
-    accel_settings = accel_settings_from_dict(request.acceleration_settings)
+    accel_settings = _acceleration_settings_for(request.acceleration_settings)
     return await direct_video_generator.generate_video(
         job_id=job_id,
         prompt=request.prompt,
@@ -1899,7 +2368,8 @@ async def process_video_generation(job_id: str, request: VideoGenerationRequest)
             logger.info(f"[Job {job_id}] Cancelled before it started")
             return
 
-        comfy_connected = bool(comfy_client and comfy_client.connected)
+        comfy_connected = (await _comfy_ready() if request.image_path
+                           else bool(comfy_client and comfy_client.connected))
         # ComfyUI only has the fixed SVD image-to-video workflow
         # (build_video_workflow); a text-to-video job sent there would get an
         # empty input image and fail, so it stays on the built-in engine.
@@ -1933,7 +2403,7 @@ async def process_video_generation(job_id: str, request: VideoGenerationRequest)
             status=JobStatus.COMPLETED,
             progress=100.0,
             result=result,
-            completed_at=datetime.now()
+            completed_at=utc_now()
         )
 
     except GenerationCancelled:
@@ -1945,7 +2415,7 @@ async def process_video_generation(job_id: str, request: VideoGenerationRequest)
             job_id,
             status=JobStatus.FAILED,
             error=str(e),
-            completed_at=datetime.now()
+            completed_at=utc_now()
         )
     except Exception as e:
         logger.error(f"Video generation failed: {e}", exc_info=True)
@@ -1953,7 +2423,7 @@ async def process_video_generation(job_id: str, request: VideoGenerationRequest)
             job_id,
             status=JobStatus.FAILED,
             error=str(e),
-            completed_at=datetime.now()
+            completed_at=utc_now()
         )
     finally:
         _remove_empty_job_dir(job_id)
@@ -2133,17 +2603,27 @@ async def provision_status_endpoint(request: Request):
 
 @app.post("/api/models/provision/start", response_model=ProvisionStatusSchema, status_code=202, tags=["Models"])
 @limiter.limit("30/minute")
-async def provision_start_endpoint(request: Request):
-    """One-click provision of the comprehensive auto-set (202 Accepted).
+async def provision_start_endpoint(request: Request, body: Optional[ProvisionStartRequest] = None):
+    """One-click provision of the auto-set, or a subset of it (202 Accepted).
 
-    Missing models enqueue/resume through the existing download_manager;
-    pickle-format curated members are granted consent with recorded provenance
-    (spec 5.3; informed auto-consent, 2026-07-07). The optional X-HF-Token
-    header (Electron safeStorage) is forwarded for the gated SD3.5 pipelines,
-    never persisted and never logged.
+    Optional JSON body `{"model_ids": [...]}`: provision only those manifest
+    entries (each must be in the manifest's auto-set, else 400). Omitted or
+    empty provisions everything. Missing models enqueue/resume through the
+    existing download_manager; pickle-format curated members are granted
+    consent with recorded provenance (spec 5.3; informed auto-consent,
+    2026-07-07). The optional X-HF-Token header (Electron safeStorage) is
+    forwarded for the gated SD3.5 pipelines, never persisted and never logged.
     """
-    hf_token = request.headers.get("X-HF-Token")
-    return provision_orchestrator.start(hf_token=hf_token)
+    try:
+        return await provision_orchestrator.start(
+            hf_token=request.headers.get("X-HF-Token"),
+            model_ids=body.model_ids if body else None)
+    except UnknownProvisionModelsError as exc:
+        raise HTTPException(status_code=400, detail={
+            "error_code": "unknown-provision-models",
+            "message": str(exc),
+            "unknown": exc.unknown,
+        })
 
 
 @app.post("/api/models/provision/{action}", response_model=ProvisionStatusSchema, tags=["Models"])
@@ -2159,9 +2639,11 @@ async def provision_control_endpoint(request: Request, action: str):
     if action not in {"pause", "resume", "cancel", "reverify"}:
         raise HTTPException(status_code=404, detail=f"Unknown action '{action}'")
     if action == "resume":
-        return provision_orchestrator.start(hf_token=request.headers.get("X-HF-Token"))
+        return await provision_orchestrator.start(hf_token=request.headers.get("X-HF-Token"))
     if action == "reverify":
-        return provision_orchestrator.start(
+        # B1: hashing many GB runs as a background task off the event loop;
+        # this returns at once and status().reverify reports its progress.
+        return await provision_orchestrator.start(
             hf_token=request.headers.get("X-HF-Token"), reverify=True)
     return getattr(provision_orchestrator, action)()
 
@@ -2231,6 +2713,9 @@ async def set_consent(request: Request, body: ConsentRequestSchema):
     return ConsentStateSchema(model_id=body.model_id, **state)
 
 
+_hub_search_cache = hub_search.HubSearchCache()
+
+
 @app.get("/api/models/search", response_model=SearchResponseSchema, tags=["Models"])
 @limiter.limit("30/minute")
 async def search_models(
@@ -2271,6 +2756,10 @@ async def search_models(
                     # Full-signal verification of Compatible candidates
                     # (review H-1) rides the same per-request token.
                     fetch_signals=lambda rid: fetch_repo_signals(rid, token=hf_token),
+                    # P6: TTL cache of listings + signals, namespaced by a
+                    # hash of the token (the token itself is never stored).
+                    cache=_hub_search_cache,
+                    cache_scope=hub_search.token_scope(hf_token),
                 ),
             )
         else:
@@ -2351,15 +2840,39 @@ async def enqueue_download(request: Request, model_id: str):
     # Every security gate runs for the WHOLE group BEFORE anything enqueues,
     # so a blocked companion refuses the install up front naming itself.
     companions = _companion_closure(record)
+    # U3: a model that needs repo-authored code can never load (the runtime
+    # resolver refuses every such record and no consent unlocks it), so its
+    # bytes are refused up front - for the model and every companion.
+    _raise_if_remote_code(record)
+    for companion in companions:
+        _raise_if_remote_code(companion, companion_of=model_id)
     _raise_unless_consented(record)
     for companion in companions:
         _raise_unless_consented(companion, companion_of=model_id)
-    job = download_manager.enqueue(
-        model_id, token=_acquisition_token(request, record))
-    for companion in companions:
-        download_manager.enqueue(
-            companion["id"], token=_acquisition_token(request, companion))
+    try:
+        job = download_manager.enqueue(
+            model_id, token=_acquisition_token(request, record))
+        for companion in companions:
+            download_manager.enqueue(
+                companion["id"], token=_acquisition_token(request, companion))
+    except RemoteCodeUnsupportedError as exc:
+        # Defense in depth: the manager refuses too (its message has no token).
+        raise HTTPException(status_code=422, detail={
+            "error_code": RemoteCodeUnsupportedError.error_code, "message": str(exc)})
     return _job_to_dict(job)
+
+
+def _raise_if_remote_code(record: Dict[str, Any], companion_of: Optional[str] = None) -> None:
+    """422 for any record that needs trust_remote_code (U3)."""
+    if not record.get("trust_remote_code"):
+        return
+    prefix = f"Its companion '{record['id']}'" if companion_of else "This model"
+    raise HTTPException(status_code=422, detail={
+        "error_code": RemoteCodeUnsupportedError.error_code,
+        "message": (
+            f"{prefix} requires running code authored by the repo. Vision Studio never "
+            "executes repo code, so it can't be downloaded or run."),
+    })
 
 
 def _companion_closure(record: Dict[str, Any]) -> List[Dict[str, Any]]:
@@ -2386,8 +2899,9 @@ def _companion_closure(record: Dict[str, Any]) -> List[Dict[str, Any]]:
 
 
 def _raise_unless_consented(record: Dict[str, Any], companion_of: Optional[str] = None) -> None:
-    """Spec 5.3 security rail: pickle weights and trust_remote_code are
-    deny-by-default - downloads are blocked until per-model consent exists.
+    """Spec 5.3 security rail: pickle weights are deny-by-default - downloads
+    are blocked until per-model consent exists. (trust_remote_code is not a
+    consent question any more: such records are refused outright, U3.)
     """
     prefix = (
         f"Its companion '{record['id']}'" if companion_of else "This model"
@@ -2399,14 +2913,6 @@ def _raise_unless_consented(record: Dict[str, Any], companion_of: Optional[str] 
             detail={
                 "error_code": "pickle-consent-required",
                 "message": f"{prefix} ships pickle weights. Explicit consent is required (Settings > Model Trust).",
-            },
-        )
-    if record.get("trust_remote_code") and not consent["trust_remote_code"]:
-        raise HTTPException(
-            status_code=409,
-            detail={
-                "error_code": "remote-code-consent-required",
-                "message": f"{prefix} requires running code authored by the repo. Explicit per-model consent is required.",
             },
         )
 
@@ -2491,7 +2997,9 @@ async def resolve_runtime(request: Request, model_id: str):
         raise HTTPException(status_code=404, detail=f"Model '{model_id}' not found")
     loop = asyncio.get_running_loop()
     profile = await loop.run_in_executor(None, probe_hardware, MODELS_DIR)
-    plan = resolve_model_runtime(record, profile, consent_store.get(model_id))
+    # The plan reads safetensors headers from disk (B11): off the loop too.
+    plan = await asyncio.to_thread(
+        resolve_model_runtime, record, profile, consent_store.get(model_id))
     data = asdict(plan)
     if plan.vram_plan is not None:
         data["vram_plan"] = asdict(plan.vram_plan)
@@ -2559,10 +3067,12 @@ async def delete_model(request: Request, model_id: str):
         )
     # A cached pipeline still holds the weights (and, on Windows, open file
     # handles that block the delete): evict it before the files go.
+    # Unloading frees GPU memory (gc + empty_cache) and may wait for an
+    # in-flight run to release the GPU gate: off the event loop (B11).
     for generator in (direct_generator, direct_video_generator):
         if generator is not None:
             try:
-                generator.unload_model(model_id)
+                await asyncio.to_thread(generator.unload_model, model_id)
             except Exception as exc:  # noqa: BLE001 - eviction is best-effort
                 logger.warning("Could not evict cached pipeline for %s: %s", model_id, exc)
     deleted = await model_manager.delete_model(model_id)
@@ -2592,13 +3102,6 @@ class ConnectionManager:
         # Idempotent: every exit path of the endpoint calls this.
         if websocket in self.active_connections:
             self.active_connections.remove(websocket)
-    
-    async def broadcast(self, message: dict):
-        for connection in list(self.active_connections):
-            try:
-                await connection.send_json(message)
-            except Exception:  # noqa: BLE001 - a dead socket is cleaned up by its endpoint
-                pass
 
 
 manager = ConnectionManager()
@@ -2614,9 +3117,11 @@ async def websocket_endpoint(websocket: WebSocket):
 
     ### Connection
     ```
-    ws://localhost:8000/ws?token=<backend auth token>
+    ws://127.0.0.1:8000/ws
+    x-vision-studio-token: <backend auth token>   (request header)
     ```
-    Without the token the server closes the socket with code 1008.
+    Without a matching token header the server closes the socket with code
+    1008. A `?token=` query parameter is not accepted.
 
     ### Client Messages
     Send JSON objects with the following structure:
@@ -2651,9 +3156,11 @@ async def websocket_endpoint(websocket: WebSocket):
     - `status`: Current job status (pending, processing, completed, failed, cancelled)
     - `progress`: Completion percentage (0.0 - 100.0)
 
-    ### Example (JavaScript)
+    ### Example (Node, `ws` package - browsers cannot set WebSocket headers)
     ```javascript
-    const ws = new WebSocket(`ws://localhost:8000/ws?token=${token}`);
+    const ws = new WebSocket('ws://127.0.0.1:8000/ws', {
+      headers: { 'x-vision-studio-token': token },
+    });
     ws.onmessage = (event) => {
       const update = JSON.parse(event.data);
       console.log(`Job ${update.job_id}: ${update.progress}%`);
@@ -2664,7 +3171,10 @@ async def websocket_endpoint(websocket: WebSocket):
     The server automatically removes disconnected clients. Reconnect with exponential backoff
     if the connection is lost.
     """
-    if BACKEND_AUTH_TOKEN and websocket.query_params.get("token") != BACKEND_AUTH_TOKEN:
+    # K2: the token rides the x-vision-studio-token request header only. A
+    # ?token= query parameter is no longer accepted: query strings end up in
+    # access logs, proxies and crash reports.
+    if BACKEND_AUTH_TOKEN and not token_matches(websocket.headers.get(BACKEND_AUTH_HEADER)):
         await websocket.close(code=1008)
         return
 

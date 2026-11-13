@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isImageCapability, type ModelInfo, type ModelRecord } from './model';
+import type { ModelInfo, ModelRecord } from './model';
 
 const sample: ModelRecord = {
   id: 'flux-dev',
@@ -24,13 +24,6 @@ const sample: ModelRecord = {
 };
 
 describe('ModelRecord', () => {
-  it('isImageCapability is true for image and inpaint/edit, false for video', () => {
-    expect(isImageCapability(sample)).toBe(true);
-    expect(isImageCapability({ ...sample, capability: 'inpaint' })).toBe(true);
-    expect(isImageCapability({ ...sample, capability: 'edit' })).toBe(true);
-    expect(isImageCapability({ ...sample, capability: 'video' })).toBe(false);
-  });
-
   it('a ModelRecord is assignable where the legacy ModelInfo is expected', () => {
     // Compile-time guarantee that existing ModelInfo consumers keep working.
     const asInfo: ModelInfo = sample;

@@ -99,7 +99,6 @@ export const pipelineInitialState = {
   pipelines: builtInPresets(),
   activePipelineId: null as string | null,
   pipelineExecutions: [] as PipelineExecution[],
-  isPipelineBuilderOpen: false,
 };
 
 // ---------------------------------------------------------------------------
@@ -234,6 +233,5 @@ export function createPipelineActions(set: AppSet) {
       })),
 
     setActivePipelineId: (id: string | null) => set({ activePipelineId: id }),
-    setPipelineBuilderOpen: (open: boolean) => set({ isPipelineBuilderOpen: open }),
   };
 }

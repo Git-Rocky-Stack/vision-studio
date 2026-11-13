@@ -92,7 +92,11 @@ class TensorrtDecisionTests(unittest.TestCase):
         self.assertTrue(accel.tensorrt)
 
     def test_trt_forces_compile_off(self):
-        accel = resolve_acceleration(_FakePlan("StableDiffusionXLPipeline"), _gpu(), AccelerationSettings())
+        # A working compile toolchain, so it is TensorRT (not a missing
+        # triton) that switches compile off.
+        accel = resolve_acceleration(
+            _FakePlan("StableDiffusionXLPipeline"), _gpu(), AccelerationSettings(),
+            compile_env=accelerator.CompileEnvironment(True))
         self.assertTrue(accel.tensorrt)
         self.assertFalse(accel.compile)
         self.assertTrue(any("tensorrt" in n.lower() and "compile" in n.lower() for n in accel.notes))

@@ -11,7 +11,8 @@ import type { Input, Menu as MenuType, MenuItemConstructorOptions } from 'electr
  * genuinely needs: the standard Edit roles (text fields rely on them for
  * undo / copy / paste, on macOS they do not work without the menu), the macOS
  * app menu (about / hide / quit) and the window roles. There is no View menu,
- * so reload, forceReload, toggleDevTools, fullscreen and zoom are gone.
+ * so reload, forceReload, toggleDevTools, fullscreen and zoom are gone, and
+ * Window > Close carries no Ctrl+W accelerator.
  * Development keeps Electron's default menu.
  */
 
@@ -53,11 +54,24 @@ export function buildPackagedMenuTemplate({
         ],
   };
 
+  // No { role: 'close' } off macOS: it binds Ctrl+W, which closed the only
+  // window - quitting the app and killing running generation jobs - on a
+  // keystroke users press expecting to close a tab. This Close item has no
+  // accelerator, and the window's 'close' handler still asks for confirmation
+  // while jobs are running (mainWindow.ts).
   const windowMenu: MenuItemConstructorOptions = {
     label: 'Window',
     submenu: isMac
       ? [{ role: 'minimize' }, { role: 'zoom' }, { type: 'separator' }, { role: 'front' }]
-      : [{ role: 'minimize' }, { role: 'close' }],
+      : [
+          { role: 'minimize' },
+          {
+            label: 'Close',
+            click: (_item, focusedWindow) => {
+              focusedWindow?.close();
+            },
+          },
+        ],
   };
 
   if (!isMac) {

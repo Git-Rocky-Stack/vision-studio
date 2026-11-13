@@ -1,5 +1,6 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { appJobWatcher } from '@/features/jobs/appJobWatcher';
 
 import { useAppStore } from '@/store/appStore';
 
@@ -63,7 +64,10 @@ describe('QuickGeneratePanel', () => {
     } as unknown as typeof window.electron;
   });
 
-  afterEach(cleanup);
+  afterEach(() => {
+    cleanup();
+    appJobWatcher.reset();
+  });
 
   it('renders as a Carbon Pro inspector without legacy red primary chrome', () => {
     const { container } = render(<QuickGeneratePanel />);
@@ -210,6 +214,44 @@ describe('QuickGeneratePanel', () => {
       expect(getStatus).toHaveBeenCalledTimes(3);
       expect(window.electron.notifications.notify).toHaveBeenCalledTimes(1);
       expect(window.electron.notifications.notify).toHaveBeenCalledWith('generation_complete', expect.anything());
+    });
+  });
+
+  describe('long runs (#J1)', () => {
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('follows a run past the old 5-minute stop, and can cancel it', async () => {
+      vi.useFakeTimers();
+      useAppStore.setState({
+        systemInfo: { ...useAppStore.getState().systemInfo, backendConnected: true },
+      });
+      let progress = 0;
+      const getStatus = vi.fn(async () => ({ job_id: 'job-quick-1', status: 'processing', progress: (progress += 0.1) }));
+      window.electron.generation.getStatus = getStatus as unknown as typeof window.electron.generation.getStatus;
+      render(<QuickGeneratePanel />);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      fireEvent.change(screen.getByLabelText('Prompt'), { target: { value: 'a long render' } });
+      fireEvent.click(screen.getByRole('button', { name: /Generate/i }));
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(10 * 60 * 1000);
+      });
+
+      const callsAtTenMinutes = getStatus.mock.calls.length;
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(5000);
+      });
+      expect(getStatus.mock.calls.length).toBeGreaterThan(callsAtTenMinutes);
+
+      fireEvent.click(screen.getByTestId('quick-cancel'));
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(10);
+      });
+      expect(window.electron.generation.cancel).toHaveBeenCalledWith('job-quick-1');
+      expect(useAppStore.getState().completedJobs[0]).toMatchObject({ id: 'job-quick-1', status: 'cancelled' });
     });
   });
 });

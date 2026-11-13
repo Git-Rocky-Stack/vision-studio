@@ -4,12 +4,8 @@ import { useAppStore } from '@/store/appStore';
 import type { AppState } from '@/store/appStore.types';
 import { toPreviewUrl, resolveStoredAssetPath } from '@/features/assets/assetRecords';
 import { toAccelerationRequestPayload } from '@/features/generation/accelerationRequest';
-import {
-  makePollErrorBudget,
-  recordPollError,
-  recordPollSuccess,
-} from '@/features/generation/pollErrorBudget';
-import { delay, resolveOutputRoot } from '@/features/workflow/runWorkflowExecution';
+import { resolveOutputRoot } from '@/features/workflow/runWorkflowExecution';
+import { watchJob } from '@/features/jobs/watchJob';
 import type { JobStatus } from '@/types/electron';
 import type { ImageGenerationRequestPayload } from '@/types/generation';
 import { computeDimensions } from '@/types/resolution';
@@ -26,6 +22,8 @@ export const BACKEND_DOWN_MESSAGE =
 export const POLL_LOST_MESSAGE =
   'Lost connection to the AI backend while polling for job status. Please retry.';
 const CANCELLED_MESSAGE = 'Studio generation was cancelled.';
+export const STALLED_MESSAGE =
+  'The job stopped reporting progress and was given up on. Please retry.';
 
 interface StudioGenerationElectronApi {
   app: { getPath: (name: 'userData') => Promise<string> };
@@ -177,122 +175,116 @@ async function pollStudioJob({
   pollRetryMs: number;
   signal?: AbortSignal;
 }): Promise<StudioGenerationResult> {
-  let budget = makePollErrorBudget(POLL_ERROR_CAP);
-
   // Stale-run guard: preview-slice writes stay scoped to the run the canvas
   // is tracking; job-slice bookkeeping always lands.
   const previewTracksThisRun = () => store.getState().previewJobId === jobId;
 
-  for (;;) {
-    if (signal?.aborted) {
-      await electron.generation.cancel(jobId).catch(() => undefined);
-      store.getState().updateJob(jobId, {
-        status: 'failed',
-        error: CANCELLED_MESSAGE,
-        completedAt: new Date(),
-      });
-      if (previewTracksThisRun()) {
-        store.getState().clearPreview();
+  // The shared job watch (#J1): push first, polling as the fallback, the
+  // status error budget, and a stall guard rather than a wall-clock limit.
+  const watch = await watchJob({
+    jobId,
+    getStatus: (id) => electron.generation.getStatus(id),
+    signal,
+    pollIntervalMs,
+    maxPollIntervalMs: pollIntervalMs,
+    retryIntervalMs: pollRetryMs,
+    errorCap: POLL_ERROR_CAP,
+    onUpdate: (update) => {
+      store.getState().updateJob(jobId, { status: update.status, progress: update.progress });
+      if (previewTracksThisRun() && steps > 0) {
+        store.getState().setPreviewStep(Math.min(steps, Math.round((update.progress / 100) * steps)));
       }
-      return { ok: false, jobId, error: CANCELLED_MESSAGE };
-    }
+    },
+  });
 
-    let status: JobStatus;
-    try {
-      status = await electron.generation.getStatus(jobId);
-      if (typeof status?.status !== 'string') {
-        throw new Error('Job status unavailable');
-      }
-      budget = recordPollSuccess(budget);
-    } catch {
-      const outcome = recordPollError(budget);
-      budget = outcome.budget;
-      if (outcome.exhausted) {
-        store.getState().updateJob(jobId, {
-          status: 'failed',
-          error: POLL_LOST_MESSAGE,
-          completedAt: new Date(),
-        });
-        if (previewTracksThisRun()) {
-          store.getState().clearPreview();
-        }
-        store.getState().setPreviewError(POLL_LOST_MESSAGE);
-        return { ok: false, jobId, error: POLL_LOST_MESSAGE };
-      }
-      await delay(pollRetryMs, signal).catch(() => undefined);
-      continue;
-    }
-
-    if (status.status === 'completed') {
-      const existingJob = store.getState().activeJobs.find((job) => job.id === jobId);
-      store.getState().updateJob(jobId, {
-        status: 'completed',
-        progress: status.progress ?? 100,
-        result: status.result,
-        error: status.error,
-        completedAt: status.completed_at ? new Date(status.completed_at) : new Date(),
-      });
-      store.getState().syncAssetsFromJobStatus({
-        ...status,
-        params: { ...(existingJob?.params ?? {}), output_root: outputRoot },
-      });
-
-      // Handoff BEFORE teardown so the canvas swaps from the last step frame
-      // straight to the finished image.
-      const outputPath = status.result?.images?.[0];
-      if (outputPath && previewTracksThisRun()) {
-        const asset = store
-          .getState()
-          .assetLibrary.find((entry) => entry.id === `${jobId}::${outputPath}`);
-        store.getState().setCurrentImage(
-          asset?.previewUrl ?? toPreviewUrl(outputPath),
-          asset?.path ?? resolveStoredAssetPath(outputPath, { output_root: outputRoot }),
-        );
-      }
-      if (previewTracksThisRun()) {
-        store.getState().clearPreview();
-      }
-
-      await electron.notifications
-        .notify('generation_complete', {
-          title: 'Image Ready',
-          body: prompt.slice(0, 120) || 'Generation completed successfully.',
-        })
-        .catch(() => undefined);
-      return { ok: true, jobId };
-    }
-
-    if (status.status === 'failed' || status.status === 'cancelled') {
-      store.getState().updateJob(jobId, {
-        status: status.status,
-        progress: status.progress ?? 0,
-        error: status.error,
-        completedAt: status.completed_at ? new Date(status.completed_at) : new Date(),
-      });
-      if (previewTracksThisRun()) {
-        store.getState().clearPreview();
-      }
-      if (status.status === 'failed') {
-        const message = status.error || 'Generation failed';
-        store.getState().setPreviewError(message);
-        await electron.notifications
-          .notify('generation_failed', { title: 'Image Failed', body: message })
-          .catch(() => undefined);
-        return { ok: false, jobId, error: message };
-      }
-      return { ok: false, jobId };
-    }
-
+  if (watch.kind === 'aborted') {
+    await electron.generation.cancel(jobId).catch(() => undefined);
     store.getState().updateJob(jobId, {
-      status: status.status === 'pending' ? 'pending' : 'processing',
-      progress: status.progress ?? 0,
+      status: 'failed',
+      error: CANCELLED_MESSAGE,
+      completedAt: new Date(),
     });
-    if (previewTracksThisRun() && typeof status.progress === 'number' && steps > 0) {
-      store.getState().setPreviewStep(
-        Math.min(steps, Math.round((status.progress / 100) * steps)),
+    if (previewTracksThisRun()) {
+      store.getState().clearPreview();
+    }
+    return { ok: false, jobId, error: CANCELLED_MESSAGE };
+  }
+
+  if (watch.kind === 'lost' || watch.kind === 'stalled') {
+    const message = watch.kind === 'lost' ? POLL_LOST_MESSAGE : STALLED_MESSAGE;
+    store.getState().updateJob(jobId, {
+      status: 'failed',
+      error: message,
+      completedAt: new Date(),
+    });
+    if (previewTracksThisRun()) {
+      store.getState().clearPreview();
+    }
+    store.getState().setPreviewError(message);
+    return { ok: false, jobId, error: message };
+  }
+
+  const status: JobStatus = watch.status;
+  if (status.status === 'completed') {
+    const existingJob = store.getState().activeJobs.find((job) => job.id === jobId);
+    store.getState().updateJob(jobId, {
+      status: 'completed',
+      progress: status.progress ?? 100,
+      result: status.result,
+      error: status.error,
+      completedAt: status.completed_at ? new Date(status.completed_at) : new Date(),
+    });
+    store.getState().syncAssetsFromJobStatus({
+      ...status,
+      params: { ...(existingJob?.params ?? {}), output_root: outputRoot },
+    });
+
+    // Handoff BEFORE teardown so the canvas swaps from the last step frame
+    // straight to the finished image.
+    const outputPath = status.result?.images?.[0];
+    if (outputPath && previewTracksThisRun()) {
+      const asset = store
+        .getState()
+        .assetLibrary.find((entry) => entry.id === `${jobId}::${outputPath}`);
+      store.getState().setCurrentImage(
+        asset?.previewUrl ?? toPreviewUrl(outputPath),
+        asset?.path ?? resolveStoredAssetPath(outputPath, { output_root: outputRoot }),
       );
     }
+    if (previewTracksThisRun()) {
+      store.getState().clearPreview();
+    }
 
-    await delay(pollIntervalMs, signal).catch(() => undefined);
+    await electron.notifications
+      .notify('generation_complete', {
+        title: 'Image Ready',
+        body: prompt.slice(0, 120) || 'Generation completed successfully.',
+      })
+      .catch(() => undefined);
+    return { ok: true, jobId };
   }
+
+  if (status.status === 'failed' || status.status === 'cancelled') {
+    store.getState().updateJob(jobId, {
+      status: status.status,
+      progress: status.progress ?? 0,
+      error: status.error,
+      completedAt: status.completed_at ? new Date(status.completed_at) : new Date(),
+    });
+    if (previewTracksThisRun()) {
+      store.getState().clearPreview();
+    }
+    if (status.status === 'failed') {
+      const message = status.error || 'Generation failed';
+      store.getState().setPreviewError(message);
+      await electron.notifications
+        .notify('generation_failed', { title: 'Image Failed', body: message })
+        .catch(() => undefined);
+      return { ok: false, jobId, error: message };
+    }
+    return { ok: false, jobId };
+  }
+
+  // The watch only resolves on a terminal status; every branch returned above.
+  return { ok: false, jobId };
 }

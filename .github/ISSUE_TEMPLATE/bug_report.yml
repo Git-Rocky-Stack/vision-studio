@@ -36,7 +36,7 @@ body:
     attributes:
       label: Vision Studio version
       description: Settings -> About, or the installer filename.
-      placeholder: 3.3.0
+      placeholder: 3.4.1
     validations:
       required: true
 

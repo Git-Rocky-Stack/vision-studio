@@ -247,6 +247,32 @@ describe('DockviewLayout', () => {
       expect(screen.getByTestId('right-dock')).toHaveClass('hidden');
     });
 
+    it('stays open when Escape belongs to a modal dialog over the workspace', async () => {
+      const user = userEvent.setup();
+      render(<DockviewLayout />);
+
+      await user.click(screen.getByRole('button', { name: 'Show review dock' }));
+      const modal = document.createElement('div');
+      modal.setAttribute('aria-modal', 'true');
+      document.body.appendChild(modal);
+      try {
+        await user.keyboard('{Escape}');
+      } finally {
+        modal.remove();
+      }
+
+      expect(screen.getByTestId('right-dock')).not.toHaveClass('hidden');
+    });
+
+    it('floats the review dock on the overlay elevation token', async () => {
+      const user = userEvent.setup();
+      render(<DockviewLayout />);
+      await user.click(screen.getByRole('button', { name: 'Show review dock' }));
+      const dock = screen.getByTestId('right-dock');
+      expect(dock).toHaveClass('absolute', 'shadow-overlay');
+      expect(dock.className).not.toContain('shadow-cinematic');
+    });
+
     it('offers no review dock control on a tab without one', () => {
       useAppStore.setState({ activeTab: 'settings' });
       render(<DockviewLayout />);

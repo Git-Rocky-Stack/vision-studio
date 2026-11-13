@@ -1,54 +1,65 @@
-import path from 'path';
+import {
+  canonicalizePath,
+  hasForbiddenPathSyntax,
+  isAbsoluteAnyPlatform,
+  isPathWithinRoots,
+  type ContainmentOptions,
+} from './pathSafety';
 
 function normalizePath(value: string) {
   return value.replace(/\\/g, '/').replace(/\/$/, '');
 }
 
-// Windows drive-absolute path (e.g. "D:/Outputs", "C:\\Users"). Electron runs on
-// Windows so user output paths are routinely drive-absolute, but unit tests and
-// CI execute on Linux where Node's POSIX `path.isAbsolute` reports these as
-// relative. Detect them explicitly so path handling is identical on every host.
-const WINDOWS_DRIVE_ABSOLUTE = /^[A-Za-z]:[\\/]/;
-
-function isAbsolutePath(value: string) {
-  return path.isAbsolute(value) || WINDOWS_DRIVE_ABSOLUTE.test(value);
-}
-
 // Join a base directory with a relative segment using forward slashes, without
-// routing through `path.join` (whose separator and `..` semantics differ by
-// host OS). Output paths are always normalized to forward slashes anyway.
+// routing through `path.join` (whose separator semantics differ by host OS).
+// Dot segments are resolved afterwards by canonicalizePath.
 function joinPath(baseDirectory: string, relativeSegment: string) {
-  return normalizePath(`${normalizePath(baseDirectory)}/${relativeSegment.replace(/^\/+/, '')}`);
+  return `${normalizePath(baseDirectory)}/${relativeSegment.replace(/\\/g, '/').replace(/^\/+/, '')}`;
 }
 
+/** Canonical form when the path is absolute and well-formed, else the slash-normalized input. */
+function canonicalOrNormalized(value: string) {
+  return canonicalizePath(value) ?? normalizePath(value);
+}
+
+/**
+ * Map an asset reference to a filesystem path: `/outputs/...` (a backend
+ * output URL path) and bare relative paths resolve under `outputDirectory`;
+ * absolute paths are kept. Dot segments are resolved, so the result can be
+ * checked for containment as-is.
+ */
 export function resolveAssetPath(assetPath: string, outputDirectory: string) {
   if (!assetPath) {
-    return normalizePath(outputDirectory);
+    return canonicalOrNormalized(outputDirectory);
   }
 
   if (assetPath.startsWith('/outputs/') || assetPath.startsWith('outputs/')) {
     const relativePath = assetPath.replace(/^\/?outputs\/+/, '');
-    return joinPath(outputDirectory, relativePath);
+    return canonicalOrNormalized(joinPath(outputDirectory, relativePath));
   }
 
-  if (isAbsolutePath(assetPath)) {
-    return normalizePath(assetPath);
+  if (isAbsoluteAnyPlatform(assetPath)) {
+    return canonicalOrNormalized(assetPath);
   }
 
-  const normalizedAssetPath = assetPath.replace(/^\/+/, '');
-  return joinPath(outputDirectory, normalizedAssetPath);
+  return canonicalOrNormalized(joinPath(outputDirectory, assetPath));
 }
 
-export function isPathInsideRoots(filePath: string, allowedRoots: string[]) {
-  const normalizedFilePath = normalizePath(filePath);
-
-  return allowedRoots.some((root) => {
-    const normalizedRoot = normalizePath(root);
-    return (
-      normalizedFilePath === normalizedRoot ||
-      normalizedFilePath.startsWith(`${normalizedRoot}/`)
-    );
-  });
+/**
+ * True when `filePath` lies inside one of `allowedRoots`: dot segments
+ * resolved, UNC / device / stream syntax refused, compared with path.relative
+ * semantics (case-insensitive on Windows) and again after realpath, so neither
+ * `<root>/../x`, `<root>-sibling/x` nor a symlink inside a root escapes.
+ */
+export function isPathInsideRoots(
+  filePath: string,
+  allowedRoots: string[],
+  options: ContainmentOptions = {},
+) {
+  if (hasForbiddenPathSyntax(filePath, options.platform)) {
+    return false;
+  }
+  return isPathWithinRoots(filePath, allowedRoots, options);
 }
 
 export function resolveAssetPathFromRoots(
@@ -63,7 +74,7 @@ export function resolveAssetPathFromRoots(
   }
 
   if (
-    isAbsolutePath(assetPath) &&
+    isAbsoluteAnyPlatform(assetPath) &&
     !assetPath.startsWith('/outputs/') &&
     !assetPath.startsWith('outputs/')
   ) {

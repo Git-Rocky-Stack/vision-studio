@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import logging
 import os
 import random
 from concurrent.futures import ThreadPoolExecutor
@@ -33,7 +34,8 @@ except ImportError:
 # Plan seam + typed refusal shared with the image generator so main.py maps
 # ONE error type to its job-failure envelope. Tests patch the seam where it
 # is used: ``utils.direct_video_generator.resolve_plan``.
-from utils.device import empty_device_cache, is_out_of_memory, resolve_device
+from utils.device import free_accelerator_memory, is_out_of_memory, resolve_device
+from utils.gpu_gate import gpu_work
 from utils.job_manager import GenerationCancelled
 from utils.direct_generator import (
     ModelLoadRefusedError,
@@ -51,6 +53,8 @@ from foundry.accelerator import (
     accelerate_pipeline,
     configure_inductor_cache,
 )
+
+logger = logging.getLogger(__name__)
 
 
 # Catalog ids of the shipped video records -> their family. Any other id
@@ -211,17 +215,31 @@ class DirectVideoGenerator:
         register_pipeline_owner("video", self.unload_all)
 
     def unload_model(self, model_name: str) -> None:
-        """Drop one cached pipeline and release the allocator cache."""
-        if model_name in self.pipelines:
+        """Drop one cached pipeline and free its VRAM (gc.collect, then the
+        allocator cache). Holds the GPU gate, so it never interleaves with a
+        running generation."""
+        with gpu_work(f"unload video model {model_name}"):
+            if model_name not in self.pipelines:
+                return
             del self.pipelines[model_name]
             self._loaded_acceleration.pop(model_name, None)
             self.applied_acceleration.pop(model_name, None)
-            empty_device_cache(torch)
+            free_accelerator_memory(torch)
+            logger.info("Unloaded video model: %s", model_name)
 
     def unload_all(self) -> None:
         """Drop every cached pipeline (no-op when none is resident)."""
-        for model_name in list(self.pipelines):
-            self.unload_model(model_name)
+        with gpu_work("unload video models"):
+            for model_name in list(self.pipelines):
+                self.unload_model(model_name)
+
+    def _evict_for_load(self) -> None:
+        """Unload this generator, release every other model cache, then
+        gc.collect + empty_cache - so the VRAM probe that follows measures the
+        memory the old pipelines actually gave back (mirrors DirectGenerator)."""
+        self.unload_all()
+        release_other_pipeline_caches("video")
+        free_accelerator_memory(torch)
 
     def load_model(self, model_name: str, overrides: Optional[Dict[str, Any]] = None,
                    acceleration_settings=None):
@@ -229,10 +247,19 @@ class DirectVideoGenerator:
         plan decides pipeline class, dtype, offload and tiling; refusals raise
         ModelLoadRefusedError; CUDA OOM consumes the plan's fallback ladder.
         svd records arrive as plans only via from_pretrained (the resolver
-        refuses svd single-file)."""
+        refuses svd single-file).
+
+        Order (B4): refusal check first (the resident pipeline survives a
+        refused load), then unload + release + gc.collect + empty_cache, then
+        a fresh plan measures the VRAM that is actually free. Runs under the
+        process-wide GPU gate (re-entrant from generation)."""
         if not VIDEO_DIFFUSERS_AVAILABLE:
             raise RuntimeError("diffusers video pipelines are not available")
+        with gpu_work(f"load video model {model_name}"):
+            return self._load_model_locked(model_name, overrides, acceleration_settings)
 
+    def _load_model_locked(self, model_name: str, overrides: Optional[Dict[str, Any]],
+                           acceleration_settings):
         requested_acceleration = acceleration_settings or DEFAULT_ACCELERATION_SETTINGS
         cached = self.pipelines.get(model_name)
         if cached is not None:
@@ -241,17 +268,22 @@ class DirectVideoGenerator:
             # Acceleration request changed since this model was cached; in-place
             # accel (compile/quantization/slicing) is irreversible, so evict and
             # rebuild to honor (and honestly report) the new settings.
-            print(f"Acceleration settings changed for {model_name}; reloading")
-            self.unload_model(model_name)
+            logger.info("Acceleration settings changed for %s; reloading", model_name)
+        # Drop the local reference so the eviction below can actually free it.
+        cached = None
 
+        # 1. Refusal first - hardware-free, leaves the resident pipeline alone.
         plan = resolve_plan(model_name, overrides)
         if plan.refusal:
             raise ModelLoadRefusedError(plan.refusal)
 
-        # One resident pipeline per generator, and none in the image
-        # generator: two multi-GB pipelines never share VRAM.
-        self.unload_all()
-        release_other_pipeline_caches("video")
+        # 2. One resident pipeline per generator, none in any other cache.
+        self._evict_for_load()
+
+        # 3. Measure + plan against the memory that is actually free now.
+        plan = resolve_plan(model_name, overrides)
+        if plan.refusal:
+            raise ModelLoadRefusedError(plan.refusal)
 
         ladder = list(plan.fallback_ladder)
         slicing_max = False
@@ -266,12 +298,12 @@ class DirectVideoGenerator:
                 if not is_out_of_memory(exc):
                     raise
                 if not ladder:
-                    print(f"OOM loading {model_name}: fallback ladder exhausted")
+                    logger.warning("OOM loading %s: fallback ladder exhausted", model_name)
                     raise
                 rung = ladder.pop(0)
-                print(f"OOM loading {model_name}: stepping fallback rung '{rung}'")
+                logger.warning("OOM loading %s: stepping fallback rung '%s'", model_name, rung)
                 slicing_max = apply_fallback_rung(plan, rung) or slicing_max
-                empty_device_cache(torch)
+                free_accelerator_memory(torch)
 
         applied = accelerate_pipeline(
             pipeline, plan, requested_acceleration, slicing_max=slicing_max)
@@ -517,7 +549,9 @@ class DirectVideoGenerator:
 
         result = await loop.run_in_executor(
             self.executor,
-            self._generate_sync,
+            self._generate_gated,
+            job_id,
+            should_cancel,
             prompt,
             image_path,
             width,
@@ -539,3 +573,15 @@ class DirectVideoGenerator:
             progress_callback(100.0)
 
         return result
+
+    def _generate_gated(self, job_id: str, should_cancel: Optional[Callable[[], bool]],
+                        *args: Any) -> Dict[str, object]:
+        """_generate_sync under the process-wide GPU gate (executor worker).
+
+        should_cancel is polled while this job is queued behind another GPU
+        job (a job cancelled in the queue never starts); once running, the
+        per-step callback inside _generate_sync takes over.
+        """
+        with gpu_work(f"video job {job_id}", should_cancel=should_cancel,
+                      on_cancel=lambda: GenerationCancelled(job_id)):
+            return self._generate_sync(*args)

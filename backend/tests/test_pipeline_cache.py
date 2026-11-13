@@ -32,7 +32,11 @@ class PipelineCacheTests(unittest.TestCase):
     def setUp(self):
         tmp = tempfile.mkdtemp()
         self.addCleanup(lambda: shutil.rmtree(tmp, ignore_errors=True))
-        self.addCleanup(pipeline_cache._owners.clear)
+        # Restore (not clear) the registry: module-level caches (guided, edit
+        # tools) register once at import and must survive this test.
+        snapshot = dict(pipeline_cache._owners)
+        self.addCleanup(lambda: (pipeline_cache._owners.clear(),
+                                 pipeline_cache._owners.update(snapshot)))
         self.cache_releases = []
         for target, name, value in (
             (dg, "DIFFUSERS_AVAILABLE", True),
@@ -41,8 +45,8 @@ class PipelineCacheTests(unittest.TestCase):
             (dvg, "resolve_plan", lambda *a, **k: _plan()),
             (dg, "accelerate_pipeline", lambda *a, **k: AppliedAcceleration()),
             (dvg, "accelerate_pipeline", lambda *a, **k: AppliedAcceleration()),
-            (dg, "empty_device_cache", lambda *_: self.cache_releases.append("image")),
-            (dvg, "empty_device_cache", lambda *_: self.cache_releases.append("video")),
+            (dg, "free_accelerator_memory", lambda *_: self.cache_releases.append("image")),
+            (dvg, "free_accelerator_memory", lambda *_: self.cache_releases.append("video")),
         ):
             patcher = mock.patch.object(target, name, value)
             patcher.start()

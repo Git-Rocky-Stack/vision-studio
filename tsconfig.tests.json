@@ -9,9 +9,8 @@
 
 
     /* Path alias - mirrors the Vitest `@` -> src resolver so tsc resolves it too */
-    "baseUrl": ".",
     "paths": {
-      "@/*": ["src/*"]
+      "@/*": ["./src/*"]
     },
 
     /* Bundler mode */

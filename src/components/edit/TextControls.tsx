@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useId } from 'react';
 import { cn } from '@/utils/cn';
 import { useAppStore } from '@/store/appStore';
 import { useShallow } from 'zustand/react/shallow';
@@ -62,6 +62,7 @@ export function TextControls() {
   const selectedLayer = editLayers.find((l) => l.id === selectedEditLayerId);
   const selectedTextLayer = selectedLayer && isTextLayer(selectedLayer) ? selectedLayer : null;
 
+  const fieldId = useId();
   // Draft style + content: seeds new layers, and mirrors the selected text
   // layer so every control below writes through to it (#32).
   const [style, setStyle] = useState<TextStyle>(TEXT_LAYER_DEFAULT_STYLE);
@@ -182,14 +183,16 @@ export function TextControls() {
 
       {/* Font Family */}
       <div className="space-y-1.5 relative" ref={fontDropdownRef}>
-        <label className="text-label text-text-body">Font Family</label>
+        <p id={`${fieldId}-font`} className="text-label text-text-body">Font Family</p>
         <button
+          type="button"
+          aria-labelledby={`${fieldId}-font ${fieldId}-font-value`}
           onClick={() => setShowFontDropdown(!showFontDropdown)}
           aria-expanded={showFontDropdown}
           aria-haspopup="listbox"
           className="w-full flex items-center justify-between px-3 py-2 rounded-md bg-elevated border border-border hover:border-border-hover transition text-left"
         >
-          <span className="text-sm text-text-primary" style={{ fontFamily: style.fontFamily }}>
+          <span id={`${fieldId}-font-value`} className="text-sm text-text-primary" style={{ fontFamily: style.fontFamily }}>
             {style.fontFamily}
           </span>
           <ChevronDown className={cn('w-3.5 h-3.5 text-text-muted transition-transform', showFontDropdown && 'rotate-180')} />
@@ -202,11 +205,12 @@ export function TextControls() {
               initial={{ opacity: 0, y: -4 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -4 }}
-              className="absolute z-50 left-0 right-0 top-full mt-1 bg-elevated border border-border rounded-xl shadow-cinematic overflow-hidden max-h-48 overflow-y-auto"
+              className="absolute z-50 left-0 right-0 top-full mt-1 bg-elevated border border-border rounded-xl shadow-overlay overflow-hidden max-h-48 overflow-y-auto"
             >
               {CANVAS_TEXT_FONTS.map((font) => (
                 <button
                   key={font}
+                  type="button"
                   role="option"
                   aria-selected={style.fontFamily === font}
                   onClick={() => {
@@ -232,9 +236,10 @@ export function TextControls() {
       {/* Font Size + Weight */}
       <div className="grid grid-cols-2 gap-2">
         <div>
-          <label className="text-label text-text-body mb-1 block">Size</label>
+          <label htmlFor={`${fieldId}-size`} className="text-label text-text-body mb-1 block">Size</label>
           <div className="flex items-center gap-1">
             <button
+              type="button"
               onClick={() => applyStyle({ fontSize: Math.max(12, style.fontSize - 2) })}
               aria-label="Decrease font size"
               className="p-2 rounded bg-elevated border border-border text-text-body hover:text-text-primary transition text-xs"
@@ -242,6 +247,7 @@ export function TextControls() {
               -
             </button>
             <input
+              id={`${fieldId}-size`}
               type="number"
               value={style.fontSize}
               aria-label="Font size"
@@ -251,6 +257,7 @@ export function TextControls() {
               className="w-full bg-elevated border border-border rounded-md px-2 py-2 data-mono text-text-primary text-center focus:border-accent-primary transition"
             />
             <button
+              type="button"
               onClick={() => applyStyle({ fontSize: Math.min(200, style.fontSize + 2) })}
               aria-label="Increase font size"
               className="p-2 rounded bg-elevated border border-border text-text-body hover:text-text-primary transition text-xs"
@@ -260,8 +267,9 @@ export function TextControls() {
           </div>
         </div>
         <div>
-          <label className="text-label text-text-body mb-1 block">Weight</label>
+          <label htmlFor={`${fieldId}-weight`} className="text-label text-text-body mb-1 block">Weight</label>
           <select
+            id={`${fieldId}-weight`}
             value={style.fontWeight}
             aria-label="Font weight"
             onChange={(e) => applyStyle({ fontWeight: Number(e.target.value) })}
@@ -279,6 +287,7 @@ export function TextControls() {
       {/* Style Toggles */}
       <div className="flex gap-2">
         <button
+          type="button"
           onClick={() => applyStyle({ italic: !style.italic })}
           aria-pressed={style.italic}
           className={cn(
@@ -292,6 +301,7 @@ export function TextControls() {
           Italic
         </button>
         <button
+          type="button"
           onClick={() => applyStyle({ underline: !style.underline })}
           aria-pressed={style.underline}
           className={cn(
@@ -307,8 +317,8 @@ export function TextControls() {
       </div>
 
       {/* Text Alignment */}
-      <div className="space-y-1.5">
-        <label className="text-label text-text-body">Alignment</label>
+      <div className="space-y-1.5" role="group" aria-labelledby={`${fieldId}-align`}>
+        <p id={`${fieldId}-align`} className="text-label text-text-body">Alignment</p>
         <div className="flex gap-2">
           {([
             { id: 'left', icon: AlignLeft },
@@ -317,6 +327,7 @@ export function TextControls() {
           ] as const).map(({ id, icon: Icon }) => (
             <button
               key={id}
+              type="button"
               onClick={() => applyStyle({ align: id })}
               aria-label={`Align ${id}`}
               aria-pressed={style.align === id}
@@ -335,8 +346,9 @@ export function TextControls() {
 
       {/* Text Color */}
       <div className="space-y-1.5">
-        <label className="text-label text-text-body">Color</label>
+        <p className="text-label text-text-body" aria-hidden="true">Color</p>
         <ColorPicker
+          label="Text colour"
           value={style.fill}
           onChange={handleColorChange}
           recentColors={recentColors}
@@ -359,8 +371,8 @@ export function TextControls() {
             <Slider label="Y Offset" value={style.shadowOffsetY} min={-20} max={20} onChange={(v) => applyStyle({ shadowOffsetY: v })} />
             <Slider label="Blur" value={style.shadowBlur} min={0} max={30} onChange={(v) => applyStyle({ shadowBlur: v })} />
             <div className="space-y-1">
-              <label className="text-label text-text-body">Shadow Color</label>
-              <ColorPicker value={style.shadowColor} onChange={(color) => applyStyle({ shadowColor: color })} recentColors={recentColors} />
+              <p className="text-label text-text-body" aria-hidden="true">Shadow Color</p>
+              <ColorPicker label="Shadow colour" value={style.shadowColor} onChange={(color) => applyStyle({ shadowColor: color })} recentColors={recentColors} />
             </div>
           </div>
         )}
@@ -380,8 +392,8 @@ export function TextControls() {
           <div className="space-y-3 pl-1">
             <Slider label="Width" value={style.strokeWidth} min={0} max={10} step={0.5} onChange={(v) => applyStyle({ strokeWidth: v })} />
             <div className="space-y-1">
-              <label className="text-label text-text-body">Stroke Color</label>
-              <ColorPicker value={style.strokeColor} onChange={(color) => applyStyle({ strokeColor: color })} recentColors={recentColors} />
+              <p className="text-label text-text-body" aria-hidden="true">Stroke Color</p>
+              <ColorPicker label="Stroke colour" value={style.strokeColor} onChange={(color) => applyStyle({ strokeColor: color })} recentColors={recentColors} />
             </div>
           </div>
         )}

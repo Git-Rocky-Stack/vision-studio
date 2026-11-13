@@ -158,7 +158,27 @@ export const PromptStudioPanel = memo(function PromptStudioPanel() {
   // directive. Guarded so the panel renders without the preload settings API.
   useEffect(() => {
     if (!window.electron?.settings) return;
-    void window.electron.settings.get().then((s) => setAiDirector(s.aiDirector ?? AI_DIRECTOR_DEFAULTS));
+    let cancelled = false;
+    window.electron.settings
+      .get()
+      .then((s) => {
+        if (!cancelled) setAiDirector(s.aiDirector ?? AI_DIRECTOR_DEFAULTS);
+      })
+      .catch((error: unknown) => {
+        if (cancelled) return;
+        // Keep the defaults, but say so: prompt assist would otherwise run
+        // without the user's AI Director sources and nobody would know why.
+        setAiDirector(AI_DIRECTOR_DEFAULTS);
+        setBanner({
+          tone: 'error',
+          message: `AI Director settings could not be loaded (${
+            error instanceof Error ? error.message : 'unknown error'
+          }). Prompt assist retries them on each request and uses the defaults meanwhile.`,
+        });
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const buildAugment = useCallback(
@@ -192,6 +212,10 @@ export const PromptStudioPanel = memo(function PromptStudioPanel() {
     },
     [applyPromptTemplate],
   );
+
+  const handleTemplatesChanged = useCallback((message: string) => {
+    setBanner({ tone: 'success', message });
+  }, []);
 
   const handleEnhance = useCallback(async () => {
     if (!draft.prompt.trim()) {
@@ -491,7 +515,12 @@ export const PromptStudioPanel = memo(function PromptStudioPanel() {
       </CollapsibleSection>
 
       <CollapsibleSection title="Templates" defaultOpen={false}>
-        <PromptTemplateLibrary onApply={handleApplyTemplate} />
+        <PromptTemplateLibrary
+          onApply={handleApplyTemplate}
+          currentPrompt={draft.prompt}
+          currentNegativePrompt={draft.negativePrompt}
+          onTemplatesChanged={handleTemplatesChanged}
+        />
       </CollapsibleSection>
     </div>
   );

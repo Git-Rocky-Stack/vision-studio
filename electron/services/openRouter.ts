@@ -8,6 +8,12 @@ import {
   retryHostedCall,
 } from './hostedHttp';
 import { sniffImageMime } from './imageMagic';
+import {
+  assertPublicHttpsUrl,
+  assertSafeRedirect,
+  publicOnlyLookup,
+  type ResolveHost,
+} from './remoteFetchGuard';
 
 type AxiosLike = Pick<typeof axios, 'get' | 'post'>;
 
@@ -91,6 +97,8 @@ export interface OpenRouterImageGenerationResult {
 
 type CreateOpenRouterServiceOptions = {
   axiosInstance?: AxiosLike;
+  /** DNS resolver for the hosted-image SSRF check (default dns.promises.lookup). */
+  resolveHost?: ResolveHost;
   baseUrl?: string;
   appReferer?: string;
   appTitle?: string;
@@ -450,8 +458,23 @@ function parseNegativePromptContent(
   };
 }
 
-function normalizeModelSummary(model: any): OpenRouterModelSummary | null {
-  if (typeof model?.id !== 'string' || typeof model?.name !== 'string') {
+/** One entry of OpenRouter's /models payload: untrusted, every field optional. */
+type RawOpenRouterModel = {
+  id?: unknown;
+  name?: unknown;
+  description?: unknown;
+  context_length?: unknown;
+  architecture?: { output_modalities?: unknown } | null;
+  supported_parameters?: unknown;
+  pricing?: { prompt?: unknown; completion?: unknown; image?: unknown } | null;
+};
+
+function normalizeModelSummary(input: unknown): OpenRouterModelSummary | null {
+  if (!input || typeof input !== 'object') {
+    return null;
+  }
+  const model = input as RawOpenRouterModel;
+  if (typeof model.id !== 'string' || typeof model.name !== 'string') {
     return null;
   }
 
@@ -562,6 +585,7 @@ export function createOpenRouterService({
   maxConcurrentPerKey = DEFAULT_MAX_CONCURRENT_PER_KEY,
   logger = console,
   now = Date.now,
+  resolveHost,
 }: CreateOpenRouterServiceOptions = {}) {
   type ModelCacheEntry = { fetchedAt: number; models: OpenRouterModelSummary[] };
   const imageModelCache = new Map<string, ModelCacheEntry>();
@@ -628,7 +652,7 @@ export function createOpenRouterService({
 
     const rawModels = Array.isArray(response.data?.data) ? response.data.data : [];
     return rawModels
-      .map((model: any): OpenRouterModelSummary | null => normalizeModelSummary(model))
+      .map((model: unknown): OpenRouterModelSummary | null => normalizeModelSummary(model))
       .filter((model: OpenRouterModelSummary | null): model is OpenRouterModelSummary =>
         Boolean(model),
       )
@@ -878,12 +902,18 @@ export function createOpenRouterService({
     signal?: AbortSignal,
   ): Promise<OpenRouterImageResult | null> {
     try {
+      // SSRF guard: https only, and never a loopback / private / link-local /
+      // CGNAT target - checked up front, again at connect time (lookup), and
+      // on every redirect hop (remoteFetchGuard.ts).
+      await assertPublicHttpsUrl(url, resolveHost);
       const response = await axiosInstance.get(url, {
         responseType: 'arraybuffer',
         timeout: IMAGE_DOWNLOAD_TIMEOUT_MS,
         maxContentLength: IMAGE_DOWNLOAD_MAX_BYTES,
         maxBodyLength: IMAGE_DOWNLOAD_MAX_BYTES,
         maxRedirects: 3,
+        lookup: publicOnlyLookup,
+        beforeRedirect: assertSafeRedirect,
         ...(signal ? { signal } : {}),
       });
       const buffer = Buffer.from(response.data as ArrayBuffer);

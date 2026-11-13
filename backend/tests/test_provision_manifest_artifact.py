@@ -42,7 +42,8 @@ def test_every_catalog_record_is_partitioned_with_no_silent_drops():
         v["id"] for v in catalog.values()
         if isinstance(v, dict) and "id" in v
     }
-    auto = {e["id"] for e in COMMITTED["auto_set"]}
+    # Manifest-only extras (the retrieval embedder) are not catalog models.
+    auto = {e["id"] for e in COMMITTED["auto_set"] if not e.get("manifest_only")}
     manual = {e["id"] for e in COMMITTED["manual_only"]}
     excluded = set(COMMITTED["excluded_non_commercial"])
     # Exactly one bucket per record; union covers the whole catalog.

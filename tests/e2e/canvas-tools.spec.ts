@@ -23,7 +23,19 @@ type StoreState = Record<string, unknown> & {
   editLayers: { type: string; data: Record<string, unknown> }[];
   editRetouchStrokes: { tool: string; offset: unknown }[];
   editPenDraft: number[] | null;
+  editCloneSource: { x: number; y: number } | null;
 };
+
+/**
+ * Image-space slack for a click: toScreen() yields fractional screen points,
+ * but pointer events land on whole CSS pixels, and at the 85% fit one screen
+ * pixel spans up to ~1.2 image pixels. Anything beyond this is a real miss.
+ */
+const CLICK_TOLERANCE = 1.5;
+
+function expectNear(actual: number, expected: number, label: string): void {
+  expect(Math.abs(actual - expected), `${label}: ${actual} vs ${expected}`).toBeLessThanOrEqual(CLICK_TOLERANCE);
+}
 
 function storeState(page: Page): Promise<StoreState> {
   return page.evaluate(() => {
@@ -34,6 +46,7 @@ function storeState(page: Page): Promise<StoreState> {
         editLayers: state.editLayers,
         editRetouchStrokes: state.editRetouchStrokes,
         editPenDraft: state.editPenDraft,
+        editCloneSource: state.editCloneSource,
       }),
     );
   });
@@ -162,13 +175,22 @@ test.describe('Canvas - retouch and vector tools', () => {
 
     // Source on the spot, paint at x=300: the spot is copied there.
     await click(page, SPOT.x, SPOT.y, ['Alt']);
-    await expect(page.getByTestId('clone-source-status')).toHaveText(`${SPOT.x}, ${SPOT.y}`);
+    await expect(page.getByTestId('clone-source-status')).toHaveText(/^\d+, \d+$/);
+    const source = (await storeState(page)).editCloneSource!;
+    expectNear(source.x, SPOT.x, 'source x');
+    expectNear(source.y, SPOT.y, 'source y');
+    await expect(page.getByTestId('clone-source-status')).toHaveText(
+      `${Math.round(source.x)}, ${Math.round(source.y)}`,
+    );
     await click(page, 300, 150);
     await page.waitForTimeout(300);
-    expect((await storeState(page)).editRetouchStrokes[0]).toMatchObject({
-      tool: 'clone',
-      offset: { x: SPOT.x - 300, y: 0 },
-    });
+    const stroke = (await storeState(page)).editRetouchStrokes[0] as {
+      tool: string;
+      offset: { x: number; y: number };
+    };
+    expect(stroke.tool).toBe('clone');
+    expectNear(stroke.offset.x, SPOT.x - 300, 'offset x');
+    expectNear(stroke.offset.y, 0, 'offset y');
     expect((await imagePixel(page, 300, 150))[0]).toBeLessThan(60);
   });
 

@@ -1,12 +1,22 @@
 import type { ActiveTab, ActiveSubMode, CenterView } from '@/types/navigation';
 
+/** A sub-mode the settings rail offers for a tab, with its segmented-control label. */
+export interface SubModeOption {
+  value: NonNullable<ActiveSubMode>;
+  label: string;
+}
+
+/**
+ * Per-tab workspace layout. This is the single source of truth for which
+ * docks a tab shows, which center views it offers and which sub-modes its
+ * settings rail lists (DockviewSettingsPanel renders `subModes` verbatim).
+ */
 export interface LayoutPreset {
   tabId: ActiveTab;
   hasLeftDock: boolean;
   hasRightDock: boolean;
   centerViews: CenterView[];
-  rightDockPanels: string[];
-  subModes: ActiveSubMode[];
+  subModes: SubModeOption[];
   leftDockMinWidth: number;
   rightDockMinWidth: number;
 }
@@ -17,8 +27,12 @@ const presets: Record<ActiveTab, LayoutPreset> = {
     hasLeftDock: true,
     hasRightDock: true,
     centerViews: ['canvas', 'viewer', 'workflow', 'launchpad'],
-    rightDockPanels: ['gallery', 'boards'],
-    subModes: ['generate', 'quick', 'batch', 'studio'],
+    subModes: [
+      { value: 'generate', label: 'Generate' },
+      { value: 'quick', label: 'Quick' },
+      { value: 'batch', label: 'Batch' },
+      { value: 'studio', label: 'Studio' },
+    ],
     leftDockMinWidth: 380,
     rightDockMinWidth: 280,
   },
@@ -27,7 +41,6 @@ const presets: Record<ActiveTab, LayoutPreset> = {
     hasLeftDock: true,
     hasRightDock: true,
     centerViews: ['canvas'],
-    rightDockPanels: ['layers', 'gallery'],
     subModes: [],
     leftDockMinWidth: 340,
     rightDockMinWidth: 280,
@@ -37,8 +50,10 @@ const presets: Record<ActiveTab, LayoutPreset> = {
     hasLeftDock: true,
     hasRightDock: true,
     centerViews: ['canvas'],
-    rightDockPanels: ['boards', 'gallery'],
-    subModes: ['storyboard', 'templates'],
+    subModes: [
+      { value: 'storyboard', label: 'Storyboard' },
+      { value: 'templates', label: 'Templates' },
+    ],
     leftDockMinWidth: 340,
     rightDockMinWidth: 280,
   },
@@ -47,8 +62,10 @@ const presets: Record<ActiveTab, LayoutPreset> = {
     hasLeftDock: true,
     hasRightDock: true,
     centerViews: ['workflow'],
-    rightDockPanels: ['gallery', 'boards'],
-    subModes: [],
+    subModes: [
+      { value: 'workflows', label: 'Workflows' },
+      { value: 'pipelines', label: 'Pipelines' },
+    ],
     leftDockMinWidth: 340,
     rightDockMinWidth: 280,
   },
@@ -57,7 +74,6 @@ const presets: Record<ActiveTab, LayoutPreset> = {
     hasLeftDock: false,
     hasRightDock: false,
     centerViews: ['canvas'],
-    rightDockPanels: [],
     subModes: [],
     leftDockMinWidth: 0,
     rightDockMinWidth: 0,
@@ -67,7 +83,6 @@ const presets: Record<ActiveTab, LayoutPreset> = {
     hasLeftDock: false,
     hasRightDock: false,
     centerViews: ['canvas'],
-    rightDockPanels: [],
     subModes: [],
     leftDockMinWidth: 0,
     rightDockMinWidth: 0,
@@ -77,7 +92,6 @@ const presets: Record<ActiveTab, LayoutPreset> = {
     hasLeftDock: false,
     hasRightDock: false,
     centerViews: ['canvas'],
-    rightDockPanels: [],
     subModes: [],
     leftDockMinWidth: 0,
     rightDockMinWidth: 0,
@@ -87,7 +101,6 @@ const presets: Record<ActiveTab, LayoutPreset> = {
     hasLeftDock: false,
     hasRightDock: false,
     centerViews: ['canvas'],
-    rightDockPanels: [],
     subModes: [],
     leftDockMinWidth: 0,
     rightDockMinWidth: 0,

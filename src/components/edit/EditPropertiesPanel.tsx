@@ -43,6 +43,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { isLikelyVideoPath } from '@/components/ui/MediaPreview';
+import { isWorkspaceShortcutBlocked } from '@/utils/modalGuard';
 
 type PropertiesTab = 'adjustments' | 'filters' | 'crop' | 'text' | 'ai' | 'control' | 'region';
 
@@ -244,6 +245,18 @@ export function EditPropertiesPanel() {
     }
   }, [activeTab, regionMode, setRegionMode]);
 
+  // Region mode belongs to this panel's Region / Control tabs. The panel only
+  // mounts on the Canvas tab, so leaving that tab unmounts it - and must turn
+  // region mode off, or the mask-tool letters (V/R/L/B/E/I) keep editing the
+  // region mask from the Story canvas and every other workspace.
+  useEffect(
+    () => () => {
+      const state = useAppStore.getState();
+      if (state.regionMode) state.setRegionMode(false);
+    },
+    [],
+  );
+
   // The Crop tool's controls live in the Crop tab: picking the tool (strip or
   // C key) opens it. Keyed on the tool alone so the tab can still be left.
   useEffect(() => {
@@ -262,6 +275,8 @@ export function EditPropertiesPanel() {
       }
     };
     const onKeyDown = (event: KeyboardEvent) => {
+      // Escape over an open dialog belongs to the dialog, not this popover.
+      if (isWorkspaceShortcutBlocked(event)) return;
       if (event.key === 'Escape') setShowHistory(false);
     };
     document.addEventListener('mousedown', onPointerDown);
@@ -547,7 +562,7 @@ export function EditPropertiesPanel() {
               <div
                 role="dialog"
                 aria-label="Edit history"
-                className="absolute right-0 top-full z-30 mt-1 w-64 rounded-overlay border border-border bg-elevated p-2 shadow-cinematic"
+                className="absolute right-0 top-full z-30 mt-1 w-64 rounded-overlay border border-border bg-elevated p-2 shadow-overlay"
               >
                 <p className="mono-label px-2 pb-2 text-text-muted">History</p>
                 {editHistory.length === 0 ? (
@@ -953,6 +968,11 @@ export function EditPropertiesPanel() {
                   {(regionError || regionTool.error) && (
                     <p role="alert" className="mt-2 px-4 type-caption text-status-error">
                       {regionError ?? regionTool.error}
+                    </p>
+                  )}
+                  {!regionError && !regionTool.error && regionTool.notice && (
+                    <p role="status" className="mt-2 px-4 type-caption text-status-warning">
+                      {regionTool.notice}
                     </p>
                   )}
                 </>

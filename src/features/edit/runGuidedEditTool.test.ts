@@ -117,6 +117,52 @@ describe('buildGuidedEditRequest', () => {
     expect(request.inpaint?.layer_id).toBe('edit-object-removal');
   });
 
+  it('masked passes carry the requested denoising strength, held to the backend range', () => {
+    const fill = (denoisingStrength: number) =>
+      buildGuidedEditRequest('generative-fill', {
+        source_path: 'C:/img.png', prompt: 'a red door', mask: MASK, denoisingStrength,
+      }, CONTEXT).denoising_strength;
+    expect(fill(0.6)).toBe(0.6);
+    expect(fill(0)).toBe(0.05);
+    expect(fill(4)).toBe(1);
+    expect(
+      buildGuidedEditRequest('object-removal', {
+        source_path: 'C:/img.png', mask: MASK, denoisingStrength: 0.42,
+      }, CONTEXT).denoising_strength,
+    ).toBe(0.42);
+  });
+
+  it('region style transfer is a masked inpaint at the style strength', () => {
+    const request = buildGuidedEditRequest('region-style-transfer', {
+      source_path: 'C:/img.png', prompt: 'watercolor', mask: MASK, styleStrength: 50,
+    }, CONTEXT);
+    expect(request.prompt).toBe('watercolor');
+    expect(request.denoising_strength).toBe(0.6);
+    expect(request.reference_images).toBeUndefined();
+    expect(request.inpaint).toMatchObject({
+      layer_id: 'edit-region-style-transfer',
+      image_path: 'C:/img.png',
+      mask: { type: 'brush' },
+    });
+  });
+
+  it('inverts the mask against the source size when invertMask is set', () => {
+    const rect: RegionMask = {
+      type: 'rectangle',
+      points: [{ x: 100, y: 100 }, { x: 200, y: 200 }],
+      bounds: { x: 100, y: 100, width: 100, height: 100 },
+      featherRadius: 2,
+      blendEdges: true,
+    };
+    const request = buildGuidedEditRequest('generative-fill', {
+      source_path: 'C:/img.png', prompt: 'sky', mask: rect, invertMask: true,
+    }, CONTEXT);
+    expect(request.inpaint?.mask.type).toBe('polygon');
+    expect(request.inpaint?.mask.bounds).toEqual({ x: 0, y: 0, width: 512, height: 512 });
+    expect(request.inpaint?.mask.points).toContainEqual({ x: 512, y: 512 });
+    expect(request.inpaint?.mask.points).toContainEqual({ x: 100, y: 100 });
+  });
+
   it('ai-expand grows the request dimensions and clamps pixels', () => {
     const request = buildGuidedEditRequest('ai-expand', {
       source_path: 'C:/img.png', directions: ['right'], pixels: 128,
@@ -148,6 +194,9 @@ describe('buildGuidedEditRequest', () => {
 describe('runGuidedEditTool', () => {
   beforeEach(() => {
     measureImage.mockClear();
+    // A clean store: an earlier run's landing (edit history, iteration nodes)
+    // would otherwise reference the same job id's output.
+    useAppStore.setState(useAppStore.getInitialState(), true);
     useAppStore.setState({
       systemInfo: { ...useAppStore.getState().systemInfo, backendConnected: true },
       activeJobs: [],
@@ -224,5 +273,127 @@ describe('runGuidedEditTool', () => {
       source_path: 'C:/img.png', prompt: 'a red door', mask: MASK,
     }, { electron, pollIntervalMs: 0, measureImage });
     expect(result).toEqual({ ok: false, error: message });
+  });
+
+  describe('Blend Edges paste-back', () => {
+    const blendInput = {
+      source_path: 'C:/img.png',
+      prompt: 'a red door',
+      mask: MASK,
+      invertMask: true,
+      blend: { featherRadius: 6 },
+    };
+
+    it('composites the generated frame over the original through the feathered mask', async () => {
+      const blendResult = vi.fn().mockResolvedValue({ ok: true, path: 'C:/edits/img-region.png' });
+      const result = await runGuidedEditTool('generative-fill', blendInput, {
+        electron: makeElectron(), pollIntervalMs: 0, measureImage, blendResult,
+      });
+
+      expect(result).toEqual({ ok: true, jobId: 'gen-1' });
+      expect(blendResult).toHaveBeenCalledWith({
+        originalSrc: 'preview://img.png',
+        generatedSrc: 'http://localhost:8000/outputs/gen-1/generated.png',
+        originalPath: 'C:/img.png',
+        mask: MASK,
+        invert: true,
+        featherRadius: 6,
+        width: 512,
+        height: 512,
+      });
+    });
+
+    it('never lands the raw frame before the blend outcome is known', async () => {
+      let duringBlend: { rawRecords: number; currentImage: string | null } | null = null;
+      const blendResult = vi.fn(async () => {
+        const state = useAppStore.getState();
+        duringBlend = {
+          rawRecords: state.assetLibrary.filter((asset) => asset.id.startsWith('gen-1::')).length,
+          currentImage: state.currentImage,
+        };
+        return { ok: true as const, path: 'C:/edits/img-region.png' };
+      });
+      await runGuidedEditTool('generative-fill', blendInput, {
+        electron: makeElectron(), pollIntervalMs: 0, measureImage, blendResult,
+      });
+      expect(duringBlend).toEqual({ rawRecords: 0, currentImage: 'preview://img.png' });
+    });
+
+    it('keeps the raw result and says why when the blend fails', async () => {
+      const blendResult = vi.fn().mockResolvedValue({ ok: false, error: 'pixels unreadable' });
+      const result = await runGuidedEditTool('generative-fill', blendInput, {
+        electron: makeElectron(), pollIntervalMs: 0, measureImage, blendResult,
+      });
+      expect(result).toEqual({
+        ok: true,
+        jobId: 'gen-1',
+        notice: 'Blend Edges was not applied (pixels unreadable), so the unblended result is shown.',
+      });
+    });
+
+    it('leaves one result: the composite replaces the raw frame in the library and on disk', async () => {
+      const remove = vi.fn().mockResolvedValue({ success: true });
+      // The real runner registers the composite and makes it the canvas image.
+      const blendResult = vi.fn(async () => {
+        useAppStore.getState().setCurrentImage('preview://img-region.png', 'C:/edits/img-region.png');
+        return { ok: true as const, path: 'C:/edits/img-region.png' };
+      });
+      const result = await runGuidedEditTool('generative-fill', blendInput, {
+        electron: makeElectron({ assets: { delete: remove } }), pollIntervalMs: 0, measureImage, blendResult,
+      });
+
+      expect(result).toEqual({ ok: true, jobId: 'gen-1' });
+      const state = useAppStore.getState();
+      expect(state.assetLibrary.some((asset) => asset.id.startsWith('gen-1::'))).toBe(false);
+      expect(state.currentImageAssetPath).toBe('C:/edits/img-region.png');
+      expect(remove).toHaveBeenCalledTimes(1);
+      expect(remove.mock.calls[0][0]).toMatch(/\/outputs\/gen-1\/generated\.png$/);
+      const job = [...state.activeJobs, ...state.completedJobs].find((entry) => entry.id === 'gen-1');
+      expect(job?.params).toMatchObject({
+        suppressAssetSync: true,
+        replacedByAssetPath: 'C:/edits/img-region.png',
+      });
+      // The Canvas iteration history shows the composite, not the raw frame.
+      expect(state.iterationNodes.get('gen-1')?.thumbnail).not.toContain('generated.png');
+      expect(state.iterationNodes.get('gen-1')?.thumbnail).toContain('img-region.png');
+    });
+
+    it('keeps the raw frame as the single result when the blend fails', async () => {
+      const remove = vi.fn();
+      const supersedeRaw = vi.fn();
+      const blendResult = vi.fn().mockResolvedValue({ ok: false, error: 'save failed' });
+      await runGuidedEditTool('generative-fill', blendInput, {
+        electron: makeElectron({ assets: { delete: remove } }), pollIntervalMs: 0, measureImage, blendResult, supersedeRaw,
+      });
+      expect(supersedeRaw).not.toHaveBeenCalled();
+      expect(remove).not.toHaveBeenCalled();
+      const state = useAppStore.getState();
+      const raw = state.assetLibrary.filter((asset) => asset.id.startsWith('gen-1::'));
+      expect(raw).toHaveLength(1);
+      // The fallback lands the raw output on the canvas, editable.
+      expect(state.currentImage).toBe(raw[0].previewUrl);
+      expect(state.currentImageAssetPath).toBe(raw[0].path);
+      expect(state.currentImageAssetPath).toContain('/outputs/gen-1/generated.png');
+    });
+
+    it('lands the raw frame when Blend Edges is set on a pass that has no mask region', async () => {
+      const blendResult = vi.fn();
+      const result = await runGuidedEditTool('style-transfer', {
+        source_path: 'C:/img.png', styleModifier: 'oil painting', blend: { featherRadius: 6 },
+      }, { electron: makeElectron(), pollIntervalMs: 0, measureImage, blendResult });
+      expect(result).toEqual({ ok: true, jobId: 'gen-1' });
+      expect(blendResult).not.toHaveBeenCalled();
+      expect(useAppStore.getState().assetLibrary.filter((asset) => asset.id.startsWith('gen-1::'))).toHaveLength(1);
+    });
+
+    it('uses the raw pipeline frame when Blend Edges is off', async () => {
+      const blendResult = vi.fn();
+      const { blend: _blend, ...withoutBlend } = blendInput;
+      const result = await runGuidedEditTool('generative-fill', withoutBlend, {
+        electron: makeElectron(), pollIntervalMs: 0, measureImage, blendResult,
+      });
+      expect(result.ok).toBe(true);
+      expect(blendResult).not.toHaveBeenCalled();
+    });
   });
 });

@@ -20,7 +20,6 @@ import {
 
 export const uiInitialState = {
   activeViewerItemId: null as string | null,
-  darkMode: true,
   layoutPreferences: createDefaultLayoutPreferences(),
   batchViewMode: 'grid' as const,
   batchSortBy: 'created' as const,
@@ -32,9 +31,7 @@ export const uiInitialState = {
   resolutionTier: 'ultra' as const,
   customWidth: 1024,
   customHeight: 1024,
-  generationMode: 'image' as const,
   startFrameImage: null as string | null,
-  endFrameImage: null as string | null,
 };
 
 export function createUIActions(set: AppSet, _get: AppGet) {
@@ -132,8 +129,6 @@ export function createUIActions(set: AppSet, _get: AppGet) {
     setResolutionTier: (tier: AppState['resolutionTier']) => set({ resolutionTier: tier }),
     setCustomWidth: (width: number) => set({ customWidth: Math.max(256, Math.min(2048, width)) }),
     setCustomHeight: (height: number) => set({ customHeight: Math.max(256, Math.min(2048, height)) }),
-    setGenerationMode: (mode: AppState['generationMode']) => set({ generationMode: mode }),
     setStartFrameImage: (image: string | null) => set({ startFrameImage: image }),
-    setEndFrameImage: (image: string | null) => set({ endFrameImage: image }),
   };
 }

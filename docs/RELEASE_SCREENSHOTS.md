@@ -74,6 +74,6 @@ Add them back when there is something in them worth a reader's attention.
 
 These are unrelated to
 `tests/e2e/visual/snapshots/`, which are pixel baselines compared by
-`npm run test:visual` and are authored on Windows CI. Those exist to fail a
-build on unintended visual change; these exist to show the product. Do not point
+`npm run test:visual`, recorded per platform (a Windows and a Linux set). Those
+exist to fail a build on unintended visual change; these exist to show the product. Do not point
 one at the other.

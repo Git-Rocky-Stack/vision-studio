@@ -14,8 +14,11 @@ if str(BACKEND_ROOT) not in sys.path:
     sys.path.insert(0, str(BACKEND_ROOT))
 
 from utils.device import (  # noqa: E402
+    cuda_unsupported_reason,
+    cuda_usable,
     empty_device_cache,
     is_out_of_memory,
+    process_reserved_vram_bytes,
     resolve_device,
 )
 
@@ -78,6 +81,105 @@ def _torch(cuda=False, mps=False, cuda_probe_error=None, mps_namespace=True,
     torch.backends = _Backends(_MpsBackendNS(mps) if mps_namespace else None)
     torch.mps = _MpsNS(recorder, clear_error=mps_clear_error)
     return torch, recorder
+
+
+# The arch list the cu132 wheels report: kernels for Turing (7.5) and newer,
+# plus PTX for the newest so later cards JIT-compile forward.
+CU132_ARCHES = ["sm_75", "sm_80", "sm_86", "sm_89", "sm_90", "sm_100", "sm_120", "compute_120"]
+
+
+def _cuda_torch(capability, arch_list=CU132_ARCHES, name="NVIDIA GeForce GTX 1080",
+                cuda_version="13.2", mps=False):
+    """A stub torch whose CUDA device has ``capability`` against ``arch_list``."""
+    torch, recorder = _torch(cuda=True, mps=mps)
+    torch.cuda.get_device_capability = lambda index=0: capability
+    torch.cuda.get_device_name = lambda index=0: name
+    torch.cuda.memory_reserved = lambda: 123
+    if arch_list is not None:
+        torch.cuda.get_arch_list = lambda: list(arch_list)
+
+    class _Version:
+        cuda = cuda_version
+
+    torch.version = _Version()
+    return torch, recorder
+
+
+class CudaCompatibilityTests(unittest.TestCase):
+    """A device torch can see is not a device this build can run on."""
+
+    def test_pascal_card_is_unsupported_by_cu132_and_says_why(self):
+        torch, _ = _cuda_torch((6, 1))
+        reason = cuda_unsupported_reason(torch)
+        self.assertIsNotNone(reason)
+        self.assertIn("NVIDIA GeForce GTX 1080", reason)
+        self.assertIn("compute capability 6.1", reason)
+        self.assertIn("CUDA 13.2", reason)
+        self.assertIn("7.5 or newer", reason)
+        self.assertIn("runs on the CPU", reason)
+        self.assertFalse(cuda_usable(torch))
+
+    def test_volta_is_below_the_turing_floor(self):
+        torch, _ = _cuda_torch((7, 0), name="Tesla V100")
+        self.assertFalse(cuda_usable(torch))
+
+    def test_turing_ampere_ada_and_blackwell_are_supported(self):
+        for capability in [(7, 5), (8, 6), (8, 9), (9, 0), (12, 0)]:
+            with self.subTest(capability=capability):
+                torch, _ = _cuda_torch(capability)
+                self.assertIsNone(cuda_unsupported_reason(torch))
+                self.assertTrue(cuda_usable(torch))
+
+    def test_a_card_newer_than_every_cubin_runs_on_the_ptx(self):
+        torch, _ = _cuda_torch((13, 0))
+        self.assertTrue(cuda_usable(torch))
+
+    def test_suffixed_arch_entries_parse(self):
+        torch, _ = _cuda_torch((7, 5), arch_list=["sm_90a", "sm_100a", "sm_120a"])
+        self.assertFalse(cuda_usable(torch))
+
+    def test_unreadable_arch_list_is_no_evidence_of_a_gap(self):
+        # Never turn CUDA off on a guess: a build that cannot say what it was
+        # compiled for keeps the is_available() answer.
+        for arch_list in (None, [], ["not-an-arch"]):
+            with self.subTest(arch_list=arch_list):
+                torch, _ = _cuda_torch((6, 1), arch_list=arch_list)
+                self.assertIsNone(cuda_unsupported_reason(torch))
+                self.assertTrue(cuda_usable(torch))
+
+    def test_unreadable_capability_is_no_evidence_of_a_gap(self):
+        torch, _ = _cuda_torch((6, 1))
+
+        def broken(index=0):
+            raise RuntimeError("driver wedged")
+
+        torch.cuda.get_device_capability = broken
+        self.assertIsNone(cuda_unsupported_reason(torch))
+        self.assertTrue(cuda_usable(torch))
+
+    def test_no_cuda_is_not_usable_and_has_no_reason(self):
+        torch, _ = _torch(cuda=False)
+        self.assertIsNone(cuda_unsupported_reason(torch))
+        self.assertFalse(cuda_usable(torch))
+        self.assertFalse(cuda_usable(None))
+
+    def test_unsupported_card_resolves_to_the_next_backend(self):
+        torch, _ = _cuda_torch((6, 1))
+        self.assertEqual(resolve_device(torch), "cpu")
+
+    def test_unsupported_card_is_never_touched_by_memory_helpers(self):
+        # Any CUDA call on a card without kernels can raise; the helpers must
+        # treat it like no CUDA at all.
+        torch, recorder = _cuda_torch((6, 1))
+        empty_device_cache(torch)
+        self.assertEqual(recorder.calls, [])
+        self.assertEqual(process_reserved_vram_bytes(torch), 0)
+
+    def test_supported_card_memory_helpers_use_cuda(self):
+        torch, recorder = _cuda_torch((8, 6))
+        empty_device_cache(torch)
+        self.assertEqual(recorder.calls, ["cuda.empty_cache"])
+        self.assertEqual(process_reserved_vram_bytes(torch), 123)
 
 
 class ResolveDeviceTests(unittest.TestCase):

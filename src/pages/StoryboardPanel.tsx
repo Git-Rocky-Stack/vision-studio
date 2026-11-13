@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useAppStore } from '@/store/appStore';
 import { SceneCard } from '@/components/storyboard/SceneCard';
@@ -6,7 +6,7 @@ import { CharacterLibrary } from '@/components/storyboard/CharacterLibrary';
 import { SceneCameraPanel } from '@/components/storyboard/SceneCameraPanel';
 import { ElementLibrary } from '@/components/storyboard/ElementLibrary';
 import { CharacterAssignmentChip } from '@/components/storyboard/CharacterAssignmentChip';
-import { TransitionIndicator } from '@/components/storyboard/TransitionIndicator';
+import { TransitionPicker } from '@/components/storyboard/TransitionPicker';
 import { ScriptImportDialog } from '@/components/storyboard/ScriptImportDialog';
 import { ImportDraftReview } from '@/components/storyboard/ImportDraftReview';
 import { ReferenceMediaPanel } from '@/components/reference/ReferenceMediaPanel';
@@ -30,7 +30,7 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { ArrowRight, CheckCircle2, Clapperboard, Film, FileText, Plus, Trash2 } from 'lucide-react';
-import type { ElementType, ImportDraft, Scene } from '@/types/project';
+import type { ElementType, ImportDraft, Scene, SceneTransition } from '@/types/project';
 
 interface TimelineBuildFeedback {
   scope: 'project' | 'scene';
@@ -39,6 +39,88 @@ interface TimelineBuildFeedback {
   summary: string;
   tone: 'success' | 'warning';
   sequenceId: string | null;
+}
+
+interface SceneElementChip {
+  id: string;
+  name: string;
+  type: ElementType;
+  color: string;
+  sceneCount: number;
+}
+
+/** Shared fallback, so a scene with no linked elements keeps a stable prop. */
+const NO_SCENE_ELEMENTS: readonly SceneElementChip[] = [];
+
+function sameChips(left: readonly SceneElementChip[], right: readonly SceneElementChip[]) {
+  return (
+    left.length === right.length &&
+    left.every((chip, index) => {
+      const other = right[index];
+      return (
+        chip.id === other.id &&
+        chip.name === other.name &&
+        chip.type === other.type &&
+        chip.color === other.color &&
+        chip.sceneCount === other.sceneCount
+      );
+    })
+  );
+}
+
+/**
+ * The scene-card callbacks read the active project from the store when they
+ * run instead of closing over it, so they never change identity and the
+ * memoised SceneCard rows skip re-rendering when an unrelated scene changes.
+ */
+function getActiveProjectSnapshot() {
+  const state = useAppStore.getState();
+  return state.projects.find((project) => project.id === state.activeProjectId) ?? null;
+}
+
+function buildTimelineFeedback(
+  scope: TimelineBuildFeedback['scope'],
+  scopeLabel: string,
+  result: StoryboardTimelineDerivationResult | null,
+): TimelineBuildFeedback {
+  if (!result) {
+    return {
+      scope,
+      scopeLabel,
+      title: scope === 'scene' ? 'Scene not ready for timeline' : 'No storyboard scenes ready',
+      summary:
+        scope === 'scene'
+          ? 'This scene does not have any derivable storyboard output yet.'
+          : 'There were no storyboard scenes with derivable output or placeholder state to send.',
+      tone: 'warning',
+      sequenceId: null,
+    };
+  }
+
+  const unchanged = result.skipped;
+  const parts = [
+    `${result.added} added`,
+    `${result.updated} updated`,
+    `${unchanged} unchanged`,
+  ];
+
+  if (result.placeholders > 0) {
+    parts.push(`${result.placeholders} placeholder${result.placeholders === 1 ? '' : 's'}`);
+  }
+
+  const nothingChanged = result.added === 0 && result.updated === 0;
+
+  return {
+    scope,
+    scopeLabel,
+    title:
+      scope === 'scene'
+        ? (nothingChanged ? 'Scene already on timeline' : 'Scene sent to timeline')
+        : (nothingChanged ? 'Timeline already up to date' : 'Timeline updated'),
+    summary: parts.join(', '),
+    tone: result.placeholders > 0 ? 'warning' : 'success',
+    sequenceId: result.sequenceId,
+  };
 }
 
 export function StoryboardPanel() {
@@ -51,6 +133,7 @@ export function StoryboardPanel() {
     deleteScene,
     duplicateScene,
     reorderScenes,
+    updateScene,
     createProject,
     setActiveProject,
     removeCharacterFromScene,
@@ -62,6 +145,7 @@ export function StoryboardPanel() {
     deleteStoryboardImportDraft,
     setActiveStoryboardImportDraft,
     deriveStoryboardTimeline,
+    syncStoryboardTransitions,
     setActiveTimelineSequence,
     setActiveTab,
     setActiveSubMode,
@@ -75,6 +159,7 @@ export function StoryboardPanel() {
     deleteScene: s.deleteScene,
     duplicateScene: s.duplicateScene,
     reorderScenes: s.reorderScenes,
+    updateScene: s.updateScene,
     createProject: s.createProject,
     setActiveProject: s.setActiveProject,
     removeCharacterFromScene: s.removeCharacterFromScene,
@@ -86,6 +171,7 @@ export function StoryboardPanel() {
     deleteStoryboardImportDraft: s.deleteStoryboardImportDraft,
     setActiveStoryboardImportDraft: s.setActiveStoryboardImportDraft,
     deriveStoryboardTimeline: s.deriveStoryboardTimeline,
+    syncStoryboardTransitions: s.syncStoryboardTransitions,
     setActiveTimelineSequence: s.setActiveTimelineSequence,
     setActiveTab: s.setActiveTab,
     setActiveSubMode: s.setActiveSubMode,
@@ -105,18 +191,14 @@ export function StoryboardPanel() {
       storyboardImportDrafts.find((draft) => draft.id === activeStoryboardImportDraftId) ?? null,
     [activeStoryboardImportDraftId, storyboardImportDrafts],
   );
+  // Chip arrays are reused from the previous render while their content is
+  // unchanged, so editing one scene does not hand every card a fresh array.
+  const previousChipsRef = useRef(new Map<string, readonly SceneElementChip[]>());
   const sceneElementChips = useMemo(() => {
+    const next = new Map<string, readonly SceneElementChip[]>();
     if (!activeProject) {
-      return new Map<
-        string,
-        Array<{
-          id: string;
-          name: string;
-          type: ElementType;
-          color: string;
-          sceneCount: number;
-        }>
-      >();
+      previousChipsRef.current = next;
+      return next;
     }
 
     const elements = activeProject.elements ?? [];
@@ -127,37 +209,30 @@ export function StoryboardPanel() {
       ]),
     );
 
-    return new Map(
-      activeProject.scenes.map((scene) => [
-        scene.id,
-        (scene.elementIds ?? [])
-          .map((elementId) => {
-            const element = elements.find((item) => item.id === elementId);
-            if (!element) {
-              return null;
-            }
+    for (const scene of activeProject.scenes) {
+      const chips = (scene.elementIds ?? [])
+        .map((elementId) => {
+          const element = elements.find((item) => item.id === elementId);
+          if (!element) {
+            return null;
+          }
 
-            return {
-              id: element.id,
-              name: element.name,
-              type: element.type,
-              color: element.color,
-              sceneCount: sceneCountByElementId.get(element.id) ?? 0,
-            };
-          })
-          .filter(
-            (
-              element,
-            ): element is {
-              id: string;
-              name: string;
-              type: ElementType;
-              color: string;
-              sceneCount: number;
-            } => Boolean(element),
-          ),
-      ]),
-    );
+          return {
+            id: element.id,
+            name: element.name,
+            type: element.type,
+            color: element.color,
+            sceneCount: sceneCountByElementId.get(element.id) ?? 0,
+          };
+        })
+        .filter((element): element is SceneElementChip => Boolean(element));
+      if (chips.length === 0) continue;
+      const previous = previousChipsRef.current.get(scene.id);
+      next.set(scene.id, previous && sameChips(previous, chips) ? previous : chips);
+    }
+
+    previousChipsRef.current = next;
+    return next;
   }, [activeProject]);
 
   const sensors = useSensors(
@@ -165,11 +240,13 @@ export function StoryboardPanel() {
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
 
+  // A newly active import draft (by id) opens its review once.
+  const activeImportDraftId = activeImportDraft?.id ?? null;
   useEffect(() => {
-    if (activeImportDraft) {
+    if (activeImportDraftId) {
       setIsImportReviewOpen(true);
     }
-  }, [activeImportDraft?.id]);
+  }, [activeImportDraftId]);
 
   useEffect(() => {
     setTimelineBuildFeedback(null);
@@ -190,19 +267,37 @@ export function StoryboardPanel() {
     reorderScenes(activeProject.id, reordered);
   };
 
-  const handleMoveScene = (sceneId: string, offset: -1 | 1) => {
-    if (!activeProject) return;
+  const handleMoveScene = useCallback(
+    (sceneId: string, offset: -1 | 1) => {
+      const project = getActiveProjectSnapshot();
+      if (!project) return;
 
-    const sortedScenes = [...activeProject.scenes].sort((a, b) => a.orderIndex - b.orderIndex);
-    const oldIndex = sortedScenes.findIndex((scene) => scene.id === sceneId);
-    const newIndex = oldIndex + offset;
-    if (oldIndex < 0 || newIndex < 0 || newIndex >= sortedScenes.length) return;
+      const ordered = [...project.scenes].sort((a, b) => a.orderIndex - b.orderIndex);
+      const oldIndex = ordered.findIndex((scene) => scene.id === sceneId);
+      const newIndex = oldIndex + offset;
+      if (oldIndex < 0 || newIndex < 0 || newIndex >= ordered.length) return;
 
-    const reordered = sortedScenes.map((scene) => scene.id);
-    const [movedSceneId] = reordered.splice(oldIndex, 1);
-    reordered.splice(newIndex, 0, movedSceneId);
-    reorderScenes(activeProject.id, reordered);
-  };
+      const reordered = ordered.map((scene) => scene.id);
+      const [movedSceneId] = reordered.splice(oldIndex, 1);
+      reordered.splice(newIndex, 0, movedSceneId);
+      reorderScenes(project.id, reordered);
+    },
+    [reorderScenes],
+  );
+  const handleMoveSceneUp = useCallback((sceneId: string) => handleMoveScene(sceneId, -1), [handleMoveScene]);
+  const handleMoveSceneDown = useCallback((sceneId: string) => handleMoveScene(sceneId, 1), [handleMoveScene]);
+
+  const handleSelectScene = useCallback(
+    (sceneId: string) => {
+      setActiveScene(useAppStore.getState().activeSceneId === sceneId ? null : sceneId);
+    },
+    [setActiveScene],
+  );
+
+  const handleRequestDeleteScene = useCallback((sceneId: string) => {
+    const scene = getActiveProjectSnapshot()?.scenes.find((item) => item.id === sceneId) ?? null;
+    if (scene) setDeleteTarget(scene);
+  }, []);
 
   const handleAddScene = () => {
     if (!activeProject) return;
@@ -210,13 +305,17 @@ export function StoryboardPanel() {
     setActiveScene(scene.id);
   };
 
-  const handleDuplicateScene = (scene: Scene) => {
-    if (!activeProject) return;
-    const duplicated = duplicateScene(activeProject.id, scene.id);
-    if (duplicated) {
-      setActiveScene(duplicated.id);
-    }
-  };
+  const handleDuplicateScene = useCallback(
+    (sceneId: string) => {
+      const project = getActiveProjectSnapshot();
+      if (!project) return;
+      const duplicated = duplicateScene(project.id, sceneId);
+      if (duplicated) {
+        setActiveScene(duplicated.id);
+      }
+    },
+    [duplicateScene, setActiveScene],
+  );
 
   const handleDeleteScene = () => {
     if (!deleteTarget || !activeProject) return;
@@ -232,19 +331,16 @@ export function StoryboardPanel() {
     setActiveProject(project.id);
   };
 
-  const handleTransitionClick = (fromSceneId: string) => {
-    // Future: open transition editor modal
-    // For now, cycles through transition types as a quick edit
-    if (!activeProject) return;
-    const transitionTypes = ['cut', 'fade', 'dissolve', 'wipe-left', 'wipe-right', 'zoom'] as const;
-    const scene = activeProject.scenes.find((s) => s.id === fromSceneId);
-    if (!scene) return;
-    const currentIndex = transitionTypes.indexOf(scene.transitions.type);
-    const nextType = transitionTypes[(currentIndex + 1) % transitionTypes.length];
-    useAppStore.getState().updateScene(activeProject.id, fromSceneId, {
-      transitions: { ...scene.transitions, type: nextType },
-    });
-  };
+  const handleTransitionChange = useCallback(
+    (fromSceneId: string, transitions: SceneTransition) => {
+      const project = getActiveProjectSnapshot();
+      if (!project) return;
+      updateScene(project.id, fromSceneId, { transitions });
+      // A scene already on the timeline follows its new transition at once.
+      syncStoryboardTransitions(project.id, { sceneIds: [fromSceneId] });
+    },
+    [updateScene, syncStoryboardTransitions],
+  );
 
   const persistImportDraft = (draft: ImportDraft, status: ImportDraft['status']) => {
     upsertStoryboardImportDraft({
@@ -303,51 +399,6 @@ export function StoryboardPanel() {
     setIsImportReviewOpen(false);
   };
 
-  const buildTimelineFeedback = (
-    scope: TimelineBuildFeedback['scope'],
-    scopeLabel: string,
-    result: StoryboardTimelineDerivationResult | null,
-  ): TimelineBuildFeedback => {
-    if (!result) {
-      return {
-        scope,
-        scopeLabel,
-        title: scope === 'scene' ? 'Scene not ready for timeline' : 'No storyboard scenes ready',
-        summary:
-          scope === 'scene'
-            ? 'This scene does not have any derivable storyboard output yet.'
-            : 'There were no storyboard scenes with derivable output or placeholder state to send.',
-        tone: 'warning',
-        sequenceId: null,
-      };
-    }
-
-    const unchanged = result.skipped;
-    const parts = [
-      `${result.added} added`,
-      `${result.updated} updated`,
-      `${unchanged} unchanged`,
-    ];
-
-    if (result.placeholders > 0) {
-      parts.push(`${result.placeholders} placeholder${result.placeholders === 1 ? '' : 's'}`);
-    }
-
-    const nothingChanged = result.added === 0 && result.updated === 0;
-
-    return {
-      scope,
-      scopeLabel,
-      title:
-        scope === 'scene'
-          ? (nothingChanged ? 'Scene already on timeline' : 'Scene sent to timeline')
-          : (nothingChanged ? 'Timeline already up to date' : 'Timeline updated'),
-      summary: parts.join(', '),
-      tone: result.placeholders > 0 ? 'warning' : 'success',
-      sequenceId: result.sequenceId,
-    };
-  };
-
   const handleOpenTimeline = (sequenceId: string | null) => {
     if (!sequenceId) {
       return;
@@ -359,23 +410,36 @@ export function StoryboardPanel() {
     setCenterView('canvas');
   };
 
-  const handleBuildTimeline = (scope: TimelineBuildFeedback['scope'], scopeLabel: string, sceneIds?: string[]) => {
-    if (!activeProject) {
-      return;
-    }
+  const handleBuildTimeline = useCallback(
+    (scope: TimelineBuildFeedback['scope'], scopeLabel: string, sceneIds?: string[]) => {
+      const project = getActiveProjectSnapshot();
+      if (!project) {
+        return;
+      }
 
-    const result = deriveStoryboardTimeline(
-      activeProject.id,
-      sceneIds && sceneIds.length > 0 ? { sceneIds } : undefined,
-    );
-    const feedback = buildTimelineFeedback(scope, scopeLabel, result);
+      const result = deriveStoryboardTimeline(
+        project.id,
+        sceneIds && sceneIds.length > 0 ? { sceneIds } : undefined,
+      );
+      const feedback = buildTimelineFeedback(scope, scopeLabel, result);
 
-    if (result?.sequenceId) {
-      setActiveTimelineSequence(result.sequenceId);
-    }
+      // The derivation carries each scene's transition onto its clips itself.
+      if (result?.sequenceId) {
+        setActiveTimelineSequence(result.sequenceId);
+      }
 
-    setTimelineBuildFeedback(feedback);
-  };
+      setTimelineBuildFeedback(feedback);
+    },
+    [deriveStoryboardTimeline, setActiveTimelineSequence],
+  );
+
+  const handleSendSceneToTimeline = useCallback(
+    (sceneId: string) => {
+      const scene = getActiveProjectSnapshot()?.scenes.find((item) => item.id === sceneId);
+      if (scene) handleBuildTimeline('scene', scene.name, [scene.id]);
+    },
+    [handleBuildTimeline],
+  );
 
   if (!activeProject) {
     return (
@@ -575,14 +639,14 @@ export function StoryboardPanel() {
                     <div key={scene.id}>
                       <SceneCard
                         scene={scene}
-                        linkedElements={sceneElementChips.get(scene.id) ?? []}
+                        linkedElements={sceneElementChips.get(scene.id) ?? NO_SCENE_ELEMENTS}
                         isSelected={scene.id === activeSceneId}
-                        onClick={() => setActiveScene(scene.id === activeSceneId ? null : scene.id)}
-                        onDelete={() => setDeleteTarget(scene)}
-                        onDuplicate={() => handleDuplicateScene(scene)}
-                        onSendToTimeline={() => handleBuildTimeline('scene', scene.name, [scene.id])}
-                        onMoveUp={() => handleMoveScene(scene.id, -1)}
-                        onMoveDown={() => handleMoveScene(scene.id, 1)}
+                        onClick={handleSelectScene}
+                        onDelete={handleRequestDeleteScene}
+                        onDuplicate={handleDuplicateScene}
+                        onSendToTimeline={handleSendSceneToTimeline}
+                        onMoveUp={handleMoveSceneUp}
+                        onMoveDown={handleMoveSceneDown}
                         canMoveUp={index > 0}
                         canMoveDown={index < sortedScenes.length - 1}
                       />
@@ -606,10 +670,11 @@ export function StoryboardPanel() {
 
                       {/* Transition indicator between scenes */}
                       {index < sortedScenes.length - 1 && (
-                        <TransitionIndicator
-                          type={scene.transitions.type}
-                          duration={scene.transitions.duration}
-                          onClick={() => handleTransitionClick(scene.id)}
+                        <TransitionPicker
+                          sceneId={scene.id}
+                          sceneName={scene.name}
+                          transition={scene.transitions}
+                          onChange={handleTransitionChange}
                         />
                       )}
                     </div>

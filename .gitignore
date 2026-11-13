@@ -30,6 +30,8 @@ backend/venv/
 *.pkg
 *.asar
 *.blockmap
+# PyInstaller one-folder backend bundle staged by build-backend.cjs
+resources/backend/
 resources/VisionStudio-Backend.exe
 resources/preview-decoders/
 

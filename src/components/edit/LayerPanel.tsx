@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { cn } from '@/utils/cn';
 import { useAppStore } from '@/store/appStore';
 import { useShallow } from 'zustand/react/shallow';
@@ -33,9 +33,11 @@ import {
   Type,
   Shapes,
   PenTool,
+  Pencil,
 } from 'lucide-react';
 import type { Layer } from '@/types/editor';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
+import { useFocusWhen } from '@/hooks/useFocusWhen';
 
 const BLEND_MODES = [
   'Normal',
@@ -62,10 +64,13 @@ function SortableLayerRow({
   onMoveDown,
   canMoveUp,
   canMoveDown,
+  onNavigate,
 }: {
   layer: Layer;
   isSelected: boolean;
   onSelect: () => void;
+  /** Move selection/focus to a neighbouring row (arrow keys, Home / End). */
+  onNavigate: (direction: 'previous' | 'next' | 'first' | 'last') => void;
   onToggleVisibility: () => void;
   onToggleLock: () => void;
   onOpacityChange: (opacity: number) => void;
@@ -78,6 +83,21 @@ function SortableLayerRow({
 }) {
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState(layer.name);
+  const selectButtonRef = useRef<HTMLButtonElement>(null);
+  const renameInputRef = useRef<HTMLInputElement>(null);
+  // Rename replaces the name button: focus follows into the field.
+  useFocusWhen(renameInputRef, isEditing);
+  const restoreFocusRef = useRef(false);
+  // Escape cancels; the blur that follows the input unmounting must not save.
+  const cancelledRef = useRef(false);
+
+  // After a rename ends, focus returns to the row it was started from.
+  useEffect(() => {
+    if (!isEditing && restoreFocusRef.current) {
+      restoreFocusRef.current = false;
+      selectButtonRef.current?.focus();
+    }
+  }, [isEditing]);
 
   const {
     attributes,
@@ -93,15 +113,44 @@ function SortableLayerRow({
     transition,
   };
 
-  const handleDoubleClick = () => {
+  const startRename = () => {
+    cancelledRef.current = false;
     setIsEditing(true);
     setEditName(layer.name);
   };
 
   const handleNameSubmit = () => {
+    if (!isEditing || cancelledRef.current) return;
+    restoreFocusRef.current = true;
     setIsEditing(false);
     if (editName.trim()) {
       onRename(editName.trim());
+    }
+  };
+
+  const cancelRename = () => {
+    cancelledRef.current = true;
+    restoreFocusRef.current = true;
+    setEditName(layer.name);
+    setIsEditing(false);
+  };
+
+  const handleSelectKeyDown = (event: ReactKeyboardEvent<HTMLButtonElement>) => {
+    const navigation: Record<string, 'previous' | 'next' | 'first' | 'last'> = {
+      ArrowUp: 'previous',
+      ArrowDown: 'next',
+      Home: 'first',
+      End: 'last',
+    };
+    if (event.key === 'F2') {
+      event.preventDefault();
+      startRename();
+      return;
+    }
+    const direction = navigation[event.key];
+    if (direction && !event.altKey && !event.ctrlKey && !event.metaKey) {
+      event.preventDefault();
+      onNavigate(direction);
     }
   };
 
@@ -120,8 +169,11 @@ function SortableLayerRow({
   };
 
   return (
+    // The row is a larger pointer target for the name button, which is the
+    // keyboard path to selection; presentation keeps it out of the a11y tree.
     <div
       ref={setNodeRef}
+      role="presentation"
       style={style}
       onClick={onSelect}
       className={cn(
@@ -134,6 +186,7 @@ function SortableLayerRow({
     >
       {/* Drag handle */}
       <button
+        type="button"
         {...attributes}
         {...listeners}
         onKeyDown={handleReorderKeyDown}
@@ -141,19 +194,21 @@ function SortableLayerRow({
         aria-keyshortcuts="ArrowUp ArrowDown"
         className="p-0.5 min-w-[44px] min-h-[44px] text-text-muted hover:text-text-primary cursor-grab active:cursor-grabbing"
       >
-        <GripVertical className="w-3 h-3" />
+        <GripVertical className="w-3 h-3" aria-hidden="true" />
       </button>
 
       {/* Visibility */}
       <button
+        type="button"
         onClick={(e) => { e.stopPropagation(); onToggleVisibility(); }}
         aria-label={layer.visible ? 'Hide layer' : 'Show layer'}
+        aria-pressed={!layer.visible}
         className="p-0.5 min-w-[44px] min-h-[44px] text-text-muted hover:text-text-primary transition"
       >
         {layer.visible ? (
-          <Eye className="w-3 h-3" />
+          <Eye className="w-3 h-3" aria-hidden="true" />
         ) : (
-          <EyeOff className="w-3 h-3 opacity-40" />
+          <EyeOff className="w-3 h-3 opacity-40" aria-hidden="true" />
         )}
       </button>
 
@@ -188,26 +243,50 @@ function SortableLayerRow({
         {isEditing ? (
           <input
             value={editName}
+            aria-label={`Rename ${layer.name}`}
             onChange={(e) => setEditName(e.target.value)}
             onBlur={handleNameSubmit}
-            onKeyDown={(e) => e.key === 'Enter' && handleNameSubmit()}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                handleNameSubmit();
+              } else if (e.key === 'Escape') {
+                // The rename owns this Escape; nothing behind it should see it.
+                e.preventDefault();
+                e.stopPropagation();
+                cancelRename();
+              }
+            }}
+            ref={renameInputRef}
             className="w-full bg-surface border border-accent-primary rounded px-1 py-0.5 text-xs text-text-primary"
-            autoFocus
             onClick={(e) => e.stopPropagation()}
           />
         ) : (
-          <p
-            className="text-xs text-text-primary truncate cursor-text"
-            onDoubleClick={handleDoubleClick}
+          <button
+            ref={selectButtonRef}
+            type="button"
+            data-layer-select={layer.id}
+            onClick={(e) => {
+              e.stopPropagation();
+              onSelect();
+            }}
+            onDoubleClick={startRename}
+            onKeyDown={handleSelectKeyDown}
+            aria-pressed={isSelected}
+            aria-label={`Select ${layer.name}`}
+            aria-keyshortcuts="ArrowUp ArrowDown Home End F2"
+            title="Double-click or press F2 to rename"
+            className="block w-full truncate rounded-sm text-left text-xs text-text-primary"
           >
             {layer.name}
-          </p>
+          </button>
         )}
         <div className="flex items-center gap-2 mt-0.5">
           <span className="data-mono text-text-muted">
             {Math.round(layer.opacity * 100)}%
           </span>
           <select
+            aria-label={`Blend mode for ${layer.name}`}
             value={layer.blendMode || 'Normal'}
             onChange={(e) => { e.stopPropagation(); onBlendModeChange(e.target.value); }}
             onClick={(e) => e.stopPropagation()}
@@ -222,16 +301,30 @@ function SortableLayerRow({
         </div>
       </div>
 
+      {/* Rename */}
+      <button
+        type="button"
+        onClick={(e) => { e.stopPropagation(); startRename(); }}
+        aria-label={`Rename ${layer.name}`}
+        title="Rename (F2)"
+        disabled={isEditing}
+        className="inline-flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-md text-text-muted transition hover:bg-elevated hover:text-text-primary disabled:opacity-40"
+      >
+        <Pencil className="w-3 h-3" aria-hidden="true" />
+      </button>
+
       {/* Lock */}
       <button
+        type="button"
         onClick={(e) => { e.stopPropagation(); onToggleLock(); }}
         aria-label={layer.locked ? 'Unlock layer' : 'Lock layer'}
+        aria-pressed={layer.locked}
         className="p-0.5 min-w-[44px] min-h-[44px] text-text-muted hover:text-text-primary transition"
       >
         {layer.locked ? (
-          <Lock className="w-3 h-3 text-status-warning" />
+          <Lock className="w-3 h-3 text-status-warning" aria-hidden="true" />
         ) : (
-          <Unlock className="w-3 h-3" />
+          <Unlock className="w-3 h-3" aria-hidden="true" />
         )}
       </button>
     </div>
@@ -263,6 +356,31 @@ export function LayerPanel() {
   );
 
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const listRef = useRef<HTMLDivElement>(null);
+  // Arrow-key selection moves focus with it; applied once the row re-renders.
+  const [focusLayerId, setFocusLayerId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!focusLayerId) return;
+    const buttons = listRef.current?.querySelectorAll<HTMLButtonElement>('[data-layer-select]') ?? [];
+    Array.from(buttons)
+      .find((button) => button.dataset.layerSelect === focusLayerId)
+      ?.focus();
+    setFocusLayerId(null);
+  }, [focusLayerId]);
+
+  const handleNavigate = (fromIndex: number, direction: 'previous' | 'next' | 'first' | 'last') => {
+    if (editLayers.length === 0) return;
+    const target =
+      direction === 'first'
+        ? 0
+        : direction === 'last'
+          ? editLayers.length - 1
+          : Math.max(0, Math.min(editLayers.length - 1, fromIndex + (direction === 'next' ? 1 : -1)));
+    const layer = editLayers[target];
+    setSelectedLayerId(layer.id);
+    setFocusLayerId(layer.id);
+  };
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -342,18 +460,20 @@ export function LayerPanel() {
         </div>
         <div className="flex items-center gap-1">
           <button
+            type="button"
             onClick={handleAddLayer}
             aria-label="New layer"
-            className="icon-button p-1 rounded text-text-muted hover:text-text-primary hover:bg-elevated transition"
+            className="icon-button inline-flex h-8 w-8 items-center justify-center rounded text-text-muted hover:text-text-primary hover:bg-elevated transition"
             title="New Layer"
           >
-            <Plus className="w-3.5 h-3.5" />
+            <Plus className="w-3.5 h-3.5" aria-hidden="true" />
           </button>
           <button
+            type="button"
             onClick={handleDuplicateLayer}
             disabled={!selectedLayerId}
             className={cn(
-              'icon-button p-1 rounded transition',
+              'icon-button inline-flex h-8 w-8 items-center justify-center rounded transition',
               selectedLayerId
                 ? 'text-text-muted hover:text-text-primary hover:bg-elevated'
                 : 'text-text-muted/30 cursor-not-allowed'
@@ -361,13 +481,14 @@ export function LayerPanel() {
             aria-label="Duplicate layer"
             title="Duplicate Layer"
           >
-            <Copy className="w-3.5 h-3.5" />
+            <Copy className="w-3.5 h-3.5" aria-hidden="true" />
           </button>
           <button
+            type="button"
             onClick={handleDeleteLayer}
             disabled={!selectedLayerId}
             className={cn(
-              'icon-button p-1 rounded transition',
+              'icon-button inline-flex h-8 w-8 items-center justify-center rounded transition',
               selectedLayerId
                 ? 'text-text-muted hover:text-status-error hover:bg-status-error-muted'
                 : 'text-text-muted/30 cursor-not-allowed'
@@ -375,13 +496,18 @@ export function LayerPanel() {
             aria-label={`Remove layer ${editLayers.find((l) => l.id === selectedLayerId)?.name ?? ''}`}
             title="Delete Layer"
           >
-            <Trash2 className="w-3.5 h-3.5" />
+            <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
           </button>
         </div>
       </div>
 
       {/* Layer List */}
-      <div className="max-h-[200px] overflow-y-auto px-1 pb-2 scrollbar-hide">
+      <div
+        ref={listRef}
+        role="group"
+        aria-label="Layer list"
+        className="max-h-[200px] overflow-y-auto px-1 pb-2 scrollbar-hide"
+      >
         {editLayers.length === 0 ? (
           <div className="py-8 text-center">
             <Layers className="w-8 h-8 text-text-muted mx-auto mb-2 opacity-20" />
@@ -406,6 +532,7 @@ export function LayerPanel() {
                   layer={layer}
                   isSelected={selectedLayerId === layer.id}
                   onSelect={() => setSelectedLayerId(layer.id)}
+                  onNavigate={(direction) => handleNavigate(index, direction)}
                   onMoveUp={() => handleMoveLayer(layer.id, -1)}
                   onMoveDown={() => handleMoveLayer(layer.id, 1)}
                   canMoveUp={index > 0}

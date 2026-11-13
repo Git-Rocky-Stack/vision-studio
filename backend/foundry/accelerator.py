@@ -16,10 +16,17 @@ or extends it.
 
 from __future__ import annotations
 
+import importlib
 import importlib.util
+import inspect
+import logging
 import os
+import sys
+from contextlib import nullcontext
 from dataclasses import dataclass, field, replace
-from typing import List, Optional
+from typing import Any, Dict, List, Literal, Optional, Tuple
+
+from pydantic import BaseModel, ConfigDict
 
 try:  # torch is optional and absent in the lightweight CI/test env
     import torch
@@ -28,6 +35,8 @@ except ImportError:
 
 # Pure-python import (no torch): the authoritative family<->pipeline map.
 from foundry.runtime_resolver import PIPELINE_BY_FAMILY
+
+logger = logging.getLogger(__name__)
 
 # Conv-UNet families benefit from channels_last; DiT families (flux/sd35/ltx)
 # are neutral-to-negative, so channels_last stays OFF for them (spec S4).
@@ -82,6 +91,31 @@ class AppliedAcceleration:
 
 
 DEFAULT_ACCELERATION_SETTINGS = AccelerationSettings()
+
+TriState = Literal["auto", "on", "off"]
+
+
+class AccelerationSettingsRequest(BaseModel):
+    """Typed wire model for a generate request's ``acceleration_settings``.
+
+    Mirrors AccelerationSettings field for field (and the renderer's
+    AccelerationRequestPayload): every optimization is a tri-state, unknown
+    keys are rejected (422) instead of silently ignored. Convert with
+    ``to_settings()``.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    master_enable: bool = True
+    sdpa: TriState = "auto"
+    channels_last: TriState = "auto"
+    compile: TriState = "auto"
+    quantization: TriState = "auto"
+    attention_slicing: TriState = "auto"
+    tensorrt: TriState = "auto"
+
+    def to_settings(self) -> AccelerationSettings:
+        return AccelerationSettings(**self.model_dump())
 
 # method -> families verified safe (output within tolerance vs unquantized).
 # Populated from the PR2 benchmark+correctness sweep, not asserted (spec S5/S8).
@@ -209,16 +243,65 @@ def _resolve_quant(family, profile, settings, backends: QuantBackends, notes: Li
     return method
 
 
+@dataclass(frozen=True)
+class CompileEnvironment:
+    """Whether torch.compile can work in THIS process, and why not."""
+
+    available: bool
+    reason: Optional[str] = None
+
+
+def compile_environment() -> CompileEnvironment:
+    """torch.compile needs Inductor's toolchain, which a frozen bundle lacks.
+
+    Inductor generates GPU kernels with triton and compiles host-side
+    wrappers at run time: it needs triton importable and a writable Python
+    source tree it can import generated modules from. A PyInstaller bundle
+    (``sys.frozen``) has neither - the compile would fail at the first
+    forward pass, deep inside a generation. Probed without importing triton.
+    """
+    if getattr(sys, "frozen", False):
+        return CompileEnvironment(
+            False, "the packaged backend is frozen - Inductor cannot generate and import kernels")
+    if not _spec_present("triton"):
+        return CompileEnvironment(False, "triton is not installed (Inductor's kernel compiler)")
+    return CompileEnvironment(True)
+
+
 def _trt_backend_available() -> bool:
     """True when a TensorRT backend is importable - WITHOUT importing it
     (find_spec does not execute the module)."""
     return _spec_present("torch_tensorrt") or _spec_present("tensorrt")
 
 
+#: TensorRT 11 (the bundled runtime) and the cu132 torch build both target
+#: Turing (sm_75) and newer; older GPUs have no kernels to run on.
+TRT_MIN_COMPUTE_CAPABILITY = (7, 5)
+
+#: The user-facing reason while TRT_PROVEN_FAMILIES is empty. The bundled
+#: runtime is present, but no model family has passed the correctness sweep
+#: (docs/TENSORRT_VERIFICATION.md) - so `auto` never builds an engine, and the
+#: UI must not suggest otherwise.
+TRT_NO_VERIFIED_FAMILY_REASON = "No model family has been verified for TensorRT yet"
+
+
+def _trt_unverified_reason(family: Optional[str]) -> str:
+    """Why ``auto`` declines TensorRT for this family (honest, never faked)."""
+    from foundry.tensorrt_engine import TRT_PROVEN_FAMILIES
+
+    if not TRT_PROVEN_FAMILIES:
+        return TRT_NO_VERIFIED_FAMILY_REASON
+    return f"{family or 'this model family'} has not been verified for TensorRT"
+
+
 def _resolve_tensorrt(family, settings: AccelerationSettings, gpu: bool, notes: List[str]) -> bool:
     """TensorRT decision (spec S7). Off by default in ``auto`` (engine build is
     expensive); enabled only when forced ``on`` OR the family is TRT-proven and a
-    TRT backend is present on a GPU. Never auto-builds for an un-vetted family."""
+    TRT backend is present on a GPU. Never auto-builds for an un-vetted family -
+    and says so in the plan notes (they reach the result's ``skipped`` list),
+    so a user who sees the runtime is installed also sees why it did not run.
+    Explicit ``on`` still builds (with a hard fallback to eager): it is how the
+    verification sweep exercises an unproven family."""
     from foundry.tensorrt_engine import is_trt_eligible
 
     if settings.tensorrt == "off":
@@ -230,13 +313,67 @@ def _resolve_tensorrt(family, settings: AccelerationSettings, gpu: bool, notes: 
     if settings.tensorrt == "on":
         return True
     # auto: only proven families, and never unbidden for un-vetted ones.
-    return is_trt_eligible(family)
+    if is_trt_eligible(family):
+        return True
+    notes.append(f"tensorrt off: {_trt_unverified_reason(family)}")
+    return False
 
 
-def resolve_acceleration(plan, profile, settings: AccelerationSettings, *, backends: Optional[QuantBackends] = None) -> AccelerationPlan:
+def tensorrt_availability(
+    gpu_available: Optional[bool] = None,
+    compute_capability: Optional[Tuple[int, int]] = None,
+    cuda: Optional[bool] = None,
+) -> Dict[str, Any]:
+    """``{"available", "reason"}`` for the TensorRT toggle, in the order a user
+    would need to fix things: the runtime is in this build, an NVIDIA GPU is
+    present, it is new enough, and at least one model family has been verified.
+    ``None`` arguments mean "not probed" and do not block (unit callers).
+    Probes with find_spec only - nothing is imported."""
+    if not _trt_backend_available():
+        return _unavailable("TensorRT (torch-tensorrt) is not included in this build for this platform")
+    if gpu_available is False or cuda is False:
+        return _unavailable("requires an NVIDIA GPU (none detected)")
+    if compute_capability is not None and tuple(compute_capability) < TRT_MIN_COMPUTE_CAPABILITY:
+        major, minor = compute_capability
+        return _unavailable(
+            "requires an NVIDIA GPU with compute capability 7.5 or newer (RTX 20 series "
+            f"or later); this GPU is {major}.{minor}")
+    from foundry.tensorrt_engine import TRT_PROVEN_FAMILIES
+
+    if not TRT_PROVEN_FAMILIES:
+        return _unavailable(TRT_NO_VERIFIED_FAMILY_REASON)
+    return {"available": True, "reason": None}
+
+
+def _resolve_compile(plan, settings: AccelerationSettings, gpu: bool,
+                     env: CompileEnvironment, notes: List[str]) -> bool:
+    """torch.compile decision (B5). OFF unless the toolchain exists.
+
+    Hard gates apply to ``auto`` AND ``on`` (like the quantization gates): a
+    compile that cannot work fails at the first forward pass, mid-generation.
+    - triton importable and the process not frozen (CompileEnvironment);
+    - no CPU offload: offload hooks move weights per forward, which breaks
+      CUDA-graph capture ("reduce-overhead") and forces recompiles.
+    ``auto`` additionally requires a GPU.
+    """
+    if not _decide(settings.compile, auto_default=gpu):
+        return False
+    if not env.available:
+        notes.append(f"compile off: {env.reason}")
+        return False
+    if getattr(plan, "offload", False):
+        notes.append("compile off: CPU offload is active (incompatible with compiled graphs)")
+        return False
+    return True
+
+
+def resolve_acceleration(plan, profile, settings: AccelerationSettings, *,
+                         backends: Optional[QuantBackends] = None,
+                         compile_env: Optional[CompileEnvironment] = None) -> AccelerationPlan:
     """Decide the optimization set for this (plan, hardware, settings). Pure -
-    no torch, no I/O. Security refusals and the master switch short-circuit to
-    an all-disabled plan before any optimization is considered."""
+    no torch, no I/O (the backend probes use find_spec, which imports
+    nothing). Security refusals and the master switch short-circuit to an
+    all-disabled plan before any optimization is considered."""
     notes: List[str] = []
 
     if getattr(plan, "refusal", None):
@@ -260,7 +397,8 @@ def resolve_acceleration(plan, profile, settings: AccelerationSettings, *, backe
     if settings.channels_last == "auto" and gpu and not conv:
         notes.append(f"channels_last off: {family or 'unknown'} is not a conv-UNet family")
 
-    compile_on = _decide(settings.compile, auto_default=gpu)
+    compile_on = _resolve_compile(
+        plan, settings, gpu, compile_env or compile_environment(), notes)
     attention_slicing = _resolve_slicing(plan, settings, gpu, notes)
 
     tensorrt = _resolve_tensorrt(family, settings, gpu, notes)
@@ -362,19 +500,89 @@ def _apply_slicing(pipeline, level: str, result: AppliedAcceleration) -> None:
         result.skipped.append(f"attention_slicing ({type(exc).__name__})")
 
 
+# Tiny warm-up call: enough to make Inductor trace and compile the denoiser
+# (torch.compile is lazy - nothing is compiled until the first forward).
+# Every value is filtered against the pipeline's __call__ signature.
+_WARMUP_SIDE = 256  # divisible by 8/16/32: valid for every shipped family
+_WARMUP_FRAMES = 9  # 8k+1 for LTX; within AnimateDiff's / SVD's range
+
+
+def _warmup_kwargs(pipeline) -> Dict[str, Any]:
+    try:
+        parameters = inspect.signature(pipeline.__call__).parameters
+    except (TypeError, ValueError):
+        return {}
+    accepts_any = any(p.kind is inspect.Parameter.VAR_KEYWORD for p in parameters.values())
+
+    def accepts(name: str) -> bool:
+        return accepts_any or name in parameters
+
+    kwargs: Dict[str, Any] = {}
+    for name, value in (
+        ("prompt", "warm-up"),
+        ("num_inference_steps", 1),
+        ("height", _WARMUP_SIDE),
+        ("width", _WARMUP_SIDE),
+        ("output_type", "latent"),
+        ("num_frames", _WARMUP_FRAMES),
+    ):
+        if accepts(name):
+            kwargs[name] = value
+    if "image" in parameters or "mask_image" in parameters:
+        # Image-conditioned pipelines (SVD, FLUX Fill) need real inputs.
+        from PIL import Image
+
+        if "image" in parameters:
+            kwargs["image"] = Image.new("RGB", (_WARMUP_SIDE, _WARMUP_SIDE))
+        if "mask_image" in parameters:
+            kwargs["mask_image"] = Image.new("L", (_WARMUP_SIDE, _WARMUP_SIDE), 255)
+    return kwargs
+
+
+def _warmup_compiled(pipeline) -> None:
+    """Run one minimal forward so compilation happens HERE, inside the
+    fallback try - not at the user's first denoising step. Raises whatever
+    compilation raised."""
+    inference_mode = getattr(torch, "inference_mode", None)
+    with (inference_mode() if callable(inference_mode) else nullcontext()):
+        pipeline(**_warmup_kwargs(pipeline))
+
+
+def _reset_dynamo() -> None:
+    """Drop dynamo's compiled-code caches after a failed compile (best-effort)."""
+    try:
+        torch._dynamo.reset()
+    except Exception:  # noqa: BLE001
+        pass
+
+
 def _apply_compile(pipeline, accel: AccelerationPlan, result: AppliedAcceleration) -> None:
     """torch.compile with the spec's HARD-FALLBACK rule: a failure NEVER fails a
-    generation - we leave the eager module in place and record fell_back."""
+    generation. torch.compile is lazy, so the module is warmed up right here
+    (one tiny 1-step call) inside the try; any error - at wrap time or during
+    the warm-up compile - restores the eager module, logs why, and records
+    fell_back."""
+    attr, target = _compile_target(pipeline)
+    if target is None:
+        result.skipped.append("compile (no unet/transformer)")
+        return
     try:
-        attr, target = _compile_target(pipeline)
-        if target is None:
-            result.skipped.append("compile (no unet/transformer)")
-            return
         compiled = torch.compile(target, mode=accel.compile_mode, dynamic=accel.compile_dynamic)
         setattr(pipeline, attr, compiled)
-        result.applied.append(f"compile:{accel.compile_mode}")
+        _warmup_compiled(pipeline)
     except Exception as exc:  # noqa: BLE001
+        try:
+            setattr(pipeline, attr, target)
+        except Exception:  # noqa: BLE001 - the eager module is still the original
+            pass
+        _reset_dynamo()
+        logger.warning(
+            "torch.compile failed for %s (%s: %s); running eager",
+            type(pipeline).__name__, type(exc).__name__, exc,
+        )
         result.fell_back.append(f"compile ({type(exc).__name__}, ran eager)")
+        return
+    result.applied.append(f"compile:{accel.compile_mode}")
 
 
 # precision derivation reads str(module.dtype) so it needs no torch import.
@@ -524,3 +732,40 @@ def accelerate_pipeline(pipeline, plan, settings: AccelerationSettings, *, slici
     profile = getattr(plan, "hardware_profile", None)
     accel = resolve_acceleration(plan, profile, settings)
     return apply_acceleration(pipeline, accel, family_for_plan(plan), slicing_max=slicing_max)
+
+
+def _unavailable(reason: str) -> Dict[str, Any]:
+    return {"available": False, "reason": reason}
+
+
+def acceleration_feature_availability(
+    gpu_available: Optional[bool] = None,
+    compute_capability: Optional[Tuple[int, int]] = None,
+    cuda: Optional[bool] = None,
+) -> Dict[str, Dict[str, Any]]:
+    """Per-feature availability for the Performance-panel toggles.
+
+    {"quantization" | "tensorrt" | "compile": {"available": bool, "reason":
+    str | None}}. Probes with find_spec only (nothing is imported). Pass
+    ``gpu_available`` (from the hardware probe) to also mark the GPU-only
+    features unavailable on a machine without an accelerator, and
+    ``compute_capability`` / ``cuda`` so TensorRT can tell an NVIDIA GPU it
+    can run on from one it cannot (see tensorrt_availability).
+    """
+    quant = quant_backends_available()
+    env = compile_environment()
+    features: Dict[str, Dict[str, Any]] = {
+        "quantization": (
+            {"available": True, "reason": None} if (quant.int8 or quant.fp8)
+            else _unavailable("optimum-quanto is not included in this build")),
+        "compile": (
+            {"available": True, "reason": None} if env.available
+            else _unavailable(str(env.reason))),
+    }
+    if gpu_available is False:
+        for name, state in features.items():
+            if state["available"]:
+                features[name] = _unavailable("requires a supported GPU (none detected)")
+    features["tensorrt"] = tensorrt_availability(
+        gpu_available=gpu_available, compute_capability=compute_capability, cuda=cuda)
+    return features

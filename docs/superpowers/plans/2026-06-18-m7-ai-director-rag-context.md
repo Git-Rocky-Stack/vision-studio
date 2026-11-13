@@ -3,6 +3,8 @@
 > **Historical design record - 2026-06-18.** Describes intent at that
 > date, not current behaviour. See `docs/INDEX.md` for what is authoritative.
 
+> **Status (checked 2026-11-11):** Shipped - PR #24 (`3201d4f`). The task checkboxes below record the plan as written and were not ticked.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Make the LLM prompt-assist retrieval-augmented and local-first: retrieve relevant material (the user's prior prompts/outcomes, asset metadata, and a curated model-prompting knowledge base), assemble the best of it within a token budget, inject it as a data block into the assist request, and show the user exactly what was used.

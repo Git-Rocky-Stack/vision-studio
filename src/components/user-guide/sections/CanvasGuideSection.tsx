@@ -32,7 +32,7 @@ export function CanvasGuideSection() {
           {
             title: 'Bring an image onto the canvas',
             description:
-              'Use Send to Edit: from the Viewer, from a Batch result, from the image preview, or from the right-click menu on the Generate canvas. For a video, use Extract to Edit in the Viewer or Extract frame to edit on the asset tile. To edit a library image, open it in the Viewer first. The image becomes the base layer.',
+              'Use Send to Edit: from the Viewer, from a Batch result, from the image preview, or from the right-click menu on the Story tab canvas. For a video, use Extract to Edit in the Viewer or Extract frame to edit on the asset tile. To edit a library image, open it in the Viewer first. The image becomes the base layer.',
           },
           {
             title: 'Pick a tool from the tool strip',
@@ -104,10 +104,11 @@ export function CanvasGuideSection() {
               around the stroke. Alt+click first to heal from a source you choose instead.
             </span>,
             <span>
-              Size, Hardness, and Opacity are in Tool options. Retouching changes the image's own
-              pixels, under the adjustments, filters, text, and shapes; every stroke is one undo
-              step, and Before/After shows the image without it. Clear retouching removes all of it
-              at once.
+              Size, Hardness, and Opacity are in Tool options, which also show the current source.
+              Clear source drops a source you set (Heal goes back to finding texture
+              automatically). Retouching changes the image's own pixels, under the adjustments,
+              filters, text, and shapes; every stroke is one undo step, and Before/After shows the
+              image without it. Clear retouching removes all of it at once.
             </span>,
             <span>
               Retouching needs readable pixels. An image the app cannot read back shows a notice
@@ -127,7 +128,9 @@ export function CanvasGuideSection() {
             <span>
               <strong>Pen (P)</strong>: click to place points. Click the first point to close the
               shape; double-click or press Enter to finish an open path. Backspace removes the last
-              point and Esc cancels. Turn on Smooth curves for flowing lines instead of corners.
+              point and Esc cancels. Once points are placed, Tool options also offer Finish path,
+              Close shape, and Cancel buttons. Turn on Smooth curves for flowing lines instead of
+              corners.
             </span>,
             <span>
               Every shape and path is its own layer with an outline colour and width and an
@@ -176,6 +179,68 @@ export function CanvasGuideSection() {
               <strong>Generative Fill</strong>, <strong>Face Enhancement</strong>,{' '}
               <strong>Object Removal</strong>, and <strong>AI Expand</strong> (outpaint) for
               fill-in, restoration, removal, and outward extension respectively.
+            </span>,
+          ]}
+        />
+      </GuideCallout>
+
+      <GuideCallout title="Region Lock: Generate Region" tone="accent">
+        <GuideStepList
+          steps={[
+            {
+              title: 'Create a region',
+              description:
+                'Open the Region tab in the Properties panel and choose Create Region Lock. Draw its mask on the canvas with the mask tools: Rectangle (R), Lasso (L), Brush (B), and Eraser (E).',
+            },
+            {
+              title: 'Pick the AI tool and prompt',
+              description:
+                'Give the region a name and choose its AI Tool. Generative Fill fills the mask from the region prompt, so it needs one; Remove clears the masked content and fills it from the surroundings. Turn on Invert Mask to apply the pass to everything outside the drawn mask instead.',
+            },
+            {
+              title: 'Generate Region',
+              description:
+                'Choose Generate Region. The pass runs on the local backend over the current image, which must be a still loaded from Assets; the result is added to Assets and becomes the canvas image. Style Transfer and Upscale have no region-scoped pass, so use them from the AI Tools tab on the whole image.',
+            },
+          ]}
+        />
+      </GuideCallout>
+
+      <GuideCallout title="History, Before/After, and Export to Assets" tone="info">
+        <GuideList
+          items={[
+            <span>
+              <strong>History</strong> in the Properties panel toolbar lists every edit with the
+              time it was made. Click an entry to jump straight back to that step; later steps stay
+              listed until you make a new edit.
+            </span>,
+            <span>
+              <strong>Before/After</strong> shows the original image without your edits, so you can
+              judge a change without undoing it.
+            </span>,
+            <span>
+              <strong>Export to Assets</strong> (the download button in the same toolbar) flattens
+              the image with its adjustments, filters, retouching, text, and shapes into a PNG,
+              saves it to <code>&lt;output root&gt;/edits/</code>, and adds it to Assets. Turn
+              Before/After off first; export is disabled while it is on.
+            </span>,
+          ]}
+        />
+      </GuideCallout>
+
+      <GuideCallout title="The Story Tab Canvas" tone="info">
+        <GuideList
+          items={[
+            <span>
+              The Story tab centre shows the current image on a preview canvas. The mouse wheel
+              zooms, + or = zooms in, - zooms out, and 0 resets zoom and pan. Shift+drag or a
+              middle-button drag pans.
+            </span>,
+            <span>
+              Right-click it (or focus it and press Shift+F10 or the Menu key) for the canvas
+              menu: Copy Image,
+              Save As, Send to Edit, Refine with one of your pipelines, Generation Info, Open in
+              Explorer, Zoom to Fit, and Zoom to 100%.
             </span>,
           ]}
         />

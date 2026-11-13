@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { cn } from '@/utils/cn';
 import { useAppStore } from '@/store/appStore';
@@ -35,11 +35,34 @@ const ACTIVE_DOWNLOAD_STATUSES = new Set<DownloadStatus>([
  * Model Foundry - top-level surface for discovering, acquiring, and managing
  * local AI models. This shell owns the section switcher, warms the catalog /
  * download queue / library roots / hardware profile on mount, and polls the
- * download queue while any job is in flight. The Discover / Library / Hardware
- * sections and the header bar mount into the placeholders in later tasks.
+ * download queue while any job is in flight. Below the header bar and the
+ * first-run provisioning card it renders one of the Discover / Library /
+ * Hardware sections at a time.
  */
 export function FoundryPage() {
   const [section, setSection] = useState<FoundrySection>('discover');
+  const tabRefs = useRef<Partial<Record<FoundrySection, HTMLButtonElement | null>>>({});
+
+  // WAI-ARIA tabs: arrows / Home / End move between sections (roving tabindex).
+  const handleTabKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {
+    const index = SECTIONS.findIndex((s) => s.id === section);
+    const last = SECTIONS.length - 1;
+    const nextIndex =
+      event.key === 'ArrowRight'
+        ? (index + 1) % SECTIONS.length
+        : event.key === 'ArrowLeft'
+          ? (index - 1 + SECTIONS.length) % SECTIONS.length
+          : event.key === 'Home'
+            ? 0
+            : event.key === 'End'
+              ? last
+              : -1;
+    if (nextIndex === -1) return;
+    event.preventDefault();
+    const next = SECTIONS[nextIndex].id;
+    setSection(next);
+    tabRefs.current[next]?.focus();
+  };
 
   const { loadModels, refreshDownloads, loadLibraryRoots, loadHardwareProfile, downloads } =
     useAppStore(
@@ -96,10 +119,17 @@ export function FoundryPage() {
           {SECTIONS.map((s) => (
             <button
               key={s.id}
+              ref={(node) => {
+                tabRefs.current[s.id] = node;
+              }}
+              id={`foundry-tab-${s.id}`}
               role="tab"
               type="button"
               aria-selected={section === s.id}
+              aria-controls="foundry-tabpanel"
+              tabIndex={section === s.id ? 0 : -1}
               onClick={() => setSection(s.id)}
+              onKeyDown={handleTabKeyDown}
               className={cn(
                 'rounded-md border px-3 py-1.5 text-sm transition',
                 section === s.id
@@ -112,7 +142,13 @@ export function FoundryPage() {
           ))}
         </div>
 
-        <div data-testid={`foundry-section-${section}`} className="mt-6">
+        <div
+          id="foundry-tabpanel"
+          role="tabpanel"
+          aria-labelledby={`foundry-tab-${section}`}
+          data-testid={`foundry-section-${section}`}
+          className="mt-6"
+        >
           {section === 'discover' && <DiscoverSection />}
           {section === 'library' && <LibrarySection />}
           {section === 'hardware' && <HardwareSection />}

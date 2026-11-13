@@ -36,16 +36,18 @@ The app also carries its own guide under **Settings > User Guide**.
 | [`../BUNDLING.md`](../BUNDLING.md) | Packaging the Python backend with PyInstaller. |
 | [`../DEPLOYMENT.md`](../DEPLOYMENT.md) | Distribution and updater notes. |
 | [`../WINDOWS_BUILD.md`](../WINDOWS_BUILD.md) | Windows-specific build steps. |
+| [`../CLAUDE.md`](../CLAUDE.md) | Short guide for AI coding agents working in the repo: stack, design-system rules, conventions and the gates to run. |
 | [`../LICENSE`](../LICENSE) | MIT — the licence covering Vision Studio's own source. |
 | [`../THIRD-PARTY-LICENSES.md`](../THIRD-PARTY-LICENSES.md) | Bundled runtime dependencies and provisioned models, each under its own terms. Ships inside every installer. |
 | [`../THIRD-PARTY-NOTICES.md`](../THIRD-PARTY-NOTICES.md) | Curated notices for the major shipped runtime dependencies, plus the `license-checker` / `pip-licenses` commands that reproduce the complete list. |
+| [`../.github/ISSUE_TEMPLATE/`](../.github/ISSUE_TEMPLATE/) and [`../.github/PULL_REQUEST_TEMPLATE.md`](../.github/PULL_REQUEST_TEMPLATE.md) | Bug-report and feature-request forms, and the pull-request checklist. |
 
 ## Release, delivery and operations
 
 | Document | What it covers |
 |----------|----------------|
 | [`R2-DELIVERY.md`](./R2-DELIVERY.md) | Runbook for the Cloudflare R2 installer host, the update feed, and the model mirror. |
-| [`code-signing.md`](./code-signing.md) | EV code signing for the Windows build: certificates, tokens vs cloud HSM, signing in CI. |
+| [`code-signing.md`](./code-signing.md) | Code signing for the Windows build: Azure Artifact Signing vs OV/EV certificates, what each does (and does not do) for SmartScreen, tokens vs cloud HSM, signing in CI. |
 | [`RELEASE_SCREENSHOTS.md`](./RELEASE_SCREENSHOTS.md) | How the README screenshots are generated from the running app, and how to regenerate them. |
 | [`TENSORRT_VERIFICATION.md`](./TENSORRT_VERIFICATION.md) | Runbook for verifying the TensorRT path on real hardware before a model family may use it under Auto. |
 
@@ -67,8 +69,11 @@ saying so.
   the 2026-06-03 comprehensive audit, and more). The
   [archive index](./archive/README.md) lists each record and the path it used
   to live at.
-- [`plans/`](./plans/) - design and implementation plans.
-- [`superpowers/`](./superpowers/) - specs, plans and spikes.
+- [`plans/`](./plans/) - design and implementation plans ([index](./plans/README.md)).
+- [`superpowers/`](./superpowers/) - specs, plans, spikes and reviews
+  ([index](./superpowers/README.md)). Plans and specs that have fully shipped
+  say so, with the pull requests that landed them, in a status line under the
+  banner.
 - [`competitive-analysis-2026-04.md`](./competitive-analysis-2026-04.md) - the
   April 2026 competitive landscape analysis (dated by month only, so it stays
   outside the dated archive).

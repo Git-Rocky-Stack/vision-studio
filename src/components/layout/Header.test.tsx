@@ -1,8 +1,14 @@
-import { cleanup, render, screen } from '@testing-library/react';
+import { act, cleanup, render, screen } from '@testing-library/react';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { Header } from './Header';
 import { useAppStore } from '@/store/appStore';
+import {
+  applyBackendStatusEvent,
+  resetBackendStatusErrorForTests,
+} from '@/hooks/useBackendStatusError';
 
 vi.mock('@/store/appStore', () => ({
   useAppStore: vi.fn(),
@@ -135,6 +141,35 @@ describe('Header', () => {
     expect(screen.getByText('Backend offline')).toBeInTheDocument();
   });
 
+  it('says why the backend is down when its status event carries a reason', () => {
+    mockStore();
+    render(<Header />);
+
+    act(() => applyBackendStatusEvent({ running: false, error: 'Port 8000 is in use by another application' }));
+    expect(screen.getByText('Backend failed to start')).toBeInTheDocument();
+    expect(
+      screen.getByLabelText('Backend failed to start: Port 8000 is in use by another application'),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId('header-backend-status')).toHaveAttribute(
+      'title',
+      'Backend failed to start: Port 8000 is in use by another application',
+    );
+
+    act(() => applyBackendStatusEvent({ running: true }));
+    expect(screen.getByText('Backend offline')).toBeInTheDocument();
+    resetBackendStatusErrorForTests();
+  });
+
+  it('does not let a stale reason mask a backend that is up', () => {
+    mockStore({
+      systemInfo: { ...baseStore.systemInfo, backendConnected: true, gpuAvailable: true, modelsCount: 2 },
+    });
+    render(<Header />);
+    act(() => applyBackendStatusEvent({ running: false, error: 'Port 8000 is in use by another application' }));
+    expect(screen.queryByText('Backend failed to start')).toBeNull();
+    resetBackendStatusErrorForTests();
+  });
+
   // The nav rail is icons only, so the header is where the current workspace
   // is named. It used to read "Workspace" on every tab.
   it.each([
@@ -204,5 +239,18 @@ describe('Header', () => {
     render(<Header />);
 
     expect(screen.getByTestId('app-header').className).not.toContain('backdrop-blur');
+  });
+
+  // electron/services/mainWindow.ts paints the caption-button strip as a solid
+  // #0a0a0a: the header's top-edge lift over the void. The lift is a token now,
+  // so pin both ends of that coupling here.
+  it('lights its top edge with the sheen-lift token the caption strip matches', () => {
+    mockStore();
+    render(<Header />);
+    expect(screen.getByTestId('app-header')).toHaveClass('from-sheen-lift');
+
+    const css = readFileSync(resolve(process.cwd(), 'src/index.css'), 'utf8');
+    const themeLift = /@theme \{[\s\S]*?--color-sheen-lift:\s*rgba\(255, 255, 255, (0?\.\d+)\)/.exec(css)?.[1];
+    expect(Math.round(255 * Number(themeLift))).toBe(0x0a);
   });
 });

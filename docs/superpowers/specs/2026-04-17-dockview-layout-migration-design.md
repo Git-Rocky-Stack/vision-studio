@@ -3,6 +3,8 @@
 > **Historical design record - 2026-04-17.** Describes intent at that
 > date, not current behaviour. See `docs/INDEX.md` for what is authoritative.
 
+> **Status (checked 2026-11-11):** Shipped - and later superseded: the app now uses its own panel layout (`src/components/layout/DockviewLayout.tsx`) and the `dockview` package was removed (`c1aea9c`).
+
 **Date:** 2026-04-17
 **Phase:** 1 of 5 (Dockview Layout Migration)
 **Status:** Approved

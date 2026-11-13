@@ -37,4 +37,9 @@ describe('UserGuidePage', () => {
     expect(screen.getByRole('region', { name: 'Timeline' })).toHaveAttribute('id', 'guide-timeline');
     expect(screen.getByRole('region', { name: 'Settings' })).toHaveAttribute('id', 'guide-settings');
   });
+
+  it('names the Foundry in the intro as where models are installed', () => {
+    render(<UserGuidePage />);
+    expect(screen.getByText(/install and manage models in the Foundry/)).toBeInTheDocument();
+  });
 });

@@ -22,6 +22,11 @@ export interface IterationNode {
   note: string;
 }
 
+/** Fields of an iteration node that may be patched after it was recorded. */
+export type IterationNodePatch = Partial<
+  Pick<IterationNode, 'thumbnail' | 'generationJob' | 'note' | 'isPinned'>
+>;
+
 export interface IterationBranch {
   id: string;
   name: string;

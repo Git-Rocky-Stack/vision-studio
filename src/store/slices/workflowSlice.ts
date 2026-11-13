@@ -117,15 +117,6 @@ export function createWorkflowActions(set: AppSet, get: AppGet) {
           : {}
       ),
 
-    createWorkflow: (name: string): WorkflowRecord => {
-      const workflow = createDraftWorkflow(name);
-      set((state) => ({
-        workflowRecords: [...state.workflowRecords, workflow],
-        activeWorkflowId: workflow.id,
-      }));
-      return workflow;
-    },
-
     createWorkflowFromGraph: (name: string, graph: WorkflowGraph): WorkflowRecord => {
       const workflow: WorkflowRecord = { ...createDraftWorkflow(name), graph };
       set((state) => ({
@@ -164,16 +155,6 @@ export function createWorkflowActions(set: AppSet, get: AppGet) {
           },
         },
       })),
-
-    resetWorkflowRuntimeState: (workflowId: string) =>
-      set((state) => {
-        if (!(workflowId in state.workflowRuntimeById)) {
-          return { workflowRuntimeById: state.workflowRuntimeById };
-        }
-
-        const { [workflowId]: _removedRuntime, ...rest } = state.workflowRuntimeById;
-        return { workflowRuntimeById: rest };
-      }),
 
     recordWorkflowRun: (workflowId: string, run: WorkflowRunInput) =>
       set((state) => ({

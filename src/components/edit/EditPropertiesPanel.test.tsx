@@ -62,6 +62,17 @@ describe('EditPropertiesPanel', () => {
       expect(useAppStore.getState().regionMode).toBe(false);
     });
 
+    it('turns region mode off when the panel unmounts (leaving the Canvas tab)', async () => {
+      const lock = seedRegion();
+      useAppStore.setState({ regionMode: true, activeRegionId: lock.id });
+      const { unmount } = render(<EditPropertiesPanel />);
+      await waitFor(() =>
+        expect(screen.getByRole('tab', { name: /region/i })).toHaveAttribute('aria-selected', 'true'),
+      );
+      unmount();
+      expect(useAppStore.getState().regionMode).toBe(false);
+    });
+
     it('opens the Region tab, keeping the selection, when region mode is turned on elsewhere', async () => {
       const lock = seedRegion();
       render(<EditPropertiesPanel />);

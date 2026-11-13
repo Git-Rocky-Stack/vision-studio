@@ -10,7 +10,7 @@ Vision Studio is a professional, local-first AI image and video generation deskt
 - **Color:** Carbon Pro - true-black AMOLED neutrals + a single chrome `#E6E6E6` accent. Canonical token names live in `src/index.css @theme`; the website `chrome/carbon/silver/led` names are aliased on top. Never edit the asserted tokens (`carbon-pro-tokens.test.ts`).
 - **Radius:** machined - cards 2px, controls 4px, overlays 8px, pills round. Never a uniform 16px.
 - **Motion:** hardware envelopes (`--ease-click/snap/glide/settle/vu/led`); everything collapses under `prefers-reduced-motion`.
-- **Depth:** four-layer system - `.raised-panel` / `.recessed-well` / `.raised-control` / `.btn-chrome` (+ `.faceplate-stripe`, `.hex-bolt`, `.led-glow`). Each surface declares one depth layer; never mix inset directions on one element.
+- **Depth:** four-layer system - `.raised-panel` / `.recessed-well` / `.raised-control` / `.btn-chrome` (+ `.faceplate-stripe`; corner bolts and LED glow come from the `Faceplate` / `HexBolt` and `Led` components). Each surface declares one depth layer; never mix inset directions on one element.
 - **Hardware primitives:** `src/components/hardware/` - every one must drive real state, never decoration.
 - **Do not** add `--spacing-*` tokens (breaks `tailwind-source.test.ts`); use the `--space-*` 8pt grid. Dark is canonical; the light theme is retained and inherits the new type/radii.
 - **No emoji** in app source (`ui-glyphs.test.ts`); no decorative middot/em-dash/bullet glyphs in `src/`. Use `lucide-react` icons.

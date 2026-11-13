@@ -37,6 +37,13 @@ vi.mock('@/components/edit/ToolStrip', () => ({
   ToolStrip: () => <div data-testid="mock-toolstrip">ToolStrip</div>,
 }));
 
+// Mocked like the other canvas panels: the real ToolOptions lazy-loads the
+// edit stack, and under a busy full-suite run that import outlasted findBy's
+// 1s window, so the Canvas heading test failed only in the full suite.
+vi.mock('@/components/edit/ToolOptions', () => ({
+  ToolOptions: () => <div data-testid="mock-tool-options">ToolOptions</div>,
+}));
+
 vi.mock('@/components/pipeline/PipelineBuilder', () => ({
   PipelineBuilder: () => <div data-testid="mock-pipeline-builder">PipelineBuilder</div>,
 }));

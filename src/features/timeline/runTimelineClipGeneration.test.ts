@@ -323,6 +323,54 @@ describe('runTimelineClipGeneration', () => {
     );
   });
 
+  it('follows a long local job past the old 120-poll ceiling instead of timing out (#J1)', async () => {
+    const { sequence, clip } = seedImageTimelineClip();
+    const processingStatuses: Array<Record<string, unknown>> = Array.from({ length: 300 }, (_, index) => ({
+      job_id: 'timeline-image-job-local-slow',
+      status: 'processing',
+      type: 'image',
+      created_at: '2026-04-24T08:30:00.000Z',
+      progress: Math.min(99, index / 3),
+    }));
+    const electron = makeElectronGenerationMock({
+      submitImage: { success: true, jobId: 'timeline-image-job-local-slow' },
+      statuses: [
+        ...processingStatuses,
+        {
+          job_id: 'timeline-image-job-local-slow',
+          status: 'completed',
+          type: 'image',
+          created_at: '2026-04-24T08:30:00.000Z',
+          completed_at: '2026-04-24T08:40:00.000Z',
+          progress: 100,
+          result: { images: ['/outputs/timeline-image-job-local-slow/frame.png'] },
+        },
+      ],
+    });
+
+    const result = await runTimelineClipGeneration({
+      operation: 'generate',
+      clipId: clip.id,
+      sequenceId: sequence.id,
+      input: {
+        prompt: 'slow local render',
+        generationType: 'image',
+        model: 'flux-dev',
+        width: 1024,
+        height: 1024,
+        steps: 25,
+        cfgScale: 7.5,
+        scheduler: 'Euler a',
+        seed: 11,
+      },
+      electron,
+      pollIntervalMs: 0,
+    });
+
+    expect(result.cancelled).toBe(false);
+    expect(electron.generation.getStatus).toHaveBeenCalledTimes(301);
+  });
+
   it('polls beyond 120 attempts when on the OpenRouter still-image route', async () => {
     useAppStore.setState((state) => ({
       systemInfo: {

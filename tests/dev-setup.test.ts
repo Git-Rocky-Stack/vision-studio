@@ -9,10 +9,11 @@ const requireFromRoot = createRequire(resolve(ROOT, 'package.json'));
 type Steps = {
   checkPython: () => Promise<{ status: 'ok' | 'unsupported' | 'missing'; pythonPath: string | null }>;
   setupVirtualEnv: (pythonPath: string) => Promise<string>;
-  installPyTorch: (venvPath: string, useCPU?: boolean) => Promise<void>;
+  installPyTorch: (venvPath: string, useCPU?: boolean) => Promise<string>;
   installPythonDependencies: (venvPath: string) => Promise<void>;
-  installBundledRuntimes: (venvPath: string) => Promise<void>;
-  assertBundleImports: (venvPath: string) => void;
+  installTensorRT: (venvPath: string, flavor: string) => Promise<boolean>;
+  installBundledRuntimes: (venvPath: string, options?: { tensorrt?: boolean }) => Promise<void>;
+  assertBundleImports: (venvPath: string, expectations?: { expectTensorrt?: boolean }) => void;
 };
 
 /**
@@ -38,15 +39,21 @@ function fakeSteps(python: Awaited<ReturnType<Steps['checkPython']>>) {
     },
     installPyTorch: async (venvPath, useCPU) => {
       calls.push(`installPyTorch(${venvPath}, cpu=${Boolean(useCPU)})`);
+      return useCPU ? 'cpu' : 'cu132';
     },
     installPythonDependencies: async (venvPath) => {
       calls.push(`installPythonDependencies(${venvPath})`);
     },
-    installBundledRuntimes: async (venvPath) => {
-      calls.push(`installBundledRuntimes(${venvPath})`);
+    // Mirrors build-backend.cjs bundlesTensorrt: the CUDA flavour only.
+    installTensorRT: async (venvPath, flavor) => {
+      calls.push(`installTensorRT(${venvPath}, ${flavor})`);
+      return flavor === 'cu132';
     },
-    assertBundleImports: (venvPath) => {
-      calls.push(`assertBundleImports(${venvPath})`);
+    installBundledRuntimes: async (venvPath, options) => {
+      calls.push(`installBundledRuntimes(${venvPath}, tensorrt=${Boolean(options?.tensorrt)})`);
+    },
+    assertBundleImports: (venvPath, expectations) => {
+      calls.push(`assertBundleImports(${venvPath}, tensorrt=${Boolean(expectations?.expectTensorrt)})`);
     },
   };
   return { steps, calls };
@@ -67,17 +74,21 @@ describe('developer backend setup installs what the release build bundles', () =
       'setupVirtualEnv(C:/py312/python.exe)',
       'installPyTorch(backend/venv, cpu=false)',
       'installPythonDependencies(backend/venv)',
-      'installBundledRuntimes(backend/venv)',
-      'assertBundleImports(backend/venv)',
+      'installTensorRT(backend/venv, cu132)',
+      'installBundledRuntimes(backend/venv, tensorrt=true)',
+      'assertBundleImports(backend/venv, tensorrt=true)',
     ]);
   });
 
-  it('installs the CPU torch wheels when there is no NVIDIA GPU', async () => {
+  it('installs the CPU torch wheels, and no TensorRT, when there is no NVIDIA GPU', async () => {
     const { steps, calls } = fakeSteps({ status: 'ok', pythonPath: 'python' });
 
     await setupDevBackend(steps, () => false);
 
     expect(calls).toContain('installPyTorch(backend/venv, cpu=true)');
+    expect(calls).toContain('installTensorRT(backend/venv, cpu)');
+    expect(calls).toContain('installBundledRuntimes(backend/venv, tensorrt=false)');
+    expect(calls).toContain('assertBundleImports(backend/venv, tensorrt=false)');
   });
 
   it.each(['unsupported', 'missing'] as const)(
@@ -85,7 +96,7 @@ describe('developer backend setup installs what the release build bundles', () =
     async (status) => {
       const { steps, calls } = fakeSteps({ status, pythonPath: status === 'missing' ? null : 'python' });
 
-      await expect(setupDevBackend(steps, () => true)).rejects.toThrow(/Python 3\.10, 3\.11 or 3\.12/);
+      await expect(setupDevBackend(steps, () => true)).rejects.toThrow(/Python 3\.12 is required/);
       expect(calls).toEqual(['checkPython']);
     },
   );
@@ -97,6 +108,7 @@ describe('developer backend setup installs what the release build bundles', () =
       'setupVirtualEnv',
       'installPyTorch',
       'installPythonDependencies',
+      'installTensorRT',
       'installBundledRuntimes',
       'assertBundleImports',
     ]) {

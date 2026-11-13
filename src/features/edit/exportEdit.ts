@@ -2,6 +2,7 @@ import { useAppStore } from '@/store/appStore';
 import {
   createImportedAssetRecords,
   createMediaAssetFromImportedFile,
+  toPreviewUrl,
 } from '@/features/assets/assetRecords';
 import type { ImportedAssetFile } from '@/types/electron';
 
@@ -38,6 +39,26 @@ export interface SaveDataUrlApi {
     dataUrl: string;
     fileName: string;
   }) => Promise<{ success: boolean; file?: ImportedAssetFile; error?: string }>;
+}
+
+/**
+ * Registers a file written by assets.saveDataUrl in the asset library (as an
+ * import) and the media pool, and returns its library path and preview URL.
+ */
+export function registerSavedEditFile(
+  store: typeof useAppStore,
+  file: ImportedAssetFile,
+): { path: string; previewUrl: string } {
+  store.setState((state) => ({
+    assetLibrary: createImportedAssetRecords(state.assetLibrary, [file]),
+  }));
+  store.getState().upsertMediaAsset(createMediaAssetFromImportedFile(file));
+  const normalized = file.importedPath.replace(/\\/g, '/');
+  const record = store.getState().assetLibrary.find((asset) => asset.id === `import::${normalized}`);
+  return {
+    path: record?.path ?? normalized,
+    previewUrl: record?.previewUrl ?? toPreviewUrl(normalized, { type: file.type }),
+  };
 }
 
 export interface ExportEditResult {
@@ -87,12 +108,8 @@ export async function exportEditedImage({
     if (!result.success || !result.file) {
       return { ok: false, error: result.error || 'The edited image could not be saved.' };
     }
-    const file = result.file;
-    store.setState((state) => ({
-      assetLibrary: createImportedAssetRecords(state.assetLibrary, [file]),
-    }));
-    store.getState().upsertMediaAsset(createMediaAssetFromImportedFile(file));
-    return { ok: true, path: file.importedPath };
+    registerSavedEditFile(store, result.file);
+    return { ok: true, path: result.file.importedPath };
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : 'The edited image could not be saved.' };
   }

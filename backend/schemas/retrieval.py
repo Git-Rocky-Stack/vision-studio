@@ -8,6 +8,11 @@ from pydantic import BaseModel, Field
 
 RetrievalSource = Literal["prompt-history", "assets", "knowledge-base"]
 
+# One ingest request carries at most this many records (B14): each record is
+# up to 8000 chars, so an unbounded list is an unbounded request body and an
+# unbounded embed batch. A larger corpus is synced in chunks of this size.
+MAX_INGEST_RECORDS = 10_000
+
 
 class IngestRecordModel(BaseModel):
     source: RetrievalSource
@@ -17,7 +22,7 @@ class IngestRecordModel(BaseModel):
 
 
 class IngestRequest(BaseModel):
-    records: List[IngestRecordModel]
+    records: List[IngestRecordModel] = Field(max_length=MAX_INGEST_RECORDS)
 
 
 class IngestResponse(BaseModel):
@@ -49,3 +54,8 @@ class QueryResponse(BaseModel):
 class StatsResponse(BaseModel):
     count: int
     mode: Literal["semantic", "lexical"]
+    # D5b: whether the provisioned local embedding model can serve semantic
+    # ranking, and why not when it cannot (not downloaded / not installed /
+    # failed to load). Lexical ranking serves every query meanwhile.
+    semantic_available: bool = False
+    semantic_unavailable_reason: Optional[str] = None

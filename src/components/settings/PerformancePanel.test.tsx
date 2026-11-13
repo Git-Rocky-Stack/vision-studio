@@ -63,4 +63,52 @@ describe('PerformancePanel', () => {
     render(<PerformancePanel />);
     expect(screen.getByText(/ran eager/i)).toBeInTheDocument();
   });
+
+  describe('optional backend packages', () => {
+    function reportAvailability(availability: Record<string, { available: boolean; reason?: string }>) {
+      useAppStore.setState({
+        systemInfo: { ...useAppStore.getState().systemInfo, availability },
+      });
+    }
+
+    it('keeps every optimization selectable while availability is unreported', () => {
+      render(<PerformancePanel />);
+      for (const name of ['Quantization on', 'TensorRT on', 'Compile on']) {
+        expect(screen.getByRole('button', { name })).toBeEnabled();
+      }
+    });
+
+    it('disables quantization and TensorRT up front with the reason when the build lacks them', () => {
+      reportAvailability({
+        quantization: { available: false, reason: 'optimum-quanto is not installed.' },
+        tensorrt: { available: false },
+      });
+      render(<PerformancePanel />);
+
+      for (const value of ['auto', 'on', 'off']) {
+        expect(screen.getByRole('button', { name: `Quantization ${value}` })).toBeDisabled();
+        expect(screen.getByRole('button', { name: `TensorRT ${value}` })).toBeDisabled();
+      }
+      expect(screen.getByRole('button', { name: 'Quantization on' })).toHaveAccessibleDescription(
+        /optimum-quanto is not installed/,
+      );
+      expect(screen.getByRole('button', { name: 'TensorRT on' })).toHaveAccessibleDescription(
+        /Not included in this build/,
+      );
+      // Unrelated optimizations stay usable.
+      expect(screen.getByRole('button', { name: 'Compile on' })).toBeEnabled();
+    });
+
+    it('leaves a reported-available feature enabled', () => {
+      reportAvailability({ tensorrt: { available: true } });
+      render(<PerformancePanel />);
+      expect(screen.getByRole('button', { name: 'TensorRT on' })).toBeEnabled();
+    });
+
+    it('marks the selected tri-state as pressed', () => {
+      render(<PerformancePanel />);
+      expect(screen.getByRole('button', { name: 'Compile auto' })).toHaveAttribute('aria-pressed', 'true');
+      expect(screen.getByRole('button', { name: 'Compile off' })).toHaveAttribute('aria-pressed', 'false');
+    });
+  });
 });

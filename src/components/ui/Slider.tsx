@@ -1,5 +1,5 @@
 import { cn } from '@/utils/cn';
-import { useRef, useCallback, useState } from 'react';
+import { useRef, useCallback, useId, useState } from 'react';
 
 interface SliderProps {
   label: string;
@@ -23,6 +23,7 @@ export function Slider({
   valueFormatter = (v) => v.toString(),
 }: SliderProps) {
   const trackRef = useRef<HTMLDivElement>(null);
+  const labelId = useId();
   const [isDragging, setIsDragging] = useState(false);
 
   const percent = ((value - min) / (max - min)) * 100;
@@ -109,9 +110,11 @@ export function Slider({
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between">
-        <label id={`slider-label-${label}`} className="text-label text-text-body">
+        {/* A <label> cannot target the custom slider; the visible name is
+            wired to it through aria-labelledby instead. */}
+        <span id={labelId} className="text-label text-text-body">
           {label}
-        </label>
+        </span>
         {showValue && (
           <span className="type-meta text-accent-primary">{valueFormatter(value)}</span>
         )}
@@ -122,7 +125,7 @@ export function Slider({
         ref={trackRef}
         role="slider"
         tabIndex={0}
-        aria-label={label}
+        aria-labelledby={labelId}
         aria-valuemin={min}
         aria-valuemax={max}
         aria-valuenow={value}

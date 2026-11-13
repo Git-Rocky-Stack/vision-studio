@@ -31,4 +31,11 @@ describe('CompactImageDropZone', () => {
     await userEvent.setup().click(screen.getByLabelText('Remove Start Frame'));
     expect(onChange).toHaveBeenCalledWith(null);
   });
+
+  it('labels the file input with its visible label, with or without an image', () => {
+    const { rerender } = render(<CompactImageDropZone label="Start Frame" image={null} onImageChange={() => {}} />);
+    expect(screen.getByLabelText('Start Frame')).toHaveAttribute('type', 'file');
+    rerender(<CompactImageDropZone label="Start Frame" image="data:image/png;base64,test" onImageChange={() => {}} />);
+    expect(screen.getByLabelText('Start Frame')).toHaveAttribute('type', 'file');
+  });
 });

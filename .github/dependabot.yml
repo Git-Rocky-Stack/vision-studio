@@ -1,0 +1,21 @@
+# Keeps the SHA-pinned GitHub Actions current (every `uses:` is pinned to a
+# commit SHA with the tag in a trailing comment; Dependabot bumps both) and
+# surfaces npm security updates for the shipped dependency tree.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ["*"]
+
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      minor-and-patch:
+        update-types: [minor, patch]

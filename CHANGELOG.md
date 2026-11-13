@@ -2,7 +2,7 @@
 
 All notable changes to Vision Studio will be documented in this file.
 
-## [3.4.2] - 2026-10-25
+## [3.4.2] - Unreleased
 
 UAT and go-to-market readiness release. A full design and engineering audit:
 every unwired action found is wired or honestly disabled, the hosted AI routes
@@ -11,7 +11,10 @@ flow-matching models, the packaged app can edit the images it shows, and the
 renderer stops rewriting its whole persisted store on every update. Carries the
 cancel / Background Batch / ComfyUI-video / token-storage fixes (#93), the dev
 venv launch fix (#94) and the 41-item design pass (FINDING-001 to 041) that
-landed after 3.4.1.
+landed after 3.4.1, plus a second full audit's remediation: a hardened
+Electron boundary (typed and validated IPC, authenticated backend handshake,
+no path traversal), crash supervision, durable jobs, a pinned and hash-locked
+backend that ships inside every installer, and a current toolchain.
 
 ### Added
 - **Clone Stamp (S).** Alt+click to set a source, then paint to copy it under a
@@ -37,12 +40,66 @@ landed after 3.4.1.
   and style, and the Pen's Finish, Close and Cancel. [ and ] step the brush
   size; the canvas shows the brush footprint and the clone source
 
+### Changed
+- **GPU floor is Turing (RTX 20 / GTX 16) and newer, RTX 50-series included.**
+  The bundled PyTorch is 2.14.1 on CUDA 13.2, with Torch-TensorRT 2.14 bundled
+  on Windows and Linux (TensorRT stays off until a model family passes the
+  verification sweep, and Settings says so); NVIDIA driver 580 or newer is
+  required. The Windows backend grows by about 2.4 GB with TensorRT
+- **Older NVIDIA cards run on the CPU, and the app says why.** CUDA reported a
+  GTX 10-series card as available although the build has no kernels for it,
+  so the first generation failed with "no kernel image is available". The
+  backend now checks the card against the build's architectures, uses the CPU,
+  and the Foundry hardware panel and first-run setup name the card and the
+  reason
+- **macOS 14 (Sonoma) or newer on Apple Silicon.** The bundled PyTorch arm64
+  wheel requires it, so the installer now refuses older systems
+- **The backend ships as a one-folder bundle** (`resources/backend/`) built
+  from hash-locked requirements, with a startup self-check; the Windows
+  release job builds it natively, and every installer carries its own
+  dependencies (Python is not needed on the user's machine)
+- **Updates are downloaded on request.** Settings > About shows Download
+  update once a newer signed build is found (auto-download is off)
+- **Ctrl+W no longer closes the window**; closing with work in flight asks
+  first, and a second launch focuses the running window
+- **Generation jobs survive a backend restart** (persisted, with a schema
+  migration), and a crashed backend is restarted by a supervisor
+- **Toolchain:** Electron 45.3.1, TypeScript 6.0, Vite 8.3, Vitest 5.1,
+  jsdom 31, lucide-react 1.72, framer-motion 14 and electron-store 12. Node
+  `^22.22.2 || ^24.15.0 || >=26` (in `engines` and `.nvmrc`)
+
+### Removed
+- The video End Frame control (no backend path consumed it), the unused
+  `react-router-dom` dependency and two dead release scripts
+  (`scripts/model-downloader.js`, `scripts/prepare-release.js`)
+- The backend's batch ZIP export endpoint (`/api/v1/batch/export-zip`) and the
+  unused model linker: nothing in the app called them, and every unused route
+  is attack surface on a token-bearing port
+
 ### Security
+- **The renderer cannot reach outside the app's own folders.** Every
+  file-system IPC call resolves real paths and checks them against the output
+  roots and files the user picked (path traversal and symlink escapes are
+  refused), and the backend serves media only from the same allow-list
+- **Every IPC channel is typed and validated** against one zod contract shared
+  by the preload and the handlers, and handlers refuse senders other than the
+  app's own window. The raw `store:*` channels are gone
+- **The backend is authenticated.** Electron and the backend complete an HMAC
+  handshake at launch and every HTTP and WebSocket call carries the session
+  header, so another local process cannot drive the GPU or read outputs
+- **Strict Content Security Policy** (no `unsafe-inline`), deny-by-default
+  permission handlers, and remote fetches limited to the hosted AI routes
+- **Stored API keys** (OpenRouter, Hugging Face) are encrypted with the OS
+  keychain (`safeStorage`) only after the app is ready, migrated in place, and
+  clearing a key really removes it
+- **Supply chain:** every GitHub Action is pinned to a commit SHA, workflows
+  default to read-only tokens, Dependabot watches npm and Actions, the
+  backend installs with `--require-hashes` and `pip-audit` runs in the PR
+  gate, and the bundled FFmpeg carries its GPL notice
 - **Every high advisory in the shipped and dev trees is cleared.** axios 1.20.0,
   zod 4.6.7, fast-uri 3.1.9 and follow-redirects 1.16.1 on the shipped path;
-  Electron 42.11.18 (the runtime; advisory range <=42.11.15), Vite 6.4.5 and
-  Vitest 4.1.12 in the toolchain. `npm audit` and `npm audit --omit=dev` both
-  report zero
+  Electron 45.3.1 (the runtime), Vite 8.3.8 and Vitest 5.1.0 in the
+  toolchain. `npm audit` and `npm audit --omit=dev` both report zero
 - **Hosted API keys never reach logs or error causes.** OpenRouter errors no
   longer carry the AxiosError (whose config holds the bearer key) as `cause`,
   and every backend-call log line records only the message and HTTP status
@@ -84,8 +141,7 @@ landed after 3.4.1.
 - **Canvas undo and redo restore the edit**, the panel's Undo/Redo buttons work,
   and Before/After and History are real
 - **Canvas tool shortcuts work on the Canvas tab** (they were wired to the Story
-  canvas and also fired on Ctrl combinations); Eyedropper works; Clone, Heal,
-  Shape and Pen are shown as not available yet
+  canvas and also fired on Ctrl combinations); Eyedropper works
 - **All 15 adjustment sliders and the Filters tab change the image**, and edits
   can be **exported** as a new asset (`<output>/edits/`)
 - **The packaged app can read back the pixels it edits** - backend outputs and
@@ -116,10 +172,25 @@ landed after 3.4.1.
 - **`VISION_STUDIO_SKIP_BACKEND=0` starts the backend** (any non-empty value
   skipped it), and the no-backend dialog no longer points at a Python-path
   setting that does not exist
-- **Batch export resolves real outputs** (it always answered 404), `/ws` cleans
-  up after bad frames and sends each job's final state, and oversized upscales
-  are refused before allocating
+- `/ws` cleans up after bad frames and sends each job's final state, and
+  oversized upscales are refused before allocating
 - Backend: Pydantic v2 `model_dump()` throughout (29 deprecation warnings gone)
+- **Packaging builds again**: the app icons are back in `build/`, the Windows
+  and shared builder configs agree (publish feed, signature check, licenses),
+  and signing verification runs on Windows without `npx.cmd` errors
+- **Region Lock** exposes strength, invert, blend and feather, and the masked
+  inpaint honours them
+- **A failing panel no longer blanks the app** (per-view error boundaries),
+  job progress is tracked in the store so it survives switching views, and the
+  Video Start Frame reaches the backend
+- **Persisted state moved to IndexedDB** (with a one-time migration), and the
+  results grid lays out by measured width
+- Large retrieval ingests are sent in chunks the backend accepts, the rate
+  limiter keys on the socket peer (a forged `X-Forwarded-For` could bypass
+  it), and free VRAM is measured only after the previous model is released,
+  so precision and offload are chosen from the memory actually available
+- Dialogs trap and restore focus, modal shortcuts stay inside the open dialog,
+  the asset grid is keyboard navigable, and lint enforces the jsx-a11y rules
 
 ### Performance
 - **Entry bundle 782 kB -> 442 kB** (gzip 205 -> 120 kB): every non-startup
@@ -150,8 +221,9 @@ landed after 3.4.1.
 - New [User Guide](docs/USER_GUIDE.md), [Troubleshooting](docs/TROUBLESHOOTING.md),
   [Keyboard shortcuts](docs/KEYBOARD_SHORTCUTS.md) and
   [UAT checklist](docs/UAT_CHECKLIST.md); dated audits and handoffs moved to
-  `docs/archive/`; setup docs state the real Node (`^20.19 || ^22.13 || >=24`,
-  now in `engines`) and Python (3.10-3.12) ranges; every current doc's links and
+  `docs/archive/`; setup docs state the real Node (`^22.22.2 || ^24.15.0 ||
+  >=26`, in `engines`) and Python (3.12, the version the hash locks are
+  compiled for) requirements; every current doc's links and
   anchors are checked
 
 ## [3.4.1] - 2026-09-16

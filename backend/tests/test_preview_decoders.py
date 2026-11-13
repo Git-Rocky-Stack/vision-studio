@@ -52,6 +52,37 @@ class ResolveDecodersDirTests(unittest.TestCase):
                 decoders.resolve_decoders_dir(),
                 os.path.join(exe_dir, "preview-decoders"))
 
+    def test_frozen_one_folder_bundle_resolves_the_parent_resources_dir(self):
+        # One-folder layout: <resources>/backend/VisionStudio-Backend.exe with
+        # the decoders at <resources>/preview-decoders.
+        resources = os.path.join(self.tmp, "resources")
+        bundle_dir = os.path.join(resources, "backend")
+        os.makedirs(bundle_dir)
+        os.makedirs(os.path.join(resources, "preview-decoders"))
+        empty_root = os.path.join(self.tmp, "nowhere", "backend")
+        os.makedirs(empty_root)
+        with mock.patch.dict(os.environ, {}, clear=False), \
+                mock.patch.object(sys, "frozen", True, create=True), \
+                mock.patch.object(sys, "executable", os.path.join(bundle_dir, "VisionStudio-Backend.exe")), \
+                mock.patch.object(decoders, "_backend_root", lambda: empty_root):
+            os.environ.pop(decoders.ENV_DECODERS_DIR, None)
+            self.assertEqual(
+                os.path.normpath(decoders.resolve_decoders_dir()),
+                os.path.normpath(os.path.join(resources, "preview-decoders")))
+
+    def test_frozen_prefers_the_launcher_dir_over_its_parent(self):
+        resources = os.path.join(self.tmp, "resources")
+        bundle_dir = os.path.join(resources, "backend")
+        os.makedirs(os.path.join(bundle_dir, "preview-decoders"))
+        os.makedirs(os.path.join(resources, "preview-decoders"))
+        with mock.patch.dict(os.environ, {}, clear=False), \
+                mock.patch.object(sys, "frozen", True, create=True), \
+                mock.patch.object(sys, "executable", os.path.join(bundle_dir, "VisionStudio-Backend")):
+            os.environ.pop(decoders.ENV_DECODERS_DIR, None)
+            self.assertEqual(
+                decoders.resolve_decoders_dir(),
+                os.path.join(bundle_dir, "preview-decoders"))
+
     def test_source_run_resolves_repo_resources(self):
         backend_root = os.path.join(self.tmp, "repo", "backend")
         target = os.path.join(self.tmp, "repo", "resources", "preview-decoders")

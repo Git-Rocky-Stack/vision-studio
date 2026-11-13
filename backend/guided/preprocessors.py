@@ -30,8 +30,23 @@ except ImportError:  # stub CI / slim install - annotator passes fail loudly
 from guided.masks import mask_coverage, rasterize_mask
 from guided.passes import GuidedValidationError
 
+from utils.device import free_accelerator_memory
+from utils.pipeline_cache import register_pipeline_owner
+
 # Detector instances are expensive to build; cache per (name, weights dir).
+# Freed through the shared release path on a model switch.
 _DETECTORS: Dict[str, Any] = {}
+
+
+def release_annotator_cache() -> None:
+    """Drop every cached annotator detector (shared release path)."""
+    had_detectors = bool(_DETECTORS)
+    _DETECTORS.clear()
+    if had_detectors:
+        free_accelerator_memory()
+
+
+register_pipeline_owner("guided-annotators", release_annotator_cache)
 
 
 @dataclass(frozen=True)

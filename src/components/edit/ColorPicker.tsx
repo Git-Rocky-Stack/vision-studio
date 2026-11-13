@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useId } from 'react';
 import { cn } from '@/utils/cn';
 import { ChevronDown } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -22,12 +22,22 @@ export interface ColorPickerProps {
   value: string;
   onChange: (color: string) => void;
   recentColors: string[];
+  /** What this colour is for (e.g. "Text colour"); names the trigger and the popover. */
+  label?: string;
 }
 
-export function ColorPicker({ value, onChange, recentColors }: ColorPickerProps) {
+export function ColorPicker({ value, onChange, recentColors, label = 'Colour' }: ColorPickerProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [hexInput, setHexInput] = useState(value);
   const containerRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const popoverId = useId();
+  const hexInvalid = hexInput.length > 0 && !/^#[0-9a-fA-F]{6}$/.test(hexInput);
+
+  const close = () => {
+    setIsOpen(false);
+    triggerRef.current?.focus();
+  };
 
   useEffect(() => {
     setHexInput(value);
@@ -45,33 +55,56 @@ export function ColorPicker({ value, onChange, recentColors }: ColorPickerProps)
   }, [isOpen]);
 
   return (
-    <div ref={containerRef} className="relative">
+    // Presentation: this wrapper only captures the Escape that bubbles up from
+    // the swatch button or the open popover.
+    <div
+      ref={containerRef}
+      role="presentation"
+      className="relative"
+      onKeyDown={(event) => {
+        if (event.key === 'Escape' && isOpen) {
+          // The popover owns this Escape; nothing behind it should see it.
+          event.preventDefault();
+          event.stopPropagation();
+          close();
+        }
+      }}
+    >
       <button
+        ref={triggerRef}
+        type="button"
         onClick={() => setIsOpen(!isOpen)}
         aria-expanded={isOpen}
-        aria-haspopup="listbox"
+        aria-haspopup="dialog"
+        aria-controls={isOpen ? popoverId : undefined}
+        aria-label={`${label}: ${value}`}
         className="flex items-center gap-2 px-2.5 py-1.5 rounded-md bg-elevated border border-border hover:border-border-hover transition"
       >
         <div
           className="w-5 h-5 rounded border border-border"
           style={{ backgroundColor: value }}
+          aria-hidden="true"
         />
         <span className="data-mono text-text-primary">{value}</span>
-        <ChevronDown className="w-3 h-3 text-text-muted" />
+        <ChevronDown className="w-3 h-3 text-text-muted" aria-hidden="true" />
       </button>
 
       <AnimatePresence>
         {isOpen && (
           <motion.div
+            id={popoverId}
+            role="dialog"
+            aria-label={label}
             initial={{ opacity: 0, y: -4 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -4 }}
-            className="absolute z-50 top-full left-0 mt-1 w-56 p-3 bg-elevated border border-border rounded-xl shadow-cinematic space-y-3"
+            className="absolute z-50 top-full left-0 mt-1 w-56 p-3 bg-elevated border border-border rounded-xl shadow-overlay space-y-3"
           >
             {/* Native color input */}
             <div className="flex items-center gap-2">
               <input
                 type="color"
+                aria-label={`${label} picker`}
                 value={value}
                 onChange={(e) => {
                   onChange(e.target.value);
@@ -87,6 +120,8 @@ export function ColorPicker({ value, onChange, recentColors }: ColorPickerProps)
                     onChange(e.target.value);
                   }
                 }}
+                aria-label={`${label} hex value`}
+                aria-invalid={hexInvalid}
                 className="flex-1 bg-surface border border-border rounded-md px-2 py-1 data-mono text-text-primary focus:border-accent-primary transition"
                 placeholder="#ffffff"
               />
@@ -101,6 +136,9 @@ export function ColorPicker({ value, onChange, recentColors }: ColorPickerProps)
                 {PRESET_COLORS.map((color) => (
                   <button
                     key={color}
+                    type="button"
+                    aria-label={`Use ${color}`}
+                    aria-pressed={value === color}
                     onClick={() => {
                       onChange(color);
                       setHexInput(color);
@@ -127,6 +165,8 @@ export function ColorPicker({ value, onChange, recentColors }: ColorPickerProps)
                   {recentColors.slice(0, 8).map((color, i) => (
                     <button
                       key={`${color}-${i}`}
+                      type="button"
+                      aria-label={`Use recent ${color}`}
                       onClick={() => {
                         onChange(color);
                         setHexInput(color);

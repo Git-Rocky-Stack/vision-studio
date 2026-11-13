@@ -1,44 +1,39 @@
+# Vision Studio backend - server dependencies (loose floors).
+#
+# This file is for development and the lightweight CI test environment: it
+# installs the HTTP server and media stack WITHOUT the multi-GB generation
+# stack (torch, diffusers, ...), whose code paths are import-guarded and
+# skip in tests. Test tooling lives in requirements-dev.txt.
+#
+# The release bundle never installs from this file. It installs the exact,
+# hash-locked set in requirements/runtime-<platform>.txt and
+# requirements/torch-<platform>-<flavor>.txt, compiled from
+# requirements/runtime.in by `node build-backend.cjs --lock`. Keep the floors
+# here in step with runtime.in: they are security floors (see the advisories
+# named there), not compatibility guesses.
+
 # FastAPI and server
-fastapi>=0.104.0
-uvicorn[standard]>=0.24.0
+fastapi>=0.120.0
+starlette>=0.49.1
+uvicorn[standard]>=0.34.0
+h11>=0.16.0
 websockets>=12.0
-python-multipart>=0.0.6
 slowapi>=0.1.9
+pydantic>=2.5.0
 
-# AI/ML
-# torch>=2.1.0
-# torchvision>=0.16.0
-# diffusers>=0.25.0
-# transformers>=4.35.0
-# accelerate>=0.24.0
-# peft>=0.11.0  # LoRA multi-adapter stacking (#136); install alongside torch/diffusers
-# controlnet_aux>=0.0.10  # ControlNet preprocessor annotators (#34); install alongside torch/diffusers
-# onnxruntime>=1.17  # u2net background removal (#34); CPU EP sufficient, no torch needed
-# spandrel>=0.4.0  # Real-ESRGAN / GFPGAN checkpoint loader (#34); install alongside torch
-# facexlib>=0.3.0  # RetinaFace detect + ParseNet parse for GFPGAN paste-back (#34)
-# xformers>=0.0.22
-
-# Image/Video processing
-Pillow>=10.0.0
-numpy>=1.24.0
-opencv-python>=4.8.0
+# Image/Video processing (headless OpenCV: the backend never opens a window)
+Pillow>=11.3.0
+numpy>=1.26.0
+opencv-python-headless>=4.8.0
 imageio>=2.31.0
 imageio-ffmpeg>=0.4.9
 
-# Utilities
-pydantic>=2.5.0
-python-dotenv>=1.0.0
-aiofiles>=23.2.0
-httpx>=0.25.0
-
-# Model management
+# Model management and networking
 huggingface-hub[hf_xet]>=1.10.1
-gdown>=4.7.0
-tqdm>=4.66.0
-
-# Optional: For ComfyUI integration
-# comfyui-gguf  # If using GGUF quantized models
-
-# Testing
-pytest>=7.4.0
-pytest-benchmark>=4.0.0
+safetensors>=0.4.0
+requests>=2.32.4
+urllib3>=2.5.0
+aiohttp>=3.13.3
+aiofiles>=23.2.0
+tqdm>=4.66.3
+psutil>=5.9.0

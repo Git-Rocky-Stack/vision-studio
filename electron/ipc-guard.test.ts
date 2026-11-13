@@ -23,7 +23,12 @@ vi.mock('electron', () => {
 import { ipcMain } from 'electron';
 import './ipc-guard';
 
-const noop = () => undefined;
+// Only contract listeners (built by handleIpc) may register; brand test doubles the same way.
+const CONTRACT = Symbol.for('vision-studio.ipc-contract-listener');
+function contractListener<T extends (...args: never[]) => unknown>(fn: T): T {
+  return Object.assign(fn, { [CONTRACT]: true });
+}
+const noop = contractListener(() => undefined);
 
 // Every test uses a unique channel so the guard's module-level registry stays isolated.
 // Counter is monotonic across the whole file — never reset — because the guard's
@@ -83,7 +88,7 @@ describe('ipc-guard', () => {
 
   it('forwards registrations to the underlying ipcMain', () => {
     const channel = nextChannel();
-    const listener = vi.fn();
+    const listener = contractListener(vi.fn());
     ipcMain.handle(channel, listener);
     const handlers = (ipcMain as unknown as { __handlers: Map<string, unknown> }).__handlers;
     expect(handlers.get(channel)).toBe(listener);
@@ -95,6 +100,24 @@ describe('ipc-guard', () => {
     ipcMain.removeHandler(channel);
     const handlers = (ipcMain as unknown as { __handlers: Map<string, unknown> }).__handlers;
     expect(handlers.has(channel)).toBe(false);
+  });
+
+  it('refuses a listener that bypasses handleIpc (no sender check, no validation)', () => {
+    const channel = nextChannel();
+    expect(() => ipcMain.handle(channel, () => undefined)).toThrowError(
+      new RegExp(`"${channel}" was not registered through handleIpc`)
+    );
+    expect(() => ipcMain.handleOnce(channel, () => undefined)).toThrowError(/not registered through handleIpc/);
+    const handlers = (ipcMain as unknown as { __handlers: Map<string, unknown> }).__handlers;
+    expect(handlers.has(channel)).toBe(false);
+  });
+
+  it('accepts a real handleIpc listener', async () => {
+    const { createIpcListener } = await import('./ipc-handlers/ipcHandle');
+    ipcMain.removeHandler('app:get-version');
+    expect(() =>
+      ipcMain.handle('app:get-version', createIpcListener('app:get-version', () => '1.0.0'))
+    ).not.toThrow();
   });
 
   it('permits different channels to coexist', () => {

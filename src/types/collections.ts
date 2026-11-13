@@ -23,6 +23,10 @@ export interface SmartQuery {
   styleCategories?: string[];
   colorPalette?: string[];
   mood?: string[];
+  /** Match only these media types ('image' | 'video' | 'audio'), read from the asset record. */
+  mediaTypes?: string[];
+  /** Match only favorited assets (the asset record's favorite flag). */
+  favoritesOnly?: boolean;
 }
 
 export interface AssetTag {

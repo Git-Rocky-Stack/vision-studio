@@ -20,7 +20,7 @@ function setup({ tempRoot = '' } = {}) {
   const store = createHuggingFaceVideoJobStore({ emit });
   const userAccounts = {
     getAccount: vi.fn(() => makeAccount()),
-    getHuggingFaceToken: vi.fn(() => 'hf_token' as string | null),
+    getHuggingFaceToken: vi.fn(async () => 'hf_token' as string | null),
   };
   const huggingFace = {
     generateVideo: vi.fn(async () => ({ model: 'Lightricks/LTX-Video', dataUrl: MP4_DATA_URL, mimeType: 'video/mp4' })),
@@ -32,7 +32,7 @@ function setup({ tempRoot = '' } = {}) {
 describe('runHuggingFaceVideoJob', () => {
   it('fails the job with a sanitized error when no token is configured', async () => {
     const h = setup();
-    h.userAccounts.getHuggingFaceToken = vi.fn(() => null);
+    h.userAccounts.getHuggingFaceToken = vi.fn(async () => null);
     h.store.set({ job_id: 'huggingface-video-1', status: 'pending', progress: 0, type: 'video', created_at: '2026-06-17T00:00:00.000Z' });
     await runHuggingFaceVideoJob(
       'huggingface-video-1',

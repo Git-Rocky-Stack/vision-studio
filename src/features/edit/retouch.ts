@@ -41,6 +41,7 @@ export interface StrokeMask {
   coverage: Float32Array;
 }
 
+/** Brush / eraser / clone / heal diameter range in image pixels (the Size slider). */
 export const RETOUCH_SIZE_MIN = 1;
 export const RETOUCH_SIZE_MAX = 400;
 
@@ -479,13 +480,6 @@ export function applyRetouchStroke(target: RgbaBuffer, stroke: RetouchStroke): v
   }
   const offset = stroke.offset ?? findHealSource(source, target.width, target.height, mask);
   applyHeal(target, source, mask, offset, stroke.opacity);
-}
-
-/** Replay strokes over a copy of `base`. */
-export function renderRetouch(base: RgbaBuffer, strokes: readonly RetouchStroke[]): RgbaBuffer {
-  const result: RgbaBuffer = { data: new Uint8ClampedArray(base.data), width: base.width, height: base.height };
-  for (const stroke of strokes) applyRetouchStroke(result, stroke);
-  return result;
 }
 
 /**

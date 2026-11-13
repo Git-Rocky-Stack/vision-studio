@@ -14,6 +14,16 @@ against the record hash, then atomically moved into place (complete-or-absent,
 spec 3.5). The token is only ever a Bearer header while the hop host is
 civitai.com; github assets need no token.
 
+Manifest-pinned records (the comprehensive auto-set, ``register_manifest_pins``)
+take the pinned branch: exactly the files the manifest names, fetched at the
+pinned commit sha (never a moving branch), each verified against its pinned
+sha256 (LFS weights + readable configs) or git blob id (non-LFS files of gated
+repos) before the job can read ``ready``. A mismatch deletes the file and fails
+the job - integrity is never inferred from presence.
+
+Every huggingface_hub metadata call runs in a worker thread with the caller's
+token (never on the event loop, never stored, never logged).
+
 Telemetry (progress/speed/eta) lives on DownloadJob and is streamed via
 GET /models/downloads; it is deliberately NOT written onto ModelRecord.
 """
@@ -37,6 +47,8 @@ from foundry.download_errors import (
     DownloadError,
     DownloadFailedError,
     GatedModelError,
+    IntegrityError,
+    RemoteCodeUnsupportedError,
     map_hf_exception,
 )
 from foundry.download_telemetry import ProgressSink, make_tqdm_class
@@ -90,6 +102,60 @@ def validate_direct_url(url: str, source: str) -> None:
 
 _FORMAT_EXTENSIONS = {"pickle": ".ckpt", "onnx": ".onnx"}
 
+_HASH_CHUNK_BYTES = 1024 * 1024
+
+
+def file_digest(path: str, algorithm: str) -> Optional[str]:
+    """Streamed digest of a file, or None when it is absent.
+
+    ``algorithm`` is ``"sha256"`` (plain content hash - the LFS oid) or
+    ``"git_oid"`` (the git blob id: sha1 over ``b"blob <size>\\0" + content``,
+    which is what the Hub publishes for non-LFS files).
+    """
+    if not os.path.isfile(path):
+        return None
+    if algorithm == "git_oid":
+        # git's content addressing, not a security-sensitive password hash.
+        hasher = hashlib.sha1()  # noqa: S324
+        hasher.update(f"blob {os.path.getsize(path)}\0".encode("ascii"))
+    elif algorithm == "sha256":
+        hasher = hashlib.sha256()
+    else:
+        raise ValueError(f"unknown digest algorithm {algorithm!r}")
+    with open(path, "rb") as handle:
+        for chunk in iter(lambda: handle.read(_HASH_CHUNK_BYTES), b""):
+            hasher.update(chunk)
+    return hasher.hexdigest()
+
+
+def pinned_file_matches(path: str, pinned: Dict) -> bool:
+    """True when the on-disk file matches its pinned size and hash.
+
+    Prefers the sha256 anchor; falls back to the git blob id only for files
+    whose sha256 could not be published (non-LFS files of gated repos). A pin
+    carrying neither is unverifiable and never matches (fail closed).
+    """
+    if not os.path.isfile(path):
+        return False
+    size = pinned.get("size")
+    if isinstance(size, int) and os.path.getsize(path) != size:
+        return False
+    if pinned.get("sha256"):
+        return file_digest(path, "sha256") == pinned["sha256"].lower()
+    if pinned.get("git_oid"):
+        return file_digest(path, "git_oid") == pinned["git_oid"].lower()
+    return False
+
+
+def pinned_relative_paths(snapshots: List[Dict]) -> List[str]:
+    """Every pinned file's path relative to the record's target dir."""
+    paths: List[str] = []
+    for snapshot in snapshots:
+        subdir = (snapshot.get("subdir") or "").strip("/")
+        for pinned in snapshot.get("files") or []:
+            paths.append(f"{subdir}/{pinned['path']}" if subdir else pinned["path"])
+    return paths
+
 
 def _direct_filename(model_id: str, record: dict) -> str:
     """Deterministic on-disk name for a direct-URL single-file artifact.
@@ -140,6 +206,13 @@ class DownloadManager:
         # #34 PR4: model_id -> manifest mirror stanza ({base_url, files}) for
         # the VS R2 fallback, or None. Absent lookup/stanza = today's behavior.
         self._mirror_lookup = mirror_lookup
+        # Manifest integrity pins: model_id -> [snapshot{repo_id, revision,
+        # subdir, files[{path, size, sha256|git_oid}]}], bound by the
+        # provisioning orchestrator (register_manifest_pins).
+        self._pins: Dict[str, List[Dict]] = {}
+        # Manifest-only records (e.g. the retrieval embedder) that are not
+        # catalog/registry models but provision through this same queue.
+        self._extra_records: Dict[str, Dict] = {}
         self._concurrency = max(1, min(int(concurrency), 6))
         self.mode = mode if mode in {"fast", "precise"} else "fast"
 
@@ -156,12 +229,50 @@ class DownloadManager:
         self._xet_saved = False
 
     # -- public API --------------------------------------------------------
+    def register_manifest_pins(
+        self,
+        pins: Dict[str, List[Dict]],
+        extra_records: Optional[Dict[str, Dict]] = None,
+    ) -> None:
+        """Bind the provisioning manifest's per-file integrity pins.
+
+        A pinned id downloads exactly its pinned files at the pinned commit
+        and verifies every file's hash; ``extra_records`` lets manifest-only
+        artifacts (not registry models) ride the same queue.
+        """
+        self._pins = {model_id: list(snaps) for model_id, snaps in pins.items() if snaps}
+        self._extra_records = dict(extra_records or {})
+
+    def pinned_snapshots(self, model_id: str) -> Optional[List[Dict]]:
+        """The manifest pin for ``model_id``, or None when unpinned."""
+        return self._pins.get(model_id)
+
+    def get_record(self, model_id: str) -> Optional[Dict]:
+        """Registry record, else a manifest-only record, else None."""
+        record = self._registry.get_record(model_id) if self._registry is not None else None
+        if record is None:
+            record = self._extra_records.get(model_id)
+        return record
+
+    def target_dir_for(self, model_id: str) -> Optional[str]:
+        """On-disk destination for ``model_id`` (None for an unknown id)."""
+        record = self.get_record(model_id)
+        return self._target_dir(record) if record is not None else None
+
     def enqueue(self, model_id: str, token: Optional[str] = None) -> DownloadJob:
         """Queue a download. Idempotent for an already-active id.
 
         ``token`` is a LOCAL parameter passed straight into _run_job; it is
         never stored on the manager or the job, and never logged.
+
+        Raises RemoteCodeUnsupportedError - before anything is queued - for a
+        record that needs repo-authored code to load: no loader runs repo
+        code (runtime_resolver refuses them all), so the bytes could never
+        become a usable model and consent cannot change that.
         """
+        record = self.get_record(model_id)
+        if record is not None and record.get("trust_remote_code"):
+            raise RemoteCodeUnsupportedError(model_id)
         existing = self._jobs.get(model_id)
         if existing is not None and existing.status in _ACTIVE_STATES:
             return existing
@@ -212,7 +323,7 @@ class DownloadManager:
             event.set()
         if job.status == "paused":
             # No running task to trip the cancel event — clean up directly.
-            record = self._registry.get_record(model_id)
+            record = self.get_record(model_id)
             if record is not None:
                 self._delete_partials(self._target_dir(record))
             job.status = "cancelled"
@@ -241,7 +352,7 @@ class DownloadManager:
 
     async def _execute(self, model_id: str, token: Optional[str]) -> None:
         job = self._jobs[model_id]
-        record = self._registry.get_record(model_id)
+        record = self.get_record(model_id)
         if record is None:
             job.status = "error"
             job.error = "unknown model id"
@@ -306,11 +417,19 @@ class DownloadManager:
                            cancel_event: threading.Event) -> List[str]:
         """The primary HuggingFace fetch: resolve -> preflight -> per-file
         download. Returns the filenames for the repo-level verify."""
+        snapshots = self._pins.get(model_id)
+        if snapshots:
+            return await self._download_pinned(model_id, record, token, cancel_event, snapshots)
+
         job = self._jobs[model_id]
         repo_id = record.get("repo_id")
         revision = record.get("revision", "main")
 
-        filenames, total_bytes, target_dir = self._resolve_files(model_id, record)
+        # Hub metadata calls are blocking HTTP: never on the event loop, and
+        # authenticated with the caller's token (gated repos 401 without it).
+        filenames, total_bytes, target_dir = await asyncio.to_thread(
+            self._resolve_files, model_id, record, token
+        )
         job.total_bytes = total_bytes
 
         self._preflight_disk(total_bytes, target_dir)
@@ -327,6 +446,59 @@ class DownloadManager:
             job.speed = sink.speed
             job.eta = sink.eta
         return filenames
+
+    async def _download_pinned(
+        self, model_id: str, record: dict, token: Optional[str],
+        cancel_event: threading.Event, snapshots: List[Dict],
+    ) -> List[str]:
+        """Manifest-pinned fetch: exactly the pinned files, at the pinned
+        commit, each hash-verified before the job may read ready.
+
+        No Hub metadata call is needed - sizes come from the pin - so the
+        disk preflight is exact. A file that fails its hash is deleted and
+        the job fails with IntegrityError.
+        """
+        job = self._jobs[model_id]
+        target_dir = self._target_dir(record)
+        total_bytes = sum(
+            int(pinned.get("size") or 0)
+            for snapshot in snapshots
+            for pinned in snapshot.get("files") or []
+        )
+        job.total_bytes = total_bytes
+        self._preflight_disk(total_bytes, target_dir)
+
+        job.status = "downloading"
+        sink = ProgressSink(total_bytes, cancel_event=cancel_event)
+        self._sinks[model_id] = sink
+
+        for snapshot in snapshots:
+            subdir = (snapshot.get("subdir") or "").strip("/")
+            dest_dir = os.path.join(target_dir, *subdir.split("/")) if subdir else target_dir
+            for pinned in snapshot.get("files") or []:
+                await asyncio.to_thread(
+                    self._download_file, snapshot["repo_id"], pinned["path"], dest_dir,
+                    token, sink, snapshot["revision"],
+                )
+                await asyncio.to_thread(
+                    self._verify_pinned_file, os.path.join(dest_dir, pinned["path"]), pinned
+                )
+                job.progress = sink.progress
+                job.speed = sink.speed
+                job.eta = sink.eta
+        return pinned_relative_paths(snapshots)
+
+    @staticmethod
+    def _verify_pinned_file(path: str, pinned: Dict) -> None:
+        """Hash-check one downloaded file against its pin; delete on mismatch."""
+        if pinned_file_matches(path, pinned):
+            return
+        try:
+            os.remove(path)
+        except OSError:
+            pass
+        logger.warning("pinned integrity check failed for %s", pinned.get("path"))
+        raise IntegrityError(pinned.get("path") or path)
 
     async def _download_hf_with_mirror_fallback(
         self, model_id: str, record: dict, token: Optional[str],
@@ -472,8 +644,11 @@ class DownloadManager:
         return names
 
     # -- resolution / preflight / per-file download ------------------------
-    def _resolve_files(self, model_id: str, record: dict):
+    def _resolve_files(self, model_id: str, record: dict, token: Optional[str] = None):
         """Return (filenames, total_bytes, target_dir) for the model.
+
+        Blocking Hub HTTP - callers run it in a worker thread. ``token`` is
+        forwarded to every Hub call so gated repos resolve.
 
         Single-file artifacts resolve to the one filename from the manager's
         _SINGLE_FILE_FILENAMES map; diffusers repos resolve to the repo file
@@ -506,12 +681,16 @@ class DownloadManager:
         else:
             # get_paths_info REQUIRES concrete paths (an empty list is an
             # HTTP 400) - enumeration goes through the repo file list.
-            paths = list(huggingface_hub.list_repo_files(repo_id, revision=revision))
+            paths = list(
+                huggingface_hub.list_repo_files(repo_id, revision=revision, token=token)
+            )
             paths = [p for p in paths if not p.lower().endswith(".py")]
             if not self._pickle_allowed(model_id):
                 paths = [p for p in paths if not p.lower().endswith(_PICKLE_SUFFIXES)]
 
-        infos = huggingface_hub.get_paths_info(repo_id, paths, revision=revision)
+        infos = huggingface_hub.get_paths_info(
+            repo_id, paths, revision=revision, token=token
+        )
         total = 0
         for info in infos:
             size = getattr(info, "size", None)
@@ -535,11 +714,12 @@ class DownloadManager:
         artifact_type = record.get("artifact_type", "checkpoint")
         if artifact_type in {"diffusers-pipeline", "motion-adapter"}:
             return os.path.join(self._models_dir, "diffusers", record["id"])
-        if artifact_type in {"controlnet", "ip-adapter", "edit-model"}:
+        if artifact_type in {"controlnet", "ip-adapter", "edit-model", "text-embedder"}:
             # Multi-file diffusers-format repos get a per-id dir so two
             # records can never collide on config.json. Matches
             # registry._is_present, which already expects <type>/<id>/.
-            # edit-model single files ride the same per-id layout (#34).
+            # edit-model single files ride the same per-id layout (#34), as
+            # does the manifest-only retrieval embedder (text-embedder).
             return os.path.join(self._models_dir, artifact_type, record["id"])
         subdir = _ARTIFACT_SUBDIR.get(artifact_type, "checkpoints")
         return os.path.join(self._models_dir, subdir)

@@ -1,6 +1,6 @@
-import { render, screen } from '@testing-library/react';
+import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, it, expect, vi } from 'vitest';
+import { beforeEach, describe, it, expect, vi } from 'vitest';
 import { KeyboardShortcuts, SHORTCUT_GROUPS } from './KeyboardShortcuts';
 
 describe('KeyboardShortcuts', () => {
@@ -156,11 +156,14 @@ describe('KeyboardShortcuts', () => {
       const allButtons = screen.getAllByLabelText('Close shortcuts');
       const visibleButton = allButtons[allButtons.length - 1];
 
-      // Tab should move focus
-      await user.tab();
+      expect(visibleButton).toHaveFocus();
 
-      // After tabbing, focus should have moved from the button
-      expect(document.activeElement).not.toBe(visibleButton);
+      // The close button is the overlay's only control, so Tab and Shift+Tab
+      // wrap back to it instead of escaping to the page behind.
+      await user.tab();
+      expect(visibleButton).toHaveFocus();
+      await user.tab({ shift: true });
+      expect(visibleButton).toHaveFocus();
     });
 
     it('focus restored to trigger element on close', async () => {
@@ -196,6 +199,68 @@ describe('KeyboardShortcuts', () => {
 
       // Cleanup
       document.body.removeChild(triggerButton);
+    });
+  });
+
+  describe('Modal keyboard contract', () => {
+    // Earlier blocks leave their renders mounted; start from a clean document.
+    beforeEach(cleanup);
+
+    it('closes on Escape without the key reaching window-level workspace shortcuts', async () => {
+      // An unfinished Pen path cancels on a window Escape; closing this overlay
+      // must not also throw the path away.
+      const onClose = vi.fn();
+      const workspaceHandler = vi.fn();
+      window.addEventListener('keydown', workspaceHandler);
+      render(<KeyboardShortcuts open={true} onClose={onClose} />);
+      await new Promise((resolve) => setTimeout(resolve, 20));
+
+      await userEvent.keyboard('{Escape}');
+
+      expect(onClose).toHaveBeenCalledTimes(1);
+      expect(workspaceHandler).not.toHaveBeenCalled();
+      window.removeEventListener('keydown', workspaceHandler);
+    });
+
+    it('keeps Tab inside the overlay', async () => {
+      render(
+        <>
+          <button type="button">Behind the overlay</button>
+          <KeyboardShortcuts open={true} onClose={() => {}} />
+        </>,
+      );
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      const close = screen.getByRole('button', { name: 'Close shortcuts' });
+      expect(close).toHaveFocus();
+
+      await userEvent.tab();
+      expect(close).toHaveFocus();
+      await userEvent.tab({ shift: true });
+      expect(close).toHaveFocus();
+      expect(screen.getByRole('button', { name: 'Behind the overlay' })).not.toHaveFocus();
+    });
+  });
+
+  describe('Shortcut sheet accuracy', () => {
+    const group = (title: string) => SHORTCUT_GROUPS.find((item) => item.title === title)!;
+    const row = (title: string, description: string) =>
+      group(title).shortcuts.find((item) => item.description === description)!;
+
+    it('scopes each group to the surface whose handler binds it', () => {
+      // Timeline mounts only in the Generate tab's Canvas view; the preview
+      // Canvas only on the Story tab; mask letters in EditCanvas (Control /
+      // Region) and the Story canvas while region mode is on.
+      expect(group('Timeline').scope).toBe('Generate tab, Canvas view');
+      expect(group('Preview Canvas').scope).toBe('Story tab canvas');
+      expect(group('Region Mask').scope).toBe('Canvas tab (Control/Region) or Story tab canvas, region mode');
+    });
+
+    it('lists every key the handlers accept as an alternative', () => {
+      expect(row('Navigation', 'Move between workspace tabs (nav rail focused)').chords).toEqual(
+        expect.arrayContaining([['Left'], ['Right']]),
+      );
+      expect(row('Edit Canvas', 'Pen: remove the last point').chords).toEqual([['Backspace'], ['Delete']]);
+      expect(row('Preview Canvas', 'Context menu').chords).toContainEqual(['Menu']);
     });
   });
 });

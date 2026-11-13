@@ -55,7 +55,10 @@ export default defineConfig({
         vite: {
           build: {
             outDir: 'dist-electron',
-            rollupOptions: {
+            // Main/preload ship unminified (as under Vite 6) so crash stack
+            // traces in logs stay readable; size is irrelevant in the asar.
+            minify: false,
+            rolldownOptions: {
               external: [
                 'electron',
                 'electron-store',
@@ -79,7 +82,8 @@ export default defineConfig({
         vite: {
           build: {
             outDir: 'dist-electron',
-            rollupOptions: {
+            minify: false,
+            rolldownOptions: {
               output: {
                 format: 'cjs',
                 entryFileNames: '[name].cjs',
@@ -105,7 +109,7 @@ export default defineConfig({
     // The limit stays at 800 kB as a regression guard; a split chunk should
     // never approach it either.
     chunkSizeWarningLimit: 800,
-    rollupOptions: {
+    rolldownOptions: {
       output: {
         manualChunks: splitRendererVendorChunk,
       },

@@ -3,6 +3,8 @@
 > **Historical design record - 2026-07-05.** Describes intent at that
 > date, not current behaviour. See `docs/INDEX.md` for what is authoritative.
 
+> **Status (checked 2026-11-11):** Shipped - PRs #51 and #52.
+
 **Date:** 2026-07-05
 **Issue:** #34 (edit_service half — the ControlNet half shipped as PRs 1-4 of the guided-passes cycle)
 **Status:** Approved (design presented and approved in-session; scope decisions made by Rocky:

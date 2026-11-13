@@ -10,13 +10,16 @@ accept either modifier.
 
 ## How the keys are scoped
 
-- **Typing is safe.** Single-letter shortcuts and the global undo, redo and `?`
-  keys are ignored while focus is in a text field, text area, select, or
-  editable text. (The Timeline and Generate-canvas handlers skip text fields
-  and text areas; the Generate-canvas zoom keys do not skip selects.)
+- **Typing is safe.** Single-letter shortcuts, the global undo, redo and `?`
+  keys, the Story canvas keys and the Timeline keys are all ignored while focus
+  is in a text field, text area, select, or editable text. Every one of those
+  handlers uses the same check, `src/utils/isEditableTarget.ts`.
 - **Panel shortcuts are live only while that panel is on screen.** The Canvas
-  tab tools exist only on the Canvas tab; the Timeline keys exist only while the
-  Timeline is shown under the canvas on the Generate tab.
+  tab tools exist only on the Canvas tab. The generation canvas, with its zoom,
+  context-menu and region-mask keys, is shown only on the Story tab. The
+  Timeline keys exist only while the Generate tab shows its timeline workspace
+  (the **Canvas** centre view, which holds the playback preview with the
+  timeline under it; not in Studio mode).
 - **Packaged builds lock down reload and DevTools.** See
   [Window and menu keys](#window-and-menu-keys).
 
@@ -116,21 +119,23 @@ and the same letters then drive the mask tools instead.
 |------|--------|--------------------|-------------|
 | Esc | Close the edit history popover | While the history popover is open | `src/components/edit/EditPropertiesPanel.tsx` |
 
-## Generate tab canvas
+## Story tab canvas
 
-The centre canvas on the Generate tab (and other tabs that show the generation
-canvas) is a different surface from the Canvas tab editor. Its keys skip text
-fields and are not triggered by Ctrl, Cmd or Alt chords.
+The centre canvas on the Story tab is the generation canvas
+(`src/components/layout/Canvas.tsx`), a different surface from the Canvas tab
+editor; it is the only tab that shows it (`CenterContent` in
+`src/components/layout/DockviewLayout.tsx`). Its keys skip text fields and are
+not triggered by Ctrl, Cmd or Alt chords.
 
 | Keys | Action | Where it is active | Source file |
 |------|--------|--------------------|-------------|
-| `+` or `=` | Zoom in 10 percent (up to 200) | While the generation canvas is shown, outside text fields | `src/components/layout/Canvas.tsx` |
-| `-` | Zoom out 10 percent (down to 25) | While the generation canvas is shown, outside text fields | `src/components/layout/Canvas.tsx` |
-| `0` | Reset zoom and pan | While the generation canvas is shown, outside text fields | `src/components/layout/Canvas.tsx` |
-| Mouse wheel | Zoom in or out 5 percent | Over the generation canvas | `src/components/layout/Canvas.tsx` |
-| Shift+drag, or middle-button drag | Pan | Over the generation canvas | `src/components/layout/Canvas.tsx` |
-| Right-click, Shift+F10, or the Menu key | Open the canvas context menu | Generation canvas (the keys need focus on the canvas) | `src/components/layout/Canvas.tsx` |
-| V R L B E, I | Mask tools and invert, as in the Canvas tab | Generation canvas while region mode is on | `src/components/layout/Canvas.tsx` |
+| `+` or `=` | Zoom in 10 percent (up to 200) | Story tab, outside text fields | `src/components/layout/Canvas.tsx` |
+| `-` | Zoom out 10 percent (down to 25) | Story tab, outside text fields | `src/components/layout/Canvas.tsx` |
+| `0` | Reset zoom and pan | Story tab, outside text fields | `src/components/layout/Canvas.tsx` |
+| Mouse wheel | Zoom in or out 5 percent | Over the Story tab canvas | `src/components/layout/Canvas.tsx` |
+| Shift+drag, or middle-button drag | Pan | Over the Story tab canvas | `src/components/layout/Canvas.tsx` |
+| Right-click, Shift+F10, or the Menu key | Open the canvas context menu | Story tab canvas (the keys need focus on the canvas) | `src/components/layout/Canvas.tsx` |
+| V R L B E, I | Mask tools and invert, as in the Canvas tab | Story tab canvas while region mode is on | `src/components/layout/Canvas.tsx` |
 
 ### Canvas context menu
 
@@ -143,8 +148,9 @@ fields and are not triggered by Ctrl, Cmd or Alt chords.
 
 ## Timeline
 
-Active while the Timeline is shown under the canvas on the Generate tab. The
-handler listens on the whole window. It skips text fields, selects and
+Active while the Generate tab shows its timeline workspace: the **Canvas**
+centre view, outside Studio mode, where the playback preview sits above the
+timeline. The handler listens on the whole window. It skips text fields, selects and
 editable text; ignores Ctrl/Cmd chords other than Ctrl/Cmd+D; and, outside the
 timeline itself, leaves Space, Home/End and the arrow keys to a focused button,
 link, slider, tab, menu or resize handle (so Space still presses a focused
@@ -163,6 +169,7 @@ button).
 | Delete or Backspace | Delete the selected clip (asks first) | Timeline shown, a clip selected | `src/components/layout/Timeline.tsx` |
 | Esc | Close the export dialog | Export MP4 dialog open, not while exporting | `src/components/timeline/TimelineExportDialog.tsx` |
 | Enter or Space | Select a frame | Focus on a filmstrip frame | `src/components/timeline/FrameFilmstrip.tsx` |
+| Enter or Space | Select the track | Focus on a track header | `src/components/layout/Timeline.tsx` |
 
 Mark In, Mark Out, Clear Range and the retake range controls are toolbar
 buttons with no keyboard shortcut.
@@ -241,12 +248,24 @@ buttons with no keyboard shortcut.
 The window uses a hidden title bar, so the application menu is never drawn, but
 its accelerators still apply.
 
+| Keys | Action | Where it is active | Source file |
+|------|--------|--------------------|-------------|
+| Ctrl+M (Windows, Linux) / Cmd+M (macOS) | Minimize the window | Packaged builds (Window menu) | `electron/services/applicationMenu.ts` |
+| Cmd+H | Hide Vision Studio | macOS, packaged builds (app menu) | `electron/services/applicationMenu.ts` |
+| Cmd+Alt+H | Hide the other apps | macOS, packaged builds (app menu) | `electron/services/applicationMenu.ts` |
+| Cmd+Q | Quit | macOS, packaged builds (app menu) | `electron/services/applicationMenu.ts` |
+| Ctrl/Cmd+Z, Ctrl+Y (Cmd+Shift+Z on macOS), Ctrl/Cmd+X / C / V, Ctrl/Cmd+A | Undo, redo, cut, copy, paste and select all in text fields | Packaged builds (Edit menu); outside text fields Ctrl/Cmd+Z and Y are the Canvas undo and redo above | `electron/services/applicationMenu.ts` |
+
+Ctrl+W does not close the window on Windows or Linux, so a stray chord cannot
+end a session. Closing the window while generation jobs are still running asks
+you to confirm first.
+
 - **Packaged (installed) builds** replace Electron's default menu with one that
   keeps only the Edit roles (undo, redo, cut, copy, paste, delete, select all;
-  plus paste and match style on macOS), the Window roles (minimize, close; on
-  macOS minimize, zoom, bring to front) and, on macOS, the app menu (about,
-  hide, quit). There is no View menu, so reload, force reload, DevTools,
-  fullscreen and page zoom have no accelerator. In addition, these keys are
+  plus paste and match style on macOS), the Window roles (minimize; on macOS
+  also zoom and bring to front) and, on macOS, the app menu (about, services,
+  hide, hide others, show all, quit). There is no View menu, so reload, force
+  reload, DevTools, fullscreen and page zoom have no accelerator. In addition, these keys are
   swallowed before the page sees them: F5, F12, Ctrl/Cmd+R (with or without
   Shift), and Ctrl+Shift+I / J / C (Cmd+Alt+I / J / C on macOS). Source:
   `electron/services/applicationMenu.ts`, `electron/services/mainWindow.ts`.

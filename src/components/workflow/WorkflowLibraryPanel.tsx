@@ -98,7 +98,7 @@ export function WorkflowLibraryPanel({ docked = false, className }: WorkflowLibr
               {activeWorkflow.runHistory.length > 0 ? (
                 <ul aria-label="Workflow run history" className="flex flex-col gap-2">
                   {activeWorkflow.runHistory.map((run) => (
-                    <li key={run.id} className="rounded-md border border-border bg-elevated px-3 py-2">
+                    <li key={run.id} className="rounded-sm border border-border bg-elevated px-3 py-2">
                       <div className="flex items-start justify-between gap-3">
                         <p className="min-w-0 type-ui text-text-primary">{run.summary}</p>
                         <span className="shrink-0 rounded-md border border-border bg-surface px-2 py-1 type-ui text-text-body">

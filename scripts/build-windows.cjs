@@ -50,7 +50,8 @@ const RESOURCES_DIR = path.join(ROOT_DIR, 'resources');
 // Checks uv-managed installs first, then py launcher, then system python.
 // All inputs to execSync here are hardcoded version strings, not user input.
 function findCompatiblePython() {
-  const versions = ['3.12', '3.11', '3.10'];
+  // The backend's hash locks and pinned torch target exactly one Python minor.
+  const versions = [require('../build-backend.cjs').LOCKED_PYTHON_VERSION];
   for (const ver of versions) {
     try {
       const p = execSync(`uv python find ${ver}`, { encoding: 'utf8' }).trim();
@@ -165,90 +166,13 @@ const steps = {
     log('[5/10] Building Python backend...', 'blue');
     log('  Heavy-by-design: the native backend bundle is REQUIRED in every package.\n', 'cyan');
 
-    const backendPath = path.join(ROOT_DIR, 'backend');
-    const venvPath = path.join(backendPath, 'venv');
-
-    if (!fs.existsSync(path.join(backendPath, 'main.py'))) {
-      throw new Error(
-        'Backend source not found - cannot produce a distributable without the native backend.'
-      );
-    }
-    
-    try {
-      // Find compatible Python (3.8-3.12) for PyTorch
-      const compatPython = findCompatiblePython();
-      log(`  Using Python: ${compatPython}`, 'cyan');
-
-      // Create virtual environment if needed
-      if (!fs.existsSync(venvPath)) {
-        log('  Creating Python virtual environment...', 'cyan');
-        exec(`"${compatPython}" -m venv venv`, { cwd: backendPath });
-      }
-
-      // Get paths
-      const python = `"${path.join(venvPath, 'Scripts', 'python.exe')}"`;
-      const pip = `${python} -m pip`;
-      
-      // Upgrade pip
-      exec(`${python} -m pip install --upgrade pip`, { cwd: backendPath });
-      
-      // Install PyTorch with CUDA
-      log('  Installing PyTorch with CUDA (this will take a while)...', 'cyan');
-      log('  Download size: ~2.5 GB', 'yellow');
-      exec(`${pip} install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121`, { cwd: backendPath });
-      
-      // Install other requirements
-      log('  Installing other Python dependencies...', 'cyan');
-      const requirementsPath = path.join(backendPath, 'requirements.txt');
-      
-      // Read and filter requirements (remove torch as already installed)
-      const requirements = fs.readFileSync(requirementsPath, 'utf8')
-        .split('\n')
-        .filter(line => !line.includes('torch'))
-        .join('\n');
-      
-      const tempReq = path.join(backendPath, 'requirements-temp.txt');
-      fs.writeFileSync(tempReq, requirements);
-      exec(`${pip} install -r "${tempReq}"`, { cwd: backendPath });
-      fs.unlinkSync(tempReq);
-      
-      // Install PyInstaller
-      exec(`${pip} install pyinstaller`, { cwd: backendPath });
-      
-      // Build executable
-      log('  Building executable with PyInstaller...', 'cyan');
-      const pyinstaller = `${python} -m PyInstaller`;
-      const specPath = path.join(backendPath, 'main.spec');
-      exec(`${pyinstaller} "${specPath}" --clean`, { cwd: backendPath });
-      
-      // Copy to resources
-      if (!fs.existsSync(RESOURCES_DIR)) {
-        fs.mkdirSync(RESOURCES_DIR, { recursive: true });
-      }
-      
-      const exeSource = path.join(backendPath, 'dist', 'VisionStudio-Backend.exe');
-      const exeDest = path.join(RESOURCES_DIR, 'VisionStudio-Backend.exe');
-      
-      if (fs.existsSync(exeSource)) {
-        fs.copyFileSync(exeSource, exeDest);
-        const stats = fs.statSync(exeDest);
-        const sizeMB = (stats.size / 1024 / 1024).toFixed(2);
-        log(`  ✅ Backend executable built (${sizeMB} MB)`, 'green');
-      } else {
-        throw new Error(`Backend executable not found at ${exeSource}`);
-      }
-
-    } catch (error) {
-      // A reusable bundle from a previous `npm run build:backend` still
-      // satisfies the gate; only a MISSING bundle aborts the build. Slim
-      // frontend-only packages are never produced.
-      const { assertNativeBackend } = require('./assert-native-backend.cjs');
-      log(`  ⚠️  Backend build failed: ${error.message}`, 'yellow');
-      log('  Checking for an existing native bundle in resources/...', 'yellow');
-      assertNativeBackend();
-    }
-
-    log('');
+    // Single source of truth: build-backend.cjs owns the hash-locked venv, the
+    // pinned torch install, the PyInstaller one-folder freeze and the frozen
+    // --self-check. This script used to keep its own (unpinned cu121, one-file)
+    // copy of those steps, which drifted from the release pipeline.
+    const { buildBackendBundle } = require('../build-backend.cjs');
+    const stagedExe = await buildBackendBundle();
+    log(`  ✅ Backend bundle staged at ${stagedExe}\n`, 'green');
   },
 
   async prepareResources() {
@@ -402,20 +326,22 @@ const steps = {
 
   async createReadme() {
     log('[9/10] Creating installation README...', 'blue');
-    
+
+    // Single-sourced from package.json, like the ISCC /DMyAppVersion stamp.
+    const setupName = `Vision-Studio-${require('./../package.json').version}-Setup`;
     const readme = `# Vision Studio - Windows Installation
 
 ## Installation
 
 ### Installer (Recommended)
-File: \`Vision-Studio-3.2.0-Setup.exe\`
+File: \`${setupName}.exe\`
 
-1. Run \`Vision-Studio-3.2.0-Setup.exe\`
+1. Run \`${setupName}.exe\`
 2. Follow the installation wizard
 3. Launch Vision Studio from the desktop or Start Menu shortcut
 
-**Important:** If the installer came with \`.bin\` data files (e.g. \`Vision-Studio-3.2.0-Setup-1.bin\`),
-keep them in the same folder as the Setup .exe (e.g. \`Vision-Studio-3.2.0-Setup-1.bin\`) — the installer needs them.
+**Important:** If the installer came with \`.bin\` data files (e.g. \`${setupName}-1.bin\`),
+keep them in the same folder as the Setup .exe - the installer needs them.
 
 ### Portable (Unpacked)
 Folder: \`win-unpacked\`

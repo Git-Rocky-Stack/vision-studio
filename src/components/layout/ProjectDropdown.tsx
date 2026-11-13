@@ -5,6 +5,7 @@ import { cn } from '@/utils/cn';
 import { ChevronDown, FolderOpen, Pencil, Plus, Trash2 } from 'lucide-react';
 import { Led } from '@/components/hardware';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
+import { useFocusWhen } from '@/hooks/useFocusWhen';
 
 // Open-state trigger cap: chrome edge-ring + glow (DESIGN.md section depth system).
 const OPEN_RING_SHADOW =
@@ -29,6 +30,9 @@ export const ProjectDropdown = memo(function ProjectDropdown() {
 
   const [isOpen, setIsOpen] = useState(false);
   const [renamingId, setRenamingId] = useState<string | null>(null);
+  // One project renames at a time; Rename replaces its row, so focus follows.
+  const renameInputRef = useRef<HTMLInputElement>(null);
+  useFocusWhen(renameInputRef, renamingId);
   const [renameDraft, setRenameDraft] = useState('');
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -158,9 +162,9 @@ export const ProjectDropdown = memo(function ProjectDropdown() {
                         <div className="flex min-w-0 flex-1 items-center gap-3 px-4 py-2.5">
                           <FolderOpen className="w-4 h-4 flex-shrink-0 text-text-body" aria-hidden="true" />
                           <input
+                            ref={renameInputRef}
                             type="text"
                             value={renameDraft}
-                            autoFocus
                             aria-label={`Rename ${project.name}`}
                             onChange={(e) => setRenameDraft(e.target.value)}
                             onBlur={commitRename}

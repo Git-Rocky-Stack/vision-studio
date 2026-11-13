@@ -1,4 +1,4 @@
-import { useDeferredValue, useMemo, useRef, useState } from 'react';
+import { useCallback, useDeferredValue, useId, useMemo, useRef, useState } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { cn } from '@/utils/cn';
@@ -10,11 +10,13 @@ import type { AssetRecord } from '@/types/assets';
 import {
   createImportedAssetRecords,
   createMediaAssetFromImportedFile,
+  resolveAssetThumbnail,
 } from '@/features/assets/assetRecords';
 import { extractFrameToEdit } from '@/features/media/frameExtraction';
 import { MediaPreview } from '@/components/ui/MediaPreview';
-import { runExport } from '@/features/notices';
+import { reportActionError, runExport } from '@/features/notices';
 import { AddToCollectionMenu } from '@/components/collections/AddToCollectionMenu';
+import { useVirtualGridNavigation } from '@/hooks/useVirtualGridNavigation';
 import {
   Search,
   Grid,
@@ -251,8 +253,16 @@ export function AssetsPanel() {
       return;
     }
 
-    const result = await window.electron.assets.delete(deleteTarget.path);
+    let result: { success: boolean; error?: string };
+    try {
+      result = await window.electron.assets.delete(deleteTarget.path);
+    } catch (error) {
+      result = { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
     if (!result.success) {
+      reportActionError(
+        `Could not delete "${deleteTarget.name}"${result.error ? `: ${result.error}` : ''}. It is still in the library.`,
+      );
       setDeleteTarget(null);
       return;
     }
@@ -278,6 +288,42 @@ export function AssetsPanel() {
     estimateSize: () => (viewMode === 'grid' ? 180 : 64),
     overscan: 5,
   });
+
+  // Keyboard: one roving tab stop across the virtualized asset cards.
+  const orderedAssetIds = useMemo(() => filteredAssets.map((asset) => asset.id), [filteredAssets]);
+  const scrollToRow = useCallback(
+    (rowIndex: number) => rowVirtualizer.scrollToIndex(rowIndex, { align: 'auto' }),
+    [rowVirtualizer],
+  );
+  const { getItemProps, handleNavigationKey } = useVirtualGridNavigation({
+    ids: orderedAssetIds,
+    columns: COLS,
+    containerRef: parentRef,
+    scrollToRow,
+  });
+  const keyboardHintId = useId();
+
+  // Keys on the card body only; a focused inner button keeps its own keys.
+  const handleCardKeyDown = (asset: AssetRecord, event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (event.target !== event.currentTarget) return;
+    if (event.key === 'Enter') {
+      if (asset.type === 'audio') return;
+      event.preventDefault();
+      void handlePreview(asset);
+      return;
+    }
+    if (event.key === ' ' || event.key === 'Spacebar') {
+      event.preventDefault();
+      toggleSelection(asset.id);
+      return;
+    }
+    if (event.key === 'Delete') {
+      event.preventDefault();
+      handleDelete(asset);
+      return;
+    }
+    if (handleNavigationKey(asset.id, event)) event.preventDefault();
+  };
 
   return (
     <div className="h-full flex flex-col bg-surface" data-testid="assets-panel">
@@ -328,6 +374,7 @@ export function AssetsPanel() {
 
           <div className="recessed-well flex items-center gap-1 p-1">
             <button
+              type="button"
               onClick={() => setViewMode('grid')}
               aria-label="Grid view"
               aria-pressed={viewMode === 'grid'}
@@ -341,6 +388,7 @@ export function AssetsPanel() {
               <Grid className="w-4 h-4" />
             </button>
             <button
+              type="button"
               onClick={() => setViewMode('list')}
               aria-label="List view"
               aria-pressed={viewMode === 'list'}
@@ -370,10 +418,13 @@ export function AssetsPanel() {
               Export
             </Button>
             <button
+              type="button"
               onClick={() => setSelectedAssets(new Set())}
+              aria-label="Clear selection"
+              title="Clear selection"
               className="p-2 rounded-md text-accent-primary hover:bg-accent-primary-muted"
             >
-              <X className="w-4 h-4" />
+              <X className="w-4 h-4" aria-hidden="true" />
             </button>
           </motion.div>
         )}
@@ -392,6 +443,10 @@ export function AssetsPanel() {
           </EmptyState>
         ) : (
           <div style={{ height: `${rowVirtualizer.getTotalSize()}px`, position: 'relative' }}>
+            <p id={keyboardHintId} className="sr-only">
+              Space selects or deselects. Enter opens the asset in the viewer. Delete asks to delete it.
+              Arrow keys, Home and End move between assets.
+            </p>
             {rowVirtualizer.getVirtualItems().map((virtualRow) => {
               const startIdx = virtualRow.index * COLS;
               const rowAssets = filteredAssets.slice(startIdx, startIdx + COLS);
@@ -414,6 +469,13 @@ export function AssetsPanel() {
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: (startIdx + colIdx) * 0.03 }}
                       onClick={() => toggleSelection(asset.id)}
+                      {...getItemProps(asset.id)}
+                      onKeyDown={(event) => handleCardKeyDown(asset, event)}
+                      role="group"
+                      aria-roledescription="asset"
+                      aria-label={`${asset.name}${selectedAssets.has(asset.id) ? ', selected' : ''}`}
+                      aria-describedby={keyboardHintId}
+                      data-testid={`asset-card-${asset.id}`}
                       className={cn(
                         'group relative rounded-md border cursor-pointer transition overflow-hidden',
                         viewMode === 'grid' ? 'aspect-square' : 'flex items-center gap-3 p-2',
@@ -431,7 +493,7 @@ export function AssetsPanel() {
                         <MediaPreview
                           kind={asset.type}
                           src={asset.type === 'image' ? asset.previewUrl || asset.path : asset.path}
-                          poster={asset.thumbnail || asset.previewUrl || asset.path}
+                          poster={resolveAssetThumbnail(asset) || asset.path}
                           alt={asset.name}
                           className="h-full w-full"
                           mediaClassName="w-full h-full object-cover"
@@ -477,6 +539,7 @@ export function AssetsPanel() {
                         )}
                       >
                         <button
+                          type="button"
                           aria-label="Toggle favorite"
                           onClick={(e) => {
                             e.stopPropagation();
@@ -488,6 +551,7 @@ export function AssetsPanel() {
                         </button>
                         {asset.type !== 'audio' ? (
                           <button
+                            type="button"
                             aria-label="Open in viewer"
                             onClick={(e) => {
                               e.stopPropagation();
@@ -507,6 +571,7 @@ export function AssetsPanel() {
                         )}
                         {asset.type === 'video' ? (
                           <button
+                            type="button"
                             aria-label="Extract frame to edit"
                             onClick={(e) => {
                               e.stopPropagation();
@@ -519,6 +584,7 @@ export function AssetsPanel() {
                           </button>
                         ) : null}
                         <button
+                          type="button"
                           aria-label="Export asset"
                           onClick={(e) => {
                             e.stopPropagation();
@@ -534,6 +600,7 @@ export function AssetsPanel() {
                           triggerClassName="p-2 rounded bg-surface/80 text-text-body hover:text-text-primary hover:bg-surface transition focus-visible:opacity-100"
                         />
                         <button
+                          type="button"
                           aria-label="Delete asset"
                           onClick={(e) => {
                             e.stopPropagation();
@@ -565,6 +632,7 @@ export function AssetsPanel() {
             <span className="data-mono" aria-live="polite">{completedCount} items</span>
             {filteredAssets.length > 0 && (
               <button
+                type="button"
                 onClick={selectAll}
                 className="text-accent-primary hover:underline"
               >

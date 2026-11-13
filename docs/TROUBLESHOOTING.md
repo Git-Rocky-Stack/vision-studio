@@ -8,6 +8,8 @@ them. For how the app is meant to work, see the [User Guide](./USER_GUIDE.md).
   - [macOS: the app "cannot be opened"](#macos-the-app-cannot-be-opened)
   - [Linux: the AppImage will not start](#linux-the-appimage-will-not-start)
 - [Backend offline](#backend-offline)
+  - ["Port 8000 is in use by another application"](#port-8000-is-in-use-by-another-application)
+  - [The backend keeps stopping](#the-backend-keeps-stopping)
 - [GPU not detected](#gpu-not-detected)
 - [Out of memory, and the over-budget dialog](#out-of-memory-and-the-over-budget-dialog)
 - [Model downloads](#model-downloads)
@@ -58,11 +60,10 @@ Foundry header says **Backend offline**, or **Settings > AI & Models** shows
 **AI Backend Offline**. Local generation, model downloads and timeline export
 all need the backend.
 
-1. **Wait for the unpack.** The bundled engine unpacks itself to a temporary
-   folder every time the app starts. That can take several minutes, longest the
-   first time and on a slow disk; antivirus scanning the unpacked files makes it
-   slower. The app waits up to five minutes before it gives up and shows **Could
-   not start the AI backend**.
+1. **Wait for it to start.** The bundled engine can take several minutes to
+   start, longest the first time and on a slow disk; antivirus scanning the
+   engine's files makes it slower. The app waits up to five minutes before it
+   gives up and shows **Could not start the AI backend**.
 2. **Start it by hand.** In **Settings > AI & Models**, click **Start Backend** in
    the **AI Backend Offline** box.
 3. **Check Backend Autostart.** If the backend never starts on its own, check
@@ -74,7 +75,26 @@ all need the backend.
 If the dialog says **No backend executable was found**, the installation is
 incomplete: reinstall the app.
 
-When working from source, the backend comes from `backend/venv`; see
+### "Port 8000 is in use by another application"
+
+The engine listens on `127.0.0.1:8000`. If another program already holds that
+port, Vision Studio says so and will not talk to it - it never sends requests or
+its access token to a server it did not start. Close the other program (another
+local AI tool or development server is the usual cause), then restart Vision
+Studio. To see what holds the port: `netstat -ano | findstr :8000` on Windows,
+`lsof -i :8000` on macOS and Linux.
+
+### The backend keeps stopping
+
+If the engine crashes, the app restarts it on its own, waiting a little longer
+each time (2 s, then 4 s, up to 30 s). After 3 crashes within 5 minutes it stops
+trying, so a fault that recurs on every start does not loop forever. Read
+`backend.log` (see [Where the logs are](#where-the-logs-are)) for the cause -
+out-of-memory and a broken model file are the common ones - then start it again
+with **Start Backend** in **Settings > AI & Models**, or restart the app.
+
+When working from source, the backend comes from `backend/venv` (or the
+interpreter named by `VISION_STUDIO_PYTHON`); see
 [`CONTRIBUTING.md`](../CONTRIBUTING.md#clone-and-install) to set it up. A venv
 with only `requirements.txt` installed starts the backend but cannot generate.
 
@@ -83,9 +103,11 @@ with only `requirements.txt` installed starts the backend but cannot generate.
 **Settings > AI & Models** shows **GPU not detected** and **CPU mode, No CUDA**,
 the Foundry header shows **CPU only**, or generation is very slow.
 
-- **Windows and Linux** use NVIDIA GPUs through CUDA 12.1. Install a current
-  NVIDIA driver (CUDA 12.1 needs driver 531 or newer on Windows, 530 or newer on
-  Linux) and restart the app. AMD and
+- **Windows and Linux** use NVIDIA GPUs through CUDA 13.2. Install a current
+  NVIDIA driver (CUDA 13 needs a driver from the R580 branch or newer, on both
+  Windows and Linux) and restart the app. CUDA 13 supports Turing (RTX 20 /
+  GTX 16) through Blackwell (RTX 50); GTX 10-series and older cards are not
+  supported and run on the CPU. AMD and
   Intel GPUs are not used; the engine falls back to the CPU.
 - **macOS** uses the Apple Silicon GPU through Metal; there is no CUDA, so "No
   CUDA" is expected there.
@@ -93,6 +115,12 @@ the Foundry header shows **CPU only**, or generation is very slow.
   changing drivers.
 - Check that the **Performance** settings master switch is on (it is by
   default).
+- **TensorRT shows as unavailable** in the Performance settings even on a
+  supported NVIDIA GPU: the Windows/Linux app bundles the TensorRT runtime, but
+  engines are built only for model families that have passed the TensorRT
+  correctness sweep on real hardware, and none has yet - the toggle says "No
+  model family has been verified for TensorRT yet". This is expected; every
+  other optimization still applies. On macOS TensorRT does not exist.
 
 ## Out of memory, and the over-budget dialog
 

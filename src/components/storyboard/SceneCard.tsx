@@ -26,19 +26,26 @@ interface SceneElementChip {
   sceneCount: number;
 }
 
+/**
+ * Every callback takes the scene id, so a list can hand the same stable
+ * function to every card and the memoised card only re-renders when its own
+ * scene, selection or move bounds change.
+ */
 interface SceneCardProps {
   scene: Scene;
-  linkedElements?: SceneElementChip[];
+  linkedElements?: readonly SceneElementChip[];
   isSelected: boolean;
-  onClick: () => void;
-  onDelete?: () => void;
-  onDuplicate?: () => void;
-  onSendToTimeline?: () => void;
-  onMoveUp?: () => void;
-  onMoveDown?: () => void;
+  onClick: (sceneId: string) => void;
+  onDelete?: (sceneId: string) => void;
+  onDuplicate?: (sceneId: string) => void;
+  onSendToTimeline?: (sceneId: string) => void;
+  onMoveUp?: (sceneId: string) => void;
+  onMoveDown?: (sceneId: string) => void;
   canMoveUp?: boolean;
   canMoveDown?: boolean;
 }
+
+const NO_LINKED_ELEMENTS: readonly SceneElementChip[] = [];
 
 const STATUS_CONFIG: Record<
   SceneStatus,
@@ -98,7 +105,7 @@ function elementTypeClass(type: ElementType) {
 
 export const SceneCard = memo(function SceneCard({
   scene,
-  linkedElements = [],
+  linkedElements = NO_LINKED_ELEMENTS,
   isSelected,
   onClick,
   onDelete,
@@ -136,7 +143,7 @@ export const SceneCard = memo(function SceneCard({
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault();
-      onClick();
+      onClick(scene.id);
     }
   };
 
@@ -144,6 +151,7 @@ export const SceneCard = memo(function SceneCard({
     <div ref={setNodeRef} style={style} className="relative">
       {/* Drag handle */}
       <button
+        type="button"
         {...attributes}
         {...listeners}
         aria-label="Drag to reorder scene"
@@ -161,8 +169,8 @@ export const SceneCard = memo(function SceneCard({
       <motion.article
         data-testid="scene-card"
         aria-label={`Scene ${sceneNumber}: ${scene.name}, ${scene.status}`}
-        aria-selected={isSelected}
-        onClick={onClick}
+        aria-pressed={isSelected}
+        onClick={() => onClick(scene.id)}
         onKeyDown={handleKeyDown}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
@@ -292,9 +300,10 @@ export const SceneCard = memo(function SceneCard({
       )}>
         {onMoveUp && (
           <button
+            type="button"
             onClick={(e) => {
               e.stopPropagation();
-              onMoveUp();
+              onMoveUp(scene.id);
             }}
             disabled={!canMoveUp}
             aria-label="Move scene up"
@@ -311,9 +320,10 @@ export const SceneCard = memo(function SceneCard({
         )}
         {onMoveDown && (
           <button
+            type="button"
             onClick={(e) => {
               e.stopPropagation();
-              onMoveDown();
+              onMoveDown(scene.id);
             }}
             disabled={!canMoveDown}
             aria-label="Move scene down"
@@ -330,9 +340,10 @@ export const SceneCard = memo(function SceneCard({
         )}
         {onSendToTimeline && (
           <button
+            type="button"
             onClick={(e) => {
               e.stopPropagation();
-              onSendToTimeline();
+              onSendToTimeline(scene.id);
             }}
             aria-label="Send scene to timeline"
             className={cn(
@@ -346,9 +357,10 @@ export const SceneCard = memo(function SceneCard({
         )}
         {onDuplicate && (
           <button
+            type="button"
             onClick={(e) => {
               e.stopPropagation();
-              onDuplicate();
+              onDuplicate(scene.id);
             }}
             aria-label="Duplicate scene"
             className={cn(
@@ -362,9 +374,10 @@ export const SceneCard = memo(function SceneCard({
         )}
         {onDelete && (
           <button
+            type="button"
             onClick={(e) => {
               e.stopPropagation();
-              onDelete();
+              onDelete(scene.id);
             }}
             aria-label="Delete scene"
             className={cn(

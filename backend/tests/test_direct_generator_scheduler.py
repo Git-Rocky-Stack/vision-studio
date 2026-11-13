@@ -110,6 +110,41 @@ class ConfigureSchedulerTests(unittest.TestCase):
         self.assertIsInstance(pipeline.scheduler, FakeDPM)
         self.assertEqual(pipeline.scheduler.kwargs, {})
 
+    def test_sde_names_build_the_sde_solver(self):
+        pipeline = _Pipeline(FakeEulerA())
+        self.gen._configure_scheduler(pipeline, "DPM++ SDE Karras")
+        self.assertIsInstance(pipeline.scheduler, FakeDPM)
+        self.assertEqual(pipeline.scheduler.kwargs,
+                         {"algorithm_type": "sde-dpmsolver++", "use_karras_sigmas": True})
+
+    def test_unknown_scheduler_raises_instead_of_falling_back(self):
+        # It used to fall through to Euler Ancestral silently.
+        pipeline = _Pipeline(FakeEulerA())
+        with self.assertRaises(dg.UnknownSchedulerError):
+            self.gen._configure_scheduler(pipeline, "LMS Turbo")
+        flow = _Pipeline(FlowMatchEulerDiscreteScheduler())
+        with self.assertRaises(ValueError):  # a ValueError subclass -> 422
+            self.gen._configure_scheduler(flow, "nope")
+
+
+class SupportedSchedulerTests(unittest.TestCase):
+    # Every sampler the renderer offers (AdvancedGenerationSettings.SCHEDULERS)
+    # plus the API default "euler".
+    RENDERER_SCHEDULERS = ("Euler", "Euler a", "DPM++ 2M", "DPM++ 2M Karras",
+                           "DPM++ SDE", "DPM++ SDE Karras", "DDIM", "UniPC")
+
+    def test_every_renderer_scheduler_is_supported(self):
+        for name in self.RENDERER_SCHEDULERS + ("euler", "  euler a  "):
+            self.assertTrue(dg.is_supported_scheduler(name), name)
+
+    def test_unknown_names_are_not_supported(self):
+        for name in ("", None, "k_lms", "DPM++ 3M"):
+            self.assertFalse(dg.is_supported_scheduler(name), name)
+
+    def test_supported_set_is_normalized(self):
+        self.assertIn("dpm++ 2m karras", dg.SUPPORTED_SCHEDULERS)
+        self.assertTrue(all(n == n.strip().lower() for n in dg.SUPPORTED_SCHEDULERS))
+
 
 if __name__ == "__main__":
     unittest.main()

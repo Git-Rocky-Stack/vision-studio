@@ -36,6 +36,13 @@ const TRANSFORMER_COLOR_TOKENS = {
   contrast: '--color-void',
 } as const;
 
+// Transparency checkerboard squares: sheen tokens, so the pattern stays
+// visible on the light theme's pale stage as well as the dark one.
+const CHECKER_COLOR_TOKENS = {
+  light: '--color-sheen-soft',
+  dark: '--color-sheen-faint',
+} as const;
+
 /** Tools that draw on a press-drag, so a click must not change the selection. */
 const DRAWING_TOOLS: ReadonlySet<EditTool> = new Set(['brush', 'eraser', 'clone', 'heal', 'shape', 'pen']);
 
@@ -57,6 +64,7 @@ const EMPTY_AI_MASK: RegionMask = {
 
 export function EditCanvas() {
   const transformerColors = useResolvedCssColors(TRANSFORMER_COLOR_TOKENS);
+  const checkerColors = useResolvedCssColors(CHECKER_COLOR_TOKENS);
   const {
     currentImage,
     activeEditTool,
@@ -518,7 +526,7 @@ export function EditCanvas() {
       node.cache();
     }
     node.getLayer()?.batchDraw();
-  }, [imageAdjustments, editFilters, editCompareOriginal, baseImage, pixelAccess]);
+  }, [imageAdjustments, editFilters, editCompareOriginal, baseImage, loadedImage, pixelAccess]);
 
   // Export flattener: the stage at intrinsic image resolution, without the
   // checkerboard or transform handles.
@@ -677,9 +685,7 @@ export function EditCanvas() {
                     width={CHECKERBOARD_SIZE}
                     height={CHECKERBOARD_SIZE}
                     fill={
-                      (col + row) % 2 === 0
-                        ? 'rgba(255,255,255,0.05)'
-                        : 'rgba(255,255,255,0.02)'
+                      (col + row) % 2 === 0 ? checkerColors.light : checkerColors.dark
                     }
                   />
                 ))

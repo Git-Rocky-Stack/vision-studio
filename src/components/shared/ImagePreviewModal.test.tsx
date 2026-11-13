@@ -123,3 +123,49 @@ describe('ImagePreviewModal export and collections', () => {
     expect(useAppStore.getState().collections.find((c) => c.id === collection.id)?.assetIds).toEqual(['job::img']);
   });
 });
+
+describe('ImagePreviewModal keyboard contract', () => {
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllGlobals();
+  });
+
+  it('closes on Escape without the key reaching window-level workspace shortcuts', () => {
+    const onClose = vi.fn();
+    const windowHandler = vi.fn();
+    window.addEventListener('keydown', windowHandler);
+    const result = makeResult();
+    render(<ImagePreviewModal result={result} results={[result]} onClose={onClose} onNavigate={vi.fn()} />);
+
+    fireEvent.keyDown(screen.getByRole('button', { name: 'Close preview' }), { key: 'Escape' });
+
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(windowHandler).not.toHaveBeenCalled();
+    window.removeEventListener('keydown', windowHandler);
+  });
+
+  it('steps through results with the arrow keys', () => {
+    const onNavigate = vi.fn();
+    const first = makeResult({ id: 'r1' });
+    const second = makeResult({ id: 'r2' });
+    render(<ImagePreviewModal result={first} results={[first, second]} onClose={vi.fn()} onNavigate={onNavigate} />);
+
+    fireEvent.keyDown(document.body, { key: 'ArrowRight' });
+    expect(onNavigate).toHaveBeenCalledWith('r2');
+  });
+
+  it('reports a refused clipboard write instead of failing silently', async () => {
+    useNoticeStore.getState().clear();
+    vi.stubGlobal('navigator', { clipboard: { writeText: vi.fn().mockRejectedValue(new Error('denied')) } });
+    renderModal();
+
+    fireEvent.click(screen.getByRole('button', { name: /copy prompt/i }));
+
+    await waitFor(() =>
+      expect(useNoticeStore.getState().notices[0]).toMatchObject({
+        tone: 'error',
+        message: 'Could not copy the prompt to the clipboard.',
+      }),
+    );
+  });
+});

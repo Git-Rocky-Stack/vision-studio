@@ -42,19 +42,23 @@ Intel build would ship without its backend.
       edit by hand (it refuses to compile without that define).
       `tests/version-sync.test.ts` checks the README, `SECURITY.md`, the
       changelog heading and the OpenAPI examples against it
-- [ ] Only rebuild the backend bundle if `backend/` actually changed since the last
-      release (`git diff <last-release-commit>..HEAD -- backend/`) - otherwise the
-      existing `resources/VisionStudio-Backend.exe` is reused as-is
+- [ ] Only rebuild the backend bundle if `backend/` or `build-backend.cjs` actually
+      changed since the last release
+      (`git diff <last-release-commit>..HEAD -- backend/ build-backend.cjs`) -
+      otherwise the existing one-folder bundle in `resources/backend/` is reused
+      as-is
 
 ## Build process
 
 ### 1. Backend bundle (only if `backend/` changed)
 
 ```bash
-npm run build:backend          # PyInstaller onefile -> resources/VisionStudio-Backend[.exe]
+npm run build:backend          # PyInstaller one-folder -> resources/backend/VisionStudio-Backend[.exe] + _internal/
 ```
 
-~30-60 min (installs the CUDA torch stack + diffusers, then runs PyInstaller).
+~30-60 min (installs the hash-locked torch 2.14.1 stack - CUDA 13.2 plus
+torch-tensorrt 2.14.0 / TensorRT 11.1 on Windows/Linux, MPS on macOS - and
+diffusers, runs PyInstaller, then the frozen `--self-check`).
 If `backend/` is unchanged since the last release, skip this - the packaged
 bundle is identical and the existing one is reused.
 
@@ -79,6 +83,9 @@ Produces, in `release/` and `release/nsis-web/`:
 | `vision-studio-<ver>-x64.nsis.7z` | ~2.56 GB | app package the stub pulls from the R2 host |
 | `Vision Studio-<ver>-win.zip` | ~2.6 GB | portable ZIP (no install) |
 | `latest.yml` | <1 KB | electron-updater feed |
+
+(Sizes from the CUDA 12.1 releases; the CUDA 13.2 + TensorRT backend is 6.06 GB
+uncompressed, 2.36 GB of it TensorRT - see File sizes below.)
 
 **Why nsis-web, not a single-file NSIS installer:** the ~2.5 GB payload exceeds
 the 32-bit `makensis` mmap ceiling, so a monolithic NSIS `.exe` physically cannot
@@ -156,7 +163,12 @@ gh release create v<ver> --title "Vision Studio v<ver>" --notes-file notes.md \
 per-platform R2 feed. It is **dormant until builds are signed**:
 `electron-builder.yml` sets `verifyUpdateCodeSignature: true`, so the updater
 refuses to install an unsigned package. Kill-switch: `VISION_STUDIO_DISABLE_UPDATES=1`;
-staging override: `VISION_STUDIO_UPDATE_URL`.
+staging override: `VISION_STUDIO_UPDATE_URL` (development builds only - packaged
+builds ignore it). macOS builds are ad-hoc signed, so auto-update is off on
+macOS unless `VISION_STUDIO_ENABLE_MAC_UPDATES=1`. Installing an update asks
+for confirmation while generations are running, and an installer closes a
+running Vision Studio and its backend first (interactive installs ask before
+they do).
 
 ## Code signing (not yet configured)
 
@@ -189,13 +201,24 @@ electron-updater on macOS refuses updates until the build is Developer-ID-signed
 Set `CSC_LINK`/`CSC_KEY_PASSWORD` (or a Keychain identity) and enable
 `hardenedRuntime` + notarization, then the ad-hoc reseal step is superseded.
 
-## File sizes (v3.2.0)
+## File sizes
+
+Approximate, as last measured on the v3.2.0 builds (CUDA 12.1 torch, no
+TensorRT). The bundled backend dominates every package; check the files on the
+release before quoting them.
 
 | Platform | Installer / package | Notes |
 |----------|--------------------|-------|
-| Windows | ~1 MB stub + ~2.56 GB app package (or ~2.6 GB portable zip) | nsis-web |
-| macOS (Apple Silicon) | ~527 MB dmg | MPS wheel, no CUDA payload |
-| Linux x64 | ~3.3 GB AppImage | real CUDA 12.1 torch |
+| Windows | ~1 MB stub + ~2.56 GB app package (or ~2.6 GB portable zip) as of v3.2.0 | nsis-web |
+| macOS (Apple Silicon) | ~527 MB dmg as of v3.2.0 | MPS wheel, no CUDA or TensorRT payload |
+| Linux x64 | ~3.3 GB AppImage as of v3.2.0 | CUDA torch |
+
+From the CUDA 13.2 + TensorRT backend on, the Windows and Linux bundles grow by
+the TensorRT runtime - **+2.36 GB (Windows) / +4.55 GB (Linux)** installed
+(+1.93 GB / +3.75 GB to download), measured from the TensorRT 11.1 wheels - on
+top of the CUDA 13.2 torch build. A local Windows build of that backend measures
+6.06 GB uncompressed (`resources/backend/`, 5,783 MiB; TensorRT 2,252 MiB of it).
+Re-measure the installers on the first such release and update this table.
 
 ## Debugging production builds
 

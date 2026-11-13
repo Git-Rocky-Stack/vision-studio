@@ -1,4 +1,4 @@
-import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { type ReactNode, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { cn } from '@/utils/cn';
 import { useAppStore } from '@/store/appStore';
@@ -22,17 +22,14 @@ import {
 import { resolveCanvasControlLayers } from '@/features/generation/resolveCanvasControlLayers';
 import { resolveControlNetPreflight } from '@/features/generation/controlnetSupport';
 import { resolveReferencePreflight } from '@/features/generation/referenceSupport';
-import {
-  fromAccelerationResult,
-  toAccelerationRequestPayload,
-} from '@/features/generation/accelerationRequest';
+import { toAccelerationRequestPayload } from '@/features/generation/accelerationRequest';
 import { getActiveUserAccount } from '@/features/accounts/providerRouting';
 import { runTimelineClipGeneration } from '@/features/timeline/runTimelineClipGeneration';
 import {
-  makePollErrorBudget,
-  recordPollError,
-  recordPollSuccess,
-} from '@/features/generation/pollErrorBudget';
+  appJobWatcher,
+  selectLatestRunningJob,
+  useTrackedJob,
+} from '@/features/jobs/appJobWatcher';
 import type { ImageGenerationRequestPayload, LoRAConfig } from '@/types/generation';
 import { toLoraSelections, appendTrigger } from '@/utils/loraPayload';
 import { resolveRoute } from '../../shared/resolveRoute';
@@ -289,10 +286,9 @@ function selectActiveTimelineBinding(s: AppState) {
 }
 
 export function GeneratePanel() {
+  const modelRouterLabelId = useId();
   const {
     addJob,
-    updateJob,
-    syncAssetsFromJobStatus,
     backendConnected,
     gpuAvailable,
     currentProject,
@@ -312,8 +308,6 @@ export function GeneratePanel() {
     updateAdvancedGeneration,
   } = useAppStore(useShallow(s => ({
     addJob: s.addJob,
-    updateJob: s.updateJob,
-    syncAssetsFromJobStatus: s.syncAssetsFromJobStatus,
     backendConnected: s.systemInfo.backendConnected,
     gpuAvailable: s.systemInfo.gpuAvailable,
     currentProject: s.currentProject,
@@ -340,28 +334,30 @@ export function GeneratePanel() {
 
   const { reduced, transition } = useMotionConfig();
 
-  const pollingTimeoutRef = useRef<ReturnType<typeof setTimeout>>(null);
-  const isGeneratingRef = useRef(false);
+  // A run this panel submitted keeps going while the panel is unmounted (the
+  // app job watcher owns it); a remount picks the in-flight run back up.
+  const [resumedJob] = useState(() => selectLatestRunningJob(useAppStore.getState(), 'generate'));
+  const isGeneratingRef = useRef(Boolean(resumedJob));
   const forcedRouteRef = useRef<ProviderId | null>(null);
   const [overBudgetCandidates, setOverBudgetCandidates] = useState<ProviderId[] | null>(null);
-  // Cap consecutive getStatus failures so a persistent backend outage
-  // does not leave the renderer polling forever in a hidden setTimeout
-  // chain. Reset on every successful poll so a flapping connection stays
-  // recoverable. Cap of 5 = ~10s of consecutive errors at the 2s retry.
-  const pollErrorBudgetRef = useRef(makePollErrorBudget(5));
 
   const [showHistory, setShowHistory] = useState(false);
   const [activeAccount, setActiveAccount] = useState<UserAccountSummary | null>(null);
   const [genStatus, setGenStatus] = useState({
-    isGenerating: false,
-    progress: 0,
-    step: 0,
-    status: 'idle' as 'idle' | 'generating' | 'success' | 'error',
+    isGenerating: Boolean(resumedJob),
+    progress: resumedJob?.progress ?? 0,
+    step: resumedJob?.step ?? 0,
+    status: (resumedJob ? 'generating' : 'idle') as 'idle' | 'generating' | 'success' | 'error',
     errorMessage: '',
-    activeJobId: null as string | null,
+    activeJobId: resumedJob?.id ?? null,
   });
-  const updateGenStatus = (patch: Partial<typeof genStatus>) =>
-    setGenStatus((prev) => ({ ...prev, ...patch }));
+  // Stable, so the effects that patch the status do not re-run on every render.
+  const updateGenStatus = useCallback(
+    (patch: Partial<typeof genStatus>) => setGenStatus((prev) => ({ ...prev, ...patch })),
+    [],
+  );
+  // The job record the watcher maintains for this panel's current run.
+  const trackedJob = useTrackedJob(genStatus.activeJobId);
 
   const [imageConfig, setImageConfig] = useState({
     generationType: 'image' as GenerationType,
@@ -374,15 +370,20 @@ export function GeneratePanel() {
     videoModel: 'ltx-video',
   });
   const setSelectedImageModelId = useAppStore((s) => s.setSelectedImageModelId);
-  const updateImageConfig = (patch: Partial<typeof imageConfig>) => {
-    setImageConfig((prev) => ({ ...prev, ...patch }));
-    if (patch.model) {
-      setSelectedImageModelId(patch.model);
-    }
-    if (patch.generationType) {
-      updateAdvancedGeneration({ generationType: patch.generationType });
-    }
-  };
+  // Stable (store actions only), so effects that apply a template or a draft
+  // depend on it without re-running on every render.
+  const updateImageConfig = useCallback(
+    (patch: Partial<typeof imageConfig>) => {
+      setImageConfig((prev) => ({ ...prev, ...patch }));
+      if (patch.model) {
+        setSelectedImageModelId(patch.model);
+      }
+      if (patch.generationType) {
+        updateAdvancedGeneration({ generationType: patch.generationType });
+      }
+    },
+    [setSelectedImageModelId, updateAdvancedGeneration],
+  );
 
   // #136: base_architecture of the selected image checkpoint, for LoRA
   // compatibility filtering in the mixer.
@@ -406,13 +407,19 @@ export function GeneratePanel() {
   })));
   const dimensions = computeDimensions(aspectRatio, resolutionTier, customWidth, customHeight);
 
-  const { startFrameImage, endFrameImage, setStartFrameImage, setEndFrameImage } = useAppStore(
+  const { startFrameImage, setStartFrameImage } = useAppStore(
     useShallow(s => ({
       startFrameImage: s.startFrameImage,
-      endFrameImage: s.endFrameImage,
       setStartFrameImage: s.setStartFrameImage,
-      setEndFrameImage: s.setEndFrameImage,
     }))
+  );
+  const handleDurationChange = useCallback(
+    (duration: number) => updateAdvancedGeneration({ duration }),
+    [updateAdvancedGeneration],
+  );
+  const handleFpsChange = useCallback(
+    (fps: number) => updateAdvancedGeneration({ fps }),
+    [updateAdvancedGeneration],
   );
 
   const [refConfig, setRefConfig] = useState({
@@ -536,6 +543,41 @@ export function GeneratePanel() {
       : null;
   const motionReferenceImage = selectedTimelineSourceImage ?? primaryReferenceImage;
   const motionReferenceLabel = selectedTimelineSourceLabel ?? primaryReferenceLabel;
+  // #J9: an explicit Start Frame is the image-to-video input (the backend's
+  // image_path); without one the run falls back to the primary motion
+  // reference, as before. The bridge exposes no path for a dropped file, so
+  // the frame travels as the data URL the drop zone read (the direct video
+  // generator decodes data URLs; ComfyUI falls back to it).
+  const videoSourceImage = startFrameImage ?? motionReferenceImage;
+
+  // Mirror the watcher-maintained job record into the panel's run status.
+  // Only runs this panel submitted are followed here: timeline runs report
+  // through runTimelineClipGeneration's onStatusChange instead.
+  useEffect(() => {
+    if (!trackedJob || trackedJob.params.origin !== 'generate') return;
+    if (trackedJob.status === 'pending' || trackedJob.status === 'processing') {
+      setGenStatus((prev) =>
+        prev.progress === trackedJob.progress && prev.step === (trackedJob.step ?? prev.step)
+          ? prev
+          : { ...prev, progress: trackedJob.progress, step: trackedJob.step ?? prev.step },
+      );
+      return;
+    }
+    isGeneratingRef.current = false;
+    if (trackedJob.status === 'completed') {
+      setGenStatus((prev) => ({ ...prev, status: 'success', progress: 100, isGenerating: false, activeJobId: null }));
+    } else if (trackedJob.status === 'failed') {
+      setGenStatus((prev) => ({
+        ...prev,
+        status: 'error',
+        errorMessage: trackedJob.error || 'Generation failed',
+        isGenerating: false,
+        activeJobId: null,
+      }));
+    } else {
+      setGenStatus((prev) => ({ ...prev, status: 'idle', isGenerating: false, activeJobId: null }));
+    }
+  }, [trackedJob]);
 
   useEffect(() => {
     if (currentProject?.template) {
@@ -550,7 +592,7 @@ export function GeneratePanel() {
         cfgScale: settings.cfgScale,
       });
     }
-  }, [currentProject, updateAdvancedGeneration]);
+  }, [currentProject, updateAdvancedGeneration, updateImageConfig]);
 
   const syncActiveAccount = useCallback(async () => {
     if (!window.electron?.accounts?.list) {
@@ -592,7 +634,7 @@ export function GeneratePanel() {
     });
 
     setGenerationDraft(null);
-  }, [generationDraft, setGenerationDraft, updateAdvancedGeneration]);
+  }, [generationDraft, setGenerationDraft, updateAdvancedGeneration, updateImageConfig]);
 
   useEffect(() => {
     if (genStatus.status !== 'error' || !genStatus.errorMessage) {
@@ -602,12 +644,19 @@ export function GeneratePanel() {
     const nextErrorMessage = clearResolvedGenerationError(genStatus.errorMessage, {
       generationType: imageConfig.generationType,
       videoModel: imageConfig.videoModel,
-      referenceImage: motionReferenceImage,
+      referenceImage: videoSourceImage,
     });
     if (nextErrorMessage !== genStatus.errorMessage) {
       updateGenStatus({ errorMessage: nextErrorMessage, status: 'idle' });
     }
-  }, [genStatus.errorMessage, genStatus.status, imageConfig.generationType, imageConfig.videoModel, motionReferenceImage]);
+  }, [
+    genStatus.errorMessage,
+    genStatus.status,
+    imageConfig.generationType,
+    imageConfig.videoModel,
+    videoSourceImage,
+    updateGenStatus,
+  ]);
 
   const handleGenerate = async () => {
     if (!imageConfig.prompt.trim()) return;
@@ -940,7 +989,6 @@ export function GeneratePanel() {
         const result = await window.electron.generation.generateImage(imageRequest);
 
         if (result.success && result.jobId) {
-          updateGenStatus({ activeJobId: result.jobId });
           addJob({
             id: result.jobId,
             type: 'image',
@@ -950,21 +998,30 @@ export function GeneratePanel() {
               ...imageRequest,
               seed: advancedGeneration.seed,
               output_root: outputRoot,
+              origin: 'generate',
             },
             createdAt: new Date(),
           });
-          pollJobStatus(result.jobId);
+          updateGenStatus({ activeJobId: result.jobId });
+          void appJobWatcher.track({
+            jobId: result.jobId,
+            kind: 'image',
+            origin: 'generate',
+            prompt: imageConfig.prompt.trim(),
+            outputRoot,
+          });
         } else {
           throw new Error(result.error || 'Generation failed');
         }
       } else {
-        if (!useHuggingFaceVideo && imageConfig.videoModel === 'svd' && !motionReferenceImage) {
+        if (!useHuggingFaceVideo && imageConfig.videoModel === 'svd' && !videoSourceImage) {
           throw new Error(SVD_REFERENCE_ERROR);
         }
 
         const result = await window.electron.generation.generateVideo({
           prompt: imageConfig.prompt.trim(),
-          image_path: useHuggingFaceVideo ? undefined : (motionReferenceImage ?? undefined),
+          // Hosted video routes are prompt-only: no image input reaches them.
+          image_path: useHuggingFaceVideo ? undefined : (videoSourceImage ?? undefined),
           width: dimensions.width,
           height: dimensions.height,
           duration: advancedGeneration.duration,
@@ -981,7 +1038,6 @@ export function GeneratePanel() {
         });
 
         if (result.success && result.jobId) {
-          updateGenStatus({ activeJobId: result.jobId });
           addJob({
             id: result.jobId,
             type: 'video',
@@ -997,10 +1053,21 @@ export function GeneratePanel() {
               model: useHuggingFaceVideo ? huggingFaceVideoModel : imageConfig.videoModel,
               seed: advancedGeneration.seed,
               output_root: outputRoot,
+              origin: 'generate',
+              // The frame itself (a data URL) is never copied into the job or
+              // asset params: they are persisted, and it can be megabytes.
+              ...(startFrameImage && !useHuggingFaceVideo ? { start_frame: true } : {}),
             },
             createdAt: new Date(),
           });
-          pollJobStatus(result.jobId);
+          updateGenStatus({ activeJobId: result.jobId });
+          void appJobWatcher.track({
+            jobId: result.jobId,
+            kind: 'video',
+            origin: 'generate',
+            prompt: imageConfig.prompt.trim(),
+            outputRoot,
+          });
         } else {
           throw new Error(result.error || 'Generation failed');
         }
@@ -1034,126 +1101,19 @@ export function GeneratePanel() {
     setOverBudgetCandidates(null);
   };
 
-  const pollJobStatus = useCallback(async (jobId: string) => {
-    pollErrorBudgetRef.current = makePollErrorBudget(5);
-    const checkStatus = async () => {
-      try {
-        const status = await window.electron.generation.getStatus(jobId);
-        pollErrorBudgetRef.current = recordPollSuccess(pollErrorBudgetRef.current);
-        if (status.status === 'completed') {
-          const existingJob = useAppStore.getState().activeJobs.find((job) => job.id === jobId);
-          const completedAt = status.completed_at
-            ? new Date(status.completed_at)
-            : new Date();
-
-          updateJob(jobId, {
-            status: 'completed',
-            progress: status.progress ?? 100,
-            result: status.result,
-            error: status.error,
-            completedAt,
-          });
-
-          // M9: surface which optimizations actually took effect on this run.
-          useAppStore
-            .getState()
-            .setLastAppliedAcceleration(fromAccelerationResult(status.result?.acceleration));
-
-          // #34 PR4: surface guided-pass notices (e.g. FLUX global references).
-          const guidedNotices =
-            (status.result?.guided as { notices?: string[] } | undefined)?.notices ?? [];
-          useAppStore.getState().setLastGuidedNotices(guidedNotices);
-
-          syncAssetsFromJobStatus({
-            ...status,
-            params: {
-              ...(existingJob?.params ?? {}),
-              output_root:
-                typeof existingJob?.params?.output_root === 'string'
-                  ? existingJob.params.output_root
-                  : resolveOutputRoot(
-                      (await window.electron.settings.get()).defaultOutputPath,
-                      await window.electron.app.getPath('userData')
-                    ),
-            },
-          });
-          await window.electron.notifications.notify('generation_complete', {
-            title: `${imageConfig.generationType === 'image' ? 'Image' : 'Video'} Ready`,
-            body: imageConfig.prompt.trim().slice(0, 120) || 'Generation completed successfully.',
-          });
-          updateGenStatus({
-            status: 'success',
-            progress: 100,
-            isGenerating: false,
-            activeJobId: null,
-          });
-          isGeneratingRef.current = false;
-        } else if (status.status === 'failed') {
-          updateJob(jobId, {
-            status: 'failed',
-            progress: status.progress ?? 0,
-            error: status.error,
-            completedAt: status.completed_at ? new Date(status.completed_at) : new Date(),
-          });
-          await window.electron.notifications.notify('generation_failed', {
-            title: `${imageConfig.generationType === 'image' ? 'Image' : 'Video'} Failed`,
-            body: status.error || 'Generation failed.',
-          });
-          updateGenStatus({
-            status: 'error',
-            errorMessage: status.error || 'Generation failed',
-            isGenerating: false,
-            activeJobId: null,
-          });
-          isGeneratingRef.current = false;
-        } else {
-          updateJob(jobId, {
-            status: status.status,
-            progress: status.progress ?? 0,
-          });
-          const progressPatch: Partial<typeof genStatus> = {};
-          if (status.progress !== undefined) {
-            progressPatch.progress = status.progress;
-          }
-          if (status.step !== undefined) {
-            progressPatch.step = status.step;
-          }
-          if (Object.keys(progressPatch).length > 0) {
-            updateGenStatus(progressPatch);
-          }
-          pollingTimeoutRef.current = setTimeout(checkStatus, 1000);
-        }
-      } catch (error) {
-        console.error('Failed to get job status:', error);
-        const result = recordPollError(pollErrorBudgetRef.current);
-        pollErrorBudgetRef.current = result.budget;
-        if (result.exhausted) {
-          // Persistent backend outage. Stop polling, surface the error,
-          // and let the user retry by starting a new generation.
-          pollingTimeoutRef.current = null;
-          updateGenStatus({
-            status: 'error',
-            errorMessage: 'Lost connection to the AI backend while polling for job status. Please retry.',
-            isGenerating: false,
-            activeJobId: null,
-          });
-          isGeneratingRef.current = false;
-          return;
-        }
-        pollingTimeoutRef.current = setTimeout(checkStatus, 2000);
-      }
-    };
-
-    checkStatus();
-  }, [imageConfig.generationType, imageConfig.prompt, syncAssetsFromJobStatus, updateJob]);
-
   const handleCancel = () => {
-    if (genStatus.activeJobId) {
-      window.electron.generation.cancel(genStatus.activeJobId);
-    }
-    if (pollingTimeoutRef.current) {
-      clearTimeout(pollingTimeoutRef.current);
-      pollingTimeoutRef.current = null;
+    const jobId = genStatus.activeJobId;
+    if (jobId) {
+      // A run the watcher owns is cancelled through it, so the job record,
+      // the generation queue and the notifications settle exactly once. A
+      // timeline run polls inside runTimelineClipGeneration, which observes
+      // the backend's 'cancelled' status itself.
+      const cancelled = appJobWatcher.isTracking(jobId)
+        ? appJobWatcher.cancel(jobId)
+        : window.electron.generation.cancel(jobId);
+      void Promise.resolve(cancelled).catch((error: unknown) => {
+        console.error('Failed to cancel generation:', error);
+      });
     }
     updateGenStatus({
       isGenerating: false,
@@ -1162,14 +1122,6 @@ export function GeneratePanel() {
     });
     isGeneratingRef.current = false;
   };
-
-  useEffect(() => {
-    return () => {
-      if (pollingTimeoutRef.current) {
-        clearTimeout(pollingTimeoutRef.current);
-      }
-    };
-  }, []);
 
   const handleRandomPrompt = () => {
     const idx = Math.floor(Math.random() * RANDOM_PROMPTS.length);
@@ -1327,9 +1279,9 @@ export function GeneratePanel() {
   const controlLayersSummary = resolvedCanvasControlLayers.visibleLayerCount > 0
     ? `${resolvedCanvasControlLayers.visibleLayerCount} canvas layer${resolvedCanvasControlLayers.visibleLayerCount === 1 ? '' : 's'}, ${resolvedCanvasControlLayers.controlnet.length} ControlNet, ${resolvedCanvasControlLayers.referenceImages.length} reference${resolvedCanvasControlLayers.referenceImages.length === 1 ? '' : 's'}${resolvedCanvasControlLayers.inpaint ? ', inpaint ready' : ''}${resolvedCanvasControlLayers.errors.length > 0 ? ', action needed' : ''}, ${refConfig.loraConfigs.length} LoRA${refConfig.loraConfigs.length === 1 ? '' : 's'}`
     : `No canvas layers, ${refConfig.loraConfigs.length} LoRA${refConfig.loraConfigs.length === 1 ? '' : 's'}`;
-  const advancedSummary = imageConfig.generationType === 'image'
-    ? `${advancedGeneration.steps} steps, CFG ${advancedGeneration.cfgScale}, ${advancedGeneration.scheduler}`
-    : `${advancedGeneration.duration}s duration, ${advancedGeneration.fps} fps`;
+  // Video timing (duration, fps) lives in the Motion section's VideoControls,
+  // its single source of truth, so Advanced is an image-only section (#J8).
+  const advancedSummary = `${advancedGeneration.steps} steps, CFG ${advancedGeneration.cfgScale}, ${advancedGeneration.scheduler}`;
   const timelineTargetSummary = activeTimelineClip
     ? `${activeTimelineClip.label} on ${activeTimelineTrack?.name ?? 'timeline'}${activeTimelineBinding ? ', AI-bound clip' : ', new variant target'}`
     : activeTimelineSequence
@@ -1345,8 +1297,8 @@ export function GeneratePanel() {
           ? controlNetPreflight.errors[0]
           : imageConfig.generationType === 'image' && referencePreflight.errors.length > 0
             ? referencePreflight.errors[0]
-            : videoModelRequiresReference && !motionReferenceImage
-              ? 'Stable Video Diffusion requires a reference image.'
+            : videoModelRequiresReference && !videoSourceImage
+              ? 'Stable Video Diffusion requires a start frame or reference image.'
               : null;
   const footerStatusLabel = genStatus.isGenerating
     ? `Generating ${imageConfig.generationType}`
@@ -1491,9 +1443,10 @@ export function GeneratePanel() {
               onTogglePreset={handleToggleStylePreset}
             />
 
-            <div className="space-y-3">
+            {/* A titled group of route controls, not a single form field. */}
+            <div className="space-y-3" role="group" aria-labelledby={modelRouterLabelId}>
               <div>
-                <label className="text-label text-text-body">Model Router</label>
+                <span id={modelRouterLabelId} className="block text-label text-text-body">Model Router</span>
                 <p className="mt-1 text-xs text-text-muted">
                   {openRouterImageEnabled
                     ? 'The active account is routing still images through OpenRouter. Local advanced canvas controls stay on the Local provider.'
@@ -1588,15 +1541,17 @@ export function GeneratePanel() {
               </div>
             ) : (
               <div className="recessed-well px-3 py-3 text-sm text-text-body">
-                {motionReferenceImage
-                  ? `Primary motion reference ready${motionReferenceLabel ? `: ${motionReferenceLabel}` : ''}.`
-                  : 'Attach at least one reference image when you need shot continuity or motion steering.'}
+                {startFrameImage
+                  ? 'The Start Frame in Motion drives this run; references stay attached for later passes.'
+                  : motionReferenceImage
+                    ? `Primary motion reference ready${motionReferenceLabel ? `: ${motionReferenceLabel}` : ''}.`
+                    : 'Attach at least one reference image when you need shot continuity or motion steering.'}
               </div>
             )}
 
-            {videoModelRequiresReference && !motionReferenceImage && (
+            {videoModelRequiresReference && !videoSourceImage && (
               <div className="rounded-md border border-status-warning-border bg-status-warning-muted px-3 py-2 text-xs text-status-warning">
-                Stable Video Diffusion requires a reference image before launch.
+                Stable Video Diffusion requires a start frame or reference image before launch.
               </div>
             )}
           </div>
@@ -1606,21 +1561,28 @@ export function GeneratePanel() {
           <GenerateSectionCard
             sectionId="motion"
             title="Motion"
-            description="Set the timing and frame anchors for motion generation so the run stays bounded."
+            description="Set the start frame and timing for motion generation so the run stays bounded."
             icon={Clapperboard}
           >
             <div className="space-y-4">
-              <CompactImageDropZone
-                label="Start Frame"
-                image={startFrameImage}
-                onImageChange={setStartFrameImage}
+              <div>
+                <CompactImageDropZone
+                  label="Start Frame"
+                  image={startFrameImage}
+                  onImageChange={setStartFrameImage}
+                />
+                <p data-testid="start-frame-hint" className="mt-1.5 type-caption text-text-muted">
+                  {huggingFaceVideoEnabled
+                    ? 'Hosted video routes are prompt-only; the start frame is used on the Local route.'
+                    : 'Animates from this image (image-to-video). Leave empty to use the primary reference or run text-to-video.'}
+                </p>
+              </div>
+              <VideoControls
+                duration={advancedGeneration.duration}
+                fps={advancedGeneration.fps}
+                onDurationChange={handleDurationChange}
+                onFpsChange={handleFpsChange}
               />
-              <CompactImageDropZone
-                label="End Frame"
-                image={endFrameImage}
-                onImageChange={setEndFrameImage}
-              />
-              <VideoControls />
               <LoRAMixer
                 configs={refConfig.loraConfigs}
                 onChange={(value) => updateRefConfig({ loraConfigs: value })}
@@ -1689,18 +1651,20 @@ export function GeneratePanel() {
           </div>
         </GenerateSectionCard>
 
-        <GenerateSectionCard
-          sectionId="advanced"
-          title="Advanced"
-          description="Tune sampler behavior, seed, and video timing only when the default pass is not enough."
-          summary={advancedSummary}
-          icon={Settings2}
-          collapsible
-          collapsed={isGenerateSectionCollapsed('advanced')}
-          onToggle={() => toggleGenerateSection('advanced')}
-        >
-          <AdvancedGenerationSettings />
-        </GenerateSectionCard>
+        {imageConfig.generationType === 'image' && (
+          <GenerateSectionCard
+            sectionId="advanced"
+            title="Advanced"
+            description="Tune sampler behavior and seed only when the default pass is not enough."
+            summary={advancedSummary}
+            icon={Settings2}
+            collapsible
+            collapsed={isGenerateSectionCollapsed('advanced')}
+            onToggle={() => toggleGenerateSection('advanced')}
+          >
+            <AdvancedGenerationSettings />
+          </GenerateSectionCard>
+        )}
 
         {genStatus.status === 'error' && (
           <motion.div

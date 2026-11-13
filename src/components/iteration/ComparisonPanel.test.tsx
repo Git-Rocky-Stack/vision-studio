@@ -46,7 +46,8 @@ describe('ComparisonPanel', () => {
     const job2 = { id: 'iter-2', type: 'image' as const, status: 'completed' as const, progress: 100, params: {}, createdAt: new Date() };
     useAppStore.getState().addIteration({ job: job1, parentId: null, thumbnail: 'thumb1' });
     useAppStore.getState().addIteration({ job: job2, parentId: null, thumbnail: 'thumb2' });
-    useAppStore.getState().setComparisonIds(['iter-1', 'iter-2']);
+    useAppStore.getState().toggleIterationComparison('iter-1');
+    useAppStore.getState().toggleIterationComparison('iter-2');
 
     render(<ComparisonPanel leftId="iter-1" rightId="iter-2" />);
     await user.click(screen.getByRole('button', { name: 'Clear Compare' }));

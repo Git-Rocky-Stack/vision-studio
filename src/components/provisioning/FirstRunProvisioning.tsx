@@ -1,14 +1,24 @@
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import {
-  AlertTriangle, Check, Cpu, Download, ExternalLink, HardDrive, Loader2, Pause, Play,
-  RefreshCw, ShieldCheck, X,
+  AlertTriangle, Check, Cpu, Download, ExternalLink, HardDrive, ListChecks, Loader2, Pause,
+  Play, RefreshCw, ShieldCheck, X,
 } from 'lucide-react';
 import { useAppStore } from '@/store/appStore';
 import { cn } from '@/utils/cn';
 import { formatBytes, formatEta, formatSpeed } from '@/utils/formatUtils';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
+import { useDialogFocus } from '@/hooks/useDialogFocus';
 import type { ProvisionModel } from '@/types/model';
+import { ProvisionCustomPicker } from './ProvisionCustomPicker';
+import {
+  defaultCustomSelection,
+  installChoices,
+  isInstallable,
+  modelSize,
+  summarizeSelection,
+  type ProvisionStartOptions,
+} from './provisionSelection';
 
 export const STABILITY_LICENSE_URL = 'https://stability.ai/community-license-agreement';
 
@@ -90,7 +100,7 @@ function ModelRow({ row }: { row: ProvisionModel }) {
               <ExternalLink aria-hidden="true" className="h-3 w-3" /> Accept license
             </button>
           )}
-          <span className="mono-label text-text-muted">{formatBytes(row.approx_bytes)}</span>
+          <span className="mono-label text-text-muted">{formatBytes(modelSize(row))}</span>
         </div>
       </div>
       <div
@@ -131,6 +141,11 @@ function ModelRow({ row }: { row: ProvisionModel }) {
  * incomplete and the user has not dismissed it - a cold backend can never
  * produce a false takeover. Every number on screen comes from the last
  * ProvisionStatus snapshot; nothing here invents progress.
+ *
+ * K3: the user chooses what to install - the core tier, everything, or a
+ * custom checklist grouped by tier - and the choice reaches provision:start
+ * as { modelIds }. Tierless backends degrade to "everything" + a flat list
+ * (see provisionSelection.ts).
  */
 export function FirstRunProvisioning() {
   const {
@@ -156,20 +171,37 @@ export function FirstRunProvisioning() {
   );
 
   const [confirmCancel, setConfirmCancel] = useState(false);
+  const [customOpen, setCustomOpen] = useState(false);
+  const [customSelection, setCustomSelection] = useState<Set<string>>(() => new Set());
+  const dialogRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
+  const customPanelId = useId();
 
   const visible =
     provisionStatus !== null && !provisionStatus.complete && !firstRunProvisionDismissed;
+
+  // Shared dialog contract: focus lands on the panel, Tab stays inside, and
+  // focus returns to the opener. Escape steps back out of the custom list
+  // first, then continues in the background. While the cancel confirm is
+  // open it is the topmost dialog and owns Escape itself.
+  useDialogFocus(dialogRef, {
+    open: visible,
+    initialFocusRef: panelRef,
+    onEscape: () => {
+      if (confirmCancel) return;
+      if (customOpen) {
+        setCustomOpen(false);
+        return;
+      }
+      dismissFirstRunProvisioning();
+    },
+  });
 
   // Pre-flight data: the hardware profile owns disk_free_bytes for the models
   // volume (foundry/hardware.py probes shutil.disk_usage(models_dir)).
   useEffect(() => {
     if (visible) void loadHardwareProfile();
   }, [visible, loadHardwareProfile]);
-
-  useEffect(() => {
-    if (visible) panelRef.current?.focus();
-  }, [visible]);
 
   const rows = useMemo(() => provisionStatus?.models ?? [], [provisionStatus]);
   const derived = useMemo(() => {
@@ -180,33 +212,96 @@ export function FirstRunProvisioning() {
     const live = rows.some(
       (m) => m.status === 'queued' || m.status === 'downloading' || m.status === 'verifying',
     );
-    return { pickle, gated, started, paused, live };
+    // Models the user left out stay 'missing'; listing them as "Waiting" in
+    // the progress view would promise downloads that will never start.
+    const tracked = rows.filter((m) => m.status !== 'missing');
+    return { pickle, gated, started, paused, live, tracked, untracked: rows.length - tracked.length };
   }, [rows]);
+  const choices = useMemo(() => installChoices(rows), [rows]);
+
+  const customModels = useMemo(
+    () => rows.filter((m) => isInstallable(m) && customSelection.has(m.id)),
+    [rows, customSelection],
+  );
+  const customSummary = useMemo(() => summarizeSelection(customModels), [customModels]);
 
   if (!visible || provisionStatus === null) return null;
 
-  const disk = diskCheck(hardwareProfile?.disk_free_bytes ?? null, provisionStatus.remaining_bytes);
+  const freeBytes = hardwareProfile?.disk_free_bytes ?? null;
+  const disk = diskCheck(freeBytes, provisionStatus.remaining_bytes);
   const overallPct = Math.max(0, Math.min(100, Math.round(provisionStatus.overall_progress * 100)));
   const speed = formatSpeed(provisionStatus.speed);
   const eta = formatEta(provisionStatus.eta);
   const installBlocked = disk.level === 'insufficient';
+  const coreBlocked = choices.core !== null && diskCheck(freeBytes, choices.core.bytes).level === 'insufficient';
+  const canChoose = !derived.live && !derived.paused && choices.everything.count > 0;
 
-  const handleKeyDown = (event: KeyboardEvent) => {
-    // While the cancel confirm is open, Escape belongs to the dialog.
-    if (event.key === 'Escape' && !confirmCancel) {
-      event.stopPropagation();
-      dismissFirstRunProvisioning();
-    }
+  // K3: provision:start takes { modelIds }. "Everything" sends no ids so the
+  // backend installs its whole auto-set (and older backends keep working).
+  const startWith = (options?: ProvisionStartOptions) => {
+    setCustomOpen(false);
+    void (startProvisioning as (options?: ProvisionStartOptions) => Promise<void>)(options);
   };
+
+  const openCustom = () => {
+    setCustomSelection(defaultCustomSelection(rows));
+    setCustomOpen(true);
+  };
+
+  const installChoiceButtons = canChoose && (
+    <>
+      {choices.core && (
+        <button
+          type="button"
+          data-testid="provision-install-core"
+          onClick={() => startWith({ modelIds: choices.core!.ids })}
+          disabled={coreBlocked || provisionBusy}
+          title={`${choices.core.count} core ${choices.core.count === 1 ? 'model' : 'models'}`}
+          className="btn-chrome vx-btn-chrome inline-flex items-center gap-2 px-5 py-2.5 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <Download aria-hidden="true" className="h-4 w-4" />
+          Install core ({formatBytes(choices.core.bytes)})
+        </button>
+      )}
+      <button
+        type="button"
+        data-testid="provision-install"
+        onClick={() => startWith()}
+        disabled={installBlocked || provisionBusy}
+        title={`${choices.everything.count} ${choices.everything.count === 1 ? 'model' : 'models'}`}
+        className={cn(
+          'inline-flex items-center gap-2 px-5 py-2.5 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50',
+          choices.core
+            ? 'rounded-md border border-border text-text-body transition-colors hover:border-border-hover hover:text-text-primary'
+            : 'btn-chrome vx-btn-chrome',
+        )}
+      >
+        <Download aria-hidden="true" className="h-4 w-4" />
+        Install everything ({formatBytes(provisionStatus.remaining_bytes)})
+      </button>
+      <button
+        type="button"
+        data-testid="provision-custom-toggle"
+        onClick={() => (customOpen ? setCustomOpen(false) : openCustom())}
+        aria-expanded={customOpen}
+        aria-controls={customPanelId}
+        disabled={provisionBusy}
+        className="inline-flex items-center gap-2 rounded-md border border-border px-4 py-2.5 text-sm text-text-body transition-colors hover:border-border-hover hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-50"
+      >
+        <ListChecks aria-hidden="true" className="h-4 w-4" />
+        Custom...
+      </button>
+    </>
+  );
 
   return (
     <div
-      className="fixed inset-0 z-[200] flex items-center justify-center overflow-y-auto bg-void/90 p-6 backdrop-blur-sm"
+      ref={dialogRef}
+      className="fixed inset-0 z-[var(--z-overlay)] flex items-center justify-center overflow-y-auto bg-void/90 p-6 backdrop-blur-sm"
       data-testid="first-run-provisioning"
       role="dialog"
       aria-modal="true"
       aria-label="First-run model setup"
-      onKeyDown={handleKeyDown}
     >
       <div
         ref={panelRef}
@@ -225,8 +320,10 @@ export function FirstRunProvisioning() {
           Install the model library
         </h2>
         <p className="mt-2 max-w-[65ch] text-sm leading-relaxed text-text-body">
-          Vision Studio runs entirely on your machine. One click installs the complete
-          verified model set - every image, video, and edit capability works out of the box.
+          Vision Studio runs entirely on your machine.{' '}
+          {choices.tiered
+            ? 'Install the core set to start creating with every primary capability, install everything, or pick models yourself.'
+            : 'Install the complete verified model set so every image, video, and edit capability works out of the box, or pick models yourself.'}{' '}
           You can keep using the app while models install; each feature unlocks the moment
           its model is ready.
         </p>
@@ -245,7 +342,9 @@ export function FirstRunProvisioning() {
               <Cpu aria-hidden="true" className="h-3.5 w-3.5" />
               {hardwareProfile.gpu_available
                 ? `GPU detected: ${hardwareProfile.gpu_name ?? 'Unknown GPU'}`
-                : 'No dedicated GPU detected'}
+                : hardwareProfile.gpu_unsupported_reason
+                  ? `Unsupported GPU, runs on CPU: ${hardwareProfile.gpu_name ?? 'NVIDIA GPU'}`
+                  : 'No dedicated GPU detected'}
             </span>
           )}
           <span className="mono-label text-text-body">
@@ -357,11 +456,31 @@ export function FirstRunProvisioning() {
               </span>
             </div>
             <div className="mt-4 flex max-h-64 flex-col gap-2 overflow-y-auto pr-1">
-              {rows.map((row) => (
+              {derived.tracked.map((row) => (
                 <ModelRow key={row.id} row={row} />
               ))}
             </div>
+            {derived.untracked > 0 && (
+              <p className="mono-label mt-2 text-text-muted">
+                {derived.untracked} {derived.untracked === 1 ? 'model' : 'models'} not selected - add{' '}
+                {derived.untracked === 1 ? 'it' : 'them'} here or from the Foundry anytime.
+              </p>
+            )}
           </div>
+        )}
+
+        {canChoose && customOpen && (
+          <ProvisionCustomPicker
+            id={customPanelId}
+            models={rows}
+            selected={customSelection}
+            onSelectedChange={setCustomSelection}
+            summary={customSummary}
+            disk={diskCheck(freeBytes, customSummary.bytes)}
+            busy={provisionBusy}
+            onInstall={() => startWith({ modelIds: customSummary.ids })}
+            onClose={() => setCustomOpen(false)}
+          />
         )}
 
         {provisionActionError && (
@@ -374,16 +493,7 @@ export function FirstRunProvisioning() {
         <div className="mt-8 flex flex-wrap items-center gap-3">
           {!derived.started ? (
             <>
-              <button
-                type="button"
-                data-testid="provision-install"
-                onClick={() => void startProvisioning()}
-                disabled={installBlocked || provisionBusy}
-                className="btn-chrome vx-btn-chrome inline-flex items-center gap-2 px-5 py-2.5 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <Download aria-hidden="true" className="h-4 w-4" />
-                Install all models ({formatBytes(provisionStatus.remaining_bytes)})
-              </button>
+              {installChoiceButtons}
               <button
                 type="button"
                 data-testid="provision-skip"
@@ -399,10 +509,16 @@ export function FirstRunProvisioning() {
                 type="button"
                 data-testid="provision-background"
                 onClick={dismissFirstRunProvisioning}
-                className="btn-chrome vx-btn-chrome inline-flex items-center gap-2 px-5 py-2.5 text-sm font-medium"
+                className={cn(
+                  'inline-flex items-center gap-2 px-5 py-2.5 text-sm font-medium',
+                  canChoose
+                    ? 'rounded-md border border-border text-text-body transition-colors hover:border-border-hover hover:text-text-primary'
+                    : 'btn-chrome vx-btn-chrome',
+                )}
               >
                 Continue in background
               </button>
+              {installChoiceButtons}
               {derived.live && (
                 <button
                   type="button"

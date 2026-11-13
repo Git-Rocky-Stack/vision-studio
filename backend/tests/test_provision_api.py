@@ -69,6 +69,43 @@ class ProvisionApiTests(unittest.TestCase):
         self.assertEqual(kwargs.get("hf_token"), "hf_SECRET")
         self.assertNotIn("hf_SECRET", response.text)  # token never echoed
 
+    def test_start_without_a_body_provisions_everything(self):
+        with mock.patch.object(main.provision_orchestrator, "start", return_value=_SNAPSHOT) as start:
+            response = client.post("/api/models/provision/start")
+        self.assertEqual(response.status_code, 202)
+        _args, kwargs = start.call_args
+        self.assertFalse(kwargs.get("model_ids"))
+
+    def test_start_forwards_a_model_id_subset(self):
+        with mock.patch.object(main.provision_orchestrator, "start", return_value=_SNAPSHOT) as start:
+            response = client.post(
+                "/api/models/provision/start", json={"model_ids": ["sd-1-5", "sdxl-base"]})
+        self.assertEqual(response.status_code, 202)
+        _args, kwargs = start.call_args
+        self.assertEqual(kwargs.get("model_ids"), ["sd-1-5", "sdxl-base"])
+
+    def test_start_with_an_unknown_model_id_is_400(self):
+        from foundry.provision_orchestrator import UnknownProvisionModelsError
+
+        with mock.patch.object(
+            main.provision_orchestrator, "start",
+            side_effect=UnknownProvisionModelsError(["not-a-model"]),
+        ):
+            response = client.post(
+                "/api/models/provision/start", json={"model_ids": ["not-a-model"]})
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("not-a-model", response.text)
+
+    def test_status_carries_tier_and_size_bytes_per_model(self):
+        response = client.get("/api/models/provision/status")
+        self.assertEqual(response.status_code, 200)
+        body = response.json()
+        self.assertIn("core", body["tiers"])
+        self.assertIn("extended", body["tiers"])
+        for row in body["models"]:
+            self.assertIn(row["tier"], {"core", "extended"})
+            self.assertIsInstance(row["size_bytes"], int)
+
     def test_pause_dispatches_to_orchestrator(self):
         with mock.patch.object(main.provision_orchestrator, "pause", return_value=_SNAPSHOT) as pause:
             response = client.post("/api/models/provision/pause")

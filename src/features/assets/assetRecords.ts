@@ -48,8 +48,45 @@ function splitFileName(assetPath: string) {
   };
 }
 
+const PLACEHOLDER_DATA_URL_PREFIX = 'data:image/svg+xml;charset=UTF-8,';
+
+/**
+ * Placeholder previews are deterministic per (type, label), so each is built
+ * once and shared. They are a display artefact of a video/audio record's
+ * `type`, never data worth persisting: the persisted store strips them (see
+ * stripAssetPlaceholders) and they are rebuilt from the type on load.
+ */
+const placeholderCache = new Map<string, string>();
+const PLACEHOLDER_CACHE_LIMIT = 512;
+
+function cachedPlaceholder(type: 'video' | 'audio', label: string, build: () => string) {
+  const key = `${type}:${label}`;
+  const cached = placeholderCache.get(key);
+  if (cached !== undefined) return cached;
+  const built = build();
+  if (placeholderCache.size >= PLACEHOLDER_CACHE_LIMIT) {
+    const oldest = placeholderCache.keys().next().value;
+    if (oldest !== undefined) placeholderCache.delete(oldest);
+  }
+  placeholderCache.set(key, built);
+  return built;
+}
+
+/** Labels are user file names: escape them before they enter SVG markup. */
+function escapeSvgText(value: string) {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
 function buildVideoPlaceholderPreview(label: string = LOCAL_VIDEO_PLACEHOLDER_LABEL) {
-  const safeLabel = label.slice(0, 28);
+  return cachedPlaceholder('video', label, () => renderVideoPlaceholderPreview(label));
+}
+
+function renderVideoPlaceholderPreview(label: string) {
+  const safeLabel = escapeSvgText(label.slice(0, 28));
   const svg = `
     <svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
       <defs>
@@ -66,11 +103,15 @@ function buildVideoPlaceholderPreview(label: string = LOCAL_VIDEO_PLACEHOLDER_LA
     </svg>
   `.trim();
 
-  return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
+  return `${PLACEHOLDER_DATA_URL_PREFIX}${encodeURIComponent(svg)}`;
 }
 
 function buildAudioPlaceholderPreview(label: string = LOCAL_AUDIO_PLACEHOLDER_LABEL) {
-  const safeLabel = label.slice(0, 28);
+  return cachedPlaceholder('audio', label, () => renderAudioPlaceholderPreview(label));
+}
+
+function renderAudioPlaceholderPreview(label: string) {
+  const safeLabel = escapeSvgText(label.slice(0, 28));
   const svg = `
     <svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
       <defs>
@@ -91,7 +132,7 @@ function buildAudioPlaceholderPreview(label: string = LOCAL_AUDIO_PLACEHOLDER_LA
     </svg>
   `.trim();
 
-  return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
+  return `${PLACEHOLDER_DATA_URL_PREFIX}${encodeURIComponent(svg)}`;
 }
 
 export function toPreviewUrl(
@@ -123,6 +164,89 @@ export function toPreviewUrl(
   return assetPath.startsWith('/')
     ? `${BACKEND_ASSET_BASE_URL}${assetPath}`
     : `${BACKEND_ASSET_BASE_URL}/${assetPath}`;
+}
+
+/** True for a preview URL that is a generated video/audio placeholder. */
+export function isMediaPlaceholderPreview(url: string | null | undefined): boolean {
+  return typeof url === 'string' && url.startsWith(PLACEHOLDER_DATA_URL_PREFIX);
+}
+
+/** The placeholder preview a video/audio record renders, built from its type and name. */
+export function resolveMediaPlaceholderPreview(type: 'video' | 'audio', label: string) {
+  return type === 'video' ? buildVideoPlaceholderPreview(label) : buildAudioPlaceholderPreview(label);
+}
+
+/**
+ * Display-time preview for an asset record. A video/audio record held in its
+ * persisted form (no stored preview) renders its placeholder from its type.
+ */
+export function resolveAssetThumbnail(
+  asset: Pick<AssetRecord, 'type' | 'name' | 'thumbnail' | 'previewUrl'>,
+): string {
+  if (asset.type === 'image') return asset.thumbnail || asset.previewUrl;
+  return asset.thumbnail || resolveMediaPlaceholderPreview(asset.type, asset.name);
+}
+
+/**
+ * Persisted form of an asset record: a video/audio placeholder is a display
+ * artefact of `type`, so it is not written to storage (two URL-encoded SVGs,
+ * about 3 KB, per record). Returns the same object when there is nothing to strip.
+ */
+export function stripAssetPlaceholders(asset: AssetRecord): AssetRecord {
+  if (asset.type === 'image') return asset;
+  const stripPreview = isMediaPlaceholderPreview(asset.previewUrl);
+  const stripThumbnail = isMediaPlaceholderPreview(asset.thumbnail);
+  if (!stripPreview && !stripThumbnail) return asset;
+  return {
+    ...asset,
+    previewUrl: stripPreview ? '' : asset.previewUrl,
+    thumbnail: stripThumbnail ? '' : asset.thumbnail,
+  };
+}
+
+/** Inverse of stripAssetPlaceholders, applied when the persisted state is loaded. */
+export function restoreAssetPlaceholders(asset: AssetRecord): AssetRecord {
+  if (asset.type === 'image' || (asset.previewUrl && asset.thumbnail)) return asset;
+  const placeholder = resolveMediaPlaceholderPreview(asset.type, asset.name);
+  return {
+    ...asset,
+    previewUrl: asset.previewUrl || placeholder,
+    thumbnail: asset.thumbnail || placeholder,
+  };
+}
+
+/** MediaAsset counterpart of stripAssetPlaceholders (preview, thumbnail and poster). */
+export function stripMediaAssetPlaceholders(asset: MediaAsset): MediaAsset {
+  if (asset.type === 'image') return asset;
+  const stripPreview = isMediaPlaceholderPreview(asset.previewUrl);
+  const stripThumbnail = isMediaPlaceholderPreview(asset.thumbnailUrl);
+  const stripPoster = isMediaPlaceholderPreview(asset.posterUrl);
+  if (!stripPreview && !stripThumbnail && !stripPoster) return asset;
+  return {
+    ...asset,
+    previewUrl: stripPreview ? '' : asset.previewUrl,
+    thumbnailUrl: stripThumbnail ? '' : asset.thumbnailUrl,
+    posterUrl: stripPoster ? '' : asset.posterUrl,
+  };
+}
+
+/**
+ * MediaAsset counterpart of restoreAssetPlaceholders. An empty string marks a
+ * stripped placeholder; a null poster is a deliberate "no poster" and stays.
+ */
+export function restoreMediaAssetPlaceholders(asset: MediaAsset): MediaAsset {
+  if (asset.type === 'image') return asset;
+  const missingPreview = asset.previewUrl === '';
+  const missingThumbnail = asset.thumbnailUrl === '';
+  const missingPoster = asset.posterUrl === '';
+  if (!missingPreview && !missingThumbnail && !missingPoster) return asset;
+  const placeholder = resolveMediaPlaceholderPreview(asset.type, asset.name);
+  return {
+    ...asset,
+    previewUrl: missingPreview ? placeholder : asset.previewUrl,
+    thumbnailUrl: missingThumbnail ? placeholder : asset.thumbnailUrl,
+    posterUrl: missingPoster ? placeholder : asset.posterUrl,
+  };
 }
 
 export function resolveStoredAssetPath(assetPath: string, params: Record<string, unknown>) {

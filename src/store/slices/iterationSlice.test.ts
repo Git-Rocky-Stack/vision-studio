@@ -222,3 +222,30 @@ describe('persisted iteration graph cap', () => {
     expect((persisted.iterationNodes as unknown[]).length).toBe(PERSISTED_ITERATION_NODE_CAP);
   });
 });
+
+describe('updateIterationNode', () => {
+  beforeEach(resetStore);
+
+  it('patches a recorded node and keeps its graph fields', () => {
+    useAppStore.getState().addIteration({ job: makeJob('job-1'), parentId: null, thumbnail: 'a.png' });
+    const before = useAppStore.getState().iterationNodes.get('job-1')!;
+    const job = makeJob('job-1', { replacedByAssetPath: 'C:/edits/a.png' });
+
+    useAppStore.getState().updateIterationNode('job-1', { thumbnail: 'file:///C:/edits/a.png', generationJob: job });
+
+    const after = useAppStore.getState().iterationNodes.get('job-1')!;
+    expect(after.thumbnail).toBe('file:///C:/edits/a.png');
+    expect(after.generationJob.params.replacedByAssetPath).toBe('C:/edits/a.png');
+    expect({ ...after, thumbnail: before.thumbnail, generationJob: before.generationJob }).toEqual(before);
+  });
+
+  it('is a no-op for a missing node or an unchanged patch', () => {
+    useAppStore.getState().addIteration({ job: makeJob('job-1'), parentId: null, thumbnail: 'a.png' });
+    const nodes = useAppStore.getState().iterationNodes;
+
+    useAppStore.getState().updateIterationNode('ghost', { thumbnail: 'b.png' });
+    useAppStore.getState().updateIterationNode('job-1', { thumbnail: 'a.png' });
+
+    expect(useAppStore.getState().iterationNodes).toBe(nodes);
+  });
+});

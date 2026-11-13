@@ -1,4 +1,4 @@
-import { memo, useRef, useState, useCallback } from 'react';
+import { memo, useId, useRef, useState, useCallback } from 'react';
 import { readFileAsDataUrl } from '@/utils/readFileAsDataUrl';
 import { cn } from '@/utils/cn';
 import { Upload, X } from 'lucide-react';
@@ -16,6 +16,7 @@ export const CompactImageDropZone = memo(function CompactImageDropZone({
 }: CompactImageDropZoneProps) {
   const [isDragOver, setIsDragOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const fileInputId = useId();
 
   const handleFile = useCallback(
     (file: File) => {
@@ -54,17 +55,19 @@ export const CompactImageDropZone = memo(function CompactImageDropZone({
 
   return (
     <div>
-      <label className="text-label text-text-body mb-1.5 block">{label}</label>
+      {/* Names the file input, which stays mounted while an image is set. */}
+      <label htmlFor={fileInputId} className="text-label text-text-body mb-1.5 block">{label}</label>
 
       {image ? (
         <div className="relative w-full aspect-video rounded-md overflow-hidden border border-border bg-void">
           <img src={image} alt={label} className="w-full h-full object-contain" />
           <button
+            type="button"
             onClick={handleRemove}
             aria-label={`Remove ${label}`}
             className="absolute top-1.5 right-1.5 icon-button p-1 rounded-md bg-void/80 text-text-primary hover:bg-status-error transition"
           >
-            <X className="w-3.5 h-3.5" />
+            <X className="w-3.5 h-3.5" aria-hidden="true" />
           </button>
         </div>
       ) : (
@@ -89,17 +92,18 @@ export const CompactImageDropZone = memo(function CompactImageDropZone({
               : 'border-border hover:border-border-hover hover:bg-elevated/30'
           )}
         >
-          <Upload className="w-4 h-4 text-text-muted" />
+          <Upload className="w-4 h-4 text-text-muted" aria-hidden="true" />
           <span className="text-xs text-text-body">Drop image or click</span>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".png,.jpg,.jpeg,.webp"
-            onChange={handleFileInput}
-            className="hidden"
-          />
         </div>
       )}
+      <input
+        ref={fileInputRef}
+        id={fileInputId}
+        type="file"
+        accept=".png,.jpg,.jpeg,.webp"
+        onChange={handleFileInput}
+        className="hidden"
+      />
     </div>
   );
 });

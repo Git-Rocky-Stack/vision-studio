@@ -17,8 +17,8 @@ export function AssetsGuideSection() {
             folder you configure in Settings.
           </span>,
           <span>
-            Collections group assets by hand, and the AI tagging mode decides whether tags are
-            derived on generation, in the background, on demand, or not at all.
+            Collections group assets by hand or by rule, and the prompt-based tagging mode decides
+            whether tags are derived on generation, in the background, on demand, or not at all.
           </span>,
           <span>
             Exports are checked in the main process, so media can only be copied into your
@@ -47,7 +47,7 @@ export function AssetsGuideSection() {
           {
             title: 'Tag and analyze',
             description:
-              'Pick a tagging mode that fits your workflow (see the modes below). Analysis derives style, subject, color, and mood tags from the prompt you wrote for that asset, with no cloud call and no separate model. Use Analyze on the Collections page to clear the untagged backlog.',
+              'Pick a prompt-based tagging mode that fits your workflow (see the modes below). Analysis derives style, subject, color, and mood tags from the prompt you wrote for that asset, with no cloud call and no separate model. Use Analyze on the Collections page to clear the untagged backlog. You can also add your own tags to an asset and edit or remove them.',
           },
           {
             title: 'Open, export, or delete',
@@ -59,9 +59,11 @@ export function AssetsGuideSection() {
 
       <GuideCallout title="One Library For Local And Hosted Output" tone="accent">
         <p>
-          OpenRouter still-image results are written into your output folder before they are
-          synced back into Assets. You do not need a separate hosted gallery to find BYOK output:
-          search, collections, and tags see hosted and local results together.
+          OpenRouter and HuggingFace results are written into your output folder (under dated{' '}
+          <code>openrouter/</code> and <code>huggingface/</code> folders) before they are synced
+          back into Assets, and Canvas exports land in <code>edits/</code>. You do not need a
+          separate hosted gallery to find BYOK output: search, collections, and tags see hosted and
+          local results together.
         </p>
       </GuideCallout>
 
@@ -93,8 +95,13 @@ export function AssetsGuideSection() {
         <GuideList
           items={[
             <span>
-              Collections hold an explicit list of assets. Their contents only change when you add
-              an asset with Add to collection or remove one from the open collection.
+              A manual collection holds an explicit list of assets. Its contents only change when
+              you add an asset with Add to collection or remove one from the open collection.
+            </span>,
+            <span>
+              A smart collection follows a rule instead: assets whose tags or prompt match are
+              added automatically, and its contents update as the library changes. Its card carries
+              a Smart badge and shows the tags it matches on.
             </span>,
             <span>
               Click a collection card to open it below the grid; hover an asset there to remove it.

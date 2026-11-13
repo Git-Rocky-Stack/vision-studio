@@ -1,7 +1,8 @@
 """
 Middleware package for Vision Studio backend.
 
-Provides rate limiting, CORS, authentication, and other middleware components.
+Provides request rate limiting (slowapi). Authentication and CORS are
+installed directly on the app in ``main.py``.
 """
 
 from .rate_limit import (
@@ -9,8 +10,8 @@ from .rate_limit import (
     rate_limit_exceeded_handler,
     RATE_LIMIT_GENERATE,
     RATE_LIMIT_EDIT,
-    RATE_LIMIT_BATCH,
     RATE_LIMIT_DEFAULT,
+    RATE_LIMIT_HANDSHAKE,
 )
 
 __all__ = [
@@ -18,6 +19,6 @@ __all__ = [
     "rate_limit_exceeded_handler",
     "RATE_LIMIT_GENERATE",
     "RATE_LIMIT_EDIT",
-    "RATE_LIMIT_BATCH",
     "RATE_LIMIT_DEFAULT",
+    "RATE_LIMIT_HANDSHAKE",
 ]

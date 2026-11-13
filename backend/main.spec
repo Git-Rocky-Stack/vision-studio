@@ -1,233 +1,178 @@
 # -*- mode: python ; coding: utf-8 -*-
 """
-PyInstaller spec for bundling Vision Studio Backend
-Includes: FastAPI, PyTorch, CUDA, diffusers, transformers
+PyInstaller spec for the Vision Studio backend: a ONE-FOLDER bundle.
+
+    dist/VisionStudio-Backend/
+        VisionStudio-Backend[.exe]   the launcher Electron spawns
+        _internal/                   Python, torch/CUDA, diffusers, data files
+
+Why one-folder: a one-file executable unpacks its whole payload (multi-GB with
+torch + CUDA) into a fresh temp directory on EVERY launch - slow starts, and a
+hard kill (crash, Task Manager, power loss) leaks the extracted copy in %TEMP%
+forever. One-folder runs in place. UPX stays off: it does not shrink CUDA
+libraries meaningfully, slows every start, and trips antivirus heuristics.
+
+What gets collected is NOT listed here: backend/selfcheck.py owns the module
+list, the wholesale-collected packages, the bundled data files and the
+excludes, and the same module runs inside the frozen bundle as
+`VisionStudio-Backend --self-check` (build-backend.cjs fails the build when
+it does not pass). Edit the lists there.
+
+Build: python -m PyInstaller main.spec --clean --noconfirm   (cwd = backend/)
 """
 
-import sys
+import importlib.metadata
 import os
-from pathlib import Path
-from PyInstaller.utils.hooks import copy_metadata, collect_data_files, collect_submodules, collect_all
+import sys
 
-# Add the backend directory to path.
-# PyInstaller executes spec files without defining __file__ in some versions.
+from PyInstaller.utils.hooks import collect_all, collect_submodules, copy_metadata
+
+# PyInstaller executes spec files without __file__; build-backend.cjs runs it
+# from backend/.
 backend_dir = os.path.abspath(os.getcwd())
 sys.path.insert(0, backend_dir)
 
-block_cipher = None
+from selfcheck import (  # noqa: E402 - needs backend_dir on sys.path first
+    BUNDLED_DATA,
+    COLLECT_ALL_PACKAGES,
+    MIGRATIONS_PACKAGE,
+    NATIVE_EXTENSION_MODULES,
+    REQUIRED_MODULES,
+    SPEC_EXCLUDES,
+    TENSORRT_COLLECT_ALL_PACKAGES,
+    TENSORRT_MODULES,
+    WINDOWS_VC_RUNTIME_DLLS,
+    tensorrt_collection_enabled,
+)
 
-# Collect package metadata needed at runtime by importlib.metadata.version().
-# transformers' import-time dependency_versions_check requires metadata for
-# EVERY package in its core requirement set - a missing one (e.g. requests)
-# makes transformers/diffusers fail to import and silently disables generation.
-metadata_packages = [
-    'imageio', 'imageio-ffmpeg', 'torch', 'torchvision', 'torchaudio',
-    'transformers', 'diffusers', 'huggingface-hub', 'accelerate',
-    'safetensors', 'pydantic', 'fastapi', 'uvicorn', 'numpy',
-    'pillow', 'opencv-python', 'httpx', 'tqdm',
-    'onnxruntime', 'spandrel', 'facexlib',
-    'requests', 'regex', 'packaging', 'filelock', 'pyyaml', 'tokenizers',
-]
-extra_datas = []
-for pkg in metadata_packages:
-    try:
-        extra_datas += copy_metadata(pkg)
-    except Exception:
-        pass  # Package not installed, skip
+# ---------------------------------------------------------------------------
+# Distribution metadata: ALL of it.
+#
+# transformers, diffusers, accelerate, peft and huggingface_hub decide what is
+# available through importlib.metadata (transformers' import-time
+# dependency_versions_check; diffusers' is_peft_available / is_*_available).
+# A missing dist-info does not crash: it silently turns a feature off - which
+# is how LoRA stacking (peft) and earlier generation itself went dark in frozen
+# builds. The build venv holds exactly the locked set, so copying the metadata
+# of every installed distribution is both complete and small (a few MB).
+# ---------------------------------------------------------------------------
+metadata_datas = []
+for distribution_name in sorted(
+    {
+        dist.metadata["Name"]
+        for dist in importlib.metadata.distributions()
+        if dist.metadata and dist.metadata["Name"]
+    }
+):
+    metadata_datas += copy_metadata(distribution_name)
 
-# Collect ALL submodules, data files, and binaries for packages that use
-# lazy/dynamic imports. collect_all is the most aggressive collection method
-# and is required for diffusers/transformers which use __getattr__-based lazy
-# loading that PyInstaller cannot detect through static analysis.
-diffusers_all = collect_all('diffusers')
-transformers_all = collect_all('transformers')
-accelerate_all = collect_all('accelerate')
-aiohttp_all = collect_all('aiohttp')
+# ---------------------------------------------------------------------------
+# Wholesale collection for packages with lazy/dynamic imports, data files or
+# bundled executables. collect_all returns (datas, binaries, hiddenimports).
+# ---------------------------------------------------------------------------
+collected_datas = []
+collected_binaries = []
+collected_hidden = []
+for package in COLLECT_ALL_PACKAGES:
+    package_datas, package_binaries, package_hidden = collect_all(package)
+    collected_datas += package_datas
+    collected_binaries += package_binaries
+    collected_hidden += package_hidden
 
-def categorize(collected, pkg_name):
-    """Split collect_all output into hiddenimports, datas, binaries."""
-    hidden = []
-    datas_list = []
-    bins = []
-    for item in collected:
-        if isinstance(item, tuple) and len(item) == 2:
-            # (source_path, dest_path) = data file
-            datas_list.append(item)
-        elif isinstance(item, str):
-            if item.endswith(('.dll', '.so', '.dylib', '.pyd')):
-                bins.append(item)
-            else:
-                hidden.append(item)
-    return hidden, datas_list, bins
+# ---------------------------------------------------------------------------
+# TensorRT (CUDA builds on Windows/Linux): torch-tensorrt plus TensorRT's
+# `tensorrt` shim, native bindings and runtime libraries. tensorrt_bindings
+# loads the libraries in tensorrt_libs BY PATH, which no import analysis sees,
+# so all four packages are collected wholesale - binaries, data and (through
+# collect_all) their dist-info metadata. Skipped on macOS (no build exists)
+# and in a CPU developer venv (not installed); `--self-check --expect-tensorrt`
+# proves a CUDA bundle loads them.
+# ---------------------------------------------------------------------------
+tensorrt_hidden = []
+if tensorrt_collection_enabled():
+    for package in TENSORRT_COLLECT_ALL_PACKAGES:
+        package_datas, package_binaries, package_hidden = collect_all(package)
+        collected_datas += package_datas
+        collected_binaries += package_binaries
+        tensorrt_hidden += package_hidden
+    tensorrt_hidden += list(TENSORRT_MODULES)
 
-diffusers_hidden, diffusers_datas, diffusers_bins = categorize(diffusers_all, 'diffusers')
-transformers_hidden, transformers_datas, transformers_bins = categorize(transformers_all, 'transformers')
-accelerate_hidden, _, accelerate_bins = categorize(accelerate_all, 'accelerate')
-aiohttp_hidden, aiohttp_datas, aiohttp_bins = categorize(aiohttp_all, 'aiohttp')
+# db/migrate.py imports migrations by name; ship them as importable modules
+# AND as files (the runner lists the directory - see BUNDLED_DATA).
+migration_hidden = collect_submodules(MIGRATIONS_PACKAGE)
 
-all_hidden = list(set(
-    diffusers_hidden + transformers_hidden + accelerate_hidden + aiohttp_hidden
-))
-all_datas = extra_datas + diffusers_datas + transformers_datas + aiohttp_datas
-all_bins = list(set(diffusers_bins + transformers_bins + accelerate_bins + aiohttp_bins))
+bundled_data = [(os.path.join(backend_dir, source), destination) for source, destination in BUNDLED_DATA]
 
-# Main script
+# ---------------------------------------------------------------------------
+# Windows: ship the Visual C++ runtime app-locally (see
+# selfcheck.WINDOWS_VC_RUNTIME_DLLS). PyInstaller skips vcruntime140_threads.dll
+# (torch's c10/torch_cpu need it) because it lives in System32 and is missing from
+# PyInstaller's VC-runtime allow-list; a bundle without it starts on the build
+# machine and nowhere else. A build machine without the current VC++ 2015-2022
+# redistributable cannot produce a correct bundle, so that is a hard error.
+# ---------------------------------------------------------------------------
+vc_runtime_binaries = []
+if sys.platform == 'win32':
+    system32 = os.path.join(os.environ.get('SystemRoot', r'C:\Windows'), 'System32')
+    for dll in WINDOWS_VC_RUNTIME_DLLS:
+        dll_path = os.path.join(system32, dll)
+        if not os.path.isfile(dll_path):
+            raise SystemExit(
+                f'{dll_path} is missing: install the latest Visual C++ 2015-2022 '
+                'Redistributable (x64) on the build machine and rebuild.'
+            )
+        vc_runtime_binaries.append((dll_path, '.'))
+
 a = Analysis(
     ['main.py'],
     pathex=[backend_dir],
-    binaries=all_bins,
-    datas=[
-        # Include any data files
-        ('.env.example', '.'),
-        # Include db/migrations directory
-        ('db/migrations', 'db/migrations'),
-        # Foundry runtime data - modules resolve these relative to __file__
-        # (-> sys._MEIPASS/foundry/ when frozen). model_manager loads the
-        # verified catalog at IMPORT time: missing files crash startup.
-        # Explicit entries (not a glob) so a moved/renamed file fails the
-        # build loudly instead of silently shipping a broken bundle.
-        ('foundry/verified-catalog.json', 'foundry'),
-        ('foundry/provision-manifest.json', 'foundry'),
-        ('foundry/provision-overrides.json', 'foundry'),
-        ('foundry/license-texts.json', 'foundry'),
-        ('foundry/runtime-licenses.json', 'foundry'),
-        # M7 AI Director cold-start knowledge base (knowledge_base.py
-        # DEFAULT_KB_DIR resolves next to its own module).
-        ('services/retrieval/prompting_kb', 'services/retrieval/prompting_kb'),
-    ] + all_datas,
-    hiddenimports=[
-        # FastAPI & Uvicorn
-        'fastapi',
-        'uvicorn',
-        'uvicorn.logging',
-        'uvicorn.loops',
-        'uvicorn.loops.auto',
-        'uvicorn.protocols',
-        'uvicorn.protocols.http',
-        'uvicorn.protocols.http.auto',
-        'uvicorn.protocols.websockets',
-        'uvicorn.protocols.websockets.auto',
-        'uvicorn.lifespan',
-        'uvicorn.lifespan.on',
-        'starlette',
-        'pydantic',
-        'pydantic.deprecated.decorator',
-
-        # PyTorch
-        'torch',
-        'torchvision',
-        'torchaudio',
-        'torch.cuda',
-        'torch.backends',
-        'torch.backends.cuda',
-        'torch.backends.cudnn',
-
-        # Diffusers (lazy-loaded — collected via collect_submodules above)
-        *all_hidden,
-
-        # Other ML libraries
-        'numpy',
-        'PIL',
-        'PIL.Image',
-        'cv2',
-        'safetensors',
-        'huggingface_hub',
-
-        # #34 real edit tools (u2net / Real-ESRGAN / GFPGAN stack)
-        'onnxruntime',
-        'spandrel',
-        'facexlib',
-        'facexlib.utils.face_restoration_helper',
-        'facexlib.detection',
-        'facexlib.parsing',
-
-        # WebSocket
-        'websockets',
-        'websockets.legacy',
-        'websockets.legacy.server',
-
-        # aiohttp (required by ComfyUI client)
-        'aiohttp',
-        'aiohttp.web',
-        'aiohttp.client',
-
-        # Utils ('dotenv' is python-dotenv's import name - the pip name here
-        # never resolved and PyInstaller logged it as a missing hidden import)
-        'dotenv',
-        'aiofiles',
-        'httpx',
-        'tqdm',
-        'imageio',
-        'imageio_ffmpeg',
-
-        # Python standard library modules that might be missed
-        'email.mime.multipart',
-        'email.mime.text',
-        'email.mime.base',
-        'email.mime.message',
-        'email.mime.application',
-        'email.mime.image',
-        'email.mime.audio',
-        'email.mime.nonmultipart',
-        'email.mime.message',
-        'colorsys',
-        'decimal',
-        'fractions',
-        'typing_extensions',
-    ],
+    binaries=collected_binaries + vc_runtime_binaries,
+    datas=bundled_data + metadata_datas + collected_datas,
+    hiddenimports=sorted(
+        set(REQUIRED_MODULES)
+        | set(NATIVE_EXTENSION_MODULES)
+        | set(collected_hidden)
+        | set(migration_hidden)
+        | set(tensorrt_hidden)
+    ),
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=[
-        # Exclude unnecessary modules to reduce size
-        'matplotlib',
-        'tkinter',
-        'PyQt5',
-        'PyQt6',
-        'PySide2',
-        'PySide6',
-        'wx',
-        'wxPython',
-        'pandas.tests',
-        'numpy.random._examples',
-        'scipy',
-        'sklearn',
-        'tensorflow',
-        'tensorboard',
-        'pytest',
-        '_testcapi',
-    ],
-    win_no_prefer_redirects=False,
-    win_private_assemblies=False,
-    cipher=block_cipher,
+    excludes=list(SPEC_EXCLUDES),
     noarchive=False,
 )
 
-pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
+pyz = PYZ(a.pure)
 
 exe = EXE(
     pyz,
     a.scripts,
-    a.binaries,
-    a.zipfiles,
-    a.datas,
     [],
+    exclude_binaries=True,
     name='VisionStudio-Backend',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
-    upx=True,
-    upx_exclude=[],
-    runtime_tmpdir=None,
+    upx=False,
     console=True,
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,
-    # macOS: PyInstaller ad-hoc signs the binary when codesign_identity is
+    # macOS: PyInstaller ad-hoc signs the binaries when codesign_identity is
     # None - required for the bundle to spawn at all on Apple Silicon.
     codesign_identity=None,
     entitlements_file=None,
     # .ico is Windows-only; macOS would need .icns and Linux ELF binaries
     # carry no icon. The backend is a headless child process either way.
     icon='../build/icon.ico' if sys.platform == 'win32' and os.path.exists('../build/icon.ico') else None,
+)
+
+coll = COLLECT(
+    exe,
+    a.binaries,
+    a.datas,
+    strip=False,
+    upx=False,
+    upx_exclude=[],
+    name='VisionStudio-Backend',
 )

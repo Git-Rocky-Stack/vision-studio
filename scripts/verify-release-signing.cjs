@@ -135,14 +135,32 @@ function printReadiness(readiness) {
   console.error(`Missing: ${readiness.missing.join(', ')}`);
 }
 
+// Run electron-builder's CLI with the current Node binary instead of the
+// `npx.cmd` shim. Since Node's CVE-2024-27980 hardening, spawning a .cmd/.bat
+// with `shell: false` fails with EINVAL on Windows, and `shell: true` would
+// expose the certificate subject-name arguments to cmd.exe parsing. Invoking
+// `node <electron-builder>/cli.js` directly needs neither.
+function resolvePackageCommand(args, resolveModule = require.resolve) {
+  const [tool, ...toolArgs] = args;
+  if (tool !== 'electron-builder') {
+    throw new Error(`Unexpected package tool: ${tool}`);
+  }
+  return {
+    command: process.execPath,
+    args: [resolveModule('electron-builder/cli.js'), ...toolArgs],
+  };
+}
+
 function runPackage() {
-  const args = buildWindowsPackageArgs(process.env);
-  const command = process.platform === 'win32' ? 'npx.cmd' : 'npx';
+  const { command, args } = resolvePackageCommand(buildWindowsPackageArgs(process.env));
   const result = spawnSync(command, args, {
     stdio: 'inherit',
     shell: false,
     env: process.env,
   });
+  if (result.error) {
+    console.error(`Failed to start electron-builder: ${result.error.message}`);
+  }
   process.exit(result.status ?? 1);
 }
 
@@ -158,5 +176,6 @@ if (require.main === module) {
 
 module.exports = {
   buildWindowsPackageArgs,
+  resolvePackageCommand,
   getSigningReadiness,
 };

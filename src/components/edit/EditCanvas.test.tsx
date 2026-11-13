@@ -41,7 +41,9 @@ vi.mock('react-konva', () => ({
         target: event.target === event.currentTarget ? handle : event.target,
       });
     return (
+      // Konva draws on a canvas: the stand-in has no semantics of its own.
       <div
+        role="presentation"
         data-testid="konva-stage"
         onMouseDown={forward(onMouseDown)}
         onMouseMove={forward(onMouseMove)}
@@ -84,6 +86,7 @@ vi.mock('react-konva', () => ({
     onClick?: () => void;
   }) => (
     <div
+      role="presentation"
       data-testid="konva-text"
       data-text={text}
       data-font-family={fontFamily}

@@ -52,6 +52,30 @@ describe('RegionLockProperties', () => {
     expect(screen.queryByLabelText('Region prompt')).not.toBeInTheDocument();
   });
 
+  it('does not render prompt for the remove tool (object removal ignores it)', () => {
+    render(<RegionLockProperties {...defaultProps} region={{ ...mockRegion, aiTool: 'remove' }} />);
+    expect(screen.queryByLabelText('Region prompt')).not.toBeInTheDocument();
+  });
+
+  it('disables Upscale up front with an accessible explanation', async () => {
+    const onUpdate = vi.fn();
+    const user = userEvent.setup();
+    render(<RegionLockProperties {...defaultProps} onUpdate={onUpdate} />);
+    const upscale = screen.getByRole('button', { name: /upscale/i });
+    expect(upscale).toBeDisabled();
+    expect(upscale).toHaveAccessibleDescription(/no masked backend pass/i);
+    await user.click(upscale);
+    expect(onUpdate).not.toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: /style transfer/i })).toBeEnabled();
+  });
+
+  it('associates every visible field label with its control', () => {
+    render(<RegionLockProperties {...defaultProps} />);
+    expect(screen.getByRole('group', { name: 'AI Tool' })).toBeInTheDocument();
+    expect(screen.getByLabelText('Generation strength')).toHaveAccessibleDescription(/repainted/i);
+    expect(screen.getByLabelText('Invert mask')).toHaveAccessibleDescription(/only the region/i);
+  });
+
   it('renders all AI tool buttons', () => {
     render(<RegionLockProperties {...defaultProps} />);
     expect(screen.getByText('Generative Fill')).toBeInTheDocument();
@@ -67,12 +91,12 @@ describe('RegionLockProperties', () => {
 
   it('renders feather slider', () => {
     render(<RegionLockProperties {...defaultProps} />);
-    expect(screen.getByLabelText('Feather radius')).toHaveValue('4');
+    expect(screen.getByLabelText('Feather')).toHaveValue('4');
   });
 
   it('renders blend edges toggle', () => {
     render(<RegionLockProperties {...defaultProps} />);
-    expect(screen.getByLabelText('Blend edges')).toBeInTheDocument();
+    expect(screen.getByLabelText('Blend Edges')).toBeInTheDocument();
   });
 
   it('renders invert mask toggle', () => {
@@ -129,7 +153,7 @@ describe('RegionLockProperties', () => {
     const onUpdate = vi.fn();
     const user = userEvent.setup();
     render(<RegionLockProperties {...defaultProps} onUpdate={onUpdate} />);
-    await user.click(screen.getByLabelText('Blend edges'));
+    await user.click(screen.getByLabelText('Blend Edges'));
     expect(onUpdate).toHaveBeenCalledWith({
       mask: { ...mockRegion.mask, blendEdges: false },
     });
@@ -151,5 +175,25 @@ describe('RegionLockProperties', () => {
   it('displays correct feather value', () => {
     render(<RegionLockProperties {...defaultProps} />);
     expect(screen.getByText('4px')).toBeInTheDocument();
+  });
+
+  it('describes Blend Edges and Feather by what they actually do', () => {
+    render(<RegionLockProperties {...defaultProps} />);
+    expect(screen.getByRole('switch', { name: 'Blend Edges' })).toHaveAccessibleDescription(
+      /pasted back over the original/,
+    );
+    expect(screen.getByLabelText('Feather')).toBeEnabled();
+    expect(screen.getByLabelText('Feather')).toHaveAccessibleDescription(/soft edge/);
+  });
+
+  it('disables Feather with the reason while Blend Edges is off', () => {
+    render(
+      <RegionLockProperties
+        {...defaultProps}
+        region={{ ...mockRegion, mask: { ...mockRegion.mask, blendEdges: false } }}
+      />,
+    );
+    expect(screen.getByLabelText('Feather')).toBeDisabled();
+    expect(screen.getByLabelText('Feather')).toHaveAccessibleDescription(/turn Blend Edges on/);
   });
 });

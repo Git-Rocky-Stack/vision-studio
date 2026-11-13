@@ -31,7 +31,27 @@ Run one tier:
 """
 from __future__ import annotations
 
+import atexit
+import os
+import shutil
+import tempfile
+
 import pytest
+
+# Rate limiting is ON by default in every process (middleware/rate_limit.py has
+# no test-runner heuristic any more). The suite drives many requests through
+# one in-process TestClient whose peer address never changes, so every test
+# would share a single per-minute bucket; switch limiting off explicitly here,
+# BEFORE any test module imports the limiter. Tests that exercise limiting
+# (test_rate_limit_api.py) enable it on their own app.
+os.environ["VISION_STUDIO_DISABLE_RATE_LIMIT"] = "1"
+
+# main.py persists job history to DATABASE_PATH (U5). Point it at a per-run
+# scratch database BEFORE any test imports main, so the suite never writes job
+# rows into a developer's real backend/data/vision_studio.db.
+_TEST_DATA_DIR = tempfile.mkdtemp(prefix="vision-studio-tests-")
+os.environ.setdefault("DATABASE_PATH", os.path.join(_TEST_DATA_DIR, "vision_studio.db"))
+atexit.register(shutil.rmtree, _TEST_DATA_DIR, True)
 
 
 def pytest_collection_modifyitems(

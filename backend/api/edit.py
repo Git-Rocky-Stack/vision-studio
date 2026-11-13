@@ -5,7 +5,11 @@ synchronous edit pass on a worker thread, and answers 202 with the job id -
 the renderer polls GET /api/jobs/{job_id} exactly like generation jobs.
 Missing weights surface as a FAILED job carrying the Foundry-pointer copy,
 so the panel has one consistent error path. Cancellation flows through the
-existing cancel endpoint; the tool passes check it between tiles/faces.
+existing cancel endpoint; the tool passes check it between tiles/faces (and
+while a GPU tool is queued behind another GPU job - edit_tools.service holds
+the process-wide GPU gate). Source paths resolve through the media-path
+allow-list (utils.media_paths): anything outside the outputs folder and the
+linked libraries is a 400 before a job exists.
 """
 
 from __future__ import annotations
@@ -14,7 +18,6 @@ import asyncio
 import logging
 import os
 import uuid
-from datetime import datetime
 from typing import Any, Callable, Dict, Optional
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
@@ -31,6 +34,8 @@ from schemas.edit import (  # type: ignore[import-not-found]
     UpscaleRequest,
 )
 from utils.job_manager import GenerationJob, JobStatus
+from utils.media_paths import MediaPathError, resolve_media_path
+from utils.timeutil import utc_now
 
 logger = logging.getLogger(__name__)
 
@@ -41,14 +46,6 @@ _job_manager: Any = None
 _output_dir: str = "outputs"
 _models_dir: str = "models"
 _resolve_record: Optional[Callable[[str], Optional[Dict[str, Any]]]] = None
-
-# Tool -> every record it needs (upscale readiness = the general model;
-# anime and face_enhance surface their own refusals at run time).
-TOOL_RECORDS = {
-    "remove-background": ["edit-u2net"],
-    "upscale": ["edit-realesrgan-x4plus"],
-    "restore-faces": ["edit-gfpgan-v14", "edit-face-detection", "edit-face-parsing"],
-}
 
 
 def configure(job_manager: Any, output_dir: str, models_dir: str,
@@ -80,20 +77,20 @@ async def _process(job_id: str, operation: str, params: Dict[str, Any]) -> None:
         # A cancel that landed after the last tile still wins over the result.
         _job_manager.update_unless_cancelled(
             job_id, status=JobStatus.COMPLETED, progress=100.0,
-            result=result, completed_at=datetime.now())
+            result=result, completed_at=utc_now())
     except EditCancelled:
         _job_manager.update_job(
-            job_id, status=JobStatus.CANCELLED, completed_at=datetime.now())
+            job_id, status=JobStatus.CANCELLED, completed_at=utc_now())
     except (EditModelUnavailable, EditToolError) as exc:
         _job_manager.update_unless_cancelled(
             job_id, status=JobStatus.FAILED, error=str(exc),
-            completed_at=datetime.now())
+            completed_at=utc_now())
     except Exception:
         logger.exception(f"[Job {job_id}] edit operation '{operation}' failed")
         _job_manager.update_unless_cancelled(
             job_id, status=JobStatus.FAILED,
             error=f"The {operation} operation failed unexpectedly - check the backend logs.",
-            completed_at=datetime.now())
+            completed_at=utc_now())
 
 
 def _image_size(source_path: str) -> Optional[tuple]:
@@ -106,8 +103,17 @@ def _image_size(source_path: str) -> Optional[tuple]:
         return None
 
 
+def _resolve_source(source_path: str) -> str:
+    """Allow-listed absolute source path, or HTTP 400 (never echoes the path)."""
+    try:
+        return resolve_media_path(source_path)
+    except MediaPathError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
 def _submit(operation: str, source_path: str, params: Dict[str, Any],
             background_tasks: BackgroundTasks) -> EditJobResponse:
+    """Register + schedule an edit job. ``source_path`` is already resolved."""
     if not os.path.exists(source_path):  # the /api/images/crop convention
         raise HTTPException(status_code=404, detail="Source image not found")
 
@@ -130,7 +136,7 @@ def _submit(operation: str, source_path: str, params: Dict[str, Any],
 async def remove_background(request: Request, body: BackgroundRemoveRequest,
                             background_tasks: BackgroundTasks) -> EditJobResponse:
     """AI background removal (U^2-Net). Poll GET /api/jobs/{job_id}."""
-    return _submit("remove-background", body.source_path,
+    return _submit("remove-background", _resolve_source(body.source_path),
                    {"edge_refinement": body.edge_refinement}, background_tasks)
 
 
@@ -143,13 +149,14 @@ async def upscale_image(request: Request, body: UpscaleRequest,
     An image whose working canvas would exceed 16384px on the long edge is
     refused with 422 before a job exists (the tool checks again itself).
     """
-    size = await asyncio.to_thread(_image_size, body.source_path)
+    source_path = _resolve_source(body.source_path)
+    size = await asyncio.to_thread(_image_size, source_path)
     if size is not None:
         try:
             check_upscale_size(size[0], size[1], body.scale, MODEL_SCALE)
         except EditToolError as exc:
             raise HTTPException(status_code=422, detail=str(exc))
-    return _submit("upscale", body.source_path,
+    return _submit("upscale", source_path,
                    {"scale": body.scale, "model": body.model,
                     "face_enhance": body.face_enhance}, background_tasks)
 
@@ -159,25 +166,5 @@ async def upscale_image(request: Request, body: UpscaleRequest,
 async def restore_faces(request: Request, body: FaceRestoreRequest,
                         background_tasks: BackgroundTasks) -> EditJobResponse:
     """AI face restoration (GFPGAN v1.4). faces_detected lands on the job result."""
-    return _submit("restore-faces", body.source_path,
+    return _submit("restore-faces", _resolve_source(body.source_path),
                    {"strength": body.strength}, background_tasks)
-
-
-@router.get("/models")
-@limiter.limit(LIMITS["default"])
-async def list_edit_models(request: Request) -> dict:
-    """Per-tool readiness from the Foundry registry (no fake 'loaded' flags)."""
-    def ready(record_ids):
-        if _resolve_record is None:
-            return False
-        return all(
-            (_resolve_record(record_id) or {}).get("status") == "ready"
-            for record_id in record_ids
-        )
-
-    return {
-        "tools": {
-            operation: {"ready": ready(record_ids), "records": record_ids}
-            for operation, record_ids in TOOL_RECORDS.items()
-        }
-    }

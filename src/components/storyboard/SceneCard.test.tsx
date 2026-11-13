@@ -200,6 +200,36 @@ describe('SceneCard', () => {
       render(<SceneCard scene={mockScene} isSelected={false} onClick={onClick} />);
       await user.click(screen.getByTestId('scene-card'));
       expect(onClick).toHaveBeenCalledTimes(1);
+      expect(onClick).toHaveBeenCalledWith(mockScene.id);
+    });
+
+    it('passes the scene id to every action so a list can share one stable callback', async () => {
+      const handlers = {
+        onDelete: vi.fn(),
+        onDuplicate: vi.fn(),
+        onSendToTimeline: vi.fn(),
+        onMoveUp: vi.fn(),
+        onMoveDown: vi.fn(),
+      };
+      const user = userEvent.setup();
+      render(
+        <SceneCard
+          scene={mockScene}
+          isSelected
+          onClick={vi.fn()}
+          canMoveUp
+          canMoveDown
+          {...handlers}
+        />
+      );
+      await user.click(screen.getByRole('button', { name: /delete scene/i }));
+      await user.click(screen.getByRole('button', { name: /duplicate scene/i }));
+      await user.click(screen.getByRole('button', { name: /send scene to timeline/i }));
+      await user.click(screen.getByRole('button', { name: /move scene up/i }));
+      await user.click(screen.getByRole('button', { name: /move scene down/i }));
+      for (const handler of Object.values(handlers)) {
+        expect(handler).toHaveBeenCalledWith(mockScene.id);
+      }
     });
 
     it('does not call onClick when delete button is clicked', async () => {
@@ -342,14 +372,17 @@ describe('SceneCard', () => {
       );
     });
 
-    it('has aria-selected when selected', () => {
+    // The card is a toggle button; aria-selected is not a valid state on role=button.
+    it('exposes selection as aria-pressed on the toggle button', () => {
       render(<SceneCard scene={mockScene} isSelected={true} onClick={vi.fn()} />);
-      expect(screen.getByTestId('scene-card')).toHaveAttribute('aria-selected', 'true');
+      const card = screen.getByTestId('scene-card');
+      expect(card).toHaveAttribute('aria-pressed', 'true');
+      expect(card).not.toHaveAttribute('aria-selected');
     });
 
-    it('has aria-selected false when not selected', () => {
+    it('has aria-pressed false when not selected', () => {
       render(<SceneCard scene={mockScene} isSelected={false} onClick={vi.fn()} />);
-      expect(screen.getByTestId('scene-card')).toHaveAttribute('aria-selected', 'false');
+      expect(screen.getByTestId('scene-card')).toHaveAttribute('aria-pressed', 'false');
     });
   });
 });

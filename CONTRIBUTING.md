@@ -32,14 +32,14 @@ Install the following software before getting started:
 
 #### Required
 
-- **Node.js `^20.19.0 || ^22.13.0 || >=24`** - [Download](https://nodejs.org/)
+- **Node.js `^22.22.2 || ^24.15.0 || >=26`** - [Download](https://nodejs.org/)
   - Verify: `node --version`
   - The range is the `engines` field in `package.json`. It comes from the
-    toolchain, not from preference: jsdom 28 and ESLint 10 do not run on older
-    releases, so `npm test` and `npm run lint` fail there
+    toolchain, not from preference: jsdom 31, Vitest 5 and lint-staged 17 do
+    not run on older releases, so `npm test` and the pre-commit hook fail there
   - Node 22 LTS is recommended (`.nvmrc`; `nvm use` picks it up). CI builds and
-    tests on Node 20 (the `node-version` in `.github/workflows/pr-gate.yml`)
-  - npm is included with Node.js. npm 10 (bundled with Node 20 and 22) and
+    tests on that same version (`node-version-file: .nvmrc` in every workflow)
+  - npm is included with Node.js. npm 10 (bundled with Node 22) and
     npm 11 both work, and write the same `package-lock.json`. See
     [Dependencies and the lockfile](#dependencies-and-the-lockfile)
 
@@ -48,16 +48,20 @@ Install the following software before getting started:
   - Required for backend development and AI generation features
   - Every workflow that builds or tests the backend pins 3.12 (the
     `python-version` in `.github/workflows/pr-gate.yml`, `release.yml` and
-    `release-mac-linux.yml`). 3.10 and 3.11 also work. The torch build this
-    pairs with - 2.5.1+cu121 - publishes no cp313 wheels, so a 3.13 interpreter
-    fails at `pip install torch`
+    `release-mac-linux.yml`), and the hash-locked backend dependencies
+    (`backend/requirements/*.txt`, compiled for cp312) install on 3.12 only.
+    The torch build they pair with is 2.14.1 (2.14.1+cu132 on Windows/Linux,
+    with torch-tensorrt 2.14.0 + TensorRT 11.1 in the release bundle)
 
 #### Optional (GPU Acceleration)
 
-- **CUDA 12.1** - [Download](https://developer.nvidia.com/cuda-12-1-0-download-archive)
+- **NVIDIA driver R580 or newer** - the torch wheels carry their own CUDA 13.2
+  runtime, so no CUDA toolkit install is needed, only a recent driver
   - Only required if you want GPU-accelerated image/video generation
-  - NVIDIA GPU with 8GB+ VRAM recommended
-  - Verify: `nvidia-smi` (should show CUDA version)
+  - Turing (RTX 20 / GTX 16) through Blackwell (RTX 50) GPUs; NVIDIA GPU with
+    8GB+ VRAM recommended. Older GPUs (GTX 10 and earlier) have no CUDA 13
+    kernels and run on the CPU
+  - Verify: `nvidia-smi` (should show CUDA Version 13.x or newer)
 
 ### Clone and Install
 
@@ -86,13 +90,15 @@ npm install
 
 Then set up the Python backend in `backend/venv`. `npm run dev` starts the
 backend with that venv's Python whenever it exists, so it does not have to be
-activated in the shell that runs the app.
+activated in the shell that runs the app. To run a different interpreter, set
+`VISION_STUDIO_PYTHON` to its absolute path (it must exist; UNC paths are
+refused). There is no Python-path setting in the app.
 
 **Any platform, one step** - runs `build-backend.cjs`'s own install steps (the
-pinned PyTorch, `requirements.txt`, then the generation stack) and finishes with
-the release build's import check. On Windows, `setup-python.bat` runs the same
+pinned PyTorch and the hash-locked runtime from `backend/requirements/`) and
+finishes with the release build's self-check. On Windows, `setup-python.bat` runs the same
 script. Without an NVIDIA GPU it installs the smaller CPU torch wheels. It looks
-for a Python 3.10-3.12 interpreter through `uv`, then the Windows `py` launcher,
+for a Python 3.12 interpreter through `uv`, then the Windows `py` launcher,
 then `python` on `PATH` - on Linux or macOS, where `python` may be missing or
 too new, install one with `uv python install 3.12` or use the manual steps.
 
@@ -110,24 +116,29 @@ venv\Scripts\activate
 # macOS/Linux:
 source venv/bin/activate
 
+# PyTorch (pick your platform's lock; <platform> is windows, linux or macos):
 # NVIDIA (Windows/Linux):
-pip install torch==2.5.1 torchvision==0.20.1 torchaudio==2.5.1 --index-url https://download.pytorch.org/whl/cu121
-# macOS (Apple Silicon) - the cu121 index has no macOS wheels:
-pip install torch==2.5.1 torchvision==0.20.1 torchaudio==2.5.1
+pip install --require-hashes --no-deps --index-url https://download.pytorch.org/whl/cu132 -r requirements/torch-<platform>-cu132.txt
+# No NVIDIA GPU (Windows/Linux):
+pip install --require-hashes --no-deps --index-url https://download.pytorch.org/whl/cpu -r requirements/torch-<platform>-cpu.txt
+# macOS (Apple Silicon) - PyPI's wheel is the MPS build:
+pip install --require-hashes --no-deps -r requirements/torch-macos-pypi.txt
 
-pip install -r requirements.txt
-
-# The generation stack the release build bundles (BUNDLED_RUNTIME_PACKAGES in
-# build-backend.cjs). requirements.txt holds only the server and test
-# dependencies; without this the backend starts but cannot generate.
-pip install "diffusers>=0.25.0" "transformers>=4.35.0" "accelerate>=0.24.0" "peft>=0.11.0" \
-  "controlnet-aux>=0.0.10" "onnxruntime>=1.17" "spandrel>=0.4.0" "facexlib>=0.3.0" "aiohttp>=3.9"
+# Everything else the release bundles (server + generation stack), exact and hashed:
+pip install --require-hashes --no-deps -r requirements/runtime-<platform>.txt
+# Optional, NVIDIA (Windows/Linux) only - the TensorRT runtime the release
+# bundles (~2.4 GB on Windows, ~4.6 GB on Linux). Needs the runtime lock first
+# (its `tensorrt-cu13` shim builds against the locked setuptools):
+pip install --require-hashes --no-deps --no-build-isolation --extra-index-url https://pypi.nvidia.com --extra-index-url https://download.pytorch.org/whl/cu132 -r requirements/tensorrt-<platform>-cu132.txt
+# Test tooling:
+pip install -r requirements-dev.txt
 cd ..
 ```
 
-The package list lives in `build-backend.cjs` (`TORCH_PIN` and
-`BUNDLED_RUNTIME_PACKAGES`); if it ever disagrees with this page, the script is
-right.
+The locks are compiled from `backend/requirements/runtime.in` and
+`build-backend.cjs` (`TORCH_PIN`, `TORCHVISION_PIN`, `TORCH_TENSORRT_PIN`) by
+`node build-backend.cjs --lock` (needs `uv`); if they ever disagree with this
+page, the locks are right.
 
 ### Verify Setup
 
@@ -209,11 +220,11 @@ npm run package:linux    # Linux only
 ### Build Configuration
 
 Approximate sizes, from the release artifacts listed in
-[DEPLOYMENT.md](DEPLOYMENT.md#file-sizes-v320):
+[DEPLOYMENT.md](DEPLOYMENT.md#file-sizes):
 
 | Command | Description | Output |
 |---------|-------------|--------|
-| `npm run build:backend` | PyInstaller backend bundle -> `resources/` (roughly 30-60 min) | ~2.6 GB on Windows |
+| `npm run build:backend` | PyInstaller one-folder backend bundle -> `resources/backend/` (roughly 30-60 min) | ~6.1 GB on Windows (incl. ~2.4 GB TensorRT) |
 | `npm run package:win` | nsis-web installer + portable zip | ~1 MB `Setup.exe` stub, ~2.56 GB `.nsis.7z` app package, ~2.6 GB portable zip |
 | `npm run package:mac` | Apple Silicon `.dmg` + `.zip` (CI) | ~527 MB dmg |
 | `npm run package:linux` | x64 `.AppImage` (CI) | ~3.3 GB |
@@ -278,7 +289,7 @@ python -m pytest -m unit         # fast isolated logic only
 python -m pytest -m integration  # FastAPI / HTTP-boundary tests only
 
 # Benchmark / model-loading tier (opt-in; needs the GPU/model stack):
-python -m pytest tests/benchmarks -o addopts="" --benchmark-only
+python -m pytest tests/benchmarks -o addopts="" -o timeout=0 --benchmark-only
 ```
 
 > Do **not** use `python -m unittest discover` — it silently skips the
@@ -296,7 +307,7 @@ the current number for its layer.
 | Frontend (unit + component + integration + repo gates) | Vitest 4.1 | `npx vitest run` (summary line: test files and tests) |
 | E2E | Playwright 1.58 | `npx playwright test --list` |
 | Backend (unit + integration) | pytest | `cd backend && python -m pytest --collect-only -q` |
-| Backend (benchmark, opt-in) | pytest-benchmark | `cd backend && python -m pytest tests/benchmarks -o addopts="" --benchmark-only --collect-only -q` |
+| Backend (benchmark, opt-in) | pytest-benchmark | `cd backend && python -m pytest tests/benchmarks -o addopts="" -o timeout=0 --benchmark-only --collect-only -q` |
 
 The E2E figure counts every spec Playwright can collect, including the
 visual-regression suite. Its baselines are per platform
@@ -487,10 +498,10 @@ If applicable, add screenshots.
 
 **Environment:**
 - OS: [e.g., Windows 11]
-- Node: [e.g., v20.10.0]
-- Python: [e.g., 3.11.5]
+- Node: [e.g., v22.13.0]
+- Python: [e.g., 3.12.8]
 - GPU: [e.g., RTX 4070]
-- App Version: [e.g., 3.0.0]
+- App Version: [e.g., 3.4.1]
 
 **Logs**
 ```

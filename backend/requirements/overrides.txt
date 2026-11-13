@@ -1,0 +1,9 @@
+# uv overrides applied when compiling runtime.in (`node build-backend.cjs --lock`).
+#
+# facexlib declares the GUI `opencv-python`; controlnet-aux already uses
+# `opencv-python-headless`. Both wheels install the same `cv2` package, so
+# shipping both leaves whichever unpacked last in charge of cv2 - and the GUI
+# build needs libGL at import time on Linux. The backend never opens a window,
+# so the GUI wheel is removed from the resolution (a marker that never matches)
+# and runtime.in's opencv-python-headless provides cv2 for everyone.
+opencv-python ; sys_platform == "never"

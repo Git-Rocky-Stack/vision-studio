@@ -3,6 +3,8 @@
 > **Historical design record - 2026-07-05.** Describes intent at that
 > date, not current behaviour. See `docs/INDEX.md` for what is authoritative.
 
+> **Status (checked 2026-11-11):** Shipped - PR #51 (`88f0a68`). The task checkboxes below record the plan as written and were not ticked.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Make the three model-backed Edit tools real — Background Removal (U²-Net), AI Upscale (Real-ESRGAN), Face Enhancement (GFPGAN) — end-to-end: six Foundry weight records, job-based backend execution, honest panel wiring, and retirement of every fake surface they replace.

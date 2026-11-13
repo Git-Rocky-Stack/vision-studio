@@ -3,6 +3,8 @@
 > **Historical design record - 2026-06-20.** Describes intent at that
 > date, not current behaviour. See `docs/INDEX.md` for what is authoritative.
 
+> **Status (checked 2026-11-11):** Shipped - PRs #31, #35, #36 and #37, released as 3.1.0.
+
 **Status:** Approved (brainstorm 2026-06-20). Ready for the writing-plans skill.
 
 **Milestone:** M10, the final milestone of the Path-to-v1 roadmap

@@ -99,6 +99,45 @@ export function StoryGuideSection() {
         />
       </GuideCallout>
 
+      <GuideCallout title="Scene Camera Moves" tone="info">
+        <GuideList
+          items={[
+            <span>
+              With a scene selected, the <strong>Camera moves</strong> panel adds camera keyframes
+              to that scene. Each keyframe sets Pan X, Pan Y, Zoom, and Rotation at its time, with
+              an interpolation and an easing strength. The first keyframe sits at 0 s and each new
+              one lands one second after the last, at the neutral camera.
+            </span>,
+            <span>
+              Select a keyframe chip to edit it, or use its trash button to delete it. A scene with
+              camera keyframes is badged CAM in the timeline&apos;s Storyboard mode. Camera moves
+              are saved with the scene; they are not yet applied to playback or MP4 export.
+            </span>,
+          ]}
+        />
+      </GuideCallout>
+
+      <GuideCallout title="Story Templates" tone="info">
+        <GuideList
+          items={[
+            <span>
+              Switch Story to the <strong>Templates</strong> sub-mode to browse project templates.
+              Search them, filter by YouTube, Social, Marketing, Art &amp; Creative, or My
+              Templates, sort them, and switch between card and compact views.
+            </span>,
+            <span>
+              <strong>Use</strong> loads a template&apos;s model, prompt, negative prompt, steps,
+              and CFG into Generate and switches to the Generate tab.
+            </span>,
+            <span>
+              <strong>Create Template</strong> saves your own template. Your templates can be
+              exported as a <code>.vst</code> file or deleted, and My Templates offers Import
+              Template to bring one back in.
+            </span>,
+          ]}
+        />
+      </GuideCallout>
+
       <GuideCallout title="References Stay Scoped" tone="info">
         <GuideList
           items={[

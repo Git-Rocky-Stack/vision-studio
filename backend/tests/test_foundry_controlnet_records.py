@@ -66,7 +66,7 @@ def test_resolve_files_honors_record_allowlist(monkeypatch):
 
     seen = []
 
-    def fake_paths_info(repo_id, paths, revision=None):
+    def fake_paths_info(repo_id, paths, revision=None, token=None):
         seen.append(list(paths))
         return [{"path": p, "size": 7} for p in (paths or ["a.safetensors"])]
 
@@ -95,11 +95,11 @@ def test_resolve_files_enumerates_repos_via_list_repo_files(monkeypatch):
     import foundry.download_manager as dm_module
     from foundry.download_manager import DownloadManager
 
-    def fake_list_repo_files(repo_id, revision=None):
+    def fake_list_repo_files(repo_id, revision=None, token=None):
         return ["config.json", "diffusion_pytorch_model.safetensors",
                 "handler.py", "weights.bin"]
 
-    def fake_paths_info(repo_id, paths, revision=None):
+    def fake_paths_info(repo_id, paths, revision=None, token=None):
         assert paths, "get_paths_info must never be called with an empty list"
         return [{"path": p, "size": 5} for p in paths]
 

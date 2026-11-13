@@ -43,7 +43,7 @@ export const TagBadge = memo(function TagBadge({ tag, onRemove, className }: Tag
         <button
           type="button"
           onClick={(e) => { e.stopPropagation(); onRemove(tag.id); }}
-          className="ml-0.5 rounded-full hover:bg-white/10 p-0.5"
+          className="-my-1 -mr-1.5 ml-0 inline-flex h-6 w-6 items-center justify-center rounded-full hover:bg-sheen-medium"
           aria-label={`Remove tag ${tag.name}`}
         >
           <X className="w-2.5 h-2.5" />

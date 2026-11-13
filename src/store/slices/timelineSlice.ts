@@ -94,7 +94,17 @@ export function createTimelineActions(set: AppSet, get: AppGet) {
       set((state) => ({
         currentTime: clampTimelineTime(get, state.currentTime + deltaMs),
       })),
-    setTimelineFps: (fps: number) => set({ timelineFps: fps }),
+    // The picker sets the active sequence's frame rate (what playback, export
+    // and the ruler read), and keeps the global default in step.
+    setTimelineFps: (fps: number) =>
+      set((s) => ({
+        timelineFps: fps,
+        timelineSequences: s.timelineSequences.map((sequence) =>
+          sequence.id === s.activeTimelineSequenceId
+            ? { ...sequence, fps, updatedAt: new Date().toISOString() }
+            : sequence,
+        ),
+      })),
     setTimelineSpeed: (speed: number) => set({ timelineSpeed: speed }),
     toggleTimelineLoop: () => set((s) => ({ timelineLoop: !s.timelineLoop })),
     // Onion skin

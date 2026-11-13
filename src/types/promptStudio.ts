@@ -46,6 +46,4 @@ export interface PromptTemplate {
 export interface CompositionLayerState {
   aspectFrame: { visible: boolean; opacity: number };
   reference: { visible: boolean; opacity: number; blendMode: 'normal' | 'overlay' | 'multiply' };
-  controlNet: { visible: boolean; opacity: number };
-  regionMasks: { visible: boolean; opacity: number };
 }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { BatchResult } from '@/types/generation';
-import { collectBatchAssetPaths, toGenerationDraftFromResult } from './resultActions';
+import { toGenerationDraftFromResult } from './resultActions';
 
 const baseResult: BatchResult = {
   id: 'job-1',
@@ -23,19 +23,6 @@ const baseResult: BatchResult = {
   createdAt: new Date('2026-03-11T10:00:00Z'),
   isFavorite: false,
 };
-
-describe('collectBatchAssetPaths', () => {
-  it('returns only asset-backed result paths', () => {
-    const results = [
-      baseResult,
-      { ...baseResult, id: 'job-2', assetPath: '' },
-    ];
-
-    expect(collectBatchAssetPaths(results)).toEqual([
-      'C:/vision-studio/outputs/job-1/image_001.png',
-    ]);
-  });
-});
 
 describe('toGenerationDraftFromResult', () => {
   it('hydrates the generate panel with result parameters', () => {

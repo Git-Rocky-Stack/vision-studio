@@ -29,10 +29,16 @@ from services.retrieval.retrieval_service import RetrievalService  # noqa: E402
 
 
 def _broken_embedder():
+    """A provisioned (files on disk) model whose load fails (corrupt weights)."""
     patcher = mock.patch.object(embedder_module, "SENTENCE_TRANSFORMERS_AVAILABLE", True)
     patcher.start()
-    embedder = Embedder()
-    load = mock.patch.object(Embedder, "_load_model", side_effect=OSError("offline"))
+    models_dir = pathlib.Path(tempfile.mkdtemp(prefix="embedder-broken-"))
+    for name in embedder_module.REQUIRED_MODEL_FILES:
+        path = embedder_module.embedder_model_dir(models_dir) / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(b"{}")
+    embedder = Embedder(models_dir=models_dir)
+    load = mock.patch.object(Embedder, "_load_model", side_effect=OSError("corrupt weights"))
     return embedder, load, patcher
 
 

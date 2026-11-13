@@ -11,6 +11,10 @@ import type {
 } from '@/types/media';
 import type { ReferenceImage } from '@/types/project';
 import { planStoryboardTimelineDerivation } from '@/features/timeline/deriveStoryboardTimeline';
+import {
+  planStoryboardTransitionSync,
+  toTimelineTransition,
+} from '@/features/timeline/storyboardTransitions';
 import type {
   ClipRetakeTake,
   ClipGenerationBinding,
@@ -820,20 +824,6 @@ export function createMediaTimelineActions(set: AppSet, get: AppGet) {
           existingIndex === -1
             ? [...state.mediaAssets, asset]
             : state.mediaAssets.map((item) => (item.id === asset.id ? asset : item));
-
-        return {
-          mediaAssets: nextAssets,
-          projects: syncProjectsWithReferenceAdapters(
-            state.projects,
-            state.referenceSets,
-            nextAssets,
-          ),
-        };
-      }),
-
-    removeMediaAsset: (assetId: string) =>
-      set((state) => {
-        const nextAssets = state.mediaAssets.filter((asset) => asset.id !== assetId);
 
         return {
           mediaAssets: nextAssets,
@@ -2330,6 +2320,19 @@ export function createMediaTimelineActions(set: AppSet, get: AppGet) {
         });
       };
 
+      // A storyboard transition sits on scene N and leads into scene N+1, so a
+      // new clip takes its scene's transition as its outgoing edge; the last
+      // scene has none to offer (storyboardTransitions.ts).
+      const orderedScenes = [
+        ...(initialState.projects.find((item) => item.id === projectId)?.scenes ?? []),
+      ].sort((left, right) => left.orderIndex - right.orderIndex);
+      const lastSceneId = orderedScenes[orderedScenes.length - 1]?.id ?? null;
+      const sceneTransitionOut = (sceneId: string, durationMs: number) =>
+        sceneId === lastSceneId
+          ? null
+          : (toTimelineTransition(orderedScenes.find((scene) => scene.id === sceneId)?.transitions, durationMs) ??
+            null);
+
       const result = {
         projectId,
         sequenceId: ensuredSequence.id,
@@ -2380,6 +2383,7 @@ export function createMediaTimelineActions(set: AppSet, get: AppGet) {
           sceneId: scenePlan.sceneId,
           startMs: sequence.durationMs,
           durationMs: scenePlan.durationMs,
+          transitionOut: sceneTransitionOut(scenePlan.sceneId, scenePlan.durationMs),
           label: scenePlan.label,
           posterUrl: scenePlan.posterUrl,
           referenceSetIds: scenePlan.referenceSetIds,
@@ -2420,7 +2424,32 @@ export function createMediaTimelineActions(set: AppSet, get: AppGet) {
         });
       }
 
+      // Clips already on the timeline follow too: every scene in the sequence,
+      // not only the ones just sent, since adding scene N+1 gives scene N's
+      // existing clip a neighbour to blend into.
+      get().syncStoryboardTransitions(projectId, { sequenceId: ensuredSequence.id });
+
       return result;
+    },
+
+    syncStoryboardTransitions: (
+      projectId: string,
+      scope: { sequenceId?: string | null; sceneIds?: readonly string[] } = {},
+    ) => {
+      const state = get();
+      const project = state.projects.find((item) => item.id === projectId);
+      if (!project) return 0;
+      const updates = planStoryboardTransitionSync({
+        project,
+        timelineTracks: state.timelineTracks,
+        timelineClips: state.timelineClips,
+        sequenceId: scope.sequenceId,
+        sceneIds: scope.sceneIds,
+      });
+      for (const update of updates) {
+        state.setTimelineClipTransition(update.clipId, 'out', update.transitionOut);
+      }
+      return updates.length;
     },
 
     upsertClipGenerationBinding: (binding: ClipGenerationBinding) =>

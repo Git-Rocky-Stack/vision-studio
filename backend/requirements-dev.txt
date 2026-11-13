@@ -1,0 +1,15 @@
+# Vision Studio backend - test/development tooling on top of requirements.txt.
+#
+#   pip install -r backend/requirements-dev.txt
+#
+# CI installs the hash-locked equivalent instead:
+#   pip install --require-hashes -r backend/requirements/dev-linux.txt
+# (regenerated with the other locks by `node build-backend.cjs --lock`).
+-r requirements.txt
+
+pytest>=8.0.0
+pytest-benchmark>=4.0.0
+# pytest.ini sets a per-test timeout; a hung test fails instead of hanging CI.
+pytest-timeout>=2.3.0
+# FastAPI's TestClient is built on httpx (test-only: the runtime never imports it).
+httpx>=0.27.0

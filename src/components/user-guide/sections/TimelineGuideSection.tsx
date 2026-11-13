@@ -64,6 +64,50 @@ export function TimelineGuideSection() {
         ]}
       />
 
+      <GuideCallout title="Tracks And Frame Rate" tone="info">
+        <GuideList
+          items={[
+            <span>
+              Add track creates a new track. Click a track header, or focus it and press Enter or
+              Space, to select the track. Header buttons mute video and audio tracks, solo audio
+              tracks, and hide or lock any track. A track you no longer need can be deleted.
+            </span>,
+            <span>
+              The sequence frame rate (FPS) can be edited. The timecode readout and the one-frame
+              Alt+Left and Alt+Right nudges follow the sequence FPS.
+            </span>,
+          ]}
+        />
+      </GuideCallout>
+
+      <GuideCallout title="Storyboard And Animation Modes" tone="info">
+        <GuideList
+          items={[
+            <span>
+              The mode switch in the timeline header picks <strong>Storyboard</strong>,{' '}
+              <strong>Animation</strong>, or <strong>Canvas</strong>. Canvas is the clip timeline
+              with tracks and the Clip Inspector described above.
+            </span>,
+            <span>
+              <strong>Storyboard</strong> plays the project&apos;s scenes in order as a strip, with
+              a scene counter and speed control. Scenes that hold camera moves are badged CAM.
+            </span>,
+            <span>
+              <strong>Onion skin</strong> (the layers button in the timeline header) ghosts
+              neighbouring frames over the current one in Storyboard mode. Set how many Frames (1
+              to 5), their Opacity, and the direction: Both, Previous, or Next.
+            </span>,
+            <span>
+              <strong>Animation</strong> lists the Canvas tab&apos;s edit layers as tracks. Add
+              keyframe keys the selected layer at the playhead; each keyframe has an interpolation
+              (Linear, Ease In, Ease Out, or Ease In Out) and an easing strength, and can be
+              deleted. Layer keyframes are saved with your work but are not yet applied to
+              playback or MP4 export.
+            </span>,
+          ]}
+        />
+      </GuideCallout>
+
       <GuideCallout title="Retake Workflow" tone="accent">
         <GuideStepList
           steps={[

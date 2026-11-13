@@ -12,7 +12,7 @@ GitHub renders these inline. To render them locally: `npx -p @mermaid-js/mermaid
 ```mermaid
 graph TB
     subgraph Renderer["Renderer (Chromium, sandboxed)"]
-        UI[React 19 + Vite + Zustand + dockview]
+        UI[React 19 + Vite + Zustand + panel layout]
     end
     subgraph Main["Main (Electron 42, Node.js)"]
         IPC[ipcMain handlers]
@@ -254,7 +254,6 @@ sequenceDiagram
     App->>BP: start() (when backendAutostart is on)
     BP->>FS: locate bundled backend exe
     BP->>Py: spawn child process (env: token, OUTPUT_DIR, MODELS_DIR, DATABASE_PATH)
-    Py->>FS: one-file bundle unpacks to a temp folder (every launch)
     Py->>Py: run_migrations(DATABASE_PATH)
     Py->>Py: lifespan: connect ComfyUI if reachable, create DirectGenerator + DirectVideoGenerator
     Py->>Py: ModelManager.scan_models()

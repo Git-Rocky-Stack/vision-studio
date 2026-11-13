@@ -1,8 +1,24 @@
 import { create } from 'zustand';
 import { persist, type StateStorage } from 'zustand/middleware';
 import { createDebouncedJSONStorage } from './debouncedPersistStorage';
+import {
+  createIndexedDbBackend,
+  createMigratingStateStorage,
+  resolveIndexedDbFactory,
+} from './indexedDbStorage';
 import type { AppState } from './appStore.types';
+import { pushNotice } from '@/features/notices/notices';
+import { toIterationThumbnailUrl } from '@/features/jobs/jobOutput';
 import type { ProjectTemplate } from '@/types/template';
+import type { AssetRecord } from '@/types/assets';
+import type { MediaAsset } from '@/types/media';
+import type { IterationNode } from '@/types/iteration';
+import {
+  restoreAssetPlaceholders,
+  restoreMediaAssetPlaceholders,
+  stripAssetPlaceholders,
+  stripMediaAssetPlaceholders,
+} from '@/features/assets/assetRecords';
 import {
   DEFAULT_CANVAS_CONTROL_LAYER_MASK,
   DEFAULT_REGION_MASK,
@@ -45,7 +61,12 @@ import { modelsInitialState, createModelsActions } from './slices/modelsSlice';
 import { provisioningInitialState, createProvisioningActions } from './slices/provisioningSlice';
 import { projectInitialState, createProjectActions } from './slices/projectSlice';
 import { workflowInitialState, createWorkflowActions } from './slices/workflowSlice';
-import { promptStudioInitialState, createPromptStudioActions } from './slices/promptStudioSlice';
+import {
+  promptStudioInitialState,
+  createPromptStudioActions,
+  refreshBuiltInPromptTemplates,
+} from './slices/promptStudioSlice';
+import type { PromptTemplate } from '@/types/promptStudio';
 import { generationPreviewInitialState, createGenerationPreviewActions } from './slices/generationPreviewSlice';
 import {
   iterationInitialState,
@@ -58,6 +79,7 @@ import { timelineInitialState, createTimelineActions } from './slices/timelineSl
 import { pipelineInitialState, createPipelineActions } from './slices/pipelineSlice';
 import type { PipelineDefinition } from '@/types/pipeline';
 import { accelerationInitialState, createAccelerationActions } from './slices/accelerationSlice';
+import { batchQueueInitialState, createBatchQueueActions } from './slices/batchQueueSlice';
 
 // Re-exports: local types
 export type {
@@ -868,7 +890,7 @@ function normalizeProjects(projects: Project[] | undefined): Project[] {
   }));
 }
 
-function getPersistStorage(): StateStorage {
+function getLegacyLocalStorage(): StateStorage | null {
   try {
     if (typeof window !== 'undefined' && window.localStorage) {
       return window.localStorage;
@@ -881,7 +903,25 @@ function getPersistStorage(): StateStorage {
     // Some browser contexts expose localStorage but deny access.
   }
 
-  return nodeTestStorage;
+  return null;
+}
+
+let resolvedPersistStorage: StateStorage | null = null;
+
+/**
+ * IndexedDB wherever it exists (the Electron renderer), migrating the legacy
+ * localStorage copy on first read. localStorage, then memory, remain the
+ * synchronous fallbacks for environments without IndexedDB (node and jsdom
+ * test runs), which keeps hydration synchronous there.
+ */
+function getPersistStorage(): StateStorage {
+  if (resolvedPersistStorage) return resolvedPersistStorage;
+  const factory = resolveIndexedDbFactory();
+  const legacy = getLegacyLocalStorage();
+  resolvedPersistStorage = factory
+    ? createMigratingStateStorage({ backend: createIndexedDbBackend(factory), legacy })
+    : (legacy ?? nodeTestStorage);
+  return resolvedPersistStorage;
 }
 
 // Predefined project templates
@@ -984,7 +1024,99 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
   }
 ];
 
-function partializeAppState(state: AppState) {
+/**
+ * Every state field buildPersistedAppState reads. The memoized partialize
+ * below rebuilds the persisted slice only when one of these changed by
+ * reference, so a 60fps playhead tick or a job progress update - neither of
+ * which is persisted - costs one array scan instead of a full rebuild, and
+ * schedules no storage write at all. appStore.persist.test.ts asserts this
+ * list matches what buildPersistedAppState actually reads.
+ */
+export const PERSISTED_SOURCE_KEYS = [
+  'activeTab',
+  'activeSubMode',
+  'centerView',
+  'firstRunProvisionDismissed',
+  'layoutPreferences',
+  'aspectRatio',
+  'resolutionTier',
+  'customWidth',
+  'customHeight',
+  'projects',
+  'activeProjectId',
+  'activeSceneId',
+  'storyboardImportDrafts',
+  'activeStoryboardImportDraftId',
+  'promptHistory',
+  'favoritePrompts',
+  'customStylePresets',
+  'userTemplates',
+  'batchResults',
+  'assetLibrary',
+  'promptTemplates',
+  'compositionLayers',
+  'iterationNodes',
+  'iterationBranches',
+  'activeIterationId',
+  'iterationView',
+  'iterationComparisonMode',
+  'collections',
+  'pipelines',
+  'availableTags',
+  'taggingMode',
+  'assetMetadata',
+  'mediaAssets',
+  'referenceSets',
+  'timelineSequences',
+  'timelineTracks',
+  'timelineClips',
+  'clipRetakeTakes',
+  'clipGenerationBindings',
+  'activeTimelineSequenceId',
+  'activeTimelineClipId',
+  'activeTimelineRetakeRangeId',
+  'activeTimelineRetakeTakeId',
+] as const satisfies readonly (keyof AppState)[];
+
+/**
+ * Persisted-shape version. 0 was every build before #J3 (localStorage, with
+ * the dead darkMode / recentProjects / generationMode / migrationStatus keys);
+ * 1 drops those keys and stores video/audio assets without placeholder SVGs;
+ * 2 drops the composition layers the preview never drew (controlNet,
+ * regionMasks - #J17).
+ */
+export const PERSIST_VERSION = 2;
+
+const DEAD_COMPOSITION_LAYERS = ['controlNet', 'regionMasks'] as const;
+
+const DEAD_PERSISTED_KEYS = ['darkMode', 'recentProjects', 'generationMode', 'migrationStatus'] as const;
+
+/** Upgrades a persisted payload written by an older build to PERSIST_VERSION. */
+export function migratePersistedAppState(persistedState: unknown, fromVersion: number): unknown {
+  if (!persistedState || typeof persistedState !== 'object') return persistedState;
+  const next: Record<string, unknown> = { ...(persistedState as Record<string, unknown>) };
+  if (fromVersion < 1) {
+    for (const key of DEAD_PERSISTED_KEYS) delete next[key];
+    if (Array.isArray(next.assetLibrary)) {
+      next.assetLibrary = (next.assetLibrary as AssetRecord[]).map((asset) =>
+        asset && typeof asset === 'object' ? stripAssetPlaceholders(asset) : asset,
+      );
+    }
+    if (Array.isArray(next.mediaAssets)) {
+      next.mediaAssets = (next.mediaAssets as MediaAsset[]).map((asset) =>
+        asset && typeof asset === 'object' ? stripMediaAssetPlaceholders(asset) : asset,
+      );
+    }
+  }
+  if (fromVersion < 2 && next.compositionLayers && typeof next.compositionLayers === 'object') {
+    const layers: Record<string, unknown> = { ...(next.compositionLayers as Record<string, unknown>) };
+    for (const key of DEAD_COMPOSITION_LAYERS) delete layers[key];
+    next.compositionLayers = layers;
+  }
+  return next;
+}
+
+export function buildPersistedAppState(state: AppState) {
   const iterationGraph = capIterationGraphForPersist(state.iterationNodes, state.iterationBranches, {
     keepIds: [state.activeIterationId],
   });
@@ -999,21 +1131,18 @@ function partializeAppState(state: AppState) {
     resolutionTier: state.resolutionTier,
     customWidth: state.customWidth,
     customHeight: state.customHeight,
-    generationMode: state.generationMode,
-    darkMode: state.darkMode,
-    recentProjects: state.recentProjects,
     projects: state.projects,
     activeProjectId: state.activeProjectId,
     activeSceneId: state.activeSceneId,
     storyboardImportDrafts: state.storyboardImportDrafts,
     activeStoryboardImportDraftId: state.activeStoryboardImportDraftId,
-    migrationStatus: state.migrationStatus,
     promptHistory: state.promptHistory.slice(0, 50),
     favoritePrompts: state.favoritePrompts,
     customStylePresets: state.customStylePresets,
     userTemplates: state.userTemplates,
     batchResults: state.batchResults.slice(0, 200),
-    assetLibrary: state.assetLibrary.slice(0, 500),
+    // Video/audio placeholders are rebuilt from `type` on load (#J3).
+    assetLibrary: state.assetLibrary.slice(0, 500).map(stripAssetPlaceholders),
     promptTemplates: state.promptTemplates,
     compositionLayers: state.compositionLayers,
     iterationBranches: iterationGraph.branches,
@@ -1026,7 +1155,7 @@ function partializeAppState(state: AppState) {
     availableTags: state.availableTags,
     taggingMode: state.taggingMode,
     assetMetadata: Array.from(state.assetMetadata.entries()),
-    mediaAssets: state.mediaAssets,
+    mediaAssets: state.mediaAssets.map(stripMediaAssetPlaceholders),
     referenceSets: state.referenceSets,
     timelineSequences: state.timelineSequences,
     timelineTracks: state.timelineTracks,
@@ -1040,17 +1169,72 @@ function partializeAppState(state: AppState) {
   };
 }
 
-type PersistedAppState = ReturnType<typeof partializeAppState>;
-
-const appPersistStorage = createDebouncedJSONStorage<PersistedAppState>(getPersistStorage);
+type PersistedAppState = ReturnType<typeof buildPersistedAppState>;
 
 /**
- * Writes any persisted state still waiting out the debounce. The storage also
- * flushes itself on pagehide / beforeunload / visibilitychange(hidden); tests
- * and explicit save points call this to persist immediately.
+ * partialize for the persist middleware, memoized on PERSISTED_SOURCE_KEYS:
+ * when no persisted source changed by reference it returns the previous
+ * object, which the debounced storage recognises and skips (#J4).
  */
-export function flushPersistedState(): void {
-  appPersistStorage.flush();
+export function createMemoizedPartialize(
+  build: (state: AppState) => PersistedAppState = buildPersistedAppState,
+) {
+  let lastSources: unknown[] | null = null;
+  let lastResult: PersistedAppState | null = null;
+  return (state: AppState): PersistedAppState => {
+    const sources = PERSISTED_SOURCE_KEYS.map((key) => state[key]);
+    if (
+      lastResult !== null &&
+      lastSources !== null &&
+      sources.every((value, index) => Object.is(value, lastSources![index]))
+    ) {
+      return lastResult;
+    }
+    lastSources = sources;
+    lastResult = build(state);
+    return lastResult;
+  };
+}
+
+/** Consecutive failed writes are reported once; the next success re-arms the notice. */
+let persistFailureNoticeShown = false;
+
+function reportPersistWriteFailure(_name: string, error: unknown) {
+  if (persistFailureNoticeShown) return;
+  persistFailureNoticeShown = true;
+  const quota =
+    error instanceof DOMException &&
+    (error.name === 'QuotaExceededError' || error.name === 'NS_ERROR_DOM_QUOTA_REACHED');
+  const message = quota
+    ? 'Vision Studio could not save your workspace: local storage is full. Free disk space or remove unused assets; your latest changes are kept only until you quit.'
+    : `Vision Studio could not save your workspace (${error instanceof Error ? error.message : 'storage error'}). Your latest changes are kept only until you quit.`;
+  // The notice store only: its host is UI that main.tsx registers.
+  pushNotice('error', message);
+}
+
+const appPersistStorage = createDebouncedJSONStorage<PersistedAppState>(getPersistStorage, {
+  onWriteError: reportPersistWriteFailure,
+  onWriteRecovered: () => {
+    persistFailureNoticeShown = false;
+  },
+});
+
+/**
+ * Settles once the persisted state has been loaded into the store (or the
+ * load failed). With IndexedDB the load is asynchronous, so main.tsx waits on
+ * this before the first render: rendering defaults first would flash the
+ * default workspace and let Dockview build its layout from the wrong tab.
+ */
+let settleHydration: () => void = () => undefined;
+const hydrationSettled = new Promise<void>((resolve) => {
+  settleHydration = resolve;
+});
+
+export function whenAppStoreHydrated(timeoutMs = 4000): Promise<void> {
+  return Promise.race([
+    hydrationSettled,
+    new Promise<void>((resolve) => setTimeout(resolve, timeoutMs)),
+  ]);
 }
 
 export const useAppStore = create<AppState>()(
@@ -1086,16 +1270,49 @@ export const useAppStore = create<AppState>()(
       ...createPipelineActions(set),
       ...accelerationInitialState,
       ...createAccelerationActions(set, get),
+      ...batchQueueInitialState,
+      ...createBatchQueueActions(set, get),
     }),
     {
       name: 'vision-studio-storage',
       storage: appPersistStorage,
+      version: PERSIST_VERSION,
+      migrate: (persistedState, version) =>
+        migratePersistedAppState(persistedState, version) as PersistedAppState,
+      onRehydrateStorage: () => () => settleHydration(),
       merge: (persistedState, currentState) => {
-        const persisted = persistedState as Record<string, unknown>;
+        // First run (nothing stored) merges an empty payload over the defaults.
+        const persisted = { ...((persistedState ?? {}) as Record<string, unknown>) };
+        if (Array.isArray(persisted.assetLibrary)) {
+          persisted.assetLibrary = (persisted.assetLibrary as AssetRecord[]).map((asset) =>
+            asset && typeof asset === 'object' ? restoreAssetPlaceholders(asset) : asset,
+          );
+        }
+        if (Array.isArray(persisted.mediaAssets)) {
+          persisted.mediaAssets = (persisted.mediaAssets as MediaAsset[]).map((asset) =>
+            asset && typeof asset === 'object' ? restoreMediaAssetPlaceholders(asset) : asset,
+          );
+        }
+        if (Array.isArray(persisted.promptTemplates)) {
+          // #J16: built-ins come from the shipped catalog, user templates as stored.
+          persisted.promptTemplates = refreshBuiltInPromptTemplates(
+            persisted.promptTemplates as PromptTemplate[],
+          );
+        }
         // Reconstruct Maps from serialized arrays
         if (Array.isArray(persisted.iterationNodes)) {
+          // Nodes recorded by older builds hold the backend-relative output
+          // path as their thumbnail, which no <img> can load.
           (persisted as Record<string, unknown>).iterationNodes = new Map(
-            persisted.iterationNodes as [string, unknown][]
+            (persisted.iterationNodes as [string, unknown][]).map(([id, node]) => [
+              id,
+              node && typeof node === 'object' && typeof (node as IterationNode).thumbnail === 'string'
+                ? {
+                    ...(node as IterationNode),
+                    thumbnail: toIterationThumbnailUrl((node as IterationNode).thumbnail),
+                  }
+                : node,
+            ]),
           );
         }
         if (Array.isArray(persisted.assetMetadata)) {
@@ -1220,13 +1437,30 @@ export const useAppStore = create<AppState>()(
               : null,
         };
       },
-      partialize: partializeAppState,
+      partialize: createMemoizedPartialize(),
     }
   )
 );
 
-// Expose the store on window for E2E test seeding and debugging.
-// Safe in an Electron renderer context - no external web exposure.
-if (typeof window !== 'undefined') {
+/**
+ * Whether to expose the store as `window.__VISION_STUDIO_STORE__` (E2E state
+ * seeding and debugging, #J13). Never in a shipped build:
+ * - dev server (`import.meta.env.DEV`);
+ * - a build made for the E2E harness with `VITE_E2E_STORE=1` (the Playwright
+ *   Electron fixture launches the production bundle);
+ * - a renderer under browser automation (`navigator.webdriver`), which
+ *   already has full control of the page through the debugging protocol, so
+ *   the global grants it nothing it lacked.
+ */
+export function shouldExposeStoreGlobal(
+  env: { DEV?: boolean; VITE_E2E_STORE?: string } = (
+    import.meta as ImportMeta & { env?: { DEV?: boolean; VITE_E2E_STORE?: string } }
+  ).env ?? {},
+  nav: { webdriver?: boolean } | undefined = typeof navigator === 'undefined' ? undefined : navigator,
+): boolean {
+  return env.DEV === true || env.VITE_E2E_STORE === '1' || nav?.webdriver === true;
+}
+
+if (typeof window !== 'undefined' && shouldExposeStoreGlobal()) {
   (window as unknown as { __VISION_STUDIO_STORE__: typeof useAppStore }).__VISION_STUDIO_STORE__ = useAppStore;
 }

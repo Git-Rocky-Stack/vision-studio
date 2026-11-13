@@ -4,7 +4,7 @@ Vision Studio's own source code is released under the MIT License (see `LICENSE`
 
 Models under the FLUX.1 [dev] non-commercial license, and other redistribution-restricted weights (e.g. OpenPose, LTX-Video), are NOT bundled - they remain optional, user-initiated installs through the in-app Foundry.
 
-## Bundled AI Models
+## Provisioned AI Models
 
 - **AnimateDiff** (`animatediff`) - [CreativeML Open RAIL-M License](https://huggingface.co/spaces/CompVis/stable-diffusion-license)
 - **MiDaS Depth Annotator** (`annotator-midas`) - [MIT License](https://opensource.org/license/mit)
@@ -26,6 +26,7 @@ Models under the FLUX.1 [dev] non-commercial license, and other redistribution-r
 - **Real-ESRGAN x4plus** (`edit-realesrgan-x4plus`) - [BSD 3-Clause License](https://opensource.org/license/bsd-3-clause)
 - **Real-ESRGAN x4plus Anime** (`edit-realesrgan-x4plus-anime`) - [BSD 3-Clause License](https://opensource.org/license/bsd-3-clause)
 - **U2-Net Background Removal** (`edit-u2net`) - [Apache License 2.0](https://www.apache.org/licenses/LICENSE-2.0)
+- **all-MiniLM-L6-v2 (AI Director retrieval embedder)** (`embedder-all-minilm-l6-v2`) - [Apache License 2.0](https://www.apache.org/licenses/LICENSE-2.0)
 - **FLUX.1 [schnell]** (`flux-schnell`) - [Apache License 2.0](https://www.apache.org/licenses/LICENSE-2.0)
 - **IP-Adapter Image Encoder (CLIP ViT-L/14)** (`ip-adapter-encoder-clip-vit-l`) - [MIT License](https://opensource.org/license/mit)
 - **IP-Adapter Image Encoder (ViT-H)** (`ip-adapter-encoder-vit-h`) - [Apache License 2.0](https://www.apache.org/licenses/LICENSE-2.0)
@@ -48,7 +49,7 @@ Models under the FLUX.1 [dev] non-commercial license, and other redistribution-r
 
 ### Python
 
-- **PyTorch (torch, torchvision, torchaudio)** - [BSD-3-Clause](https://github.com/pytorch/pytorch/blob/main/LICENSE)
+- **PyTorch (torch, torchvision)** - [BSD-3-Clause](https://github.com/pytorch/pytorch/blob/main/LICENSE)
 - **diffusers** - [Apache-2.0](https://github.com/huggingface/diffusers/blob/main/LICENSE)
 - **transformers** - [Apache-2.0](https://github.com/huggingface/transformers/blob/main/LICENSE)
 - **accelerate** - [Apache-2.0](https://github.com/huggingface/accelerate/blob/main/LICENSE)
@@ -59,9 +60,13 @@ Models under the FLUX.1 [dev] non-commercial license, and other redistribution-r
 - **onnxruntime** - [MIT](https://github.com/microsoft/onnxruntime/blob/main/LICENSE)
 - **spandrel** - [MIT](https://github.com/chaiNNer-org/spandrel/blob/main/LICENSE)
 - **facexlib** - [Apache-2.0](https://github.com/xinntao/facexlib/blob/master/LICENSE)
+- **optimum-quanto** - [Apache-2.0](https://github.com/huggingface/optimum-quanto/blob/main/LICENSE)
+- **sentence-transformers** - [Apache-2.0](https://github.com/UKPLab/sentence-transformers/blob/master/LICENSE)
+- **imageio-ffmpeg** - [BSD-2-Clause](https://github.com/imageio/imageio-ffmpeg/blob/main/LICENSE)
+- **FFmpeg (the ffmpeg 9.0.x executable bundled by imageio-ffmpeg, run unmodified as a separate process; exact builds, corresponding source and written offer: licenses/FFMPEG-NOTICE.md with the full GPL-3.0.txt, shipped inside the backend bundle)** - [GPL-3.0-or-later](https://ffmpeg.org/legal.html)
 - **numpy** - [BSD-3-Clause](https://github.com/numpy/numpy/blob/main/LICENSE.txt)
 - **Pillow** - [MIT-CMU (HPND)](https://github.com/python-pillow/Pillow/blob/main/LICENSE)
-- **opencv-python** - [Apache-2.0](https://github.com/opencv/opencv-python/blob/4.x/LICENSE.txt)
+- **opencv-python-headless** - [Apache-2.0](https://github.com/opencv/opencv-python/blob/4.x/LICENSE.txt)
 - **FastAPI** - [MIT](https://github.com/fastapi/fastapi/blob/master/LICENSE)
 - **uvicorn** - [BSD-3-Clause](https://github.com/encode/uvicorn/blob/master/LICENSE.md)
 - **pydantic** - [MIT](https://github.com/pydantic/pydantic/blob/main/LICENSE)

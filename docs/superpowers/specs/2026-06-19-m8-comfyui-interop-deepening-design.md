@@ -3,6 +3,8 @@
 > **Historical design record - 2026-06-19.** Describes intent at that
 > date, not current behaviour. See `docs/INDEX.md` for what is authoritative.
 
+> **Status (checked 2026-11-11):** Shipped - PRs #25 and #26.
+
 > **Status:** Approved design (2026-06-19). Elaborates the M8 section of the
 > Path-to-v1 Program Roadmap
 > (`docs/superpowers/specs/2026-06-15-vision-studio-path-to-v1-roadmap-design.md`).

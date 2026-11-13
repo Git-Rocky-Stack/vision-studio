@@ -9,7 +9,6 @@ import {
   RIGHT_DOCK_DUAL_DEFAULT_RATIOS,
   RIGHT_DOCK_TRIPLE_MIN_RATIO,
 } from './layoutPreferences';
-import type { EditHistoryEntry } from '@/types/editor';
 import type { BatchResult, PromptHistoryEntry } from '@/types/generation';
 
 function resetStore() {
@@ -168,7 +167,9 @@ describe('appStore', () => {
     });
 
     it('creates and selects a new draft workflow', () => {
-      const workflow = useAppStore.getState().createWorkflow('Product pass');
+      const workflow = useAppStore
+        .getState()
+        .createWorkflowFromGraph('Product pass', useAppStore.getState().workflowRecords[0].graph);
       const state = useAppStore.getState();
 
       expect(workflow.name).toBe('Product pass');
@@ -178,21 +179,13 @@ describe('appStore', () => {
     });
 
     it('creates draft workflows with empty metadata', () => {
-      const workflow = useAppStore.getState().createWorkflow('Product pass') as any;
+      const workflow = useAppStore
+        .getState()
+        .createWorkflowFromGraph('Product pass', useAppStore.getState().workflowRecords[0].graph) as any;
 
       expect(workflow.description).toBe('');
       expect(workflow.tags).toEqual([]);
       expect(workflow.notes).toBe('');
-    });
-
-    it('creates draft workflows with cloned editable graph state', () => {
-      const workflow = useAppStore.getState().createWorkflow('Product pass');
-
-      expect(workflow.graph).toBeDefined();
-      expect(workflow.graph.nodes.prompt).toBeDefined();
-      expect(workflow.graph.nodes.prompt).not.toBe(
-        useAppStore.getState().workflowRecords[0].graph.nodes.prompt
-      );
     });
 
     it('creates a workflow from an imported graph (M8)', () => {
@@ -493,21 +486,26 @@ describe('appStore', () => {
   // ── Edit history (undo/redo) ──────────────────────────────────────────
 
   describe('undo / redo', () => {
-    it('moves the history index back and forward', () => {
-      const { pushEditHistory } = useAppStore.getState();
-      pushEditHistory(makeHistoryEntry('h1'));
-      pushEditHistory(makeHistoryEntry('h2'));
-      pushEditHistory(makeHistoryEntry('h3'));
+    function addLayer(id: string) {
+      useAppStore.getState().addEditLayer({ id, name: id, type: 'image', visible: true, opacity: 1 } as any);
+    }
 
+    it('moves the history index back and forward', () => {
+      addLayer('h1');
+      addLayer('h2');
+      addLayer('h3');
+
+      // The first recorded change seeds an "Original" entry at index 0.
+      expect(useAppStore.getState().editHistoryIndex).toBe(3);
+
+      useAppStore.getState().undo();
       expect(useAppStore.getState().editHistoryIndex).toBe(2);
 
       useAppStore.getState().undo();
-      expect(useAppStore.getState().editHistoryIndex).toBe(1);
-
       useAppStore.getState().undo();
       expect(useAppStore.getState().editHistoryIndex).toBe(0);
 
-      // Cannot undo past 0
+      // Cannot undo past the original state
       useAppStore.getState().undo();
       expect(useAppStore.getState().editHistoryIndex).toBe(0);
 
@@ -515,22 +513,23 @@ describe('appStore', () => {
       expect(useAppStore.getState().editHistoryIndex).toBe(1);
     });
 
-    it('truncates future history when pushing after an undo', () => {
-      const { pushEditHistory } = useAppStore.getState();
-      pushEditHistory(makeHistoryEntry('h1'));
-      pushEditHistory(makeHistoryEntry('h2'));
-      pushEditHistory(makeHistoryEntry('h3'));
+    it('truncates future history when recording after an undo', () => {
+      addLayer('h1');
+      addLayer('h2');
+      addLayer('h3');
 
-      useAppStore.getState().undo(); // index = 1
-      pushEditHistory(makeHistoryEntry('h4'));
+      useAppStore.getState().undo(); // index = 2
+      addLayer('h4');
 
-      expect(useAppStore.getState().editHistory).toHaveLength(3); // h1, h2, h4
-      expect(useAppStore.getState().editHistoryIndex).toBe(2);
+      // Original, h1, h2, h4
+      expect(useAppStore.getState().editHistory).toHaveLength(4);
+      expect(useAppStore.getState().editHistoryIndex).toBe(3);
+      expect(useAppStore.getState().editLayers.map((layer) => layer.id)).toEqual(['h1', 'h2', 'h4']);
     });
 
     it('caps edit history at 100 entries', () => {
       for (let i = 0; i < 110; i++) {
-        useAppStore.getState().pushEditHistory(makeHistoryEntry(`h${i}`));
+        addLayer(`h${i}`);
       }
       expect(useAppStore.getState().editHistory.length).toBeLessThanOrEqual(100);
     });
@@ -1816,8 +1815,8 @@ We only get one pass at this.
       const { compositionLayers } = useAppStore.getState();
       expect(compositionLayers.aspectFrame.visible).toBe(true);
       expect(compositionLayers.reference.visible).toBe(true);
-      expect(compositionLayers.controlNet.visible).toBe(true);
-      expect(compositionLayers.regionMasks.visible).toBe(true);
+      // The preview never drew ControlNet or mask layers; they are gone (#J17).
+      expect(Object.keys(compositionLayers).sort()).toEqual(['aspectFrame', 'reference']);
     });
 
     it('addUserPromptTemplate adds a template', () => {
@@ -1866,15 +1865,15 @@ We only get one pass at this.
     });
 
     it('setCompositionLayerVisibility toggles a layer', () => {
-      useAppStore.getState().setCompositionLayerVisibility('controlNet', false);
-      expect(useAppStore.getState().compositionLayers.controlNet.visible).toBe(false);
-      useAppStore.getState().setCompositionLayerVisibility('controlNet', true);
-      expect(useAppStore.getState().compositionLayers.controlNet.visible).toBe(true);
+      useAppStore.getState().setCompositionLayerVisibility('reference', false);
+      expect(useAppStore.getState().compositionLayers.reference.visible).toBe(false);
+      useAppStore.getState().setCompositionLayerVisibility('reference', true);
+      expect(useAppStore.getState().compositionLayers.reference.visible).toBe(true);
     });
 
     it('setCompositionLayerOpacity sets opacity', () => {
-      useAppStore.getState().setCompositionLayerOpacity('regionMasks', 0.3);
-      expect(useAppStore.getState().compositionLayers.regionMasks.opacity).toBe(0.3);
+      useAppStore.getState().setCompositionLayerOpacity('aspectFrame', 0.3);
+      expect(useAppStore.getState().compositionLayers.aspectFrame.opacity).toBe(0.3);
     });
   });
 
@@ -1918,13 +1917,6 @@ We only get one pass at this.
       expect(state.currentStep).toBe(0);
       expect(state.totalSteps).toBe(0);
       expect(state.isPreviewActive).toBe(false);
-    });
-
-    it('setPreviewActive toggles', () => {
-      useAppStore.getState().setPreviewActive(true);
-      expect(useAppStore.getState().isPreviewActive).toBe(true);
-      useAppStore.getState().setPreviewActive(false);
-      expect(useAppStore.getState().isPreviewActive).toBe(false);
     });
 
     it('beginPreview arms the lifecycle and clears any prior error', () => {
@@ -2120,18 +2112,8 @@ We only get one pass at this.
   // ── Smart Collections ───────────────────────────────────────────────────
 
   describe('video generation', () => {
-    it('defaults generationMode to image', () => {
-      expect(useAppStore.getState().generationMode).toBe('image');
-    });
-
-    it('defaults start/end frame to null', () => {
+    it('defaults the start frame to null', () => {
       expect(useAppStore.getState().startFrameImage).toBeNull();
-      expect(useAppStore.getState().endFrameImage).toBeNull();
-    });
-
-    it('setGenerationMode switches mode', () => {
-      useAppStore.getState().setGenerationMode('video');
-      expect(useAppStore.getState().generationMode).toBe('video');
     });
 
     it('setStartFrameImage stores the image', () => {
@@ -2139,12 +2121,6 @@ We only get one pass at this.
       expect(useAppStore.getState().startFrameImage).toBe('data:image/png;base64,test');
     });
 
-    it('setEndFrameImage stores and clears the image', () => {
-      useAppStore.getState().setEndFrameImage('data:image/png;base64,test');
-      expect(useAppStore.getState().endFrameImage).toBe('data:image/png;base64,test');
-      useAppStore.getState().setEndFrameImage(null);
-      expect(useAppStore.getState().endFrameImage).toBeNull();
-    });
   });
 
   describe('smart collections', () => {
@@ -2226,14 +2202,6 @@ function makeBatchResult(id: string, prompt = 'test'): BatchResult {
     params: {},
     createdAt: new Date(),
     isFavorite: false,
-  };
-}
-
-function makeHistoryEntry(id: string): EditHistoryEntry {
-  return {
-    id,
-    action: 'test-action',
-    timestamp: new Date(),
   };
 }
 

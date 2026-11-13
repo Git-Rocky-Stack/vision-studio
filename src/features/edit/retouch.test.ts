@@ -6,10 +6,10 @@ import {
   HEAL_COARSE_THRESHOLD,
   RetouchCache,
   applyClone,
+  applyRetouchStroke,
   applyHeal,
   findHealSource,
   rasterizeStrokeMask,
-  renderRetouch,
   strokeBounds,
   type RgbaBuffer,
 } from './retouch';
@@ -166,7 +166,14 @@ describe('findHealSource', () => {
   });
 });
 
-describe('renderRetouch and RetouchCache', () => {
+/** Reference oracle: a full replay of every stroke over a copy of `base`. */
+function renderRetouch(base: RgbaBuffer, strokes: readonly RetouchStroke[]): RgbaBuffer {
+  const result: RgbaBuffer = { data: new Uint8ClampedArray(base.data), width: base.width, height: base.height };
+  for (const stroke of strokes) applyRetouchStroke(result, stroke);
+  return result;
+}
+
+describe('RetouchCache', () => {
   const base = buffer(50, 50, (x, y) => [x * 5, y * 5, 100]);
   const strokes: RetouchStroke[] = [
     stroke({ id: 'a', points: [10, 10, 20, 10], offset: { x: 20, y: 20 } }),
@@ -176,12 +183,12 @@ describe('renderRetouch and RetouchCache', () => {
 
   it('never mutates the base image', () => {
     const before = new Uint8ClampedArray(base.data);
-    renderRetouch(base, strokes);
+    new RetouchCache(base).render(strokes);
     expect(base.data).toEqual(before);
   });
 
   it('skips a clone stroke without an offset', () => {
-    const result = renderRetouch(base, [stroke({ offset: null })]);
+    const result = new RetouchCache(base).render([stroke({ offset: null })]);
     expect(result.data).toEqual(base.data);
   });
 

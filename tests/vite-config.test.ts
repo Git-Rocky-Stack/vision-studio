@@ -4,7 +4,7 @@ import config from '../vite.config';
 
 describe('Vite renderer build config', () => {
   it('splits heavyweight renderer dependencies into named manual chunks', () => {
-    const output = config.build?.rollupOptions?.output;
+    const output = config.build?.rolldownOptions?.output;
     const manualChunks = Array.isArray(output) ? output[0]?.manualChunks : output?.manualChunks;
     const rollupContext = { getModuleInfo: () => null, getModuleIds: function* () {} };
 
@@ -16,7 +16,7 @@ describe('Vite renderer build config', () => {
     // tsconfig.tests.json.
     if (typeof manualChunks !== 'function') {
       throw new Error(
-        `expected build.rollupOptions.output.manualChunks to be a function, got ${typeof manualChunks}`
+        `expected build.rolldownOptions.output.manualChunks to be a function, got ${typeof manualChunks}`
       );
     }
 

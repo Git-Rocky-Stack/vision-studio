@@ -112,18 +112,17 @@ describe('Switch', () => {
     expect(switchEl.className).not.toMatch(/focus(-visible)?:(ring|outline-none)/);
   });
 
-  it('label association works - clicking label toggles switch when wrapped', async () => {
+  it('label association works - clicking an associated label toggles the switch', async () => {
     const user = userEvent.setup();
     const onChange = vi.fn();
-    const { container } = render(
-      <label>
-        <Switch checked={false} onChange={onChange} label="Toggle" />
-        <span>Toggle Option</span>
-      </label>
+    render(
+      <>
+        <Switch id="toggle-option" checked={false} onChange={onChange} label="Toggle" />
+        <label htmlFor="toggle-option">Toggle Option</label>
+      </>
     );
 
-    const labelEl = container.querySelector('label');
-    await user.click(labelEl!);
+    await user.click(screen.getByText('Toggle Option'));
     expect(onChange).toHaveBeenCalledWith(true);
   });
 

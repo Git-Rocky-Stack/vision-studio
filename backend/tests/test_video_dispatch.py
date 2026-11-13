@@ -59,13 +59,14 @@ class VideoRuntimeTests(unittest.TestCase):
             self.assertIn("inputs", node)
         self.assertEqual(seed, 7)
 
-    def test_video_run_requests_video_kinds_and_keys_videos(self):
+    def test_video_graph_is_refused_before_reaching_comfyui(self):
+        # The graph allow-list only covers image nodes: a 'video' graph run is
+        # refused honestly instead of being queued and polled for videos.
         client = RecordingClient()
         comfy_graph.configure(lambda: client, FakeJobManager(), tempfile.mkdtemp())
-        result = asyncio.run(comfy_graph.execute_comfy_graph("job-v", FIRST_CLASS, "video"))
-        self.assertIn("videos", result)
-        self.assertIn("gifs", client.kinds)
-        self.assertIn("videos", client.kinds)
+        with self.assertRaises(comfy_graph.GraphValidationError):
+            asyncio.run(comfy_graph.execute_comfy_graph("job-v", FIRST_CLASS, "video"))
+        self.assertIsNone(client.kinds)
 
 
 class ComfyTextToVideoRoutingTests(unittest.IsolatedAsyncioTestCase):

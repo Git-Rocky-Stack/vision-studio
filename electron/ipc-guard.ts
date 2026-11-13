@@ -1,9 +1,15 @@
 import { ipcMain } from 'electron';
 
-// Tracks the registration site for each IPC channel so duplicate registrations
-// throw a clear, actionable error at startup instead of crashing the main
-// process with Electron's built-in "Attempted to register a second handler"
-// uncaught exception after the window has already opened.
+import { isContractListener } from './ipc-handlers/ipcHandle';
+
+// Loaded first by main.ts, before any module registers an ipcMain handler.
+//
+// 1. Duplicate registrations throw a clear, actionable error at startup instead
+//    of crashing the main process with Electron's built-in "Attempted to
+//    register a second handler" uncaught exception after the window opened.
+// 2. Only listeners built by handleIpc (ipc-handlers/ipcHandle.ts) may be
+//    registered, so no handler can bypass the shared IPC contract's sender
+//    check, input validation and sanitized error envelope.
 
 const registeredChannels = new Map<string, string>();
 
@@ -36,6 +42,33 @@ function formatDuplicateError(
   );
 }
 
+function formatUncheckedListenerError(channel: string, origin: string): Error {
+  return new Error(
+    `[ipc-guard] IPC handler for "${channel}" was not registered through handleIpc.\n` +
+      `  Registered at: ${origin}\n` +
+      `Declare the channel in shared/ipcContract.ts and register it with ` +
+      `handleIpc (electron/ipc-handlers/ipcHandle.ts).`
+  );
+}
+
+function register(
+  kind: 'handle' | 'handleOnce',
+  channel: string,
+  listener: unknown,
+  forward: () => void,
+): void {
+  const origin = captureOrigin();
+  if (!isContractListener(listener)) {
+    throw formatUncheckedListenerError(channel, origin);
+  }
+  const previous = registeredChannels.get(channel);
+  if (previous !== undefined) {
+    throw formatDuplicateError(channel, previous, origin, kind);
+  }
+  registeredChannels.set(channel, origin);
+  forward();
+}
+
 const originalHandle = ipcMain.handle.bind(ipcMain);
 const originalHandleOnce = ipcMain.handleOnce.bind(ipcMain);
 const originalRemoveHandler = ipcMain.removeHandler.bind(ipcMain);
@@ -44,26 +77,14 @@ ipcMain.handle = function guardedHandle(
   channel: string,
   listener: Parameters<typeof ipcMain.handle>[1]
 ): void {
-  const origin = captureOrigin();
-  const previous = registeredChannels.get(channel);
-  if (previous !== undefined) {
-    throw formatDuplicateError(channel, previous, origin, 'handle');
-  }
-  registeredChannels.set(channel, origin);
-  originalHandle(channel, listener);
+  register('handle', channel, listener, () => originalHandle(channel, listener));
 } as typeof ipcMain.handle;
 
 ipcMain.handleOnce = function guardedHandleOnce(
   channel: string,
   listener: Parameters<typeof ipcMain.handleOnce>[1]
 ): void {
-  const origin = captureOrigin();
-  const previous = registeredChannels.get(channel);
-  if (previous !== undefined) {
-    throw formatDuplicateError(channel, previous, origin, 'handleOnce');
-  }
-  registeredChannels.set(channel, origin);
-  originalHandleOnce(channel, listener);
+  register('handleOnce', channel, listener, () => originalHandleOnce(channel, listener));
 } as typeof ipcMain.handleOnce;
 
 ipcMain.removeHandler = function guardedRemoveHandler(channel: string): void {

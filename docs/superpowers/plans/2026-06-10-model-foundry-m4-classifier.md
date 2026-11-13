@@ -3,6 +3,8 @@
 > **Historical design record - 2026-06-10.** Describes intent at that
 > date, not current behaviour. See `docs/INDEX.md` for what is authoritative.
 
+> **Status (checked 2026-11-11):** Shipped - PR #16 (`29dcde8`), with the supply-chain review fixes in PR #17. The task checkboxes below record the plan as written and were not ticked.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Hub search across HF + CivitAI with the tri-tier compatibility classifier (Verified/Compatible/Experimental, every verdict carrying a one-line `tier_reason`), and the security rails: `trust_remote_code` deny-by-default, pickle-only-with-consent + convert-to-safetensors, CivitAI NSFW filtered by default.

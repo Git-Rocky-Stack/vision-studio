@@ -1,10 +1,12 @@
-# EV Code Signing for Vision Studio
+# Code Signing for Vision Studio (Windows)
 
-This document covers the complete process for implementing EV (Extended Validation) code signing for the Vision Studio Electron desktop application on Windows.
+This document covers the complete process for code signing the Vision Studio Electron desktop application on Windows: choosing a signing identity (Azure Artifact Signing, an OV certificate, or an EV certificate), where the private key lives, and how the release pipeline enforces signing.
+
+> **Status:** no signed Windows build has shipped yet. The published releases (v3.4.1 is the latest) are unsigned, and the tag-triggered `Release` workflow is currently disabled in the repository's Actions settings. Because `win.verifyUpdateCodeSignature` is on, the in-app updater refuses unsigned packages, so unsigned builds are installed and updated by downloading the installer manually.
 
 ## Table of Contents
 
-1. [EV Certificate Requirements](#ev-certificate-requirements)
+1. [Choosing a Signing Identity](#choosing-a-signing-identity)
 2. [Certificate Providers](#certificate-providers)
 3. [Hardware Token vs Cloud HSM](#hardware-token-vs-cloud-hsm)
 4. [Installation Steps](#installation-steps)
@@ -14,23 +16,32 @@ This document covers the complete process for implementing EV (Extended Validati
 
 ---
 
-## EV Certificate Requirements
+## Choosing a Signing Identity
 
-### Why EV Code Signing?
+### What signing does and does not buy
 
-EV (Extended Validation) code signing certificates provide:
+Signing gives every installer a verified publisher name, lets SmartScreen attach reputation to that publisher rather than to each file hash alone, and is a hard requirement for the in-app updater (`verifyUpdateCodeSignature`). It does **not** buy an instant SmartScreen pass, whatever the certificate type:
 
-- **Immediate SmartScreen Reputation**: Unlike standard code signing, EV certificates establish immediate trust with Microsoft SmartScreen
-- **Highest Level of Validation**: Requires rigorous business verification
-- **Hardware Security**: Private keys stored in hardware tokens or cloud HSM (FIPS 140-2 Level 2+)
-- **Enterprise Trust**: Required for enterprise distribution and some corporate environments
+- **EV certificates no longer bypass SmartScreen.** Microsoft removed that behavior in 2024: EV-signed files "now go through the same reputation-building process as OV certificates", and paying the EV premium "solely to avoid SmartScreen warnings is **no longer justified**" ([Code signing options for Windows app developers](https://learn.microsoft.com/en-us/windows/apps/package-and-deploy/code-signing-options)).
+- **Reputation accumulates.** SmartScreen weighs publisher reputation and file-hash reputation. A newly signed binary can still show the "unrecognized app" prompt (with the verified publisher name) until it has enough clean download history, which "can take several weeks and hundreds of clean installs from a wide audience" ([SmartScreen reputation for Windows app developers](https://learn.microsoft.com/en-us/windows/apps/package-and-deploy/smartscreen-reputation)).
+- **Keep one signing identity.** Reputation carries across releases only when they are signed with the same publisher identity; changing the certificate affects the publisher signal (same source).
+
+### Options compared
+
+| Option | Approx. cost | Availability | SmartScreen | Fit for Vision Studio |
+|--------|--------------|--------------|-------------|-----------------------|
+| **Azure Artifact Signing** (formerly Trusted Signing) | ~$9.99/month | Organizations: USA, Canada, EU, UK. Individuals: USA and Canada | Reputation builds over time | Recommended: no hardware token, signs in CI, supported by `npm run package:win:signed` |
+| **OV certificate** (DigiCert, Sectigo, GlobalSign) | $150-300/year | Worldwide | Same as Artifact Signing | Use when Artifact Signing is unavailable in your region; the key must live on an HSM or token |
+| **EV certificate** | $400+/year | Worldwide | Same as OV since 2024 | Only if enterprise procurement asks for EV; no SmartScreen advantage |
+
+Cost, availability and SmartScreen columns are Microsoft's, from [Code signing options for Windows app developers](https://learn.microsoft.com/en-us/windows/apps/package-and-deploy/code-signing-options). Since June 2023 the CA/Browser Forum requires OV keys, like EV keys, to be stored on an HSM or hardware token (same source), so the hardware sections below apply to both.
 
 ### Requirements Summary
 
 | Requirement | Description |
 |-------------|-------------|
-| **Business Verification** | Legal business entity registration required |
-| **Hardware Token** | SafeNet eToken 5110 or cloud HSM (Azure Key Vault/AWS HSM) |
+| **Identity Verification** | Microsoft (Artifact Signing) or the CA (OV/EV) validates the organization or individual before issuing |
+| **Key Storage** | Managed by the service (Artifact Signing), or a SafeNet eToken 5110 / cloud HSM (Azure Key Vault, AWS CloudHSM) for OV/EV |
 | **Certificate Validity** | 1-3 years (renewable) |
 | **SHA-256 Signing** | Mandatory for all Windows executables |
 | **RFC 3161 Timestamp** | Required for signature persistence |
@@ -39,7 +50,9 @@ EV (Extended Validation) code signing certificates provide:
 
 ## Certificate Providers
 
-### Recommended EV Certificate Authorities
+### Traditional Certificate Authorities (OV / EV)
+
+The prices below are each CA's EV tier; every CA also sells a cheaper OV tier. With SmartScreen treating OV and EV alike, buy EV only when a customer requires it. Azure Artifact Signing needs no CA purchase at all (see [Choosing a Signing Identity](#choosing-a-signing-identity)).
 
 #### 1. DigiCert EV Code Signing
 - **Price**: ~$599/year
@@ -155,7 +168,9 @@ EV (Extended Validation) code signing certificates provide:
 
 ## Installation Steps
 
-### Step 1: Obtain EV Certificate
+### Step 1: Obtain a Certificate (OV / EV)
+
+Skip to [electron-builder Integration](#electron-builder-integration) if you use Azure Artifact Signing: Microsoft validates your identity and holds the keys, so there is no CSR, token or `signtool` install.
 
 1. **Generate CSR (Certificate Signing Request)**
    ```powershell
@@ -200,13 +215,15 @@ dotnet tool install --global AzureSignTool
 1. **Insert hardware token** into USB port
 2. **Run signing script**:
    ```powershell
-   .\scripts\code-sign.ps1 -FilePath "release\Vision Studio Setup.exe"
+   .\scripts\code-sign.ps1 -FilePath "release\nsis-web\Vision-Studio-<version>-Setup.exe"
    ```
 
 3. **Verify signature**:
    ```powershell
-   signtool.exe verify /pa "release\Vision Studio Setup.exe"
+   signtool.exe verify /pa "release\nsis-web\Vision-Studio-<version>-Setup.exe"
    ```
+
+The installer name comes from `nsisWeb.artifactName` in `electron-builder.yml` (`Vision-Studio-${version}-Setup.${ext}`), for example `Vision-Studio-3.4.2-Setup.exe`. Release builds are not signed by hand: `npm run package:win:signed` signs during packaging (see [electron-builder Integration](#electron-builder-integration)). The manual path is for re-signing or verifying a single file.
 
 ### Automated Signing (Azure Key Vault)
 
@@ -220,7 +237,7 @@ dotnet tool install --global AzureSignTool
 2. **Run signing with Azure**:
    ```powershell
    .\scripts\code-sign.ps1 `
-     -FilePath "release\Vision Studio Setup.exe" `
+     -FilePath "release\nsis-web\Vision-Studio-<version>-Setup.exe" `
      -UseAzureKeyVault `
      -AzureKeyVaultUrl "https://visionstudiohsm.vault.azure.net/" `
      -AzureCertificateName "VisionStudioEV"
@@ -238,8 +255,8 @@ Supported release signing modes:
 | Mode | Required environment |
 |------|----------------------|
 | electron-builder CSC/PFX | `WIN_CSC_LINK` or `CSC_LINK`, plus `WIN_CSC_KEY_PASSWORD` or `CSC_KEY_PASSWORD` |
-| Windows certificate store / hardware token | `WIN_CSC_SUBJECT_NAME` or `WIN_CSC_SHA1` |
-| Azure Trusted Signing | `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, one Azure auth method such as `AZURE_CLIENT_SECRET`, plus `AZURE_TRUSTED_SIGNING_ENDPOINT`, `AZURE_TRUSTED_SIGNING_ACCOUNT_NAME`, and `AZURE_TRUSTED_SIGNING_CERTIFICATE_PROFILE_NAME` |
+| Windows certificate store / hardware token | `WIN_CSC_SUBJECT_NAME` or `WIN_CSC_SHA1` (also accepted: `WINDOWS_CERTIFICATE_SUBJECT_NAME`, `WINDOWS_CERTIFICATE_SHA1`) |
+| Azure Artifact Signing (formerly Trusted Signing) | `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, one Azure auth method (`AZURE_CLIENT_SECRET`, `AZURE_CLIENT_CERTIFICATE_PATH`, or `AZURE_USERNAME` + `AZURE_PASSWORD`), plus `AZURE_TRUSTED_SIGNING_ENDPOINT`, `AZURE_TRUSTED_SIGNING_ACCOUNT_NAME`, and `AZURE_TRUSTED_SIGNING_CERTIFICATE_PROFILE_NAME` |
 
 Local verification:
 
@@ -249,16 +266,32 @@ npm run build
 npm run package:win:signed
 ```
 
-For Azure Trusted Signing, the packaging wrapper passes the required
-`win.azureSignOptions` values to electron-builder at runtime so local unsigned
-packaging with `npm run package:win` remains available for development builds.
+For Azure Artifact Signing, `scripts/verify-release-signing.cjs --package-win`
+passes `win.azureSignOptions.endpoint`, `codeSigningAccountName`,
+`certificateProfileName` and `publisherName` to electron-builder as `-c.`
+overrides at runtime, so `azureSignOptions` is never declared in
+`electron-builder.yml` and local unsigned packaging with `npm run package:win`
+remains available for development builds. `publisherName` is read from
+`win.signtoolOptions.publisherName` in `electron-builder.yml` (`Vision Studio
+Team`): electron-builder's Azure signing manager ignores `signtoolOptions`
+entirely, and electron-updater verifies updates against this name, so the script
+mirrors it to keep one source of truth. It must match the certificate subject.
+
+electron-builder then installs the `TrustedSigning` PowerShell module and calls
+`Invoke-TrustedSigning`, which authenticates with the Azure environment-credential
+variables in the table and timestamps against `http://timestamp.acs.microsoft.com`
+by default. The environment variable names keep the service's former "Trusted
+Signing" name; Microsoft has since renamed it
+[Artifact Signing](https://learn.microsoft.com/en-us/azure/trusted-signing/).
 
 ---
 
 ## CI/CD Integration
 
 Production releases are built by `.github/workflows/release.yml` (triggered by a
-`v*` tag) on `windows-latest`. The `build-windows` job:
+`v*` tag, or manually) on `windows-latest`. The workflow is currently disabled in
+the repository's Actions settings; re-enable it once one signing mode's secrets
+are in place. The `build-windows` job:
 
 1. Runs the signing **preflight** - `npm run release:signing:check` - which fails
    the build if no supported signing configuration is present, so no *unsigned*
@@ -268,7 +301,7 @@ Production releases are built by `.github/workflows/release.yml` (triggered by a
 
 Both steps receive the signing secrets via `env:` (see the workflow). The
 preflight (`scripts/verify-release-signing.cjs`) selects the first configured
-mode in this order: **CSC/PFX -> Windows cert-store/token -> Azure Trusted
+mode in this order: **CSC/PFX -> Windows cert-store/token -> Azure Artifact
 Signing**, matching the modes table in [Signing Process](#signing-process).
 
 ### Required GitHub repository secrets
@@ -281,7 +314,7 @@ set must be present for the preflight to pass.
 |------|---------|
 | **CSC / PFX** | `WIN_CSC_LINK` (or `CSC_LINK`) - base64 or URL of the `.pfx`; plus `WIN_CSC_KEY_PASSWORD` (or `CSC_KEY_PASSWORD`) |
 | **Windows cert-store / hardware token** | `WIN_CSC_SUBJECT_NAME` (or `WIN_CSC_SHA1`) - selects an installed certificate by subject name or SHA-1 thumbprint |
-| **Azure Trusted Signing** (recommended for CI) | `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, `AZURE_TRUSTED_SIGNING_ENDPOINT`, `AZURE_TRUSTED_SIGNING_ACCOUNT_NAME`, `AZURE_TRUSTED_SIGNING_CERTIFICATE_PROFILE_NAME`, plus one auth secret: `AZURE_CLIENT_SECRET`, `AZURE_CLIENT_CERTIFICATE_PATH`, or `AZURE_USERNAME` + `AZURE_PASSWORD` |
+| **Azure Artifact Signing** (recommended for CI) | `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, `AZURE_TRUSTED_SIGNING_ENDPOINT`, `AZURE_TRUSTED_SIGNING_ACCOUNT_NAME`, `AZURE_TRUSTED_SIGNING_CERTIFICATE_PROFILE_NAME`, plus one auth secret: `AZURE_CLIENT_SECRET`, `AZURE_CLIENT_CERTIFICATE_PATH`, or `AZURE_USERNAME` + `AZURE_PASSWORD` |
 
 > **Action required (repo owner):** the workflow is correctly wired, but it can
 > only pass once the secret **values** for one mode are set in GitHub - these
@@ -310,7 +343,7 @@ workflow enforce signing. Never distribute the unsigned dev output.
 
 **Symptoms:**
 ```
-[ERROR] No EV certificate found matching 'Vision Studio Team'
+[<timestamp>] [WARNING] WARNING: No EV certificate found matching 'Vision Studio Team'
 ```
 
 **Solutions:**
@@ -338,15 +371,20 @@ workflow enforce signing. Never distribute the unsigned dev output.
 **Symptoms:**
 - Signed but SmartScreen shows "Unknown Publisher"
 
+A signed build that shows the "unrecognized app" prompt *with* the publisher
+name is expected for a new signing identity, EV included. Only "Unknown
+Publisher" means the signature itself is not being recognized.
+
 **Causes:**
-- EV certificate reputation not yet established
+- Publisher and file reputation not yet established (normal for every certificate type since 2024)
+- Signing identity changed (a new certificate affects publisher reputation)
 - Timestamp server not responding
-- Signature invalid
+- Signature invalid, or the file was modified after signing
 
 **Solutions:**
 - Verify signature: `signtool verify /pa file.exe`
 - Ensure RFC 3161 timestamp server used (`/tr` flag)
-- Build reputation by distributing signed builds
+- Keep signing every release with the same identity; reputation builds with clean downloads ([SmartScreen reputation for Windows app developers](https://learn.microsoft.com/en-us/windows/apps/package-and-deploy/smartscreen-reputation))
 
 #### 4. Azure Key Vault Authentication Failed
 
@@ -377,20 +415,23 @@ ERROR: Unauthorized access to Key Vault
 
 ```powershell
 # Verify signature details
-signtool.exe verify /v /pa "Vision Studio Setup.exe"
+signtool.exe verify /v /pa "Vision-Studio-<version>-Setup.exe"
 
 # Display certificate information
-signtool.exe verify /v /pa /c "Vision Studio Setup.exe"
+signtool.exe verify /v /pa /c "Vision-Studio-<version>-Setup.exe"
 
 # Check timestamp
-signtool.exe verify /t "http://timestamp.digicert.com" "Vision Studio Setup.exe"
+signtool.exe verify /t "http://timestamp.digicert.com" "Vision-Studio-<version>-Setup.exe"
 
 # PowerShell native verification
-Get-AuthenticodeSignature "Vision Studio Setup.exe"
+Get-AuthenticodeSignature "Vision-Studio-<version>-Setup.exe"
 ```
 
 ### Useful Resources
 
+- [Code signing options for Windows app developers](https://learn.microsoft.com/en-us/windows/apps/package-and-deploy/code-signing-options)
+- [SmartScreen reputation for Windows app developers](https://learn.microsoft.com/en-us/windows/apps/package-and-deploy/smartscreen-reputation)
+- [Azure Artifact Signing (formerly Trusted Signing)](https://learn.microsoft.com/en-us/azure/trusted-signing/)
 - [Microsoft Code Signing Requirements](https://learn.microsoft.com/en-us/windows/win32/seccrypto/cryptography-tools)
 - [DigiCert EV Code Signing Guide](https://www.digicert.com/friends/code-signing/ev-code-signing-certificate/)
 - [Azure Key Vault HSM Documentation](https://learn.microsoft.com/en-us/azure/key-vault/keys/hsm-protected-keys)
@@ -411,4 +452,4 @@ Get-AuthenticodeSignature "Vision Studio Setup.exe"
 
 ---
 
-*Last Updated: 2026-06-08*
+*Last Updated: 2026-11-11*

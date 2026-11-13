@@ -1,5 +1,6 @@
-import { useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { PointerEvent as ReactPointerEvent } from 'react';
+import { RotateCcw, ZoomIn, ZoomOut } from 'lucide-react';
 
 import type { WorkflowGraph, WorkflowGraphEdge, WorkflowGraphNode } from '@/types/workflow';
 import {
@@ -12,6 +13,27 @@ import { cn } from '@/utils/cn';
 
 const NODE_WIDTH = 180;
 const NODE_HEIGHT = 86;
+/** Minimum drawing surface; it grows to fit nodes placed beyond it. */
+const CANVAS_MIN_WIDTH = 980;
+const CANVAS_MIN_HEIGHT = 640;
+const CANVAS_EDGE_PADDING = 80;
+
+export const GRAPH_ZOOM_MIN = 0.5;
+export const GRAPH_ZOOM_MAX = 2;
+const GRAPH_ZOOM_STEP = 0.1;
+/** Pan/zoom is saved once the user stops scrolling or zooming for this long. */
+export const VIEWPORT_SETTLE_MS = 250;
+
+type GraphViewport = NonNullable<WorkflowGraph['viewport']>;
+
+export function clampGraphZoom(zoom: number): number {
+  if (!Number.isFinite(zoom)) return 1;
+  return Math.round(Math.min(GRAPH_ZOOM_MAX, Math.max(GRAPH_ZOOM_MIN, zoom)) * 100) / 100;
+}
+
+function sameViewport(a: GraphViewport | null | undefined, b: GraphViewport): boolean {
+  return Boolean(a) && a!.x === b.x && a!.y === b.y && a!.zoom === b.zoom;
+}
 
 type GraphSelection = { type: 'node' | 'edge'; id: string };
 
@@ -25,6 +47,11 @@ interface WorkflowGraphEditorProps {
   loraOptions?: WorkflowLoraOption[];
   /** #43: writes a literal node input (LoRA selection, strengths). */
   onUpdateNodeInput?: (nodeId: string, inputName: string, value: string | number) => void;
+  /**
+   * Persists the graph pan (scroll offset, in screen pixels) and zoom once a
+   * pan or zoom gesture settles. The editor restores graph.viewport on mount.
+   */
+  onViewportChange?: (viewport: GraphViewport) => void;
 }
 
 interface DragState {
@@ -60,12 +87,144 @@ export function WorkflowGraphEditor({
   onDeleteSelection,
   loraOptions = [],
   onUpdateNodeInput,
+  onViewportChange,
 }: WorkflowGraphEditorProps) {
   const [selection, setSelection] = useState<GraphSelection | null>(null);
   const [connectionSourceId, setConnectionSourceId] = useState<string | null>(null);
   const [previewPositions, setPreviewPositions] = useState<Record<string, WorkflowGraphNode['position']>>({});
   const dragRef = useRef<DragState | null>(null);
   const nodes = useMemo(() => Object.values(graph.nodes), [graph.nodes]);
+
+  // ---- Viewport (pan = scroll offset, zoom = canvas scale) ----------------
+  const [initialViewport] = useState<GraphViewport | null>(() => graph.viewport ?? null);
+  const [zoom, setZoom] = useState(() => clampGraphZoom(graph.viewport?.zoom ?? 1));
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const zoomRef = useRef(zoom);
+  const lastSavedRef = useRef<GraphViewport | null>(initialViewport);
+  const settleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const zoomAnchorRef = useRef<{ x: number; y: number } | null>(null);
+  // Last known scroll offset. Read on save instead of the element, so the
+  // unmount flush works after React has already detached the DOM ref.
+  const scrollPositionRef = useRef({ x: initialViewport?.x ?? 0, y: initialViewport?.y ?? 0 });
+  const onViewportChangeRef = useRef(onViewportChange);
+  useEffect(() => {
+    onViewportChangeRef.current = onViewportChange;
+  });
+
+  const canvasSize = useMemo(() => {
+    let width = CANVAS_MIN_WIDTH;
+    let height = CANVAS_MIN_HEIGHT;
+    for (const node of nodes) {
+      width = Math.max(width, node.position.x + (node.size?.width ?? NODE_WIDTH) + CANVAS_EDGE_PADDING);
+      height = Math.max(height, node.position.y + (node.size?.height ?? NODE_HEIGHT) + CANVAS_EDGE_PADDING);
+    }
+    return { width, height };
+  }, [nodes]);
+
+  const saveViewportNow = useCallback(() => {
+    if (settleTimerRef.current !== null) {
+      clearTimeout(settleTimerRef.current);
+      settleTimerRef.current = null;
+    }
+    const save = onViewportChangeRef.current;
+    if (!save) return;
+    const next: GraphViewport = {
+      x: Math.round(scrollPositionRef.current.x),
+      y: Math.round(scrollPositionRef.current.y),
+      zoom: zoomRef.current,
+    };
+    if (sameViewport(lastSavedRef.current, next)) return;
+    lastSavedRef.current = next;
+    save(next);
+  }, []);
+
+  const scheduleViewportSave = useCallback(() => {
+    if (settleTimerRef.current !== null) clearTimeout(settleTimerRef.current);
+    settleTimerRef.current = setTimeout(saveViewportNow, VIEWPORT_SETTLE_MS);
+  }, [saveViewportNow]);
+
+  const setScrollPosition = useCallback((x: number, y: number) => {
+    const element = scrollRef.current;
+    if (element) {
+      element.scrollLeft = x;
+      element.scrollTop = y;
+    }
+    scrollPositionRef.current = { x, y };
+  }, []);
+
+  const handleScroll = useCallback(() => {
+    const element = scrollRef.current;
+    if (!element) return;
+    scrollPositionRef.current = { x: element.scrollLeft, y: element.scrollTop };
+    scheduleViewportSave();
+  }, [scheduleViewportSave]);
+
+  // Restore the saved pan once the scaled canvas has its size.
+  useLayoutEffect(() => {
+    if (!initialViewport) return;
+    setScrollPosition(initialViewport.x, initialViewport.y);
+  }, [initialViewport, setScrollPosition]);
+
+  // A gesture still settling is saved when the editor goes away (tab or
+  // workflow switch) instead of being dropped with its timer.
+  useEffect(
+    () => () => {
+      if (settleTimerRef.current !== null) saveViewportNow();
+    },
+    [saveViewportNow],
+  );
+
+  const applyZoom = useCallback(
+    (requested: number) => {
+      const next = clampGraphZoom(requested);
+      const element = scrollRef.current;
+      if (next === zoomRef.current) return;
+      if (element) {
+        // Keep the point at the centre of the view under the centre after zooming.
+        zoomAnchorRef.current = {
+          x: (element.scrollLeft + element.clientWidth / 2) / zoomRef.current,
+          y: (element.scrollTop + element.clientHeight / 2) / zoomRef.current,
+        };
+      }
+      zoomRef.current = next;
+      setZoom(next);
+      scheduleViewportSave();
+    },
+    [scheduleViewportSave],
+  );
+
+  useLayoutEffect(() => {
+    const element = scrollRef.current;
+    const anchor = zoomAnchorRef.current;
+    if (!element || !anchor) return;
+    zoomAnchorRef.current = null;
+    setScrollPosition(
+      Math.max(0, anchor.x * zoom - element.clientWidth / 2),
+      Math.max(0, anchor.y * zoom - element.clientHeight / 2),
+    );
+  }, [zoom, setScrollPosition]);
+
+  const resetView = useCallback(() => {
+    zoomAnchorRef.current = null;
+    zoomRef.current = 1;
+    setZoom(1);
+    setScrollPosition(0, 0);
+    scheduleViewportSave();
+  }, [scheduleViewportSave, setScrollPosition]);
+
+  // Ctrl/Cmd + wheel zooms (the plain wheel keeps scrolling). Native listener:
+  // React registers wheel as passive, so it could not cancel the page zoom.
+  useEffect(() => {
+    const element = scrollRef.current;
+    if (!element) return;
+    const handleWheel = (event: WheelEvent) => {
+      if (!event.ctrlKey && !event.metaKey) return;
+      event.preventDefault();
+      applyZoom(zoomRef.current + (event.deltaY < 0 ? GRAPH_ZOOM_STEP : -GRAPH_ZOOM_STEP));
+    };
+    element.addEventListener('wheel', handleWheel, { passive: false });
+    return () => element.removeEventListener('wheel', handleWheel);
+  }, [applyZoom]);
   const selectedNode = selection?.type === 'node' ? graph.nodes[selection.id] : null;
   const selectedEdge =
     selection?.type === 'edge' ? graph.edges.find((edge) => edge.id === selection.id) : null;
@@ -103,9 +262,11 @@ export function WorkflowGraphEditor({
 
     const renderedPosition = previewPositions[node.id] ?? node.position;
     const pointerStart = { x: event.clientX, y: event.clientY };
+    // Pointer travel is in screen pixels; node positions are in graph units.
+    const scale = zoomRef.current;
     const calculatePosition = (pointerEvent: PointerEvent) => ({
-      x: Math.round(renderedPosition.x + pointerEvent.clientX - pointerStart.x),
-      y: Math.round(renderedPosition.y + pointerEvent.clientY - pointerStart.y),
+      x: Math.round(renderedPosition.x + (pointerEvent.clientX - pointerStart.x) / scale),
+      y: Math.round(renderedPosition.y + (pointerEvent.clientY - pointerStart.y) / scale),
     });
     const handlePointerMove = (pointerEvent: PointerEvent) => {
       const drag = dragRef.current;
@@ -173,8 +334,8 @@ export function WorkflowGraphEditor({
   }
 
   return (
+    // A labelled <section> is a region landmark by itself.
     <section
-      role="region"
       aria-label="Workflow graph editor"
       className="relative flex min-h-0 flex-1 flex-col overflow-hidden bg-canvas"
     >
@@ -215,10 +376,60 @@ export function WorkflowGraphEditor({
         >
           Delete selection
         </button>
+
+        <div role="group" aria-label="Graph zoom" className="ml-auto flex items-center gap-1">
+          <button
+            type="button"
+            aria-label="Zoom out"
+            onClick={() => applyZoom(zoom - GRAPH_ZOOM_STEP)}
+            disabled={zoom <= GRAPH_ZOOM_MIN}
+            className="flex h-8 w-8 items-center justify-center rounded-md border border-border bg-elevated text-text-body transition hover:border-border-hover hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <ZoomOut className="h-4 w-4" aria-hidden="true" />
+          </button>
+          <output aria-live="polite" aria-label="Graph zoom level" className="w-12 text-center data-mono text-text-primary">
+            {Math.round(zoom * 100)}%
+          </output>
+          <button
+            type="button"
+            aria-label="Zoom in"
+            onClick={() => applyZoom(zoom + GRAPH_ZOOM_STEP)}
+            disabled={zoom >= GRAPH_ZOOM_MAX}
+            className="flex h-8 w-8 items-center justify-center rounded-md border border-border bg-elevated text-text-body transition hover:border-border-hover hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <ZoomIn className="h-4 w-4" aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            aria-label="Reset graph view"
+            title="Reset zoom and scroll"
+            onClick={resetView}
+            className="flex h-8 w-8 items-center justify-center rounded-md border border-border bg-elevated text-text-body transition hover:border-border-hover hover:text-text-primary"
+          >
+            <RotateCcw className="h-4 w-4" aria-hidden="true" />
+          </button>
+        </div>
       </div>
 
-      <div className="relative min-h-[520px] flex-1 overflow-auto">
-        <div className="relative h-[640px] min-w-[980px]">
+      <div
+        ref={scrollRef}
+        data-testid="workflow-graph-viewport"
+        onScroll={handleScroll}
+        className="relative min-h-[520px] flex-1 overflow-auto"
+      >
+        <div
+          className="relative"
+          style={{ width: `${canvasSize.width * zoom}px`, height: `${canvasSize.height * zoom}px` }}
+        >
+        <div
+          data-testid="workflow-graph-canvas"
+          className="absolute left-0 top-0 origin-top-left"
+          style={{
+            width: `${canvasSize.width}px`,
+            height: `${canvasSize.height}px`,
+            transform: zoom === 1 ? undefined : `scale(${zoom})`,
+          }}
+        >
           <svg
             className="absolute inset-0 h-full w-full"
             aria-label={`Workflow graph with ${nodes.length} nodes and ${graph.edges.length} ${graph.edges.length === 1 ? 'connection' : 'connections'}`}
@@ -257,10 +468,10 @@ export function WorkflowGraphEditor({
                 type="button"
                 aria-label={`${source.label} to ${target.label} edge`}
                 onClick={() => setSelection({ type: 'edge', id: edge.id })}
-                className="absolute h-6 w-6 rounded-md border border-border bg-surface type-meta text-text-body"
+                className="absolute h-8 w-8 rounded-md border border-border bg-surface type-meta text-text-body"
                 style={{
-                  left: `${(sourcePosition.x + targetPosition.x + NODE_WIDTH) / 2 - 12}px`,
-                  top: `${(sourcePosition.y + targetPosition.y + NODE_HEIGHT) / 2 - 12}px`,
+                  left: `${(sourcePosition.x + targetPosition.x + NODE_WIDTH) / 2 - 16}px`,
+                  top: `${(sourcePosition.y + targetPosition.y + NODE_HEIGHT) / 2 - 16}px`,
                 }}
               >
                 +
@@ -302,6 +513,7 @@ export function WorkflowGraphEditor({
               </button>
             );
           })}
+        </div>
         </div>
       </div>
 

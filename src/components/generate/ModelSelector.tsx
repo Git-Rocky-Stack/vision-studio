@@ -239,7 +239,7 @@ export function ModelSelector({ value, onChange, generationType }: ModelSelector
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -4, scale: 0.98 }}
             transition={{ duration: 0.15 }}
-            className="fixed z-[9999] overflow-hidden rounded-md border border-border bg-elevated shadow-cinematic"
+            className="fixed z-[var(--z-overlay)] overflow-hidden rounded-overlay border border-border bg-elevated shadow-overlay"
             style={dropdownStyle}
           >
             <div className="overflow-y-auto p-2" style={{ maxHeight: dropdownStyle.maxHeight }} role="listbox" aria-label="Select model">

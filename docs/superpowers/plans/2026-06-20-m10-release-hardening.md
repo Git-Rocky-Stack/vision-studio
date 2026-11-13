@@ -3,6 +3,8 @@
 > **Historical design record - 2026-06-20.** Describes intent at that
 > date, not current behaviour. See `docs/INDEX.md` for what is authoritative.
 
+> **Status (checked 2026-11-11):** Shipped - PRs #31, #35, #36 and #37, released as 3.1.0. The task checkboxes below record the plan as written and were not ticked.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Ship Vision Studio **3.1.0** - the whole M6-M9 surface hardened, stub-free, cleaned, fully documented, and ready for the maintainer to tag `v3.1.0`.

@@ -3,8 +3,17 @@ import {
   createMediaAssetFromAssetRecord,
   createImportedAssetRecords,
   createMediaAssetFromImportedFile,
+  isMediaPlaceholderPreview,
+  resolveAssetThumbnail,
+  restoreAssetPlaceholders,
+  restoreMediaAssetPlaceholders,
+  stripAssetPlaceholders,
+  stripMediaAssetPlaceholders,
+  toPreviewUrl,
   upsertAssetsFromJobStatus,
 } from './assetRecords';
+import type { AssetRecord } from '@/types/assets';
+import type { MediaAsset } from '@/types/media';
 
 describe('upsertAssetsFromJobStatus', () => {
   it('creates a persistent image asset record from a completed job', () => {
@@ -288,3 +297,58 @@ describe('upsertAssetsFromJobStatus', () => {
     });
   });
 });
+
+describe('video/audio placeholders are rendered from the type (#J3)', () => {
+  const placeholder = toPreviewUrl('D:/a.mp4', { type: 'video', label: 'Clip' });
+  const record = (overrides: Partial<AssetRecord> = {}): AssetRecord => ({
+    id: 'a',
+    jobId: 'a',
+    name: 'Clip',
+    type: 'video',
+    path: 'D:/a.mp4',
+    previewUrl: placeholder,
+    thumbnail: placeholder,
+    createdAt: '2026-01-01T00:00:00Z',
+    prompt: '',
+    negativePrompt: '',
+    favorite: false,
+    params: {},
+    ...overrides,
+  });
+
+  it('builds each placeholder once and shares it', () => {
+    expect(toPreviewUrl('D:/b.mp4', { type: 'video', label: 'Clip' })).toBe(placeholder);
+    expect(isMediaPlaceholderPreview(placeholder)).toBe(true);
+    expect(isMediaPlaceholderPreview('http://localhost:8000/outputs/x.png')).toBe(false);
+  });
+
+  it('escapes the label before it enters SVG markup', () => {
+    const url = toPreviewUrl('D:/c.mp4', { type: 'audio', label: '<script>&"' });
+    expect(decodeURIComponent(url)).toContain('&lt;script&gt;&amp;&quot;');
+  });
+
+  it('strips placeholders for storage and restores them from the type and name', () => {
+    const stripped = stripAssetPlaceholders(record());
+    expect(stripped).toMatchObject({ previewUrl: '', thumbnail: '' });
+    expect(restoreAssetPlaceholders(stripped)).toEqual(record());
+    expect(resolveAssetThumbnail(stripped)).toBe(placeholder);
+  });
+
+  it('leaves image records and real previews untouched', () => {
+    const image = record({ type: 'image', previewUrl: 'http://x/y.png', thumbnail: 'http://x/y.png' });
+    expect(stripAssetPlaceholders(image)).toBe(image);
+    const custom = record({ thumbnail: 'file:///poster.png', previewUrl: 'file:///a.mp4' });
+    expect(stripAssetPlaceholders(custom)).toBe(custom);
+  });
+
+  it('keeps a deliberate null poster on media assets', () => {
+    const media: MediaAsset = {
+      id: 'm', name: 'Clip', type: 'video', source: 'generated', path: 'D:/a.mp4', previewUrl: 'D:/a.mp4',
+      thumbnailUrl: placeholder, posterUrl: null, metadata: {}, createdAt: '2026-01-01T00:00:00Z',
+    };
+    const stripped = stripMediaAssetPlaceholders(media);
+    expect(stripped).toMatchObject({ thumbnailUrl: '', posterUrl: null, previewUrl: 'D:/a.mp4' });
+    expect(restoreMediaAssetPlaceholders(stripped)).toEqual(media);
+  });
+});
+

@@ -18,11 +18,29 @@ except ImportError:
 
 @unittest.skipUnless(HAS_MAIN, "Requires FastAPI and backend dependencies (run inside venv)")
 class ServerConfigTests(unittest.TestCase):
-    def test_make_console_safe_strips_unencodable_characters(self):
-        rendered = main.make_console_safe("🚀 Starting Vision Studio Backend...", encoding="cp1252")
+    def test_console_streams_replace_unencodable_characters(self):
+        # B13: no builtins.print monkeypatch - the streams themselves replace
+        # what their encoding cannot represent (a cp1252 Windows console).
+        import io
 
-        rendered.encode("cp1252")
-        self.assertIn("Starting Vision Studio Backend...", rendered)
+        raw = io.BytesIO()
+        stream = io.TextIOWrapper(raw, encoding="cp1252", errors="strict")
+        with mock.patch.object(sys, "stdout", stream), mock.patch.object(sys, "stderr", stream):
+            main.make_console_streams_safe()
+            stream.write("\U0001F680 Starting Vision Studio Backend...")
+            stream.flush()
+
+        self.assertIn(b"Starting Vision Studio Backend...", raw.getvalue())
+
+    def test_print_is_not_monkeypatched(self):
+        import builtins
+
+        self.assertEqual(builtins.print.__module__, "builtins")
+        self.assertEqual(builtins.print.__name__, "print")
+
+    def test_streams_without_reconfigure_are_left_alone(self):
+        with mock.patch.object(sys, "stdout", object()), mock.patch.object(sys, "stderr", None):
+            main.make_console_streams_safe()  # must not raise
 
     def test_uvicorn_config_binds_loopback_by_default(self):
         # Local-first desktop app: the backend must not be reachable from the LAN

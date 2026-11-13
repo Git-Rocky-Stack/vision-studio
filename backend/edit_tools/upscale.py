@@ -14,7 +14,8 @@ from typing import Callable, Dict, Optional, Tuple
 from PIL import Image
 
 from edit_tools.weights import EditCancelled, EditModelUnavailable, EditToolError
-from utils.device import resolve_device
+from utils.device import free_accelerator_memory, resolve_device
+from utils.pipeline_cache import register_pipeline_owner
 
 try:  # stub CI / slim install
     import torch
@@ -42,7 +43,21 @@ RunTile = Callable[[Image.Image], Image.Image]
 ProgressCb = Callable[[int, int], None]
 CancelCheck = Callable[[], bool]
 
+# Loaded Real-ESRGAN runners, per checkpoint path. Freed through the shared
+# release path (utils.pipeline_cache) so a generation model switch reclaims
+# their VRAM.
 _RUNNERS: Dict[str, Tuple[RunTile, int]] = {}
+
+
+def release_upscale_runners() -> None:
+    """Drop every cached Real-ESRGAN runner and free its memory."""
+    had_runners = bool(_RUNNERS)
+    _RUNNERS.clear()
+    if had_runners:
+        free_accelerator_memory(torch)
+
+
+register_pipeline_owner("edit-upscale", release_upscale_runners)
 
 
 def check_upscale_size(width: int, height: int, scale: int, model_scale: int = 4) -> None:

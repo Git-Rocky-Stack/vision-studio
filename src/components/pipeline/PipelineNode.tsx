@@ -68,7 +68,7 @@ export const PipelineNode = memo(function PipelineNode({
         role="button"
         tabIndex={0}
         aria-label={`${step.label} step ${index + 1}`}
-        aria-selected={isSelected}
+        aria-pressed={isSelected}
         onClick={onSelect}
         onKeyDown={(e) => {
           if (e.key === 'Enter' || e.key === ' ') {

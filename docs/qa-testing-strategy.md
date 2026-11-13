@@ -538,20 +538,27 @@ vision-studio/
 
 ## 10. Tooling Summary
 
+The status column was rewritten on 2026-11-11 to match the repository; the
+versions are the ones `package-lock.json` and `backend/requirements.txt`
+resolve to today. Every tool the 2026-03-13 plan marked "To install" is in
+place except `vitest-axe`, whose job the Playwright accessibility suite does
+instead.
+
 | Purpose | Tool | Status |
 |---------|------|--------|
-| Unit + component tests (frontend) | Vitest 3.2.4 | Installed |
-| Component rendering | @testing-library/react | To install |
-| DOM environment | jsdom | To install |
-| HTTP mocking | msw | To install |
-| E2E tests | Playwright | To install |
-| Accessibility | @axe-core/playwright, vitest-axe | To install |
-| Backend unit tests | Python unittest | Installed |
-| Backend integration tests | pytest + httpx | To install |
-| Type checking | TypeScript (tsc) | Installed |
-| Linting | ESLint | Installed |
-| Pre-commit hooks | Husky + lint-staged | To install |
-| CI/CD | GitHub Actions | To create |
+| Unit + component + integration tests (frontend) | Vitest 4.1 | In use - `npm test`; the PR gate's **Frontend Tests** job |
+| Component rendering | @testing-library/react 16, user-event 14, jest-dom 6 | In use |
+| DOM environment | jsdom 28 | In use (Vitest component and integration projects) |
+| HTTP mocking | msw 2 | Installed as a dev dependency; no suite imports it yet |
+| E2E tests | Playwright 1.58 (`@playwright/test`, driving Electron) | In use - `npm run test:e2e`, specs in `tests/e2e/` |
+| Accessibility | axe-core 4.11 via `@axe-core/playwright` | In use - `npm run test:a11y` (axe-core is injected into the Electron page; see `tests/e2e/accessibility.spec.ts`). `vitest-axe` was not adopted |
+| Visual regression | Playwright screenshots | In use - `npm run test:visual`, with Windows and Linux baselines |
+| Backend unit + integration tests | pytest + httpx | In use - `cd backend && python -m pytest`; the PR gate's **Backend Tests** job. `unittest discover` is not used: it skips the pytest-style suites |
+| Backend benchmarks | pytest-benchmark | Opt-in; excluded from the default run by `backend/pytest.ini` |
+| Type checking | TypeScript 5.7 (`tsc`) | In use - `npm run typecheck`; the PR gate's **TypeScript** job |
+| Linting | ESLint 10 | In use - `npm run lint` |
+| Pre-commit hooks | Husky 9 + lint-staged 16 | In use - `.husky/pre-commit` runs `npm run typecheck` and `npm run test` for staged TypeScript (`.lintstagedrc.cjs`) |
+| CI/CD | GitHub Actions | In use - `.github/workflows/pr-gate.yml` (type-check, lockfile, shipped-dependency audit, frontend and backend tests on every pull request); release workflows in `release.yml` and `release-mac-linux.yml` |
 
 ---
 
@@ -571,6 +578,11 @@ vision-studio/
 ---
 
 ## Appendix A: Immediate Action Items
+
+> Written 2026-03-13. All five have since been done: the backend suite runs
+> under pytest on CI, Testing Library and jsdom are installed, critical elements
+> carry `data-testid`, the store has its own unit tests, and the pre-commit hook
+> runs the type-check and the test suite.
 
 1. **Fix backend test import errors** — Run `test_server_config.py` and `test_video_service.py` inside the venv, or refactor to mock heavy imports
 2. **Install `@testing-library/react` + `jsdom`** — Enable component testing

@@ -186,7 +186,3 @@ export function cancelPipelineRun(executionId: string, store: typeof useAppStore
   controllers.get(executionId)?.abort();
   store.getState().cancelPipelineExecution(executionId);
 }
-
-export function isPipelineRunActive(executionId: string): boolean {
-  return controllers.has(executionId);
-}

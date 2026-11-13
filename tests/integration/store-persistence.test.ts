@@ -67,8 +67,6 @@ describe('store persistence partialize', () => {
     expect(persisted).toHaveProperty('activeTab');
     expect(persisted).toHaveProperty('activeSubMode');
     expect(persisted).toHaveProperty('centerView');
-    expect(persisted).toHaveProperty('darkMode');
-    expect(persisted).toHaveProperty('recentProjects');
     expect(persisted).toHaveProperty('projects');
     expect(persisted).toHaveProperty('activeProjectId');
     expect(persisted).toHaveProperty('activeSceneId');
@@ -97,6 +95,12 @@ describe('store persistence partialize', () => {
     expect(persisted).not.toHaveProperty('comparisonMode');
     expect(persisted).not.toHaveProperty('comparisonImages');
     expect(persisted).not.toHaveProperty('generationDraft');
+    expect(persisted).not.toHaveProperty('batchQueue');
+
+    // Dead fields dropped in persist version 1 (#J3/#J12)
+    for (const dead of ['darkMode', 'recentProjects', 'generationMode', 'migrationStatus']) {
+      expect(persisted).not.toHaveProperty(dead);
+    }
   });
 });
 

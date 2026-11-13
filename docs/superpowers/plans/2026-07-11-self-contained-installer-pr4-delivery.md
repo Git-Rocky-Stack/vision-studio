@@ -3,6 +3,8 @@
 > **Historical design record - 2026-07-11.** Describes intent at that
 > date, not current behaviour. See `docs/INDEX.md` for what is authoritative.
 
+> **Status (checked 2026-11-11):** Shipped - PR #58 (`e4f25ee`). The task checkboxes below record the plan as written and were not ticked.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Ship the delivery leg of the self-contained installer track (spec `docs/superpowers/specs/2026-07-06-self-contained-installer-design.md` §7 / §8·PR4 / §9 / §10): the electron-updater feed served from Cloudflare R2, the R2 publish tooling for the ~6 GB NSIS installer, the VS-mirror fallback path in the backend acquisition pipeline, the `VS_REAL_SMOKE` end-to-end gate, packaging-config honesty rails in CI, and the §10 cost model + operational runbook.

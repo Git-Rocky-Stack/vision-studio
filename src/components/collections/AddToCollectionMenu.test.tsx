@@ -44,7 +44,8 @@ describe('AddToCollectionMenu', () => {
     const onTileClick = vi.fn();
     useAppStore.getState().createCollection({ name: 'Picks', type: 'manual' });
     render(
-      <div onClick={onTileClick}>
+      // A tile stand-in that captures bubbled clicks.
+      <div role="presentation" onClick={onTileClick}>
         <AddToCollectionMenu assetId="asset-1" iconOnly />
       </div>,
     );

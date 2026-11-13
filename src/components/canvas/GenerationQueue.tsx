@@ -5,11 +5,25 @@ import { useAppStore } from '@/store/appStore';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ImageIcon } from 'lucide-react';
 import { ImageWithFallback } from '@/components/ui/ImageWithFallback';
+import type { GenerationQueueItem } from '@/types/generation';
 
 /** Above this many tiles the strip renders only what is scrolled into view. */
 const VIRTUALIZE_THRESHOLD = 30;
 /** 48px tile plus the 8px gap. */
 const TILE_PITCH = 56;
+
+/**
+ * Library path of a finished tile: recorded on the tile at completion, or
+ * (tiles from before that) the image record its job registered. Without it
+ * the canvas shows the image but cannot edit or export it.
+ */
+function resolveTileAssetPath(item: GenerationQueueItem): string | null {
+  if (item.assetPath) return item.assetPath;
+  const record = useAppStore
+    .getState()
+    .assetLibrary.find((asset) => asset.jobId === item.id && asset.type === 'image');
+  return record?.path ?? null;
+}
 
 export const GenerationQueue = memo(function GenerationQueue() {
   const generationQueue = useAppStore((s) => s.generationQueue);
@@ -39,7 +53,7 @@ export const GenerationQueue = memo(function GenerationQueue() {
         animate={{ opacity: 1, scale: 1 }}
         transition={{ delay: virtualize ? 0 : index * 0.05 }}
         onClick={() => {
-          if (item.thumbnail) setCurrentImage(item.thumbnail);
+          if (item.thumbnail) setCurrentImage(item.thumbnail, resolveTileAssetPath(item));
         }}
         onMouseEnter={() => setHoveredItem(item.id)}
         onMouseLeave={() => setHoveredItem(null)}
@@ -73,7 +87,7 @@ export const GenerationQueue = memo(function GenerationQueue() {
             initial={{ opacity: 0, y: 5 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 5 }}
-            className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 p-2 bg-elevated border border-border rounded-md shadow-cinematic pointer-events-none"
+            className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 p-2 bg-elevated border border-border rounded-md shadow-overlay pointer-events-none"
           >
             <p className="line-clamp-2 type-ui text-text-primary">
               {item.prompt}

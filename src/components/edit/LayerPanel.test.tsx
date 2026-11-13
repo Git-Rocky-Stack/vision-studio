@@ -60,3 +60,64 @@ describe('LayerPanel shared selection (#32)', () => {
     expect(useAppStore.getState().selectedEditLayerId).toBeNull();
   });
 });
+
+describe('LayerPanel keyboard access', () => {
+  beforeEach(resetStore);
+  afterEach(cleanup);
+
+  it('selects a row with Enter/Space and moves the selection with the arrow keys', () => {
+    render(<LayerPanel />);
+    const first = seedTextLayer('Alpha');
+    const second = seedTextLayer('Beta');
+
+    const alpha = screen.getByRole('button', { name: 'Select Alpha' });
+    alpha.focus();
+    fireEvent.click(alpha); // Enter / Space activate a native button
+    expect(useAppStore.getState().selectedEditLayerId).toBe(first.id);
+    expect(alpha).toHaveAttribute('aria-pressed', 'true');
+
+    fireEvent.keyDown(alpha, { key: 'ArrowDown' });
+    expect(useAppStore.getState().selectedEditLayerId).toBe(second.id);
+    expect(screen.getByRole('button', { name: 'Select Beta' })).toHaveFocus();
+
+    fireEvent.keyDown(screen.getByRole('button', { name: 'Select Beta' }), { key: 'Home' });
+    expect(useAppStore.getState().selectedEditLayerId).toBe(first.id);
+    expect(screen.getByRole('button', { name: 'Select Alpha' })).toHaveFocus();
+  });
+
+  it('renames with F2, commits on Enter and returns focus to the row', () => {
+    render(<LayerPanel />);
+    const layer = seedTextLayer('Alpha');
+
+    fireEvent.keyDown(screen.getByRole('button', { name: 'Select Alpha' }), { key: 'F2' });
+    const input = screen.getByRole('textbox', { name: 'Rename Alpha' });
+    fireEvent.change(input, { target: { value: 'Hero title' } });
+    fireEvent.keyDown(input, { key: 'Enter' });
+
+    expect(useAppStore.getState().editLayers.find((l) => l.id === layer.id)?.name).toBe('Hero title');
+    expect(screen.getByRole('button', { name: 'Select Hero title' })).toHaveFocus();
+  });
+
+  it('renames from the rename button and cancels on Escape without saving', () => {
+    render(<LayerPanel />);
+    const layer = seedTextLayer('Alpha');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Rename Alpha' }));
+    const input = screen.getByRole('textbox', { name: 'Rename Alpha' });
+    fireEvent.change(input, { target: { value: 'Discarded' } });
+    fireEvent.keyDown(input, { key: 'Escape' });
+    fireEvent.blur(input);
+
+    expect(useAppStore.getState().editLayers.find((l) => l.id === layer.id)?.name).toBe(layer.name);
+    expect(screen.queryByRole('textbox', { name: 'Rename Alpha' })).toBeNull();
+  });
+
+  it('labels the blend-mode select for its layer', () => {
+    render(<LayerPanel />);
+    const layer = seedTextLayer('Alpha');
+    fireEvent.change(screen.getByRole('combobox', { name: 'Blend mode for Alpha' }), {
+      target: { value: 'Multiply' },
+    });
+    expect(useAppStore.getState().editLayers.find((l) => l.id === layer.id)?.blendMode).toBe('Multiply');
+  });
+});

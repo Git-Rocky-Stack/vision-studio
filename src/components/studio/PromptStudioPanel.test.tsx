@@ -307,4 +307,78 @@ describe('PromptStudioPanel', () => {
 
     expect(draft.model).toBe('sd-1-5');
   });
+
+  it('keeps "Save prompt as template" disabled until there is a prompt to save', async () => {
+    const user = userEvent.setup();
+    render(<PromptStudioPanel />);
+    await user.click(screen.getByRole('button', { name: /Templates/ }));
+
+    expect(screen.getByRole('button', { name: /Save prompt as template/ })).toBeDisabled();
+    expect(screen.getByText('Write a prompt in the editor to save it as a template.')).toBeInTheDocument();
+  });
+
+  it('saves the current prompt as a user template and confirms it', async () => {
+    const user = userEvent.setup();
+    render(<PromptStudioPanel />);
+    await user.type(screen.getByPlaceholderText('Describe what you want to generate...'), 'neon alley at dusk');
+    await user.click(screen.getByRole('button', { name: /Templates/ }));
+    await user.click(screen.getByRole('button', { name: /Save prompt as template/ }));
+
+    // An empty name is refused with an inline error.
+    await user.click(screen.getByRole('button', { name: /Save template/ }));
+    expect(screen.getByRole('alert')).toHaveTextContent('Name the template');
+
+    await user.type(screen.getByLabelText('Template name'), 'Neon dusk');
+    await user.selectOptions(screen.getByLabelText('Category'), 'cinematic');
+    await user.click(screen.getByRole('button', { name: /Save template/ }));
+
+    const saved = useAppStore.getState().promptTemplates.find((t) => t.name === 'Neon dusk');
+    expect(saved).toMatchObject({
+      promptText: 'neon alley at dusk',
+      category: 'cinematic',
+      isBuiltIn: false,
+      isFavorite: false,
+    });
+    expect(screen.getByRole('status')).toHaveTextContent('Saved "Neon dusk" to your templates.');
+    expect(screen.getByRole('heading', { name: 'Neon dusk' })).toBeInTheDocument();
+  });
+
+  it('deletes a user template only after confirmation, and never offers delete on built-ins', async () => {
+    const user = userEvent.setup();
+    useAppStore.getState().addUserPromptTemplate({
+      id: 'user-template-1',
+      name: 'My look',
+      description: 'saved',
+      category: 'custom',
+      promptText: 'my look',
+      isBuiltIn: false,
+      isFavorite: false,
+      createdAt: 1,
+    });
+    render(<PromptStudioPanel />);
+    await user.click(screen.getByRole('button', { name: /Templates/ }));
+
+    const builtIn = useAppStore.getState().promptTemplates.find((t) => t.isBuiltIn)!;
+    expect(screen.queryByRole('button', { name: `Delete ${builtIn.name}` })).toBeNull();
+
+    await user.click(screen.getByRole('button', { name: 'Delete My look' }));
+    await user.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(useAppStore.getState().promptTemplates.some((t) => t.id === 'user-template-1')).toBe(true);
+
+    await user.click(screen.getByRole('button', { name: 'Delete My look' }));
+    await user.click(screen.getByRole('button', { name: 'Delete template' }));
+    expect(useAppStore.getState().promptTemplates.some((t) => t.id === 'user-template-1')).toBe(false);
+    expect(screen.getByRole('status')).toHaveTextContent('Deleted "My look".');
+  });
+
+  it('tells the user when the AI Director settings cannot be read', async () => {
+    (window.electron as unknown as { settings: unknown }).settings = {
+      get: vi.fn().mockRejectedValue(new Error('settings store locked')),
+    };
+    render(<PromptStudioPanel />);
+
+    expect(await screen.findByRole('status')).toHaveTextContent(
+      'AI Director settings could not be loaded (settings store locked)',
+    );
+  });
 });

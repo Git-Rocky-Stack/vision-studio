@@ -11,7 +11,7 @@ from typing import Optional
 
 
 # Current schema version - increment when adding new migrations
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 
 def get_schema_version(db_path: str) -> int:

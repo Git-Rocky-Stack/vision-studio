@@ -1,4 +1,4 @@
-import { memo, useCallback } from 'react';
+import { memo, useCallback, useId } from 'react';
 import { GitBranch, GitCompare, Pin, Repeat2 } from 'lucide-react';
 import { cn } from '@/utils/cn';
 import { useAppStore } from '@/store/appStore';
@@ -15,6 +15,7 @@ export const IterationNodeDetail = memo(function IterationNodeDetail({
   node,
   className,
 }: IterationNodeDetailProps) {
+  const noteId = useId();
   const pinIteration = useAppStore((s) => s.pinIteration);
   const setIterationNote = useAppStore((s) => s.setIterationNote);
   const setPendingIterationParent = useAppStore((s) => s.setPendingIterationParent);
@@ -112,8 +113,9 @@ export const IterationNodeDetail = memo(function IterationNodeDetail({
 
       {/* Note */}
       <div>
-        <label className="type-micro text-text-muted mb-1 block">Note</label>
+        <label htmlFor={noteId} className="type-micro text-text-muted mb-1 block">Note</label>
         <textarea
+          id={noteId}
           value={node.note}
           onChange={(e) => setIterationNote(node.id, e.target.value)}
           placeholder="Add a note..."

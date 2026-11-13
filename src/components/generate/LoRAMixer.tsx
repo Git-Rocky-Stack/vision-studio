@@ -1,4 +1,5 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
+import { useFocusWhen } from '@/hooks/useFocusWhen';
 import { cn } from '@/utils/cn';
 import { Slider } from '@/components/ui/Slider';
 import type { LoRAConfig } from '@/types/generation';
@@ -88,7 +89,7 @@ function SortableLoRACard({
       className={cn(
         'relative flex items-start gap-2 p-2.5 rounded-md bg-elevated border transition',
         isDragging
-          ? 'border-accent-primary/40 shadow-cinematic z-10'
+          ? 'border-accent-primary/40 shadow-overlay z-10'
           : 'border-border hover:border-border-hover'
       )}
     >
@@ -154,6 +155,9 @@ export function LoRAMixer({
   disabledReason = null,
 }: LoRAMixerProps) {
   const [showBrowser, setShowBrowser] = useState(false);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  // Opening the browser replaces the Add button: focus follows into the search.
+  useFocusWhen(searchInputRef, showBrowser);
   const [searchQuery, setSearchQuery] = useState('');
   const [showIncompatible, setShowIncompatible] = useState(false);
   const [isExpanded, setIsExpanded] = useState(configs.length > 0);
@@ -298,12 +302,12 @@ export function LoRAMixer({
                 <div className="relative">
                   <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-text-muted" aria-hidden="true" />
                   <input
+                    ref={searchInputRef}
                     type="search"
                     aria-label="Search LoRAs"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     placeholder="Search LoRAs..."
-                    autoFocus
                     className="w-full bg-elevated border border-border rounded-md pl-8 pr-3 py-1.5 text-xs text-text-primary placeholder:text-text-muted focus:border-accent-primary transition"
                   />
                 </div>

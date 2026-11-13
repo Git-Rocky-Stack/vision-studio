@@ -39,8 +39,48 @@ const PUBLIC_DOCS = [
   'docs/archive/README.md',
 ];
 
+/**
+ * Dated records: implementation plans, design specs, spikes and reviews. Their
+ * prose is history and is not kept current, but their links still have to
+ * resolve - a plan whose file links point at one contributor's disk
+ * (`/C:/vision-studio/src/...`) is a plan nobody else can follow.
+ */
+const RECORD_DIRS = ['docs/plans', 'docs/superpowers'];
+
+function markdownUnder(dir: string): string[] {
+  const out: string[] = [];
+  for (const entry of readdirSync(resolve(ROOT, dir), { withFileTypes: true })) {
+    const rel = `${dir}/${entry.name}`;
+    if (entry.isDirectory()) out.push(...markdownUnder(rel));
+    else if (entry.name.endsWith('.md')) out.push(rel);
+  }
+  return out.sort();
+}
+
+const RECORD_DOCS = RECORD_DIRS.flatMap(markdownUnder);
+
 /** `[text](target)` - skipping images, anchors, and absolute URLs. */
 const LINK = /\[[^\]]*\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g;
+
+/**
+ * The document with fenced code blocks and inline code spans blanked out:
+ * GitHub renders `[text](url)` inside code as literal text, not as a link, so
+ * it is neither a broken link nor a dangling anchor. Line numbers are kept.
+ */
+function linkSource(doc: string): string {
+  let fenced = false;
+  return readFileSync(resolve(ROOT, doc), 'utf8')
+    .split(/\r?\n/)
+    .map((line) => {
+      if (/^\s*(```|~~~)/.test(line)) {
+        fenced = !fenced;
+        return '';
+      }
+      if (fenced) return '';
+      return line.replace(/(`+)(?:(?!\1).)+?\1/g, (span) => ' '.repeat(span.length));
+    })
+    .join('\n');
+}
 
 const dirCache = new Map<string, Set<string>>();
 
@@ -73,7 +113,7 @@ function existsExactly(relativePath: string): boolean {
 }
 
 function relativeLinks(doc: string): string[] {
-  const source = readFileSync(resolve(ROOT, doc), 'utf8');
+  const source = linkSource(doc);
   const found: string[] = [];
   for (const match of source.matchAll(LINK)) {
     const target = match[1];
@@ -137,7 +177,7 @@ function anchorsOf(file: string): Set<string> {
 
 /** `file.md#anchor` and `#anchor` links whose anchor no heading produces. */
 function brokenAnchors(doc: string): string[] {
-  const source = readFileSync(resolve(ROOT, doc), 'utf8');
+  const source = linkSource(doc);
   const broken: string[] = [];
   for (const match of source.matchAll(LINK)) {
     const target = match[1];
@@ -167,6 +207,20 @@ describe('public documentation links resolve', () => {
       expect(brokenAnchors(doc), `${doc} links to anchors no heading produces`).toEqual([]);
     });
   }
+
+  it('finds the dated records under docs/plans and docs/superpowers', () => {
+    // Self-guard: an empty list would pass every record check below vacuously.
+    expect(RECORD_DOCS.length).toBeGreaterThan(50);
+    expect(RECORD_DOCS).toContain('docs/plans/2026-04-22-ui-polish-rollout.md');
+  });
+
+  it('ignores link syntax inside code spans and fenced blocks', () => {
+    // This plan quotes `[text](url)` in prose about the licence parser; on
+    // GitHub that renders as code, not as a link to a file called "url".
+    const doc = 'docs/superpowers/plans/2026-07-10-self-contained-installer-pr3-first-run-ux.md';
+    expect(readFileSync(resolve(ROOT, doc), 'utf8')).toContain('`[text](url)`');
+    expect(relativeLinks(doc)).not.toContain('url');
+  });
 
   it('rejects a link whose case does not match the file on disk', () => {
     // Self-guard: on a case-insensitive filesystem a naive existsSync check
@@ -200,3 +254,71 @@ describe('public documentation links resolve', () => {
     expect(existsExactly('docs/nope/../INDEX.md')).toBe(false);
   });
 });
+
+describe('plan and spec links resolve', () => {
+  for (const doc of RECORD_DOCS) {
+    it(`${doc} has no broken relative links or anchors`, () => {
+      const broken = relativeLinks(doc).filter((target) => !existsExactly(resolveFrom(doc, target)));
+      expect(broken, `${doc} links to paths that do not exist`).toEqual([]);
+      expect(brokenAnchors(doc), `${doc} links to anchors no heading produces`).toEqual([]);
+    });
+  }
+});
+
+describe("no documentation link points into one machine's filesystem", () => {
+  // `/C:/vision-studio/src/...` resolved in the author's editor and nowhere
+  // else: on GitHub it is a 404, and on any other clone it points at nothing.
+  const LOCAL_PATH = /\]\(\s*<?(?:\/?[A-Za-z]:[\\/]|file:\/\/|\/(?:Users|home)\/)/;
+
+  it('recognizes the shapes it is meant to reject', () => {
+    expect(LOCAL_PATH.test('[x](/C:/vision-studio/src/App.tsx)')).toBe(true);
+    expect(LOCAL_PATH.test('[x](C:\\vision-studio\\src\\App.tsx)')).toBe(true);
+    expect(LOCAL_PATH.test('[x](file:///home/me/App.tsx)')).toBe(true);
+    expect(LOCAL_PATH.test('[x](../../src/App.tsx)')).toBe(false);
+  });
+
+  for (const doc of [...PUBLIC_DOCS, ...RECORD_DOCS]) {
+    it(`${doc} has no absolute local-filesystem links`, () => {
+      const offending = linkSource(doc)
+        .split('\n')
+        .map((line, index) => ({ line, number: index + 1 }))
+        .filter(({ line }) => LOCAL_PATH.test(line))
+        .map(({ number }) => `${doc}:${number}`);
+      expect(offending).toEqual([]);
+    });
+  }
+});
+
+describe('docs/INDEX.md lists every current document', () => {
+  // INDEX.md calls itself the authoritative entry point; a doc it does not
+  // list is a doc nobody finds. Dated records live under archive/, plans/ and
+  // superpowers/, which INDEX.md links as directories.
+  const indexed = new Set(
+    relativeLinks('docs/INDEX.md').map((target) => resolveFrom('docs/INDEX.md', target).replace(/\/$/, '')),
+  );
+
+  const topLevelDocs = readdirSync(resolve(ROOT, 'docs'), { withFileTypes: true })
+    .filter((entry) => entry.isFile() && entry.name.endsWith('.md') && entry.name !== 'INDEX.md')
+    .map((entry) => `docs/${entry.name}`);
+  const rootDocs = readdirSync(ROOT, { withFileTypes: true })
+    .filter((entry) => entry.isFile() && entry.name.endsWith('.md'))
+    .map((entry) => entry.name);
+
+  it('finds documents to check', () => {
+    expect(topLevelDocs).toContain('docs/USER_GUIDE.md');
+    expect(rootDocs).toContain('README.md');
+  });
+
+  for (const doc of [...topLevelDocs, ...rootDocs, 'docs/diagrams/diagrams.md', 'docs/api/openapi.json']) {
+    it(`links ${doc}`, () => {
+      expect(indexed.has(doc), `docs/INDEX.md does not link ${doc}`).toBe(true);
+    });
+  }
+
+  for (const dir of ['docs/archive', 'docs/plans', 'docs/superpowers']) {
+    it(`links the ${dir} records`, () => {
+      expect(indexed.has(dir), `docs/INDEX.md does not link ${dir}/`).toBe(true);
+    });
+  }
+});
+

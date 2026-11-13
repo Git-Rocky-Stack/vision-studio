@@ -1,4 +1,5 @@
-import type { AppSet, AppGet, AppState } from '../appStore.types';
+import type { AppSet, AppGet, DownloadActionResult } from '../appStore.types';
+import { pushNotice } from '@/features/notices/notices';
 import type {
   ModelRecord,
   ModelCapability,
@@ -13,6 +14,9 @@ import type {
   HardwareProfile,
   RuntimePlan,
 } from '@/types/model';
+
+/** The catalog's default still-image model, used when nothing is installed yet. */
+export const DEFAULT_IMAGE_MODEL_ID = 'flux-dev';
 
 export const modelsInitialState = {
   availableModels: [] as ModelRecord[],
@@ -37,8 +41,30 @@ export const modelsInitialState = {
   // #34 PR3: mirror of the GeneratePanel's live image-checkpoint selection
   // (its default), so panels outside GeneratePanel can show honest
   // per-checkpoint install/compat state. Session-only, never persisted.
-  selectedImageModelId: 'flux-dev',
+  selectedImageModelId: DEFAULT_IMAGE_MODEL_ID as string,
 };
+
+type DownloadVerb = 'start' | 'pause' | 'resume' | 'cancel';
+
+/** The bridge resolves `{ success: false, error }` on a backend failure instead of throwing. */
+interface ErrorEnvelope {
+  success: false;
+  error?: string;
+}
+
+function readErrorEnvelope(response: unknown): string | null {
+  if (!response || typeof response !== 'object') {
+    return 'the backend returned no download job';
+  }
+  const record = response as { success?: unknown; error?: unknown; model_id?: unknown };
+  if (record.success === false) {
+    return typeof record.error === 'string' && record.error ? record.error : 'the backend refused the request';
+  }
+  if (typeof record.model_id !== 'string' || !record.model_id) {
+    return 'the backend returned no download job';
+  }
+  return null;
+}
 
 export function createModelsActions(set: AppSet, get: AppGet) {
   const mergeJob = (jobLike: DownloadJob | null | undefined) => {
@@ -46,6 +72,43 @@ export function createModelsActions(set: AppSet, get: AppGet) {
     set((state) => ({
       downloads: { ...state.downloads, [jobLike.model_id]: jobLike },
     }));
+  };
+
+  /**
+   * Runs one download control against the bridge. A failure leaves the known
+   * queue intact (local-first) but is no longer silent: the user gets a notice
+   * naming the model and the reason, and the caller gets a result to act on.
+   */
+  const runDownloadAction = async (
+    verb: DownloadVerb,
+    modelId: string,
+    call: () => Promise<DownloadJob | ErrorEnvelope | null | undefined>,
+  ): Promise<DownloadActionResult> => {
+    try {
+      const response = await call();
+      const failure = readErrorEnvelope(response);
+      if (failure !== null) {
+        return reportDownloadFailure(verb, modelId, failure);
+      }
+      mergeJob(response as DownloadJob);
+      return { ok: true };
+    } catch (error) {
+      return reportDownloadFailure(
+        verb,
+        modelId,
+        error instanceof Error && error.message ? error.message : 'the backend did not respond',
+      );
+    }
+  };
+
+  const reportDownloadFailure = (
+    verb: DownloadVerb,
+    modelId: string,
+    reason: string,
+  ): DownloadActionResult => {
+    const name = get().availableModels.find((model) => model.id === modelId)?.name ?? modelId;
+    pushNotice('error', `Could not ${verb} the download of ${name}: ${reason}`);
+    return { ok: false, error: reason };
   };
 
   return {
@@ -61,7 +124,6 @@ export function createModelsActions(set: AppSet, get: AppGet) {
     },
 
     // Downloads -----------------------------------------------------------
-    setDownloadJob: (job: DownloadJob) => mergeJob(job),
     refreshDownloads: async () => {
       try {
         const jobs = (await window.electron.models.downloadsList()) as DownloadJob[];
@@ -72,35 +134,14 @@ export function createModelsActions(set: AppSet, get: AppGet) {
         // Local-first: keep the last-known queue on a backend hiccup.
       }
     },
-    enqueueDownload: async (modelId: string) => {
-      try {
-        const job = await window.electron.models.download(modelId);
-        mergeJob(job);
-      } catch {
-        // Swallow: the existing downloads map is left intact.
-      }
-    },
-    pauseDownload: async (modelId: string) => {
-      try {
-        mergeJob((await window.electron.models.downloadPause(modelId)) as DownloadJob);
-      } catch {
-        /* local-first */
-      }
-    },
-    resumeDownload: async (modelId: string) => {
-      try {
-        mergeJob((await window.electron.models.downloadResume(modelId)) as DownloadJob);
-      } catch {
-        /* local-first */
-      }
-    },
-    cancelDownload: async (modelId: string) => {
-      try {
-        mergeJob((await window.electron.models.downloadCancel(modelId)) as DownloadJob);
-      } catch {
-        /* local-first */
-      }
-    },
+    enqueueDownload: (modelId: string) =>
+      runDownloadAction('start', modelId, () => window.electron.models.download(modelId)),
+    pauseDownload: (modelId: string) =>
+      runDownloadAction('pause', modelId, () => window.electron.models.downloadPause(modelId)),
+    resumeDownload: (modelId: string) =>
+      runDownloadAction('resume', modelId, () => window.electron.models.downloadResume(modelId)),
+    cancelDownload: (modelId: string) =>
+      runDownloadAction('cancel', modelId, () => window.electron.models.downloadCancel(modelId)),
 
     // Library roots ---------------------------------------------------------
     loadLibraryRoots: async () => {
@@ -274,7 +315,26 @@ export function selectInstalledLoras<
   );
 }
 
-/** Selector: the live download job for a model id, or null. */
-export function selectDownloadFor(state: AppState, modelId: string): DownloadJob | null {
-  return state.downloads[modelId] ?? null;
+function isInstalledImageCheckpoint(model: ModelRecord) {
+  return (
+    SELECTABLE_ARTIFACT_TYPES.has(model.artifact_type) &&
+    model.capability === 'image' &&
+    model.status === 'ready' &&
+    (model.availability ?? 'available') !== 'unavailable'
+  );
+}
+
+/** True when `modelId` is a still-image checkpoint present on disk. */
+export function isImageModelInstalled(models: ModelRecord[], modelId: string): boolean {
+  return models.some((model) => model.id === modelId && isInstalledImageCheckpoint(model));
+}
+
+/**
+ * The still-image model a template should default to (#J16): `preferred` when
+ * it is installed, else the first installed image checkpoint, else the
+ * catalog default (first run, before the core set has landed).
+ */
+export function resolveDefaultImageModelId(models: ModelRecord[], preferred?: string): string {
+  if (preferred && isImageModelInstalled(models, preferred)) return preferred;
+  return models.find(isInstalledImageCheckpoint)?.id ?? DEFAULT_IMAGE_MODEL_ID;
 }

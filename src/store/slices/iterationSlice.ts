@@ -2,6 +2,7 @@ import type { AppSet, AppGet } from '../appStore.types';
 import type {
   ComparisonIds,
   IterationNode,
+  IterationNodePatch,
   IterationBranch,
   IterationView,
   ComparisonMode as IterationComparisonMode,
@@ -224,13 +225,26 @@ export function createIterationActions(set: AppSet, get: AppGet) {
       set({ iterationNodes: newNodes });
     },
 
+    /**
+     * Patches one node's display/record fields (thumbnail, job snapshot,
+     * note, pin). Graph structure (id, parent, branch, children) is owned by
+     * addIteration / deleteIterationBranch and cannot be patched here. A
+     * missing node or a patch that changes nothing is a no-op.
+     */
+    updateIterationNode: (id: string, patch: IterationNodePatch) => {
+      const nodes = get().iterationNodes;
+      const node = nodes.get(id);
+      if (!node) return;
+      const keys = Object.keys(patch) as (keyof IterationNodePatch)[];
+      if (keys.every((key) => Object.is(node[key], patch[key]))) return;
+      const newNodes = new Map(nodes);
+      newNodes.set(id, { ...node, ...patch });
+      set({ iterationNodes: newNodes });
+    },
+
     setActiveIteration: (id: string | null) => set({ activeIterationId: id }),
     setIterationView: (view: IterationView) => set({ iterationView: view }),
     setIterationComparisonMode: (mode: IterationComparisonMode) => set({ iterationComparisonMode: mode }),
-    setComparisonIds: (ids: ComparisonIds) =>
-      set((state) => ({
-        comparisonIds: normalizeComparisonIds(ids, state.iterationNodes),
-      })),
     toggleIterationComparison: (id: string) =>
       set((state) => ({
         comparisonIds: normalizeComparisonIds(

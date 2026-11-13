@@ -262,4 +262,31 @@ describe('ConfirmDialog', () => {
     const iconContainer = document.querySelector('.bg-status-error-muted');
     expect(iconContainer).toBeInTheDocument();
   });
+
+  it('focuses Cancel, traps Tab, and cancels on Escape without leaking it to the workspace', async () => {
+    const onCancel = vi.fn();
+    const workspaceHandler = vi.fn();
+    window.addEventListener('keydown', workspaceHandler);
+    render(
+      <>
+        <button type="button">Behind</button>
+        <ConfirmDialog open={true} title="Delete Track" message="Delete it?" onConfirm={vi.fn()} onCancel={onCancel} />
+      </>,
+    );
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    const cancel = screen.getByRole('button', { name: 'Cancel' });
+    const confirm = screen.getByRole('button', { name: 'Confirm' });
+    expect(cancel).toHaveFocus();
+    await userEvent.tab();
+    expect(confirm).toHaveFocus();
+    await userEvent.tab();
+    expect(cancel).toHaveFocus();
+
+    await userEvent.keyboard('{Escape}');
+    expect(onCancel).toHaveBeenCalledTimes(1);
+    const escapesSeen = workspaceHandler.mock.calls.filter(([event]) => (event as KeyboardEvent).key === 'Escape');
+    expect(escapesSeen).toEqual([]);
+    window.removeEventListener('keydown', workspaceHandler);
+  });
 });

@@ -1,12 +1,21 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useId, useMemo, useState } from 'react';
 import packageJson from '../../package.json';
 import { cn } from '@/utils/cn';
+import { releaseChannelLabel } from '@/utils/releaseChannel';
+import {
+  FILM_GRAIN_MODES,
+  setFilmGrainMode,
+  useFilmGrainMode,
+  type FilmGrainMode,
+} from '@/features/theme/filmGrainPreference';
+import { selectOptionalFeatureAvailability, UNAVAILABLE_IN_BUILD_REASON } from '@/types/acceleration';
 import { Button } from '@/components/ui/Button';
 import { Switch } from '@/components/ui/Switch';
 import { useShallow } from 'zustand/react/shallow';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { useAppStore } from '@/store/appStore';
 import { getElectronBridge } from '@/utils/electronBridge';
+import { useBackendStatusError } from '@/hooks/useBackendStatusError';
 import { AI_DIRECTOR_DEFAULTS, type AiDirectorSettings } from '../../shared/retrieval';
 import { buildIngestRecords } from '@/features/director/buildIngestRecords';
 import { UserGuidePage } from '@/pages/UserGuidePage';
@@ -55,13 +64,11 @@ interface SettingsSection {
 
 interface SettingsState {
   theme: 'dark' | 'light' | 'system';
-  autoSave: boolean;
   defaultOutputPath: string;
   backendAutostart: boolean;
   notifyOnGenerationComplete: boolean;
   notifyOnGenerationFailed: boolean;
   notifyOnModelDownloads: boolean;
-  pythonPath?: string;
 }
 
 interface ConnectionBannerState {
@@ -81,7 +88,6 @@ const sections: SettingsSection[] = [
 
 const defaultSettingsState: SettingsState = {
   theme: 'dark',
-  autoSave: true,
   defaultOutputPath: '',
   backendAutostart: true,
   notifyOnGenerationComplete: true,
@@ -104,6 +110,42 @@ const TERMINAL_DOWNLOAD_STATUSES = new Set<DownloadStatus>(['ready', 'error', 'c
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error ?? 'unknown error');
 }
+
+/** Release channel badge for the sidebar footer; null on a stable build. */
+const RELEASE_CHANNEL = releaseChannelLabel(packageJson.version);
+
+const FILM_GRAIN_OPTIONS: Record<FilmGrainMode, { label: string; description: string }> = {
+  animated: { label: 'Animated', description: 'Subtle drifting grain (pauses when the window is hidden).' },
+  static: { label: 'Static', description: 'The same texture, with no animation.' },
+  off: { label: 'Off', description: 'No grain overlay is drawn at all.' },
+};
+
+/**
+ * Tags come from the prompt the user wrote (features/assets/assetAnalysis.ts):
+ * no image is analysed. The copy says so, rather than implying vision AI.
+ */
+const TAGGING_MODES = [
+  {
+    value: 'on-generation' as const,
+    label: 'On Generation',
+    desc: 'Tag each asset from its prompt as soon as it is generated',
+  },
+  {
+    value: 'background-batch' as const,
+    label: 'Background Batch',
+    desc: 'Tag untagged assets from their prompts in batches while the app is idle',
+  },
+  {
+    value: 'on-demand' as const,
+    label: 'On Demand',
+    desc: 'Only tag when you run Analyze in Collections',
+  },
+  {
+    value: 'off' as const,
+    label: 'Off',
+    desc: 'Never create tags automatically',
+  },
+];
 
 /** Start Backend polls backend.getStatus at this pace until the process is up. */
 export const BACKEND_START_POLL_MS = 500;
@@ -147,7 +189,6 @@ export function SettingsPanel() {
     clearBatchResults,
     setAvailableModels,
     setSystemInfo,
-    loadModels,
     refreshDownloads,
     taggingMode,
     setTaggingMode,
@@ -160,12 +201,20 @@ export function SettingsPanel() {
     clearBatchResults: s.clearBatchResults,
     setAvailableModels: s.setAvailableModels,
     setSystemInfo: s.setSystemInfo,
-    loadModels: s.loadModels,
     refreshDownloads: s.refreshDownloads,
     taggingMode: s.taggingMode,
     setTaggingMode: s.setTaggingMode,
   })));
   const setNavTab = useAppStore((s) => s.setActiveTab);
+  const filmGrainMode = useFilmGrainMode();
+  const backendStatusError = useBackendStatusError();
+  const [filmGrainNotice, setFilmGrainNotice] = useState<string | null>(null);
+  const [accountsError, setAccountsError] = useState<string | null>(null);
+  const openRouterKeyInputId = useId();
+  const huggingFaceTokenInputId = useId();
+  const themeGroupLabelId = useId();
+  const filmGrainGroupLabelId = useId();
+  const semanticAvailability = selectOptionalFeatureAvailability(systemInfo).semanticRetrieval;
   const [activeTab, setActiveTab] = useState<SettingsTab>('general');
   const [settings, setSettings] = useState<SettingsState>(defaultSettingsState);
   const [accountsSnapshot, setAccountsSnapshot] = useState<UserAccountsSnapshot>(defaultAccountsSnapshot);
@@ -173,6 +222,7 @@ export function SettingsPanel() {
   const [openRouterApiKeyInput, setOpenRouterApiKeyInput] = useState('');
   const [huggingFaceTokenInput, setHuggingFaceTokenInput] = useState('');
   const [isSavingHuggingFaceToken, setIsSavingHuggingFaceToken] = useState(false);
+  const [huggingFaceError, setHuggingFaceError] = useState<string | null>(null);
   const [autoRouteOnOverBudget, setAutoRouteOnOverBudget] = useState(false);
   const [aiDirector, setAiDirector] = useState<AiDirectorSettings>(AI_DIRECTOR_DEFAULTS);
   const [indexStats, setIndexStats] = useState<{ count: number; mode: 'semantic' | 'lexical' }>({ count: 0, mode: 'lexical' });
@@ -188,7 +238,8 @@ export function SettingsPanel() {
   const [isLoadingOpenRouterKeyInfo, setIsLoadingOpenRouterKeyInfo] = useState(false);
   const [isLoadingOpenRouterModels, setIsLoadingOpenRouterModels] = useState(false);
   const [isLoadingOpenRouterImageModels, setIsLoadingOpenRouterImageModels] = useState(false);
-  const prevDownloadStatusRef = useRef<Record<string, DownloadStatus>>({});
+  const [settingsError, setSettingsError] = useState<string | null>(null);
+  const [directorError, setDirectorError] = useState<string | null>(null);
 
   const activeAccount = useMemo<UserAccountSummary | null>(() => {
     if (accountsSnapshot.accounts.length === 0) {
@@ -218,18 +269,19 @@ export function SettingsPanel() {
 
       setSettings({
         theme: loadedSettings.theme,
-        autoSave: loadedSettings.autoSave,
         defaultOutputPath: loadedSettings.defaultOutputPath,
         backendAutostart: loadedSettings.backendAutostart,
         notifyOnGenerationComplete: loadedSettings.notifyOnGenerationComplete,
         notifyOnGenerationFailed: loadedSettings.notifyOnGenerationFailed,
         notifyOnModelDownloads: loadedSettings.notifyOnModelDownloads,
-        pythonPath: loadedSettings.pythonPath,
       });
       setAccountsSnapshot(loadedAccounts);
     };
 
-    void loadInitialState();
+    void loadInitialState().catch((error: unknown) => {
+      // The controls keep their defaults; say they may not reflect what is stored.
+      setSettingsError(`Saved settings could not be loaded: ${errorMessage(error)}`);
+    });
     // Hydrate the live download queue so reopening Settings mid-download shows
     // current progress; the queue effect below then resumes polling if needed.
     void useAppStore.getState().refreshDownloads();
@@ -239,7 +291,12 @@ export function SettingsPanel() {
   useEffect(() => {
     const electron = getElectronBridge();
     if (!electron) return;
-    void electron.settings.get().then((s) => setAutoRouteOnOverBudget(Boolean(s.autoRouteOnOverBudget)));
+    electron.settings
+      .get()
+      .then((s) => setAutoRouteOnOverBudget(Boolean(s.autoRouteOnOverBudget)))
+      .catch((error: unknown) => {
+        setAccountsError(`The over-budget policy could not be loaded: ${errorMessage(error)}`);
+      });
   }, []);
 
   // Hydrate the AI Director (RAG) settings + index stats (M7). Guarded so the
@@ -247,12 +304,19 @@ export function SettingsPanel() {
   useEffect(() => {
     const electron = window.electron;
     if (!electron?.settings || !electron?.director) return;
-    void electron.settings.get().then((s) => setAiDirector(s.aiDirector ?? AI_DIRECTOR_DEFAULTS));
-    void electron.director.indexStats().then(setIndexStats);
+    electron.settings
+      .get()
+      .then((s) => setAiDirector(s.aiDirector ?? AI_DIRECTOR_DEFAULTS))
+      .catch((error: unknown) => {
+        setDirectorError(`AI Director settings could not be loaded: ${errorMessage(error)}`);
+      });
+    electron.director
+      .indexStats()
+      .then(setIndexStats)
+      // Stats are informational; the readout keeps its empty default.
+      .catch(() => undefined);
   }, []);
 
-  const [settingsError, setSettingsError] = useState<string | null>(null);
-  const [directorError, setDirectorError] = useState<string | null>(null);
   const [directorBusy, setDirectorBusy] = useState<'rebuild' | 'clear' | null>(null);
 
   const updateAiDirector = async (next: AiDirectorSettings) => {
@@ -310,48 +374,17 @@ export function SettingsPanel() {
     }
   };
 
-  // Drive the live download queue from the store slice: poll while any job is in
-  // flight, and refresh the catalog + notify once a model finishes downloading.
+  // Drive the live download queue from the store slice: poll while any job is
+  // in flight. The catalog refresh and the "Model Ready" notification for a
+  // finished download live in the app-level useModelReadyNotifications hook
+  // (#J11), so they fire wherever the download finishes, not only here.
   useEffect(() => {
-    const previous = prevDownloadStatusRef.current;
-    const snapshot: Record<string, DownloadStatus> = {};
-    const becameReady: string[] = [];
-    for (const [id, job] of Object.entries(downloads)) {
-      snapshot[id] = job.status;
-      if (job.status === 'ready' && previous[id] !== undefined && previous[id] !== 'ready') {
-        becameReady.push(id);
-      }
-    }
-    prevDownloadStatusRef.current = snapshot;
-
     // Release the per-row spinner once the clicked model reaches a terminal state.
     if (activeModelId) {
       const activeJob = downloads[activeModelId];
       if (activeJob && TERMINAL_DOWNLOAD_STATUSES.has(activeJob.status)) {
         setActiveModelId(null);
       }
-    }
-
-    if (becameReady.length > 0) {
-      void (async () => {
-        await loadModels();
-        const installed = useAppStore.getState().availableModels;
-        // Desktop notifications are an Electron-only affordance; outside it
-        // there is nothing to notify, and reaching through the absent bridge
-        // would reject inside an un-awaited async IIFE (an unhandled rejection).
-        // The models above are still loaded either way - only the notification
-        // is skipped.
-        const electron = getElectronBridge();
-        if (!electron) return;
-
-        for (const id of becameReady) {
-          const model = installed.find((entry) => entry.id === id);
-          await electron.notifications.notify('model_download', {
-            title: 'Model Ready',
-            body: `${model?.name ?? 'Model'} is installed and ready to use.`,
-          });
-        }
-      })();
     }
 
     const hasActiveDownload = Object.values(downloads).some((job) =>
@@ -364,10 +397,15 @@ export function SettingsPanel() {
       void refreshDownloads();
     }, DOWNLOAD_POLL_INTERVAL_MS);
     return () => clearTimeout(timer);
-  }, [downloads, activeModelId, loadModels, refreshDownloads]);
+  }, [downloads, activeModelId, refreshDownloads]);
 
+  // The rename field shows the active account's saved name: reset it on an
+  // account switch and after a rename is saved.
   useEffect(() => {
     setAccountNameDraft(activeAccount?.name ?? '');
+  }, [activeAccount?.id, activeAccount?.name]);
+
+  useEffect(() => {
     setOpenRouterApiKeyInput('');
     setOpenRouterBanner(null);
     setOpenRouterKeyInfo(null);
@@ -394,15 +432,22 @@ export function SettingsPanel() {
 
       setIsLoadingOpenRouterModels(true);
       setIsLoadingOpenRouterImageModels(true);
-      const [textModelsResult, imageModelsResult] = await Promise.all([
-        electron.openrouter.listModels(activeAccount.id),
-        electron.openrouter.listImageModels(activeAccount.id),
-      ]);
-      setIsLoadingOpenRouterModels(false);
-      setIsLoadingOpenRouterImageModels(false);
-
-      setOpenRouterModels(textModelsResult.success ? textModelsResult.models : []);
-      setOpenRouterImageModels(imageModelsResult.success ? imageModelsResult.models : []);
+      try {
+        const [textModelsResult, imageModelsResult] = await Promise.all([
+          electron.openrouter.listModels(activeAccount.id),
+          electron.openrouter.listImageModels(activeAccount.id),
+        ]);
+        setOpenRouterModels(textModelsResult.success ? textModelsResult.models : []);
+        setOpenRouterImageModels(imageModelsResult.success ? imageModelsResult.models : []);
+      } catch {
+        // Background sync on account switch: an empty catalogue with the
+        // Refresh buttons enabled is the recoverable state; Refresh reports.
+        setOpenRouterModels([]);
+        setOpenRouterImageModels([]);
+      } finally {
+        setIsLoadingOpenRouterModels(false);
+        setIsLoadingOpenRouterImageModels(false);
+      }
     };
 
     void loadOpenRouterKeyInfo(activeAccount.id, true);
@@ -444,6 +489,7 @@ export function SettingsPanel() {
               backendConnected: true,
               backendRunning: true,
               bundledBackend: backendStatus.bundled,
+              ...(info.availability ? { availability: info.availability } : {}),
             });
             const models = await window.electron.models.list().catch(() => null);
             if (models) setAvailableModels(models);
@@ -483,13 +529,11 @@ export function SettingsPanel() {
     }
     setSettings({
       theme: next.theme,
-      autoSave: next.autoSave,
       defaultOutputPath: next.defaultOutputPath,
       backendAutostart: next.backendAutostart,
       notifyOnGenerationComplete: next.notifyOnGenerationComplete,
       notifyOnGenerationFailed: next.notifyOnGenerationFailed,
       notifyOnModelDownloads: next.notifyOnModelDownloads,
-      pythonPath: next.pythonPath,
     });
     window.dispatchEvent(
       new CustomEvent('vision-studio:theme-changed', {
@@ -499,7 +543,14 @@ export function SettingsPanel() {
   };
 
   const handleBrowseOutputPath = async () => {
-    const selectedFolder = await window.electron.dialog.selectFolder();
+    setSettingsError(null);
+    let selectedFolder: string | null;
+    try {
+      selectedFolder = await window.electron.dialog.selectFolder();
+    } catch (error) {
+      setSettingsError(`The folder picker could not be opened: ${errorMessage(error)}`);
+      return;
+    }
     if (!selectedFolder) {
       return;
     }
@@ -512,19 +563,33 @@ export function SettingsPanel() {
   };
 
   const confirmClearCache = async () => {
-    const result = await window.electron.assets.clearCache();
-    if (result.success) {
+    setSettingsError(null);
+    try {
+      const result = await window.electron.assets.clearCache();
+      if (!result.success) {
+        setSettingsError(`The cache was not cleared: ${result.error || 'the app could not delete the cached files.'}`);
+        return;
+      }
       const userDataPath = await window.electron.app.getPath('userData');
       removeAssetsByRoot(`${userDataPath.replace(/\\/g, '/')}/outputs`);
       clearBatchResults();
+    } catch (error) {
+      setSettingsError(`The cache was not cleared: ${errorMessage(error)}`);
+    } finally {
+      setShowClearCacheConfirm(false);
     }
-    setShowClearCacheConfirm(false);
   };
 
   const loadOpenRouterModels = async (accountId: string, silentError = false) => {
     setIsLoadingOpenRouterModels(true);
-    const result = await window.electron.openrouter.listModels(accountId);
-    setIsLoadingOpenRouterModels(false);
+    let result: Awaited<ReturnType<typeof window.electron.openrouter.listModels>>;
+    try {
+      result = await window.electron.openrouter.listModels(accountId);
+    } catch (error) {
+      result = { success: false, models: [], error: `Could not load the OpenRouter model catalog: ${errorMessage(error)}` };
+    } finally {
+      setIsLoadingOpenRouterModels(false);
+    }
 
     if (result.success) {
       setOpenRouterModels(result.models);
@@ -543,8 +608,18 @@ export function SettingsPanel() {
 
   const loadOpenRouterImageModels = async (accountId: string, silentError = false) => {
     setIsLoadingOpenRouterImageModels(true);
-    const result = await window.electron.openrouter.listImageModels(accountId);
-    setIsLoadingOpenRouterImageModels(false);
+    let result: Awaited<ReturnType<typeof window.electron.openrouter.listImageModels>>;
+    try {
+      result = await window.electron.openrouter.listImageModels(accountId);
+    } catch (error) {
+      result = {
+        success: false,
+        models: [],
+        error: `Could not load the OpenRouter image model catalog: ${errorMessage(error)}`,
+      };
+    } finally {
+      setIsLoadingOpenRouterImageModels(false);
+    }
 
     if (result.success) {
       setOpenRouterImageModels(result.models);
@@ -578,8 +653,14 @@ export function SettingsPanel() {
     }
 
     setIsLoadingOpenRouterKeyInfo(true);
-    const result = await electron.openrouter.getKeyInfo(accountId);
-    setIsLoadingOpenRouterKeyInfo(false);
+    let result: Awaited<ReturnType<typeof electron.openrouter.getKeyInfo>>;
+    try {
+      result = await electron.openrouter.getKeyInfo(accountId);
+    } catch (error) {
+      result = { success: false, error: `Could not load OpenRouter key information: ${errorMessage(error)}` };
+    } finally {
+      setIsLoadingOpenRouterKeyInfo(false);
+    }
 
     if (result.success) {
       if (result.accounts) {
@@ -610,24 +691,40 @@ export function SettingsPanel() {
       return;
     }
 
-    const nextSnapshot = await window.electron.accounts.update(activeAccount.id, {
-      name: normalized,
-    });
-    setAccountsSnapshot(nextSnapshot);
+    setAccountsError(null);
+    try {
+      const nextSnapshot = await window.electron.accounts.update(activeAccount.id, {
+        name: normalized,
+      });
+      setAccountsSnapshot(nextSnapshot);
+    } catch (error) {
+      setAccountNameDraft(activeAccount.name);
+      setAccountsError(`The account was not renamed: ${errorMessage(error)}`);
+    }
   };
 
   const handleCreateAccount = async () => {
-    const nextSnapshot = await window.electron.accounts.create();
-    setAccountsSnapshot(nextSnapshot);
-    setOpenRouterBanner({
-      tone: 'info',
-      message: 'Created a new local account profile.',
-    });
+    setAccountsError(null);
+    try {
+      const nextSnapshot = await window.electron.accounts.create();
+      setAccountsSnapshot(nextSnapshot);
+      setOpenRouterBanner({
+        tone: 'info',
+        message: 'Created a new local account profile.',
+      });
+    } catch (error) {
+      setAccountsError(`The account was not created: ${errorMessage(error)}`);
+    }
   };
 
   const handleSetActiveAccount = async (accountId: string) => {
-    const nextSnapshot = await window.electron.accounts.setActive(accountId);
-    setAccountsSnapshot(nextSnapshot);
+    setAccountsError(null);
+    try {
+      const nextSnapshot = await window.electron.accounts.setActive(accountId);
+      setAccountsSnapshot(nextSnapshot);
+    } catch (error) {
+      setAccountsError(`The active account was not switched: ${errorMessage(error)}`);
+    }
   };
 
   const handleUpdateActiveAccount = async (
@@ -648,8 +745,13 @@ export function SettingsPanel() {
       return;
     }
 
-    const nextSnapshot = await window.electron.accounts.update(activeAccount.id, patch);
-    setAccountsSnapshot(nextSnapshot);
+    setAccountsError(null);
+    try {
+      const nextSnapshot = await window.electron.accounts.update(activeAccount.id, patch);
+      setAccountsSnapshot(nextSnapshot);
+    } catch (error) {
+      setAccountsError(`The account settings were not saved: ${errorMessage(error)}`);
+    }
   };
 
   const handleVerifyOpenRouter = async (accountId?: string) => {
@@ -659,8 +761,14 @@ export function SettingsPanel() {
     }
 
     setIsVerifyingOpenRouter(true);
-    const result = await window.electron.openrouter.testConnection(resolvedAccountId);
-    setIsVerifyingOpenRouter(false);
+    let result: Awaited<ReturnType<typeof window.electron.openrouter.testConnection>>;
+    try {
+      result = await window.electron.openrouter.testConnection(resolvedAccountId);
+    } catch (error) {
+      result = { success: false, error: `OpenRouter connection failed: ${errorMessage(error)}` };
+    } finally {
+      setIsVerifyingOpenRouter(false);
+    }
 
     if (!result.success) {
       setOpenRouterBanner({
@@ -726,7 +834,16 @@ export function SettingsPanel() {
       return;
     }
 
-    const nextSnapshot = await window.electron.accounts.clearOpenRouterApiKey(activeAccount.id);
+    let nextSnapshot: UserAccountsSnapshot;
+    try {
+      nextSnapshot = await window.electron.accounts.clearOpenRouterApiKey(activeAccount.id);
+    } catch (error) {
+      setOpenRouterBanner({
+        tone: 'error',
+        message: `The stored OpenRouter key was not removed: ${errorMessage(error)}`,
+      });
+      return;
+    }
     setAccountsSnapshot(nextSnapshot);
     setOpenRouterKeyInfo(null);
     setOpenRouterModels([]);
@@ -749,6 +866,7 @@ export function SettingsPanel() {
     }
 
     setIsSavingHuggingFaceToken(true);
+    setHuggingFaceError(null);
     try {
       const snapshot = await window.electron.accounts.setHuggingFaceToken({
         accountId: activeAccount.id,
@@ -756,6 +874,8 @@ export function SettingsPanel() {
       });
       setAccountsSnapshot(snapshot);
       setHuggingFaceTokenInput('');
+    } catch (error) {
+      setHuggingFaceError(`The HuggingFace token was not saved: ${errorMessage(error)}`);
     } finally {
       setIsSavingHuggingFaceToken(false);
     }
@@ -766,13 +886,25 @@ export function SettingsPanel() {
       return;
     }
 
-    const snapshot = await window.electron.accounts.clearHuggingFaceToken(activeAccount.id);
-    setAccountsSnapshot(snapshot);
+    setHuggingFaceError(null);
+    try {
+      const snapshot = await window.electron.accounts.clearHuggingFaceToken(activeAccount.id);
+      setAccountsSnapshot(snapshot);
+    } catch (error) {
+      setHuggingFaceError(`The stored HuggingFace token was not removed: ${errorMessage(error)}`);
+    }
   };
 
   const handleUpdateAutoRoute = async (next: boolean) => {
     setAutoRouteOnOverBudget(next);
-    await window.electron.settings.update({ autoRouteOnOverBudget: next });
+    setAccountsError(null);
+    try {
+      await window.electron.settings.update({ autoRouteOnOverBudget: next });
+    } catch (error) {
+      // Show what is stored, not the optimistic tick.
+      setAutoRouteOnOverBudget(!next);
+      setAccountsError(`The over-budget policy was not saved: ${errorMessage(error)}`);
+    }
   };
 
   const confirmDeleteAccount = async () => {
@@ -780,13 +912,26 @@ export function SettingsPanel() {
       return;
     }
 
-    const nextSnapshot = await window.electron.accounts.delete(deleteAccountTarget);
-    setAccountsSnapshot(nextSnapshot);
-    setDeleteAccountTarget(null);
-    setOpenRouterBanner({
-      tone: 'info',
-      message: 'Removed the selected account profile.',
-    });
+    setAccountsError(null);
+    try {
+      const nextSnapshot = await window.electron.accounts.delete(deleteAccountTarget);
+      setAccountsSnapshot(nextSnapshot);
+      setOpenRouterBanner({
+        tone: 'info',
+        message: 'Removed the selected account profile.',
+      });
+    } catch (error) {
+      setAccountsError(`The account was not removed: ${errorMessage(error)}`);
+    } finally {
+      setDeleteAccountTarget(null);
+    }
+  };
+
+  const handleFilmGrainChange = (mode: FilmGrainMode) => {
+    const persisted = setFilmGrainMode(mode);
+    setFilmGrainNotice(
+      persisted ? null : 'Applied for this session, but the choice could not be saved for the next launch.',
+    );
   };
 
   // Guard against account snapshots that predate the HuggingFace BYOK fields so a
@@ -837,7 +982,11 @@ export function SettingsPanel() {
 
         <div className="mt-auto border-t border-border pt-3">
           <p className="truncate data-mono text-text-muted">{`Vision Studio v${packageJson.version}`}</p>
-          <p className="mt-1 type-badge text-text-muted">Beta Release</p>
+          {RELEASE_CHANNEL && (
+            <p className="mt-1 type-badge text-text-muted" data-testid="release-channel">
+              {`${RELEASE_CHANNEL} build`}
+            </p>
+          )}
         </div>
       </div>
 
@@ -897,7 +1046,7 @@ export function SettingsPanel() {
                       readOnly
                       className="recessed-well flex-1 px-3 py-2 data-mono text-text-primary"
                     />
-                    <Button variant="secondary" size="sm" onClick={handleBrowseOutputPath}>
+                    <Button variant="secondary" size="sm" onClick={() => void handleBrowseOutputPath()}>
                       Browse
                     </Button>
                   </div>
@@ -905,22 +1054,6 @@ export function SettingsPanel() {
                     Changing the output folder automatically restarts the backend so new generations
                     write to the new location.
                   </p>
-                </div>
-
-                <div className="flex items-center justify-between py-3 border-b border-border">
-                  <div>
-                    <h3 className="text-sm font-medium text-text-primary">
-                      Auto Save
-                    </h3>
-                    <p className="text-xs text-text-body mt-0.5">
-                      Automatically save local project state as you work
-                    </p>
-                  </div>
-                  <Switch
-                    checked={settings.autoSave}
-                    onChange={(next) => persistSettings({ autoSave: next })}
-                    label="Toggle auto save"
-                  />
                 </div>
 
                 <div className="flex items-center justify-between py-3 border-b border-border">
@@ -934,7 +1067,7 @@ export function SettingsPanel() {
                   </div>
                   <Switch
                     checked={settings.backendAutostart}
-                    onChange={(next) => persistSettings({ backendAutostart: next })}
+                    onChange={(next) => void persistSettings({ backendAutostart: next })}
                     label="Toggle backend autostart"
                   />
                 </div>
@@ -1027,6 +1160,11 @@ export function SettingsPanel() {
                           The Python backend is not running. Image generation and AI features are
                           disabled.
                         </p>
+                        {backendStatusError && !backendStartError && (
+                          <p role="alert" className="mt-2 text-xs text-status-error" data-testid="backend-status-error">
+                            {backendStatusError}
+                          </p>
+                        )}
                         <Button
                           variant="ghost"
                           size="sm"
@@ -1061,6 +1199,23 @@ export function SettingsPanel() {
                   </p>
 
                   <div className="raised-panel p-4 space-y-4">
+                    {accountsError && (
+                      <div
+                        role="alert"
+                        className="flex items-start gap-3 rounded-md border border-status-error-border bg-status-error-muted p-3"
+                      >
+                        <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0 text-status-error" aria-hidden="true" />
+                        <p className="flex-1 text-sm text-status-error">{accountsError}</p>
+                        <button
+                          type="button"
+                          onClick={() => setAccountsError(null)}
+                          aria-label="Dismiss account error"
+                          className="text-xs text-text-body hover:text-text-primary"
+                        >
+                          Dismiss
+                        </button>
+                      </div>
+                    )}
                     <div className="flex flex-col gap-3 md:flex-row md:items-end">
                       <label className="flex-1 space-y-1">
                         <span className="text-xs text-text-muted">Active account</span>
@@ -1078,7 +1233,7 @@ export function SettingsPanel() {
                         </select>
                       </label>
                       <div className="flex gap-2">
-                        <Button variant="secondary" size="sm" icon={UserPlus} onClick={handleCreateAccount}>
+                        <Button variant="secondary" size="sm" icon={UserPlus} onClick={() => void handleCreateAccount()}>
                           New Account
                         </Button>
                         <Button
@@ -1302,10 +1457,13 @@ export function SettingsPanel() {
 
                         <div className="space-y-4 raised-panel p-4">
                           <div className="space-y-1">
-                            <div className="flex items-center gap-2 text-sm font-medium text-text-primary">
-                              <Key className="w-4 h-4" />
+                            <label
+                              htmlFor={openRouterKeyInputId}
+                              className="flex items-center gap-2 text-sm font-medium text-text-primary"
+                            >
+                              <Key className="w-4 h-4" aria-hidden="true" />
                               OpenRouter API Key
-                            </div>
+                            </label>
                             <p className="text-xs text-text-body">
                               Save one encrypted OpenRouter key per local account to enable BYOK
                               prompt enhancement and hosted still-image generation.
@@ -1314,7 +1472,9 @@ export function SettingsPanel() {
 
                           <div className="flex flex-col gap-3 md:flex-row">
                             <input
+                              id={openRouterKeyInputId}
                               type="password"
+                              autoComplete="off"
                               value={openRouterApiKeyInput}
                               onChange={(event) => setOpenRouterApiKeyInput(event.target.value)}
                               placeholder={
@@ -1328,7 +1488,7 @@ export function SettingsPanel() {
                               <Button
                                 variant="secondary"
                                 size="sm"
-                                onClick={handleSaveOpenRouterKey}
+                                onClick={() => void handleSaveOpenRouterKey()}
                                 disabled={isSavingOpenRouterKey}
                               >
                                 {isSavingOpenRouterKey ? 'Saving...' : 'Save Key'}
@@ -1344,7 +1504,7 @@ export function SettingsPanel() {
                               <Button
                                 variant="ghost"
                                 size="sm"
-                                onClick={handleClearOpenRouterKey}
+                                onClick={() => void handleClearOpenRouterKey()}
                                 disabled={!activeAccount.openRouter.apiKeyStored}
                               >
                                 Clear
@@ -1356,6 +1516,7 @@ export function SettingsPanel() {
 
                           {openRouterBanner && (
                             <div
+                              role={openRouterBanner.tone === 'error' ? 'alert' : 'status'}
                               className={cn(
                                 'rounded-md border px-3 py-2 text-xs',
                                 openRouterBanner.tone === 'success' &&
@@ -1547,10 +1708,13 @@ export function SettingsPanel() {
 
                         <div className="space-y-4 raised-panel p-4">
                           <div className="space-y-1">
-                            <div className="flex items-center gap-2 text-sm font-medium text-text-primary">
-                              <Key className="w-4 h-4" />
+                            <label
+                              htmlFor={huggingFaceTokenInputId}
+                              className="flex items-center gap-2 text-sm font-medium text-text-primary"
+                            >
+                              <Key className="w-4 h-4" aria-hidden="true" />
                               HuggingFace Inference Token
-                            </div>
+                            </label>
                             <p className="text-xs text-text-body">
                               Save one encrypted HuggingFace token per local account to enable BYOK
                               prompt enhancement, hosted still-image generation and hosted video
@@ -1560,7 +1724,9 @@ export function SettingsPanel() {
 
                           <div className="flex flex-col gap-3 md:flex-row">
                             <input
+                              id={huggingFaceTokenInputId}
                               type="password"
+                              autoComplete="off"
                               value={huggingFaceTokenInput}
                               onChange={(event) => setHuggingFaceTokenInput(event.target.value)}
                               placeholder={
@@ -1574,15 +1740,15 @@ export function SettingsPanel() {
                               <Button
                                 variant="secondary"
                                 size="sm"
-                                onClick={handleSaveHuggingFaceToken}
-                                disabled={isSavingHuggingFaceToken}
+                                onClick={() => void handleSaveHuggingFaceToken()}
+                                disabled={isSavingHuggingFaceToken || !huggingFaceTokenInput.trim()}
                               >
                                 {isSavingHuggingFaceToken ? 'Saving...' : 'Save Token'}
                               </Button>
                               <Button
                                 variant="ghost"
                                 size="sm"
-                                onClick={handleClearHuggingFaceToken}
+                                onClick={() => void handleClearHuggingFaceToken()}
                                 disabled={!hasHuggingFaceToken}
                               >
                                 Clear
@@ -1593,6 +1759,15 @@ export function SettingsPanel() {
                           <p className="data-mono text-text-muted">
                             {hasHuggingFaceToken ? 'Token stored' : 'No token stored'}
                           </p>
+
+                          {huggingFaceError && (
+                            <p
+                              role="alert"
+                              className="rounded-md border border-status-error-border bg-status-error-muted px-3 py-2 text-xs text-status-error"
+                            >
+                              {huggingFaceError}
+                            </p>
+                          )}
 
                           <div className="space-y-1">
                             <label
@@ -1746,35 +1921,24 @@ export function SettingsPanel() {
                 </div>
 
                 <div className="space-y-4">
-                  <h3 className="text-label text-text-body flex items-center gap-2">
-                    <Tag className="w-4 h-4" />
-                    AI Tagging Mode
+                  <h3
+                    id="tagging-mode-heading"
+                    className="text-label text-text-body flex items-center gap-2"
+                  >
+                    <Tag className="w-4 h-4" aria-hidden="true" />
+                    Prompt-Based Tagging
                   </h3>
-                  <p className="text-xs text-text-body mb-3">
-                    Control when AI analyzes generated assets to create smart collection tags.
+                  <p id="tagging-mode-description" className="text-xs text-text-body mb-3">
+                    Tags for smart collections are taken from the words in each asset&apos;s prompt
+                    (style, subject, color, and mood terms). Images themselves are not analyzed, so
+                    tagging runs instantly and entirely on this machine. Choose when it runs.
                   </p>
-                  {([
-                    {
-                      value: 'on-generation' as const,
-                      label: 'On Generation',
-                      desc: 'Analyze each asset immediately after generation',
-                    },
-                    {
-                      value: 'background-batch' as const,
-                      label: 'Background Batch',
-                      desc: 'Analyze assets in batches during idle time',
-                    },
-                    {
-                      value: 'on-demand' as const,
-                      label: 'On Demand',
-                      desc: 'Only analyze when you manually trigger it',
-                    },
-                    {
-                      value: 'off' as const,
-                      label: 'Off',
-                      desc: 'Disable automatic AI tagging entirely',
-                    },
-                  ]).map((mode) => (
+                  <div
+                    role="radiogroup"
+                    aria-labelledby="tagging-mode-heading"
+                    aria-describedby="tagging-mode-description"
+                  >
+                  {TAGGING_MODES.map((mode) => (
                     <label key={mode.value} className="flex items-start gap-3 py-2 cursor-pointer">
                       <input
                         type="radio"
@@ -1783,14 +1947,15 @@ export function SettingsPanel() {
                         onChange={() => setTaggingMode(mode.value)}
                         className="mt-1 accent-accent-primary"
                       />
-                      <div>
-                        <span className="text-sm font-medium text-text-primary">
-                          {mode.label}
-                        </span>
-                        <p className="text-xs text-text-muted">{mode.desc}</p>
-                      </div>
+                      {/* The name sits directly in the label (no nested block) so
+                          the radio's accessible name is the mode, then its note. */}
+                      <span className="flex flex-col text-sm font-medium text-text-primary">
+                        {mode.label}
+                        <span className="text-xs font-normal text-text-muted">{mode.desc}</span>
+                      </span>
                     </label>
                   ))}
+                  </div>
                 </div>
 
                 <div className="space-y-4">
@@ -1852,9 +2017,20 @@ export function SettingsPanel() {
                       {directorBusy === 'clear' ? 'Clearing...' : 'Clear index'}
                     </button>
                     <span className="mono-label text-text-muted">
-                      {indexStats.count} indexed ({indexStats.mode})
+                      {indexStats.count} indexed (
+                      {indexStats.mode === 'semantic' ? 'semantic match' : 'keyword match'})
                     </span>
                   </div>
+                  {semanticAvailability && !semanticAvailability.available && (
+                    <p className="flex items-start gap-1.5 text-xs text-text-muted" data-testid="semantic-unavailable">
+                      <Info className="mt-0.5 h-3 w-3 flex-shrink-0" aria-hidden="true" />
+                      <span>
+                        Semantic matching is unavailable:{' '}
+                        {semanticAvailability.reason || UNAVAILABLE_IN_BUILD_REASON} Retrieval uses
+                        keyword matching instead.
+                      </span>
+                    </p>
+                  )}
                   {directorError && (
                     <p role="alert" className="pt-2 text-xs text-status-error">
                       {directorError}
@@ -1918,12 +2094,16 @@ export function SettingsPanel() {
                 </div>
 
                 <div className="space-y-3">
-                  <label className="text-label text-text-body">Theme</label>
-                  <div className="grid grid-cols-3 gap-3">
+                  <h3 id={themeGroupLabelId} className="text-label text-text-body">
+                    Theme
+                  </h3>
+                  <div className="grid grid-cols-3 gap-3" role="group" aria-labelledby={themeGroupLabelId}>
                     {(['dark', 'light', 'system'] as const).map((themeOption) => (
                       <button
                         key={themeOption}
-                        onClick={() => persistSettings({ theme: themeOption })}
+                        type="button"
+                        aria-pressed={settings.theme === themeOption}
+                        onClick={() => void persistSettings({ theme: themeOption })}
                         className={cn(
                           'p-4 rounded-md border transition text-center capitalize',
                           settings.theme === themeOption
@@ -1932,15 +2112,16 @@ export function SettingsPanel() {
                         )}
                       >
                         <div
+                          aria-hidden="true"
                           className={cn(
                             'w-8 h-8 mx-auto rounded-full mb-2',
-                            themeOption === 'dark' && 'bg-void border border-border',
                             // These swatches preview the themes themselves, so
-                            // their colours are literal sample values rather
-                            // than tokens of the theme currently rendering.
-                            themeOption === 'light' && 'bg-white border border-[#e4e4e4]',
+                            // they use the fixed --color-swatch-* tokens, which
+                            // never follow the theme currently rendering.
+                            themeOption === 'dark' && 'bg-swatch-dark border border-border',
+                            themeOption === 'light' && 'bg-swatch-light border border-swatch-light-edge',
                             themeOption === 'system' &&
-                              'bg-gradient-to-br from-void to-white border border-[#c9c9c9]',
+                              'bg-gradient-to-br from-swatch-dark to-swatch-light border border-swatch-system-edge',
                           )}
                         />
                         <span
@@ -1956,6 +2137,49 @@ export function SettingsPanel() {
                       </button>
                     ))}
                   </div>
+                </div>
+
+                <div className="space-y-3">
+                  <h3 id={filmGrainGroupLabelId} className="text-label text-text-body">
+                    Film Grain
+                  </h3>
+                  <p className="text-xs text-text-body">
+                    A faint full-window texture over the workspace. Turn it off to remove the
+                    overlay entirely; it is always still when your system asks for reduced motion.
+                  </p>
+                  <div className="grid grid-cols-3 gap-3" role="group" aria-labelledby={filmGrainGroupLabelId}>
+                    {FILM_GRAIN_MODES.map((mode) => (
+                      <button
+                        key={mode}
+                        type="button"
+                        aria-pressed={filmGrainMode === mode}
+                        onClick={() => handleFilmGrainChange(mode)}
+                        className={cn(
+                          'rounded-md border p-3 text-left transition',
+                          filmGrainMode === mode
+                            ? 'border-accent-primary-border bg-accent-primary-muted'
+                            : 'border-border bg-elevated hover:border-border-hover',
+                        )}
+                      >
+                        <span
+                          className={cn(
+                            'block text-sm font-medium',
+                            filmGrainMode === mode ? 'text-accent-primary' : 'text-text-primary',
+                          )}
+                        >
+                          {FILM_GRAIN_OPTIONS[mode].label}
+                        </span>
+                        <span className="mt-1 block text-xs text-text-muted">
+                          {FILM_GRAIN_OPTIONS[mode].description}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                  {filmGrainNotice && (
+                    <p role="status" className="text-xs text-status-warning">
+                      {filmGrainNotice}
+                    </p>
+                  )}
                 </div>
               </div>
             )}
@@ -1983,7 +2207,7 @@ export function SettingsPanel() {
                     </div>
                     <Switch
                       checked={settings.notifyOnGenerationComplete}
-                      onChange={(next) => persistSettings({ notifyOnGenerationComplete: next })}
+                      onChange={(next) => void persistSettings({ notifyOnGenerationComplete: next })}
                       label="Toggle generation complete notifications"
                     />
                   </div>
@@ -1999,7 +2223,7 @@ export function SettingsPanel() {
                     </div>
                     <Switch
                       checked={settings.notifyOnGenerationFailed}
-                      onChange={(next) => persistSettings({ notifyOnGenerationFailed: next })}
+                      onChange={(next) => void persistSettings({ notifyOnGenerationFailed: next })}
                       label="Toggle generation failed notifications"
                     />
                   </div>
@@ -2015,7 +2239,7 @@ export function SettingsPanel() {
                     </div>
                     <Switch
                       checked={settings.notifyOnModelDownloads}
-                      onChange={(next) => persistSettings({ notifyOnModelDownloads: next })}
+                      onChange={(next) => void persistSettings({ notifyOnModelDownloads: next })}
                       label="Toggle model download notifications"
                     />
                   </div>
@@ -2036,7 +2260,7 @@ export function SettingsPanel() {
         message="This will delete all cached generated assets and clear batch results. Custom output folders are preserved. Continue?"
         confirmLabel="Clear Cache"
         variant="danger"
-        onConfirm={confirmClearCache}
+        onConfirm={() => void confirmClearCache()}
         onCancel={() => setShowClearCacheConfirm(false)}
       />
       <ConfirmDialog

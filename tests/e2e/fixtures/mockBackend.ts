@@ -4,6 +4,7 @@
  * backend. It implements exactly the endpoints the renderer -> main-process flow
  * calls during a generation:
  *
+ *   GET  /api/handshake        identity proof (contract K1): HMAC-SHA256(token, nonce)
  *   GET  /                     liveness root
  *   GET  /api/system/info      connectivity probe -> flips systemInfo.backendConnected
  *   GET  /api/models           model list (renderer loads on mount; [] is fine)
@@ -13,7 +14,11 @@
  *   GET  /outputs/:file         serves a real PNG so the <img> preview actually paints
  *   POST /api/jobs/:id/cancel   cancel (no-op)
  *
- * Auth headers sent by the main process are intentionally ignored.
+ * Auth mirrors the real backend (backend/main.py): every path except
+ * /api/handshake, /api/health and /outputs/* must carry the session token in
+ * `x-vision-studio-token`, or the mock answers 403. The app only trusts a
+ * backend that passes the K1 handshake, so the harness must launch Electron
+ * with `VISION_STUDIO_BACKEND_AUTH_TOKEN` set to the mock's `authToken`.
  *
  * The server binds to the unspecified address (dual-stack) so BOTH the main
  * process (http://127.0.0.1:8000, used by axios/fetch in electron/ipc-handlers)
@@ -23,6 +28,7 @@
  * Pairs with the app's `VISION_STUDIO_BACKEND_EXTERNAL` env flag, which tells the
  * main process to probe this externally-managed backend over HTTP.
  */
+import { createHmac } from 'node:crypto';
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 
@@ -33,6 +39,13 @@ const ONE_BY_ONE_PNG = Buffer.from(
 );
 
 const CREATED_AT = '2026-06-08T00:00:00.000Z';
+
+/** Default shared session token for E2E runs (test-only; never a real secret). */
+export const MOCK_BACKEND_AUTH_TOKEN = 'vision-studio-e2e-mock-token';
+
+const AUTH_HEADER = 'x-vision-studio-token';
+const AUTH_EXEMPT_PATHS = new Set(['/api/health', '/api/handshake']);
+const NONCE_HEX = /^[0-9a-f]{32,128}$/i;
 
 export interface MockBackendOptions {
   /** Port to bind. Defaults to 8000 (the hardcoded backend port the app targets). */
@@ -45,6 +58,8 @@ export interface MockBackendOptions {
   outputFile?: string;
   /** Number of 'processing' status polls before the job reports 'completed'. */
   processingPolls?: number;
+  /** Session token the mock proves in the handshake and requires on API calls. */
+  authToken?: string;
 }
 
 export interface MockBackend {
@@ -52,6 +67,8 @@ export interface MockBackend {
   jobId: string;
   /** e.g. '/outputs/e2e.png' - the path the completed job reports and serves. */
   outputPath: string;
+  /** The session token; pass it to Electron as VISION_STUDIO_BACKEND_AUTH_TOKEN. */
+  authToken: string;
   /** Every request received, as "METHOD /path" - for assertions/debugging. */
   requests: string[];
   close: () => Promise<void>;
@@ -64,6 +81,7 @@ export async function startMockBackend(options: MockBackendOptions = {}): Promis
   const outputFile = options.outputFile ?? 'e2e.png';
   const processingPolls = options.processingPolls ?? 1;
   const outputPath = `/outputs/${outputFile}`;
+  const authToken = options.authToken ?? MOCK_BACKEND_AUTH_TOKEN;
 
   const requests: string[] = [];
   let pollCount = 0;
@@ -79,10 +97,25 @@ export async function startMockBackend(options: MockBackendOptions = {}): Promis
 
   const server = http.createServer((req, res) => {
     const method = req.method ?? 'GET';
-    const pathname = new URL(req.url ?? '/', 'http://localhost').pathname;
+    const url = new URL(req.url ?? '/', 'http://localhost');
+    const pathname = url.pathname;
     requests.push(`${method} ${pathname}`);
     // Drain any request body so the socket is released.
     req.resume();
+
+    if (method === 'GET' && pathname === '/api/handshake') {
+      const nonce = url.searchParams.get('nonce') ?? '';
+      if (!NONCE_HEX.test(nonce)) {
+        return sendJson(res, 400, { detail: 'invalid nonce' });
+      }
+      const proof = createHmac('sha256', Buffer.from(authToken, 'utf8')).update(nonce, 'utf8').digest('hex');
+      return sendJson(res, 200, { proof });
+    }
+
+    const exempt = AUTH_EXEMPT_PATHS.has(pathname) || pathname.startsWith('/outputs/');
+    if (!exempt && req.headers[AUTH_HEADER] !== authToken) {
+      return sendJson(res, 403, { detail: 'Forbidden' });
+    }
 
     if (method === 'GET' && pathname === '/') {
       return sendJson(res, 200, { status: 'ok' });
@@ -157,6 +190,7 @@ export async function startMockBackend(options: MockBackendOptions = {}): Promis
     port: (server.address() as AddressInfo).port,
     jobId,
     outputPath,
+    authToken,
     requests,
     close: () =>
       new Promise<void>((resolve, reject) => {

@@ -1,10 +1,18 @@
+import { createHash } from 'crypto';
 import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import path from 'path';
 
+import viteReact from '@vitejs/plugin-react';
 import { describe, expect, it } from 'vitest';
 
-import { CONTENT_SECURITY_POLICY, withBackendOutputCors } from './contentSecurityPolicy';
+import {
+  CONTENT_SECURITY_POLICY,
+  HEADER_ONLY_CSP_DIRECTIVES,
+  META_CONTENT_SECURITY_POLICY,
+  REACT_REFRESH_PREAMBLE_HASH,
+  withBackendOutputCors,
+} from './contentSecurityPolicy';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
@@ -21,6 +29,20 @@ function parseCsp(policy: string): Record<string, string[]> {
   }, {});
 }
 
+function readIndexHtml() {
+  return readFileSync(path.join(repoRoot, 'index.html'), 'utf8');
+}
+
+function readMetaCsp(html: string) {
+  const metaTag = html.match(/<meta[^>]*http-equiv=["']Content-Security-Policy["'][^>]*>/i);
+  expect(metaTag, 'index.html must declare a Content-Security-Policy meta tag').not.toBeNull();
+  // The attribute is double-quoted but contains single-quoted sources ('self'),
+  // so capture by the opening delimiter via a backreference rather than [^"'].
+  const content = metaTag![0].match(/content=(["'])([\s\S]*?)\1/i);
+  expect(content, 'CSP meta tag must have a content attribute').not.toBeNull();
+  return content![2];
+}
+
 describe('CONTENT_SECURITY_POLICY', () => {
   const directives = parseCsp(CONTENT_SECURITY_POLICY);
 
@@ -28,17 +50,15 @@ describe('CONTENT_SECURITY_POLICY', () => {
   // renderer loads it into <img>/<video> elements (MediaPreview, assetRecords). Element loads
   // are governed by img-src/media-src, NOT connect-src, so the backend origins must be
   // allowlisted here or generated previews fail with a CSP violation in the packaged app.
-  const backendOrigins = ['http://localhost:*', 'http://127.0.0.1:*'];
+  const backendOrigins = ['http://localhost:8000', 'http://127.0.0.1:8000'];
 
-  it('allows local backend origins for generated image previews', () => {
+  it('allows the local backend (port 8000 only) for generated image and media previews', () => {
     for (const origin of backendOrigins) {
       expect(directives['img-src']).toContain(origin);
-    }
-  });
-
-  it('allows local backend origins for generated video/audio previews', () => {
-    for (const origin of backendOrigins) {
       expect(directives['media-src']).toContain(origin);
+    }
+    for (const directive of ['img-src', 'media-src', 'connect-src']) {
+      expect(directives[directive].some((source) => source.endsWith(':*')), directive).toBe(false);
     }
   });
 
@@ -58,10 +78,35 @@ describe('CONTENT_SECURITY_POLICY', () => {
     );
   });
 
-  it('keeps connect-src scoped to self and local backend origins (regression guard)', () => {
-    expect(directives['connect-src']).toEqual(
-      expect.arrayContaining(["'self'", 'http://localhost:*', 'http://127.0.0.1:*']),
-    );
+  it('pins connect-src to self and the backend over http and ws (S11)', () => {
+    expect(directives['connect-src']).toEqual([
+      "'self'",
+      'http://127.0.0.1:8000',
+      'http://localhost:8000',
+      'ws://127.0.0.1:8000',
+      'ws://localhost:8000',
+    ]);
+  });
+
+  it('allows no inline script; only the hash of the Vite dev React Refresh preamble (S11)', () => {
+    expect(directives['script-src']).toEqual(["'self'", REACT_REFRESH_PREAMBLE_HASH]);
+    expect(CONTENT_SECURITY_POLICY).not.toMatch(/script-src[^;]*'unsafe-inline'/);
+    expect(CONTENT_SECURITY_POLICY).not.toContain("'unsafe-eval'");
+  });
+
+  it('pins the preamble hash to the installed @vitejs/plugin-react (dev HMR keeps working)', () => {
+    // plugin-react injects exactly getPreambleCode(base) as an inline module
+    // script; Vite's dev base is '/'. An upgrade that changes it must update the hash.
+    const preamble = (viteReact as unknown as { preambleCode: string }).preambleCode.replace('__BASE__', '/');
+    const hash = `'sha256-${createHash('sha256').update(preamble, 'utf8').digest('base64')}'`;
+    expect(REACT_REFRESH_PREAMBLE_HASH).toBe(hash);
+  });
+
+  it('locks down plugins, base URLs, forms and framing', () => {
+    expect(directives['object-src']).toEqual(["'none'"]);
+    expect(directives['base-uri']).toEqual(["'none'"]);
+    expect(directives['form-action']).toEqual(["'none'"]);
+    expect(directives['frame-ancestors']).toEqual(["'none'"]);
   });
 
   it('keeps default-src locked to self', () => {
@@ -75,25 +120,49 @@ describe('CONTENT_SECURITY_POLICY', () => {
   // INTERSECTION of both, so the stale meta kept blocking generated previews even
   // though the header allowed them. This locks the two sources together.
   it('keeps the index.html meta CSP in sync with the session-header CSP', () => {
-    const html = readFileSync(path.join(repoRoot, 'index.html'), 'utf8');
-    const metaTag = html.match(/<meta[^>]*http-equiv=["']Content-Security-Policy["'][^>]*>/i);
-    expect(metaTag, 'index.html must declare a Content-Security-Policy meta tag').not.toBeNull();
-    // The attribute is double-quoted but contains single-quoted sources ('self'),
-    // so capture by the opening delimiter via a backreference rather than [^"'].
-    const content = metaTag![0].match(/content=(["'])([\s\S]*?)\1/i);
-    expect(content, 'CSP meta tag must have a content attribute').not.toBeNull();
+    const metaDirectives = parseCsp(readMetaCsp(readIndexHtml()));
+    const headerOnly = new Set(HEADER_ONLY_CSP_DIRECTIVES.map(([name]) => name));
 
-    const metaDirectives = parseCsp(content![2]);
-
-    // Every directive in the header policy must be present and identical in the meta.
+    // Every directive in the header policy must be present and identical in the meta,
+    // except those a <meta> CSP cannot carry (frame-ancestors).
     for (const [directive, sources] of Object.entries(directives)) {
+      if (headerOnly.has(directive)) {
+        expect(metaDirectives[directive], `${directive} is ignored in a meta CSP`).toBeUndefined();
+        continue;
+      }
       expect(
         metaDirectives[directive],
         `index.html meta CSP "${directive}" must match contentSecurityPolicy.ts`,
       ).toEqual(sources);
     }
     // ...and the meta must not introduce directives the header does not declare.
-    expect(Object.keys(metaDirectives).sort()).toEqual(Object.keys(directives).sort());
+    expect(Object.keys(metaDirectives).sort()).toEqual(
+      Object.keys(directives).filter((name) => !headerOnly.has(name)).sort(),
+    );
+    expect(parseCsp(META_CONTENT_SECURITY_POLICY)).toEqual(metaDirectives);
+  });
+});
+
+describe('index.html (S11/S12)', () => {
+  const html = readIndexHtml();
+
+  it('has no inline scripts: every <script> loads a file', () => {
+    const scripts = html.match(/<script\b[^>]*>[\s\S]*?<\/script>/gi) ?? [];
+    expect(scripts.length).toBeGreaterThan(0);
+    for (const script of scripts) {
+      expect(script, script).toMatch(/\bsrc=/);
+      expect(script.replace(/<script\b[^>]*>/i, '').replace(/<\/script>/i, '').trim()).toBe('');
+    }
+  });
+
+  it('loads the pre-paint theme script and favicon by relative path (works under file://)', () => {
+    expect(html).toContain('<script src="./theme-init.js"></script>');
+    expect(html).toMatch(/<link rel="icon" type="image\/png" href="\.\/favicon\.png"/);
+    expect(html).not.toContain('vite.svg');
+    const publicDir = path.join(repoRoot, 'public');
+    const favicon = readFileSync(path.join(publicDir, 'favicon.png'));
+    expect(favicon.subarray(0, 8)).toEqual(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
+    expect(readFileSync(path.join(publicDir, 'theme-init.js'), 'utf8')).toContain('vision-studio-storage');
   });
 });
 

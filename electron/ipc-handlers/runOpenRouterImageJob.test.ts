@@ -74,7 +74,7 @@ function setupHarness({
   const store = createOpenRouterImageJobStore({ emit });
   const userAccounts = {
     getAccount: vi.fn(() => account),
-    getOpenRouterApiKey: vi.fn(() => apiKey),
+    getOpenRouterApiKey: vi.fn(async () => apiKey),
   };
   const openRouter = { generateImage };
   const rememberOutputRoot = vi.fn();

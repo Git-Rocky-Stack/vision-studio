@@ -1,5 +1,7 @@
+import { readFileSync } from 'fs';
+import { resolve } from 'path';
 import { describe, expect, it, vi } from 'vitest';
-import { createRetrievalClient } from './retrievalClient';
+import { createRetrievalClient, MAX_INGEST_RECORDS } from './retrievalClient';
 
 describe('createRetrievalClient', () => {
   it('queries the backend and normalizes the result', async () => {
@@ -34,6 +36,35 @@ describe('createRetrievalClient', () => {
     const out = await client.ingest([{ source: 'assets', text: 'a', boosted: false, label: 'L' }]);
     expect(out.ingested).toBe(2);
     expect(axiosInstance.post.mock.calls[0][0]).toContain('/api/v1/retrieval/ingest');
+  });
+
+  it('syncs a corpus above the backend cap in sequential chunks and sums the counts', async () => {
+    let indexSize = 0;
+    const post = vi.fn(async (_url: string, body: unknown) => {
+      const { records } = body as { records: unknown[] };
+      indexSize += records.length - 1;
+      return { data: { ingested: records.length - 1, skipped: 1, total: indexSize } };
+    });
+    const client = createRetrievalClient({ baseUrl: 'http://x', axiosInstance: { get: vi.fn(), post } });
+    const records = Array.from({ length: MAX_INGEST_RECORDS * 2 + 5 }, (_, i) => ({
+      source: 'assets' as const,
+      text: `t${i}`,
+      boosted: false,
+      label: 'L',
+    }));
+
+    const out = await client.ingest(records);
+
+    // The backend 422s any request above MAX_INGEST_RECORDS.
+    const sizes = post.mock.calls.map(([, body]) => (body as { records: unknown[] }).records.length);
+    expect(sizes).toEqual([MAX_INGEST_RECORDS, MAX_INGEST_RECORDS, 5]);
+    expect(out).toEqual({ ingested: records.length - 3, skipped: 3, total: records.length - 3 });
+  });
+
+  it('mirrors the backend ingest cap', () => {
+    const schema = readFileSync(resolve(process.cwd(), 'backend/schemas/retrieval.py'), 'utf8');
+    const backendCap = /MAX_INGEST_RECORDS\s*=\s*([\d_]+)/.exec(schema)?.[1]?.replace(/_/g, '');
+    expect(Number(backendCap)).toBe(MAX_INGEST_RECORDS);
   });
 
   it('reads stats', async () => {

@@ -82,4 +82,16 @@ describe('smartQueryEvaluator', () => {
     expect(evaluateSmartQuery(query, undefined)).toBe(false);
     expect(evaluateSmartQuery(query, { prompt: 'test' })).toBe(false);
   });
+
+  it('matches a custom (non-lexicon) tag against the prompt, whole word, without metadata', () => {
+    const query = { tags: ['Hero Shot'] };
+    expect(evaluateSmartQuery(query, { prompt: 'a (hero shot:1.3) of the bridge' })).toBe(true);
+    expect(evaluateSmartQuery(query, { prompt: 'heroes shot at dawn' })).toBe(false);
+    expect(evaluateSmartQuery(query, undefined)).toBe(false);
+  });
+
+  it('still requires analysis metadata for lexicon tags', () => {
+    // "portrait" is a lexicon term: a prompt mention alone is not a tag match.
+    expect(evaluateSmartQuery({ tags: ['portrait'] }, { prompt: 'a portrait' })).toBe(false);
+  });
 });

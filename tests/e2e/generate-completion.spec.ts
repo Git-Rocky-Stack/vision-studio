@@ -13,8 +13,10 @@
  * How the backend gate is satisfied without a real process: the app is launched
  * with VISION_STUDIO_SKIP_BACKEND=1 (don't spawn Python) AND
  * VISION_STUDIO_BACKEND_EXTERNAL=1 (treat the backend as externally managed and
- * probe it over HTTP). getSystemInfo() then probes the mock's /api/system/info
- * and reports backendConnected: true, so the Generate gate opens.
+ * probe it over HTTP), with VISION_STUDIO_BACKEND_AUTH_TOKEN shared with the
+ * mock so it passes the K1 identity handshake. getSystemInfo() then probes the
+ * mock's /api/system/info and reports backendConnected: true, so the Generate
+ * gate opens.
  *
  * Requires a built app (`npm run build`); skips gracefully if dist-electron is
  * missing. Runs on the Windows release/E2E path (pr-gate does not run Electron).
@@ -33,6 +35,7 @@ import { fileURLToPath } from 'url';
 
 import { GeneratePage } from './pages/generate.page';
 import { SidebarPage } from './pages/sidebar.page';
+import { E2E_CHROMIUM_SWITCHES } from './fixtures/electron.fixture';
 import { startMockBackend, type MockBackend } from './fixtures/mockBackend';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -58,13 +61,14 @@ test.describe('Generate - Completed generation (mocked backend)', () => {
 
     userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'vision-studio-e2e-complete-'));
     app = await electron.launch({
-      args: [`--user-data-dir=${userDataDir}`, mainEntry],
+      args: [...E2E_CHROMIUM_SWITCHES, `--user-data-dir=${userDataDir}`, mainEntry],
       cwd: projectRoot,
       env: {
         ...process.env,
         NODE_ENV: 'test',
         VISION_STUDIO_SKIP_BACKEND: '1', // do not spawn the real Python backend
         VISION_STUDIO_BACKEND_EXTERNAL: '1', // detect our mock over HTTP
+        VISION_STUDIO_BACKEND_AUTH_TOKEN: mock.authToken, // pass the K1 handshake
       },
     });
 

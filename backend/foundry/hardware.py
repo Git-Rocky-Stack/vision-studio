@@ -18,6 +18,8 @@ import shutil
 from dataclasses import dataclass
 from typing import Optional
 
+from utils.device import cuda_unsupported_reason
+
 
 @dataclass
 class HardwareProfile:
@@ -32,6 +34,10 @@ class HardwareProfile:
     system_ram_total_bytes: int = 0
     system_ram_available_bytes: int = 0
     disk_free_bytes: int = 0
+    #: Set when an NVIDIA GPU is present but this build has no CUDA kernels
+    #: for it (utils.device.cuda_unsupported_reason): gpu_available is then
+    #: False and generation runs on the CPU. User-facing; None otherwise.
+    gpu_unsupported_reason: Optional[str] = None
 
     @property
     def supports_bf16(self) -> bool:
@@ -66,7 +72,18 @@ def probe_hardware(models_dir: str) -> HardwareProfile:
 
         profile.torch_available = True
         mps = getattr(getattr(torch, "backends", None), "mps", None)
-        if torch.cuda.is_available():
+        unsupported = cuda_unsupported_reason(torch)
+        if unsupported is not None:
+            # Truthful: the card is there (its name and capability are real),
+            # but nothing will run on it, so it is not an available GPU and the
+            # fit logic plans for the CPU that will actually do the work.
+            major, minor = torch.cuda.get_device_capability(0)
+            profile.gpu_name = torch.cuda.get_device_name(0)
+            profile.compute_major = int(major)
+            profile.compute_minor = int(minor)
+            profile.cuda_version = torch.version.cuda
+            profile.gpu_unsupported_reason = unsupported
+        elif torch.cuda.is_available():
             free, total = torch.cuda.mem_get_info(0)
             major, minor = torch.cuda.get_device_capability(0)
             profile.gpu_available = True

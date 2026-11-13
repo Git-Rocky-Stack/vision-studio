@@ -10,7 +10,7 @@ import {
 
 import { Button } from '@/components/ui/Button';
 import { ImageWithFallback } from '@/components/ui/ImageWithFallback';
-import { createMediaAssetFromAssetRecord } from '@/features/assets/assetRecords';
+import { createMediaAssetFromAssetRecord, resolveAssetThumbnail } from '@/features/assets/assetRecords';
 import { useAppStore } from '@/store/appStore';
 import type { AssetRecord } from '@/types/assets';
 import type {
@@ -141,7 +141,8 @@ export function ReferenceMediaPanel({
     () => projects.find((item) => item.id === projectId) ?? null,
     [projectId, projects],
   );
-  const projectElements = project?.elements ?? [];
+  // Memoised so the derived element lists below keep a stable input.
+  const projectElements = useMemo(() => project?.elements ?? [], [project]);
 
   const referenceSet = useMemo(
     () => findScopedReferenceSet(referenceSets, scope, projectId, sceneId, clipId),
@@ -198,7 +199,7 @@ export function ReferenceMediaPanel({
       candidatesById.set(`asset:${asset.id}`, {
         id: `asset:${asset.id}`,
         label: asset.name || 'Reference image',
-        previewUrl: asset.thumbnail || asset.previewUrl || asset.path,
+        previewUrl: resolveAssetThumbnail(asset) || asset.path,
         path: asset.path,
         mediaAssetId: null,
         source: 'asset',

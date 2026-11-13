@@ -4,6 +4,7 @@ import { cn } from '@/utils/cn';
 import { useAppStore } from '@/store/appStore';
 import { useShallow } from 'zustand/react/shallow';
 import { ImageWithFallback } from '@/components/ui/ImageWithFallback';
+import { useDialogFocus } from '@/hooks/useDialogFocus';
 import {
   Clock,
   Search,
@@ -42,7 +43,7 @@ export function PromptHistory({
   const panelRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
-  // Close on outside click
+  // Close on outside click (the popover is light-dismissable).
   useEffect(() => {
     if (!isOpen) return;
     const handleClick = (e: MouseEvent) => {
@@ -50,23 +51,17 @@ export function PromptHistory({
         onClose();
       }
     };
-    const handleEsc = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
     document.addEventListener('mousedown', handleClick);
-    document.addEventListener('keydown', handleEsc);
-    return () => {
-      document.removeEventListener('mousedown', handleClick);
-      document.removeEventListener('keydown', handleEsc);
-    };
+    return () => document.removeEventListener('mousedown', handleClick);
   }, [isOpen, onClose]);
 
-  // Focus restoration when modal closes
-  useEffect(() => {
-    if (!isOpen) return;
-    const prev = document.activeElement as HTMLElement;
-    return () => { prev?.focus(); };
-  }, [isOpen]);
+  // Shared modal contract: Tab stays inside, Escape closes without reaching
+  // workspace shortcuts, and focus returns to the History trigger.
+  useDialogFocus(panelRef, {
+    open: isOpen,
+    onEscape: onClose,
+    initialFocusSelector: 'input[type="search"]',
+  });
 
   const filtered = promptHistory.filter((entry) => {
     const matchesSearch =
@@ -124,7 +119,7 @@ export function PromptHistory({
           role="dialog"
           aria-modal="true"
           aria-label="Prompt history"
-          className="absolute left-0 right-0 top-full mt-2 z-40 bg-elevated border border-border rounded-xl shadow-cinematic overflow-hidden"
+          className="absolute left-0 right-0 top-full mt-2 z-40 bg-elevated border border-border rounded-xl shadow-overlay overflow-hidden"
         >
           {/* Header */}
           <div className="flex items-center justify-between px-4 py-3 border-b border-border">
@@ -159,11 +154,11 @@ export function PromptHistory({
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search prompts..."
                 className="w-full bg-surface border border-border rounded-md pl-8 pr-3 py-2 text-xs text-text-primary placeholder:text-text-muted focus:border-accent-primary"
-                autoFocus
               />
             </div>
             <div className="flex gap-1">
               <button
+                type="button"
                 onClick={() => setFilter('all')}
                 aria-pressed={filter === 'all'}
                 className={cn(
@@ -176,6 +171,7 @@ export function PromptHistory({
                 All
               </button>
               <button
+                type="button"
                 onClick={() => setFilter('favorites')}
                 aria-pressed={filter === 'favorites'}
                 className={cn(

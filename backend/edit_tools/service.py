@@ -1,7 +1,11 @@
 """Edit-operation dispatch: validated source file -> tool pass -> saved PNG (#34).
 
 Runs inside a worker thread under the job manager (api/edit.py); everything
-here is synchronous. Results use the image-job shape ({"images": [relative
+here is synchronous. The GPU tools (upscale, face restoration) run while
+holding the process-wide GPU gate (utils.gpu_gate), so they queue behind a
+running generation instead of competing with it for VRAM - and a model
+release can never pull their runners out mid-pass. Background removal runs
+on onnxruntime's CPU provider and needs no gate. Results use the image-job shape ({"images": [relative
 URLs]}) so job polling, WS updates, asset sync, and orphan cleanup work
 untouched. Every raised message is user-facing and path-free.
 """
@@ -9,6 +13,7 @@ untouched. Every raised message is user-facing and path-free.
 from __future__ import annotations
 
 import os
+from contextlib import nullcontext
 from typing import Any, Callable, Dict, Optional
 
 from PIL import Image, ImageOps
@@ -17,10 +22,12 @@ from edit_tools.background import remove_background
 from edit_tools.faces import restore_faces
 from edit_tools.upscale import upscale
 from edit_tools.weights import (
+    EditCancelled,
     EditToolError,
     RecordResolver,
     require_edit_weights,
 )
+from utils.gpu_gate import gpu_work
 
 UPSCALE_RECORDS = {
     "general": "edit-realesrgan-x4plus",
@@ -28,6 +35,10 @@ UPSCALE_RECORDS = {
 }
 MODEL_SCALE = 4  # both Real-ESRGAN records are 4x models
 FACE_ENHANCE_STRENGTH = 50  # fixed blend for the upscale face_enhance pass
+
+#: Operations that put a model on the accelerator (torch via spandrel /
+#: facexlib). remove-background is onnxruntime CPU-only.
+GPU_OPERATIONS = frozenset({"upscale", "restore-faces"})
 
 ProgressCb = Callable[[int, int], None]
 CancelCheck = Callable[[], bool]
@@ -64,6 +75,27 @@ def run_edit_operation(
     resolve_record: RecordResolver,
     progress_cb: Optional[ProgressCb] = None,
     cancel_check: Optional[CancelCheck] = None,
+) -> Dict[str, Any]:
+    if operation in GPU_OPERATIONS:
+        gate = gpu_work(
+            f"edit {operation} {job_id}", should_cancel=cancel_check,
+            on_cancel=lambda: EditCancelled(f"{operation} cancelled while queued"))
+    else:
+        gate = nullcontext()
+    with gate:
+        return _run_operation(job_id, operation, params, output_root, models_dir,
+                              resolve_record, progress_cb, cancel_check)
+
+
+def _run_operation(
+    job_id: str,
+    operation: str,
+    params: Dict[str, Any],
+    output_root: str,
+    models_dir: str,
+    resolve_record: RecordResolver,
+    progress_cb: Optional[ProgressCb],
+    cancel_check: Optional[CancelCheck],
 ) -> Dict[str, Any]:
     image = _load_source(params["source_path"])
     metadata: Dict[str, Any] = {}

@@ -8,10 +8,10 @@
     "types": ["vite/client", "node"],
     "skipLibCheck": true,
 
-    /* Path alias - mirrors the Vite `@` -> src resolver so tsc resolves it too */
-    "baseUrl": ".",
+    /* Path alias - mirrors the Vite `@` -> src resolver so tsc resolves it too.
+       No baseUrl: paths resolve relative to this file (baseUrl is deprecated in TS 6). */
     "paths": {
-      "@/*": ["src/*"]
+      "@/*": ["./src/*"]
     },
 
     /* Bundler mode */

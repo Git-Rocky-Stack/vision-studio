@@ -38,7 +38,6 @@ const FIT_LED_COLOR: Record<string, 'play' | 'cue' | 'rec'> = {
  * Resolves the runtime plan for the selected model and renders one of six
  * honest states: empty, loading, refusal, missing components, ready (LED
  * driven by the real fit verdict), or error (preflight unavailable).
- * Carbon Pro visual polish lands in the later 7.3 design pass.
  */
 export function PreflightFooter({ modelId }: PreflightFooterProps) {
   const resolveRuntime = useAppStore((s) => s.resolveRuntime);
@@ -50,7 +49,7 @@ export function PreflightFooter({ modelId }: PreflightFooterProps) {
   });
 
   // Hardware snapshot is local-first and cheap; keep it warm for the plan
-  // basis readouts (and the 7.3 design pass) whenever the footer is mounted.
+  // basis readouts whenever the footer is mounted.
   useEffect(() => {
     void loadHardwareProfile();
   }, [loadHardwareProfile]);

@@ -18,6 +18,14 @@ import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+/**
+ * Chromium switches every E2E launch shares. A device scale factor of 1 makes
+ * captures display-independent: on a scaled desktop (125-200%) Windows clamps
+ * the 1600x1000 window to the work area and rasterizes glyphs at that DPR, so
+ * the same build would diff against baselines taken on another monitor.
+ */
+export const E2E_CHROMIUM_SWITCHES = ['--force-device-scale-factor=1'] as const;
+
 interface ElectronFixtures {
   app: ElectronApplication;
   page: Page;
@@ -31,7 +39,7 @@ export const test = base.extend<ElectronFixtures>({
     const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'vision-studio-e2e-'));
 
     const electronApp = await electron.launch({
-      args: [`--user-data-dir=${userDataDir}`, mainEntry],
+      args: [...E2E_CHROMIUM_SWITCHES, `--user-data-dir=${userDataDir}`, mainEntry],
       cwd: projectRoot,
       env: {
         ...process.env,

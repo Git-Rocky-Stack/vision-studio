@@ -37,6 +37,33 @@ class ScanTreeTests(unittest.TestCase):
         self.assertEqual(by_name["style.safetensors"].artifact_type, "lora")
         self.assertEqual(len(signatures), 2)
 
+    def test_excluded_top_level_dirs_are_never_walked(self):
+        # The app tree's embedder (and .foundry state/.cache) are not library
+        # models: they must not surface as unknown artifacts.
+        make_safetensors(
+            os.path.join(self.root, "text-embedder", "embedder-all-minilm-l6-v2", "model.safetensors"),
+            CHECKPOINT_TENSORS,
+        )
+        artifacts, signatures = scan_tree(
+            self.root, "comfyui", "root1", {}, excluded_top_level_dirs=("text-embedder",))
+        self.assertFalse(any("text-embedder" in a.path for a in artifacts))
+        self.assertEqual(len(signatures), 2)
+        # Only the TOP level is excluded: a nested folder of the same name is a
+        # user's library content and still indexed.
+        make_safetensors(
+            os.path.join(self.root, "loras", "text-embedder", "nested.safetensors"), LORA_TENSORS)
+        artifacts, _ = scan_tree(
+            self.root, "comfyui", "root1", {}, excluded_top_level_dirs=("text-embedder",))
+        self.assertTrue(any(a.path.endswith("nested.safetensors") for a in artifacts))
+
+    def test_app_tree_exclusions_match_the_embedder_folder(self):
+        from foundry.index_service import APP_TREE_EXCLUDED_DIRS
+
+        embedder_source = (BACKEND_ROOT / "services" / "retrieval" / "embedder.py").read_text(encoding="utf-8")
+        self.assertIn('EMBEDDER_ARTIFACT_TYPE = "text-embedder"', embedder_source)
+        self.assertIn("text-embedder", APP_TREE_EXCLUDED_DIRS)
+        self.assertIn(".foundry", APP_TREE_EXCLUDED_DIRS)
+
     def test_header_trumps_layout_hint_on_mismatch(self):
         # LoRA keys inside checkpoints/: the header wins (spec 4.4 / seed test 11).
         make_safetensors(

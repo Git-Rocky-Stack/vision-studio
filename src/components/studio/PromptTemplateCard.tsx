@@ -1,5 +1,5 @@
 import { memo } from 'react';
-import { Star } from 'lucide-react';
+import { Star, Trash2 } from 'lucide-react';
 import type { PromptTemplate, PromptTemplateCategory } from '@/types/promptStudio';
 import { cn } from '@/utils/cn';
 
@@ -7,6 +7,8 @@ interface PromptTemplateCardProps {
   template: PromptTemplate;
   onApply: (id: string) => void;
   onToggleFavorite: (id: string) => void;
+  /** Offered only for user-saved templates; built-ins cannot be deleted. */
+  onDelete?: (id: string) => void;
 }
 
 /**
@@ -43,6 +45,7 @@ export const PromptTemplateCard = memo(function PromptTemplateCard({
   template,
   onApply,
   onToggleFavorite,
+  onDelete,
 }: PromptTemplateCardProps) {
   return (
     <div className="group relative flex flex-col gap-2 rounded-md border border-border bg-surface p-3 transition-colors duration-normal hover:border-border-hover">
@@ -89,15 +92,28 @@ export const PromptTemplateCard = memo(function PromptTemplateCard({
         {CATEGORY_LABELS[template.category]}
       </span>
 
-      {/* Action buttons - revealed on hover */}
-      <div className="flex gap-2 opacity-0 transition-opacity duration-normal group-hover:opacity-100">
+      {/* Action buttons - revealed on hover, and whenever keyboard focus is
+          inside the card so a tabbing user never lands on an invisible control. */}
+      <div className="flex gap-2 opacity-0 transition-opacity duration-normal group-hover:opacity-100 group-focus-within:opacity-100">
         <button
           type="button"
           onClick={() => onApply(template.id)}
+          aria-label={`Apply ${template.name}`}
           className="flex-1 rounded border border-accent-primary-border bg-accent-primary/10 px-2 py-1 text-xs font-medium text-accent-primary transition-colors duration-normal hover:bg-accent-primary/20"
         >
           Apply
         </button>
+        {onDelete && !template.isBuiltIn ? (
+          <button
+            type="button"
+            onClick={() => onDelete(template.id)}
+            aria-label={`Delete ${template.name}`}
+            title="Delete template"
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded border border-border text-text-muted transition-colors duration-normal hover:border-status-error-border hover:bg-status-error-muted hover:text-status-error"
+          >
+            <Trash2 size={14} aria-hidden="true" />
+          </button>
+        ) : null}
       </div>
     </div>
   );

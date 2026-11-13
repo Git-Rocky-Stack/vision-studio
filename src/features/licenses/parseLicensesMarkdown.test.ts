@@ -6,7 +6,7 @@ const SAMPLE = [
   '',
   'Vision Studio is MIT licensed (see `LICENSE.txt`).',
   '',
-  '## Bundled AI Models',
+  '## Provisioned AI Models',
   '',
   '- **Stable Diffusion 3.5 Large** (`sd3.5-large`) - [Stability AI Community License](https://stability.ai/community-license-agreement) - Powered by Stability AI',
   '',
@@ -19,7 +19,7 @@ describe('parseLicensesMarkdown', () => {
   it('parses headings with levels', () => {
     const blocks = parseLicensesMarkdown(SAMPLE);
     expect(blocks[0]).toEqual({ kind: 'heading', level: 1, text: 'Third-Party Licenses' });
-    expect(blocks).toContainEqual({ kind: 'heading', level: 2, text: 'Bundled AI Models' });
+    expect(blocks).toContainEqual({ kind: 'heading', level: 2, text: 'Provisioned AI Models' });
     expect(blocks).toContainEqual({ kind: 'heading', level: 3, text: 'Python' });
   });
 

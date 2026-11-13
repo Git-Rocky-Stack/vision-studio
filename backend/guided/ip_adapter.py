@@ -13,9 +13,13 @@ message below. No heavy imports at module scope - loads on stub CI.
 from __future__ import annotations
 
 import os
+import threading
 from contextlib import contextmanager
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, Tuple
+
+from utils.device import free_accelerator_memory
+from utils.pipeline_cache import register_pipeline_owner
 
 # Same installed-record gate and message shape as the ControlNet seam - the
 # two registries must decline identically, so share the helper.
@@ -188,6 +192,43 @@ def _load_image_encoder(encoder_dir: str, torch_dtype: Any, device: str) -> Any:
     ).to(device)
 
 
+# The CLIP image encoder (ViT-H ~1.3 GB fp16) is the expensive IP-Adapter
+# load; keep the most recent one resident between reference runs. Keyed on
+# (encoder dir, dtype, device); freed through the shared release path on a
+# model switch. unload_ip_adapter only drops the pipeline's reference to it.
+_encoder_cache: Dict[Tuple[str, str, str], Any] = {}
+_encoder_cache_lock = threading.Lock()
+
+
+def release_image_encoder_cache() -> None:
+    """Drop the cached IP-Adapter image encoder and free its memory."""
+    with _encoder_cache_lock:
+        had_encoder = bool(_encoder_cache)
+        _encoder_cache.clear()
+    if had_encoder:
+        free_accelerator_memory()
+
+
+def _cached_image_encoder(encoder_dir: str, torch_dtype: Any, device: str) -> Any:
+    key = (os.path.normcase(os.path.abspath(encoder_dir)), str(torch_dtype), str(device))
+    with _encoder_cache_lock:
+        cached = _encoder_cache.get(key)
+    if cached is not None:
+        return cached
+    encoder = _load_image_encoder(encoder_dir, torch_dtype, device)
+    with _encoder_cache_lock:
+        # One encoder resident at a time: a different one replaces it.
+        replaced = bool(_encoder_cache)
+        _encoder_cache.clear()
+        _encoder_cache[key] = encoder
+    if replaced:
+        free_accelerator_memory()
+    return encoder
+
+
+register_pipeline_owner("guided-ip-encoder", release_image_encoder_cache)
+
+
 @contextmanager
 def ip_adapter_applied(pipeline: Any, stack: ResolvedIPAdapterStack,
                        adapter_dir: str, encoder_dir: str, device: str):
@@ -200,7 +241,7 @@ def ip_adapter_applied(pipeline: Any, stack: ResolvedIPAdapterStack,
     the SHARED unet/transformer - without it the cached base pipeline would
     keep IP cross-attention wired on the next unguided job.
     """
-    encoder = _load_image_encoder(encoder_dir, getattr(pipeline, "dtype", None), device)
+    encoder = _cached_image_encoder(encoder_dir, getattr(pipeline, "dtype", None), device)
     weights = [stack.weight_name] * stack.instances
     try:
         pipeline.register_modules(image_encoder=encoder)
@@ -221,9 +262,6 @@ def ip_adapter_applied(pipeline: Any, stack: ResolvedIPAdapterStack,
         yield
     finally:
         pipeline.unload_ip_adapter()
-        try:
-            from utils.device import empty_device_cache
-
-            empty_device_cache()
-        except Exception:
-            pass
+        # The adapter's projection layers are gone with the unload; collect
+        # their cycles before emptying the cache (the encoder stays cached).
+        free_accelerator_memory()

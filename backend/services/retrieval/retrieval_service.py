@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import logging
 import math
+import threading
 from pathlib import Path
 from typing import Dict, List, Optional, Set
 
@@ -44,15 +45,56 @@ class RetrievalService:
         data_dir: Path,
         embedder: Optional[Embedder] = None,
         knowledge_base: Optional[KnowledgeBase] = None,
+        models_dir: Optional[Path] = None,
     ):
-        self._embedder = embedder if embedder is not None else Embedder()
+        self._embedder = embedder if embedder is not None else Embedder(models_dir=models_dir)
         self._kb = knowledge_base if knowledge_base is not None else KnowledgeBase()
         self._index = IndexStore(Path(data_dir))
         self._index.load()
+        # Serializes every mutation (ingest / backfill / clear) and its
+        # persist, so concurrent worker-thread requests never interleave a
+        # write. Reads go through the store's own lock.
+        self._write_lock = threading.RLock()
+
+    def semantic_availability(self) -> Dict[str, Optional[object]]:
+        """``{"available": bool, "reason": str | None}`` without loading the model."""
+        describe = getattr(self._embedder, "availability", None)
+        if callable(describe):
+            return describe()
+        available = bool(getattr(self._embedder, "available", False))
+        return {"available": available, "reason": None if available else "no embedding model"}
+
+    # -- backfill ---------------------------------------------------------------
+
+    def _backfill_vectors(self) -> None:
+        """Embed items stored with a zero placeholder vector.
+
+        Items ingested before the embedding model was provisioned (lexical
+        mode) would otherwise stay invisible to semantic queries forever once
+        it is. Runs only when the model is available; a load failure leaves
+        them for later (lexical still serves them)."""
+        if not self._embedder.available:
+            return
+        with self._write_lock:
+            pending = self._index.unembedded_items()
+            if not pending:
+                return
+            try:
+                vectors = self._embedder.embed([item.text for item in pending])
+            except EmbedderUnavailable:
+                return
+            self._index.set_vectors([item.id for item in pending], vectors)
+            self._index.persist()
+            logger.info("Embedded %d retrieval items stored before the model was available", len(pending))
 
     # -- ingest -----------------------------------------------------------------
 
     def ingest(self, records: List[dict]) -> Dict[str, int]:
+        with self._write_lock:
+            self._backfill_vectors()
+            return self._ingest_locked(records)
+
+    def _ingest_locked(self, records: List[dict]) -> Dict[str, int]:
         items: List[CorpusItem] = []
         for raw in records:
             source = str(raw.get("source", ""))
@@ -92,6 +134,8 @@ class RetrievalService:
     def query(self, text: str, model_family: Optional[str], sources: List[str], max_tokens: int) -> Dict:
         wanted = {s for s in sources if s in VALID_SOURCES}
         corpus_sources = wanted - {"knowledge-base"}
+        if corpus_sources:
+            self._backfill_vectors()
         use_semantic = self._embedder.available and bool(corpus_sources)
         scored: List[ScoredItem] = []
 
@@ -148,8 +192,15 @@ class RetrievalService:
     # -- management -------------------------------------------------------------
 
     def clear(self) -> None:
-        self._index.clear()
-        self._index.persist()
+        with self._write_lock:
+            self._index.clear()
+            self._index.persist()
 
     def stats(self) -> Dict:
-        return {"count": self._index.count(), "mode": "semantic" if self._embedder.available else "lexical"}
+        availability = self.semantic_availability()
+        return {
+            "count": self._index.count(),
+            "mode": "semantic" if availability["available"] else "lexical",
+            "semantic_available": bool(availability["available"]),
+            "semantic_unavailable_reason": availability.get("reason"),
+        }

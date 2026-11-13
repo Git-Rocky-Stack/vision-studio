@@ -110,6 +110,13 @@ const RegionMask = memo(function RegionMask({
         height: scaledBounds.height,
       }}
       onClick={() => onClick?.(region.id)}
+      onKeyDown={(event) => {
+        // A role=button activates from the keyboard like a native button.
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          onClick?.(region.id);
+        }
+      }}
       role="button"
       tabIndex={0}
       aria-label={`Region: ${name}, tool: ${toolLabel}`}

@@ -3,9 +3,10 @@ import { resolve } from 'path';
 
 export default defineConfig({
   test: {
-    include: ['src/**/*.test.{ts,tsx}', 'electron/**/*.test.ts', 'shared/**/*.test.ts', 'tests/**/*.test.{ts,tsx}'],
-    environment: 'node',
-    setupFiles: ['./tests/setup.ts'],
+    // File selection, environment and setup live ONLY in the two projects
+    // below. Vitest 5 merges root `test` options into every project, so a
+    // root-level `include` made the node `unit` project also collect the
+    // .tsx component tests (which need jsdom).
     // Headroom for full-suite runs (e.g. the husky pre-commit gate), where high
     // worker parallelism saturates CPU and slows individual tests; the default
     // 5s/10s timeouts flake under that load even though every file passes in
@@ -17,6 +18,7 @@ export default defineConfig({
         test: {
           include: ['src/**/*.test.ts', 'electron/**/*.test.ts', 'shared/**/*.test.ts', 'tests/**/*.test.ts'],
           environment: 'node',
+          setupFiles: ['./tests/setup.ts'],
           name: 'unit',
           // Restated rather than inherited. The `testTimeout: 20000` above does
           // not reach a project that declares its own `test` block, so every
@@ -27,7 +29,7 @@ export default defineConfig({
           // full-suite-under-load case that ceiling exists for.
           testTimeout: 20000,
         },
-        resolve: { alias: { '@': resolve(__dirname, 'src') } },
+        resolve: { alias: { '@': resolve(import.meta.dirname, 'src') } },
       },
       {
         // jsdom tests (React components)
@@ -38,13 +40,13 @@ export default defineConfig({
           name: 'component',
           testTimeout: 40000,
         },
-        resolve: { alias: { '@': resolve(__dirname, 'src') } },
+        resolve: { alias: { '@': resolve(import.meta.dirname, 'src') } },
       },
     ],
   },
   resolve: {
     alias: {
-      '@': resolve(__dirname, 'src'),
+      '@': resolve(import.meta.dirname, 'src'),
     },
   },
 });

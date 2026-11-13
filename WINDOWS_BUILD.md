@@ -11,33 +11,44 @@ because PyInstaller can't cross-compile.)
 ## Prerequisites
 
 - **Windows 10/11 64-bit**
-- **Node.js 20+** — <https://nodejs.org/>
+- **Node.js** `^22.22.2 || ^24.15.0 || >=26` (the `engines` range in
+  `package.json`; Node 22 LTS, as pinned in `.nvmrc`, is recommended) —
+  <https://nodejs.org/>
 - **Git** — <https://git-scm.com/>
-- **Python 3.10-3.12** — only if you need to (re)build the backend bundle;
-  PyTorch has no 3.13+ wheels yet
-- **~15 GB free disk** for a full backend rebuild (the CUDA torch venv is large)
+- **Python 3.12** — only if you need to (re)build the backend bundle; the
+  hash-locked backend dependencies (torch 2.14.1+cu132, torch-tensorrt
+  2.14.0 + TensorRT 11.1, and the rest) are compiled for 3.12
+- **~25 GB free disk** for a full backend rebuild (the CUDA torch + TensorRT
+  venv and the PyInstaller output are both large)
 
 ## The build is heavy-by-design
 
-Every Windows package ships the native PyInstaller backend (PyTorch + CUDA +
-diffusers). `scripts/assert-native-backend.cjs` runs before packaging and
-**aborts** if `resources/VisionStudio-Backend.exe` is missing or truncated —
-there is no frontend-only Windows build.
+Every Windows package ships the native PyInstaller backend (PyTorch + CUDA 13.2
++ TensorRT + diffusers) as a **one-folder** bundle in `resources/backend/`
+(`VisionStudio-Backend.exe` plus its `_internal/` folder; it runs in place, it
+does not unpack to `%TEMP%`). `scripts/assert-native-backend.cjs` runs before
+packaging and **aborts** if that bundle is missing or truncated, or if its own
+`--self-check --expect-cuda --expect-tensorrt` fails — there is no
+frontend-only or CPU-only Windows build.
+
+The bundled CUDA 13.2 build needs an NVIDIA driver from the R580 branch or
+newer on the user's machine and runs on RTX 20-series / GTX 16-series (Turing)
+through RTX 50-series (Blackwell); GTX 10-series and older cards run on the CPU.
 
 ## Build steps
 
 ### 1. Backend bundle — only if `backend/` changed
 
 ```powershell
-npm run build:backend      # ~30-60 min; -> resources/VisionStudio-Backend.exe (~2.6 GB)
+npm run build:backend      # ~30-60 min; -> resources/backend/ (~6.1 GB on disk: ~3.7 GB torch/CUDA 13.2/diffusers + ~2.4 GB TensorRT)
 ```
 
 If `backend/` is unchanged since the last release, **skip this** — the existing
-`resources/VisionStudio-Backend.exe` is byte-for-byte what a rebuild would
-produce and is reused. Check with:
+`resources/backend/` bundle is what a rebuild would produce and is reused.
+Check with:
 
 ```powershell
-git diff <last-release-commit>..HEAD -- backend/    # empty -> reuse the exe
+git diff <last-release-commit>..HEAD -- backend/ build-backend.cjs    # empty -> reuse the bundle
 ```
 
 ### 2. Frontend + package
@@ -59,6 +70,12 @@ npm run package:win                    # electron-builder (electron-builder.yml)
 | `nsis-web/vision-studio-<ver>-x64.nsis.7z` | ~2.56 GB | App package the stub downloads |
 | `nsis-web/latest.yml` | <1 KB | electron-updater feed |
 | `Vision Studio-<ver>-win.zip` | ~2.6 GB | Portable ZIP (no install) |
+
+These sizes are from the CUDA 12.1 releases. The CUDA 13.2 + TensorRT backend
+measures 6.06 GB uncompressed (5,783 MiB, of which TensorRT is 2,252 MiB /
+2.36 GB - measured on a local build), against roughly 2.6 GB before, so expect the
+`.nsis.7z` and the zip to grow accordingly; re-measure them on the first such
+release.
 
 ### Why nsis-web (not a single-file `.exe`)
 
@@ -125,25 +142,35 @@ the same publisher name into `azureSignOptions` when it selects Azure.
 ## Troubleshooting
 
 **"Native backend bundle missing" during packaging** — run `npm run build:backend`
-(or restore `resources/VisionStudio-Backend.exe` from the last release). The
-`beforePack` gate refuses to produce a package without it.
+(or restore the `resources/backend/` folder from the last release). The
+`beforePack` gate refuses to produce a package without it. A leftover
+one-file `resources/VisionStudio-Backend.exe` from an older build is refused
+too: delete it (`npm run build:backend` does).
 
 **"Python not found" / wrong Python during `build:backend`** — install Python
-3.10-3.12 and ensure it's on `PATH` (`py -3.12 --version`). PyTorch has no 3.13+
-wheels yet.
+3.12 and ensure it's on `PATH` (`py -3.12 --version`) or let `uv` provide it
+(`uv python install 3.12`). The dependency locks install on 3.12 only.
 
-**Out of disk space** — a full backend rebuild needs the CUDA torch venv (~10 GB
-transient). Clean with `npm run clean` (build artifacts) or `npm run clean:all`
+**Out of disk space** — a full backend rebuild needs the CUDA torch + TensorRT
+venv (~12 GB) plus the PyInstaller output (twice: `backend/dist/` and the copy
+in `resources/backend/`). Clean with `npm run clean` (build artifacts) or `npm run clean:all`
 (also removes `node_modules` and the backend venv).
 
-**PyTorch download slow/fails** — `build-backend.cjs` tries cu121 -> cu118 ->
-the default index in order; a failure on one falls through to the next.
+**PyTorch / TensorRT download slow/fails** — `build-backend.cjs` installs torch
+2.14.1+cu132 from `https://download.pytorch.org/whl/cu132` against the hashes in
+`backend/requirements/torch-windows-cu132.txt`, then torch-tensorrt 2.14.0+cu132
+and TensorRT 11.1 (the `tensorrt-cu13-libs` wheel, ~1.9 GB, comes from
+`https://pypi.nvidia.com`) against `backend/requirements/tensorrt-windows-cu132.txt`.
+There is no fallback to CPU wheels or to a build without TensorRT (that would
+ship an installer that cannot use the GPU, or fails the packaging self-check):
+re-run the build after a network failure. A hash mismatch means the download
+was corrupted or tampered with - never edit the hashes by hand.
 
 ## Related npm scripts
 
 | Script | Purpose |
 |--------|---------|
-| `npm run build:backend` | PyInstaller backend bundle -> `resources/` |
+| `npm run build:backend` | PyInstaller one-folder backend bundle -> `resources/backend/` |
 | `npm run build` | Vite frontend -> `dist/` |
 | `npm run package:win` | nsis-web + portable zip (delivery build) |
 | `npm run package:win:signed` | signed production build (requires a signing mode) |

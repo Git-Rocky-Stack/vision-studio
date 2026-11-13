@@ -32,9 +32,22 @@ class _FakePipeline:
         self.unet = _FakeModule() if unet else None
         self.transformer = _FakeModule() if transformer else None
         self.slicing = None
+        self.warmup_calls = []
 
     def enable_attention_slicing(self, level=None):
         self.slicing = level or "default"
+
+    def __call__(self, prompt=None, num_inference_steps=50, height=None, width=None,
+                 output_type="pil"):
+        # The compile warm-up drives the (compiled) denoiser through here.
+        denoiser = self.unet if self.unet is not None else self.transformer
+        self.warmup_calls.append({
+            "prompt": prompt, "num_inference_steps": num_inference_steps,
+            "height": height, "width": width, "output_type": output_type,
+            "denoiser": denoiser,
+        })
+        if getattr(denoiser, "_explode_on_forward", None):
+            raise denoiser._explode_on_forward
 
 
 class _StubTorch:
@@ -129,6 +142,38 @@ class ApplyTests(unittest.TestCase):
         self.assertTrue(any("compile" in f for f in result.fell_back))
         # never raised - the pipeline is still usable
         self.assertIsInstance(result, AppliedAcceleration)
+
+    def test_compile_warms_up_at_load_with_a_minimal_call(self):
+        pipe = _FakePipeline()
+        result = apply_acceleration(pipe, AccelerationPlan(compile=True), "sdxl")
+        self.assertTrue(any(a.startswith("compile:") for a in result.applied))
+        self.assertEqual(len(pipe.warmup_calls), 1)
+        call = pipe.warmup_calls[0]
+        self.assertEqual(call["num_inference_steps"], 1)
+        self.assertEqual(call["output_type"], "latent")
+        self.assertEqual((call["height"], call["width"]), (256, 256))
+        # The warm-up ran the COMPILED module.
+        self.assertEqual(call["denoiser"]._compiled, ("reduce-overhead", True))
+
+    def test_compile_error_during_warmup_restores_eager_and_logs(self):
+        """torch.compile is lazy: the real compile happens at the first forward.
+        A failure there (missing compiler, unsupported op) must fall back to the
+        eager module at LOAD time - never surface mid-generation."""
+        pipe = _FakePipeline()
+        eager = pipe.unet
+
+        def _compile(module, mode=None, dynamic=None):
+            compiled = _FakeModule()
+            compiled._explode_on_forward = RuntimeError("triton: no compiler found")
+            return compiled
+
+        with mock.patch.object(_StubTorch, "compile", staticmethod(_compile)), \
+                self.assertLogs("foundry.accelerator", level="WARNING") as logs:
+            result = apply_acceleration(pipe, AccelerationPlan(compile=True), "sdxl")
+        self.assertIs(pipe.unet, eager)
+        self.assertIn("compile (RuntimeError, ran eager)", result.fell_back)
+        self.assertFalse(any(a.startswith("compile:") for a in result.applied))
+        self.assertTrue(any("no compiler found" in line for line in logs.output))
 
 
 class QuantApplyTests(unittest.TestCase):

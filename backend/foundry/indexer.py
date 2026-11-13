@@ -8,7 +8,7 @@ re-read on subsequent scans.
 import hashlib
 import os
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, Iterable, List, Optional, Tuple
 
 from foundry.classifier import indexed_tier, lora_family_from_keys
 from foundry.identity import quick_identity
@@ -92,8 +92,13 @@ def scan_tree(
     layout_hint: str,
     root_id: str,
     signatures: Signatures,
+    excluded_top_level_dirs: Iterable[str] = (),
 ) -> Tuple[List[IndexedArtifact], Signatures]:
     """Index one root. Returns (artifacts, next_signatures).
+
+    ``excluded_top_level_dirs`` names folders directly under ``root_path``
+    that are never walked (the app tree's own state/caches and non-diffusion
+    artifacts such as the retrieval embedder, which are not library models).
 
     Signature format (M4): [mtime_ns, size, artifact_type, identity, tier,
     tier_reason]. Legacy pre-M4 4-entry state is tolerated read-only: type and
@@ -105,7 +110,10 @@ def scan_tree(
     if not os.path.isdir(root_path):
         return artifacts, next_signatures
 
+    excluded = set(excluded_top_level_dirs)
     for dirpath, dirnames, filenames in os.walk(root_path):
+        if excluded and dirpath == root_path:
+            dirnames[:] = [name for name in dirnames if name not in excluded]
         if detect_diffusers_dir(dirpath):
             try:
                 stat = os.stat(dirpath)

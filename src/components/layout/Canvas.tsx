@@ -1,5 +1,6 @@
 import { cn } from '@/utils/cn';
 import { isEditableTarget } from '@/utils/isEditableTarget';
+import { isWorkspaceShortcutBlocked } from '@/utils/modalGuard';
 import { useAppStore } from '@/store/appStore';
 import { useShallow } from 'zustand/react/shallow';
 import {
@@ -183,12 +184,14 @@ export const Canvas = memo(function Canvas() {
   const hasRenderableImage = Boolean(currentImage && !imageError && !isVideoSource);
   const displayedArtboardSize = hasRenderableImage ? imageSize : { width: 760, height: 460 };
 
-  const handleZoomIn = () => setZoom(Math.min(zoom + 10, 200));
-  const handleZoomOut = () => setZoom(Math.max(zoom - 10, 25));
-  const handleResetZoom = () => {
+  // Stable (functional updates), so the window shortcut listener below is
+  // registered once per region-mode change rather than on every zoom step.
+  const handleZoomIn = useCallback(() => setZoom((current) => Math.min(current + 10, 200)), []);
+  const handleZoomOut = useCallback(() => setZoom((current) => Math.max(current - 10, 25)), []);
+  const handleResetZoom = useCallback(() => {
     setZoom(100);
     setPan({ x: 0, y: 0 });
-  };
+  }, []);
   // Fit the artboard inside the visible container, within the zoom limits.
   const handleZoomToFit = () => {
     const rect = containerRef.current?.getBoundingClientRect();
@@ -390,6 +393,8 @@ export const Canvas = memo(function Canvas() {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (isEditableTarget(e.target)) return;
+      // Mask letters and zoom keys act on the canvas behind a modal otherwise.
+      if (isWorkspaceShortcutBlocked(e)) return;
       // Ctrl/Cmd/Alt chords are the app's or the OS's (Ctrl+V pastes, Ctrl+=
       // zooms the page); these single-key shortcuts must not also fire.
       if (e.ctrlKey || e.metaKey || e.altKey) return;
@@ -434,7 +439,7 @@ export const Canvas = memo(function Canvas() {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [zoom, regionMode]);
+  }, [regionMode, setActiveMaskTool, toggleMaskInverted, handleZoomIn, handleZoomOut, handleResetZoom]);
 
   return (
     <div
@@ -443,7 +448,7 @@ export const Canvas = memo(function Canvas() {
         isGenerating && 'ring-1 ring-accent-primary/20'
       )}
     >
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_42%,rgba(230,230,230,0.04),transparent_34%),linear-gradient(180deg,var(--color-void),var(--color-canvas))]" />
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_42%,var(--color-sheen-chrome),transparent_34%),linear-gradient(180deg,var(--color-void),var(--color-canvas))]" />
 
       {/* Canvas Toolbar */}
       <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10">
@@ -500,6 +505,9 @@ export const Canvas = memo(function Canvas() {
       />
 
       {/* Canvas Container */}
+      {/* A keyboard-driven canvas (role=application) is interactive by
+          definition; jsx-a11y-x classes `application` as non-interactive. */}
+      {/* eslint-disable-next-line jsx-a11y-x/no-noninteractive-element-interactions */}
       <div
         ref={containerRef}
         onContextMenu={handleContextMenu}
@@ -546,10 +554,10 @@ export const Canvas = memo(function Canvas() {
           {/* Artboard */}
           <div
             className={cn(
-              'relative bg-canvas shadow-cinematic border',
+              'relative bg-canvas shadow-overlay border',
               hasRenderableImage
                 ? 'border-border'
-                : 'border-border-hover bg-[linear-gradient(135deg,rgba(255,255,255,0.035),rgba(255,255,255,0.01))]'
+                : 'border-border-hover bg-linear-135 from-sheen-subtle to-sheen-faint'
             )}
             style={{ width: displayedArtboardSize.width, height: displayedArtboardSize.height }}
           >

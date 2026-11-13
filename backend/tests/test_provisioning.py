@@ -112,7 +112,9 @@ def test_every_catalog_record_is_accounted_for():
         v["id"] for v in catalog.values()
         if isinstance(v, dict) and "id" in v
     }
-    classified = AUTO_IDS | MANUAL_IDS | set(MANIFEST["excluded_non_commercial"])
+    # Manifest-only extras (the retrieval embedder) are not catalog models.
+    catalog_auto = AUTO_IDS - {e["id"] for e in MANIFEST["auto_set"] if e.get("manifest_only")}
+    classified = catalog_auto | MANUAL_IDS | set(MANIFEST["excluded_non_commercial"])
     assert catalog_ids == classified, catalog_ids ^ classified
 
 

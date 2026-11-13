@@ -3,6 +3,8 @@
 > **Historical design record - 2026-07-04.** Describes intent at that
 > date, not current behaviour. See `docs/INDEX.md` for what is authoritative.
 
+> **Status (checked 2026-11-11):** Shipped - PRs #45, #46, #47 and #48.
+
 **Date:** 2026-07-04
 **Task:** Issue #34, ControlNet/guided-passes half (Phase 2, post-3.1.0; the
 edit-tools half gets its own cycle)

@@ -4,6 +4,7 @@ import pathlib
 import subprocess
 import sys
 import unittest
+from unittest import mock
 
 BACKEND_ROOT = pathlib.Path(__file__).resolve().parents[1]
 if str(BACKEND_ROOT) not in sys.path:
@@ -13,10 +14,14 @@ from foundry.accelerator import (
     AccelerationPlan,
     AccelerationSettings,
     AppliedAcceleration,
+    CompileEnvironment,
+    compile_environment,
     family_for_plan,
     resolve_acceleration,
 )
 from foundry.hardware import HardwareProfile
+
+_TOOLCHAIN_OK = CompileEnvironment(True)
 
 
 def _gpu_profile(**kw):
@@ -155,11 +160,53 @@ class ResolveDecisionTests(unittest.TestCase):
             _FakePlan("StableDiffusionXLPipeline"), _cpu_profile(), AccelerationSettings())
         self.assertFalse(accel.channels_last)
 
-    def test_compile_on_by_default_with_gpu(self):
-        accel = resolve_acceleration(_FakePlan(), _gpu_profile(), AccelerationSettings())
+    def test_compile_auto_on_with_gpu_and_a_working_toolchain(self):
+        accel = resolve_acceleration(_FakePlan(), _gpu_profile(), AccelerationSettings(),
+                                     compile_env=_TOOLCHAIN_OK)
         self.assertTrue(accel.compile)
         self.assertEqual(accel.compile_mode, "reduce-overhead")
         self.assertTrue(accel.compile_dynamic)
+
+    def test_compile_auto_off_without_triton(self):
+        accel = resolve_acceleration(
+            _FakePlan(), _gpu_profile(), AccelerationSettings(),
+            compile_env=CompileEnvironment(False, "triton is not installed"))
+        self.assertFalse(accel.compile)
+        self.assertIn("compile off: triton is not installed", accel.notes)
+
+    def test_compile_auto_off_with_cpu_offload(self):
+        plan = _FakePlan()
+        plan.offload = True
+        accel = resolve_acceleration(plan, _gpu_profile(), AccelerationSettings(),
+                                     compile_env=_TOOLCHAIN_OK)
+        self.assertFalse(accel.compile)
+        self.assertTrue(any("offload" in n for n in accel.notes))
+
+    def test_forced_compile_still_respects_the_hard_gates(self):
+        # "on" overrides the GPU default, never a missing toolchain or offload.
+        accel = resolve_acceleration(
+            _FakePlan(), _gpu_profile(), AccelerationSettings(compile="on"),
+            compile_env=CompileEnvironment(False, "frozen"))
+        self.assertFalse(accel.compile)
+        plan = _FakePlan()
+        plan.offload = True
+        accel = resolve_acceleration(plan, _gpu_profile(), AccelerationSettings(compile="on"),
+                                     compile_env=_TOOLCHAIN_OK)
+        self.assertFalse(accel.compile)
+
+    def test_compile_environment_refuses_a_frozen_bundle(self):
+        with mock.patch.object(sys, "frozen", True, create=True):
+            env = compile_environment()
+        self.assertFalse(env.available)
+        self.assertIn("frozen", env.reason)
+
+    def test_compile_environment_requires_triton(self):
+        with mock.patch("foundry.accelerator._spec_present", lambda name: name != "triton"):
+            env = compile_environment()
+        self.assertFalse(env.available)
+        self.assertIn("triton", env.reason)
+        with mock.patch("foundry.accelerator._spec_present", lambda name: True):
+            self.assertTrue(compile_environment().available)
 
     def test_compile_auto_off_on_cpu(self):
         accel = resolve_acceleration(_FakePlan(), _cpu_profile(), AccelerationSettings())
@@ -173,7 +220,8 @@ class ResolveDecisionTests(unittest.TestCase):
 
     def test_explicit_on_overrides_cpu_default(self):
         accel = resolve_acceleration(
-            _FakePlan(), _cpu_profile(), AccelerationSettings(compile="on"))
+            _FakePlan(), _cpu_profile(), AccelerationSettings(compile="on"),
+            compile_env=_TOOLCHAIN_OK)
         self.assertTrue(accel.compile)
 
     def test_slicing_off_when_model_fits_with_headroom(self):

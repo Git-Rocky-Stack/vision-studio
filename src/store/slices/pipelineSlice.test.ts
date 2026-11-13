@@ -97,10 +97,4 @@ describe('PipelineStore', () => {
     useAppStore.getState().setActivePipelineId(builtIn.id);
     expect(useAppStore.getState().activePipelineId).toBe(builtIn.id);
   });
-
-  it('setPipelineBuilderOpen toggles builder', () => {
-    expect(useAppStore.getState().isPipelineBuilderOpen).toBe(false);
-    useAppStore.getState().setPipelineBuilderOpen(true);
-    expect(useAppStore.getState().isPipelineBuilderOpen).toBe(true);
-  });
 });

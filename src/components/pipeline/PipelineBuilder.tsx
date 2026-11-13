@@ -1,4 +1,4 @@
-import { memo, useState } from 'react';
+import { memo, useRef, useState } from 'react';
 import { cn } from '@/utils/cn';
 import { useAppStore } from '@/store/appStore';
 import { useShallow } from 'zustand/react/shallow';
@@ -7,6 +7,8 @@ import { PipelineNode } from './PipelineNode';
 import { PipelineNodePalette } from './PipelineNodePalette';
 import { PipelineNodeConfig } from './PipelineNodeConfig';
 import { PipelinePreview } from './PipelinePreview';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
+import { useFocusWhen } from '@/hooks/useFocusWhen';
 import { Plus, Copy, Trash2, Workflow, Play, Square } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -27,7 +29,11 @@ export const PipelineBuilder = memo(function PipelineBuilder({
   const [selectedStepIndex, setSelectedStepIndex] = useState<number | null>(null);
   const [showPalette, setShowPalette] = useState(false);
   const [editingName, setEditingName] = useState(false);
+  const nameInputRef = useRef<HTMLInputElement>(null);
+  // Editing replaces the name button: focus follows into the field.
+  useFocusWhen(nameInputRef, editingName);
   const [nameValue, setNameValue] = useState(pipeline.name);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   const { updatePipeline, deletePipeline, duplicatePipeline, pipelineExecutions, currentImageAssetPath } =
     useAppStore(
@@ -106,11 +112,14 @@ export const PipelineBuilder = memo(function PipelineBuilder({
     setEditingName(false);
   }
 
-  function handleDelete() {
+  function handleConfirmDelete() {
+    setConfirmingDelete(false);
     if (!pipeline.isBuiltIn) {
       deletePipeline(pipeline.id);
     }
   }
+
+  const stepCount = pipeline.steps.length;
 
   return (
     <div className={cn('flex flex-col h-full', className)}>
@@ -120,7 +129,9 @@ export const PipelineBuilder = memo(function PipelineBuilder({
 
         {editingName ? (
           <input
+            ref={nameInputRef}
             type="text"
+            aria-label="Pipeline name"
             value={nameValue}
             onChange={(e) => setNameValue(e.target.value)}
             onBlur={handleSaveName}
@@ -131,7 +142,6 @@ export const PipelineBuilder = memo(function PipelineBuilder({
                 setEditingName(false);
               }
             }}
-            autoFocus
             className="flex-1 text-sm text-text-primary bg-canvas rounded px-2 py-0.5 border border-border focus:border-accent-primary-border"
           />
         ) : (
@@ -202,14 +212,25 @@ export const PipelineBuilder = memo(function PipelineBuilder({
         {!pipeline.isBuiltIn && (
           <button
             type="button"
-            onClick={handleDelete}
+            onClick={() => setConfirmingDelete(true)}
             aria-label="Delete pipeline"
+            aria-haspopup="dialog"
             className="p-1.5 rounded hover:bg-status-error-muted transition-colors"
           >
-            <Trash2 className="w-3.5 h-3.5 text-text-muted hover:text-status-error" />
+            <Trash2 className="w-3.5 h-3.5 text-text-muted hover:text-status-error" aria-hidden="true" />
           </button>
         )}
       </div>
+
+      <ConfirmDialog
+        open={confirmingDelete}
+        title="Delete Pipeline"
+        message={`Delete the pipeline "${pipeline.name}" and its ${stepCount} step${stepCount === 1 ? '' : 's'}? Images it already produced stay in the library.`}
+        confirmLabel="Delete Pipeline"
+        variant="danger"
+        onConfirm={handleConfirmDelete}
+        onCancel={() => setConfirmingDelete(false)}
+      />
 
       {/* Pipeline description */}
       {pipeline.description && (

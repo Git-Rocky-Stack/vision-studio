@@ -5,6 +5,10 @@ import { describe, expect, it } from 'vitest';
 const repositoryRoot = process.cwd();
 const scannedExtensions = new Set(['.css', '.md', '.ts', '.tsx']);
 const ignoredDirectories = new Set([
+  // Gitignored local tool state (Claude Code agent worktrees live under
+  // .claude/worktrees, each with a full node_modules). Tailwind honours
+  // .gitignore during source detection, so this scan must too.
+  '.claude',
   '.git',
   '.gstack',
   '.superpowers',
@@ -43,7 +47,9 @@ function listScannedFiles(directory: string): string[] {
     const stats = statSync(entryPath);
 
     if (stats.isDirectory()) {
-      return ignoredDirectories.has(relativePath) ? [] : listScannedFiles(entryPath);
+      // node_modules is never a Tailwind source, at any depth.
+      if (entry === 'node_modules' || ignoredDirectories.has(relativePath)) return [];
+      return listScannedFiles(entryPath);
     }
 
     return scannedExtensions.has(extname(entryPath)) ? [entryPath] : [];

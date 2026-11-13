@@ -24,6 +24,7 @@ if str(BACKEND_ROOT) not in sys.path:
 import api.edit as edit_api  # noqa: E402
 from edit_tools import upscale as upscale_module  # noqa: E402
 from edit_tools.weights import EditToolError  # noqa: E402
+from utils.media_paths import configure_media_paths  # noqa: E402
 
 
 def _never_called(_tile):
@@ -106,6 +107,8 @@ class UpscaleEndpointLimitTests(unittest.TestCase):
         self.manager = mock.MagicMock()
         edit_api.configure(self.manager, str(self.tmp_path / "outputs"),
                            str(self.tmp_path / "models"), lambda _id: {"status": "ready"})
+        # Sources live in the tmp dir; it plays the allow-listed outputs root.
+        configure_media_paths(str(self.tmp_path), lambda: [])
         self.client = TestClient(app)
 
     def test_oversized_upscale_is_422_and_creates_no_job(self):

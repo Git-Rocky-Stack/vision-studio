@@ -43,7 +43,7 @@ Persisted UI preferences should include:
 - selected density mode for review surfaces
 - curated collapsed section ids for the generate/settings pane
 
-These should live in the UI-oriented state owned by [src/store/appStore.types.ts](/C:/vision-studio/src/store/appStore.types.ts) and [src/store/slices/uiSlice.ts](/C:/vision-studio/src/store/slices/uiSlice.ts).
+These should live in the UI-oriented state owned by [src/store/appStore.types.ts](../../src/store/appStore.types.ts) and [src/store/slices/uiSlice.ts](../../src/store/slices/uiSlice.ts).
 
 Non-persisted UI state should remain local to components:
 
@@ -56,13 +56,13 @@ Non-persisted UI state should remain local to components:
 
 ## Ownership Boundaries
 
-- [src/components/layout/DockviewLayout.tsx](/C:/vision-studio/src/components/layout/DockviewLayout.tsx) owns dock sizing, shell splitters, and panel geometry.
-- [src/components/layout/DockviewSettingsPanel.tsx](/C:/vision-studio/src/components/layout/DockviewSettingsPanel.tsx) owns sticky left-pane shell behavior and sub-mode shell structure.
-- [src/pages/GeneratePanel.tsx](/C:/vision-studio/src/pages/GeneratePanel.tsx) owns section grouping, section collapse behavior, and the sticky action footer.
-- [src/components/layout/WorkbenchGalleryDock.tsx](/C:/vision-studio/src/components/layout/WorkbenchGalleryDock.tsx) and [src/components/layout/WorkbenchViewer.tsx](/C:/vision-studio/src/components/layout/WorkbenchViewer.tsx) own browsing density and review-loop action polish.
-- [src/components/layout/WorkbenchBoardsDock.tsx](/C:/vision-studio/src/components/layout/WorkbenchBoardsDock.tsx) and [src/components/layout/Canvas.tsx](/C:/vision-studio/src/components/layout/Canvas.tsx) own empty-state CTA clarity for boards and canvas.
-- [src/components/layout/Timeline.tsx](/C:/vision-studio/src/components/layout/Timeline.tsx) owns timeline readability polish only.
-- [src/components/layout/Header.tsx](/C:/vision-studio/src/components/layout/Header.tsx) owns truthful shell status presentation, but not backend process logic.
+- [src/components/layout/DockviewLayout.tsx](../../src/components/layout/DockviewLayout.tsx) owns dock sizing, shell splitters, and panel geometry.
+- [src/components/layout/DockviewSettingsPanel.tsx](../../src/components/layout/DockviewSettingsPanel.tsx) owns sticky left-pane shell behavior and sub-mode shell structure.
+- [src/pages/GeneratePanel.tsx](../../src/pages/GeneratePanel.tsx) owns section grouping, section collapse behavior, and the sticky action footer.
+- [src/components/layout/WorkbenchGalleryDock.tsx](../../src/components/layout/WorkbenchGalleryDock.tsx) and [src/components/layout/WorkbenchViewer.tsx](../../src/components/layout/WorkbenchViewer.tsx) own browsing density and review-loop action polish.
+- [src/components/layout/WorkbenchBoardsDock.tsx](../../src/components/layout/WorkbenchBoardsDock.tsx) and [src/components/layout/Canvas.tsx](../../src/components/layout/Canvas.tsx) own empty-state CTA clarity for boards and canvas.
+- [src/components/layout/Timeline.tsx](../../src/components/layout/Timeline.tsx) owns timeline readability polish only.
+- [src/components/layout/Header.tsx](../../src/components/layout/Header.tsx) owns truthful shell status presentation, but not backend process logic.
 
 ## Milestones
 
@@ -78,10 +78,10 @@ Scope:
 
 Primary files:
 
-- [src/components/layout/DockviewLayout.tsx](/C:/vision-studio/src/components/layout/DockviewLayout.tsx)
-- [src/components/layout/DockviewSettingsPanel.tsx](/C:/vision-studio/src/components/layout/DockviewSettingsPanel.tsx)
-- [src/store/slices/uiSlice.ts](/C:/vision-studio/src/store/slices/uiSlice.ts)
-- [src/store/appStore.types.ts](/C:/vision-studio/src/store/appStore.types.ts)
+- [src/components/layout/DockviewLayout.tsx](../../src/components/layout/DockviewLayout.tsx)
+- [src/components/layout/DockviewSettingsPanel.tsx](../../src/components/layout/DockviewSettingsPanel.tsx)
+- [src/store/slices/uiSlice.ts](../../src/store/slices/uiSlice.ts)
+- [src/store/appStore.types.ts](../../src/store/appStore.types.ts)
 
 ### 2. Left-Pane Hierarchy Pass
 
@@ -94,10 +94,10 @@ Scope:
 
 Primary files:
 
-- [src/pages/GeneratePanel.tsx](/C:/vision-studio/src/pages/GeneratePanel.tsx)
-- [src/components/layout/DockviewSettingsPanel.tsx](/C:/vision-studio/src/components/layout/DockviewSettingsPanel.tsx)
-- [src/components/generate/AdvancedGenerationSettings.tsx](/C:/vision-studio/src/components/generate/AdvancedGenerationSettings.tsx)
-- [src/store/slices/uiSlice.ts](/C:/vision-studio/src/store/slices/uiSlice.ts)
+- [src/pages/GeneratePanel.tsx](../../src/pages/GeneratePanel.tsx)
+- [src/components/layout/DockviewSettingsPanel.tsx](../../src/components/layout/DockviewSettingsPanel.tsx)
+- [src/components/generate/AdvancedGenerationSettings.tsx](../../src/components/generate/AdvancedGenerationSettings.tsx)
+- [src/store/slices/uiSlice.ts](../../src/store/slices/uiSlice.ts)
 
 ### 3. Review Surfaces Pass
 
@@ -110,11 +110,11 @@ Scope:
 
 Primary files:
 
-- [src/components/layout/WorkbenchGalleryDock.tsx](/C:/vision-studio/src/components/layout/WorkbenchGalleryDock.tsx)
-- [src/components/layout/WorkbenchViewer.tsx](/C:/vision-studio/src/components/layout/WorkbenchViewer.tsx)
-- [src/components/layout/WorkbenchBoardsDock.tsx](/C:/vision-studio/src/components/layout/WorkbenchBoardsDock.tsx)
-- [src/components/layout/Canvas.tsx](/C:/vision-studio/src/components/layout/Canvas.tsx)
-- [src/store/slices/uiSlice.ts](/C:/vision-studio/src/store/slices/uiSlice.ts)
+- [src/components/layout/WorkbenchGalleryDock.tsx](../../src/components/layout/WorkbenchGalleryDock.tsx)
+- [src/components/layout/WorkbenchViewer.tsx](../../src/components/layout/WorkbenchViewer.tsx)
+- [src/components/layout/WorkbenchBoardsDock.tsx](../../src/components/layout/WorkbenchBoardsDock.tsx)
+- [src/components/layout/Canvas.tsx](../../src/components/layout/Canvas.tsx)
+- [src/store/slices/uiSlice.ts](../../src/store/slices/uiSlice.ts)
 
 ### 4. Timeline And Motion Pass
 
@@ -127,7 +127,7 @@ Scope:
 
 Primary files:
 
-- [src/components/layout/Timeline.tsx](/C:/vision-studio/src/components/layout/Timeline.tsx)
+- [src/components/layout/Timeline.tsx](../../src/components/layout/Timeline.tsx)
 
 ### 5. Header And Status Intelligence Pass
 
@@ -140,11 +140,11 @@ Scope:
 
 Primary files:
 
-- [src/components/layout/Header.tsx](/C:/vision-studio/src/components/layout/Header.tsx)
-- [src/App.tsx](/C:/vision-studio/src/App.tsx)
-- [electron/services/backendProcess.ts](/C:/vision-studio/electron/services/backendProcess.ts)
-- [electron/services/backend.ts](/C:/vision-studio/electron/services/backend.ts)
-- [src/store/appStore.types.ts](/C:/vision-studio/src/store/appStore.types.ts)
+- [src/components/layout/Header.tsx](../../src/components/layout/Header.tsx)
+- [src/App.tsx](../../src/App.tsx)
+- [electron/services/backendProcess.ts](../../electron/services/backendProcess.ts)
+- [electron/services/backend.ts](../../electron/services/backend.ts)
+- [src/store/appStore.types.ts](../../src/store/appStore.types.ts)
 
 ## Verification Rules
 

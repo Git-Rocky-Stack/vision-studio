@@ -30,17 +30,8 @@ describe('shouldRestartBackend', () => {
   it('restarts when the output root changes', () => {
     expect(
       shouldRestartBackend(
-        { defaultOutputPath: 'C:/A', pythonPath: 'python' },
-        { defaultOutputPath: 'D:/B', pythonPath: 'python' }
-      )
-    ).toBe(true);
-  });
-
-  it('restarts when the configured python executable changes', () => {
-    expect(
-      shouldRestartBackend(
-        { defaultOutputPath: 'C:/A', pythonPath: 'python' },
-        { defaultOutputPath: 'C:/A', pythonPath: 'C:/Python/python.exe' }
+        { defaultOutputPath: 'C:/A' },
+        { defaultOutputPath: 'D:/B' }
       )
     ).toBe(true);
   });
@@ -48,10 +39,17 @@ describe('shouldRestartBackend', () => {
   it('does not restart for presentation-only setting changes', () => {
     expect(
       shouldRestartBackend(
-        { defaultOutputPath: 'C:/A', pythonPath: 'python', theme: 'dark' },
-        { defaultOutputPath: 'C:/A', pythonPath: 'python', theme: 'light' }
+        { defaultOutputPath: 'C:/A', theme: 'dark' },
+        { defaultOutputPath: 'C:/A', theme: 'light' }
       )
     ).toBe(false);
+  });
+});
+
+describe('retired settings', () => {
+  it('has no autoSave or pythonPath default (K4; the interpreter is env-only)', () => {
+    expect(DEFAULT_SETTINGS).not.toHaveProperty('autoSave');
+    expect(DEFAULT_SETTINGS).not.toHaveProperty('pythonPath');
   });
 });
 

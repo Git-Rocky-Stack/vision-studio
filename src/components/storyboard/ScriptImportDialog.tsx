@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Textarea } from '@/components/ui/Textarea';
 import { DialogCloseButton } from '@/components/ui/DialogCloseButton';
+import { useDialogFocus } from '@/hooks/useDialogFocus';
 
 interface ScriptImportDialogProps {
   open: boolean;
@@ -25,8 +26,16 @@ export function ScriptImportDialog({
   const [sourceError, setSourceError] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const dialogRef = useRef<HTMLDivElement>(null);
-  const previousFocusRef = useRef<HTMLElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Focus lands in the script field, Tab stays inside the dialog, and focus
+  // returns to Import Script on close. Escape cannot abandon a running import:
+  // it is contained (never reaches the workspace) but does nothing then.
+  useDialogFocus(dialogRef, {
+    open,
+    onEscape: isGenerating ? undefined : onClose,
+    initialFocusRef: textareaRef,
+  });
 
   useEffect(() => {
     if (!open) {
@@ -34,27 +43,8 @@ export function ScriptImportDialog({
       setSourceText('');
       setSourceError(null);
       setIsGenerating(false);
-      return;
     }
-
-    previousFocusRef.current = document.activeElement as HTMLElement | null;
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && !isGenerating) {
-        onClose();
-      }
-    };
-
-    document.addEventListener('keydown', handleKeyDown);
-    requestAnimationFrame(() => {
-      textareaRef.current?.focus();
-    });
-
-    return () => {
-      document.removeEventListener('keydown', handleKeyDown);
-      previousFocusRef.current?.focus();
-    };
-  }, [isGenerating, onClose, open]);
+  }, [open]);
 
   if (!open) {
     return null;
@@ -106,7 +96,7 @@ export function ScriptImportDialog({
           onClick={(event) => event.stopPropagation()}
           data-testid="script-import-dialog"
         >
-          <div className="border-b border-border bg-[linear-gradient(180deg,rgba(255,255,255,0.05),rgba(255,255,255,0.01))] px-6 py-5">
+          <div className="border-b border-border bg-linear-to-b from-sheen-soft to-sheen-faint px-6 py-5">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <p className="inline-flex items-center gap-2 rounded-full border border-border bg-surface px-3 py-1 type-caption text-text-muted">

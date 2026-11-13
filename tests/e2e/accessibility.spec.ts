@@ -48,14 +48,16 @@ const KNOWN_VIOLATIONS = new Set<string>([]);
 async function runAxeAudit(page: import('@playwright/test').Page): Promise<{ violations: AxeViolation[] }> {
   const axeSource = fs.readFileSync(AXE_SOURCE_PATH, 'utf-8');
 
-  return page.evaluate(async (source) => {
-    // Inject axe-core if not already present
-    if (!(window as any).axe) {
-      const script = document.createElement('script');
-      script.textContent = source;
-      document.head.appendChild(script);
-    }
+  // Evaluate the axe source over CDP rather than appending an inline
+  // <script>: the renderer's CSP has no 'unsafe-inline' (by design), so an
+  // injected inline script is refused and window.axe never appears. CDP
+  // evaluation is not subject to the page's CSP.
+  const hasAxe = await page.evaluate(() => Boolean((window as any).axe));
+  if (!hasAxe) {
+    await page.evaluate(axeSource);
+  }
 
+  return page.evaluate(async () => {
     // Run the audit with WCAG 2.1 AA tags
     const results = await (window as any).axe.run(document, {
       runOnly: {
@@ -72,7 +74,7 @@ async function runAxeAudit(page: import('@playwright/test').Page): Promise<{ vio
         nodes: v.nodes.length,
       })),
     };
-  }, axeSource);
+  });
 }
 
 test.describe('Accessibility Smoke Tests', () => {

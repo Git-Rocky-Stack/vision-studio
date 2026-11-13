@@ -17,13 +17,24 @@ import numpy as np
 from PIL import Image, ImageFilter
 
 from edit_tools.weights import EditModelUnavailable
+from utils.pipeline_cache import register_pipeline_owner
 
 try:  # stub CI / slim install - import fine, refuse loudly at run time
     import onnxruntime
 except ImportError:
     onnxruntime = None
 
+# onnxruntime sessions per u2net path (CPU EP - host RAM, not VRAM). Freed
+# through the shared release path so a model switch reclaims them too.
 _SESSIONS: Dict[str, Any] = {}
+
+
+def release_background_sessions() -> None:
+    """Drop every cached U^2-Net session."""
+    _SESSIONS.clear()
+
+
+register_pipeline_owner("edit-background", release_background_sessions)
 _SIDE = 320
 _MEAN = np.array([0.485, 0.456, 0.406], dtype=np.float32)
 _STD = np.array([0.229, 0.224, 0.225], dtype=np.float32)

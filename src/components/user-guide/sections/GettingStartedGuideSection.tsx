@@ -13,6 +13,11 @@ export function GettingStartedGuideSection() {
       <GuideStepList
         steps={[
           {
+            title: 'Install models on first launch',
+            description:
+              'The first-run setup screen offers Install core, Install everything, or Custom to pick the models yourself. You can keep using the app while models install, or skip and come back later: the Model library card in the Foundry resumes, verifies, and repairs the install.',
+          },
+          {
             title: 'Create or select a local account',
             description:
               'Open Settings > AI & Models, then use User Accounts & BYOK to create a profile for yourself or for a separate client, brand, or workflow.',
@@ -65,6 +70,48 @@ export function GettingStartedGuideSection() {
               A configured hosted route keeps working while the local backend is offline. The
               active account controls every route, so switching accounts changes the prompt,
               still-image, and video providers used by the rest of the app.
+            </span>,
+          ]}
+        />
+      </GuideCallout>
+
+      <GuideCallout title="The Foundry Tab" tone="info">
+        <GuideList
+          items={[
+            <span>
+              <strong>Discover</strong> searches Hugging Face or CivitAI for image and video
+              models. Acquire downloads one into your library; pickle checkpoints and repositories
+              that run remote code ask for consent first, and gated models link to their license
+              page. CivitAI mature results are hidden unless you opt in for the session.
+            </span>,
+            <span>
+              <strong>Library</strong> shows active downloads (pause, resume, or cancel), your
+              installed models (Check fit, Convert a pickle checkpoint to safetensors, or Remove),
+              and library roots: folders of existing models indexed in place, including detected
+              ComfyUI or A1111 installs.
+            </span>,
+            <span>
+              <strong>Hardware</strong> shows the detected GPU, VRAM, system RAM, free disk space,
+              and how well models fit. The header holds the Hugging Face and CivitAI tokens used
+              for downloads. A saved token is encrypted with your operating system&apos;s secure
+              storage where available and is never shown again.
+            </span>,
+          ]}
+        />
+      </GuideCallout>
+
+      <GuideCallout title="Keyboard Shortcuts And The Window" tone="info">
+        <GuideList
+          items={[
+            <span>
+              Press <strong>?</strong> anywhere outside a text field to open the keyboard shortcut
+              sheet, which lists the shortcuts and where each group works. Press ? again or Esc
+              to close it.
+            </span>,
+            <span>
+              Ctrl/Cmd+W does not close the Vision Studio window, so a stray keystroke cannot end
+              your session. If generation jobs are still running when you close the window,
+              Vision Studio asks you to confirm first.
             </span>,
           ]}
         />

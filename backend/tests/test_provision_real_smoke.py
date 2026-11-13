@@ -43,9 +43,28 @@ class RealProvisionSmokeTests(unittest.IsolatedAsyncioTestCase):
     async def test_smallest_auto_set_model_provisions_end_to_end(self):
         manifest = load_provision_manifest()
         smallest = min(
-            manifest["auto_set"], key=lambda e: e.get("approx_bytes") or float("inf")
+            manifest["auto_set"], key=lambda e: e.get("size_bytes") or float("inf")
         )
-        manifest["auto_set"] = [smallest]
+        await self._provision(manifest, smallest)
+
+    async def test_pinned_hf_embedder_provisions_and_verifies_end_to_end(self):
+        """D4 + D5b: a pinned, multi-file HF entry lands at the loader path
+        with every file hash-verified against the manifest pin."""
+        from foundry.download_manager import pinned_file_matches
+        from services.retrieval.embedder import EMBEDDER_MODEL_ID, embedder_model_dir, is_provisioned
+
+        manifest = load_provision_manifest()
+        entry = next(e for e in manifest["auto_set"] if e["id"] == EMBEDDER_MODEL_ID)
+        models_dir = await self._provision(manifest, entry)
+        model_dir = embedder_model_dir(models_dir)
+        self.assertTrue(is_provisioned(model_dir))
+        for snapshot in entry["source"]["snapshots"]:
+            for pinned in snapshot["files"]:
+                self.assertTrue(pinned_file_matches(str(model_dir / pinned["path"]), pinned))
+
+    async def _provision(self, manifest, entry):
+        manifest["auto_set"] = [entry]
+        smallest = entry
 
         models_dir = tempfile.mkdtemp(prefix="vs-real-smoke-")
         model_manager = ModelManager(models_dir)
@@ -81,7 +100,7 @@ class RealProvisionSmokeTests(unittest.IsolatedAsyncioTestCase):
         )
 
         started = time.monotonic()
-        snapshot = orchestrator.start()
+        snapshot = await orchestrator.start()
         while not snapshot["complete"]:
             if snapshot["error_count"]:
                 row = snapshot["models"][0]
@@ -108,6 +127,7 @@ class RealProvisionSmokeTests(unittest.IsolatedAsyncioTestCase):
         self.assertGreater(
             landed, 1024 * 1024, "provisioned model bytes must land on disk"
         )
+        return models_dir
 
 
 if __name__ == "__main__":

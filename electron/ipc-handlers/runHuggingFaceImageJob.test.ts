@@ -20,7 +20,7 @@ function setup({ tempRoot = '' } = {}) {
   const store = createHuggingFaceImageJobStore({ emit });
   const userAccounts = {
     getAccount: vi.fn(() => makeAccount()),
-    getHuggingFaceToken: vi.fn(() => 'hf_token' as string | null),
+    getHuggingFaceToken: vi.fn(async () => 'hf_token' as string | null),
   };
   const imageResult = { model: 'm', images: [{ dataUrl: PNG_DATA_URL, mimeType: 'image/png' }], usage: null };
   const huggingFace = {
@@ -43,7 +43,7 @@ function setup({ tempRoot = '' } = {}) {
 describe('runHuggingFaceImageJob', () => {
   it('fails the job with a sanitized error when no token is configured', async () => {
     const h = setup();
-    h.userAccounts.getHuggingFaceToken = vi.fn(() => null);
+    h.userAccounts.getHuggingFaceToken = vi.fn(async () => null);
     h.store.set({ job_id: 'huggingface-image-1', status: 'pending', progress: 0, type: 'image', created_at: '2026-06-16T00:00:00.000Z' });
     await runHuggingFaceImageJob(
       'huggingface-image-1',

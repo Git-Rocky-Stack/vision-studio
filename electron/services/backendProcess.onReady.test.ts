@@ -12,20 +12,26 @@ vi.mock('child_process', () => ({
       stdout: EventEmitter;
       stderr: EventEmitter;
       exitCode: number | null;
-      kill: () => void;
+      pid: number;
+      kill: () => boolean;
     };
     child.stdout = new EventEmitter();
     child.stderr = new EventEmitter();
     child.exitCode = null;
-    child.kill = () => undefined;
+    child.pid = 4321;
+    child.kill = () => true;
     return child;
   },
 }));
 
 vi.mock('./backend', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./backend')>()),
+  // Nothing holds the port before the spawn.
+  probeBackendIdentity: async () => 'unreachable',
   waitForBackendReady: async () =>
-    health.ready ? { ready: true, origin: 'http://127.0.0.1:8000' } : Promise.reject(new Error('never ready')),
+    health.ready
+      ? { ready: true, origin: 'http://127.0.0.1:8000' }
+      : { ready: false, origin: null, reason: 'timeout' },
 }));
 
 const { createBackendProcessService } = await import('./backendProcess');
@@ -46,18 +52,18 @@ function service(onReady: () => void) {
     appPaths: { getPath: () => root!, resourcesPath: path.join(root, 'resources'), getVersion: () => '0.0.0' },
     dialog: { showErrorBox: () => undefined, showMessageBox: async () => ({ response: 0, checkboxChecked: false }) },
     getMainWindow: () => null,
-    getSettings: () => ({ pythonPath: 'python3' }) as never,
     getResolvedOutputDirectory: () => path.join(root!, 'out'),
     rememberOutputRoot: () => undefined,
     isDev: () => true,
     dirname: path.join(root, 'dist-electron'),
     logger: { error: () => undefined, log: () => undefined },
     onReady,
+    env: {},
   });
 }
 
 describe('backend process onReady', () => {
-  it('fires once the spawned backend passes its health check', async () => {
+  it('fires once the spawned backend passes its identity handshake', async () => {
     health.ready = true;
     const onReady = vi.fn();
 

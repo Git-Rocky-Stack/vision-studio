@@ -3,7 +3,7 @@
 > **Historical design record - 2026-07-06.** Describes intent at that
 > date, not current behaviour. See `docs/INDEX.md` for what is authoritative.
 
-**Status:** Draft for review
+**Status:** Shipped - implemented in four PRs (#53 manifest and licensing, #55 provisioning orchestrator, #56 first-run UX and About licences, #58 delivery: R2 update feed and auto-updater) and first released in 3.2.0; macOS and Linux delivery followed in #65. See `BUNDLING.md` and `docs/R2-DELIVERY.md` for current behaviour.
 **Date:** 2026-07-06
 **Owner:** Rocky (approver) / implementation TBD
 **Related:** `build-backend.cjs`, `backend/main.spec`, `backend/foundry/download_manager.py`, `backend/foundry/verified-catalog.json`, `BUNDLING.md`, `WINDOWS_BUILD.md`

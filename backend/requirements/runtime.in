@@ -1,0 +1,75 @@
+# Vision Studio backend - release runtime input (reviewed by hand).
+#
+# This is the ONE list of what the frozen backend bundle ships. It is not
+# installed directly: `node build-backend.cjs --lock` compiles it into the
+# per-platform, hash-locked runtime-<platform>.txt files beside it, and the
+# release build installs ONLY those, with `pip install --require-hashes`.
+#
+# torch / torchvision are NOT listed here. They come from the PyTorch CUDA
+# index (Windows/Linux) or PyPI (macOS) through their own hash-locked
+# torch-<platform>-<flavor>.txt files; build-backend.cjs pins them in
+# TORCH_PIN / TORCHVISION_PIN, and the lock step feeds that pin in as a
+# constraint so every package below resolves against the torch that ships.
+#
+# Floors are security floors, not compatibility guesses - each names the
+# advisory it clears. Raise them; never lower them.
+
+# --- HTTP server ------------------------------------------------------------
+fastapi>=0.120.0
+# CVE-2024-47874 (multipart DoS, fixed 0.40.0), CVE-2025-54121 (0.47.2),
+# CVE-2025-62727 (Range-header ReDoS in FileResponse, fixed 0.49.1)
+starlette>=0.49.1
+uvicorn[standard]>=0.34.0
+# CVE-2025-43859 (request smuggling via chunked-encoding leniency)
+h11>=0.16.0
+slowapi>=0.1.9
+pydantic>=2.5.0
+websockets>=12.0
+
+# --- Media ------------------------------------------------------------------
+# CVE-2024-28219 (10.3.0), CVE-2025-48379 (DDS heap overflow, 11.3.0)
+Pillow>=11.3.0
+numpy>=1.26.0
+# Headless: the backend never opens a window (no imshow/waitKey anywhere), and
+# the GUI build needs libGL at import time on Linux. overrides.txt removes the
+# GUI `opencv-python` that controlnet-aux and facexlib declare, so exactly one
+# cv2 ships.
+opencv-python-headless>=4.8.0
+imageio>=2.31.0
+# Carries the ffmpeg binary the video muxer and timeline export spawn.
+imageio-ffmpeg>=0.4.9
+
+# --- Model management / networking ------------------------------------------
+huggingface-hub[hf_xet]>=1.10.1
+safetensors>=0.4.0
+# CVE-2024-35195 (2.32.0), CVE-2024-47081 (.netrc credential leak, 2.32.4)
+requests>=2.32.4
+# urllib3 CVE-2025-50181 / CVE-2025-50182 (redirect handling, fixed 2.5.0)
+urllib3>=2.5.0
+# ComfyUI client transport. CVE-2025-53643 (3.12.14) and the 2026-01 batch
+# of request-parsing advisories fixed in 3.13.3.
+aiohttp>=3.13.3
+aiofiles>=23.2.0
+tqdm>=4.66.3
+psutil>=5.9.0
+
+# --- Generation stack ---------------------------------------------------------
+diffusers>=0.32.0
+# Pre-4.53 releases carry the ReDoS advisories CVE-2025-1194, CVE-2025-2099,
+# CVE-2025-3263/3264/3777, CVE-2025-5197, CVE-2025-6638 and others.
+transformers>=4.53.0
+accelerate>=1.0.0
+# diffusers detects peft through importlib.metadata; main.spec ships its
+# metadata so LoRA stacking works frozen.
+peft>=0.13.0
+controlnet-aux>=0.0.10
+onnxruntime>=1.17
+spandrel>=0.4.0
+facexlib>=0.3.0
+# Post-load int8/fp8 weight quantization (foundry/accelerator.py).
+optimum-quanto>=0.2.6
+# Local semantic retrieval embedder (services/retrieval/embedder.py).
+sentence-transformers>=3.0.0
+
+# --- Build tool (installed into the build venv, never imported at runtime) ---
+pyinstaller>=6.11.0

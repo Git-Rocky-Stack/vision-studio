@@ -3,6 +3,7 @@ Direct Generator - Generate images using diffusers directly
 Fallback when ComfyUI is not available
 """
 
+import logging
 import os
 import weakref
 try:
@@ -31,12 +32,14 @@ try:
 except ImportError as e:
     diffusers = None  # type: ignore[assignment]
     DIFFUSERS_AVAILABLE = False
-    print(f"⚠️ diffusers import failed: {e}. Direct image generation disabled.")
+    logging.getLogger(__name__).warning(
+        "diffusers import failed: %s. Direct image generation disabled.", e)
 
 # M9 acceleration seam (import-safe: accelerator imports no torch at module load).
 from foundry.accelerator import DEFAULT_ACCELERATION_SETTINGS, accelerate_pipeline
 from foundry.lora import loras_applied
-from utils.device import empty_device_cache, is_out_of_memory, resolve_device
+from utils.device import free_accelerator_memory, is_out_of_memory, resolve_device
+from utils.gpu_gate import gpu_work
 from utils.job_manager import GenerationCancelled
 from utils.pipeline_cache import register_pipeline_owner, release_other_pipeline_caches
 
@@ -61,6 +64,8 @@ from guided.preprocessors import produce_control_image
 
 # #33 live step preview (imports no torch/diffusers at module load).
 from preview.step_preview import step_preview_service
+
+logger = logging.getLogger(__name__)
 
 
 class ModelLoadRefusedError(RuntimeError):
@@ -157,6 +162,62 @@ def pipeline_class_for(plan) -> Any:
     return pipeline_cls
 
 
+class UnknownSchedulerError(ValueError):
+    """The requested sampler name is not one this backend can build.
+
+    A request-validation error (422), never a silent fallback: an unknown
+    name used to fall through to Euler Ancestral and produce a different
+    image than the one the user asked for.
+    """
+
+
+# Sampler name (normalized: stripped, lower-case) -> (diffusers scheduler
+# class name, constructor overrides). Karras sigmas and the SDE solver are
+# constructor arguments - setting the config field after construction leaves
+# the already-built sigma schedule untouched. "DPM++ SDE" is the SDE variant
+# of the multistep solver (algorithm_type="sde-dpmsolver++"), which needs no
+# torchsde, unlike DPMSolverSDEScheduler.
+_SCHEDULER_SPECS: Dict[str, Any] = {
+    "euler": ("EulerDiscreteScheduler", {}),
+    "euler a": ("EulerAncestralDiscreteScheduler", {}),
+    "euler_a": ("EulerAncestralDiscreteScheduler", {}),
+    "euler ancestral": ("EulerAncestralDiscreteScheduler", {}),
+    "dpm++ 2m": ("DPMSolverMultistepScheduler", {}),
+    "dpm++ 2m karras": ("DPMSolverMultistepScheduler", {"use_karras_sigmas": True}),
+    "dpm++ sde": ("DPMSolverMultistepScheduler", {"algorithm_type": "sde-dpmsolver++"}),
+    "dpm++ sde karras": (
+        "DPMSolverMultistepScheduler",
+        {"algorithm_type": "sde-dpmsolver++", "use_karras_sigmas": True},
+    ),
+    "ddim": ("DDIMScheduler", {}),
+    "unipc": ("UniPCMultistepScheduler", {}),
+}
+
+#: Every accepted sampler name, normalized (strip + lower-case). The request
+#: schema validates against this set so an unknown name is a 422 up front.
+SUPPORTED_SCHEDULERS = frozenset(_SCHEDULER_SPECS)
+
+
+def normalize_scheduler_name(name: Any) -> str:
+    return str(name or "").strip().lower()
+
+
+def is_supported_scheduler(name: Any) -> bool:
+    return normalize_scheduler_name(name) in SUPPORTED_SCHEDULERS
+
+
+def scheduler_spec(name: Any):
+    """(diffusers class name, constructor overrides) or UnknownSchedulerError."""
+    spec = _SCHEDULER_SPECS.get(normalize_scheduler_name(name))
+    if spec is None:
+        raise UnknownSchedulerError(
+            f"Unknown scheduler '{name}'. Choose one of: Euler, Euler a, DPM++ 2M, "
+            "DPM++ 2M Karras, DPM++ SDE, DPM++ SDE Karras, DDIM, UniPC."
+        )
+    class_name, overrides = spec
+    return class_name, dict(overrides)
+
+
 def _acceleration_payload(applied) -> Optional[Dict[str, Any]]:
     """AppliedAcceleration -> JSON-safe dict for the job result, or None."""
     if applied is None:
@@ -212,15 +273,33 @@ class DirectGenerator:
         # one releases the video cache) - see utils.pipeline_cache.
         register_pipeline_owner("image", self.unload_all)
 
-        print(f"🖥️ DirectGenerator using device: {self.device}")
-
         if self.device == "cuda":
-            print(f"   GPU: {torch.cuda.get_device_name(0)}")
-            print(f"   VRAM: {torch.cuda.get_device_properties(0).total_memory / 1e9:.1f} GB")
+            logger.info(
+                "DirectGenerator using device: cuda (%s, %.1f GB VRAM)",
+                torch.cuda.get_device_name(0),
+                torch.cuda.get_device_properties(0).total_memory / 1e9,
+            )
         elif self.device == "mps":
-            print(f"   GPU: Apple Silicon (Metal/MPS), "
-                  f"{torch.mps.recommended_max_memory() / 1e9:.1f} GB unified memory budget")
-    
+            logger.info(
+                "DirectGenerator using device: mps (Apple Silicon, %.1f GB unified memory budget)",
+                torch.mps.recommended_max_memory() / 1e9,
+            )
+        else:
+            logger.info("DirectGenerator using device: %s", self.device)
+
+    def _evict_for_load(self) -> None:
+        """Free accelerator memory before a new pipeline is measured and loaded.
+
+        Drops this generator's resident pipeline, asks every other registered
+        cache (the video generator, guided-pass and edit-tool model caches)
+        to release, then collects garbage and empties the allocator cache -
+        in that order, so the VRAM probe that follows sees the memory the old
+        pipeline actually gave back.
+        """
+        self.unload_all()
+        release_other_pipeline_caches("image")
+        free_accelerator_memory(torch)
+
     def load_model(self, model_name: str, overrides: Optional[Dict[str, Any]] = None,
                    acceleration_settings=None):
         """Resolve the runtime plan for model_name, then load exactly what it says.
@@ -230,7 +309,19 @@ class DirectGenerator:
         come from resolve_model_runtime via the resolve_plan seam. On CUDA
         OOM the plan's fallback_ladder is consumed rung by rung; the OOM is
         re-raised honestly when the ladder is exhausted.
+
+        Order (B4): the refusal check runs first and leaves the resident
+        pipeline alone; then the old pipelines are unloaded and memory freed;
+        only THEN is VRAM measured (a fresh plan) to choose precision/offload
+        - measuring with the previous multi-GB pipeline still resident made
+        every model switch plan against memory that was about to be freed.
+        Runs under the process-wide GPU gate (re-entrant from generation).
         """
+        with gpu_work(f"load image model {model_name}"):
+            return self._load_model_locked(model_name, overrides, acceleration_settings)
+
+    def _load_model_locked(self, model_name: str, overrides: Optional[Dict[str, Any]],
+                           acceleration_settings):
         requested_acceleration = acceleration_settings or DEFAULT_ACCELERATION_SETTINGS
         cached = self.pipelines.get(model_name)
         if cached is not None:
@@ -240,18 +331,25 @@ class DirectGenerator:
             # model was cached. compile/quantization/slicing mutate the pipeline
             # in place and cannot be cleanly reverted, so evict and rebuild to
             # honor (and honestly report) the new settings.
-            print(f"Acceleration settings changed for {model_name}; reloading")
-            self.unload_model(model_name)
+            logger.info("Acceleration settings changed for %s; reloading", model_name)
+        # Drop the local reference so the eviction below can actually free it.
+        cached = None
 
-        print(f"Loading model: {model_name}")
+        logger.info("Loading model: %s", model_name)
+        # 1. Refusal first: security/capability refusals are hardware-free,
+        #    so a refused load never evicts the pipeline the user has now.
         plan = resolve_plan(model_name, overrides)
         if plan.refusal:
             raise ModelLoadRefusedError(plan.refusal)
 
-        # One resident pipeline per generator, and none in the video
-        # generator: two multi-GB pipelines never share VRAM.
-        self.unload_all()
-        release_other_pipeline_caches("image")
+        # 2. One resident pipeline per generator, none in any other cache:
+        #    unload, release, gc.collect + empty_cache.
+        self._evict_for_load()
+
+        # 3. Measure + plan against the memory that is actually free now.
+        plan = resolve_plan(model_name, overrides)
+        if plan.refusal:
+            raise ModelLoadRefusedError(plan.refusal)
 
         ladder = list(plan.fallback_ladder)
         slicing_max = False
@@ -266,12 +364,12 @@ class DirectGenerator:
                 if not is_out_of_memory(exc):
                     raise
                 if not ladder:
-                    print(f"OOM loading {model_name}: fallback ladder exhausted")
+                    logger.warning("OOM loading %s: fallback ladder exhausted", model_name)
                     raise
                 rung = ladder.pop(0)
-                print(f"OOM loading {model_name}: stepping fallback rung '{rung}'")
+                logger.warning("OOM loading %s: stepping fallback rung '%s'", model_name, rung)
                 slicing_max = apply_fallback_rung(plan, rung) or slicing_max
-                empty_device_cache(torch)
+                free_accelerator_memory(torch)
 
         applied = accelerate_pipeline(
             pipeline, plan, requested_acceleration, slicing_max=slicing_max)
@@ -279,7 +377,7 @@ class DirectGenerator:
         self._loaded_acceleration[model_name] = requested_acceleration
 
         self.pipelines[model_name] = pipeline
-        print(f"Model loaded: {model_name} ({plan.pipeline_class}, {plan.precision})")
+        logger.info("Model loaded: %s (%s, %s)", model_name, plan.pipeline_class, plan.precision)
         return pipeline
 
     def _load_from_plan(self, model_name: str, plan, slicing_max: bool):
@@ -341,7 +439,12 @@ class DirectGenerator:
         swap derives from the scheduler the pipeline was LOADED with, never
         from a previous swap, so switching samplers back and forth on a
         cached pipeline cannot accumulate config drift.
+
+        An unknown name raises UnknownSchedulerError on every pipeline - even
+        one that keeps its own scheduler - so the contract is the same no
+        matter which model was picked.
         """
+        class_name, overrides = scheduler_spec(scheduler_name)
         current = getattr(pipeline, "scheduler", None)
         if current is None or type(current).__name__.startswith("FlowMatch"):
             return pipeline
@@ -353,30 +456,8 @@ class DirectGenerator:
         except TypeError:  # not weak-referenceable/hashable: swap from current
             original_config = current.config
 
-        normalized = scheduler_name.strip().lower()
-        scheduler_cls = EulerAncestralDiscreteScheduler
-
-        if normalized == "euler":
-            scheduler_cls = EulerDiscreteScheduler
-        elif normalized in {"euler a", "euler_a", "euler ancestral"}:
-            scheduler_cls = EulerAncestralDiscreteScheduler
-        elif normalized in {
-            "dpm++ 2m",
-            "dpm++ 2m karras",
-            "dpm++ sde",
-            "dpm++ sde karras",
-        }:
-            scheduler_cls = DPMSolverMultistepScheduler
-        elif normalized == "ddim":
-            scheduler_cls = DDIMScheduler
-        elif normalized == "unipc":
-            scheduler_cls = UniPCMultistepScheduler
-
-        # Karras sigmas are a constructor argument: setting the config field
-        # after construction leaves the already-built sigma schedule untouched.
-        overrides: Dict[str, Any] = {}
-        if "karras" in normalized and scheduler_cls is DPMSolverMultistepScheduler:
-            overrides["use_karras_sigmas"] = True
+        # Resolved on this module so tests can patch the diffusers classes.
+        scheduler_cls = globals()[class_name]
         pipeline.scheduler = scheduler_cls.from_config(original_config, **overrides)
         return pipeline
     
@@ -438,11 +519,15 @@ class DirectGenerator:
                 progress = (step + 1) / steps * 100
                 loop.call_soon_threadsafe(progress_callback, progress)
 
-        # Run generation in thread pool (to not block the event loop)
+        # Run generation in thread pool (to not block the event loop). The
+        # worker queues for the process-wide GPU gate first; a job cancelled
+        # while it waits never starts.
         try:
             result = await loop.run_in_executor(
                 self.executor,
-                self._generate_sync,
+                self._generate_gated,
+                job_id,
+                should_cancel,
                 prompt,
                 negative_prompt,
                 width,
@@ -464,9 +549,20 @@ class DirectGenerator:
         except GenerationCancelled:
             raise
         except Exception as e:
-            print(f"❌ Generation failed: {e}")
+            logger.error("Generation failed: %s", e)
             raise
-    
+
+    def _generate_gated(self, job_id: str, should_cancel: Optional[Callable[[], bool]],
+                        *args: Any) -> Dict[str, Any]:
+        """_generate_sync under the GPU gate (runs on the executor worker).
+
+        The whole pass - load, guided-model attach, denoise, save - holds the
+        gate, so no unload/release can interleave with it.
+        """
+        with gpu_work(f"image job {job_id}", should_cancel=should_cancel,
+                      on_cancel=lambda: GenerationCancelled(job_id)):
+            return self._generate_sync(*args)
+
     def _background_replace_mask(self, image):
         """#34 PR2: inverted U2-Net subject alpha = the background inpaint mask.
 
@@ -602,7 +698,7 @@ class DirectGenerator:
         generator = torch.Generator(device=self.device).manual_seed(seed)
 
         # Generate
-        print(f"🎨 Generating: {width}x{height}, {steps} steps, seed={seed}")
+        logger.info("Generating: %sx%s, %s steps, seed=%s", width, height, steps, seed)
 
         # callback_on_step_end is the only progress hook diffusers >=0.37
         # supports on every shipped pipeline: SD3/Flux/LTX removed the legacy
@@ -764,7 +860,7 @@ class DirectGenerator:
             output_path = os.path.join(output_dir, "generated.png")
             image.save(output_path, "PNG")
 
-        print(f"✅ Saved: {output_path}")
+        logger.info("Saved: %s", output_path)
         
         return {
             "images": [f"/outputs/{os.path.basename(output_dir)}/generated.png"],
@@ -779,41 +875,22 @@ class DirectGenerator:
         }
 
     def unload_model(self, model_name: str):
-        """Unload a model to free VRAM"""
-        if model_name in self.pipelines:
+        """Unload a model and free its VRAM (gc.collect, then empty the cache).
+
+        Holds the GPU gate: an unload requested while a generation is running
+        (model delete, another generator's load) waits for the run to finish.
+        """
+        with gpu_work(f"unload image model {model_name}"):
+            if model_name not in self.pipelines:
+                return
             del self.pipelines[model_name]
             self._loaded_acceleration.pop(model_name, None)
             self.applied_acceleration.pop(model_name, None)
-            empty_device_cache(torch)
-            print(f"🗑️ Unloaded model: {model_name}")
+            free_accelerator_memory(torch)
+            logger.info("Unloaded model: %s", model_name)
 
     def unload_all(self):
         """Drop every cached pipeline (no-op when none is resident)."""
-        for model_name in list(self.pipelines):
-            self.unload_model(model_name)
-
-    def get_memory_usage(self) -> Dict[str, float]:
-        """Get GPU memory usage"""
-        if self.device == "cuda":
-            allocated = torch.cuda.memory_allocated() / 1e9
-            reserved = torch.cuda.memory_reserved() / 1e9
-            total = torch.cuda.get_device_properties(0).total_memory / 1e9
-
-            return {
-                "allocated_gb": round(allocated, 2),
-                "reserved_gb": round(reserved, 2),
-                "total_gb": round(total, 2),
-                "free_gb": round(total - allocated, 2)
-            }
-        if self.device == "mps":
-            allocated = torch.mps.current_allocated_memory() / 1e9
-            reserved = torch.mps.driver_allocated_memory() / 1e9
-            total = torch.mps.recommended_max_memory() / 1e9
-
-            return {
-                "allocated_gb": round(allocated, 2),
-                "reserved_gb": round(reserved, 2),
-                "total_gb": round(total, 2),
-                "free_gb": round(total - allocated, 2)
-            }
-        return {"device": "cpu"}
+        with gpu_work("unload image models"):
+            for model_name in list(self.pipelines):
+                self.unload_model(model_name)

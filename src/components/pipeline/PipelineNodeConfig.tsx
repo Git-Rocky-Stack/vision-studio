@@ -1,4 +1,4 @@
-import { memo, useState } from 'react';
+import { memo, useId, useState } from 'react';
 import { cn } from '@/utils/cn';
 import { Slider } from '@/components/ui/Slider';
 import { Switch } from '@/components/ui/Switch';
@@ -48,10 +48,12 @@ function SelectInput({
   options: string[];
   onChange: (v: string) => void;
 }) {
+  const id = useId();
   return (
     <div>
-      <label className="text-label text-text-body mb-1 block">{label}</label>
+      <label htmlFor={id} className="text-label text-text-body mb-1 block">{label}</label>
       <select
+        id={id}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         className="w-full rounded-md border border-border bg-canvas px-2 py-1.5 text-sm text-text-body focus:border-accent-primary-border"
@@ -70,6 +72,7 @@ export const PipelineNodeConfig = memo(function PipelineNodeConfig({
   className,
 }: PipelineNodeConfigProps) {
   const [isOpen, setIsOpen] = useState(true);
+  const fieldId = useId();
   const Icon = TYPE_ICONS[step.type] ?? Settings2;
   const p = step.params;
 
@@ -243,8 +246,9 @@ export const PipelineNodeConfig = memo(function PipelineNodeConfig({
                     onChange={(v) => setParam('strength', v)}
                   />
                   <div>
-                    <label className="text-label text-text-body mb-1 block">Reference Image</label>
+                    <label htmlFor={`${fieldId}-reference`} className="text-label text-text-body mb-1 block">Reference Image</label>
                     <input
+                      id={`${fieldId}-reference`}
                       type="text"
                       value={String(p.referencePath ?? '')}
                       onChange={(e) => setParam('referencePath', e.target.value)}
@@ -280,8 +284,9 @@ export const PipelineNodeConfig = memo(function PipelineNodeConfig({
                 <>
                   <div className="flex gap-2">
                     <div className="flex-1">
-                      <label className="text-label text-text-body mb-1 block">Width</label>
+                      <label htmlFor={`${fieldId}-width`} className="text-label text-text-body mb-1 block">Width</label>
                       <input
+                        id={`${fieldId}-width`}
                         type="number"
                         value={Number(p.width ?? 1024)}
                         onChange={(e) => setParam('width', Number(e.target.value))}
@@ -291,8 +296,9 @@ export const PipelineNodeConfig = memo(function PipelineNodeConfig({
                       />
                     </div>
                     <div className="flex-1">
-                      <label className="text-label text-text-body mb-1 block">Height</label>
+                      <label htmlFor={`${fieldId}-height`} className="text-label text-text-body mb-1 block">Height</label>
                       <input
+                        id={`${fieldId}-height`}
                         type="number"
                         value={Number(p.height ?? 1024)}
                         onChange={(e) => setParam('height', Number(e.target.value))}
@@ -314,8 +320,9 @@ export const PipelineNodeConfig = memo(function PipelineNodeConfig({
               {/* Custom */}
               {step.type === 'custom' && (
                 <div>
-                  <label className="text-label text-text-body mb-1 block">Endpoint URL</label>
+                  <label htmlFor={`${fieldId}-endpoint`} className="text-label text-text-body mb-1 block">Endpoint URL</label>
                   <input
+                    id={`${fieldId}-endpoint`}
                     type="text"
                     value={String(p.endpoint ?? '')}
                     onChange={(e) => setParam('endpoint', e.target.value)}

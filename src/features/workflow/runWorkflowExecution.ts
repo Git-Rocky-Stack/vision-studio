@@ -16,19 +16,19 @@ import {
 } from '../../../shared/hostedLoraRouting';
 import { resolveWorkflowGenerationRequest } from './resolveWorkflowGenerationRequest';
 import { validateWorkflowExecution } from './validateWorkflowExecution';
+import { delay as delayWithAbort, watchJob } from '@/features/jobs/watchJob';
 
 type WorkflowStore = UseBoundStore<StoreApi<AppState>>;
 
 /**
- * Poll budgets: max wall time before the runner gives up waiting on the
- * job. Multiplied against pollIntervalMs (default 500ms) inside the poll
- * loop, so the local-backend budget is ~60s and the hosted budget is
- * ~120s. Hosted routes (OpenRouter, HuggingFace) get the longer ceiling
- * because off-device image generation has higher tail latency than the
- * local CUDA path.
+ * The run follows its job until the backend reports a terminal status (#J1);
+ * it ends early only when the backend stops answering (error budget) or the
+ * job stops reporting progress for the watch's stall window.
  */
-const MAX_POLL_ATTEMPTS_LOCAL_BACKEND = 120;
-const MAX_POLL_ATTEMPTS_HOSTED = 240;
+export const WORKFLOW_JOB_LOST_MESSAGE =
+  'Lost connection to the AI backend while the workflow job was running. Please retry.';
+export const WORKFLOW_JOB_STALLED_MESSAGE =
+  'The workflow job stopped reporting progress and was given up on. Please retry.';
 
 interface WorkflowExecutionElectronApi {
   app: {
@@ -180,46 +180,29 @@ export async function runWorkflowExecution({
     });
     state.setWorkflowRuntimeState(workflowId, { activeJobId: jobId });
 
-    const maxPollAttempts = isHostedStillImageRoute(stillImageRoute)
-      ? MAX_POLL_ATTEMPTS_HOSTED
-      : MAX_POLL_ATTEMPTS_LOCAL_BACKEND;
+    // The shared job watch (#J1): push first, polling as the fallback, a
+    // status error budget and a stall guard instead of a wall-clock ceiling.
+    const watch = await watchJob({
+      jobId,
+      getStatus: (id) => electron.generation.getStatus(id),
+      signal,
+      pollIntervalMs,
+      maxPollIntervalMs: pollIntervalMs,
+      onUpdate: (update) => {
+        state.updateJob(jobId, { status: update.status, progress: update.progress });
+      },
+    });
 
-    let finalStatus: JobStatus | null = null;
-    for (let attempt = 0; attempt < maxPollAttempts; attempt += 1) {
-      if (signal?.aborted) {
-        throw new Error('Workflow execution was cancelled.');
-      }
-      const nextStatus = await electron.generation.getStatus(jobId);
-      if (!nextStatus) {
-        throw new Error('Workflow execution returned no job status.');
-      }
-
-      if (nextStatus.status === 'completed' || nextStatus.status === 'failed' || nextStatus.status === 'cancelled') {
-        finalStatus = nextStatus;
-        break;
-      }
-
-      // Defensive enum guard: a future-version backend could return a status
-      // outside the JobStatus union. Coerce anything other than the two
-      // expected non-terminal values to 'processing' so the store never holds
-      // an unknown literal that downstream code does not handle.
-      const safeStatus: 'pending' | 'processing' =
-        nextStatus.status === 'pending' || nextStatus.status === 'processing'
-          ? nextStatus.status
-          : 'processing';
-      state.updateJob(jobId, {
-        status: safeStatus,
-        progress: nextStatus.progress ?? 0,
-      });
-
-      if (pollIntervalMs > 0) {
-        await delay(pollIntervalMs, signal);
-      }
+    if (watch.kind === 'aborted') {
+      throw new Error('Workflow execution was cancelled.');
     }
-
-    if (!finalStatus) {
-      throw new Error('Workflow execution timed out while waiting for the generation job.');
+    if (watch.kind === 'lost') {
+      throw new Error(WORKFLOW_JOB_LOST_MESSAGE);
     }
+    if (watch.kind === 'stalled') {
+      throw new Error(WORKFLOW_JOB_STALLED_MESSAGE);
+    }
+    const finalStatus: JobStatus = watch.status;
 
     if (finalStatus.status === 'completed') {
       const completedAt = finalStatus.completed_at ? new Date(finalStatus.completed_at) : new Date();
@@ -350,23 +333,8 @@ export function buildCompletionSummary(status: JobStatus) {
   return 'Workflow completed successfully.';
 }
 
-export function delay(ms: number, signal?: AbortSignal) {
-  return new Promise<void>((resolve, reject) => {
-    if (signal?.aborted) {
-      reject(new Error('delay aborted'));
-      return;
-    }
-    const timer = setTimeout(() => {
-      signal?.removeEventListener('abort', onAbort);
-      resolve();
-    }, ms);
-    const onAbort = () => {
-      clearTimeout(timer);
-      reject(new Error('delay aborted'));
-    };
-    signal?.addEventListener('abort', onAbort, { once: true });
-  });
-}
+/** Abort-aware delay; kept here for the modules that import it from this file. */
+export const delay = delayWithAbort;
 
 function applyWorkflowExecutionRoute({
   issues,

@@ -38,10 +38,11 @@ export const CharacterRefCard = memo(function CharacterRefCard({
   };
 
   return (
-    <motion.article
+    <motion.div
       data-testid="character-ref-card"
       aria-label={`${character.name}, ${sceneCount} scene${sceneCount !== 1 ? 's' : ''}`}
-      aria-selected={isSelected}
+      // A toggle button: selection is aria-pressed, as on SceneCard.
+      aria-pressed={isSelected}
       onClick={onClick}
       onKeyDown={handleKeyDown}
       onMouseEnter={() => setIsHovered(true)}
@@ -156,6 +157,6 @@ export const CharacterRefCard = memo(function CharacterRefCard({
           </p>
         )}
       </div>
-    </motion.article>
+    </motion.div>
   );
 });

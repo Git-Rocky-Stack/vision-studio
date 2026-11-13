@@ -1,6 +1,5 @@
-import path from 'path';
+import { resolveWithinRoots, type ContainmentOptions } from './pathSafety';
 
-const ALLOWED_STORE_KEYS = new Set(['settings', 'recentProjects', 'firstRun', 'modelsDownloaded']);
 const DANGEROUS_EXECUTABLE_NAMES = new Set([
   'cmd',
   'cmd.exe',
@@ -31,16 +30,6 @@ function crossPlatformBasename(filePath: string) {
   return segments[segments.length - 1] || filePath;
 }
 
-function normalizeForCompare(filePath: string) {
-  return path.resolve(filePath).replace(/\\/g, '/').replace(/\/$/, '').toLowerCase();
-}
-
-function isPathInsideRoot(candidatePath: string, rootPath: string) {
-  const candidate = normalizeForCompare(candidatePath);
-  const root = normalizeForCompare(rootPath);
-  return candidate === root || candidate.startsWith(`${root}/`);
-}
-
 export function isSafeExternalUrl(url: string) {
   try {
     const parsed = new URL(url);
@@ -52,7 +41,12 @@ export function isSafeExternalUrl(url: string) {
 
 export function isSafePythonCommand(command: string) {
   const trimmed = command.trim();
-  if (!trimmed || SHELL_METACHARACTERS.test(trimmed)) {
+  // UNC shares ("\\server\share", "//server/share") and Win32 device /
+  // namespace paths ("\\?\", "\\.\") would make the main process load and run
+  // an executable from the network or a raw device. A Python interpreter is
+  // always a plain local file.
+  const isUncOrDevicePath = /^[\\/]{2}/.test(trimmed);
+  if (!trimmed || isUncOrDevicePath || SHELL_METACHARACTERS.test(trimmed)) {
     return false;
   }
 
@@ -64,57 +58,60 @@ export function isSafePythonCommand(command: string) {
   return PYTHON_EXECUTABLE_NAME.test(executableName);
 }
 
-// File extensions the OS shell would launch/execute (or run as a script)
-// rather than open in a viewer. `app:open-path` only ever opens generated
-// media or documents, so refusing these stops a renderer-supplied path - even
-// one inside an allowed root, e.g. `Downloads\tool.exe` - from being executed
-// via shell.openPath.
-const DANGEROUS_OPEN_EXTENSIONS = new Set([
-  '.exe', '.msi', '.bat', '.cmd', '.com', '.scr', '.pif', '.cpl', '.reg',
-  '.ps1', '.psm1', '.vbs', '.vbe', '.js', '.jse', '.wsf', '.wsh', '.hta',
-  '.lnk', '.url', '.jar', '.msc', '.gadget', '.sh', '.command', '.app',
+/**
+ * File types `app:open-path` may hand to the OS shell: the media the app
+ * generates or imports, and plain documents. An allow-list, not a block-list:
+ * shell.openPath launches whatever the OS associates with an extension, so an
+ * unlisted type (a script, a shortcut, an installer, an extension the
+ * block-list never anticipated) is refused rather than executed.
+ */
+export const OPENABLE_FILE_EXTENSIONS: ReadonlySet<string> = new Set([
+  // Images
+  '.png', '.jpg', '.jpeg', '.webp', '.gif', '.bmp', '.tif', '.tiff', '.avif', '.heic',
+  // Video
+  '.mp4', '.webm', '.mov', '.m4v', '.mkv', '.avi',
+  // Audio
+  '.wav', '.mp3', '.m4a', '.flac', '.ogg', '.aac',
+  // Documents
+  '.pdf', '.txt', '.json', '.md',
 ]);
 
-export function isExecutablePath(filePath: string) {
+/** True for a directory, or a file whose extension is on the open allow-list. */
+export function isOpenablePath(filePath: string, isDirectory: boolean) {
+  if (isDirectory) {
+    return true;
+  }
   const name = crossPlatformBasename(filePath).toLowerCase();
   const dotIndex = name.lastIndexOf('.');
   if (dotIndex <= 0) {
     return false;
   }
-  return DANGEROUS_OPEN_EXTENSIONS.has(name.slice(dotIndex));
+  return OPENABLE_FILE_EXTENSIONS.has(name.slice(dotIndex));
 }
 
-export function isAllowedStoreKey(key: string) {
-  return ALLOWED_STORE_KEYS.has(key);
-}
-
-// A Windows drive-absolute path ("C:\\...", "D:/..."). On the Linux CI runner
-// Node's POSIX `path.isAbsolute` reports these as relative, so detect them
-// explicitly; otherwise legitimate Windows export targets would be rejected.
-const WINDOWS_DRIVE_ABSOLUTE = /^[A-Za-z]:[\\/]/;
-
-function isAbsoluteDestination(destinationPath: string) {
-  return path.isAbsolute(destinationPath) || WINDOWS_DRIVE_ABSOLUTE.test(destinationPath);
-}
-
-export function resolveSafeExportDestination(destinationPath: string, allowedRoots: string[]) {
-  if (!isAbsoluteDestination(destinationPath)) {
+/**
+ * Canonical (forward-slash) destination when `destinationPath` is absolute,
+ * well-formed and inside one of `allowedRoots` (lexically and after realpath),
+ * else null. Shares its containment rules with managed assets (pathSafety.ts).
+ */
+export function resolveSafeExportDestination(
+  destinationPath: string,
+  allowedRoots: string[],
+  options: ContainmentOptions = {},
+) {
+  if (typeof destinationPath !== 'string') {
     return null;
   }
-
-  const resolvedDestination = path.resolve(destinationPath);
-  const isAllowed = allowedRoots.some((root) => isPathInsideRoot(resolvedDestination, root));
-  return isAllowed ? resolvedDestination : null;
+  return resolveWithinRoots(destinationPath, allowedRoots, options);
 }
 
 export function toSafeRendererError(error: unknown, fallbackMessage = 'Request failed') {
-  if (
-    typeof error === 'object' &&
-    error !== null &&
-    'code' in error &&
-    (error as { code?: unknown }).code === 'BACKEND_DOWN'
-  ) {
+  const code = typeof error === 'object' && error !== null ? (error as { code?: unknown }).code : undefined;
+  if (code === 'BACKEND_DOWN') {
     return 'The AI backend is not running. Please restart the app or start the backend manually from Settings.';
+  }
+  if (code === 'BACKEND_UNVERIFIED') {
+    return 'The AI backend is still starting (its identity has not been verified yet). Try again in a moment.';
   }
 
   return fallbackMessage;

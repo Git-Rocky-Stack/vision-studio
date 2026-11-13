@@ -21,3 +21,13 @@ export declare function getSigningReadiness(env: Record<string, string | undefin
 
 /** Builds the electron-builder argv for a Windows package in the selected signing mode. */
 export declare function buildWindowsPackageArgs(env: Record<string, string | undefined>): string[];
+
+/**
+ * Maps the `electron-builder ...` argv onto a `node <cli.js> ...` invocation so
+ * Windows never spawns the npx.cmd shim (EINVAL under shell:false since
+ * Node's CVE-2024-27980 hardening).
+ */
+export declare function resolvePackageCommand(
+  args: string[],
+  resolveModule?: (id: string) => string
+): { command: string; args: string[] };

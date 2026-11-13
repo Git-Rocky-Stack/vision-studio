@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { cn } from '@/utils/cn';
 import { withAlpha } from '@/utils/colorUtils';
@@ -203,14 +203,15 @@ export function AIToolsPanel() {
     return Boolean(isRunning && operation && runningOperation === operation);
   };
 
+  const fieldId = useId();
   // Real progress next to the spinner while a tool runs (Button loadingLabel).
   const processingLabel = progress > 0 ? `${Math.round(progress)}%` : undefined;
 
   // Shared mask controls for the two inpaint-mask tools.
   const maskControls = (
     <div className="space-y-3" data-testid="edit-ai-mask-controls">
-      <div className="space-y-1.5">
-        <label className="text-label text-text-body">Mask Tool</label>
+      <div className="space-y-1.5" role="group" aria-labelledby={`${fieldId}-mask-tool`}>
+        <p id={`${fieldId}-mask-tool`} className="text-label text-text-body">Mask Tool</p>
         <div className="flex gap-2">
           {([
             { id: 'brush', label: 'Brush' },
@@ -220,6 +221,7 @@ export function AIToolsPanel() {
               key={id}
               type="button"
               onClick={() => setEditAiMaskTool(id)}
+              aria-pressed={editAiMaskTool === id}
               className={cn(
                 'flex-1 py-2 rounded-md border text-sm font-medium transition',
                 editAiMaskTool === id
@@ -423,13 +425,15 @@ export function AIToolsPanel() {
                     {/* AI Upscale */}
                     {tool.id === 'upscale' && (
                       <>
-                        <div className="space-y-1.5">
-                          <label className="text-label text-text-body">Scale</label>
+                        <div className="space-y-1.5" role="group" aria-labelledby={`${fieldId}-scale`}>
+                          <p id={`${fieldId}-scale`} className="text-label text-text-body">Scale</p>
                           <div className="flex gap-2">
                             {([2, 4] as const).map((factor) => (
                               <button
                                 key={factor}
+                                type="button"
                                 onClick={() => setUpscaleFactor(factor)}
+                                aria-pressed={upscaleFactor === factor}
                                 className={cn(
                                   'flex-1 py-2 rounded-md border text-sm font-medium transition',
                                   upscaleFactor === factor
@@ -443,8 +447,11 @@ export function AIToolsPanel() {
                           </div>
                         </div>
                         <div className="space-y-1.5">
-                          <label className="text-label text-text-body">Model</label>
+                          <label htmlFor={`${fieldId}-upscale-model`} className="text-label text-text-body">
+                            Model
+                          </label>
                           <select
+                            id={`${fieldId}-upscale-model`}
                             value={upscaleModel}
                             onChange={(e) => setUpscaleModel(e.target.value)}
                             className="w-full appearance-none bg-elevated border border-border rounded-md px-3 py-2 text-xs text-text-primary focus:border-accent-primary transition"
@@ -537,6 +544,7 @@ export function AIToolsPanel() {
                           value={genFillPrompt}
                           onChange={(e) => setGenFillPrompt(e.target.value)}
                           placeholder="Describe fill content..."
+                          aria-label="Generative fill description"
                           className="w-full bg-surface border border-border rounded-md px-3 py-2 text-xs text-text-primary placeholder:text-text-muted focus:border-accent-primary transition"
                         />
                         <Button
@@ -608,8 +616,8 @@ export function AIToolsPanel() {
                     {/* AI Expand (guided pass - PR2) */}
                     {tool.id === 'outpaint' && (
                       <>
-                        <div className="space-y-1.5">
-                          <label className="text-label text-text-body">Direction</label>
+                        <div className="space-y-1.5" role="group" aria-labelledby={`${fieldId}-direction`}>
+                          <p id={`${fieldId}-direction`} className="text-label text-text-body">Direction</p>
                           <div className="grid grid-cols-4 gap-2">
                             {[
                               { id: 'up', icon: ArrowUp, label: 'Up' },
@@ -619,7 +627,9 @@ export function AIToolsPanel() {
                             ].map(({ id, icon: DirIcon, label }) => (
                               <button
                                 key={id}
+                                type="button"
                                 onClick={() => toggleDirection(id)}
+                                aria-pressed={expandDirection.includes(id)}
                                 className={cn(
                                   'flex flex-col items-center gap-1 py-2 rounded-md border text-xs transition',
                                   expandDirection.includes(id)
@@ -627,15 +637,18 @@ export function AIToolsPanel() {
                                     : 'border-border bg-surface text-text-body'
                                 )}
                               >
-                                <DirIcon className="w-3.5 h-3.5" />
+                                <DirIcon className="w-3.5 h-3.5" aria-hidden="true" />
                                 {label}
                               </button>
                             ))}
                           </div>
                         </div>
                         <div className="space-y-1.5">
-                          <label className="text-label text-text-body">Pixels</label>
+                          <label htmlFor={`${fieldId}-expand-pixels`} className="text-label text-text-body">
+                            Pixels
+                          </label>
                           <input
+                            id={`${fieldId}-expand-pixels`}
                             type="number"
                             value={expandPixels}
                             min={64}
@@ -648,6 +661,7 @@ export function AIToolsPanel() {
                           value={expandPrompt}
                           onChange={(e) => setExpandPrompt(e.target.value)}
                           placeholder="Describe expanded area..."
+                          aria-label="Expanded area description"
                           className="w-full bg-surface border border-border rounded-md px-3 py-2 text-xs text-text-primary placeholder:text-text-muted focus:border-accent-primary transition"
                         />
                         <Button

@@ -53,13 +53,12 @@ describe('Input', () => {
     expect(screen.getByRole('spinbutton')).toHaveAttribute('type', 'number');
   });
 
-  it('applies autoFocus, required, and readOnly props', async () => {
+  it('forwards native props: autoComplete, required and readOnly', async () => {
     const user = userEvent.setup();
-    render(<Input autoFocus required readOnly value="readonly value" />);
+    render(<Input autoComplete="off" required readOnly value="readonly value" />);
     const input = screen.getByRole('textbox');
 
-    // autoFocus sets focus automatically (check via document.activeElement)
-    expect(document.activeElement).toBe(input);
+    expect(input).toHaveAttribute('autocomplete', 'off');
     expect(input).toHaveAttribute('required');
     expect(input).toHaveAttribute('readonly');
     expect(input).toHaveValue('readonly value');

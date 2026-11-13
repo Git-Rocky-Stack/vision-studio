@@ -59,7 +59,12 @@ export function EmptyState({
       </div>
       <Title className={cn(compact ? 'mt-2' : 'mt-4', 'type-section')}>{title}</Title>
       {description ? (
-        <p className={cn(compact ? 'mt-1' : 'mt-2', 'max-w-[42ch] text-xs text-text-muted')}>{description}</p>
+        // Compact strips are short, not narrow: a 42ch measure wraps a
+        // one-sentence hint onto a second line that the strip then clips, so
+        // they take the full 72ch reading measure instead.
+        <p className={cn(compact ? 'mt-1 max-w-[72ch]' : 'mt-2 max-w-[42ch]', 'text-xs text-text-muted')}>
+          {description}
+        </p>
       ) : null}
       {children ? (
         <div data-empty-state-actions className="mt-4 flex flex-wrap items-center justify-center gap-2">

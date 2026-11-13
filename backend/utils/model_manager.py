@@ -1,25 +1,20 @@
 """
-Model Manager - Download and manage AI models
+Model Manager - scans and removes locally installed AI models.
+
+Downloads do not happen here: every acquisition goes through the consent-gated
+foundry.download_manager.DownloadManager.
 """
 
 import asyncio
 import json
+import logging
 import os
 import shutil
-import tempfile
-import urllib.request
 from dataclasses import dataclass, asdict, replace
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from version import USER_AGENT
-
-try:
-    from huggingface_hub import hf_hub_download
-    from huggingface_hub import snapshot_download
-except ImportError:
-    hf_hub_download = None
-    snapshot_download = None
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -130,7 +125,6 @@ class ModelManager:
     def __init__(self, models_dir: str):
         self.models_dir = models_dir
         self.available_models: Dict[str, ModelInfo] = {}
-        self.download_tasks: Dict[str, asyncio.Task] = {}
         
         # Create subdirectories
         self.subdirs = {
@@ -238,10 +232,6 @@ class ModelManager:
             size_bytes /= 1024
         return f"{size_bytes:.1f} PB"
     
-    def get_model_list(self) -> List[Dict[str, Any]]:
-        """Get list of all models"""
-        return [model.to_dict() for model in self.available_models.values()]
-    
     def get_model_status(self, model_id: str) -> Optional[Dict[str, Any]]:
         """Get model status, or None for an id this manager does not know."""
         model = self.available_models.get(model_id)
@@ -277,164 +267,6 @@ class ModelManager:
         # non-ModelRecord status through the API.
         return _MANAGER_STATUS_TO_RECORD.get(model.status, "not_found")
 
-    async def download_model(self, model_id: str, token: Optional[str] = None):
-        """Download a model"""
-        model_info = self.available_models.get(model_id)
-        if not model_info:
-            raise ValueError(f"Model {model_id} not found")
-        
-        if model_info.status == "ready":
-            print(f"Model {model_id} is already downloaded")
-            return
-        
-        if model_info.source == "huggingface":
-            await self._download_from_huggingface(model_info, token)
-        elif model_info.source == "civitai":
-            await self._download_from_civitai(model_info)
-        else:
-            raise ValueError(f"Unknown source: {model_info.source}")
-    
-    async def _download_from_huggingface(self, model_info: ModelInfo, token: Optional[str] = None):
-        """Download model from HuggingFace"""
-        if model_info.type == "diffusers":
-            if snapshot_download is None:
-                raise RuntimeError("huggingface_hub is not installed")
-        elif hf_hub_download is None:
-            raise RuntimeError("huggingface_hub is not installed")
-
-        try:
-            model_info.status = "downloading"
-            model_info.progress = 0.0
-
-            if model_info.type == "diffusers":
-                local_path = await asyncio.to_thread(
-                    self._download_diffusers_bundle,
-                    model_info,
-                    token,
-                )
-            else:
-                local_path = hf_hub_download(
-                    repo_id=model_info.repo_id,
-                    filename=model_info.filename,
-                    local_dir=self.subdirs.get(model_info.type, self.models_dir),
-                    local_dir_use_symlinks=False,
-                    token=token,
-                    resume_download=True
-                )
-            
-            model_info.local_path = local_path
-            model_info.status = "ready"
-            model_info.progress = 100.0
-            
-            print(f"✅ Downloaded {model_info.name}")
-            
-        except Exception as e:
-            model_info.status = "error"
-            print(f"❌ Failed to download {model_info.name}: {e}")
-            raise
-
-    def _download_diffusers_bundle(self, model_info: ModelInfo, token: Optional[str] = None) -> str:
-        target_path = self._get_local_path(model_info)
-        if not target_path:
-            raise ValueError(f"Could not resolve target path for model {model_info.id}")
-
-        if os.path.exists(target_path):
-            shutil.rmtree(target_path)
-        os.makedirs(target_path, exist_ok=True)
-
-        if model_info.id == "animatediff":
-            base_path = os.path.join(target_path, "base")
-            adapter_path = os.path.join(target_path, "adapter")
-            snapshot_download(
-                repo_id=model_info.repo_id,
-                local_dir=base_path,
-                token=token,
-                resume_download=True,
-            )
-            snapshot_download(
-                repo_id=model_info.aux_repo_id,
-                local_dir=adapter_path,
-                token=token,
-                resume_download=True,
-            )
-        else:
-            snapshot_download(
-                repo_id=model_info.repo_id,
-                local_dir=target_path,
-                token=token,
-                resume_download=True,
-            )
-
-        return target_path
-    
-    async def _download_from_civitai(self, model_info: ModelInfo):
-        """Download model from CivitAI"""
-        if not model_info.download_url:
-            raise ValueError("CivitAI models require a download URL")
-
-        model_info.status = "downloading"
-        model_info.progress = 0.0
-
-        target_path = self._get_local_path(model_info)
-        if not target_path:
-            raise ValueError(f"Could not resolve target path for model {model_info.id}")
-
-        os.makedirs(os.path.dirname(target_path), exist_ok=True)
-
-        temp_fd, temp_path = tempfile.mkstemp(
-            suffix=Path(model_info.filename or "model.safetensors").suffix,
-            dir=os.path.dirname(target_path),
-        )
-        os.close(temp_fd)
-
-        try:
-            await asyncio.to_thread(
-                self._download_file,
-                model_info.download_url,
-                temp_path,
-                self._build_civitai_headers(),
-                lambda progress: setattr(model_info, "progress", progress),
-            )
-            shutil.move(temp_path, target_path)
-            model_info.local_path = target_path
-            model_info.status = "ready"
-            model_info.progress = 100.0
-        except Exception:
-            model_info.status = "error"
-            model_info.progress = 0.0
-            if os.path.exists(temp_path):
-                os.remove(temp_path)
-            raise
-
-    def _build_civitai_headers(self) -> Dict[str, str]:
-        headers = {"User-Agent": USER_AGENT}
-        token = os.getenv("CIVITAI_API_TOKEN")
-        if token:
-            headers["Authorization"] = f"Bearer {token}"
-        return headers
-
-    def _download_file(
-        self,
-        url: str,
-        destination_path: str,
-        headers: Dict[str, str],
-        on_progress,
-    ) -> None:
-        request = urllib.request.Request(url, headers=headers)
-        with urllib.request.urlopen(request) as response, open(destination_path, "wb") as output_file:
-            total_bytes = int(response.headers.get("Content-Length", "0"))
-            downloaded = 0
-            chunk_size = 1024 * 1024
-
-            while True:
-                chunk = response.read(chunk_size)
-                if not chunk:
-                    break
-                output_file.write(chunk)
-                downloaded += len(chunk)
-                if total_bytes > 0:
-                    on_progress(round(downloaded / total_bytes * 100, 2))
-    
     async def delete_model(self, model_id: str) -> bool:
         """Delete a local model"""
         model_info = self.available_models.get(model_id)
@@ -451,7 +283,7 @@ class ModelManager:
             
             return True
         except Exception as e:
-            print(f"Failed to delete model: {e}")
+            logger.error("Failed to delete model %s: %s", model_id, e, exc_info=True)
             return False
     
     @staticmethod
@@ -461,10 +293,3 @@ class ModelManager:
                 shutil.rmtree(local_path)
             else:
                 os.remove(local_path)
-
-    def get_model_path(self, model_id: str) -> Optional[str]:
-        """Get local path for a model"""
-        model_info = self.available_models.get(model_id)
-        if model_info and model_info.status == "ready":
-            return model_info.local_path
-        return None

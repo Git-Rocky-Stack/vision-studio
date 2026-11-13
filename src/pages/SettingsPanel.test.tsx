@@ -1,8 +1,17 @@
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useAppStore } from '@/store/appStore';
 import type { ModelRecord } from '@/types/model';
+import {
+  FILM_GRAIN_STORAGE_KEY,
+  getFilmGrainMode,
+  resetFilmGrainModeForTests,
+} from '@/features/theme/filmGrainPreference';
+import {
+  applyBackendStatusEvent,
+  resetBackendStatusErrorForTests,
+} from '@/hooks/useBackendStatusError';
 
 import { skippedHeadingLevels } from '../../tests/support/headingOrder';
 import { SettingsPanel } from './SettingsPanel';
@@ -45,23 +54,19 @@ function installElectronMock() {
     settings: {
       get: vi.fn().mockResolvedValue({
         theme: 'dark',
-        autoSave: true,
         defaultOutputPath: '',
         backendAutostart: true,
         notifyOnGenerationComplete: true,
         notifyOnGenerationFailed: true,
         notifyOnModelDownloads: true,
-        pythonPath: '',
       }),
       update: vi.fn().mockResolvedValue({
         theme: 'dark',
-        autoSave: true,
         defaultOutputPath: '',
         backendAutostart: true,
         notifyOnGenerationComplete: true,
         notifyOnGenerationFailed: true,
         notifyOnModelDownloads: true,
-        pythonPath: '',
       }),
     },
     accounts: {
@@ -417,6 +422,133 @@ describe('SettingsPanel', () => {
     expect(useAppStore.getState().activeTab).toBe('foundry');
   });
 
+  // K4: autoSave was a setting nothing read; the toggle promised behaviour the
+  // app does not have, so it is gone end to end.
+  it('offers no Auto Save toggle', async () => {
+    render(<SettingsPanel />);
+    expect(await screen.findByRole('switch', { name: 'Toggle backend autostart' })).toBeInTheDocument();
+    expect(screen.queryByRole('switch', { name: /auto save/i })).toBeNull();
+    expect(screen.queryByText('Auto Save')).toBeNull();
+  });
+
+  it('shows no pre-release badge beside a stable version', () => {
+    render(<SettingsPanel />);
+    expect(screen.queryByText(/Beta Release/)).toBeNull();
+    expect(screen.queryByTestId('release-channel')).toBeNull();
+  });
+
+  it('labels the BYOK secret fields so assistive tech can name them', async () => {
+    render(<SettingsPanel />);
+    fireEvent.click(screen.getByRole('button', { name: /AI & Models/i }));
+
+    expect(await screen.findByLabelText('OpenRouter API Key')).toHaveAttribute('type', 'password');
+    expect(screen.getByLabelText('HuggingFace Inference Token')).toHaveAttribute('type', 'password');
+  });
+
+  it('describes tagging as prompt-based rather than image analysis', async () => {
+    render(<SettingsPanel />);
+    fireEvent.click(screen.getByRole('button', { name: /AI & Models/i }));
+
+    const group = await screen.findByRole('radiogroup', { name: 'Prompt-Based Tagging' });
+    expect(group).toHaveAccessibleDescription(/Images themselves are not analyzed/);
+    expect(screen.queryByText('AI Tagging Mode')).toBeNull();
+    expect(screen.getByRole('radio', { name: /On Demand/ })).toBeInTheDocument();
+  });
+
+  it('explains when semantic retrieval is unavailable in this build', async () => {
+    (window.electron as unknown as { director: unknown }).director = {
+      syncCorpus: vi.fn(),
+      clearIndex: vi.fn(),
+      indexStats: vi.fn().mockResolvedValue({ count: 3, mode: 'lexical' }),
+    };
+    useAppStore.setState({
+      systemInfo: {
+        ...useAppStore.getState().systemInfo,
+        availability: { semanticRetrieval: { available: false, reason: 'The embedding model is not bundled.' } },
+      },
+    });
+    render(<SettingsPanel />);
+    fireEvent.click(screen.getByRole('button', { name: /AI & Models/i }));
+
+    expect(await screen.findByTestId('semantic-unavailable')).toHaveTextContent(
+      'Semantic matching is unavailable: The embedding model is not bundled.',
+    );
+    expect(await screen.findByText(/3 indexed \(\s*keyword match\)/)).toBeInTheDocument();
+  });
+
+  it('marks the active theme and previews the themes with fixed swatch tokens', async () => {
+    render(<SettingsPanel />);
+    fireEvent.click(screen.getByRole('button', { name: /^Appearance/ }));
+
+    const group = await screen.findByRole('group', { name: 'Theme' });
+    const dark = screen.getByRole('button', { name: /dark/i, pressed: true });
+    expect(group).toContainElement(dark);
+    expect(screen.getByRole('button', { name: /light/i })).toHaveAttribute('aria-pressed', 'false');
+    expect(group.innerHTML).not.toMatch(/#[0-9a-f]{3,6}/i);
+    expect(group.querySelector('.bg-swatch-light')).not.toBeNull();
+  });
+
+  describe('film grain preference', () => {
+    afterEach(() => {
+      vi.unstubAllGlobals();
+      resetFilmGrainModeForTests();
+    });
+
+    it('switches the grain mode and persists it', async () => {
+      const values = new Map<string, string>();
+      vi.stubGlobal('localStorage', {
+        getItem: (key: string) => values.get(key) ?? null,
+        setItem: (key: string, value: string) => void values.set(key, value),
+        removeItem: (key: string) => void values.delete(key),
+      });
+      resetFilmGrainModeForTests();
+      render(<SettingsPanel />);
+      fireEvent.click(screen.getByRole('button', { name: /^Appearance/ }));
+
+      const group = await screen.findByRole('group', { name: 'Film Grain' });
+      expect(group).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /^Animated/, pressed: true })).toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole('button', { name: /^Off/ }));
+      expect(getFilmGrainMode()).toBe('off');
+      expect(values.get(FILM_GRAIN_STORAGE_KEY)).toBe('off');
+      expect(screen.getByRole('button', { name: /^Off/ })).toHaveAttribute('aria-pressed', 'true');
+      expect(screen.queryByRole('status')).toBeNull();
+    });
+
+    it('says so when the choice cannot be saved for the next launch', async () => {
+      vi.stubGlobal('localStorage', {
+        getItem: () => null,
+        setItem: () => {
+          throw new Error('denied');
+        },
+      });
+      resetFilmGrainModeForTests();
+      render(<SettingsPanel />);
+      fireEvent.click(screen.getByRole('button', { name: /^Appearance/ }));
+      fireEvent.click(await screen.findByRole('button', { name: /^Static/ }));
+
+      expect(getFilmGrainMode()).toBe('static');
+      expect(screen.getByRole('status')).toHaveTextContent(/could not be saved/);
+    });
+  });
+
+  it('shows the reason the backend reported for going down on the offline card', async () => {
+    useAppStore.setState({
+      systemInfo: { ...useAppStore.getState().systemInfo, backendConnected: false },
+    });
+    render(<SettingsPanel />);
+    fireEvent.click(screen.getByRole('button', { name: /AI & Models/i }));
+    await screen.findByRole('heading', { name: 'AI Backend Offline' });
+    expect(screen.queryByTestId('backend-status-error')).toBeNull();
+
+    act(() => applyBackendStatusEvent({ running: false, error: 'Port 8000 is in use by another application' }));
+    expect(screen.getByTestId('backend-status-error')).toHaveTextContent(
+      'Port 8000 is in use by another application',
+    );
+    resetBackendStatusErrorForTests();
+  });
+
   describe('error handling', () => {
     it('shows a banner and re-reads stored settings when settings:update throws', async () => {
       (window.electron.settings.update as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
@@ -426,7 +558,7 @@ describe('SettingsPanel', () => {
       await waitFor(() => expect(window.electron.settings.get).toHaveBeenCalled());
       const getCalls = (window.electron.settings.get as ReturnType<typeof vi.fn>).mock.calls.length;
 
-      fireEvent.click(screen.getByRole('switch', { name: 'Toggle auto save' }));
+      fireEvent.click(screen.getByRole('switch', { name: 'Toggle backend autostart' }));
 
       expect(await screen.findByRole('alert')).toHaveTextContent(
         'Settings were not saved: backend restart failed',
@@ -446,6 +578,78 @@ describe('SettingsPanel', () => {
 
       expect(await screen.findByText('Index rebuild failed: embedder offline')).toBeInTheDocument();
       expect(screen.getByRole('button', { name: 'Rebuild index' })).toBeEnabled();
+    });
+
+    it('reports a failed cache clear and closes the confirm', async () => {
+      (window.electron.assets.clearCache as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
+        new Error('EBUSY: file in use'),
+      );
+      render(<SettingsPanel />);
+      fireEvent.click(await screen.findByRole('button', { name: 'Clear Cache' }));
+      const dialog = await screen.findByRole('dialog', { name: 'Clear Cache' });
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Clear Cache' }));
+
+      expect(await screen.findByRole('alert')).toHaveTextContent('The cache was not cleared: EBUSY: file in use');
+      await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    });
+
+    it('reports a folder picker failure instead of rejecting silently', async () => {
+      (window.electron.dialog.selectFolder as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
+        new Error('dialog unavailable'),
+      );
+      render(<SettingsPanel />);
+      fireEvent.click(await screen.findByRole('button', { name: 'Browse' }));
+
+      expect(await screen.findByRole('alert')).toHaveTextContent(
+        'The folder picker could not be opened: dialog unavailable',
+      );
+    });
+
+    it('reports a failed account creation inside the accounts card', async () => {
+      (window.electron.accounts.create as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
+        new Error('secure storage locked'),
+      );
+      render(<SettingsPanel />);
+      fireEvent.click(screen.getByRole('button', { name: /AI & Models/i }));
+      fireEvent.click(await screen.findByRole('button', { name: 'New Account' }));
+
+      expect(await screen.findByRole('alert')).toHaveTextContent(
+        'The account was not created: secure storage locked',
+      );
+      fireEvent.click(screen.getByRole('button', { name: 'Dismiss account error' }));
+      expect(screen.queryByRole('alert')).toBeNull();
+    });
+
+    it('releases the Verify spinner and reports when the connection test throws', async () => {
+      (window.electron.openrouter.testConnection as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
+        new Error('network down'),
+      );
+      render(<SettingsPanel />);
+      fireEvent.click(screen.getByRole('button', { name: /AI & Models/i }));
+      fireEvent.click(await screen.findByRole('button', { name: 'Verify' }));
+
+      expect(await screen.findByRole('alert')).toHaveTextContent('OpenRouter connection failed: network down');
+      expect(screen.getByRole('button', { name: 'Verify' })).toBeEnabled();
+    });
+
+    it('reverts the over-budget auto-route tick when it is not saved', async () => {
+      render(<SettingsPanel />);
+      fireEvent.click(screen.getByRole('button', { name: /AI & Models/i }));
+      const checkbox = await screen.findByRole('checkbox', { name: /Auto-route over-budget/ });
+      expect(checkbox).not.toBeChecked();
+
+      (window.electron.settings.update as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error('disk full'));
+      fireEvent.click(checkbox);
+
+      expect(await screen.findByRole('alert')).toHaveTextContent('The over-budget policy was not saved: disk full');
+      expect(checkbox).not.toBeChecked();
+    });
+
+    it('surfaces a settings load failure on mount', async () => {
+      (window.electron.settings.get as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('corrupt settings.json'));
+      render(<SettingsPanel />);
+
+      expect(await screen.findByText('Saved settings could not be loaded: corrupt settings.json')).toBeInTheDocument();
     });
 
     describe('Start Backend', () => {

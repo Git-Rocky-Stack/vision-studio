@@ -85,7 +85,7 @@ export function Tooltip({
               {...getFloatingProps()}
               className={cn(
                 'z-[var(--z-tooltip)] px-2.5 py-1.5 rounded-md',
-                'bg-panel-raised border border-border shadow-cinematic',
+                'bg-panel-raised border border-border shadow-overlay',
                 'type-ui text-text-primary',
                 'pointer-events-none whitespace-nowrap'
               )}

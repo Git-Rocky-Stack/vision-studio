@@ -74,15 +74,15 @@ describe('CharacterLibrary scene assignment', () => {
 
     const nova = screen.getByRole('button', { name: /^Nova, / });
     const rook = screen.getByRole('button', { name: /^Rook, / });
-    expect(nova).toHaveAttribute('aria-selected', 'false');
+    expect(nova).toHaveAttribute('aria-pressed', 'false');
 
     fireEvent.click(nova);
 
     expect(screen.getByRole('button', { name: /^Nova, / })).toHaveAttribute(
-      'aria-selected',
+      'aria-pressed',
       'true',
     );
-    expect(rook).toHaveAttribute('aria-selected', 'false');
+    expect(rook).toHaveAttribute('aria-pressed', 'false');
   });
 
   it('reflects the assignment in the scene count on the card', () => {

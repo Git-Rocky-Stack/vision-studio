@@ -39,8 +39,9 @@ A row passes only if *every* expected outcome holds. Partial passes are fails.
 On CPU-only machines generation is slow; use SD 1.5 at 512 x 512 and a low step
 count, and record a pass when the result is correct, however long it takes.
 
-Rows marked *(fixed in this release)* cover behaviour changed for this release;
-give them extra attention.
+Rows marked *(fixed in this release)*, *(new in this release)* or *(changed in
+this release)* cover behaviour changed for this release (3.4.2); give them extra
+attention.
 
 ## 1. Install and launch
 
@@ -54,6 +55,8 @@ give them extra attention.
 | INS-06 | Quit and relaunch | Second launch reaches ready again; the last workspace tab is restored | | | | | |
 | INS-07 | **Settings > About** | Version matches the build under test; licence text for models and dependencies is listed | | | | | |
 | INS-08 | Windows: uninstall from Settings > Apps | Uninstaller removes the app and shortcuts | | | N/A | N/A | N/A |
+| INS-09 | Windows and Linux: with the app focused and no text field active, press Ctrl+W *(new in this release)* | The window stays open | | | N/A | | |
+| INS-10 | Start a generation (or a Batch), then close the window while it runs *(new in this release)* | A confirmation asks first; cancelling it keeps the app open and the jobs running; with no jobs running, the window closes without asking | | | | | |
 
 ## 2. First run and model provisioning
 
@@ -61,12 +64,12 @@ Run on a machine (or user account) that has never had Vision Studio installed.
 
 | ID | Steps | Expected result | Win GPU | Win CPU | Mac | Lnx GPU | Lnx CPU |
 |----|-------|-----------------|---------|---------|-----|---------|---------|
-| FR-01 | Wait for the backend after first launch | **Welcome to Vision Studio** screen appears, showing **33 models**, the GPU line, the download size and a disk-check line | | | | | |
+| FR-01 | Wait for the backend after first launch | **Welcome to Vision Studio** screen appears, offering **Install core**, **Install everything** and **Custom**, with the GPU line, the download size and a disk-check line *(new in this release)* | | | | | |
 | FR-02 | Read **What installs, and under which terms** | Lists the integrity check, the pickle-format auto-consent, the Stability AI Community License link and the gated models (SD 3.5 Large, SD 3.5 Medium) | | | | | |
-| FR-03 | On a drive with too little space (or simulate it), open the screen | "Not enough disk space" message; **Install all models** disabled; **Re-check** visible and updates the message after freeing space | | | | | |
+| FR-03 | On a drive with too little space (or simulate it), open the screen | "Not enough disk space" message; an install too large for the free space cannot start; **Re-check** visible and updates the message after freeing space | | | | | |
 | FR-04 | Click **Skip for now** | Screen closes; app usable; **Foundry** shows the **Model library** card with **Install remaining** and **Open setup screen** | | | | | |
 | FR-05 | **Foundry > Open setup screen**, then press Esc | Screen reopens; Esc closes it | | | | | |
-| FR-06 | Click **Install all models** | Overall progress bar, per-model rows with status and percent, speed and ETA | | | | | |
+| FR-06 | Click **Install everything** | All 33 models queue; overall progress bar, per-model rows with status and percent, speed and ETA | | | | | |
 | FR-07 | Click **Continue in background** | Screen closes; header pill reads **Model provisioning in progress**; downloads continue | | | | | |
 | FR-08 | **Pause all**, wait, **Resume all** (or **Pause** / **Resume** on the Foundry card) | Downloads stop and resume from where they stopped, not from zero | | | | | |
 | FR-09 | Quit during a download and relaunch | Partially downloaded models resume; completed ones stay installed | | | | | |
@@ -75,6 +78,8 @@ Run on a machine (or user account) that has never had Vision Studio installed.
 | FR-12 | **Cancel setup** > **Stop downloads** | Confirmation shown first; downloads stop; installed models remain | | | | | |
 | FR-13 | Complete the set | Card reads **All 33 models installed**; **Verify and repair** completes without errors | | | | | |
 | FR-14 | Confirm FLUX.1 [dev], FLUX Fill, LTX Video and the OpenPose annotator are **not** in the set | They are absent from the setup list; features needing them say the model is missing | | | | | |
+| FR-15 | Fresh profile: **Install core** *(new in this release)* | Only the core subset downloads, with its size shown before you start; the Foundry **Model library** card then offers **Install remaining** for the rest | | | | | |
+| FR-16 | Fresh profile: **Custom**; pick two models *(new in this release)* | Only the chosen models download; the size shown matches the selection | | | | | |
 
 ## 3. Foundry
 
@@ -115,11 +120,15 @@ Run on a machine (or user account) that has never had Vision Studio installed.
 | GEN-15 | Pick a model that is over budget for the GPU (e.g. SD 3.5 Large on 8 GB) | **This run is over your GPU budget** dialog with **Run locally anyway**, **Cancel**, and a **Route to ...** button only for providers that are set up | | | | | |
 | GEN-16 | Leave the model on FLUX.1 [dev] without it installed | **Run Readiness** reports the missing model; nothing crashes | | | | | |
 | GEN-17 | **Quick**: prompt, installed model, aspect ratio, generate | Image generated and added to Assets | | | | | |
-| GEN-18 | **Batch**: three prompts, one per line; run | Three jobs, results in prompt order; **Export All** and **Delete All** work | | | | | |
+| GEN-18 | **Batch**: three prompt cards (**Add Prompt**); run | Three jobs, results in prompt order; **Export All** and **Delete All** work | | | | | |
 | GEN-19 | **Batch**: **Variations** on a prompt | Variations added as separate prompts | | | | | |
 | GEN-20 | **Batch**: start, then **Cancel Batch** | Running and queued prompts stop | | | | | |
+| GEN-25 | **Batch**: import a `.txt`, a `.csv` and a `.json` file of prompts *(new in this release)* | Each file adds one card per prompt, in file order | | | | | |
+| GEN-26 | **Batch**: duplicate a card, drag a card to a new position, then **Clear All** *(new in this release)* | The duplicate appears; the queue runs in the new order; Clear All empties the list | | | | | |
+| GEN-27 | **Batch**: change the seed strategy; run three cards *(new in this release)* | The seeds recorded on the results follow the chosen strategy | | | | | |
 | GEN-21 | **Studio**, provider **Local**: **AI Enhance** and **Expand** on a short prompt *(fixed in this release)* | Both return a rewritten, longer prompt without any key configured | | | | | |
 | GEN-22 | **Studio**: **Negative Suggest**, **Style Transfer** | Negative prompt suggested; style wording added to the prompt | | | | | |
+| GEN-28 | **Studio** template library: apply a built-in template, save the current prompt as a template, relaunch, delete it *(new in this release)* | Built-in template fills the prompt in plain language (no `(term:1.3)` weights); the saved template survives the relaunch; delete removes it; built-ins cannot be deleted | | | | | |
 | GEN-23 | **Story > Templates**: apply a template | Size, prompt scaffold, steps and CFG set for a new project | | | | | |
 | GEN-24 | Notifications on: generate with the app in the background | Desktop notification on completion; with **Generation Complete** off, none | | | | | |
 
@@ -136,7 +145,7 @@ access. Record the provider charges each row incurs.
 | BYO-04 | **Refresh** both OpenRouter model lists; choose a **Prompt model** and a **Still image model** | Lists populate; choices persist across relaunch | | | | | |
 | BYO-05 | **Still Image Provider: OpenRouter**; generate from Generate, Quick and Batch | Panel shows **OpenRouter Still Image Route**; images land in `openrouter/<date>/` and in Assets | | | | | |
 | BYO-06 | With OpenRouter selected, look at ControlNet and LoRA controls | Canvas-guided controls are local-only; a LoRA is reported as unsupported on OpenRouter, not silently dropped | | | | | |
-| BYO-07 | Save a Hugging Face token under **HuggingFace Inference Token**; set **Still Image Provider: HuggingFace**, model FLUX.1 schnell; generate | **Token stored**; image generated in `huggingface/<date>/` | | | | | |
+| BYO-07 | Save a Hugging Face token under **HuggingFace Inference Token**; set **Still Image Provider: HuggingFace**, model FLUX.1 schnell; generate from Generate and from **Quick** *(Quick fixed in 3.4.2)* | **Token stored**; both images generated in `huggingface/<date>/`; Quick sends the hosted model, not a local checkpoint id, and runs with the backend offline | | | | | |
 | BYO-08 | **Motion / Video Provider: HuggingFace**, model LTX-Video; generate a video | MP4 generated; OpenRouter is disabled in this picker | | | | | |
 | BYO-09 | HuggingFace route with exactly one FLUX Hub LoRA at weight 1.0; then with two LoRAs | One LoRA runs; two are refused with an explanation | | | | | |
 | BYO-10 | **Prompt Enhancement Provider: OpenRouter**, then **HuggingFace**; **AI Enhance** in Studio | Enhanced prompt comes from the chosen provider | | | | | |
@@ -155,17 +164,19 @@ Load an image first: open it in the viewer and click **Send to Edit**.
 | CAN-01 | Click each tool in the tool strip | Each tool activates; its tooltip shows its key | | | | | |
 | CAN-02 | On the Canvas tab, press V T C R B E S J X U P H Z I in turn, focus outside any text field *(fixed in this release)* | Each key selects Move, Scale, Crop, Rotate, Brush, Eraser, Clone Stamp, Heal, Text, Shape, Pen, Hand, Zoom, Eyedropper | | | | | |
 | CAN-03 | Type the same letters into a text field (e.g. the Text inspector) | Letters are typed; the tool does not change | | | | | |
-| CAN-04 | + / = / - / 0, scroll, Shift+drag, middle-drag | Zoom in, out, reset; scroll zooms; both drags pan | | | | | |
+| CAN-04 | On the Canvas tab: scroll; Hand (H) and drag; Zoom (Z), click and Shift+click | Scroll zooms; the Hand tool pans; the Zoom tool zooms in and out | | | | | |
 | CAN-05 | Add a text layer, move a layer, delete a layer; then Ctrl+Z / Cmd+Z three times *(fixed in this release)* | Each undo restores the previous layer state: the deleted layer returns, the moved layer goes back, the text layer is removed | | | | | |
 | CAN-06 | After CAN-05, Ctrl+Y / Cmd+Y, then Ctrl+Shift+Z / Cmd+Shift+Z *(fixed in this release)* | Each redo reapplies the next change | | | | | |
 | CAN-07 | **Adjust**: move exposure, contrast, saturation | Image updates live | | | | | |
 | CAN-08 | **Filters**, **Crop**, **Text** inspector tabs | Each applies to the image or layer | | | | | |
 | CAN-09 | **Region**: create a region lock; press V R L B E I | Mask tools switch to select, rectangle, polygon, brush, erase; I inverts the mask | | | | | |
+| CAN-22 | **Region**: mask part of an image loaded from Assets, give the region a prompt, **Generate Region**; repeat with **Invert Mask** on *(new in this release)* | Only the masked area changes; with Invert, only the area outside it; each result is added to Assets and becomes the canvas image | | | | | |
+| CAN-23 | **Region**: look at the region AI tool choices *(new in this release)* | Style Transfer and Upscale are disabled with an explanation (or, if implemented, run on the region only) | | | | | |
 | CAN-10 | **AI Tools > Background Removal** | Background removed on a new result | | | | | |
 | CAN-11 | **AI Upscale** (2x and 4x), **Face Enhancement** on a portrait | Larger image; restored face | | | | | |
 | CAN-12 | **Generative Fill** and **Object Removal** with a mask | Masked area filled / object removed | | | | | |
 | CAN-13 | **AI Expand** in one direction; **Style Transfer** with a preset | Canvas extended; style applied | | | | | |
-| CAN-14 | Right-click the image: **Copy Image**, **Save As...**, **Open in Explorer**, a **Refine** pipeline | Each acts on the current image | | | | | |
+| CAN-14 | **History** (inspector toolbar): open it, click an earlier step, press Esc; then **Export to Assets** | The canvas jumps to that step; Esc closes the list; the export lands in Assets and in the `edits` folder of the output folder; Export is unavailable while Before/After is on | | | | | |
 | CAN-15 | **Clone Stamp (S)**: paint without a source; then Alt+click a source and paint two strokes *(new in this release)* | First stroke shows "Alt+click the image to set a clone source first." and paints nothing; then the source is copied, and the second stroke keeps the same offset (the source marker follows the brush) | | | | | |
 | CAN-16 | **Heal (J)** with no source: paint over a blemish or dust spot *(new in this release)* | The spot is replaced by matching nearby texture, with no visible seam or colour shift | | | | | |
 | CAN-17 | **Heal** after Alt+clicking a source; vary Size, Hardness and Opacity; press [ and ] *(new in this release)* | Texture comes from the source, colour from around the stroke; the brush ring resizes with [ and ] | | | | | |
@@ -182,6 +193,8 @@ Load an image first: open it in the viewer and click **Send to Edit**.
 | STY-02 | **Import Script**: paste a short script; review the draft; commit | Draft lists scenes and elements; committing appends the accepted ones | | | | | |
 | STY-03 | Add scene and board references; assign a character | References and character attach to the scene / project | | | | | |
 | STY-04 | **Build Timeline**; then **Send To Timeline** on one scene | One clip per approved scene in order; single scene appended | | | | | |
+| STY-05 | **Story** tab canvas with an image: + / = / - / 0, scroll, Shift+drag, middle-drag | Zoom in, out, reset; scroll zooms; both drags pan | | | | | |
+| STY-06 | **Story** tab canvas: right-click the image (and, with the canvas focused, Shift+F10 / Menu key): **Copy Image**, **Save As...**, **Open in Explorer**, a **Refine** pipeline | The menu opens each way; each item acts on the current image | | | | | |
 | TL-01 | Select the timeline; press Space twice | Playback starts and stops | | | | | |
 | TL-02 | Left / Right, Shift+Left / Shift+Right, Home, End | Playhead moves 250 ms, 1 s, to start, to end | | | | | |
 | TL-03 | Select a clip; Alt+Left / Alt+Right | Clip moves one frame earlier / later | | | | | |
@@ -194,6 +207,9 @@ Load an image first: open it in the viewer and click **Send to Edit**.
 | TL-10 | **Retake In** / **Retake Out** on a generated clip; **Generate Retake**; compare; **Accept**; then repeat and **Revert To Original** | Take generated and compared; Accept replaces the clip in playback and export; Revert restores the original | | | | | |
 | TL-11 | **Regenerate In Place**, **Create Variant**, **Extend Shot** on a generated clip | Each produces a new take for the clip | | | | | |
 | TL-12 | **Toggle onion skin** | Neighbouring scenes ghost over the preview | | | | | |
+| TL-13 | Tab to a track header; press Enter, then Space | The track is selected each time | | | | | |
+| TL-14 | Delete a track that holds clips *(new in this release)* | Confirmation; the track and its clips leave the timeline; their media stays in Assets | | | | | |
+| TL-15 | Change the sequence frame rate (FPS); play and **Export MP4** *(new in this release)* | The new FPS persists across relaunch; the exported MP4 reports it | | | | | |
 
 ## 8. Workflows and Pipelines
 
@@ -206,7 +222,7 @@ Load an image first: open it in the viewer and click **Send to Edit**.
 | WF-05 | **Export ComfyUI JSON** | JSON produced; loads in ComfyUI | | | | | |
 | WF-06 | With OpenRouter still images and the backend stopped, run a still-image workflow | Runs on the hosted route | | | | | |
 | PL-01 | **Workflows > Pipelines**: open a built-in; **Add Step**; save; **Duplicate pipeline** | Steps added; pipeline saved; duplicate created; built-in unchanged | | | | | |
-| PL-02 | Run a pipeline from the Canvas right-click **Refine** menu | Result lands as a new asset | | | | | |
+| PL-02 | Run a pipeline from the Story tab canvas right-click **Refine** menu | Result lands as a new asset | | | | | |
 
 ## 9. Assets and Collections
 
@@ -220,8 +236,10 @@ Load an image first: open it in the viewer and click **Send to Edit**.
 | AST-06 | **Delete asset** | Removed from the library; it no longer appears in collections or the viewer | | | | | |
 | COL-01 | **Collections > New Collection**; add assets; rename | Manual collection holds the assets | | | | | |
 | COL-02 | **All / Smart / Manual / Tagged / Untagged** filters; search | Filters narrow the list | | | | | |
-| COL-03 | **AI Tagging Mode: On Demand**; generate; **Analyze n untagged** | Count shown; tags added after Analyze | | | | | |
+| COL-03 | Prompt-based tagging (**Settings > AI & Models**, formerly **AI Tagging Mode**): **On Demand**; generate; **Analyze n untagged** | Count shown; tags added after Analyze | | | | | |
 | COL-04 | **On Generation**, **Background Batch**, **Off** in turn | Tagged immediately, tagged in a batch when idle, never tagged | | | | | |
+| COL-05 | Create a smart collection with a rule (e.g. a tag) *(new in this release)* | It lists exactly the matching assets, and picks up a new matching asset without being edited | | | | | |
+| COL-06 | Add, rename and remove a user tag on an asset *(new in this release)* | Each change shows on the asset and in tag filters, and survives a relaunch | | | | | |
 
 ## 10. Settings
 
@@ -236,6 +254,7 @@ Load an image first: open it in the viewer and click **Send to Edit**.
 | SET-07 | **AI Director (RAG)**: enable, choose sources, **Rebuild index**, **Clear index** | Indexed count changes; Studio reports the context it used | | | | | |
 | SET-08 | **About > Check for updates** on the packaged build | A status line reports the check result; no crash. (Unsigned builds do not install updates) | | | | | |
 | SET-09 | **User Guide** tab | In-app guide renders | | | | | |
+| SET-10 | **General** *(changed in this release)* | There is no **Auto Save** setting; projects and settings still persist across a relaunch | | | | | |
 
 ## 11. Accessibility
 

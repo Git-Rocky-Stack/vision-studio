@@ -41,7 +41,7 @@ def render_notices(
     """Deterministic THIRD-PARTY-LICENSES.md body from the provision manifest."""
     lines: List[str] = ["# Third-Party Licenses", "", _PREAMBLE, ""]
 
-    lines.append("## Bundled AI Models")
+    lines.append("## Provisioned AI Models")
     lines.append("")
     for entry in manifest["auto_set"]:
         lic = license_texts.get(entry.get("license") or "", {})

@@ -1,4 +1,4 @@
-import { memo } from 'react';
+import { memo, useEffect, useRef } from 'react';
 import type { ElementType } from 'react';
 import {
   Wand2,
@@ -58,8 +58,20 @@ export const NavBar = memo(function NavBar() {
   const setActiveTab = useAppStore((s) => s.setActiveTab);
   const systemInfo = useAppStore((s) => s.systemInfo);
 
+  // Focus follows the activated tab on the next frame, once it re-renders. A
+  // newer activation (or unmounting) cancels a pending move, so a stale frame
+  // can never pull focus onto a tab the user has already left.
+  const focusFrameRef = useRef<number | null>(null);
+  useEffect(
+    () => () => {
+      if (focusFrameRef.current !== null) cancelAnimationFrame(focusFrameRef.current);
+    },
+    [],
+  );
   const focusTab = (tabId: ActiveTab) => {
-    window.requestAnimationFrame(() => {
+    if (focusFrameRef.current !== null) cancelAnimationFrame(focusFrameRef.current);
+    focusFrameRef.current = window.requestAnimationFrame(() => {
+      focusFrameRef.current = null;
       document.querySelector<HTMLButtonElement>(`[data-testid="nav-${tabId}"]`)?.focus();
     });
   };
@@ -143,7 +155,9 @@ export const NavBar = memo(function NavBar() {
   };
 
   return (
-    <aside
+    // The rail is the workspace navigation landmark; its two clusters are tab lists.
+    <nav
+      aria-label="Workspace"
       className={cn(
         'relative w-14 h-full flex flex-col items-center',
         'bg-surface border-r border-border',
@@ -153,8 +167,7 @@ export const NavBar = memo(function NavBar() {
       {/* Faceplate edge-light down the right seam (DESIGN.md raised-hardware depth) */}
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute inset-y-0 right-0 w-px"
-        style={{ background: 'linear-gradient(180deg, transparent, rgba(255,255,255,0.10), transparent)' }}
+        className="pointer-events-none absolute inset-y-0 right-0 w-px bg-gradient-to-b from-transparent via-sheen-medium to-transparent"
       />
 
       {/* Maker's-mark badge - recessed instrument port. The product monogram,
@@ -171,14 +184,14 @@ export const NavBar = memo(function NavBar() {
       </div>
 
       {/* Top cluster */}
-      <nav
+      <div
         aria-label="Primary workspace tabs"
         className="flex flex-col items-center gap-1"
         role="tablist"
         aria-orientation="vertical"
       >
         {topTabs.map(renderTab)}
-      </nav>
+      </div>
 
       {/* Spacer */}
       <div className="flex-1" />
@@ -192,14 +205,14 @@ export const NavBar = memo(function NavBar() {
       />
 
       {/* Bottom cluster */}
-      <nav
+      <div
         aria-label="Secondary workspace tabs"
         className="flex flex-col items-center gap-1"
         role="tablist"
         aria-orientation="vertical"
       >
         {bottomTabs.map(renderTab)}
-      </nav>
+      </div>
 
       {/* GPU status - instrument LED in a recessed port */}
       <div className="mt-3 flex-shrink-0" data-testid="gpu-status">
@@ -217,6 +230,6 @@ export const NavBar = memo(function NavBar() {
           />
         </span>
       </div>
-    </aside>
+    </nav>
   );
 });

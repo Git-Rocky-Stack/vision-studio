@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 
 import { useAppStore } from '@/store/appStore';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { cn } from '@/utils/cn';
 import type { MediaAsset } from '@/types/media';
 import type { TimelineClipRetakeRange, TimelineTransitionType } from '@/types/timeline';
@@ -96,6 +97,7 @@ export function TimelineClipInspector({
     setActiveTimelineRetakeTake,
     acceptClipRetakeTake,
     rejectClipRetakeTake,
+    deleteClipRetakeTake,
     revertClipRetakeRange,
     moveTimelineClip,
     trimTimelineClip,
@@ -125,6 +127,7 @@ export function TimelineClipInspector({
       setActiveTimelineRetakeTake: state.setActiveTimelineRetakeTake,
       acceptClipRetakeTake: state.acceptClipRetakeTake,
       rejectClipRetakeTake: state.rejectClipRetakeTake,
+      deleteClipRetakeTake: state.deleteClipRetakeTake,
       revertClipRetakeRange: state.revertClipRetakeRange,
       moveTimelineClip: state.moveTimelineClip,
       trimTimelineClip: state.trimTimelineClip,
@@ -211,6 +214,8 @@ export function TimelineClipInspector({
     [activeTimelineRetakeTakeId, selectedRetakeTakes],
   );
   const [aiActionError, setAiActionError] = useState<string | null>(null);
+  const [takeDeleteTargetId, setTakeDeleteTargetId] = useState<string | null>(null);
+  const [clipDeleteTargetId, setClipDeleteTargetId] = useState<string | null>(null);
 
   if (!clip || !track || !sequence) {
     return (
@@ -742,7 +747,7 @@ export function TimelineClipInspector({
                       className={cn(
                         'rounded-full border px-3 py-1.5 mono-label transition',
                         getRetakeStatusClasses(range.status),
-                        selectedRetakeRange?.id === range.id ? 'shadow-[0_0_0_1px_rgba(255,255,255,0.16)]' : '',
+                        selectedRetakeRange?.id === range.id ? 'shadow-[0_0_0_1px_var(--color-sheen-edge)]' : '',
                       )}
                     >
                       {formatRetakeRangeLabel(range.startMs, range.endMs)}
@@ -901,7 +906,7 @@ export function TimelineClipInspector({
                         </button>
                       ))}
                       {selectedRetakeTake ? (
-                        <div className="grid grid-cols-3 gap-2">
+                        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                           <button
                             type="button"
                             data-testid="timeline-retake-inspector-accept"
@@ -928,6 +933,28 @@ export function TimelineClipInspector({
                             onClick={() => revertClipRetakeRange(clip.id, selectedRetakeRange.id)}
                           >
                             Revert
+                          </button>
+                          <button
+                            type="button"
+                            data-testid="timeline-retake-inspector-delete"
+                            disabled={
+                              selectedRetakeTake.status === 'accepted' ||
+                              selectedRetakeTake.status === 'queued' ||
+                              selectedRetakeTake.status === 'rendering'
+                            }
+                            title={
+                              selectedRetakeTake.status === 'accepted'
+                                ? 'Revert the range before deleting the accepted take'
+                                : selectedRetakeTake.status === 'queued' || selectedRetakeTake.status === 'rendering'
+                                  ? 'Wait for the take to finish rendering before deleting it'
+                                  : 'Delete this take'
+                            }
+                            aria-label="Delete take"
+                            className="inline-flex items-center justify-center gap-1 rounded-md border border-status-error-border bg-canvas px-2 py-2 text-xs text-status-error transition hover:bg-status-error-muted disabled:cursor-not-allowed disabled:opacity-50"
+                            onClick={() => setTakeDeleteTargetId(selectedRetakeTake.id)}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+                            Delete
                           </button>
                         </div>
                       ) : null}
@@ -1078,13 +1105,44 @@ export function TimelineClipInspector({
           <button
             type="button"
             className="inline-flex items-center justify-center gap-2 rounded-md border border-status-error/30 bg-status-error-muted px-3 py-2 text-xs text-status-error transition hover:bg-status-error-muted/80"
-            onClick={() => deleteTimelineClip(clip.id)}
+            onClick={() => setClipDeleteTargetId(clip.id)}
+            aria-haspopup="dialog"
           >
-            <Trash2 className="h-3.5 w-3.5" />
+            <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
             Delete
           </button>
         </div>
       </div>
+
+      {/* Same confirm as the Timeline toolbar's Delete clip. */}
+      <ConfirmDialog
+        open={clipDeleteTargetId !== null}
+        title="Delete Clip"
+        message="Delete the selected clip from the timeline? This keeps the media asset but removes the clip edit."
+        confirmLabel="Delete Clip"
+        variant="danger"
+        onConfirm={() => {
+          if (clipDeleteTargetId) {
+            deleteTimelineClip(clipDeleteTargetId);
+          }
+          setClipDeleteTargetId(null);
+        }}
+        onCancel={() => setClipDeleteTargetId(null)}
+      />
+      <ConfirmDialog
+        open={takeDeleteTargetId !== null}
+        title="Delete Retake Take"
+        message="Remove this candidate take from the retake range? The generated media stays in the library."
+        confirmLabel="Delete Take"
+        variant="danger"
+        onConfirm={() => {
+          if (takeDeleteTargetId) {
+            deleteClipRetakeTake(takeDeleteTargetId);
+          }
+          setTakeDeleteTargetId(null);
+        }}
+        onCancel={() => setTakeDeleteTargetId(null)}
+      />
     </aside>
   );
 }

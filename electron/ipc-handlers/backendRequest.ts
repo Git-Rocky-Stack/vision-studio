@@ -14,6 +14,18 @@
 export const BACKEND_DOWN_MESSAGE =
   'The AI backend is not running. Please restart the app or start the backend manually from Settings.';
 
+/**
+ * Raised (never retried) when a token-bearing request is attempted before the
+ * backend proved its identity (K1 handshake); see backendIdentityGate.ts.
+ */
+export const BACKEND_UNVERIFIED_CODE = 'BACKEND_UNVERIFIED';
+export const BACKEND_UNVERIFIED_MESSAGE =
+  'The AI backend is still starting (its identity has not been verified yet). Try again in a moment.';
+
+export function isBackendUnverifiedError(error: unknown): boolean {
+  return (error as { code?: unknown } | null | undefined)?.code === BACKEND_UNVERIFIED_CODE;
+}
+
 export function isBackendDownError(error: unknown): boolean {
   const candidate = error as { message?: unknown; code?: unknown } | null | undefined;
   const msg = typeof candidate?.message === 'string' ? candidate.message : '';
@@ -40,6 +52,9 @@ export async function requestBackend<T>(
       return await request();
     } catch (error) {
       lastError = error;
+      if (isBackendUnverifiedError(error)) {
+        throw error;
+      }
       if (isBackendDownError(error)) {
         const friendly = new Error(BACKEND_DOWN_MESSAGE);
         (friendly as { code?: string }).code = 'BACKEND_DOWN';

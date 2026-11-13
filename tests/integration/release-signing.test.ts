@@ -97,4 +97,36 @@ describe('release signing preflight', () => {
       `-c.win.azureSignOptions.publisherName=${config.win.signtoolOptions.publisherName}`
     );
   });
+
+  it('packages through node + the electron-builder CLI, never the npx.cmd shim', async () => {
+    const { resolvePackageCommand } = await loadSigningModule();
+
+    const { command, args } = resolvePackageCommand(
+      ['electron-builder', '--win', '-c.win.signtoolOptions.certificateSubjectName=A & B'],
+      (id: string) => `/resolved/${id}`
+    );
+
+    // Spawning a .cmd with shell:false is EINVAL on Windows since Node's
+    // CVE-2024-27980 fix; the node binary itself has no such restriction.
+    expect(command).toBe(process.execPath);
+    expect(args).toEqual([
+      '/resolved/electron-builder/cli.js',
+      '--win',
+      '-c.win.signtoolOptions.certificateSubjectName=A & B',
+    ]);
+  });
+
+  it('resolves the real electron-builder CLI entry point', async () => {
+    const { resolvePackageCommand } = await loadSigningModule();
+
+    const { args } = resolvePackageCommand(['electron-builder', '--win']);
+
+    expect(args[0].replace(/\\/g, '/')).toMatch(/electron-builder\/cli\.js$/);
+  });
+
+  it('refuses to run anything other than electron-builder', async () => {
+    const { resolvePackageCommand } = await loadSigningModule();
+
+    expect(() => resolvePackageCommand(['rm', '-rf', '/'])).toThrow(/Unexpected package tool/);
+  });
 });

@@ -33,6 +33,7 @@ import {
 import { useAppStore } from '@/store/appStore';
 import { cn } from '@/utils/cn';
 import { isEditableTarget, ownsNavigationKeys } from '@/utils/isEditableTarget';
+import { isWorkspaceShortcutBlocked } from '@/utils/modalGuard';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { StoryboardPlayback } from '@/components/timeline/StoryboardPlayback';
@@ -64,6 +65,8 @@ const DEFAULT_VIDEO_CLIP_DURATION_MS = 5000;
 const DEFAULT_AUDIO_CLIP_DURATION_MS = 5000;
 const TIMELINE_ACTION_BUTTON_CLASS =
   'inline-flex h-7 flex-none items-center gap-1 whitespace-nowrap rounded-md border border-border-hover bg-panel-raised px-2 text-xs text-text-primary shadow-sm transition hover:border-accent-primary-border hover:bg-elevated disabled:cursor-not-allowed disabled:border-border disabled:bg-surface disabled:text-text-muted disabled:opacity-60';
+/** Sequence frame rates offered in the timeline header (film, PAL, NTSC-int, HFR). */
+const SEQUENCE_FPS_OPTIONS: readonly number[] = [12, 15, 24, 25, 30, 48, 50, 60];
 const TIMELINE_ACTION_SELECT_CLASS =
   'h-7 max-w-[128px] flex-none rounded-md border border-border-hover bg-panel-raised px-2 text-xs text-text-primary shadow-sm';
 
@@ -352,6 +355,10 @@ const ZoomControls = memo(function ZoomControls({
   );
 });
 
+/** Time ruler keyboard steps (ms): arrow keys, and Shift+arrow. */
+const RULER_KEY_STEP_MS = 1000;
+const RULER_KEY_STEP_LARGE_MS = 10000;
+
 const TimeRuler = memo(function TimeRuler({
   totalDurationMs,
   playRange,
@@ -366,6 +373,41 @@ const TimeRuler = memo(function TimeRuler({
   const ticks = useMemo(() => buildTimelineTicks(totalDurationMs, zoom), [totalDurationMs, zoom]);
   const currentTime = useAppStore(selectCurrentTime);
 
+  // Slider keyboard contract: arrows step one second (Shift: ten), Page
+  // Up/Down a tenth of the sequence, Home/End jump to either end.
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    const step = event.shiftKey ? RULER_KEY_STEP_LARGE_MS : RULER_KEY_STEP_MS;
+    const page = Math.max(RULER_KEY_STEP_MS, Math.round(totalDurationMs / 10));
+    let next: number | null = null;
+    switch (event.key) {
+      case 'ArrowRight':
+      case 'ArrowUp':
+        next = currentTime + step;
+        break;
+      case 'ArrowLeft':
+      case 'ArrowDown':
+        next = currentTime - step;
+        break;
+      case 'PageUp':
+        next = currentTime + page;
+        break;
+      case 'PageDown':
+        next = currentTime - page;
+        break;
+      case 'Home':
+        next = 0;
+        break;
+      case 'End':
+        next = totalDurationMs;
+        break;
+    }
+    if (next === null) return;
+    event.preventDefault();
+    // The timeline's own shortcuts (S split, Delete) must not also see it.
+    event.stopPropagation();
+    onSeek(Math.max(0, Math.min(totalDurationMs, Math.round(next))));
+  };
+
   return (
     <div
       className="relative border-b border-border bg-canvas"
@@ -375,11 +417,14 @@ const TimeRuler = memo(function TimeRuler({
         const ratio = Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width));
         onSeek(Math.round(ratio * totalDurationMs));
       }}
+      onKeyDown={handleKeyDown}
       role="slider"
+      tabIndex={0}
       aria-label="Time ruler"
       aria-valuemin={0}
       aria-valuemax={totalDurationMs}
       aria-valuenow={currentTime}
+      aria-valuetext={`${formatSecondsLabel(currentTime)} of ${formatSecondsLabel(totalDurationMs)}`}
     >
       {playRange ? (
         <div
@@ -430,6 +475,7 @@ const TrackHeader = memo(function TrackHeader({
   onToggleSolo,
   onToggleHidden,
   onToggleLocked,
+  onDelete,
 }: {
   track: TimelineTrack;
   clipCount: number;
@@ -439,36 +485,39 @@ const TrackHeader = memo(function TrackHeader({
   onToggleSolo: () => void;
   onToggleHidden: () => void;
   onToggleLocked: () => void;
+  onDelete: () => void;
 }) {
   const TrackIcon = track.kind === 'video' ? Film : track.kind === 'audio' ? AudioLines : ImageIcon;
 
+  // The row is not itself a control: a full-row select button sits behind the
+  // content and the track toggles are its siblings, so no interactive element
+  // is nested in another (a role="button" row holding buttons was invalid
+  // ARIA and made Enter on a toggle ambiguous).
   return (
     <div
-      role="button"
-      tabIndex={0}
-      onClick={onSelect}
-      onKeyDown={(event) => {
-        if (event.key === 'Enter' || event.key === ' ') {
-          event.preventDefault();
-          onSelect();
-        }
-      }}
       className={cn(
-        'flex h-[68px] w-full items-center gap-2 border-b border-border px-3 text-left transition',
+        'relative flex h-[68px] w-full items-center gap-2 border-b border-border px-3 text-left transition',
         isSelected ? 'bg-accent-primary-muted' : 'bg-surface hover:bg-elevated/70',
       )}
-      aria-pressed={isSelected}
+      data-testid={`timeline-track-row-${track.id}`}
     >
-      <div className="flex h-9 w-9 items-center justify-center rounded-md border border-border bg-canvas">
-        <TrackIcon className="h-4 w-4 text-text-muted" />
+      <button
+        type="button"
+        onClick={onSelect}
+        aria-pressed={isSelected}
+        aria-label={`Select track ${track.name}`}
+        className="absolute inset-0 h-full w-full cursor-pointer"
+      />
+      <div className="pointer-events-none relative flex h-9 w-9 items-center justify-center rounded-md border border-border bg-canvas">
+        <TrackIcon className="h-4 w-4 text-text-muted" aria-hidden="true" />
       </div>
-      <div className="min-w-0 flex-1">
+      <div className="pointer-events-none relative min-w-0 flex-1">
         <p className="truncate text-sm text-text-primary">{track.name}</p>
         <p className="mt-1 mono-label text-text-muted">
           {track.kind} track - {clipCount} clip{clipCount === 1 ? '' : 's'}
         </p>
       </div>
-      <div className="flex items-center gap-1">
+      <div className="relative flex items-center gap-1">
         {track.kind === 'video' || track.kind === 'audio' ? (
           <button
             type="button"
@@ -521,6 +570,19 @@ const TrackHeader = memo(function TrackHeader({
           aria-label={track.locked ? 'Unlock track' : 'Lock track'}
         >
           {track.locked ? <Lock className="h-3.5 w-3.5" /> : <Unlock className="h-3.5 w-3.5" />}
+        </button>
+        <button
+          type="button"
+          onClick={(event) => {
+            event.stopPropagation();
+            onDelete();
+          }}
+          disabled={track.locked}
+          className="icon-button rounded p-1 text-text-muted transition hover:bg-status-error-muted hover:text-status-error disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-text-muted"
+          aria-label={`Delete track ${track.name}`}
+          title={track.locked ? 'Unlock the track to delete it' : `Delete track ${track.name}`}
+        >
+          <Trash2 className="h-3.5 w-3.5" />
         </button>
       </div>
     </div>
@@ -608,19 +670,17 @@ const TimelineClipBlock = memo(function TimelineClipBlock({
 
       {clip.transitionIn ? (
         <div
-          className="absolute inset-y-0 left-0"
+          className="absolute inset-y-0 left-0 bg-linear-to-r from-sheen-edge to-transparent"
           style={{
             width: `${Math.min(24, (clip.transitionIn.durationMs / Math.max(clip.durationMs, 1)) * 100)}%`,
-            background: 'linear-gradient(90deg, rgba(255,255,255,0.18), transparent)',
           }}
         />
       ) : null}
       {clip.transitionOut ? (
         <div
-          className="absolute inset-y-0 right-0"
+          className="absolute inset-y-0 right-0 bg-linear-to-l from-sheen-edge to-transparent"
           style={{
             width: `${Math.min(24, (clip.transitionOut.durationMs / Math.max(clip.durationMs, 1)) * 100)}%`,
-            background: 'linear-gradient(270deg, rgba(255,255,255,0.18), transparent)',
           }}
         />
       ) : null}
@@ -675,7 +735,7 @@ const TimelineClipBlock = memo(function TimelineClipBlock({
                 className={cn(
                   'absolute inset-y-0 rounded-full border',
                   tone.overlay,
-                  activeRetakeRangeId === range.id ? 'shadow-[0_0_0_1px_rgba(255,255,255,0.22)]' : '',
+                  activeRetakeRangeId === range.id ? 'shadow-[0_0_0_1px_var(--color-sheen-edge)]' : '',
                 )}
                 style={{ left: `${left}%`, width: `${width}%` }}
                 title={`Retake ${formatRetakeRangeLabel(range.startMs, range.endMs)}`}
@@ -716,6 +776,15 @@ const TimelineClipBlock = memo(function TimelineClipBlock({
             {isPlaceholder ? (
               <span className="rounded-full border border-status-warning-border bg-status-warning-muted px-1.5 py-0.5 mono-label text-status-warning">
                 Placeholder
+              </span>
+            ) : null}
+            {clip.transitionOut ? (
+              // Carried from the storyboard's transition into the next scene.
+              <span
+                className="truncate rounded-full border border-border bg-canvas/80 px-1.5 py-0.5 mono-label text-text-muted"
+                data-testid={`timeline-clip-transition-out-${clip.id}`}
+              >
+                {`${clip.transitionOut.type} ${formatSecondsLabel(clip.transitionOut.durationMs)}`}
               </span>
             ) : null}
           </div>
@@ -774,6 +843,8 @@ export const Timeline = memo(function Timeline() {
     createTimelineClip,
     createTimelineClipRetakeRange,
     updateTimelineTrack,
+    deleteTimelineTrack,
+    setTimelineFps,
     moveTimelineClip,
     splitTimelineClip,
     duplicateTimelineClip,
@@ -810,6 +881,8 @@ export const Timeline = memo(function Timeline() {
       createTimelineClip: state.createTimelineClip,
       createTimelineClipRetakeRange: state.createTimelineClipRetakeRange,
       updateTimelineTrack: state.updateTimelineTrack,
+      deleteTimelineTrack: state.deleteTimelineTrack,
+      setTimelineFps: state.setTimelineFps,
       moveTimelineClip: state.moveTimelineClip,
       splitTimelineClip: state.splitTimelineClip,
       duplicateTimelineClip: state.duplicateTimelineClip,
@@ -832,6 +905,7 @@ export const Timeline = memo(function Timeline() {
   const [zoom, setZoom] = useState(1.5);
   const [selectedTrackId, setSelectedTrackId] = useState<string | null>(null);
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
+  const [trackDeleteTargetId, setTrackDeleteTargetId] = useState<string | null>(null);
   const [insertMediaId, setInsertMediaId] = useState('');
   const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
   const [retakeDraftRange, setRetakeDraftRange] = useState<TimelineRetakeDraftRange | null>(null);
@@ -1015,17 +1089,18 @@ export const Timeline = memo(function Timeline() {
         return;
       }
 
-      const compatibleTrack =
-        (trackId
-          ? sequenceTracks.find(
-              (track) =>
-                track.id === trackId &&
-                !track.locked &&
-                (track.kind === getTrackKindForMediaAsset(asset) ||
-                  (asset.type === 'image' && track.kind === 'overlay')),
-            ) ?? null
-          : null) ??
-        ensureCompatibleTrack(asset);
+      // The requested track wins when it is unlocked and fits the asset;
+      // otherwise find (or create) a compatible one.
+      const requestedTrack = trackId
+        ? sequenceTracks.find(
+            (track) =>
+              track.id === trackId &&
+              !track.locked &&
+              (track.kind === getTrackKindForMediaAsset(asset) ||
+                (asset.type === 'image' && track.kind === 'overlay')),
+          )
+        : undefined;
+      const compatibleTrack = requestedTrack ?? ensureCompatibleTrack(asset);
 
       if (!compatibleTrack) {
         return;
@@ -1064,6 +1139,35 @@ export const Timeline = memo(function Timeline() {
             : `Image ${sequenceTracks.length + 1}`,
     });
   }, [activeSequence, createTimelineTrack, selectedMediaAsset, sequenceTracks.length]);
+
+  const trackDeleteTarget = trackDeleteTargetId
+    ? sequenceTracks.find((track) => track.id === trackDeleteTargetId) ?? null
+    : null;
+  const trackDeleteClipCount = trackDeleteTarget ? clipsByTrackId.get(trackDeleteTarget.id)?.length ?? 0 : 0;
+
+  const handleConfirmDeleteTrack = useCallback(() => {
+    if (trackDeleteTargetId) {
+      // The slice removes the track's clips, their retake takes and bindings,
+      // and clears the active clip/range/take when they lived on this track.
+      deleteTimelineTrack(trackDeleteTargetId);
+      setSelectedTrackId((current) => (current === trackDeleteTargetId ? null : current));
+    }
+    setTrackDeleteTargetId(null);
+  }, [deleteTimelineTrack, trackDeleteTargetId]);
+
+  const handleFpsChange = useCallback(
+    (event: React.ChangeEvent<HTMLSelectElement>) => {
+      const fps = Number(event.target.value);
+      if (Number.isFinite(fps) && fps > 0) {
+        setTimelineFps(fps);
+      }
+    },
+    [setTimelineFps],
+  );
+  const sequenceFps = activeSequence?.fps ?? 24;
+  const fpsOptions = SEQUENCE_FPS_OPTIONS.includes(sequenceFps)
+    ? SEQUENCE_FPS_OPTIONS
+    : [...SEQUENCE_FPS_OPTIONS, sequenceFps].sort((left, right) => left - right);
 
   const handleAddClip = useCallback(() => {
     if (!selectedMediaAsset) {
@@ -1163,6 +1267,11 @@ export const Timeline = memo(function Timeline() {
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.defaultPrevented || isEditableTarget(event.target)) {
+        return;
+      }
+      // A modal dialog (image preview, export, a confirm) owns the keyboard:
+      // S / Delete / Space must not edit the timeline hidden behind it.
+      if (isWorkspaceShortcutBlocked(event)) {
         return;
       }
 
@@ -1310,7 +1419,7 @@ export const Timeline = memo(function Timeline() {
       initial={{ height: COLLAPSED_HEIGHT }}
       animate={{ height: EXPANDED_HEIGHT }}
       transition={{ duration: 0.2 }}
-      className="flex flex-col overflow-hidden border-t border-border bg-surface shadow-cinematic"
+      className="flex flex-col overflow-hidden border-t border-border bg-surface shadow-overlay"
     >
       <div className="flex min-h-12 flex-wrap items-center justify-between gap-x-3 gap-y-1 border-b border-border bg-elevated/90 px-3 py-1.5">
         {/* Wraps to a second row when the workspace is narrow. It used to scroll
@@ -1398,6 +1507,24 @@ export const Timeline = memo(function Timeline() {
         </div>
 
         <div className="flex flex-none items-center gap-2">
+          <label className="flex flex-none items-center gap-1.5">
+            <span className="mono-label text-text-muted">FPS</span>
+            <select
+              aria-label="Sequence frame rate"
+              title="Sequence frame rate: drives frame stepping, timecode and export"
+              className={cn(TIMELINE_ACTION_SELECT_CLASS, 'w-[72px] data-mono disabled:cursor-not-allowed disabled:opacity-60')}
+              value={sequenceFps}
+              onChange={handleFpsChange}
+              disabled={!activeSequence}
+            >
+              {fpsOptions.map((fps) => (
+                <option key={fps} value={fps}>
+                  {fps}
+                </option>
+              ))}
+            </select>
+          </label>
+          <div className="mx-1 h-5 w-px bg-border" />
           <ZoomControls zoom={zoom} onZoomChange={setZoom} />
           {timelineMode === 'canvas' ? (
             <>
@@ -1461,7 +1588,14 @@ export const Timeline = memo(function Timeline() {
       ) : (
         <div className="flex min-h-0 flex-1 flex-col">
           <div className="min-h-0 flex-1 overflow-hidden">
-            <div className="timeline-scroll-area h-full overflow-auto" tabIndex={0}>
+            {/* The scrolling sequence is a keyboard stop of its own (axe:
+                scrollable-region-focusable), so it is a named region. */}
+            <div
+              role="region"
+              aria-label="Timeline sequence"
+              tabIndex={0}
+              className="timeline-scroll-area h-full overflow-auto"
+            >
               <div
                 className="min-h-full"
                 style={{
@@ -1790,6 +1924,7 @@ export const Timeline = memo(function Timeline() {
                         onToggleSolo={() => updateTimelineTrack(track.id, { solo: !track.solo })}
                         onToggleHidden={() => updateTimelineTrack(track.id, { hidden: !track.hidden })}
                         onToggleLocked={() => updateTimelineTrack(track.id, { locked: !track.locked })}
+                        onDelete={() => setTrackDeleteTargetId(track.id)}
                       />
                     ))}
                     {sequenceTracks.length === 0 ? (
@@ -1833,6 +1968,22 @@ export const Timeline = memo(function Timeline() {
           setDeleteTargetId(null);
         }}
         onCancel={() => setDeleteTargetId(null)}
+      />
+
+      <ConfirmDialog
+        open={trackDeleteTarget !== null}
+        title="Delete Track"
+        message={
+          trackDeleteTarget
+            ? trackDeleteClipCount > 0
+              ? `Delete "${trackDeleteTarget.name}" and the ${trackDeleteClipCount} clip${trackDeleteClipCount === 1 ? '' : 's'} on it? Their retake takes go with them. Media assets stay in the library.`
+              : `Delete the empty track "${trackDeleteTarget.name}"?`
+            : ''
+        }
+        confirmLabel="Delete Track"
+        variant="danger"
+        onConfirm={handleConfirmDeleteTrack}
+        onCancel={() => setTrackDeleteTargetId(null)}
       />
     </motion.div>
   );

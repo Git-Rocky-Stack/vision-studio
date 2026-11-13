@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { AssetRecord } from '@/types/assets';
 
-import { analyzeAssetRecord, TAG_LEXICON } from './assetAnalysis';
+import { analyzeAssetRecord, isLexiconTerm, promptHasTerm, TAG_LEXICON } from './assetAnalysis';
 
 function makeAsset(overrides: Partial<AssetRecord> = {}): AssetRecord {
   return {
@@ -168,5 +168,18 @@ describe('analyzeAssetRecord', () => {
     expect(names).toContain('cinematic');
     expect(names).toContain('moody');
     expect(names.every((n) => /^[a-z][a-z -]*$/.test(n))).toBe(true);
+  });
+});
+
+describe('prompt term helpers', () => {
+  it('tells lexicon terms from user-authored ones', () => {
+    expect(isLexiconTerm('Cinematic')).toBe(true);
+    expect(isLexiconTerm('hero shot')).toBe(false);
+  });
+
+  it('matches whole words only, through prompt weight syntax', () => {
+    expect(promptHasTerm('a (Hero Shot:1.4), <lora:x:1>', 'hero shot')).toBe(true);
+    expect(promptHasTerm('superhero shots', 'hero shot')).toBe(false);
+    expect(promptHasTerm('anything', '   ')).toBe(false);
   });
 });

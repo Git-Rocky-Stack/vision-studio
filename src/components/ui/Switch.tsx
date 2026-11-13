@@ -4,13 +4,17 @@ interface SwitchProps {
   checked: boolean;
   onChange: (checked: boolean) => void;
   label: string;
+  /** Element id, so a visible <label htmlFor> can also name and toggle the switch. */
+  id?: string;
   disabled?: boolean;
   className?: string;
 }
 
-export function Switch({ checked, onChange, label, disabled, className }: SwitchProps) {
+export function Switch({ checked, onChange, label, id, disabled, className }: SwitchProps) {
   return (
     <button
+      id={id}
+      type="button"
       role="switch"
       aria-checked={checked}
       aria-label={label}

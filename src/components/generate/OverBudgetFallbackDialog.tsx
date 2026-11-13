@@ -1,7 +1,8 @@
-import { useEffect, useRef } from 'react';
+import { useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
+import { useDialogFocus } from '@/hooks/useDialogFocus';
 import type { ProviderId } from '../../../shared/providerRouting';
 
 const PROVIDER_LABEL: Record<Exclude<ProviderId, 'local'>, string> = {
@@ -19,8 +20,8 @@ interface OverBudgetFallbackDialogProps {
 
 /**
  * Surfaces the M5 over-budget verdict (M6 S8): run locally anyway (likely OOM),
- * route to a capable configured hosted provider, or cancel. Mirrors
- * ConfirmDialog's focus-trap + Carbon Pro overlay pattern.
+ * route to a capable configured hosted provider, or cancel. Uses the shared
+ * useDialogFocus modal contract + the Carbon Pro overlay pattern.
  */
 export function OverBudgetFallbackDialog({
   open,
@@ -30,47 +31,10 @@ export function OverBudgetFallbackDialog({
   onCancel,
 }: OverBudgetFallbackDialogProps) {
   const dialogRef = useRef<HTMLDivElement>(null);
-  const previousFocusRef = useRef<HTMLElement | null>(null);
 
-  // Focus trap, Escape-to-cancel, and focus restoration (mirrors ConfirmDialog).
-  useEffect(() => {
-    if (!open) return;
-    previousFocusRef.current = document.activeElement as HTMLElement;
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        onCancel();
-        return;
-      }
-      if (event.key !== 'Tab' || !dialogRef.current) return;
-
-      const focusable = dialogRef.current.querySelectorAll<HTMLElement>(
-        'button:not([disabled]), [tabindex]:not([tabindex="-1"])',
-      );
-      const first = focusable[0];
-      const last = focusable[focusable.length - 1];
-
-      if (event.shiftKey && document.activeElement === first) {
-        event.preventDefault();
-        last?.focus();
-      } else if (!event.shiftKey && document.activeElement === last) {
-        event.preventDefault();
-        first?.focus();
-      }
-    };
-
-    document.addEventListener('keydown', handleKeyDown);
-    // Auto-focus the Cancel button (safe default).
-    requestAnimationFrame(() => {
-      const cancelBtn = dialogRef.current?.querySelector<HTMLElement>('[data-cancel]');
-      cancelBtn?.focus();
-    });
-
-    return () => {
-      document.removeEventListener('keydown', handleKeyDown);
-      previousFocusRef.current?.focus();
-    };
-  }, [open, onCancel]);
+  // Shared modal contract: focus lands on Cancel (the safe default), Tab is
+  // trapped, Escape cancels, and focus returns to the opener on close.
+  useDialogFocus(dialogRef, { open, onEscape: onCancel, initialFocusSelector: '[data-cancel]' });
 
   const hosted = candidates.filter(
     (candidate): candidate is Exclude<ProviderId, 'local'> => candidate !== 'local',

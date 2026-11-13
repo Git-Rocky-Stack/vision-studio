@@ -119,6 +119,11 @@ export function HardwareSection() {
               {hardwareProfile.gpu_name ?? 'No CUDA GPU detected'}
             </span>
           </div>
+          {hardwareProfile.gpu_unsupported_reason ? (
+            <p role="status" className="pb-3 text-xs text-status-warning">
+              {hardwareProfile.gpu_unsupported_reason}
+            </p>
+          ) : null}
           <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
             <Stat label="VRAM total" value={formatBytes(hardwareProfile.vram_total_bytes)} />
             <Stat label="VRAM free" value={formatBytes(hardwareProfile.vram_free_bytes)} />
@@ -133,7 +138,9 @@ export function HardwareSection() {
               value={
                 hardwareProfile.gpu_available
                   ? `${hardwareProfile.compute_major}.${hardwareProfile.compute_minor}`
-                  : 'CPU only'
+                  : hardwareProfile.gpu_unsupported_reason
+                    ? `${hardwareProfile.compute_major}.${hardwareProfile.compute_minor} (unsupported)`
+                    : 'CPU only'
               }
             />
           </div>

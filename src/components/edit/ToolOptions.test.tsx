@@ -1,6 +1,7 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
+import { RETOUCH_SIZE_MAX, RETOUCH_SIZE_MIN } from '@/features/edit/retouch';
 import { createShapeLayer, shapeDataFromDrag } from '@/features/edit/shapeLayers';
 import { useAppStore } from '@/store/appStore';
 import type { EditTool } from '@/types/editor';
@@ -30,6 +31,13 @@ describe('ToolOptions', () => {
     fireEvent.keyDown(screen.getByRole('slider', { name: 'Size' }), { key: 'ArrowRight' });
     expect(useAppStore.getState().editBrushSize).toBe(11);
     expect(screen.getByText(useAppStore.getState().editBrushColor)).toBeInTheDocument();
+  });
+
+  it.each(['brush', 'eraser', 'clone', 'heal'] as const)('bounds the %s size slider by the retouch size range', (tool) => {
+    renderFor(tool);
+    const slider = screen.getByRole('slider', { name: 'Size' });
+    expect(slider).toHaveAttribute('aria-valuemin', String(RETOUCH_SIZE_MIN));
+    expect(slider).toHaveAttribute('aria-valuemax', String(RETOUCH_SIZE_MAX));
   });
 
   it('clears brush strokes when there are some', () => {

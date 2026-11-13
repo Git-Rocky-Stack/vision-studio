@@ -72,6 +72,25 @@ describe('FoundryPage', () => {
     );
   });
 
+  it('moves between sections with the arrow keys and labels the panel by its tab', () => {
+    render(<FoundryPage />);
+    const discover = screen.getByRole('tab', { name: /discover/i });
+    expect(discover).toHaveAttribute('tabindex', '0');
+    expect(screen.getByRole('tab', { name: /library/i })).toHaveAttribute('tabindex', '-1');
+
+    discover.focus();
+    fireEvent.keyDown(discover, { key: 'ArrowRight' });
+    const library = screen.getByRole('tab', { name: /library/i });
+    expect(library).toHaveAttribute('aria-selected', 'true');
+    expect(library).toHaveFocus();
+    expect(screen.getByRole('tabpanel', { name: 'Library' })).toBeInTheDocument();
+
+    fireEvent.keyDown(library, { key: 'End' });
+    expect(screen.getByRole('tab', { name: /hardware/i })).toHaveFocus();
+    fireEvent.keyDown(screen.getByRole('tab', { name: /hardware/i }), { key: 'ArrowRight' });
+    expect(screen.getByRole('tab', { name: /discover/i })).toHaveAttribute('aria-selected', 'true');
+  });
+
   it('warms the model/download/library/hardware loaders on mount', () => {
     const loadModels = vi.fn();
     const refreshDownloads = vi.fn();

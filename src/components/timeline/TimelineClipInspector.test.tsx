@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 import { TimelineClipInspector } from './TimelineClipInspector';
@@ -226,6 +226,23 @@ describe('TimelineClipInspector', () => {
     expect(useAppStore.getState().timelineClips).toHaveLength(3);
   });
 
+  it('asks before deleting the clip, and keeps it on cancel', async () => {
+    const user = userEvent.setup();
+    const { clip } = seedTimelineFixture();
+    render(<TimelineClipInspector />);
+
+    await user.click(screen.getByRole('button', { name: 'Delete' }));
+    const confirm = screen.getByRole('dialog', { name: 'Delete Clip' });
+    expect(useAppStore.getState().timelineClips.some((item) => item.id === clip.id)).toBe(true);
+
+    await user.click(within(confirm).getByRole('button', { name: 'Cancel' }));
+    expect(useAppStore.getState().timelineClips.some((item) => item.id === clip.id)).toBe(true);
+
+    await user.click(screen.getByRole('button', { name: 'Delete' }));
+    await user.click(within(screen.getByRole('dialog', { name: 'Delete Clip' })).getByRole('button', { name: 'Delete Clip' }));
+    expect(useAppStore.getState().timelineClips.some((item) => item.id === clip.id)).toBe(false);
+  });
+
   it('exposes a sequence export action for the active clip context', async () => {
     const user = userEvent.setup();
     const onOpenExportDialog = vi.fn();
@@ -318,6 +335,48 @@ describe('TimelineClipInspector', () => {
     expect(
       useAppStore.getState().timelineClips.find((item) => item.id === clip.id)?.retakeRanges,
     ).toEqual([]);
+  });
+
+  it('deletes a candidate take after confirming, but never the accepted or rendering take', async () => {
+    const user = userEvent.setup();
+    const { clip } = seedTimelineFixture();
+    const state = useAppStore.getState();
+
+    const range = state.createTimelineClipRetakeRange(clip.id, { startMs: 250, endMs: 1100 })!;
+    const take = state.createClipRetakeTake({
+      clipId: clip.id,
+      retakeRangeId: range.id,
+      mediaAssetId: 'media-video',
+      prompt: 'take to discard',
+    })!;
+
+    render(<TimelineClipInspector />);
+    const deleteButton = screen.getByRole('button', { name: 'Delete take' });
+
+    act(() => {
+      useAppStore.getState().updateClipRetakeTake(take.id, { status: 'rendering' });
+    });
+    expect(deleteButton).toBeDisabled();
+
+    act(() => {
+      useAppStore.getState().updateClipRetakeTake(take.id, { status: 'candidate' });
+      useAppStore.getState().acceptClipRetakeTake(take.id);
+    });
+    expect(deleteButton).toBeDisabled();
+    expect(deleteButton).toHaveAttribute('title', 'Revert the range before deleting the accepted take');
+
+    await user.click(screen.getByTestId('timeline-retake-inspector-revert'));
+    expect(deleteButton).toBeEnabled();
+
+    await user.click(deleteButton);
+    const confirm = screen.getByRole('dialog', { name: 'Delete Retake Take' });
+    await user.click(within(confirm).getByRole('button', { name: 'Cancel' }));
+    expect(useAppStore.getState().clipRetakeTakes.some((item) => item.id === take.id)).toBe(true);
+
+    await user.click(screen.getByRole('button', { name: 'Delete take' }));
+    await user.click(screen.getByRole('button', { name: 'Delete Take' }));
+    expect(useAppStore.getState().clipRetakeTakes.some((item) => item.id === take.id)).toBe(false);
+    expect(screen.getByTestId('timeline-retake-candidates')).toHaveTextContent('0 candidate takes');
   });
 
   it('selects the newest candidate take when a retake range is chosen', async () => {

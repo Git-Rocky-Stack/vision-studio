@@ -1,7 +1,8 @@
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useAppStore } from '@/store/appStore';
+import { appJobWatcher } from '@/features/jobs/appJobWatcher';
 
 import { BatchPromptQueue } from './BatchPanel';
 
@@ -83,7 +84,10 @@ describe('BatchPromptQueue', () => {
     installElectronMock();
   });
 
-  afterEach(cleanup);
+  afterEach(() => {
+    cleanup();
+    appJobWatcher.reset();
+  });
 
   it('shows the hosted route summary when the active account uses OpenRouter for still images', async () => {
     installElectronMock({
@@ -198,12 +202,14 @@ describe('BatchPromptQueue', () => {
       window.electron.generation.getStatus = getStatus;
       await startBatch(['job-a']);
 
+      // The watcher reads the status at once, then every 2s (backing off).
       await advance(2000);
-      expect(getStatus).toHaveBeenCalledTimes(1);
+      const callsBeforeCancel = getStatus.mock.calls.length;
+      expect(callsBeforeCancel).toBeGreaterThan(0);
 
       fireEvent.click(screen.getByRole('button', { name: /Cancel Batch/i }));
-      await advance(10000);
-      expect(getStatus).toHaveBeenCalledTimes(1);
+      await advance(30000);
+      expect(getStatus).toHaveBeenCalledTimes(callsBeforeCancel);
     });
 
     it('cancels every submitted job, queued ones included, and clears their spinners', async () => {
@@ -232,6 +238,119 @@ describe('BatchPromptQueue', () => {
       for (let i = 0; i < 3; i++) await flush();
 
       expect(screen.getByText(/Cancelled 1 of 2 prompts; 1 could not be cancelled/)).toBeInTheDocument();
+    });
+  });
+
+  describe('queue tools (#J14)', () => {
+    beforeEach(() => {
+      useAppStore.getState().clearBatchQueue();
+    });
+
+    function fillPrompts(values: string[]) {
+      useAppStore.getState().appendBatchQueuePrompts(values);
+    }
+
+    it('renders the grip as a real, named drag handle wired to dnd-kit', () => {
+      fillPrompts(['a', 'b']);
+      render(<BatchPromptQueue />);
+      const grip = screen.getByRole('button', { name: 'Reorder prompt 1' });
+      expect(grip).toHaveAttribute('aria-roledescription', 'sortable');
+      expect(grip).toBeEnabled();
+    });
+
+    it('duplicates a card in place', () => {
+      fillPrompts(['a', 'b']);
+      render(<BatchPromptQueue />);
+      fireEvent.click(screen.getByRole('button', { name: 'Duplicate prompt 1' }));
+      expect(useAppStore.getState().batchQueue.map((card) => card.prompt)).toEqual(['a', 'a', 'b']);
+    });
+
+    it('clears the queue only after confirmation', async () => {
+      fillPrompts(['a', 'b']);
+      render(<BatchPromptQueue />);
+      fireEvent.click(screen.getByRole('button', { name: /Clear All/i }));
+      expect(useAppStore.getState().batchQueue).toHaveLength(2);
+      const dialog = await screen.findByRole('dialog');
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Clear All' }));
+      expect(useAppStore.getState().batchQueue.map((card) => card.prompt)).toEqual(['']);
+    });
+
+    it('imports prompts from a .txt file', async () => {
+      render(<BatchPromptQueue />);
+      const file = new File(['first prompt\n\nsecond prompt\n'], 'prompts.txt', { type: 'text/plain' });
+      fireEvent.change(screen.getByTestId('batch-import-input'), { target: { files: [file] } });
+      await waitFor(() => {
+        expect(useAppStore.getState().batchQueue.map((card) => card.prompt)).toEqual(['first prompt', 'second prompt']);
+      });
+      expect(await screen.findByText('Imported 2 prompts from prompts.txt.')).toBeInTheDocument();
+    });
+
+    it('reports an unreadable import instead of failing silently', async () => {
+      render(<BatchPromptQueue />);
+      const file = new File(['{broken'], 'prompts.json', { type: 'application/json' });
+      fireEvent.change(screen.getByTestId('batch-import-input'), { target: { files: [file] } });
+      expect(await screen.findByText('The JSON file could not be parsed.')).toBeInTheDocument();
+    });
+
+    it('fixed seed strategy submits one batch with the seed', async () => {
+      fillPrompts(['a', 'b']);
+      useAppStore.getState().setBatchSeedStrategy({ mode: 'fixed', baseSeed: 77 });
+      window.electron.generation.batch = vi.fn().mockResolvedValue({ success: true, jobIds: ['j1', 'j2'] });
+      render(<BatchPromptQueue />);
+      fireEvent.click(screen.getByRole('button', { name: /Start Batch/i }));
+      await waitFor(() => expect(window.electron.generation.batch).toHaveBeenCalledTimes(1));
+      expect(window.electron.generation.batch).toHaveBeenCalledWith(
+        expect.objectContaining({ prompts: ['a', 'b'], seed: 77 }),
+      );
+      await waitFor(() => {
+        expect(useAppStore.getState().batchQueue.map((card) => [card.jobId, card.seed])).toEqual([
+          ['j1', 77],
+          ['j2', 77],
+        ]);
+      });
+    });
+
+    it('increment seed strategy submits each prompt with its own consecutive seed', async () => {
+      fillPrompts(['a', 'b', 'c']);
+      useAppStore.getState().setBatchSeedStrategy({ mode: 'increment', baseSeed: 100 });
+      let next = 0;
+      window.electron.generation.batch = vi.fn(async () => ({ success: true, jobIds: [`j${++next}`] }));
+      render(<BatchPromptQueue />);
+      fireEvent.click(screen.getByRole('button', { name: /Start Batch/i }));
+      await waitFor(() => expect(window.electron.generation.batch).toHaveBeenCalledTimes(3));
+      const calls = vi.mocked(window.electron.generation.batch).mock.calls.map(([params]) => [
+        params.prompts,
+        (params as { seed?: number }).seed,
+      ]);
+      expect(calls).toEqual([
+        [['a'], 100],
+        [['b'], 101],
+        [['c'], 102],
+      ]);
+      await waitFor(() => expect(useAppStore.getState().batchJobs.at(-1)?.jobIds).toEqual(['j1', 'j2', 'j3']));
+    });
+
+    it('random seed strategy keeps the single batch call and lets the backend draw seeds', async () => {
+      fillPrompts(['a']);
+      window.electron.generation.batch = vi.fn().mockResolvedValue({ success: true, jobIds: ['j1'] });
+      render(<BatchPromptQueue />);
+      fireEvent.click(screen.getByRole('button', { name: /Start Batch/i }));
+      await waitFor(() => expect(window.electron.generation.batch).toHaveBeenCalledTimes(1));
+      expect(vi.mocked(window.electron.generation.batch).mock.calls[0][0]).not.toHaveProperty('seed');
+    });
+
+    it('keeps a running batch and its cards when the panel is remounted', async () => {
+      fillPrompts(['a']);
+      window.electron.generation.batch = vi.fn().mockResolvedValue({ success: true, jobIds: ['j1'] });
+      window.electron.generation.getStatus = vi.fn().mockResolvedValue({ job_id: 'j1', status: 'processing', progress: 5 });
+      const { unmount } = render(<BatchPromptQueue />);
+      fireEvent.click(screen.getByRole('button', { name: /Start Batch/i }));
+      await waitFor(() => expect(useAppStore.getState().activeBatchId).not.toBeNull());
+      unmount();
+
+      render(<BatchPromptQueue />);
+      expect(screen.getByRole('button', { name: /Cancel Batch/i })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Reorder prompt 1' })).toBeDisabled();
     });
   });
 });

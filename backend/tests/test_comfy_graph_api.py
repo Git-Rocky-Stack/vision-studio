@@ -85,6 +85,61 @@ class ComfyGraphApiTests(unittest.TestCase):
         self.assertEqual(resp.status_code, 200)
         self.assertIn("job_id", resp.json())
 
+    def test_rejects_video_graph_type_with_a_clear_message(self):
+        fake = FakeClient()
+        resp = TestClient(build_app(fake)).post(
+            "/api/v1/comfy/run-graph", json={"graph": FIRST_CLASS, "generation_type": "video"}
+        )
+        self.assertEqual(resp.status_code, 422)
+        self.assertIn("only allows image nodes", resp.text)
+        self.assertIsNone(fake.queued)
+
+    def test_rejects_unknown_graph_type(self):
+        resp = TestClient(build_app(FakeClient())).post(
+            "/api/v1/comfy/run-graph", json={"graph": FIRST_CLASS, "generation_type": "audio"}
+        )
+        self.assertEqual(resp.status_code, 422)
+
+    def test_reconnects_on_demand_before_refusing(self):
+        class Reconnecting(FakeClient):
+            def __init__(self):
+                super().__init__(connected=False)
+                self.attempts = 0
+
+            async def ensure_connected(self):
+                self.attempts += 1
+                self.connected = True
+                return True
+
+        fake = Reconnecting()
+        resp = TestClient(build_app(fake)).post(
+            "/api/v1/comfy/run-graph", json={"graph": FIRST_CLASS, "generation_type": "image"}
+        )
+        self.assertEqual(resp.status_code, 200)
+        self.assertGreaterEqual(fake.attempts, 1)
+
+    def test_unreachable_after_reconnect_attempt_is_409(self):
+        class Unreachable(FakeClient):
+            async def ensure_connected(self):
+                return False
+
+        resp = TestClient(build_app(Unreachable(connected=False))).post(
+            "/api/v1/comfy/run-graph", json={"graph": FIRST_CLASS, "generation_type": "image"}
+        )
+        self.assertEqual(resp.status_code, 409)
+
+    def test_execute_writes_outputs_and_uses_utc_timestamps(self):
+        fake = FakeClient()
+        manager = FakeJobManager()
+        out = tempfile.mkdtemp()
+        comfy_graph.configure(lambda: fake, manager, out)
+        result = asyncio.run(comfy_graph.execute_comfy_graph("job-2", FIRST_CLASS, "image"))
+        self.assertEqual(result["images"], ["/outputs/job-2/output_001.png"])
+        self.assertEqual((pathlib.Path(out) / "job-2" / "output_001.png").read_bytes(), b"PNGDATA")
+        completed_at = manager.jobs["job-2"]["completed_at"]
+        self.assertIsNotNone(completed_at.tzinfo)
+        self.assertEqual(completed_at.utcoffset().total_seconds(), 0)
+
     def test_execute_submits_the_user_graph(self):
         fake = FakeClient()
         comfy_graph.configure(lambda: fake, FakeJobManager(), tempfile.mkdtemp())

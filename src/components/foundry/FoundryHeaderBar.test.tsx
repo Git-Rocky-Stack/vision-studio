@@ -61,17 +61,21 @@ describe('FoundryHeaderBar', () => {
     const { container, rerender } = render(<FoundryHeaderBar />);
     useAppStore.setState({ hardwareProfile: makeProfile({ gpu_available: true }) } as never);
     rerender(<FoundryHeaderBar />);
-    expect(container.querySelector('span[aria-hidden="true"][style]')).toHaveStyle({
-      background: resolveHardwareColor('play'),
-    });
+    // Inline value, not computed style: jsdom cannot resolve the var() token,
+    // so a computed-style comparison (jest-dom 7) sees an empty background.
+    expect(
+      container.querySelector<HTMLElement>('span[aria-hidden="true"][style]')?.style.background,
+    ).toBe(resolveHardwareColor('play'));
 
     useAppStore.setState({
       hardwareProfile: makeProfile({ gpu_available: false, gpu_name: 'CPU only' }),
     } as never);
     rerender(<FoundryHeaderBar />);
-    expect(container.querySelector('span[aria-hidden="true"][style]')).toHaveStyle({
-      background: resolveHardwareColor('rec'),
-    });
+    // Inline value, not computed style: jsdom cannot resolve the var() token,
+    // so a computed-style comparison (jest-dom 7) sees an empty background.
+    expect(
+      container.querySelector<HTMLElement>('span[aria-hidden="true"][style]')?.style.background,
+    ).toBe(resolveHardwareColor('rec'));
   });
 
   // The LED is hidden from assistive tech, so the verdict it shows is spoken

@@ -1,9 +1,16 @@
 import { useShallow } from 'zustand/react/shallow';
-import { Cpu, Gauge, Zap } from 'lucide-react';
+import { Cpu, Gauge, Info, Zap } from 'lucide-react';
 
 import { MonoLabel } from '@/components/hardware/MonoLabel';
 import { useAppStore } from '@/store/appStore';
-import type { AppliedAcceleration, TriState } from '@/types/acceleration';
+import {
+  selectOptionalFeatureAvailability,
+  UNAVAILABLE_IN_BUILD_REASON,
+  type AppliedAcceleration,
+  type FeatureAvailability,
+  type OptionalFeatureAvailability,
+  type TriState,
+} from '@/types/acceleration';
 
 type OptimizationKey =
   | 'sdpa' | 'channelsLast' | 'compile' | 'quantization' | 'attentionSlicing' | 'tensorrt';
@@ -19,14 +26,31 @@ const OPTIMIZATIONS: Array<{ key: OptimizationKey; label: string; hint: string }
 
 const TRISTATES: TriState[] = ['auto', 'on', 'off'];
 
+/** Optimizations that depend on a separately packaged backend library. */
+const AVAILABILITY_KEY: Partial<Record<OptimizationKey, keyof OptionalFeatureAvailability>> = {
+  quantization: 'quantization',
+  tensorrt: 'tensorrt',
+};
+
+function unavailability(
+  key: OptimizationKey,
+  availability: OptionalFeatureAvailability,
+): FeatureAvailability | null {
+  const feature = AVAILABILITY_KEY[key];
+  const entry = feature ? availability[feature] : undefined;
+  return entry && !entry.available ? entry : null;
+}
+
 export function PerformancePanel() {
-  const { settings, updateSettings, applied } = useAppStore(
+  const { settings, updateSettings, applied, systemInfo } = useAppStore(
     useShallow((s) => ({
       settings: s.accelerationSettings,
       updateSettings: s.updateAccelerationSettings,
       applied: s.lastAppliedAcceleration,
+      systemInfo: s.systemInfo,
     }))
   );
+  const availability = selectOptionalFeatureAvailability(systemInfo);
   const trtStatus = tensorrtStatus(applied);
 
   return (
@@ -36,7 +60,7 @@ export function PerformancePanel() {
         <MonoLabel>Performance</MonoLabel>
       </header>
 
-      <label className="flex items-center justify-between rounded-md border border-border bg-elevated px-3 py-2">
+      <label className="flex items-center justify-between rounded-sm border border-border bg-elevated px-3 py-2">
         <span className="text-label text-text-body">Master Enable</span>
         <input
           type="checkbox"
@@ -47,36 +71,51 @@ export function PerformancePanel() {
       </label>
 
       <div className={`space-y-3 transition-opacity ${settings.masterEnable ? '' : 'opacity-50'}`}>
-        {OPTIMIZATIONS.map(({ key, label, hint }) => (
-          <div key={key} className="space-y-1.5">
-            <div className="flex items-center justify-between">
-              <span className="text-label text-text-body">{label}</span>
-              <span className="text-xs text-text-muted data-mono">{hint}</span>
+        {OPTIMIZATIONS.map(({ key, label, hint }) => {
+          const missing = unavailability(key, availability);
+          const reasonId = `perf-${key}-unavailable`;
+          return (
+            <div key={key} className="space-y-1.5" data-unavailable={missing ? 'true' : undefined}>
+              <div className="flex items-center justify-between">
+                <span className="text-label text-text-body">{label}</span>
+                <span className="text-xs text-text-muted data-mono">{hint}</span>
+              </div>
+              <div className="flex gap-2">
+                {TRISTATES.map((value) => (
+                  <button
+                    key={value}
+                    type="button"
+                    disabled={!settings.masterEnable || missing !== null}
+                    onClick={() => updateSettings({ [key]: value })}
+                    aria-label={`${label} ${value}`}
+                    aria-pressed={settings[key] === value}
+                    aria-describedby={missing ? reasonId : undefined}
+                    className={
+                      settings[key] === value && !missing
+                        ? 'flex-1 py-1.5 rounded-md data-mono text-xs font-medium transition bg-accent-primary text-void shadow-accent-subtle disabled:cursor-not-allowed'
+                        : 'flex-1 py-1.5 rounded-md data-mono text-xs font-medium transition bg-elevated text-text-body border border-border hover:border-border-hover disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:border-border'
+                    }
+                  >
+                    {value.toUpperCase()}
+                  </button>
+                ))}
+              </div>
+              {missing ? (
+                <p id={reasonId} className="flex items-start gap-1.5 text-xs text-text-muted">
+                  <Info className="mt-0.5 h-3 w-3 flex-shrink-0" aria-hidden />
+                  <span>
+                    Unavailable: {missing.reason || UNAVAILABLE_IN_BUILD_REASON} Generations run
+                    without it.
+                  </span>
+                </p>
+              ) : null}
             </div>
-            <div className="flex gap-2">
-              {TRISTATES.map((value) => (
-                <button
-                  key={value}
-                  type="button"
-                  disabled={!settings.masterEnable}
-                  onClick={() => updateSettings({ [key]: value })}
-                  aria-label={`${label} ${value}`}
-                  className={
-                    settings[key] === value
-                      ? 'flex-1 py-1.5 rounded-md data-mono text-xs font-medium transition bg-accent-primary text-void shadow-accent-subtle disabled:cursor-not-allowed'
-                      : 'flex-1 py-1.5 rounded-md data-mono text-xs font-medium transition bg-elevated text-text-body border border-border hover:border-border-hover disabled:cursor-not-allowed disabled:hover:border-border'
-                  }
-                >
-                  {value.toUpperCase()}
-                </button>
-              ))}
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       {applied ? (
-        <section className="space-y-2 rounded-md border border-border bg-base p-3">
+        <section className="space-y-2 rounded-sm border border-border bg-surface p-3">
           <div className="flex items-center gap-2">
             <Zap className="w-3.5 h-3.5 text-accent-primary" aria-hidden />
             <MonoLabel>Applied This Run</MonoLabel>

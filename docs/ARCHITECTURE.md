@@ -1,6 +1,6 @@
 # Vision Studio - System Architecture
 
-> Version: tracks `package.json` (currently **3.4.2**)
+> Version: tracks `package.json` (currently **3.4.2**, not yet published; the latest published release is 3.4.1)
 > Audience: contributors, integrators, security reviewers
 > Companion docs: [`API_ENDPOINTS.md`](./API_ENDPOINTS.md), [`DATABASE_SCHEMA.md`](./DATABASE_SCHEMA.md), [`api/openapi.json`](./api/openapi.json)
 
@@ -15,8 +15,8 @@ graph TB
     subgraph User["User Machine"]
         subgraph Renderer["Renderer Process - chromium sandbox<br/>contextIsolation: true · nodeIntegration: false"]
             UI["React 19 UI<br/>Vite 6 dev server :5173 (dev)<br/>file:// (prod)"]
-            Store["Zustand store<br/>localStorage persist"]
-            Dock["dockview workspace"]
+            Store["Zustand store<br/>debounced persist (400 ms)"]
+            Dock["panel layout<br/>(DockviewLayout)"]
         end
 
         subgraph Main["Electron Main Process - Node.js<br/>electron 42"]
@@ -28,8 +28,8 @@ graph TB
         end
 
         subgraph Backend["Python Backend - FastAPI / Uvicorn :8000<br/>localhost-only bind"]
-            REST["REST routers<br/>main + edit + batch + retrieval + comfy"]
-            JobMgr["JobManager<br/>(thread-safe in-memory)"]
+            REST["REST routers<br/>main + edit + retrieval + comfy"]
+            JobMgr["JobManager<br/>(thread-safe; history in SQLite)"]
             ModelMgr["ModelManager<br/>(catalog + disk scan)"]
             DLM["Foundry DownloadManager"]
             DG["DirectGenerator<br/>diffusers / torch"]
@@ -48,7 +48,7 @@ graph TB
     end
 
     UI -- "window.electron.* (preload contextBridge)" --> IPC
-    Store -- "persist" --> Browser["browser localStorage"]
+    Store -- "persist" --> Browser["browser storage"]
     IPC -- "axios HTTP + x-vision-studio-token" --> REST
     WSClient -- "ws + token query param" --> REST
     UI -- "media loads: /outputs/* (no token)" --> REST
@@ -143,7 +143,8 @@ vision-studio/
 │   ├── components/                  # 22 component categories (canvas, edit, …)
 │   ├── features/                    # Domain logic per area (assets, generate, …)
 │   ├── store/
-│   │   ├── appStore.ts              # Zustand root store (slices composed :984-1013)
+│   │   ├── appStore.ts              # Zustand root store (slices composed in create<AppState>())
+│   │   ├── debouncedPersistStorage.ts # Coalesces persisted-state writes (400 ms)
 │   │   ├── appStore.types.ts        # AppState shape
 │   │   └── slices/                  # 15 feature slices
 │   ├── hooks/                       # Cross-cutting hooks
@@ -169,10 +170,10 @@ vision-studio/
 |-------|--------|-------|
 | Framework | **React 19** | Concurrent renderer, function components only |
 | Build | **Vite 6** + `@vitejs/plugin-react` | HMR in dev; static `dist/` in prod |
-| Routing | - | `react-router-dom` 7 is declared in `package.json` but nothing imports it; tab and view switching is store state (`activeTab`, `centerView`) |
-| Workspace | **dockview 5** | Resizable, dockable panels for the studio |
+| Routing | - | No router: tab and view switching is store state (`activeTab`, `centerView`) |
+| Workspace | Custom panel layout | `src/components/layout/DockviewLayout.tsx` + `layoutPresets.ts`: a per-tab centre view with resizable side and bottom docks. The `Dockview*` component names are historical - the `dockview` library is not a dependency |
 | State | **Zustand 5** + `useShallow` | One root store; sliced by feature |
-| Persist | `zustand/middleware/persist` → `localStorage` | Whitelisted, capped slices (see below) |
+| Persist | `zustand/middleware/persist` + `src/store/debouncedPersistStorage.ts` | Whitelisted, capped fields, written at most once per 400 ms (see below) |
 | Styling | **Tailwind CSS v4** + `tailwind-merge` | Token-driven theme, dark/light/system |
 | Anim | **Framer Motion 12** | Reduced-motion friendly |
 | Drag | `@dnd-kit/core` + `@dnd-kit/sortable` | Timeline + asset library |
@@ -204,7 +205,9 @@ vision-studio/
 | `provisioningSlice` | First-run starter-set status and whether the overlay was dismissed |
 | `accelerationSlice` | Acceleration settings and the last applied readout |
 
-Persistence is opt-in per field (see `appStore.ts` `partialize`) and capped - e.g. `promptHistory.slice(0, 50)`, `assetLibrary.slice(0, 500)`. This prevents `localStorage` blowup as users iterate on prompts.
+Persistence is opt-in per field (see `appStore.ts` `partializeAppState`) and capped - e.g. `promptHistory.slice(0, 50)`, `assetLibrary.slice(0, 500)`. This keeps the persisted payload bounded as users iterate on prompts.
+
+Writes are debounced (since 3.4.2). The persist middleware's storage is `createDebouncedJSONStorage` (`src/store/debouncedPersistStorage.ts`): it keeps only the latest value per key and writes it once, `DEFAULT_PERSIST_DEBOUNCE_MS` (400 ms) after the last update, instead of re-serializing the whole partialized state on every `set()`. Pending writes are flushed on `pagehide`, `beforeunload` and `visibilitychange` to hidden, and `flushPersistedState()` (exported from `appStore.ts`) writes immediately for tests and explicit save points; a read straight after a write sees the pending value. The browser storage underneath is whatever `getPersistStorage` in `appStore.ts` returns - read it there rather than assuming `localStorage`.
 
 ### 3.3 Renderer ↔ main contract
 
@@ -230,7 +233,7 @@ Top-level namespaces on `window.electron`:
 - `backend` - start/stop/status/checkBundled + onStatusChange
 - `updater` - status, check, install + onStatus
 
-Four push channels wrap `ipcRenderer.on(...)` and return an unsubscribe function: `generation.onProgress` (`generation:progress`), `generation.onStepImage` (`generation:step-image`), `backend.onStatusChange` (`backend:status`) and `updater.onStatus` (`updater:status`).
+Four push channels wrap `ipcRenderer.on(...)` and return an unsubscribe function: `generation.onProgress` (`generation:progress`), `generation.onStepImage` (`generation:step-image`), `backend.onStatusChange` (`backend:status-changed`) and `updater.onStatus` (`updater:status`).
 
 ### 3.4 Top-level UI flow
 
@@ -297,11 +300,11 @@ This dependency-injected design is what keeps every `services/*.ts` testable in 
 
 Three registration sites:
 
-1. **`services/mainIpc.ts`** - 41 channels: app, dialog, store, settings, accounts, openrouter, assets, notifications, system, backend and updater.
-2. **`ipc-handlers/generation.ts`** - 43 channels: generation, models, director, provision, hardware and `workflow:run-graph`, plus the OpenRouter and Hugging Face routes and the backend WebSocket client. It forwards two push events, `generation:progress` and `generation:step-image` (`backendWsRouting.ts`).
+1. **`services/mainIpc.ts`** - the app, dialog, store, settings, accounts, openrouter, assets, notifications, system, backend and updater channels.
+2. **`ipc-handlers/generation.ts`** - the generation, models, director, provision, hardware and `workflow:run-graph`, plus the OpenRouter and Hugging Face routes and the backend WebSocket client. It forwards two push events, `generation:progress` and `generation:step-image` (`backendWsRouting.ts`).
 3. **`services/downloadTokens.ts`** (`registerDownloadTokenIpc`, called by `main.ts`) - the two `auth:*` channels.
 
-The other two push events come from `backendProcess.ts` (`backend:status`) and `updater.ts` (`updater:status`).
+The other two push events come from `backendProcess.ts` (`backend:status-changed`) and `updater.ts` (`updater:status`).
 
 `electron/ipc-guard.ts` is loaded **first** in `main.ts` - before any module that may register an `ipcMain.handle`. It rejects duplicate handler registration so a stale or stray handler can never silently shadow the real one. This is one of the rare cases in this codebase where load order is load-bearing; do not move that import.
 
@@ -309,17 +312,25 @@ The other two push events come from `backendProcess.ts` (`backend:status`) and `
 
 `backendProcess.ts` is the single owner of the Python child process:
 
-- In **dev**, runs `backend/dist/VisionStudio-Backend` if a built backend exists; otherwise spawns `<pythonPath> main.py` in `backend/` (the `pythonPath` setting, default `python`).
-- In **prod**, spawns the PyInstaller one-file exe that electron-builder copies into `resources/` (`extraResources`; path: `backendProcess.getBundledBackendPath()`). A one-file exe unpacks itself to a temporary folder every time it starts.
-- Mints a per-launch auth token via `backendAuth.ts`, sets it as `VISION_STUDIO_BACKEND_AUTH_TOKEN` in the child env, and passes it on every HTTP and WebSocket request via the `x-vision-studio-token` header (HTTP) or `?token=…` query (WS). The token never reaches the renderer.
+- In **dev**, runs `backend/dist/VisionStudio-Backend/VisionStudio-Backend[.exe]` (fresh PyInstaller output) or `resources/backend/VisionStudio-Backend[.exe]` if a built backend exists; otherwise spawns `main.py` in `backend/` with the interpreter named by `VISION_STUDIO_PYTHON` (an absolute path to an existing file; UNC paths are refused), else `backend/venv`'s Python when that venv exists, else `python`. There is no Python-path setting in the app; the environment variable is the only override.
+- In **prod**, spawns the PyInstaller **one-folder** backend that electron-builder copies to `<resources>/backend/` (`VisionStudio-Backend[.exe]` + `_internal/`, run in place; `extraResources`; path: `backendProcess.getBundledBackendPath()`). On Windows/Linux it carries CUDA 13.2 torch 2.14.1 and the TensorRT runtime; on macOS the MPS build. [`BUNDLING.md`](../BUNDLING.md) describes the bundle's layout.
+- Mints a per-launch auth token via `backendAuth.ts`, sets it as `VISION_STUDIO_BACKEND_AUTH_TOKEN` in the child env, and passes it on every HTTP request and on the WebSocket upgrade in the `x-vision-studio-token` header (the backend no longer accepts a `?token=` query). Before trusting the port it verifies `GET /api/handshake` (an HMAC proof of the token). The token never reaches the renderer.
 - Polls `GET /` on `127.0.0.1:8000`, then `localhost:8000`, to determine readiness; shows a "Backend Not Started" dialog if the backend fails to start.
+- Refuses to talk to a port it does not own: if another program holds port 8000, the app reports "Port 8000 is in use by another application" instead of sending it requests (and the token).
+- Restarts a crashed backend automatically, with a backoff of 2 s, 4 s and so on up to 30 s, and stops retrying after 3 crashes within 5 minutes.
 - Restarts on settings changes that affect backend behavior (`shouldRestartBackend(prev, next)` in `settings.ts`).
 - Kills the child on `window-all-closed` and `before-quit` to guarantee no orphaned Uvicorn process.
+
+The app is single-instance: a second launch focuses the existing window instead of starting another app and backend. Installing or updating closes a running Vision Studio and its backend first (interactive installs ask before they do), and installing a downloaded update from the app asks for confirmation while generations are running.
 
 **Backend lifecycle environment variables** (advanced / dev / CI use):
 
 | Variable | Effect |
 |----------|--------|
+| `VISION_STUDIO_PYTHON` | Development only: the Python interpreter that runs `backend/main.py` when no built backend exists. Must be an absolute path to an existing file; UNC paths are refused. Replaces the removed `pythonPath` setting. |
+| `VISION_STUDIO_DISABLE_UPDATES` | `1` turns the update check off entirely (`updater.ts`). |
+| `VISION_STUDIO_UPDATE_URL` | Staging override for the update feed in development builds; ignored in packaged builds. |
+| `VISION_STUDIO_ENABLE_MAC_UPDATES` | macOS builds are ad-hoc signed, so auto-update is off on macOS unless this is `1`. |
 | `VISION_STUDIO_BACKEND_HOST` | Host the FastAPI backend binds to. Defaults to loopback `127.0.0.1`; set to `0.0.0.0` only for deliberate LAN/debug exposure. Read in `backend/main.py`. |
 | `VISION_STUDIO_SKIP_BACKEND` | When set (truthy), the app does **not** spawn the bundled Python backend (`mainProcess.start()`). Used by E2E so a test can manage the backend itself. |
 | `VISION_STUDIO_BACKEND_EXTERNAL` | When set (truthy), `getSystemInfo()` probes the backend over HTTP **even though the app did not spawn it** - so a manually-run (`python main.py`) or test-mocked backend is detected as connected. Pairs with `VISION_STUDIO_SKIP_BACKEND`. Opt-in; off by default. **In this mode you must set the same `VISION_STUDIO_BACKEND_AUTH_TOKEN` in both this app and the external backend** - otherwise each process mints its own token and authenticated requests fail with HTTP 403 (the app logs a `[backend-auth]` warning at startup and reads as disconnected). |
@@ -503,7 +514,7 @@ stateDiagram-v2
     end note
 ```
 
-The current `JobManager` is **in-memory only** - a `Dict[str, GenerationJob]` guarded by a `threading.Lock`. `add_job` drops finished jobs (completed, failed, cancelled) created more than `JOB_RETENTION_HOURS` (24) earlier; queued and running jobs are never dropped, and a backend restart still wipes job state. `POST /api/jobs/{id}/cancel` cancels a `pending` or `processing` job of any kind. Workers write their status through `update_unless_cancelled`, so a cancel is never overwritten, and running work stops at its next checkpoint: a denoising step (`GenerationCancelled` from the diffusers step callback), an edit tile or face, a timeline-export frame, or the next ComfyUI poll, which deletes the prompt from ComfyUI's queue and interrupts it if it is running. Any other status gets `Job is already <status>`. The `jobs` SQLite table exists (see [`DATABASE_SCHEMA.md`](./DATABASE_SCHEMA.md)) but is not yet wired to the manager; persisting through restarts is a known follow-up.
+`JobManager` keeps live jobs in a `Dict[str, GenerationJob]` guarded by a `threading.Lock` and **persists every job to the SQLite `jobs` table** (`backend/utils/job_store.py`): each change is handed to a background writer thread (never written on the event loop), and the last 24 hours of history are reloaded at startup, so `GET /api/jobs` and `GET /api/jobs/{id}` survive a backend restart. A job that was `pending` or `processing` when the backend stopped comes back `failed` ("The backend stopped before this job finished."). `add_job` drops finished jobs (completed, failed, cancelled) created more than `JOB_RETENTION_HOURS` (24) earlier from memory, and the store purges them from the table at startup; queued and running jobs are never dropped. Job timestamps are timezone-aware UTC. `POST /api/jobs/{id}/cancel` cancels a `pending` or `processing` job of any kind. Workers write their status through `update_unless_cancelled`, so a cancel is never overwritten, and running work stops at its next checkpoint: a denoising step (`GenerationCancelled` from the diffusers step callback), an edit tile or face, a timeline-export frame, or the next ComfyUI poll, which deletes the prompt from ComfyUI's queue and interrupts it if it is running. Any other status gets `Job is already <status>`. The table's shape is in [`DATABASE_SCHEMA.md`](./DATABASE_SCHEMA.md).
 
 ### 5.6 Module-level routers
 
@@ -553,7 +564,6 @@ sequenceDiagram
     App->>BP: start() (when backendAutostart is on)
     BP->>FS: locate bundled backend exe
     BP->>Py: spawn child process (env: token, OUTPUT_DIR, MODELS_DIR, DATABASE_PATH)
-    Py->>FS: one-file bundle unpacks to a temp folder (every launch)
     Py->>Py: run_migrations(DATABASE_PATH)
     Py->>Py: lifespan: connect ComfyUI if reachable, create DirectGenerator + DirectVideoGenerator
     Py->>Py: ModelManager.scan_models()
@@ -561,7 +571,7 @@ sequenceDiagram
     BP-->>App: ready
 ```
 
-Why this matters: startup can take **minutes**, because the one-file backend unpacks itself to a temporary folder every time it starts. If the readiness probe times out, the Main process shows a "Backend Not Started" dialog (`mainProcess.ts`) that mentions extraction time - do not race past it.
+Why this matters: the bundled backend can take **minutes** to become ready (it loads the PyTorch runtime, runs migrations and scans the model folders before it answers). If the readiness probe times out, the Main process shows a "Backend Not Started" dialog (`mainProcess.ts`) - do not race past it.
 
 ### 6.2 Settings update with backend restart
 
@@ -579,7 +589,7 @@ sequenceDiagram
     E->>S: store.set('settings', merged)
     E->>OR: rememberOutputRoot(resolveOutputPath(merged, userData))
     E->>E: shouldRestartBackend(current, merged)?
-    alt restart needed (e.g. pythonPath, defaultOutputPath)
+    alt restart needed (e.g. defaultOutputPath)
         E->>BP: restartIfRunning()
         BP->>BP: stop child, spawn fresh, await GET /
         BP-->>E: true
@@ -617,10 +627,10 @@ State is split across **four** stores. Knowing where each lives is essential.
 
 | Store | Backed by | Owner | Lifetime | Examples |
 |-------|-----------|-------|----------|----------|
-| **Renderer Zustand persist** | `localStorage` | Renderer | Per-window-profile | UI prefs, prompt history (capped 50), custom style presets, recent projects, batch results (capped 200), asset library cache (capped 500) |
-| **electron-store** | JSON file in `userData` (whole file encrypted with a `safeStorage`-protected key when OS encryption is available; BYOK secrets encrypted again) | Main | Per-OS-user-install | App settings, recent projects, first-run flag, downloaded models registry, managed output roots, **multi-account preferences and OpenRouter API keys** |
-| **In-memory `JobManager`** | Python dict + lock | Backend | Per-backend-process | Active and recent jobs, progress, results |
-| **SQLite (`vision_studio.db`)** | File in `<userData>/data/vision_studio.db` | Backend | Per-OS-user-install | `images`, `jobs`, `settings`, `schema_version` (see [`DATABASE_SCHEMA.md`](./DATABASE_SCHEMA.md)). Schema is provisioned by migrations but **most fields are not yet populated by the running app** - they exist for future job-history persistence. |
+| **Renderer Zustand persist** | Browser storage under the `vision-studio-storage` key, written through `debouncedPersistStorage.ts` (400 ms debounce, flushed on hide/unload) | Renderer | Per-window-profile | UI prefs, projects, prompt history (capped 50), prompt templates, custom style presets, recent projects, batch results (capped 200), asset library cache (capped 500), collections, timeline sequences/tracks/clips, iteration graph |
+| **electron-store** | JSON file in `userData` (whole file encrypted with a `safeStorage`-protected key when OS encryption is available; BYOK secrets encrypted again) | Main | Per-OS-user-install | App settings, recent projects, first-run flag, downloaded models registry, managed output roots, **multi-account preferences and OpenRouter API keys**, and the Foundry's Hugging Face and CivitAI download tokens (`downloadTokens` key, each token encrypted with `safeStorage`, never written when OS encryption is unavailable - `electron/services/downloadTokens.ts`) |
+| **`JobManager`** | Python dict + lock, persisted to the SQLite `jobs` table by a background writer thread | Backend | Live jobs in memory; history (last 24 h) survives a backend restart | Active and recent jobs, progress, results |
+| **SQLite (`vision_studio.db`)** | File in `<userData>/data/vision_studio.db` (WAL mode) | Backend | Per-OS-user-install | `jobs` (job history: params, status, progress, result, error, UTC timestamps) and `schema_version` - schema version 2; migration 002 dropped the never-used `images` and `settings` tables (see [`DATABASE_SCHEMA.md`](./DATABASE_SCHEMA.md)). |
 
 **Filesystem state** sits underneath all of this:
 
@@ -629,6 +639,8 @@ State is split across **four** stores. Knowing where each lives is essential.
 | `<userData>/outputs/` | Main default (`settings.ts`), passed to the backend as `OUTPUT_DIR` | `<job_id>/generated.png` (built-in engine), `<job_id>/image_NNN.<ext>` (ComfyUI), video files, derivative crops/upscales/frames |
 | `<userData>/outputs/imports/` | Main (`assets:import-files`) | User-imported media |
 | `<userData>/outputs/openrouter/YYYY-MM-DD/` | Main (OpenRouter image fan-out) | Images returned by OpenRouter |
+| `<userData>/outputs/huggingface/YYYY-MM-DD/` | Main (`runHuggingFaceImageJob.ts`, `runHuggingFaceVideoJob.ts`) | Images and videos returned by Hugging Face Inference Providers |
+| `<userData>/outputs/edits/` | Main (`mainIpc.ts`, Canvas **Export**) | Canvas edits exported as new assets |
 | `<userData>/models/` | Backend (`ModelManager`) | Downloaded model weights (multi-GB) |
 | `<userData>/data/vision_studio.db` | Backend (migrations) | SQLite database |
 
@@ -676,10 +688,10 @@ State is split across **four** stores. Knowing where each lives is essential.
 
 | Stage | Tool | Output | Notes |
 |-------|------|--------|-------|
-| Backend build | PyInstaller (`build-backend.cjs` → `backend/main.spec`) | `backend/dist/VisionStudio-Backend(.exe)` | One-file mode: unpacks to a temporary folder every time it starts |
+| Backend build | PyInstaller one-folder (`build-backend.cjs` → `backend/main.spec`), installed only from the hash locks in `backend/requirements/` | `backend/dist/VisionStudio-Backend/` → staged to `resources/backend/` | torch 2.14.1 (cu132 + TensorRT on Windows/Linux, MPS on macOS); frozen `--self-check` gates the build. Layout and size: [`BUNDLING.md`](../BUNDLING.md) |
 | Renderer build | Vite | `dist/index.html` + assets | Hashed file names; Tailwind purged to used classes |
 | Main build | `vite-plugin-electron` | `dist-electron/main.mjs`, `dist-electron/preload.cjs` | Main is ESM; the preload is always CommonJS (`vite.config.ts`) |
-| Packaging | electron-builder (`electron-builder.yml`, `electron-builder.windows.json`) | Windows: NSIS web installer + portable ZIP (x64). macOS: DMG + ZIP (arm64). Linux: AppImage (x64). `extraResources` copies the backend exe | Signing checks: `scripts/verify-release-signing.cjs` |
+| Packaging | electron-builder (`electron-builder.yml`, `electron-builder.windows.json`) | Windows: NSIS web installer + portable ZIP (x64). macOS: DMG + ZIP (arm64). Linux: AppImage (x64). `extraResources` copies the backend bundle folder | Signing checks: `scripts/verify-release-signing.cjs` |
 | Test gates | Vitest, Playwright, pytest | CI artefacts + JUnit | See `package.json` `test:*` scripts |
 | Type and lint gates | `npm run typecheck`; ESLint (`npm run lint`, `--max-warnings=0`) | - | Only the type check runs in CI (`pr-gate.yml`, `release.yml`); lint is local |
 
@@ -690,7 +702,9 @@ State is split across **four** stores. Knowing where each lives is essential.
 ├── Vision Studio.exe               ← Electron shell
 ├── resources\
 │   ├── app.asar                    ← compiled main + renderer
-│   └── VisionStudio-Backend.exe    ← PyInstaller bundle (extraResources)
+│   └── backend\                    ← PyInstaller one-folder bundle (extraResources)
+│       ├── VisionStudio-Backend.exe
+│       └── _internal\              ← Python, torch + CUDA 13.2, TensorRT, diffusers, data
 └── ...
 
 %APPDATA%\vision-studio\           ← per-user state
@@ -711,9 +725,9 @@ pull request. Run the command in each row for the current figure.
 | Layer | Framework | Count with | Notes |
 |-------|-----------|------------|-------|
 | Unit + integration + component | Vitest 4.1 | `npx vitest run` | Two projects in `vitest.config.ts`: `unit` (node environment) and `component` (jsdom 28 + Testing Library) |
-| E2E | Playwright 1.58 + Electron | `npx playwright test --list` | 8 of 9 specs launch the real app - 7 through `tests/e2e/fixtures/electron.fixture`, and `generate-completion.spec.ts:60` via a direct `electron.launch`. Only `performance/performance.spec.ts` uses a plain browser against `vite preview`, because Electron serves the renderer over `file://`, which yields no resource or paint timing to measure |
+| E2E | Playwright 1.58 + Electron | `npx playwright test --list` | Every spec but one launches the real app - through `tests/e2e/fixtures/electron.fixture`, or, in `generate-completion.spec.ts:60`, a direct `electron.launch`. Only `performance/performance.spec.ts` uses a plain browser against `vite preview`, because Electron serves the renderer over `file://`, which yields no resource or paint timing to measure |
 | Accessibility | axe-core, injected | (within E2E) | `tests/e2e/accessibility.spec.ts:49` reads `node_modules/axe-core/axe.min.js` and injects it. `@axe-core/playwright`'s `AxeBuilder` calls `context.newPage()`, which Electron's `BrowserContext` does not support |
-| Visual regression | Playwright snapshots | (within E2E) | `npm run test:visual`. Snapshots are Windows-authored; only that platform compares meaningfully |
+| Visual regression | Playwright snapshots | (within E2E) | `npm run test:visual`. Baselines are per platform - `tests/e2e/visual/snapshots/` holds a Windows (`-win32`) and a Linux (`-linux`) set, and each platform compares only against its own. There is no macOS set. CI never writes baselines (see CONTRIBUTING.md) |
 | Backend | pytest | `cd backend && python -m pytest --collect-only -q` | `backend/pytest.ini` sets testpaths and excludes the benchmark tier |
 | Backend benchmarks | pytest-benchmark | `cd backend && python -m pytest tests/benchmarks -o addopts="" --benchmark-only --collect-only -q` | Opt-in; needs the GPU/model stack |
 
@@ -727,21 +741,22 @@ thing it checks failed silently at least once.
 | `tests/electron-bridge-mount-paths.test.ts` | A `window.electron` dereference on a mount path. `src/types/electron.d.ts:509` declares the bridge required, so the compiler cannot see that it is absent under `vite preview` and the dev server |
 | `tests/ci-typecheck-gate.test.ts` | A CI type-check that compiles zero files (see below) |
 | `tests/playwright-config.test.ts` | The E2E preview server binding a shared Vite default port, where `reuseExistingServer` can adopt an unrelated project's build |
-| `tests/version-sync.test.ts` | `package.json`, the OpenAPI spec, the README release line, and the CHANGELOG heading drifting apart |
-| `tests/docs-links.test.ts` | A dead relative link in a public doc - checked case-exactly, because NTFS/APFS resolve what GitHub 404s |
+| `tests/version-sync.test.ts` | `package.json`, the OpenAPI spec, the README release line, and the CHANGELOG heading drifting apart - including a README that calls an unpublished (`Unreleased`) version the current release |
+| `tests/docs-links.test.ts` | A dead relative link or heading anchor in a public doc, a plan or a superpowers record - checked case-exactly, because NTFS/APFS resolve what GitHub 404s - and an absolute local-filesystem link (`/C:/...`) that only resolves on one machine |
 | `src/**/carbon-pro-tokens.test.ts`, `ui-glyphs.test.ts` | Design-token and glyph drift from `DESIGN.md` |
 
 ### CI gates
 
-**PR gate** - [`.github/workflows/pr-gate.yml`](../.github/workflows/pr-gate.yml), four
+**PR gate** - [`.github/workflows/pr-gate.yml`](../.github/workflows/pr-gate.yml), five
 parallel jobs, all required:
 
 | Job | Command | Line |
 |-----|---------|------|
 | TypeScript | `npm run typecheck` | `:35` |
-| Dependency Audit (shipped) | `npm run audit:prod` | `:55` |
-| Frontend Tests | `npx vitest run` | `:72` |
-| Backend Tests | `python -m pytest` | `:109` |
+| Lockfile | `package-lock.json` matches `package.json` under npm 10, and a fresh resolution succeeds | `:53`, `:61` |
+| Dependency Audit (shipped) | `npm run audit:prod` | `:85` |
+| Frontend Tests | `npx vitest run` | `:102` |
+| Backend Tests | `python -m pytest` | `:139` |
 
 > The TypeScript job ran `npx tsc --noEmit` until v3.4.0. `tsconfig.json` is a
 > solution file (`"files": []` plus `references`), and TypeScript only follows
@@ -777,7 +792,7 @@ sequenceDiagram
     participant GH as GitHub Release
 
     Dev->>CI: Push to feature branch / PR
-    CI->>CI: typecheck + audit:prod + vitest + pytest
+    CI->>CI: typecheck + lockfile + audit:prod + vitest + pytest
     CI-->>Dev: ✅/❌
     Dev->>Dev: Bump version + CHANGELOG (no workflow does this), merge to main
     Dev->>Rel: Push tag vX.Y.Z (or workflow_dispatch)
@@ -793,13 +808,20 @@ sequenceDiagram
 
 Local rehearsal: `npm run test:build` (= `build:windows` + a sanity message).
 
+> **Release state (checked 2026-11-11):** the Windows **Release** workflow
+> (`release.yml`) is disabled in the repository's Actions settings, so a pushed
+> tag does not build or publish a Windows release until it is re-enabled. The
+> latest published release is v3.4.1; 3.4.2 has not been tagged, and every
+> update feed still serves 3.4.1. `gh workflow list --all` shows the workflow
+> state.
+
 ---
 
 ## 12. Operational reference
 
 | Task | Command |
 |------|---------|
-| Dev (renderer + main; backend from `backend/dist` or `pythonPath`) | `npm run dev` |
+| Dev (renderer + main; backend from `backend/dist`, `VISION_STUDIO_PYTHON` or `backend/venv`) | `npm run dev` |
 | Run backend manually | `cd backend && python main.py` |
 | Build Python bundle | `npm run build:backend` |
 | Package signed Windows installer | `npm run package:signed` |
@@ -833,5 +855,10 @@ _Whole-document verification against the codebase: 2026-05-03, at v2.5.0._
 _Re-checked 2026-09-18 at v3.4.1: the present-tense claims in every section were
 compared with the tree and corrected where they had drifted. §10 no longer
 quotes file or test counts; each row names the command that prints them._
+
+_Re-checked 2026-11-11 at 3.4.2 (unreleased): the panel layout (no `dockview`
+dependency), debounced store persistence, the `downloadTokens` store key, the
+Hugging Face and edit output folders, the five PR-gate jobs, per-platform visual
+baselines and the release state were compared with the tree and corrected._
 
 _Canonical source: `package.json`, `backend/main.py`, `electron/services/mainProcess.ts`, `electron/preload.ts`, `backend/db/migrations/001_initial_schema.py`._

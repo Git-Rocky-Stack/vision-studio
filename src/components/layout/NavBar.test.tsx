@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
@@ -141,6 +141,16 @@ describe('NavBar', () => {
     expect(separator.compareDocumentPosition(assetsButton)).toBe(
       Node.DOCUMENT_POSITION_FOLLOWING
     );
+  });
+
+  it('is one navigation landmark holding both tab lists', () => {
+    render(<NavBar />);
+
+    const nav = screen.getByRole('navigation', { name: 'Workspace' });
+    expect(within(nav).getByRole('tablist', { name: 'Primary workspace tabs' })).toBeInTheDocument();
+    expect(within(nav).getByRole('tablist', { name: 'Secondary workspace tabs' })).toBeInTheDocument();
+    // The tab lists are not navigation landmarks of their own.
+    expect(screen.getAllByRole('navigation')).toHaveLength(1);
   });
 
   it('exposes workspace tabs with selected state instead of current-page navigation state', () => {

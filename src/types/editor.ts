@@ -12,11 +12,20 @@ export interface Layer {
   opacity: number;
   blendMode: string;
   locked: boolean;
-  data: Record<string, any>;
+  /**
+   * Per-type payload (TextLayerData, ShapeLayerData, image thumbnails...).
+   * Unknown at this level: read it through the type guards (isTextLayer,
+   * isShapeLayer) or check each field's type.
+   */
+  data: Record<string, unknown>;
 }
 
+// The layer payloads below are type aliases, not interfaces, so they stay
+// assignable to Layer.data (Record<string, unknown>): an interface has no
+// implicit index signature.
+
 /** Styling shared by every canvas text layer; also the panel's draft style. */
-export interface TextStyle {
+export type TextStyle = {
   fontFamily: string;
   fontSize: number;
   fontWeight: number;
@@ -34,17 +43,17 @@ export interface TextStyle {
   strokeColor: string;
   letterSpacing: number;
   lineHeight: number;
-}
+};
 
 /** `Layer.data` payload for `type: 'text'` layers (#32). */
-export interface TextLayerData extends TextStyle {
+export type TextLayerData = TextStyle & {
   text: string;
   x: number;
   y: number;
   rotation: number;
   scaleX: number;
   scaleY: number;
-}
+};
 
 /** One committed brush or eraser stroke, in intrinsic image pixels. */
 export interface EditStroke {
@@ -81,12 +90,12 @@ export interface RetouchStroke {
 export type ShapeKind = 'rectangle' | 'ellipse' | 'line' | 'arrow' | 'path';
 
 /** Styling shared by shape and path layers; also the tool's draft style. */
-export interface ShapeStyle {
+export type ShapeStyle = {
   stroke: string;
   strokeWidth: number;
   fill: string;
   fillEnabled: boolean;
-}
+};
 
 /**
  * `Layer.data` payload for `type: 'shape'` layers. `x`/`y` is the node
@@ -94,7 +103,7 @@ export interface ShapeStyle {
  * the first point for lines, arrows and paths (whose `points` are relative
  * to it).
  */
-export interface ShapeLayerData extends ShapeStyle {
+export type ShapeLayerData = ShapeStyle & {
   kind: ShapeKind;
   x: number;
   y: number;
@@ -108,7 +117,7 @@ export interface ShapeLayerData extends ShapeStyle {
   rotation: number;
   scaleX: number;
   scaleY: number;
-}
+};
 
 /** Look filters chosen in the Filters tab; applied to the base image. */
 export interface EditFilterState {

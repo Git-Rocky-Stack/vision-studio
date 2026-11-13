@@ -63,6 +63,38 @@ class DownloadFailedError(DownloadError):
         super().__init__(f"Download failed: {reason}")
 
 
+class IntegrityError(DownloadFailedError):
+    """A downloaded file's bytes do not match the pinned hash.
+
+    The partial/corrupt file is deleted before this is raised, so tampered or
+    truncated bytes can never present as ready.
+    """
+
+    def __init__(self, path: str):
+        self.path = path
+        super().__init__(f"integrity: hash mismatch for {path} - corrupt or tampered download")
+
+
+class RemoteCodeUnsupportedError(DownloadError):
+    """The model needs repo-authored Python (``trust_remote_code``) to load.
+
+    No loader in Vision Studio executes repo code (runtime_resolver refuses
+    every such record), so acquiring the bytes could only ever produce a model
+    that never runs. Refused up front, before anything is queued - consent
+    cannot unlock it.
+    """
+
+    error_code = "remote-code-unsupported"
+
+    def __init__(self, model_id: str):
+        self.model_id = model_id
+        super().__init__(
+            f"Model '{model_id}' requires running code authored by the repo. "
+            "Vision Studio never executes repo code, so this model cannot be "
+            "downloaded or run."
+        )
+
+
 def _http_status(exc: Exception) -> Optional[int]:
     """Best-effort extraction of an HTTP status code from an hf/requests error."""
     response = getattr(exc, "response", None)

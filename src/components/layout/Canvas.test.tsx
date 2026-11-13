@@ -76,6 +76,26 @@ describe('Canvas', () => {
     expect(screen.getByRole('application', { name: /image canvas/i })).toBeInTheDocument();
   });
 
+  it('ignores zoom and mask keys while a modal dialog is open', () => {
+    useAppStore.setState({ regionMode: true });
+    const { rerender } = render(
+      <>
+        <Canvas />
+        <div role="dialog" aria-modal="true" aria-label="Preview" />
+      </>,
+    );
+    fireEvent.keyDown(window, { key: '+' });
+    fireEvent.keyDown(window, { key: 'b' });
+    expect(screen.getByText('100%')).toBeInTheDocument();
+    expect(useAppStore.getState().activeMaskTool).not.toBe('brush');
+
+    rerender(<Canvas />);
+    fireEvent.keyDown(window, { key: '+' });
+    fireEvent.keyDown(window, { key: 'b' });
+    expect(screen.queryByText('100%')).toBeNull();
+    expect(useAppStore.getState().activeMaskTool).toBe('brush');
+  });
+
   it('opens the canvas context menu from the keyboard', () => {
     render(<Canvas />);
 

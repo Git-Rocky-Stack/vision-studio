@@ -92,6 +92,28 @@ describe('CanvasContextMenu', () => {
     );
   });
 
+  it('reports a pipeline run that throws as a notice instead of an unhandled rejection', async () => {
+    startPipelineRun.mockRejectedValueOnce(new Error('bridge gone'));
+    render(<CanvasContextMenu x={0} y={0} onClose={vi.fn()} />);
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Upscale 4x' }));
+
+    await waitFor(() =>
+      expect(useNoticeStore.getState().notices[0]?.message).toBe('Upscale 4x failed: bridge gone'),
+    );
+  });
+
+  it('keeps its Escape from reaching window-level workspace shortcuts', () => {
+    const onClose = vi.fn();
+    const windowHandler = vi.fn();
+    window.addEventListener('keydown', windowHandler);
+    render(<CanvasContextMenu x={0} y={0} onClose={onClose} />);
+    fireEvent.keyDown(screen.getByRole('menu'), { key: 'Escape' });
+    window.removeEventListener('keydown', windowHandler);
+
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(windowHandler).not.toHaveBeenCalled();
+  });
+
   it('disables pipelines whose steps have no backend op, with the reason', () => {
     render(<CanvasContextMenu x={0} y={0} onClose={vi.fn()} />);
     const denoise = screen.getByRole('menuitem', { name: 'Denoise Clean' });

@@ -64,6 +64,5 @@ export function createGenerationPreviewActions(set: AppSet, _get: AppGet) {
         // still read why the run ended.
       }),
 
-    setPreviewActive: (active: boolean) => set({ isPreviewActive: active }),
   };
 }

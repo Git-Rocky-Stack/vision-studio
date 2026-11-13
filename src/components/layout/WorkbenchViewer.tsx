@@ -23,6 +23,7 @@ import type { GenerationDraft } from '@/types/generation';
 import { DEFAULT_GENERATION_CONFIG } from '@/types/project';
 import { cn } from '@/utils/cn';
 import { extractFrameToEdit } from '@/features/media/frameExtraction';
+import { resolveAssetThumbnail } from '@/features/assets/assetRecords';
 import { ReviewDensityToggle } from './ReviewDensityToggle';
 
 type CompareMode = Exclude<AppState['comparisonMode'], 'off'>;
@@ -116,9 +117,9 @@ export function WorkbenchViewer() {
       label: asset.name || 'Generated asset',
       source: asset.type === 'video' ? 'Video asset' : 'Image asset',
       imagePath: asset.type === 'video' ? asset.path : asset.previewUrl || asset.path,
-      posterPath: asset.thumbnail || asset.previewUrl || asset.path,
+      posterPath: resolveAssetThumbnail(asset) || asset.path,
       assetPath: asset.path,
-      thumbnail: asset.thumbnail || asset.previewUrl || asset.path,
+      thumbnail: resolveAssetThumbnail(asset) || asset.path,
       prompt: asset.prompt || 'No prompt saved',
       model: asset.model ?? getStringParam(asset.params, 'model'),
       seed: asset.seed ?? null,
@@ -725,7 +726,7 @@ function CompareReview({
           {items.map((item, index) => (
             <li
               key={`${item.id}-${index}`}
-              className="relative min-h-[220px] overflow-hidden rounded-md border border-border bg-void"
+              className="relative min-h-[220px] overflow-hidden rounded-sm border border-border bg-void"
             >
               <MediaPreview
                 kind={item.generationType}
@@ -813,7 +814,7 @@ function SideBySideCompare({
       )}
     >
       {items.map((item, index) => (
-        <article key={`${item.id}-${index}`} className="relative min-h-0 overflow-hidden rounded-md border border-border bg-void">
+        <article key={`${item.id}-${index}`} className="relative min-h-0 overflow-hidden rounded-sm border border-border bg-void">
           <MediaPreview
             kind={item.generationType}
             src={item.imagePath}

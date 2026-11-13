@@ -1,5 +1,5 @@
 import { memo, useState, useMemo } from 'react';
-import { Search, Plus, FolderOpen, Layers } from 'lucide-react';
+import { Search, Plus, FolderOpen, Layers, Sparkles } from 'lucide-react';
 import { AnimatePresence } from 'framer-motion';
 import { cn } from '@/utils/cn';
 import { Button } from '@/components/ui/Button';
@@ -8,11 +8,9 @@ import { useAppStore } from '@/store/appStore';
 import { CollectionCard } from '@/components/collections/CollectionCard';
 import { CollectionDetail } from '@/components/collections/CollectionDetail';
 import { AnalyzeButton } from '@/components/collections/AnalyzeButton';
+import { SmartCollectionDialog } from '@/components/collections/SmartCollectionDialog';
 
-// 'smart' is not offered as a filter: nothing in the UI creates a smart
-// collection yet, so the category would always be empty. Smart collections
-// that exist still show under All.
-type CategoryFilter = 'all' | 'manual' | 'tagged' | 'untagged';
+type CategoryFilter = 'all' | 'manual' | 'smart' | 'tagged' | 'untagged';
 
 /** "New Collection", then "New Collection 2", ... so new cards are tellable apart. */
 export function nextCollectionName(existing: readonly string[]): string {
@@ -30,6 +28,7 @@ export const CollectionsPage = memo(function CollectionsPage() {
   const activeCollectionId = useAppStore((s) => s.activeCollectionId);
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState<CategoryFilter>('all');
+  const [smartEditorOpen, setSmartEditorOpen] = useState(false);
 
   const activeCollection = collections.find((c) => c.id === activeCollectionId) ?? null;
 
@@ -37,6 +36,7 @@ export const CollectionsPage = memo(function CollectionsPage() {
     let result = collections;
 
     if (category === 'manual') result = result.filter((c) => c.type === 'manual');
+    else if (category === 'smart') result = result.filter((c) => c.type === 'smart');
     else if (category === 'tagged') {
       // Fully analysed: holds assets, and every one of them has metadata.
       result = result.filter(
@@ -58,6 +58,7 @@ export const CollectionsPage = memo(function CollectionsPage() {
   const categories: { id: CategoryFilter; label: string }[] = [
     { id: 'all', label: 'All' },
     { id: 'manual', label: 'Manual' },
+    { id: 'smart', label: 'Smart' },
     { id: 'tagged', label: 'Tagged' },
     { id: 'untagged', label: 'Untagged' },
   ];
@@ -69,6 +70,15 @@ export const CollectionsPage = memo(function CollectionsPage() {
         <Layers className="w-5 h-5 text-accent-primary" aria-hidden="true" />
         <h1 className="type-title flex-1">Collections</h1>
         <AnalyzeButton />
+        <Button
+          variant="secondary"
+          size="sm"
+          icon={Sparkles}
+          onClick={() => setSmartEditorOpen(true)}
+          aria-haspopup="dialog"
+        >
+          Smart Collection
+        </Button>
         <Button
           variant="primary"
           size="sm"
@@ -124,7 +134,7 @@ export const CollectionsPage = memo(function CollectionsPage() {
               <EmptyState
                 icon={FolderOpen}
                 title="No collections yet"
-                description="Create a collection to organize your assets."
+                description="Create a collection to organize your assets by hand, or a smart collection that fills itself from rules."
               />
             ) : (
               <EmptyState
@@ -146,6 +156,8 @@ export const CollectionsPage = memo(function CollectionsPage() {
 
         {activeCollection && <CollectionDetail collection={activeCollection} />}
       </div>
+
+      <SmartCollectionDialog open={smartEditorOpen} onClose={() => setSmartEditorOpen(false)} />
     </div>
   );
 });

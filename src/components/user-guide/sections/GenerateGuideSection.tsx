@@ -79,6 +79,35 @@ export function GenerateGuideSection() {
         />
       </GuideCallout>
 
+      <GuideCallout title="Canvas, Viewer, Workflow, and Launchpad Views" tone="info">
+        <GuideList
+          items={[
+            <span>
+              The tab bar above the Generate workspace switches the centre view.{' '}
+              <strong>Canvas</strong> holds the timeline playback surface and the Timeline;{' '}
+              <strong>Workflow</strong> opens the node graph editor. In the Studio sub-mode the
+              centre shows the Prompt Studio composition preview instead.
+            </span>,
+            <span>
+              <strong>Launchpad</strong> is the starting point: Start buttons for New generation,
+              Quick generate, Batch run, and Storyboard; a Recent renders strip that opens a render
+              in Viewer; and your Projects, which open in Story, with New project to start one.
+            </span>,
+            <span>
+              <strong>Viewer</strong> reviews your recent outputs (library assets and batch
+              results) with their model and seed. Add to Board adds the output to the active
+              project as a new scene, Branch Variant loads its settings back into Generate, and
+              Send to Edit (Extract to Edit for a video frame) opens it on the Canvas tab.
+            </span>,
+            <span>
+              <strong>Pin Compare</strong> pins up to four outputs. With two or more pinned, the
+              compare review opens in Side by Side, Slider, Onion Skin, or Grid mode; Clear Compare
+              unpins them all. The Comfortable and Compact toggle sets the thumbnail rail density.
+            </span>,
+          ]}
+        />
+      </GuideCallout>
+
       <GuideCallout title="Understanding the Controls" tone="info">
         <GuideList
           items={[
@@ -128,6 +157,11 @@ export function GenerateGuideSection() {
               Prompt history keeps the most recent 50 prompts on this machine. Save a prompt to
               favorites (the heart) and filter the history to favorites to find it again.
             </span>,
+            <span>
+              The <strong>template library</strong> applies a prompt template to the draft. Search
+              it, filter by category, and favorite the ones you reuse; save the current draft as
+              your own template and delete templates you no longer need.
+            </span>,
           ]}
         />
       </GuideCallout>
@@ -169,9 +203,17 @@ export function GenerateGuideSection() {
               Completed, Failed, or Favorites, and use Export All or Delete All.
             </span>,
             <span>
-              Cards keep their order and show each prompt&apos;s status, so you can see which
-              prompt produced which result. A failed prompt is marked failed; there is no retry
-              control, so run it again from a new batch.
+              Build the queue faster with <strong>Import</strong>, which reads prompts from a{' '}
+              <code>.txt</code>, <code>.csv</code>, or <code>.json</code> file and adds a card for
+              each one. <strong>Duplicate</strong> copies a card, <strong>Clear All</strong>{' '}
+              empties the queue, and the seed strategy setting decides how seeds are assigned
+              across the batch.
+            </span>,
+            <span>
+              Drag a card to reorder the queue; prompts run in card order. Each card shows its
+              prompt&apos;s status, so you can see which prompt produced which result. A failed
+              prompt is marked failed; there is no retry control, so run it again from a new
+              batch.
             </span>,
           ]}
         />
@@ -186,15 +228,16 @@ export function GenerateGuideSection() {
               instead of the local backend.
             </span>,
             <span>
-              Hosted still-image runs from Generate and Batch can continue even while the local
-              backend is offline, as long as the active account has a stored key or token and a
-              still-image model selected. Quick Generate only runs without the backend on the
-              OpenRouter route.
+              Hosted still-image runs from Generate, Quick Generate, and Batch can continue even
+              while the local backend is offline, on either hosted route (OpenRouter or
+              HuggingFace), as long as the active account has a stored key or token and a
+              still-image model selected.
             </span>,
             <span>
               OpenRouter results are written to <code>&lt;output root&gt;/openrouter/YYYY-MM-DD/</code>{' '}
-              under your output folder, then synced into Assets. There is no separate hosted
-              gallery to chase.
+              and HuggingFace stills and videos to{' '}
+              <code>&lt;output root&gt;/huggingface/YYYY-MM-DD/</code> under your output folder,
+              then synced into Assets. There is no separate hosted gallery to chase.
             </span>,
           ]}
         />

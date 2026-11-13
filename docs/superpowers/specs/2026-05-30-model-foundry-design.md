@@ -3,6 +3,8 @@
 > **Historical design record - 2026-05-30.** Describes intent at that
 > date, not current behaviour. See `docs/INDEX.md` for what is authoritative.
 
+> **Status (checked 2026-11-11):** Shipped - milestones M1-M5 landed through PR #20; the Foundry UI followed in PR #39.
+
 **Project:** Vision Studio
 **Pillar:** 1 of 6 — *The Model Foundry (Hugging Face, native)*
 **Date:** 2026-05-30

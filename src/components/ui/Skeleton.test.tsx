@@ -1,12 +1,6 @@
 import { describe, expect, it, afterEach } from 'vitest';
 import { render, cleanup } from '@testing-library/react';
-import {
-  Skeleton,
-  SkeletonText,
-  SkeletonCard,
-  SkeletonList,
-  SkeletonGrid,
-} from './Skeleton';
+import { Skeleton, SkeletonGrid } from './Skeleton';
 
 afterEach(cleanup);
 
@@ -38,35 +32,10 @@ describe('Skeleton', () => {
     });
   });
 
-  describe('SkeletonText', () => {
-    it('renders two lines with space-y-2 container', () => {
-      const { container } = render(<SkeletonText />);
-      const containerEl = container.firstChild as HTMLElement;
-      expect(containerEl).toHaveClass('space-y-2');
-
-      const lines = containerEl.querySelectorAll('.animate-pulse');
-      expect(lines).toHaveLength(2);
-    });
-
-    it('renders first line wider than second', () => {
-      const { container } = render(<SkeletonText />);
-      const lines = container.querySelectorAll('.animate-pulse');
-      // First line: w-3/4, second line: w-1/2
-      expect(lines[0]).toHaveClass('w-3/4');
-      expect(lines[1]).toHaveClass('w-1/2');
-    });
-
-    it('applies custom className to container', () => {
-      const { container } = render(<SkeletonText className="mt-4" />);
-      const containerEl = container.firstChild as HTMLElement;
-      expect(containerEl).toHaveClass('mt-4');
-    });
-  });
-
-  describe('SkeletonCard', () => {
+  describe('grid cards', () => {
     it('renders with border and padding', () => {
-      const { container } = render(<SkeletonCard />);
-      const card = container.firstChild as HTMLElement;
+      const { container } = render(<SkeletonGrid cols={1} rows={1} />);
+      const card = (container.firstChild as HTMLElement).firstChild as HTMLElement;
       expect(card).toHaveClass('rounded-md');
       expect(card).toHaveClass('border');
       expect(card).toHaveClass('border-border');
@@ -75,7 +44,7 @@ describe('Skeleton', () => {
     });
 
     it('renders aspect-square image area', () => {
-      const { container } = render(<SkeletonCard />);
+      const { container } = render(<SkeletonGrid cols={1} rows={1} />);
       const imagePlaceholder = container.querySelector('.aspect-square');
       expect(imagePlaceholder).toHaveClass('w-full');
       expect(imagePlaceholder).toHaveClass('animate-pulse');
@@ -84,46 +53,11 @@ describe('Skeleton', () => {
     });
 
     it('renders metadata section with two lines', () => {
-      const { container } = render(<SkeletonCard />);
-      const metadataLines = container.querySelectorAll('.space-y-2 .animate-pulse');
+      const { container } = render(<SkeletonGrid cols={1} rows={1} />);
+      const metadataLines = container.querySelectorAll('.space-y-3 > .space-y-2 .animate-pulse');
       expect(metadataLines).toHaveLength(2);
       expect(metadataLines[0]).toHaveClass('w-2/3');
       expect(metadataLines[1]).toHaveClass('w-1/3');
-    });
-  });
-
-  describe('SkeletonList', () => {
-    it('renders correct number of rows (default 5)', () => {
-      const { container } = render(<SkeletonList />);
-      const rows = container.querySelectorAll('.flex.items-center.gap-3');
-      expect(rows).toHaveLength(5);
-    });
-
-    it('renders correct number of rows (custom)', () => {
-      const { container } = render(<SkeletonList rows={3} />);
-      const rows = container.querySelectorAll('.flex.items-center.gap-3');
-      expect(rows).toHaveLength(3);
-    });
-
-    it('each row has thumbnail and two metadata lines', () => {
-      const { container } = render(<SkeletonList rows={1} />);
-      const row = container.querySelector('.flex.items-center.gap-3');
-      expect(row).toBeInTheDocument();
-
-      // Thumbnail: w-10 h-10 rounded-md
-      const thumbnail = row?.querySelector('.w-10.h-10');
-      expect(thumbnail).toHaveClass('rounded-md');
-      expect(thumbnail).toHaveClass('animate-pulse');
-
-      // Metadata container
-      const metadata = row?.querySelector('.flex-1.space-y-1\\.5');
-      expect(metadata).toBeInTheDocument();
-    });
-
-    it('applies custom className to container', () => {
-      const { container } = render(<SkeletonList className="bg-custom" />);
-      const containerEl = container.firstChild as HTMLElement;
-      expect(containerEl).toHaveClass('bg-custom');
     });
   });
 
@@ -140,10 +74,23 @@ describe('Skeleton', () => {
       expect(cardContainers).toHaveLength(6); // 3 * 2
     });
 
-    it('applies grid template columns style', () => {
+    it('lays out cols columns by default through a class, not an inline track', () => {
       const { container } = render(<SkeletonGrid cols={3} />);
       const grid = container.firstChild as HTMLElement;
-      expect(grid).toHaveStyle('grid-template-columns: repeat(3, 1fr)');
+      expect(grid).toHaveClass('grid', 'grid-cols-[repeat(var(--skeleton-cols),minmax(0,1fr))]');
+      expect(grid.style.getPropertyValue('--skeleton-cols')).toBe('3');
+      expect(grid.style.gridTemplateColumns).toBe('');
+    });
+
+    it("lets a caller's responsive grid-cols classes replace the default track", () => {
+      const { container } = render(
+        <SkeletonGrid cols={3} rows={2} className="grid-cols-1 md:grid-cols-2 xl:grid-cols-3" />,
+      );
+      const grid = container.firstChild as HTMLElement;
+      expect(grid).toHaveClass('grid-cols-1', 'md:grid-cols-2', 'xl:grid-cols-3');
+      expect(grid.className).not.toContain('--skeleton-cols');
+      expect(grid.style.gridTemplateColumns).toBe('');
+      expect(container.querySelectorAll('.aspect-square')).toHaveLength(6);
     });
 
     it('applies custom className to container', () => {

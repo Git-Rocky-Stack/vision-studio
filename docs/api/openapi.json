@@ -15,7 +15,6 @@
   ],
   "security": [{ "BackendToken": [] }],
   "tags": [
-    { "name": "Health" },
     { "name": "System" },
     { "name": "Prompts" },
     { "name": "Generation" },
@@ -25,34 +24,14 @@
     { "name": "Videos" },
     { "name": "Timeline" },
     { "name": "Edit" },
-    { "name": "Batch" },
     { "name": "Retrieval" },
     { "name": "ComfyUI Interop" }
   ],
   "paths": {
-    "/": {
-      "get": {
-        "tags": ["Health"],
-        "summary": "Liveness ping",
-        "operationId": "root",
-        "security": [],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": { "type": "object", "properties": { "message": { "type": "string" }, "version": { "type": "string" } } },
-                "example": { "message": "Vision Studio API", "version": "3.4.2" }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/health": {
       "get": {
         "tags": ["System"],
-        "summary": "Generator availability (auth-exempt and not rate-limited; the app polls GET / for readiness)",
+        "summary": "Generator availability (auth-exempt and not rate-limited; the app probes readiness with GET /api/system/info)",
         "operationId": "health",
         "security": [],
         "responses": {
@@ -67,10 +46,27 @@
         }
       }
     },
+    "/api/handshake": {
+      "get": {
+        "tags": ["System"],
+        "summary": "Prove the server holds the auth token without revealing it (auth-exempt, 30/min)",
+        "description": "proof = lowercase hex HMAC-SHA256 with the auth token (UTF-8) as key and the nonce exactly as sent (UTF-8) as message. The Main process verifies it before trusting whatever listens on port 8000.",
+        "operationId": "handshake",
+        "security": [],
+        "parameters": [
+          { "in": "query", "name": "nonce", "required": true, "schema": { "type": "string", "pattern": "^[0-9a-fA-F]{32,128}$" }, "description": "Fresh random nonce, 32-128 hex characters" }
+        ],
+        "responses": {
+          "200": { "description": "Proof of token possession", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/HandshakeResponse" } } } },
+          "400": { "description": "Missing or malformed nonce" },
+          "429": { "$ref": "#/components/responses/RateLimited" }
+        }
+      }
+    },
     "/api/system/info": {
       "get": {
         "tags": ["System"],
-        "summary": "GPU + system info",
+        "summary": "GPU, system and optional-feature info (also the Main process's readiness probe)",
         "operationId": "getSystemInfo",
         "responses": {
           "200": {
@@ -121,6 +117,8 @@
         },
         "responses": {
           "200": { "description": "Job accepted", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/JobResponse" } } } },
+          "400": { "description": "A guided source image is outside the allowed media roots" },
+          "422": { "description": "Validation failure: empty prompt, unknown scheduler, untyped acceleration_settings, or a guided pass that would drop layers / does not fit" },
           "429": { "$ref": "#/components/responses/RateLimited" }
         }
       }
@@ -136,6 +134,7 @@
         },
         "responses": {
           "200": { "description": "Job accepted", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/JobResponse" } } } },
+          "400": { "description": "image_path is a file outside the allowed media roots" },
           "429": { "$ref": "#/components/responses/RateLimited" }
         }
       }
@@ -266,13 +265,15 @@
     "/api/models/provision/start": {
       "post": {
         "tags": ["Models"],
-        "summary": "Start or resume downloading every missing starter-set model. Curated pickle-format members are granted pickle consent automatically, and the grant is recorded",
+        "summary": "Start or resume downloading missing starter-set models (all, or the model_ids subset). Curated pickle-format members are granted pickle consent automatically, and the grant is recorded",
         "operationId": "startProvisioning",
         "parameters": [
           { "in": "header", "name": "X-HF-Token", "schema": { "type": "string" }, "description": "Optional Hugging Face token for the gated SD 3.5 pipelines. Never persisted, never logged." }
         ],
+        "requestBody": { "required": false, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ProvisionStartRequest" } } } },
         "responses": {
           "202": { "description": "Provisioning started", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ProvisionStatus" } } } },
+          "400": { "description": "model_ids names entries outside the manifest auto-set (detail.error_code unknown-provision-models, detail.unknown lists them)" },
           "429": { "$ref": "#/components/responses/RateLimited" }
         }
       }
@@ -280,7 +281,7 @@
     "/api/models/provision/{action}": {
       "post": {
         "tags": ["Models"],
-        "summary": "Pause, resume, cancel or reverify the whole starter set (resume re-runs start; reverify re-hashes direct-URL files and re-fetches corrupt copies)",
+        "summary": "Pause, resume, cancel or reverify the whole starter set (resume re-runs start; reverify starts a background re-hash of every present file - direct-URL and pinned HF - and re-fetches corrupt copies; progress in status.reverify)",
         "operationId": "controlProvisioning",
         "parameters": [
           { "in": "path", "name": "action", "required": true, "schema": { "type": "string", "enum": ["pause", "resume", "cancel", "reverify"] } },
@@ -296,7 +297,7 @@
     "/api/models/{model_id}/download": {
       "post": {
         "tags": ["Models"],
-        "summary": "Enqueue a model download (consent-gated; transient HF records are reclassified from full repo signals before the consent checks; CivitAI-source records are sha256-verified, refused when hashless, and redirects are walked manually with https-only hops and first-party-only auth; HF repo file lists exclude .py always and pickle suffixes without consent)",
+        "summary": "Enqueue a model download plus every missing companion (all gates run for the whole group before anything enqueues; consent-gated; trust_remote_code records refused; transient HF records are reclassified from full repo signals before the consent checks; CivitAI-source records are sha256-verified, refused when hashless, and redirects are walked manually with https-only hops and first-party-only auth; HF repo file lists exclude .py always and pickle suffixes without consent)",
         "operationId": "downloadModel",
         "parameters": [
           { "in": "path", "name": "model_id", "required": true, "schema": { "type": "string" } },
@@ -306,7 +307,8 @@
         "responses": {
           "202": { "description": "Download enqueued", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/DownloadJob" } } } },
           "404": { "$ref": "#/components/responses/NotFound" },
-          "409": { "description": "Consent missing - detail.error_code is pickle-consent-required or remote-code-consent-required; grant via POST /api/models/consent and retry", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+          "409": { "description": "Pickle consent missing for the model or a companion - detail.error_code pickle-consent-required; grant via POST /api/models/consent and retry", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+          "422": { "description": "detail.error_code remote-code-unsupported - the model or a companion needs repo-authored code (trust_remote_code), which no loader runs; refused before anything is queued", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
           "503": { "description": "detail.error_code repo-signals-unverifiable - a transient HF record's full safety signals could not be fetched; the download fails closed before any bytes move. Retry when online.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
         }
       }
@@ -462,7 +464,9 @@
         "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ImageEditRequest" } } } },
         "responses": {
           "200": { "description": "Derived image", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/DerivedImageResponse" } } } },
-          "404": { "$ref": "#/components/responses/NotFound" }
+          "400": { "description": "source_path is outside the allowed media roots" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "422": { "description": "Request validation failed (crop box or rotation out of range)" }
         }
       }
     },
@@ -486,6 +490,7 @@
               }
             }
           },
+          "400": { "description": "source_path is outside the allowed media roots" },
           "404": { "$ref": "#/components/responses/NotFound" }
         }
       }
@@ -498,6 +503,7 @@
         "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/TimelineExportRequest" } } } },
         "responses": {
           "200": { "description": "Job accepted", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/JobResponse" } } } },
+          "400": { "description": "A layer or audio source_path is outside the allowed media roots" },
           "422": { "description": "Request validation failed, or output_path is not an .mp4 in an existing folder (absolute) / inside the outputs folder (relative)" },
           "429": { "$ref": "#/components/responses/RateLimited" }
         }
@@ -511,6 +517,7 @@
         "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/BackgroundRemoveRequest" } } } },
         "responses": {
           "202": { "description": "Edit job accepted; poll GET /api/jobs/{job_id} for the result", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/EditJobResponse" } } } },
+          "400": { "description": "source_path is outside the allowed media roots" },
           "404": { "$ref": "#/components/responses/NotFound" },
           "422": { "description": "Request validation failed" },
           "429": { "$ref": "#/components/responses/RateLimited" }
@@ -525,6 +532,7 @@
         "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/UpscaleRequest" } } } },
         "responses": {
           "202": { "description": "Edit job accepted; poll GET /api/jobs/{job_id} for the result", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/EditJobResponse" } } } },
+          "400": { "description": "source_path is outside the allowed media roots" },
           "404": { "$ref": "#/components/responses/NotFound" },
           "422": { "description": "Request validation failed, or the source is larger than 4096 px on its long edge (the 4x working canvas would exceed 16384 px)" },
           "429": { "$ref": "#/components/responses/RateLimited" }
@@ -539,32 +547,10 @@
         "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/FaceRestoreRequest" } } } },
         "responses": {
           "202": { "description": "Edit job accepted; poll GET /api/jobs/{job_id} for the result", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/EditJobResponse" } } } },
+          "400": { "description": "source_path is outside the allowed media roots" },
           "404": { "$ref": "#/components/responses/NotFound" },
           "422": { "description": "Request validation failed" },
           "429": { "$ref": "#/components/responses/RateLimited" }
-        }
-      }
-    },
-    "/api/v1/edit/models": {
-      "get": {
-        "tags": ["Edit"],
-        "summary": "Edit-tool readiness: are the Foundry weights each tool needs installed",
-        "operationId": "listEditModels",
-        "responses": { "200": { "description": "Readiness per operation", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/EditToolsResponse" } } } } }
-      }
-    },
-    "/api/v1/batch/export-zip": {
-      "post": {
-        "tags": ["Batch"],
-        "summary": "Export multiple images as a ZIP archive",
-        "operationId": "batchExportZip",
-        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/BatchExportRequest" } } } },
-        "responses": {
-          "200": { "description": "ZIP", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/BatchExportResponse" } } } },
-          "400": { "$ref": "#/components/responses/BadRequest" },
-          "404": { "$ref": "#/components/responses/NotFound" },
-          "429": { "$ref": "#/components/responses/RateLimited" },
-          "500": { "$ref": "#/components/responses/InternalError" }
         }
       }
     },
@@ -613,13 +599,14 @@
     "/api/v1/comfy/run-graph": {
       "post": {
         "tags": ["ComfyUI Interop"],
-        "summary": "Run a user-authored ComfyUI graph on a connected Comfy server (image or video)",
+        "summary": "Run a user-authored image graph on a connected Comfy server (10/min)",
         "operationId": "comfyRunGraph",
-        "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "required": ["graph"], "properties": { "graph": { "type": "object", "description": "ComfyUI API-format prompt graph (validated by the safety gate before execution)" }, "generation_type": { "type": "string", "enum": ["image", "video"], "default": "image" } } } } } },
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "required": ["graph"], "properties": { "graph": { "type": "object", "description": "ComfyUI API-format prompt graph (validated by the safety gate before execution)" }, "generation_type": { "type": "string", "enum": ["image"], "default": "image", "description": "'video' is refused (422): the safety gate's allow-list holds image nodes only" } } } } } },
         "responses": {
           "200": { "description": "Graph job accepted; poll via GET /api/jobs/{job_id}", "content": { "application/json": { "schema": { "type": "object", "properties": { "job_id": { "type": "string" }, "status": { "type": "string" }, "message": { "type": "string" } } } } } },
-          "409": { "description": "No connected ComfyUI server" },
-          "422": { "description": "Graph failed the safety gate (unsupported node type or unsafe path/model field)" },
+          "409": { "description": "ComfyUI still unreachable after one on-demand reconnect attempt" },
+          "422": { "description": "Graph failed the safety gate (unsupported node type or unsafe path/model field), or generation_type is not 'image'" },
+          "429": { "$ref": "#/components/responses/RateLimited" },
           "500": { "$ref": "#/components/responses/InternalError" }
         }
       }
@@ -631,7 +618,7 @@
         "type": "apiKey",
         "in": "header",
         "name": "x-vision-studio-token",
-        "description": "Per-launch token minted by the Electron Main process. Required when VISION_STUDIO_BACKEND_AUTH_TOKEN is set on the backend (always set in production builds)."
+        "description": "Per-launch token minted by the Electron Main process and passed to the backend as VISION_STUDIO_BACKEND_AUTH_TOKEN (a backend started without it generates its own and never logs it, so auth is always on). Compared in constant time. The /ws WebSocket takes the same header on its upgrade request; a ?token= query parameter is not accepted."
       }
     },
     "schemas": {
@@ -652,7 +639,7 @@
       "RetrievalIngestRequest": {
         "type": "object",
         "required": ["records"],
-        "properties": { "records": { "type": "array", "items": { "$ref": "#/components/schemas/RetrievalIngestRecord" } } }
+        "properties": { "records": { "type": "array", "maxItems": 10000, "items": { "$ref": "#/components/schemas/RetrievalIngestRecord" } } }
       },
       "RetrievalIngestResponse": {
         "type": "object",
@@ -697,7 +684,9 @@
         "required": ["count", "mode"],
         "properties": {
           "count": { "type": "integer" },
-          "mode": { "type": "string", "enum": ["semantic", "lexical"] }
+          "mode": { "type": "string", "enum": ["semantic", "lexical"] },
+          "semantic_available": { "type": "boolean", "default": false, "description": "The provisioned local embedding model can serve semantic ranking" },
+          "semantic_unavailable_reason": { "type": "string", "nullable": true }
         }
       },
       "JobStatus": {
@@ -731,8 +720,8 @@
           "status": { "$ref": "#/components/schemas/JobStatus" },
           "progress": { "type": "number", "minimum": 0, "maximum": 100 },
           "type": { "type": "string", "enum": ["image", "video", "edit"] },
-          "created_at": { "type": "string", "format": "date-time" },
-          "completed_at": { "type": "string", "format": "date-time", "nullable": true },
+          "created_at": { "type": "string", "format": "date-time", "description": "Timezone-aware UTC, e.g. 2026-11-11T20:15:03.120000+00:00" },
+          "completed_at": { "type": "string", "format": "date-time", "nullable": true, "description": "Timezone-aware UTC" },
           "result": { "type": "object", "additionalProperties": true, "nullable": true, "description": "Provider-specific output. Local diffusers jobs also carry an 'acceleration' object (see AppliedAcceleration)." },
           "error": { "type": "string", "nullable": true }
         }
@@ -754,9 +743,35 @@
           "gpu_available": { "type": "boolean" },
           "gpu_name": { "type": "string", "nullable": true },
           "gpu_vram": { "type": "string", "nullable": true, "example": "24.0 GB" },
-          "cuda_version": { "type": "string", "nullable": true, "example": "12.1" },
+          "cuda_version": { "type": "string", "nullable": true, "example": "13.2" },
           "comfyui_connected": { "type": "boolean" },
-          "models_count": { "type": "integer" }
+          "models_count": { "type": "integer" },
+          "availability": {
+            "type": "object",
+            "description": "Optional-feature availability the UI gates its toggles on (probed without heavy imports or downloads).",
+            "required": ["quantization", "tensorrt", "semanticRetrieval"],
+            "additionalProperties": false,
+            "properties": {
+              "quantization": { "$ref": "#/components/schemas/FeatureAvailability" },
+              "tensorrt": { "allOf": [{ "$ref": "#/components/schemas/FeatureAvailability" }], "description": "True only when the TensorRT runtime is in this build (Windows/Linux CUDA builds), an NVIDIA GPU of compute capability 7.5+ is present, AND at least one model family has passed the TensorRT correctness sweep. None has yet, so a supported machine reports reason 'No model family has been verified for TensorRT yet'." },
+              "semanticRetrieval": { "$ref": "#/components/schemas/FeatureAvailability" }
+            }
+          }
+        }
+      },
+      "FeatureAvailability": {
+        "type": "object",
+        "required": ["available"],
+        "properties": {
+          "available": { "type": "boolean" },
+          "reason": { "type": "string", "nullable": true, "description": "Why the feature is unavailable (user-facing); null when available" }
+        }
+      },
+      "HandshakeResponse": {
+        "type": "object",
+        "required": ["proof"],
+        "properties": {
+          "proof": { "type": "string", "pattern": "^[0-9a-f]{64}$", "description": "hex(HMAC-SHA256(key = auth token UTF-8, msg = nonce UTF-8))" }
         }
       },
       "ModelRecord": {
@@ -771,7 +786,7 @@
           "base_architecture": { "type": "string", "example": "flux" },
           "source": { "type": "string", "example": "huggingface" },
           "repo_id": { "type": "string", "nullable": true },
-          "revision": { "type": "string", "nullable": true, "description": "Commit sha pinned at classification; null = unpinned (resolves to the repo default branch at load time)." },
+          "revision": { "type": "string", "nullable": true, "description": "Git revision downloads resolve: a branch such as 'main' for catalog entries, the verified commit sha for search results (pinned at the download boundary); auto-provisioning uses the commit shas pinned in provision-manifest.json. null = unpinned." },
           "aux_repo_id": { "type": "string", "nullable": true },
           "size": { "type": "string", "default": "Unknown" },
           "status": { "type": "string", "description": "ready | downloading | error | not_found | queued | verifying | paused | cancelled", "default": "not_found" },
@@ -930,7 +945,8 @@
           "torch_available": { "type": "boolean", "default": false },
           "system_ram_total_bytes": { "type": "integer", "default": 0 },
           "system_ram_available_bytes": { "type": "integer", "default": 0 },
-          "disk_free_bytes": { "type": "integer", "default": 0, "description": "Free bytes on the volume holding the models directory" }
+          "disk_free_bytes": { "type": "integer", "default": 0, "description": "Free bytes on the volume holding the models directory" },
+          "gpu_unsupported_reason": { "type": "string", "nullable": true, "description": "Set when an NVIDIA GPU is present but this build has no CUDA kernels for it (compute capability below 7.5, e.g. GTX 10-series): gpu_available is then false and generation runs on the CPU. gpu_name and compute_major/minor still describe the card.", "example": "NVIDIA GeForce GTX 1080 (compute capability 6.1) is older than this build's CUDA 13.2 kernels support (7.5 or newer: RTX 20 / GTX 16 series and later). Generation runs on the CPU." }
         }
       },
       "VramEstimate": {
@@ -997,7 +1013,7 @@
         "type": "object",
         "required": ["prompt"],
         "properties": {
-          "prompt": { "type": "string", "maxLength": 4000 },
+          "prompt": { "type": "string", "minLength": 1, "maxLength": 4000, "description": "Must not be empty or whitespace-only (422)" },
           "negative_prompt": { "type": "string", "default": "", "maxLength": 4000 },
           "width": { "type": "integer", "minimum": 256, "maximum": 2048, "default": 1024, "description": "Snapped down to a multiple of 8" },
           "height": { "type": "integer", "minimum": 256, "maximum": 2048, "default": 1024, "description": "Snapped down to a multiple of 8" },
@@ -1005,7 +1021,7 @@
           "cfg_scale": { "type": "number", "minimum": 1, "maximum": 30, "default": 7.5 },
           "seed": { "type": "integer", "minimum": -1, "maximum": 4294967295, "default": -1, "description": "-1 for random" },
           "model": { "type": "string", "default": "flux-dev", "description": "A registry id from GET /api/models, e.g. flux-dev, flux-schnell, sd3.5-large, sd3.5-medium, sdxl-base (alias sdxl), sd-1-5, or an installed model. FLUX inpainting switches to flux-fill itself." },
-          "scheduler": { "type": "string", "default": "euler", "description": "Applied to SD 1.5 / SDXL on the built-in engine; FLUX, FLUX Fill and SD 3.5 keep their flow-matching scheduler" },
+          "scheduler": { "type": "string", "default": "euler", "maxLength": 64, "description": "Case-insensitive one of: Euler, Euler a (aliases euler_a, euler ancestral), DPM++ 2M, DPM++ 2M Karras, DPM++ SDE, DPM++ SDE Karras, DDIM, UniPC; anything else is 422. Applied to SD 1.5 / SDXL on the built-in engine; FLUX, FLUX Fill and SD 3.5 keep their flow-matching scheduler" },
           "acceleration_settings": { "allOf": [{ "$ref": "#/components/schemas/AccelerationSettings" }], "nullable": true, "description": "M9 acceleration toggles (local generation only). Null = all defaults." },
           "loras": { "type": "array", "items": { "$ref": "#/components/schemas/LoraSelection" }, "default": [], "description": "Installed LoRA adapters, stacked for this job and removed afterwards" },
           "controlnet": { "type": "array", "items": { "$ref": "#/components/schemas/ControlNetLayerPayload" }, "default": [], "description": "Canvas ControlNet layers (SD 1.5, SDXL, FLUX.1 [dev], SD 3.5 Large)" },
@@ -1021,7 +1037,7 @@
         "required": ["prompt"],
         "properties": {
           "prompt": { "type": "string", "maxLength": 4000 },
-          "image_path": { "type": "string", "nullable": true, "description": "Optional input image for image-to-video" },
+          "image_path": { "type": "string", "nullable": true, "description": "Optional input image for image-to-video: an image data: URL, or a file path inside the allowed media roots (400 otherwise)" },
           "width": { "type": "integer", "minimum": 256, "maximum": 1920, "default": 1024, "description": "Snapped down to a multiple of 8" },
           "height": { "type": "integer", "minimum": 256, "maximum": 1080, "default": 576, "description": "Snapped down to a multiple of 8" },
           "fps": { "type": "integer", "minimum": 12, "maximum": 60, "default": 24 },
@@ -1035,15 +1051,16 @@
       },
       "AccelerationSettings": {
         "type": "object",
-        "description": "M9 per-request inference acceleration toggles. Each optimization is a tri-state: 'auto' (backend decides from the hardware fit), 'on' (force), or 'off' (disable). Ignored by hosted (OpenRouter / HuggingFace) routes.",
+        "description": "M9 per-request inference acceleration toggles. Each optimization is a tri-state: 'auto' (backend decides from the hardware fit), 'on' (force), or 'off' (disable). Unknown keys and other values are a 422. Ignored by hosted (OpenRouter / HuggingFace) routes. GET /api/system/info availability.quantization / availability.tensorrt say whether those toggles can run on this install.",
+        "additionalProperties": false,
         "properties": {
           "master_enable": { "type": "boolean", "default": true, "description": "False disables all acceleration for the run" },
           "sdpa": { "type": "string", "enum": ["auto", "on", "off"], "default": "auto", "description": "Fused scaled-dot-product attention" },
           "channels_last": { "type": "string", "enum": ["auto", "on", "off"], "default": "auto", "description": "Channels-last memory format (conv-UNet families)" },
-          "compile": { "type": "string", "enum": ["auto", "on", "off"], "default": "auto", "description": "torch.compile (reduce-overhead)" },
-          "quantization": { "type": "string", "enum": ["auto", "on", "off"], "default": "auto", "description": "int8 / fp8 where the family and hardware allow and optimum-quanto is installed (release builds do not include it)" },
+          "compile": { "type": "string", "enum": ["auto", "on", "off"], "default": "auto", "description": "torch.compile (reduce-overhead). Engaged only with Triton importable, outside the frozen release bundle, and without CPU offload; compiled by a warm-up call at load, falling back to eager on any error" },
+          "quantization": { "type": "string", "enum": ["auto", "on", "off"], "default": "auto", "description": "int8 / fp8 where the family and hardware allow (optimum-quanto, bundled in release builds)" },
           "attention_slicing": { "type": "string", "enum": ["auto", "on", "off"], "default": "auto", "description": "Only engaged under VRAM pressure" },
-          "tensorrt": { "type": "string", "enum": ["auto", "on", "off"], "default": "auto", "description": "TensorRT engine build (one-time). Needs torch_tensorrt, which release builds do not include; auto enables it for no model family yet" }
+          "tensorrt": { "type": "string", "enum": ["auto", "on", "off"], "default": "auto", "description": "TensorRT engine build (one-time). Needs torch_tensorrt (bundled with the Windows/Linux CUDA builds). auto builds only for families in TRT_PROVEN_FAMILIES (none yet) and otherwise records 'tensorrt off: No model family has been verified for TensorRT yet' in acceleration.skipped; on forces a build with a hard fallback to eager. GET /api/system/info availability.tensorrt reports whether the toggle is usable." }
         }
       },
       "AppliedAcceleration": {
@@ -1069,7 +1086,7 @@
         "required": ["type"],
         "properties": {
           "type": { "type": "string", "description": "rectangle | polygon | brush | erase" },
-          "points": { "type": "array", "items": { "type": "object", "additionalProperties": { "type": "number" } }, "default": [] },
+          "points": { "type": "array", "items": { "type": "object", "additionalProperties": { "type": "number" } }, "maxItems": 20000, "default": [] },
           "bounds": { "type": "object", "additionalProperties": { "type": "number" }, "default": {} },
           "brush_size": { "type": "number", "minimum": 1, "maximum": 512, "nullable": true }
         }
@@ -1139,7 +1156,9 @@
           "name": { "type": "string" },
           "license": { "type": "string", "nullable": true },
           "attribution": { "type": "string", "nullable": true },
-          "approx_bytes": { "type": "integer", "default": 0 },
+          "approx_bytes": { "type": "integer", "default": 0, "description": "Legacy catalog estimate" },
+          "size_bytes": { "type": "integer", "default": 0, "description": "Exact pinned footprint (sum of the manifest's per-file sizes)" },
+          "tier": { "type": "string", "enum": ["core", "extended"], "default": "extended" },
           "format": { "type": "string", "nullable": true },
           "gated": { "type": "boolean", "default": false },
           "status": { "type": "string" },
@@ -1148,8 +1167,42 @@
           "gate_url": { "type": "string", "nullable": true }
         }
       },
+      "ProvisionAggregate": {
+        "type": "object",
+        "required": ["overall_progress", "total_bytes", "present_bytes", "remaining_bytes", "total_count", "ready_count", "active_count", "error_count", "complete"],
+        "properties": {
+          "overall_progress": { "type": "number" },
+          "total_bytes": { "type": "integer" },
+          "present_bytes": { "type": "integer" },
+          "remaining_bytes": { "type": "integer" },
+          "speed": { "type": "number", "default": 0 },
+          "eta": { "type": "number", "nullable": true },
+          "total_count": { "type": "integer" },
+          "ready_count": { "type": "integer" },
+          "active_count": { "type": "integer" },
+          "error_count": { "type": "integer" },
+          "complete": { "type": "boolean" }
+        }
+      },
+      "ProvisionReverify": {
+        "type": "object",
+        "description": "Background integrity re-hash of present copies (runs off the event loop).",
+        "properties": {
+          "state": { "type": "string", "enum": ["idle", "running", "done", "error"], "default": "idle" },
+          "checked_bytes": { "type": "integer", "default": 0 },
+          "total_bytes": { "type": "integer", "default": 0 },
+          "corrupt": { "type": "array", "items": { "type": "string" }, "default": [] },
+          "error": { "type": "string", "nullable": true }
+        }
+      },
+      "ProvisionStartRequest": {
+        "type": "object",
+        "properties": {
+          "model_ids": { "type": "array", "items": { "type": "string" }, "maxItems": 256, "nullable": true, "description": "Subset of the manifest auto-set to provision (each id must be a member, else 400). Omitted, null or empty = the whole set." }
+        }
+      },
       "ProvisionStatus": {
-        "description": "First-run starter set: aggregate progress plus one entry per model.",
+        "description": "First-run starter set: aggregate progress, per-tier aggregates, reverify progress and one entry per model.",
         "type": "object",
         "required": ["schema_version", "overall_progress", "total_bytes", "present_bytes", "remaining_bytes", "total_count", "ready_count", "active_count", "error_count", "complete"],
         "properties": {
@@ -1166,6 +1219,8 @@
           "error_count": { "type": "integer" },
           "complete": { "type": "boolean" },
           "attribution": { "type": "string", "nullable": true },
+          "tiers": { "type": "object", "description": "Keys: core, extended", "additionalProperties": { "$ref": "#/components/schemas/ProvisionAggregate" } },
+          "reverify": { "$ref": "#/components/schemas/ProvisionReverify" },
           "models": { "type": "array", "items": { "$ref": "#/components/schemas/ProvisionModel" }, "default": [] }
         }
       },
@@ -1173,19 +1228,19 @@
         "type": "object",
         "required": ["left", "top", "width", "height"],
         "properties": {
-          "left": { "type": "integer" },
-          "top": { "type": "integer" },
-          "width": { "type": "integer" },
-          "height": { "type": "integer" }
+          "left": { "type": "integer", "minimum": 0, "maximum": 65535 },
+          "top": { "type": "integer", "minimum": 0, "maximum": 65535 },
+          "width": { "type": "integer", "minimum": 1, "maximum": 65535 },
+          "height": { "type": "integer", "minimum": 1, "maximum": 65535 }
         }
       },
       "ImageEditRequest": {
         "type": "object",
         "required": ["source_path"],
         "properties": {
-          "source_path": { "type": "string" },
+          "source_path": { "type": "string", "minLength": 1, "maxLength": 4096, "description": "Must resolve inside the allowed media roots (400 otherwise)" },
           "crop_box": { "$ref": "#/components/schemas/CropBox", "nullable": true },
-          "rotation": { "type": "integer", "default": 0 },
+          "rotation": { "type": "integer", "minimum": -360, "maximum": 360, "default": 0, "description": "Degrees, clockwise" },
           "flip_horizontal": { "type": "boolean", "default": false },
           "flip_vertical": { "type": "boolean", "default": false }
         }
@@ -1194,7 +1249,7 @@
         "type": "object",
         "required": ["source_path"],
         "properties": {
-          "source_path": { "type": "string" },
+          "source_path": { "type": "string", "minLength": 1, "maxLength": 4096, "description": "Must resolve inside the allowed media roots (400 otherwise)" },
           "time_ms": { "type": "integer", "minimum": 0, "default": 0 }
         }
       },
@@ -1211,7 +1266,7 @@
         "type": "object",
         "required": ["source_path", "media_type"],
         "properties": {
-          "source_path": { "type": "string" },
+          "source_path": { "type": "string", "minLength": 1, "maxLength": 4096, "description": "Must resolve inside the allowed media roots (400 otherwise)" },
           "media_type": { "type": "string", "enum": ["image", "video"] },
           "source_time_ms": { "type": "integer", "minimum": 0, "default": 0 },
           "opacity": { "type": "number", "minimum": 0, "maximum": 1, "default": 1 }
@@ -1221,14 +1276,14 @@
         "type": "object",
         "properties": {
           "time_ms": { "type": "integer", "minimum": 0, "default": 0 },
-          "layers": { "type": "array", "items": { "$ref": "#/components/schemas/TimelineExportLayer" } }
+          "layers": { "type": "array", "maxItems": 64, "items": { "$ref": "#/components/schemas/TimelineExportLayer" } }
         }
       },
       "TimelineExportAudioLayer": {
         "type": "object",
         "required": ["source_path"],
         "properties": {
-          "source_path": { "type": "string" },
+          "source_path": { "type": "string", "minLength": 1, "maxLength": 4096, "description": "Must resolve inside the allowed media roots (400 otherwise)" },
           "source_time_ms": { "type": "integer", "minimum": 0, "default": 0 },
           "timeline_offset_ms": { "type": "integer", "minimum": 0, "default": 0 },
           "duration_ms": { "type": "integer", "minimum": 1, "default": 1 },
@@ -1243,20 +1298,20 @@
         "type": "object",
         "required": ["output_path", "frames"],
         "properties": {
-          "sequence_name": { "type": "string", "default": "Timeline Export" },
+          "sequence_name": { "type": "string", "default": "Timeline Export", "maxLength": 256 },
           "width": { "type": "integer", "minimum": 64, "maximum": 4096, "default": 1920 },
           "height": { "type": "integer", "minimum": 64, "maximum": 4096, "default": 1080 },
           "fps": { "type": "integer", "minimum": 1, "maximum": 60, "default": 24 },
-          "output_path": { "type": "string", "pattern": "\\.[mM][pP]4$", "description": "An .mp4 file: absolute (the save-dialog choice) in an existing folder, or relative to the outputs folder without leaving it" },
+          "output_path": { "type": "string", "maxLength": 4096, "pattern": "\\.[mM][pP]4$", "description": "An .mp4 file: absolute (the save-dialog choice) in an existing folder, or relative to the outputs folder without leaving it" },
           "frames": { "type": "array", "minItems": 1, "maxItems": 24000, "items": { "$ref": "#/components/schemas/TimelineExportFrame" } },
-          "audio_layers": { "type": "array", "items": { "$ref": "#/components/schemas/TimelineExportAudioLayer" } }
+          "audio_layers": { "type": "array", "maxItems": 128, "items": { "$ref": "#/components/schemas/TimelineExportAudioLayer" } }
         }
       },
       "BackgroundRemoveRequest": {
         "type": "object",
         "required": ["source_path"],
         "properties": {
-          "source_path": { "type": "string", "minLength": 1, "description": "A file the backend can read (404 otherwise)" },
+          "source_path": { "type": "string", "minLength": 1, "description": "Must resolve inside the allowed media roots (400 otherwise) and exist (404 otherwise)" },
           "edge_refinement": { "type": "integer", "minimum": 0, "maximum": 100, "default": 50 }
         }
       },
@@ -1288,51 +1343,13 @@
           "message": { "type": "string", "example": "Edit job started: upscale" }
         }
       },
-      "EditToolsResponse": {
-        "type": "object",
-        "required": ["tools"],
-        "properties": {
-          "tools": {
-            "type": "object",
-            "description": "Keyed by operation: remove-background, upscale, restore-faces",
-            "additionalProperties": {
-              "type": "object",
-              "properties": {
-                "ready": { "type": "boolean", "description": "Every Foundry record the tool needs is installed" },
-                "records": { "type": "array", "items": { "type": "string" }, "description": "Foundry record ids the tool needs" }
-              }
-            }
-          }
-        }
-      },
-      "BatchExportRequest": {
-        "type": "object",
-        "required": ["image_ids"],
-        "properties": {
-          "image_ids": { "type": "array", "minItems": 1, "items": { "type": "string" }, "description": "A generation job id (its first image under outputs/<job_id>/) or an output path (/outputs/<job_id>/<file>); never resolves outside the outputs folder" },
-          "format": { "type": "string", "enum": ["png", "jpg", "webp"], "default": "png" },
-          "quality": { "type": "integer", "minimum": 1, "maximum": 100, "default": 95 },
-          "resize": { "type": "object", "nullable": true, "required": ["width", "height"], "additionalProperties": false, "properties": { "width": { "type": "integer", "minimum": 1, "maximum": 8192 }, "height": { "type": "integer", "minimum": 1, "maximum": 8192 } } }
-        }
-      },
-      "BatchExportResponse": {
-        "type": "object",
-        "required": ["zip_file", "file_count", "total_size_bytes", "processing_time_ms"],
-        "properties": {
-          "success": { "type": "boolean", "default": true },
-          "zip_file": { "type": "string", "description": "Base64-encoded ZIP" },
-          "file_count": { "type": "integer" },
-          "total_size_bytes": { "type": "integer" },
-          "processing_time_ms": { "type": "number" }
-        }
-      },
       "Error": {
         "type": "object",
         "properties": {
           "detail": {
             "oneOf": [
               { "type": "string" },
-              { "type": "object", "properties": { "error": { "type": "string" }, "error_code": { "type": "string" } } }
+              { "type": "object", "properties": { "error": { "type": "string" }, "error_code": { "type": "string" }, "message": { "type": "string" } } }
             ]
           }
         }
@@ -1342,13 +1359,12 @@
       "BadRequest": { "description": "Invalid input", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
       "NotFound": { "description": "Resource not found", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
       "RateLimited": {
-        "description": "Rate limit exceeded",
+        "description": "Rate limit exceeded (keyed on the socket peer; X-Forwarded-For is ignored)",
         "headers": {
-          "Retry-After": { "schema": { "type": "string" } },
-          "X-RateLimit-Limit": { "schema": { "type": "string" } },
-          "X-RateLimit-Reset": { "schema": { "type": "string" } }
+          "Retry-After": { "schema": { "type": "integer", "minimum": 1 }, "description": "Seconds until the limit window resets" },
+          "X-RateLimit-Limit": { "schema": { "type": "string" }, "description": "Requests allowed per window" }
         },
-        "content": { "application/json": { "schema": { "type": "object", "properties": { "success": { "type": "boolean" }, "error": { "type": "string" }, "error_code": { "type": "string" }, "retry_after": { "type": "string" } } } } }
+        "content": { "application/json": { "schema": { "type": "object", "properties": { "success": { "type": "boolean", "enum": [false] }, "error": { "type": "string", "example": "Rate limit exceeded" }, "error_code": { "type": "string", "enum": ["RATE_LIMITED"] }, "retry_after": { "type": "integer", "minimum": 1 } } } } }
       },
       "InternalError": { "description": "Internal server error", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
     }

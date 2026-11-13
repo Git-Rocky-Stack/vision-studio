@@ -4,6 +4,7 @@ import { useAppStore } from '@/store/appStore';
 import type { AppState } from '@/store/appStore.types';
 import type { EditTool } from '@/types/editor';
 import { isEditableTarget } from '@/utils/isEditableTarget';
+import { isWorkspaceShortcutBlocked } from '@/utils/modalGuard';
 
 import { cancelPenPath, finishPenPath, undoPenAnchor } from './penPath';
 
@@ -49,6 +50,9 @@ export const REGION_TOOL_SHORTCUTS: Record<string, AppState['activeMaskTool'] | 
 export function handleEditToolShortcut(event: KeyboardEvent): boolean {
   if (event.ctrlKey || event.metaKey || event.altKey) return false;
   if (isEditableTarget(event.target)) return false;
+  // A modal dialog owns the keyboard: its Escape must not also cancel a Pen
+  // path, and tool letters must not retarget the editor behind it.
+  if (isWorkspaceShortcutBlocked(event)) return false;
   const key = event.key.toLowerCase();
   const state = useAppStore.getState();
 

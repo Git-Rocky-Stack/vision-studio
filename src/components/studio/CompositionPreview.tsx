@@ -16,7 +16,9 @@ const DEFAULT_ZOOM = 1;
 
 /**
  * Composition Preview panel that renders a layered visualization of the
- * reference image, ControlNet preprocessing, region masks, and aspect-ratio frame.
+ * reference image and the aspect-ratio frame. (ControlNet and region-mask
+ * overlays were planned but have no renderer data - no preprocessed map or
+ * rasterised mask exists for this preview - so they are not drawn.)
  * When a generation is in progress (isPreviewActive), renders the
  * ProgressivePreview component instead.
  */

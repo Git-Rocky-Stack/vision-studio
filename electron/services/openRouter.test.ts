@@ -2007,6 +2007,8 @@ describe('OpenRouter generateImage result handling', () => {
     height: 1024,
   };
   const catalog = { data: { data: [] } };
+  /** Offline DNS double: every name resolves to a public address. */
+  const publicDns = async () => [{ address: '93.184.216.34', family: 4 }];
   function reply(url: string) {
     return { data: { choices: [{ message: { content: '', images: [{ image_url: { url } }] } }] } };
   }
@@ -2038,7 +2040,7 @@ describe('OpenRouter generateImage result handling', () => {
       ),
       post: vi.fn().mockResolvedValue(reply(imageUrl)),
     };
-    const service = createOpenRouterService({ axiosInstance, retryBaseDelayMs: 0 });
+    const service = createOpenRouterService({ axiosInstance, retryBaseDelayMs: 0, resolveHost: publicDns });
 
     const result = await service.generateImage(args);
 
@@ -2050,7 +2052,32 @@ describe('OpenRouter generateImage result handling', () => {
       Record<string, unknown>,
     ];
     expect(download[1]).toMatchObject({ responseType: 'arraybuffer', timeout: 60_000, maxContentLength: 25 * 1024 * 1024 });
+    // Connect-time and per-redirect SSRF re-checks ride along with the request.
+    expect(typeof download[1].lookup).toBe('function');
+    expect(typeof download[1].beforeRedirect).toBe('function');
     expect(JSON.stringify(download[1])).not.toContain('sk-or-v1-test-key');
+  });
+
+  it.each([
+    ['a loopback literal', 'https://127.0.0.1:8000/api/jobs', publicDns],
+    ['the metadata endpoint', 'https://169.254.169.254/latest/meta-data/', publicDns],
+    ['a name resolving to a private address', 'https://cdn.example.com/render/abc.png', async () => [{ address: '192.168.1.10', family: 4 }]],
+  ])('never fetches a result image from %s (S10)', async (_label, imageUrl, resolveHost) => {
+    const axiosInstance = {
+      get: vi.fn((url: string): Promise<any> =>
+        url === imageUrl ? Promise.resolve({ data: PNG_BYTES }) : Promise.resolve(catalog),
+      ),
+      post: vi.fn().mockResolvedValue(reply(imageUrl)),
+    };
+    const service = createOpenRouterService({
+      axiosInstance,
+      retryBaseDelayMs: 0,
+      resolveHost,
+      logger: { warn: vi.fn(), error: vi.fn(), info: vi.fn() },
+    });
+
+    await expect(service.generateImage(args)).rejects.toThrow(/could not be downloaded|did not return any images/);
+    expect(axiosInstance.get.mock.calls.some(([url]) => url === imageUrl)).toBe(false);
   });
 
   it('reports a billed image whose link could not be fetched instead of "no images"', async () => {
@@ -2064,6 +2091,7 @@ describe('OpenRouter generateImage result handling', () => {
     const service = createOpenRouterService({
       axiosInstance,
       retryBaseDelayMs: 0,
+      resolveHost: publicDns,
       logger: { warn: vi.fn(), error: vi.fn(), info: vi.fn() },
     });
 

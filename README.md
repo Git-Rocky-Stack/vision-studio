@@ -1,4 +1,4 @@
-# Vision Studio-X
+# Vision Studio
 
 [![PR Gate](https://github.com/Git-Rocky-Stack/vision-studio/actions/workflows/pr-gate.yml/badge.svg)](https://github.com/Git-Rocky-Stack/vision-studio/actions/workflows/pr-gate.yml)
 [![Release macOS + Linux](https://github.com/Git-Rocky-Stack/vision-studio/actions/workflows/release-mac-linux.yml/badge.svg)](https://github.com/Git-Rocky-Stack/vision-studio/actions/workflows/release-mac-linux.yml)
@@ -6,9 +6,9 @@
 [![Security Policy](https://img.shields.io/badge/security-policy-brightgreen.svg)](SECURITY.md)
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20(Apple%20Silicon)%20%7C%20Linux-lightgrey.svg)](#system-requirements)
 
-A professional AI-powered desktop application for image and video generation. No cloud required - everything runs locally on your machine.
+A professional AI-powered desktop application for image and video generation. No cloud required - generation runs locally on your own GPU by default, and the hosted OpenRouter and Hugging Face routes are opt-in, with your own key. No subscription.
 
-> **Current release: v3.4.2** - see [`CHANGELOG.md`](CHANGELOG.md) for what's new. Download at **[vision-studio-x.com/download](https://vision-studio-x.com/download)**.
+> **Latest published release: v3.4.1.** **Upcoming release: v3.4.2** (in testing, not yet published) - see [`CHANGELOG.md`](CHANGELOG.md) for what it changes. Download at **[vision-studio-x.com/download](https://vision-studio-x.com/download)**.
 
 ## Screenshots
 
@@ -78,7 +78,7 @@ A professional AI-powered desktop application for image and video generation. No
 - **Workflow Graph** - import ComfyUI API-format graphs and run them on the built-in engine; a graph with a single KSampler becomes a normal generation with its prompt, model, steps, CFG, seed and LoRAs
 - **Provider Routing** - every route starts on Local; bring your own OpenRouter or Hugging Face key (BYOK) to route prompt tools and still images, or video through Hugging Face, per account. A job too large for your GPU asks before it switches route
 - **AI Director** - retrieval-augmented context drawn from your own prompt history and assets, sent with prompt tools routed to OpenRouter or Hugging Face
-- **GPU Acceleration** - per-optimization Performance panel (SDPA, channels-last, torch.compile, attention slicing; quantization and TensorRT when their optional packages are installed) tuned to your hardware
+- **GPU Acceleration** - per-optimization Performance panel (SDPA, channels-last, torch.compile, attention slicing, int8/fp8 quantization, and TensorRT - bundled on Windows/Linux, enabled per model family once that family passes the TensorRT correctness sweep) tuned to your hardware
 - **Batch Generation** - queue a list of prompts at once, one job per prompt, with one-click prompt variations
 - **Project Templates** - eight starting points (YouTube thumbnail, TikTok/Reels, Instagram post, stories, cinematic wide, product showcase, AI portrait, and 4K wallpaper) that set the model, prompt scaffold, steps and CFG for a new project
 - **Private by Default** - generation runs on your machine and every route starts on Local; no telemetry or analytics. The app goes online for model searches and downloads you start, an automatic update check, and any cloud route you configure
@@ -88,9 +88,9 @@ A professional AI-powered desktop application for image and video generation. No
 ### Option 1: Download Pre-built App (Easiest)
 
 1. Download for your platform from **[vision-studio-x.com/download](https://vision-studio-x.com/download)** - Windows x64, macOS on Apple Silicon, or Linux x64
-2. Run the installer. The AI backend (PyTorch, diffusers, CUDA/MPS) is bundled - there is nothing extra to install. It unpacks itself to a temporary folder each time the app starts, which can take a few minutes
+2. Run the installer. The AI backend (PyTorch, diffusers, CUDA/MPS) is bundled - there is nothing extra to install. The backend can take a few minutes to start, longest on first launch
 3. Builds are not yet code-signed. On Windows click **More info -> Run anyway**. On macOS 15 or later, try to open the app once, then choose **Open Anyway** under **System Settings > Privacy & Security**; on macOS 14, **right-click -> Open**. On Linux, `chmod +x` the AppImage
-4. On first launch, install the one-click starter set (33 models, about 137 GB) or skip it and download only the models you want through the in-app **Foundry** (~2-24 GB per model, consent-gated) - then start creating
+4. On first launch, install starter models (the full set is 33 models, about 137 GB) or skip them and download only the models you want through the in-app **Foundry** (~2-24 GB per model, consent-gated) - then start creating
 5. **FLUX.1 [dev] and LTX Video are not in the starter set.** Their licences do not allow Vision Studio to install them for you, so FLUX.1 [dev] (with its Fill, ControlNet Union and IP-Adapter companions) and LTX Video are manual downloads: search for them in **Foundry > Discover**, accept each licence on Hugging Face when the Foundry shows **Accept license**, and add your Hugging Face token at the top of the Foundry. The two Stable Diffusion 3.5 models *are* in the set, but are gated too - they need the same token and licence acceptance
 
 New to the app? The [User Guide](docs/USER_GUIDE.md) walks through install, first run, your first image and everything after it.
@@ -114,14 +114,21 @@ npm run dev
 
 ### Prerequisites
 
-- **Node.js** `^20.19.0 || ^22.13.0 || >=24` ([Download](https://nodejs.org/)) -
-  the `engines` range in `package.json`, set by the toolchain (jsdom 28 and
-  ESLint 10 refuse anything older). Node 22 LTS is the recommended choice
-  (`.nvmrc`); CI builds and tests on Node 20
-- **Python** 3.12 (for backend development; 3.10 and 3.11 also work) - the version
-  every backend workflow pins. The shipped torch build (2.5.1+cu121) has no
-  wheels for Python 3.13 or later
-- **CUDA 12.1** (optional, for NVIDIA GPU acceleration)
+- **Node.js** `^22.22.2 || ^24.15.0 || >=26` ([Download](https://nodejs.org/)) -
+  the `engines` range in `package.json`, set by the toolchain (jsdom 31,
+  Vitest 5 and lint-staged 17 refuse anything older; Node 20 is end-of-life).
+  Node 22 LTS is the recommended choice (`.nvmrc`); CI builds and tests on the
+  `.nvmrc` version
+- **Python** 3.12 (for backend development) - the version every backend
+  workflow pins, and the one the hash-locked backend dependencies
+  (`backend/requirements/*.txt`) are compiled for. The shipped torch build is
+  2.14.1 (2.14.1+cu132 on Windows/Linux, with torch-tensorrt 2.14.0 and
+  TensorRT 11.1)
+- **NVIDIA driver R580 or newer** (optional, for GPU acceleration) - the
+  bundled CUDA 13.2 runtime needs it; RTX 20-series / GTX 16-series (Turing)
+  through RTX 50-series (Blackwell) are supported. GTX 10-series and older
+  cards have no CUDA 13 kernels and run on the CPU. No separate CUDA toolkit
+  is needed
 
 ### Setup Options
 
@@ -146,34 +153,33 @@ Use your system Python installation:
 
 ```bash
 # Windows - one step: the pinned PyTorch, requirements.txt and the generation
-# stack, using the release build's own install steps (needs Python 3.10-3.12)
+# stack, using the release build's own install steps (needs Python 3.12)
 setup-python.bat
 
-# Linux (NVIDIA)
+# Linux (NVIDIA) - the same hash-locked wheels the release bundles
 cd backend
 python3.12 -m venv venv
 source venv/bin/activate
-pip install torch==2.5.1 torchvision==0.20.1 torchaudio==2.5.1 --index-url https://download.pytorch.org/whl/cu121
-pip install -r requirements.txt
+pip install --require-hashes --no-deps --index-url https://download.pytorch.org/whl/cu132 -r requirements/torch-linux-cu132.txt
+pip install --require-hashes --no-deps -r requirements/runtime-linux.txt
+# Optional: the bundled TensorRT runtime (~4.6 GB installed on Linux)
+pip install --require-hashes --no-deps --no-build-isolation --extra-index-url https://pypi.nvidia.com --extra-index-url https://download.pytorch.org/whl/cu132 -r requirements/tensorrt-linux-cu132.txt
 
-# macOS (Apple Silicon) - the cu121 index has no macOS wheels
+# macOS (Apple Silicon) - PyPI's torch 2.14.1 wheel is the MPS build (no TensorRT)
 cd backend
 python3.12 -m venv venv
 source venv/bin/activate
-pip install torch==2.5.1 torchvision==0.20.1 torchaudio==2.5.1
-pip install -r requirements.txt
-
-# Then, on Linux and macOS, the generation stack
-pip install "diffusers>=0.25.0" "transformers>=4.35.0" "accelerate>=0.24.0" "peft>=0.11.0" \
-  "controlnet-aux>=0.0.10" "onnxruntime>=1.17" "spandrel>=0.4.0" "facexlib>=0.3.0" "aiohttp>=3.9"
+pip install --require-hashes --no-deps -r requirements/torch-macos-pypi.txt
+pip install --require-hashes --no-deps -r requirements/runtime-macos.txt
 cd ..
 npm install
 npm run dev
 ```
 
 `npm run dev` starts the engine with `backend/venv`'s Python whenever that
-venv exists and the app's stored settings name no `pythonPath`, so the venv
-does not have to be activated in the shell that runs it.
+venv exists, so the venv does not have to be activated in the shell that runs
+it. To use a different interpreter, set `VISION_STUDIO_PYTHON` to its absolute
+path (UNC paths are refused); the app has no Python-path setting.
 
 `requirements.txt` holds the server and test dependencies only. The second
 `pip install` is the generation stack the release build bundles
@@ -263,7 +269,7 @@ vision-studio/
 
 ### Backend
 - **FastAPI** - API framework
-- **PyTorch 2.5** (CUDA 12.1, or Metal/MPS on Apple Silicon) - ML runtime
+- **PyTorch 2.14** (CUDA 13.2 + TensorRT 11.1 on Windows/Linux, or Metal/MPS on Apple Silicon) - ML runtime
 - **Diffusers** - HuggingFace pipelines
 - **WebSocket** - Real-time progress
 
@@ -286,25 +292,38 @@ wheels at 2.3 - and need **macOS 14 or later**: the release is built on
 macOS 14 and bundles NumPy, SciPy and ONNX Runtime wheels built for
 macOS 14. Linux builds are made on Ubuntu 22.04 and need its glibc or newer.
 On Apple Silicon the engine runs on Metal (MPS); on Windows/Linux
-it runs on NVIDIA CUDA, and falls back to CPU (slowly) when no GPU is present.
+it runs on NVIDIA CUDA 13.2 (RTX 20-series / GTX 16-series and newer, NVIDIA
+driver R580+), and falls back to CPU (slowly) when no supported GPU is present.
+
+The Windows/Linux backend also bundles the TensorRT runtime, which adds about
+2.4 GB (Windows) / 4.6 GB (Linux) to the installed app. TensorRT engines are
+built only for model families that have passed the correctness sweep in
+[docs/TENSORRT_VERIFICATION.md](docs/TENSORRT_VERIFICATION.md) on real hardware;
+no family has yet, so the Performance panel shows TensorRT as unavailable with
+that reason until one does.
 
 ### GPU Support
 | GPU | VRAM | Performance |
 |-----|------|-------------|
-| RTX 4090 | 24 GB | ⭐⭐⭐⭐⭐ Best |
+| RTX 5090 / 4090 | 32 / 24 GB | ⭐⭐⭐⭐⭐ Best |
 | RTX 4080 | 16 GB | ⭐⭐⭐⭐ Great |
 | RTX 4070 | 12 GB | ⭐⭐⭐ Good |
 | RTX 3060 | 12 GB | ⭐⭐⭐ Good |
-| GTX 1080 Ti | 11 GB | ⭐⭐ Fair |
+| RTX 2060 / GTX 1660 (Turing, the oldest supported) | 6-12 GB | ⭐⭐ Fair |
+| GTX 10-series and older (Pascal and earlier) | - | runs on CPU (no CUDA 13 kernels) |
 | Apple M-series | unified | ⭐⭐⭐ Metal/MPS |
 | CPU Only | - | ⭐ Slow |
 
 ## API
 
 The Python backend serves a REST API on `http://127.0.0.1:8000`. Every request
-except `/`, `/api/health`, the API docs and files under `/outputs/` must carry the
-`x-vision-studio-token` header. The desktop app generates that token at launch; a
-backend started by hand (`python main.py`) generates one and logs it.
+except `/api/health`, `/api/handshake`, the API docs and files under `/outputs/`
+must carry the `x-vision-studio-token` header. The desktop app generates that
+token at launch and sends it only after `GET /api/handshake?nonce=<hex>` returns
+the HMAC-SHA256 of the nonce keyed by the token, proving the listener is its own
+backend. A backend started by hand (`python main.py`) uses
+`VISION_STUDIO_BACKEND_AUTH_TOKEN` when it is set; otherwise it generates a
+token it never logs, so set the variable yourself to call the API by hand.
 
 ```bash
 # Generate image (returns a job_id)
@@ -320,8 +339,10 @@ x-vision-studio-token: <token>
 # Get job status (result.images holds /outputs/... paths when complete)
 GET /api/jobs/{job_id}
 
-# WebSocket for real-time updates (token as a query parameter)
-ws://127.0.0.1:8000/ws?token=<token>
+# WebSocket for real-time updates (token in the upgrade request's header;
+# a ?token= query parameter is refused)
+ws://127.0.0.1:8000/ws
+x-vision-studio-token: <token>
 ```
 
 ## Troubleshooting
@@ -330,7 +351,7 @@ The common cases are below; [`docs/TROUBLESHOOTING.md`](docs/TROUBLESHOOTING.md)
 covers the rest, including where the logs are.
 
 ### "Backend not found"
-- The bundled backend unpacks itself to a temporary folder each time it starts, which can take several minutes; restart the app and give it time, or start it from **Settings > AI & Models**
+- The bundled backend can take several minutes to start, longest on first launch; give it time, restart the app, or start it from **Settings > AI & Models**
 - From source: build the backend with `npm run build:backend`, or use system Python (`setup-python.bat` on Windows; on Linux and macOS, the steps under Developer Setup)
 
 ### "CUDA out of memory"
@@ -371,7 +392,7 @@ npm run test:e2e           # Playwright + Electron
 npm run test:e2e:headed    # With visible browser window
 npm run test:a11y          # Accessibility smoke tests only
 npm run test:perf          # Performance budgets (in-page measurement)
-npm run test:visual        # Visual regression (snapshots are Windows-authored)
+npm run test:visual        # Visual regression (Windows and Linux baselines)
 
 # Backend tests
 cd backend && python -m pytest
@@ -387,7 +408,7 @@ numbers, because they change with nearly every pull request.
 | Layer | Framework | Count it with | What it covers |
 |-------|-----------|---------------|----------------|
 | Unit + Component + Integration | Vitest 4.1 | `npx vitest run` | Pure logic, Zustand store, Electron services, React components, API/workflow contracts, plus repo gates: Carbon Pro tokens, palette discipline, UI glyphs, preload-bridge mount paths, Playwright port, CI type-check, archived-doc provenance, documentation links, shipped dependency overrides, pinned torch stack |
-| E2E + Visual | Playwright 1.58 | `npx playwright test --list` | Electron end-to-end, accessibility (axe-core), performance budgets, and the Windows visual-regression suite |
+| E2E + Visual | Playwright 1.58 | `npx playwright test --list` | Electron end-to-end, accessibility (axe-core), performance budgets, and the visual-regression suite (per-platform baselines for Windows and Linux) |
 | Backend | pytest | `cd backend && python -m pytest --collect-only -q` | FastAPI + foundry + services; import-safe collection on CI, real model runs are local |
 | Backend benchmarks (opt-in) | pytest-benchmark | `cd backend && python -m pytest tests/benchmarks -o addopts="" --benchmark-only --collect-only -q` | Excluded from the default run by `backend/pytest.ini`; needs the GPU/model stack |
 
@@ -475,4 +496,4 @@ installer alongside the MIT text.
 
 **Star this repo if you find it useful!**
 
-Built with ❤️ for creators who want AI without the cloud.
+Built with ❤️ for creators who want AI on their own hardware.

@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useRef } from 'react';
 import { Button } from '@/components/ui/Button';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import type { ProjectTemplate } from '@/types/template';
 import { DialogCloseButton } from '@/components/ui/DialogCloseButton';
+import { useDialogFocus } from '@/hooks/useDialogFocus';
 
 const categoryLabels: Record<string, string> = {
   youtube: 'YouTube',
@@ -34,59 +35,10 @@ export function TemplatePreviewModal({
   onUseTemplate,
   onEditTemplate,
 }: TemplatePreviewModalProps) {
-  // Focus trap and keyboard handling
+  // Shared modal contract: focus in, Tab trapped, Escape closes, focus restored.
   const modalRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    if (!template) return;
-    const previousFocus = document.activeElement as HTMLElement;
-
-    // Focus the first focusable element when modal opens
-    const container = modalRef.current;
-    if (container) {
-      const focusableSelector = 'a[href], button:not([disabled]), textarea, input, select, [tabindex]:not([tabindex="-1"])';
-      const focusableElements = container.querySelectorAll<HTMLElement>(focusableSelector);
-      if (focusableElements.length > 0) {
-        focusableElements[0].focus();
-      }
-    }
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        onClose();
-        return;
-      }
-
-      if (e.key !== 'Tab') return;
-      const container = modalRef.current;
-      if (!container) return;
-
-      const focusableSelector = 'a[href], button:not([disabled]), textarea, input, select, [tabindex]:not([tabindex="-1"])';
-      const focusableElements = Array.from(container.querySelectorAll<HTMLElement>(focusableSelector));
-      if (focusableElements.length === 0) return;
-
-      const first = focusableElements[0];
-      const last = focusableElements[focusableElements.length - 1];
-
-      if (e.shiftKey) {
-        if (document.activeElement === first) {
-          e.preventDefault();
-          last.focus();
-        }
-      } else {
-        if (document.activeElement === last) {
-          e.preventDefault();
-          first.focus();
-        }
-      }
-    };
-
-    document.addEventListener('keydown', handleKeyDown);
-    return () => {
-      document.removeEventListener('keydown', handleKeyDown);
-      previousFocus?.focus();
-    };
-  }, [template, onClose]);
+  useDialogFocus(modalRef, { open: template !== null, onEscape: onClose });
 
   return (
     <AnimatePresence>

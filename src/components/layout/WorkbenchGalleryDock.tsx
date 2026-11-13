@@ -7,6 +7,7 @@ import { MediaPreview } from '@/components/ui/MediaPreview';
 import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { cn } from '@/utils/cn';
+import { resolveAssetThumbnail } from '@/features/assets/assetRecords';
 import { ReviewDensityToggle } from './ReviewDensityToggle';
 
 interface GalleryItem {
@@ -54,7 +55,7 @@ export function WorkbenchGalleryDock() {
       label: asset.name || 'Generated asset',
       prompt: asset.prompt || 'No prompt saved',
       mediaPath: asset.type === 'video' ? asset.path : asset.previewUrl || asset.path,
-      posterPath: asset.thumbnail || asset.previewUrl || asset.path,
+      posterPath: resolveAssetThumbnail(asset) || asset.path,
       generationType: (asset.type === 'video' ? 'video' : 'image') as 'image' | 'video',
       createdAt: new Date(asset.createdAt).getTime(),
       source: asset.type === 'video' ? 'Video asset' : 'Image asset',

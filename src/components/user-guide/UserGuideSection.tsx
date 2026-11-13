@@ -9,9 +9,9 @@ interface UserGuideSectionProps {
 
 export function UserGuideSection({ id, title, summary, children }: UserGuideSectionProps) {
   return (
+    // A labelled <section> is a region landmark by itself.
     <section
       id={id}
-      role="region"
       aria-labelledby={`${id}-heading`}
       className="border-b border-border py-6 first:pt-0 last:border-b-0"
     >

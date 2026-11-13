@@ -1,6 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useAppStore } from '../appStore';
-import { selectDownloadFor } from './modelsSlice';
 import type { DownloadJob } from '@/types/model';
 
 function job(over: Partial<DownloadJob>): DownloadJob {
@@ -22,7 +21,6 @@ describe('modelsSlice downloads', () => {
     await useAppStore.getState().refreshDownloads();
 
     expect(Object.keys(useAppStore.getState().downloads).sort()).toEqual(['a', 'b']);
-    expect(selectDownloadFor(useAppStore.getState(), 'a')?.model_id).toBe('a');
   });
 
   it('enqueueDownload optimistically records a queued job and calls the bridge', async () => {
@@ -36,7 +34,7 @@ describe('modelsSlice downloads', () => {
   });
 
   it('a backend error during enqueue leaves existing downloads intact', async () => {
-    useAppStore.getState().setDownloadJob(job({ model_id: 'keep', status: 'downloading' }));
+    useAppStore.setState({ downloads: { keep: job({ model_id: 'keep', status: 'downloading' }) } });
     const download = vi.fn().mockRejectedValue(new Error('backend down'));
     (globalThis as any).window = { electron: { models: { download } } };
 

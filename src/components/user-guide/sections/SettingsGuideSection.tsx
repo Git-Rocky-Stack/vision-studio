@@ -34,9 +34,9 @@ export function SettingsGuideSection() {
       <GuideStepList
         steps={[
           {
-            title: 'General: output path, autosave, backend autostart',
+            title: 'General: output path and backend autostart',
             description:
-              'Pick the Default Output Location with Browse, toggle Auto Save for local project state, and keep Backend Autostart on for normal use. Changing the output folder restarts the backend; existing assets stay reachable in their original root. Storage Usage shows the library size and offers Clear Cache.',
+              'Pick the Default Output Location with Browse and keep Backend Autostart on for normal use. Projects and settings are saved automatically as you work. Changing the output folder restarts the backend; existing assets stay reachable in their original root. Storage Usage shows the library size and offers Clear Cache.',
           },
           {
             title: 'AI & Models: GPU and backend',
@@ -51,7 +51,7 @@ export function SettingsGuideSection() {
           {
             title: 'AI & Models: over-budget policy, tagging, and AI Director',
             description:
-              'Over-Budget Policy picks a fallback provider for local runs projected to exceed your GPU budget and can auto-route them without asking. AI Tagging Mode controls when assets are tagged. AI Director (RAG) grounds prompt assist in your prompts, assets, and a model-prompting knowledge base.',
+              'Over-Budget Policy picks a fallback provider for local runs projected to exceed your GPU budget and can auto-route them without asking. The prompt-based tagging mode controls when assets are tagged from their prompts. AI Director (RAG) grounds prompt assist in your prompts, assets, and a model-prompting knowledge base.',
           },
           {
             title: 'Performance: tune acceleration for your GPU',

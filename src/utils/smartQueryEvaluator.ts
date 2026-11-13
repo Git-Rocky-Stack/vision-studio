@@ -1,4 +1,6 @@
 import type { SmartQuery, AssetMetadata } from '@/types/collections';
+import type { AssetRecord } from '@/types/assets';
+import { isLexiconTerm, promptHasTerm } from '@/features/assets/assetAnalysis';
 
 interface GenerationContext {
   prompt?: string;
@@ -31,13 +33,19 @@ export function evaluateSmartQuery(
     }
   }
 
-  // Tag match
+  // Tag match (any listed tag). Lexicon tags come from analysis, so they need
+  // the asset's metadata. A custom (user-authored) tag is outside the lexicon,
+  // so analysis can never emit it; it matches the prompt directly, whole-word,
+  // by the same rule analysis applies - which is what makes it usable at all.
   if (query.tags && query.tags.length > 0) {
-    if (!metadata) return false;
-    const assetTagNames = new Set(metadata.tags.map(t => t.name.toLowerCase()));
-    if (!query.tags.some(t => assetTagNames.has(t.toLowerCase()))) {
-      return false;
-    }
+    const assetTagNames = new Set((metadata?.tags ?? []).map(t => t.name.toLowerCase()));
+    const prompt = generationContext?.prompt;
+    const matched = query.tags.some((raw) => {
+      const tag = raw.toLowerCase();
+      if (assetTagNames.has(tag)) return true;
+      return !isLexiconTerm(tag) && typeof prompt === 'string' && promptHasTerm(prompt, tag);
+    });
+    if (!matched) return false;
   }
 
   // Date range match
@@ -73,4 +81,49 @@ export function evaluateSmartQuery(
   }
 
   return true;
+}
+
+/** Coerce an AssetRecord timestamp (ISO string, or epoch ms) to epoch ms. */
+function toEpochMs(value: unknown): number | undefined {
+  if (typeof value === 'number') return value;
+  if (typeof value !== 'string') return undefined;
+  const parsed = new Date(value).getTime();
+  return Number.isNaN(parsed) ? undefined : parsed;
+}
+
+/** The asset fields a smart query reads. */
+type QueryableAsset = Pick<AssetRecord, 'id' | 'prompt' | 'model' | 'createdAt'>;
+
+/**
+ * Ids of the library assets a query matches, in library order - the same
+ * evaluation the store's refreshSmartCollection runs, so a live preview of a
+ * query shows exactly what the collection will hold once created.
+ */
+export function collectSmartQueryMatches(
+  query: SmartQuery,
+  library: readonly QueryableAsset[],
+  metadata: ReadonlyMap<string, AssetMetadata>,
+): string[] {
+  return library
+    .filter((asset) =>
+      evaluateSmartQuery(
+        query,
+        { prompt: asset.prompt, model: asset.model, createdAt: toEpochMs(asset.createdAt) },
+        metadata.get(asset.id),
+      ),
+    )
+    .map((asset) => asset.id);
+}
+
+/** True when the query states at least one rule (an empty query matches everything). */
+export function hasSmartQueryCriteria(query: SmartQuery): boolean {
+  return Boolean(
+    query.promptText?.trim() ||
+      query.model ||
+      query.tags?.length ||
+      query.dateRange ||
+      query.styleCategories?.length ||
+      query.colorPalette?.length ||
+      query.mood?.length,
+  );
 }

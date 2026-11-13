@@ -1,11 +1,12 @@
 import crypto from 'node:crypto';
-import { ipcMain, BrowserWindow } from 'electron';
+import { app, ipcMain, BrowserWindow } from 'electron';
 import WebSocket from 'ws';
 import {
   backendHttp,
   BACKEND_LONG_OPERATION_TIMEOUT_MS,
 } from '../services/backendHttp';
 import {
+  BACKEND_AUTH_HEADER,
   getBackendAuthToken,
   backendAuthHeaders,
   hfTokenHeaders,
@@ -20,10 +21,8 @@ import { submitBatch } from './submitBatch';
 import { toOpenRouterRendererMessage } from './openRouterError';
 import { buildPromptContext } from '../services/promptAugmentation';
 import { createRetrievalClient } from '../services/retrievalClient';
-import { mergeJobsByCreatedAtDesc } from './jobListing';
 import { routeBackendWsMessage } from './backendWsRouting';
 import {
-  BACKEND_DOWN_MESSAGE as _BACKEND_DOWN_MESSAGE,
   SUBMIT_ONCE,
   describeBackendError,
   requestBackend,
@@ -53,15 +52,18 @@ import {
   isHuggingFaceVideoJobId,
   routedJobProvider,
 } from './hostedImageRouting';
-
-void _BACKEND_DOWN_MESSAGE; // Re-exported by callers via './backendRequest'.
+import { handleIpc, type IpcHandler } from './ipcHandle';
+import { assertBackendIdentityVerified, isBackendIdentityVerified } from './backendIdentityGate';
+import type { EditOperation, IpcChannel } from '../../shared/ipcContract';
 
 const BACKEND_URL = 'http://127.0.0.1:8000';
 
 // M7: AI Director retrieval client. The prompt-assist seam queries it for
 // reference context; all calls degrade gracefully (buildPromptContext swallows
 // failures) so the assist proceeds un-augmented when the backend is unreachable.
-const retrievalClient = createRetrievalClient({ baseUrl: BACKEND_URL, authHeaders: backendAuthHeaders });
+const retrievalClient = createRetrievalClient({ baseUrl: BACKEND_URL, authHeaders: verifiedAuthHeaders });
+// K2: the session token travels in the upgrade request's header, never in the
+// URL (a query string lands in proxy, crash and access logs).
 const WS_URL = 'ws://127.0.0.1:8000/ws';
 const BATCH_SUBMISSION_CONCURRENCY = 4;
 
@@ -69,7 +71,42 @@ let ws: WebSocket | null = null;
 let mainWindow: BrowserWindow | null = null;
 let wsReconnectAttempts = 0;
 let wsReconnectTimer: ReturnType<typeof setTimeout> | null = null;
+let wsDisposed = false;
+let quitHookRegistered = false;
 const WS_BASE_DELAY = 1000; // 1s initial delay, doubles each attempt up to 30s
+
+/** How often an unverified backend is re-checked before the WebSocket connects. */
+const WS_IDENTITY_POLL_MS = 1000;
+
+/** A backend path segment built from a renderer-supplied id. */
+function segment(value: string) {
+  return encodeURIComponent(value);
+}
+
+/**
+ * The session-token header, only once the backend proved its identity (K1).
+ * Called inside each request thunk, so an unverified backend fails the call
+ * immediately (requestBackend never retries BACKEND_UNVERIFIED) without the
+ * token - or a forwarded HF / CivitAI token - leaving the process.
+ */
+function verifiedAuthHeaders(): Record<string, string> {
+  assertBackendIdentityVerified();
+  return backendAuthHeaders();
+}
+
+/**
+ * The rejection a handler throws for a failed backend call: a renderer-safe
+ * message only. Deliberately without `cause` - the caught AxiosError carries
+ * the token-bearing request headers and must not travel or be logged.
+ */
+function backendFailure(error: unknown, fallbackMessage: string): Error {
+  return new Error(toSafeRendererError(error, fallbackMessage));
+}
+
+/** Register a contract handler on the real ipcMain (sender-checked, validated). */
+function on<C extends IpcChannel>(channel: C, handler: IpcHandler<C>) {
+  handleIpc(ipcMain, channel, handler);
+}
 
 /**
  * Renderer sink for job and progress events. The target window is swapped
@@ -160,6 +197,12 @@ function dispatchHuggingFaceVideoJob(jobId: string, params: Record<string, unkno
 
 export function setupGenerationHandlers(window: BrowserWindow) {
   mainWindow = window;
+  if (!quitHookRegistered) {
+    quitHookRegistered = true;
+    // Close the socket and cancel any pending reconnect when the app quits, so
+    // neither keeps the event loop alive nor reconnects during shutdown.
+    app.on('will-quit', disposeBackendWebSocket);
+  }
   // One socket per app session. macOS re-activate creates a new window and
   // calls this again; only the event target changes. Opening a second socket
   // here left the first one connected too, so every progress event reached
@@ -176,11 +219,24 @@ export function setupGenerationHandlers(window: BrowserWindow) {
  * backend reports ready; a no-op while a socket is open or connecting.
  */
 export function kickBackendWebSocket() {
+  if (wsDisposed) {
+    return;
+  }
   wsReconnectAttempts = 0;
   if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
     return;
   }
   connectWebSocket();
+}
+
+/** Tear down the progress socket for good (app 'will-quit'). */
+export function disposeBackendWebSocket() {
+  wsDisposed = true;
+  if (wsReconnectTimer) {
+    clearTimeout(wsReconnectTimer);
+    wsReconnectTimer = null;
+  }
+  retireSocket();
 }
 
 export function configureGenerationHandlerServices({
@@ -200,22 +256,43 @@ export function configureGenerationHandlerServices({
   outputRootService = outputRoots;
 }
 
+/**
+ * Retire the current socket so it can neither deliver duplicate events nor
+ * schedule a second reconnect loop. Keeps a no-op error listener: terminating
+ * a socket mid-handshake emits 'error'.
+ */
+function retireSocket() {
+  if (!ws) {
+    return;
+  }
+  const previous = ws;
+  ws = null;
+  previous.removeAllListeners();
+  previous.on('error', () => undefined);
+  previous.terminate();
+}
+
 function connectWebSocket() {
+  if (wsDisposed) {
+    return;
+  }
   if (wsReconnectTimer) {
     clearTimeout(wsReconnectTimer);
     wsReconnectTimer = null;
   }
-  if (ws) {
-    // Retire the previous socket so it can neither deliver duplicate events
-    // nor schedule a second reconnect loop. Keep a no-op error listener:
-    // terminating a socket mid-handshake emits 'error'.
-    const previous = ws;
-    previous.removeAllListeners();
-    previous.on('error', () => undefined);
-    previous.terminate();
+  retireSocket();
+
+  // Never hand the session token to whatever listens on :8000 before the K1
+  // handshake has verified it is our backend. Re-check shortly (no network
+  // cost); kickBackendWebSocket() connects at once when the backend reports ready.
+  if (!isBackendIdentityVerified()) {
+    wsReconnectTimer = setTimeout(connectWebSocket, WS_IDENTITY_POLL_MS);
+    return;
   }
 
-  const socket = new WebSocket(`${WS_URL}?token=${encodeURIComponent(getBackendAuthToken())}`);
+  const socket = new WebSocket(WS_URL, {
+    headers: { [BACKEND_AUTH_HEADER]: getBackendAuthToken() },
+  });
   ws = socket;
 
   socket.on('open', () => {
@@ -228,7 +305,7 @@ function connectWebSocket() {
   });
 
   socket.on('close', () => {
-    if (ws !== socket) {
+    if (ws !== socket || wsDisposed) {
       return;
     }
     const delay = Math.min(WS_BASE_DELAY * Math.pow(2, wsReconnectAttempts), 30000);
@@ -238,31 +315,40 @@ function connectWebSocket() {
   });
 
   socket.on('error', (err) => {
-    console.error('WebSocket error:', err instanceof Error ? err.message : err);
+    console.error('WebSocket error:', err instanceof Error ? err.message : String(err));
   });
 }
 
-ipcMain.handle(
-  'workflow:run-graph',
-  async (_event, params: { graph: unknown; generationType: 'image' | 'video' }) => {
+on('workflow:run-graph', async (_event, params) => {
+  try {
     const response = await requestBackend(() =>
       backendHttp.post(
         `${BACKEND_URL}/api/v1/comfy/run-graph`,
         { graph: params.graph, generation_type: params.generationType },
-        { headers: backendAuthHeaders() }
+        { headers: verifiedAuthHeaders() }
       ),
       SUBMIT_ONCE,
     );
-    return response.data;
+    const data = response.data as { job_id?: unknown; status?: unknown; message?: unknown };
+    if (typeof data?.job_id !== 'string') {
+      return { success: false as const, error: 'The backend did not accept the graph.' };
+    }
+    return {
+      success: true as const,
+      job_id: data.job_id,
+      status: typeof data.status === 'string' ? data.status : 'pending',
+      message: typeof data.message === 'string' ? data.message : '',
+    };
+  } catch (error) {
+    // Message only: the raw AxiosError carries the token-bearing request headers.
+    console.error('Run graph error:', describeBackendError(error));
+    return { success: false as const, error: toSafeRendererError(error, 'Could not run the graph on the backend.') };
   }
-);
+});
 
-ipcMain.handle('generation:generate-image', async (_event, params) => {
+on('generation:generate-image', async (_event, params) => {
   const activeAccount = userAccountsService?.getActiveAccount();
-  const providerOverride =
-    params?.__providerOverride === 'openrouter' || params?.__providerOverride === 'huggingface'
-      ? (params.__providerOverride as 'openrouter' | 'huggingface')
-      : null;
+  const providerOverride = params.__providerOverride ?? null;
   const effectiveImageProvider = providerOverride ?? activeAccount?.preferences.imageGenerationProvider;
   if (activeAccount && effectiveImageProvider === 'openrouter') {
     if (hasUnsupportedOpenRouterImageInputs(params)) {
@@ -274,7 +360,7 @@ ipcMain.handle('generation:generate-image', async (_event, params) => {
 
     // #42: OpenRouter's documented image API has no adapter key - the LoRA
     // decline is permanent, and the request must never be silently degraded.
-    if (Array.isArray(params?.loras) && params.loras.length > 0) {
+    if (Array.isArray(params.loras) && params.loras.length > 0) {
       return { success: false, error: OPENROUTER_LORA_UNSUPPORTED_MESSAGE };
     }
 
@@ -286,7 +372,7 @@ ipcMain.handle('generation:generate-image', async (_event, params) => {
     }
 
     const requestedModel =
-      (typeof params?.model === 'string' && params.model.trim()) ||
+      (typeof params.model === 'string' && params.model.trim()) ||
       activeAccount.preferences.openRouterImageModel.trim();
     if (!requestedModel) {
       return {
@@ -329,8 +415,8 @@ ipcMain.handle('generation:generate-image', async (_event, params) => {
     // (exactly one selection, weight 1.0, renderer-resolved Hub repo id) -
     // refused here with the specific unmet condition, never silently dropped.
     const loraDispatch = validateHuggingFaceLoraDispatch(
-      params?.loras,
-      params?.__huggingFaceLoraAdapter,
+      params.loras,
+      params.__huggingFaceLoraAdapter,
     );
     if (!loraDispatch.ok) {
       return { success: false, error: loraDispatch.reason };
@@ -344,7 +430,7 @@ ipcMain.handle('generation:generate-image', async (_event, params) => {
     }
 
     const requestedModel =
-      (typeof params?.model === 'string' && params.model.trim()) ||
+      (typeof params.model === 'string' && params.model.trim()) ||
       activeAccount.preferences.huggingFaceImageModel.trim();
     if (!requestedModel) {
       return {
@@ -376,14 +462,14 @@ ipcMain.handle('generation:generate-image', async (_event, params) => {
 
   try {
     const response = await requestBackend(() =>
-      backendHttp.post(`${BACKEND_URL}/api/generate/image`, params, { headers: backendAuthHeaders() }),
+      backendHttp.post(`${BACKEND_URL}/api/generate/image`, params, { headers: verifiedAuthHeaders() }),
       SUBMIT_ONCE,
     );
     return {
       success: true,
       jobId: response.data.job_id,
     };
-  } catch (error: any) {
+  } catch (error) {
     console.error('Image generation error:', describeBackendError(error));
     return {
       success: false,
@@ -392,9 +478,9 @@ ipcMain.handle('generation:generate-image', async (_event, params) => {
   }
 });
 
-ipcMain.handle('generation:generate-video', async (_event, params) => {
+on('generation:generate-video', async (_event, params) => {
   const activeAccount = userAccountsService?.getActiveAccount();
-  const providerOverride = params?.__providerOverride === 'huggingface' ? 'huggingface' : null;
+  const providerOverride = params.__providerOverride ?? null;
   const effectiveVideoProvider = providerOverride ?? activeAccount?.preferences.videoGenerationProvider;
   if (activeAccount && effectiveVideoProvider === 'huggingface') {
     if (!activeAccount.huggingFace.tokenStored) {
@@ -405,7 +491,7 @@ ipcMain.handle('generation:generate-video', async (_event, params) => {
     }
 
     const requestedModel =
-      (typeof params?.model === 'string' && params.model.trim()) ||
+      (typeof params.model === 'string' && params.model.trim()) ||
       activeAccount.preferences.huggingFaceVideoModel.trim();
     if (!requestedModel) {
       return {
@@ -437,14 +523,14 @@ ipcMain.handle('generation:generate-video', async (_event, params) => {
 
   try {
     const response = await requestBackend(() =>
-      backendHttp.post(`${BACKEND_URL}/api/generate/video`, params, { headers: backendAuthHeaders() }),
+      backendHttp.post(`${BACKEND_URL}/api/generate/video`, params, { headers: verifiedAuthHeaders() }),
       SUBMIT_ONCE,
     );
     return {
       success: true,
       jobId: response.data.job_id,
     };
-  } catch (error: any) {
+  } catch (error) {
     console.error('Video generation error:', describeBackendError(error));
     return {
       success: false,
@@ -453,10 +539,10 @@ ipcMain.handle('generation:generate-video', async (_event, params) => {
   }
 });
 
-ipcMain.handle('generation:enhance-prompt', async (_event, params) => {
+on('generation:enhance-prompt', async (_event, params) => {
   const activeAccount = userAccountsService?.getActiveAccount();
   if (activeAccount?.preferences.promptEnhancementProvider === 'openrouter') {
-    const apiKey = userAccountsService?.getOpenRouterApiKey(activeAccount.id);
+    const apiKey = await userAccountsService?.getOpenRouterApiKey(activeAccount.id);
 
     if (!apiKey || !openRouterService) {
       return {
@@ -480,7 +566,7 @@ ipcMain.handle('generation:enhance-prompt', async (_event, params) => {
         provenance: promptCtx.provenance,
         contextMode: promptCtx.mode,
       };
-    } catch (error: any) {
+    } catch (error) {
       return {
         success: false,
         error: toOpenRouterRendererMessage(error, 'Prompt enhancement failed'),
@@ -489,7 +575,7 @@ ipcMain.handle('generation:enhance-prompt', async (_event, params) => {
   }
 
   if (activeAccount?.preferences.promptEnhancementProvider === 'huggingface') {
-    const token = userAccountsService?.getHuggingFaceToken(activeAccount.id);
+    const token = await userAccountsService?.getHuggingFaceToken(activeAccount.id);
     if (!token || !huggingFaceService) {
       return {
         success: false,
@@ -512,7 +598,7 @@ ipcMain.handle('generation:enhance-prompt', async (_event, params) => {
         provenance: promptCtx.provenance,
         contextMode: promptCtx.mode,
       };
-    } catch (error: any) {
+    } catch (error) {
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Prompt enhancement failed',
@@ -522,10 +608,10 @@ ipcMain.handle('generation:enhance-prompt', async (_event, params) => {
 
   try {
     const response = await requestBackend(() =>
-      backendHttp.post(`${BACKEND_URL}/api/prompts/enhance`, params, { headers: backendAuthHeaders() }),
+      backendHttp.post(`${BACKEND_URL}/api/prompts/enhance`, params, { headers: verifiedAuthHeaders() }),
     );
     return toLocalPromptEnhanceResult(response.data);
-  } catch (error: any) {
+  } catch (error) {
     return {
       success: false,
       error: toSafeRendererError(error, 'Prompt enhancement failed'),
@@ -533,10 +619,10 @@ ipcMain.handle('generation:enhance-prompt', async (_event, params) => {
   }
 });
 
-ipcMain.handle('generation:suggest-negative-prompt', async (_event, params) => {
+on('generation:suggest-negative-prompt', async (_event, params) => {
   const activeAccount = userAccountsService?.getActiveAccount();
   if (activeAccount?.preferences.promptEnhancementProvider === 'openrouter') {
-    const apiKey = userAccountsService?.getOpenRouterApiKey(activeAccount.id);
+    const apiKey = await userAccountsService?.getOpenRouterApiKey(activeAccount.id);
 
     if (!apiKey || !openRouterService) {
       return {
@@ -561,7 +647,7 @@ ipcMain.handle('generation:suggest-negative-prompt', async (_event, params) => {
         provenance: promptCtx.provenance,
         contextMode: promptCtx.mode,
       };
-    } catch (error: any) {
+    } catch (error) {
       return {
         success: false,
         error: toOpenRouterRendererMessage(error, 'Negative prompt suggestion failed'),
@@ -570,7 +656,7 @@ ipcMain.handle('generation:suggest-negative-prompt', async (_event, params) => {
   }
 
   if (activeAccount?.preferences.promptEnhancementProvider === 'huggingface') {
-    const token = userAccountsService?.getHuggingFaceToken(activeAccount.id);
+    const token = await userAccountsService?.getHuggingFaceToken(activeAccount.id);
     if (!token || !huggingFaceService) {
       return {
         success: false,
@@ -594,7 +680,7 @@ ipcMain.handle('generation:suggest-negative-prompt', async (_event, params) => {
         provenance: promptCtx.provenance,
         contextMode: promptCtx.mode,
       };
-    } catch (error: any) {
+    } catch (error) {
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Negative prompt suggestion failed',
@@ -610,7 +696,7 @@ ipcMain.handle('generation:suggest-negative-prompt', async (_event, params) => {
         negativePrompt: params.negativePrompt,
       }),
     };
-  } catch (error: any) {
+  } catch (error) {
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Negative prompt suggestion failed',
@@ -620,7 +706,7 @@ ipcMain.handle('generation:suggest-negative-prompt', async (_event, params) => {
 
 // M7 AI Director index management. Non-fatal: a retrieval failure must never
 // break the renderer, so every handler returns a safe shape on error.
-ipcMain.handle('director:sync-corpus', async (_event, records) => {
+on('director:sync-corpus', async (_event, records) => {
   try {
     return await retrievalClient.ingest(records);
   } catch (error) {
@@ -628,15 +714,7 @@ ipcMain.handle('director:sync-corpus', async (_event, records) => {
   }
 });
 
-ipcMain.handle('director:ingest-record', async (_event, record) => {
-  try {
-    return await retrievalClient.ingest([record]);
-  } catch {
-    return { ingested: 0, skipped: 0, total: 0 };
-  }
-});
-
-ipcMain.handle('director:clear-index', async () => {
+on('director:clear-index', async () => {
   try {
     await retrievalClient.clearIndex();
     return { success: true };
@@ -645,7 +723,7 @@ ipcMain.handle('director:clear-index', async () => {
   }
 });
 
-ipcMain.handle('director:index-stats', async () => {
+on('director:index-stats', async () => {
   try {
     return await retrievalClient.stats();
   } catch {
@@ -653,29 +731,39 @@ ipcMain.handle('director:index-stats', async () => {
   }
 });
 
-ipcMain.handle('generation:crop-image', async (_event, params) => {
+on('generation:crop-image', async (_event, params) => {
   try {
     const response = await requestBackend(() =>
-      backendHttp.post(`${BACKEND_URL}/api/images/crop`, params, { headers: backendAuthHeaders() }),
+      backendHttp.post(`${BACKEND_URL}/api/images/crop`, params, { headers: verifiedAuthHeaders() }),
     );
     return response.data;
-  } catch (error: any) {
-    return {
-      success: false,
-      error: toSafeRendererError(error, 'Image crop failed'),
-    };
+  } catch (error) {
+    console.error('Image crop error:', describeBackendError(error));
+    throw backendFailure(error, 'Image crop failed');
   }
 });
 
-ipcMain.handle('generation:edit-image', async (_event, params) => {
+/** Backend route per edit operation; the contract only admits these keys. */
+const EDIT_ROUTES: Record<EditOperation, string> = {
+  'remove-background': '/api/v1/edit/remove-background',
+  upscale: '/api/v1/edit/upscale',
+  'restore-faces': '/api/v1/edit/restore-faces',
+};
+
+on('generation:edit-image', async (_event, params) => {
+  const { operation, ...body } = params;
+  const route = EDIT_ROUTES[operation];
+  if (!route) {
+    return { success: false, error: 'Unknown edit operation.' };
+  }
   try {
-    const { operation, ...body } = params ?? {};
     const response = await requestBackend(() =>
-      backendHttp.post(`${BACKEND_URL}/api/v1/edit/${operation}`, body, { headers: backendAuthHeaders() }),
+      backendHttp.post(`${BACKEND_URL}${route}`, body, { headers: verifiedAuthHeaders() }),
       SUBMIT_ONCE,
     );
     return { success: true, jobId: response.data.job_id };
-  } catch (error: any) {
+  } catch (error) {
+    console.error('Edit operation error:', describeBackendError(error));
     return {
       success: false,
       error: toSafeRendererError(error, 'Edit operation failed'),
@@ -683,31 +771,29 @@ ipcMain.handle('generation:edit-image', async (_event, params) => {
   }
 });
 
-ipcMain.handle('generation:extract-video-frame', async (_event, params) => {
+on('generation:extract-video-frame', async (_event, params) => {
   try {
     const response = await requestBackend(() =>
-      backendHttp.post(`${BACKEND_URL}/api/videos/extract-frame`, params, { headers: backendAuthHeaders() }),
+      backendHttp.post(`${BACKEND_URL}/api/videos/extract-frame`, params, { headers: verifiedAuthHeaders() }),
     );
     return response.data;
-  } catch (error: any) {
-    return {
-      success: false,
-      error: toSafeRendererError(error, 'Video frame extraction failed'),
-    };
+  } catch (error) {
+    console.error('Video frame extraction error:', describeBackendError(error));
+    throw backendFailure(error, 'Video frame extraction failed');
   }
 });
 
-ipcMain.handle('generation:export-timeline-sequence', async (_event, params) => {
+on('generation:export-timeline-sequence', async (_event, params) => {
   try {
     const response = await requestBackend(() =>
-      backendHttp.post(`${BACKEND_URL}/api/timeline/export`, params, { headers: backendAuthHeaders() }),
+      backendHttp.post(`${BACKEND_URL}/api/timeline/export`, params, { headers: verifiedAuthHeaders() }),
       SUBMIT_ONCE,
     );
     return {
       success: true,
       jobId: response.data.job_id,
     };
-  } catch (error: any) {
+  } catch (error) {
     console.error('Timeline export error:', describeBackendError(error));
     return {
       success: false,
@@ -716,13 +802,8 @@ ipcMain.handle('generation:export-timeline-sequence', async (_event, params) => 
   }
 });
 
-ipcMain.handle('generation:batch', async (_event, params) => {
-  const prompts = Array.isArray(params?.prompts)
-    ? params.prompts
-        .filter((prompt: unknown): prompt is string => typeof prompt === 'string')
-        .map((prompt: string) => prompt.trim())
-        .filter(Boolean)
-    : [];
+on('generation:batch', async (_event, params) => {
+  const prompts = params.prompts.map((prompt) => prompt.trim()).filter(Boolean);
 
   if (prompts.length === 0) {
     return {
@@ -731,7 +812,7 @@ ipcMain.handle('generation:batch', async (_event, params) => {
     };
   }
 
-  const { prompts: _prompts, ...baseParams } = params ?? {};
+  const { prompts: _prompts, ...baseParams } = params;
 
   const activeAccount = userAccountsService?.getActiveAccount();
   if (activeAccount?.preferences.imageGenerationProvider === 'openrouter') {
@@ -743,7 +824,7 @@ ipcMain.handle('generation:batch', async (_event, params) => {
     }
 
     // #42: same permanent OpenRouter LoRA decline as the single-image handler.
-    if (Array.isArray(params?.loras) && params.loras.length > 0) {
+    if (Array.isArray(params.loras) && params.loras.length > 0) {
       return { success: false, error: OPENROUTER_LORA_UNSUPPORTED_MESSAGE };
     }
 
@@ -755,7 +836,7 @@ ipcMain.handle('generation:batch', async (_event, params) => {
     }
 
     const requestedModel =
-      (typeof params?.model === 'string' && params.model.trim()) ||
+      (typeof params.model === 'string' && params.model.trim()) ||
       activeAccount.preferences.openRouterImageModel.trim();
     if (!requestedModel) {
       return {
@@ -764,7 +845,7 @@ ipcMain.handle('generation:batch', async (_event, params) => {
       };
     }
 
-    const jobIds = prompts.map((prompt: string) => {
+    const jobIds = prompts.map((prompt) => {
       const jobId = `${OPENROUTER_JOB_PREFIX}-${crypto.randomUUID()}`;
       const jobParams = {
         ...baseParams,
@@ -803,8 +884,8 @@ ipcMain.handle('generation:batch', async (_event, params) => {
 
     // #42: same narrow adapter contract as the single-image handler above.
     const loraDispatch = validateHuggingFaceLoraDispatch(
-      params?.loras,
-      params?.__huggingFaceLoraAdapter,
+      params.loras,
+      params.__huggingFaceLoraAdapter,
     );
     if (!loraDispatch.ok) {
       return { success: false, error: loraDispatch.reason };
@@ -818,7 +899,7 @@ ipcMain.handle('generation:batch', async (_event, params) => {
     }
 
     const requestedModel =
-      (typeof params?.model === 'string' && params.model.trim()) ||
+      (typeof params.model === 'string' && params.model.trim()) ||
       activeAccount.preferences.huggingFaceImageModel.trim();
     if (!requestedModel) {
       return {
@@ -827,7 +908,7 @@ ipcMain.handle('generation:batch', async (_event, params) => {
       };
     }
 
-    const jobIds = prompts.map((prompt: string) => {
+    const jobIds = prompts.map((prompt) => {
       const jobId = `${HUGGINGFACE_JOB_PREFIX}-${crypto.randomUUID()}`;
       const jobParams = {
         ...baseParams,
@@ -866,7 +947,7 @@ ipcMain.handle('generation:batch', async (_event, params) => {
               ...baseParams,
               prompt,
             },
-            { headers: backendAuthHeaders() },
+            { headers: verifiedAuthHeaders() },
           ),
           SUBMIT_ONCE,
         );
@@ -879,7 +960,7 @@ ipcMain.handle('generation:batch', async (_event, params) => {
       success: true,
       jobIds,
     };
-  } catch (error: any) {
+  } catch (error) {
     console.error('Batch generation error:', describeBackendError(error));
     return {
       success: false,
@@ -888,7 +969,7 @@ ipcMain.handle('generation:batch', async (_event, params) => {
   }
 });
 
-ipcMain.handle('generation:get-status', async (_event, jobId: string) => {
+on('generation:get-status', async (_event, jobId) => {
   const provider = routedJobProvider(jobId);
   if (provider === 'openrouter') {
     const status = openRouterImageJobStore.getStatus(jobId);
@@ -907,19 +988,18 @@ ipcMain.handle('generation:get-status', async (_event, jobId: string) => {
 
   try {
     const response = await requestBackend(() =>
-      backendHttp.get(`${BACKEND_URL}/api/jobs/${jobId}`, { headers: backendAuthHeaders() }),
+      backendHttp.get(`${BACKEND_URL}/api/jobs/${segment(jobId)}`, { headers: verifiedAuthHeaders() }),
     );
     return response.data;
-  } catch (error: any) {
+  } catch (error) {
+    // Rejects (via the IPC envelope) rather than resolving a failure body the
+    // renderer would read as a JobStatus; every poller budgets these errors.
     console.error('Get status error:', describeBackendError(error));
-    return {
-      success: false,
-      error: toSafeRendererError(error, 'Could not get generation status'),
-    };
+    throw backendFailure(error, 'Could not get generation status');
   }
 });
 
-ipcMain.handle('generation:cancel', async (_event, jobId: string) => {
+on('generation:cancel', async (_event, jobId) => {
   const provider = routedJobProvider(jobId);
   if (provider === 'openrouter') {
     const currentJob = openRouterImageJobStore.get(jobId);
@@ -995,10 +1075,10 @@ ipcMain.handle('generation:cancel', async (_event, jobId: string) => {
 
   try {
     const response = await requestBackend(() =>
-      backendHttp.post(`${BACKEND_URL}/api/jobs/${jobId}/cancel`, undefined, { headers: backendAuthHeaders() }),
+      backendHttp.post(`${BACKEND_URL}/api/jobs/${segment(jobId)}/cancel`, undefined, { headers: verifiedAuthHeaders() }),
     );
     return response.data;
-  } catch (error: any) {
+  } catch (error) {
     console.error('Cancel job error:', describeBackendError(error));
     return {
       success: false,
@@ -1007,151 +1087,90 @@ ipcMain.handle('generation:cancel', async (_event, jobId: string) => {
   }
 });
 
-ipcMain.handle('generation:list-jobs', async (_event, options = {}) => {
-  const { status, limit = 50 } = options as { status?: string; limit?: number };
-  const localJobs = [
-    ...openRouterImageJobStore.values(),
-    ...huggingFaceImageJobStore.values(),
-    ...huggingFaceVideoJobStore.values(),
-  ].filter((job) => !status || job.status === status);
+// Foundry queue and library calls below reject (through the IPC envelope) on
+// a backend failure: their results are typed records the renderer merges
+// into state, so a `{ success: false }` body must never stand in for one.
 
-  try {
-    let url = `${BACKEND_URL}/api/jobs?limit=${limit}`;
-    if (status) {
-      url += `&status=${status}`;
-    }
-
-    const response = await requestBackend(() => backendHttp.get(url, { headers: backendAuthHeaders() }));
-    const backendJobs = Array.isArray(response.data?.jobs) ? response.data.jobs : [];
-    return {
-      ...response.data,
-      jobs: mergeJobsByCreatedAtDesc(localJobs, backendJobs, limit),
-    };
-  } catch (error: any) {
-    if (localJobs.length > 0) {
-      return {
-        jobs: mergeJobsByCreatedAtDesc(localJobs, [], limit),
-      };
-    }
-
-    console.error('List jobs error:', describeBackendError(error));
-    return {
-      success: false,
-      error: toSafeRendererError(error, 'Could not list jobs'),
-    };
-  }
-});
-
-// Note: 'system:get-info' is registered in electron/main.ts with richer backend-liveness handling.
-
-ipcMain.handle('models:list', async () => {
+on('models:list', async () => {
   try {
     const response = await requestBackend(() =>
-      backendHttp.get(`${BACKEND_URL}/api/models`, { headers: backendAuthHeaders() }),
+      backendHttp.get(`${BACKEND_URL}/api/models`, { headers: verifiedAuthHeaders() }),
     );
     return response.data;
-  } catch (error: any) {
+  } catch (error) {
     console.error('List models error:', describeBackendError(error));
     return [];
   }
 });
 
-ipcMain.handle('models:get', async (_event, modelId: string) => {
+on('models:download', async (_event, modelId) => {
   try {
     const response = await requestBackend(() =>
-      backendHttp.get(`${BACKEND_URL}/api/models/${modelId}`, { headers: backendAuthHeaders() }),
+      backendHttp.post(`${BACKEND_URL}/api/models/${segment(modelId)}/download`, undefined, {
+        // The backend routes X-HF-Token to HF downloads and X-Civitai-Token to
+        // CivitAI direct-URL downloads based on the model record's source.
+        headers: { ...verifiedAuthHeaders(), ...hfTokenHeaders(), ...civitaiTokenHeaders() },
+      }),
+      // Enqueues a download: a retried timeout could queue it twice.
+      SUBMIT_ONCE,
     );
     return response.data;
   } catch (error) {
-    console.error('Failed to get model record:', describeBackendError(error));
-    return null;
-  }
-});
-
-ipcMain.handle('models:download', async (_event, modelId: string) => {
-  try {
-    const response = await requestBackend(() =>
-      backendHttp.post(`${BACKEND_URL}/api/models/${modelId}/download`, undefined, {
-        // The backend routes X-HF-Token to HF downloads and X-Civitai-Token to
-        // CivitAI direct-URL downloads based on the model record's source.
-        headers: { ...backendAuthHeaders(), ...hfTokenHeaders(), ...civitaiTokenHeaders() },
-      }),
-    );
-    return response.data;
-  } catch (error: any) {
     console.error('Download model error:', describeBackendError(error));
-    return {
-      success: false,
-      error: toSafeRendererError(error, 'Model download failed'),
-    };
+    throw backendFailure(error, 'Model download failed');
   }
 });
 
-ipcMain.handle('models:download:pause', async (_event, modelId: string) => {
+on('models:download:pause', async (_event, modelId) => {
   try {
     const response = await requestBackend(() =>
-      backendHttp.post(`${BACKEND_URL}/api/models/${modelId}/download/pause`, undefined, {
-        headers: backendAuthHeaders(),
+      backendHttp.post(`${BACKEND_URL}/api/models/${segment(modelId)}/download/pause`, undefined, {
+        headers: verifiedAuthHeaders(),
       }),
     );
     return response.data;
-  } catch (error: any) {
+  } catch (error) {
     console.error('Pause download error:', describeBackendError(error));
-    return { success: false, error: toSafeRendererError(error, 'Pause failed') };
+    throw backendFailure(error, 'Pause failed');
   }
 });
 
-ipcMain.handle('models:download:resume', async (_event, modelId: string) => {
+on('models:download:resume', async (_event, modelId) => {
   try {
     const response = await requestBackend(() =>
-      backendHttp.post(`${BACKEND_URL}/api/models/${modelId}/download/resume`, undefined, {
-        headers: { ...backendAuthHeaders(), ...hfTokenHeaders(), ...civitaiTokenHeaders() },
+      backendHttp.post(`${BACKEND_URL}/api/models/${segment(modelId)}/download/resume`, undefined, {
+        headers: { ...verifiedAuthHeaders(), ...hfTokenHeaders(), ...civitaiTokenHeaders() },
       }),
     );
     return response.data;
-  } catch (error: any) {
+  } catch (error) {
     console.error('Resume download error:', describeBackendError(error));
-    return { success: false, error: toSafeRendererError(error, 'Resume failed') };
+    throw backendFailure(error, 'Resume failed');
   }
 });
 
-ipcMain.handle('models:download:cancel', async (_event, modelId: string) => {
+on('models:download:cancel', async (_event, modelId) => {
   try {
     const response = await requestBackend(() =>
-      backendHttp.post(`${BACKEND_URL}/api/models/${modelId}/download/cancel`, undefined, {
-        headers: backendAuthHeaders(),
+      backendHttp.post(`${BACKEND_URL}/api/models/${segment(modelId)}/download/cancel`, undefined, {
+        headers: verifiedAuthHeaders(),
       }),
     );
     return response.data;
-  } catch (error: any) {
+  } catch (error) {
     console.error('Cancel download error:', describeBackendError(error));
-    return { success: false, error: toSafeRendererError(error, 'Cancel failed') };
+    throw backendFailure(error, 'Cancel failed');
   }
 });
 
-ipcMain.handle('models:downloads:list', async () => {
+on('models:downloads:list', async () => {
   try {
     const response = await requestBackend(() =>
-      backendHttp.get(`${BACKEND_URL}/api/models/downloads`, { headers: backendAuthHeaders() }),
+      backendHttp.get(`${BACKEND_URL}/api/models/downloads`, { headers: verifiedAuthHeaders() }),
     );
     return response.data;
-  } catch (error: any) {
+  } catch (error) {
     console.error('List downloads error:', describeBackendError(error));
-    return [];
-  }
-});
-
-// Poll-based subscribe (mirrors the generation job-poll model): the renderer
-// calls this on an interval to get the current queue snapshot. A push channel
-// can replace this later without changing the renderer contract.
-ipcMain.handle('models:downloads:subscribe', async () => {
-  try {
-    const response = await requestBackend(() =>
-      backendHttp.get(`${BACKEND_URL}/api/models/downloads`, { headers: backendAuthHeaders() }),
-    );
-    return response.data;
-  } catch (error: any) {
-    console.error('Subscribe downloads error:', describeBackendError(error));
     return [];
   }
 });
@@ -1159,110 +1178,102 @@ ipcMain.handle('models:downloads:subscribe', async () => {
 // #34 installer PR2: first-run comprehensive auto-provisioning. Forwards to the
 // backend orchestrator, which drives the manifest's auto-set through the same
 // consent-gated download queue the manual "Download" button uses.
-ipcMain.handle('provision:status', async () => {
+on('provision:status', async () => {
   try {
     const response = await requestBackend(() =>
-      backendHttp.get(`${BACKEND_URL}/api/models/provision/status`, { headers: backendAuthHeaders() }),
+      backendHttp.get(`${BACKEND_URL}/api/models/provision/status`, { headers: verifiedAuthHeaders() }),
     );
     return response.data;
-  } catch (error: any) {
+  } catch (error) {
     console.error('Provision status error:', describeBackendError(error));
     return { success: false, error: toSafeRendererError(error, 'Provision status failed') };
   }
 });
 
-ipcMain.handle('provision:start', async () => {
+on('provision:start', async (_event, options) => {
+  // K3: an explicit subset installs just those models; omitted = the whole auto-set.
+  const body = options?.modelIds ? { model_ids: options.modelIds } : undefined;
   try {
     const response = await requestBackend(() =>
-      backendHttp.post(`${BACKEND_URL}/api/models/provision/start`, undefined, {
+      backendHttp.post(`${BACKEND_URL}/api/models/provision/start`, body, {
         // X-HF-Token is forwarded for the gated SD3.5 pipelines in the auto-set.
-        headers: { ...backendAuthHeaders(), ...hfTokenHeaders() },
+        headers: { ...verifiedAuthHeaders(), ...hfTokenHeaders() },
       }),
+      // Starts downloads: a retried timeout could enqueue the set twice.
+      SUBMIT_ONCE,
     );
     return response.data;
-  } catch (error: any) {
+  } catch (error) {
     console.error('Provision start error:', describeBackendError(error));
     return { success: false, error: toSafeRendererError(error, 'Provisioning could not start') };
   }
 });
 
-ipcMain.handle('provision:pause', async () => {
+on('provision:pause', async () => {
   try {
     const response = await requestBackend(() =>
       backendHttp.post(`${BACKEND_URL}/api/models/provision/pause`, undefined, {
-        headers: backendAuthHeaders(),
+        headers: verifiedAuthHeaders(),
       }),
     );
     return response.data;
-  } catch (error: any) {
+  } catch (error) {
     console.error('Provision pause error:', describeBackendError(error));
     return { success: false, error: toSafeRendererError(error, 'Provision pause failed') };
   }
 });
 
-ipcMain.handle('provision:resume', async () => {
+on('provision:resume', async () => {
   try {
     const response = await requestBackend(() =>
       backendHttp.post(`${BACKEND_URL}/api/models/provision/resume`, undefined, {
-        headers: { ...backendAuthHeaders(), ...hfTokenHeaders() },
+        headers: { ...verifiedAuthHeaders(), ...hfTokenHeaders() },
       }),
     );
     return response.data;
-  } catch (error: any) {
+  } catch (error) {
     console.error('Provision resume error:', describeBackendError(error));
     return { success: false, error: toSafeRendererError(error, 'Provision resume failed') };
   }
 });
 
-ipcMain.handle('provision:cancel', async () => {
+on('provision:cancel', async () => {
   try {
     const response = await requestBackend(() =>
       backendHttp.post(`${BACKEND_URL}/api/models/provision/cancel`, undefined, {
-        headers: backendAuthHeaders(),
+        headers: verifiedAuthHeaders(),
       }),
     );
     return response.data;
-  } catch (error: any) {
+  } catch (error) {
     console.error('Provision cancel error:', describeBackendError(error));
     return { success: false, error: toSafeRendererError(error, 'Provision cancel failed') };
   }
 });
 
-ipcMain.handle('provision:reverify', async () => {
+on('provision:reverify', async () => {
   try {
     const response = await requestBackend(() =>
       backendHttp.post(`${BACKEND_URL}/api/models/provision/reverify`, undefined, {
         // Reverify re-runs start(): the HF token is forwarded for any gated
         // auto-set model a repair re-fetch may need.
-        headers: { ...backendAuthHeaders(), ...hfTokenHeaders() },
+        headers: { ...verifiedAuthHeaders(), ...hfTokenHeaders() },
       }),
     );
     return response.data;
-  } catch (error: any) {
+  } catch (error) {
     console.error('Provision reverify error:', describeBackendError(error));
     return { success: false, error: toSafeRendererError(error, 'Provision verify failed') };
   }
 });
 
-ipcMain.handle('models:get-status', async (_event, modelId: string) => {
+on('models:delete', async (_event, modelId) => {
   try {
     const response = await requestBackend(() =>
-      backendHttp.get(`${BACKEND_URL}/api/models/${modelId}/status`, { headers: backendAuthHeaders() }),
+      backendHttp.delete(`${BACKEND_URL}/api/models/${segment(modelId)}`, { headers: verifiedAuthHeaders() }),
     );
     return response.data;
-  } catch (error: any) {
-    console.error('Get model status error:', describeBackendError(error));
-    return null;
-  }
-});
-
-ipcMain.handle('models:delete', async (_event, modelId: string) => {
-  try {
-    const response = await requestBackend(() =>
-      backendHttp.delete(`${BACKEND_URL}/api/models/${modelId}`, { headers: backendAuthHeaders() }),
-    );
-    return response.data;
-  } catch (error: any) {
+  } catch (error) {
     console.error('Delete model error:', describeBackendError(error));
     return {
       success: false,
@@ -1271,170 +1282,158 @@ ipcMain.handle('models:delete', async (_event, modelId: string) => {
   }
 });
 
-ipcMain.handle('models:import', async (_event, path: string, layoutHint: string) => {
+on('models:import', async (_event, path, layoutHint) => {
   try {
     const response = await requestBackend(() =>
       backendHttp.post(`${BACKEND_URL}/api/models/import`, { path, layout_hint: layoutHint }, {
-        headers: backendAuthHeaders(),
+        headers: verifiedAuthHeaders(),
         // Registers the root, then rescans every library synchronously.
         timeout: BACKEND_LONG_OPERATION_TIMEOUT_MS,
       }),
+      // Registers a library root: a retry after a slow first attempt would
+      // re-register and rescan it.
+      SUBMIT_ONCE,
     );
     return response.data;
-  } catch (error: any) {
+  } catch (error) {
     console.error('Import library root error:', describeBackendError(error));
-    return {
-      success: false,
-      error: toSafeRendererError(error, 'Library root import failed'),
-    };
+    throw backendFailure(error, 'Library root import failed');
   }
 });
 
-ipcMain.handle('models:scan', async () => {
+on('models:scan', async () => {
   try {
     const response = await requestBackend(() =>
       backendHttp.post(`${BACKEND_URL}/api/models/scan`, undefined, {
-        headers: backendAuthHeaders(),
+        headers: verifiedAuthHeaders(),
         timeout: BACKEND_LONG_OPERATION_TIMEOUT_MS,
       }),
     );
     return response.data;
-  } catch (error: any) {
+  } catch (error) {
     console.error('Library scan error:', describeBackendError(error));
-    return {
-      success: false,
-      error: toSafeRendererError(error, 'Library scan failed'),
-    };
+    throw backendFailure(error, 'Library scan failed');
   }
 });
 
-ipcMain.handle('models:libraries:list', async () => {
+on('models:libraries:list', async () => {
   try {
     const response = await requestBackend(() =>
-      backendHttp.get(`${BACKEND_URL}/api/models/libraries`, { headers: backendAuthHeaders() }),
+      backendHttp.get(`${BACKEND_URL}/api/models/libraries`, { headers: verifiedAuthHeaders() }),
     );
     return response.data;
-  } catch (error: any) {
+  } catch (error) {
     console.error('List library roots error:', describeBackendError(error));
     return [];
   }
 });
 
-ipcMain.handle('models:libraries:remove', async (_event, rootId: string) => {
+on('models:libraries:remove', async (_event, rootId) => {
   try {
     const response = await requestBackend(() =>
-      backendHttp.delete(`${BACKEND_URL}/api/models/libraries/${encodeURIComponent(rootId)}`, {
-        headers: backendAuthHeaders(),
+      backendHttp.delete(`${BACKEND_URL}/api/models/libraries/${segment(rootId)}`, {
+        headers: verifiedAuthHeaders(),
       }),
     );
     return response.data;
-  } catch (error: any) {
+  } catch (error) {
     console.error('Remove library root error:', describeBackendError(error));
+    throw backendFailure(error, 'Library root removal failed');
+  }
+});
+
+on('models:search', async (_event, query, source, page, nsfw) => {
+  try {
+    const response = await requestBackend(() =>
+      backendHttp.get(`${BACKEND_URL}/api/models/search`, {
+        params: { q: query, source, page, nsfw },
+        headers: { ...verifiedAuthHeaders(), ...hfTokenHeaders(), ...civitaiTokenHeaders() },
+      }),
+    );
+    return response.data;
+  } catch (error) {
+    // Message only: the raw AxiosError carries token-bearing request
+    // headers in config.headers and must never reach the log.
+    console.error('Model search error:', describeBackendError(error));
     return {
-      success: false,
-      error: toSafeRendererError(error, 'Library root removal failed'),
+      source,
+      query,
+      page,
+      results: [],
+      offline: true,
+      warning: toSafeRendererError(error, 'Model search failed'),
     };
   }
 });
 
-ipcMain.handle(
-  'models:search',
-  async (_event, query: string, source: 'hf' | 'civitai', page: number, nsfw: boolean) => {
-    try {
-      const response = await requestBackend(() =>
-        backendHttp.get(`${BACKEND_URL}/api/models/search`, {
-          params: { q: query, source, page, nsfw },
-          headers: { ...backendAuthHeaders(), ...hfTokenHeaders(), ...civitaiTokenHeaders() },
-        }),
-      );
-      return response.data;
-    } catch (error: any) {
-      // Message only: the raw AxiosError carries token-bearing request
-      // headers in config.headers and must never reach the log.
-      console.error('Model search error:', describeBackendError(error));
-      return {
-        source,
-        query,
-        page,
-        results: [],
-        offline: true,
-        warning: toSafeRendererError(error, 'Model search failed'),
-      };
-    }
-  },
-);
-
-ipcMain.handle(
-  'models:consent',
-  async (_event, modelId: string, kind: 'pickle' | 'trust_remote_code', granted: boolean) => {
-    try {
-      const response = await requestBackend(() =>
-        backendHttp.post(
-          `${BACKEND_URL}/api/models/consent`,
-          { model_id: modelId, kind, granted },
-          { headers: backendAuthHeaders() },
-        ),
-      );
-      return response.data;
-    } catch (error: any) {
-      console.error('Model consent error:', describeBackendError(error));
-      return { success: false, error: toSafeRendererError(error, 'Consent update failed') };
-    }
-  },
-);
-
-ipcMain.handle('models:convert', async (_event, modelId: string) => {
+on('models:consent', async (_event, modelId, kind, granted) => {
   try {
     const response = await requestBackend(() =>
       backendHttp.post(
-        `${BACKEND_URL}/api/models/${encodeURIComponent(modelId)}/convert-safetensors`,
+        `${BACKEND_URL}/api/models/consent`,
+        { model_id: modelId, kind, granted },
+        { headers: verifiedAuthHeaders() },
+      ),
+    );
+    return response.data;
+  } catch (error) {
+    console.error('Model consent error:', describeBackendError(error));
+    return { success: false, error: toSafeRendererError(error, 'Consent update failed') };
+  }
+});
+
+on('models:convert', async (_event, modelId) => {
+  try {
+    const response = await requestBackend(() =>
+      backendHttp.post(
+        `${BACKEND_URL}/api/models/${segment(modelId)}/convert-safetensors`,
         undefined,
-        { headers: backendAuthHeaders(), timeout: BACKEND_LONG_OPERATION_TIMEOUT_MS },
+        { headers: verifiedAuthHeaders(), timeout: BACKEND_LONG_OPERATION_TIMEOUT_MS },
       ),
       SUBMIT_ONCE,
     );
     return response.data;
-  } catch (error: any) {
+  } catch (error) {
     console.error('Model convert error:', describeBackendError(error));
     return { success: false, error: toSafeRendererError(error, 'Conversion failed') };
   }
 });
 
-ipcMain.handle('models:libraries:detect', async () => {
+on('models:libraries:detect', async () => {
   try {
     const response = await requestBackend(() =>
-      backendHttp.get(`${BACKEND_URL}/api/models/libraries/detect`, { headers: backendAuthHeaders() }),
+      backendHttp.get(`${BACKEND_URL}/api/models/libraries/detect`, { headers: verifiedAuthHeaders() }),
     );
     return response.data;
-  } catch (error: any) {
+  } catch (error) {
     console.error('Detect library roots error:', describeBackendError(error));
     return [];
   }
 });
 
-ipcMain.handle('hardware:get', async () => {
+on('hardware:get', async () => {
   try {
     const response = await requestBackend(() =>
-      backendHttp.get(`${BACKEND_URL}/api/hardware`, { headers: backendAuthHeaders() }),
+      backendHttp.get(`${BACKEND_URL}/api/hardware`, { headers: verifiedAuthHeaders() }),
     );
     return response.data;
-  } catch (error: any) {
+  } catch (error) {
     console.error('Hardware profile error:', describeBackendError(error));
     return { success: false, error: toSafeRendererError(error, 'Could not fetch hardware profile') };
   }
 });
 
-ipcMain.handle('models:resolveRuntime', async (_event, modelId: string) => {
+on('models:resolveRuntime', async (_event, modelId) => {
   try {
     const response = await requestBackend(() =>
       backendHttp.post(
-        `${BACKEND_URL}/api/models/${encodeURIComponent(modelId)}/resolve-runtime`,
+        `${BACKEND_URL}/api/models/${segment(modelId)}/resolve-runtime`,
         undefined,
-        { headers: backendAuthHeaders(), timeout: BACKEND_LONG_OPERATION_TIMEOUT_MS },
+        { headers: verifiedAuthHeaders(), timeout: BACKEND_LONG_OPERATION_TIMEOUT_MS },
       ),
     );
     return response.data;
-  } catch (error: any) {
+  } catch (error) {
     console.error('Resolve runtime error:', describeBackendError(error));
     return { success: false, error: toSafeRendererError(error, 'Runtime resolution failed') };
   }

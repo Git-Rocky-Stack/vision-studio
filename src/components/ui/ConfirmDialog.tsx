@@ -1,7 +1,8 @@
-import { useEffect, useRef, useCallback } from 'react';
+import { useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from './Button';
 import { AlertTriangle } from 'lucide-react';
+import { useDialogFocus } from '@/hooks/useDialogFocus';
 
 interface ConfirmDialogProps {
   open: boolean;
@@ -25,47 +26,10 @@ export function ConfirmDialog({
   onCancel,
 }: ConfirmDialogProps) {
   const dialogRef = useRef<HTMLDivElement>(null);
-  const previousFocusRef = useRef<HTMLElement | null>(null);
 
-  // Focus trap and restoration
-  useEffect(() => {
-    if (!open) return;
-    previousFocusRef.current = document.activeElement as HTMLElement;
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        onCancel();
-        return;
-      }
-      if (e.key !== 'Tab' || !dialogRef.current) return;
-
-      const focusable = dialogRef.current.querySelectorAll<HTMLElement>(
-        'button:not([disabled]), [tabindex]:not([tabindex="-1"])'
-      );
-      const first = focusable[0];
-      const last = focusable[focusable.length - 1];
-
-      if (e.shiftKey && document.activeElement === first) {
-        e.preventDefault();
-        last?.focus();
-      } else if (!e.shiftKey && document.activeElement === last) {
-        e.preventDefault();
-        first?.focus();
-      }
-    };
-
-    document.addEventListener('keydown', handleKeyDown);
-    // Auto-focus the cancel button (safe default)
-    requestAnimationFrame(() => {
-      const cancelBtn = dialogRef.current?.querySelector<HTMLElement>('[data-cancel]');
-      cancelBtn?.focus();
-    });
-
-    return () => {
-      document.removeEventListener('keydown', handleKeyDown);
-      previousFocusRef.current?.focus();
-    };
-  }, [open, onCancel]);
+  // Focus moves to Cancel (the safe default), Tab stays inside, Escape cancels
+  // without reaching workspace shortcuts, and focus returns to the opener.
+  useDialogFocus(dialogRef, { open, onEscape: onCancel, initialFocusSelector: '[data-cancel]' });
 
   const handleConfirm = useCallback(() => {
     onConfirm();

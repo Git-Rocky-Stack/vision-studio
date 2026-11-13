@@ -9,6 +9,7 @@ import { cn } from '@/utils/cn';
 import { resolveTimelinePlayRange } from '@/features/timeline/sequenceComposition';
 import { exportTimelineSequence, type TimelineExportStatusPatch } from '@/features/timeline/exportTimelineSequence';
 import { DialogCloseButton } from '@/components/ui/DialogCloseButton';
+import { useDialogFocus } from '@/hooks/useDialogFocus';
 
 interface TimelineExportDialogProps {
   open: boolean;
@@ -64,7 +65,9 @@ export function TimelineExportDialog({
   );
   const [uiState, setUiState] = useState<ExportUiState>(INITIAL_EXPORT_STATE);
   const dialogRef = useRef<HTMLDivElement>(null);
-  const previousFocusRef = useRef<HTMLElement | null>(null);
+  // The running export's abort handle (#J7): Cancel and Escape stop the
+  // backend render instead of being disabled until it finishes.
+  const exportAbortRef = useRef<AbortController | null>(null);
 
   const sequence = useMemo(
     () => (sequenceId ? timelineSequences.find((item) => item.id === sequenceId) ?? null : null),
@@ -90,33 +93,48 @@ export function TimelineExportDialog({
     setUiState(INITIAL_EXPORT_STATE);
   }, [open, sequenceId]);
 
-  useEffect(() => {
-    if (!open) {
-      return;
-    }
-
-    previousFocusRef.current = document.activeElement as HTMLElement;
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && uiState.status !== 'exporting') {
-        onClose();
+  // Shared modal contract: focus in on the primary action, Tab trapped, focus
+  // restored on close. Escape cancels a running export (#J7); a second Escape,
+  // like any Escape while idle, closes the dialog.
+  useDialogFocus(dialogRef, {
+    open,
+    initialFocusSelector: '[data-primary-action]',
+    onEscape: () => {
+      if (uiState.status === 'exporting') {
+        exportAbortRef.current?.abort();
+        return;
       }
-    };
+      onClose();
+    },
+  });
 
-    document.addEventListener('keydown', handleKeyDown);
-    requestAnimationFrame(() => {
-      dialogRef.current?.querySelector<HTMLButtonElement>('[data-primary-action]')?.focus();
+  // The footer swaps its buttons as an export runs (Export, then a disabled
+  // Export beside Cancel Export, then Done or Retry Export): each step puts
+  // the keyboard on the action that now matters, the enabled primary action,
+  // or Cancel Export while the render runs.
+  useEffect(() => {
+    if (!open) return;
+    const frame = requestAnimationFrame(() => {
+      const container = dialogRef.current;
+      if (!container) return;
+      const target =
+        container.querySelector<HTMLElement>('[data-primary-action]:not([disabled])') ??
+        container.querySelector<HTMLElement>('[data-testid="timeline-export-cancel"]');
+      target?.focus({ preventScroll: true });
     });
+    return () => cancelAnimationFrame(frame);
+  }, [open, uiState.status]);
 
-    return () => {
-      document.removeEventListener('keydown', handleKeyDown);
-      previousFocusRef.current?.focus();
-    };
-  }, [open, onClose, uiState.status]);
+  // An export left running when the dialog unmounts is cancelled with it.
+  useEffect(() => () => exportAbortRef.current?.abort(), []);
 
   if (!open || !sequence || !project || !playRange) {
     return null;
   }
+
+  const handleCancelExport = () => {
+    exportAbortRef.current?.abort();
+  };
 
   const handleClose = () => {
     if (uiState.status === 'exporting') {
@@ -141,6 +159,9 @@ export function TimelineExportDialog({
   };
 
   const handleExport = async () => {
+    exportAbortRef.current?.abort();
+    const controller = new AbortController();
+    exportAbortRef.current = controller;
     setUiState({
       ...INITIAL_EXPORT_STATE,
       isExporting: true,
@@ -151,6 +172,7 @@ export function TimelineExportDialog({
       const result = await exportTimelineSequence({
         sequenceId: sequence.id,
         onStatusChange: handleStatusChange,
+        signal: controller.signal,
       });
 
       if (result.cancelled) {
@@ -175,6 +197,8 @@ export function TimelineExportDialog({
         status: 'error',
         errorMessage: message,
       });
+    } finally {
+      if (exportAbortRef.current === controller) exportAbortRef.current = null;
     }
   };
 
@@ -230,7 +254,7 @@ export function TimelineExportDialog({
           className="raised-panel dialog-shell relative w-full max-w-2xl overflow-hidden"
           data-testid="timeline-export-dialog"
         >
-          <div className="border-b border-border bg-[linear-gradient(180deg,rgba(255,255,255,0.05),rgba(255,255,255,0.01))] px-6 py-5">
+          <div className="border-b border-border bg-gradient-to-b from-sheen-soft to-sheen-faint px-6 py-5">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <p className="inline-flex items-center gap-2 rounded-full border border-border bg-surface px-3 py-1 mono-label text-text-muted">
@@ -313,7 +337,7 @@ export function TimelineExportDialog({
                     <div>
                       <p className="text-base text-text-primary">Rendering MP4</p>
                       <p className="mt-1 text-sm text-text-body">
-                        The export stays local and the dialog will remain open until the render finishes.
+                        The export stays local. Cancel Export (or Escape) stops the render and discards the partial file.
                       </p>
                     </div>
                     <div className="inline-flex items-center gap-2 rounded-full border border-border bg-canvas px-3 py-1 text-sm text-text-primary">
@@ -391,10 +415,10 @@ export function TimelineExportDialog({
                   <Button
                     variant="secondary"
                     size="sm"
-                    onClick={handleClose}
-                    disabled={uiState.status === 'exporting'}
+                    onClick={uiState.status === 'exporting' ? handleCancelExport : handleClose}
+                    data-testid="timeline-export-cancel"
                   >
-                    Cancel
+                    {uiState.status === 'exporting' ? 'Cancel Export' : 'Cancel'}
                   </Button>
                   <Button
                     variant={uiState.status === 'error' ? 'danger' : 'primary'}

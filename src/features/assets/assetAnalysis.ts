@@ -212,3 +212,27 @@ export function analyzeAssetRecord(asset: AssetRecord): AssetMetadata {
     analyzedAt: Date.now(),
   };
 }
+
+/** Every term the analysis lexicon can emit, lowercase. */
+const LEXICON_TERMS: ReadonlySet<string> = new Set(
+  CATEGORIES.flatMap((category) => TAG_LEXICON[category]),
+);
+
+/**
+ * True when analysis can emit `term` as a tag. Anything else (a user-authored
+ * custom tag) can only ever be matched against the prompt directly.
+ */
+export function isLexiconTerm(term: string): boolean {
+  return LEXICON_TERMS.has(term.trim().toLowerCase());
+}
+
+/**
+ * Whole-word, case-insensitive test for `term` in a prompt, using exactly the
+ * normalisation analysis applies (weight / LoRA syntax stripped, separators
+ * collapsed). A blank term never matches.
+ */
+export function promptHasTerm(prompt: string, term: string): boolean {
+  const needle = normalizePrompt(term);
+  if (!needle) return false;
+  return wholeWordIndex(normalizePrompt(prompt), needle) !== -1;
+}

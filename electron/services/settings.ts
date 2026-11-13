@@ -1,20 +1,9 @@
 import path from 'path';
-import type { AiDirectorSettings } from '../../shared/retrieval';
+import type { AppSettings } from '../../shared/ipcTypes';
 
-export interface AppSettings {
-  theme?: 'dark' | 'light' | 'system';
-  autoSave?: boolean;
-  defaultOutputPath?: string;
-  backendAutostart?: boolean;
-  notifyOnGenerationComplete?: boolean;
-  notifyOnGenerationFailed?: boolean;
-  notifyOnModelDownloads?: boolean;
-  pythonPath?: string;
-  /** When true, a Local over-budget job silently routes to the account fallback provider (M6 S8). */
-  autoRouteOnOverBudget?: boolean;
-  /** M7 AI Director: retrieval-augmented prompt-assist settings. */
-  aiDirector?: AiDirectorSettings;
-}
+// The settings shape is part of the IPC contract (shared/ipcTypes.ts), so the
+// renderer, the settings:update validator and this service read one type.
+export type { AppSettings, ResolvedAppSettings } from '../../shared/ipcTypes';
 
 export function resolveOutputPath(
   settings: Pick<AppSettings, 'defaultOutputPath'>,
@@ -29,10 +18,10 @@ export function shouldRestartBackend(
   currentSettings: Partial<AppSettings>,
   nextSettings: Partial<AppSettings>
 ) {
+  // The backend is told its output folder at spawn time, so a change needs a
+  // restart. (The interpreter is env-only - VISION_STUDIO_PYTHON - never a setting.)
   const currentOutputPath = (currentSettings.defaultOutputPath || '').trim();
   const nextOutputPath = (nextSettings.defaultOutputPath || '').trim();
-  const currentPythonPath = (currentSettings.pythonPath || '').trim();
-  const nextPythonPath = (nextSettings.pythonPath || '').trim();
 
-  return currentOutputPath !== nextOutputPath || currentPythonPath !== nextPythonPath;
+  return currentOutputPath !== nextOutputPath;
 }

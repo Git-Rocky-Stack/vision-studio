@@ -74,7 +74,7 @@ class FoundryCatalogTests(unittest.TestCase):
 # runwayml/stable-diffusion-v1-5 was deleted from HuggingFace; it silently
 # redirects to the community `stable-diffusion-v1-5/` mirror org. Any catalog
 # record still pinned to the runwayml path 404s on a real snapshot_download in
-# the Foundry manual-install flow (model_manager._download_diffusers_bundle),
+# the Foundry manual-install flow (foundry.download_manager),
 # so no record may reference it.
 DELETED_RUNWAYML_REPO = "runwayml/stable-diffusion-v1-5"
 SD15_COMMUNITY_MIRROR = "stable-diffusion-v1-5/stable-diffusion-v1-5"

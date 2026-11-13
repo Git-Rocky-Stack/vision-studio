@@ -1,7 +1,8 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useEffect, useId, useMemo, useRef } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { cn } from '@/utils/cn';
 import { ResultCard } from './ResultCard';
+import { RESULT_GRID_GAP_PX, resultGridColumns, useContentWidth } from './resultGridLayout';
 import { useShallow } from 'zustand/react/shallow';
 import { useAppStore } from '@/store/appStore';
 import {
@@ -15,6 +16,7 @@ import { AnimatePresence } from 'framer-motion';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { pushNotice, reportActionError, runExport } from '@/features/notices';
+import { useVirtualGridNavigation } from '@/hooks/useVirtualGridNavigation';
 
 export type ViewMode = 'grid' | 'list' | 'large';
 export type SortBy = 'created' | 'prompt' | 'status';
@@ -62,29 +64,30 @@ export function ResultsGrid({
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [lastSelectedId, setLastSelectedId] = useState<string | null>(null);
 
-  // Filter results
-  const filteredResults = batchResults.filter((r) => {
-    if (filterBy === 'all') return true;
-    if (filterBy === 'completed') return !!r.imagePath;
-    if (filterBy === 'failed') return !r.imagePath;
-    if (filterBy === 'favorites') return r.isFavorite;
-    return true;
-  });
-
-  // Sort results
-  const sortedResults = [...filteredResults].sort((a, b) => {
-    if (sortBy === 'created') {
-      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-    }
-    if (sortBy === 'prompt') {
-      return a.promptIndex - b.promptIndex;
-    }
-    if (sortBy === 'status') {
-      const statusOrder = (r: typeof a) => (r.imagePath ? 0 : 1);
-      return statusOrder(a) - statusOrder(b);
-    }
-    return 0;
-  });
+  // Filter + sort once per input change: the order feeds memoized cards and
+  // the keyboard navigation, which must not churn on unrelated re-renders.
+  const sortedResults = useMemo(() => {
+    const filteredResults = batchResults.filter((r) => {
+      if (filterBy === 'all') return true;
+      if (filterBy === 'completed') return !!r.imagePath;
+      if (filterBy === 'failed') return !r.imagePath;
+      if (filterBy === 'favorites') return r.isFavorite;
+      return true;
+    });
+    return filteredResults.sort((a, b) => {
+      if (sortBy === 'created') {
+        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      }
+      if (sortBy === 'prompt') {
+        return a.promptIndex - b.promptIndex;
+      }
+      if (sortBy === 'status') {
+        const statusOrder = (r: typeof a) => (r.imagePath ? 0 : 1);
+        return statusOrder(a) - statusOrder(b);
+      }
+      return 0;
+    });
+  }, [batchResults, filterBy, sortBy]);
 
   // Multi-select handler (Shift+click for range, Ctrl+click for toggle)
   const handleSelect = useCallback(
@@ -122,6 +125,26 @@ export function ResultsGrid({
       setLastSelectedId(id);
     },
     [lastSelectedId, sortedResults]
+  );
+
+  // The card's explicit select control: a checkbox-style toggle, so keyboard
+  // users can build a multi-selection one result at a time. Shift still
+  // extends a range from the last selected result.
+  const handleToggleSelect = useCallback(
+    (id: string, e: React.MouseEvent | React.KeyboardEvent) => {
+      if (e.shiftKey && lastSelectedId) {
+        handleSelect(id, e);
+        return;
+      }
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        if (next.has(id)) next.delete(id);
+        else next.add(id);
+        return next;
+      });
+      setLastSelectedId(id);
+    },
+    [handleSelect, lastSelectedId]
   );
 
   const deselectAll = () => {
@@ -225,7 +248,10 @@ export function ResultsGrid({
   };
 
   const parentRef = useRef<HTMLDivElement>(null);
-  const COLS = viewMode === 'grid' ? 3 : viewMode === 'large' ? 2 : 1;
+  // One measured column count drives the virtual rows, the CSS grid tracks
+  // and Up/Down navigation, so they always agree (resultGridLayout.ts).
+  const gridWidth = useContentWidth(parentRef, sortedResults.length === 0);
+  const COLS = resultGridColumns(viewMode, gridWidth);
   const rowCount = Math.ceil(sortedResults.length / COLS);
 
   const rowVirtualizer = useVirtualizer({
@@ -239,10 +265,62 @@ export function ResultsGrid({
     overscan: 5,
   });
 
+  // A new column count changes every row's contents and height.
+  useEffect(() => {
+    rowVirtualizer.measure();
+  }, [COLS, viewMode, rowVirtualizer]);
+
+  // Keyboard: one roving tab stop across the virtualized cards.
+  const orderedIds = useMemo(() => sortedResults.map((result) => result.id), [sortedResults]);
+  const scrollToRow = useCallback(
+    (rowIndex: number) => rowVirtualizer.scrollToIndex(rowIndex, { align: 'auto' }),
+    [rowVirtualizer],
+  );
+  const { activeId, activate, handleNavigationKey } = useVirtualGridNavigation({
+    ids: orderedIds,
+    columns: COLS,
+    containerRef: parentRef,
+    scrollToRow,
+  });
+  const keyboardHintId = useId();
+
+  // Rows remount when the column count changes (see the row key), which drops
+  // focus to <body>. If the keyboard was in the grid, put it back on the card.
+  const gridHadFocusRef = useRef(false);
+  // The latest active card, read (not watched) by the remount effect below.
+  const activeIdRef = useRef(activeId);
+  useEffect(() => {
+    activeIdRef.current = activeId;
+  }, [activeId]);
+  useEffect(() => {
+    const container = parentRef.current;
+    const focusId = activeIdRef.current;
+    if (!gridHadFocusRef.current || !container || !focusId) return;
+    if (document.activeElement && document.activeElement !== document.body) return;
+    for (const element of container.querySelectorAll<HTMLElement>('[data-nav-id]')) {
+      if (element.dataset.navId === focusId) {
+        element.focus({ preventScroll: true });
+        break;
+      }
+    }
+    // Only the column count remounts rows.
+  }, [COLS]);
+
   return (
     <div className="flex flex-col h-full">
       {/* Grid Area */}
-      <div ref={parentRef} className="flex-1 overflow-y-auto p-4 scrollbar-hide">
+      <div
+        ref={parentRef}
+        className="flex-1 overflow-y-auto p-4 scrollbar-hide"
+        onFocus={() => {
+          gridHadFocusRef.current = true;
+        }}
+        onBlur={(event) => {
+          // Focus moved to something else on purpose: stop restoring it.
+          const next = event.relatedTarget as Node | null;
+          if (next && !event.currentTarget.contains(next)) gridHadFocusRef.current = false;
+        }}
+      >
         {sortedResults.length === 0 ? (
           <div className="flex h-full items-center justify-center">
             <EmptyState
@@ -253,24 +331,40 @@ export function ResultsGrid({
           </div>
         ) : (
           <div style={{ height: `${rowVirtualizer.getTotalSize()}px`, position: 'relative' }}>
+            <p id={keyboardHintId} className="sr-only">
+              Enter opens the preview. Space selects; Ctrl+Space toggles and Shift+Space extends the
+              selection. Arrow keys, Home and End move between results.
+            </p>
             {rowVirtualizer.getVirtualItems().map((virtualRow) => {
               const startIdx = virtualRow.index * COLS;
               const rowResults = sortedResults.slice(startIdx, startIdx + COLS);
               return (
                 <div
-                  key={virtualRow.key}
+                  // Keyed by the column count too: when the columns change,
+                  // rows remount rather than animating cards out of one row
+                  // and into the next (AnimatePresence would leave ghosts).
+                  key={`${COLS}:${virtualRow.key}`}
+                  // Rows are measured, not assumed: card height follows the
+                  // track width, which follows the column count.
+                  ref={rowVirtualizer.measureElement}
+                  data-index={virtualRow.index}
+                  data-testid="results-grid-row"
+                  data-columns={COLS}
                   style={{
                     position: 'absolute',
                     top: 0,
                     left: 0,
                     width: '100%',
                     transform: `translateY(${virtualRow.start}px)`,
+                    ...(viewMode === 'list'
+                      ? {}
+                      : {
+                          gridTemplateColumns: `repeat(${COLS}, minmax(0, 1fr))`,
+                          columnGap: RESULT_GRID_GAP_PX[viewMode],
+                          paddingBottom: RESULT_GRID_GAP_PX[viewMode],
+                        }),
                   }}
-                  className={cn(
-                    viewMode === 'grid' && 'grid grid-cols-2 xl:grid-cols-3 gap-3',
-                    viewMode === 'large' && 'grid grid-cols-1 xl:grid-cols-2 gap-4',
-                    viewMode === 'list' && 'flex flex-col gap-2'
-                  )}
+                  className={cn(viewMode === 'list' ? 'flex flex-col pb-2' : 'grid')}
                 >
                   <AnimatePresence mode="popLayout">
                     {rowResults.map((result) => (
@@ -279,11 +373,16 @@ export function ResultsGrid({
                         result={result}
                         isSelected={selectedIds.has(result.id)}
                         onSelect={handleSelect}
+                        onToggleSelect={handleToggleSelect}
                         onPreview={onPreviewImage}
                         onToggleFavorite={toggleBatchResultFavorite}
                         onDownload={handleDownload}
                         onSendToEdit={handleSendToEdit}
                         viewMode={viewMode}
+                        isTabStop={result.id === activeId}
+                        onFocusCard={activate}
+                        onNavigateKey={handleNavigationKey}
+                        describedBy={keyboardHintId}
                       />
                     ))}
                   </AnimatePresence>

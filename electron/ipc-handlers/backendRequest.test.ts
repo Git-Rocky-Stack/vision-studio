@@ -4,8 +4,11 @@ import { describe, expect, it, vi } from 'vitest';
 
 import {
   BACKEND_DOWN_MESSAGE,
+  BACKEND_UNVERIFIED_CODE,
+  BACKEND_UNVERIFIED_MESSAGE,
   SUBMIT_ONCE,
   isBackendDownError,
+  isBackendUnverifiedError,
   requestBackend,
 } from './backendRequest';
 
@@ -18,6 +21,16 @@ import {
 //
 // Tests cover both axes (retry vs short-circuit) plus the error-shape
 // detection that drives the routing.
+
+describe('unverified backend', () => {
+  it('fails at once without retrying when the backend identity is not verified', async () => {
+    const request = vi.fn().mockRejectedValue(Object.assign(new Error(BACKEND_UNVERIFIED_MESSAGE), { code: BACKEND_UNVERIFIED_CODE }));
+    await expect(requestBackend(request, 3, 0)).rejects.toMatchObject({ code: BACKEND_UNVERIFIED_CODE });
+    expect(request).toHaveBeenCalledTimes(1);
+    expect(isBackendUnverifiedError({ code: BACKEND_UNVERIFIED_CODE })).toBe(true);
+    expect(isBackendUnverifiedError(new Error('x'))).toBe(false);
+  });
+});
 
 describe('isBackendDownError', () => {
   it('detects ECONNREFUSED in error message', () => {
@@ -163,9 +176,14 @@ describe('requestBackend', () => {
       '/api/v1/comfy/run-graph',
       '/api/generate/image',
       '/api/generate/video',
-      '/api/v1/edit/',
+      // edit-image posts to an allow-listed route from EDIT_ROUTES
+      '`${BACKEND_URL}${route}`',
       '/api/timeline/export',
       '/convert-safetensors',
+      // S6: work-creating Foundry calls
+      '/download`',
+      '/api/models/provision/start',
+      '/api/models/import',
     ];
     for (const path of submitPaths) {
       const matching = calls.filter((call) => call.split(');')[0].includes(path));

@@ -1,11 +1,5 @@
 import type { BatchResult } from '@/types/generation';
 
-export function collectBatchAssetPaths(results: BatchResult[]) {
-  return results
-    .map((result) => result.assetPath)
-    .filter((assetPath): assetPath is string => Boolean(assetPath));
-}
-
 export function toGenerationDraftFromResult(result: BatchResult) {
   return {
     generationType: 'image' as const,

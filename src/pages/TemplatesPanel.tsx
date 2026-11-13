@@ -17,8 +17,8 @@ import {
   ChromeButton,
 } from '@/components/hardware';
 import {
-  Youtube,
-  Instagram,
+  MonitorPlay,
+  Share2,
   ShoppingBag,
   Palette,
   ArrowRight,
@@ -158,8 +158,8 @@ export function TemplatesPanel() {
 
   const CATEGORY_TABS: { id: string; label: string; icon?: React.ElementType }[] = [
     { id: 'all', label: 'All Templates' },
-    { id: 'youtube', label: 'YouTube', icon: Youtube },
-    { id: 'social', label: 'Social', icon: Instagram },
+    { id: 'youtube', label: 'YouTube', icon: MonitorPlay },
+    { id: 'social', label: 'Social', icon: Share2 },
     { id: 'marketing', label: 'Marketing', icon: ShoppingBag },
     { id: 'art', label: 'Art & Creative', icon: Palette },
     { id: 'mine', label: 'My Templates', icon: User },

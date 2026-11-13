@@ -46,13 +46,12 @@ describe('Textarea', () => {
     expect(screen.getByRole('textbox')).toHaveAttribute('rows', '10');
   });
 
-  it('applies autoFocus, required, and readOnly props', async () => {
+  it('forwards native props: autoComplete, required and readOnly', async () => {
     const user = userEvent.setup();
-    render(<Textarea autoFocus required readOnly value="readonly content" />);
+    render(<Textarea autoComplete="off" required readOnly value="readonly content" />);
     const textarea = screen.getByRole('textbox');
 
-    // autoFocus sets focus automatically (check via document.activeElement)
-    expect(document.activeElement).toBe(textarea);
+    expect(textarea).toHaveAttribute('autocomplete', 'off');
     expect(textarea).toHaveAttribute('required');
     expect(textarea).toHaveAttribute('readonly');
     expect(textarea).toHaveValue('readonly content');

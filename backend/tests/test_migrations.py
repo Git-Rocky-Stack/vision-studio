@@ -8,7 +8,8 @@ import sqlite3
 from pathlib import Path
 
 from db.schema_version import SCHEMA_VERSION, get_schema_version, set_schema_version, needs_migration
-from db.migrate import run_migrations
+from db import migrate as migrate_module
+from db.migrate import MigrationError, run_migrations
 
 
 @pytest.fixture
@@ -32,8 +33,8 @@ class TestSchemaVersion:
     """Tests for schema_version.py functions."""
 
     def test_schema_version_constant(self):
-        """SCHEMA_VERSION should be 1."""
-        assert SCHEMA_VERSION == 1
+        """SCHEMA_VERSION tracks the newest migration file (002_persist_jobs)."""
+        assert SCHEMA_VERSION == 2
 
     def test_get_schema_version_no_database(self, clean_db):
         """get_schema_version should return 0 when database doesn't exist."""
@@ -78,210 +79,155 @@ class TestSchemaVersion:
         assert needs_migration(clean_db) is True
 
 
-class TestInitialMigration:
-    """Tests for the initial schema migration (001)."""
-
-    def test_initial_migration_creates_tables(self, clean_db):
-        """Migration should create all required tables."""
-        run_migrations(clean_db)
-
-        conn = sqlite3.connect(clean_db)
-        cursor = conn.cursor()
-
-        # Get all table names
-        cursor.execute(
-            "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name"
-        )
-        tables = {row[0] for row in cursor.fetchall()}
+def _tables(db_path):
+    conn = sqlite3.connect(db_path)
+    try:
+        return {row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+    finally:
         conn.close()
 
-        # Verify all required tables exist
-        required_tables = {'images', 'jobs', 'settings', 'schema_version'}
-        assert required_tables.issubset(tables)
 
-    def test_images_table_schema(self, clean_db):
-        """Images table should have correct columns."""
-        run_migrations(clean_db)
-
-        conn = sqlite3.connect(clean_db)
-        cursor = conn.cursor()
-        cursor.execute("PRAGMA table_info(images)")
-        columns = {row[1]: row[2] for row in cursor.fetchall()}
+def _columns(db_path, table):
+    conn = sqlite3.connect(db_path)
+    try:
+        return {row[1]: row[2] for row in conn.execute(f"PRAGMA table_info({table})")}
+    finally:
         conn.close()
 
-        expected_columns = {
-            'id': 'INTEGER',
-            'prompt': 'TEXT',
-            'negative_prompt': 'TEXT',
-            'model': 'TEXT',
-            'width': 'INTEGER',
-            'height': 'INTEGER',
-            'seed': 'INTEGER',
-            'created_at': 'TEXT',
-            'data': 'TEXT',
-        }
 
-        for col_name, col_type in expected_columns.items():
-            assert col_name in columns, f"Missing column: {col_name}"
-            assert columns[col_name].upper() == col_type.upper(), \
-                f"Column {col_name} has wrong type: {columns[col_name]} != {col_type}"
+class TestFinalSchema:
+    """The schema after every migration has run."""
+
+    def test_creates_jobs_and_schema_version_only(self, clean_db):
+        run_migrations(clean_db)
+        tables = _tables(clean_db)
+        assert {"jobs", "schema_version"}.issubset(tables)
+        # images/settings were never used by any code path (U5) - 002 drops them.
+        assert "images" not in tables
+        assert "settings" not in tables
 
     def test_jobs_table_schema(self, clean_db):
-        """Jobs table should have correct columns."""
         run_migrations(clean_db)
-
-        conn = sqlite3.connect(clean_db)
-        cursor = conn.cursor()
-        cursor.execute("PRAGMA table_info(jobs)")
-        columns = {row[1]: row[2] for row in cursor.fetchall()}
-        conn.close()
-
-        expected_columns = {
-            'id': 'INTEGER',
-            'type': 'TEXT',
-            'status': 'TEXT',
-            'progress': 'REAL',
-            'created_at': 'TEXT',
-            'completed_at': 'TEXT',
-            'error': 'TEXT',
+        columns = _columns(clean_db, "jobs")
+        expected = {
+            "id": "TEXT", "type": "TEXT", "status": "TEXT", "progress": "REAL",
+            "params": "TEXT", "result": "TEXT", "error": "TEXT", "output_dir": "TEXT",
+            "created_at": "TEXT", "completed_at": "TEXT", "updated_at": "TEXT",
         }
-
-        for col_name, col_type in expected_columns.items():
-            assert col_name in columns, f"Missing column: {col_name}"
-
-    def test_settings_table_schema(self, clean_db):
-        """Settings table should have correct columns."""
-        run_migrations(clean_db)
-
-        conn = sqlite3.connect(clean_db)
-        cursor = conn.cursor()
-        cursor.execute("PRAGMA table_info(settings)")
-        columns = {row[1]: row[2] for row in cursor.fetchall()}
-        conn.close()
-
-        expected_columns = {
-            'key': 'TEXT',
-            'value': 'TEXT',
-            'updated_at': 'TEXT',
-        }
-
-        for col_name, col_type in expected_columns.items():
-            assert col_name in columns, f"Missing column: {col_name}"
+        for name, col_type in expected.items():
+            assert name in columns, f"Missing column: {name}"
+            assert columns[name].upper() == col_type
 
     def test_schema_version_table_schema(self, clean_db):
-        """Schema_version table should have version column."""
         run_migrations(clean_db)
-
-        conn = sqlite3.connect(clean_db)
-        cursor = conn.cursor()
-        cursor.execute("PRAGMA table_info(schema_version)")
-        columns = {row[1]: row[2] for row in cursor.fetchall()}
-        conn.close()
-
-        assert 'version' in columns, "Missing version column in schema_version table"
+        assert "version" in _columns(clean_db, "schema_version")
 
     def test_indexes_created(self, clean_db):
-        """Migration should create required indexes."""
         run_migrations(clean_db)
-
         conn = sqlite3.connect(clean_db)
-        cursor = conn.cursor()
-
-        # Get all index names
-        cursor.execute(
-            "SELECT name FROM sqlite_master WHERE type='index' ORDER BY name"
-        )
-        indexes = {row[0] for row in cursor.fetchall()}
+        indexes = {row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type='index'")}
         conn.close()
-
-        # Verify required indexes exist
-        required_indexes = {'idx_images_created_at', 'idx_jobs_status'}
-        assert required_indexes.issubset(indexes)
+        assert {"idx_jobs_status", "idx_jobs_created_at"}.issubset(indexes)
+        assert "idx_images_created_at" not in indexes
 
     def test_migration_idempotent(self, clean_db):
-        """Running migrations twice should not cause errors."""
-        # Run migrations first time
         run_migrations(clean_db)
+        assert run_migrations(clean_db) == SCHEMA_VERSION
+        assert get_schema_version(clean_db) == SCHEMA_VERSION
 
-        # Run migrations second time - should be safe
+    def test_jobs_table_accepts_string_ids(self, clean_db):
         run_migrations(clean_db)
-
-        # Verify database is still valid
-        version = get_schema_version(clean_db)
-        assert version == SCHEMA_VERSION
-
-    def test_images_table_accepts_data(self, clean_db):
-        """Images table should accept and store data correctly."""
-        run_migrations(clean_db)
-
         conn = sqlite3.connect(clean_db)
-        cursor = conn.cursor()
-
-        # Insert test data
-        cursor.execute("""
-            INSERT INTO images (prompt, negative_prompt, model, width, height, seed, data)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-        """, ("test prompt", "test negative", "flux-dev", 1024, 1024, 42, '{"test": true}'))
-
+        conn.execute(
+            "INSERT INTO jobs (id, type, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
+            ("4b1c-uuid", "image", "processing", "2026-01-01T00:00:00+00:00", "2026-01-01T00:00:00+00:00"),
+        )
         conn.commit()
-
-        # Retrieve and verify
-        cursor.execute("SELECT prompt, model, width FROM images WHERE seed = 42")
-        row = cursor.fetchone()
-
-        assert row is not None
-        assert row[0] == "test prompt"
-        assert row[1] == "flux-dev"
-        assert row[2] == 1024
-
+        row = conn.execute("SELECT id, params, progress FROM jobs").fetchone()
         conn.close()
+        assert row == ("4b1c-uuid", "{}", 0.0)
 
-    def test_jobs_table_accepts_data(self, clean_db):
-        """Jobs table should accept and store data correctly."""
-        run_migrations(clean_db)
 
+class TestUpgradeFromVersion1:
+    """A database created by an older build (schema version 1) upgrades in place."""
+
+    def _make_v1(self, db_path):
+        import importlib
+
+        initial = importlib.import_module("db.migrations.001_initial_schema")
+        conn = sqlite3.connect(db_path)
+        initial.migrate_up(conn)
+        conn.execute(
+            "INSERT INTO jobs (type, status, progress, created_at) VALUES ('image', 'completed', 100.0, '2026-01-01 10:00:00')"
+        )
+        conn.commit()
+        conn.close()
+        set_schema_version(db_path, 1)
+
+    def test_v1_rows_survive_the_jobs_rebuild(self, clean_db):
+        self._make_v1(clean_db)
+        assert run_migrations(clean_db) == 2
         conn = sqlite3.connect(clean_db)
-        cursor = conn.cursor()
-
-        # Insert test data
-        cursor.execute("""
-            INSERT INTO jobs (type, status, progress, error)
-            VALUES (?, ?, ?, ?)
-        """, ("image", "processing", 50.0, None))
-
-        conn.commit()
-
-        # Retrieve and verify
-        cursor.execute("SELECT type, status, progress FROM jobs WHERE progress = 50.0")
-        row = cursor.fetchone()
-
-        assert row is not None
-        assert row[0] == "image"
-        assert row[1] == "processing"
-        assert row[2] == 50.0
-
+        row = conn.execute("SELECT id, type, status, progress, updated_at FROM jobs").fetchone()
         conn.close()
+        assert row == ("1", "image", "completed", 100.0, "2026-01-01 10:00:00")
+        assert "jobs_v1" not in _tables(clean_db)
 
-    def test_settings_table_accepts_data(self, clean_db):
-        """Settings table should accept and store data correctly."""
-        run_migrations(clean_db)
 
-        conn = sqlite3.connect(clean_db)
-        cursor = conn.cursor()
+_OK_MIGRATION = """
+def migrate_up(conn):
+    conn.execute('CREATE TABLE {table} (x)')
+    conn.commit()
+"""
 
-        # Insert test data
-        cursor.execute("""
-            INSERT INTO settings (key, value)
-            VALUES (?, ?)
-        """, ("test_key", "test_value"))
+_FAILING_MIGRATION = """
+def migrate_up(conn):
+    raise RuntimeError('boom')
+"""
 
-        conn.commit()
 
-        # Retrieve and verify
-        cursor.execute("SELECT value FROM settings WHERE key = 'test_key'")
-        row = cursor.fetchone()
+class TestMigrationFailures:
+    """U6: the runner stops at the first failed migration."""
 
-        assert row is not None
-        assert row[0] == "test_value"
+    def _install_migrations(self, tmp_path, monkeypatch, files):
+        directory = tmp_path / "fakemigs"
+        directory.mkdir()
+        for name, source in files.items():
+            (directory / name).write_text(source, encoding="utf-8")
+        monkeypatch.setattr(migrate_module, "MIGRATIONS_DIR", directory)
 
-        conn.close()
+        def fake_import(module_name):
+            stem = module_name.rsplit(".", 1)[-1]
+            namespace = {}
+            source = (directory / f"{stem}.py").read_text(encoding="utf-8")
+            exec(compile(source, stem, "exec"), namespace)
+            return type("Migration", (), namespace)
+
+        monkeypatch.setattr(migrate_module, "import_module", fake_import)
+
+    def test_stops_at_first_failure_and_keeps_last_good_version(
+        self, clean_db, tmp_path, monkeypatch, caplog
+    ):
+        self._install_migrations(tmp_path, monkeypatch, {
+            "001_ok.py": _OK_MIGRATION.format(table="a"),
+            "002_bad.py": _FAILING_MIGRATION,
+            "003_after.py": _OK_MIGRATION.format(table="c"),
+        })
+        with pytest.raises(MigrationError) as excinfo:
+            run_migrations(clean_db)
+        assert excinfo.value.version == 2
+        assert get_schema_version(clean_db) == 1
+        tables = _tables(clean_db)
+        assert "a" in tables
+        assert "c" not in tables  # nothing after the failure ran
+        assert any("002_bad.py" in record.getMessage() for record in caplog.records)
+
+    def test_missing_migrate_up_is_a_failure_not_a_skip(self, clean_db, tmp_path, monkeypatch):
+        self._install_migrations(tmp_path, monkeypatch, {
+            "001_empty.py": "X = 1\n",
+            "002_next.py": _OK_MIGRATION.format(table="n"),
+        })
+        with pytest.raises(MigrationError):
+            run_migrations(clean_db)
+        assert get_schema_version(clean_db) == 0
+        assert "n" not in _tables(clean_db)

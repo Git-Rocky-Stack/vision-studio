@@ -5,6 +5,7 @@ import { MonoLabel } from '@/components/hardware';
 import { GeneratePanel } from '@/pages/GeneratePanel';
 import { IterationTimeline } from '@/components/iteration/IterationTimeline';
 import { WorkflowLibraryPanel } from '@/components/workflow/WorkflowLibraryPanel';
+import { getLayoutPreset, type SubModeOption } from '@/components/layout/layoutPresets';
 import type { ActiveSubMode, GenerateSubMode, StorySubMode, WorkflowsSubMode } from '@/types/navigation';
 
 // GeneratePanel is the startup surface and stays in the initial chunk. The other
@@ -41,39 +42,6 @@ function PanelLoadingFallback() {
       <div className="h-6 w-6 animate-pulse rounded-full bg-elevated" />
     </div>
   );
-}
-
-/* -------------------------------------------------------------------------- */
-/*  Sub-mode configuration per tab                                            */
-/* -------------------------------------------------------------------------- */
-
-interface SubModeOption {
-  value: ActiveSubMode;
-  label: string;
-}
-
-const GENERATE_SUB_MODES: SubModeOption[] = [
-  { value: 'generate', label: 'Generate' },
-  { value: 'quick', label: 'Quick' },
-  { value: 'batch', label: 'Batch' },
-  { value: 'studio', label: 'Studio' },
-];
-
-const STORY_SUB_MODES: SubModeOption[] = [
-  { value: 'storyboard', label: 'Storyboard' },
-  { value: 'templates', label: 'Templates' },
-];
-
-const WORKFLOWS_SUB_MODES: SubModeOption[] = [
-  { value: 'workflows', label: 'Workflows' },
-  { value: 'pipelines', label: 'Pipelines' },
-];
-
-function getSubModesForTab(tab: string): SubModeOption[] {
-  if (tab === 'generate') return GENERATE_SUB_MODES;
-  if (tab === 'story') return STORY_SUB_MODES;
-  if (tab === 'workflows') return WORKFLOWS_SUB_MODES;
-  return [];
 }
 
 /* -------------------------------------------------------------------------- */
@@ -185,7 +153,8 @@ export const DockviewSettingsPanel = memo(function DockviewSettingsPanel() {
 
   const iterationBranches = useAppStore((s) => s.iterationBranches);
 
-  const subModes = getSubModesForTab(activeTab);
+  // Sub-modes come from the tab's layout preset, the single source of truth.
+  const subModes = getLayoutPreset(activeTab).subModes;
 
   const handleSubModeChange = useCallback(
     (subMode: ActiveSubMode) => {

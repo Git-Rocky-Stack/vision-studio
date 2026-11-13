@@ -193,8 +193,11 @@ export const TimelinePlaybackPreview = memo(function TimelinePlaybackPreview({
   }, [frame, playState]);
 
   useEffect(() => {
+    // The registry object lives as long as the component (the ref callbacks
+    // fill it in place), so the unmount cleanup holds it directly.
+    const voices = audioRefs.current;
     return () => {
-      for (const element of Object.values(audioRefs.current)) {
+      for (const element of Object.values(voices)) {
         element?.pause();
       }
     };
@@ -264,7 +267,7 @@ export const TimelinePlaybackPreview = memo(function TimelinePlaybackPreview({
       <div
         data-testid="timeline-playback-preview"
         className={cn(
-          'flex h-full min-h-0 items-center justify-center rounded-t-2xl border-b border-border bg-surface/70 p-6',
+          'flex h-full min-h-0 items-center justify-center rounded-t-sm border-b border-border bg-surface/70 p-6',
           className,
         )}
       >
@@ -328,9 +331,9 @@ export const TimelinePlaybackPreview = memo(function TimelinePlaybackPreview({
       <div className="relative min-h-0 flex-1 overflow-hidden bg-void">
         {frame && frame.layers.length > 0 ? (
           <>
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.08),transparent_55%)]" />
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,var(--color-sheen-medium),transparent_55%)]" />
             <div className="flex h-full items-center justify-center px-6 py-5">
-              <div className="relative aspect-video h-full max-h-full w-full max-w-6xl overflow-hidden rounded-sm border border-border bg-black shadow-cinematic">
+              <div className="relative aspect-video h-full max-h-full w-full max-w-6xl overflow-hidden rounded-sm border border-border bg-black shadow-overlay">
                 {frame.layers.map((layer, index) => {
                   const resolvedSource = resolveMediaSourceUrl(layer.sourcePath);
                   const resolvedPoster = resolveMediaSourceUrl(layer.posterUrl);
@@ -407,7 +410,7 @@ export const TimelinePlaybackPreview = memo(function TimelinePlaybackPreview({
         )}
 
         {primaryIssue ? (
-          <div className="absolute right-4 top-4 max-w-sm rounded-xl border border-status-warning/40 bg-void/90 px-3 py-2 text-sm text-text-body shadow-cinematic backdrop-blur-sm">
+          <div className="absolute right-4 top-4 max-w-sm rounded-xl border border-status-warning/40 bg-void/90 px-3 py-2 text-sm text-text-body shadow-overlay backdrop-blur-sm">
             <div className="flex items-start gap-2">
               <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0 text-status-warning" />
               <div>
@@ -425,6 +428,9 @@ export const TimelinePlaybackPreview = memo(function TimelinePlaybackPreview({
             const resolvedSource = resolveMediaSourceUrl(mediaAsset.path);
 
             return (
+              // Hidden mixer voices for the timeline's audio clips (aria-hidden):
+              // user audio has no caption files, and these are never presented.
+              // eslint-disable-next-line jsx-a11y-x/media-has-caption -- hidden playback voices, no captions exist
               <audio
                 key={clip.id}
                 ref={(element) => {

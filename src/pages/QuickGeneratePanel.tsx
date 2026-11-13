@@ -1,10 +1,12 @@
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef, useEffect, useId } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useAppStore } from '@/store/appStore';
+import { toAccelerationRequestPayload } from '@/features/generation/accelerationRequest';
 import {
-  fromAccelerationResult,
-  toAccelerationRequestPayload,
-} from '@/features/generation/accelerationRequest';
+  appJobWatcher,
+  selectLatestRunningJob,
+  useTrackedJob,
+} from '@/features/jobs/appJobWatcher';
 import { Button } from '@/components/ui/Button';
 import { ModelSelector } from '@/components/generate/ModelSelector';
 import { cn } from '@/utils/cn';
@@ -28,41 +30,28 @@ interface GenStatus {
   errorMessage: string;
 }
 
-const QUICK_POLL_INTERVAL_MS = 1500;
-
 function resolveOutputRoot(defaultOutputPath: string, userDataPath: string) {
   return (defaultOutputPath || `${userDataPath.replace(/\\/g, '/')}/outputs`).replace(/\\/g, '/');
 }
 
 export function QuickGeneratePanel() {
-  const { addJob, updateJob, syncAssetsFromJobStatus, advancedGeneration, systemInfo } = useAppStore(useShallow(s => ({
+  const modelRouterLabelId = useId();
+  const aspectRatioLabelId = useId();
+  const { addJob, advancedGeneration, systemInfo } = useAppStore(useShallow(s => ({
     addJob: s.addJob,
-    updateJob: s.updateJob,
-    syncAssetsFromJobStatus: s.syncAssetsFromJobStatus,
     advancedGeneration: s.advancedGeneration,
     systemInfo: s.systemInfo,
   })));
 
-  // Status polling. Progress arrives over the WebSocket (onProgress); the poll
-  // only has to notice the terminal state, so it runs every 1.5s as a chained
-  // timeout - the next request is not sent until the previous one returned. A
-  // 500ms setInterval used to overlap slow requests and could complete the
-  // same job twice. Bumping the run id retires a poll (new job, unmount).
-  const pollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const safetyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const unwatchRef = useRef<(() => void) | null>(null);
-  const pollRunRef = useRef(0);
-  const isGeneratingRef = useRef(false);
-
-  const stopPolling = useCallback(() => {
-    pollRunRef.current += 1;
-    if (pollTimeoutRef.current) clearTimeout(pollTimeoutRef.current);
-    if (safetyTimeoutRef.current) clearTimeout(safetyTimeoutRef.current);
-    unwatchRef.current?.();
-    pollTimeoutRef.current = null;
-    safetyTimeoutRef.current = null;
-    unwatchRef.current = null;
-  }, []);
+  // The app job watcher owns the run from submit to its terminal state
+  // (#J1): it follows the job through the progress push with a polling
+  // fallback, and syncs the asset and notifies even if this panel unmounts.
+  // There is no wall-clock stop - a slow run is followed until it finishes.
+  // A remount picks the in-flight run back up from the store.
+  const [resumedJob] = useState(() => selectLatestRunningJob(useAppStore.getState(), 'quick'));
+  const [activeJobId, setActiveJobId] = useState<string | null>(resumedJob?.id ?? null);
+  const trackedJob = useTrackedJob(activeJobId);
+  const isGeneratingRef = useRef(Boolean(resumedJob));
 
   const [prompt, setPrompt] = useState('');
   const [negativePrompt, setNegativePrompt] = useState('');
@@ -70,9 +59,9 @@ export function QuickGeneratePanel() {
   const [selectedRatio, setSelectedRatio] = useState<(typeof ASPECT_RATIOS)[number]>(ASPECT_RATIOS[0]);
   const [activeAccount, setActiveAccount] = useState<UserAccountSummary | null>(null);
   const [genStatus, setGenStatus] = useState<GenStatus>({
-    isGenerating: false,
-    progress: 0,
-    status: 'idle',
+    isGenerating: Boolean(resumedJob),
+    progress: resumedJob?.progress ?? 0,
+    status: resumedJob ? 'generating' : 'idle',
     errorMessage: '',
   });
 
@@ -86,123 +75,41 @@ export function QuickGeneratePanel() {
     return nextActiveAccount;
   }, []);
 
-  const pollJobStatus = useCallback(
-    async (jobId: string) => {
-      stopPolling();
-      const runId = pollRunRef.current;
-      const isCurrentRun = () => pollRunRef.current === runId;
-      // Claims the terminal transition: only the first caller proceeds.
-      const claimCompletion = () => {
-        if (!isCurrentRun()) return false;
-        stopPolling();
-        return true;
-      };
-
-      const checkStatus = async () => {
-        pollTimeoutRef.current = null;
-        if (!isCurrentRun()) return;
-        try {
-          const status = await window.electron.generation.getStatus(jobId);
-          if (!isCurrentRun()) return;
-          if (status.status === 'completed') {
-            if (!claimCompletion()) return;
-            const existingJob = useAppStore.getState().activeJobs.find((j) => j.id === jobId);
-            const completedAt = status.completed_at ? new Date(status.completed_at) : new Date();
-
-            updateJob(jobId, {
-              status: 'completed',
-              progress: status.progress ?? 100,
-              result: status.result,
-              error: status.error,
-              completedAt,
-            });
-
-            // M9: surface which optimizations actually took effect on this run.
-            useAppStore
-              .getState()
-              .setLastAppliedAcceleration(fromAccelerationResult(status.result?.acceleration));
-
-            syncAssetsFromJobStatus({
-              ...status,
-              params: {
-                ...(existingJob?.params ?? {}),
-                output_root:
-                  typeof existingJob?.params?.output_root === 'string'
-                    ? existingJob.params.output_root
-                    : resolveOutputRoot(
-                        (await window.electron.settings.get()).defaultOutputPath,
-                        await window.electron.app.getPath('userData')
-                      ),
-              },
-            });
-
-            await window.electron.notifications.notify('generation_complete', {
-              title: 'Image Ready',
-              body: prompt.trim().slice(0, 120) || 'Generation completed successfully.',
-            });
-
-            setGenStatus({ isGenerating: false, progress: 100, status: 'success', errorMessage: '' });
-            isGeneratingRef.current = false;
-            return;
-          } else if (status.status === 'failed') {
-            if (!claimCompletion()) return;
-            updateJob(jobId, {
-              status: 'failed',
-              progress: status.progress ?? 0,
-              error: status.error,
-              completedAt: status.completed_at ? new Date(status.completed_at) : new Date(),
-            });
-            await window.electron.notifications.notify('generation_failed', {
-              title: 'Generation Failed',
-              body: status.error || 'Generation failed.',
-            });
-            setGenStatus({
-              isGenerating: false,
-              progress: status.progress ?? 0,
-              status: 'error',
-              errorMessage: status.error || 'Generation failed',
-            });
-            isGeneratingRef.current = false;
-            return;
-          } else {
-            updateJob(jobId, {
-              status: status.status,
-              progress: status.progress ?? 0,
-            });
-            setGenStatus((prev) => ({
-              ...prev,
-              progress: status.progress ?? prev.progress,
-            }));
-          }
-        } catch {
-          // Keep polling
-        }
-        if (isCurrentRun()) {
-          pollTimeoutRef.current = setTimeout(() => void checkStatus(), QUICK_POLL_INTERVAL_MS);
-        }
-      };
-
-      unwatchRef.current = window.electron.generation.onProgress((data) => {
-        if (data.job_id === jobId && data.progress !== undefined) {
-          setGenStatus((prev) => ({ ...prev, progress: data.progress ?? prev.progress }));
-        }
-      });
-
-      // Stop after 5 minutes
-      safetyTimeoutRef.current = setTimeout(stopPolling, 5 * 60 * 1000);
-
-      // Initial check
-      await checkStatus();
-    },
-    [updateJob, syncAssetsFromJobStatus, prompt, stopPolling]
-  );
-
-  // Cleanup on unmount
   useEffect(() => {
-    void syncActiveAccount();
+    void syncActiveAccount().catch(() => setActiveAccount(null));
   }, [syncActiveAccount]);
 
-  useEffect(() => stopPolling, [stopPolling]);
+  // Mirror the watcher-maintained job record into the panel status.
+  useEffect(() => {
+    if (!trackedJob) return;
+    if (trackedJob.status === 'pending' || trackedJob.status === 'processing') {
+      setGenStatus((prev) =>
+        prev.progress === trackedJob.progress ? prev : { ...prev, progress: trackedJob.progress },
+      );
+      return;
+    }
+    isGeneratingRef.current = false;
+    setActiveJobId(null);
+    if (trackedJob.status === 'completed') {
+      setGenStatus({ isGenerating: false, progress: 100, status: 'success', errorMessage: '' });
+    } else if (trackedJob.status === 'failed') {
+      setGenStatus({
+        isGenerating: false,
+        progress: trackedJob.progress,
+        status: 'error',
+        errorMessage: trackedJob.error || 'Generation failed',
+      });
+    } else {
+      setGenStatus({ isGenerating: false, progress: 0, status: 'idle', errorMessage: '' });
+    }
+  }, [trackedJob]);
+
+  const handleCancel = () => {
+    if (!activeJobId) return;
+    void appJobWatcher.cancel(activeJobId).catch((error: unknown) => {
+      console.error('Failed to cancel quick generation:', error);
+    });
+  };
 
   const handleGenerate = async () => {
     if (!prompt.trim()) return;
@@ -317,10 +224,18 @@ export function QuickGeneratePanel() {
             model: requestedModel,
             scheduler: advancedGeneration.scheduler,
             output_root: outputRoot,
+            origin: 'quick',
           },
           createdAt: new Date(),
         });
-        pollJobStatus(result.jobId);
+        setActiveJobId(result.jobId);
+        void appJobWatcher.track({
+          jobId: result.jobId,
+          kind: 'image',
+          origin: 'quick',
+          prompt: prompt.trim(),
+          outputRoot,
+        });
       } else {
         throw new Error(result.error || 'Generation failed');
       }
@@ -426,11 +341,11 @@ export function QuickGeneratePanel() {
           </div>
 
           {/* Model selector */}
-          <div className="space-y-2">
+          <div className="space-y-2" role="group" aria-labelledby={modelRouterLabelId}>
             <div>
-              <label className="mono-label text-text-muted">
+              <span id={modelRouterLabelId} className="block mono-label text-text-muted">
                 Model Router
-              </label>
+              </span>
               <p className="mt-1 text-xs text-text-muted">
                 {hostedRoute
                   ? `The active account is routing still images through ${hostedRoute.provider}.`
@@ -461,10 +376,11 @@ export function QuickGeneratePanel() {
 
           {/* Aspect ratio */}
           <div className="space-y-1.5">
-            <label className="mono-label text-text-muted">
+            {/* Names the ratio button group, not a single form field. */}
+            <span id={aspectRatioLabelId} className="block mono-label text-text-muted">
               Aspect Ratio
-            </label>
-            <div className="grid grid-cols-4 gap-1.5">
+            </span>
+            <div className="grid grid-cols-4 gap-1.5" role="group" aria-labelledby={aspectRatioLabelId}>
               {ASPECT_RATIOS.map((ratio) => (
                 <button
                   key={ratio.name}
@@ -518,9 +434,21 @@ export function QuickGeneratePanel() {
             className="overflow-hidden"
           >
             <div className="px-4 pt-2 pb-1">
-              <div className="flex items-center justify-between mb-1">
+              <div className="flex items-center justify-between gap-2 mb-1">
                 <span className="type-caption">Generating...</span>
-                <span className="type-caption">{genStatus.progress}%</span>
+                <span className="flex-1" />
+                <span className="type-caption">{Math.round(genStatus.progress)}%</span>
+                {activeJobId ? (
+                  <button
+                    type="button"
+                    onClick={handleCancel}
+                    data-testid="quick-cancel"
+                    className="flex min-h-[28px] items-center gap-1 rounded-md px-2 type-caption text-text-body transition hover:bg-elevated hover:text-text-primary"
+                  >
+                    <X className="h-3 w-3" aria-hidden="true" />
+                    Cancel
+                  </button>
+                ) : null}
               </div>
               <div className="h-1 bg-void rounded-full overflow-hidden">
                 <motion.div

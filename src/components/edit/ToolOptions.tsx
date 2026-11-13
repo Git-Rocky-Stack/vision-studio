@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/Button';
 import { Slider } from '@/components/ui/Slider';
 import { Switch } from '@/components/ui/Switch';
 import { cancelPenPath, finishPenPath } from '@/features/edit/penPath';
+import { RETOUCH_SIZE_MAX, RETOUCH_SIZE_MIN } from '@/features/edit/retouch';
 import { SHAPE_KIND_LABELS, isShapeLayer } from '@/features/edit/shapeLayers';
 import { useAppStore } from '@/store/appStore';
 import type { ShapeKind, ShapeStyle } from '@/types/editor';
@@ -130,8 +131,8 @@ export const ToolOptions = memo(function ToolOptions() {
         <Slider
           label="Size"
           value={brushSize}
-          min={1}
-          max={400}
+          min={RETOUCH_SIZE_MIN}
+          max={RETOUCH_SIZE_MAX}
           onChange={setBrushSize}
           valueFormatter={(value) => `${value}px`}
         />
@@ -140,7 +141,7 @@ export const ToolOptions = memo(function ToolOptions() {
       {tool === 'brush' && (
         <div className="flex items-center justify-between gap-2">
           <span className="type-caption text-text-muted">Colour</span>
-          <ColorPicker value={brushColor} onChange={setBrushColor} recentColors={NO_RECENT_COLORS} />
+          <ColorPicker label="Brush colour" value={brushColor} onChange={setBrushColor} recentColors={NO_RECENT_COLORS} />
         </div>
       )}
 
@@ -245,6 +246,7 @@ export const ToolOptions = memo(function ToolOptions() {
           <div className="flex items-center justify-between gap-2">
             <span className="type-caption text-text-muted">Outline</span>
             <ColorPicker
+              label="Outline colour"
               value={style.stroke}
               onChange={(stroke) => applyShapeStyle({ stroke })}
               recentColors={NO_RECENT_COLORS}
@@ -263,6 +265,7 @@ export const ToolOptions = memo(function ToolOptions() {
             <div className="flex items-center gap-2">
               {style.fillEnabled && (
                 <ColorPicker
+                  label="Fill colour"
                   value={style.fill}
                   onChange={(fill) => applyShapeStyle({ fill })}
                   recentColors={NO_RECENT_COLORS}

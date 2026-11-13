@@ -243,6 +243,96 @@ describe('exportTimelineSequence', () => {
     expect(electron.generation.exportTimelineSequence).not.toHaveBeenCalled();
   });
 
+  it('keeps tracking through a failed status read instead of abandoning a running export (#J7)', async () => {
+    const { sequence } = seedTimelineForExport();
+    const electron = makeElectronExportMock({
+      statuses: [
+        { job_id: 'timeline-export-job', status: 'processing', type: 'video', created_at: 'x', progress: 10 },
+      ],
+    });
+    const responses: unknown[] = [
+      Promise.reject(new Error('socket hang up')),
+      { job_id: 'timeline-export-job', status: 'processing', type: 'video', created_at: 'x', progress: 60 },
+      { job_id: 'timeline-export-job', status: 'completed', type: 'video', created_at: 'x', progress: 100, result: { output_path: 'D:/Exports/out.mp4' } },
+    ];
+    electron.generation.getStatus = vi.fn(async () => {
+      const next = responses.shift();
+      return next instanceof Promise ? next : (next as Record<string, unknown>);
+    });
+
+    const result = await exportTimelineSequence({
+      sequenceId: sequence.id,
+      outputPath: 'D:/Exports/out.mp4',
+      electron,
+      store: useAppStore,
+      pollIntervalMs: 0,
+      watchOptions: { retryIntervalMs: 0 },
+    });
+
+    expect(result).toEqual({ cancelled: false, jobId: 'timeline-export-job', outputPath: 'D:/Exports/out.mp4' });
+    expect(electron.generation.getStatus).toHaveBeenCalledTimes(3);
+  });
+
+  it('gives up with a clear message only after the error budget is spent', async () => {
+    const { sequence } = seedTimelineForExport();
+    const electron = makeElectronExportMock();
+    electron.generation.getStatus = vi.fn().mockRejectedValue(new Error('backend gone'));
+
+    await expect(
+      exportTimelineSequence({
+        sequenceId: sequence.id,
+        outputPath: 'D:/Exports/out.mp4',
+        electron,
+        store: useAppStore,
+        pollIntervalMs: 0,
+        watchOptions: { retryIntervalMs: 0, errorCap: 3 },
+      }),
+    ).rejects.toThrow(/Lost connection to the AI backend while exporting/);
+    expect(electron.generation.getStatus).toHaveBeenCalledTimes(3);
+  });
+
+  it('cancels the backend export when aborted mid-render (#J7)', async () => {
+    const { sequence } = seedTimelineForExport();
+    const electron = { ...makeElectronExportMock(), generation: { ...makeElectronExportMock().generation } };
+    const controller = new AbortController();
+    const patches: TimelineExportStatusPatch[] = [];
+    electron.generation.getStatus = vi.fn(async () => {
+      controller.abort();
+      return { job_id: 'timeline-export-job', status: 'processing', type: 'video', created_at: 'x', progress: 30 };
+    });
+    const cancel = vi.fn().mockResolvedValue({ success: true });
+
+    const result = await exportTimelineSequence({
+      sequenceId: sequence.id,
+      outputPath: 'D:/Exports/out.mp4',
+      electron: { ...electron, generation: { ...electron.generation, cancel } },
+      store: useAppStore,
+      pollIntervalMs: 50,
+      signal: controller.signal,
+      onStatusChange: (patch) => patches.push(patch),
+    });
+
+    expect(result).toEqual({ cancelled: true, jobId: 'timeline-export-job', outputPath: null });
+    expect(cancel).toHaveBeenCalledWith('timeline-export-job');
+    expect(patches.at(-1)).toMatchObject({ status: 'idle', isExporting: false });
+  });
+
+  it('submits nothing when already aborted', async () => {
+    const { sequence } = seedTimelineForExport();
+    const electron = makeElectronExportMock();
+    const controller = new AbortController();
+    controller.abort();
+    const result = await exportTimelineSequence({
+      sequenceId: sequence.id,
+      outputPath: 'D:/Exports/out.mp4',
+      electron,
+      store: useAppStore,
+      signal: controller.signal,
+    });
+    expect(result.cancelled).toBe(true);
+    expect(electron.generation.exportTimelineSequence).not.toHaveBeenCalled();
+  });
+
   it('polls backend export progress without changing managed review state', async () => {
     const { sequence } = seedTimelineForExport();
     const initialMediaAssets = structuredClone(useAppStore.getState().mediaAssets);

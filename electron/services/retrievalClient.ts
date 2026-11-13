@@ -6,6 +6,9 @@ type AxiosLike = {
   post: (url: string, body?: unknown, config?: unknown) => Promise<{ data: unknown }>;
 };
 
+/** Mirrors backend/schemas/retrieval.py MAX_INGEST_RECORDS. */
+export const MAX_INGEST_RECORDS = 10_000;
+
 export interface RetrievalIndexStats {
   count: number;
   mode: 'semantic' | 'lexical';
@@ -36,13 +39,33 @@ export function createRetrievalClient({
     };
   }
 
-  async function ingest(records: IngestRecord[]): Promise<{ ingested: number; skipped: number; total: number }> {
+  async function ingestChunk(
+    records: IngestRecord[],
+  ): Promise<{ ingested: number; skipped: number; total: number }> {
     const res = await axiosInstance.post(`${baseUrl}/api/v1/retrieval/ingest`, { records }, {
       headers: authHeaders(),
-      // A full corpus sync embeds every record before answering.
+      // A corpus chunk embeds every record before answering.
       timeout: BACKEND_LONG_OPERATION_TIMEOUT_MS,
     });
     return (res.data ?? { ingested: 0, skipped: 0, total: 0 }) as { ingested: number; skipped: number; total: number };
+  }
+
+  // The backend caps one ingest request at MAX_INGEST_RECORDS (422 beyond it).
+  // Ingest is an upsert keyed by content hash, so a larger corpus syncs as
+  // sequential chunks with summed counts; `total` is the index size after the
+  // last chunk.
+  async function ingest(records: IngestRecord[]): Promise<{ ingested: number; skipped: number; total: number }> {
+    if (records.length <= MAX_INGEST_RECORDS) {
+      return ingestChunk(records);
+    }
+    const summary = { ingested: 0, skipped: 0, total: 0 };
+    for (let start = 0; start < records.length; start += MAX_INGEST_RECORDS) {
+      const result = await ingestChunk(records.slice(start, start + MAX_INGEST_RECORDS));
+      summary.ingested += result.ingested ?? 0;
+      summary.skipped += result.skipped ?? 0;
+      summary.total = result.total ?? summary.total;
+    }
+    return summary;
   }
 
   async function clearIndex(): Promise<void> {

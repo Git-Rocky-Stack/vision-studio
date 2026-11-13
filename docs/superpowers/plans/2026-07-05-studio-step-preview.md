@@ -3,6 +3,8 @@
 > **Historical design record - 2026-07-05.** Describes intent at that
 > date, not current behaviour. See `docs/INDEX.md` for what is authoritative.
 
+> **Status (checked 2026-11-11):** Shipped - PR #50 (`f366efe`). The task checkboxes below record the plan as written and were not ticked.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Studio's Generate button submits a real image job from the Studio prompt config, and the composition canvas streams live per-step preview frames decoded on the backend with taesd tiny-VAE decoders.

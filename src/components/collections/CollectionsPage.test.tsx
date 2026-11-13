@@ -1,9 +1,18 @@
-import { describe, expect, it, beforeEach, afterEach } from 'vitest';
-import { render, screen, cleanup, waitForElementToBeRemoved } from '@testing-library/react';
+import { describe, expect, it, beforeEach, afterEach, vi } from 'vitest';
+import { render, screen, cleanup, waitForElementToBeRemoved, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useAppStore } from '@/store/appStore';
 import type { AssetRecord } from '@/types/assets';
 import { CollectionsPage } from '@/pages/CollectionsPage';
+
+// jsdom has no layout, so render every virtual row of the detail grid.
+vi.mock('@tanstack/react-virtual', () => ({
+  useVirtualizer: ({ count }: { count: number }) => ({
+    getTotalSize: () => count * 100,
+    getVirtualItems: () => Array.from({ length: count }, (_, index) => ({ index, key: index, start: index * 100 })),
+    measure: () => {},
+  }),
+}));
 
 function seedAssets(...prompts: string[]) {
   const assets: AssetRecord[] = prompts.map((prompt, i) => ({
@@ -47,11 +56,12 @@ describe('CollectionsPage', () => {
     expect(screen.getByText('No collections yet')).toBeInTheDocument();
   });
 
-  it('renders category filters as pressed toggles, without the empty Smart filter', () => {
+  it('renders category filters as pressed toggles, including Smart now that smart collections can be built', () => {
     render(<CollectionsPage />);
-    expect(screen.getByRole('button', { name: 'All', pressed: true })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Smart' })).toBeNull();
-    expect(screen.getByRole('button', { name: 'Manual', pressed: false })).toBeInTheDocument();
+    const filters = screen.getByRole('group', { name: 'Collection categories' });
+    expect(within(filters).getByRole('button', { name: 'All', pressed: true })).toBeInTheDocument();
+    expect(within(filters).getByRole('button', { name: 'Smart', pressed: false })).toBeInTheDocument();
+    expect(within(filters).getByRole('button', { name: 'Manual', pressed: false })).toBeInTheDocument();
   });
 
   it('creates a new collection on button click', async () => {
@@ -116,6 +126,35 @@ describe('CollectionsPage', () => {
 
     const thumb = screen.getByRole('img', { name: /render-0\.png/i });
     expect(thumb).toHaveAttribute('src', 'file:///C:/out/thumb-0.png');
+  });
+
+  it('previews a video record held in its persisted form (no stored thumbnail) as its placeholder', () => {
+    useAppStore.setState({
+      assetLibrary: [
+        {
+          id: 'video-0',
+          jobId: 'job-v',
+          name: 'clip-0.mp4',
+          type: 'video',
+          path: 'C:/out/clip-0.mp4',
+          previewUrl: '',
+          thumbnail: '',
+          createdAt: new Date(1_700_000_000_000).toISOString(),
+          prompt: 'a drone shot',
+          negativePrompt: '',
+          favorite: false,
+          params: {},
+        },
+      ],
+    });
+    const store = useAppStore.getState();
+    store.createCollection({ name: 'Clips', type: 'manual' });
+    store.addAssetToCollection(useAppStore.getState().collections[0].id, 'video-0');
+
+    render(<CollectionsPage />);
+
+    const thumb = screen.getByRole('img', { name: /clip-0\.mp4/i });
+    expect(thumb.getAttribute('src')).toMatch(/^data:image\/svg\+xml/);
   });
 
   it('selects a collection when its card is activated', async () => {

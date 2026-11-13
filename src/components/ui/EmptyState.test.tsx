@@ -57,5 +57,9 @@ describe('EmptyState', () => {
     const root = screen.getByTestId('empty-state');
     expect(root.className).toContain('py-3');
     expect(root.firstElementChild?.className).toContain('h-8');
+    // A one-sentence hint stays on one line in a short strip (the timeline's
+    // track area clipped the wrapped second line of a 42ch measure).
+    expect(screen.getByText('d').className).toContain('max-w-[72ch]');
+    expect(screen.getByText('d').className).not.toContain('max-w-[42ch]');
   });
 });

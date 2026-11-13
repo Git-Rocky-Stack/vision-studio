@@ -64,7 +64,11 @@ export function CanvasContextMenu({
       }
     };
     const handleKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape') {
+        // The menu owns this Escape; workspace shortcuts behind it must not see it.
+        e.stopPropagation();
+        onClose();
+      }
     };
 
     document.addEventListener('mousedown', handleClick);
@@ -166,13 +170,18 @@ export function CanvasContextMenu({
       action: () => {
         if (currentImageAssetPath && !unsupported) {
           const sourcePath = currentImageAssetPath;
-          void startPipelineRun(p.id, sourcePath).then((result) => {
-            if (result.status === 'error') {
-              reportActionError(`${p.name} failed: ${result.error ?? 'unknown error'}`);
-            } else if (result.status === 'complete') {
-              pushNotice('success', `${p.name} finished. The result is on the Edit canvas.`);
-            }
-          });
+          void startPipelineRun(p.id, sourcePath)
+            .then((result) => {
+              if (result.status === 'error') {
+                reportActionError(`${p.name} failed: ${result.error ?? 'unknown error'}`);
+              } else if (result.status === 'complete') {
+                pushNotice('success', `${p.name} finished. The result is on the Edit canvas.`);
+              }
+            })
+            .catch((error: unknown) => {
+              // The menu has already closed, so a thrown run surfaces as a notice.
+              reportActionError(`${p.name} failed: ${error instanceof Error ? error.message : 'unknown error'}`);
+            });
         }
         onClose();
       },
@@ -233,6 +242,9 @@ export function CanvasContextMenu({
       ref={menuRef}
       role="menu"
       aria-label="Canvas context menu"
+      // Focus lives on the items (roving); the menu itself is focusable only
+      // programmatically, as the menu pattern requires.
+      tabIndex={-1}
       onKeyDown={(e) => {
         const items = menuRef.current?.querySelectorAll<HTMLElement>('button:not([disabled])');
         if (!items || items.length === 0) return;
@@ -264,7 +276,7 @@ export function CanvasContextMenu({
           if (match) match.focus();
         }
       }}
-      className="fixed z-50 min-w-[200px] py-1.5 bg-elevated border border-border rounded-xl shadow-cinematic"
+      className="fixed z-50 min-w-[200px] py-1.5 bg-elevated border border-border rounded-xl shadow-overlay"
       style={{ left: x, top: y }}
     >
       {actionError && (
@@ -284,6 +296,7 @@ export function CanvasContextMenu({
             return (
               <button
                 key={menuItem.id}
+                type="button"
                 onClick={menuItem.action}
                 disabled={menuItem.disabled}
                 role="menuitem"
@@ -296,7 +309,7 @@ export function CanvasContextMenu({
                     : 'text-text-primary hover:bg-accent-primary-muted hover:text-accent-primary'
                 )}
               >
-                <Icon className="w-4 h-4 flex-shrink-0" />
+                <Icon className="w-4 h-4 flex-shrink-0" aria-hidden="true" />
                 <span className="text-sm">{menuItem.label}</span>
               </button>
             );

@@ -18,6 +18,9 @@ from io import StringIO
 
 import pytest
 
+import logging.handlers
+
+from utils import logging_config
 from utils.logging_config import StructuredFormatter, get_logger, setup_logging
 
 
@@ -467,3 +470,70 @@ class TestLoggingIntegration:
         record = caplog.records[0]
         assert record.levelname == "ERROR"
         assert "Operation failed" in record.getMessage()
+
+
+class TestLogFileRotation:
+    """B16: the log file is size-rotated, never unbounded."""
+
+    @staticmethod
+    def _rotating_handlers():
+        return [
+            h for h in logging.getLogger().handlers
+            if isinstance(h, logging.handlers.RotatingFileHandler)
+        ]
+
+    @staticmethod
+    def _reset_root():
+        for handler in list(logging.getLogger().handlers):
+            handler.close()
+        logging.getLogger().handlers.clear()
+
+    def test_file_handler_rotates_by_size(self, tmp_path):
+        logging.getLogger().handlers.clear()
+        setup_logging(level="INFO", log_file=str(tmp_path / "app.log"))
+        handlers = self._rotating_handlers()
+        try:
+            assert len(handlers) == 1
+            assert handlers[0].maxBytes == logging_config.LOG_FILE_MAX_BYTES > 0
+            assert handlers[0].backupCount == logging_config.LOG_FILE_BACKUP_COUNT > 0
+        finally:
+            self._reset_root()
+
+    def test_rollover_creates_backups_and_bounds_size(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(logging_config, "LOG_FILE_MAX_BYTES", 2048)
+        monkeypatch.setattr(logging_config, "LOG_FILE_BACKUP_COUNT", 2)
+        logging.getLogger().handlers.clear()
+        log_file = tmp_path / "app.log"
+        setup_logging(level="INFO", log_file=str(log_file))
+        logger = logging.getLogger("rotation-test")
+        try:
+            for index in range(200):
+                logger.info("line %d %s", index, "x" * 64)
+        finally:
+            self._reset_root()
+        assert (tmp_path / "app.log.1").exists()
+        assert (tmp_path / "app.log.2").exists()
+        assert not (tmp_path / "app.log.3").exists()
+        assert log_file.stat().st_size <= 2048
+
+    def test_rerun_closes_the_previous_file_handler(self, tmp_path):
+        logging.getLogger().handlers.clear()
+        setup_logging(level="INFO", log_file=str(tmp_path / "first.log"))
+        first = self._rotating_handlers()[0]
+        try:
+            setup_logging(level="INFO", log_file=str(tmp_path / "second.log"))
+            assert first not in logging.getLogger().handlers
+            assert first.stream is None  # closed: the file lock is released
+        finally:
+            self._reset_root()
+
+    def test_foreign_handlers_are_removed_but_not_closed(self):
+        logging.getLogger().handlers.clear()
+        foreign = logging.StreamHandler(StringIO())
+        logging.getLogger().addHandler(foreign)
+        try:
+            setup_logging(level="INFO")
+            assert foreign not in logging.getLogger().handlers
+            foreign.stream.write("still open")
+        finally:
+            self._reset_root()

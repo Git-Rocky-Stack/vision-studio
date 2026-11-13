@@ -197,33 +197,39 @@ describe('asset management → remove by output root', () => {
 describe('edit history branch workflow', () => {
   beforeEach(resetStore);
 
-  it('truncates future history when a new action is pushed after undo', () => {
-    const { pushEditHistory, undo } = useAppStore.getState();
+  // History is recorded by the editing actions themselves (pushEditHistory,
+  // which bypassed them, was removed as dead surface).
+  function addLayer(id: string) {
+    useAppStore.getState().addEditLayer({ id, name: id, type: 'image', visible: true, opacity: 1 } as never);
+  }
 
-    pushEditHistory(makeHistoryEntry('h1', 'draw'));
-    pushEditHistory(makeHistoryEntry('h2', 'crop'));
-    pushEditHistory(makeHistoryEntry('h3', 'filter'));
+  it('truncates future history when a new action is recorded after undo', () => {
+    const { undo } = useAppStore.getState();
 
-    // Undo twice → index at 0 (h1)
+    addLayer('h1');
+    addLayer('h2');
+    addLayer('h3');
+
+    // Original, h1, h2, h3 -> undo twice lands on h1
     undo();
     undo();
-    expect(useAppStore.getState().editHistoryIndex).toBe(0);
+    expect(useAppStore.getState().editHistoryIndex).toBe(1);
 
-    // Push new action → h2 and h3 should be gone
-    useAppStore.getState().pushEditHistory(makeHistoryEntry('h4', 'text'));
+    // A new action drops h2 and h3
+    addLayer('h4');
 
-    const { editHistory, editHistoryIndex } = useAppStore.getState();
-    expect(editHistory).toHaveLength(2); // h1, h4
-    expect(editHistory[0].id).toBe('h1');
-    expect(editHistory[1].id).toBe('h4');
-    expect(editHistoryIndex).toBe(1);
+    const { editHistory, editHistoryIndex, editLayers } = useAppStore.getState();
+    expect(editHistory).toHaveLength(3); // Original, h1, h4
+    expect(editHistory[0].action).toBe('Original');
+    expect(editHistoryIndex).toBe(2);
+    expect(editLayers.map((layer) => layer.id)).toEqual(['h1', 'h4']);
   });
 
   it('setCurrentImage resets edit state completely', () => {
-    const { pushEditHistory, setCurrentImage } = useAppStore.getState();
+    const { setCurrentImage } = useAppStore.getState();
 
-    pushEditHistory(makeHistoryEntry('h1', 'draw'));
-    pushEditHistory(makeHistoryEntry('h2', 'crop'));
+    addLayer('h1');
+    addLayer('h2');
 
     setCurrentImage('http://localhost:8000/outputs/j1/image.png', 'D:/Outputs/j1/image.png');
 
@@ -290,6 +296,3 @@ function makeAsset(id: string, path: string): any {
   };
 }
 
-function makeHistoryEntry(id: string, action: string) {
-  return { id, action, timestamp: new Date() };
-}

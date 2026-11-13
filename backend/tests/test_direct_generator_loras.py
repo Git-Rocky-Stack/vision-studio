@@ -72,6 +72,7 @@ def test_generate_sync_brackets_pipeline_call_with_loras(monkeypatch, tmp_path):
         loras=[{"id": "l1", "weight": 0.9}],
     )
 
+    # The fake has no disable_lora, so clearing falls back to a full unload.
     assert calls == ["load_lora_weights", "set_adapters", "__call__", "unload_lora_weights"]
     assert result["loras"]["applied"] == [{"id": "l1", "weight": 0.9}]
     assert result["loras"]["skipped"] == []
@@ -108,5 +109,6 @@ def test_generate_sync_without_loras_still_clears(monkeypatch, tmp_path):
 
     assert "load_lora_weights" not in calls
     assert "set_adapters" not in calls
-    assert calls == ["__call__", "unload_lora_weights"]
+    # Nothing was ever loaded on this pipeline, so there is nothing to clear.
+    assert calls == ["__call__"]
     assert result["loras"]["applied"] == []

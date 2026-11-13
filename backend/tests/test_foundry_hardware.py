@@ -55,6 +55,32 @@ class ProbeTests(unittest.TestCase):
         self.assertEqual(profile.system_ram_total_bytes, 32 * 2**30)
         self.assertGreater(profile.disk_free_bytes, 0)
 
+    def test_supported_gpu_has_no_unsupported_reason(self):
+        t = _torch(cap=(8, 6))
+        t.cuda.get_arch_list.return_value = ["sm_75", "sm_86", "sm_120", "compute_120"]
+        profile = self._probe(t, _psutil())
+        self.assertTrue(profile.gpu_available)
+        self.assertIsNone(profile.gpu_unsupported_reason)
+
+    def test_gpu_older_than_the_build_is_reported_unsupported_not_available(self):
+        # GTX 1080 (Pascal 6.1) under the cu132 wheels (Turing 7.5+):
+        # torch.cuda.is_available() is True, yet no kernel runs on it.
+        t = _torch(cap=(6, 1), name="NVIDIA GeForce GTX 1080", cuda="13.2")
+        t.cuda.get_arch_list.return_value = ["sm_75", "sm_86", "sm_120", "compute_120"]
+        profile = self._probe(t, _psutil())
+        self.assertFalse(profile.gpu_available)
+        # Truthful about the card itself...
+        self.assertEqual(profile.gpu_name, "NVIDIA GeForce GTX 1080")
+        self.assertEqual((profile.compute_major, profile.compute_minor), (6, 1))
+        self.assertEqual(profile.cuda_version, "13.2")
+        # ...and plans for the CPU that will actually run the job.
+        self.assertEqual(profile.vram_total_bytes, 0)
+        self.assertEqual(profile.vram_free_bytes, 0)
+        self.assertFalse(profile.supports_bf16)
+        self.assertIn("compute capability 6.1", profile.gpu_unsupported_reason)
+        self.assertIn("runs on the CPU", profile.gpu_unsupported_reason)
+        t.cuda.mem_get_info.assert_not_called()
+
     def test_no_cuda_machine_is_truthful(self):
         # THIS dev machine: torch CUDA-built, no device (Spike D environment).
         profile = self._probe(_torch(available=False), _psutil())

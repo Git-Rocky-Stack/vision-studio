@@ -28,6 +28,14 @@ def test_stability_attribution_is_surfaced():
     assert "Powered by Stability AI" in RENDERED
 
 
+def test_models_are_described_as_provisioned_not_bundled():
+    # Weights never ship inside an installer (electron-builder.yml excludes
+    # backend/models/**); the auto-set downloads on first run through the
+    # consent-gated provisioner. The heading must say so.
+    assert "## Provisioned AI Models" in RENDERED
+    assert "Bundled AI Models" not in RENDERED
+
+
 def test_runtime_dependencies_are_listed():
     assert "## Bundled Runtime Dependencies" in RENDERED
     assert "PyTorch" in RENDERED

@@ -3,6 +3,8 @@
 > **Historical design record - 2026-05-30.** Describes intent at that
 > date, not current behaviour. See `docs/INDEX.md` for what is authoritative.
 
+> **Status (checked 2026-11-11):** Shipped - merged in PR #5 (`ecfa36e`). The task checkboxes below record the plan as written and were not ticked.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Replace the two hardcoded model catalogs (backend `PREDEFINED_MODELS` dict + frontend `ModelSelector` `IMAGE_MODELS`/`VIDEO_MODELS` arrays) with one backend-owned, data-driven `ModelRecord` registry sourced from a versioned `verified-catalog.json`, surfaced over `GET /api/models` + `GET /api/models/{id}`, consumed by a new frontend `modelsSlice` that `ModelSelector` reads from — guarded by a drift regression test so the duplication can never silently return.

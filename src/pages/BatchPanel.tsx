@@ -1,7 +1,25 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback, useId } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { useShallow } from 'zustand/react/shallow';
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import { useAppStore } from '@/store/appStore';
+import type { BatchQueuePrompt, BatchSeedMode } from '@/store/appStore.types';
+import { BATCH_SEED_MAX, resolveBatchSeeds } from '@/store/slices/batchQueueSlice';
 import { cn } from '@/utils/cn';
 import { Button } from '@/components/ui/Button';
 import { Slider } from '@/components/ui/Slider';
@@ -9,7 +27,7 @@ import { ResultsGrid } from '@/components/batch/ResultsGrid';
 import { ImagePreviewModal } from '@/components/shared/ImagePreviewModal';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import type { ViewMode, SortBy, FilterBy } from '@/components/batch/ResultsGrid';
-import type { UserAccountSummary } from '@/types/electron';
+import type { BatchParams, UserAccountSummary } from '@/types/electron';
 import {
   AlertCircle,
   Layers,
@@ -29,31 +47,31 @@ import {
   Maximize2,
   ArrowUpDown,
   Download,
+  Copy,
+  FileUp,
+  ListX,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChromeButton } from '@/components/hardware';
 import { RouteStatusCard } from '@/components/generate/RouteStatusCard';
-import { resolveStoredAssetPath } from '@/features/assets/assetRecords';
+import { appJobWatcher } from '@/features/jobs/appJobWatcher';
+import {
+  BATCH_IMPORT_ACCEPT,
+  BATCH_IMPORT_MAX_BYTES,
+  BatchPromptImportError,
+  parseBatchPromptFile,
+} from '@/features/generation/batchPromptImport';
 
-interface BatchPrompt {
-  id: string;
-  prompt: string;
-  status: 'pending' | 'generating' | 'completed' | 'failed';
-  result?: string;
-  seed?: number;
-}
-
-interface BatchNoticeState {
-  tone: 'error' | 'info';
-  message: string;
-}
-
-const BACKEND_ASSET_BASE_URL = 'http://localhost:8000';
-const BATCH_POLL_INTERVAL_MS = 2000;
-const MAX_BATCH_STATUS_ERRORS = 5;
 const PROMPT_VIRTUALIZE_THRESHOLD = 30;
+const BATCH_WIDTH_HEIGHT_OPTIONS = [512, 768, 1024, 1280, 1920] as const;
 
-function promptCardClassName(status: BatchPrompt['status']) {
+const SEED_MODE_OPTIONS: { value: BatchSeedMode; label: string; hint: string }[] = [
+  { value: 'random', label: 'Random', hint: 'Each prompt gets its own random seed; the seed used is recorded on every result.' },
+  { value: 'fixed', label: 'Fixed', hint: 'Every prompt runs on the same seed, so prompt changes are compared like for like.' },
+  { value: 'increment', label: 'Increment', hint: 'Seeds count up from the base seed, one per prompt in queue order.' },
+];
+
+function promptCardClassName(status: BatchQueuePrompt['status']) {
   return cn(
     'relative p-3 rounded-md border transition',
     status === 'generating' && 'border-status-warning-border bg-status-warning-muted',
@@ -67,18 +85,10 @@ function resolveOutputRoot(defaultOutputPath: string, userDataPath: string) {
   return (defaultOutputPath || `${userDataPath.replace(/\\/g, '/')}/outputs`).replace(/\\/g, '/');
 }
 
-function toPreviewUrl(assetPath: string) {
-  if (!assetPath) {
-    return '';
-  }
-
-  if (/^https?:\/\//.test(assetPath)) {
-    return assetPath;
-  }
-
-  return assetPath.startsWith('/')
-    ? `${BACKEND_ASSET_BASE_URL}${assetPath}`
-    : `${BACKEND_ASSET_BASE_URL}/${assetPath}`;
+function nearestOption(value: number) {
+  return BATCH_WIDTH_HEIGHT_OPTIONS.reduce((best, option) =>
+    Math.abs(option - value) < Math.abs(best - value) ? option : best,
+  );
 }
 
 /* -----------------------------------------------------------
@@ -105,11 +115,124 @@ const FILTER_OPTIONS: { value: FilterBy; label: string }[] = [
   { value: 'favorites', label: 'Favorites' },
 ];
 
+interface PromptCardProps {
+  prompt: BatchQueuePrompt;
+  index: number;
+  isGenerating: boolean;
+  canRemove: boolean;
+  onChange: (id: string, value: string) => void;
+  onRemove: (id: string) => void;
+  onDuplicate: (id: string) => void;
+}
+
+/**
+ * One queue card. The grip is the real drag handle (#J14): pointer drag, or
+ * keyboard - focus it, Space to pick up, arrow keys to move, Space to drop -
+ * with dnd-kit's screen-reader announcements. Reordering is locked while a
+ * batch runs, since card order is the submission order.
+ */
+function SortablePromptCard({
+  prompt,
+  index,
+  isGenerating,
+  canRemove,
+  onChange,
+  onRemove,
+  onDuplicate,
+}: PromptCardProps) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: prompt.id,
+    disabled: isGenerating,
+  });
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={{ transform: CSS.Transform.toString(transform), transition }}
+      data-testid="batch-prompt-card"
+      className={cn(promptCardClassName(prompt.status), isDragging && 'z-10 shadow-overlay')}
+    >
+      <div className="flex items-start gap-3">
+        <div className="flex flex-col items-center gap-1 pt-1">
+          <button
+            type="button"
+            {...attributes}
+            {...listeners}
+            disabled={isGenerating}
+            aria-label={`Reorder prompt ${index + 1}`}
+            title={isGenerating ? 'Reordering is locked while the batch runs' : 'Drag, or press Space and use the arrow keys, to reorder'}
+            className={cn(
+              'icon-button flex h-7 w-7 items-center justify-center rounded-md text-text-muted transition',
+              isGenerating
+                ? 'cursor-not-allowed opacity-40'
+                : 'cursor-grab hover:bg-surface hover:text-text-primary active:cursor-grabbing',
+            )}
+          >
+            <GripVertical className="h-3.5 w-3.5" aria-hidden="true" />
+          </button>
+          <span className="type-meta text-text-muted">{index + 1}</span>
+        </div>
+
+        <div className="flex-1">
+          <textarea
+            aria-label={`Prompt ${index + 1}`}
+            value={prompt.prompt}
+            onChange={(e) => onChange(prompt.id, e.target.value)}
+            placeholder="Enter prompt..."
+            disabled={isGenerating}
+            rows={2}
+            className="recessed-well w-full resize-none px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent-primary disabled:opacity-50"
+          />
+          {prompt.seed !== undefined && prompt.status !== 'pending' ? (
+            <p className="mt-1 data-mono text-text-muted">Seed {prompt.seed}</p>
+          ) : null}
+        </div>
+
+        <div className="flex flex-col gap-1 pt-1">
+          {prompt.status === 'generating' && (
+            <Loader2 className="h-4 w-4 animate-spin text-status-warning" aria-label="Generating" />
+          )}
+          {prompt.status === 'completed' && (
+            <CheckCircle2 className="h-4 w-4 text-status-success" aria-label="Completed" />
+          )}
+          {prompt.status === 'failed' && (
+            <XCircle className="h-4 w-4 text-status-error" aria-label="Failed" />
+          )}
+
+          {!isGenerating && (
+            <>
+              <button
+                type="button"
+                onClick={() => onDuplicate(prompt.id)}
+                aria-label={`Duplicate prompt ${index + 1}`}
+                title="Duplicate prompt"
+                className="icon-button rounded-md p-1 text-text-muted transition hover:bg-surface hover:text-text-primary"
+              >
+                <Copy className="h-3.5 w-3.5" aria-hidden="true" />
+              </button>
+              {canRemove ? (
+                <button
+                  type="button"
+                  onClick={() => onRemove(prompt.id)}
+                  aria-label={`Remove prompt ${index + 1}`}
+                  title="Remove prompt"
+                  className="icon-button rounded-md p-1 text-text-muted transition hover:bg-status-error-muted hover:text-status-error"
+                >
+                  <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+                </button>
+              ) : null}
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function BatchPromptQueue() {
+  const modelRouterLabelId = useId();
   const {
     addBatchJob,
-    addBatchResult,
-    syncAssetsFromJobStatus,
     systemInfo,
     batchResults,
     batchViewMode,
@@ -120,11 +243,24 @@ export function BatchPromptQueue() {
     setBatchFilterBy,
     removeBatchResults,
     removeAssetRecordsByPaths,
+    prompts,
+    seedStrategy,
+    activeBatchId,
+    batchNotice,
+    addBatchQueuePrompt,
+    appendBatchQueuePrompts,
+    updateBatchQueuePrompt,
+    removeBatchQueuePrompt,
+    duplicateBatchQueuePrompt,
+    moveBatchQueuePrompt,
+    clearBatchQueue,
+    setBatchQueue,
+    setBatchSeedStrategy,
+    setActiveBatchId,
+    setBatchNotice,
   } = useAppStore(
     useShallow((s) => ({
       addBatchJob: s.addBatchJob,
-      addBatchResult: s.addBatchResult,
-      syncAssetsFromJobStatus: s.syncAssetsFromJobStatus,
       systemInfo: s.systemInfo,
       batchResults: s.batchResults,
       batchViewMode: s.batchViewMode,
@@ -135,28 +271,34 @@ export function BatchPromptQueue() {
       setBatchFilterBy: s.setBatchFilterBy,
       removeBatchResults: s.removeBatchResults,
       removeAssetRecordsByPaths: s.removeAssetRecordsByPaths,
+      prompts: s.batchQueue,
+      seedStrategy: s.batchSeedStrategy,
+      activeBatchId: s.activeBatchId,
+      batchNotice: s.batchNotice,
+      addBatchQueuePrompt: s.addBatchQueuePrompt,
+      appendBatchQueuePrompts: s.appendBatchQueuePrompts,
+      updateBatchQueuePrompt: s.updateBatchQueuePrompt,
+      removeBatchQueuePrompt: s.removeBatchQueuePrompt,
+      duplicateBatchQueuePrompt: s.duplicateBatchQueuePrompt,
+      moveBatchQueuePrompt: s.moveBatchQueuePrompt,
+      clearBatchQueue: s.clearBatchQueue,
+      setBatchQueue: s.setBatchQueue,
+      setBatchSeedStrategy: s.setBatchSeedStrategy,
+      setActiveBatchId: s.setActiveBatchId,
+      setBatchNotice: s.setBatchNotice,
     }))
   );
 
-  // Batch status polling. One chained timeout at a time: the next tick is
-  // scheduled only after the current one has finished awaiting every status,
-  // so a slow backend can never stack overlapping ticks. Bumping the run id
-  // retires an in-flight tick (cancel, a new batch, unmount).
-  const batchPollRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const batchPollRunRef = useRef(0);
-  const stopBatchPolling = useCallback(() => {
-    batchPollRunRef.current += 1;
-    if (batchPollRef.current) clearTimeout(batchPollRef.current);
-    batchPollRef.current = null;
-  }, []);
-  useEffect(() => stopBatchPolling, [stopBatchPolling]);
+  // The queue, its statuses and the running batch live in the store (#J1):
+  // the app job watcher records every outcome there, so leaving this panel
+  // mid-batch loses nothing and the cards are current when it remounts.
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const isGenerating = isSubmitting || activeBatchId !== null;
 
-  const [prompts, setPrompts] = useState<BatchPrompt[]>([
-    { id: '1', prompt: '', status: 'pending' },
-  ]);
-  // A long batch (pasted prompt lists, variations) renders only the cards in
-  // view; short lists keep their enter/exit animation.
+  // A long batch (pasted prompt lists, variations, imports) renders only the
+  // cards in view; short lists keep their enter/exit animation.
   const promptListRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const virtualizePrompts = prompts.length > PROMPT_VIRTUALIZE_THRESHOLD;
   const promptVirtualizer = useVirtualizer({
     count: prompts.length,
@@ -165,11 +307,10 @@ export function BatchPromptQueue() {
     overscan: 4,
     enabled: virtualizePrompts,
   });
-  const [isGenerating, setIsGenerating] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [activeAccount, setActiveAccount] = useState<UserAccountSummary | null>(null);
-  const [batchNotice, setBatchNotice] = useState<BatchNoticeState | null>(null);
 
   // Generation settings
   const [width, setWidth] = useState(1024);
@@ -177,6 +318,11 @@ export function BatchPromptQueue() {
   const [steps, setSteps] = useState(25);
   const [cfgScale, setCfgScale] = useState(7.5);
   const [model, setModel] = useState('flux-dev');
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
 
   const syncActiveAccount = useCallback(async () => {
     const snapshot = await window.electron.accounts.list();
@@ -189,7 +335,7 @@ export function BatchPromptQueue() {
   }, []);
 
   useEffect(() => {
-    void syncActiveAccount();
+    void syncActiveAccount().catch(() => setActiveAccount(null));
   }, [syncActiveAccount]);
 
   const openRouterImageEnabled = activeAccount?.preferences.imageGenerationProvider === 'openrouter';
@@ -198,22 +344,19 @@ export function BatchPromptQueue() {
   const huggingFaceImageEnabled = activeAccount?.preferences.imageGenerationProvider === 'huggingface';
   const huggingFaceImageModel = activeAccount?.preferences.huggingFaceImageModel?.trim() ?? '';
 
-  const addPrompt = () => {
-    setPrompts([
-      ...prompts,
-      { id: crypto.randomUUID(), prompt: '', status: 'pending' },
-    ]);
-  };
+  const handleDragEnd = useCallback(
+    (event: DragEndEvent) => {
+      const { active, over } = event;
+      if (!over || active.id === over.id) return;
+      moveBatchQueuePrompt(String(active.id), String(over.id));
+    },
+    [moveBatchQueuePrompt],
+  );
 
-  const removePrompt = (id: string) => {
-    if (prompts.length > 1) {
-      setPrompts(prompts.filter((p) => p.id !== id));
-    }
-  };
-
-  const updatePrompt = (id: string, value: string) => {
-    setPrompts(prompts.map((p) => (p.id === id ? { ...p, prompt: value } : p)));
-  };
+  const updatePrompt = useCallback(
+    (id: string, value: string) => updateBatchQueuePrompt(id, { prompt: value }),
+    [updateBatchQueuePrompt],
+  );
 
   const generateVariations = (basePrompt: string, count: number = 4) => {
     const modifiers = [
@@ -227,18 +370,95 @@ export function BatchPromptQueue() {
       'abstract, artistic interpretation, painterly',
     ];
 
-    const newPrompts = Array.from({ length: count }, (_, i) => ({
-      id: crypto.randomUUID(),
-      prompt: `${basePrompt}, ${modifiers[i % modifiers.length]}`,
-      status: 'pending' as const,
-    }));
+    for (let i = 0; i < count; i += 1) {
+      addBatchQueuePrompt(`${basePrompt}, ${modifiers[i % modifiers.length]}`);
+    }
+  };
 
-    setPrompts([...prompts, ...newPrompts]);
+  const handleImportFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    // Reset so choosing the same file again still fires a change.
+    event.target.value = '';
+    if (!file) return;
+    if (file.size > BATCH_IMPORT_MAX_BYTES) {
+      setBatchNotice({ tone: 'error', message: `${file.name} is too large to be a prompt list (2 MB limit).` });
+      return;
+    }
+    try {
+      const parsed = parseBatchPromptFile(file.name, await file.text());
+      const added = appendBatchQueuePrompts(parsed.prompts);
+      const settings = parsed.settings;
+      if (settings) {
+        if (settings.width !== undefined) setWidth(nearestOption(settings.width));
+        if (settings.height !== undefined) setHeight(nearestOption(settings.height));
+        if (settings.steps !== undefined) setSteps(Math.min(50, Math.max(10, Math.round(settings.steps))));
+        if (settings.cfgScale !== undefined) setCfgScale(Math.min(20, Math.max(1, settings.cfgScale)));
+        if (settings.model !== undefined && !openRouterImageEnabled && !huggingFaceImageEnabled) {
+          setModel(settings.model);
+        }
+      }
+      setBatchNotice({
+        tone: 'info',
+        message: `Imported ${added} prompt${added === 1 ? '' : 's'} from ${file.name}${settings ? ', with its settings' : ''}.`,
+      });
+    } catch (error) {
+      setBatchNotice({
+        tone: 'error',
+        message:
+          error instanceof BatchPromptImportError
+            ? error.message
+            : `Could not read ${file.name}: ${error instanceof Error ? error.message : 'unknown error'}`,
+      });
+    }
+  };
+
+  /**
+   * Submits the batch. The 'random' and 'fixed' strategies are one bridge
+   * call (one seed for every prompt, or none and the backend draws per
+   * prompt); 'increment' needs a seed per prompt, so it submits prompt by
+   * prompt in queue order.
+   */
+  const submitPrompts = async (
+    entries: BatchQueuePrompt[],
+    baseParams: Omit<BatchParams, 'prompts'>,
+  ): Promise<{ jobIds: string[]; seeds: (number | undefined)[]; error?: string }> => {
+    if (seedStrategy.mode !== 'increment') {
+      const seed = seedStrategy.mode === 'fixed' ? resolveBatchSeeds(seedStrategy, 1)[0] : undefined;
+      // `seed` rides the existing generation:batch params, which the main
+      // process spreads into every per-prompt request.
+      const params: BatchParams & { seed?: number } = {
+        prompts: entries.map((entry) => entry.prompt),
+        ...baseParams,
+        ...(seed !== undefined ? { seed } : {}),
+      };
+      const result = await window.electron.generation.batch(params);
+      if (!result.success || !result.jobIds) {
+        return { jobIds: [], seeds: [], error: result.error || 'Batch generation failed.' };
+      }
+      return { jobIds: result.jobIds, seeds: result.jobIds.map(() => seed) };
+    }
+
+    const seeds = resolveBatchSeeds(seedStrategy, entries.length);
+    const jobIds: string[] = [];
+    for (let index = 0; index < entries.length; index += 1) {
+      const params: BatchParams & { seed?: number } = {
+        prompts: [entries[index].prompt],
+        ...baseParams,
+        seed: seeds[index],
+      };
+      const result = await window.electron.generation.batch(params);
+      const jobId = result.success ? result.jobIds?.[0] : undefined;
+      if (!jobId) {
+        return { jobIds, seeds, error: result.error || 'Batch generation failed.' };
+      }
+      jobIds.push(jobId);
+    }
+    return { jobIds, seeds };
   };
 
   const handleStartBatch = async () => {
     const validPrompts = prompts.filter((p) => p.prompt.trim());
-    if (validPrompts.length === 0) return;
+    if (validPrompts.length === 0 || isGenerating) return;
 
     const latestActiveAccount = await syncActiveAccount();
     const useOpenRouterImage =
@@ -305,28 +525,22 @@ export function BatchPromptQueue() {
           }
         : null
     );
-    setIsGenerating(true);
-    setPrompts(prompts.map((p) => (p.prompt.trim() ? { ...p, status: 'pending' } : p)));
-
-    const batchId = crypto.randomUUID();
-    addBatchJob({
-      id: batchId,
-      name: `Batch ${new Date().toLocaleTimeString()}`,
-      prompts: validPrompts.map((p) => p.prompt),
-      currentIndex: 0,
-      completedJobs: [],
-      failedJobs: [],
-      status: 'running',
-      createdAt: new Date(),
-    });
+    setIsSubmitting(true);
+    // A re-run starts every filled card fresh.
+    setBatchQueue(
+      prompts.map((p) =>
+        p.prompt.trim()
+          ? { id: p.id, prompt: p.prompt, status: 'pending' as const }
+          : p,
+      ),
+    );
 
     try {
       const appSettings = await window.electron.settings.get();
       const userDataPath = await window.electron.app.getPath('userData');
       const outputRoot = resolveOutputRoot(appSettings.defaultOutputPath, userDataPath);
 
-      const result = await window.electron.generation.batch({
-        prompts: validPrompts.map((p) => p.prompt),
+      const submission = await submitPrompts(validPrompts, {
         width,
         height,
         steps,
@@ -334,161 +548,93 @@ export function BatchPromptQueue() {
         model: submittedModel,
       });
 
-      if (result.success && result.jobIds) {
-        let jobIndex = 0;
-        const promptsWithJobIds = prompts.map((p) => {
-          if (p.prompt.trim() && jobIndex < result.jobIds!.length) {
-            return { ...p, status: 'generating' as const, id: result.jobIds![jobIndex++] };
-          }
-          return p;
-        });
-        setPrompts(promptsWithJobIds);
-        pollBatchProgress(batchId, result.jobIds, promptsWithJobIds, outputRoot, submittedModel);
+      if (submission.jobIds.length === 0) {
+        setBatchNotice({ tone: 'error', message: submission.error ?? 'Batch generation failed.' });
         return;
       }
+      if (submission.error) {
+        setBatchNotice({
+          tone: 'error',
+          message: `Submitted ${submission.jobIds.length} of ${validPrompts.length} prompts; the rest stopped: ${submission.error}`,
+        });
+      }
 
-      setBatchNotice({
-        tone: 'error',
-        message: result.error || 'Batch generation failed.',
+      const batchId = crypto.randomUUID();
+      const submitted = validPrompts.slice(0, submission.jobIds.length);
+      submitted.forEach((entry, index) => {
+        updateBatchQueuePrompt(entry.id, {
+          status: 'generating',
+          jobId: submission.jobIds[index],
+          ...(submission.seeds[index] !== undefined ? { seed: submission.seeds[index] } : {}),
+        });
       });
-      setIsGenerating(false);
+      addBatchJob({
+        id: batchId,
+        name: `Batch ${new Date().toLocaleTimeString()}`,
+        prompts: submitted.map((entry) => entry.prompt),
+        jobIds: submission.jobIds,
+        currentIndex: 0,
+        completedJobs: [],
+        failedJobs: [],
+        status: 'running',
+        createdAt: new Date(),
+      });
+      setActiveBatchId(batchId);
+
+      submitted.forEach((entry, index) => {
+        const seed = submission.seeds[index];
+        void appJobWatcher.track({
+          jobId: submission.jobIds[index],
+          kind: 'image',
+          origin: 'batch',
+          prompt: entry.prompt,
+          outputRoot,
+          params: {
+            prompt: entry.prompt,
+            width,
+            height,
+            steps,
+            cfg_scale: cfgScale,
+            model: submittedModel,
+            output_root: outputRoot,
+            ...(seed !== undefined ? { seed } : {}),
+          },
+          batch: {
+            batchId,
+            promptIndex: prompts.findIndex((p) => p.id === entry.id),
+            settings: { width, height, steps, cfgScale, model: submittedModel, seed },
+          },
+        });
+      });
     } catch (error) {
       console.error('Batch generation failed:', error);
       setBatchNotice({
         tone: 'error',
         message: error instanceof Error ? error.message : 'Batch generation failed.',
       });
-      setIsGenerating(false);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
-  const pollBatchProgress = (
-    batchId: string,
-    jobIds: string[],
-    startingPrompts: BatchPrompt[],
-    outputRoot: string,
-    submittedModel: string,
-  ) => {
-    stopBatchPolling();
-    const runId = batchPollRunRef.current;
-    const isCurrentRun = () => batchPollRunRef.current === runId;
-    // A finished job is fetched and recorded exactly once. Each tick used to
-    // re-fetch every job and re-add every completed result.
-    const finishedJobIds = new Set<string>();
-    // A status call that keeps throwing (backend gone) must not poll forever.
-    const statusErrors = new Map<string, number>();
-    let updatedPrompts = startingPrompts.map((prompt) => ({ ...prompt }));
-
-    const tick = async () => {
-      batchPollRef.current = null;
-
-      for (let i = 0; i < jobIds.length; i++) {
-        if (finishedJobIds.has(jobIds[i])) continue;
-        try {
-          const status = await window.electron.generation.getStatus(jobIds[i]);
-          if (!isCurrentRun()) return;
-          const promptIndex = updatedPrompts.findIndex((p) => p.id === jobIds[i]);
-
-          if (promptIndex === -1) {
-            finishedJobIds.add(jobIds[i]);
-          } else {
-            if (status.status === 'completed') {
-              finishedJobIds.add(jobIds[i]);
-              updatedPrompts[promptIndex] = {
-                ...updatedPrompts[promptIndex],
-                status: 'completed',
-                result: status.result?.images?.[0],
-              };
-              syncAssetsFromJobStatus({
-                ...status,
-                params: {
-                  prompt: updatedPrompts[promptIndex].prompt,
-                  width,
-                  height,
-                  steps,
-                  cfg_scale: cfgScale,
-                  model: submittedModel,
-                  output_root: outputRoot,
-                },
-              });
-              addBatchResult({
-                id: jobIds[i],
-                batchId,
-                promptIndex: promptIndex,
-                prompt: updatedPrompts[promptIndex].prompt,
-                imagePath: toPreviewUrl(status.result?.images?.[0] || ''),
-                assetPath: resolveStoredAssetPath(
-                  status.result?.images?.[0] || '',
-                  {
-                    output_root: outputRoot,
-                  }
-                ),
-                seed: status.result?.seed || 0,
-                generationTime: 0,
-                params: {
-                  width,
-                  height,
-                  steps,
-                  cfgScale,
-                  model: submittedModel,
-                  negativePrompt: '',
-                  resolution: `${width} x ${height}`,
-                },
-                createdAt: status.created_at ? new Date(status.created_at) : new Date(),
-                isFavorite: false,
-              });
-            } else if (status.status === 'failed' || status.status === 'cancelled') {
-              finishedJobIds.add(jobIds[i]);
-              updatedPrompts[promptIndex] = { ...updatedPrompts[promptIndex], status: 'failed' };
-              if (status.error) {
-                setBatchNotice({
-                  tone: 'error',
-                  message: status.error,
-                });
-              }
-            }
-          }
-        } catch (e) {
-          if (!isCurrentRun()) return;
-          console.error('Failed to get job status:', e);
-          const errors = (statusErrors.get(jobIds[i]) ?? 0) + 1;
-          statusErrors.set(jobIds[i], errors);
-          if (errors >= MAX_BATCH_STATUS_ERRORS) {
-            finishedJobIds.add(jobIds[i]);
-            updatedPrompts = updatedPrompts.map((prompt) =>
-              prompt.id === jobIds[i] ? { ...prompt, status: 'failed' } : prompt,
-            );
-          }
-        }
-      }
-
-      if (!isCurrentRun()) return;
-      updatedPrompts = [...updatedPrompts];
-      setPrompts(updatedPrompts);
-
-      if (finishedJobIds.size >= jobIds.length) {
-        setIsGenerating(false);
-        return;
-      }
-      batchPollRef.current = setTimeout(tick, BATCH_POLL_INTERVAL_MS);
-    };
-
-    batchPollRef.current = setTimeout(tick, BATCH_POLL_INTERVAL_MS);
-  };
-
   const handleCancel = async () => {
-    stopBatchPolling();
-    setIsGenerating(false);
     // Every submitted prompt (running or still queued on the backend) is
-    // 'generating'. Polling stops here, so put them back to pending - left as
-    // they were, their spinners would run forever.
-    const inFlight = prompts.filter((p) => p.status === 'generating');
-    setPrompts((current) =>
-      current.map((p) => (p.status === 'generating' ? { ...p, status: 'pending' } : p)),
+    // 'generating'. They go back to pending and drop their job id, so a late
+    // outcome for a cancelled job no longer touches the card.
+    const inFlight = useAppStore
+      .getState()
+      .batchQueue.filter((p) => p.status === 'generating' && p.jobId);
+    setActiveBatchId(null);
+    setBatchQueue(
+      useAppStore
+        .getState()
+        .batchQueue.map((p) =>
+          p.status === 'generating' ? { id: p.id, prompt: p.prompt, status: 'pending' as const } : p,
+        ),
     );
     setBatchNotice({ tone: 'info', message: 'Cancelling the batch...' });
     const outcomes = await Promise.allSettled(
-      inFlight.map((p) => window.electron.generation.cancel(p.id)),
+      inFlight.map((p) => appJobWatcher.cancel(p.jobId as string)),
     );
     const failed = outcomes.filter(
       (outcome) => outcome.status === 'rejected' || outcome.value?.success === false,
@@ -521,6 +667,7 @@ export function BatchPromptQueue() {
           : openRouterImageEnabled
             ? openRouterImageModel
             : model,
+        seedStrategy,
       },
       createdAt: new Date().toISOString(),
     };
@@ -567,59 +714,30 @@ export function BatchPromptQueue() {
     setShowDeleteConfirm(false);
   };
 
-  const renderPromptCard = (prompt: BatchPrompt, index: number) => (
-    <div className="flex items-start gap-3">
-      {/* Drag handle */}
-      <div className="flex flex-col items-center gap-1 pt-2">
-        <GripVertical className="w-3.5 h-3.5 text-text-muted cursor-grab" />
-        <span className="type-meta text-text-muted">
-          {index + 1}
-        </span>
-      </div>
-
-      {/* Input */}
-      <div className="flex-1">
-        <textarea
-          aria-label={`Prompt ${index + 1}`}
-          value={prompt.prompt}
-          onChange={(e) => updatePrompt(prompt.id, e.target.value)}
-          placeholder="Enter prompt..."
-          disabled={isGenerating}
-          rows={2}
-          className="recessed-well w-full resize-none px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent-primary disabled:opacity-50"
-        />
-      </div>
-
-      {/* Status/Actions */}
-      <div className="flex flex-col gap-1 pt-1">
-        {prompt.status === 'generating' && (
-          <Loader2 className="w-4 h-4 text-status-warning animate-spin" />
-        )}
-        {prompt.status === 'completed' && (
-          <CheckCircle2 className="w-4 h-4 text-status-success" />
-        )}
-        {prompt.status === 'failed' && (
-          <XCircle className="w-4 h-4 text-status-error" />
-        )}
-
-        {!isGenerating && (
-          <button
-            type="button"
-            onClick={() => removePrompt(prompt.id)}
-            aria-label={`Remove prompt ${index + 1}`}
-            title="Remove prompt"
-            className="icon-button p-1 rounded-md text-text-muted hover:text-status-error hover:bg-status-error-muted transition"
-          >
-            <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
-          </button>
-        )}
-      </div>
-    </div>
+  const renderPromptCard = (prompt: BatchQueuePrompt, index: number) => (
+    <SortablePromptCard
+      prompt={prompt}
+      index={index}
+      isGenerating={isGenerating}
+      canRemove={prompts.length > 1}
+      onChange={updatePrompt}
+      onRemove={removeBatchQueuePrompt}
+      onDuplicate={duplicateBatchQueuePrompt}
+    />
   );
 
+  const filledCount = prompts.filter((p) => p.prompt.trim()).length;
+  const queueIsBlank = prompts.every((p) => !p.prompt.trim());
   const completedCount = prompts.filter((p) => p.status === 'completed').length;
   const progress =
     prompts.length > 0 ? (completedCount / prompts.length) * 100 : 0;
+  const activeSeedMode = SEED_MODE_OPTIONS.find((option) => option.value === seedStrategy.mode) ?? SEED_MODE_OPTIONS[0];
+  const seedSummary =
+    seedStrategy.mode === 'random'
+      ? 'random seeds'
+      : seedStrategy.mode === 'fixed'
+        ? `seed ${seedStrategy.baseSeed}`
+        : `seeds from ${seedStrategy.baseSeed}`;
 
   return (
     <div className="h-full flex flex-col bg-surface" data-testid="batch-panel">
@@ -746,6 +864,7 @@ export function BatchPromptQueue() {
 
           {batchNotice && (
             <div
+              role={batchNotice.tone === 'error' ? 'alert' : 'status'}
               className={cn(
                 'rounded-md border px-3 py-2 text-xs',
                 batchNotice.tone === 'error'
@@ -795,47 +914,48 @@ export function BatchPromptQueue() {
 
       {/* Prompts List */}
       <div ref={promptListRef} className="flex-1 overflow-y-auto p-4 scrollbar-hide">
-        <div className={virtualizePrompts ? undefined : 'space-y-3'}>
-          {virtualizePrompts ? (
-            <div className="relative w-full" style={{ height: promptVirtualizer.getTotalSize() }}>
-              {promptVirtualizer.getVirtualItems().map((virtualRow) => {
-                const prompt = prompts[virtualRow.index];
-                return (
-                  <div
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+          <SortableContext items={prompts.map((p) => p.id)} strategy={verticalListSortingStrategy}>
+            <div className={virtualizePrompts ? undefined : 'space-y-3'}>
+              {virtualizePrompts ? (
+                <div className="relative w-full" style={{ height: promptVirtualizer.getTotalSize() }}>
+                  {promptVirtualizer.getVirtualItems().map((virtualRow) => {
+                    const prompt = prompts[virtualRow.index];
+                    return (
+                      <div
+                        key={prompt.id}
+                        ref={promptVirtualizer.measureElement}
+                        data-index={virtualRow.index}
+                        className="absolute left-0 top-0 w-full pb-3"
+                        style={{ transform: `translateY(${virtualRow.start}px)` }}
+                      >
+                        {renderPromptCard(prompt, virtualRow.index)}
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+              <AnimatePresence initial={false}>
+                {prompts.map((prompt, index) => (
+                  <motion.div
                     key={prompt.id}
-                    ref={promptVirtualizer.measureElement}
-                    data-index={virtualRow.index}
-                    className="absolute left-0 top-0 w-full pb-3"
-                    style={{ transform: `translateY(${virtualRow.start}px)` }}
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
                   >
-                    <div className={promptCardClassName(prompt.status)}>
-                      {renderPromptCard(prompt, virtualRow.index)}
-                    </div>
-                  </div>
-                );
-              })}
+                    {renderPromptCard(prompt, index)}
+                  </motion.div>
+                ))}
+              </AnimatePresence>
+              )}
             </div>
-          ) : (
-          <AnimatePresence>
-            {prompts.map((prompt, index) => (
-              <motion.div
-                key={prompt.id}
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: 'auto' }}
-                exit={{ opacity: 0, height: 0 }}
-                className={promptCardClassName(prompt.status)}
-              >
-                {renderPromptCard(prompt, index)}
-              </motion.div>
-            ))}
-          </AnimatePresence>
-          )}
-        </div>
+          </SortableContext>
+        </DndContext>
 
-        {/* Add Buttons */}
+        {/* Add / import / clear */}
         {!isGenerating && (
-          <div className="flex gap-2 mt-4">
-            <Button variant="secondary" size="sm" icon={Plus} onClick={addPrompt}>
+          <div className="flex flex-wrap gap-2 mt-4">
+            <Button variant="secondary" size="sm" icon={Plus} onClick={() => addBatchQueuePrompt()}>
               Add Prompt
             </Button>
             <Button
@@ -849,6 +969,33 @@ export function BatchPromptQueue() {
             >
               Variations
             </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              icon={FileUp}
+              onClick={() => fileInputRef.current?.click()}
+              title="Import prompts: .txt (one per line), .csv (first column) or .json"
+            >
+              Import
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              icon={ListX}
+              onClick={() => setShowClearConfirm(true)}
+              disabled={queueIsBlank && prompts.length === 1}
+            >
+              Clear All
+            </Button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept={BATCH_IMPORT_ACCEPT}
+              onChange={(event) => void handleImportFile(event)}
+              className="hidden"
+              data-testid="batch-import-input"
+              aria-label="Import prompts file"
+            />
           </div>
         )}
       </div>
@@ -866,7 +1013,7 @@ export function BatchPromptQueue() {
             Generation Settings
           </span>
           <span className="type-meta text-text-muted">
-            {width}x{height} - {steps} steps
+            {width}x{height} - {steps} steps - {seedSummary}
           </span>
         </button>
 
@@ -882,44 +1029,95 @@ export function BatchPromptQueue() {
               <div className="px-4 pb-4 space-y-4">
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="text-label text-text-body mb-1 block">
+                    <label htmlFor="batch-width" className="text-label text-text-body mb-1 block">
                       Width
                     </label>
                     <select
+                      id="batch-width"
                       value={width}
                       onChange={(e) => setWidth(Number(e.target.value))}
                       className="w-full rounded-md border border-border bg-elevated px-3 py-2 text-sm text-text-primary"
                     >
-                      <option value={512}>512px</option>
-                      <option value={768}>768px</option>
-                      <option value={1024}>1024px</option>
-                      <option value={1280}>1280px</option>
-                      <option value={1920}>1920px</option>
+                      {BATCH_WIDTH_HEIGHT_OPTIONS.map((option) => (
+                        <option key={option} value={option}>{option}px</option>
+                      ))}
                     </select>
                   </div>
                   <div>
-                    <label className="text-label text-text-body mb-1 block">
+                    <label htmlFor="batch-height" className="text-label text-text-body mb-1 block">
                       Height
                     </label>
                     <select
+                      id="batch-height"
                       value={height}
                       onChange={(e) => setHeight(Number(e.target.value))}
                       className="w-full rounded-md border border-border bg-elevated px-3 py-2 text-sm text-text-primary"
                     >
-                      <option value={512}>512px</option>
-                      <option value={768}>768px</option>
-                      <option value={1024}>1024px</option>
-                      <option value={1280}>1280px</option>
-                      <option value={1920}>1920px</option>
+                      {BATCH_WIDTH_HEIGHT_OPTIONS.map((option) => (
+                        <option key={option} value={option}>{option}px</option>
+                      ))}
                     </select>
                   </div>
                 </div>
 
                 <div className="space-y-2">
+                  <span id="batch-seed-mode-label" className="mono-label text-text-body block">
+                    Seed Strategy
+                  </span>
+                  <div
+                    role="radiogroup"
+                    aria-labelledby="batch-seed-mode-label"
+                    className="recessed-well flex p-0.5"
+                  >
+                    {SEED_MODE_OPTIONS.map((option) => (
+                      <button
+                        key={option.value}
+                        type="button"
+                        role="radio"
+                        aria-checked={seedStrategy.mode === option.value}
+                        disabled={isGenerating}
+                        onClick={() => setBatchSeedStrategy({ mode: option.value })}
+                        className={cn(
+                          'flex-1 rounded-md px-2 py-1.5 text-xs transition disabled:cursor-not-allowed disabled:opacity-50',
+                          seedStrategy.mode === option.value
+                            ? 'bg-accent-primary-muted text-accent-primary border border-accent-primary-border'
+                            : 'text-text-muted hover:text-text-primary',
+                        )}
+                      >
+                        {option.label}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-xs text-text-muted">{activeSeedMode.hint}</p>
+                  {seedStrategy.mode !== 'random' ? (
+                    <div>
+                      <label htmlFor="batch-base-seed" className="text-label text-text-body mb-1 block">
+                        {seedStrategy.mode === 'fixed' ? 'Seed' : 'Base seed'}
+                      </label>
+                      <input
+                        id="batch-base-seed"
+                        type="number"
+                        min={0}
+                        max={BATCH_SEED_MAX}
+                        step={1}
+                        value={seedStrategy.baseSeed}
+                        disabled={isGenerating}
+                        onChange={(e) => {
+                          const value = Number(e.target.value);
+                          if (Number.isFinite(value)) setBatchSeedStrategy({ baseSeed: value });
+                        }}
+                        className="w-full rounded-md border border-border bg-elevated px-3 py-2 data-mono text-text-primary focus:border-accent-primary transition disabled:opacity-50"
+                      />
+                    </div>
+                  ) : null}
+                </div>
+
+                {/* A titled group of route controls, not a single form field. */}
+                <div className="space-y-2" role="group" aria-labelledby={modelRouterLabelId}>
                   <div>
-                    <label className="text-label text-text-body mb-1 block">
+                    <span id={modelRouterLabelId} className="text-label text-text-body mb-1 block">
                       Model Router
-                    </label>
+                    </span>
                     <p className="text-xs text-text-muted">
                       {openRouterImageEnabled
                         ? 'This batch will use the active account\'s hosted OpenRouter still-image model.'
@@ -957,10 +1155,11 @@ export function BatchPromptQueue() {
                       />
 
                       <div>
-                        <label className="text-label text-text-body mb-1 block">
+                        <label htmlFor="batch-model" className="text-label text-text-body mb-1 block">
                           Model
                         </label>
                         <select
+                          id="batch-model"
                           value={model}
                           onChange={(e) => setModel(e.target.value)}
                           className="w-full rounded-md border border-border bg-elevated px-3 py-2 text-sm text-text-primary"
@@ -971,6 +1170,16 @@ export function BatchPromptQueue() {
                           <option value="sd3.5-medium">Stable Diffusion 3.5 Medium</option>
                           <option value="flux-schnell">FLUX.1 [schnell]</option>
                           <option value="sd-1-5">Stable Diffusion 1.5</option>
+                          {![
+                            'flux-dev',
+                            'sd3.5-large',
+                            'flux-fill',
+                            'sd3.5-medium',
+                            'flux-schnell',
+                            'sd-1-5',
+                          ].includes(model) ? (
+                            <option value={model}>{model}</option>
+                          ) : null}
                         </select>
                       </div>
                     </>
@@ -985,7 +1194,13 @@ export function BatchPromptQueue() {
       {/* Actions */}
       <div className="p-4 border-t border-border flex gap-2">
         {isGenerating ? (
-          <Button variant="danger" icon={Pause} fullWidth onClick={() => void handleCancel()}>
+          <Button
+            variant="danger"
+            icon={Pause}
+            fullWidth
+            onClick={() => void handleCancel()}
+            disabled={activeBatchId === null}
+          >
             Cancel Batch
           </Button>
         ) : (
@@ -1001,13 +1216,13 @@ export function BatchPromptQueue() {
             />
             <ChromeButton
               variant="chrome"
-              onClick={handleStartBatch}
-              disabled={!prompts.some((p) => p.prompt.trim())}
+              onClick={() => void handleStartBatch()}
+              disabled={filledCount === 0}
               size="lg"
               className="flex-1"
             >
               <Play className="w-4 h-4" />
-              Start Batch ({prompts.filter((p) => p.prompt.trim()).length})
+              Start Batch ({filledCount})
             </ChromeButton>
           </>
         )}
@@ -1021,6 +1236,19 @@ export function BatchPromptQueue() {
         variant="danger"
         onConfirm={handleBulkDeleteAll}
         onCancel={() => setShowDeleteConfirm(false)}
+      />
+
+      <ConfirmDialog
+        open={showClearConfirm}
+        title="Clear the Prompt Queue"
+        message={`Remove all ${prompts.length} prompt${prompts.length === 1 ? '' : 's'} from the queue? Generated results are kept.`}
+        confirmLabel="Clear All"
+        variant="danger"
+        onConfirm={() => {
+          clearBatchQueue();
+          setShowClearConfirm(false);
+        }}
+        onCancel={() => setShowClearConfirm(false)}
       />
     </div>
   );

@@ -4,6 +4,7 @@ import json
 import logging
 import os
 import tempfile
+import threading
 import uuid
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
@@ -63,6 +64,9 @@ class RootsStore:
     def __init__(self, path: str):
         self._path = path
         self._roots: List[LibraryRoot] = []
+        # add/remove run from worker threads (main.py to_thread routes) and
+        # alongside index scans; serialize the read-modify-write + save.
+        self._lock = threading.Lock()
         if os.path.isfile(path):
             try:
                 with open(path, "r", encoding="utf-8") as handle:
@@ -104,27 +108,30 @@ class RootsStore:
         if not os.path.isdir(path):
             raise ValueError(f"library root does not exist: {path!r}")
         normalized = os.path.normcase(os.path.normpath(os.path.abspath(path)))
-        # First-writer wins: re-adding an existing path returns the original root (original hint retained).
-        for root in self._roots:
-            if os.path.normcase(os.path.normpath(os.path.abspath(root.path))) == normalized:
-                return root  # idempotent
-        root = LibraryRoot(
-            id=uuid.uuid4().hex[:12],
-            path=os.path.abspath(path),
-            layout_hint=layout_hint,
-            added_at=datetime.now(timezone.utc).isoformat(),
-        )
-        self._roots.append(root)
-        self._save()
-        return root
+        with self._lock:
+            # First-writer wins: re-adding an existing path returns the original root (original hint retained).
+            for root in self._roots:
+                if os.path.normcase(os.path.normpath(os.path.abspath(root.path))) == normalized:
+                    return root  # idempotent
+            root = LibraryRoot(
+                id=uuid.uuid4().hex[:12],
+                path=os.path.abspath(path),
+                layout_hint=layout_hint,
+                added_at=datetime.now(timezone.utc).isoformat(),
+            )
+            self._roots.append(root)
+            self._save()
+            return root
 
     def remove(self, root_id: str) -> bool:
-        before = len(self._roots)
-        self._roots = [root for root in self._roots if root.id != root_id]
-        if len(self._roots) != before:
-            self._save()
-            return True
-        return False
+        with self._lock:
+            before = len(self._roots)
+            self._roots = [root for root in self._roots if root.id != root_id]
+            if len(self._roots) != before:
+                self._save()
+                return True
+            return False
 
     def list(self) -> List[LibraryRoot]:
-        return list(self._roots)
+        with self._lock:
+            return list(self._roots)

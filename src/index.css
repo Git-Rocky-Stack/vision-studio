@@ -74,6 +74,29 @@
   --color-feature-07: #60a5fa;
   --color-feature-08: #94a3b8;
 
+  /* Sheen - white-alpha surface highlights (header lift, hairline glints,
+     stage light pools). Tokenised so the light theme can re-tune them: a
+     white highlight vanishes on a light surface, so there the edge reads as a
+     dark hairline and the lifts as a brighter white wash. */
+  --color-sheen-faint: rgba(255, 255, 255, 0.01);
+  --color-sheen-subtle: rgba(255, 255, 255, 0.035);
+  --color-sheen-soft: rgba(255, 255, 255, 0.05);
+  --color-sheen-medium: rgba(255, 255, 255, 0.08);
+  --color-sheen-edge: rgba(255, 255, 255, 0.14);
+  --color-sheen-chrome: rgba(230, 230, 230, 0.04);
+  /* The header's top-edge lift. Electron paints the Windows caption-button
+     strip (titleBarOverlay, electron/services/mainWindow.ts) in the solid
+     colour this resolves to over the void (#0a0a0a), so keep them in step. */
+  --color-sheen-lift: rgba(255, 255, 255, 0.04);
+
+  /* Theme-preview swatches (Settings > Appearance). These sample the themes
+     themselves, so they are fixed values that never follow the active theme:
+     the Dark swatch stays black and the Light swatch stays white in both. */
+  --color-swatch-dark: #000000;
+  --color-swatch-light: #ffffff;
+  --color-swatch-light-edge: #e4e4e4;
+  --color-swatch-system-edge: #c9c9c9;
+
   /* Progress gradient */
   --color-gradient-progress-start: var(--color-accent-primary-pressed);
   --color-gradient-progress-end: var(--color-accent-primary);
@@ -189,13 +212,15 @@
   --shadow-2xl: 0 25px 50px rgba(0, 0, 0, 0.5);
   --shadow-inner: inset 0 2px 4px rgba(0, 0, 0, 0.3);
 
-  /* Cinematic and brand shadows */
-  --shadow-cinematic: 0 1px 0 rgba(255, 255, 255, 0.03), 0 18px 48px rgba(0, 0, 0, 0.38), 0 4px 12px rgba(0, 0, 0, 0.25);
+  /* Overlay elevation - the depth system's floating layer: menus, popovers,
+     tooltips, floating notices and modal shells that sit above the chassis
+     and faceplates (DESIGN.md, Four-Layer Depth System). Generates the
+     shadow-overlay utility. */
+  --shadow-overlay: 0 1px 0 rgba(255, 255, 255, 0.03), 0 18px 48px rgba(0, 0, 0, 0.38), 0 4px 12px rgba(0, 0, 0, 0.25);
+
+  /* Brand shadows */
   --shadow-accent: 0 0 0 1px var(--color-accent-primary-border), 0 0 18px rgba(230, 230, 230, 0.08), 0 12px 28px rgba(0, 0, 0, 0.32);
   --shadow-accent-subtle: 0 0 0 1px var(--color-accent-primary-border), 0 0 12px rgba(230, 230, 230, 0.06);
-  --shadow-glow-red: 0 0 8px rgba(239, 68, 68, 0.18), 0 0 18px rgba(239, 68, 68, 0.1), 0 2px 8px rgba(0, 0, 0, 0.4);
-  --shadow-glow-red-subtle: 0 0 0 1px var(--color-status-error-border), 0 0 10px rgba(239, 68, 68, 0.08);
-  --shadow-glow-red-strong: 0 0 12px rgba(239, 68, 68, 0.28), 0 0 28px rgba(239, 68, 68, 0.16), 0 0 48px rgba(239, 68, 68, 0.1);
 
   /* Status shadows */
   --shadow-success: 0 0 8px rgba(34, 197, 94, 0.3);
@@ -419,6 +444,13 @@ body[data-theme='light'] {
   --color-red-aura: var(--color-status-error-muted);
   --color-gradient-progress-start: var(--color-accent-primary-pressed);
   --color-gradient-progress-end: var(--color-accent-primary);
+  --color-sheen-faint: rgba(255, 255, 255, 0.2);
+  --color-sheen-subtle: rgba(255, 255, 255, 0.45);
+  --color-sheen-soft: rgba(255, 255, 255, 0.6);
+  --color-sheen-medium: rgba(255, 255, 255, 0.75);
+  --color-sheen-edge: rgba(0, 0, 0, 0.1);
+  --color-sheen-chrome: rgba(64, 64, 64, 0.04);
+  --color-sheen-lift: rgba(255, 255, 255, 0.5);
 }
 
 /* Hardware surfaces stay carbon in both themes (DESIGN.md, Theme policy): a
@@ -477,6 +509,13 @@ body[data-theme='light'] {
     --color-red-aura: var(--color-status-error-muted);
     --color-gradient-progress-start: var(--color-accent-primary-pressed);
     --color-gradient-progress-end: var(--color-accent-primary);
+    --color-sheen-faint: rgba(255, 255, 255, 0.01);
+    --color-sheen-subtle: rgba(255, 255, 255, 0.035);
+    --color-sheen-soft: rgba(255, 255, 255, 0.05);
+    --color-sheen-medium: rgba(255, 255, 255, 0.08);
+    --color-sheen-edge: rgba(255, 255, 255, 0.14);
+    --color-sheen-chrome: rgba(230, 230, 230, 0.04);
+    --color-sheen-lift: rgba(255, 255, 255, 0.04);
 
     /* Aliases of the tokens above, re-resolved against the dark values. */
     --color-feature-01: var(--color-accent-primary);
@@ -510,7 +549,6 @@ body[data-theme='light'] {
     --color-white: var(--color-text-primary);
     --shadow-accent: 0 0 0 1px var(--color-accent-primary-border), 0 0 18px rgba(230, 230, 230, 0.08), 0 12px 28px rgba(0, 0, 0, 0.32);
     --shadow-accent-subtle: 0 0 0 1px var(--color-accent-primary-border), 0 0 12px rgba(230, 230, 230, 0.06);
-    --shadow-glow-red-subtle: 0 0 0 1px var(--color-status-error-border), 0 0 10px rgba(239, 68, 68, 0.08);
   }
 }
 
@@ -851,45 +889,9 @@ p, li, dd, blockquote {
   border: 1px solid var(--color-border);
 }
 
-/* ---- Red Glow Utility Shadows ---- */
-.shadow-red-dot {
-  box-shadow: 0 0 6px var(--color-red-glow);
-}
-
-.shadow-red-ring {
-  box-shadow: 0 0 8px rgba(239, 68, 68, 0.18);
-}
-
-.drop-shadow-red-icon {
-  filter: drop-shadow(0 0 3px var(--color-red-glow));
-}
-
-.drop-shadow-red-icon-strong {
-  filter: drop-shadow(0 0 4px var(--color-red-glow));
-}
-
 /* ---- Overlay & Grid Colors ---- */
 .stroke-grid-line {
   stroke: var(--color-border);
-}
-
-/* ---- Volumetric Glow Effects ---- */
-.glow-red {
-  box-shadow: var(--shadow-glow-red);
-}
-
-.glow-red-subtle {
-  box-shadow: var(--shadow-glow-red-subtle);
-}
-
-/* ---- Cinematic Shadows ---- */
-.shadow-cinematic {
-  box-shadow: var(--shadow-cinematic);
-}
-
-/* ---- Cinema Border ---- */
-.border-cinema {
-  border: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 /* ---- Focus Styles ---- */

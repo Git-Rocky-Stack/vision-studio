@@ -83,17 +83,20 @@ class ConsentApiTests(unittest.TestCase):
         self.assertEqual(response.status_code, 409)
         self.assertEqual(response.json()["detail"]["error_code"], "pickle-consent-required")
 
-    def test_remote_code_download_without_consent_is_409(self):
+    def test_remote_code_download_is_refused_as_unsupported(self):
+        # U3: no loader runs repo code (runtime_resolver refuses every such
+        # record), so consent cannot make the bytes usable - refused up front.
         with mock.patch.object(
             main.model_registry,
             "get_record",
             return_value=_record(trust_remote_code=True),
-        ):
+        ), mock.patch.object(main.download_manager, "enqueue") as enq:
             response = self.client.post("/api/models/m-test/download")
-        self.assertEqual(response.status_code, 409)
+        self.assertEqual(response.status_code, 422)
         self.assertEqual(
-            response.json()["detail"]["error_code"], "remote-code-consent-required"
+            response.json()["detail"]["error_code"], "remote-code-unsupported"
         )
+        enq.assert_not_called()
 
     def test_pickle_download_with_consent_proceeds(self):
         self.client.post(
@@ -108,21 +111,22 @@ class ConsentApiTests(unittest.TestCase):
         self.assertEqual(response.status_code, 202)
         enq.assert_called_once()
 
-    def test_trust_remote_code_download_with_consent_proceeds(self):
+    def test_trust_remote_code_download_stays_refused_even_with_consent(self):
         self.client.post(
             "/api/models/consent",
             json={"model_id": "m-test", "kind": "trust_remote_code", "granted": True},
         )
-        job = DownloadJob(model_id="m-test", status="queued", total_bytes=0)
         with mock.patch.object(
             main.model_registry,
             "get_record",
             return_value=_record(trust_remote_code=True),
-        ), mock.patch.object(main.download_manager, "enqueue", return_value=job) as enq:
+        ), mock.patch.object(main.download_manager, "enqueue") as enq:
             response = self.client.post("/api/models/m-test/download")
-        self.assertNotEqual(response.status_code, 409)
-        self.assertEqual(response.status_code, 202)
-        enq.assert_called_once()
+        self.assertEqual(response.status_code, 422)
+        self.assertEqual(
+            response.json()["detail"]["error_code"], "remote-code-unsupported"
+        )
+        enq.assert_not_called()
 
     def test_verified_safetensors_record_is_not_blocked(self):
         job = DownloadJob(model_id="m-test", status="queued", total_bytes=0)
@@ -182,19 +186,21 @@ class SupplyChainGateTests(unittest.TestCase):
         main.consent_store = self._real_store
         shutil.rmtree(self.tmp, ignore_errors=True)
 
-    def test_remote_code_revealed_at_enqueue_is_409(self):
+    def test_remote_code_revealed_at_enqueue_is_refused_422(self):
         # The transient record claims compatible/no-remote-code, but the full
-        # census reveals repo-authored Python: consent is required and the
-        # record is downgraded so the UI tells the truth.
+        # census reveals repo-authored Python: the download is refused up
+        # front (U3 - no loader ever runs repo code, so no consent can make
+        # the bytes usable) and the record is downgraded so the UI tells the
+        # truth.
         signals = _full_signals(
             py_file_count=2,
             siblings=["pipeline.py", "unet/diffusion_pytorch_model.safetensors"],
         )
         with mock.patch.object(main, "fetch_repo_signals", return_value=signals):
             response = self.client.post(f"/api/models/{TRANSIENT_ID}/download")
-        self.assertEqual(response.status_code, 409)
+        self.assertEqual(response.status_code, 422)
         self.assertEqual(
-            response.json()["detail"]["error_code"], "remote-code-consent-required"
+            response.json()["detail"]["error_code"], "remote-code-unsupported"
         )
         refreshed = self.client.get(f"/api/models/{TRANSIENT_ID}").json()
         self.assertEqual(refreshed["tier"], "experimental")

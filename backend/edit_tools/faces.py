@@ -20,7 +20,8 @@ import numpy as np
 from PIL import Image
 
 from edit_tools.weights import EditCancelled, EditModelUnavailable
-from utils.device import resolve_device
+from utils.device import free_accelerator_memory, resolve_device
+from utils.pipeline_cache import register_pipeline_owner
 
 try:  # stub CI / slim install
     import torch
@@ -48,7 +49,25 @@ RestoreCrop = Callable[[np.ndarray], np.ndarray]
 ProgressCb = Callable[[int, int], None]
 CancelCheck = Callable[[], bool]
 
+# Loaded GFPGAN runners (per checkpoint) and facexlib helpers (RetinaFace +
+# ParseNet, per weights pair + device). Building a helper loads both networks
+# onto the device, so it is cached instead of rebuilt per job; restore_faces
+# resets its per-image state (clean_all) before every use. Both caches are
+# freed through the shared release path on a model switch.
 _GFPGAN_RUNNERS: Dict[str, RestoreCrop] = {}
+_HELPERS: Dict[Tuple[str, str, str], Any] = {}
+
+
+def release_face_models() -> None:
+    """Drop the cached GFPGAN runners and face helpers and free their memory."""
+    had_models = bool(_GFPGAN_RUNNERS or _HELPERS)
+    _GFPGAN_RUNNERS.clear()
+    _HELPERS.clear()
+    if had_models:
+        free_accelerator_memory(torch)
+
+
+register_pipeline_owner("edit-faces", release_face_models)
 
 
 def _require_runtime() -> None:
@@ -73,8 +92,12 @@ def _staging_dir(detection_path: str, parsing_path: str) -> str:
 def _make_helper(detection_path: str, parsing_path: str) -> Any:
     _require_runtime()
     device = resolve_device(torch)
+    key = (detection_path, parsing_path, device)
+    cached = _HELPERS.get(key)
+    if cached is not None:
+        return cached
     staging = _staging_dir(detection_path, parsing_path)
-    return FaceRestoreHelper(
+    helper = FaceRestoreHelper(
         upscale_factor=1,
         face_size=512,
         crop_ratio=(1, 1),
@@ -84,6 +107,8 @@ def _make_helper(detection_path: str, parsing_path: str) -> Any:
         device=device,
         model_rootpath=staging,
     )
+    _HELPERS[key] = helper
+    return helper
 
 
 def _make_gfpgan_runner(gfpgan_path: str) -> RestoreCrop:

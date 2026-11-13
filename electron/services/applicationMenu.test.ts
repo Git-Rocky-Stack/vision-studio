@@ -39,6 +39,23 @@ describe('buildPackagedMenuTemplate', () => {
     const template = buildPackagedMenuTemplate({ platform: 'win32', appName: 'Vision Studio' });
     expect(template.map((item) => item.label)).toEqual(['Edit', 'Window']);
   });
+
+  // { role: 'close' } bound Ctrl+W: one keystroke closed the only window, quit
+  // the app and killed every running generation with no confirmation.
+  it.each(['win32', 'linux'] as const)('offers Close on %s without the Ctrl+W close role', (platform) => {
+    const template = buildPackagedMenuTemplate({ platform, appName: 'Vision Studio' });
+    expect(roles(template)).not.toContain('close');
+
+    const windowMenu = template.find((item) => item.label === 'Window')!;
+    const close = (windowMenu.submenu as MenuItemConstructorOptions[]).find((item) => item.label === 'Close')!;
+    expect(close.accelerator).toBeUndefined();
+
+    // Clicking it closes the focused window - through its 'close' handler, which confirms running jobs.
+    const focusedWindow = { close: vi.fn() };
+    close.click!({} as never, focusedWindow as never, {} as never);
+    expect(focusedWindow.close).toHaveBeenCalledOnce();
+    expect(() => close.click!({} as never, undefined, {} as never)).not.toThrow();
+  });
 });
 
 describe('installApplicationMenu', () => {

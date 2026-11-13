@@ -25,8 +25,10 @@ import type { BatchResult } from '@/types/generation';
 import { toGenerationDraftFromResult } from '@/features/batch/resultActions';
 import { useEditTool } from '@/features/edit/useEditTool';
 import { DialogCloseButton } from '@/components/ui/DialogCloseButton';
-import { runExport } from '@/features/notices';
+import { pushNotice, reportActionError, runExport } from '@/features/notices';
 import { AddToCollectionMenu } from '@/components/collections/AddToCollectionMenu';
+import { useDialogFocus } from '@/hooks/useDialogFocus';
+import { isEditableTarget } from '@/utils/isEditableTarget';
 
 interface ImagePreviewModalProps {
   result: BatchResult | null;
@@ -79,68 +81,26 @@ export function ImagePreviewModal({
     }
   }, [hasNext, currentIndex, results, onNavigate]);
 
-  // Keyboard navigation
+  // Arrow-key navigation is this dialog's own shortcut, so it does not consult
+  // the workspace modal guard; it does leave the arrows to text fields (the
+  // Add to collection name field) and to widgets that already claimed them.
   useEffect(() => {
     if (!result) return;
 
     const handleKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+      if (e.defaultPrevented || isEditableTarget(e.target)) return;
       if (e.key === 'ArrowLeft') goToPrev();
       if (e.key === 'ArrowRight') goToNext();
     };
 
-    window.addEventListener('keydown', handleKey);
-    return () => window.removeEventListener('keydown', handleKey);
-  }, [result, onClose, goToPrev, goToNext]);
+    document.addEventListener('keydown', handleKey);
+    return () => document.removeEventListener('keydown', handleKey);
+  }, [result, goToPrev, goToNext]);
 
-  // Focus trap
+  // Shared modal contract: focus in, Tab trapped, Escape closes (and never
+  // reaches window shortcuts such as the timeline or Pen tool), focus restored.
   const modalRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!result) return;
-    const previousFocus = document.activeElement as HTMLElement;
-
-    // Focus the first focusable element when modal opens
-    const container = modalRef.current;
-    if (container) {
-      const focusableSelector = 'a[href], button:not([disabled]), textarea, input, select, [tabindex]:not([tabindex="-1"])';
-      const focusableElements = container.querySelectorAll<HTMLElement>(focusableSelector);
-      if (focusableElements.length > 0) {
-        focusableElements[0].focus();
-      }
-    }
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key !== 'Tab') return;
-      const container = modalRef.current;
-      if (!container) return;
-
-      const focusableSelector = 'a[href], button:not([disabled]), textarea, input, select, [tabindex]:not([tabindex="-1"])';
-      const focusableElements = Array.from(container.querySelectorAll<HTMLElement>(focusableSelector));
-      if (focusableElements.length === 0) return;
-
-      const first = focusableElements[0];
-      const last = focusableElements[focusableElements.length - 1];
-
-      if (e.shiftKey) {
-        if (document.activeElement === first) {
-          e.preventDefault();
-          last.focus();
-        }
-      } else {
-        if (document.activeElement === last) {
-          e.preventDefault();
-          first.focus();
-        }
-      }
-    };
-
-    document.addEventListener('keydown', handleKeyDown);
-    return () => {
-      document.removeEventListener('keydown', handleKeyDown);
-      previousFocus?.focus();
-    };
-  }, [result]);
+  useDialogFocus(modalRef, { open: result !== null, onEscape: onClose });
 
   const handleSendToEdit = () => {
     if (result?.imagePath) {
@@ -153,9 +113,13 @@ export function ImagePreviewModal({
   };
 
   const handleCopyPrompt = () => {
-    if (result?.prompt) {
-      navigator.clipboard.writeText(result.prompt);
-    }
+    if (!result?.prompt) return;
+    // The clipboard can refuse (no focus, permission): say so rather than
+    // leaving an unhandled rejection and a silent no-op.
+    navigator.clipboard.writeText(result.prompt).then(
+      () => pushNotice('success', 'Prompt copied to the clipboard.'),
+      () => reportActionError('Could not copy the prompt to the clipboard.'),
+    );
   };
 
   const handleRegenerate = () => {
@@ -251,8 +215,11 @@ export function ImagePreviewModal({
           <div className="absolute inset-0 bg-void/90 backdrop-blur-sm" />
 
           {/* Content */}
+          {/* Presentation: captures clicks bubbling from the content so they
+              never reach the dialog's close-on-click below it. */}
           <div
             ref={modalRef}
+            role="presentation"
             className="relative flex flex-1"
             onClick={(e) => e.stopPropagation()}
           >
@@ -286,7 +253,7 @@ export function ImagePreviewModal({
                 transition={{ duration: 0.2 }}
                 src={result.imagePath}
                 alt={result.prompt}
-                className="max-h-[80vh] max-w-full object-contain rounded-md shadow-cinematic"
+                className="max-h-[80vh] max-w-full object-contain rounded-sm shadow-overlay"
               />
 
               {/* Next button */}

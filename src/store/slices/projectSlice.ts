@@ -9,7 +9,6 @@ import type {
   ImportDraftScene,
   RegionLock,
   SceneStatus,
-  GenerationConfig,
   MaskType,
   RegionMask,
   CanvasControlLayer,
@@ -23,6 +22,9 @@ import {
   DEFAULT_CANVAS_CONTROL_LAYER_MASK,
 } from '@/types/project';
 import type { AppSet, AppGet, AppState } from '../appStore.types';
+import type { ProjectTemplate } from '@/types/template';
+import type { ModelRecord } from '@/types/model';
+import { resolveDefaultImageModelId } from './modelsSlice';
 import { parseScriptImport } from '@/features/storyboard/parseScriptImport';
 
 function cloneRegionMask(mask?: RegionMask): RegionMask {
@@ -283,9 +285,24 @@ function updateSceneInProjects(
   });
 }
 
+/**
+ * A built-in project template names a catalog model ('flux-dev') that the
+ * first-run core set may not install (#J16). Applied to a project, it now
+ * defaults to the model the user actually has: the template's model when it
+ * is installed, else the first installed image model, else the catalog
+ * default. A custom template keeps the model its author chose.
+ */
+export function resolveProjectTemplateModel(
+  template: ProjectTemplate,
+  models: ModelRecord[],
+): ProjectTemplate {
+  if (template.isCustom) return template;
+  const model = resolveDefaultImageModelId(models, template.settings.model);
+  return model === template.settings.model ? template : { ...template, settings: { ...template.settings, model } };
+}
+
 export const projectInitialState = {
   currentProject: null as AppState['currentProject'],
-  recentProjects: [] as AppState['recentProjects'],
   projects: [] as Project[],
   activeProjectId: null as string | null,
   activeSceneId: null as string | null,
@@ -296,13 +313,17 @@ export const projectInitialState = {
   activeMaskTool: 'select' as MaskType | 'select',
   maskBrushSize: 20,
   maskInverted: false,
-  migrationStatus: 'idle' as const,
-  migrationProgress: 0,
 };
 
 export function createProjectActions(set: AppSet, _get: AppGet) {
   return {
-    setCurrentProject: (project: AppState['currentProject']) => set({ currentProject: project }),
+    setCurrentProject: (project: AppState['currentProject']) =>
+      set({
+        currentProject:
+          project?.template
+            ? { ...project, template: resolveProjectTemplateModel(project.template, _get().availableModels) }
+            : project,
+      }),
     createProject: (name: string, dimensions?: { width: number; height: number }): Project => {
       const now = new Date().toISOString();
       const project: Project = {
@@ -864,66 +885,6 @@ export function createProjectActions(set: AppSet, _get: AppGet) {
     setActiveMaskTool: (tool: MaskType | 'select') => set({ activeMaskTool: tool }),
     setMaskBrushSize: (size: number) => set({ maskBrushSize: Math.max(1, Math.min(100, Math.round(size))) }),
     toggleMaskInverted: () => set((s) => ({ maskInverted: !s.maskInverted })),
-    quickGenerate: (config: GenerationConfig) => {
-      const state = _get();
-      let quickProject = state.projects.find((p) => p.name === 'Quick Captures');
-      if (!quickProject) {
-        quickProject = state.createProject('Quick Captures', { width: 1024, height: 1024 });
-      }
-      const scene = state.addScene(quickProject.id, { prompt: '', generationConfig: config });
-      set({ activeProjectId: quickProject.id, activeSceneId: scene.id });
-    },
-    promoteToProject: (sceneId: string, projectId: string) => {
-      const state = _get();
-      const sourceProject = state.projects.find((p) => p.scenes.some((s) => s.id === sceneId));
-      const scene = sourceProject?.scenes.find((s) => s.id === sceneId);
-      if (!scene || !sourceProject) return;
-
-      state.addScene(projectId, {
-        ...scene,
-        name: scene.name,
-        prompt: scene.prompt,
-        negativePrompt: scene.negativePrompt,
-        generationConfig: scene.generationConfig,
-        timelineClipIds: [],
-        thumbnail: scene.thumbnail,
-      });
-      state.deleteScene(sourceProject.id, sceneId);
-    },
-    runMigration: async () => {
-      set({ migrationStatus: 'running', migrationProgress: 0 });
-      try {
-        const state = _get();
-        const libraryProject = state.createProject('My Library', { width: 1024, height: 1024 });
-        const totalAssets = state.assetLibrary.length;
-        for (let i = 0; i < totalAssets; i++) {
-          const asset = state.assetLibrary[i];
-          state.addScene(libraryProject.id, {
-            name: asset.name,
-            prompt: asset.prompt,
-            negativePrompt: asset.negativePrompt,
-            generationConfig: {
-              ...DEFAULT_GENERATION_CONFIG,
-              model: asset.model ?? DEFAULT_GENERATION_CONFIG.model,
-              width: asset.width ?? DEFAULT_GENERATION_CONFIG.width,
-              height: asset.height ?? DEFAULT_GENERATION_CONFIG.height,
-              seed: asset.seed ?? -1,
-            },
-            thumbnail: asset.thumbnail,
-            status: 'complete',
-          });
-          set({ migrationProgress: Math.round(((i + 1) / totalAssets) * 100) });
-        }
-        const quickProject = state.projects.find((p) => p.name === 'Quick Captures');
-        if (!quickProject) {
-          state.createProject('Quick Captures', { width: 1024, height: 1024 });
-        }
-        set({ migrationStatus: 'complete', migrationProgress: 100 });
-      } catch (err) {
-        console.error('Migration failed:', err);
-        set({ migrationStatus: 'error', migrationProgress: 0 });
-      }
-    },
   };
 }
 

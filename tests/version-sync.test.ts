@@ -33,17 +33,42 @@ describe('version sync', () => {
     }
   });
 
-  it('names the current release in the README', () => {
-    const readme = readFileSync(resolve(ROOT, 'README.md'), 'utf8');
-    expect(readme).toContain(`Current release: v${packageVersion}`);
-  });
-
-  it('has a changelog entry for the current release', () => {
+  /** The CHANGELOG release headings, and whether the newest is still marked Unreleased. */
+  function changelogHeadings(): { headings: string[]; unreleased: boolean } {
     const headings = readFileSync(resolve(ROOT, 'CHANGELOG.md'), 'utf8')
       .split(/\r?\n/)
       .filter((line) => line.startsWith('## '));
+    return { headings, unreleased: headings[0] === `## [${packageVersion}] - Unreleased` };
+  }
+
+  it('names the package version in the README as released or upcoming, matching the changelog', () => {
+    // package.json carries the version being built, which is not always the one
+    // users can download: 3.4.2 sat in testing while every update feed still
+    // served 3.4.1, and a README calling it the current release sent people
+    // looking for a build that did not exist. While the changelog marks the
+    // version Unreleased, the README must call it upcoming and name the latest
+    // published release; once the changelog dates it, the README must call it
+    // the current release.
+    const readme = readFileSync(resolve(ROOT, 'README.md'), 'utf8');
+    if (changelogHeadings().unreleased) {
+      expect(readme).toContain(`Upcoming release: v${packageVersion}`);
+      expect(readme).not.toContain(`Current release: v${packageVersion}`);
+      expect(readme).toMatch(/Latest published release: v\d+\.\d+\.\d+/);
+    } else {
+      expect(readme).toContain(`Current release: v${packageVersion}`);
+    }
+  });
+
+  it('has a changelog entry for the current release', () => {
+    const { headings, unreleased } = changelogHeadings();
 
     expect(headings.some((line) => line.startsWith(`## [${packageVersion}]`))).toBe(true);
+
+    // A version that is built but not yet published heads the file as
+    // `## [x.y.z] - Unreleased`; the README test above keeps the README in
+    // step. A bare `## [Unreleased]`, a stale version or a missing date still
+    // fail below.
+    if (unreleased) return;
 
     // The newest release heads the file; a stale "Unreleased" above it means
     // the promotion never happened.

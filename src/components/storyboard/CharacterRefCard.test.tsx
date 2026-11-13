@@ -345,7 +345,7 @@ describe('CharacterRefCard', () => {
       );
     });
 
-    it('has aria-selected true when selected', () => {
+    it('has aria-pressed true when selected', () => {
       render(
         <CharacterRefCard
           character={mockCharacter}
@@ -354,10 +354,10 @@ describe('CharacterRefCard', () => {
           onClick={vi.fn()}
         />
       );
-      expect(screen.getByTestId('character-ref-card')).toHaveAttribute('aria-selected', 'true');
+      expect(screen.getByTestId('character-ref-card')).toHaveAttribute('aria-pressed', 'true');
     });
 
-    it('has aria-selected false when not selected', () => {
+    it('has aria-pressed false when not selected', () => {
       render(
         <CharacterRefCard
           character={mockCharacter}
@@ -366,7 +366,7 @@ describe('CharacterRefCard', () => {
           onClick={vi.fn()}
         />
       );
-      expect(screen.getByTestId('character-ref-card')).toHaveAttribute('aria-selected', 'false');
+      expect(screen.getByTestId('character-ref-card')).toHaveAttribute('aria-pressed', 'false');
     });
 
     it('feature buttons have proper aria-pressed state', () => {

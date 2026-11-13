@@ -162,10 +162,6 @@ export interface SearchResponse {
   warning: string | null;
 }
 
-export function isImageCapability(record: Pick<ModelRecord, 'capability'>): boolean {
-  return record.capability !== 'video';
-}
-
 // -- M5 hardware + runtime plan wire types --------------------------------
 
 /**
@@ -184,6 +180,13 @@ export interface HardwareProfile {
   system_ram_total_bytes: number;
   system_ram_available_bytes: number;
   disk_free_bytes: number;
+  /**
+   * Set when an NVIDIA GPU is present but the bundled CUDA build has no
+   * kernels for it (older than compute capability 7.5): gpu_available is then
+   * false and generation runs on the CPU. User-facing sentence; absent or
+   * null otherwise (older backends omit it).
+   */
+  gpu_unsupported_reason?: string | null;
 }
 
 /**
@@ -250,7 +253,18 @@ export interface ProvisionModel {
   progress: number;
   error: string | null;
   gate_url: string | null;
+  /**
+   * K3 install tier: 'core' is the set that makes every primary capability
+   * work; 'extended' is the optional remainder. Absent on backends that
+   * predate tiers - the first-run screen then offers only "everything" and a
+   * flat custom list (see components/provisioning/provisionSelection.ts).
+   */
+  tier?: ProvisionTier;
+  /** K3 exact download size in bytes. Absent on older backends: use approx_bytes. */
+  size_bytes?: number;
 }
+
+export type ProvisionTier = 'core' | 'extended';
 
 /**
  * Aggregate + per-model snapshot of comprehensive first-run auto-provisioning.

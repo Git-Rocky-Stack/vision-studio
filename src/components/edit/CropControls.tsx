@@ -1,3 +1,4 @@
+import { useId } from 'react';
 import { cn } from '@/utils/cn';
 import { Button } from '@/components/ui/Button';
 import { Slider } from '@/components/ui/Slider';
@@ -65,6 +66,7 @@ export function CropControls({
   onCancel,
   isApplying = false,
 }: CropControlsProps) {
+  const fieldId = useId();
   return (
     <div className="space-y-4">
       {/* Header */}
@@ -74,13 +76,15 @@ export function CropControls({
       </div>
 
       {/* Aspect Ratio Presets */}
-      <div className="space-y-2">
-        <label className="text-label text-text-body">Aspect Ratio</label>
+      <div className="space-y-2" role="group" aria-labelledby={`${fieldId}-aspect`}>
+        <p id={`${fieldId}-aspect`} className="text-label text-text-body">Aspect Ratio</p>
         <div className="grid grid-cols-2 gap-2">
           {CROP_ASPECTS.map((aspect) => (
             <button
               key={aspect.id}
+              type="button"
               onClick={() => onCropAspectChange(aspect.id)}
+              aria-pressed={cropAspect === aspect.id}
               className={cn(
                 'py-2 px-3 rounded-md border text-xs font-medium transition text-center',
                 cropAspect === aspect.id
@@ -98,8 +102,9 @@ export function CropControls({
       {cropAspect === 'custom' && (
         <div className="grid grid-cols-2 gap-2">
           <div>
-            <label className="text-label text-text-body mb-1 block">Width</label>
+            <label htmlFor={`${fieldId}-width`} className="text-label text-text-body mb-1 block">Width</label>
             <input
+              id={`${fieldId}-width`}
               type="number"
               value={customWidth}
               onChange={(e) => onCustomWidthChange(Number(e.target.value))}
@@ -107,8 +112,9 @@ export function CropControls({
             />
           </div>
           <div>
-            <label className="text-label text-text-body mb-1 block">Height</label>
+            <label htmlFor={`${fieldId}-height`} className="text-label text-text-body mb-1 block">Height</label>
             <input
+              id={`${fieldId}-height`}
               type="number"
               value={customHeight}
               onChange={(e) => onCustomHeightChange(Number(e.target.value))}
@@ -119,13 +125,11 @@ export function CropControls({
       )}
 
       {/* Rotation */}
-      <div className="space-y-2">
-        <div className="flex items-center gap-2">
-          <RotateCw className="w-3.5 h-3.5 text-text-muted" />
-          <label className="text-label text-text-body">Rotation</label>
-        </div>
+      <div className="flex items-start gap-2">
+        <RotateCw className="mt-0.5 w-3.5 h-3.5 flex-shrink-0 text-text-muted" aria-hidden="true" />
+        <div className="min-w-0 flex-1">
         <Slider
-          label=""
+          label="Rotation"
           value={rotation}
           min={-45}
           max={45}
@@ -133,14 +137,17 @@ export function CropControls({
           onChange={onRotationChange}
           valueFormatter={(v) => `${v}°`}
         />
+        </div>
       </div>
 
       {/* Flip Buttons */}
-      <div className="space-y-2">
-        <label className="text-label text-text-body">Flip</label>
+      <div className="space-y-2" role="group" aria-labelledby={`${fieldId}-flip`}>
+        <p id={`${fieldId}-flip`} className="text-label text-text-body">Flip</p>
         <div className="flex gap-2">
           <button
+            type="button"
             onClick={() => onFlipHChange(!flipH)}
+            aria-pressed={flipH}
             className={cn(
               'flex-1 flex items-center justify-center gap-2 py-3 rounded-md border text-xs font-medium transition',
               flipH
@@ -152,7 +159,9 @@ export function CropControls({
             Horizontal
           </button>
           <button
+            type="button"
             onClick={() => onFlipVChange(!flipV)}
+            aria-pressed={flipV}
             className={cn(
               'flex-1 flex items-center justify-center gap-2 py-3 rounded-md border text-xs font-medium transition',
               flipV

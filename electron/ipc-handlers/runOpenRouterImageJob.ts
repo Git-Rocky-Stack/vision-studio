@@ -32,7 +32,7 @@ export type RunOpenRouterImageJobAccount = {
 
 export type RunOpenRouterImageJobUserAccountsContract = {
   getAccount: (accountId: string | null) => RunOpenRouterImageJobAccount | null;
-  getOpenRouterApiKey: (accountId: string) => string | null;
+  getOpenRouterApiKey: (accountId: string) => Promise<string | null>;
 };
 
 export type RunOpenRouterImageJobOpenRouterContract = {
@@ -104,7 +104,7 @@ export async function runOpenRouterImageJob(
     return;
   }
 
-  const apiKey = userAccounts.getOpenRouterApiKey(activeAccount.id);
+  const apiKey = await userAccounts.getOpenRouterApiKey(activeAccount.id);
   const model =
     (validated.model && validated.model.trim()) ||
     activeAccount.preferences.openRouterImageModel.trim();

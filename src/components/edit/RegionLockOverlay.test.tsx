@@ -113,6 +113,25 @@ describe('RegionLockOverlay', () => {
     expect(onRegionClick).toHaveBeenCalledWith('region-1');
   });
 
+  it('activates a region from the keyboard (Enter and Space)', async () => {
+    const onRegionClick = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <RegionLockOverlay
+        regionLocks={[mockRegion]}
+        canvasWidth={1024}
+        canvasHeight={1024}
+        activeRegionId={null}
+        onRegionClick={onRegionClick}
+      />
+    );
+    screen.getByRole('button', { name: 'Region: Shirt Region, tool: Fill' }).focus();
+    await user.keyboard('{Enter}');
+    await user.keyboard(' ');
+    expect(onRegionClick).toHaveBeenCalledTimes(2);
+    expect(onRegionClick).toHaveBeenCalledWith('region-1');
+  });
+
   it('shows corner handles for active region', () => {
     render(
       <RegionLockOverlay

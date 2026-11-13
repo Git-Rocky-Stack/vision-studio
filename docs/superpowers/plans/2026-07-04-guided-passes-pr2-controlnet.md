@@ -3,6 +3,8 @@
 > **Historical design record - 2026-07-04.** Describes intent at that
 > date, not current behaviour. See `docs/INDEX.md` for what is authoritative.
 
+> **Status (checked 2026-11-11):** Shipped - PR #46 (`c2f508c`). The task checkboxes below record the plan as written and were not ticked.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Make canvas ControlNet layers real on SD 1.5 and SDXL — preprocessed control images, Foundry-record model acquisition, MultiControlNet stacking, per-layer strength + step range — and retire the orphaned `/api/v1/controlnet` stub.

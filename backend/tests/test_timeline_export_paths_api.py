@@ -134,7 +134,9 @@ def test_failed_mux_removes_partial_and_silent_files(tmp_path, monkeypatch):
         pathlib.Path(output_path_override).write_bytes(b"silent")
         return {}
 
-    def fake_mux(video_path, output_path, audio_layers, export_duration_ms):
+    def fake_mux(video_path, output_path, audio_layers, export_duration_ms,
+                 should_cancel=None, job_id=None):
+        assert callable(should_cancel) and job_id == "exp"
         pathlib.Path(output_path).write_bytes(b"partial")
         raise RuntimeError("ffmpeg died")
 

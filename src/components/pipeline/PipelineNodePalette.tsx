@@ -102,7 +102,8 @@ export const PipelineNodePalette = memo(function PipelineNodePalette({
       <div className="px-1 mb-1">
         <h3 className="text-label text-text-primary font-medium mb-2">Step Types</h3>
         <input
-          type="text"
+          type="search"
+          aria-label="Search step types"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search steps..."

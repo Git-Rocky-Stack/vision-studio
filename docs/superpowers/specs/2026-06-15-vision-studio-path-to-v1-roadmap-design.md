@@ -3,6 +3,12 @@
 > **Historical design record - 2026-06-15.** Describes intent at that
 > date, not current behaviour. See `docs/INDEX.md` for what is authoritative.
 
+> **Program status (2026-11-11):** every milestone in this roadmap has shipped -
+> M6 (#21, #22), M7 (#24), M8 (#25, #26), M9 (#28-#30) and M10 (#31, #35-#37,
+> released as 3.1.0). The one open item is M9's off-CI CUDA correctness sweep:
+> no family is yet in `TRT_PROVEN_FAMILIES`, so TensorRT stays auto-off (see
+> `docs/TENSORRT_VERIFICATION.md`). The status tracker at the end is current.
+
 > **Status:** Approved baseline (2026-06-15). This is the definitive plan for the
 > balance of work after Model Foundry M5. It LOCKS scope boundaries, gates,
 > dependencies, sequence, and acceptance criteria for milestones **M6 through
@@ -44,9 +50,9 @@ the **plan contract** every later pillar consumes.
 | Pillar | Name | Owns | Status |
 |--------|------|------|--------|
 | 1 | **Model Foundry** | What a model needs, whether it runs here, how it loads - *the plan* | Complete (M1-M5) |
-| 2 | **Accelerator** | Making the plan run as fast as the silicon allows - *the execution* | M9 |
-| 3 | **Routing Fabric** | Where a job runs: Local / OpenRouter / HF Inference | M6 |
-| 4 | **Director** | Agentic + AI-assist intelligence: RAG, context optimization | M7 |
+| 2 | **Accelerator** | Making the plan run as fast as the silicon allows - *the execution* | Complete (M9; TensorRT auto-off pending the CUDA sweep) |
+| 3 | **Routing Fabric** | Where a job runs: Local / OpenRouter / HF Inference | Complete (M6) |
+| 4 | **Director** | Agentic + AI-assist intelligence: RAG, context optimization | Complete (M7) |
 | 5 | **Provenance** | Recipe/provenance export beyond pinned repo_id+revision | (post-v1) |
 | 6 | **Platform** | Plugins, custom pipelines, model/recipe sharing | (post-v1) |
 
@@ -418,7 +424,7 @@ gates, and acceptance are already locked above. The standing loop is:
 | M7 | Director: RAG + Context | Complete |
 | M8 | ComfyUI Interop Deepening | Complete |
 | **M9** | Accelerator + Inference | **Done** (impl landed across 3 PRs; the CUDA correctness sweep + real TRT engine build are the off-CI maintainer pre-ship pass) |
-| M10 | Release Hardening + Docs | Baselined |
+| M10 | Release Hardening + Docs | Complete (#31, #35, #36, #37; released as 3.1.0) |
 
 ---
 

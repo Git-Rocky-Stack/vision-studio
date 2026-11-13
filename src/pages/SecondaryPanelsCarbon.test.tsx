@@ -30,7 +30,6 @@ function mockElectron() {
         notifyOnGenerationComplete: true,
         notifyOnGenerationFailed: true,
         notifyOnModelDownloads: true,
-        pythonPath: '',
       }),
       update: vi.fn().mockImplementation(async (patch) => ({
         theme: 'dark',
@@ -40,7 +39,6 @@ function mockElectron() {
         notifyOnGenerationComplete: true,
         notifyOnGenerationFailed: true,
         notifyOnModelDownloads: true,
-        pythonPath: '',
         ...patch,
       })),
     },
@@ -218,7 +216,7 @@ describe('Carbon Pro secondary panels', () => {
     const { container } = render(<SettingsPanel />);
 
     expect(screen.getByRole('button', { name: /General/i })).toHaveClass('bg-accent-primary-muted');
-    expect(screen.getByRole('switch', { name: 'Toggle auto save' })).toHaveClass('bg-accent-primary');
+    expect(screen.getByRole('switch', { name: 'Toggle backend autostart' })).toHaveClass('bg-accent-primary');
     expect(container.querySelector(legacyPrimarySelector)).not.toBeInTheDocument();
   });
 });

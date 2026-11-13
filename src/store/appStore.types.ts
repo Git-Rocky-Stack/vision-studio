@@ -92,7 +92,6 @@ import type {
   RegionMask,
   CanvasControlLayer,
   SceneStatus,
-  GenerationConfig,
   MaskType,
 } from '@/types/project';
 
@@ -114,7 +113,6 @@ import type {
   GenerationQueueItem,
   BatchResult,
   GenerationDraft,
-  GenerationMode,
 } from '@/types/generation';
 
 import type {
@@ -126,6 +124,7 @@ import type {
 import type {
   AccelerationSettings,
   AppliedAcceleration,
+  OptionalFeatureAvailability,
 } from '@/types/acceleration';
 
 import type {
@@ -158,6 +157,7 @@ import type { ActiveTab, ActiveSubMode, CenterView } from '@/types/navigation';
 
 import type {
   IterationNode,
+  IterationNodePatch,
   IterationBranch,
   IterationView,
   ComparisonMode as IterationComparisonMode,
@@ -220,6 +220,10 @@ export interface GenerationJobParams {
   width?: number;
   height?: number;
   scheduler?: string;
+  /** The raw output was superseded: job-status sync must not register it (features/jobs/jobOutput.ts). */
+  suppressAssetSync?: boolean;
+  /** Library path of the file that replaced the raw output (a Blend Edges composite). */
+  replacedByAssetPath?: string;
   // Dynamic param bag: callers attach arbitrary backend params (control layers,
   // masks, reference images, etc.), so the index value is intentionally unknown.
   [key: string]: unknown;
@@ -241,6 +245,8 @@ export interface GenerationJob {
   params: GenerationJobParams;
   result?: GenerationJobResult;
   error?: string;
+  /** Sampler step last reported for the run (image/video diffusion jobs). */
+  step?: number;
   createdAt: Date;
   completedAt?: Date;
 }
@@ -249,12 +255,47 @@ export interface BatchJob {
   id: string;
   name: string;
   prompts: string[];
+  /** Backend job id per submitted prompt, index-aligned with `prompts`. */
+  jobIds: string[];
   currentIndex: number;
   completedJobs: string[];
   failedJobs: string[];
   status: 'pending' | 'running' | 'completed' | 'failed';
   createdAt: Date;
 }
+
+/** One card in the Batch prompt queue (session state, never persisted). */
+export interface BatchQueuePrompt {
+  id: string;
+  prompt: string;
+  status: 'pending' | 'generating' | 'completed' | 'failed';
+  /** Backend job id once the prompt has been submitted. */
+  jobId?: string;
+  /** Output path reported by the finished job. */
+  result?: string;
+  /** Seed submitted for (or reported by) this prompt's run. */
+  seed?: number;
+}
+
+/**
+ * How a batch assigns seeds: one fixed seed for every prompt, a run of
+ * consecutive seeds from a base, or a fresh random seed per prompt.
+ */
+export type BatchSeedMode = 'random' | 'fixed' | 'increment';
+
+export interface BatchSeedStrategy {
+  mode: BatchSeedMode;
+  /** Seed used by 'fixed', and the first seed of an 'increment' run. */
+  baseSeed: number;
+}
+
+export interface BatchNotice {
+  tone: 'error' | 'info';
+  message: string;
+}
+
+/** Outcome of a model download control (enqueue / pause / resume / cancel). */
+export type DownloadActionResult = { ok: true } | { ok: false; error: string };
 
 export interface LayoutPreferences {
   leftDockWidth: number;
@@ -284,7 +325,6 @@ export interface StoryboardTimelineDerivationResult {
 export interface AppState {
   // --- UI State ------------------------------------------------------------
   activeViewerItemId: string | null;
-  darkMode: boolean;
   layoutPreferences: LayoutPreferences;
 
   // Navigation model
@@ -305,7 +345,6 @@ export interface AppState {
 
   // --- Recent Projects (file-system level, not storyboard) ----------------
   currentProject: RecentProject | null;
-  recentProjects: RecentProject[];
 
   // --- Projects (Storyboard) -----------------------------------------------
   projects: Project[];
@@ -321,19 +360,19 @@ export interface AppState {
   maskBrushSize: number;
   maskInverted: boolean;
 
-  // --- Migration -----------------------------------------------------------
-  migrationStatus: 'idle' | 'running' | 'complete' | 'error';
-  migrationProgress: number; // 0-100
-
   // --- Generation ----------------------------------------------------------
-  generationMode: GenerationMode;
+  /** Image-to-video start frame (a data URL) for the next video run. */
   startFrameImage: string | null;
-  endFrameImage: string | null;
   activeJobs: GenerationJob[];
   completedJobs: GenerationJob[];
 
   // --- Batch --------------------------------------------------------------
   batchJobs: BatchJob[];
+  batchQueue: BatchQueuePrompt[];
+  batchSeedStrategy: BatchSeedStrategy;
+  /** The batch whose jobs the job watcher is still tracking, if any. */
+  activeBatchId: string | null;
+  batchNotice: BatchNotice | null;
 
   // --- System --------------------------------------------------------------
   systemInfo: {
@@ -346,6 +385,8 @@ export interface AppState {
     backendConnected: boolean;
     backendRunning?: boolean;
     bundledBackend?: boolean;
+    /** Optional-feature availability reported by the backend (absent = unknown). */
+    availability?: OptionalFeatureAvailability;
   };
 
   // --- Models --------------------------------------------------------------
@@ -532,7 +573,6 @@ export interface AppState {
   pipelines: PipelineDefinition[];
   activePipelineId: string | null;
   pipelineExecutions: PipelineExecution[];
-  isPipelineBuilderOpen: boolean;
 
   // --- Actions -------------------------------------------------------------
 
@@ -557,11 +597,9 @@ export interface AppState {
 
   // Workflow
   setActiveWorkflow: (workflowId: string) => void;
-  createWorkflow: (name: string) => WorkflowRecord;
   createWorkflowFromGraph: (name: string, graph: WorkflowGraph) => WorkflowRecord;
   setWorkflowStatus: (workflowId: string, status: WorkflowRecord['status']) => void;
   setWorkflowRuntimeState: (workflowId: string, patch: Partial<WorkflowRuntimeState>) => void;
-  resetWorkflowRuntimeState: (workflowId: string) => void;
   recordWorkflowRun: (workflowId: string, run: WorkflowRunInput) => void;
   addWorkflowNode: (
     workflowId: string,
@@ -591,6 +629,16 @@ export interface AppState {
   // Recent project / generation jobs
   setCurrentProject: (project: RecentProject | null) => void;
   addJob: (job: GenerationJob) => void;
+  /**
+   * Patch a job. Active jobs move through their lifecycle (a terminal status
+   * moves them to completedJobs and records the iteration node); a finished
+   * job's record in completedJobs takes non-lifecycle patches only.
+   */
+  /**
+   * Patch a job. An active job moves through its lifecycle (a terminal status
+   * moves it to completedJobs and records its iteration node); a finished
+   * job's completedJobs record takes non-lifecycle patches only.
+   */
   updateJob: (jobId: string, updates: Partial<GenerationJob>) => void;
   removeJob: (jobId: string) => void;
   deleteCompletedJob: (jobId: string) => void;
@@ -598,12 +646,11 @@ export interface AppState {
   setAvailableModels: (models: ModelRecord[]) => void;
   setSelectedImageModelId: (modelId: string) => void;
   loadModels: () => Promise<void>;
-  setDownloadJob: (job: DownloadJob) => void;
   refreshDownloads: () => Promise<void>;
-  enqueueDownload: (modelId: string) => Promise<void>;
-  pauseDownload: (modelId: string) => Promise<void>;
-  resumeDownload: (modelId: string) => Promise<void>;
-  cancelDownload: (modelId: string) => Promise<void>;
+  enqueueDownload: (modelId: string) => Promise<DownloadActionResult>;
+  pauseDownload: (modelId: string) => Promise<DownloadActionResult>;
+  resumeDownload: (modelId: string) => Promise<DownloadActionResult>;
+  cancelDownload: (modelId: string) => Promise<DownloadActionResult>;
   loadLibraryRoots: () => Promise<void>;
   addLibraryRoot: (path: string, layoutHint: LayoutHint) => Promise<void>;
   removeLibraryRoot: (rootId: string) => Promise<void>;
@@ -632,7 +679,8 @@ export interface AppState {
   // last-known snapshot on failure); the user actions surface envelope
   // failures via provisionActionError (a lost start/cancel must never vanish).
   refreshProvisionStatus: () => Promise<void>;
-  startProvisioning: () => Promise<void>;
+  /** Provisions the core set, or only `modelIds` when given. */
+  startProvisioning: (options?: { modelIds?: string[] }) => Promise<void>;
   pauseProvisioning: () => Promise<void>;
   resumeProvisioning: () => Promise<void>;
   cancelProvisioning: () => Promise<void>;
@@ -640,7 +688,22 @@ export interface AppState {
   dismissFirstRunProvisioning: () => void;
   openFirstRunProvisioning: () => void;
   addBatchJob: (batchJob: BatchJob) => void;
-  updateBatchJob: (batchId: string, updates: Partial<BatchJob>) => void;
+  /** Records one batch job's terminal outcome; settles the batch when every job has one. */
+  recordBatchJobOutcome: (batchId: string, jobId: string, outcome: 'completed' | 'failed') => void;
+
+  // Batch prompt queue
+  addBatchQueuePrompt: (prompt?: string) => void;
+  appendBatchQueuePrompts: (prompts: string[]) => number;
+  updateBatchQueuePrompt: (id: string, patch: Partial<Omit<BatchQueuePrompt, 'id'>>) => void;
+  updateBatchQueuePromptByJob: (jobId: string, patch: Partial<Omit<BatchQueuePrompt, 'id' | 'jobId'>>) => void;
+  removeBatchQueuePrompt: (id: string) => void;
+  duplicateBatchQueuePrompt: (id: string) => void;
+  moveBatchQueuePrompt: (activeId: string, overId: string) => void;
+  clearBatchQueue: () => void;
+  setBatchQueue: (prompts: BatchQueuePrompt[]) => void;
+  setBatchSeedStrategy: (patch: Partial<BatchSeedStrategy>) => void;
+  setActiveBatchId: (batchId: string | null) => void;
+  setBatchNotice: (notice: BatchNotice | null) => void;
 
   // Prompt intelligence
   addToPromptHistory: (entry: PromptHistoryEntry) => void;
@@ -655,6 +718,7 @@ export interface AppState {
 
   // Generation queue
   addToGenerationQueue: (item: GenerationQueueItem) => void;
+  updateGenerationQueueItem: (id: string, patch: Partial<Omit<GenerationQueueItem, 'id'>>) => void;
   removeFromGenerationQueue: (id: string) => void;
 
   // Batch results
@@ -669,7 +733,6 @@ export interface AppState {
   syncAssetsFromJobStatus: (status: AssetJobStatus) => void;
   deleteAssetRecord: (assetId: string) => void;
   toggleAssetFavorite: (assetId: string) => void;
-  clearAssetLibrary: () => void;
   clearBatchResults: () => void;
   removeAssetsByRoot: (rootPath: string) => void;
   removeAssetRecordsByPaths: (paths: string[]) => void;
@@ -691,7 +754,6 @@ export interface AppState {
   setActiveTimelineRetakeRange: (id: string | null) => void;
   setActiveTimelineRetakeTake: (id: string | null) => void;
   upsertMediaAsset: (asset: MediaAsset) => void;
-  removeMediaAsset: (assetId: string) => void;
   createReferenceSet: (params: {
     name: string;
     scope: ReferenceSet['scope'];
@@ -808,11 +870,19 @@ export interface AppState {
       sceneIds?: string[];
     },
   ) => StoryboardTimelineDerivationResult | null;
+  /**
+   * Writes the storyboard's scene transitions onto the outgoing edge of each
+   * storyboard-derived clip (features/timeline/storyboardTransitions.ts),
+   * limited to one sequence or some scenes. Returns how many clips changed.
+   * deriveStoryboardTimeline runs it for the sequence it builds.
+   */
+  syncStoryboardTransitions: (
+    projectId: string,
+    scope?: { sequenceId?: string | null; sceneIds?: readonly string[] },
+  ) => number;
 
   // Video generation
-  setGenerationMode: (mode: GenerationMode) => void;
   setStartFrameImage: (image: string | null) => void;
-  setEndFrameImage: (image: string | null) => void;
 
   // Generation draft & advanced generation
   setGenerationDraft: (draft: GenerationDraft | null) => void;
@@ -838,7 +908,6 @@ export interface AppState {
   setPreviewStep: (step: number) => void;
   setPreviewError: (message: string | null) => void;
   clearPreview: () => void;
-  setPreviewActive: (active: boolean) => void;
 
   // Iteration History
   addIteration: (params: { job: GenerationJob; parentId: string | null; thumbnail: string; branchId?: string }) => void;
@@ -848,10 +917,11 @@ export interface AppState {
   clearPendingIterationParent: () => void;
   pinIteration: (id: string) => void;
   setIterationNote: (id: string, note: string) => void;
+  /** Patch a recorded node's thumbnail / job snapshot / note / pin (no-op when absent or unchanged). */
+  updateIterationNode: (id: string, patch: IterationNodePatch) => void;
   setActiveIteration: (id: string | null) => void;
   setIterationView: (view: IterationView) => void;
   setIterationComparisonMode: (mode: IterationComparisonMode) => void;
-  setComparisonIds: (ids: ComparisonIds) => void;
   toggleIterationComparison: (id: string) => void;
   swapIterationComparison: () => void;
   clearIterationComparison: () => void;
@@ -863,7 +933,7 @@ export interface AppState {
   renameCollection: (id: string, name: string) => void;
   addAssetToCollection: (collectionId: string, assetId: string) => void;
   removeAssetFromCollection: (collectionId: string, assetId: string) => void;
-  createSmartCollection: (params: { name: string; smartQuery: SmartQuery; isAutoGenerated?: boolean }) => void;
+  createSmartCollection: (params: { name: string; smartQuery: SmartQuery; isAutoGenerated?: boolean }) => Collection;
   refreshSmartCollection: (id: string) => void;
   analyzeAssets: (assetIds: string[]) => void;
   /** Analyse every library asset that has no metadata yet. */
@@ -898,7 +968,6 @@ export interface AppState {
   jumpToEditHistory: (index: number) => void;
   setSelectedEditLayerId: (id: string | null) => void;
   setCurrentImageSize: (size: { width: number; height: number } | null) => void;
-  pushEditHistory: (entry: EditHistoryEntry) => void;
   undo: () => void;
   redo: () => void;
   canUndo: () => boolean;
@@ -988,13 +1057,6 @@ export interface AppState {
   setMaskBrushSize: (size: number) => void;
   toggleMaskInverted: () => void;
 
-  // Quick Generate
-  quickGenerate: (config: GenerationConfig) => void;
-  promoteToProject: (sceneId: string, projectId: string) => void;
-
-  // Migration
-  runMigration: () => Promise<void>;
-
   // Timeline
   setTimelineMode: (mode: TimelineMode) => void;
   timelinePlay: () => void;
@@ -1033,7 +1095,6 @@ export interface AppState {
   ) => void;
   cancelPipelineExecution: (executionId: string) => void;
   setActivePipelineId: (id: string | null) => void;
-  setPipelineBuilderOpen: (open: boolean) => void;
 }
 
 // ---------------------------------------------------------------------------

@@ -85,6 +85,33 @@ describe('HardwareSection', () => {
     expect(screen.getByText(/24(\.0)? GB/)).toBeInTheDocument();
   });
 
+  it('explains a GPU the bundled CUDA build cannot run on', () => {
+    const reason =
+      'NVIDIA GeForce GTX 1080 (compute capability 6.1) is older than this build supports. Generation runs on the CPU.';
+    useAppStore.setState({
+      hardwareProfile: makeProfile({
+        gpu_available: false,
+        gpu_name: 'NVIDIA GeForce GTX 1080',
+        vram_total_bytes: 0,
+        vram_free_bytes: 0,
+        compute_major: 6,
+        compute_minor: 1,
+        gpu_unsupported_reason: reason,
+      }),
+      availableModels: [],
+    } as never);
+    render(<HardwareSection />);
+    expect(screen.getByText('NVIDIA GeForce GTX 1080')).toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent(reason);
+    expect(screen.getByText('6.1 (unsupported)')).toBeInTheDocument();
+  });
+
+  it('shows no unsupported-GPU notice for a supported GPU', () => {
+    useAppStore.setState({ hardwareProfile: makeProfile(), availableModels: [] } as never);
+    render(<HardwareSection />);
+    expect(screen.queryByText(/unsupported/i)).toBeNull();
+  });
+
   it('shows a hardware-unavailable hint when no profile is loaded', () => {
     useAppStore.setState({ hardwareProfile: null } as never);
     render(<HardwareSection />);

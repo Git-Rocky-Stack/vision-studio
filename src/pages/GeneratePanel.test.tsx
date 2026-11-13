@@ -1,5 +1,6 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { appJobWatcher } from '@/features/jobs/appJobWatcher';
 
 vi.mock('@/components/generate/PromptArea', () => ({
   PromptArea: ({
@@ -63,10 +64,6 @@ vi.mock('@/components/reference/ReferenceMediaPanel', () => ({
   ReferenceMediaPanel: ({ title }: { title: string }) => <div>{title} Reference Panel</div>,
 }));
 
-vi.mock('@/components/generate/ControlNetPanel', () => ({
-  ControlNetPanel: () => <div>ControlNet Panel</div>,
-}));
-
 vi.mock('@/components/generate/LoRAMixer', () => ({
   LoRAMixer: ({
     onChange,
@@ -125,11 +122,43 @@ vi.mock('@/components/generate/AspectRatioPicker', () => ({
 }));
 
 vi.mock('@/components/generate/CompactImageDropZone', () => ({
-  CompactImageDropZone: ({ label }: { label: string }) => <div>{label} Drop Zone</div>,
+  CompactImageDropZone: ({
+    label,
+    image,
+    onImageChange,
+  }: {
+    label: string;
+    image: string | null;
+    onImageChange: (image: string | null) => void;
+  }) => (
+    <div>
+      <span>{label} Drop Zone</span>
+      <span data-testid={`${label}-value`}>{image ?? 'empty'}</span>
+      <button type="button" onClick={() => onImageChange('data:image/png;base64,START')}>
+        Set {label}
+      </button>
+    </div>
+  ),
 }));
 
 vi.mock('@/components/generate/VideoControls', () => ({
-  VideoControls: () => <div>Video Controls</div>,
+  VideoControls: ({
+    duration,
+    fps,
+    onDurationChange,
+    onFpsChange,
+  }: {
+    duration: number;
+    fps: number;
+    onDurationChange: (value: number) => void;
+    onFpsChange: (value: number) => void;
+  }) => (
+    <div>
+      <span data-testid="video-controls-values">{`${duration}s ${fps}fps`}</span>
+      <button type="button" onClick={() => onDurationChange(8)}>Set Duration 8</button>
+      <button type="button" onClick={() => onFpsChange(30)}>Set FPS 30</button>
+    </div>
+  ),
 }));
 
 vi.mock('@/utils/animation', () => ({
@@ -465,12 +494,17 @@ function seedCanvasControlLayerScene(options?: {
 
 describe('GeneratePanel', () => {
   beforeEach(() => {
+    // The job watcher is app-level: forget every job a previous test tracked.
+    appJobWatcher.reset();
     resetStore();
     installElectronGenerationMock();
     vi.mocked(runTimelineClipGeneration).mockReset();
   });
 
-  afterEach(cleanup);
+  afterEach(() => {
+    cleanup();
+    appJobWatcher.reset();
+  });
 
   it('defaults the advanced section collapsed and restores it from store state', async () => {
     const state = useAppStore.getState();
@@ -571,7 +605,7 @@ describe('GeneratePanel', () => {
     expect(screen.getByTestId('generate-preflight-summary')).toHaveTextContent('svd');
     expect(screen.getByRole('heading', { name: 'Motion' })).toBeInTheDocument();
     expect(screen.getByTestId('generate-preflight-warning')).toHaveTextContent(
-      'Stable Video Diffusion requires a reference image.',
+      'Stable Video Diffusion requires a start frame or reference image.',
     );
   });
 
@@ -1427,6 +1461,134 @@ describe('GeneratePanel', () => {
         );
       });
       expect(screen.queryByTestId('generate-preflight-warning')).not.toBeInTheDocument();
+    });
+  });
+
+  describe('Motion controls (#J8/#J9)', () => {
+    it('drives duration and fps from VideoControls into the store and the video payload', async () => {
+      useAppStore.setState({ availableModels: [videoModel('ltx-video', 'ltx')] });
+      render(<GeneratePanel />);
+      fireEvent.click(screen.getByRole('button', { name: /^Video$/ }));
+
+      expect(screen.getByTestId('video-controls-values')).toHaveTextContent('5s 24fps');
+      fireEvent.click(screen.getByRole('button', { name: 'Set Duration 8' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Set FPS 30' }));
+      expect(useAppStore.getState().advancedGeneration).toMatchObject({ duration: 8, fps: 30 });
+      expect(screen.getByTestId('video-controls-values')).toHaveTextContent('8s 30fps');
+
+      fireEvent.change(screen.getByTestId('mock-prompt-input'), { target: { value: 'waves' } });
+      fireEvent.click(screen.getByTestId('generate-button'));
+      await waitFor(() => {
+        expect(window.electron.generation.generateVideo).toHaveBeenCalledWith(
+          expect.objectContaining({ duration: 8, fps: 30 }),
+        );
+      });
+    });
+
+    it('keeps fps single-source: the Advanced section is image-only', () => {
+      render(<GeneratePanel />);
+      expect(screen.getByTestId('generate-section-advanced')).toBeInTheDocument();
+      fireEvent.click(screen.getByRole('button', { name: /^Video$/ }));
+      expect(screen.queryByTestId('generate-section-advanced')).toBeNull();
+      expect(screen.getByTestId('video-controls-values')).toBeInTheDocument();
+    });
+
+    it('offers a Start Frame and no End Frame (the backend has no end-frame input)', () => {
+      render(<GeneratePanel />);
+      fireEvent.click(screen.getByRole('button', { name: /^Video$/ }));
+      expect(screen.getByText('Start Frame Drop Zone')).toBeInTheDocument();
+      expect(screen.queryByText('End Frame Drop Zone')).toBeNull();
+    });
+
+    it('sends the Start Frame as image_path and keeps the frame out of the job params', async () => {
+      useAppStore.setState({ availableModels: [videoModel('svd', 'svd')] });
+      render(<GeneratePanel />);
+      fireEvent.click(screen.getByRole('button', { name: /^Video$/ }));
+      fireEvent.click(screen.getByRole('button', { name: 'Use SVD' }));
+      // SVD needs an image: the start frame satisfies it.
+      fireEvent.click(screen.getByRole('button', { name: 'Set Start Frame' }));
+      expect(
+        screen.queryByText('Stable Video Diffusion requires a start frame or reference image before launch.'),
+      ).toBeNull();
+
+      fireEvent.change(screen.getByTestId('mock-prompt-input'), { target: { value: 'push in' } });
+      fireEvent.click(screen.getByTestId('generate-button'));
+
+      await waitFor(() => {
+        expect(window.electron.generation.generateVideo).toHaveBeenCalledWith(
+          expect.objectContaining({ image_path: 'data:image/png;base64,START', model: 'svd' }),
+        );
+      });
+      const job = useAppStore.getState().activeJobs.concat(useAppStore.getState().completedJobs)[0];
+      expect(job.params.start_frame).toBe(true);
+      expect(JSON.stringify(job.params)).not.toContain('base64');
+    });
+
+    it('prefers the Start Frame over the primary reference image', async () => {
+      seedDurableReferenceImage();
+      useAppStore.setState({ availableModels: [videoModel('ltx-video', 'ltx')] });
+      render(<GeneratePanel />);
+      fireEvent.click(screen.getByRole('button', { name: /^Video$/ }));
+      fireEvent.click(screen.getByRole('button', { name: 'Set Start Frame' }));
+      fireEvent.change(screen.getByTestId('mock-prompt-input'), { target: { value: 'drift' } });
+      fireEvent.click(screen.getByTestId('generate-button'));
+      await waitFor(() => {
+        expect(window.electron.generation.generateVideo).toHaveBeenCalledWith(
+          expect.objectContaining({ image_path: 'data:image/png;base64,START' }),
+        );
+      });
+    });
+  });
+
+  describe('job lifecycle independent of the panel (#J1)', () => {
+    it('syncs the asset and notifies after the panel unmounts mid-run', async () => {
+      let finished = false;
+      window.electron.generation.getStatus = vi.fn(async () =>
+        finished
+          ? {
+              job_id: 'job-generate-image-1',
+              status: 'completed',
+              type: 'image',
+              created_at: '2026-04-23T00:00:00.000Z',
+              completed_at: '2026-04-23T00:00:03.000Z',
+              progress: 100,
+              result: { images: ['/outputs/job-generate-image-1/frame.png'] },
+            }
+          : { job_id: 'job-generate-image-1', status: 'processing', type: 'image', created_at: 'x', progress: 30 },
+      ) as unknown as typeof window.electron.generation.getStatus;
+      const { unmount } = render(<GeneratePanel />);
+      fireEvent.change(screen.getByTestId('mock-prompt-input'), { target: { value: 'harbor at dawn' } });
+      fireEvent.click(screen.getByTestId('generate-button'));
+      await waitFor(() => expect(window.electron.generation.getStatus).toHaveBeenCalled());
+
+      unmount();
+      finished = true;
+
+      await waitFor(
+        () => {
+          expect(useAppStore.getState().assetLibrary.map((asset) => asset.id)).toEqual([
+            'job-generate-image-1::/outputs/job-generate-image-1/frame.png',
+          ]);
+        },
+        { timeout: 8000 },
+      );
+      expect(window.electron.notifications.notify).toHaveBeenCalledWith('generation_complete', expect.anything());
+      expect(useAppStore.getState().generationQueue[0]).toMatchObject({ status: 'completed' });
+    });
+
+    it('picks an in-flight run back up when the panel remounts', () => {
+      useAppStore.getState().addJob({
+        id: 'job-running',
+        type: 'image',
+        status: 'processing',
+        progress: 64,
+        step: 16,
+        params: { origin: 'generate' },
+        createdAt: new Date(),
+      });
+      render(<GeneratePanel />);
+      expect(screen.getByTestId('generation-progress')).toHaveTextContent('64%');
+      expect(screen.getByTestId('generation-progress')).toHaveTextContent('Step 16/');
     });
   });
 });

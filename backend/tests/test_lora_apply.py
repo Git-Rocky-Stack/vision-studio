@@ -50,7 +50,9 @@ def test_apply_is_failsoft_on_load_error(tmp_path):
     assert [x["id"] for x in result["applied"]] == ["good"]
     assert result["skipped"][0]["id"] == "bad"
     pipe.set_adapters.assert_called_once_with(["good"], [1.0])
-    assert pipe.unload_lora_weights.call_count == 1  # cleared partial state on failure
+    # Only the failed adapter's partial state is removed - "good" stays resident.
+    pipe.delete_adapters.assert_called_once_with(["bad"])
+    pipe.unload_lora_weights.assert_not_called()
 
 
 def test_loras_applied_clears_even_on_error(tmp_path):
@@ -60,7 +62,9 @@ def test_loras_applied_clears_even_on_error(tmp_path):
     with suppress(ValueError):
         with loras_applied(pipe, [{"id": "a", "weight": 1.0}], lambda _id: _record(str(a))):
             raise ValueError("boom")
-    pipe.unload_lora_weights.assert_called_once()
+    # Deactivated (base-model behavior restored), not unloaded from VRAM.
+    pipe.disable_lora.assert_called_once()
+    pipe.unload_lora_weights.assert_not_called()
 
 
 def test_clear_loras_is_noop_without_unload_method():

@@ -104,10 +104,19 @@ describe('the API reference tracks the implementation it documents', () => {
     const section = boundary === -1 ? after : after.slice(0, boundary + 1);
 
     const impl = readFileSync(resolve(ROOT, 'backend/foundry/index_service.py'), 'utf8');
-    const scanStart = impl.indexOf('def scan(self)');
-    expect(scanStart, 'IndexService.scan is gone').toBeGreaterThan(-1);
-    const nextDef = impl.indexOf('\n    def ', scanStart + 1);
-    const scanBody = impl.slice(scanStart, nextDef === -1 ? undefined : nextDef);
+    const methodBody = (signature: string) => {
+      const start = impl.indexOf(signature);
+      if (start === -1) return '';
+      const nextDef = impl.indexOf('\n    def ', start + 1);
+      return impl.slice(start, nextDef === -1 ? undefined : nextDef);
+    };
+    const publicScan = methodBody('def scan(self)');
+    expect(publicScan, 'IndexService.scan is gone').not.toBe('');
+    // scan() takes the service lock and delegates the merge to _scan_locked()
+    // (B10); the feeds live in whichever body does the work.
+    const scanBody = publicScan.includes('self._scan_locked()')
+      ? publicScan + methodBody('def _scan_locked(self)')
+      : publicScan;
 
     // Each feed the reference advertises has to be a feed scan() really merges.
     expect(section).toMatch(/app tree/i);

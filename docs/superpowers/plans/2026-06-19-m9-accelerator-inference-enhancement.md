@@ -3,6 +3,8 @@
 > **Historical design record - 2026-06-19.** Describes intent at that
 > date, not current behaviour. See `docs/INDEX.md` for what is authoritative.
 
+> **Status (checked 2026-11-11):** Shipped - PRs #28, #29 and #30; TensorRT stays auto-off until a family passes the CUDA sweep in `docs/TENSORRT_VERIFICATION.md`. The task checkboxes below record the plan as written and were not ticked.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Make the Local route run as fast as the silicon allows by adding a decision-then-apply acceleration layer downstream of the M5 `RuntimePlan` (torch.compile, SDPA, channels-last, proven-safe quantization, TensorRT, plus a fix for the always-on attention-slicing perf bug), each behind a non-fatal fallback, surfaced honestly through a dedicated Performance panel and a CUDA-gated benchmark+correctness sweep.

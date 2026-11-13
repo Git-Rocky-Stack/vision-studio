@@ -32,8 +32,8 @@ export function UserGuidePage() {
           Vision Studio is local-first: generation runs on your own GPU by default. Bring your own
           OpenRouter key or Hugging Face token (BYOK) only when you want a hosted route. Use one
           active account at a time, choose per account where prompt tools, still images, and video
-          run, and move work through Story, Timeline, Workflows, Canvas, Viewer, and Assets without
-          breaking context.
+          run, install and manage models in the Foundry, and move work through Story, Timeline,
+          Workflows, Canvas, Viewer, and Assets without breaking context.
         </p>
 
         <div className="mt-6 rounded-sm border border-border bg-elevated p-4">

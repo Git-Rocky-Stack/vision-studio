@@ -8,6 +8,10 @@ in tests — the service is injected with a stub via the module-level `_service`
 Every route runs the service in a worker thread: the first call loads the
 index from disk and the embedding model (seconds), and every ingest/query
 does numpy work - none of it may stall the event loop.
+
+The service singleton is created once, under a lock: ``init_service`` at
+startup (main.py lifespan, in a worker thread), with ``get_service`` as the
+thread-safe lazy fallback for isolated router tests.
 """
 
 from __future__ import annotations
@@ -15,6 +19,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import threading
 from pathlib import Path
 from typing import Optional
 
@@ -34,6 +39,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1/retrieval", tags=["Retrieval"])
 
 _service: Optional[RetrievalService] = None
+_service_lock = threading.Lock()
 
 
 def _data_dir() -> Path:
@@ -46,11 +52,34 @@ def _data_dir() -> Path:
     return Path(os.path.dirname(database_path)) / "retrieval"
 
 
-def get_service() -> RetrievalService:
+def init_service(
+    models_dir: Optional[str] = None, data_dir: Optional[Path] = None
+) -> RetrievalService:
+    """Create the process-wide service (idempotent). Blocking: loads the index
+    from disk - call it from a worker thread at startup. ``models_dir`` is
+    where the provisioned embedding model lives (never downloaded at runtime).
+    """
     global _service
-    if _service is None:
-        _service = RetrievalService(data_dir=_data_dir())
-    return _service
+    with _service_lock:
+        if _service is None:
+            _service = RetrievalService(
+                data_dir=data_dir or _data_dir(),
+                models_dir=Path(models_dir) if models_dir else None,
+            )
+        return _service
+
+
+def get_service() -> RetrievalService:
+    service = _service
+    if service is not None:
+        return service
+    return init_service()
+
+
+def semantic_retrieval_availability() -> dict:
+    """``{"available": bool, "reason": str | None}`` for the capabilities
+    response. Cheap (file-existence checks), never loads or downloads."""
+    return get_service().semantic_availability()
 
 
 @router.post("/ingest", response_model=IngestResponse)

@@ -1,4 +1,4 @@
-import { memo, useMemo } from 'react';
+import { memo, useId, useMemo } from 'react';
 import { parsePrompt } from '@/utils/promptTokenizer';
 import { cn } from '@/utils/cn';
 import { TokenHighlighter } from './TokenHighlighter';
@@ -25,6 +25,8 @@ export const TokenWeightedEditor = memo(function TokenWeightedEditor({
   placeholder,
   maxTokens = DEFAULT_MAX_TOKENS,
 }: TokenWeightedEditorProps) {
+  const textareaId = useId();
+  const countId = useId();
   const parsed = useMemo(() => parsePrompt(value), [value]);
 
   const isOverLimit = parsed.tokenCount > maxTokens;
@@ -33,10 +35,11 @@ export const TokenWeightedEditor = memo(function TokenWeightedEditor({
     <div className="flex flex-col gap-1.5">
       {/* Label + token count */}
       <div className="flex items-center justify-between">
-        <label className="mono-label text-text-primary">
+        <label htmlFor={textareaId} className="mono-label text-text-primary">
           {label}
         </label>
         <span
+          id={countId}
           className={cn(
             'font-mono text-xs tabular-nums',
             // text-text-muted/60 fails WCAG AA contrast (~2.7:1); muted is ~5.2:1.
@@ -55,11 +58,12 @@ export const TokenWeightedEditor = memo(function TokenWeightedEditor({
         {/* Textarea - transparent text so overlay highlights show through,
             but visible when no tokens are parsed */}
         <textarea
+          id={textareaId}
+          aria-describedby={countId}
           value={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder}
           spellCheck={false}
-          aria-label={label}
           className={cn(
             'relative z-10 h-32 w-full resize-y rounded-md border bg-transparent p-2 font-mono text-xs leading-relaxed',
             'placeholder:text-text-muted/40',

@@ -55,6 +55,7 @@ export function WorkflowWorkbench({ library = 'inline' }: WorkflowWorkbenchProps
     deleteWorkflowNode,
     deleteWorkflowEdge,
     updateWorkflowNode,
+    setWorkflowGraphViewport,
     workflowRuntimeById,
     setWorkflowRuntimeState,
     systemInfo,
@@ -74,6 +75,7 @@ export function WorkflowWorkbench({ library = 'inline' }: WorkflowWorkbenchProps
       deleteWorkflowNode: s.deleteWorkflowNode,
       deleteWorkflowEdge: s.deleteWorkflowEdge,
       updateWorkflowNode: s.updateWorkflowNode,
+      setWorkflowGraphViewport: s.setWorkflowGraphViewport,
       workflowRuntimeById: s.workflowRuntimeById,
       setWorkflowRuntimeState: s.setWorkflowRuntimeState,
       systemInfo: s.systemInfo,
@@ -277,7 +279,7 @@ export function WorkflowWorkbench({ library = 'inline' }: WorkflowWorkbenchProps
             <p className="type-ui text-text-muted">Inputs</p>
             <div className="mt-2 space-y-2">
               {activeWorkflow.inputs.map((input) => (
-                <div key={input} className="rounded-md border border-border bg-elevated px-3 py-2">
+                <div key={input} className="rounded-sm border border-border bg-elevated px-3 py-2">
                   <p className="type-ui text-text-primary">{input}</p>
                   <p className="mt-1 type-caption">Uses current workbench context.</p>
                 </div>
@@ -287,7 +289,7 @@ export function WorkflowWorkbench({ library = 'inline' }: WorkflowWorkbenchProps
 
           <div>
             <p className="type-ui text-text-muted">Execution</p>
-            <div className="mt-2 rounded-md border border-border bg-elevated px-3 py-3">
+            <div className="mt-2 rounded-sm border border-border bg-elevated px-3 py-3">
               <p className="type-ui text-text-primary">{stillImageRoute.providerLabel}</p>
               <p className="mt-1 type-caption text-text-body">
                 {isHostedStillImageRoute(stillImageRoute)
@@ -303,7 +305,7 @@ export function WorkflowWorkbench({ library = 'inline' }: WorkflowWorkbenchProps
               ) : null}
             </div>
             {runtime.lastResolvedRequest ? (
-              <div className="mt-2 rounded-md border border-border bg-elevated px-3 py-3">
+              <div className="mt-2 rounded-sm border border-border bg-elevated px-3 py-3">
                 <p className="type-ui text-text-primary">{runtime.lastResolvedRequest.model}</p>
                 <p className="mt-1 type-caption">
                   {runtime.lastResolvedRequest.width} x {runtime.lastResolvedRequest.height}, {runtime.lastResolvedRequest.steps} steps, CFG {runtime.lastResolvedRequest.cfgScale}
@@ -397,7 +399,11 @@ export function WorkflowWorkbench({ library = 'inline' }: WorkflowWorkbenchProps
         </div>
 
         <WorkflowGraphEditor
+          // Remount per workflow: selection, drag previews and the restored
+          // pan/zoom all belong to one graph.
+          key={activeWorkflow.id}
           graph={activeWorkflow.graph}
+          onViewportChange={(viewport) => setWorkflowGraphViewport(activeWorkflow.id, viewport)}
           onMoveNode={(nodeId, position) => moveWorkflowNode(activeWorkflow.id, nodeId, position)}
           onAddNode={(classType) => {
             addWorkflowNode(
@@ -469,7 +475,7 @@ export function WorkflowWorkbench({ library = 'inline' }: WorkflowWorkbenchProps
             </p>
           ) : null}
           {importReport ? (
-            <div className="mt-2 rounded-md border border-border bg-elevated px-3 py-2">
+            <div className="mt-2 rounded-sm border border-border bg-elevated px-3 py-2">
               <p className="type-ui text-text-primary">
                 {importReport.executable ? 'Executable on ComfyUI' : 'Imported, not executable'}
               </p>

@@ -39,8 +39,9 @@ def resolve_decoders_dir() -> Optional[str]:
     """Locate the preview-decoders root, or None when previews are disabled.
 
     Precedence: explicit env override (an override pointing nowhere disables
-    previews rather than silently falling through), the PyInstaller bundle's
-    sibling dir, the dev checkout's resources/, then the packaged
+    previews rather than silently falling through), the PyInstaller launcher's
+    own folder then its parent (the one-folder bundle sits in
+    <resources>/backend/), the dev checkout's resources/, then the packaged
     backend-source fallback's sibling dir.
     """
     env_dir = os.environ.get(ENV_DECODERS_DIR, "").strip()
@@ -49,8 +50,12 @@ def resolve_decoders_dir() -> Optional[str]:
 
     candidates = []
     if getattr(sys, "frozen", False):
-        candidates.append(
-            os.path.join(os.path.dirname(sys.executable), "preview-decoders"))
+        exe_dir = os.path.dirname(sys.executable)
+        # One-folder bundle: the launcher lives in <resources>/backend/ while
+        # the decoders ship at <resources>/preview-decoders - so check the
+        # launcher's own folder first, then its parent.
+        candidates.append(os.path.join(exe_dir, "preview-decoders"))
+        candidates.append(os.path.normpath(os.path.join(exe_dir, "..", "preview-decoders")))
     backend_root = _backend_root()
     candidates.append(os.path.normpath(
         os.path.join(backend_root, "..", "resources", "preview-decoders")))

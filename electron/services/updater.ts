@@ -7,39 +7,44 @@
  * the check POLICY (an initial delay so first-run backend extraction wins the
  * disk/network, then a periodic re-check) and the honest status stream: every
  * status value comes from a real electron-updater event - there is no
- * synthetic progress anywhere. Installation happens on explicit user action
- * (`install()`) or silently on quit (autoInstallOnAppQuit); the app never
- * restarts itself unprompted.
+ * synthetic progress anywhere. Downloading is an explicit user action
+ * (`download()`): a check only reports that an update is available, because
+ * the installer is several GB and must never be pulled over a metered or slow
+ * link unasked. Installation happens on explicit user action (`install()`) or
+ * silently on quit (autoInstallOnAppQuit) once the user downloaded it; the app
+ * never restarts itself unprompted.
  *
  * Disabled outside packaged builds and via VISION_STUDIO_DISABLE_UPDATES=1.
+ * Disabled on macOS unless VISION_STUDIO_ENABLE_MAC_UPDATES=1: the mac builds
+ * are ad-hoc signed (scripts/adhoc-sign-mac.cjs), which Squirrel.Mac refuses
+ * to install, so every check would end in an error status every 4 hours.
  * Updates install only when signed (win.verifyUpdateCodeSignature) - a
  * signature failure surfaces here as an honest `error` status.
+ *
+ * The feed always comes from the packaged app-update.yml. The old
+ * VISION_STUDIO_UPDATE_URL override is ignored: the updater only runs in
+ * packaged builds, where an environment variable must not be able to point
+ * the installer download at another host.
+ *
+ * Status flow: checking -> available -> (user: download) -> downloading with
+ * real progress -> downloaded -> (user: install). While a download runs or
+ * waits to be installed, periodic and manual checks are skipped so they can
+ * neither interrupt the progress readout nor knock `downloaded` back to
+ * `available`.
  */
 
-export interface UpdaterStatus {
-  state:
-    | 'disabled'
-    | 'idle'
-    | 'checking'
-    | 'available'
-    | 'not-available'
-    | 'downloading'
-    | 'downloaded'
-    | 'error';
-  version?: string;
-  percent?: number;
-  bytesPerSecond?: number;
-  transferred?: number;
-  total?: number;
-  message?: string;
-}
+// The wire type lives with the IPC contract; re-exported for main-process callers.
+import type { UpdaterStatus } from '../../shared/ipcTypes';
+
+export type { UpdaterStatus } from '../../shared/ipcTypes';
 
 /** Structural subset of electron-updater's AppUpdater used by this service. */
 export interface AutoUpdaterLike {
   autoDownload: boolean;
   autoInstallOnAppQuit: boolean;
-  setFeedURL(options: { provider: 'generic'; url: string }): void;
   checkForUpdates(): Promise<unknown>;
+  /** Resolves once the download completes (electron-updater: the downloaded file paths). */
+  downloadUpdate(): Promise<unknown>;
   quitAndInstall(isSilent?: boolean, isForceRunAfter?: boolean): void;
   on(event: string, listener: (...args: never[]) => void): unknown;
 }
@@ -54,6 +59,10 @@ export interface UpdaterServiceDependencies {
   autoUpdater: AutoUpdaterLike;
   isPackaged: boolean;
   env: NodeJS.ProcessEnv;
+  /** Defaults to process.platform. */
+  platform?: NodeJS.Platform;
+  /** Asked before quit-and-install; resolve false to keep the app running. */
+  confirmInstall?: () => Promise<boolean>;
   getMainWindow: () => {
     webContents: { send: (channel: string, payload: unknown) => void };
   } | null;
@@ -68,16 +77,49 @@ export const UPDATE_RECHECK_INTERVAL_MS = 4 * 60 * 60 * 1000;
 
 const STATUS_CHANNEL = 'updater:status';
 
+/** Why the updater is off, or null when it runs. */
+export function resolveUpdaterDisabledReason({
+  isPackaged,
+  env,
+  platform,
+}: {
+  isPackaged: boolean;
+  env: NodeJS.ProcessEnv;
+  platform: NodeJS.Platform;
+}): string | null {
+  if (!isPackaged) {
+    return 'dev build';
+  }
+  if (env.VISION_STUDIO_DISABLE_UPDATES === '1') {
+    return 'VISION_STUDIO_DISABLE_UPDATES';
+  }
+  if (platform === 'darwin' && env.VISION_STUDIO_ENABLE_MAC_UPDATES !== '1') {
+    return 'macOS builds are ad-hoc signed; set VISION_STUDIO_ENABLE_MAC_UPDATES=1 once they are Developer ID signed';
+  }
+  return null;
+}
+
 export function createUpdaterService({
   autoUpdater,
   isPackaged,
   env,
+  platform = process.platform,
+  confirmInstall,
   getMainWindow,
   logger,
 }: UpdaterServiceDependencies) {
-  const enabled = isPackaged && env.VISION_STUDIO_DISABLE_UPDATES !== '1';
+  const disabledReason = resolveUpdaterDisabledReason({ isPackaged, env, platform });
+  const enabled = disabledReason === null;
 
   let status: UpdaterStatus = enabled ? { state: 'idle' } : { state: 'disabled' };
+  let started = false;
+  /**
+   * Version of the update the last check found and that is not downloaded
+   * yet. Set on update-available, cleared when a new check starts, nothing is
+   * available, or the download completes. A failed download keeps it, so the
+   * user can retry without checking again.
+   */
+  let pendingVersion: string | null = null;
   let initialTimer: ReturnType<typeof setTimeout> | null = null;
   let recheckTimer: ReturnType<typeof setInterval> | null = null;
 
@@ -91,42 +133,69 @@ export function createUpdaterService({
     }
   }
 
+  /** `{ version }` of the pending update, when one is known. */
+  function versionField(): { version?: string } {
+    return pendingVersion ? { version: pendingVersion } : {};
+  }
+
+  /**
+   * An error status. While an update is pending (a failed download) it keeps
+   * the version, which tells the renderer a retry of the download is possible.
+   */
+  function setError(error: unknown): void {
+    setStatus({
+      state: 'error',
+      ...versionField(),
+      message: error instanceof Error ? error.message : String(error),
+    });
+  }
+
+  /** A download is running or finished: a check would only disturb it. */
+  function hasDownloadInFlightOrReady(): boolean {
+    return status.state === 'downloading' || status.state === 'downloaded';
+  }
+
   async function runCheck(): Promise<void> {
+    if (hasDownloadInFlightOrReady()) {
+      return;
+    }
     try {
       await autoUpdater.checkForUpdates();
     } catch (error) {
-      setStatus({
-        state: 'error',
-        message: error instanceof Error ? error.message : String(error),
-      });
+      setError(error);
     }
   }
 
   function start(): void {
     if (!enabled) {
-      logger.log(
-        'updater: disabled (' + (isPackaged ? 'VISION_STUDIO_DISABLE_UPDATES' : 'dev build') + ')',
-      );
+      logger.log(`updater: disabled (${disabledReason})`);
       return;
     }
+    if (started) {
+      // Listeners and timers exist once per session.
+      return;
+    }
+    started = true;
 
-    autoUpdater.autoDownload = true;
+    // A check never downloads on its own: the user starts it (download()).
+    autoUpdater.autoDownload = false;
+    // Only ever installs an update the user chose to download.
     autoUpdater.autoInstallOnAppQuit = true;
 
-    const feedOverride = env.VISION_STUDIO_UPDATE_URL;
-    if (feedOverride) {
-      // Staging/testing escape hatch; production reads app-update.yml.
-      autoUpdater.setFeedURL({ provider: 'generic', url: feedOverride });
-      logger.log(`updater: feed overridden to ${feedOverride}`);
+    if (env.VISION_STUDIO_UPDATE_URL) {
+      logger.warn('updater: VISION_STUDIO_UPDATE_URL is ignored in packaged builds; using app-update.yml');
     }
 
     autoUpdater.on('checking-for-update', () => {
+      pendingVersion = null;
       setStatus({ state: 'checking' });
     });
     autoUpdater.on('update-available', (info: { version?: string }) => {
+      pendingVersion = info?.version ?? '';
       setStatus({ state: 'available', version: info?.version });
     });
     autoUpdater.on('update-not-available', (info: { version?: string }) => {
+      pendingVersion = null;
       setStatus({ state: 'not-available', version: info?.version });
     });
     autoUpdater.on(
@@ -139,6 +208,7 @@ export function createUpdaterService({
       }) => {
         setStatus({
           state: 'downloading',
+          ...versionField(),
           percent: progress?.percent,
           bytesPerSecond: progress?.bytesPerSecond,
           transferred: progress?.transferred,
@@ -147,13 +217,11 @@ export function createUpdaterService({
       },
     );
     autoUpdater.on('update-downloaded', (info: { version?: string }) => {
+      pendingVersion = null;
       setStatus({ state: 'downloaded', version: info?.version });
     });
     autoUpdater.on('error', (error: unknown) => {
-      setStatus({
-        state: 'error',
-        message: error instanceof Error ? error.message : String(error),
-      });
+      setError(error);
     });
 
     initialTimer = setTimeout(() => {
@@ -185,13 +253,61 @@ export function createUpdaterService({
     return status;
   }
 
-  function install(): void {
+  /**
+   * Start downloading the update the last check found - the only way a
+   * download begins. Answers at once with the `downloading` status; progress,
+   * completion (`downloaded`) and failure (`error`, keeping the version so
+   * the user can retry) arrive over the status stream from real
+   * electron-updater events. A call while nothing is available, or while a
+   * download already runs or is ready, changes nothing.
+   */
+  async function download(): Promise<UpdaterStatus> {
+    if (!enabled) return status;
+    if (status.state === 'downloading' || status.state === 'downloaded') {
+      return status;
+    }
+    const downloadable =
+      pendingVersion !== null && (status.state === 'available' || status.state === 'error');
+    if (!downloadable) {
+      logger.warn(`updater: download requested in state '${status.state}' with no update available - ignoring`);
+      return status;
+    }
+
+    setStatus({ state: 'downloading', ...versionField(), percent: 0 });
+    let downloading: Promise<unknown>;
+    try {
+      downloading = autoUpdater.downloadUpdate();
+    } catch (error) {
+      setError(error);
+      return status;
+    }
+    // Not awaited: the download takes minutes and reports through events.
+    // electron-updater also emits 'error' for a failed download; the guard
+    // keeps a late rejection from overwriting a newer status.
+    void Promise.resolve(downloading).catch((error: unknown) => {
+      if (status.state === 'downloading') {
+        setError(error);
+      }
+    });
+    return status;
+  }
+
+  /**
+   * Quits and installs a downloaded update. The installer is launched before
+   * the app quits (and stops every Vision Studio process), so running
+   * generations are confirmed first - declining keeps the app running.
+   */
+  async function install(): Promise<void> {
     if (status.state !== 'downloaded') {
       logger.warn(`updater: install requested in state '${status.state}' - ignoring`);
+      return;
+    }
+    if (confirmInstall && !(await confirmInstall())) {
+      logger.log('updater: install postponed by the user');
       return;
     }
     autoUpdater.quitAndInstall();
   }
 
-  return { start, dispose, getStatus, check, install };
+  return { start, dispose, getStatus, check, download, install };
 }

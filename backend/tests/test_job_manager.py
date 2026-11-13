@@ -101,15 +101,6 @@ class JobManagerLifecycleTests(unittest.TestCase):
         # Should not raise
         self.manager.update_job("nonexistent", status=JobStatus.COMPLETED)
 
-    def test_delete_job(self):
-        job = self._make_job()
-        self.manager.add_job(job)
-        self.assertTrue(self.manager.delete_job("job-1"))
-        self.assertIsNone(self.manager.get_job("job-1"))
-
-    def test_delete_nonexistent_returns_false(self):
-        self.assertFalse(self.manager.delete_job("nonexistent"))
-
 
 class JobManagerListingTests(unittest.TestCase):
     """Tests for job listing and filtering."""
@@ -148,49 +139,9 @@ class JobManagerListingTests(unittest.TestCase):
         for i in range(len(jobs) - 1):
             self.assertGreaterEqual(jobs[i].created_at, jobs[i + 1].created_at)
 
-    def test_cleanup_old_jobs_removes_only_terminal_jobs_past_max_age(self):
-        old_completed = GenerationJob(
-            id="old-completed",
-            type="image",
-            status=JobStatus.COMPLETED,
-            params={},
-            output_dir="/tmp/outputs/old-completed",
-        )
-        old_processing = GenerationJob(
-            id="old-processing",
-            type="image",
-            status=JobStatus.PROCESSING,
-            params={},
-            output_dir="/tmp/outputs/old-processing",
-        )
-        recent_failed = GenerationJob(
-            id="recent-failed",
-            type="image",
-            status=JobStatus.FAILED,
-            params={},
-            output_dir="/tmp/outputs/recent-failed",
-        )
-
-        manager = JobManager()
-        manager.add_job(old_completed)
-        manager.add_job(old_processing)
-        manager.add_job(recent_failed)
-        # Jobs are added fresh and age while they sit in the manager (add_job
-        # itself prunes, so a job cannot be inserted already past the cutoff).
-        old_completed.created_at = datetime.now() - timedelta(hours=25)
-        old_processing.created_at = datetime.now() - timedelta(hours=25)
-
-        removed_count = manager.cleanup_old_jobs(max_age_hours=24)
-
-        self.assertEqual(removed_count, 1)
-        self.assertIsNone(manager.get_job("old-completed"))
-        self.assertIsNotNone(manager.get_job("old-processing"))
-        self.assertIsNotNone(manager.get_job("recent-failed"))
-
 
 class JobManagerRetentionTests(unittest.TestCase):
-    """The job table is in memory for the life of the backend. cleanup_old_jobs
-    existed but nothing called it, so every finished job stayed until restart."""
+    """add_job prunes finished jobs older than the retention window."""
 
     def _job(self, job_id, status):
         return GenerationJob(
@@ -264,55 +215,6 @@ class JobManagerSerializationTests(unittest.TestCase):
         self.assertEqual(d["status"], "pending")
         self.assertIsNone(d["result"])
         self.assertIsNone(d["completed_at"])
-
-
-class JobManagerCallbackTests(unittest.TestCase):
-    """Tests for the subscribe/unsubscribe/callback mechanism."""
-
-    def setUp(self):
-        self.manager = JobManager()
-        self.manager.add_job(
-            GenerationJob(
-                id="job-1",
-                type="image",
-                status=JobStatus.PENDING,
-                params={},
-                output_dir="/tmp/outputs/job-1",
-            )
-        )
-
-    def test_subscribe_receives_update_callbacks(self):
-        received = []
-        self.manager.subscribe("job-1", lambda job: received.append(job.progress))
-
-        self.manager.update_job("job-1", progress=50.0)
-        self.manager.update_job("job-1", progress=100.0)
-
-        self.assertEqual(received, [50.0, 100.0])
-
-    def test_unsubscribe_stops_callbacks(self):
-        received = []
-        callback = lambda job: received.append(job.progress)
-
-        self.manager.subscribe("job-1", callback)
-        self.manager.update_job("job-1", progress=25.0)
-
-        self.manager.unsubscribe("job-1", callback)
-        self.manager.update_job("job-1", progress=75.0)
-
-        self.assertEqual(received, [25.0])
-
-    def test_callback_error_does_not_break_updates(self):
-        def bad_callback(job):
-            raise ValueError("Callback crash")
-
-        received = []
-        self.manager.subscribe("job-1", bad_callback)
-        self.manager.subscribe("job-1", lambda job: received.append(job.progress))
-
-        # Should not raise despite bad_callback
-        self.manager.update_job("job-1", progress=50.0)
-        self.assertEqual(received, [50.0])
 
 
 class JobManagerConcurrencyTests(unittest.TestCase):
