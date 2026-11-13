@@ -288,7 +288,7 @@ Truthful hardware probe for run-readiness preflight (M5). `HardwareProfile` mirr
 
 ### 1.11 `electron.auth`
 
-Hub credentials, kept by the Main process (`electron/services/downloadTokens.ts`). Each token is encrypted with the OS (`safeStorage`) into the app's store and restored on the next launch, once the app is ready; where the OS offers no encryption it is held in Main-process memory until the app quits and is never written in plain text. Tokens are never persisted by the Python backend, never returned to the renderer, never logged. The Main process injects them per-request as headers on the backend calls noted above: `X-HF-Token` for Hugging Face (search + downloads of HF-source records), `X-Civitai-Token` for CivitAI (search + direct-URL downloads/resume of `civitai`-source records). An empty or whitespace-only token clears the stored value. (Versions before 3.4.2 held tokens in memory only, and answered `{ success: true }`.)
+Hub credentials, kept by the Main process (`electron/services/downloadTokens.ts`). Each token is encrypted with the OS (`safeStorage`) into the app's store and restored on the next launch, once the app is ready; where the OS offers no encryption it is held in Main-process memory until the app quits and is never written in plain text. Tokens are never persisted by the Python backend, never returned to the renderer, never logged. The Main process injects them per-request as headers on the backend calls noted above: `X-HF-Token` for Hugging Face (search + downloads of HF-source records), `X-Civitai-Token` for CivitAI (search + direct-URL downloads/resume of `civitai`-source records). An empty or whitespace-only token clears the stored value. (Versions before 3.5.0 held tokens in memory only, and answered `{ success: true }`.)
 
 | Method | IPC channel | Returns |
 |--------|-------------|---------|
@@ -413,7 +413,7 @@ The backend never loads a `.env` file; `backend/.env.example` documents the same
 
 ### 2.1 Health and handshake
 
-(`GET /` was removed after 3.4.2: nothing called it. The Main process probes readiness with `GET /api/system/info`.)
+(`GET /` was removed in 3.5.0: nothing called it. The Main process probes readiness with `GET /api/system/info`.)
 
 #### `GET /api/health` - `tags=[System]`
 
@@ -557,7 +557,7 @@ Body - `VideoGenerationRequest`:
 | `acceleration_settings` | object \| null | `null` | M9 acceleration toggles ([same shape as image](#acceleration-settings)); `null` = all defaults |
 | `loras` | array | `[]` | as for images; applied to `ltx-video` and `animatediff`, ignored for `svd` |
 
-On the built-in engine the clip asks for `fps` x `duration` frames (minimum 8), capped per model family: AnimateDiff 32, SVD 25, LTX rounded to the nearest 8k+1 up to 257. The result reports what was produced (`frames`, and `duration` = frames / fps) next to `requested_duration`. With ComfyUI connected, an image-to-video job (one with `image_path`) goes to ComfyUI's SVD-XT workflow instead: it receives `image_path`, size, `fps`, `steps` and `seed`, renders 14 frames, and ignores `model`, `prompt`, `duration` and `loras` (`backend/utils/comfy_workflows.py`); if ComfyUI does not accept the upload or the queue call, the job runs on the built-in engine. Text-to-video always runs on the built-in engine; if that engine is unavailable while ComfyUI is connected, the job fails with an error saying ComfyUI runs image-to-video only. (Versions before 3.4.2 sent every video job to ComfyUI, where text-to-video failed for want of an input image.)
+On the built-in engine the clip asks for `fps` x `duration` frames (minimum 8), capped per model family: AnimateDiff 32, SVD 25, LTX rounded to the nearest 8k+1 up to 257. The result reports what was produced (`frames`, and `duration` = frames / fps) next to `requested_duration`. With ComfyUI connected, an image-to-video job (one with `image_path`) goes to ComfyUI's SVD-XT workflow instead: it receives `image_path`, size, `fps`, `steps` and `seed`, renders 14 frames, and ignores `model`, `prompt`, `duration` and `loras` (`backend/utils/comfy_workflows.py`); if ComfyUI does not accept the upload or the queue call, the job runs on the built-in engine. Text-to-video always runs on the built-in engine; if that engine is unavailable while ComfyUI is connected, the job fails with an error saying ComfyUI runs image-to-video only. (Versions before 3.5.0 sent every video job to ComfyUI, where text-to-video failed for want of an input image.)
 
 Returns `JobResponse`.
 
@@ -604,7 +604,7 @@ Timestamps are timezone-aware UTC (`+00:00` offset; before this release they wer
 
 #### `POST /api/jobs/{job_id}/cancel` - `tags=[Jobs]`, limit `30/min`
 
-Cancels a `pending` or `processing` job of any kind (generation, edit, timeline export, ComfyUI graph) and answers `{ "message": "Job cancelled" }`. A pending job never starts. A running job stops at its next checkpoint - the built-in engine after its current denoising step, edit tools between tiles or faces, a timeline export after its current frame (its partial file is deleted) - and a ComfyUI prompt is removed from ComfyUI's queue, or interrupted if it is the one running. A cancelled job stays `cancelled` and keeps no result, even if its work finishes first. For a `completed`, `failed` or `cancelled` job it answers `{ "message": "Job is already <status>" }` and changes nothing. `404` if not found. (Versions before 3.4.2 cancelled only `processing` jobs, and only by relabelling them: the work ran on and the job was then marked `completed`.)
+Cancels a `pending` or `processing` job of any kind (generation, edit, timeline export, ComfyUI graph) and answers `{ "message": "Job cancelled" }`. A pending job never starts. A running job stops at its next checkpoint - the built-in engine after its current denoising step, edit tools between tiles or faces, a timeline export after its current frame (its partial file is deleted) - and a ComfyUI prompt is removed from ComfyUI's queue, or interrupted if it is the one running. A cancelled job stays `cancelled` and keeps no result, even if its work finishes first. For a `completed`, `failed` or `cancelled` job it answers `{ "message": "Job is already <status>" }` and changes nothing. `404` if not found. (Versions before 3.5.0 cancelled only `processing` jobs, and only by relabelling them: the work ran on and the job was then marked `completed`.)
 
 #### `GET /api/jobs?status=&limit=` - `tags=[Jobs]`, limit `60/min`
 
@@ -901,7 +901,7 @@ Errors: `404` - unknown `model_id` (the only error case).
 
 #### `GET /api/models/{model_id}/status` - `tags=[Models]`, limit `60/min`
 
-Returns the legacy `ModelManager` record: `{ id, name, type, source, repo_id, aux_repo_id, filename, local_path, size, status, description, download_url, progress }`, where `status` is `not_downloaded | downloading | ready | error`. `404` `{ "detail": "Model not found" }` for an id the manager does not know. (Versions before 3.4.2 answered an unknown id with `200` `{ "error": "Model not found" }`.)
+Returns the legacy `ModelManager` record: `{ id, name, type, source, repo_id, aux_repo_id, filename, local_path, size, status, description, download_url, progress }`, where `status` is `not_downloaded | downloading | ready | error`. `404` `{ "detail": "Model not found" }` for an id the manager does not know. (Versions before 3.5.0 answered an unknown id with `200` `{ "error": "Model not found" }`.)
 
 #### `DELETE /api/models/{model_id}` - `tags=[Models]`, limit `30/min`
 
@@ -1074,7 +1074,7 @@ Body - `FaceRestoreRequest`:
 
 ### 2.13 Batch - removed
 
-`POST /api/v1/batch/export-zip` (with `api/batch.py`, `services/batch_service.py` and `schemas/batch.py`) was removed after 3.4.2: neither the renderer nor the Main process ever called it. Exporting several assets is the `assets:export-many` IPC channel, which copies files without a backend round trip.
+`POST /api/v1/batch/export-zip` (with `api/batch.py`, `services/batch_service.py` and `schemas/batch.py`) was removed in 3.5.0: neither the renderer nor the Main process ever called it. Exporting several assets is the `assets:export-many` IPC channel, which copies files without a backend round trip.
 
 ### 2.15 Retrieval / AI Director - `/api/v1/retrieval`
 
@@ -1388,4 +1388,4 @@ if status["status"] == "completed":
 
 ---
 
-_Last verified against the codebase on 2026-11-11, after v3.4.2. Canonical source: `backend/main.py`, `backend/api/{edit,retrieval,comfy_graph}.py`, `backend/utils/{media_paths,log_redaction,job_store}.py`, `backend/middleware/rate_limit.py`, `backend/services/retrieval/*`, `backend/foundry/{schemas,library_roots,index_service,hub_search,civitai_search,security_policy,download_manager,convert,hardware,runtime_resolver}.py`, `shared/retrieval.ts`, `electron/preload.ts`, `electron/ipc-handlers/generation.ts`, `electron/services/{mainIpc,retrievalClient,contextAssembler,promptAugmentation}.ts`, `electron/main.ts`._
+_Last verified against the codebase on 2026-11-11, at v3.5.0 (unreleased). Canonical source: `backend/main.py`, `backend/api/{edit,retrieval,comfy_graph}.py`, `backend/utils/{media_paths,log_redaction,job_store}.py`, `backend/middleware/rate_limit.py`, `backend/services/retrieval/*`, `backend/foundry/{schemas,library_roots,index_service,hub_search,civitai_search,security_policy,download_manager,convert,hardware,runtime_resolver}.py`, `shared/retrieval.ts`, `electron/preload.ts`, `electron/ipc-handlers/generation.ts`, `electron/services/{mainIpc,retrievalClient,contextAssembler,promptAugmentation}.ts`, `electron/main.ts`._

@@ -111,7 +111,7 @@ and the same letters then drive the mask tools instead.
 | Keys | Action | Where it is active | Source file |
 |------|--------|--------------------|-------------|
 | Arrow Up / Arrow Down | Move the layer up or down the stack | Focus on a layer's drag handle | `src/components/edit/LayerPanel.tsx` |
-| Enter | Save the new layer name | Layer rename field (double-click a name to rename) | `src/components/edit/LayerPanel.tsx` |
+| Enter / Esc | Save or cancel the new layer name | Layer rename field (double-click a name to rename) | `src/components/edit/LayerPanel.tsx` |
 
 ### Properties panel
 
@@ -167,6 +167,9 @@ button).
 | S | Split the selected clip at the playhead | Timeline shown, a clip selected | `src/components/layout/Timeline.tsx` |
 | Ctrl/Cmd+D | Duplicate the selected clip | Timeline shown, a clip selected | `src/components/layout/Timeline.tsx` |
 | Delete or Backspace | Delete the selected clip (asks first) | Timeline shown, a clip selected | `src/components/layout/Timeline.tsx` |
+| Arrow keys | Seek 1 second back or forward (Shift: 10 seconds) | Focus on the time ruler | `src/components/layout/Timeline.tsx` |
+| Page Up / Page Down | Seek a tenth of the sequence forward or back | Focus on the time ruler | `src/components/layout/Timeline.tsx` |
+| Home / End | Jump to the start or end of the sequence | Focus on the time ruler | `src/components/layout/Timeline.tsx` |
 | Esc | Close the export dialog | Export MP4 dialog open, not while exporting | `src/components/timeline/TimelineExportDialog.tsx` |
 | Enter or Space | Select a frame | Focus on a filmstrip frame | `src/components/timeline/FrameFilmstrip.tsx` |
 | Enter or Space | Select the track | Focus on a track header | `src/components/layout/Timeline.tsx` |
@@ -209,7 +212,7 @@ buttons with no keyboard shortcut.
 |------|--------|--------------------|-------------|
 | Esc | Close prompt history | Prompt history open | `src/components/generate/PromptHistory.tsx` |
 | Esc | Close the add-style popover | Style presets add popover open | `src/components/generate/StylePresetsBar.tsx` |
-| Enter or Space | Open the file picker | Focus on an image drop zone (Start Frame, End Frame, references) | `src/components/generate/CompactImageDropZone.tsx` |
+| Enter or Space | Open the file picker | Focus on the Start Frame drop zone (Motion section, video) | `src/components/generate/CompactImageDropZone.tsx` |
 | Enter or Space | Expand or collapse the video controls | Focus on the video controls header | `src/components/generate/VideoControls.tsx` |
 | Esc | Cancel | Over-budget dialog open | `src/components/generate/OverBudgetFallbackDialog.tsx` |
 | Enter or Space | Select the result | Focus on a batch result card | `src/components/batch/ResultCard.tsx` |
@@ -254,7 +257,7 @@ its accelerators still apply.
 | Cmd+H | Hide Vision Studio | macOS, packaged builds (app menu) | `electron/services/applicationMenu.ts` |
 | Cmd+Alt+H | Hide the other apps | macOS, packaged builds (app menu) | `electron/services/applicationMenu.ts` |
 | Cmd+Q | Quit | macOS, packaged builds (app menu) | `electron/services/applicationMenu.ts` |
-| Ctrl/Cmd+Z, Ctrl+Y (Cmd+Shift+Z on macOS), Ctrl/Cmd+X / C / V, Ctrl/Cmd+A | Undo, redo, cut, copy, paste and select all in text fields | Packaged builds (Edit menu); outside text fields Ctrl/Cmd+Z and Y are the Canvas undo and redo above | `electron/services/applicationMenu.ts` |
+| Ctrl/Cmd+Z, Ctrl+Y (Ctrl+Shift+Z on Linux, Cmd+Shift+Z on macOS), Ctrl/Cmd+X / C / V, Ctrl/Cmd+A | Undo, redo, cut, copy, paste and select all in text fields | Packaged builds (Edit menu); outside text fields Ctrl/Cmd+Z and Y are the Canvas undo and redo above | `electron/services/applicationMenu.ts` |
 
 Ctrl+W does not close the window on Windows or Linux, so a stray chord cannot
 end a session. Closing the window while generation jobs are still running asks

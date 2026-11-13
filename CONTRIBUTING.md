@@ -129,7 +129,7 @@ pip install --require-hashes --no-deps -r requirements/runtime-<platform>.txt
 # Optional, NVIDIA (Windows/Linux) only - the TensorRT runtime the release
 # bundles (~2.4 GB on Windows, ~4.6 GB on Linux). Needs the runtime lock first
 # (its `tensorrt-cu13` shim builds against the locked setuptools):
-pip install --require-hashes --no-deps --no-build-isolation --extra-index-url https://pypi.nvidia.com --extra-index-url https://download.pytorch.org/whl/cu132 -r requirements/tensorrt-<platform>-cu132.txt
+pip install --require-hashes --no-deps --no-build-isolation --only-binary torch-tensorrt,tensorrt-cu13-libs,tensorrt-cu13-bindings,dllist --extra-index-url https://pypi.nvidia.com --extra-index-url https://download.pytorch.org/whl/cu132 -r requirements/tensorrt-<platform>-cu132.txt
 # Test tooling:
 pip install -r requirements-dev.txt
 cd ..
@@ -191,9 +191,9 @@ npm run dev
 
 | Variable | Read at | Effect |
 |----------|---------|--------|
-| `VISION_STUDIO_SKIP_BACKEND` | `start()` in `electron/services/mainProcess.ts` | Electron does not autostart a backend child when truthy (`1`, `true`, `yes`, `on`); `0`, `false`, `off`, `no` and empty leave autostart on |
+| `VISION_STUDIO_SKIP_BACKEND` | `isSkipBackendEnabled()` in `electron/services/backendProcess.ts` (checked by `electron/services/mainProcess.ts` before autostart) | Electron does not autostart a backend child for any value except `0`, `false`, `off`, `no`, or empty, which leave autostart on |
 | `VISION_STUDIO_BACKEND_EXTERNAL` | `isExternalBackendEnabled()` in `electron/services/backendProcess.ts` | Probe an out-of-process backend over HTTP so it reads as connected. Any value except `0`, `false`, `off`, `no`, or empty enables it |
-| `VISION_STUDIO_BACKEND_AUTH_TOKEN` | `getBackendAuthToken()` in `electron/services/backendAuth.ts`; `BACKEND_AUTH_TOKEN` in `backend/main.py` | **Must match in both terminals.** Otherwise each side mints its own token and every authenticated request fails with HTTP 403 while `/health` still succeeds - the app reads as "disconnected" with the backend plainly up. `externalBackendTokenWarning()` logs a warning when external mode is on without it |
+| `VISION_STUDIO_BACKEND_AUTH_TOKEN` | `getBackendAuthToken()` in `electron/services/backendAuth.ts`; `BACKEND_AUTH_TOKEN` in `backend/main.py` | **Must match in both terminals.** Otherwise each side mints its own token and every authenticated request fails with HTTP 403 while `/api/health` still succeeds - the app reads as "disconnected" with the backend plainly up. `externalBackendTokenWarning()` logs a warning when external mode is on without it |
 | `VISION_STUDIO_BACKEND_HOST` | `get_uvicorn_config()` in `backend/main.py` | Bind address; defaults to `127.0.0.1` |
 
 These are referenced by file and symbol rather than line number, so they stay
@@ -252,7 +252,8 @@ npm run test:unit          # Pure logic, store, Electron services
 npm run test:component     # React components (jsdom)
 npm run test:integration   # API contracts, workflows, persistence
 
-# Run tests related to staged files (pre-commit hook)
+# What the pre-commit hook runs on staged .ts/.tsx files: typecheck, lint and
+# the full Vitest suite (plus the packaging tests for builder/installer/workflow files)
 npx lint-staged
 ```
 
@@ -304,8 +305,8 @@ the current number for its layer.
 
 | Layer | Framework | Count it with |
 |-------|-----------|---------------|
-| Frontend (unit + component + integration + repo gates) | Vitest 4.1 | `npx vitest run` (summary line: test files and tests) |
-| E2E | Playwright 1.58 | `npx playwright test --list` |
+| Frontend (unit + component + integration + repo gates) | Vitest 5.1 | `npx vitest run` (summary line: test files and tests) |
+| E2E | Playwright 1.65 | `npx playwright test --list` |
 | Backend (unit + integration) | pytest | `cd backend && python -m pytest --collect-only -q` |
 | Backend (benchmark, opt-in) | pytest-benchmark | `cd backend && python -m pytest tests/benchmarks -o addopts="" -o timeout=0 --benchmark-only --collect-only -q` |
 
@@ -354,11 +355,15 @@ const formatDate = (date: any) => {
 - **8-point grid system** - All spacing uses multiples of 8px (4px for fine adjustments)
 - **Utility-first** - Prefer Tailwind classes over custom CSS
 - **Design tokens** - Use `@theme` values from `src/index.css`
+- **Design system** - Read [`DESIGN.md`](DESIGN.md) before any UI work: machined
+  radii (cards 2px, controls 4px, overlays 8px), one depth layer per surface
+  (`.raised-panel`, `.recessed-well`, `.raised-control`, `.btn-chrome`), and
+  `.mono-label` for UI labels
 
 ```tsx
-// ✅ Good - uses design tokens
-<div className="p-4 gap-2 bg-surface border-border rounded-lg">
-  <h2 className="text-heading-lg font-semibold text-text-primary">
+// ✅ Good - uses the depth layer and type classes from src/index.css
+<div className="raised-panel flex flex-col gap-2 p-4">
+  <h2 className="type-section text-text-primary">
     Title
   </h2>
 </div>
@@ -446,12 +451,19 @@ fix(generate): Resolve WebSocket connection timeout
 
 ### Required Checks
 
-All PRs must pass:
+All PRs must pass the [PR Gate](.github/workflows/pr-gate.yml) jobs:
 
 - ✅ **TypeScript** - `npm run typecheck`
-- ✅ **Tests** - `npm test` (all layers passing)
-- ✅ **E2E** - `npm run test:e2e` (for UI changes)
-- ✅ **Lint-staged** - Pre-commit hooks run related tests
+- ✅ **ESLint** - `npm run lint` (zero warnings)
+- ✅ **Production Build** - `npm run build`
+- ✅ **Lockfile** - `package-lock.json` matches `package.json` under npm 10
+- ✅ **Dependency Audit** - `npm run audit:prod`
+- ✅ **Frontend Tests** - `npm test` (all Vitest layers)
+- ✅ **Backend Tests** - `python -m pytest`, plus `pip-audit` on the locked runtime
+
+E2E is not part of the gate; run `npm run test:e2e` yourself for UI changes.
+The pre-commit hook (lint-staged) runs typecheck, lint and the full Vitest
+suite whenever you commit a `.ts` or `.tsx` file.
 
 ### Review Expectations
 
@@ -498,7 +510,7 @@ If applicable, add screenshots.
 
 **Environment:**
 - OS: [e.g., Windows 11]
-- Node: [e.g., v22.13.0]
+- Node: [e.g., v22.22.2]
 - Python: [e.g., 3.12.8]
 - GPU: [e.g., RTX 4070]
 - App Version: [e.g., 3.4.1]

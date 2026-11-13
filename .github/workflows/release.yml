@@ -214,12 +214,27 @@ jobs:
         with:
           path: artifacts
 
+      - name: Require curated release notes
+        # Each tag ships with hand-written notes in docs/release-notes/<tag>.md
+        # (upgrade requirements, security changes, install and signing state).
+        # Fail before publishing rather than ship a release with only the
+        # auto-generated PR list.
+        shell: bash
+        run: |
+          notes="docs/release-notes/${GITHUB_REF_NAME}.md"
+          if [ ! -s "$notes" ]; then
+            echo "::error file=$notes::Missing release notes for ${GITHUB_REF_NAME}. Add $notes before tagging."
+            exit 1
+          fi
+
       - name: Create GitHub Release
         # Notes + small metadata only. GitHub caps assets at 2 GB; every
         # multi-GB installer (win/mac/linux) is delivered from R2 behind
         # updates.vision-studio-x.com - see docs/R2-DELIVERY.md.
         uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
+          # Curated notes first; the auto-generated PR list is appended below.
+          body_path: docs/release-notes/${{ github.ref_name }}.md
           generate_release_notes: true
           files: |
             artifacts/vision-studio-windows-x64/**/*.exe

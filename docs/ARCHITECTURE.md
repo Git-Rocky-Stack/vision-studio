@@ -1,6 +1,6 @@
 # Vision Studio - System Architecture
 
-> Version: tracks `package.json` (currently **3.4.2**, not yet published; the latest published release is 3.4.1)
+> Version: tracks `package.json` (currently **3.5.0**, not yet published; the latest published release is 3.4.1)
 > Audience: contributors, integrators, security reviewers
 > Companion docs: [`API_ENDPOINTS.md`](./API_ENDPOINTS.md), [`DATABASE_SCHEMA.md`](./DATABASE_SCHEMA.md), [`api/openapi.json`](./api/openapi.json)
 
@@ -207,7 +207,7 @@ vision-studio/
 
 Persistence is opt-in per field (see `appStore.ts` `partializeAppState`) and capped - e.g. `promptHistory.slice(0, 50)`, `assetLibrary.slice(0, 500)`. This keeps the persisted payload bounded as users iterate on prompts.
 
-Writes are debounced (since 3.4.2). The persist middleware's storage is `createDebouncedJSONStorage` (`src/store/debouncedPersistStorage.ts`): it keeps only the latest value per key and writes it once, `DEFAULT_PERSIST_DEBOUNCE_MS` (400 ms) after the last update, instead of re-serializing the whole partialized state on every `set()`. Pending writes are flushed on `pagehide`, `beforeunload` and `visibilitychange` to hidden, and `flushPersistedState()` (exported from `appStore.ts`) writes immediately for tests and explicit save points; a read straight after a write sees the pending value. The browser storage underneath is whatever `getPersistStorage` in `appStore.ts` returns - read it there rather than assuming `localStorage`.
+Writes are debounced (since 3.5.0). The persist middleware's storage is `createDebouncedJSONStorage` (`src/store/debouncedPersistStorage.ts`): it keeps only the latest value per key and writes it once, `DEFAULT_PERSIST_DEBOUNCE_MS` (400 ms) after the last update, instead of re-serializing the whole partialized state on every `set()`. Pending writes are flushed on `pagehide`, `beforeunload` and `visibilitychange` to hidden, and `flushPersistedState()` (exported from `appStore.ts`) writes immediately for tests and explicit save points; a read straight after a write sees the pending value. The browser storage underneath is whatever `getPersistStorage` in `appStore.ts` returns - read it there rather than assuming `localStorage`.
 
 ### 3.3 Renderer ↔ main contract
 
@@ -811,7 +811,7 @@ Local rehearsal: `npm run test:build` (= `build:windows` + a sanity message).
 > **Release state (checked 2026-11-11):** the Windows **Release** workflow
 > (`release.yml`) is disabled in the repository's Actions settings, so a pushed
 > tag does not build or publish a Windows release until it is re-enabled. The
-> latest published release is v3.4.1; 3.4.2 has not been tagged, and every
+> latest published release is v3.4.1; 3.5.0 has not been tagged, and every
 > update feed still serves 3.4.1. `gh workflow list --all` shows the workflow
 > state.
 
@@ -856,7 +856,7 @@ _Re-checked 2026-09-18 at v3.4.1: the present-tense claims in every section were
 compared with the tree and corrected where they had drifted. §10 no longer
 quotes file or test counts; each row names the command that prints them._
 
-_Re-checked 2026-11-11 at 3.4.2 (unreleased): the panel layout (no `dockview`
+_Re-checked 2026-11-11 at 3.5.0 (unreleased): the panel layout (no `dockview`
 dependency), debounced store persistence, the `downloadTokens` store key, the
 Hugging Face and edit output folders, the five PR-gate jobs, per-platform visual
 baselines and the release state were compared with the tree and corrected._

@@ -47,17 +47,19 @@ body:
       options:
         - Windows 11
         - Windows 10
-        - macOS (Apple Silicon)
-        - Linux
+        - macOS 14 or later (Apple Silicon)
+        - Linux (x64)
     validations:
       required: true
 
   - type: input
     id: gpu
     attributes:
-      label: GPU and VRAM
-      description: Or "CPU only". Settings -> Performance reports what was detected.
-      placeholder: RTX 4070, 12 GB
+      label: GPU, VRAM and NVIDIA driver
+      description: >
+        Or "CPU only". Settings -> Performance reports what was detected. NVIDIA
+        cards need driver 580 or newer; GTX 10-series and older run on the CPU.
+      placeholder: RTX 4070, 12 GB, driver 580.xx
     validations:
       required: true
 
@@ -73,8 +75,10 @@ body:
     attributes:
       label: Logs
       description: >
-        From Settings -> Diagnostics, or the backend console. Redact any API
-        keys, tokens, and personal paths before pasting - this issue is public.
+        From logs/backend.log in the app's user-data folder (see "Where the
+        logs are" in docs/TROUBLESHOOTING.md), or the backend console. Redact
+        any API keys, tokens, and personal paths before pasting - this issue is
+        public.
       render: shell
 
   - type: checkboxes

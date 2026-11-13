@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { readFileSync } from 'fs';
+import { existsSync, readFileSync } from 'fs';
 import { resolve } from 'path';
 
 const ROOT = resolve(__dirname, '..');
@@ -112,5 +112,16 @@ describe('version sync', () => {
     const [major, minor] = packageVersion.split('.');
     const policy = readFileSync(resolve(ROOT, 'SECURITY.md'), 'utf8');
     expect(policy, 'SECURITY.md still names an older supported line').toContain(`${major}.${minor}.x`);
+  });
+
+  it('has curated GitHub release notes for the package version', () => {
+    // The Release workflow publishes docs/release-notes/v<version>.md as the
+    // release body and fails the tag build without it. Catch the gap here, at
+    // the version bump, rather than after a two-hour signed Windows build.
+    const notes = resolve(ROOT, `docs/release-notes/v${packageVersion}.md`);
+    expect(existsSync(notes), `missing docs/release-notes/v${packageVersion}.md`).toBe(true);
+    const body = readFileSync(notes, 'utf8');
+    expect(body.trim().length).toBeGreaterThan(200);
+    expect(body, 'release notes must state the install and signing state').toMatch(/^## Install$/m);
   });
 });

@@ -9,20 +9,24 @@ what we consider a vulnerability and how we handle one.
 
 Only the latest release receives security fixes. Vision Studio ships as a
 single stable line with an auto-update feed; there are no maintained LTS
-branches. The latest published release is **v3.4.1**; **3.4.2** is the upcoming
+branches. The latest published release is **v3.4.1**; **3.5.0** is the upcoming
 release and is not yet published.
 
 | Version | Supported |
 | ------- | --------- |
-| 3.4.x   | Yes |
+| 3.5.x   | Once 3.5.0 is published |
+| 3.4.x   | Yes - the latest published release |
 | < 3.4   | No - update to the latest release |
 
-Check your version in **Settings -> About**. Releases are not yet code-signed,
-and until they are the in-app updater will not install an update (on Windows it
-refuses any update whose signature does not resolve to the expected publisher -
-see [What We Ship, and How It Is Checked](#what-we-ship-and-how-it-is-checked)).
-To update, download the latest version from
-[vision-studio-x.com/download](https://vision-studio-x.com/download).
+Check your version in **Settings -> About**. Windows builds are code-signed
+from 3.5.0 on (Azure Artifact Signing, publisher `Sharif Elsalaymeh`); v3.4.1 and
+earlier are unsigned. The Windows updater refuses any update whose signature does
+not resolve to the expected publisher (see
+[What We Ship, and How It Is Checked](#what-we-ship-and-how-it-is-checked)), so a
+3.4.x install cannot update itself to 3.5.0: download it once from
+[vision-studio-x.com/download](https://vision-studio-x.com/download), and later
+signed updates install in the app. The updater is switched off on macOS, whose
+builds are only ad-hoc signed; update there by downloading the latest version.
 
 ## Reporting a Vulnerability
 
@@ -68,9 +72,12 @@ If you would rather use GitHub, open a
 
 ## Out of Scope
 
-- **Unsigned installers.** Windows SmartScreen and macOS Gatekeeper warnings
-  are expected and documented in the [README](README.md); code-signing
-  certificates are in progress. This is a known state, not a report.
+- **Unsigned or newly signed installers.** macOS Gatekeeper warnings (builds
+  are not yet notarized), warnings on Windows releases before 3.5.0 (unsigned),
+  and a SmartScreen prompt that names the publisher `Sharif Elsalaymeh` while the
+  new signing identity builds reputation are expected and documented in the
+  [README](README.md). A Windows 3.5.0+ installer that shows **Unknown
+  publisher** is in scope: report it.
 - **Model weights themselves.** Vision Studio does not redistribute weights.
   What a third-party checkpoint generates, and any licence attached to it, is
   between you and its publisher. Malicious weights loaded *after* you granted
@@ -87,15 +94,21 @@ If you would rather use GitHub, open a
 
 - **Dependencies.** `npm audit --omit=dev --audit-level=high` gates every pull
   request; the shipped tree is kept at zero known high or critical advisories.
+  The backend installs only from hash-locked requirements
+  (`pip install --require-hashes`), and `pip-audit` checks the locked runtime
+  in the same gate. Every GitHub Action is pinned to a commit SHA.
   Development-only advisories are tracked and cleared separately - they never
   reach your machine, but they build what does.
-- **Signature verification.** Releases publish through a generic update feed
-  with `verifyUpdateCodeSignature` enabled, so the updater refuses an artifact
-  whose signature does not resolve to the expected publisher.
+- **Signature verification.** Windows releases publish through a generic
+  update feed with `verifyUpdateCodeSignature` enabled, so the updater refuses
+  an artifact whose signature does not resolve to the expected publisher.
+  Updates download only when you choose **Download update** in
+  **Settings > About**; nothing is downloaded automatically.
 - **No telemetry.** Vision Studio has no analytics, telemetry or crash
   reporting. Its network traffic is limited to model searches and downloads you
-  initiate, the automatic update check (set `VISION_STUDIO_DISABLE_UPDATES=1` to
-  turn it off), and any hosted provider you configure with your own key.
+  initiate, the automatic update check on Windows and Linux (set
+  `VISION_STUDIO_DISABLE_UPDATES=1` to turn it off), and any hosted provider you
+  configure with your own key.
 
 ## Safe Harbour
 

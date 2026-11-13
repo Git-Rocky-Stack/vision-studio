@@ -110,8 +110,11 @@ win:
   # `win.azureSignOptions` exists and then ignores this block entirely, so
   # scripts/verify-release-signing.cjs mirrors this name into the Azure block
   # when it adds one. Do not declare azureSignOptions statically here.
+  # Releases are signed through Azure Artifact Signing (account Strategia-X,
+  # profile Strategia-X), whose identity-validated subject is
+  # CN=Sharif Elsalaymeh; electron-updater compares against this CN.
   signtoolOptions:
-    publisherName: Vision Studio Team
+    publisherName: Sharif Elsalaymeh
 
   # Run as current user (admin not needed for normal operation)
   requestedExecutionLevel: asInvoker

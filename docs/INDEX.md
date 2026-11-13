@@ -8,7 +8,7 @@
 |----------|----------------|
 | [`USER_GUIDE.md`](./USER_GUIDE.md) | Install, the first-run model setup, picking models in the Foundry, your first image, hosted routes with your own key, every workspace tab, keyboard shortcuts, and what goes online. **Start here if you use the app.** |
 | [`KEYBOARD_SHORTCUTS.md`](./KEYBOARD_SHORTCUTS.md) | Every keyboard shortcut the app binds, where each one is active, and the source file that handles it, plus the reload and DevTools keys packaged builds disable. |
-| [`TROUBLESHOOTING.md`](./TROUBLESHOOTING.md) | Backend offline, GPU not detected, out of memory, gated downloads, disk space, key verification, export errors, ComfyUI, unsigned-installer warnings, and where the logs are. |
+| [`TROUBLESHOOTING.md`](./TROUBLESHOOTING.md) | Backend offline or crashing, GPU not detected (including older NVIDIA cards that run on the CPU), out of memory, gated downloads, disk space, key verification, export errors, ComfyUI, unsigned-installer warnings, and where the logs are. |
 | [`UAT_CHECKLIST.md`](./UAT_CHECKLIST.md) | The pass/fail acceptance matrix for a release candidate, per platform, with defect-logging rules and exit criteria. |
 
 The app also carries its own guide under **Settings > User Guide**.
@@ -95,7 +95,7 @@ saying so.
 
 **Adding a new endpoint / IPC channel**
 1. `API_ENDPOINTS.md` — find the closest existing channel as a template.
-2. `ARCHITECTURE.md §4.4` — make sure your inputs are validated through `security.ts` / `outputRoots.ts`.
+2. Declare the channel in the shared zod contract (`shared/ipcContract.ts`), then `ARCHITECTURE.md §4.4` — make sure your inputs are validated through `security.ts` / `outputRoots.ts`.
 3. Update both `API_ENDPOINTS.md` and `api/openapi.json` in the same PR as the implementation.
 
 **Touching the database**

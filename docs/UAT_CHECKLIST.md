@@ -40,7 +40,7 @@ On CPU-only machines generation is slow; use SD 1.5 at 512 x 512 and a low step
 count, and record a pass when the result is correct, however long it takes.
 
 Rows marked *(fixed in this release)*, *(new in this release)* or *(changed in
-this release)* cover behaviour changed for this release (3.4.2); give them extra
+this release)* cover behaviour changed for this release (3.5.0); give them extra
 attention.
 
 ## 1. Install and launch
@@ -69,14 +69,14 @@ Run on a machine (or user account) that has never had Vision Studio installed.
 | FR-03 | On a drive with too little space (or simulate it), open the screen | "Not enough disk space" message; an install too large for the free space cannot start; **Re-check** visible and updates the message after freeing space | | | | | |
 | FR-04 | Click **Skip for now** | Screen closes; app usable; **Foundry** shows the **Model library** card with **Install remaining** and **Open setup screen** | | | | | |
 | FR-05 | **Foundry > Open setup screen**, then press Esc | Screen reopens; Esc closes it | | | | | |
-| FR-06 | Click **Install everything** | All 33 models queue; overall progress bar, per-model rows with status and percent, speed and ETA | | | | | |
+| FR-06 | Click **Install everything** | All 34 models queue; overall progress bar, per-model rows with status and percent, speed and ETA | | | | | |
 | FR-07 | Click **Continue in background** | Screen closes; header pill reads **Model provisioning in progress**; downloads continue | | | | | |
 | FR-08 | **Pause all**, wait, **Resume all** (or **Pause** / **Resume** on the Foundry card) | Downloads stop and resume from where they stopped, not from zero | | | | | |
 | FR-09 | Quit during a download and relaunch | Partially downloaded models resume; completed ones stay installed | | | | | |
 | FR-10 | Without a Hugging Face token, let SD 3.5 Large download | Row fails with a gated message and shows **Accept license** | | | | | |
 | FR-11 | Save a Hugging Face token in the Foundry header, accept the licence via **Accept license**, then **Retry failed** | SD 3.5 Large and Medium download and verify | | | | | |
 | FR-12 | **Cancel setup** > **Stop downloads** | Confirmation shown first; downloads stop; installed models remain | | | | | |
-| FR-13 | Complete the set | Card reads **All 33 models installed**; **Verify and repair** completes without errors | | | | | |
+| FR-13 | Complete the set | Card reads **All 34 models installed**; **Verify and repair** completes without errors | | | | | |
 | FR-14 | Confirm FLUX.1 [dev], FLUX Fill, LTX Video and the OpenPose annotator are **not** in the set | They are absent from the setup list; features needing them say the model is missing | | | | | |
 | FR-15 | Fresh profile: **Install core** *(new in this release)* | Only the core subset downloads, with its size shown before you start; the Foundry **Model library** card then offers **Install remaining** for the rest | | | | | |
 | FR-16 | Fresh profile: **Custom**; pick two models *(new in this release)* | Only the chosen models download; the size shown matches the selection | | | | | |
@@ -145,7 +145,7 @@ access. Record the provider charges each row incurs.
 | BYO-04 | **Refresh** both OpenRouter model lists; choose a **Prompt model** and a **Still image model** | Lists populate; choices persist across relaunch | | | | | |
 | BYO-05 | **Still Image Provider: OpenRouter**; generate from Generate, Quick and Batch | Panel shows **OpenRouter Still Image Route**; images land in `openrouter/<date>/` and in Assets | | | | | |
 | BYO-06 | With OpenRouter selected, look at ControlNet and LoRA controls | Canvas-guided controls are local-only; a LoRA is reported as unsupported on OpenRouter, not silently dropped | | | | | |
-| BYO-07 | Save a Hugging Face token under **HuggingFace Inference Token**; set **Still Image Provider: HuggingFace**, model FLUX.1 schnell; generate from Generate and from **Quick** *(Quick fixed in 3.4.2)* | **Token stored**; both images generated in `huggingface/<date>/`; Quick sends the hosted model, not a local checkpoint id, and runs with the backend offline | | | | | |
+| BYO-07 | Save a Hugging Face token under **HuggingFace Inference Token**; set **Still Image Provider: HuggingFace**, model FLUX.1 schnell; generate from Generate and from **Quick** *(Quick fixed in 3.5.0)* | **Token stored**; both images generated in `huggingface/<date>/`; Quick sends the hosted model, not a local checkpoint id, and runs with the backend offline | | | | | |
 | BYO-08 | **Motion / Video Provider: HuggingFace**, model LTX-Video; generate a video | MP4 generated; OpenRouter is disabled in this picker | | | | | |
 | BYO-09 | HuggingFace route with exactly one FLUX Hub LoRA at weight 1.0; then with two LoRAs | One LoRA runs; two are refused with an explanation | | | | | |
 | BYO-10 | **Prompt Enhancement Provider: OpenRouter**, then **HuggingFace**; **AI Enhance** in Studio | Enhanced prompt comes from the chosen provider | | | | | |

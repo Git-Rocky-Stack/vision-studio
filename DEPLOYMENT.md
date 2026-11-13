@@ -2,8 +2,10 @@
 
 How Vision Studio is built, packaged, and delivered for Windows, macOS, and Linux.
 
-The version in the tree is whatever `package.json` says (the README's "Current
-release" line is pinned to it by `tests/version-sync.test.ts`). Which versions
+The version in the tree is whatever `package.json` says. `tests/version-sync.test.ts`
+pins the README to it: while the changelog heading still reads `Unreleased`, the
+README must call it the "Upcoming release" and name the latest published one;
+once the heading is dated, the README must call it the "Current release". Which versions
 have been tagged and published is a fact about GitHub, not about this file:
 list the `v*` tags or see the
 [releases page](https://github.com/Git-Rocky-Stack/vision-studio/releases).
@@ -24,7 +26,7 @@ See [`BUNDLING.md`](BUNDLING.md) for how the backend bundle itself is produced.
 
 | Platform | Where it's built | Why |
 |----------|------------------|-----|
-| Windows x64 | **Locally** (`npm run package:win`) | The signed-CI path is gated on secrets; the local build is the delivery build. |
+| Windows x64 | **CI** (`release.yml`, signed) | Built natively on `windows-latest` and signed through Azure Artifact Signing; `npm run package:win` stays available for unsigned local builds. |
 | macOS arm64 | **CI only** (`release-mac-linux.yml`) | PyInstaller can't cross-compile; the macOS bundle must be built on macOS (Apple Silicon). |
 | Linux x64 | **CI only** (`release-mac-linux.yml`) | Same - the Linux CUDA bundle must be built on Linux. |
 
@@ -160,22 +162,29 @@ gh release create v<ver> --title "Vision Studio v<ver>" --notes-file notes.md \
 ## Auto-updates
 
 `electron/services/updater.ts` (electron-updater, generic provider) reads the
-per-platform R2 feed. It is **dormant until builds are signed**:
-`electron-builder.yml` sets `verifyUpdateCodeSignature: true`, so the updater
-refuses to install an unsigned package. Kill-switch: `VISION_STUDIO_DISABLE_UPDATES=1`;
-staging override: `VISION_STUDIO_UPDATE_URL` (development builds only - packaged
-builds ignore it). macOS builds are ad-hoc signed, so auto-update is off on
+per-platform R2 feed. It checks on its own but **never downloads on its own**
+(`autoDownload` is off): the user starts the multi-GB download with **Download
+update** in **Settings > About**. On Windows it is **dormant until builds are
+signed**: `electron-builder.yml` sets `win.verifyUpdateCodeSignature: true`, so
+the updater refuses to install an unsigned package. Kill-switch:
+`VISION_STUDIO_DISABLE_UPDATES=1`. The updater runs only in packaged builds and
+always reads the packaged `app-update.yml`; the old `VISION_STUDIO_UPDATE_URL`
+override is ignored. macOS builds are ad-hoc signed, so the updater is off on
 macOS unless `VISION_STUDIO_ENABLE_MAC_UPDATES=1`. Installing an update asks
 for confirmation while generations are running, and an installer closes a
 running Vision Studio and its backend first (interactive installs ask before
 they do).
 
-## Code signing (not yet configured)
+## Code signing
 
-Builds currently ship **unsigned** (Windows) and **ad-hoc signed** (macOS - the
-minimum for Apple Silicon to launch; `scripts/adhoc-sign-mac.cjs` reseals the
-bundle in `afterPack`). Until real signing lands, Windows shows a SmartScreen
-warning ("More info" -> "Run anyway"). On macOS 15 and later the app has to be
+Windows builds are **code-signed** from 3.5.0 on through Azure Artifact Signing
+(publisher `Sharif Elsalaymeh`; details in
+[`docs/code-signing.md`](docs/code-signing.md)); v3.4.1 and earlier are
+unsigned. macOS builds are **ad-hoc signed** (the minimum for Apple Silicon to
+launch; `scripts/adhoc-sign-mac.cjs` reseals the bundle in `afterPack`). While
+the new Windows identity builds SmartScreen reputation, a signed installer can
+still show "Windows protected your PC" with the publisher name ("More info" ->
+"Run anyway"). On macOS 15 and later the app has to be
 allowed once under System Settings > Privacy & Security ("Open Anyway"), because
 Sequoia removed the right-click -> Open override; macOS 14, the oldest release
 the build supports, still accepts right-click -> Open.
@@ -188,11 +197,14 @@ for production (it fails fast unless one signing mode is configured). Modes:
 
 1. **CSC / PFX** - `WIN_CSC_LINK` (or `CSC_LINK`) + `WIN_CSC_KEY_PASSWORD`.
 2. **Windows certificate store** - `WIN_CSC_SUBJECT_NAME` or `WIN_CSC_SHA1`.
-3. **Azure Trusted Signing** - `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`,
+3. **Azure Artifact Signing** (formerly Trusted Signing; the variable names
+   keep the old name) - `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`,
    `AZURE_TRUSTED_SIGNING_ENDPOINT`, `AZURE_TRUSTED_SIGNING_ACCOUNT_NAME`,
    `AZURE_TRUSTED_SIGNING_CERTIFICATE_PROFILE_NAME`, plus an auth secret.
 
-Once a mode is configured, re-enable the signed-CI release: `gh workflow enable release.yml`.
+The Azure Artifact Signing secrets are configured in the repository and the
+`Release` workflow is enabled. If the secrets are removed, the signed job fails
+at its preflight rather than producing an unsigned artifact.
 
 ### macOS
 

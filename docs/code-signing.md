@@ -2,7 +2,16 @@
 
 This document covers the complete process for code signing the Vision Studio Electron desktop application on Windows: choosing a signing identity (Azure Artifact Signing, an OV certificate, or an EV certificate), where the private key lives, and how the release pipeline enforces signing.
 
-> **Status:** no signed Windows build has shipped yet. The published releases (v3.4.1 is the latest) are unsigned, and the tag-triggered `Release` workflow is currently disabled in the repository's Actions settings. Because `win.verifyUpdateCodeSignature` is on, the in-app updater refuses unsigned packages, so unsigned builds are installed and updated by downloading the installer manually.
+> **Status:** Windows signing is configured through **Azure Artifact Signing**, and 3.5.0 is the first signed release. Published releases up to v3.4.1 are unsigned. Because `win.verifyUpdateCodeSignature` is on, a 3.4.x install refuses every update, signed or not (its `app-update.yml` names the old `Vision Studio Team` publisher), so 3.4.x users move to 3.5.0 by downloading the installer once. macOS builds are not yet notarized.
+>
+> | Setting | Value |
+> |---------|-------|
+> | Subscription / resource group | `Azure subscription 1` / `artifact_code_signing` |
+> | Artifact Signing account | `Strategia-X` (Basic, East US), endpoint `https://eus.codesigning.azure.net/` |
+> | Certificate profile | `Strategia-X` (Public Trust); certificates are short-lived and rotate daily |
+> | Certificate subject / `publisherName` | `CN=Sharif Elsalaymeh` (individual identity validation) / `Sharif Elsalaymeh` |
+> | CI identity | Entra app + service principal `vision-studio-release-signing`, role **Artifact Signing Certificate Profile Signer** on that one profile only |
+> | Client secret | Stored only as the `AZURE_CLIENT_SECRET` repository secret; expires **2027-11-13**. Rotate before then with `az ad sp credential reset --id <AZURE_CLIENT_ID> --years 1 --query password -o tsv \| gh secret set AZURE_CLIENT_SECRET` |
 
 ## Table of Contents
 
@@ -223,7 +232,7 @@ dotnet tool install --global AzureSignTool
    signtool.exe verify /pa "release\nsis-web\Vision-Studio-<version>-Setup.exe"
    ```
 
-The installer name comes from `nsisWeb.artifactName` in `electron-builder.yml` (`Vision-Studio-${version}-Setup.${ext}`), for example `Vision-Studio-3.4.2-Setup.exe`. Release builds are not signed by hand: `npm run package:win:signed` signs during packaging (see [electron-builder Integration](#electron-builder-integration)). The manual path is for re-signing or verifying a single file.
+The installer name comes from `nsisWeb.artifactName` in `electron-builder.yml` (`Vision-Studio-${version}-Setup.${ext}`), for example `Vision-Studio-3.5.0-Setup.exe`. Release builds are not signed by hand: `npm run package:win:signed` signs during packaging (see [electron-builder Integration](#electron-builder-integration)). The manual path is for re-signing or verifying a single file.
 
 ### Automated Signing (Azure Key Vault)
 
@@ -272,8 +281,8 @@ passes `win.azureSignOptions.endpoint`, `codeSigningAccountName`,
 overrides at runtime, so `azureSignOptions` is never declared in
 `electron-builder.yml` and local unsigned packaging with `npm run package:win`
 remains available for development builds. `publisherName` is read from
-`win.signtoolOptions.publisherName` in `electron-builder.yml` (`Vision Studio
-Team`): electron-builder's Azure signing manager ignores `signtoolOptions`
+`win.signtoolOptions.publisherName` in `electron-builder.yml` (`Sharif
+Elsalaymeh`): electron-builder's Azure signing manager ignores `signtoolOptions`
 entirely, and electron-updater verifies updates against this name, so the script
 mirrors it to keep one source of truth. It must match the certificate subject.
 
@@ -289,9 +298,10 @@ Signing" name; Microsoft has since renamed it
 ## CI/CD Integration
 
 Production releases are built by `.github/workflows/release.yml` (triggered by a
-`v*` tag, or manually) on `windows-latest`. The workflow is currently disabled in
-the repository's Actions settings; re-enable it once one signing mode's secrets
-are in place. The `build-windows` job:
+`v*` tag, or manually) on `windows-latest`. A manual run (`gh workflow run release.yml`)
+builds, signs and uploads the installer as an Actions artifact without publishing
+anything: the R2 update feed and the GitHub Release are written only for a `v*`
+tag. The `build-windows` job:
 
 1. Runs the signing **preflight** - `npm run release:signing:check` - which fails
    the build if no supported signing configuration is present, so no *unsigned*
@@ -316,11 +326,9 @@ set must be present for the preflight to pass.
 | **Windows cert-store / hardware token** | `WIN_CSC_SUBJECT_NAME` (or `WIN_CSC_SHA1`) - selects an installed certificate by subject name or SHA-1 thumbprint |
 | **Azure Artifact Signing** (recommended for CI) | `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, `AZURE_TRUSTED_SIGNING_ENDPOINT`, `AZURE_TRUSTED_SIGNING_ACCOUNT_NAME`, `AZURE_TRUSTED_SIGNING_CERTIFICATE_PROFILE_NAME`, plus one auth secret: `AZURE_CLIENT_SECRET`, `AZURE_CLIENT_CERTIFICATE_PATH`, or `AZURE_USERNAME` + `AZURE_PASSWORD` |
 
-> **Action required (repo owner):** the workflow is correctly wired, but it can
-> only pass once the secret **values** for one mode are set in GitHub - these
-> cannot live in the repository. Until then the signed `build-windows` job fails
-> fast at the preflight, by design (this is the audit's "signing preflight failed
-> locally" behavior, working as intended).
+The Azure Artifact Signing set is configured (see the status table at the top).
+If it is ever removed, the signed `build-windows` job fails fast at the
+preflight, by design.
 
 ### Development (unsigned) vs production (signed)
 
@@ -343,7 +351,7 @@ workflow enforce signing. Never distribute the unsigned dev output.
 
 **Symptoms:**
 ```
-[<timestamp>] [WARNING] WARNING: No EV certificate found matching 'Vision Studio Team'
+[<timestamp>] [WARNING] WARNING: No EV certificate found matching 'Sharif Elsalaymeh'
 ```
 
 **Solutions:**
@@ -452,4 +460,4 @@ Get-AuthenticodeSignature "Vision-Studio-<version>-Setup.exe"
 
 ---
 
-*Last Updated: 2026-11-11*
+*Last Updated: 2026-11-12*

@@ -16,42 +16,43 @@ echo ==============================================================
 echo.
 
 REM Node.js: the toolchain (Vite, Vitest, jsdom, ESLint) needs
-REM ^20.19.0 or ^22.13.0 or 24 and later - the "engines" range in package.json.
+REM ^22.22.2 or ^24.15.0 or 26 and later - the "engines" range in package.json.
 echo [1/4] Checking Node.js installation...
 node --version >nul 2>&1
 if errorlevel 1 (
     echo     [X] Node.js not found.
     echo.
-    echo     Install Node.js 22 LTS ^(or 20.19+, or 24+^) from:
+    echo     Install Node.js 24 LTS ^(or 22.22.2+, or 26+^) from:
     echo     https://nodejs.org/en/download/
     echo.
     pause
     exit /b 1
 )
 for /f "tokens=*" %%a in ('node --version') do set NODE_VERSION=%%a
-node -e "const [a,b]=process.versions.node.split('.').map(Number);process.exit(a>=24||(a===22&&b>=13)||(a===20&&b>=19)?0:1)"
+node -e "const [a,b,c]=process.versions.node.split('.').map(Number);process.exit(a>=26||(a===24&&b>=15)||(a===22&&(b>22||(b===22&&c>=2)))?0:1)"
 if errorlevel 1 (
     echo     [X] Node.js !NODE_VERSION! is not supported.
-    echo     Install Node.js 22 LTS ^(or 20.19+, or 24+^) from https://nodejs.org/
+    echo     Install Node.js 24 LTS ^(or 22.22.2+, or 26+^) from https://nodejs.org/
     echo.
     pause
     exit /b 1
 )
 echo     [OK] Node.js %NODE_VERSION%
 
-REM Python: the pinned PyTorch 2.5.1 publishes wheels for Python 3.10-3.12 only.
+REM Python: the hash-locked requirements and the pinned PyTorch 2.14.1 wheels are
+REM resolved for Python 3.12 only (build-backend.cjs LOCKED_PYTHON_VERSION).
 echo [2/4] Checking Python installation...
 python --version >nul 2>&1
 if errorlevel 1 (
     echo     [!] Python not found.
     echo     You can still develop the frontend, but the AI backend will not run.
-    echo     Install Python 3.12 ^(3.10 to 3.12 are supported^) from https://www.python.org/downloads/
+    echo     Install Python 3.12 ^(the only supported version^) from https://www.python.org/downloads/
     echo.
     choice /C YN /M "Continue without Python"
     if errorlevel 2 exit /b 1
 ) else (
     for /f "tokens=*" %%a in ('python --version') do set PYTHON_VERSION=%%a
-    echo     [OK] !PYTHON_VERSION! ^(the backend needs Python 3.10 to 3.12^)
+    echo     [OK] !PYTHON_VERSION! ^(the backend needs Python 3.12^)
 )
 
 REM Node packages
@@ -79,12 +80,12 @@ if exist "backend\venv" (
     echo.
     echo     A^) System Python - recommended for development
     echo        Run: setup-python.bat
-    echo        Installs the pinned PyTorch, requirements.txt and the generation
+    echo        Installs the pinned PyTorch, the hash-locked requirements and the generation
     echo        stack into backend\venv. npm run dev then uses that venv.
     echo.
     echo     B^) Bundled backend - the release build
     echo        Run: npm run build:backend
-    echo        A local PyInstaller build: roughly 30-60 minutes, about 2.6 GB
+    echo        A local PyInstaller build: roughly 30-60 minutes, about 6 GB
     echo        of output in resources\, plus several GB of downloads on the way.
     echo.
     echo     C^) External ComfyUI - for advanced users

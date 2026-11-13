@@ -83,7 +83,7 @@ describe('release signing preflight', () => {
     const { buildWindowsPackageArgs } = await loadSigningModule();
 
     expect(buildWindowsPackageArgs(AZURE_ENV)).toContain(
-      '-c.win.azureSignOptions.publisherName=Vision Studio Team'
+      '-c.win.azureSignOptions.publisherName=Sharif Elsalaymeh'
     );
   });
 

@@ -23,6 +23,6 @@ fix, name the test that fails without this change.
 
 - [ ] New behaviour is covered by a test that failed before the change
 - [ ] Visual or UI changes follow [`DESIGN.md`](../DESIGN.md) - Carbon Pro tokens, no stock Tailwind palette classes, no emoji in app source
-- [ ] IPC channel names stay in sync between `electron/preload.ts` and its handler
+- [ ] IPC changes go through the shared contract (`shared/ipcContract.ts`), so `electron/preload.ts` and its handler stay in sync
 - [ ] No secrets, API keys, or personal paths in the diff
 - [ ] [`CHANGELOG.md`](../CHANGELOG.md) updated if this is user-facing

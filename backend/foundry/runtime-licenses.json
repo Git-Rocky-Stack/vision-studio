@@ -2,6 +2,10 @@
   "_comment": "#34 installer: licenses for the heavy runtimes frozen into the VisionStudio-Backend bundle (PyInstaller) and the app bundle. Curated + verified; keep in sync with backend/requirements/runtime.in and package.json when the bundled set changes.",
   "python": [
     { "name": "PyTorch (torch, torchvision)", "license": "BSD-3-Clause", "url": "https://github.com/pytorch/pytorch/blob/main/LICENSE" },
+    { "name": "Torch-TensorRT (torch-tensorrt; Windows and Linux CUDA bundles)", "license": "BSD-3-Clause", "url": "https://github.com/pytorch/TensorRT/blob/main/LICENSE" },
+    { "name": "NVIDIA TensorRT (tensorrt-cu13, tensorrt-cu13-libs, tensorrt-cu13-bindings; Windows and Linux CUDA bundles)", "license": "NVIDIA proprietary (TensorRT Software License Agreement)", "url": "https://docs.nvidia.com/deeplearning/tensorrt/latest/reference/sla.html" },
+    { "name": "NVIDIA CUDA 13.2 runtime libraries (cuBLAS, cuFFT, cuRAND, cuSOLVER, cuSPARSE, cuSPARSELt, NVRTC, nvJitLink, CUPTI, NCCL, NVSHMEM, NVTX, cuFile), redistributed inside the PyTorch cu132 build", "license": "NVIDIA proprietary (CUDA Toolkit End User License Agreement)", "url": "https://docs.nvidia.com/cuda/eula/index.html" },
+    { "name": "NVIDIA cuDNN 9 (nvidia-cudnn-cu13), redistributed inside the PyTorch cu132 build", "license": "NVIDIA proprietary (cuDNN Software License Agreement)", "url": "https://docs.nvidia.com/deeplearning/cudnn/latest/reference/eula.html" },
     { "name": "diffusers", "license": "Apache-2.0", "url": "https://github.com/huggingface/diffusers/blob/main/LICENSE" },
     { "name": "transformers", "license": "Apache-2.0", "url": "https://github.com/huggingface/transformers/blob/main/LICENSE" },
     { "name": "accelerate", "license": "Apache-2.0", "url": "https://github.com/huggingface/accelerate/blob/main/LICENSE" },

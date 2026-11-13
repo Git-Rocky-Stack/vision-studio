@@ -60,7 +60,7 @@
     ],
     "icon": "build/icon.ico",
     "signtoolOptions": {
-      "publisherName": "Vision Studio Team"
+      "publisherName": "Sharif Elsalaymeh"
     },
     "verifyUpdateCodeSignature": true,
     "requestedExecutionLevel": "asInvoker"

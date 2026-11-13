@@ -30,29 +30,36 @@ Download the build for your platform from
 
 | Platform | Download | Requirements |
 |----------|----------|--------------|
-| Windows | `Vision-Studio-<version>-Setup.exe`, a small web installer (about 1 MB) that downloads the app package (about 2.6 GB) while it installs. A portable zip of the same size needs no install | Windows 10 or 11, x64 |
-| macOS | `Vision-Studio-<version>-arm64.dmg` (about 530 MB) | Apple Silicon (M-series) and macOS 14 or later. There is no Intel build |
-| Linux | `Vision-Studio-<version>-x86_64.AppImage` (about 3.3 GB) | x64, Ubuntu 22.04 or a distribution with the same glibc or newer |
+| Windows | `Vision-Studio-<version>-Setup.exe`, a small web installer (about 1 MB) that downloads the app package (several gigabytes) while it installs. A portable zip of the app needs no install | Windows 10 or 11, x64 |
+| macOS | `Vision-Studio-<version>-arm64.dmg` (about 530 MB) | Apple Silicon (M-series) and macOS 14 or later; the installer refuses older systems. There is no Intel build |
+| Linux | `Vision-Studio-<version>-x86_64.AppImage` (several gigabytes) | x64, Ubuntu 22.04 or a distribution with the same glibc or newer |
 
-Installing or updating closes a running Vision Studio, and its engine, first;
-an installer you run yourself asks before it does. Vision Studio runs as a
-single instance: opening it again brings the window that is already open to
-the front.
+On Windows, installing or updating closes a running Vision Studio, and its
+engine, first; an installer you run yourself asks before it does. Vision Studio
+runs as a single instance: opening it again brings the window that is already
+open to the front.
 
 Plan for the disk space the models need as well as the app: the full first-run
-model set is about 137 GB (see [section 2](#2-first-run-the-model-library)).
+model set is about 247 GB (see [section 2](#2-first-run-the-model-library)).
 8 GB of RAM is the minimum; 16 GB and an NVIDIA GPU with 8 GB or more of VRAM, or
-an Apple M-series chip, are recommended.
+an Apple M-series chip, are recommended. NVIDIA cards must be Turing (RTX 20 /
+GTX 16 series) or newer, RTX 50-series included, with driver 580 or newer;
+older NVIDIA cards (GTX 10-series and earlier) run on the CPU, and the app says
+so (see [Hardware](#hardware)).
 
-### The installers are not yet code-signed
+### First-launch warnings
 
-Your operating system will warn you the first time. This is expected and is not
+Your operating system may warn you the first time. This is expected and is not
 a fault in the download.
 
-- **Windows (SmartScreen).** "Windows protected your PC" appears. Click **More
-  info**, then **Run anyway**. The installer then lets you choose the install
+- **Windows (SmartScreen).** Windows builds are code-signed from 3.5.0 on, with
+  publisher **Sharif Elsalaymeh**. While that signature builds reputation,
+  "Windows protected your PC" can still appear and names that publisher; for
+  3.4.1 and earlier, which are unsigned, it says **Unknown publisher**. Click
+  **More info**, then **Run anyway**. A 3.5.0 or later installer that shows
+  **Unknown publisher** has been altered: do not run it. The installer then lets you choose the install
   folder and creates desktop and Start Menu shortcuts.
-- **macOS (Gatekeeper).** Open the `.dmg` and drag Vision Studio to
+- **macOS (Gatekeeper).** macOS builds are not yet notarized. Open the `.dmg` and drag Vision Studio to
   Applications. On macOS 15 or later, try to open the app once, then go to
   **System Settings > Privacy & Security** and click **Open Anyway**. On
   macOS 14, right-click the app and choose **Open**.
@@ -77,12 +84,15 @@ engine has reported what is installed. It offers three choices:
 
 - **Install core** - a smaller core subset of the set below. You can add the
   rest later from the Foundry (see [Coming back later](#coming-back-later)).
-- **Install everything** - all 33 models.
+- **Install everything** - all 34 models.
 - **Custom** - pick the models yourself.
+
+The screen also names the GPU the engine found. An NVIDIA card older than this
+build supports reads **Unsupported GPU, runs on CPU** with the card's name.
 
 ### What the first-run set contains
 
-The set is 33 models, about 137 GB in total, every one installed from its pinned
+The set is 34 models, about 247 GB in total, every one installed from its pinned
 upstream source and checked against its recorded hash before use:
 
 - **Image:** Stable Diffusion 1.5, Stable Diffusion XL (base and refiner),
@@ -96,9 +106,11 @@ upstream source and checked against its recorded hash before use:
 - **Edit tools:** U2-Net (background removal), Real-ESRGAN x4plus and its anime
   variant (upscale), GFPGAN v1.4 with RetinaFace and ParseNet (face
   enhancement).
+- **AI Director:** the all-MiniLM-L6-v2 text embedder its retrieval index uses
+  (see [AI Director](#ai-director)).
 
 Download sizes on the setup screen are in binary units, so the whole set on a
-fresh install reads 128.0 GB - the same ~137 GB, counted in GiB.
+fresh install reads 230.0 GB - the same ~247 GB, counted in GiB.
 
 ### What is not included
 
@@ -113,8 +125,9 @@ manual downloads through the Foundry (see
   non-commercial licences.
 
 Until you download them, features that need them stay disabled and say which
-model is missing. Note that the Generate panel may start with FLUX.1 [dev] or
-LTX Video selected; pick an installed model from the Model picker instead.
+model is missing. The app's defaults can name FLUX.1 [dev]: when the Model
+picker first loads and its selection is not installed, it moves to an installed
+model, and any model whose weights are not on disk is marked **Not installed**.
 
 ### The buttons on the setup screen
 
@@ -123,7 +136,8 @@ LTX Video selected; pick an installed model from the Model picker instead.
 - **Skip for now** closes the screen without downloading anything. You can come
   back to it from the Foundry at any time. Esc does the same.
 - After you start, **Continue in background** closes the screen while downloads
-  carry on; the header pill shows **Model provisioning in progress**. Each feature
+  carry on; the header pill shows **Provisioning models** with the overall
+  progress. Each feature
   unlocks the moment its model is ready, so you can keep working.
 - **Pause all** and **Resume all** stop and restart every download. A paused
   download keeps its partial files and resumes where it stopped.
@@ -221,6 +235,11 @@ against that hardware. Fit is shown as a coloured light and a label: a model fit
 fits with offloading (slower), or is over budget for your GPU. **Refresh** reads
 the hardware again.
 
+If your NVIDIA card is older than this build supports (GTX 10-series and
+earlier), the panel still names it, marks its compute capability
+**(unsupported)**, and says why: the card is older than the build's CUDA
+kernels support, so generation runs on the CPU.
+
 ### Getting a model that is not in the set
 
 1. **Foundry > Discover**, search Hugging Face (for example "FLUX.1-dev" or
@@ -268,11 +287,12 @@ Assets with the rest.
 ### Video
 
 Switch **Workflow** to **Video**. The Model picker then lists video models, and a
-**Motion** section adds start and end frames and the duration and frame-rate
-controls.
+**Motion** section adds a **Start Frame** (the image to animate from) and the
+duration and frame-rate controls.
 
-- **Stable Video Diffusion** animates a still image: attach a reference image
-  under **Reference Inputs** first (the panel warns until you do).
+- **Stable Video Diffusion** animates a still image: set a **Start Frame**, or
+  attach a reference image under **Reference Inputs**, first (the panel warns
+  until you do).
 - **AnimateDiff** works from a prompt.
 - **LTX Video** works from a prompt, once you have downloaded it.
 
@@ -297,7 +317,7 @@ Generate button names it, with a **Manage in Foundry** link.
 
 - **Quick** is a minimal still-image panel for fast drafts: prompt, negative
   prompt, model and aspect ratio, on the active account's still-image route. Its
-  model may also start on FLUX.1 [dev]; choose an installed one.
+  Model picker moves to an installed model the same way.
 - **Batch** gives each prompt its own card: **Add Prompt** adds a card,
   **Variations** adds one-click variations of a prompt, and import fills cards
   from a `.txt`, `.csv` or `.json` file of prompts. Cards can be duplicated,
@@ -355,7 +375,8 @@ account decides how the rest of the app routes work.
 1. Paste an access token into **HuggingFace Inference Token** and click **Save
    Token**. The status line reads **Token stored**.
 2. Choose a **Still image model** (FLUX.1 schnell or SDXL 1.0), a **Video model**
-   (LTX-Video) and a **Prompt model** (Llama 3.1 8B Instruct).
+   (LTX-Video) and a **Prompt model** (Qwen 2.5 7B Instruct by default, or Llama
+   3.1 8B Instruct, which is gated: accept its licence on huggingface.co first).
 
 The Hugging Face options in the provider pickers stay disabled until a token is
 stored.
@@ -387,9 +408,10 @@ A hosted still-image run does not need the local engine: with a verified key and
 a model chosen, Generate, Quick, Batch and Workflow still-image runs keep working
 while the backend is offline.
 
-Requests to OpenRouter are retried after a rate limit or a temporary server
-error. A request that times out is not sent again, so a slow hosted job is never
-charged to you twice.
+Hosted image and video generations on OpenRouter and Hugging Face are retried
+only when they cannot have run: a rate limit (429), a busy server (503) that
+says when to try again, or a connection that never reached the provider. A request that times out is never sent
+again, so a slow hosted job is never charged to you twice.
 
 ### Over budget
 
@@ -434,7 +456,7 @@ click **Send to Edit**. For a video, **Extract to Edit** takes the current frame
   (H), Zoom (Z), Eyedropper (I). Hover a tool to see its key. The keys work
   whenever the Canvas tab is open and you are not typing in a field.
 - **Tool options** (under the tool strip): the settings for the active tool.
-  Brush and Eraser have size and colour; Clone Stamp and Heal have size,
+  Brush has size and colour, Eraser has size; Clone Stamp and Heal have size,
   hardness, opacity and the sampling source; Shape and Pen have outline colour
   and width, fill, and the shape kind or Smooth curves. [ and ] step the brush
   size for Brush, Eraser, Clone Stamp and Heal. Brush and Eraser offer **Clear
@@ -565,9 +587,9 @@ destination is refused, so the app can never be used to write elsewhere on your
 disk.
 
 **Collections** groups assets. **New Collection** creates a manual collection
-that you fill yourself, or a smart collection that gathers matching assets on
-its own; the **All / Smart / Manual / Tagged / Untagged** filters narrow the
-list.
+that you fill yourself (**Add to collection** on an asset or in the preview);
+**Smart Collection** creates one that gathers matching assets on its own. The
+**All / Manual / Smart / Tagged / Untagged** filters narrow the list.
 
 ### Prompt-based tagging
 
@@ -599,8 +621,8 @@ Face, the excerpts it retrieved are sent to that provider with your prompt.
 |-----|---------------|
 | **General** | **Default Output Location** (**Browse**; changing it restarts the backend so new work goes to the new folder), **Backend Autostart**, **Storage Usage** with **Clear Cache** (removes cached generated assets in the app's internal output folder; custom output folders are kept) |
 | **AI & Models** | GPU status, **Start Backend** when the backend is offline, **User Accounts & BYOK**, **Over-Budget Policy**, prompt-based tagging, **AI Director (RAG)**, and **Installed Models** with **Manage in Foundry** |
-| **Performance** | Acceleration: a master switch and Auto / On / Off for each optimization (SDPA, channels-last, torch.compile, attention slicing; quantization and TensorRT when their optional packages are present). After a local run it reports what was applied, skipped or fell back |
-| **Appearance** | Theme: dark, light or system |
+| **Performance** | Acceleration: **Master Enable** and Auto / On / Off for each optimization (Compile, Quantization, SDPA, Channels Last, Attention Slicing, TensorRT). An optimization that cannot run here is disabled with the reason: TensorRT is bundled on Windows and Linux but stays off until a model family passes the TensorRT verification sweep, and none has yet. After a local run it reports what was applied, skipped or fell back |
+| **Appearance** | **Theme** (dark, light or system) and **Film Grain** (Animated, Static or Off) |
 | **Notifications** | Desktop notifications for **Generation Complete**, **Generation Failed** and **Model Downloads** |
 | **User Guide** | The in-app guide |
 | **About** | Version, **Updates** (**Check for updates**, **Download update**, **Restart to update**), and the licence text for every model and bundled dependency |
@@ -612,9 +634,11 @@ Assets** to keep an edit.
 Update checks only run in the installed app, and are off on macOS. A found
 update is never downloaded on its own: the installer is several gigabytes, so
 **Download update** starts it when you choose and shows its progress (retry it
-if it fails). Until releases are code-signed, the updater will not install an
-update; download the new version from the website instead. Once it can,
-**Restart to update** asks you to confirm first while generations are running.
+if it fails). The Windows updater installs only releases signed by the expected
+publisher. Windows builds are signed from 3.5.0 on, so later updates install in
+the app; a 3.4.x install cannot update itself to 3.5.0, so download 3.5.0 once
+from the website. **Restart to update** asks you to confirm first while
+generations are running.
 
 ## 8. Keyboard shortcuts
 
@@ -679,8 +703,9 @@ only for:
   Foundry tokens are sent to those hosts with the requests that need them.
 - **The first-run model set**, if you install it - from each model's upstream
   host.
-- **The automatic update check**, in the installed app - to
-  `updates.vision-studio-x.com`.
+- **The automatic update check**, in the installed app on Windows and Linux -
+  to `updates.vision-studio-x.com`. The update itself downloads only when you
+  click **Download update**.
 - **Hosted routes you configure** - OpenRouter or Hugging Face receive the
   prompts (and, for AI Director, the retrieved excerpts) of the jobs you route
   there, plus the Verify, model-list and usage requests for your key.

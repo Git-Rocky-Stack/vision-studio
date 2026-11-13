@@ -8,7 +8,7 @@
 
 A professional AI-powered desktop application for image and video generation. No cloud required - generation runs locally on your own GPU by default, and the hosted OpenRouter and Hugging Face routes are opt-in, with your own key. No subscription.
 
-> **Latest published release: v3.4.1.** **Upcoming release: v3.4.2** (in testing, not yet published) - see [`CHANGELOG.md`](CHANGELOG.md) for what it changes. Download at **[vision-studio-x.com/download](https://vision-studio-x.com/download)**.
+> **Latest published release: v3.4.1.** **Upcoming release: v3.5.0** (in testing, not yet published) - see [`CHANGELOG.md`](CHANGELOG.md) for what it changes. Download at **[vision-studio-x.com/download](https://vision-studio-x.com/download)**.
 
 ## Screenshots
 
@@ -89,8 +89,8 @@ A professional AI-powered desktop application for image and video generation. No
 
 1. Download for your platform from **[vision-studio-x.com/download](https://vision-studio-x.com/download)** - Windows x64, macOS on Apple Silicon, or Linux x64
 2. Run the installer. The AI backend (PyTorch, diffusers, CUDA/MPS) is bundled - there is nothing extra to install. The backend can take a few minutes to start, longest on first launch
-3. Builds are not yet code-signed. On Windows click **More info -> Run anyway**. On macOS 15 or later, try to open the app once, then choose **Open Anyway** under **System Settings > Privacy & Security**; on macOS 14, **right-click -> Open**. On Linux, `chmod +x` the AppImage
-4. On first launch, install starter models (the full set is 33 models, about 137 GB) or skip them and download only the models you want through the in-app **Foundry** (~2-24 GB per model, consent-gated) - then start creating
+3. Windows builds are code-signed from 3.5.0 on (publisher **Sharif Elsalaymeh**); if SmartScreen still shows "Windows protected your PC" with that publisher while the new signature builds reputation, or for an unsigned build before 3.5.0, click **More info -> Run anyway**. macOS builds are not yet notarized. On macOS 15 or later, try to open the app once, then choose **Open Anyway** under **System Settings > Privacy & Security**; on macOS 14, **right-click -> Open**. On Linux, `chmod +x` the AppImage
+4. On first launch, install starter models (the full set is 34 models, about 247 GB) or skip them and download only the models you want through the in-app **Foundry** (~2-24 GB per model, consent-gated) - then start creating
 5. **FLUX.1 [dev] and LTX Video are not in the starter set.** Their licences do not allow Vision Studio to install them for you, so FLUX.1 [dev] (with its Fill, ControlNet Union and IP-Adapter companions) and LTX Video are manual downloads: search for them in **Foundry > Discover**, accept each licence on Hugging Face when the Foundry shows **Accept license**, and add your Hugging Face token at the top of the Foundry. The two Stable Diffusion 3.5 models *are* in the set, but are gated too - they need the same token and licence acceptance
 
 New to the app? The [User Guide](docs/USER_GUIDE.md) walks through install, first run, your first image and everything after it.
@@ -163,7 +163,7 @@ source venv/bin/activate
 pip install --require-hashes --no-deps --index-url https://download.pytorch.org/whl/cu132 -r requirements/torch-linux-cu132.txt
 pip install --require-hashes --no-deps -r requirements/runtime-linux.txt
 # Optional: the bundled TensorRT runtime (~4.6 GB installed on Linux)
-pip install --require-hashes --no-deps --no-build-isolation --extra-index-url https://pypi.nvidia.com --extra-index-url https://download.pytorch.org/whl/cu132 -r requirements/tensorrt-linux-cu132.txt
+pip install --require-hashes --no-deps --no-build-isolation --only-binary torch-tensorrt,tensorrt-cu13-libs,tensorrt-cu13-bindings,dllist --extra-index-url https://pypi.nvidia.com --extra-index-url https://download.pytorch.org/whl/cu132 -r requirements/tensorrt-linux-cu132.txt
 
 # macOS (Apple Silicon) - PyPI's torch 2.14.1 wheel is the MPS build (no TensorRT)
 cd backend
@@ -204,7 +204,7 @@ Vision Studio can hand work to a ComfyUI server you already run:
 The hand-off uses fixed checkpoint file names (for example `flux1-dev.safetensors`)
 and does not pass LoRAs. Every image-to-video job becomes ComfyUI's SVD-XT
 workflow (14 frames), which does not receive the model, prompt or duration.
-(Versions before 3.4.2 also sent text-to-video jobs there, where they failed for want
+(Versions before 3.5.0 also sent text-to-video jobs there, where they failed for want
 of an input image.) Start Vision Studio without ComfyUI running to keep every job
 on the built-in engine.
 
@@ -239,11 +239,13 @@ vision-studio/
 │   ├── requirements.txt  # Python deps
 │   └── utils/            # Job manager, model manager
 │
+├── shared/                # IPC contract (zod) shared by preload and handlers
+│
 ├── src/                   # React frontend
 │   ├── components/       # UI components (22 categories)
 │   ├── pages/            # Panel views
 │   ├── features/         # Domain logic per area
-│   ├── store/            # Zustand state (15 slices)
+│   ├── store/            # Zustand state (16 slices)
 │   ├── utils/            # Shared helpers, incl. the guarded bridge accessor
 │   └── App.tsx           # Main app
 │
@@ -260,7 +262,7 @@ vision-studio/
 ## Tech Stack
 
 ### Frontend
-- **Electron 42** - Desktop shell
+- **Electron 45** - Desktop shell
 - **React 19** - UI framework
 - **TypeScript** - Type safety
 - **Tailwind CSS v4** - Styling
@@ -285,7 +287,7 @@ vision-studio/
 - Windows 11 / macOS 14 / Ubuntu 24.04
 - NVIDIA GPU with 8GB+ VRAM, or Apple M-series (runs on Metal/MPS)
 - 16 GB RAM
-- 150 GB free disk space to install the full first-run model set (about 137 GB); a few models need far less
+- 260 GB free disk space to install the full first-run model set (about 247 GB); a few models need far less
 
 macOS builds are **Apple Silicon (arm64) only** - PyTorch dropped macOS x64
 wheels at 2.3 - and need **macOS 14 or later**: the release is built on
@@ -367,7 +369,7 @@ covers the rest, including where the logs are.
 
 ### Models not downloading
 - Check internet connection
-- Gated models (FLUX.1 [dev], Stable Diffusion 3.5): accept the license on Hugging Face (the Foundry's **Accept license** link opens it) and paste an access token into the Foundry header. It is saved encrypted and kept across launches, or kept until you quit where the OS offers no encryption (versions before 3.4.2 keep it only until you quit)
+- Gated models (FLUX.1 [dev], Stable Diffusion 3.5): accept the license on Hugging Face (the Foundry's **Accept license** link opens it) and paste an access token into the Foundry header. It is saved encrypted and kept across launches, or kept until you quit where the OS offers no encryption (versions before 3.5.0 keep it only until you quit)
 - Or download the files yourself and add their folder with **Add folder** in the Foundry's library roots
 
 ## Testing
@@ -407,8 +409,8 @@ numbers, because they change with nearly every pull request.
 
 | Layer | Framework | Count it with | What it covers |
 |-------|-----------|---------------|----------------|
-| Unit + Component + Integration | Vitest 4.1 | `npx vitest run` | Pure logic, Zustand store, Electron services, React components, API/workflow contracts, plus repo gates: Carbon Pro tokens, palette discipline, UI glyphs, preload-bridge mount paths, Playwright port, CI type-check, archived-doc provenance, documentation links, shipped dependency overrides, pinned torch stack |
-| E2E + Visual | Playwright 1.58 | `npx playwright test --list` | Electron end-to-end, accessibility (axe-core), performance budgets, and the visual-regression suite (per-platform baselines for Windows and Linux) |
+| Unit + Component + Integration | Vitest 5.1 | `npx vitest run` | Pure logic, Zustand store, Electron services, React components, API/workflow contracts, plus repo gates: Carbon Pro tokens, palette discipline, UI glyphs, preload-bridge mount paths, Playwright port, CI type-check, archived-doc provenance, documentation links, shipped dependency overrides, pinned torch stack |
+| E2E + Visual | Playwright 1.65 | `npx playwright test --list` | Electron end-to-end, accessibility (axe-core), performance budgets, and the visual-regression suite (per-platform baselines for Windows and Linux) |
 | Backend | pytest | `cd backend && python -m pytest --collect-only -q` | FastAPI + foundry + services; import-safe collection on CI, real model runs are local |
 | Backend benchmarks (opt-in) | pytest-benchmark | `cd backend && python -m pytest tests/benchmarks -o addopts="" --benchmark-only --collect-only -q` | Excluded from the default run by `backend/pytest.ini`; needs the GPU/model stack |
 
@@ -471,7 +473,7 @@ git push origin feature/amazing-feature
 Vision Studio runs models on your own hardware and downloads weights from
 third-party hosts, so its security surface is unusual for a desktop app.
 [SECURITY.md](SECURITY.md) sets out what counts as a vulnerability, what is
-explicitly out of scope (unsigned installers are a known, documented state), and
+explicitly out of scope (unnotarized macOS and pre-3.5.0 unsigned Windows installers are a known, documented state), and
 how to report one privately.
 
 **Do not open a public issue for a vulnerability.** Email

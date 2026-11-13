@@ -87,7 +87,7 @@ describe('packaging config honesty rails', () => {
     // certificate subject does not match this name - if it resolves to
     // nothing the check silently degrades to "extract from the certificate".
     expect(config.win.publisherName).toBeUndefined();
-    expect(config.win.signtoolOptions.publisherName).toBe('Vision Studio Team');
+    expect(config.win.signtoolOptions.publisherName).toBe('Sharif Elsalaymeh');
   });
 
   it('does not pin a static azure signing block that would shadow signtool', () => {

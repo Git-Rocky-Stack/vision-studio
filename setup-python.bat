@@ -2,8 +2,8 @@
 REM Vision Studio - Python backend setup for development (Windows)
 REM
 REM Installs what the release build bundles by running build-backend.cjs's own
-REM steps (scripts\setup-dev-backend.cjs): a Python 3.10-3.12 venv in
-REM backend\venv, the pinned PyTorch, requirements.txt, and the generation stack
+REM steps (scripts\setup-dev-backend.cjs): a Python 3.12 venv in
+REM backend\venv, the pinned PyTorch, the hash-locked requirements, and the generation stack
 REM (diffusers and the rest). The package lists live in build-backend.cjs only,
 REM so this script cannot drift from the release build.
 

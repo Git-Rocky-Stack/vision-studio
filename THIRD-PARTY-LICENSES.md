@@ -50,6 +50,10 @@ Models under the FLUX.1 [dev] non-commercial license, and other redistribution-r
 ### Python
 
 - **PyTorch (torch, torchvision)** - [BSD-3-Clause](https://github.com/pytorch/pytorch/blob/main/LICENSE)
+- **Torch-TensorRT (torch-tensorrt; Windows and Linux CUDA bundles)** - [BSD-3-Clause](https://github.com/pytorch/TensorRT/blob/main/LICENSE)
+- **NVIDIA TensorRT (tensorrt-cu13, tensorrt-cu13-libs, tensorrt-cu13-bindings; Windows and Linux CUDA bundles)** - [NVIDIA proprietary (TensorRT Software License Agreement)](https://docs.nvidia.com/deeplearning/tensorrt/latest/reference/sla.html)
+- **NVIDIA CUDA 13.2 runtime libraries (cuBLAS, cuFFT, cuRAND, cuSOLVER, cuSPARSE, cuSPARSELt, NVRTC, nvJitLink, CUPTI, NCCL, NVSHMEM, NVTX, cuFile), redistributed inside the PyTorch cu132 build** - [NVIDIA proprietary (CUDA Toolkit End User License Agreement)](https://docs.nvidia.com/cuda/eula/index.html)
+- **NVIDIA cuDNN 9 (nvidia-cudnn-cu13), redistributed inside the PyTorch cu132 build** - [NVIDIA proprietary (cuDNN Software License Agreement)](https://docs.nvidia.com/deeplearning/cudnn/latest/reference/eula.html)
 - **diffusers** - [Apache-2.0](https://github.com/huggingface/diffusers/blob/main/LICENSE)
 - **transformers** - [Apache-2.0](https://github.com/huggingface/transformers/blob/main/LICENSE)
 - **accelerate** - [Apache-2.0](https://github.com/huggingface/accelerate/blob/main/LICENSE)

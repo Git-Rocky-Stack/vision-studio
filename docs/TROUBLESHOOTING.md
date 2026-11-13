@@ -25,14 +25,19 @@ them. For how the app is meant to work, see the [User Guide](./USER_GUIDE.md).
 
 ## Installing and launching
 
-Vision Studio's installers are not yet code-signed, so every platform warns on
-first launch. The warnings are expected.
+Windows installers are code-signed from 3.5.0 on (publisher **Sharif
+Elsalaymeh**); 3.4.1 and earlier, and all macOS builds, are not signed with a
+trusted identity, so the operating system warns on first launch. The warnings
+are expected.
 
 ### Windows: "Windows protected your PC"
 
-SmartScreen blocks unsigned installers by default. Click **More info**, then
-**Run anyway**. The web installer then downloads the app package (about 2.6 GB)
-from `updates.vision-studio-x.com`; if that download fails, check your
+SmartScreen warns about unsigned installers, and about newly signed ones until
+their publisher builds reputation. Click **More info**, then **Run anyway**. If a
+3.5.0 or later installer shows **Unknown publisher**, its signature is missing or
+broken: do not run it, download it again from vision-studio-x.com, and report it
+if it persists. The web installer then downloads the app package (several
+gigabytes) from `updates.vision-studio-x.com`; if that download fails, check your
 connection and run the installer again, or use the portable zip instead.
 
 ### macOS: the app "cannot be opened"
@@ -55,7 +60,8 @@ PyTorch publishes no macOS x64 wheels for the version the app ships.
 
 ## Backend offline
 
-The header pill reads **Backend offline** (or stays on **Backend warming**), the
+The header pill reads **Backend offline** or **Backend failed to start** (or
+stays on **Backend warming**), the
 Foundry header says **Backend offline**, or **Settings > AI & Models** shows
 **AI Backend Offline**. Local generation, model downloads and timeline export
 all need the backend.
@@ -86,12 +92,18 @@ Studio. To see what holds the port: `netstat -ano | findstr :8000` on Windows,
 
 ### The backend keeps stopping
 
-If the engine crashes, the app restarts it on its own, waiting a little longer
-each time (2 s, then 4 s, up to 30 s). After 3 crashes within 5 minutes it stops
-trying, so a fault that recurs on every start does not loop forever. Read
-`backend.log` (see [Where the logs are](#where-the-logs-are)) for the cause -
-out-of-memory and a broken model file are the common ones - then start it again
-with **Start Backend** in **Settings > AI & Models**, or restart the app.
+If the engine crashes, the app restarts it on its own, after 2 s the first time
+and 4 s the second. A third crash within 5 minutes stops the restarts, so a fault
+that recurs on every start does not loop forever; the app then shows **The AI
+backend keeps crashing** ("The AI backend crashed repeatedly and was not
+restarted") and the header pill reads **Backend failed to start**. Read `backend.log` (see
+[Where the logs are](#where-the-logs-are)) for the cause - out-of-memory and a
+broken model file are the common ones - then start it again with **Start
+Backend** in **Settings > AI & Models**, or restart the app.
+
+Job history survives a restart. A generation that was running when the engine
+stopped is kept and marked failed with "The backend stopped before this job
+finished."; run it again.
 
 When working from source, the backend comes from `backend/venv` (or the
 interpreter named by `VISION_STUDIO_PYTHON`); see
@@ -105,17 +117,23 @@ the Foundry header shows **CPU only**, or generation is very slow.
 
 - **Windows and Linux** use NVIDIA GPUs through CUDA 13.2. Install a current
   NVIDIA driver (CUDA 13 needs a driver from the R580 branch or newer, on both
-  Windows and Linux) and restart the app. CUDA 13 supports Turing (RTX 20 /
-  GTX 16) through Blackwell (RTX 50); GTX 10-series and older cards are not
-  supported and run on the CPU. AMD and
-  Intel GPUs are not used; the engine falls back to the CPU.
+  Windows and Linux) and restart the app. This build supports Turing (RTX 20 /
+  GTX 16) and newer, RTX 50-series included. AMD and Intel GPUs are not used;
+  the engine falls back to the CPU.
+- **GTX 10-series and older NVIDIA cards** run on the CPU. The engine checks the
+  card against the GPU generations the build has kernels for, so generation
+  does not fail with "no kernel image is available"; instead **Foundry >
+  Hardware** names the card, marks its compute capability **(unsupported)** and
+  states the reason, and the first-run setup screen reads **Unsupported GPU,
+  runs on CPU**. A newer driver does not change this; only a Turing or newer
+  card does.
 - **macOS** uses the Apple Silicon GPU through Metal; there is no CUDA, so "No
   CUDA" is expected there.
 - **Foundry > Hardware** shows what the engine detected. Click **Refresh** after
   changing drivers.
-- Check that the **Performance** settings master switch is on (it is by
+- Check that **Master Enable** in **Settings > Performance** is on (it is by
   default).
-- **TensorRT shows as unavailable** in the Performance settings even on a
+- **TensorRT shows as unavailable** in **Settings > Performance** even on a
   supported NVIDIA GPU: the Windows/Linux app bundles the TensorRT runtime, but
   engines are built only for model families that have passed the TensorRT
   correctness sweep on real hardware, and none has yet - the toggle says "No
@@ -167,9 +185,9 @@ token**.
 ### Not enough disk space
 
 The setup screen shows "Not enough disk space: ... needed, only ... free" and
-**Install all** is disabled, or a download stops with a disk-space error. The
-first-run set needs about 137 GB on the drive that holds your models (the app's
-data folder). Free up space, then click **Re-check** on the setup screen, or
+**Install everything** is disabled, or a download stops with a disk-space error.
+The full first-run set needs about 247 GB on the drive that holds your models
+(the app's data folder); **Install core** and **Custom** need less. Free up space, then click **Re-check** on the setup screen, or
 **Retry failed** / acquire again. Partial downloads are kept, so a resumed
 download does not start over.
 
@@ -197,8 +215,13 @@ download does not start over.
   token shows up as an error on the first hosted job.
 - **A hosted job is slow or times out.** It is not resent automatically, so you
   are not charged twice; run it again when the provider is responsive.
-  OpenRouter calls are retried automatically only after a rate limit or a
-  temporary server error.
+  Hosted generations are retried automatically only when they cannot have run:
+  after a rate limit (429), a busy server (503) that says when to try again, or
+  a connection that never reached the provider.
+- **"This HuggingFace model is gated - accept its license on huggingface.co,
+  then try again."** The chosen Hugging Face model (Llama 3.1 8B Instruct, for
+  example) needs its licence accepted on huggingface.co by the account that owns
+  the token. Accept it there, or pick the default Qwen 2.5 7B Instruct.
 - **ControlNet, references or canvas tools are disabled.** They only run on the
   local engine. Set **Still Image Provider** back to **Local**, or switch to an
   account that uses Local.

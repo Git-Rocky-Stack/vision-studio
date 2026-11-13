@@ -4,9 +4,15 @@ How to build and publish the Windows installer. For the cross-platform picture
 (macOS/Linux, R2 delivery, signing) see [`DEPLOYMENT.md`](DEPLOYMENT.md); for how
 the backend bundle is produced see [`BUNDLING.md`](BUNDLING.md).
 
-Windows is built **locally** — it is the delivery build. (macOS and Linux are
-built in CI by [`release-mac-linux.yml`](.github/workflows/release-mac-linux.yml)
-because PyInstaller can't cross-compile.)
+Signed Windows releases are built in CI by
+[`release.yml`](.github/workflows/release.yml) (`Build Windows`, on a
+`windows-latest` runner), which packages with `npm run package:win:signed` and
+signs through Azure Artifact Signing. A manual run
+(`gh workflow run release.yml`) builds and signs without publishing; a `v*` tag
+also publishes the R2 update feed and the GitHub Release. Local builds below are
+for development and are unsigned unless you supply a signing mode yourself. (macOS and Linux are built in CI by
+[`release-mac-linux.yml`](.github/workflows/release-mac-linux.yml) because
+PyInstaller can't cross-compile.)
 
 ## Prerequisites
 
@@ -112,10 +118,13 @@ local file (a silently truncated multi-GB upload is the failure mode to catch):
 curl.exe -sI https://updates.vision-studio-x.com/win/vision-studio-<ver>-x64.nsis.7z
 ```
 
-## Code signing (not yet configured)
+## Code signing
 
-Unsigned installers trigger a "Windows protected your PC" SmartScreen warning
-("More info" -> "Run anyway"). Release signing is gated by
+Windows releases are code-signed from 3.5.0 on through **Azure Artifact
+Signing** (publisher `Sharif Elsalaymeh`; account, profile, CI identity and
+secret rotation are in [`docs/code-signing.md`](docs/code-signing.md)). Unsigned
+local builds trigger a "Windows protected your PC" SmartScreen warning ("More
+info" -> "Run anyway"). Release signing is gated by
 `scripts/verify-release-signing.cjs`:
 
 ```powershell
@@ -129,7 +138,8 @@ Configure exactly one mode via environment variables:
 1. **CSC / PFX** — `WIN_CSC_LINK` (or `CSC_LINK`) + `WIN_CSC_KEY_PASSWORD`.
 2. **Windows certificate store** — `WIN_CSC_SUBJECT_NAME` (or
    `WINDOWS_CERTIFICATE_SUBJECT_NAME`) or `WIN_CSC_SHA1`.
-3. **Azure Trusted Signing** — `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`,
+3. **Azure Artifact Signing** (formerly Trusted Signing; the variable names
+   keep the old name) — `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`,
    `AZURE_TRUSTED_SIGNING_ENDPOINT`, `AZURE_TRUSTED_SIGNING_ACCOUNT_NAME`,
    `AZURE_TRUSTED_SIGNING_CERTIFICATE_PROFILE_NAME`, plus an auth secret.
 

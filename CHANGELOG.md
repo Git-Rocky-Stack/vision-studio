@@ -2,7 +2,14 @@
 
 All notable changes to Vision Studio will be documented in this file.
 
-## [3.4.2] - Unreleased
+## [3.5.0] - Unreleased
+
+The first code-signed Windows release. Planned as 3.4.2, which was never
+published; the version moved to 3.5.0 because it raises the GPU, driver and
+macOS floors (see **Changed**) and adds the Canvas retouch and vector tools.
+Windows 3.4.x installs need one manual download: they were unsigned, and their
+updater expects a publisher name the signed build does not carry. Curated
+release notes: [`docs/release-notes/v3.5.0.md`](docs/release-notes/v3.5.0.md).
 
 UAT and go-to-market readiness release. A full design and engineering audit:
 every unwired action found is wired or honestly disabled, the hosted AI routes
@@ -103,6 +110,13 @@ backend that ships inside every installer, and a current toolchain.
 - **Hosted API keys never reach logs or error causes.** OpenRouter errors no
   longer carry the AxiosError (whose config holds the bearer key) as `cause`,
   and every backend-call log line records only the message and HTTP status
+- **Windows releases are code-signed** through Azure Artifact Signing
+  (publisher `Sharif Elsalaymeh`, the identity-validated certificate subject).
+  `win.signtoolOptions.publisherName` now matches that subject, so
+  `verifyUpdateCodeSignature` accepts signed updates; the tag-triggered Release
+  workflow signs in CI with a service principal limited to the signer role on
+  one certificate profile, and refuses to publish without curated notes in
+  `docs/release-notes/`
 - **Packaged builds drop the reload and DevTools accelerators.** A minimal
   application menu keeps the Edit roles text fields need; Ctrl/Cmd+R, F5,
   F12 and the DevTools chords are swallowed, so a stray reload can no longer
