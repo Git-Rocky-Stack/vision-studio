@@ -1,6 +1,6 @@
 # Vision Studio - System Architecture
 
-> Version: tracks `package.json` (currently **3.5.0**, not yet published; the latest published release is 3.4.1)
+> Version: tracks `package.json` (currently **3.5.0**, the latest release)
 > Audience: contributors, integrators, security reviewers
 > Companion docs: [`API_ENDPOINTS.md`](./API_ENDPOINTS.md), [`DATABASE_SCHEMA.md`](./DATABASE_SCHEMA.md), [`api/openapi.json`](./api/openapi.json)
 
@@ -808,12 +808,12 @@ sequenceDiagram
 
 Local rehearsal: `npm run test:build` (= `build:windows` + a sanity message).
 
-> **Release state (checked 2026-11-11):** the Windows **Release** workflow
-> (`release.yml`) is disabled in the repository's Actions settings, so a pushed
-> tag does not build or publish a Windows release until it is re-enabled. The
-> latest published release is v3.4.1; 3.5.0 has not been tagged, and every
-> update feed still serves 3.4.1. `gh workflow list --all` shows the workflow
-> state.
+> **Release state (checked 2026-11-12):** the Windows **Release** workflow
+> (`release.yml`) is enabled and signs through Azure Artifact Signing; a `v*`
+> tag builds, signs and publishes the Windows installer, the R2 update feed and
+> the GitHub Release, and `release-mac-linux.yml` builds macOS and Linux from
+> the same tag. v3.5.0 is the first signed release. `gh workflow list --all`
+> shows the workflow state.
 
 ---
 
@@ -856,7 +856,7 @@ _Re-checked 2026-09-18 at v3.4.1: the present-tense claims in every section were
 compared with the tree and corrected where they had drifted. §10 no longer
 quotes file or test counts; each row names the command that prints them._
 
-_Re-checked 2026-11-11 at 3.5.0 (unreleased): the panel layout (no `dockview`
+_Re-checked 2026-11-11 at 3.5.0 (then unreleased): the panel layout (no `dockview`
 dependency), debounced store persistence, the `downloadTokens` store key, the
 Hugging Face and edit output folders, the five PR-gate jobs, per-platform visual
 baselines and the release state were compared with the tree and corrected._

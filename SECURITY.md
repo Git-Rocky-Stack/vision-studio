@@ -9,14 +9,12 @@ what we consider a vulnerability and how we handle one.
 
 Only the latest release receives security fixes. Vision Studio ships as a
 single stable line with an auto-update feed; there are no maintained LTS
-branches. The latest published release is **v3.4.1**; **3.5.0** is the upcoming
-release and is not yet published.
+branches. The latest release is **v3.5.0**.
 
 | Version | Supported |
 | ------- | --------- |
-| 3.5.x   | Once 3.5.0 is published |
-| 3.4.x   | Yes - the latest published release |
-| < 3.4   | No - update to the latest release |
+| 3.5.x   | Yes |
+| < 3.5   | No - update to the latest release |
 
 Check your version in **Settings -> About**. Windows builds are code-signed
 from 3.5.0 on (Azure Artifact Signing, publisher `Sharif Elsalaymeh`); v3.4.1 and

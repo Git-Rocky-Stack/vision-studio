@@ -2,7 +2,7 @@
 
 All notable changes to Vision Studio will be documented in this file.
 
-## [3.5.0] - Unreleased
+## [3.5.0] - 2026-11-12
 
 The first code-signed Windows release. Planned as 3.4.2, which was never
 published; the version moved to 3.5.0 because it raises the GPU, driver and

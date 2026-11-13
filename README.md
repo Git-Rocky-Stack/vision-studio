@@ -8,7 +8,7 @@
 
 A professional AI-powered desktop application for image and video generation. No cloud required - generation runs locally on your own GPU by default, and the hosted OpenRouter and Hugging Face routes are opt-in, with your own key. No subscription.
 
-> **Latest published release: v3.4.1.** **Upcoming release: v3.5.0** (in testing, not yet published) - see [`CHANGELOG.md`](CHANGELOG.md) for what it changes. Download at **[vision-studio-x.com/download](https://vision-studio-x.com/download)**.
+> **Current release: v3.5.0** - the first code-signed Windows release; see the [release notes](docs/release-notes/v3.5.0.md) and [`CHANGELOG.md`](CHANGELOG.md). Download at **[vision-studio-x.com/download](https://vision-studio-x.com/download)**.
 
 ## Screenshots
 
