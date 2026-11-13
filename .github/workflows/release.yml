@@ -69,6 +69,14 @@ jobs:
         if: ${{ !inputs.skip_e2e }}
         run: npx playwright install chromium
 
+      - name: Set runner display to 1920x1080
+        # The stock runner display is 1024x768, which clamps the 1600x1000 E2E
+        # window to its 1200x800 minimum and fails every Windows visual
+        # baseline on size alone. Fails fast if the resolution does not take.
+        if: ${{ !inputs.skip_e2e }}
+        shell: pwsh
+        run: ./scripts/ci-set-display-resolution.ps1 -Width 1920 -Height 1080 -MinWidth 1600 -MinHeight 1000
+
       - name: E2E tests
         if: ${{ !inputs.skip_e2e }}
         run: npx playwright test --reporter=list,junit --output=test-results/e2e
